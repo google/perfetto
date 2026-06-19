@@ -21,8 +21,8 @@ export enum ProfileType {
   JAVA_HEAP_GRAPH,
   // Catch-all renderer for custom API implementations
   GENERIC_HEAP_PROFILE,
-  // OOM Callstack
-  OOM_CALLSTACK,
+  // OOME Callstack
+  OOME_CALLSTACK,
 }
 
 export interface ProfileDescriptor {
@@ -35,7 +35,7 @@ export interface ProfileDescriptor {
 export function isProfileDescriptor(type: string): boolean {
   return (
     type === 'java_heap_graph' ||
-    type === 'oom_callstack' ||
+    type === 'oome_callstack' ||
     type.startsWith('heap_profile:')
   );
 }
@@ -47,10 +47,10 @@ export function profileDescriptor(type: string): ProfileDescriptor {
       label: 'Java heap dump',
     };
   }
-  if (type === 'oom_callstack') {
+  if (type === 'oome_callstack') {
     return {
-      type: ProfileType.OOM_CALLSTACK,
-      label: 'OOM Callstack',
+      type: ProfileType.OOME_CALLSTACK,
+      label: 'OOME Callstack',
     };
   }
   // libc.malloc heap_name introduced in aosp/1428871 (Sep 2020)

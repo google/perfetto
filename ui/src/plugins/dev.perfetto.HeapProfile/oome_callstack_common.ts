@@ -17,12 +17,12 @@ import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
 import type {Engine} from '../../trace_processor/engine';
 import {STR_NULL} from '../../trace_processor/query_result';
 
-export function buildOomCallstackMetrics(
+export function buildOomeCallstackMetrics(
   ts: time,
 ): ReadonlyArray<QueryFlamegraphMetric> {
   return [
     {
-      name: 'OOM Callstack',
+      name: 'OOME Callstack',
       unit: '',
       statement: `
         WITH RECURSIVE callstack AS (
@@ -45,7 +45,7 @@ export function buildOomCallstackMetrics(
         SELECT
           cs.id,
           cs.parentId,
-          ifnull(f.name, '[Unknown]') as name,
+          coalesce(f.deobfuscated_name, f.name) as name,
           iif(cs.depth = (select max(depth) from callstack), 1, 0) as value,
           s.source_file || ':' || cast(s.line_number as text) as source_location
         FROM callstack cs
@@ -64,12 +64,11 @@ export function buildOomCallstackMetrics(
   ];
 }
 
-export async function loadOomErrorMsg(
+export async function loadOomeErrorMsg(
   engine: Engine,
   ts: time,
 ): Promise<string | undefined> {
-  try {
-    const errorMsgRes = await engine.query(`
+  const errorMsgRes = await engine.query(`
       INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;
       SELECT oome.error_msg 
       FROM heap_graph g
@@ -77,11 +76,8 @@ export async function loadOomErrorMsg(
       WHERE g.ts = ${ts}
       LIMIT 1
     `);
-    if (errorMsgRes.numRows() > 0) {
-      return errorMsgRes.firstRow({error_msg: STR_NULL}).error_msg ?? undefined;
-    }
-  } catch (e) {
-    console.error('Failed to load OOM error message:', e);
+  if (errorMsgRes.numRows() > 0) {
+    return errorMsgRes.firstRow({error_msg: STR_NULL}).error_msg ?? undefined;
   }
   return undefined;
 }

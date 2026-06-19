@@ -111,7 +111,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         [ProfileType.GENERIC_HEAP_PROFILE]: {},
         [ProfileType.JAVA_HEAP_SAMPLES]: {},
         [ProfileType.JAVA_HEAP_GRAPH]: {},
-        [ProfileType.OOM_CALLSTACK]: {},
+        [ProfileType.OOME_CALLSTACK]: {},
       }
     );
   }
@@ -129,9 +129,9 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       const descriptor = profileDescriptor(heapType);
       if (
         descriptor.type === ProfileType.JAVA_HEAP_GRAPH ||
-        descriptor.type === ProfileType.OOM_CALLSTACK
+        descriptor.type === ProfileType.OOME_CALLSTACK
       ) {
-        // There's no area selection for java heap dumps or OOM callstacks.
+        // There's no area selection for java heap dumps or OOME callstacks.
         continue;
       }
       trace.selection.registerAreaSelectionTab(
@@ -200,7 +200,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           upid,
           0 AS dur,
           0 AS depth,
-          'oom_callstack' AS type
+          'oome_callstack' AS type
         FROM heap_graph
         WHERE dump_reason = 'OOME'
       `,
@@ -326,7 +326,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
       !(await traceHasTimelineData(ctx));
     const javaHeapGraphFilter = hdeWillTakeOver
-      ? `WHERE type != 'java_heap_graph' AND type != 'oom_callstack'`
+      ? `WHERE type != 'java_heap_graph' AND type != 'oome_callstack'`
       : '';
     const result = await ctx.engine.query(`
         SELECT
@@ -349,7 +349,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     const profileType = profileDescriptor(iter.type).type;
     if (
       profileType === ProfileType.JAVA_HEAP_GRAPH ||
-      profileType === ProfileType.OOM_CALLSTACK
+      profileType === ProfileType.OOME_CALLSTACK
     ) {
       ctx.selection.selectTrackEvent(track.uri, iter.id);
     } else {

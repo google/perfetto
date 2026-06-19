@@ -45,9 +45,9 @@ import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
 import {type ProfileDescriptor, ProfileType} from './common';
 import {
-  buildOomCallstackMetrics,
-  loadOomErrorMsg,
-} from './oom_callstack_common';
+  buildOomeCallstackMetrics,
+  loadOomeErrorMsg,
+} from './oome_callstack_common';
 
 interface Props {
   ts: time;
@@ -59,7 +59,7 @@ export class HeapProfileFlamegraphDetailsPanel
 {
   private readonly props: Props;
   private flamegraphModalDismissed = false;
-  private oomErrorMsg?: string;
+  private oomeErrorMsg?: string;
 
   // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
   // We moved serialization from being attached to selections to instead being
@@ -108,8 +108,8 @@ export class HeapProfileFlamegraphDetailsPanel
   }
 
   async load() {
-    if (this.props.type === ProfileType.OOM_CALLSTACK) {
-      this.oomErrorMsg = await loadOomErrorMsg(this.trace.engine, this.ts);
+    if (this.props.type === ProfileType.OOME_CALLSTACK) {
+      this.oomeErrorMsg = await loadOomeErrorMsg(this.trace.engine, this.ts);
       m.redraw();
     }
 
@@ -139,11 +139,11 @@ export class HeapProfileFlamegraphDetailsPanel
             Stack,
             {orientation: 'vertical'},
             m('span', this.profileDescriptor.label),
-            this.oomErrorMsg &&
+            this.oomeErrorMsg &&
               m(
                 'span',
                 {style: {fontSize: '12px', color: '#ff4081'}},
-                this.oomErrorMsg,
+                this.oomeErrorMsg,
               ),
           ),
           buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
@@ -455,8 +455,8 @@ function flamegraphMetrics(
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
         },
       ];
-    case ProfileType.OOM_CALLSTACK:
-      return buildOomCallstackMetrics(ts);
+    case ProfileType.OOME_CALLSTACK:
+      return buildOomeCallstackMetrics(ts);
   }
 }
 

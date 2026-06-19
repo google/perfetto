@@ -19,44 +19,51 @@ import type {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../../components/flamegraph_panel';
 import {Flamegraph, type FlamegraphState} from '../../../widgets/flamegraph';
 import {Stack} from '../../../widgets/stack';
+import {EmptyState} from '../../../widgets/empty_state';
 import {
-  buildOomCallstackMetrics,
-  loadOomErrorMsg,
-} from '../../dev.perfetto.HeapProfile/oom_callstack_common';
+  buildOomeCallstackMetrics,
+  loadOomeErrorMsg,
+} from '../../dev.perfetto.HeapProfile/oome_callstack_common';
 
-interface OomCallstackViewAttrs {
+interface CallstackViewAttrs {
   readonly trace: Trace;
-  readonly upid: number | null;
-  readonly ts: time | null;
+  readonly upid: number | undefined;
+  readonly ts: time | undefined;
   readonly state: FlamegraphState | undefined;
   readonly onStateChange: (state: FlamegraphState) => void;
 }
 
-const OomCallstackView: m.ClosureComponent<OomCallstackViewAttrs> = () => {
+export const CallstackView: m.ClosureComponent<CallstackViewAttrs> = () => {
   let cachedMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
   let cachedKey: string | undefined;
-  let oomErrorMsg: string | undefined;
+  let errorMsg: string | undefined;
 
   async function loadErrorMsg(trace: Trace, ts: time) {
-    oomErrorMsg = await loadOomErrorMsg(trace.engine, ts);
-    m.redraw();
+    errorMsg = await loadOomeErrorMsg(trace.engine, ts);
   }
 
   return {
     view({attrs}) {
-      if (attrs.upid === null || attrs.ts === null) {
+      if (attrs.upid === undefined || attrs.ts === undefined) {
         return m(
-          'div',
-          {style: {padding: '16px'}},
-          'This data was not found in the trace',
+          EmptyState,
+          {
+            icon: 'data_array',
+            title: 'Data is not available in this trace',
+            fillHeight: true,
+          },
+          m(
+            'div',
+            'Callstacks in heap dumps are only available in Perfetto heap dumps collected on OutOfMemoryError and in versions of Android newer than X',
+          ),
         );
       }
 
       const key = `${attrs.upid}:${attrs.ts}`;
       if (cachedMetrics === undefined || key !== cachedKey) {
-        cachedMetrics = buildOomCallstackMetrics(attrs.ts);
+        cachedMetrics = buildOomeCallstackMetrics(attrs.ts);
         cachedKey = key;
-        oomErrorMsg = undefined;
+        errorMsg = undefined;
         loadErrorMsg(attrs.trace, attrs.ts);
       }
       const metrics = cachedMetrics;
@@ -73,11 +80,11 @@ const OomCallstackView: m.ClosureComponent<OomCallstackViewAttrs> = () => {
         m(
           Stack,
           {orientation: 'vertical'},
-          oomErrorMsg &&
+          errorMsg &&
             m(
               'div',
               {style: {padding: '8px', fontSize: '14px', color: '#ff4081'}},
-              oomErrorMsg,
+              errorMsg,
             ),
           m(FlamegraphPanel, {
             trace: attrs.trace,
@@ -90,5 +97,3 @@ const OomCallstackView: m.ClosureComponent<OomCallstackViewAttrs> = () => {
     },
   };
 };
-
-export default OomCallstackView;

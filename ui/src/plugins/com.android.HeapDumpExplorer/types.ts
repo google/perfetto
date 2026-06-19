@@ -63,10 +63,10 @@ export interface OverviewData {
   dmabufRssSize: bigint | null;
   /** The process uptime at the time of the heap dump. */
   processUptime: bigint | null;
-  /** The upid of the process that triggered the OOM. */
-  oomUpid: number | null;
-  /** The timestamp of the OOM event. */
-  oomTs: bigint | null;
+  /** The upid of the process that triggered the OOME. */
+  oomeUpid: number | null;
+  /** The timestamp of the OOME event. */
+  oomeTs: bigint | null;
 }
 
 export type PrimOrRef =

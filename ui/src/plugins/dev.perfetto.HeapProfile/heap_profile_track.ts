@@ -54,7 +54,6 @@ export function createHeapProfileTrack(
       const ts = Time.fromRaw(row.ts);
       const tsEnd = Time.fromRaw(row.ts + row.dur);
       const descriptor = profileDescriptor(row.type);
-
       return new HeapProfileFlamegraphDetailsPanel(
         trace,
         heapProfileIsIncomplete,

@@ -33,7 +33,7 @@ import StringsView from './views/strings_view';
 import ArraysView from './views/arrays_view';
 import FlamegraphObjectsView from './views/flamegraph_objects_view';
 import FlamegraphView from './views/flamegraph_view';
-import OomCallstackView from './views/oom_callstack_view';
+import {CallstackView} from './views/callstack_view';
 import type {HeapDumpExplorerSession} from './session';
 
 interface HeapDumpPageAttrs {
@@ -193,12 +193,13 @@ function buildTabs(
     {
       key: 'callstack',
       title: 'Callstack',
-      content: m(OomCallstackView, {
+      content: m(CallstackView, {
         trace,
-        upid: overview.oomUpid,
-        ts: overview.oomTs !== null ? Time.fromRaw(overview.oomTs) : null,
-        state: session.oomCallstackPanelState,
-        onStateChange: session.setOomCallstackPanelState,
+        upid: overview.oomeUpid ?? undefined,
+        ts:
+          overview.oomeTs !== null ? Time.fromRaw(overview.oomeTs) : undefined,
+        state: session.callstackPanelState,
+        onStateChange: session.setCallstackPanelState,
       }),
     },
   ];

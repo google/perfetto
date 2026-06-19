@@ -56,7 +56,7 @@ export const HDE_STATE_SCHEMA = z
     // Filter / pivot / view state of the main Flamegraph tab.
     flamegraphPanelState: FLAMEGRAPH_STATE_SCHEMA.optional(),
     // Filter / pivot / view state of the Callstack tab.
-    oomCallstackPanelState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    callstackPanelState: FLAMEGRAPH_STATE_SCHEMA.optional(),
   })
   .readonly();
 

@@ -26,7 +26,7 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('oom_callstack.pftrace');
 });
 
-test('OOM callstack track', async () => {
+test('OOME callstack track', async () => {
   const processGrp = pth.locateTrack('com.example.oometest 12345');
   await processGrp.scrollIntoViewIfNeeded();
   const expandBtn = processGrp.locator('button', {hasText: 'expand_more'});
@@ -35,13 +35,13 @@ test('OOM callstack track', async () => {
     await pth.waitForPerfettoIdle();
   }
 
-  const oomTrack = pth.locateTrack(
-    'com.example.oometest 12345/OOM Callstack',
+  const oomeTrack = pth.locateTrack(
+    'com.example.oometest 12345/OOME Callstack',
     processGrp,
   );
-  await oomTrack.scrollIntoViewIfNeeded();
+  await oomeTrack.scrollIntoViewIfNeeded();
 
-  await pth.waitForIdleAndScreenshot('oom_callstack.png', {
+  await pth.waitForIdleAndScreenshot('oome_callstack.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
 });

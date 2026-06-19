@@ -505,12 +505,12 @@ export async function getOverview(
     WHERE p_dump.upid = ${activeDump.upid} AND g.dump_reason = 'OOME'
     LIMIT 1
   `);
-  let oomUpid: number | null = null;
-  let oomTs: bigint | null = null;
+  let oomeUpid: number | null = null;
+  let oomeTs: bigint | null = null;
   if (oomeRes.numRows() > 0) {
     const row = oomeRes.firstRow({upid: NUM, ts: LONG});
-    oomUpid = row.upid;
-    oomTs = row.ts;
+    oomeUpid = row.upid;
+    oomeTs = row.ts;
   }
 
   return {
@@ -529,8 +529,8 @@ export async function getOverview(
     anonRssAndSwapSize,
     dmabufRssSize,
     processUptime,
-    oomUpid,
-    oomTs,
+    oomeUpid,
+    oomeTs,
   };
 }
 
