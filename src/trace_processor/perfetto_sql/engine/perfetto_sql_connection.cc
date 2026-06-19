@@ -1069,6 +1069,21 @@ base::Status PerfettoSqlConnection::ExecuteCreateView(
     }
   }
   RETURN_IF_ERROR(Execute(create_view.create_view_sql).status());
+
+  // Record the created view for the experimental DuckDB engine to mirror. On a
+  // CREATE OR REPLACE, drop any earlier entry for the same name first so the
+  // list reflects the live definition (and stays in dependency order: a
+  // replaced view keeps depending on whatever was already created before it).
+  if (create_view.replace) {
+    for (auto it = created_views_.begin(); it != created_views_.end(); ++it) {
+      if (it->first == create_view.name) {
+        created_views_.erase(it);
+        break;
+      }
+    }
+  }
+  created_views_.emplace_back(create_view.name,
+                              create_view.create_view_sql.sql());
   return base::OkStatus();
 }
 

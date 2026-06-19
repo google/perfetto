@@ -145,12 +145,13 @@ void Bind(duckdb_bind_info info) {
     return;
   }
 
-  // Declare the full result schema from the cached spec, in column order.
-  // Projection pushdown means DuckDB may later ask for only a subset (init).
+  // Declare the VISIBLE result schema from the cached spec, in column order
+  // (the synthetic `_auto_id` column is hidden to match SQLite). Projection
+  // pushdown means DuckDB may later ask for only a subset (init).
   const dataframe::DataframeSpec& spec = entry->spec;
-  for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
-    duckdb_logical_type t = LogicalTypeFor(spec.column_specs[i].type);
-    duckdb_bind_add_result_column(info, spec.column_names[i].c_str(), t);
+  for (uint32_t df_col : entry->visible_to_df_col) {
+    duckdb_logical_type t = LogicalTypeFor(spec.column_specs[df_col].type);
+    duckdb_bind_add_result_column(info, spec.column_names[df_col].c_str(), t);
     duckdb_destroy_logical_type(&t);
   }
 
@@ -179,10 +180,15 @@ void Init(duckdb_init_info info) {
   init->projected_cols.reserve(n);
   uint64_t cols_used_bitmap = 0;
   for (idx_t i = 0; i < n; ++i) {
-    auto col = static_cast<uint32_t>(duckdb_init_get_column_index(info, i));
-    init->projected_cols.push_back(col);
-    PERFETTO_CHECK(col < 64);
-    cols_used_bitmap |= (uint64_t{1} << col);
+    // DuckDB's projection index is into the VISIBLE (declared) result columns;
+    // translate it to the underlying dataframe column index.
+    auto visible_col =
+        static_cast<uint32_t>(duckdb_init_get_column_index(info, i));
+    PERFETTO_CHECK(visible_col < entry->visible_to_df_col.size());
+    uint32_t df_col = entry->visible_to_df_col[visible_col];
+    init->projected_cols.push_back(df_col);
+    PERFETTO_CHECK(df_col < 64);
+    cols_used_bitmap |= (uint64_t{1} << df_col);
   }
 
   std::vector<dataframe::FilterSpec> filter_specs;
@@ -267,6 +273,17 @@ const DuckDbTableProvider::Entry* DuckDbTableProvider::InsertSnapshot(
   }
   auto entry = std::make_unique<Entry>(df.CopyFinalized());
   entry->id_col_idx = *id_col;
+  // Build the visible-column mapping: every column except a synthetic
+  // `_auto_id` (hidden to match SQLite's HIDDEN runtime-table id column, so
+  // `SELECT *` excludes it). A real `id` column stays visible.
+  const std::vector<std::string>& col_names = entry->spec.column_names;
+  entry->visible_to_df_col.reserve(col_names.size());
+  for (uint32_t i = 0; i < col_names.size(); ++i) {
+    if (col_names[i] == "_auto_id") {
+      continue;
+    }
+    entry->visible_to_df_col.push_back(i);
+  }
   // Record the live source for read-through staleness detection.
   entry->source = &df;
   entry->source_mutations = df.mutations();
@@ -313,9 +330,12 @@ const DuckDbTableProvider::Entry* DuckDbTableProvider::Resolve(
   // a stale snapshot. The mutation count is a defensive secondary check for the
   // (currently unobserved) in-place-mutation case.
   const dataframe::Dataframe* live = resolver_(name);
-  if (!live) {
-    // The live table is gone. Drop any stale snapshot so a future query errors
-    // cleanly rather than reading a freed dataframe.
+  if (!live || !live->finalized()) {
+    // The live table is gone, or is a not-yet-finalized dataframe that cannot
+    // be snapshotted (`CopyFinalized()` CHECK-fails on an unfinalized
+    // dataframe). Either way treat it as unavailable: drop any stale snapshot so
+    // a future query errors cleanly rather than reading a freed dataframe, and
+    // return nullptr so the reference is deemed ineligible (-> fallback).
     if (cached) {
       entries_.erase(name);
     }

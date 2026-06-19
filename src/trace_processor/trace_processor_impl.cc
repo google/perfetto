@@ -674,12 +674,48 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
               }
             }
             return engine_->GetDataframeOrNull(name);
+          },
+          // View provider: mirror the PerfettoSQL views into DuckDB so a bare
+          // `FROM <view>` (sched/thread/thread_state/cpu/process/...) resolves
+          // through DuckDB's own catalog. All prelude views already exist by the
+          // time the first query runs (the after_eof prelude is loaded in
+          // NotifyEndOfFile / connection init, both before any ExecuteQuery), so
+          // a one-shot mirror at lazy connection-creation captures them.
+          [this]() {
+            return engine_->created_views();
           });
     }
+
+    // Wave-2 multi-statement split: the stdlib surface is reached via
+    // `INCLUDE PERFETTO MODULE ...; <SELECT>` and `CREATE PERFETTO TABLE` etc.,
+    // which DuckDB cannot run. Execute the LEADING PerfettoSQL statements in the
+    // real engine (these are side-effecting setup: INCLUDE/CREATE), then try
+    // ONLY the final statement inside DuckDB. After the INCLUDE runs, stdlib
+    // `CREATE PERFETTO TABLE` relations (e.g. sched_runnable_thread_count) are
+    // live dataframes that the final `SELECT ... FROM <table>` can resolve in
+    // DuckDB. The leading-in-engine + final-in-DuckDB combination still counts
+    // as "ran in DuckDB" for the honesty meter (the output-producing statement
+    // ran in DuckDB).
+    duckdb_integration::DuckDbEngine::SplitStatements split =
+        duckdb_integration::DuckDbEngine::SplitTrailingStatement(
+            non_breaking_sql);
+    if (!split.leading.empty()) {
+      base::Status leading_status =
+          engine_
+              ->Execute(SqlSource::FromExecuteQuery(split.leading))
+              .status();
+      if (!leading_status.ok()) {
+        return Iterator(std::make_unique<SqliteIteratorImpl>(
+            this, base::StatusOr<PerfettoSqlConnection::ExecutionResult>(
+                      leading_status),
+            sql_stats_row));
+      }
+    }
+
     bool ran_in_duckdb = false;
     base::StatusOr<std::optional<duckdb_integration::DuckDbExecutionResult>> dd =
         duckdb_engine_->TryExecuteWholeQuery(
-            non_breaking_sql, config_.duckdb_disable_fallback, &ran_in_duckdb);
+            split.last, config_.duckdb_disable_fallback, &ran_in_duckdb);
     if (!dd.ok()) {
       // Either a genuine DuckDB execution error on an eligible query, or (with
       // fallback disabled) an ineligible query. Surface it through the iterator.
@@ -702,8 +738,20 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
       return Iterator(std::make_unique<duckdb_integration::DuckDbIteratorImpl>(
           std::move(exec)));
     }
-    // Ineligible with fallback enabled: fall through to SQLite below.
+    // Ineligible final statement with fallback enabled.
     ++queries_fell_back_to_sqlite_;
+    if (!split.leading.empty()) {
+      // We already ran the leading statements in the engine; run ONLY the final
+      // statement now (re-running the whole query could double-execute a
+      // non-idempotent leading CREATE). This reproduces the unmodified SQLite
+      // result for the output-producing statement.
+      base::StatusOr<PerfettoSqlConnection::ExecutionResult> result =
+          engine_->ExecuteUntilLastStatement(
+              SqlSource::FromExecuteQuery(split.last));
+      return Iterator(std::make_unique<SqliteIteratorImpl>(
+          this, std::move(result), sql_stats_row));
+    }
+    // Single-statement input: fall through to the unchanged SQLite path below.
   }
 #endif
 

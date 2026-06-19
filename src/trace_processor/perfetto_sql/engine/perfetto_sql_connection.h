@@ -347,6 +347,16 @@ class PerfettoSqlConnection {
   // Find dataframe registered with this connection with provided name.
   const dataframe::Dataframe* GetDataframeOrNull(const std::string& name) const;
 
+  // Returns the PerfettoSQL views that have been created on this connection, in
+  // creation order, as (name, `CREATE VIEW <name> AS <body>` text) pairs. Used
+  // by the experimental DuckDB query engine to mirror the view layer into its
+  // own catalog so that `FROM <view>` references resolve there. The body is the
+  // plain SQLite-dialect `CREATE VIEW ... AS SELECT ...` (the PerfettoSQL schema
+  // column list is NOT included; see `ParseCreateView`).
+  const std::vector<std::pair<std::string, std::string>>& created_views() const {
+    return created_views_;
+  }
+
   // Registers a function with the prototype |prototype| which returns a value
   // of |return_type| and is implemented by executing the SQL statement |sql|.
   //
@@ -535,6 +545,11 @@ class PerfettoSqlConnection {
   uint64_t function_count_ = 0;
   uint64_t aggregate_function_count_ = 0;
   uint64_t window_function_count_ = 0;
+
+  // PerfettoSQL views created on this connection, in creation order, recorded as
+  // (name, `CREATE VIEW <name> AS <body>` text). Populated by ExecuteCreateView.
+  // Consumed by the experimental DuckDB engine to mirror the view layer.
+  std::vector<std::pair<std::string, std::string>> created_views_;
 
   // Contains the pointers for all registered virtual table modules where the
   // context class of the module inherits from ModuleStateManagerBase.

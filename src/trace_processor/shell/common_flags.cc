@@ -427,6 +427,23 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
                            trace_file.c_str(), load_status.c_message());
   }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
+  // When the experimental DuckDB engine runs with fallback DISABLED (the honest
+  // measurement lane), an ineligible query ERRORS instead of falling back. The
+  // shell's own bookkeeping queries below (`metadata` trace_type probe,
+  // PrintStats over `stats`) reference views backed by static tables that are
+  // not yet wired into DuckDB, so they would error and abort BEFORE the user's
+  // -Q/-q query runs. They are infrastructure, not the measured query, so make
+  // them best-effort under disable-fallback (parallel to the runner scrubbing
+  // its __intrinsic_modules probe).
+  const bool duckdb_disable_fallback = [] {
+    const char* v = getenv("PERFETTO_DUCKDB_DISABLE_FALLBACK");
+    return v != nullptr && v[0] != '\0' && strcmp(v, "0") != 0;
+  }();
+#else
+  const bool duckdb_disable_fallback = false;
+#endif
+
   bool is_proto_trace = false;
   {
     auto it = tp->ExecuteQuery(
@@ -500,7 +517,7 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
                 size_mb / t_load_s);
 
   auto stats_status = PrintStats(tp);
-  if (!stats_status.ok()) {
+  if (!stats_status.ok() && !duckdb_disable_fallback) {
     return base::StatusOr<base::TimeNanos>(stats_status);
   }
 

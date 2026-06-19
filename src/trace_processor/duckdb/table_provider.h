@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "duckdb.h"
 
@@ -129,6 +130,13 @@ class DuckDbTableProvider {
     dataframe::Dataframe df;            // CopyFinalized() snapshot.
     dataframe::DataframeSpec spec;      // Cached CreateSpec().
     uint32_t id_col_idx = 0;            // Resolved id-column index.
+
+    // Maps each VISIBLE result column (the schema DuckDB sees, in order) to its
+    // dataframe column index. The synthetic `_auto_id` column is hidden (to
+    // match SQLite's `... HIDDEN` runtime-table column, so `SELECT *` excludes
+    // it), so this is the full column list minus any `_auto_id` column. A real
+    // `id` column is kept visible.
+    std::vector<uint32_t> visible_to_df_col;
 
     // Staleness key for resolver-backed (read-through) entries. Records the
     // identity (address) and mutation count of the LIVE dataframe this snapshot

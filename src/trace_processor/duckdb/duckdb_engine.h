@@ -18,9 +18,13 @@
 #define SRC_TRACE_PROCESSOR_DUCKDB_DUCKDB_ENGINE_H_
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include "duckdb.h"
 
@@ -51,10 +55,22 @@ class DuckDbEngine {
  public:
   using Resolver = DuckDbTableProvider::Resolver;
 
+  // Supplies the PerfettoSQL views to mirror into DuckDB, in creation
+  // (dependency) order, as (name, `CREATE VIEW <name> AS <body>` text) pairs.
+  // Typically wraps `PerfettoSqlConnection::created_views()`. May be empty.
+  using ViewProvider =
+      std::function<std::vector<std::pair<std::string, std::string>>()>;
+
   // `string_pool` and `resolver` must outlive this object. `resolver` is the
   // live read-through into the engine's table registry (typically a lambda
-  // calling `PerfettoSqlConnection::GetDataframeOrNull`).
-  DuckDbEngine(StringPool* string_pool, Resolver resolver);
+  // calling `PerfettoSqlConnection::GetDataframeOrNull`). `view_provider` (if
+  // set) supplies the PerfettoSQL views to mirror into DuckDB's catalog so a
+  // bare `FROM <view>` reference (e.g. `sched`, `thread`, `thread_state`)
+  // resolves through DuckDB's own view -> the view body's `FROM __intrinsic_*`
+  // -> the replacement scan -> `__perfetto_df`.
+  DuckDbEngine(StringPool* string_pool,
+               Resolver resolver,
+               ViewProvider view_provider = {});
   ~DuckDbEngine();
 
   DuckDbEngine(const DuckDbEngine&) = delete;
@@ -79,18 +95,46 @@ class DuckDbEngine {
       bool disable_fallback,
       bool* ran_in_duckdb);
 
+  // Splits `sql` into (everything up to and including the last top-level `;`,
+  // last statement). If `sql` is a single statement, the leading part is empty
+  // and the whole `sql` is the last statement. Comments and string/quoted
+  // literals are respected so a `;` inside them does not split. This lets the
+  // router run the leading PerfettoSQL statements (e.g. INCLUDE PERFETTO MODULE,
+  // CREATE PERFETTO TABLE) in the real engine and then try ONLY the final
+  // statement inside DuckDB.
+  struct SplitStatements {
+    std::string leading;  // May be empty (single-statement input).
+    std::string last;     // The trailing statement (trimmed of a trailing ';').
+  };
+  static SplitStatements SplitTrailingStatement(const std::string& sql);
+
  private:
   // Lazily creates the database/connection + registers the provider on first
   // use. Returns an error if DuckDB initialization fails.
   base::Status EnsureInitialized();
 
+  // Mirrors any PerfettoSQL views from `view_provider_()` that are not yet in
+  // DuckDB's catalog. Called before each query so views created after the engine
+  // was first initialized (the after_eof prelude, user `INCLUDE`s, runtime
+  // CREATE PERFETTO VIEW) become resolvable. Idempotent: already-mirrored views
+  // are skipped; a view whose body still cannot bind in DuckDB is left
+  // unmirrored (it will be retried on the next query once its dependencies
+  // exist).
+  void SyncViews();
+
   StringPool* string_pool_;
   Resolver resolver_;
+  ViewProvider view_provider_;
 
   bool initialized_ = false;
   duckdb_database db_ = nullptr;
   duckdb_connection conn_ = nullptr;
   std::unique_ptr<DuckDbTableProvider> provider_;
+
+  // Names of PerfettoSQL views successfully mirrored into DuckDB's catalog (so
+  // the support predicate treats a reference to one as eligible, delegating the
+  // actual binding of the view body to DuckDB).
+  std::unordered_set<std::string> mirrored_views_;
 };
 
 }  // namespace perfetto::trace_processor::duckdb_integration

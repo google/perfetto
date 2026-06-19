@@ -131,12 +131,34 @@ TEST_F(DuckDbEngineLiveTest, GroupByRunsInDuckDb) {
   EXPECT_EQ(duck_->queries_fell_back_to_sqlite(), 0u);
 }
 
-// A query referencing a table NOT available in DuckDB (thread) must fall back
-// to SQLite with fallback ON, and still match the legacy engine.
+// A query referencing a table NOT available in DuckDB (sqlite_master is a pure
+// SQLite builtin: not a Perfetto view nor a dataframe) must fall back to SQLite
+// with fallback ON, and still match the legacy engine.
 TEST_F(DuckDbEngineLiveTest, IneligibleTableFallsBack) {
-  ExpectMatch("SELECT count(*) FROM thread", 1);
+  ExpectMatch("SELECT count(*) FROM sqlite_master", 1);
   EXPECT_EQ(duck_->queries_executed_in_duckdb(), 0u);
   EXPECT_EQ(duck_->queries_fell_back_to_sqlite(), 1u);
+}
+
+// Wave 2: the `thread` PerfettoSQL view is mirrored into DuckDB, so a bare
+// `FROM thread` resolves through DuckDB's catalog (view body -> __intrinsic_*
+// -> replacement scan) and runs ENTIRELY in DuckDB, matching legacy.
+TEST_F(DuckDbEngineLiveTest, MirroredViewRunsInDuckDb) {
+  ExpectMatch("SELECT count(*) FROM thread", 1);
+  EXPECT_EQ(duck_->queries_executed_in_duckdb(), 1u);
+  EXPECT_EQ(duck_->queries_fell_back_to_sqlite(), 0u);
+}
+
+// Wave 2: a multi-statement query (INCLUDE ...; SELECT ... FROM <runtime
+// table>) runs the leading INCLUDE in the engine, then the final SELECT in
+// DuckDB. This is the StdlibSched off-zero shape.
+TEST_F(DuckDbEngineLiveTest, IncludeThenSelectRunsFinalInDuckDb) {
+  ExpectMatch(
+      "INCLUDE PERFETTO MODULE sched.thread_level_parallelism;\n"
+      "SELECT count(*) FROM sched_runnable_thread_count",
+      1);
+  EXPECT_EQ(duck_->queries_executed_in_duckdb(), 1u);
+  EXPECT_EQ(duck_->queries_fell_back_to_sqlite(), 0u);
 }
 
 // A query using a function not in the allowlist (a custom intrinsic) falls back.
@@ -166,10 +188,11 @@ TEST_F(DuckDbEngineLiveTest, FallbackDisabledErrorsOnIneligible) {
     EXPECT_TRUE(s.ok()) << s.message();
     EXPECT_EQ(tp->queries_executed_in_duckdb(), 1u);
   }
-  // Ineligible query now ERRORS (does not fall back).
+  // Ineligible query now ERRORS (does not fall back). sqlite_master is a pure
+  // SQLite builtin: not mirrored as a view, not a dataframe.
   {
     base::Status s;
-    Drain(tp.get(), "SELECT count(*) FROM thread", 1, &s);
+    Drain(tp.get(), "SELECT count(*) FROM sqlite_master", 1, &s);
     EXPECT_FALSE(s.ok());
     EXPECT_EQ(tp->queries_fell_back_to_sqlite(), 0u);
   }
