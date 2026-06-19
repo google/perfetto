@@ -81,8 +81,7 @@ ModuleResult AppWakelockModule::TokenizePacket(const TokenizePacketArgs& args) {
     uint64_t encoded_ts = *timestamp_iter;
     uint32_t intern_id = *iid_iter;
 
-    int64_t real_ts =
-        args.ts + static_cast<int64_t>(encoded_ts >> 1);
+    int64_t real_ts = args.ts + static_cast<int64_t>(encoded_ts >> 1);
     bool acquired = encoded_ts & 0x1;
 
     auto* interned = args.state->LookupInternedMessage<

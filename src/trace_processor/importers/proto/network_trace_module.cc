@@ -146,8 +146,7 @@ ModuleResult NetworkTraceModule::TokenizePacket(
     }
 
     for (; timestamp_iter && length_iter; ++timestamp_iter, ++length_iter) {
-      int64_t real_ts =
-          args.ts + static_cast<int64_t>(*timestamp_iter);
+      int64_t real_ts = args.ts + static_cast<int64_t>(*timestamp_iter);
       TraceBlobView tbv =
           context_->blob_packet_writer->WritePacket([&](auto* pkt) {
             pkt->set_timestamp(static_cast<uint64_t>(real_ts));

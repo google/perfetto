@@ -92,8 +92,7 @@ ModuleResult PixelModemModule::TokenizePacket(const TokenizePacketArgs& args) {
         context_->blob_packet_writer->WritePacket([&](auto* data_packet) {
           // Keep the original timestamp to later extract as an arg; the sorter
           // does not read this.
-          data_packet->set_timestamp(
-              static_cast<uint64_t>(args.ts));
+          data_packet->set_timestamp(static_cast<uint64_t>(args.ts));
           data_packet->set_pixel_modem_events()->add_events(event_bytes);
         });
     module_context_->trace_packet_stream->Push(
