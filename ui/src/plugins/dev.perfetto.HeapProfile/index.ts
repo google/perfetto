@@ -197,23 +197,15 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         UNION ALL
 
         SELECT
-          g.id,
-          g.ts AS ts,
-          IFNULL((
-            SELECT p.upid
-            FROM process p
-            JOIN process p2 ON p.pid = p2.pid
-            WHERE p2.upid = g.upid
-              AND p.start_ts IS NOT NULL
-            ORDER BY p.end_ts DESC
-            LIMIT 1
-          ), g.upid) AS upid,
+          id,
+          ts,
+          upid,
           0 AS dur,
           0 AS depth,
           'oom_callstack' AS type,
-          g.ts AS reference_ts
-        FROM heap_graph g
-        WHERE g.dump_reason = 'OOME'
+          ts AS reference_ts
+        FROM heap_graph
+        WHERE dump_reason = 'OOME'
       `,
     });
   }
