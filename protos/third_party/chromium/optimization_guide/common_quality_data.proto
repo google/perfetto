@@ -2279,7 +2279,7 @@ enum AnnotatedPageContentMode {
 // When adding new types, please also update AIPageContentAttributeType in
 // third_party/blink/public/mojom/content_extraction/ai_page_content.mojom.
 // See crrev.com/c/6072788 for an example.
-// Next ID: 28
+// Next ID: 30
 enum ContentAttributeType {
   // Unknown is not a valid attribute type and should never be used by the
   // client. You can consider discarding ContentNodes with this attribute type.
@@ -2326,6 +2326,11 @@ enum ContentAttributeType {
   CONTENT_ATTRIBUTE_TABLE_ROW = 21;
 
   CONTENT_ATTRIBUTE_TABLE_CELL = 11;
+
+  // Dialog/modal containers.
+  CONTENT_ATTRIBUTE_DIALOG_MODAL = 28;
+
+  CONTENT_ATTRIBUTE_DIALOG_MODELESS = 29;
 
   reserved 12, 13, 14, 15, 16, 17, 18, 19;
 }
