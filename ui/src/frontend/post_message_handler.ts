@@ -21,6 +21,7 @@ import {AppImpl} from '../core/app_impl';
 import type {SerializedAppState} from '../core/state_serialization_schema';
 import {parseAppState} from '../core/state_serialization';
 import {BUCKET_NAME, isValidGcsFileName} from '../base/gcs_uploader';
+import {toArrayBuffer} from '../base/utils';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 
@@ -206,8 +207,14 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     if (postedTrace.keepApiOpen) {
       keepApiOpen = true;
     }
-  } else if (messageEvent.data instanceof ArrayBuffer) {
-    postedTrace = {title: 'External trace', buffer: messageEvent.data};
+  } else if (
+    messageEvent.data instanceof ArrayBuffer ||
+    ArrayBuffer.isView(messageEvent.data)
+  ) {
+    postedTrace = {
+      title: 'External trace',
+      buffer: toArrayBuffer(messageEvent.data),
+    };
   } else {
     console.warn(
       'Unknown postMessage() event received. If you are trying to open a ' +
@@ -304,7 +311,12 @@ export function postMessageHandler(messageEvent: MessageEvent) {
 function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
   const result: PostedTrace = {
     title: sanitizeString(postedTrace.title),
-    buffer: postedTrace.buffer,
+    // `buffer` is typed ArrayBuffer, but this is untyped data coming off
+    // postMessage(): senders routinely pass a Uint8Array (or other view).
+    // Normalize it to a pure ArrayBuffer here, at the boundary, so the rest of
+    // the codebase (TraceBufferStream, cache_manager) can rely on the type.
+    // See b/390473162.
+    buffer: toArrayBuffer(postedTrace.buffer),
     keepApiOpen: postedTrace.keepApiOpen,
     // For external traces, we need to disable other features such as
     // downloading and sharing a trace, unless the caller allows it.
