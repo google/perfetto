@@ -55,24 +55,19 @@ ProtoImporterModule::ProtoImporterModule(
 ProtoImporterModule::~ProtoImporterModule() {}
 
 ModuleResult ProtoImporterModule::TokenizePacket(
-    const protos::pbzero::TracePacket_Decoder&,
-    TraceBlobView* /*packet*/,
-    int64_t /*packet_timestamp*/,
-    RefPtr<PacketSequenceStateGeneration> /*sequence_state*/,
-    uint32_t /*field_id*/) {
+    const TokenizePacketArgs& /*args*/) {
   return ModuleResult::Ignored();
 }
 
-void ProtoImporterModule::ParseTracePacketData(
-    const protos::pbzero::TracePacket_Decoder&,
-    int64_t /*ts*/,
-    const TracePacketData&,
-    uint32_t /*field_id*/) {}
+void ProtoImporterModule::ParseField(const ParseFieldArgs& /*args*/) {}
 
 void ProtoImporterModule::ParseTraceConfig(
     const protos::pbzero::TraceConfig_Decoder&) {}
 
 void ProtoImporterModule::RegisterForField(uint32_t field_id) {
+  // Allowlisted metadata fields are stored in the decoder's dense storage,
+  // not in unknown_fields(), so module dispatch would never fire for them.
+  PERFETTO_DCHECK(!SelectiveTracePacketDecoder::ContainsField(field_id));
   if (module_context_->modules_by_field.size() <= field_id) {
     module_context_->modules_by_field.resize(field_id + 1);
   }

@@ -38,30 +38,28 @@ GenericKernelModule::GenericKernelModule(
   RegisterForField(TracePacket::kGenericGpuFrequencyEventFieldNumber);
 }
 
-void GenericKernelModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void GenericKernelModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kGenericKernelTaskStateEventFieldNumber:
       parser_.ParseGenericTaskStateEvent(
-          ts, decoder.generic_kernel_task_state_event());
+          args.ts,
+          args.field.Cast<TracePacket::kGenericKernelTaskStateEvent>());
       return;
     case TracePacket::kGenericKernelTaskRenameEventFieldNumber:
       parser_.ParseGenericTaskRenameEvent(
-          decoder.generic_kernel_task_rename_event());
+          args.field.Cast<TracePacket::kGenericKernelTaskRenameEvent>());
       return;
     case TracePacket::kGenericKernelProcessTreeFieldNumber:
-      parser_.ParseGenericProcessTree(decoder.generic_kernel_process_tree());
+      parser_.ParseGenericProcessTree(
+          args.field.Cast<TracePacket::kGenericKernelProcessTree>());
       return;
     case TracePacket::kGenericKernelCpuFreqEventFieldNumber:
       parser_.ParseGenericCpuFrequencyEvent(
-          ts, decoder.generic_kernel_cpu_freq_event());
+          args.ts, args.field.Cast<TracePacket::kGenericKernelCpuFreqEvent>());
       return;
     case TracePacket::kGenericGpuFrequencyEventFieldNumber:
       parser_.ParseGenericGpuFrequencyEvent(
-          ts, decoder.generic_gpu_frequency_event());
+          args.ts, args.field.Cast<TracePacket::kGenericGpuFrequencyEvent>());
       return;
   }
 }

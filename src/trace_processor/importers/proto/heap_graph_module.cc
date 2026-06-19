@@ -86,18 +86,11 @@ HeapGraphModule::HeapGraphModule(ProtoImporterModuleContext* module_context,
   RegisterForField(ArtHeapGraphTracePacket::kHeapGraphFieldNumber);
 }
 
-void HeapGraphModule::ParseTracePacketData(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void HeapGraphModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case ArtHeapGraphTracePacket::kHeapGraphFieldNumber:
-      ParseHeapGraph(decoder.trusted_packet_sequence_id(), ts,
-                     decoder
-                         .GetExtensionSlowly<
-                             ArtHeapGraphTracePacket::kHeapGraphFieldNumber>()
-                         .as_bytes());
+      ParseHeapGraph(args.decoder.trusted_packet_sequence_id(), args.ts,
+                     args.field.Cast<ArtHeapGraphTracePacket::kHeapGraph>());
       return;
     default:
       break;
