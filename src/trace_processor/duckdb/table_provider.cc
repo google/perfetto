@@ -187,7 +187,15 @@ void Init(duckdb_init_info info) {
     PERFETTO_CHECK(visible_col < entry->visible_to_df_col.size());
     uint32_t df_col = entry->visible_to_df_col[visible_col];
     init->projected_cols.push_back(df_col);
-    PERFETTO_CHECK(df_col < 64);
+    // `PlanQuery`'s cols_used_bitmap is a 64-bit mask, so a dataframe column
+    // index >= 64 cannot be projected. Rather than CHECK-crash on a wide table
+    // (>64 columns), set an init error so DuckDB fails this query and the router
+    // falls back to SQLite cleanly.
+    if (df_col >= 64) {
+      duckdb_init_set_error(
+          info, "__perfetto_df: table has more than 64 columns (unsupported)");
+      return;
+    }
     cols_used_bitmap |= (uint64_t{1} << df_col);
   }
 

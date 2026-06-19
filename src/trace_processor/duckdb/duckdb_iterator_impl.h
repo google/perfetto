@@ -65,11 +65,15 @@ struct DuckDbExecutionResult {
 // unwind across the boundary into Perfetto's `-fno-exceptions` code.
 //
 // String/blob lifetime: `Get` returns a `SqlValue` whose `string_value` /
-// `bytes_value` borrows into the live `duckdb_data_chunk`. This honours the
-// public `SqlValue` contract ("valid until the subsequent call to Next()"):
-// the borrowed chunk is only destroyed by the `Next()` that crosses a chunk
-// boundary (or by the destructor), so any value read after the previous
-// `Next()` stays valid until the next `Next()`.
+// `bytes_value` points into a per-column owned buffer (`string_buffers_`) that
+// stays valid until the next `Next()` for that column. We MUST copy (not borrow
+// the chunk's `duckdb_string_t` data directly) because a `duckdb_string_t` is
+// NOT NUL-terminated, whereas the public `SqlValue::string_value` contract is a
+// NUL-terminated C string (consumers call `strlen`/`%s` on it, e.g. the shell's
+// PrintStats and the CSV/JSON serializers). Returning the raw chunk pointer
+// caused reads past the end of the string into adjacent chunk bytes (observed
+// as a "garbage byte" appended to stat names; previously misdiagnosed as a
+// StringPool corruption). The owned copy is NUL-terminated and length-correct.
 //
 // This impl does NOT override `AsSqlite()` (returns the base `nullptr`), so the
 // QueryResultSerializer fast path simply isn't taken - it goes through the
@@ -104,6 +108,14 @@ class DuckDbIteratorImpl final : public IteratorImpl {
   bool called_next_ = false;
   bool exhausted_ = false;
   base::Status status_ = base::OkStatus();
+
+  // Per-column owned, NUL-terminated copies of the current row's string/blob
+  // cells. Indexed by column; lazily grown to the column count. Each `Get(col)`
+  // of a VARCHAR/BLOB overwrites slot `col` and returns a pointer into it, so
+  // the returned `string_value`/`bytes_value` stays valid until the next
+  // `Get(col)` for that column (i.e. at least until the next `Next()`), matching
+  // the public `SqlValue` lifetime contract. `mutable` because `Get` is const.
+  mutable std::vector<std::string> string_buffers_;
 };
 
 }  // namespace perfetto::trace_processor::duckdb_integration

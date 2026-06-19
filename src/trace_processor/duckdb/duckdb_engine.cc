@@ -18,6 +18,7 @@
 
 #include <cctype>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -32,7 +33,6 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
 #include "src/trace_processor/duckdb/scalar_functions.h"
 #include "src/trace_processor/duckdb/table_provider.h"
@@ -187,6 +187,114 @@ size_t IndexAfterMatchingParen(const std::string& sql, size_t open) {
   }
   return std::string::npos;
 }
+
+// Top-level clause presence, used by the order-determinism guard. "Top level"
+// = at parenthesis depth 0 (so an ORDER BY / LIMIT inside a subquery or window
+// frame does not count as ordering the OUTER result). Computed by a small scan
+// that skips comments + string/quoted literals and tracks paren depth.
+struct ClauseInfo {
+  bool has_order_by = false;
+  bool has_limit = false;
+  bool has_group_by = false;
+};
+
+ClauseInfo AnalyzeTopLevelClauses(const std::string& sql) {
+  ClauseInfo info;
+  const size_t n = sql.size();
+  size_t i = 0;
+  int depth = 0;
+  std::string prev_word;  // previous identifier word (lowercased).
+  auto is_ident_char = [](char c) {
+    return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+  };
+  while (i < n) {
+    char c = sql[i];
+    // Whitespace does NOT reset prev_word (so `ORDER` and `BY` separated by
+    // spaces are still seen as the keyword pair).
+    if (std::isspace(static_cast<unsigned char>(c))) {
+      ++i;
+      continue;
+    }
+    if (c == '-' && i + 1 < n && sql[i + 1] == '-') {
+      while (i < n && sql[i] != '\n') {
+        ++i;
+      }
+      continue;
+    }
+    if (c == '/' && i + 1 < n && sql[i + 1] == '*') {
+      i += 2;
+      while (i + 1 < n && !(sql[i] == '*' && sql[i + 1] == '/')) {
+        ++i;
+      }
+      i = (i + 2 <= n) ? i + 2 : n;
+      continue;
+    }
+    if (c == '\'' || c == '"' || c == '`') {
+      char q = c;
+      ++i;
+      while (i < n) {
+        if (sql[i] == q) {
+          if (i + 1 < n && sql[i + 1] == q) {
+            i += 2;
+            continue;
+          }
+          ++i;
+          break;
+        }
+        ++i;
+      }
+      prev_word.clear();
+      continue;
+    }
+    if (c == '(') {
+      ++depth;
+      ++i;
+      prev_word.clear();
+      continue;
+    }
+    if (c == ')') {
+      if (depth > 0) {
+        --depth;
+      }
+      ++i;
+      prev_word.clear();
+      continue;
+    }
+    if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
+      size_t start = i;
+      while (i < n && is_ident_char(sql[i])) {
+        ++i;
+      }
+      std::string word = base::ToLower(sql.substr(start, i - start));
+      if (depth == 0) {
+        if (word == "by" && prev_word == "order") {
+          info.has_order_by = true;
+        } else if (word == "by" && prev_word == "group") {
+          info.has_group_by = true;
+        } else if (word == "limit") {
+          info.has_limit = true;
+        }
+      }
+      prev_word = word;
+      continue;
+    }
+    ++i;
+    prev_word.clear();
+  }
+  return info;
+}
+
+// Silent-divergence guard: COLUMN NAME. For an UNALIASED expression in the
+// top-level SELECT list, SQLite names the result column after the source text
+// (e.g. `COUNT(*)`, `COUNT(1)`, `a + b`) while DuckDB normalizes it (`count_star()`,
+// `count(1)`, `(a + b)`). The diff-test goldens (CSV header row) encode SQLite's
+// spelling, so routing such a query to DuckDB produces a SILENTLY WRONG header.
+// This function detects the most common offender: a FUNCTION CALL `ident(...)`
+// in the top-level projection (between the first top-level SELECT and its
+// matching top-level FROM) that is NOT immediately followed by `AS`. (Aliased
+// expressions are fine - the alias is the column name in both engines.)
+// Returns true => the query has an unaliased expression column => fall back.
+bool HasUnaliasedExprColumn(const std::string& sql);
 
 // A minimal, dependency-free tokenizer over the (raw, user-supplied) SQL. It is
 // intentionally simpler than the real PerfettoSQL/SQLite grammar: its only job
@@ -374,6 +482,125 @@ std::vector<Token> Tokenize(const std::string& sql) {
   return out;
 }
 
+bool HasUnaliasedExprColumn(const std::string& sql) {
+  const size_t n = sql.size();
+  size_t i = SkipTrivia(sql, 0);
+  // Require the statement to start with a top-level SELECT (a CTE `WITH ...` is
+  // not analyzed here - too complex; such queries are routed and, if the column
+  // name diverges, the diff catches it; the dominant offenders are plain
+  // `SELECT count(*) FROM ...`).
+  auto is_kw = [&](size_t pos, const char* kw) {
+    size_t len = std::strlen(kw);
+    if (pos + len > n) {
+      return false;
+    }
+    for (size_t k = 0; k < len; ++k) {
+      if (std::tolower(static_cast<unsigned char>(sql[pos + k])) != kw[k]) {
+        return false;
+      }
+    }
+    // Must be a whole word.
+    return pos + len >= n ||
+           !(std::isalnum(static_cast<unsigned char>(sql[pos + len])) ||
+             sql[pos + len] == '_');
+  };
+  if (!is_kw(i, "select")) {
+    return false;
+  }
+  i += 6;  // past SELECT
+  int depth = 0;
+  auto is_ident_char = [](char c) {
+    return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+  };
+  while (i < n) {
+    i = SkipTrivia(sql, i);
+    if (i >= n) {
+      break;
+    }
+    char c = sql[i];
+    if (c == '\'' || c == '"' || c == '`') {
+      char q = c;
+      ++i;
+      while (i < n) {
+        if (sql[i] == q) {
+          if (i + 1 < n && sql[i + 1] == q) {
+            i += 2;
+            continue;
+          }
+          ++i;
+          break;
+        }
+        ++i;
+      }
+      continue;
+    }
+    if (c == '(') {
+      ++depth;
+      ++i;
+      continue;
+    }
+    if (c == ')') {
+      if (depth > 0) {
+        --depth;
+      }
+      ++i;
+      continue;
+    }
+    if (c == ';') {
+      break;
+    }
+    if (is_ident_char(c) && (std::isalpha(static_cast<unsigned char>(c)) ||
+                             c == '_')) {
+      size_t start = i;
+      while (i < n && is_ident_char(sql[i])) {
+        ++i;
+      }
+      std::string word = base::ToLower(sql.substr(start, i - start));
+      // A top-level FROM ends the projection list.
+      if (depth == 0 && word == "from") {
+        return false;
+      }
+      // An identifier (at projection top level) immediately followed by `(` is a
+      // function call; if its matching `)` is NOT followed by `AS`, it is an
+      // unaliased expression column => column-name divergence.
+      if (depth == 0) {
+        size_t after_ident = SkipTrivia(sql, i);
+        if (after_ident < n && sql[after_ident] == '(' &&
+            !IsSqlKeyword(word)) {
+          size_t after_paren = IndexAfterMatchingParen(sql, after_ident);
+          if (after_paren == std::string::npos) {
+            return false;  // Unbalanced - let DuckDB/SQLite handle it.
+          }
+          // Is the next token the `AS` keyword (explicit alias)?
+          bool aliased_as =
+              after_paren + 1 < n &&
+              (sql[after_paren] == 'a' || sql[after_paren] == 'A') &&
+              (sql[after_paren + 1] == 's' || sql[after_paren + 1] == 'S') &&
+              (after_paren + 2 >= n ||
+               !is_ident_char(sql[after_paren + 2]));
+          // Or an implicit alias (a bare identifier right after the `)`), e.g.
+          // `count(*) cnt`. SQLite and DuckDB agree on an explicit name.
+          bool aliased_implicit =
+              !aliased_as && after_paren < n &&
+              (std::isalpha(static_cast<unsigned char>(sql[after_paren])) ||
+               sql[after_paren] == '_') &&
+              !is_kw(after_paren, "from") && !is_kw(after_paren, "where") &&
+              !is_kw(after_paren, "group") && !is_kw(after_paren, "order") &&
+              !is_kw(after_paren, "limit");
+          if (!aliased_as && !aliased_implicit) {
+            return true;  // Unaliased function-call column.
+          }
+          i = after_paren;
+          continue;
+        }
+      }
+      continue;
+    }
+    ++i;
+  }
+  return false;
+}
+
 }  // namespace
 
 DuckDbEngine::DuckDbEngine(StringPool* string_pool,
@@ -427,49 +654,33 @@ base::Status DuckDbEngine::EnsureInitialized() {
   return base::OkStatus();
 }
 
-// The set of PerfettoSQL view names that are SAFE to mirror into DuckDB for the
-// Wave-2 beachhead. Restricting to this curated set (rather than all created
-// views) is a DELIBERATE, temporary safety measure: mirroring certain other
-// prelude views (notably `stats`) corrupts the shared StringPool that the
-// legacy SQLite engine later reads (observed: a garbage byte appended to stat
-// name strings; root cause is a DuckDB-side interaction with the replacement
-// scan during view binding and is tracked as a follow-up). These views are the
-// ones the sched/thread stdlib surface needs and have been verified to mirror
-// together without corruption. Generalising (and removing this allowlist once
-// the corruption is root-caused) is a later wave.
-static bool IsSafeToMirror(const std::string& lower_name) {
-  static const std::unordered_set<std::string>* kSafe =
-      new std::unordered_set<std::string>{
-          "sched",   "sched_slice",
-          "thread",  "thread_state",
-          "cpu",     "process",
-          "cpu_available_frequencies",
-      };
-  return kSafe->find(lower_name) != kSafe->end();
-}
-
 void DuckDbEngine::SyncViews() {
   if (!view_provider_) {
     return;
   }
-  // Mirror the PerfettoSQL views into DuckDB's catalog, in creation order, so a
+  // Mirror EVERY PerfettoSQL view into DuckDB's catalog, in creation order, so a
   // bare `FROM <view>` resolves through DuckDB's own view -> the view body's
   // `FROM __intrinsic_*` -> the replacement scan -> `__perfetto_df`. The stored
   // body is plain SQLite-dialect `CREATE VIEW <name> AS SELECT ...` (the
   // PerfettoSQL schema column list is not part of it). DuckDB binds the body
   // EAGERLY at CREATE VIEW time, so a view whose body uses SQLite-only dialect
-  // (a D6 follow-up) or references a relation not yet wired into DuckDB (e.g.
-  // `__intrinsic_stats`, which is a static table, not a dataframe) fails to
-  // create; we skip it (it stays unmirrored -> any query referencing it is
-  // deemed ineligible -> falls back / errors under disable_fallback), never
-  // faking it. It is retried on the next call once its dependencies may exist.
+  // (a D6 follow-up) or references a relation not yet wired into DuckDB fails to
+  // create; we skip it (it stays unmirrored -> a query referencing it errors in
+  // DuckDB and falls back / errors under disable_fallback), never faking it. It
+  // is retried on the next call once its dependencies may exist.
+  //
+  // HISTORICAL NOTE: this used to be restricted to a hardcoded `IsSafeToMirror`
+  // allowlist because mirroring the `stats` view appeared to "corrupt the
+  // StringPool" (a garbage byte appended to stat names). That was a
+  // MISDIAGNOSIS: the real bug was the DuckDB iterator returning a
+  // non-NUL-terminated `duckdb_string_t` pointer as a C string, so consumers
+  // (PrintStats `%s`) read past the end. Fixed in `duckdb_iterator_impl.cc`
+  // (the iterator now copies into an owned NUL-terminated buffer); the allowlist
+  // is therefore gone and every view mirrors safely.
   for (const auto& [name, create_view_sql] : view_provider_()) {
     std::string lower = base::ToLower(name);
     if (mirrored_views_.find(lower) != mirrored_views_.end()) {
       continue;  // Already mirrored.
-    }
-    if (!IsSafeToMirror(lower)) {
-      continue;  // Not on the verified-safe allowlist (see IsSafeToMirror).
     }
     duckdb_result res;
     if (duckdb_query(conn_, create_view_sql.c_str(), &res) == DuckDBError) {
@@ -560,8 +771,34 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
     }
   }
 
+  // Dialect guard: a PerfettoSQL MACRO call is `name!(...)` (an identifier
+  // immediately followed by `!`). DuckDB's parser does not understand the `!`
+  // and raises a Parser Error. Macro expansion is a PerfettoSQL-frontend
+  // feature; route such queries to SQLite. (We catch it here cheaply rather
+  // than relying solely on the post-`duckdb_query` parse-error fallback, to
+  // avoid a noisy DuckDB parse attempt.) Note `!=` is a valid operator, so only
+  // a `!` that immediately follows an identifier character (and is not `!=`)
+  // counts as a macro call.
+  {
+    const std::string& s = sql;
+    for (size_t i = 0; i + 1 < s.size(); ++i) {
+      if (s[i] != '!') {
+        continue;
+      }
+      if (s[i + 1] == '=') {
+        continue;  // `!=` operator.
+      }
+      // Preceded by an identifier char => macro call `name!`.
+      if (i > 0 && (std::isalnum(static_cast<unsigned char>(s[i - 1])) ||
+                    s[i - 1] == '_')) {
+        return ineligible("PerfettoSQL macro call (DuckDB cannot parse '!')");
+      }
+    }
+  }
+
   bool saw_relation = false;
   bool saw_supported_function = false;
+  bool saw_aggregate = false;
   for (const Token& t : tokens) {
     if (t.kind != Token::kIdentifier) {
       continue;
@@ -582,64 +819,104 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
       bool is_registered_udf = registered_scalar_functions_.find(t.text) !=
                                registered_scalar_functions_.end();
       if (!in_static_allowlist && !is_registered_udf) {
+        // The function allowlist is KEPT (unlike the relation check, which is
+        // delegated to DuckDB's binder below). A call to a function DuckDB does
+        // not have (an unported PerfettoSQL UDF / TVF, a custom intrinsic) would
+        // ERROR inside DuckDB, but - critically - some unsupported constructs
+        // could instead bind to a DuckDB builtin with DIVERGENT semantics and
+        // produce SILENTLY WRONG output. Default-deny on functions guards that.
         return ineligible("function '" + t.text + "' not in allowlist");
       }
       saw_supported_function = true;
+      if (t.text == "count" || t.text == "sum" || t.text == "min" ||
+          t.text == "max" || t.text == "avg") {
+        saw_aggregate = true;
+      }
       continue;
     }
     if (t.after_from_or_join) {
-      // A reference to a CTE defined in this same query resolves inside DuckDB;
-      // it is not an external relation and does not, by itself, make the query
-      // DuckDB-backed (a real dataframe inside the CTE body, if any, sets
-      // saw_relation when the loop visits it).
+      // RELATION POSITION. We DO NOT verify that the relation exists in DuckDB
+      // anymore (the old per-table availability gate is removed): every static
+      // dataframe and every PerfettoSQL view is registered/mirrored into
+      // DuckDB's catalog up front (the replacement scan resolves any dataframe
+      // name lazily, SyncViews mirrors every view), so DuckDB's BINDER is the
+      // table oracle. A reference to a CTE defined in this query, or to any
+      // relation DuckDB can bind, is fine; a reference to a relation DuckDB
+      // cannot bind makes the eventual `duckdb_query` raise a Catalog/Binder
+      // error, which we map to a clean fallback below (honest mode: error).
+      // We only TRACK whether a FROM/JOIN relation was seen, to drive the
+      // bare-SELECT gate.
       if (cte_names.find(t.text) != cte_names.end()) {
-        continue;
-      }
-      // Relation: eligible if either (a) it is a PerfettoSQL view we mirrored
-      // into DuckDB's catalog (DuckDB binds the view body, which transitively
-      // reaches a dataframe through the replacement scan), or (b) it resolves
-      // to a live dataframe via the read-through resolver. (Resolve also
-      // snapshots the dataframe into the provider so the subsequent
-      // duckdb_query sees it.) A mirrored view that turns out to be
-      // unbindable (its body references something not yet available) will make
-      // the eventual duckdb_query fail; that surfaces as an error, not a silent
-      // fallback, which is the honest behaviour.
-      bool is_mirrored_view =
-          mirrored_views_.find(t.text) != mirrored_views_.end();
-      // A dataframe is only usable if it is finalized: the provider snapshots it
-      // via `CopyFinalized()`, which CHECK-fails on an unfinalized dataframe
-      // (e.g. a runtime table mid-construction). An unfinalized table is treated
-      // as not-yet-available -> ineligible -> fallback.
-      const dataframe::Dataframe* df = resolver_ ? resolver_(t.text) : nullptr;
-      bool is_dataframe = df != nullptr && df->finalized();
-      if (!is_mirrored_view && !is_dataframe) {
-        return ineligible("relation '" + t.text + "' not available in DuckDB");
+        continue;  // Local CTE: not an external relation.
       }
       saw_relation = true;
     }
   }
-  // Gate: route a query iff it scans at least one DuckDB-backed relation OR it
-  // is a bare (no-FROM) statement that calls at least one allowlisted/registered
-  // function (e.g. `SELECT ln(2)`, `SELECT unhex('0xF')`,
-  // `SELECT regexp_extract(...)`). The bare-SELECT gate was previously a hard
-  // "no relation => ineligible" rule; it is now lifted ONLY for statements whose
-  // every function is supported (the loop above default-denied any unknown
-  // function). A no-FROM statement with neither a relation nor a supported
-  // function (e.g. `SELECT 1` or a bare column reference) still falls back, to
-  // minimize behavioural drift from the SQLite path.
+  // Gate: route a query iff it has a FROM/JOIN relation OR it is a bare (no-FROM)
+  // statement that calls at least one allowlisted/registered function (e.g.
+  // `SELECT ln(2)`). A no-FROM statement with neither (e.g. `SELECT 1`) still
+  // falls back, to minimize behavioural drift from the SQLite path.
   if (!saw_relation && !saw_supported_function) {
     return ineligible("no DuckDB-backed relation or supported function");
+  }
+
+  // Silent-divergence guard: ROW ORDER. SQLite and DuckDB produce rows in
+  // different engine-defined orders for a scan that is not fully ordered by a
+  // top-level ORDER BY. The diff-test goldens encode SQLite's order, so routing
+  // an under-ordered multi-row query to DuckDB yields SILENTLY WRONG (re-ordered)
+  // output - and, worse, `LIMIT` without `ORDER BY` returns a DIFFERENT SET of
+  // rows. This is exactly the `thread_slice_time_in_state` (`... LIMIT 10` with
+  // no ORDER BY) landmine. Guard:
+  //   - A query that scans a relation and has a top-level LIMIT but NO top-level
+  //     ORDER BY is non-deterministic -> fall back.
+  //   - A query that scans a relation, has NO top-level ORDER BY, and is NOT a
+  //     single-row pure aggregate (an aggregate function with no GROUP BY -> one
+  //     row, order-irrelevant) is order-divergence-prone -> fall back.
+  // A query WITH a top-level ORDER BY is routed (residual tie-break divergence
+  // is far rarer and is caught by the diff goldens if it bites). This trades a
+  // few honest passes for ZERO order-divergence fallback regressions.
+  if (saw_relation) {
+    ClauseInfo clauses = AnalyzeTopLevelClauses(sql);
+    if (!clauses.has_order_by) {
+      if (clauses.has_limit) {
+        return ineligible("LIMIT without ORDER BY (non-deterministic row set)");
+      }
+      bool single_row_aggregate = saw_aggregate && !clauses.has_group_by;
+      if (!single_row_aggregate) {
+        return ineligible(
+            "multi-row scan without ORDER BY (engine-defined row order)");
+      }
+    }
+  }
+
+  // Silent-divergence guard: COLUMN NAME of an unaliased expression. SQLite
+  // names such a column after its source text (`COUNT(*)`, `COUNT(1)`) while
+  // DuckDB normalizes it (`count_star()`, `count(1)`); the CSV-header diff then
+  // fails silently. Fall back when the top-level projection has an unaliased
+  // function-call column.
+  if (HasUnaliasedExprColumn(sql)) {
+    return ineligible("unaliased expression column (column-name divergence)");
   }
 
   // --- Eligible: execute the whole query inside DuckDB. ---
   DuckDbExecutionResult exec;
   exec.last_statement_sql = sql;
   if (duckdb_query(conn_, sql.c_str(), &exec.result) == DuckDBError) {
-    // A SUPPORTED query that genuinely failed: surface the error, do NOT fall
-    // back (that would mask bugs).
     std::string err = duckdb_result_error(&exec.result);
     duckdb_destroy_result(&exec.result);
-    return base::ErrStatus("DuckDB execution error: %s", err.c_str());
+    // Now that the predicate no longer pre-verifies relations (DuckDB's binder
+    // is the table oracle), a DuckDB ERROR here can be: a Catalog/Binder error
+    // (unknown relation), a Parser error (residual SQLite/PerfettoSQL dialect),
+    // or an execution-time error (e.g. a Conversion Error where SQLite's loose
+    // typing would have silently coerced). In EVERY one of these cases falling
+    // back to SQLite is correctness-SAFE: SQLite then produces the golden
+    // result, and if SQLite ALSO errors the diff fails honestly. Crucially,
+    // falling back on an ERROR never masks SILENT WRONG OUTPUT - that does not
+    // error and is handled by the divergence guards above (order, USING,
+    // double-quote, ceil/floor, function allowlist). So: ANY DuckDB error =>
+    // ineligible => fall back (or, with fallback disabled, error honestly so the
+    // measurement lane is trustworthy).
+    return ineligible("DuckDB could not execute the query: " + err);
   }
 
   uint32_t col_count =

@@ -30,7 +30,16 @@
 namespace perfetto::trace_processor::duckdb_integration {
 
 DuckDbIteratorImpl::DuckDbIteratorImpl(DuckDbExecutionResult result)
-    : result_(std::move(result)) {}
+    : result_(std::move(result)) {
+  // Pre-size the per-column string buffers to the column count ONCE, so the
+  // vector never reallocates while a row is being read. This is load-bearing: a
+  // caller reads several columns of the same row (e.g. PrintStats reads `name`
+  // then `description`), and if reading a later column grew/reallocated the
+  // vector, the `const char*` returned for an EARLIER column would dangle
+  // (especially for short SSO strings whose data lives inside the moved
+  // std::string object). Fixed size => stable buffer addresses for the row.
+  string_buffers_.resize(result_.column_count);
+}
 
 DuckDbIteratorImpl::~DuckDbIteratorImpl() {
   if (chunk_) {
@@ -213,15 +222,27 @@ SqlValue DuckDbIteratorImpl::Get(uint32_t col) const {
       value = SqlValue::Double(static_cast<double*>(data)[row]);
       break;
     case DUCKDB_TYPE_VARCHAR: {
-      // Borrow into the live chunk: valid until the next Next() (see header).
+      // A duckdb_string_t is NOT NUL-terminated; copy length-correct bytes into
+      // an owned per-column buffer (NUL-terminated by std::string) so consumers
+      // that treat string_value as a C string don't read past the end. The
+      // buffer stays valid until the next Get(col)/Next() (see header).
       auto* s = &static_cast<duckdb_string_t*>(data)[row];
-      value = SqlValue::String(duckdb_string_t_data(s));
+      PERFETTO_DCHECK(col < string_buffers_.size());
+      string_buffers_[col].assign(duckdb_string_t_data(s),
+                                  duckdb_string_t_length(*s));
+      value = SqlValue::String(string_buffers_[col].c_str());
       break;
     }
     case DUCKDB_TYPE_BLOB: {
+      // Copy into the owned per-column buffer too: the chunk's bytes are only
+      // valid until the next chunk fetch, and an owned copy gives a stable
+      // pointer for the SqlValue's lifetime contract.
       auto* s = &static_cast<duckdb_string_t*>(data)[row];
-      value = SqlValue::Bytes(duckdb_string_t_data(s),
-                              duckdb_string_t_length(*s));
+      PERFETTO_DCHECK(col < string_buffers_.size());
+      string_buffers_[col].assign(duckdb_string_t_data(s),
+                                  duckdb_string_t_length(*s));
+      value = SqlValue::Bytes(string_buffers_[col].data(),
+                              string_buffers_[col].size());
       break;
     }
     default:
