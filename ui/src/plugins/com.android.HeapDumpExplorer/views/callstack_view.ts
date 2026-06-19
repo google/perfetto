@@ -54,7 +54,7 @@ export const CallstackView: m.ClosureComponent<CallstackViewAttrs> = () => {
           },
           m(
             'div',
-            'Callstacks in heap dumps are only available in Perfetto heap dumps collected on OutOfMemoryError and in versions of Android newer than X',
+            'Callstacks in heap dumps are only available in Perfetto heap dumps collected on OutOfMemoryError and in recent versions of Android',
           ),
         );
       }
