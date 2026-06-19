@@ -135,13 +135,17 @@ source_set("deserializer") {
   ]
 }
 
-# The --remote client: marshals every method over the RPC wire to a warm
-# server. Needs the IPC layer (AF_UNIX sockets), so gated like ":unixd".
+# The --remote client: a TraceProcessor implementation that marshals every
+# method over the RPC wire to a warm server, over either an AF_UNIX byte pipe
+# or a WebSocket (to an http server). Needs the IPC layer (AF_UNIX sockets),
+# so gated like ":unixd".
 if (enable_perfetto_ipc) {
   source_set("client") {
     sources = [
       "remote_trace_processor.cc",
       "remote_trace_processor.h",
+      "rpc_transport.cc",
+      "rpc_transport.h",
     ]
     deps = [
       ":deserializer",
