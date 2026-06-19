@@ -185,6 +185,18 @@ base::Status UnixRpcServer::Run() {
     return base::ErrStatus("--daemonize is not supported on this platform yet");
   }
 
+#if PERFETTO_TP_UNIXD_POSIX()
+  // Install the termination handlers *before* binding the socket. Otherwise
+  // there is a window where the socket file exists (and is observable by
+  // clients) but a SIGTERM/SIGINT would hit the default disposition and
+  // terminate us without unlinking it, leaking the socket file. unlink() on a
+  // not-yet-bound path is harmless. The pid-file path is wired up later, once
+  // it is known.
+  g_socket_path_for_signal = args_.socket_path.c_str();
+  signal(SIGINT, HandleTermSignal);
+  signal(SIGTERM, HandleTermSignal);
+#endif
+
   // Clean up a socket left behind by a previous server. If something still
   // accepts a connection there, refuse to clobber it.
   if (base::FileExists(args_.socket_path)) {
@@ -249,10 +261,9 @@ base::Status UnixRpcServer::Run() {
   reaper_->Start();
 
 #if PERFETTO_TP_UNIXD_POSIX()
-  g_socket_path_for_signal = args_.socket_path.c_str();
+  // The handlers were installed before binding; now that the pid-file path is
+  // known, wire it up so the same handler also unlinks the pid file.
   g_pid_path_for_signal = pid_path_.c_str();
-  signal(SIGINT, HandleTermSignal);
-  signal(SIGTERM, HandleTermSignal);
 #endif
 
   task_runner_.Run();
