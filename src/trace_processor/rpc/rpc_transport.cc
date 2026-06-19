@@ -22,6 +22,7 @@
 #include <string>
 #include <utility>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -75,9 +76,25 @@ class WebSocketTransport : public RpcTransport {
   base::StatusOr<size_t> Recv(uint8_t* buf, size_t len) override;
 
  private:
+  // The decoded fixed-size part of a WebSocket frame header: everything up to,
+  // but not including, the payload bytes. See RFC 6455 §5.2.
+  struct FrameHeader {
+    uint8_t opcode = 0;          // 0x1 text, 0x2 binary, 0x8 close, etc.
+    bool masked = false;         // Whether the payload is XOR-masked.
+    uint64_t payload_len = 0;    // Number of payload bytes that follow.
+    uint8_t mask[4] = {0, 0, 0, 0};  // Mask key, valid only if |masked|.
+  };
+
   // Blocking read of exactly |n| bytes. Returns false on EOF/error.
   bool ReadExactly(void* dst, size_t n);
-  // Reads one complete WebSocket frame's payload into inbound_. Returns false
+  // Reads and decodes the next frame header off the wire (base bytes, extended
+  // length and, if present, the mask key). Returns false on EOF/error.
+  bool ReadFrameHeader(FrameHeader* out);
+  // Reads the |hdr.payload_len| payload bytes that follow |hdr|, unmasking them
+  // in place if needed. Returns false on EOF/error.
+  bool ReadFramePayload(const FrameHeader& hdr, std::string* payload);
+  // Reads complete WebSocket frames until a data frame arrives, appending its
+  // payload to inbound_. Control frames (ping/pong) are skipped. Returns false
   // if the connection closed.
   bool ReadFrameIntoBuffer();
 
@@ -166,52 +183,83 @@ base::Status WebSocketTransport::Send(const uint8_t* data, size_t len) {
   return base::OkStatus();
 }
 
+PERFETTO_ALWAYS_INLINE bool WebSocketTransport::ReadFrameHeader(
+    FrameHeader* out) {
+  // Byte 0 holds FIN/RSV/opcode; byte 1 holds the MASK bit and the 7-bit base
+  // payload length. We ignore FIN and assume unfragmented frames (the server
+  // never fragments our RPC responses).
+  uint8_t base[2];
+  if (!ReadExactly(base, 2))
+    return false;
+  out->opcode = base[0] & 0x0F;
+  out->masked = (base[1] & 0x80) != 0;
+
+  // The 7-bit length is either the real length, or a sentinel saying the real
+  // length follows in a 16-bit (126) or 64-bit (127) big-endian field.
+  uint64_t len = base[1] & 0x7F;
+  if (len == 126) {
+    uint8_t ext[2];
+    if (!ReadExactly(ext, 2))
+      return false;
+    len = (static_cast<uint64_t>(ext[0]) << 8) | ext[1];
+  } else if (len == 127) {
+    uint8_t ext[8];
+    if (!ReadExactly(ext, 8))
+      return false;
+    len = 0;
+    for (uint8_t b : ext)
+      len = (len << 8) | b;
+  }
+  out->payload_len = len;
+
+  // A masked frame is followed by a 4-byte mask key, used to XOR the payload.
+  if (out->masked && !ReadExactly(out->mask, 4))
+    return false;
+  return true;
+}
+
+PERFETTO_ALWAYS_INLINE bool WebSocketTransport::ReadFramePayload(
+    const FrameHeader& hdr,
+    std::string* payload) {
+  payload->resize(static_cast<size_t>(hdr.payload_len));
+  if (hdr.payload_len > 0 && !ReadExactly(payload->data(), payload->size()))
+    return false;
+  // Each payload byte is XORed with mask[i % 4] to recover the original bytes.
+  if (hdr.masked) {
+    for (size_t i = 0; i < payload->size(); ++i)
+      (*payload)[i] = static_cast<char>((*payload)[i] ^ hdr.mask[i % 4]);
+  }
+  return true;
+}
+
 bool WebSocketTransport::ReadFrameIntoBuffer() {
+  // The server can interleave control frames (ping/pong) at any point, so loop
+  // until we get a data frame, skipping anything that isn't payload for us.
   for (;;) {
-    uint8_t hdr[2];
-    if (!ReadExactly(hdr, 2))
-      return false;
-    uint8_t opcode = hdr[0] & 0x0F;
-    bool masked = (hdr[1] & 0x80) != 0;
-    uint64_t len = hdr[1] & 0x7F;
-    if (len == 126) {
-      uint8_t ext[2];
-      if (!ReadExactly(ext, 2))
-        return false;
-      len = (static_cast<uint64_t>(ext[0]) << 8) | ext[1];
-    } else if (len == 127) {
-      uint8_t ext[8];
-      if (!ReadExactly(ext, 8))
-        return false;
-      len = 0;
-      for (uint8_t b : ext)
-        len = (len << 8) | b;
-    }
-    uint8_t mask[4] = {0, 0, 0, 0};
-    if (masked && !ReadExactly(mask, 4))
+    FrameHeader hdr;
+    if (!ReadFrameHeader(&hdr))
       return false;
 
-    std::string payload;
-    payload.resize(static_cast<size_t>(len));
-    if (len > 0 && !ReadExactly(payload.data(), payload.size()))
-      return false;
-    if (masked) {
-      for (size_t i = 0; i < payload.size(); ++i)
-        payload[i] = static_cast<char>(payload[i] ^ mask[i % 4]);
-    }
-
-    switch (opcode) {
+    switch (hdr.opcode) {
       case 0x1:  // Text.
       case 0x2:  // Binary.
-        inbound_ += payload;
+        // Read straight into inbound_, which Recv has already emptied before
+        // calling us, so the payload is never copied a second time.
+        if (!ReadFramePayload(hdr, &inbound_))
+          return false;
         inbound_pos_ = 0;
         return true;
       case 0x8:  // Close.
         return false;
       case 0x9:  // Ping: ignore (server tolerates a missing pong for our use).
       case 0xA:  // Pong.
-      default:
-        continue;  // Skip control frames and read the next one.
+      default: {
+        // Drain and discard the control frame's payload, then read the next.
+        std::string discard;
+        if (!ReadFramePayload(hdr, &discard))
+          return false;
+        continue;
+      }
     }
   }
 }
