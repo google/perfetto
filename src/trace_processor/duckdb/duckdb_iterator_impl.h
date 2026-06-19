@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DUCKDB_DUCKDB_ITERATOR_IMPL_H_
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -46,6 +47,14 @@ struct DuckDbExecutionResult {
   uint32_t statement_count = 1;
   uint32_t statement_count_with_output = 1;
   std::string last_statement_sql;
+
+  // Optional sql_stats bookkeeping hooks. `lib` populates these (capturing the
+  // TraceProcessorImpl + sql_stats row) so the iterator records FirstNext / End
+  // exactly like SqliteIteratorImpl, without `duckdb/` having to depend on
+  // (and form a cycle with) `lib`. `on_destroy` runs at most once (it is moved
+  // out into the iterator and cleared on the moved-from result).
+  std::function<void()> on_first_next;
+  std::function<void()> on_destroy;
 };
 
 // A third `IteratorImpl` (alongside SqliteIteratorImpl and RemoteIteratorImpl),

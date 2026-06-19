@@ -37,6 +37,9 @@ DuckDbIteratorImpl::~DuckDbIteratorImpl() {
     duckdb_destroy_data_chunk(&chunk_);
   }
   duckdb_destroy_result(&result_.result);
+  if (result_.on_destroy) {
+    result_.on_destroy();
+  }
 }
 
 bool DuckDbIteratorImpl::Next() {
@@ -46,6 +49,9 @@ bool DuckDbIteratorImpl::Next() {
   // boundaries as needed.
   if (!called_next_) {
     called_next_ = true;
+    if (result_.on_first_next) {
+      result_.on_first_next();
+    }
     if (!status_.ok()) {
       return false;
     }
@@ -149,6 +155,15 @@ SqlValue DuckDbIteratorImpl::Get(uint32_t col) const {
       value = SqlValue::Long(
           static_cast<int64_t>(static_cast<uint64_t*>(data)[row]));
       break;
+    case DUCKDB_TYPE_HUGEINT: {
+      // DuckDB's sum(BIGINT) etc. widen to HUGEINT (128-bit). SQLite returns an
+      // int64; reconstruct the low-64 two's-complement value (exact when the
+      // result fits int64, which it does for the sched aggregates here and
+      // matches SQLite's own int64 wraparound).
+      auto h = static_cast<duckdb_hugeint*>(data)[row];
+      value = SqlValue::Long(static_cast<int64_t>(h.lower));
+      break;
+    }
     case DUCKDB_TYPE_FLOAT:
       value = SqlValue::Double(
           static_cast<double>(static_cast<float*>(data)[row]));

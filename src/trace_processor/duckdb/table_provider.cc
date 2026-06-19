@@ -261,17 +261,18 @@ DuckDbTableProvider::~DuckDbTableProvider() = default;
 const DuckDbTableProvider::Entry* DuckDbTableProvider::InsertSnapshot(
     const std::string& name,
     const dataframe::Dataframe& df) {
-  if (entries_.count(name)) {
-    return nullptr;
-  }
   std::optional<uint32_t> id_col = FindIdColumnIndex(df.column_names());
   if (!id_col) {
     return nullptr;
   }
   auto entry = std::make_unique<Entry>(df.CopyFinalized());
   entry->id_col_idx = *id_col;
-  auto it = entries_.emplace(name, std::move(entry)).first;
-  return it->second.get();
+  // Record the live source for read-through staleness detection.
+  entry->source = &df;
+  entry->source_mutations = df.mutations();
+  // Replace any existing (possibly stale) snapshot under this name.
+  entries_[name] = std::move(entry);
+  return entries_[name].get();
 }
 
 base::Status DuckDbTableProvider::Register(const std::string& name,
@@ -297,20 +298,35 @@ const DuckDbTableProvider::Entry* DuckDbTableProvider::Find(
 
 const DuckDbTableProvider::Entry* DuckDbTableProvider::Resolve(
     const std::string& name) {
-  if (const Entry* e = Find(name)) {
-    return e;
-  }
-  // Local-cache miss: consult the read-through resolver (if any) and lazily
-  // snapshot a live dataframe by name. This is what makes static AND runtime
-  // tables resolve with no per-table DuckDB registration.
+  const Entry* cached = Find(name);
+
+  // No resolver: pure cache (used by eager `Register`-only callers, e.g. the
+  // static-table tests). Cache entries never go stale because the caller owns
+  // their lifetime.
   if (!resolver_) {
+    return cached;
+  }
+
+  // Read-through: consult the live registry every time so a runtime table that
+  // was dropped/recreated (or had an index added) - which swaps the backing
+  // dataframe to a NEW object (verified) - is re-snapshotted instead of serving
+  // a stale snapshot. The mutation count is a defensive secondary check for the
+  // (currently unobserved) in-place-mutation case.
+  const dataframe::Dataframe* live = resolver_(name);
+  if (!live) {
+    // The live table is gone. Drop any stale snapshot so a future query errors
+    // cleanly rather than reading a freed dataframe.
+    if (cached) {
+      entries_.erase(name);
+    }
     return nullptr;
   }
-  const dataframe::Dataframe* df = resolver_(name);
-  if (!df) {
-    return nullptr;
+  if (cached && cached->source == live &&
+      cached->source_mutations == live->mutations()) {
+    return cached;  // Still fresh.
   }
-  return InsertSnapshot(name, *df);
+  // Stale or first sight: (re)snapshot.
+  return InsertSnapshot(name, *live);
 }
 
 base::Status DuckDbTableProvider::RegisterTableFunction(

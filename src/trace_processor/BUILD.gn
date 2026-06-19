@@ -175,11 +175,23 @@ source_set("storage_minimal") {
   public_deps = [ "../../include/perfetto/trace_processor:storage" ]
 }
 
+# Leaf header for the abstract IteratorImpl interface. Split out of ":lib" so
+# the experimental DuckDB integration (src/trace_processor/duckdb) can depend on
+# this single header without pulling in (and creating a cycle with) all of
+# ":lib". It is a pure interface header (basic_types + status only).
+source_set("iterator_impl_hdr") {
+  sources = [ "iterator_impl.h" ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/trace_processor:basic_types",
+    "../base",
+  ]
+}
+
 if (enable_perfetto_trace_processor_sqlite) {
   source_set("lib") {
     sources = [
       "iterator_impl.cc",
-      "iterator_impl.h",
       "read_trace.cc",
       "read_trace_internal.cc",
       "read_trace_internal.h",
@@ -301,6 +313,13 @@ if (enable_perfetto_trace_processor_sqlite) {
       deps += [ "importers/etm" ]
     }
 
+    # Experimental DuckDB query engine. trace_processor_impl.cc routes eligible
+    # queries to it when Config::enable_duckdb_query_engine is set. The whole
+    # fork is fenced behind PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB).
+    if (enable_perfetto_duckdb) {
+      deps += [ "duckdb:engine" ]
+    }
+
     if (enable_perfetto_winscope) {
       deps += [
         "plugins/winscope_importer",
@@ -310,6 +329,9 @@ if (enable_perfetto_trace_processor_sqlite) {
     }
 
     public_deps = [
+      # iterator_impl.h was historically a ":lib" source; keep it reachable to
+      # ":lib"'s consumers (e.g. rpc:client) now that it lives in its own target.
+      ":iterator_impl_hdr",
       "../../gn:sqlite",  # sqlite_iterator_impl.h includes sqlite3.h.
       "../../include/perfetto/trace_processor",
     ]

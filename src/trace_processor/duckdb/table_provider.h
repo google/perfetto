@@ -129,6 +129,16 @@ class DuckDbTableProvider {
     dataframe::Dataframe df;            // CopyFinalized() snapshot.
     dataframe::DataframeSpec spec;      // Cached CreateSpec().
     uint32_t id_col_idx = 0;            // Resolved id-column index.
+
+    // Staleness key for resolver-backed (read-through) entries. Records the
+    // identity (address) and mutation count of the LIVE dataframe this snapshot
+    // was taken from. Every mutating DDL (CREATE OR REPLACE / DROP+CREATE /
+    // CREATE INDEX) swaps the live dataframe to a NEW object (verified), so a
+    // changed address means the snapshot is stale and must be retaken; the
+    // mutation count is a defensive secondary check. Unset (nullptr) for eager
+    // `Register`ed entries, which are never re-resolved.
+    const dataframe::Dataframe* source = nullptr;
+    uint64_t source_mutations = 0;
   };
 
   // Resolves `name`: returns the cached entry if present; otherwise consults the
@@ -145,8 +155,9 @@ class DuckDbTableProvider {
   StringPool* string_pool() const { return string_pool_; }
 
  private:
-  // Inserts a snapshot of `df` under `name`. `df` must be finalized and have an
-  // id column. Returns nullptr on failure (already present / no id column).
+  // Inserts (or replaces) a snapshot of `df` under `name`, recording `df` as the
+  // staleness source. `df` must be finalized and have an id column. Returns
+  // nullptr on failure (no id column).
   const Entry* InsertSnapshot(const std::string& name,
                               const dataframe::Dataframe& df);
 

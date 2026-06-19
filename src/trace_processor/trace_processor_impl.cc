@@ -143,6 +143,10 @@
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite_iterator_impl.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
+#include "src/trace_processor/duckdb/duckdb_engine.h"
+#include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
+#endif
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/trace_reader_registry.h"
@@ -641,6 +645,68 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
       context()->storage->mutable_sql_stats()->RecordQueryBegin(
           sql, base::GetWallTimeNs().count());
   std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
+  // Experimental DuckDB query engine. When enabled, try to run the whole query
+  // inside DuckDB; on ineligibility fall through to SQLite UNCHANGED, on a
+  // genuine DuckDB error surface it. This whole block is fenced behind the
+  // build flag AND the runtime config so the SQLite path is byte-identical when
+  // off.
+  if (config_.enable_duckdb_query_engine) {
+    if (!duckdb_engine_) {
+      duckdb_engine_ = std::make_unique<duckdb_integration::DuckDbEngine>(
+          context()->storage->mutable_string_pool(),
+          [this](const std::string& name) -> const dataframe::Dataframe* {
+            // BEACHHEAD literal rule (D2 design §2.3 step 4): the public `sched`
+            // relation is a PerfettoSQL VIEW over the `__intrinsic_sched_slice`
+            // dataframe; `GetDataframeOrNull` only knows dataframes, not views.
+            // Map the one supported view name to its backing dataframe so a real
+            // `FROM sched` resolves. The dataframe exposes the same id/ts/dur/
+            // utid/end_state/priority/ucpu columns the view passes through; the
+            // view-only derived columns (`cpu`, `ts_end`) are out of scope for
+            // the beachhead and a query using them would error in DuckDB (the
+            // support predicate is column-agnostic by design). Generalising this
+            // name->relation mapping is a later wave's job.
+            if (name == "sched") {
+              if (const dataframe::Dataframe* df =
+                      engine_->GetDataframeOrNull("__intrinsic_sched_slice")) {
+                return df;
+              }
+            }
+            return engine_->GetDataframeOrNull(name);
+          });
+    }
+    bool ran_in_duckdb = false;
+    base::StatusOr<std::optional<duckdb_integration::DuckDbExecutionResult>> dd =
+        duckdb_engine_->TryExecuteWholeQuery(
+            non_breaking_sql, config_.duckdb_disable_fallback, &ran_in_duckdb);
+    if (!dd.ok()) {
+      // Either a genuine DuckDB execution error on an eligible query, or (with
+      // fallback disabled) an ineligible query. Surface it through the iterator.
+      return Iterator(std::make_unique<SqliteIteratorImpl>(
+          this, base::StatusOr<PerfettoSqlConnection::ExecutionResult>(
+                    dd.status()),
+          sql_stats_row));
+    }
+    if (dd->has_value()) {
+      ++queries_executed_in_duckdb_;
+      duckdb_integration::DuckDbExecutionResult exec = std::move(**dd);
+      exec.on_first_next = [this, sql_stats_row]() {
+        context()->storage->mutable_sql_stats()->RecordQueryFirstNext(
+            sql_stats_row, base::GetWallTimeNs().count());
+      };
+      exec.on_destroy = [this, sql_stats_row]() {
+        context()->storage->mutable_sql_stats()->RecordQueryEnd(
+            sql_stats_row, base::GetWallTimeNs().count());
+      };
+      return Iterator(std::make_unique<duckdb_integration::DuckDbIteratorImpl>(
+          std::move(exec)));
+    }
+    // Ineligible with fallback enabled: fall through to SQLite below.
+    ++queries_fell_back_to_sqlite_;
+  }
+#endif
+
   base::StatusOr<PerfettoSqlConnection::ExecutionResult> result =
       engine_->ExecuteUntilLastStatement(
           SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));

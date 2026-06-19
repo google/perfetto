@@ -29,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/summarizer.h"
@@ -36,6 +37,10 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/core/plugin/plugin.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
+#include "src/trace_processor/duckdb/duckdb_engine.h"
+#endif
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -137,6 +142,17 @@ class TraceProcessorImpl : public TraceProcessor,
 
   base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
 
+  // Fallback-honesty counters (EXPERIMENTAL, SQLite -> DuckDB migration).
+  // Exposed for tests/measurement: how many ExecuteQuery calls actually ran
+  // inside DuckDB vs fell back to SQLite while the DuckDB engine was enabled.
+  // Always present (cheap two-uint64 counters) so test code links in any build.
+  uint64_t queries_executed_in_duckdb() const {
+    return queries_executed_in_duckdb_;
+  }
+  uint64_t queries_fell_back_to_sqlite() const {
+    return queries_fell_back_to_sqlite_;
+  }
+
  private:
   // Needed for iterators to be able to access the context.
   friend class SqliteIteratorImpl;
@@ -182,6 +198,18 @@ class TraceProcessorImpl : public TraceProcessor,
   std::vector<PluginDataframe> plugin_dataframes_;
 
   std::unique_ptr<PerfettoSqlConnection> engine_;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
+  // Lazily created on the first DuckDB-eligible query (only when
+  // config_.enable_duckdb_query_engine is set). Owns the DuckDB
+  // database/connection + table provider.
+  std::unique_ptr<duckdb_integration::DuckDbEngine> duckdb_engine_;
+#endif
+
+  // Fallback-honesty counters. See accessors above. Defined unconditionally so
+  // the (test-only) accessors are always available, regardless of build config.
+  uint64_t queries_executed_in_duckdb_ = 0;
+  uint64_t queries_fell_back_to_sqlite_ = 0;
 
   DescriptorPool metrics_descriptor_pool_;
 

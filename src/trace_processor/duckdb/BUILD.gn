@@ -37,15 +37,47 @@ source_set("duckdb") {
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
     "../../base",
-    "..:lib",
+    "..:iterator_impl_hdr",  # duckdb_iterator_impl.h includes iterator_impl.h.
     "../containers",
     "../core/dataframe",
+  ]
+}
+
+# The engine-facing glue: owns the lazily-created DuckDB database/connection +
+# the table provider, implements the support predicate, and runs whole queries.
+# Kept separate from ":duckdb" so ":lib" (which routes to it from
+# TraceProcessorImpl::ExecuteQuery) depends only on this thin layer. This
+# target intentionally does NOT depend on ":lib", so there is no cycle.
+source_set("engine") {
+  sources = [
+    "duckdb_engine.cc",
+    "duckdb_engine.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/trace_processor",
+    "../../base",
+    "..:iterator_impl_hdr",
+    "../containers",
+    "../core/dataframe",
+  ]
+
+  # duckdb_engine.h is included by trace_processor_impl.h (a ":lib" header) and
+  # itself includes "duckdb.h", and it re-exports duckdb_iterator_impl.h
+  # (DuckDbExecutionResult) + table_provider.h. Consumers of ":engine" (i.e.
+  # ":lib") therefore need both the DuckDB include dir (//gn:duckdb's public
+  # config) and ":duckdb"'s headers, so both are public_deps.
+  public_deps = [
+    ":duckdb",
+    "../../../gn:duckdb",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "duckdb_engine_live_unittest.cc",
     "duckdb_iterator_impl_live_unittest.cc",
     "sched_appender_unittest.cc",
     "sched_table_function_live_unittest.cc",
@@ -54,6 +86,7 @@ perfetto_unittest_source_set("unittests") {
   ]
   deps = [
     ":duckdb",
+    ":engine",
     "../../../gn:default_deps",
     "../../../gn:duckdb",
     "../../../gn:gtest_and_gmock",
