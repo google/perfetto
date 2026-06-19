@@ -200,9 +200,8 @@ function getSliceContextMenuItems(slice: SliceDetails) {
 async function getSliceDetails(
   engine: Engine,
   id: number,
-  tableName = 'slice',
 ): Promise<SliceDetails | undefined> {
-  return getSlice(engine, asSliceSqlId(id), tableName);
+  return getSlice(engine, asSliceSqlId(id));
 }
 
 // Interface for additional sections that can be composed
@@ -238,9 +237,8 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
 
   async load(selection: TrackEventSelection) {
     const {trace} = this;
-    const {eventId, trackUri} = selection;
-    const tableName = trackUri.startsWith('/state_') ? 'state' : 'slice';
-    const details = await getSliceDetails(trace.engine, eventId, tableName);
+    const {eventId} = selection;
+    const details = await getSliceDetails(trace.engine, eventId);
 
     if (
       details !== undefined &&

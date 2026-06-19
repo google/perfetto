@@ -76,7 +76,6 @@ async function getUtidAndUpid(
 export async function getSliceFromConstraints(
   engine: Engine,
   constraints: SQLConstraints,
-  tableName = 'slice',
 ): Promise<SliceDetails[]> {
   const query = await engine.query(`
     SELECT
@@ -92,7 +91,7 @@ export async function getSliceFromConstraints(
       category,
       arg_set_id as argSetId,
       ABS_TIME_STR(ts) as absTime
-    FROM ${tableName}
+    FROM slice
     ${constraintsToQuerySuffix(constraints)}`);
   const it = query.iter({
     id: NUM,
@@ -147,16 +146,10 @@ export async function getSliceFromConstraints(
 export async function getSlice(
   engine: Engine,
   id: SliceSqlId,
-  tableName = 'slice',
 ): Promise<SliceDetails | undefined> {
-  const result = await getSliceFromConstraints(
-    engine,
-    {
-      filters: [`id=${id}`],
-    },
-    tableName,
-  );
-
+  const result = await getSliceFromConstraints(engine, {
+    filters: [`id=${id}`],
+  });
   if (result.length > 1) {
     throw new Error(`slice table has more than one row with id ${id}`);
   }
