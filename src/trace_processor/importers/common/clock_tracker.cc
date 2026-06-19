@@ -130,8 +130,7 @@ void ClockTracker::AddSnapshotToTable(
     // deferred identity sync or count as an event conversion.
     auto* state = context_->trace_time_state.get();
     std::optional<int64_t> converted = active_sync_->Convert(
-        clock_timestamp.clock.id, ts_to_convert, state->clock_id,
-        std::nullopt);
+        clock_timestamp.clock.id, ts_to_convert, state->clock_id, std::nullopt);
     std::optional<int64_t> opt_trace_ts =
         converted ? std::optional(ToHostTraceTime(*converted)) : std::nullopt;
 
