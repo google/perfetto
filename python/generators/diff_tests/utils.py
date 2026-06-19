@@ -87,6 +87,13 @@ def get_env(root_dir: str) -> Dict[str, str]:
       'PERFETTO_BINARY_PATH': os.path.join(root_dir, 'test', 'data'),
       'PATH': os.environ['PATH'],
   }
+  # EXPERIMENTAL (SQLite -> DuckDB migration). Forward the DuckDB engine opt-in
+  # env vars (if set in the caller's environment) into the trace_processor_shell
+  # subprocess. This lets the SAME diff tests run through the DuckDB router
+  # without per-test command-line plumbing.
+  for var in ('PERFETTO_ENABLE_DUCKDB', 'PERFETTO_DUCKDB_DISABLE_FALLBACK'):
+    if var in os.environ:
+      env[var] = os.environ[var]
   if sys.platform.startswith('linux'):
     env['PATH'] = os.path.join(root_dir, 'buildtools', 'linux64', 'clang',
                                'bin') + ':' + env['PATH']

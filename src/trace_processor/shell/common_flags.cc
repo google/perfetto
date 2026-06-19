@@ -123,6 +123,16 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
   flags.push_back(BoolFlag("extra-checks", '\0',
                            "Enables additional SQL error checks.",
                            &opts->extra_checks));
+  flags.push_back(BoolFlag(
+      "enable-duckdb-query-engine", '\0',
+      "EXPERIMENTAL: routes fully-supported queries through the DuckDB engine.",
+      &opts->enable_duckdb_query_engine));
+  flags.push_back(BoolFlag(
+      "duckdb-disable-fallback", '\0',
+      "EXPERIMENTAL: with --enable-duckdb-query-engine, errors (instead of "
+      "silently falling back to SQLite) on queries DuckDB cannot run; used to "
+      "get an honest DuckDB-only pass count.",
+      &opts->duckdb_disable_fallback));
   flags.push_back(
       {/*long_name=*/"add-sql-package", /*short_name=*/'\0',
        /*has_arg=*/true, /*arg_name=*/"PATH[@PKG]",
@@ -312,6 +322,22 @@ Config BuildConfig(const GlobalOptions& opts,
   if (opts.extra_checks) {
     config.enable_extra_checks = true;
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
+  // EXPERIMENTAL (SQLite -> DuckDB migration). Enable via the CLI flags above or
+  // the PERFETTO_ENABLE_DUCKDB / PERFETTO_DUCKDB_DISABLE_FALLBACK env vars. The
+  // env vars are the least invasive way to flip the engine on under the
+  // diff-test runner (which spawns the shell as a subprocess) without per-test
+  // command-line plumbing. A var counts as set when it is present and not "0".
+  auto env_truthy = [](const char* name) {
+    const char* v = getenv(name);
+    return v != nullptr && v[0] != '\0' && strcmp(v, "0") != 0;
+  };
+  config.enable_duckdb_query_engine =
+      opts.enable_duckdb_query_engine || env_truthy("PERFETTO_ENABLE_DUCKDB");
+  config.duckdb_disable_fallback = opts.duckdb_disable_fallback ||
+                                   env_truthy("PERFETTO_DUCKDB_DISABLE_FALLBACK");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
 
   return config;
 }

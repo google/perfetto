@@ -281,7 +281,15 @@ class DiffTestsRunner:
           '--query-string',
           'select name from __intrinsic_modules',
       ]
-      modules_str = subprocess.check_output(args, stderr=subprocess.PIPE)
+      # EXPERIMENTAL (SQLite -> DuckDB migration). This is an infrastructure
+      # probe, not a test query, so it must never be subjected to the DuckDB
+      # honesty gate (PERFETTO_DUCKDB_DISABLE_FALLBACK would make this ineligible
+      # query error and break setup). Scrub the DuckDB opt-in env vars for it.
+      probe_env = os.environ.copy()
+      probe_env.pop('PERFETTO_ENABLE_DUCKDB', None)
+      probe_env.pop('PERFETTO_DUCKDB_DISABLE_FALLBACK', None)
+      modules_str = subprocess.check_output(
+          args, stderr=subprocess.PIPE, env=probe_env)
       modules = set(
           line.strip('"')
           for line in modules_str.decode('utf-8').splitlines()

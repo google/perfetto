@@ -58,6 +58,17 @@ struct GlobalOptions {
   std::vector<std::string> dev_flags;
   bool extra_checks = false;
 
+  // EXPERIMENTAL (SQLite -> DuckDB migration). When set, flip the corresponding
+  // Config fields so queries that the experimental DuckDB engine fully supports
+  // run inside DuckDB (and, with disable-fallback, ineligible queries error
+  // instead of silently using SQLite). These are inert unless trace_processor
+  // is built with PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB); the fields are always
+  // present so the struct layout is stable across build configurations. Also
+  // settable via the PERFETTO_ENABLE_DUCKDB / PERFETTO_DUCKDB_DISABLE_FALLBACK
+  // env vars (handy for threading through the diff-test runner).
+  bool enable_duckdb_query_engine = false;
+  bool duckdb_disable_fallback = false;
+
   std::vector<std::string> sql_package_paths;
   std::vector<std::string> override_sql_package_paths;
   std::string override_stdlib_path;
