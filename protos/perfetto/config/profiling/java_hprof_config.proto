@@ -100,7 +100,7 @@ message JavaHprofConfig {
   // useful if lots of uninteresting objects, e.g. "sun.misc.Cleaner".
   repeated string ignored_types = 6;
 
-  // Dump the callsite of the thread triggering the OutOfErrorMemory
+  // Dump the callsite of the thread triggering the OutOfMemoryError.
   // Only applicable to OutOfMemoryError heap dumps
   optional bool dump_oome_callstack = 10;
 }
