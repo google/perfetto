@@ -213,9 +213,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         tid,
         pid,
       });
-      const uri = isState
-        ? `/state_track_event_${trackIds[0]}`
-        : `/track_event_${trackIds[0]}`;
+      const uri = `/track_event_${trackIds[0]}`;
       if (hasData && isCounter) {
         // Don't show any builtin counter.
         if (builtinCounterType !== null) {
@@ -247,25 +245,35 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             trackName,
           }),
         });
+      } else if (hasData && isState === 1) {
+        const renderer = await createTraceProcessorStateTrack({
+          trace: ctx,
+          uri,
+          trackId: trackIds[0],
+          trackName,
+        });
+        ctx.tracks.registerTrack({
+          uri,
+          description: description ?? undefined,
+          tags: {
+            kinds: [kind],
+            trackIds: trackIds,
+            upid: upid ?? undefined,
+            utid: utid ?? undefined,
+            trackEvent: true,
+            hasCallstacks: hasCallstacks === 1,
+          },
+          renderer,
+        });
       } else if (hasData) {
-        const renderer =
-          isState === 1
-            ? await createTraceProcessorStateTrack({
-                trace: ctx,
-                uri,
-                trackId: trackIds[0],
-                trackName,
-              })
-            : await createTraceProcessorSliceTrack({
-                trace: ctx,
-                uri,
-                trackIds,
-                detailsPanel: createTrackEventDetailsPanel(ctx),
-                depthTableName:
-                  trackIds.length > 1
-                    ? '__trackevent_track_layout_depth'
-                    : undefined,
-              });
+        const renderer = await createTraceProcessorSliceTrack({
+          trace: ctx,
+          uri,
+          trackIds,
+          detailsPanel: createTrackEventDetailsPanel(ctx),
+          depthTableName:
+            trackIds.length > 1 ? '__trackevent_track_layout_depth' : undefined,
+        });
         ctx.tracks.registerTrack({
           uri,
           description: description ?? undefined,
