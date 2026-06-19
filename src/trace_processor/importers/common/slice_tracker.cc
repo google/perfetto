@@ -43,7 +43,27 @@ SliceTracker::SliceTracker(TraceProcessorContext* context)
           context->storage->InternString("legacy_unnestable_begin_count")),
       legacy_unnestable_last_begin_ts_string_id_(
           context->storage->InternString("legacy_unnestable_last_begin_ts")),
-      context_(context) {}
+      context_(context),
+      overlap_start_key_(context->storage->InternString("overlap_start")),
+      overlap_end_key_(context->storage->InternString("overlap_end")),
+      overlap_conflicting_name_key_(
+          context->storage->InternString("conflicting_slice_name")),
+      overlap_conflicting_ts_key_(
+          context->storage->InternString("conflicting_slice_ts")),
+      overlap_conflicting_dur_key_(
+          context->storage->InternString("conflicting_slice_dur")) {}
+
+void SliceTracker::AddOverlapArgs(const OverlapInfo& info,
+                                  ArgsTracker::BoundInserter& inserter) const {
+  inserter.AddArg(overlap_start_key_, Variadic::Integer(info.start));
+  inserter.AddArg(overlap_end_key_, Variadic::Integer(info.end));
+  inserter.AddArg(overlap_conflicting_name_key_,
+                  Variadic::String(info.conflicting_name));
+  inserter.AddArg(overlap_conflicting_ts_key_,
+                  Variadic::Integer(info.conflicting_ts));
+  inserter.AddArg(overlap_conflicting_dur_key_,
+                  Variadic::Integer(info.conflicting_dur));
+}
 
 SliceTracker::~SliceTracker() {
   FlushPendingSlices();
@@ -89,13 +109,14 @@ void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
   });
 }
 
-std::optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
-                                            TrackId track_id,
-                                            StringId category,
-                                            StringId raw_name,
-                                            int64_t duration,
-                                            SetArgsCallback args_callback,
-                                            bool* overlap_out) {
+std::optional<SliceId> SliceTracker::Scoped(
+    int64_t timestamp,
+    TrackId track_id,
+    StringId category,
+    StringId raw_name,
+    int64_t duration,
+    SetArgsCallback args_callback,
+    std::optional<OverlapInfo>* overlap_out) {
   if (duration < 0) {
     context_->import_logs_tracker->RecordParserError(
         stats::slice_negative_duration, timestamp);
@@ -161,7 +182,7 @@ std::optional<SliceId> SliceTracker::StartSlice(
     TrackId track_id,
     SetArgsCallback args_callback,
     std::function<SliceId()> inserter,
-    bool* overlap_out) {
+    std::optional<OverlapInfo>* overlap_out) {
   auto& track_info = stacks_[track_id];
   auto& stack = track_info.slice_stack;
 
@@ -368,7 +389,7 @@ bool SliceTracker::MaybeCloseStack(int64_t new_ts,
                                    int64_t new_dur,
                                    const SlicesStack& stack,
                                    TrackId track_id,
-                                   bool* overlap_out) {
+                                   std::optional<OverlapInfo>* overlap_out) {
   auto* slices = context_->storage->mutable_slice_table();
   bool incomplete_descendent = false;
   for (int i = static_cast<int>(stack.size()) - 1; i >= 0; i--) {
@@ -464,11 +485,24 @@ bool SliceTracker::MaybeCloseStack(int64_t new_ts,
     // This is invalid stacking by the producer and should be fixed. Duration
     // events should either be nested or disjoint, never partially intersecting.
     if (new_ts < end_ts && new_ts + new_dur > end_ts) {
+      // The incoming slice [new_ts, new_ts + new_dur) starts inside the
+      // already-open slice [start_ts, end_ts) but ends after it, so the shared
+      // (ambiguous) region is [new_ts, end_ts).
+      OverlapInfo info{new_ts, end_ts, ref.name().value_or(kNullStringId),
+                       start_ts, dur};
       if (overlap_out) {
-        *overlap_out = true;
+        // The caller wants to recover (e.g. spill onto an overflow track) and
+        // will do its own logging; just report the details.
+        *overlap_out = info;
       } else {
-        context_->stats_tracker->IncrementStats(
-            stats::slice_drop_overlapping_complete_event);
+        // Nobody can recover this slice, so drop it but log the offending
+        // events (rather than only bumping a stat) so the user can find and fix
+        // them.
+        context_->import_logs_tracker->RecordParserError(
+            stats::slice_drop_overlapping_complete_event, new_ts,
+            [this, info](ArgsTracker::BoundInserter& inserter) {
+              AddOverlapArgs(info, inserter);
+            });
       }
       return false;
     }

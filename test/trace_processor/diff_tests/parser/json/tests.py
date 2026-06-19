@@ -1865,3 +1865,95 @@ class JsonParser(TestSuite):
           "tokenizer_failures","slice_count"
           0,1
         """))
+
+  def test_overlapping_complete_event_import_log(self):
+    # Two complete ('X') events on the same thread partially overlap: "inner"
+    # [150, 250) starts inside "outer" [100, 200) but ends after it. This is
+    # ambiguous stacking, so "inner" is spilled onto an overflow track and the
+    # offending overlap is recorded in the import logs with enough context to
+    # find the events. This verifies the OverlapInfo reported by SliceTracker
+    # (overlap_start/end and the conflicting slice's name/ts/dur), plus the
+    # event_name/event_phase added by the JSON parser.
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+            "traceEvents": [
+              {
+                "ph": "X",
+                "ts": 100,
+                "dur": 100,
+                "pid": 1,
+                "tid": 1,
+                "name": "outer"
+              },
+              {
+                "ph": "X",
+                "ts": 150,
+                "dur": 100,
+                "pid": 1,
+                "tid": 1,
+                "name": "inner"
+              }
+            ]
+          }
+        '''),
+        query='''
+          SELECT l.ts, l.severity, a.key, a.display_value
+          FROM _trace_import_logs AS l
+          JOIN args AS a USING (arg_set_id)
+          WHERE l.name = 'slice_spill_overlapping_complete_event'
+          ORDER BY a.key;
+        ''',
+        out=Csv("""
+          "ts","severity","key","display_value"
+          150000,"error","conflicting_slice_dur","100000"
+          150000,"error","conflicting_slice_name","outer"
+          150000,"error","conflicting_slice_ts","100000"
+          150000,"error","event_name","inner"
+          150000,"error","event_phase","X"
+          150000,"error","overlap_end","200000"
+          150000,"error","overlap_start","150000"
+        """))
+
+  def test_overlapping_complete_event_recovered(self):
+    # Companion to the import-log test above: the overlapping 'inner' event is
+    # not dropped. Both slices survive (spilled onto an overflow track) and the
+    # spill is counted exactly once, so the detailed log corresponds to a real
+    # recovered event rather than data loss.
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+            "traceEvents": [
+              {
+                "ph": "X",
+                "ts": 100,
+                "dur": 100,
+                "pid": 1,
+                "tid": 1,
+                "name": "outer"
+              },
+              {
+                "ph": "X",
+                "ts": 150,
+                "dur": 100,
+                "pid": 1,
+                "tid": 1,
+                "name": "inner"
+              }
+            ]
+          }
+        '''),
+        query='''
+          SELECT
+            (SELECT COUNT(*) FROM slice) AS slice_count,
+            (SELECT value FROM stats
+             WHERE name = 'slice_spill_overlapping_complete_event')
+              AS spill_count,
+            (SELECT value FROM stats
+             WHERE name = 'slice_drop_overlapping_complete_event')
+              AS drop_count
+        ''',
+        out=Csv("""
+          "slice_count","spill_count","drop_count"
+          2,1,0
+        """))

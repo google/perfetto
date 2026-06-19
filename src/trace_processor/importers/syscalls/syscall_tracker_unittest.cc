@@ -61,7 +61,7 @@ class MockSliceTracker : public SliceTracker {
                StringId name,
                int64_t duration,
                SetArgsCallback args_callback,
-               bool* overlap_out),
+               std::optional<OverlapInfo>* overlap_out),
               (override));
 };
 
