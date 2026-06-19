@@ -1712,6 +1712,57 @@ source_set("sqlite") {
   deps = [ "//gn:default_deps" ]
 }
 
+if (enable_perfetto_duckdb) {
+  # Public config applied to consumers of //buildtools:duckdb so they can
+  # #include "duckdb.hpp". The header itself does not require exceptions/RTTI at
+  # use sites; those are only needed when compiling the amalgamation .cpp below.
+  config("duckdb_config") {
+    visibility = _buildtools_visibility
+
+    # Using -isystem (via perfetto_isystem_cflag) instead of include_dirs (-I)
+    # so warnings from the (very large) DuckDB amalgamation header don't get
+    # treated as our own.
+    cflags = [
+      perfetto_isystem_cflag,
+      rebase_path("duckdb", root_build_dir),
+    ]
+  }
+
+  source_set("duckdb") {
+    visibility = _buildtools_visibility
+    sources = [
+      "duckdb/duckdb.cpp",
+      "duckdb/duckdb.h",
+      "duckdb/duckdb.hpp",
+    ]
+
+    # DuckDB requires C++ exceptions and RTTI, which Perfetto disables by
+    # default. Drop those configs and re-enable for this TU only.
+    configs -= [
+      "//gn/standalone:extra_warnings",
+      "//gn/standalone:no_exceptions",
+      "//gn/standalone:rtti_cflags",
+    ]
+    if (!is_win) {
+      cflags_cc = [
+        "-fexceptions",
+        "-frtti",
+      ]
+    }
+    public_configs = [ ":duckdb_config" ]
+    deps = [ "//gn:default_deps" ]
+
+    # DuckDB needs threads, dynamic loading and (on Linux) realtime libs.
+    if (is_linux) {
+      libs = [
+        "dl",
+        "pthread",
+        "rt",
+      ]
+    }
+  }
+}
+
 source_set("lzma") {
   visibility = _buildtools_visibility
   defines = [ "_7ZIP_ST" ]

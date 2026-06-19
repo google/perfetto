@@ -397,6 +397,12 @@ perfetto_unittest_source_set("top_level_unittests") {
       "util:json_value",
     ]
   }
+
+  if (enable_perfetto_duckdb) {
+    # Smoke test for the experimental DuckDB-backed query engine (M1).
+    sources += [ "duckdb_smoke_unittest.cc" ]
+    deps += [ "../../gn:duckdb" ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {

@@ -252,6 +252,18 @@ BUILD_DEPS_HOST = [
         'all',
         'all'),
 
+    # DuckDB amalgamation for the experimental DuckDB-backed query engine
+    # (see gn arg enable_perfetto_duckdb). This is the single-translation-unit
+    # amalgamation (duckdb.cpp + duckdb.hpp + duckdb.h + duckdb_extension.h).
+    # TODO(duckdb): currently fetched from GitHub releases directly; mirror the
+    # zip onto perfetto's GCS bucket (storage.googleapis.com/perfetto) like the
+    # other deps before this leaves experimental status.
+    Dependency(
+        'buildtools/duckdb.zip',
+        'https://github.com/duckdb/duckdb/releases/download/v1.5.4/libduckdb-src.zip',
+        '28ad9fd34607dff7ee27c2cb8e5ef77b51bb7c1a214ac3e4267dcaaeeb752b62',
+        'all', 'all'),
+
     # Libexpat for Instruments XML import.
     # If updating the version, also update bazel/deps.bzl.
     Dependency(

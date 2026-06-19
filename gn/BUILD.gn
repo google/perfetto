@@ -516,6 +516,16 @@ if (enable_perfetto_pcre2) {
   }
 }
 
+if (enable_perfetto_duckdb) {
+  group("duckdb") {
+    if (perfetto_root_path == "//") {
+      public_deps = [ "//buildtools:duckdb" ]
+    } else {
+      assert(false, "DuckDB is only supported in standalone builds")
+    }
+  }
+}
+
 if (enable_perfetto_re2) {
   group("re2") {
     if (perfetto_root_path == "//") {

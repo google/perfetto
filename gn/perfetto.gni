@@ -351,6 +351,12 @@ declare_args() {
       enable_perfetto_trace_processor &&
       (build_with_chromium || !perfetto_build_with_embedder)
 
+  # Enables the experimental DuckDB-backed query engine for trace processor.
+  # Standalone-only for now (M1). Wasm support is a later milestone.
+  enable_perfetto_duckdb =
+      perfetto_build_standalone && enable_perfetto_trace_processor &&
+      !is_perfetto_build_generator
+
   # Enables the optional SQLite percentile module.
   enable_perfetto_trace_processor_percentile =
       enable_perfetto_trace_processor &&
