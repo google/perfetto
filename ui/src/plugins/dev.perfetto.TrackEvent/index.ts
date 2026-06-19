@@ -246,12 +246,6 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           }),
         });
       } else if (hasData && isState === 1) {
-        const renderer = await createTraceProcessorStateTrack({
-          trace: ctx,
-          uri,
-          trackId: trackIds[0],
-          trackName,
-        });
         ctx.tracks.registerTrack({
           uri,
           description: description ?? undefined,
@@ -263,17 +257,14 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             trackEvent: true,
             hasCallstacks: hasCallstacks === 1,
           },
-          renderer,
+          renderer: await createTraceProcessorStateTrack({
+            trace: ctx,
+            uri,
+            trackId: trackIds[0],
+            trackName,
+          }),
         });
       } else if (hasData) {
-        const renderer = await createTraceProcessorSliceTrack({
-          trace: ctx,
-          uri,
-          trackIds,
-          detailsPanel: createTrackEventDetailsPanel(ctx),
-          depthTableName:
-            trackIds.length > 1 ? '__trackevent_track_layout_depth' : undefined,
-        });
         ctx.tracks.registerTrack({
           uri,
           description: description ?? undefined,
@@ -285,7 +276,16 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             trackEvent: true,
             hasCallstacks: hasCallstacks === 1,
           },
-          renderer,
+          renderer: await createTraceProcessorSliceTrack({
+            trace: ctx,
+            uri,
+            trackIds,
+            detailsPanel: createTrackEventDetailsPanel(ctx),
+            depthTableName:
+              trackIds.length > 1
+                ? '__trackevent_track_layout_depth'
+                : undefined,
+          }),
         });
       } else {
         // Summary track with no data but has children - use SliceTrackSummary
