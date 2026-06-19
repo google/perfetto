@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -214,13 +215,20 @@ SqlValue DuckDbIteratorImpl::Get(uint32_t col) const {
       value = SqlValue::Long(static_cast<int64_t>(h.lower));
       break;
     }
-    case DUCKDB_TYPE_FLOAT:
-      value = SqlValue::Double(
-          static_cast<double>(static_cast<float*>(data)[row]));
+    case DUCKDB_TYPE_FLOAT: {
+      double d = static_cast<double>(static_cast<float*>(data)[row]);
+      // SQLite cannot represent NaN: sqlite3_result_double(NaN) stores NULL, so
+      // a NaN floating-point column surfaces as NULL in the legacy lane. Match
+      // that here so DuckDB's output is byte-identical (DuckDB would otherwise
+      // surface a real NaN that renders as "nan").
+      value = std::isnan(d) ? SqlValue() : SqlValue::Double(d);
       break;
-    case DUCKDB_TYPE_DOUBLE:
-      value = SqlValue::Double(static_cast<double*>(data)[row]);
+    }
+    case DUCKDB_TYPE_DOUBLE: {
+      double d = static_cast<double*>(data)[row];
+      value = std::isnan(d) ? SqlValue() : SqlValue::Double(d);
       break;
+    }
     case DUCKDB_TYPE_VARCHAR: {
       // A duckdb_string_t is NOT NUL-terminated; copy length-correct bytes into
       // an owned per-column buffer (NUL-terminated by std::string) so consumers

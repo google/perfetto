@@ -146,44 +146,47 @@ TEST(DuckDbSupportPredicateTest, DottedMemberIsNotAFunction) {
   EXPECT_TRUE(Eligible("SELECT s.dur AS d FROM slice AS s ORDER BY d"));
 }
 
-// --- Macro call `name!(...)`: PerfettoSQL frontend feature DuckDB cannot parse.
-// Detected from the kIllegal `!` token adjacent to an identifier. ---
-TEST(DuckDbSupportPredicateTest, MacroCallIsGuarded) {
-  auto reason = Analyze("SELECT foo!(dur) FROM slice ORDER BY 1");
-  ASSERT_TRUE(reason.has_value());
-  EXPECT_NE(reason->find("macro"), std::string::npos) << *reason;
+// --- Macro call `name!(...)`: the dedicated macro pre-check was DROPPED. DuckDB
+// cannot parse `!` so it raises a Parser error and the ANY-DuckDB-error rule
+// falls back; the predicate no longer needs to detect it statically. The
+// predicate therefore reports it ELIGIBLE (DuckDB will then reject it). ---
+TEST(DuckDbSupportPredicateTest, MacroCallNoLongerStaticallyGuarded) {
+  // `foo!(dur)` is not a function call (foo is followed by `!`, not `(`); with
+  // the row-order and macro guards relaxed it is statically eligible - DuckDB's
+  // parser is the one that rejects the `!`.
+  EXPECT_TRUE(Eligible("SELECT foo!(dur) FROM slice ORDER BY 1"));
 }
 
-// A `!=` operator must NOT be mistaken for a macro call.
-TEST(DuckDbSupportPredicateTest, NotEqualsIsNotAMacro) {
+// A `!=` operator must NOT be mistaken for anything that blocks eligibility.
+TEST(DuckDbSupportPredicateTest, NotEqualsIsFine) {
   auto reason = Analyze("SELECT dur FROM slice WHERE dur != 0 ORDER BY 1");
   EXPECT_FALSE(reason.has_value()) << reason.value_or("");
 }
 
-// --- Row-order guards (unchanged policy, recomputed from tokens). ---
-TEST(DuckDbSupportPredicateTest, LimitWithoutOrderByGuarded) {
-  auto reason = Analyze("SELECT dur FROM slice LIMIT 10");
-  ASSERT_TRUE(reason.has_value());
-  EXPECT_NE(reason->find("LIMIT"), std::string::npos) << *reason;
+// --- Row-order guard RELAXED ("list, don't guard"). A relation scan with no
+// top-level ORDER BY (and LIMIT-without-ORDER-BY) is now ELIGIBLE: DuckDB runs
+// it and the deterministically-matching results PASS; the genuinely divergent
+// tie-break/arbitrary-order cases go to the known-bad list, not a guard. ---
+TEST(DuckDbSupportPredicateTest, LimitWithoutOrderByNowEligible) {
+  // No longer guarded: let DuckDB run it. (`dur` aliased implicitly so the
+  // column-name guard does not bite; it is a column ref, not a function call.)
+  EXPECT_TRUE(Eligible("SELECT dur FROM slice LIMIT 10"));
 }
 
-TEST(DuckDbSupportPredicateTest, MultiRowScanWithoutOrderByGuarded) {
-  auto reason = Analyze("SELECT dur FROM slice");
-  ASSERT_TRUE(reason.has_value());
-  EXPECT_NE(reason->find("row order"), std::string::npos) << *reason;
+TEST(DuckDbSupportPredicateTest, MultiRowScanWithoutOrderByNowEligible) {
+  EXPECT_TRUE(Eligible("SELECT dur FROM slice"));
 }
 
 TEST(DuckDbSupportPredicateTest, SingleRowAggregateNoOrderByEligible) {
-  // A pure aggregate with no GROUP BY yields one row: order irrelevant.
+  // A pure aggregate with no GROUP BY yields one row: still eligible.
   EXPECT_TRUE(Eligible("SELECT count(*) AS c FROM slice"));
 }
 
-// A top-level ORDER BY inside a subquery does NOT satisfy the outer guard.
-TEST(DuckDbSupportPredicateTest, OrderByInSubqueryDoesNotCount) {
-  auto reason = Analyze(
-      "SELECT dur FROM (SELECT dur FROM slice ORDER BY dur)");
-  ASSERT_TRUE(reason.has_value());
-  EXPECT_NE(reason->find("row order"), std::string::npos) << *reason;
+// A scan whose only ordering is inside a subquery is now eligible too (the outer
+// row order is decided by DuckDB; matching ones pass, divergent ones known-bad).
+TEST(DuckDbSupportPredicateTest, OrderByInSubqueryNowEligible) {
+  EXPECT_TRUE(Eligible(
+      "SELECT dur FROM (SELECT dur FROM slice ORDER BY dur)"));
 }
 
 // --- Column-name divergence guard: an unaliased function-call projection. ---

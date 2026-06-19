@@ -187,18 +187,11 @@ SupportDecision AnalyzeSupport(
     }
   }
 
-  // Dialect guard: a PerfettoSQL MACRO call is `name!(...)`. The perfetto
-  // syntaqlite dialect lexes a lone `!` (not `!=`) as its own kBang token (`!=`
-  // is a single kNe token, never kBang). A kBang that is byte-adjacent to a
-  // preceding identifier is a macro call (`foo!`). DuckDB cannot parse `!`, so
-  // route such queries to the PerfettoSQL frontend.
-  for (size_t k = 0; k < toks.size(); ++k) {
-    const SigToken& t = toks[k];
-    if (t.type == sql_token::kBang && t.adjacent_to_prev && k > 0 &&
-        toks[k - 1].type == sql_token::kId) {
-      return ineligible("PerfettoSQL macro call (DuckDB cannot parse '!')");
-    }
-  }
+  // NOTE: the PerfettoSQL MACRO `name!(...)` pre-check was DROPPED. DuckDB cannot
+  // parse `!`, so such a query raises a Parser error in `duckdb_query` and the
+  // ANY-DuckDB-error-falls-back rule already routes it correctly. A dedicated
+  // token pre-check was therefore redundant (it only avoided a noisy parse
+  // attempt) - per the "list, don't guard" policy we let DuckDB reject it.
 
   // Collect CTE-defined names so a later `FROM <cte>` is recognized as a local
   // relation (not an external one). A CTE is introduced after `WITH` and after
@@ -327,53 +320,18 @@ SupportDecision AnalyzeSupport(
     return ineligible("no DuckDB-backed relation or supported function");
   }
 
-  // Top-level clause presence (paren depth 0) for the row-order and column-name
-  // guards. `kOrder kBy` => ORDER BY; `kGroup kBy` => GROUP BY; `kLimit` =>
-  // LIMIT, all only at depth 0 (a clause inside a subquery does not order the
-  // OUTER result).
-  bool has_order_by = false;
-  bool has_group_by = false;
-  bool has_limit = false;
-  {
-    int depth = 0;
-    for (size_t k = 0; k < toks.size(); ++k) {
-      const SigToken& t = toks[k];
-      if (t.type == sql_token::kLp) {
-        ++depth;
-      } else if (t.type == sql_token::kRp) {
-        if (depth > 0) {
-          --depth;
-        }
-      } else if (depth == 0) {
-        if (t.type == sql_token::kBy && k > 0) {
-          if (toks[k - 1].type == sql_token::kOrder) {
-            has_order_by = true;
-          } else if (toks[k - 1].type == sql_token::kGroup) {
-            has_group_by = true;
-          }
-        } else if (t.type == sql_token::kLimit) {
-          has_limit = true;
-        }
-      }
-    }
-  }
-
-  // Silent-divergence guard: ROW ORDER. SQLite and DuckDB order rows
-  // differently for an under-ordered scan; the goldens encode SQLite's order.
-  //   - relation + top-level LIMIT but NO top-level ORDER BY => non-deterministic
-  //     row SET (the `... LIMIT 10` landmine) => fall back.
-  //   - relation + NO top-level ORDER BY and NOT a single-row pure aggregate
-  //     (aggregate with no GROUP BY) => order-divergence-prone => fall back.
-  if (saw_relation && !has_order_by) {
-    if (has_limit) {
-      return ineligible("LIMIT without ORDER BY (non-deterministic row set)");
-    }
-    bool single_row_aggregate = saw_aggregate && !has_group_by;
-    if (!single_row_aggregate) {
-      return ineligible(
-          "multi-row scan without ORDER BY (engine-defined row order)");
-    }
-  }
+  // POLICY SHIFT ("list, don't guard"): the ROW-ORDER guard was RELAXED. It used
+  // to force a fallback whenever a query scanned a relation with no top-level
+  // ORDER BY (and on LIMIT-without-ORDER-BY), on the theory that SQLite and
+  // DuckDB order an under-specified scan differently. In practice DuckDB's scan
+  // over the dataframe cursor is STABLE and, for many such queries, byte-matches
+  // the SQLite golden - those are genuine DuckDB passes the guard was needlessly
+  // suppressing. We now LET these queries run in DuckDB: the deterministically
+  // matching ones PASS, and the few that genuinely diverge on tie-break /
+  // arbitrary row order are recorded in duckdb_known_bad_tests.txt rather than
+  // guarded. (`saw_aggregate` is consequently unused; kept the relation/CTE
+  // bookkeeping for the bare-SELECT gate above.)
+  (void)saw_aggregate;
 
   // Silent-divergence guard: COLUMN NAME of an unaliased expression. SQLite names
   // an unaliased top-level projection column after its source text (`COUNT(*)`,
@@ -488,6 +446,17 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // Single connection, single-threaded scans; keep DuckDB itself single
   // threaded too so the (non-thread-safe) StringPool reads stay serialized.
   duckdb_query(conn_, "SET threads TO 1;", nullptr);
+
+  // Match SQLite's NULL ordering. SQLite treats NULL as smaller than any other
+  // value, so an unqualified `ORDER BY x` (ASC) sorts NULLs FIRST and `ORDER BY
+  // x DESC` sorts NULLs LAST. DuckDB defaults to NULLS_LAST regardless of
+  // direction, which diverges from the SQLite goldens. DuckDB exposes exactly
+  // the SQLite-matching policy as `NULLS_FIRST_ON_ASC_LAST_ON_DESC` (verified in
+  // buildtools/duckdb DefaultOrderByNullType enum). Setting it makes
+  // under-specified NULL tie ordering byte-identical to the goldens.
+  duckdb_query(
+      conn_, "SET default_null_order='nulls_first_on_asc_last_on_desc';",
+      nullptr);
 
   provider_ = std::make_unique<DuckDbTableProvider>(string_pool_, resolver_);
   RETURN_IF_ERROR(provider_->RegisterTableFunction(conn_));

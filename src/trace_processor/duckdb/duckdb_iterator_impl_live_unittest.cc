@@ -265,5 +265,23 @@ TEST_F(DuckDbIteratorLiveTest, MultiChunkBoundary) {
   EXPECT_GT(string_cells, 0u) << "no string cells across chunks";
 }
 
+// A NaN floating-point value must surface as NULL, matching SQLite (whose
+// sqlite3_result_double(NaN) stores NULL - NaN is not representable). Without the
+// normalization DuckDB would return a real NaN that renders as "nan", diverging
+// from the SQLite goldens (e.g. args.display_value for a NaN real_value).
+TEST_F(DuckDbIteratorLiveTest, NanDoubleSurfacesAsNull) {
+  // 'nan'::DOUBLE and 'nan'::FLOAT both exercise the DOUBLE and FLOAT cases.
+  auto rows = DrainDuck(
+      con_,
+      "SELECT CAST('nan' AS DOUBLE) AS d, CAST('nan' AS FLOAT) AS f, "
+      "CAST(1.5 AS DOUBLE) AS ok",
+      3);
+  ASSERT_EQ(rows.size(), 1u);
+  EXPECT_EQ(rows[0][0], "NULL") << "NaN DOUBLE should be NULL";
+  EXPECT_EQ(rows[0][1], "NULL") << "NaN FLOAT should be NULL";
+  // A normal double is unaffected.
+  EXPECT_EQ(rows[0][2], "D:1.500000");
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::duckdb_integration
