@@ -28,6 +28,10 @@
 // sides can't drift on how a session name maps to a socket path.
 namespace perfetto::trace_processor::session {
 
+// The server writes its pid to <socket-path> + this suffix so that
+// `server kill` can stop it by pid without an RPC round-trip.
+constexpr char kPidFileSuffix[] = ".pid";
+
 // Maximum length of a session name. Bounded so the assembled AF_UNIX path
 // stays within the ~104-108 byte sun_path limit on all platforms.
 constexpr size_t kMaxSessionNameLen = 64;
@@ -62,7 +66,7 @@ base::Status ValidateAfUnixPathLength(const std::string& path);
 // "never" and "off" all parse to 0 (meaning "no timeout").
 base::StatusOr<uint32_t> ParseDurationMs(const std::string& s);
 
-// How a `--remote <addr>` / `ctl kill-server <addr>` argument should be
+// How a `--remote <addr>` / `server kill <addr>` argument should be
 // interpreted.
 enum class RemoteAddrKind {
   kHttp,         // host:port or scheme://...  -> HTTP transport.

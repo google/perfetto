@@ -60,7 +60,8 @@ class MockSliceTracker : public SliceTracker {
                StringId cat,
                StringId name,
                int64_t duration,
-               SetArgsCallback args_callback),
+               SetArgsCallback args_callback,
+               std::optional<OverlapInfo>* overlap_out),
               (override));
 };
 
@@ -107,7 +108,7 @@ TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
 }
 
 TEST_F(SyscallTrackerTest, ReportSysreturn) {
-  EXPECT_CALL(*slice_tracker, Scoped(_, _, _, _, _, _)).Times(1);
+  EXPECT_CALL(*slice_tracker, Scoped(_, _, _, _, _, _, _)).Times(1);
 
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->SetArchitecture(Architecture::kArm64);

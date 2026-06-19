@@ -236,7 +236,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/metadata",
       "plugins/package_lookup",
       "plugins/perf_counter",
-      "plugins/perfetto_metadata",
+      "plugins/perfetto_manifest",
       "plugins/pprof_functions",
       "plugins/slice_mipmap_operator",
       "plugins/span_join_operator",

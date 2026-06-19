@@ -55,30 +55,26 @@ VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
 
 VideoFrameModule::~VideoFrameModule() = default;
 
-void VideoFrameModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
-                                            int64_t ts,
-                                            const TracePacketData& data,
-                                            uint32_t field_id) {
-  switch (field_id) {
+void VideoFrameModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case FrameworksBaseTracePacket::kVideoFrameFieldNumber:
-      ParseVideoFrame(decoder, ts, data);
+      ParseVideoFrame(args.field.Cast<FrameworksBaseTracePacket::kVideoFrame>(),
+                      args.ts, args.data);
       break;
     case FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber:
-      ParseVideoFrameError(decoder, ts);
+      ParseVideoFrameError(
+          args.field.Cast<FrameworksBaseTracePacket::kVideoFrameError>(),
+          args.ts);
       break;
     default:
       break;
   }
 }
 
-void VideoFrameModule::ParseVideoFrame(const TracePacket::Decoder& decoder,
+void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
                                        int64_t ts,
                                        const TracePacketData& data) {
-  VideoFrame::Decoder frame(
-      decoder
-          .GetExtensionSlowly<
-              FrameworksBaseTracePacket::kVideoFrameFieldNumber>()
-          .as_bytes());
+  VideoFrame::Decoder frame(bytes);
 
   const uint32_t display_id = frame.has_display_id() ? frame.display_id() : 0u;
 
@@ -154,13 +150,9 @@ void VideoFrameModule::ParseVideoFrame(const TracePacket::Decoder& decoder,
   au_data_->emplace_back(packet.slice(payload.data, payload.size));
 }
 
-void VideoFrameModule::ParseVideoFrameError(const TracePacket::Decoder& decoder,
+void VideoFrameModule::ParseVideoFrameError(protozero::ConstBytes bytes,
                                             int64_t ts) {
-  VideoFrameError::Decoder err(
-      decoder
-          .GetExtensionSlowly<
-              FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber>()
-          .as_bytes());
+  VideoFrameError::Decoder err(bytes);
   if (!err.has_reason())
     return;
   const uint32_t display_id = err.has_display_id() ? err.display_id() : 0u;

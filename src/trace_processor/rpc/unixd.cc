@@ -33,16 +33,21 @@
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/rpc/rpc.h"
+#include "src/trace_processor/rpc/session_lifecycle.h"
+#include "src/trace_processor/rpc/session_paths.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-#define PERFETTO_TP_UNIXD_HAS_SIGNALS() 1
+#define PERFETTO_TP_UNIXD_POSIX() 1
+#include <fcntl.h>
 #include <signal.h>
 #include <unistd.h>
+#include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/scoped_file.h"
 #else
-#define PERFETTO_TP_UNIXD_HAS_SIGNALS() 0
+#define PERFETTO_TP_UNIXD_POSIX() 0
 #endif
 
 namespace perfetto::trace_processor {
@@ -74,6 +79,21 @@ std::string ShellQuoteIfNeeded(const std::string& value) {
   return out;
 }
 
+// Prints the one-line, machine-parseable startup record to |f|.
+void PrintStartupRecord(FILE* f,
+                        int pid,
+                        const std::string& session,
+                        const std::string& socket_path,
+                        uint32_t idle_timeout_ms) {
+  std::string idle_timeout =
+      idle_timeout_ms == 0 ? "never" : std::to_string(idle_timeout_ms) + "ms";
+  fprintf(f,
+          "perfetto-session pid=%d session=%s socket-path=%s idle-timeout=%s\n",
+          pid, ShellQuoteIfNeeded(session).c_str(),
+          ShellQuoteIfNeeded(socket_path).c_str(), idle_timeout.c_str());
+  fflush(f);
+}
+
 class UnixRpcServer : public base::UnixSocket::EventListener {
  public:
   UnixRpcServer(Rpc& rpc, UnixServerArgs args)
@@ -96,27 +116,75 @@ class UnixRpcServer : public base::UnixSocket::EventListener {
 
   ClientConn* FindConn(base::UnixSocket* self);
   void DispatchMessage(base::UnixSocket* sock, const uint8_t* data, size_t len);
+  void Shutdown();
 
   Rpc& rpc_;
   UnixServerArgs args_;
+  std::string pid_path_;
   base::MaybeLockFreeTaskRunner task_runner_;
   std::unique_ptr<base::UnixSocket> listen_sock_;
   std::vector<std::unique_ptr<ClientConn>> clients_;
+  std::unique_ptr<IdleReaper> reaper_;
 };
 
-#if PERFETTO_TP_UNIXD_HAS_SIGNALS()
-// Set so the signal handler can unlink the socket on Ctrl-C. Only ever points
-// at a string that outlives the handler (the server's socket path).
+// Writes the current pid to |pid_path| so `server kill` can stop the server by
+// pid. Best-effort.
+void WritePidFile(const std::string& pid_path, int pid) {
+  if (FILE* f = fopen(pid_path.c_str(), "w")) {
+    fprintf(f, "%d", pid);
+    fclose(f);
+  }
+}
+
+#if PERFETTO_TP_UNIXD_POSIX()
+// Set so the signal handler can clean up on Ctrl-C. Only ever point at strings
+// that outlive the handler (the server's socket and pid-file paths).
 const char* g_socket_path_for_signal = nullptr;
+const char* g_pid_path_for_signal = nullptr;
 
 [[noreturn]] void HandleTermSignal(int) {
+  // unlink() is async-signal-safe.
   if (g_socket_path_for_signal)
-    unlink(g_socket_path_for_signal);  // async-signal-safe.
+    unlink(g_socket_path_for_signal);
+  if (g_pid_path_for_signal)
+    unlink(g_pid_path_for_signal);
   _exit(0);
 }
-#endif
+
+// Forks into the background. The parent prints the startup record (it knows the
+// child pid) and exits; the child detaches (setsid + redirect std fds) and
+// returns to keep serving. The socket is already bound before this is called,
+// so the record the parent prints is accurate.
+void DaemonizeAndPrintRecord(const UnixServerArgs& args) {
+  base::Pipe pipe = base::Pipe::Create(base::Pipe::kBothBlock);
+  pid_t pid = fork();
+  PERFETTO_CHECK(pid != -1);
+  if (pid > 0) {
+    // Parent: wait for the child to detach, print the record, exit.
+    pipe.wr.reset();
+    char c = '\0';
+    base::ignore_result(base::Read(*pipe.rd, &c, 1));
+    PrintStartupRecord(stdout, pid, args.session_name, args.socket_path,
+                       args.idle_timeout_ms);
+    _exit(0);
+  }
+  // Child: detach from the controlling terminal and silence std fds.
+  PERFETTO_CHECK(setsid() != -1);
+  base::ScopedFile null = base::OpenFile("/dev/null", O_RDWR);
+  if (null) {
+    base::ignore_result(dup2(*null, STDIN_FILENO));
+    base::ignore_result(dup2(*null, STDOUT_FILENO));
+    base::ignore_result(dup2(*null, STDERR_FILENO));
+  }
+  base::ignore_result(base::WriteAll(*pipe.wr, "1", 1));
+}
+#endif  // PERFETTO_TP_UNIXD_POSIX()
 
 base::Status UnixRpcServer::Run() {
+  if (args_.daemonize && !PERFETTO_TP_UNIXD_POSIX()) {
+    return base::ErrStatus("--daemonize is not supported on this platform yet");
+  }
+
   // Clean up a socket left behind by a previous server. If something still
   // accepts a connection there, refuse to clobber it.
   if (base::FileExists(args_.socket_path)) {
@@ -131,36 +199,72 @@ base::Status UnixRpcServer::Run() {
     remove(args_.socket_path.c_str());
   }
 
-  listen_sock_ = base::UnixSocket::Listen(
-      args_.socket_path, this, &task_runner_, base::SockFamily::kUnix,
-      base::SockType::kStream);
-  if (!listen_sock_ || !listen_sock_->is_listening()) {
+  // Bind the listening socket up-front (before any optional fork) so that, when
+  // daemonizing, the parent only prints the startup record once the socket is
+  // actually bound.
+  auto raw = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kUnix,
+                                                base::SockType::kStream);
+  if (!raw || !raw.Bind(args_.socket_path) || !raw.Listen()) {
     return base::ErrStatus("Failed to bind session socket at %s",
                            args_.socket_path.c_str());
   }
 
-  // Startup record on stdout (machine-parseable, one line). Human guidance goes
-  // to stderr so stdout stays clean for tooling.
-  printf("perfetto-session pid=%d session=%s socket-path=%s\n",
-         static_cast<int>(base::GetProcessId()),
-         ShellQuoteIfNeeded(args_.session_name).c_str(),
-         ShellQuoteIfNeeded(args_.socket_path).c_str());
-  fflush(stdout);
-  fprintf(stderr,
-          "[unix] Serving warm session '%s'. Query it with:\n"
-          "  trace_processor_shell query --remote %s \"SELECT ...\"\n"
-          "Press Ctrl-C to stop.\n",
-          args_.session_name.c_str(), args_.session_name.c_str());
+  bool printed_record = false;
+#if PERFETTO_TP_UNIXD_POSIX()
+  if (args_.daemonize) {
+    DaemonizeAndPrintRecord(args_);  // Parent exits inside; child returns.
+    printed_record = true;
+  }
+#endif
+  if (!printed_record) {
+    PrintStartupRecord(stdout, static_cast<int>(base::GetProcessId()),
+                       args_.session_name, args_.socket_path,
+                       args_.idle_timeout_ms);
+    fprintf(stderr,
+            "[unix] Serving warm session '%s'. Query it with:\n"
+            "  trace_processor_shell query --remote %s \"SELECT ...\"\n"
+            "Stop it with Ctrl-C, or: "
+            "trace_processor_shell server kill %s\n",
+            args_.session_name.c_str(), args_.session_name.c_str(),
+            args_.session_name.c_str());
+  }
 
-#if PERFETTO_TP_UNIXD_HAS_SIGNALS()
+  // Record our pid next to the socket so `server kill` can stop us. This
+  // runs in the serving process (the child, when daemonized), so the pid
+  // matches the one printed in the startup record.
+  pid_path_ = args_.socket_path + session::kPidFileSuffix;
+  WritePidFile(pid_path_, static_cast<int>(base::GetProcessId()));
+
+  listen_sock_ = base::UnixSocket::Listen(raw.ReleaseFd(), this, &task_runner_,
+                                          base::SockFamily::kUnix,
+                                          base::SockType::kStream);
+  if (!listen_sock_ || !listen_sock_->is_listening()) {
+    return base::ErrStatus("Failed to listen on session socket at %s",
+                           args_.socket_path.c_str());
+  }
+
+  reaper_ =
+      std::make_unique<IdleReaper>(&task_runner_, args_.idle_timeout_ms,
+                                   args_.idle_start, [this] { Shutdown(); });
+  reaper_->Start();
+
+#if PERFETTO_TP_UNIXD_POSIX()
   g_socket_path_for_signal = args_.socket_path.c_str();
+  g_pid_path_for_signal = pid_path_.c_str();
   signal(SIGINT, HandleTermSignal);
   signal(SIGTERM, HandleTermSignal);
 #endif
 
   task_runner_.Run();
   remove(args_.socket_path.c_str());
+  remove(pid_path_.c_str());
   return base::OkStatus();
+}
+
+void UnixRpcServer::Shutdown() {
+  remove(args_.socket_path.c_str());
+  remove(pid_path_.c_str());
+  task_runner_.Quit();
 }
 
 void UnixRpcServer::OnNewIncomingConnection(
@@ -226,6 +330,8 @@ void UnixRpcServer::DispatchMessage(base::UnixSocket* sock,
   preamble_end = pu::WriteVarInt(pu::MakeTagLengthDelimited(1), preamble_end);
   preamble_end = pu::WriteVarInt(len, preamble_end);
 
+  if (reaper_)
+    reaper_->set_query_in_flight(true);
   rpc_.SetRpcResponseFunction([sock](const void* resp, uint32_t resp_len) {
     if (resp == nullptr) {
       sock->Shutdown(/*notify=*/false);
@@ -236,6 +342,10 @@ void UnixRpcServer::DispatchMessage(base::UnixSocket* sock,
   rpc_.OnRpcRequest(preamble, static_cast<size_t>(preamble_end - preamble));
   rpc_.OnRpcRequest(data, len);
   rpc_.SetRpcResponseFunction(nullptr);
+  if (reaper_) {
+    reaper_->set_query_in_flight(false);
+    reaper_->OnActivity();
+  }
 }
 
 }  // namespace

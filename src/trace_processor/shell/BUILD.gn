@@ -57,6 +57,8 @@ source_set("shell") {
     "../../traceconv:traceconv_lib",
     "../metrics",
     "../rpc",
+    "../rpc:client",
+    "../rpc:lifecycle",
     "../rpc:session_util",
     "../rpc:stdiod",
     "../trace_summary",

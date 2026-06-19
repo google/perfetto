@@ -385,6 +385,12 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    pub fn PerfettoProducerBackendInitArgsSetMachineId(
+        arg1: *mut PerfettoProducerBackendInitArgs,
+        machine_id: u32,
+    );
+}
+unsafe extern "C" {
     pub fn PerfettoProducerBackendInitArgsDestroy(arg1: *mut PerfettoProducerBackendInitArgs);
 }
 unsafe extern "C" {

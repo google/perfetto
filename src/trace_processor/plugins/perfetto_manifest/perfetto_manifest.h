@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_METADATA_PERFETTO_METADATA_H_
-#define SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_METADATA_PERFETTO_METADATA_H_
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_MANIFEST_PERFETTO_MANIFEST_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_MANIFEST_PERFETTO_MANIFEST_H_
 
-namespace perfetto::trace_processor::perfetto_metadata {
+namespace perfetto::trace_processor::perfetto_manifest {
 
 void RegisterPlugin();
 
-}  // namespace perfetto::trace_processor::perfetto_metadata
+}  // namespace perfetto::trace_processor::perfetto_manifest
 
-#endif  // SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_METADATA_PERFETTO_METADATA_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_MANIFEST_PERFETTO_MANIFEST_H_

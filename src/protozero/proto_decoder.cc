@@ -260,10 +260,7 @@ PERFETTO_ALWAYS_INLINE void TypedProtoDecoderBase::ParseAllFieldsImpl(
       // TracePacket's `extensions 1000 to 1999` range). They are intentionally
       // not stored here because fields_ is indexed directly by field id, and
       // extension ids are sparse and potentially very high. Callers that need
-      // them must use TypedProtoDecoderBase::GetExtensionSlowly().
-      // TODO: store extensions in a sparse, object-pooled side table so they
-      // stay accessible without a buffer re-scan. See GetExtensionSlowly() for
-      // the proposed design.
+      // them should decode selectively and consume them from unknown_fields().
       continue;
     }
 

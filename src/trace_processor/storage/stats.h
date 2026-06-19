@@ -684,12 +684,27 @@ namespace perfetto::trace_processor::stats {
       "recording a trace. Common causes of this include incorrect "            \
       "incremental timestamps, bad clock synchronization or kernel bugs in "   \
       "drivers emitting timestamps"),                                          \
-  F(slice_drop_overlapping_complete_event,        kSingle,  kError,  kTrace, Scope::kMachineAndTrace,   \
-      "A complete slice was dropped because it overlaps with another "         \
-      "slice. This can happen e.g. in JSON traces using X events or in other " \
-      "cases where a duration is part of the trace. To solve this problem "    \
-      "make sure that your X events do not overlap on the same track (e.g. "   \
-      "thread/process)"),                                                      \
+  F(slice_drop_overlapping_complete_event,        kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,   \
+      "A complete slice was dropped because it partially overlaps another "    \
+      "slice on the same track. Overlapping duration events are out of spec "  \
+      "and ambiguous: nothing in the trace says how they should nest, so the " \
+      "slice cannot be placed and is discarded. If you are hitting this, "     \
+      "please file a bug against the tool that produced the trace asking it "  \
+      "not to emit overlapping events, and also file a bug at "                \
+      "https://github.com/google/perfetto/issues with a trace that "           \
+      "reproduces it so we can help"),                                         \
+  F(slice_spill_overlapping_complete_event,       kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,   \
+      "A complete slice (typically a JSON 'X' event) partially overlaps "      \
+      "another slice on the same thread track, so it cannot nest there. "      \
+      "Instead of dropping it, Perfetto moved it onto a separate overflow "    \
+      "track that is merged back onto the thread at display time. No data is " \
+      "lost, but because overlapping duration events are inherently "          \
+      "ambiguous (nothing in the trace says how they should nest), the "       \
+      "resulting layout might not match what you intended when you emitted "   \
+      "these events. See https://github.com/google/perfetto/issues/4280 "      \
+      "and, specifically, https://github.com/google/perfetto/issues/4280"      \
+      "#issuecomment-4742119340 for a detailed explanation and how to fix "    \
+      "it"),                                                                   \
   F(perf_text_importer_sample_no_frames,        kSingle,  kError,  kTrace, Scope::kMachineAndTrace,     \
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \

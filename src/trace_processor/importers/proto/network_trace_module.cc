@@ -99,24 +99,18 @@ NetworkTraceModule::NetworkTraceModule(
 }
 
 ModuleResult NetworkTraceModule::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView*,
-    int64_t ts,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) {
-  if (field_id != ConnectivityTracePacket::kNetworkPacketBundleFieldNumber) {
+    const TokenizePacketArgs& args) {
+  if (args.field.id() !=
+      ConnectivityTracePacket::kNetworkPacketBundleFieldNumber) {
     return ModuleResult::Ignored();
   }
 
   NetworkPacketBundle::Decoder evt(
-      decoder
-          .GetExtensionSlowly<
-              ConnectivityTracePacket::kNetworkPacketBundleFieldNumber>()
-          .as_bytes());
+      args.field.Cast<ConnectivityTracePacket::kNetworkPacketBundle>());
 
   ConstBytes context = evt.ctx();
   if (evt.has_iid()) {
-    auto* interned = state->LookupInternedMessage<
+    auto* interned = args.state->LookupInternedMessage<
         ConnectivityInternedData::kPacketContextFieldNumber,
         NetworkPacketContext>(evt.iid());
     if (!interned) {
@@ -131,7 +125,7 @@ ModuleResult NetworkTraceModule::TokenizePacket(
     // Forward the bundle with (possibly de-interned) context.
     TraceBlobView tbv =
         context_->blob_packet_writer->WritePacket([&](auto* pkt) {
-          pkt->set_timestamp(static_cast<uint64_t>(ts));
+          pkt->set_timestamp(static_cast<uint64_t>(args.ts));
           auto* event = static_cast<ConnectivityTracePacket*>(pkt)
                             ->set_network_packet_bundle();
           event->set_ctx()->AppendRawProtoBytes(context.data, context.size);
@@ -139,7 +133,7 @@ ModuleResult NetworkTraceModule::TokenizePacket(
           event->set_total_packets(evt.total_packets());
           event->set_total_duration(evt.total_duration());
         });
-    PushPacketBufferForSort(ts, std::move(tbv), state);
+    PushPacketBufferForSort(args.ts, std::move(tbv), args.state);
   } else {
     // Push a NetworkPacketEvent for each packet in the packed arrays.
     bool parse_error = false;
@@ -152,7 +146,7 @@ ModuleResult NetworkTraceModule::TokenizePacket(
     }
 
     for (; timestamp_iter && length_iter; ++timestamp_iter, ++length_iter) {
-      int64_t real_ts = ts + static_cast<int64_t>(*timestamp_iter);
+      int64_t real_ts = args.ts + static_cast<int64_t>(*timestamp_iter);
       TraceBlobView tbv =
           context_->blob_packet_writer->WritePacket([&](auto* pkt) {
             pkt->set_timestamp(static_cast<uint64_t>(real_ts));
@@ -161,33 +155,23 @@ ModuleResult NetworkTraceModule::TokenizePacket(
             event->AppendRawProtoBytes(context.data, context.size);
             event->set_length(*length_iter);
           });
-      PushPacketBufferForSort(real_ts, std::move(tbv), state);
+      PushPacketBufferForSort(real_ts, std::move(tbv), args.state);
     }
   }
 
   return ModuleResult::Handled();
 }
 
-void NetworkTraceModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void NetworkTraceModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case ConnectivityTracePacket::kNetworkPacketFieldNumber:
       ParseNetworkPacketEvent(
-          ts, decoder
-                  .GetExtensionSlowly<
-                      ConnectivityTracePacket::kNetworkPacketFieldNumber>()
-                  .as_bytes());
+          args.ts, args.field.Cast<ConnectivityTracePacket::kNetworkPacket>());
       return;
     case ConnectivityTracePacket::kNetworkPacketBundleFieldNumber:
       ParseNetworkPacketBundle(
-          ts,
-          decoder
-              .GetExtensionSlowly<
-                  ConnectivityTracePacket::kNetworkPacketBundleFieldNumber>()
-              .as_bytes());
+          args.ts,
+          args.field.Cast<ConnectivityTracePacket::kNetworkPacketBundle>());
       return;
     default:
       break;
