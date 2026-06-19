@@ -26,6 +26,8 @@ source_set("duckdb") {
     "sched_appender.h",
     "sched_table_function.cc",
     "sched_table_function.h",
+    "table_provider.cc",
+    "table_provider.h",
   ]
   deps = [
     "../../../gn:default_deps",
@@ -43,6 +45,7 @@ perfetto_unittest_source_set("unittests") {
     "sched_appender_unittest.cc",
     "sched_table_function_live_unittest.cc",
     "sched_table_function_unittest.cc",
+    "table_provider_live_unittest.cc",
   ]
   deps = [
     ":duckdb",
