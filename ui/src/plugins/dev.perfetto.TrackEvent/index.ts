@@ -254,6 +254,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
                 trace: ctx,
                 uri,
                 trackId: trackIds[0],
+                trackName,
               })
             : await createTraceProcessorSliceTrack({
                 trace: ctx,

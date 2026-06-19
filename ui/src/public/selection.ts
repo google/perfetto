@@ -193,11 +193,6 @@ export interface TrackEventDetails {
   // undefined if this selection has no duration, i.e. profile / counter
   // samples.
   readonly dur?: duration;
-
-  // The SQL table name that contains the backing data for this event.
-  // Used by details panels to query the correct table (e.g., 'slice' or 'state').
-  // If omitted, the backing SQL query defaults to the 'slice' table.
-  readonly tableName?: string;
 }
 
 export interface Area {

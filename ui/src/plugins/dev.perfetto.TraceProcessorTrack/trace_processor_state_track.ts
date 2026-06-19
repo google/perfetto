@@ -14,7 +14,7 @@
 
 import {exists} from '../../base/utils';
 import {getColorForSlice} from '../../components/colorizer';
-import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import {StateDetailsPanel} from './state_details_panel';
 import {SliceTrack, renderTooltip} from '../../components/tracks/slice_track';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {Trace} from '../../public/trace';
@@ -26,6 +26,7 @@ export interface TraceProcessorStateTrackAttrs {
   readonly trace: Trace;
   readonly uri: string;
   readonly trackId: number;
+  readonly trackName: string;
   readonly detailsPanel?: (row: {id: number}) => TrackEventDetailsPanel;
 }
 
@@ -42,6 +43,7 @@ export async function createTraceProcessorStateTrack({
   trace,
   uri,
   trackId,
+  trackName,
   detailsPanel,
 }: TraceProcessorStateTrackAttrs) {
   return SliceTrack.create({
@@ -76,7 +78,7 @@ export async function createTraceProcessorStateTrack({
     },
     detailsPanel: detailsPanel
       ? (row) => detailsPanel(row)
-      : () => new ThreadSliceDetailsPanel(trace),
+      : () => new StateDetailsPanel(trace, trackName),
     colorizer: (row) => {
       if (row.value) {
         return getColorForSlice(row.value);

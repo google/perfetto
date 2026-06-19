@@ -1407,7 +1407,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return {
       ...data,
       ts: Time.fromRaw(row.ts),
-      tableName: this.rootTableName,
     };
   }
 

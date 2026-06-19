@@ -56,8 +56,8 @@ test('state details panel', async () => {
   const title = page.locator('.pf-details-shell h1.pf-header-title');
   const desc = page.locator('.pf-details-shell span.pf-header-description');
 
-  await expect(title).toHaveText('Slice');
-  await expect(desc).toHaveText('Active');
+  await expect(title).toHaveText('State');
+  await expect(desc).toHaveText('StateTrackA');
 
   // Take a screenshot of the details panel for visual verification
   await pth.waitForIdleAndScreenshot('state_details_panel.png', {
