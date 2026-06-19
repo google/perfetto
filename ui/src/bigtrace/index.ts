@@ -148,6 +148,17 @@ class BigTraceLayout implements m.ClassComponent {
     const items: SidebarMenuItem[] = [
       {
         section: 'bigtrace',
+        text: 'Home',
+        href: `#!${Routes.HOME}`,
+        icon: 'home',
+        // Mirror resolvePage: the home page shows for any non-Query/Settings
+        // route, so highlight Home in those same cases.
+        active:
+          currentRoute !== Routes.QUERY && currentRoute !== Routes.SETTINGS,
+        onclick: () => {},
+      },
+      {
+        section: 'bigtrace',
         text: 'Query (SQL)',
         href: `#!${Routes.QUERY}`,
         icon: 'database',
