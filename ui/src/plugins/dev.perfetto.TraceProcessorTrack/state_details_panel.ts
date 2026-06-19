@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time, type duration, type time} from '../../base/time';
+import {Time, Duration, type duration, type time} from '../../base/time';
 import type {Engine} from '../../trace_processor/engine';
 import type {Trace} from '../../public/trace';
 import {LONG, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
@@ -129,7 +129,7 @@ async function loadStateDetails(
   });
 
   const ts = Time.fromRaw(row.ts);
-  const duration = Time.fromRaw(row.dur);
+  const duration = Duration.fromRaw(row.dur);
   const argSetId = row.argSetId;
   const args =
     argSetId == null ? undefined : await getArgs(engine, asArgSetId(argSetId));
