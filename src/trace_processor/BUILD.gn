@@ -476,6 +476,11 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_etm_importer) {
     deps += [ "importers/etm:unittests" ]
   }
+  if (enable_perfetto_duckdb) {
+    # Experimental SQLite -> DuckDB migration (M3a: sched materialized into
+    # DuckDB via the C API).
+    deps += [ "duckdb:unittests" ]
+  }
 }
 
 perfetto_cc_proto_descriptor("gen_cc_test_messages_descriptor") {

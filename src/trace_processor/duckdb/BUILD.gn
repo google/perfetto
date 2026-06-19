@@ -1,0 +1,51 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
+
+# Experimental integration between the trace_processor dataframe storage and the
+# DuckDB query engine (the SQLite -> DuckDB migration experiment). Everything
+# here is guarded behind `enable_perfetto_duckdb` and only built standalone.
+assert(enable_perfetto_duckdb)
+
+source_set("duckdb") {
+  sources = [
+    "sched_appender.cc",
+    "sched_appender.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../gn:duckdb",
+    "../../../include/perfetto/ext/base",
+    "../../base",
+    "../containers",
+    "../core/dataframe",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "sched_appender_unittest.cc" ]
+  deps = [
+    ":duckdb",
+    "../../../gn:default_deps",
+    "../../../gn:duckdb",
+    "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/ext/base",
+    "../../base",
+    "../containers",
+    "../core/dataframe",
+  ]
+}

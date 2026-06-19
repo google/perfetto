@@ -1713,31 +1713,38 @@ source_set("sqlite") {
 }
 
 if (enable_perfetto_duckdb) {
+  import("duckdb_sources.gni")
+
   # Public config applied to consumers of //buildtools:duckdb so they can
-  # #include "duckdb.hpp". The header itself does not require exceptions/RTTI at
-  # use sites; those are only needed when compiling the amalgamation .cpp below.
+  # #include "duckdb.h" / "duckdb.hpp" (the DuckDB public headers live in the
+  # package's src/include). -isystem so warnings from the very large DuckDB
+  # headers aren't treated as our own.
   config("duckdb_config") {
     visibility = _buildtools_visibility
-
-    # Using -isystem (via perfetto_isystem_cflag) instead of include_dirs (-I)
-    # so warnings from the (very large) DuckDB amalgamation header don't get
-    # treated as our own.
     cflags = [
       perfetto_isystem_cflag,
-      rebase_path("duckdb", root_build_dir),
+      rebase_path("duckdb/src/include", root_build_dir),
     ]
   }
 
   source_set("duckdb") {
     visibility = _buildtools_visibility
-    sources = [
-      "duckdb/duckdb.cpp",
-      "duckdb/duckdb.h",
-      "duckdb/duckdb.hpp",
-    ]
+
+    # DuckDB is built from source (NOT the flat amalgamation) via DuckDB's own
+    # scripts/package_build.py with the core_functions extension bundled: the
+    # released amalgamation is core-engine-only (no sum/min/max/avg/etc.). The
+    # package is a unity build (~133 small ub_*.cpp TUs + a generated static
+    # extension loader), so per-TU RAM is bounded (build at -j4 on small boxes).
+    # Source/include lists are auto-generated into duckdb_sources.gni; see
+    # the COREFUNCTIONS_BUILDPACKAGE_RECIPE in the migration journal.
+    sources = duckdb_sources
+    include_dirs = duckdb_include_dirs
+
+    # core_functions is statically linked; every TU must agree on the flag.
+    defines = [ "DUCKDB_EXTENSION_CORE_FUNCTIONS_LINKED=1" ]
 
     # DuckDB requires C++ exceptions and RTTI, which Perfetto disables by
-    # default. Drop those configs and re-enable for this TU only.
+    # default. Drop those configs and re-enable for these TUs only.
     configs -= [
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
@@ -1750,22 +1757,15 @@ if (enable_perfetto_duckdb) {
       ]
     }
 
-    # DuckDB is a vendored single-TU amalgamation; we do not want our
-    # -Werror / extra warnings applied to third-party code. -w silences all
-    # warnings (and overrides the -Werror coming from the default config).
-    # This is needed in particular for the wasm32 (32-bit) target, where
-    # DuckDB emits warnings (cpp-httplib 32-bit #warning, FSST hash size_t
-    # truncation) that would otherwise be fatal under -Werror.
+    # Third-party code: silence all warnings (and the default -Werror).
     cflags = [ "-w" ]
 
     public_configs = [ ":duckdb_config" ]
     deps = [ "//gn:default_deps" ]
 
-    # M2 EXPERIMENTAL: emscripten/wasm support. The wasm build is
-    # single-threaded (no -pthread), so build DuckDB without its thread pool
-    # and without dynamic extension loading (no dlopen under wasm).
+    # EXPERIMENTAL: emscripten/wasm. Single-threaded; no dynamic ext loading.
     if (is_wasm) {
-      defines = [
+      defines += [
         "DUCKDB_NO_THREADS",
         "DUCKDB_BUILD_LIBRARY",
         "DUCKDB_DISABLE_EXTENSION_LOAD",
