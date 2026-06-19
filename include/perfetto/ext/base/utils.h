@@ -120,10 +120,10 @@ void MaybeReleaseAllocatorMemToOS();
 uid_t GetCurrentUserId();
 
 // Forks the process.
-// Parent: prints the PID of the child, calls |parent_cb| and exits from the
-//         process with its return value.
+// Parent: calls |parent_cb| with the child's PID and exits with its return
+//         value. The callback owns any startup output (e.g. printing the PID).
 // Child: redirects stdio onto /dev/null, chdirs into / and returns.
-void Daemonize(std::function<int()> parent_cb);
+void Daemonize(std::function<int(pid_t)> parent_cb);
 
 // Returns the path of the current executable, e.g. /foo/bar/exe.
 std::string GetCurExecutablePath();
