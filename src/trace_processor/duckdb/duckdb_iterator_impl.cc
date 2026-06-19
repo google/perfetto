@@ -116,11 +116,52 @@ SqlValue DuckDbIteratorImpl::Get(uint32_t col) const {
 
   duckdb_logical_type logical = duckdb_vector_get_column_type(vec);
   duckdb_type type_id = duckdb_get_type_id(logical);
-  duckdb_destroy_logical_type(&logical);
 
   void* data = duckdb_vector_get_data(vec);
   const idx_t row = row_in_chunk_;
   SqlValue value;
+
+  // DECIMAL is stored as an integer of an internal width; SQLite has no decimal
+  // type, so the legacy path surfaces these as a DOUBLE (e.g. a `5.5` literal,
+  // typed DECIMAL by DuckDB, passed through `trunc`/`round`/etc.). Convert to
+  // double to match. Handled before the int-widening switch since its
+  // DUCKDB_TYPE_DECIMAL needs the width/scale from the (still-live) logical type.
+  if (type_id == DUCKDB_TYPE_DECIMAL) {
+    uint8_t width = duckdb_decimal_width(logical);
+    uint8_t scale = duckdb_decimal_scale(logical);
+    duckdb_type internal = duckdb_decimal_internal_type(logical);
+    duckdb_hugeint hv{0, 0};
+    // Switch on the underlying int to avoid -Wswitch-enum (the internal type is
+    // always one of the four integer widths below).
+    switch (static_cast<int>(internal)) {
+      case DUCKDB_TYPE_SMALLINT:
+        hv.lower = static_cast<uint64_t>(
+            static_cast<int64_t>(static_cast<int16_t*>(data)[row]));
+        hv.upper = static_cast<int16_t*>(data)[row] < 0 ? -1 : 0;
+        break;
+      case DUCKDB_TYPE_INTEGER:
+        hv.lower = static_cast<uint64_t>(
+            static_cast<int64_t>(static_cast<int32_t*>(data)[row]));
+        hv.upper = static_cast<int32_t*>(data)[row] < 0 ? -1 : 0;
+        break;
+      case DUCKDB_TYPE_BIGINT: {
+        int64_t v = static_cast<int64_t*>(data)[row];
+        hv.lower = static_cast<uint64_t>(v);
+        hv.upper = v < 0 ? -1 : 0;
+        break;
+      }
+      case DUCKDB_TYPE_HUGEINT:
+        hv = static_cast<duckdb_hugeint*>(data)[row];
+        break;
+      default:
+        break;
+    }
+    duckdb_decimal dec{width, scale, hv};
+    value = SqlValue::Double(duckdb_decimal_to_double(dec));
+    duckdb_destroy_logical_type(&logical);
+    return value;
+  }
+  duckdb_destroy_logical_type(&logical);
   // Switch on the underlying int to avoid -Wswitch-enum demanding every one of
   // DuckDB's ~40 logical types be listed; unsupported types hit `default`.
   switch (static_cast<int>(type_id)) {

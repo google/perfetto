@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
+#include "src/trace_processor/duckdb/scalar_functions.h"
 #include "src/trace_processor/duckdb/table_provider.h"
 
 namespace perfetto::trace_processor::duckdb_integration {
@@ -51,11 +52,17 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           "count", "sum", "min", "max", "avg",
           // Scalar math builtins that are 1:1 DuckDB-native AND reach DuckDB
           // under their own name (they are NOT rewritten by PerfettoSQL's
-          // `DELEGATES TO __intrinsic_*`, so the surface name is what binds).
-          // The delegated math surface (`sqrt`/`ln`/`exp`/`regexp_extract`/
-          // `unhex`) is intentionally NOT here: those reach DuckDB as
-          // `__intrinsic_*`, which has no DuckDB builtin (a real port, deferred).
-          "abs", "round", "ceil", "floor", "trunc", "pow", "power",
+          // `DELEGATES TO __intrinsic_*`, so the surface name is what binds),
+          // AND whose result TYPE matches SQLite for the tested inputs. The
+          // delegated math surface (`sqrt`/`ln`/`exp`/`regexp_extract`/`unhex`)
+          // is handled by registered scalar UDFs (RegisterScalarFunctions), not
+          // here.
+          //
+          // `ceil`/`floor` are deliberately EXCLUDED: DuckDB's `ceil(INTEGER)`
+          // returns a DOUBLE (e.g. `ceil(5)` -> 5.000000) whereas SQLite returns
+          // an INTEGER (`5`), a type divergence that fails the byte-exact diff.
+          // (`trunc(INTEGER)` happens to stay INTEGER in DuckDB, so trunc is OK.)
+          "abs", "round", "trunc", "pow", "power",
       };
   return *kAllow;
 }
@@ -80,7 +87,7 @@ bool IsSqlKeyword(const std::string& lower) {
 
 // A single extracted token of interest.
 struct Token {
-  enum Kind { kIdentifier, kSemicolon, kOther };
+  enum Kind { kIdentifier, kSemicolon, kOther, kDoubleQuoted };
   Kind kind;
   std::string text;        // lowercased, for identifiers.
   bool followed_by_paren;  // identifier immediately followed by '(' => fn call.
@@ -253,6 +260,15 @@ std::vector<Token> Tokenize(const std::string& sql) {
         }
         ++i;
       }
+      // A `"..."` token is a DIALECT divergence: SQLite treats a double-quoted
+      // token that does not resolve to a column as a STRING literal (e.g.
+      // `LN("as")` -> string), whereas DuckDB strictly treats it as a quoted
+      // IDENTIFIER (and errors if no such column exists). Flag it so the
+      // predicate can fall back rather than route a query that would error (or,
+      // worse, bind differently) in DuckDB.
+      if (quote == '"') {
+        out.push_back({Token::kDoubleQuoted, "", false, false, false, false});
+      }
       prev_was_from_or_join = false;
       continue;
     }
@@ -401,6 +417,12 @@ base::Status DuckDbEngine::EnsureInitialized() {
   RETURN_IF_ERROR(provider_->RegisterTableFunction(conn_));
   RETURN_IF_ERROR(provider_->RegisterReplacementScan(db_));
 
+  // Register the first batch of pure scalar UDFs (math/regexp/unhex). Their
+  // names become eligible in the support predicate via
+  // registered_scalar_functions_.
+  RETURN_IF_ERROR(
+      RegisterScalarFunctions(conn_, &registered_scalar_functions_));
+
   initialized_ = true;
   return base::OkStatus();
 }
@@ -528,7 +550,18 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
     }
   }
 
+  // Dialect guard: a `"..."` double-quoted token is a STRING literal in SQLite
+  // (when it doesn't match a column) but a quoted IDENTIFIER in DuckDB. A query
+  // relying on the SQLite quirk (e.g. `LN("as")`) would error or bind
+  // differently in DuckDB, so fall back rather than route it.
+  for (const Token& t : tokens) {
+    if (t.kind == Token::kDoubleQuoted) {
+      return ineligible("double-quoted literal (SQLite string vs DuckDB ident)");
+    }
+  }
+
   bool saw_relation = false;
+  bool saw_supported_function = false;
   for (const Token& t : tokens) {
     if (t.kind != Token::kIdentifier) {
       continue;
@@ -544,10 +577,14 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
       if (IsSqlKeyword(t.text) || t.is_cte_column_list) {
         continue;
       }
-      if (BuiltinFunctionAllowlist().find(t.text) ==
-          BuiltinFunctionAllowlist().end()) {
+      bool in_static_allowlist = BuiltinFunctionAllowlist().find(t.text) !=
+                                 BuiltinFunctionAllowlist().end();
+      bool is_registered_udf = registered_scalar_functions_.find(t.text) !=
+                               registered_scalar_functions_.end();
+      if (!in_static_allowlist && !is_registered_udf) {
         return ineligible("function '" + t.text + "' not in allowlist");
       }
+      saw_supported_function = true;
       continue;
     }
     if (t.after_from_or_join) {
@@ -581,10 +618,17 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
       saw_relation = true;
     }
   }
-  // For the beachhead we only route queries that scan at least one of our
-  // dataframes; a bare `SELECT <expr>` (no FROM) is left to SQLite for now.
-  if (!saw_relation) {
-    return ineligible("no DuckDB-backed relation referenced");
+  // Gate: route a query iff it scans at least one DuckDB-backed relation OR it
+  // is a bare (no-FROM) statement that calls at least one allowlisted/registered
+  // function (e.g. `SELECT ln(2)`, `SELECT unhex('0xF')`,
+  // `SELECT regexp_extract(...)`). The bare-SELECT gate was previously a hard
+  // "no relation => ineligible" rule; it is now lifted ONLY for statements whose
+  // every function is supported (the loop above default-denied any unknown
+  // function). A no-FROM statement with neither a relation nor a supported
+  // function (e.g. `SELECT 1` or a bare column reference) still falls back, to
+  // minimize behavioural drift from the SQLite path.
+  if (!saw_relation && !saw_supported_function) {
+    return ineligible("no DuckDB-backed relation or supported function");
   }
 
   // --- Eligible: execute the whole query inside DuckDB. ---

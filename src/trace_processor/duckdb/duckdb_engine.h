@@ -135,6 +135,11 @@ class DuckDbEngine {
   // the support predicate treats a reference to one as eligible, delegating the
   // actual binding of the view body to DuckDB).
   std::unordered_set<std::string> mirrored_views_;
+
+  // Lowercased names of scalar UDFs registered on the DuckDB connection at init
+  // (via RegisterScalarFunctions). The support predicate treats a call to one as
+  // an eligible function (in addition to the static builtin allowlist).
+  std::unordered_set<std::string> registered_scalar_functions_;
 };
 
 }  // namespace perfetto::trace_processor::duckdb_integration
