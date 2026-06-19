@@ -135,26 +135,28 @@ source_set("deserializer") {
   ]
 }
 
-# The --remote client: a TraceProcessor implementation that marshals every
-# method over the RPC wire to a warm server.
-source_set("client") {
-  sources = [
-    "remote_trace_processor.cc",
-    "remote_trace_processor.h",
-  ]
-  deps = [
-    ":deserializer",
-    ":session_util",
-    "..:lib",
-    "../../../gn:default_deps",
-    "../../../protos/perfetto/trace_processor:zero",
-    "../../../protos/perfetto/trace_summary:zero",
-    "../../base",
-    "../../base:unix_socket",
-    "../../protozero",
-    "../../protozero:proto_ring_buffer",
-  ]
-  public_deps = [ "../../../include/perfetto/trace_processor" ]
+# The --remote client: marshals every method over the RPC wire to a warm
+# server. Needs the IPC layer (AF_UNIX sockets), so gated like ":unixd".
+if (enable_perfetto_ipc) {
+  source_set("client") {
+    sources = [
+      "remote_trace_processor.cc",
+      "remote_trace_processor.h",
+    ]
+    deps = [
+      ":deserializer",
+      ":session_util",
+      "..:lib",
+      "../../../gn:default_deps",
+      "../../../protos/perfetto/trace_processor:zero",
+      "../../../protos/perfetto/trace_summary:zero",
+      "../../base",
+      "../../base:unix_socket",
+      "../../protozero",
+      "../../protozero:proto_ring_buffer",
+    ]
+    public_deps = [ "../../../include/perfetto/trace_processor" ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {

@@ -26,6 +26,7 @@
 
 #include <google/protobuf/descriptor.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
@@ -40,7 +41,6 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/rpc/remote_trace_processor.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/shell_utils.h"
@@ -50,6 +50,10 @@
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_IPC)
+#include "src/trace_processor/rpc/remote_trace_processor.h"
+#endif
 
 namespace perfetto::trace_processor::shell {
 
@@ -496,6 +500,7 @@ base::Status ResolveTraceFileArg(const SubcommandContext& ctx,
   return base::OkStatus();
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_IPC)
 // In --remote mode the trace is already loaded and configured by the session,
 // so flags that configure local parsing or register local engine state have no
 // effect. Reject them explicitly rather than silently ignore them. (Forwarding
@@ -530,6 +535,7 @@ static base::Status CheckRemoteFlagCompatibility(const GlobalOptions& opts) {
   }
   return base::OkStatus();
 }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_IPC)
 
 base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
     const GlobalOptions& opts,
@@ -537,12 +543,16 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
     const std::string& trace_file,
     base::TimeNanos* t_load_out) {
   if (!opts.remote_addr.empty()) {
+#if PERFETTO_BUILDFLAG(PERFETTO_IPC)
     RETURN_IF_ERROR(CheckRemoteFlagCompatibility(opts));
     ASSIGN_OR_RETURN(auto remote,
                      RemoteTraceProcessor::Connect(opts.remote_addr));
     if (t_load_out)
       *t_load_out = base::TimeNanos(0);
     return std::unique_ptr<TraceProcessor>(std::move(remote));
+#else
+    return base::ErrStatus("--remote not supported in this build");
+#endif
   }
   Config config = BuildConfig(opts, platform);
   ASSIGN_OR_RETURN(auto tp, SetupTraceProcessor(opts, config, platform));
