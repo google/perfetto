@@ -28,14 +28,13 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/rpc/query_result_deserializer.h"
-#include "src/trace_processor/rpc/session_paths.h"
+#include "src/trace_processor/rpc/rpc_transport.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 #include "protos/perfetto/trace_summary/file.pbzero.h"
@@ -219,53 +218,24 @@ class RemoteSummarizer : public Summarizer {
 
 base::StatusOr<std::unique_ptr<RemoteTraceProcessor>>
 RemoteTraceProcessor::Connect(const std::string& addr) {
-  std::string socket_path;
-  switch (session::ClassifyRemoteAddr(addr)) {
-    case session::RemoteAddrKind::kHttp:
-      return base::ErrStatus(
-          "--remote over HTTP (%s) is not supported yet; use a unix session "
-          "(tp server unix --name <name> <trace>) or the Python API.",
-          addr.c_str());
-    case session::RemoteAddrKind::kUnixPath:
-      socket_path = addr;
-      break;
-    case session::RemoteAddrKind::kSessionName: {
-      ASSIGN_OR_RETURN(socket_path, session::SessionSocketPath(addr));
-      break;
-    }
-  }
-
-  auto sock = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kUnix,
-                                                 base::SockType::kStream);
-  if (!sock || !sock.Connect(socket_path)) {
-    return base::ErrStatus(
-        "No live session at '%s'. Start one with: tp server unix --name <name> "
-        "<trace>",
-        addr.c_str());
-  }
-  sock.SetBlocking(true);
+  ASSIGN_OR_RETURN(std::unique_ptr<RpcTransport> transport,
+                   ConnectRpcTransport(addr));
   return std::unique_ptr<RemoteTraceProcessor>(
-      new RemoteTraceProcessor(std::move(sock)));
+      new RemoteTraceProcessor(std::move(transport)));
 }
 
-RemoteTraceProcessor::RemoteTraceProcessor(base::UnixSocketRaw sock)
-    : sock_(std::move(sock)) {}
+RemoteTraceProcessor::RemoteTraceProcessor(
+    std::unique_ptr<RpcTransport> transport)
+    : transport_(std::move(transport)) {}
 
 RemoteTraceProcessor::~RemoteTraceProcessor() = default;
 
 base::Status RemoteTraceProcessor::SendStream(
     const std::vector<uint8_t>& framed) {
-  // A live query stream owns the socket; a concurrent request would interleave
-  // with its unread batches. That's a caller bug, so fail fast.
+  // A live query stream owns the transport; a concurrent request would
+  // interleave with its unread batches. That's a caller bug, so fail fast.
   PERFETTO_CHECK(!stream_in_flight_);
-  size_t off = 0;
-  while (off < framed.size()) {
-    ssize_t n = sock_.Send(framed.data() + off, framed.size() - off);
-    if (n <= 0)
-      return base::ErrStatus("Failed to send request to session");
-    off += static_cast<size_t>(n);
-  }
-  return base::OkStatus();
+  return transport_->Send(framed.data(), framed.size());
 }
 
 base::Status RemoteTraceProcessor::ReadResponse(std::vector<uint8_t>* out) {
@@ -280,12 +250,10 @@ base::Status RemoteTraceProcessor::ReadResponse(std::vector<uint8_t>* out) {
       out->assign(msg.start, msg.start + msg.len);
       return base::OkStatus();
     }
-    ssize_t n = sock_.Receive(buf, sizeof(buf));
+    ASSIGN_OR_RETURN(size_t n, transport_->Recv(buf, sizeof(buf)));
     if (n == 0)
       return base::ErrStatus("Session closed the connection");
-    if (n < 0)
-      return base::ErrStatus("Error reading from session");
-    rxbuf_.Append(buf, static_cast<size_t>(n));
+    rxbuf_.Append(buf, n);
   }
 }
 
@@ -517,8 +485,8 @@ base::Status RemoteTraceProcessor::NotifyEndOfFile() {
 }
 
 void RemoteTraceProcessor::InterruptQuery() {
-  // Best-effort: closing the socket aborts the in-flight request.
-  sock_.Shutdown();
+  // No-op over a remote transport: the in-flight request runs to completion on
+  // the server. (The local one-shot path still handles Ctrl-C itself.)
 }
 
 // --- Methods with no RPC-protocol equivalent --------------------------------

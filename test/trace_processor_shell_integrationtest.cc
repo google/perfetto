@@ -28,8 +28,10 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -386,6 +388,30 @@ bool WaitForSocketBound(const std::string& path) {
   return false;
 }
 
+// Binds an ephemeral TCP port on 127.0.0.1 and returns it (the socket is closed
+// on return, so there is a small TOCTOU window before the server rebinds it).
+int GetFreeInetPort() {
+  auto sock = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kInet,
+                                                 base::SockType::kStream);
+  PERFETTO_CHECK(sock && sock.Bind("127.0.0.1:0"));
+  std::string addr = sock.GetSockAddr();  // "127.0.0.1:PORT"
+  return base::StringToInt32(addr.substr(addr.rfind(':') + 1)).value_or(0);
+}
+
+// Polls until a TCP connect to 127.0.0.1:|port| succeeds, up to ~5s.
+bool WaitForTcpPort(int port) {
+  std::string addr = "127.0.0.1:" + std::to_string(port);
+  for (int i = 0; i < 500; ++i) {
+    auto sock = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kInet,
+                                                   base::SockType::kStream);
+    sock.SetBlocking(true);
+    if (sock && sock.Connect(addr))
+      return true;
+    base::SleepMicroseconds(10 * 1000);
+  }
+  return false;
+}
+
 TEST(TraceProcessorShellIntegrationTest, ServerUnixBindAndCleanup) {
   // `server unix` binds the socket, then unlinks it on SIGTERM.
   auto trace = WriteSimpleSystrace();
@@ -535,6 +561,28 @@ TEST(TraceProcessorShellIntegrationTest, ServerKillHttpDeferred) {
   EXPECT_THAT(result.out, HasSubstr("not supported"));
 }
 
+TEST(TraceProcessorShellIntegrationTest, RemoteWebSocketRoundTrip) {
+  // `query --remote host:port` connects to the http server's /websocket
+  // endpoint and runs over the same RPC byte-pipe as the unix transport.
+  auto trace = WriteSimpleSystrace();
+  int port = GetFreeInetPort();
+  std::string addr = "127.0.0.1:" + std::to_string(port);
+
+  base::Subprocess server({ShellPath(), "server", "http", "--ip-address",
+                           "127.0.0.1", "--port", std::to_string(port),
+                           trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForTcpPort(port));
+
+  auto r = RunShell({"query", "--remote", addr, "SELECT 200 + 61 AS v"});
+  EXPECT_EQ(r.exit_code, 0) << r.out;
+  EXPECT_THAT(r.out, HasSubstr("261"));
+
+  server.KillAndWaitForTermination(SIGTERM);
+}
+
 TEST(TraceProcessorShellIntegrationTest, RemoteNoSession) {
   // Querying a session that isn't running fails with a clear, actionable error.
   auto result = RunShell({"query", "--remote", "no-such-session", "SELECT 1"});
@@ -542,11 +590,13 @@ TEST(TraceProcessorShellIntegrationTest, RemoteNoSession) {
   EXPECT_THAT(result.out, HasSubstr("No live session"));
 }
 
-TEST(TraceProcessorShellIntegrationTest, RemoteHttpDeferred) {
-  // --remote to an HTTP address reports the not-yet-supported error.
-  auto result = RunShell({"query", "--remote", "localhost:9001", "SELECT 1"});
+TEST(TraceProcessorShellIntegrationTest, RemoteHttpNoServer) {
+  // --remote to an HTTP address with nothing listening fails to connect.
+  int port = GetFreeInetPort();  // Free now; nothing is listening.
+  auto result = RunShell(
+      {"query", "--remote", "127.0.0.1:" + std::to_string(port), "SELECT 1"});
   EXPECT_NE(result.exit_code, 0);
-  EXPECT_THAT(result.out, HasSubstr("not supported"));
+  EXPECT_THAT(result.out, HasSubstr("Could not connect"));
 }
 
 TEST(TraceProcessorShellIntegrationTest, RemoteRejectsIncompatibleFlags) {

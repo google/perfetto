@@ -19726,6 +19726,7 @@ filegroup {
     name: "perfetto_src_trace_processor_rpc_client",
     srcs: [
         "src/trace_processor/rpc/remote_trace_processor.cc",
+        "src/trace_processor/rpc/rpc_transport.cc",
     ],
 }
 

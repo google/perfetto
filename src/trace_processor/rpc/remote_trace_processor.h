@@ -25,13 +25,13 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/rpc/rpc_transport.h"
 
 namespace perfetto::trace_processor {
 
@@ -45,7 +45,8 @@ class RemoteTraceProcessor : public TraceProcessor {
  public:
   // Connects to |addr|, which is resolved as in `--remote`: an absolute path or
   // *.sock is a socket path; a bare name is a session name resolved to the
-  // convention socket path; host:port/scheme:// is HTTP (not yet supported).
+  // convention socket path; host:port/scheme:// is a WebSocket to an http
+  // server.
   static base::StatusOr<std::unique_ptr<RemoteTraceProcessor>> Connect(
       const std::string& addr);
 
@@ -91,12 +92,13 @@ class RemoteTraceProcessor : public TraceProcessor {
   friend class RemoteSummarizer;
   friend class RemoteIteratorImpl;
 
-  explicit RemoteTraceProcessor(base::UnixSocketRaw sock);
+  explicit RemoteTraceProcessor(std::unique_ptr<RpcTransport> transport);
 
-  // Sends a serialized TraceProcessorRpcStream, blocking until fully written.
+  // Sends |framed| (a fully-serialized TraceProcessorRpcStream) over the
+  // transport, blocking until all bytes are written.
   base::Status SendStream(const std::vector<uint8_t>& framed);
-  // Reads one TraceProcessorRpc message into |out| (framing stripped),
-  // blocking.
+  // Reads exactly one TraceProcessorRpc message into |out| (the serialized
+  // message bytes, stream framing already stripped), blocking.
   base::Status ReadResponse(std::vector<uint8_t>* out);
 
   // Shared shape for non-streaming methods: build the request with |populate|,
@@ -105,7 +107,7 @@ class RemoteTraceProcessor : public TraceProcessor {
   template <typename Fn, typename Handle>
   base::Status RoundTrip(uint32_t method, Fn populate, Handle handle);
 
-  base::UnixSocketRaw sock_;
+  std::unique_ptr<RpcTransport> transport_;
   protozero::ProtoRingBuffer rxbuf_;
   int next_summarizer_id_ = 0;
 

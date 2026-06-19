@@ -5235,6 +5235,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/rpc/remote_trace_processor.cc",
         "src/trace_processor/rpc/remote_trace_processor.h",
+        "src/trace_processor/rpc/rpc_transport.cc",
+        "src/trace_processor/rpc/rpc_transport.h",
     ],
 )
 
