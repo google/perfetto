@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, type Page} from '@playwright/test';
+import {test, expect, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
 test.describe.configure({mode: 'serial'});
@@ -32,12 +32,35 @@ test('load trace', async () => {
   });
 });
 
-test('collapse parent folder', async () => {
-  const parentGrp = pth.locateTrack('ParentFolder');
-  await parentGrp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(parentGrp);
+test('state details panel', async () => {
+  const track = pth.locateTrack('ParentFolder/StateTrackA');
+  await track.scrollIntoViewIfNeeded();
 
-  await pth.waitForIdleAndScreenshot('collapsed.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+  const box = await track.boundingBox();
+  if (box === null) {
+    throw new Error('Track bounding box is null');
+  }
+
+  const shell = track.locator('.pf-track__shell');
+  const shellBox = await shell.boundingBox();
+  const sidebarWidth = shellBox ? shellBox.width : 150;
+
+  // Click in the middle of the track's timeline canvas (which corresponds to 2s, the center of "Active" slice)
+  const clickX = box.x + sidebarWidth + (box.width - sidebarWidth) / 2;
+  const clickY = box.y + box.height / 2;
+
+  await page.mouse.click(clickX, clickY);
+  await pth.waitForPerfettoIdle();
+
+  // Verify that the details panel opened and displays the correct state slice details
+  const title = page.locator('.pf-details-shell h1.pf-header-title');
+  const desc = page.locator('.pf-details-shell span.pf-header-description');
+
+  await expect(title).toHaveText('Slice');
+  await expect(desc).toHaveText('Active');
+
+  // Take a screenshot of the details panel for visual verification
+  await pth.waitForIdleAndScreenshot('state_details_panel.png', {
+    locator: page.locator('.pf-drawer-panel'),
   });
 });
