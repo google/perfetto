@@ -18414,7 +18414,17 @@ class SmapsEntry(_message.Message):
     def __init__(self, path: _Optional[str] = ..., size_kb: _Optional[int] = ..., private_dirty_kb: _Optional[int] = ..., swap_kb: _Optional[int] = ..., file_name: _Optional[str] = ..., start_address: _Optional[int] = ..., module_timestamp: _Optional[int] = ..., module_debugid: _Optional[str] = ..., module_debug_path: _Optional[str] = ..., protection_flags: _Optional[int] = ..., private_clean_resident_kb: _Optional[int] = ..., shared_dirty_resident_kb: _Optional[int] = ..., shared_clean_resident_kb: _Optional[int] = ..., locked_kb: _Optional[int] = ..., proportional_resident_kb: _Optional[int] = ...) -> None: ...
 
 class PackedSmaps(_message.Message):
-    __slots__ = ("string_table", "name_id", "aggregate_count", "size_kb", "rss_kb", "anonymous_kb", "swap_kb", "shared_clean_kb", "shared_dirty_kb", "private_clean_kb", "private_dirty_kb", "locked_kb", "pss_kb", "pss_dirty_kb", "swap_pss_kb")
+    __slots__ = ("string_table", "name_id", "aggregate_count", "size_kb", "rss_kb", "anonymous_kb", "swap_kb", "shared_clean_kb", "shared_dirty_kb", "private_clean_kb", "private_dirty_kb", "locked_kb", "pss_kb", "pss_dirty_kb", "swap_pss_kb", "recording_type")
+    class RecordingType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        RECORDING_TYPE_UNKNOWN: _ClassVar[PackedSmaps.RecordingType]
+        RECORDING_TYPE_STANDALONE: _ClassVar[PackedSmaps.RecordingType]
+        RECORDING_TYPE_ART_HPROF_POSTFORK: _ClassVar[PackedSmaps.RecordingType]
+        RECORDING_TYPE_ART_HPROF_PREFORK: _ClassVar[PackedSmaps.RecordingType]
+    RECORDING_TYPE_UNKNOWN: PackedSmaps.RecordingType
+    RECORDING_TYPE_STANDALONE: PackedSmaps.RecordingType
+    RECORDING_TYPE_ART_HPROF_POSTFORK: PackedSmaps.RecordingType
+    RECORDING_TYPE_ART_HPROF_PREFORK: PackedSmaps.RecordingType
     STRING_TABLE_FIELD_NUMBER: _ClassVar[int]
     NAME_ID_FIELD_NUMBER: _ClassVar[int]
     AGGREGATE_COUNT_FIELD_NUMBER: _ClassVar[int]
@@ -18430,6 +18440,7 @@ class PackedSmaps(_message.Message):
     PSS_KB_FIELD_NUMBER: _ClassVar[int]
     PSS_DIRTY_KB_FIELD_NUMBER: _ClassVar[int]
     SWAP_PSS_KB_FIELD_NUMBER: _ClassVar[int]
+    RECORDING_TYPE_FIELD_NUMBER: _ClassVar[int]
     string_table: _containers.RepeatedScalarFieldContainer[str]
     name_id: _containers.RepeatedScalarFieldContainer[int]
     aggregate_count: _containers.RepeatedScalarFieldContainer[int]
@@ -18445,7 +18456,8 @@ class PackedSmaps(_message.Message):
     pss_kb: _containers.RepeatedScalarFieldContainer[int]
     pss_dirty_kb: _containers.RepeatedScalarFieldContainer[int]
     swap_pss_kb: _containers.RepeatedScalarFieldContainer[int]
-    def __init__(self, string_table: _Optional[_Iterable[str]] = ..., name_id: _Optional[_Iterable[int]] = ..., aggregate_count: _Optional[_Iterable[int]] = ..., size_kb: _Optional[_Iterable[int]] = ..., rss_kb: _Optional[_Iterable[int]] = ..., anonymous_kb: _Optional[_Iterable[int]] = ..., swap_kb: _Optional[_Iterable[int]] = ..., shared_clean_kb: _Optional[_Iterable[int]] = ..., shared_dirty_kb: _Optional[_Iterable[int]] = ..., private_clean_kb: _Optional[_Iterable[int]] = ..., private_dirty_kb: _Optional[_Iterable[int]] = ..., locked_kb: _Optional[_Iterable[int]] = ..., pss_kb: _Optional[_Iterable[int]] = ..., pss_dirty_kb: _Optional[_Iterable[int]] = ..., swap_pss_kb: _Optional[_Iterable[int]] = ...) -> None: ...
+    recording_type: PackedSmaps.RecordingType
+    def __init__(self, string_table: _Optional[_Iterable[str]] = ..., name_id: _Optional[_Iterable[int]] = ..., aggregate_count: _Optional[_Iterable[int]] = ..., size_kb: _Optional[_Iterable[int]] = ..., rss_kb: _Optional[_Iterable[int]] = ..., anonymous_kb: _Optional[_Iterable[int]] = ..., swap_kb: _Optional[_Iterable[int]] = ..., shared_clean_kb: _Optional[_Iterable[int]] = ..., shared_dirty_kb: _Optional[_Iterable[int]] = ..., private_clean_kb: _Optional[_Iterable[int]] = ..., private_dirty_kb: _Optional[_Iterable[int]] = ..., locked_kb: _Optional[_Iterable[int]] = ..., pss_kb: _Optional[_Iterable[int]] = ..., pss_dirty_kb: _Optional[_Iterable[int]] = ..., swap_pss_kb: _Optional[_Iterable[int]] = ..., recording_type: _Optional[_Union[PackedSmaps.RecordingType, str]] = ...) -> None: ...
 
 class SmapsPacket(_message.Message):
     __slots__ = ("pid", "entries", "packed_entries")
