@@ -114,8 +114,10 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshotInternal(
 void ClockTracker::AddSnapshotToTable(
     uint32_t snapshot_id,
     const std::vector<ClockTimestamp>& clock_timestamps) {
-  std::optional<int64_t> trace_time_from_snapshot =
-      ToTraceTimeFromSnapshot(clock_timestamps);
+  // Computed lazily the first time a clock fails to convert: most snapshots
+  // resolve every clock directly and never need the snapshot fallback.
+  std::optional<int64_t> trace_time_from_snapshot;
+  bool trace_time_from_snapshot_computed = false;
 
   std::optional<int64_t> trace_ts_for_check;
   for (const auto& clock_timestamp : clock_timestamps) {
@@ -130,7 +132,8 @@ void ClockTracker::AddSnapshotToTable(
     // deferred identity sync or count as an event conversion.
     auto* state = context_->trace_time_state.get();
     std::optional<int64_t> converted = active_sync_->Convert(
-        clock_timestamp.clock.id, ts_to_convert, state->clock_id, std::nullopt);
+        clock_timestamp.clock.id, ts_to_convert, state->clock_id,
+        /*byte_offset=*/std::nullopt, /*suppress_errors=*/true);
     std::optional<int64_t> opt_trace_ts =
         converted ? std::optional(ToHostTraceTime(*converted)) : std::nullopt;
 
@@ -138,6 +141,10 @@ void ClockTracker::AddSnapshotToTable(
     if (!opt_trace_ts) {
       // This can happen if |AddSnapshot| failed to resolve this clock, e.g.
       // if clock is not monotonic. Try to fetch trace time from snapshot.
+      if (!trace_time_from_snapshot_computed) {
+        trace_time_from_snapshot = ToTraceTimeFromSnapshot(clock_timestamps);
+        trace_time_from_snapshot_computed = true;
+      }
       if (!trace_time_from_snapshot) {
         continue;
       }
