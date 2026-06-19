@@ -28,6 +28,7 @@ import {TrackNode} from '../../public/workspace';
 import {assertExists, assertTrue} from '../../base/assert';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
+import {createTraceProcessorStateTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_state_track';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
@@ -247,6 +248,23 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           }),
         });
       } else if (hasData) {
+        const renderer =
+          isState === 1
+            ? await createTraceProcessorStateTrack({
+                trace: ctx,
+                uri,
+                trackId: trackIds[0],
+              })
+            : await createTraceProcessorSliceTrack({
+                trace: ctx,
+                uri,
+                trackIds,
+                detailsPanel: createTrackEventDetailsPanel(ctx),
+                depthTableName:
+                  trackIds.length > 1
+                    ? '__trackevent_track_layout_depth'
+                    : undefined,
+              });
         ctx.tracks.registerTrack({
           uri,
           description: description ?? undefined,
@@ -258,17 +276,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             trackEvent: true,
             hasCallstacks: hasCallstacks === 1,
           },
-          renderer: await createTraceProcessorSliceTrack({
-            trace: ctx,
-            uri,
-            trackIds,
-            detailsPanel: createTrackEventDetailsPanel(ctx),
-            depthTableName:
-              trackIds.length > 1 && isState === 0
-                ? '__trackevent_track_layout_depth'
-                : undefined,
-            rootTableName: isState === 1 ? 'state' : undefined,
-          }),
+          renderer,
         });
       } else {
         // Summary track with no data but has children - use SliceTrackSummary

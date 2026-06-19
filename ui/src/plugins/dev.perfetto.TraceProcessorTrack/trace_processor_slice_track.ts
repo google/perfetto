@@ -40,7 +40,6 @@ export interface TraceProcessorSliceTrackAttrs {
   readonly trackIds: ReadonlyArray<number>;
   readonly detailsPanel?: (row: {id: number}) => TrackEventDetailsPanel;
   readonly depthTableName?: string;
-  readonly rootTableName?: string;
 }
 
 const schema = {
@@ -64,21 +63,14 @@ export async function createTraceProcessorSliceTrack({
   trackIds,
   detailsPanel,
   depthTableName,
-  rootTableName,
 }: TraceProcessorSliceTrackAttrs) {
-  const rootTable = rootTableName ?? 'slice';
   return SliceTrack.create({
     trace,
     uri,
-    dataset: await getDataset(
-      trace.engine,
-      trackIds,
-      rootTable,
-      depthTableName,
-    ),
+    dataset: await getDataset(trace.engine, trackIds, depthTableName),
     sliceName: (row) => (row.name === null ? '[null]' : row.name),
     initialMaxDepth: maxDepth,
-    rootTableName: rootTable,
+    rootTableName: 'slice',
     fillRatio: (row) => {
       if (row.dur > 0n && row.thread_dur !== null) {
         return clamp(BIMath.ratio(row.thread_dur, row.dur), 0, 1);
@@ -113,35 +105,9 @@ export async function createTraceProcessorSliceTrack({
 async function getDataset(
   engine: Engine,
   trackIds: ReadonlyArray<number>,
-  rootTableName: string,
   depthTableName?: string,
 ) {
   assertTrue(trackIds.length > 0);
-
-  if (rootTableName === 'state') {
-    assertTrue(trackIds.length === 1);
-    return new SourceDataset({
-      schema,
-      select: {
-        id: 'id',
-        ts: 'ts',
-        dur: 'dur',
-        depth: '0',
-        name: 'value',
-        thread_dur: 'NULL',
-        track_id: 'track_id',
-        category: 'category',
-        correlation_id: 'NULL',
-        arg_set_id: 'arg_set_id',
-        parent_id: 'NULL',
-      },
-      src: "(SELECT * FROM state WHERE value != '')",
-      filter: {
-        col: 'track_id',
-        eq: trackIds[0],
-      },
-    });
-  }
 
   if (trackIds.length === 1) {
     // Single track case - use depth directly from slice table
@@ -160,7 +126,7 @@ async function getDataset(
         arg_set_id: 'arg_set_id',
         parent_id: 'parent_id',
       },
-      src: rootTableName,
+      src: 'slice',
       filter: {
         col: 'track_id',
         eq: trackIds[0],
@@ -172,7 +138,7 @@ async function getDataset(
     const tableName = depthTableName ?? `__async_slice_depth_${trackIds[0]}`;
 
     if (depthTableName === undefined) {
-      // For slice tracks, fallback to standard experimental_slice_layout
+      // Create the depth table if not provided by caller
       await createPerfettoTable({
         name: tableName,
         engine,
@@ -205,7 +171,7 @@ async function getDataset(
         arg_set_id: 'arg_set_id',
         parent_id: 'parent_id',
       },
-      src: rootTableName,
+      src: 'slice',
       joins: {
         depth: {
           from: `${tableName} USING (id)`,

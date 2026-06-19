@@ -193,6 +193,8 @@ export interface TrackEventDetails {
   // undefined if this selection has no duration, i.e. profile / counter
   // samples.
   readonly dur?: duration;
+
+  readonly tableName?: string;
 }
 
 export interface Area {
