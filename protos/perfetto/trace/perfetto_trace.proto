@@ -6416,151 +6416,6 @@ message AndroidSystemProperty {
 
 // End of protos/perfetto/trace/android/android_system_property.proto
 
-// Begin of protos/perfetto/trace/android/camera_event.proto
-
-// A profiling event corresponding to a single camera frame. This message
-// collects important details and timestamps involved in producing a single
-// camera frame.
-// Next ID: 17
-message AndroidCameraFrameEvent {
-  // Identifier for the CameraCaptureSession this frame originates from. See:
-  // https://developer.android.com/reference/android/hardware/camera2/CameraCaptureSession
-  optional uint64 session_id = 1;
-  // Identifier for the camera sensor that is the source of this frame. This may
-  // be either a physical or logical camera (up to vendor interpretation).
-  optional uint32 camera_id = 2;
-  // The frame number identifying this frame on this camera.
-  optional int64 frame_number = 3;
-  // Identifier for the CaptureRequest. See:
-  // https://developer.android.com/reference/android/hardware/camera2/CaptureRequest
-  //
-  // If multiple cameras are streaming simultaneously, the request_id may be
-  // used to identify which frames were captured in service of the same request.
-  optional int64 request_id = 4;
-
-  // The CLOCK_BOOTTIME timestamp at which the camera framework request is
-  // received by the camera HAL pipeline. Note that this request may wait for
-  // some time before processing actually begins. See also
-  // request_processing_started_ns.
-  optional int64 request_received_ns = 5;
-  // The CLOCK_BOOTTIME timestamp at which the framework request is accepted for
-  // processing by the camera HAL pipeline. This is the time at which the
-  // pipeline actually begins to work on the request.
-  optional int64 request_processing_started_ns = 6;
-
-  // The CLOCK_BOOTTIME timestamp at which the sensor begins its exposure.
-  optional int64 start_of_exposure_ns = 7;
-  // The CLOCK_BOOTTIME timestamp corresponding to the sensor start of frame
-  // event.
-  optional int64 start_of_frame_ns = 8;
-  // The CLOCK_BOOTTIME timestamp at which the camera HAL has sent all responses
-  // for the frame.
-  optional int64 responses_all_sent_ns = 9;
-
-  // The error status, if any, reported to the camera framework. Any status
-  // other than STATUS_OK indicates a dropped frame.
-  // Next Enum: 6
-  enum CaptureResultStatus {
-    STATUS_UNSPECIFIED = 0;
-    STATUS_OK = 1;
-    // Early metadata was returned to the camera framework with an error.
-    STATUS_EARLY_METADATA_ERROR = 2;
-    // Final metadata was returned to the camera framework with an error.
-    STATUS_FINAL_METADATA_ERROR = 3;
-    // One or more buffers were returned to the camera framework with an error.
-    STATUS_BUFFER_ERROR = 4;
-    // The frame was dropped as a result of a flush operation.
-    STATUS_FLUSH_ERROR = 5;
-  }
-  optional CaptureResultStatus capture_result_status = 10;
-
-  // The number of sensor frames that were skipped between this frame and the
-  // previous frame. Under normal operation, this should be zero. Any number
-  // greater than zero indicates dropped sensor frames.
-  optional int32 skipped_sensor_frames = 11;
-
-  // The value of CONTROL_CAPTURE_INTENT. See:
-  // https://developer.android.com/reference/android/hardware/camera2/CaptureRequest#CONTROL_CAPTURE_INTENT
-  optional int32 capture_intent = 12;
-  // The number of streams in the capture request.
-  optional int32 num_streams = 13;
-
-  // A profiling event corresponding to a single node processing within the
-  // camera pipeline. Intuitively this corresponds to a single stage of
-  // processing to produce a camera frame. Next ID: 6
-  message CameraNodeProcessingDetails {
-    optional int64 node_id = 1;
-    // The timestamp at which node processing begins to run.
-    optional int64 start_processing_ns = 2;
-    // The timestamp at which node processing finishes running.
-    optional int64 end_processing_ns = 3;
-    // The delay between inputs becoming ready and the node actually beginning
-    // to run.
-    optional int64 scheduling_latency_ns = 4;
-  }
-  repeated CameraNodeProcessingDetails node_processing_details = 14;
-
-  // These fields capture vendor-specific additions to this proto message. In
-  // practice `vendor_data` typically contains a serialized message of the
-  // vendor's design, and `vendor_data_version` is incremented each time there
-  // is a backwards incompatible change made to the message.
-  optional int32 vendor_data_version = 15;
-  optional bytes vendor_data = 16;
-}
-
-// A profiling event that may be emitted periodically (i.e., at a slower rate
-// than `AndroidCameraFrameEvent`s) to record fixed and aggregated camera
-// session-specific values.
-message AndroidCameraSessionStats {
-  // Identifier for the CameraCaptureSession this frame originates from. See:
-  // https://developer.android.com/reference/android/hardware/camera2/CameraCaptureSession
-  optional uint64 session_id = 1;
-
-  // Although vendor implementations may vary, camera pipeline processing is
-  // typically arranged into a directed graph-like structure. This message is
-  // used to record that graph.
-  message CameraGraph {
-    message CameraNode {
-      optional int64 node_id = 1;
-      // A list of inputs consumed by this node.
-      repeated int64 input_ids = 2;
-      // A list of outputs produced by this node.
-      repeated int64 output_ids = 3;
-
-      // These fields capture vendor-specific additions to this proto message.
-      // In practice `vendor_data` typically contains a serialized message of
-      // the vendor's design, and `vendor_data_version` is incremented each time
-      // there is a backwards incompatible change made to the message.
-      optional int32 vendor_data_version = 4;
-      optional bytes vendor_data = 5;
-    }
-    repeated CameraNode nodes = 1;
-
-    // An adjacency list describing connections between CameraNodes, mapping
-    // nodes and their outputs to other nodes that consume them as inputs.
-    message CameraEdge {
-      // The pair of IDs identifying the node and output connected by this edge.
-      optional int64 output_node_id = 1;
-      optional int64 output_id = 2;
-
-      // The pair of IDs identifying the node and input connected by this edge.
-      optional int64 input_node_id = 3;
-      optional int64 input_id = 4;
-
-      // These fields capture vendor-specific additions to this proto message.
-      // In practice `vendor_data` typically contains a serialized message of
-      // the vendor's design, and `vendor_data_version` is incremented each time
-      // there is a backwards incompatible change made to the message.
-      optional int32 vendor_data_version = 5;
-      optional bytes vendor_data = 6;
-    }
-    repeated CameraEdge edges = 2;
-  }
-  optional CameraGraph graph = 2;
-}
-
-// End of protos/perfetto/trace/android/camera_event.proto
-
 // Begin of protos/perfetto/trace/android/cpu_per_uid_data.proto
 
 message CpuPerUidData {
@@ -7891,158 +7746,6 @@ message EtwTraceEventBundle {
   repeated EtwTraceEvent event = 2;
 }
 // End of protos/perfetto/trace/etw/etw_event_bundle.proto
-
-// Begin of protos/perfetto/trace/evdev.proto
-
-// Records an event in the evdev protocol, as used by Linux and some other *nix
-// kernels to report events from human interface devices.
-//
-// Next ID: 5
-message EvdevEvent {
-  // The device's unique ID number. This need not be the number of its
-  // /dev/input/event node.
-  optional uint32 device_id = 1;
-
-  oneof event {
-    InputEvent input_event = 2;
-    DeviceAddition add_event = 3;
-    DeviceRemoval remove_event = 4;
-  }
-
-  // Proto version of Linux's struct input_event. The meaning of types and codes
-  // are described in the Linux kernel documentation at
-  // https://www.kernel.org/doc/html/latest/input/event-codes.html.
-  //
-  // Next ID: 5
-  message InputEvent {
-    // The monotonic timestamp at which the event occurred, as reported by the
-    // kernel, in integer nanoseconds. If omitted, assume that it hasn't changed
-    // since the previous event.
-    optional uint64 kernel_timestamp = 1;
-
-    // The code grouping for this event, used to distinguish signals, absolute
-    // and relative axis changes, and other types of event.
-    optional uint32 type = 2;
-    // The precise type of the event, such as the axis code for absolute and
-    // relative events.
-    optional uint32 code = 3;
-    // The new value of the axis described by type and code.
-    optional sint32 value = 4;
-  }
-
-  // Describes an evdev device being added to the system.
-  //
-  // Next ID: 2
-  message DeviceAddition {
-    optional EvdevDevice device = 1;
-  }
-
-  // Describes an evdev device being removed from the system.
-  //
-  // Next ID: 1
-  message DeviceRemoval {
-    // Empty — we don't need to record any data other than the device ID for
-    // this event type.
-  }
-}
-
-// The properties of an input device that don't change during the time that it's
-// connected, as well as the current values for all of its axes.
-//
-// Next ID: 13
-message EvdevDevice {
-  // The device's unique ID number. This need not be the number of its
-  // /dev/input/event node.
-  optional uint32 device_id = 1;
-  // The number of the evdev device (i.e. from its /dev/input/eventX node path).
-  optional uint32 device_num = 2;
-
-  // The device's name.
-  optional string name = 3;
-  // The physical path to the device in the system hierarchy.
-  optional string phys = 4;
-  // The unique identification code for the device (if it has one).
-  optional string uniq = 5;
-
-  // Proto version of Linux's struct input_id. Although uint32s are used for the
-  // fields, the kernel uses 16-bit ints so values will be less than 2^16.
-  //
-  // Next ID: 5
-  message Identifier {
-    // The bus that the device is connected to. Values will be one of Linux's
-    // BUS_* constants.
-    optional uint32 bustype = 1;
-    // A number identifying the vendor of the device. Often a USB or Bluetooth
-    // vendor ID, but not always.
-    optional uint32 vendor = 2;
-    optional uint32 product = 3;
-    optional uint32 version = 4;
-  }
-  // The device's ID numbers.
-  optional Identifier id = 6;
-
-  // Proto version of Linux's struct input_absinfo, excluding the value field
-  // (which is tracked elsewhere).
-  //
-  // Next ID: 6
-  message AbsInfo {
-    optional sint32 minimum = 1;
-    optional sint32 maximum = 2;
-    optional int32 fuzz = 3;
-    optional int32 flat = 4;
-    optional int32 resolution = 5;
-  }
-  // A map of information for each of the device's absolute axes. Keys are the
-  // Linux ABS_* constants.
-  map<uint32, AbsInfo> absolute_axis_infos = 7;
-
-  // Bitmask specifying which types of events the device declares.
-  optional bytes ev_bitmask = 8;
-  // A map of bitmasks specifying which axes of each type the device declares.
-  // Keys are the Linux EV_* constants.
-  map<uint32, bytes> event_type_bitmasks = 9;
-  // Bitmask of properties declared by the device.
-  optional bytes prop_bitmask = 10;
-
-  // Contains the current values of all axes of a particular type (e.g. EV_ABS,
-  // EV_KEY, etc.).
-  //
-  // Next ID: 2
-  message AxisMap {
-    // Current values of all axes, other than ABS_MT_* axes (which have multiple
-    // slots), which are kept in abs_mt_states instead.
-    //
-    // The keys are the Linux axis codes, e.g. ABS_* for absolute axes. If there
-    // is no entry for a particular axis, assume that its value is 0.
-    map<uint32, sint32> axis_states = 1;
-  }
-
-  // Current states of device axes.
-  //
-  // The keys are the Linux event type constants (e.g. EV_KEY, EV_ABS, etc.). We
-  // don't need to keep track of states for all axis types, only KEY, SW, LED,
-  // and ABS, so only those will have entries in this map. States for ABS_MT_*
-  // axes (which have multiple slots) will be kept in abs_mt_states instead.
-  map<uint32, AxisMap> axis_states = 11;
-
-  // Contains the current values of a single ABS_MT_* axis across all of its
-  // slots.
-  //
-  // Next ID: 2
-  message SlotValuesMap {
-    // Current values for all slots.
-    //
-    // The keys are the slot numbers. If there is no entry for a particular
-    // slot, assume that its value is 0.
-    map<uint32, sint32> slot_values = 1;
-  }
-
-  // Current states of ABS_MT_* axes other than ABS_MT_SLOT. The keys are the
-  // ABS axis codes.
-  map<uint32, SlotValuesMap> abs_mt_states = 12;
-}
-
-// End of protos/perfetto/trace/evdev.proto
 
 // Begin of protos/perfetto/common/descriptor.proto
 
@@ -18271,8 +17974,6 @@ message TracePacket {
     FrameTimelineEvent frame_timeline_event = 76;
     AndroidEnergyEstimationBreakdown android_energy_estimation_breakdown = 77;
     UiState ui_state = 78;
-    AndroidCameraFrameEvent android_camera_frame_event = 80;
-    AndroidCameraSessionStats android_camera_session_stats = 81;
     TranslationTable translation_table = 82;
     AndroidGameInterventionList android_game_intervention_list = 83;
     StatsdAtom statsd_atom = 84;
@@ -18336,8 +18037,6 @@ message TracePacket {
 
     CpuPerUidData cpu_per_uid_data = 119;
 
-    EvdevEvent evdev_event = 121;
-
     AndroidUserList user_list = 123;
 
     SystemdJournaldEvent journald_event = 132;
@@ -18356,6 +18055,10 @@ message TracePacket {
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 55;
+
+  // removed AndroidCameraFrameEvent android_camera_frame_event
+  // removed AndroidCameraSessionStats android_camera_session_stats
+  reserved 80, 81;
 
   // Android out-of-tree extensions. These payloads are defined in the Android
   // tree and mirrored under protos/third_party/android/; each hole keeps its
@@ -18384,7 +18087,10 @@ message TracePacket {
   //
   // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto
   //   116: AppWakelockBundle app_wakelock_bundle
-  extensions 56, 88, 92, 93, 94, 96, 97, 104, 105, 112, 114, 116;
+  //
+  // protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto
+  //   121: EvdevEvent evdev_event
+  extensions 56, 88, 92, 93, 94, 96, 97, 104, 105, 112, 114, 116, 121;
 
   // Reserved for future OOT extensions. New allocations are carved out of this
   // range and registered in protos/perfetto/trace/extensions.json.

@@ -16,6 +16,10 @@
 
 export const LINK_COLUMN = 'link';
 
+// Backend-internal row identifier present on every result; hidden unless the
+// user explicitly adds it via the column picker.
+export const ROW_ID_COLUMN = '_row_id';
+
 // Hoist `link` to the front (keyed by name); no-op if absent or already first.
 export function linkColumnFirst<T>(
   items: readonly T[],
@@ -39,15 +43,17 @@ export function groupResultColumns(names: readonly string[]): string[] {
 }
 
 // Resolve a results-grid column selection against the available columns, then
-// group. null = show all; a list is intersected (all-stale → show all).
+// group. null = show all but `_row_id`; a list is intersected (all-stale →
+// back to the default). `_row_id` stays addable via the picker.
 export function resolveResultColumns(
   chosen: readonly string[] | null,
   available: ReadonlyArray<string>,
 ): string[] {
+  const defaults = available.filter((c) => c !== ROW_ID_COLUMN);
   if (chosen === null) {
-    return groupResultColumns([...available]);
+    return groupResultColumns(defaults);
   }
   const known = new Set(available);
   const filtered = chosen.filter((c) => known.has(c));
-  return groupResultColumns(filtered.length === 0 ? [...available] : filtered);
+  return groupResultColumns(filtered.length === 0 ? defaults : filtered);
 }

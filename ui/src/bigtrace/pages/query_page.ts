@@ -18,7 +18,10 @@ import {EmptyState} from '../../widgets/empty_state';
 import {SplitPanel} from '../../widgets/split_panel';
 import {Spinner} from '../../widgets/spinner';
 import {Tabs, type TabsTab} from '../../widgets/tabs';
-import {QueryHistoryComponent} from '../query/query_history';
+import {
+  QueryHistoryComponent,
+  setHistoryActiveTab,
+} from '../query/query_history';
 import {QueryRunner} from '../query/query_runner';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {sqlTablesLoader} from '../query/sql_tables';
@@ -56,6 +59,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     };
     if (this.useBigtraceBackend) {
       bigTraceSettingsStorage.loadSettings();
+    }
+    // Open History on the sub-tab matching the active tab's Persistent mode;
+    // its default ('standard') otherwise wins on every mount.
+    const activeTab = this.tabsState.getActiveTab();
+    if (activeTab) {
+      setHistoryActiveTab(activeTab.materialize);
     }
     sqlTablesLoader.load();
   }

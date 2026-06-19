@@ -535,6 +535,8 @@
 // Status-colored left bar, meta card only (clashes with the pre's border).
 .pf-bt-history-item-meta {
   border-left: 3px solid transparent;
+  // The band opens the query on click (same as the Open button).
+  cursor: pointer;
 }
 
 .pf-query-history__item:has(.pf-bt-status-success) .pf-bt-history-item-meta {
@@ -745,6 +747,25 @@ pre.pf-bt-history-item-query--standalone {
   margin: 0;
   font-size: 0.85em;
   white-space: pre-wrap;
+}
+
+// A fetch_results failure shown in place of the results grid: a short heading
+// plus the selectable, scrollable error body (reusing .pf-bt-error-content).
+.pf-bt-results-error {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  &__title {
+    padding: 12px 12px 0;
+    font-weight: 500;
+    color: var(--pf-color-danger);
+  }
+
+  .pf-bt-error-content {
+    flex: 1;
+  }
 }
 
 // min-height:0 chain lets DataGrid fillHeight work; only the body scrolls.
@@ -981,6 +1002,15 @@ pre.pf-bt-history-item-query--standalone {
   &__chips {
     flex: 1 1 auto;
     min-width: 0;
+
+    // A chip with a long value (e.g. a trace-path filter) must ellipsize, not
+    // grow the editor panel past the split and scroll the whole page. The
+    // shared chip pins min-width: max-content, so cap and let it shrink here;
+    // its label already has text-overflow: ellipsis.
+    .pf-chip {
+      min-width: 0;
+      max-width: 100%;
+    }
   }
 
   // Only the "Edit settings" chip is clickable — give it the pointer cursor.

@@ -29,11 +29,15 @@ import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
 import dev.perfetto.sdk.PerfettoTrace;
 import dev.perfetto.sdk.PerfettoTrack;
 import dev.perfetto.sdk.PerfettoTrackEventBuilder;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.Pipe;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -439,6 +443,36 @@ public class PerfettoTraceTest {
       }
     }
     return byName;
+  }
+
+  @Test
+  public void testCorrelationId() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.instant(FOO_CATEGORY, "int_correlated").setCorrelationId(1234).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "str_correlated").setCorrelationId("req-5678").emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean hasIntCorrelationId = false;
+    boolean hasStrCorrelationId = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (!packet.hasTrackEvent()) {
+        continue;
+      }
+      TrackEvent event = packet.getTrackEvent();
+      if (event.hasCorrelationId() && event.getCorrelationId() == 1234) {
+        hasIntCorrelationId = true;
+      }
+      if (event.hasCorrelationIdStr() && "req-5678".equals(event.getCorrelationIdStr())) {
+        hasStrCorrelationId = true;
+      }
+    }
+
+    assertThat(hasIntCorrelationId).isTrue();
+    assertThat(hasStrCorrelationId).isTrue();
   }
 
   @Test
@@ -1103,6 +1137,287 @@ public class PerfettoTraceTest {
             .setTriggerConfig(triggerConfig)
             .build();
     return traceConfig;
+  }
+
+  @Test
+  public void testExpensiveDebugCallStack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    StackTraceElement[] stackTrace =
+        new StackTraceElement[] {
+          new StackTraceElement("ClassA", "methodA", "FileA.java", 10),
+          new StackTraceElement("ClassB", "methodB", "FileB.java", 20),
+          new StackTraceElement("ClassC", "methodC", "FileC.java", 30),
+          new StackTraceElement("ClassD", "methodD", "FileD.java", 40)
+        };
+
+    PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack", stackTrace).emit();
+
+    byte[] traceBytes = session.close();
+
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasTrackEvent = false;
+    boolean hasCallstack = false;
+
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()) {
+        hasTrackEvent = true;
+        TrackEvent event = packet.getTrackEvent();
+        if (event.hasCallstack()) {
+          hasCallstack = true;
+          TrackEvent.Callstack callstack = event.getCallstack();
+          assertThat(callstack.getFramesCount()).isEqualTo(2); // 4 - 2 = 2
+
+          TrackEvent.Callstack.Frame frame0 = callstack.getFrames(0);
+          assertThat(frame0.getFunctionName()).isEqualTo("ClassD.methodD");
+          assertThat(frame0.getSourceFile()).isEqualTo("FileD.java");
+          assertThat(frame0.getLineNumber()).isEqualTo(40);
+
+          TrackEvent.Callstack.Frame frame1 = callstack.getFrames(1);
+          assertThat(frame1.getFunctionName()).isEqualTo("ClassC.methodC");
+          assertThat(frame1.getSourceFile()).isEqualTo("FileC.java");
+          assertThat(frame1.getLineNumber()).isEqualTo(30);
+        }
+      }
+      collectInternedData(packet);
+    }
+
+    assertThat(hasTrackEvent).isTrue();
+    assertThat(hasCallstack).isTrue();
+  }
+
+  @Test
+  public void testExpensiveDebugCallStackWithSkip() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    StackTraceElement[] stackTrace =
+        new StackTraceElement[] {
+          new StackTraceElement("ClassA", "methodA", "FileA.java", 10),
+          new StackTraceElement("ClassB", "methodB", "FileB.java", 20),
+          new StackTraceElement("ClassC", "methodC", "FileC.java", 30),
+          new StackTraceElement("ClassD", "methodD", "FileD.java", 40)
+        };
+
+    // Test with skipFrames = 0 (should keep all 4 frames)
+    PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_skip_0", stackTrace, 0)
+        .emit();
+
+    // Test with skipFrames = 1 (should keep 3 frames: D, C, B)
+    PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_skip_1", stackTrace, 1)
+        .emit();
+
+    byte[] traceBytes = session.close();
+
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    int eventCount = 0;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()) {
+        TrackEvent event = packet.getTrackEvent();
+        if (event.hasCallstack()) {
+          eventCount++;
+          TrackEvent.Callstack callstack = event.getCallstack();
+          if (eventCount == 1) {
+            // skip_0
+            assertThat(callstack.getFramesCount()).isEqualTo(4);
+            assertThat(callstack.getFrames(0).getFunctionName()).isEqualTo("ClassD.methodD");
+            assertThat(callstack.getFrames(1).getFunctionName()).isEqualTo("ClassC.methodC");
+            assertThat(callstack.getFrames(2).getFunctionName()).isEqualTo("ClassB.methodB");
+            assertThat(callstack.getFrames(3).getFunctionName()).isEqualTo("ClassA.methodA");
+          } else if (eventCount == 2) {
+            // skip_1
+            assertThat(callstack.getFramesCount()).isEqualTo(3);
+            assertThat(callstack.getFrames(0).getFunctionName()).isEqualTo("ClassD.methodD");
+            assertThat(callstack.getFrames(1).getFunctionName()).isEqualTo("ClassC.methodC");
+            assertThat(callstack.getFrames(2).getFunctionName()).isEqualTo("ClassB.methodB");
+          }
+        }
+      }
+    }
+    assertThat(eventCount).isEqualTo(2);
+  }
+
+  @Test
+  public void testExpensiveDebugCallStackVariousStates() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    final Object lock = new Object();
+    final Object lockBlock = new Object();
+    final Object lockWait = new Object();
+
+    final AtomicBoolean busyThreadStarted = new AtomicBoolean(false);
+    final AtomicBoolean blockedThreadStarted = new AtomicBoolean(false);
+    final AtomicBoolean waitingThreadStarted = new AtomicBoolean(false);
+    final AtomicBoolean nativeBlockedThreadStarted = new AtomicBoolean(false);
+    final AtomicBoolean shouldExitWaitingThread = new AtomicBoolean(false);
+
+    // 1. Busy thread (runs for 10 seconds to ensure it is alive during sampling)
+    Thread busyThread =
+        new Thread(
+            () -> {
+              synchronized (lock) {
+                busyThreadStarted.set(true);
+                lock.notifyAll();
+              }
+              long start = System.currentTimeMillis();
+              while (System.currentTimeMillis() - start < 10000) {
+                // spin
+              }
+            },
+            "BusyThread");
+
+    // 2. Blocked thread (waiting on lockBlock)
+    Thread blockedThread =
+        new Thread(
+            () -> {
+              synchronized (lock) {
+                blockedThreadStarted.set(true);
+                lock.notifyAll();
+              }
+              synchronized (lockBlock) {
+                // do nothing
+              }
+            },
+            "BlockedThread");
+
+    // 3. Waiting thread (waiting on lockWait)
+    Thread waitingThread =
+        new Thread(
+            () -> {
+              synchronized (lock) {
+                waitingThreadStarted.set(true);
+                lock.notifyAll();
+              }
+              synchronized (lockWait) {
+                while (!shouldExitWaitingThread.get()) {
+                  try {
+                    lockWait.wait();
+                  } catch (InterruptedException e) {
+                    // ignore
+                  }
+                }
+              }
+            },
+            "WaitingThread");
+
+    // 4. Native blocked thread (waiting on pipe read)
+    final Pipe pipe = Pipe.open();
+    final Pipe.SourceChannel source = pipe.source();
+    final Pipe.SinkChannel sink = pipe.sink();
+
+    Thread nativeBlockedThread =
+        new Thread(
+            () -> {
+              synchronized (lock) {
+                nativeBlockedThreadStarted.set(true);
+                lock.notifyAll();
+              }
+              try {
+                ByteBuffer buf = ByteBuffer.allocate(1);
+                source.read(buf); // Blocks here in native read
+              } catch (IOException e) {
+                // ignore
+              }
+            },
+            "NativeBlockedThread");
+
+    // Start busy thread
+    synchronized (lock) {
+      busyThread.start();
+      while (!busyThreadStarted.get()) {
+        lock.wait();
+      }
+    }
+
+    StackTraceElement[][] traces;
+
+    // Hold lockBlock to keep blockedThread blocked while we sample
+    synchronized (lockBlock) {
+      // Start blocked thread
+      synchronized (lock) {
+        blockedThread.start();
+        while (!blockedThreadStarted.get()) {
+          lock.wait();
+        }
+      }
+      while (blockedThread.getState() != Thread.State.BLOCKED) {
+        Thread.sleep(10);
+      }
+
+      // Start waiting thread
+      synchronized (lock) {
+        waitingThread.start();
+        while (!waitingThreadStarted.get()) {
+          lock.wait();
+        }
+      }
+      while (waitingThread.getState() != Thread.State.WAITING) {
+        Thread.sleep(10);
+      }
+
+      // Start native blocked thread
+      synchronized (lock) {
+        nativeBlockedThread.start();
+        while (!nativeBlockedThreadStarted.get()) {
+          lock.wait();
+        }
+      }
+      // We can't easily poll for native blocked state as it might be RUNNABLE.
+      // But starting it and waiting for it to notify us means it has released 'lock'
+      // and is proceeding to the read. We sleep a tiny bit to be safe.
+      Thread.sleep(100);
+
+      // Sample them
+      traces =
+          new StackTraceElement[][] {
+            busyThread.getStackTrace(),
+            blockedThread.getStackTrace(),
+            waitingThread.getStackTrace(),
+            nativeBlockedThread.getStackTrace()
+          };
+    }
+    // lockBlock released here, blockedThread can exit
+
+    // Clean up pipe to let native blocked thread exit
+    sink.write(ByteBuffer.wrap(new byte[] {0}));
+    source.close();
+    sink.close();
+
+    // Wake up waiting thread so it can exit
+    synchronized (lockWait) {
+      shouldExitWaitingThread.set(true);
+      lockWait.notifyAll();
+    }
+
+    for (int i = 0; i < traces.length; i++) {
+      Log.i(TAG, "Thread " + i + " stack trace length: " + traces[i].length);
+      for (StackTraceElement ste : traces[i]) {
+        Log.i(TAG, "  " + ste.toString());
+      }
+      PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_" + i, traces[i], 0).emit();
+    }
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    int callstackCount = 0;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()) {
+        TrackEvent event = packet.getTrackEvent();
+        if (event.hasCallstack()) {
+          callstackCount++;
+          assertThat(event.getCallstack().getFramesCount()).isGreaterThan(0);
+        }
+      }
+    }
+
+    assertThat(callstackCount).isEqualTo(4);
   }
 
   private void collectInternedData(TracePacket packet) {
