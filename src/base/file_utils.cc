@@ -282,6 +282,14 @@ bool Rmdir(const std::string& path) {
 #endif
 }
 
+bool Unlink(const char* path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return _unlink(path) == 0;
+#else
+  return unlink(path) == 0;
+#endif
+}
+
 int CloseFile(int fd) {
   return close(fd);
 }
