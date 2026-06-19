@@ -706,54 +706,6 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
       context_->clock_tracker->AddSnapshot(clock_timestamps);
   if (!snapshot_id.ok()) {
     PERFETTO_ELOG("%s", snapshot_id.status().c_message());
-    return base::OkStatus();
-  }
-
-  std::optional<int64_t> trace_time_from_snapshot =
-      context_->clock_tracker->ToTraceTimeFromSnapshot(clock_timestamps);
-
-  // Add the all the clock snapshots to the clock snapshot table.
-  std::optional<int64_t> trace_ts_for_check;
-  for (const auto& clock_timestamp : clock_timestamps) {
-    // If the clock is incremental, we need to use 0 to map correctly to
-    // |absolute_timestamp|.
-    int64_t ts_to_convert =
-        clock_timestamp.clock.is_incremental ? 0 : clock_timestamp.timestamp;
-    // Even if we have trace time from snapshot, we still run ToTraceTime to
-    // optimise future conversions. Don't pass byte_offset since we expect
-    // failures here (e.g., non-monotonic clocks).
-    auto opt_trace_ts = context_->clock_tracker->ToTraceTime(
-        clock_timestamp.clock.id, ts_to_convert);
-
-    int64_t trace_ts_value;
-    if (!opt_trace_ts) {
-      // This can happen if |AddSnapshot| failed to resolve this clock, e.g. if
-      // clock is not monotonic. Try to fetch trace time from snapshot.
-      if (!trace_time_from_snapshot) {
-        continue;
-      }
-      trace_ts_value = *trace_time_from_snapshot;
-    } else {
-      trace_ts_value = *opt_trace_ts;
-    }
-
-    // Double check that all the clocks in this snapshot resolve to the same
-    // trace timestamp value.
-    PERFETTO_DCHECK(!trace_ts_for_check ||
-                    trace_ts_value == trace_ts_for_check.value());
-    trace_ts_for_check = trace_ts_value;
-
-    tables::ClockSnapshotTable::Row row;
-    row.ts = trace_ts_value;
-    row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id.clock_id);
-    row.clock_value =
-        clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
-    row.clock_name =
-        GetBuiltinClockNameOrNull(clock_timestamp.clock.id.clock_id);
-    row.snapshot_id = *snapshot_id;
-    row.machine_id = context_->machine_id();
-
-    context_->storage->mutable_clock_snapshot_table()->Insert(row);
   }
   return base::OkStatus();
 }
@@ -875,26 +827,6 @@ ProtoTraceReader::CalculateClockOffsets(
   }
 
   return clock_offsets;
-}
-
-std::optional<StringId> ProtoTraceReader::GetBuiltinClockNameOrNull(
-    int64_t clock_id) {
-  switch (clock_id) {
-    case protos::pbzero::ClockSnapshot::Clock::REALTIME:
-      return context_->storage->InternString("REALTIME");
-    case protos::pbzero::ClockSnapshot::Clock::REALTIME_COARSE:
-      return context_->storage->InternString("REALTIME_COARSE");
-    case protos::pbzero::ClockSnapshot::Clock::MONOTONIC:
-      return context_->storage->InternString("MONOTONIC");
-    case protos::pbzero::ClockSnapshot::Clock::MONOTONIC_COARSE:
-      return context_->storage->InternString("MONOTONIC_COARSE");
-    case protos::pbzero::ClockSnapshot::Clock::MONOTONIC_RAW:
-      return context_->storage->InternString("MONOTONIC_RAW");
-    case protos::pbzero::ClockSnapshot::Clock::BOOTTIME:
-      return context_->storage->InternString("BOOTTIME");
-    default:
-      return std::nullopt;
-  }
 }
 
 base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {

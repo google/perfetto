@@ -88,6 +88,11 @@ class ClockTracker {
 
   // --- Slow-path public APIs ---
 
+  // Adds a clock snapshot to the clock graph and records it in the
+  // clock_snapshot table (one row per clock, converted to trace time, best
+  // effort), which backs ClockConverter (to_realtime, abs_time_str, the UI
+  // wall-clock axis). Every edge entering the graph is recorded this way;
+  // deferred syncs record when their edge is actually injected.
   base::StatusOr<uint32_t> AddSnapshot(
       const std::vector<ClockTimestamp>& clock_timestamps);
 
@@ -103,9 +108,9 @@ class ClockTracker {
   // Used as fallback when no timestamp_clock_id is specified.
   void SetTraceDefaultClock(ClockId clock_id);
 
-  // Registers a deferred identity sync: on the first ToTraceTime call that
-  // fails, a zero-offset edge between |clock_id| and the global trace time
-  // clock will be injected and the conversion retried.
+  // Registers a deferred identity sync: on the first ToTraceTime call, if
+  // |clock_id| cannot reach the global trace time clock through the clock
+  // graph, a zero-offset identity edge between the two is injected.
   void AddDeferredIdentitySync(ClockId clock_id);
 
   // Returns the trace default clock, if one has been set.
@@ -134,11 +139,26 @@ class ClockTracker {
       return timestamp;
     }
     auto* state = context_->trace_time_state.get();
-    int64_t clock_offset = state->remote_clock_offsets[state->clock_id];
-    return timestamp - clock_offset;
+    // Find, not operator[]: a lookup must not insert a spurious zero offset.
+    int64_t* clock_offset = state->remote_clock_offsets.Find(state->clock_id);
+    return timestamp - (clock_offset ? *clock_offset : 0);
   }
 
   PERFETTO_NO_INLINE void FlushDeferredIdentitySync();
+
+  // Adds an edge directly to |active_sync_| (bypassing the non-primary sync
+  // switch of the public AddSnapshot) and records it in the clock_snapshot
+  // table. Every graph mutation goes through here so the table is a
+  // faithful record of the graph.
+  base::StatusOr<uint32_t> AddSnapshotInternal(
+      const std::vector<ClockTimestamp>& clock_timestamps);
+
+  // Records a snapshot already added to the graph (which assigned it
+  // |snapshot_id|) into the clock_snapshot table: pure bookkeeping, one
+  // best-effort row per clock; performs no deferred-sync flush and counts
+  // no conversions.
+  void AddSnapshotToTable(uint32_t snapshot_id,
+                          const std::vector<ClockTimestamp>& clock_timestamps);
 
   TraceProcessorContext* context_;
 
@@ -166,7 +186,7 @@ class ClockTracker {
   std::optional<ClockId> trace_default_clock_;
 
   // Clock registered via AddDeferredIdentitySync. Flushed (and cleared) on
-  // first ToTraceTime call: if the clock is not yet in the graph, a 0:0
+  // first ToTraceTime call: if the clock cannot reach trace time, a 0:0
   // identity edge is injected.
   std::optional<ClockId> deferred_identity_clock_;
 };

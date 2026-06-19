@@ -27,6 +27,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -40,7 +41,32 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
+
 namespace perfetto::trace_processor {
+namespace {
+
+std::optional<StringId> GetBuiltinClockNameOrNull(TraceStorage* storage,
+                                                  int64_t clock_id) {
+  switch (clock_id) {
+    case protos::pbzero::BUILTIN_CLOCK_REALTIME:
+      return storage->InternString("REALTIME");
+    case protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE:
+      return storage->InternString("REALTIME_COARSE");
+    case protos::pbzero::BUILTIN_CLOCK_MONOTONIC:
+      return storage->InternString("MONOTONIC");
+    case protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE:
+      return storage->InternString("MONOTONIC_COARSE");
+    case protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW:
+      return storage->InternString("MONOTONIC_RAW");
+    case protos::pbzero::BUILTIN_CLOCK_BOOTTIME:
+      return storage->InternString("BOOTTIME");
+    default:
+      return std::nullopt;
+  }
+}
+
+}  // namespace
 
 // --- ClockTracker: public slow-path methods ---
 
@@ -74,7 +100,71 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
     // Switch to our own sync and add the snapshot there.
     active_sync_ = &sync_;
   }
-  return active_sync_->AddSnapshot(clock_timestamps);
+  return AddSnapshotInternal(clock_timestamps);
+}
+
+base::StatusOr<uint32_t> ClockTracker::AddSnapshotInternal(
+    const std::vector<ClockTimestamp>& clock_timestamps) {
+  ASSIGN_OR_RETURN(uint32_t snapshot_id,
+                   active_sync_->AddSnapshot(clock_timestamps));
+  AddSnapshotToTable(snapshot_id, clock_timestamps);
+  return snapshot_id;
+}
+
+void ClockTracker::AddSnapshotToTable(
+    uint32_t snapshot_id,
+    const std::vector<ClockTimestamp>& clock_timestamps) {
+  std::optional<int64_t> trace_time_from_snapshot =
+      ToTraceTimeFromSnapshot(clock_timestamps);
+
+  std::optional<int64_t> trace_ts_for_check;
+  for (const auto& clock_timestamp : clock_timestamps) {
+    // If the clock is incremental, we need to use 0 to map correctly to
+    // |absolute_timestamp|.
+    int64_t ts_to_convert =
+        clock_timestamp.clock.is_incremental ? 0 : clock_timestamp.timestamp;
+    // Even if we have trace time from snapshot, we still convert to optimise
+    // future conversions. Don't pass byte_offset since we expect failures
+    // here (e.g., non-monotonic clocks). Convert directly rather than via
+    // ToTraceTime: recording is bookkeeping, so it must not flush the
+    // deferred identity sync or count as an event conversion.
+    auto* state = context_->trace_time_state.get();
+    std::optional<int64_t> converted = active_sync_->Convert(
+        clock_timestamp.clock.id, ts_to_convert, state->clock_id,
+        std::nullopt);
+    std::optional<int64_t> opt_trace_ts =
+        converted ? std::optional(ToHostTraceTime(*converted)) : std::nullopt;
+
+    int64_t trace_ts_value;
+    if (!opt_trace_ts) {
+      // This can happen if |AddSnapshot| failed to resolve this clock, e.g.
+      // if clock is not monotonic. Try to fetch trace time from snapshot.
+      if (!trace_time_from_snapshot) {
+        continue;
+      }
+      trace_ts_value = *trace_time_from_snapshot;
+    } else {
+      trace_ts_value = *opt_trace_ts;
+    }
+
+    // Double check that all the clocks in this snapshot resolve to the same
+    // trace timestamp value.
+    PERFETTO_DCHECK(!trace_ts_for_check ||
+                    trace_ts_value == trace_ts_for_check.value());
+    trace_ts_for_check = trace_ts_value;
+
+    tables::ClockSnapshotTable::Row row;
+    row.ts = trace_ts_value;
+    row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id.clock_id);
+    row.clock_value =
+        clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
+    row.clock_name = GetBuiltinClockNameOrNull(
+        context_->storage.get(), clock_timestamp.clock.id.clock_id);
+    row.snapshot_id = snapshot_id;
+    row.machine_id = context_->machine_id();
+
+    context_->storage->mutable_clock_snapshot_table()->Insert(row);
+  }
 }
 
 base::Status ClockTracker::SetGlobalClock(ClockId clock_id) {
@@ -107,9 +197,17 @@ void ClockTracker::FlushDeferredIdentitySync() {
   ClockId clock_id = *deferred_identity_clock_;
   deferred_identity_clock_.reset();
   auto* state = context_->trace_time_state.get();
-  if (clock_id != state->clock_id && !active_sync_->HasClock(clock_id)) {
-    active_sync_->AddSnapshot({{clock_id, 0}, {state->clock_id, 0}});
+  if (clock_id == state->clock_id) {
+    return;
   }
+  // Inject only if the clock cannot already reach trace time: a clock can
+  // be in the graph yet disconnected from the trace time clock.
+  if (active_sync_->Convert(clock_id, 0, state->clock_id, std::nullopt,
+                            /*suppress_errors=*/true)) {
+    return;
+  }
+  // The lazy edge becomes real here, so it is recorded like any other.
+  AddSnapshotInternal({{clock_id, 0}, {state->clock_id, 0}});
 }
 
 std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(
