@@ -91,7 +91,7 @@ bool ProcessOwnerMonitor::IsOwnerAlive() {
 #else
   // If the parent exited we are reparented (to init, pid 1, or a subreaper), so
   // getppid() no longer matches the owner captured at construction.
-  return getppid() == owner_pid_;
+  return static_cast<base::PlatformProcessId>(getppid()) == owner_pid_;
 #endif
 }
 
