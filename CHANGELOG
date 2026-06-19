@@ -62,6 +62,10 @@ v57.0 - 2026-06-19:
     * Adjacent slices that start and end at the same timestamp now render with a
       1px gap, making it possible to distinguish consecutive instances of the
       same slice.
+    * Added support for the Arm Telemetry Solution: a new (non-default,
+      opt-in) plugin adding an Arm CPU page under Support for loading Arm CPU
+      telemetry specs, which surface derived per-CPU performance metrics
+      (e.g. IPC, cache misses) as tracks computed from raw PMU counters.
   SDK:
     * Added nested track support with sibling ordering and merging to the C SDK
       high-level ABI and the Android Java SDK (`PerfettoTrack`).
