@@ -34,6 +34,7 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/session_lifecycle.h"
+#include "src/trace_processor/rpc/session_paths.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
@@ -119,20 +120,34 @@ class UnixRpcServer : public base::UnixSocket::EventListener {
 
   Rpc& rpc_;
   UnixServerArgs args_;
+  std::string pid_path_;
   base::MaybeLockFreeTaskRunner task_runner_;
   std::unique_ptr<base::UnixSocket> listen_sock_;
   std::vector<std::unique_ptr<ClientConn>> clients_;
   std::unique_ptr<IdleReaper> reaper_;
 };
 
+// Writes the current pid to |pid_path| so `server kill` can stop the server by
+// pid. Best-effort.
+void WritePidFile(const std::string& pid_path, int pid) {
+  if (FILE* f = fopen(pid_path.c_str(), "w")) {
+    fprintf(f, "%d", pid);
+    fclose(f);
+  }
+}
+
 #if PERFETTO_TP_UNIXD_POSIX()
-// Set so the signal handler can unlink the socket on Ctrl-C. Only ever points
-// at a string that outlives the handler (the server's socket path).
+// Set so the signal handler can clean up on Ctrl-C. Only ever point at strings
+// that outlive the handler (the server's socket and pid-file paths).
 const char* g_socket_path_for_signal = nullptr;
+const char* g_pid_path_for_signal = nullptr;
 
 [[noreturn]] void HandleTermSignal(int) {
+  // unlink() is async-signal-safe.
   if (g_socket_path_for_signal)
-    unlink(g_socket_path_for_signal);  // async-signal-safe.
+    unlink(g_socket_path_for_signal);
+  if (g_pid_path_for_signal)
+    unlink(g_pid_path_for_signal);
   _exit(0);
 }
 
@@ -208,9 +223,17 @@ base::Status UnixRpcServer::Run() {
     fprintf(stderr,
             "[unix] Serving warm session '%s'. Query it with:\n"
             "  trace_processor_shell query --remote %s \"SELECT ...\"\n"
-            "Press Ctrl-C to stop.\n",
-            args_.session_name.c_str(), args_.session_name.c_str());
+            "Stop it with Ctrl-C, or: "
+            "trace_processor_shell server kill %s\n",
+            args_.session_name.c_str(), args_.session_name.c_str(),
+            args_.session_name.c_str());
   }
+
+  // Record our pid next to the socket so `server kill` can stop us. This
+  // runs in the serving process (the child, when daemonized), so the pid
+  // matches the one printed in the startup record.
+  pid_path_ = args_.socket_path + session::kPidFileSuffix;
+  WritePidFile(pid_path_, static_cast<int>(base::GetProcessId()));
 
   listen_sock_ = base::UnixSocket::Listen(raw.ReleaseFd(), this, &task_runner_,
                                           base::SockFamily::kUnix,
@@ -227,17 +250,20 @@ base::Status UnixRpcServer::Run() {
 
 #if PERFETTO_TP_UNIXD_POSIX()
   g_socket_path_for_signal = args_.socket_path.c_str();
+  g_pid_path_for_signal = pid_path_.c_str();
   signal(SIGINT, HandleTermSignal);
   signal(SIGTERM, HandleTermSignal);
 #endif
 
   task_runner_.Run();
   remove(args_.socket_path.c_str());
+  remove(pid_path_.c_str());
   return base::OkStatus();
 }
 
 void UnixRpcServer::Shutdown() {
   remove(args_.socket_path.c_str());
+  remove(pid_path_.c_str());
   task_runner_.Quit();
 }
 

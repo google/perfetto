@@ -58,6 +58,7 @@ source_set("shell") {
     "../metrics",
     "../rpc",
     "../rpc:client",
+    "../rpc:lifecycle",
     "../rpc:session_util",
     "../rpc:stdiod",
     "../trace_summary",

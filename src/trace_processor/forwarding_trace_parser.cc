@@ -33,7 +33,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/trace_reader_registry.h"
-#include "src/trace_processor/types/trace_metadata_state.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_type.h"
@@ -146,7 +146,7 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
 
   // The matching perfetto_manifest entry, if any, will carry per-file
   // overrides in future versions of the schema; nothing consumes it yet.
-  FindMetadataEntry();
+  FindManifestEntry();
 
   if (IsContainerTraceType(trace_type_) ||
       trace_type_ == kPerfettoManifestTraceType) {
@@ -221,9 +221,9 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   return base::OkStatus();
 }
 
-TraceMetadataState::FileEntry* ForwardingTraceParser::FindMetadataEntry()
+TraceManifestState::FileEntry* ForwardingTraceParser::FindManifestEntry()
     const {
-  auto* state = input_context_->trace_metadata_state.get();
+  auto* state = input_context_->trace_manifest_state.get();
   if (state->files.empty()) {
     return nullptr;
   }

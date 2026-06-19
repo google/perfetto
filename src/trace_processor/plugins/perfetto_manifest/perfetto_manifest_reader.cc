@@ -27,7 +27,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
-#include "src/trace_processor/types/trace_metadata_state.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
@@ -74,7 +74,7 @@ base::Status PerfettoManifestReader::Parse(TraceBlobView blob) {
 }
 
 base::Status PerfettoManifestReader::OnPushDataToSorter() {
-  auto* state = context_->trace_metadata_state.get();
+  auto* state = context_->trace_manifest_state.get();
   if (state->config_seen) {
     return base::ErrStatus("multiple perfetto_manifest files in archive");
   }

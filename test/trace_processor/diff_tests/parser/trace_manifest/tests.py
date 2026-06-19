@@ -79,7 +79,7 @@ def _meta(payload):
   return json.dumps({'perfetto_manifest': payload})
 
 
-class TraceMetadata(TestSuite):
+class TraceManifest(TestSuite):
   """Tests for the perfetto_manifest sidecar JSON.
 
   A perfetto_manifest file, as the first file of the trace (typically inside
