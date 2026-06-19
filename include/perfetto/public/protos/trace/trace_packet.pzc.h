@@ -26,6 +26,8 @@
 #include "perfetto/public/pb_macros.h"
 
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidAflags);
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraFrameEvent);
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraSessionStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidEnergyEstimationBreakdown);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogPacket);
@@ -372,6 +374,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_UiState,
                   ui_state,
                   78);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_AndroidCameraFrameEvent,
+                  android_camera_frame_event,
+                  80);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_AndroidCameraSessionStats,
+                  android_camera_session_stats,
+                  81);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TranslationTable,
