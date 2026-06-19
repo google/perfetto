@@ -13,7 +13,12 @@
 // limitations under the License.
 
 import {afterEach, describe, expect, test, vi} from 'vitest';
-import {BigtraceQueryClient, parseQueryResponse} from './bigtrace_query_client';
+import {
+  BigtraceHttpError,
+  BigtraceQueryClient,
+  parseQueryResponse,
+  QueryNotFoundError,
+} from './bigtrace_query_client';
 import {coerceFiltersForWire, encodeFilters} from './filter_encoding';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {SettingFilter} from '../settings/settings_types';
@@ -268,7 +273,6 @@ describe('BigtraceQueryClient execute trace-selection snapshot', () => {
     expect(body.trace_filters).toBeUndefined();
     expect(body.trace_metadata_columns).toBeUndefined();
     expect(body.trace_order_by).toBeUndefined();
-    expect(body.trace_limit).toBeUndefined();
   });
 
   test('ships trace_filters as a native, coerced array', async () => {
@@ -288,18 +292,16 @@ describe('BigtraceQueryClient execute trace-selection snapshot', () => {
     ]);
   });
 
-  test('ships trace_metadata_columns / trace_order_by / trace_limit when set', async () => {
+  test('ships trace_metadata_columns / trace_order_by when set', async () => {
     const fetchMock = captureFetch();
     const client = new BigtraceQueryClient('http://example/');
     await client.executeSync('select 1', 100, [], undefined, {
       traceMetadataColumns: ['device_name', 'android_id'],
       traceOrderBy: 'size_bytes desc',
-      traceLimit: 50,
     });
     const body = bodyFrom(fetchMock);
     expect(body.trace_metadata_columns).toEqual(['device_name', 'android_id']);
     expect(body.trace_order_by).toBe('size_bytes desc');
-    expect(body.trace_limit).toBe(50);
   });
 
   test('omits empty / default trace_* fields', async () => {
@@ -309,13 +311,11 @@ describe('BigtraceQueryClient execute trace-selection snapshot', () => {
       traceFilters: [],
       traceMetadataColumns: [],
       traceOrderBy: '',
-      traceLimit: 0,
     });
     const body = bodyFrom(fetchMock);
     expect(body.trace_filters).toBeUndefined();
     expect(body.trace_metadata_columns).toBeUndefined();
     expect(body.trace_order_by).toBeUndefined();
-    expect(body.trace_limit).toBeUndefined();
   });
 });
 
@@ -409,6 +409,50 @@ describe('BigtraceQueryClient.fetchResults', () => {
       'android_id',
     ]);
     expect(urlFrom(fetchMock)).toContain(':fetch_results');
+  });
+});
+
+describe('BigtraceQueryClient error responses', () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  function failWith(status: number, body: string): void {
+    const fakeResp = {
+      ok: false,
+      status,
+      text: () => Promise.resolve(body),
+      json: () => Promise.reject(new Error('not called on error path')),
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue(fakeResp) as unknown as typeof fetch;
+  }
+
+  test('a 400 throws BigtraceHttpError carrying the backend detail and status', async () => {
+    failWith(400, JSON.stringify({detail: "unknown column 'foo'"}));
+    const client = new BigtraceQueryClient('http://example/');
+    const err = await client.fetchResults('uid', 10, 0).catch((e) => e);
+    expect(err).toBeInstanceOf(BigtraceHttpError);
+    expect(err.status).toBe(400);
+    expect(err.detail).toBe("unknown column 'foo'");
+  });
+
+  test('a non-JSON error body becomes the detail verbatim', async () => {
+    failWith(500, 'upstream exploded');
+    const client = new BigtraceQueryClient('http://example/');
+    const err = await client.fetchResults('uid', 10, 0).catch((e) => e);
+    expect(err).toBeInstanceOf(BigtraceHttpError);
+    expect(err.status).toBe(500);
+    expect(err.detail).toBe('upstream exploded');
+  });
+
+  test('a 404 throws QueryNotFoundError, not BigtraceHttpError', async () => {
+    failWith(404, JSON.stringify({detail: 'gone'}));
+    const client = new BigtraceQueryClient('http://example/');
+    const err = await client.fetchResults('uid', 10, 0).catch((e) => e);
+    expect(err).toBeInstanceOf(QueryNotFoundError);
   });
 });
 

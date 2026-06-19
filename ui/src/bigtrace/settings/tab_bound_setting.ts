@@ -50,6 +50,12 @@ export interface SettingsBindings {
   // Called when the trace-list data source reports a fresh filteredTotalRows
   // (traces the current filter selects). undefined = count not yet known.
   readonly onTraceMatchCount?: (count: number | undefined) => void;
+  // The tab's current SQL, used only to detect whether the tab matches a
+  // preset 1:1 (so the matching preset chip can highlight).
+  readonly getSql?: () => string;
+  // Load a preset's query text + title into the tab. Present only on the
+  // per-tab modal (which has an editor); absent on standalone /settings.
+  readonly setQueryAndTitle?: (perfettoSql: string, title: string) => void;
 }
 
 // Wraps a globally-registered Setting<T> so reads/writes route through per-tab

@@ -79,9 +79,9 @@ class WebSocketTransport : public RpcTransport {
   // The decoded fixed-size part of a WebSocket frame header: everything up to,
   // but not including, the payload bytes. See RFC 6455 §5.2.
   struct FrameHeader {
-    uint8_t opcode = 0;          // 0x1 text, 0x2 binary, 0x8 close, etc.
-    bool masked = false;         // Whether the payload is XOR-masked.
-    uint64_t payload_len = 0;    // Number of payload bytes that follow.
+    uint8_t opcode = 0;              // 0x1 text, 0x2 binary, 0x8 close, etc.
+    bool masked = false;             // Whether the payload is XOR-masked.
+    uint64_t payload_len = 0;        // Number of payload bytes that follow.
     uint8_t mask[4] = {0, 0, 0, 0};  // Mask key, valid only if |masked|.
   };
 
