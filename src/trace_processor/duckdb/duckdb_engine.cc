@@ -47,7 +47,15 @@ namespace {
 const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
   static const std::unordered_set<std::string>* kAllow =
       new std::unordered_set<std::string>{
+          // Aggregates (beachhead).
           "count", "sum", "min", "max", "avg",
+          // Scalar math builtins that are 1:1 DuckDB-native AND reach DuckDB
+          // under their own name (they are NOT rewritten by PerfettoSQL's
+          // `DELEGATES TO __intrinsic_*`, so the surface name is what binds).
+          // The delegated math surface (`sqrt`/`ln`/`exp`/`regexp_extract`/
+          // `unhex`) is intentionally NOT here: those reach DuckDB as
+          // `__intrinsic_*`, which has no DuckDB builtin (a real port, deferred).
+          "abs", "round", "ceil", "floor", "trunc", "pow", "power",
       };
   return *kAllow;
 }
@@ -77,7 +85,101 @@ struct Token {
   std::string text;        // lowercased, for identifiers.
   bool followed_by_paren;  // identifier immediately followed by '(' => fn call.
   bool after_from_or_join; // identifier in relation position.
+  // True for an identifier that is the NAME of a CTE with a column list, i.e.
+  // the `data` in `WITH data(unit, time) AS (...)`. Such an identifier is
+  // followed by '(' but is NOT a function call (the parenthesized list is the
+  // CTE's column names), so it must NOT be checked against the function
+  // allowlist.
+  bool is_cte_column_list = false;
+  // True for an identifier that DEFINES a CTE (the `data` in `WITH data AS ...`
+  // or `WITH data(...) AS ...`). A later `FROM data` references this local CTE,
+  // not an external relation, so it must NOT be checked by the relation
+  // resolver.
+  bool is_cte_definition = false;
 };
+
+// Skips whitespace and comments starting at `i`, returning the index of the
+// first significant character (or `n`).
+size_t SkipTrivia(const std::string& sql, size_t i) {
+  const size_t n = sql.size();
+  while (i < n) {
+    char c = sql[i];
+    if (std::isspace(static_cast<unsigned char>(c))) {
+      ++i;
+      continue;
+    }
+    if (c == '-' && i + 1 < n && sql[i + 1] == '-') {
+      while (i < n && sql[i] != '\n') {
+        ++i;
+      }
+      continue;
+    }
+    if (c == '/' && i + 1 < n && sql[i + 1] == '*') {
+      i += 2;
+      while (i + 1 < n && !(sql[i] == '*' && sql[i + 1] == '/')) {
+        ++i;
+      }
+      i = (i + 2 <= n) ? i + 2 : n;
+      continue;
+    }
+    break;
+  }
+  return i;
+}
+
+// Given that `sql[open]` is the '(' of an `ident( ... )`, returns the index of
+// the keyword that immediately follows the matching ')' (after trivia), if any.
+// Used to recognize the `WITH name(cols) AS (...)` CTE-column-list pattern:
+// after the column list, a CTE has the `AS` keyword. Respects nested parens,
+// string literals and comments. Returns npos if no matching ')'.
+size_t IndexAfterMatchingParen(const std::string& sql, size_t open) {
+  const size_t n = sql.size();
+  size_t i = open;
+  int depth = 0;
+  while (i < n) {
+    char c = sql[i];
+    if (c == '-' && i + 1 < n && sql[i + 1] == '-') {
+      while (i < n && sql[i] != '\n') {
+        ++i;
+      }
+      continue;
+    }
+    if (c == '/' && i + 1 < n && sql[i + 1] == '*') {
+      i += 2;
+      while (i + 1 < n && !(sql[i] == '*' && sql[i + 1] == '/')) {
+        ++i;
+      }
+      i = (i + 2 <= n) ? i + 2 : n;
+      continue;
+    }
+    if (c == '\'' || c == '"' || c == '`') {
+      char quote = c;
+      ++i;
+      while (i < n) {
+        if (sql[i] == quote) {
+          if (i + 1 < n && sql[i + 1] == quote) {
+            i += 2;
+            continue;
+          }
+          ++i;
+          break;
+        }
+        ++i;
+      }
+      continue;
+    }
+    if (c == '(') {
+      ++depth;
+    } else if (c == ')') {
+      --depth;
+      if (depth == 0) {
+        return SkipTrivia(sql, i + 1);
+      }
+    }
+    ++i;
+  }
+  return std::string::npos;
+}
 
 // A minimal, dependency-free tokenizer over the (raw, user-supplied) SQL. It is
 // intentionally simpler than the real PerfettoSQL/SQLite grammar: its only job
@@ -95,6 +197,16 @@ std::vector<Token> Tokenize(const std::string& sql) {
   size_t i = 0;
   const size_t n = sql.size();
   bool prev_was_from_or_join = false;
+  // CTE-column-list tracking. `cte_name_expected` is true when the next
+  // identifier is the NAME of a CTE (right after the `WITH` keyword, and right
+  // after a comma that separates CTE definitions). In that position an
+  // identifier followed by `(...)  AS` is a CTE with a column list, NOT a
+  // function call. We track the paren-nesting depth (relative to the WITH
+  // clause) so a comma INSIDE a CTE body / column list does not falsely start a
+  // new CTE name, and the WITH clause ends once we leave it.
+  bool in_with_clause = false;
+  bool cte_name_expected = false;
+  int with_paren_depth = 0;
   auto is_ident_start = [](char c) {
     return std::isalpha(static_cast<unsigned char>(c)) || c == '_';
   };
@@ -146,9 +258,12 @@ std::vector<Token> Tokenize(const std::string& sql) {
     }
     // Semicolon = statement separator.
     if (c == ';') {
-      out.push_back({Token::kSemicolon, "", false, false});
+      out.push_back({Token::kSemicolon, "", false, false, false, false});
       ++i;
       prev_was_from_or_join = false;
+      in_with_clause = false;
+      cte_name_expected = false;
+      with_paren_depth = 0;
       continue;
     }
     // Identifier (or keyword).
@@ -176,19 +291,67 @@ std::vector<Token> Tokenize(const std::string& sql) {
       }
       bool followed_by_paren = j < n && sql[j] == '(' && !consumed_dot;
 
+      // Detect a CTE-column-list name: `WITH <name>(<cols>) AS (...)`. Only
+      // when we are at a CTE-name position (right after WITH or a CTE-separating
+      // comma) AND the identifier is followed by `(...)` whose matching `)` is
+      // immediately followed by the `AS` keyword. This deliberately does NOT
+      // fire for a function with an alias (e.g. `SELECT count(x) AS c`) because
+      // that is not in a CTE-name position.
+      bool is_cte_column_list = false;
+      if (cte_name_expected && followed_by_paren && !IsSqlKeyword(lower)) {
+        size_t after_paren = IndexAfterMatchingParen(sql, j);
+        if (after_paren != std::string::npos && after_paren + 1 < n &&
+            (sql[after_paren] == 'a' || sql[after_paren] == 'A') &&
+            (sql[after_paren + 1] == 's' || sql[after_paren + 1] == 'S') &&
+            (after_paren + 2 >= n ||
+             !is_ident_char(sql[after_paren + 2]))) {
+          is_cte_column_list = true;
+        }
+      }
+      // This identifier DEFINES a CTE if we were expecting a CTE name here and
+      // it is a real name (not a keyword). Captured before the slot is consumed.
+      bool is_cte_definition = cte_name_expected && !IsSqlKeyword(lower);
+      // The token consumes the CTE-name slot regardless of whether it had a
+      // column list (a CTE may also be `name AS (...)` with no column list).
+      if (cte_name_expected) {
+        cte_name_expected = false;
+      }
+      if (lower == "with") {
+        in_with_clause = true;
+        with_paren_depth = 0;
+        cte_name_expected = true;
+      } else if (lower == "select" && with_paren_depth == 0) {
+        // A top-level SELECT ends the WITH clause's CTE list: we are now in the
+        // main query body, where a comma no longer starts a new CTE name.
+        in_with_clause = false;
+        cte_name_expected = false;
+      }
+
       if (lower == "from" || lower == "join") {
-        out.push_back({Token::kIdentifier, lower, false, false});
+        out.push_back({Token::kIdentifier, lower, false, false, false, false});
         prev_was_from_or_join = true;
         continue;
       }
       bool relation_pos = prev_was_from_or_join && !IsSqlKeyword(lower);
-      out.push_back(
-          {Token::kIdentifier, lower, followed_by_paren, relation_pos});
+      out.push_back({Token::kIdentifier, lower, followed_by_paren, relation_pos,
+                     is_cte_column_list, is_cte_definition});
       prev_was_from_or_join = false;
       continue;
     }
-    // Any other punctuation.
-    out.push_back({Token::kOther, "", false, false});
+    // Any other punctuation. Track paren depth + commas so the CTE-name state
+    // machine knows when one CTE definition ends and the next begins. A comma
+    // at WITH-clause top level (paren depth 0) separates CTE definitions, so the
+    // next identifier is again a CTE name.
+    if (c == '(') {
+      ++with_paren_depth;
+    } else if (c == ')') {
+      if (with_paren_depth > 0) {
+        --with_paren_depth;
+      }
+    } else if (c == ',' && in_with_clause && with_paren_depth == 0) {
+      cte_name_expected = true;
+    }
+    out.push_back({Token::kOther, "", false, false, false, false});
     ++i;
     prev_was_from_or_join = false;
   }
@@ -341,13 +504,46 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
     break;
   }
 
+  // Collect the names of CTEs defined in this query: a later `FROM <cte>`
+  // references the local CTE, not an external relation, so the relation resolver
+  // must not reject it.
+  std::unordered_set<std::string> cte_names;
+  for (const Token& t : tokens) {
+    if (t.kind == Token::kIdentifier && t.is_cte_definition) {
+      cte_names.insert(t.text);
+    }
+  }
+
+  // Dialect guard: a `USING (col)` join coalesces the join column in SQLite,
+  // but DuckDB resolves the duplicated column differently (it leaves both
+  // qualified columns visible, so an unqualified reference binds ambiguously).
+  // Until that divergence is validated/translated, a query with a USING join is
+  // ineligible so it falls back cleanly rather than erroring inside DuckDB.
+  // (This is distinct from the OLD bug, where `USING(` was mis-reported as a
+  // missing *function*; it is now correctly recognized as the join clause and
+  // treated as an unsupported dialect feature.)
+  for (const Token& t : tokens) {
+    if (t.kind == Token::kIdentifier && t.text == "using") {
+      return ineligible("USING join clause (DuckDB column-resolution diverges)");
+    }
+  }
+
   bool saw_relation = false;
   for (const Token& t : tokens) {
     if (t.kind != Token::kIdentifier) {
       continue;
     }
     if (t.followed_by_paren) {
-      // Function call: must be in the allowlist.
+      // An identifier followed by '(' is a function call UNLESS it is:
+      //  - a SQL keyword used with parentheses (e.g. `CAST(x AS INT)`,
+      //    `USING(col)`, `VALUES(...)`) — structural, not a user function; or
+      //  - the name of a CTE with a column list (`WITH data(a, b) AS (...)`) —
+      //    `data` is a relation name, the parens hold column names.
+      // Neither is checked against the function allowlist. A genuine function
+      // call still must be in the allowlist (default-deny).
+      if (IsSqlKeyword(t.text) || t.is_cte_column_list) {
+        continue;
+      }
       if (BuiltinFunctionAllowlist().find(t.text) ==
           BuiltinFunctionAllowlist().end()) {
         return ineligible("function '" + t.text + "' not in allowlist");
@@ -355,6 +551,13 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
       continue;
     }
     if (t.after_from_or_join) {
+      // A reference to a CTE defined in this same query resolves inside DuckDB;
+      // it is not an external relation and does not, by itself, make the query
+      // DuckDB-backed (a real dataframe inside the CTE body, if any, sets
+      // saw_relation when the loop visits it).
+      if (cte_names.find(t.text) != cte_names.end()) {
+        continue;
+      }
       // Relation: eligible if either (a) it is a PerfettoSQL view we mirrored
       // into DuckDB's catalog (DuckDB binds the view body, which transitively
       // reaches a dataframe through the replacement scan), or (b) it resolves
