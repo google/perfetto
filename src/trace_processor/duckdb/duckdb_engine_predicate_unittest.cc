@@ -138,6 +138,29 @@ TEST(DuckDbSupportPredicateTest, RegisteredUdfEligible) {
   EXPECT_TRUE(Eligible("SELECT sqrt(dur) AS d FROM slice ORDER BY d"));
 }
 
+// A `FROM name(args)` call to a function NOT in any eligibility set is rejected
+// (default-deny) - it is not in the allowlist, not a UDF, not a mirrored macro.
+TEST(DuckDbSupportPredicateTest, UnmirroredTableFunctionFallsBack) {
+  auto reason = internal::AnalyzeSupportForTesting(
+      "SELECT * FROM my_table_fn(1, 2)", Allow(), Udfs(), /*table_macros=*/{});
+  ASSERT_TRUE(reason.has_value());
+  EXPECT_NE(reason->find("my_table_fn"), std::string::npos) << *reason;
+}
+
+// A `FROM name(args)` call to a MIRRORED table macro is eligible (treated like a
+// table-valued relation: DuckDB binds the macro body). This is the mechanism the
+// stdlib RETURNS TABLE -> DuckDB table-macro mirroring relies on.
+TEST(DuckDbSupportPredicateTest, MirroredTableMacroEligible) {
+  std::unordered_set<std::string> macros{"my_table_fn"};
+  EXPECT_FALSE(internal::AnalyzeSupportForTesting(
+                   "SELECT * FROM my_table_fn(1, 2)", Allow(), Udfs(), macros)
+                   .has_value());
+  // It also satisfies the bare-SELECT relation gate even with no other relation.
+  EXPECT_FALSE(internal::AnalyzeSupportForTesting(
+                   "SELECT x FROM my_table_fn(1) AS t", Allow(), Udfs(), macros)
+                   .has_value());
+}
+
 // A dotted member `t.count` is a column reference, not a function call, even
 // though `count` is an allowlisted name and is (in this contrived case)
 // followed by `(` belonging to a different expression.

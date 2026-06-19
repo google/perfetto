@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/duckdb/duckdb_engine.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -148,7 +149,8 @@ struct SupportDecision {
 SupportDecision AnalyzeSupport(
     const std::string& sql,
     const std::unordered_set<std::string>& builtin_allowlist,
-    const std::unordered_set<std::string>& registered_udfs) {
+    const std::unordered_set<std::string>& registered_udfs,
+    const std::unordered_set<std::string>& table_macros) {
   auto ineligible = [](std::string why) {
     return SupportDecision{std::optional<std::string>(std::move(why))};
   };
@@ -279,6 +281,14 @@ SupportDecision AnalyzeSupport(
     }
 
     if (followed_by_paren && !dotted_member) {
+      // A mirrored table macro is invoked as a table-valued reference
+      // (`FROM name(args)` / `JOIN name(args)`). It is eligible like a mirrored
+      // view (DuckDB binds the macro body, which references already-mirrored
+      // tables/views); it also counts as a relation for the bare-SELECT gate.
+      if (table_macros.find(t.lower) != table_macros.end()) {
+        saw_relation = true;
+        continue;
+      }
       bool in_static_allowlist =
           builtin_allowlist.find(t.lower) != builtin_allowlist.end();
       bool is_registered_udf =
@@ -404,18 +414,21 @@ namespace internal {
 std::optional<std::string> AnalyzeSupportForTesting(
     const std::string& sql,
     const std::unordered_set<std::string>& builtin_allowlist,
-    const std::unordered_set<std::string>& registered_udfs) {
-  return AnalyzeSupport(sql, builtin_allowlist, registered_udfs)
+    const std::unordered_set<std::string>& registered_udfs,
+    const std::unordered_set<std::string>& table_macros) {
+  return AnalyzeSupport(sql, builtin_allowlist, registered_udfs, table_macros)
       .ineligible_reason;
 }
 }  // namespace internal
 
 DuckDbEngine::DuckDbEngine(StringPool* string_pool,
                            Resolver resolver,
-                           ViewProvider view_provider)
+                           ViewProvider view_provider,
+                           FunctionProvider function_provider)
     : string_pool_(string_pool),
       resolver_(std::move(resolver)),
-      view_provider_(std::move(view_provider)) {}
+      view_provider_(std::move(view_provider)),
+      function_provider_(std::move(function_provider)) {}
 
 DuckDbEngine::~DuckDbEngine() {
   // Destroy the provider BEFORE the database: the replacement scan + table
@@ -510,6 +523,91 @@ void DuckDbEngine::SyncViews() {
   }
 }
 
+namespace {
+
+// Rewrites the SQLite `$arg` bind placeholders in a RETURNS TABLE function body
+// into the bare parameter names a DuckDB table macro uses. For each parameter
+// `arg` we replace every occurrence of the token `$arg` (the `$` immediately
+// followed by the exact name, and NOT followed by another identifier char so
+// `$ts` does not match inside `$tsx`) with `arg`. Done longest-name-first so a
+// parameter that is a prefix of another (`$ts` vs `$ts_end`) cannot mis-rewrite.
+std::string RewriteDollarParams(const std::string& body,
+                                std::vector<std::string> arg_names) {
+  auto is_ident_char = [](char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+           (c >= '0' && c <= '9') || c == '_';
+  };
+  std::sort(arg_names.begin(), arg_names.end(),
+            [](const std::string& a, const std::string& b) {
+              return a.size() > b.size();
+            });
+  std::string out;
+  out.reserve(body.size());
+  for (size_t i = 0; i < body.size();) {
+    if (body[i] == '$') {
+      bool matched = false;
+      for (const std::string& name : arg_names) {
+        if (name.empty()) {
+          continue;
+        }
+        size_t end = i + 1 + name.size();
+        if (body.compare(i + 1, name.size(), name) == 0 &&
+            (end >= body.size() || !is_ident_char(body[end]))) {
+          out.append(name);
+          i = end;
+          matched = true;
+          break;
+        }
+      }
+      if (matched) {
+        continue;
+      }
+    }
+    out.push_back(body[i]);
+    ++i;
+  }
+  return out;
+}
+
+}  // namespace
+
+void DuckDbEngine::SyncTableFunctions() {
+  if (!function_provider_) {
+    return;
+  }
+  // Mirror each stdlib RETURNS TABLE function as a DuckDB table macro so a bare
+  // `FROM name(args)` resolves through DuckDB's own macro -> the body's
+  // `FROM <table/view>` -> the replacement scan. The body is post-macro-expansion
+  // SQLite/PerfettoSQL dialect; DuckDB binds it EAGERLY at CREATE MACRO time, so
+  // a body using SQLite-only dialect or an `__intrinsic_*` table-pointer ABI
+  // (e.g. interval_intersect) fails to create and stays unmirrored. We never
+  // fake it: a query calling an unmirrored function errors in DuckDB and falls
+  // back (or errors under disable_fallback).
+  for (const TableFunction& fn : function_provider_()) {
+    std::string lower = base::ToLower(fn.name);
+    if (mirrored_table_macros_.find(lower) != mirrored_table_macros_.end()) {
+      continue;  // Already mirrored.
+    }
+    std::string params;
+    for (size_t i = 0; i < fn.arg_names.size(); ++i) {
+      if (i != 0) {
+        params += ", ";
+      }
+      params += fn.arg_names[i];
+    }
+    std::string body = RewriteDollarParams(fn.body_sql, fn.arg_names);
+    std::string create = "CREATE MACRO " + fn.name + "(" + params +
+                         ") AS TABLE (" + body + ")";
+    duckdb_result res;
+    if (duckdb_query(conn_, create.c_str(), &res) == DuckDBError) {
+      duckdb_destroy_result(&res);
+      continue;
+    }
+    duckdb_destroy_result(&res);
+    mirrored_table_macros_.insert(lower);
+  }
+}
+
 base::StatusOr<std::optional<DuckDbExecutionResult>>
 DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
                                    bool disable_fallback,
@@ -538,6 +636,11 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   // resolves. Cheap: already-mirrored views are skipped.
   SyncViews();
 
+  // Mirror any stdlib RETURNS TABLE functions created since the last query as
+  // DuckDB table macros so `FROM name(args)` resolves. Cheap: already-mirrored
+  // macros are skipped.
+  SyncTableFunctions();
+
   // --- Support predicate (cheap, conservative, default-deny). ---
   // Driven entirely off the real syntaqlite token stream (see AnalyzeSupport):
   // statement count, the USING / double-quote / macro dialect guards, the
@@ -545,8 +648,9 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   // column-name divergence guards. Keywords and quoted identifiers carry their
   // own token types, so the old keyword/quote/CTE-column-list special cases are
   // gone - they fall out of proper token classification.
-  SupportDecision decision = AnalyzeSupport(sql, BuiltinFunctionAllowlist(),
-                                            registered_scalar_functions_);
+  SupportDecision decision =
+      AnalyzeSupport(sql, BuiltinFunctionAllowlist(),
+                     registered_scalar_functions_, mirrored_table_macros_);
   if (decision.ineligible_reason) {
     return ineligible(*decision.ineligible_reason);
   }

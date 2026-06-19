@@ -683,6 +683,16 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
           // a one-shot mirror at lazy connection-creation captures them.
           [this]() {
             return engine_->created_views();
+          },
+          // Function provider: mirror the stdlib RETURNS TABLE functions into
+          // DuckDB as table macros so a `FROM name(args)` reference resolves
+          // through DuckDB's own macro -> the body's mirrored tables/views.
+          [this]() {
+            std::vector<duckdb_integration::DuckDbEngine::TableFunction> out;
+            for (const auto& fn : engine_->created_table_functions()) {
+              out.push_back({fn.name, fn.arg_names, fn.body_sql});
+            }
+            return out;
           });
     }
 

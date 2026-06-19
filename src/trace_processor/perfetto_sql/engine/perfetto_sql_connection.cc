@@ -1454,6 +1454,29 @@ base::Status PerfettoSqlConnection::ExecuteCreateFunction(
   // succeeded, the state should always have been captured.
   if (status.ok()) {
     PERFETTO_CHECK(!runtime_table_fn_context_->temporary_create_state);
+
+    // Record the created RETURNS TABLE function for the experimental DuckDB
+    // engine to mirror as a table macro. `cf.sql` is the post-macro-expansion
+    // SELECT body (with `$arg` bind placeholders). On CREATE OR REPLACE, drop
+    // any earlier entry for the same name so the list reflects the live
+    // definition (and stays in dependency/creation order).
+    if (cf.replace) {
+      for (auto it = created_table_functions_.begin();
+           it != created_table_functions_.end(); ++it) {
+        if (it->name == cf.prototype.function_name) {
+          created_table_functions_.erase(it);
+          break;
+        }
+      }
+    }
+    CreatedTableFunction rec;
+    rec.name = cf.prototype.function_name;
+    rec.arg_names.reserve(cf.prototype.arguments.size());
+    for (const auto& arg : cf.prototype.arguments) {
+      rec.arg_names.emplace_back(arg.name().ToStdString());
+    }
+    rec.body_sql = cf.sql.sql();
+    created_table_functions_.emplace_back(std::move(rec));
   } else {
     runtime_table_fn_context_->temporary_create_state.reset();
   }

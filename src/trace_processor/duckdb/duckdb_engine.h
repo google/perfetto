@@ -61,6 +61,20 @@ class DuckDbEngine {
   using ViewProvider =
       std::function<std::vector<std::pair<std::string, std::string>>()>;
 
+  // A stdlib `RETURNS TABLE` function to mirror into DuckDB as a *table macro*.
+  // `name` is the function name, `arg_names` the parameter names in order (no
+  // `$` prefix), `body_sql` the SELECT body (with `$arg` bind placeholders).
+  struct TableFunction {
+    std::string name;
+    std::vector<std::string> arg_names;
+    std::string body_sql;
+  };
+
+  // Supplies the stdlib RETURNS TABLE functions to mirror into DuckDB as table
+  // macros, in creation order. Typically wraps
+  // `PerfettoSqlConnection::created_table_functions()`. May be empty.
+  using FunctionProvider = std::function<std::vector<TableFunction>()>;
+
   // `string_pool` and `resolver` must outlive this object. `resolver` is the
   // live read-through into the engine's table registry (typically a lambda
   // calling `PerfettoSqlConnection::GetDataframeOrNull`). `view_provider` (if
@@ -70,7 +84,8 @@ class DuckDbEngine {
   // -> the replacement scan -> `__perfetto_df`.
   DuckDbEngine(StringPool* string_pool,
                Resolver resolver,
-               ViewProvider view_provider = {});
+               ViewProvider view_provider = {},
+               FunctionProvider function_provider = {});
   ~DuckDbEngine();
 
   DuckDbEngine(const DuckDbEngine&) = delete;
@@ -122,9 +137,18 @@ class DuckDbEngine {
   // exist).
   void SyncViews();
 
+  // Mirrors any stdlib RETURNS TABLE functions from `function_provider_()` not
+  // yet in DuckDB's catalog, as table macros (`CREATE MACRO name(args) AS TABLE
+  // <body>`). Called before each query alongside SyncViews. Idempotent: an
+  // already-mirrored macro is skipped; a function whose body cannot bind in
+  // DuckDB (SQLite-only dialect, or the `__intrinsic_*` table-pointer ABit) is
+  // left unmirrored (a query calling it then errors in DuckDB and falls back).
+  void SyncTableFunctions();
+
   StringPool* string_pool_;
   Resolver resolver_;
   ViewProvider view_provider_;
+  FunctionProvider function_provider_;
 
   bool initialized_ = false;
   duckdb_database db_ = nullptr;
@@ -135,6 +159,11 @@ class DuckDbEngine {
   // the support predicate treats a reference to one as eligible, delegating the
   // actual binding of the view body to DuckDB).
   std::unordered_set<std::string> mirrored_views_;
+
+  // Lowercased names of stdlib RETURNS TABLE functions successfully mirrored as
+  // DuckDB table macros. The support predicate treats a `FROM name(...)` call to
+  // one as an eligible table-valued reference (not an unported function).
+  std::unordered_set<std::string> mirrored_table_macros_;
 
   // Lowercased names of scalar UDFs registered on the DuckDB connection at init
   // (via RegisterScalarFunctions). The support predicate treats a call to one as
@@ -153,7 +182,8 @@ namespace internal {
 std::optional<std::string> AnalyzeSupportForTesting(
     const std::string& sql,
     const std::unordered_set<std::string>& builtin_allowlist,
-    const std::unordered_set<std::string>& registered_udfs);
+    const std::unordered_set<std::string>& registered_udfs,
+    const std::unordered_set<std::string>& table_macros = {});
 }  // namespace internal
 
 }  // namespace perfetto::trace_processor::duckdb_integration

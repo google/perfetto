@@ -357,6 +357,29 @@ class PerfettoSqlConnection {
     return created_views_;
   }
 
+  // A stdlib `CREATE PERFETTO FUNCTION name(args) RETURNS TABLE(...) AS <select>`
+  // captured for the experimental DuckDB engine to mirror as a DuckDB *table
+  // macro* (`CREATE MACRO name(args) AS TABLE <body>`). `arg_names` are the
+  // parameter names in prototype order (without the `$` prefix); `body_sql` is
+  // the post-macro-expansion SELECT body (still SQLite/PerfettoSQL dialect, with
+  // `$arg` bind placeholders). The DuckDB engine rewrites `$arg` -> `arg` and
+  // wraps it in a `CREATE MACRO`; if the body uses dialect/intrinsics DuckDB
+  // cannot bind (e.g. the `__intrinsic_interval_intersect` table-pointer ABI),
+  // the macro fails to create and that function simply stays unmirrored (a query
+  // calling it then errors in DuckDB and falls back).
+  struct CreatedTableFunction {
+    std::string name;
+    std::vector<std::string> arg_names;
+    std::string body_sql;
+  };
+
+  // Returns the stdlib RETURNS TABLE functions created on this connection, in
+  // creation order, for the experimental DuckDB engine to mirror as table
+  // macros. See `CreatedTableFunction`.
+  const std::vector<CreatedTableFunction>& created_table_functions() const {
+    return created_table_functions_;
+  }
+
   // Registers a function with the prototype |prototype| which returns a value
   // of |return_type| and is implemented by executing the SQL statement |sql|.
   //
@@ -550,6 +573,11 @@ class PerfettoSqlConnection {
   // (name, `CREATE VIEW <name> AS <body>` text). Populated by ExecuteCreateView.
   // Consumed by the experimental DuckDB engine to mirror the view layer.
   std::vector<std::pair<std::string, std::string>> created_views_;
+
+  // Stdlib RETURNS TABLE functions, in creation order, recorded for the
+  // experimental DuckDB engine to mirror as table macros. Populated by
+  // ExecuteCreateFunction (table-returning path only).
+  std::vector<CreatedTableFunction> created_table_functions_;
 
   // Contains the pointers for all registered virtual table modules where the
   // context class of the module inherits from ModuleStateManagerBase.
