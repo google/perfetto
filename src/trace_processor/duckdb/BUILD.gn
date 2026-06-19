@@ -24,6 +24,8 @@ source_set("duckdb") {
   sources = [
     "sched_appender.cc",
     "sched_appender.h",
+    "sched_table_function.cc",
+    "sched_table_function.h",
   ]
   deps = [
     "../../../gn:default_deps",
@@ -37,7 +39,10 @@ source_set("duckdb") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "sched_appender_unittest.cc" ]
+  sources = [
+    "sched_appender_unittest.cc",
+    "sched_table_function_unittest.cc",
+  ]
   deps = [
     ":duckdb",
     "../../../gn:default_deps",
