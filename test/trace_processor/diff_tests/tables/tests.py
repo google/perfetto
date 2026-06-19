@@ -774,9 +774,9 @@ class Tables(TestSuite):
         SELECT * FROM machine
         """,
         out=Csv("""
-        "id","raw_id","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version","system_ram_bytes","system_ram_gb"
-        0,0,"Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]",126598774784,127
-        1,2420838448,"Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33,12008292352,12
+        "id","raw_id","name","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version","system_ram_bytes","system_ram_gb"
+        0,0,"[NULL]","Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]",126598774784,127
+        1,2420838448,"[NULL]","Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33,12008292352,12
         """))
 
   # user list table

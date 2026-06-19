@@ -37,6 +37,7 @@ class MachineTracker {
                       StringId release,
                       StringId version,
                       StringId arch);
+  void SetMachineName(StringId name);
   void SetNumCpus(uint32_t cpus);
   void SetAndroidBuildFingerprint(StringId build_fingerprint);
   void SetAndroidDeviceManufacturer(StringId device_manufacturer);
