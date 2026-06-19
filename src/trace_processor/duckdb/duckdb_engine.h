@@ -142,6 +142,20 @@ class DuckDbEngine {
   std::unordered_set<std::string> registered_scalar_functions_;
 };
 
+// Testing-only entry point for the support predicate's TOKENIZATION + decision
+// logic, exposed so a unittest can exercise the previously-buggy classification
+// cases (CAST(...), USING(...), WITH d(a,b) AS (...), double-quoted literals,
+// custom function calls) WITHOUT a live DuckDB connection. Returns the ineligible
+// reason (std::nullopt => the query is eligible to route to DuckDB). The two sets
+// are the function-name allowlist and the registered-UDF names the real engine
+// would consult; the analysis is otherwise a pure function of `sql`.
+namespace internal {
+std::optional<std::string> AnalyzeSupportForTesting(
+    const std::string& sql,
+    const std::unordered_set<std::string>& builtin_allowlist,
+    const std::unordered_set<std::string>& registered_udfs);
+}  // namespace internal
+
 }  // namespace perfetto::trace_processor::duckdb_integration
 
 #endif  // SRC_TRACE_PROCESSOR_DUCKDB_DUCKDB_ENGINE_H_

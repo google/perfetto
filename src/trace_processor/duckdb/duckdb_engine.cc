@@ -16,12 +16,11 @@
 
 #include "src/trace_processor/duckdb/duckdb_engine.h"
 
-#include <cctype>
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -36,6 +35,8 @@
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
 #include "src/trace_processor/duckdb/scalar_functions.h"
 #include "src/trace_processor/duckdb/table_provider.h"
+#include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor::duckdb_integration {
 namespace {
@@ -67,541 +68,389 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
   return *kAllow;
 }
 
-// SQL keywords that may legally appear in identifier position but are NOT
-// relations/functions. A token matching one of these is ignored by the
-// extractor (it is structural, not a name to resolve).
-bool IsSqlKeyword(const std::string& lower) {
-  static const std::unordered_set<std::string>* kKeywords =
-      new std::unordered_set<std::string>{
-          "select", "from",   "where",  "group",  "by",     "order",
-          "having", "limit",  "offset", "as",     "and",    "or",
-          "not",    "null",   "is",     "in",     "like",   "glob",
-          "between","asc",    "desc",   "distinct","all",   "on",
-          "join",   "inner",  "outer",  "left",   "right",  "full",
-          "cross",  "using",  "union",  "intersect","except","case",
-          "when",   "then",   "else",   "end",    "cast",   "true",
-          "false",  "exists", "with",   "values", "default",
-      };
-  return kKeywords->find(lower) != kKeywords->end();
-}
-
-// A single extracted token of interest.
-struct Token {
-  enum Kind { kIdentifier, kSemicolon, kOther, kDoubleQuoted };
-  Kind kind;
-  std::string text;        // lowercased, for identifiers.
-  bool followed_by_paren;  // identifier immediately followed by '(' => fn call.
-  bool after_from_or_join; // identifier in relation position.
-  // True for an identifier that is the NAME of a CTE with a column list, i.e.
-  // the `data` in `WITH data(unit, time) AS (...)`. Such an identifier is
-  // followed by '(' but is NOT a function call (the parenthesized list is the
-  // CTE's column names), so it must NOT be checked against the function
-  // allowlist.
-  bool is_cte_column_list = false;
-  // True for an identifier that DEFINES a CTE (the `data` in `WITH data AS ...`
-  // or `WITH data(...) AS ...`). A later `FROM data` references this local CTE,
-  // not an external relation, so it must NOT be checked by the relation
-  // resolver.
-  bool is_cte_definition = false;
+// A significant SQL token (whitespace and comments dropped) carrying its
+// syntaqlite token TYPE and original text. The whole support predicate is driven
+// off this real token stream: keywords (CAST/USING/AS/VALUES/WITH/...) get their
+// OWN token types from the SQLite grammar, so they are never confused with an
+// identifier the way the old hand-rolled character scanner did.
+struct SigToken {
+  int type;               // sql_token::k* constant.
+  std::string str;        // original (case-preserving) token text (OWNED: the
+                          // tokenizer's backing SqlSource does not outlive the
+                          // returned vector).
+  std::string lower;      // lowercased text (only populated for kId tokens).
+  bool adjacent_to_prev;  // true if this token immediately follows the previous
+                          // significant token with no intervening whitespace.
 };
 
-// Skips whitespace and comments starting at `i`, returning the index of the
-// first significant character (or `n`).
-size_t SkipTrivia(const std::string& sql, size_t i) {
-  const size_t n = sql.size();
-  while (i < n) {
-    char c = sql[i];
-    if (std::isspace(static_cast<unsigned char>(c))) {
-      ++i;
+// Tokenizes `sql` with the real SQLite tokenizer (syntaqlite) and returns the
+// significant tokens (whitespace and comments removed). `adjacent_to_prev`
+// records byte-adjacency so a macro call `name!` (an identifier immediately
+// followed by a `!` token) can be detected without re-scanning characters. The
+// token text is COPIED into each SigToken because the tokenizer (and its backing
+// SqlSource) is destroyed when this function returns.
+std::vector<SigToken> TokenizeSql(const std::string& sql) {
+  std::vector<SigToken> out;
+  SqliteTokenizer tokenizer(SqlSource::FromTraceProcessorImplementation(sql));
+  const char* prev_end = nullptr;
+  for (auto t = tokenizer.Next(); !t.str.empty(); t = tokenizer.Next()) {
+    if (t.token_type == sql_token::kSpace ||
+        t.token_type == sql_token::kComment) {
+      prev_end = t.str.data() + t.str.size();
       continue;
     }
-    if (c == '-' && i + 1 < n && sql[i + 1] == '-') {
-      while (i < n && sql[i] != '\n') {
-        ++i;
-      }
-      continue;
-    }
-    if (c == '/' && i + 1 < n && sql[i + 1] == '*') {
-      i += 2;
-      while (i + 1 < n && !(sql[i] == '*' && sql[i + 1] == '/')) {
-        ++i;
-      }
-      i = (i + 2 <= n) ? i + 2 : n;
-      continue;
-    }
-    break;
-  }
-  return i;
-}
-
-// Given that `sql[open]` is the '(' of an `ident( ... )`, returns the index of
-// the keyword that immediately follows the matching ')' (after trivia), if any.
-// Used to recognize the `WITH name(cols) AS (...)` CTE-column-list pattern:
-// after the column list, a CTE has the `AS` keyword. Respects nested parens,
-// string literals and comments. Returns npos if no matching ')'.
-size_t IndexAfterMatchingParen(const std::string& sql, size_t open) {
-  const size_t n = sql.size();
-  size_t i = open;
-  int depth = 0;
-  while (i < n) {
-    char c = sql[i];
-    if (c == '-' && i + 1 < n && sql[i + 1] == '-') {
-      while (i < n && sql[i] != '\n') {
-        ++i;
-      }
-      continue;
-    }
-    if (c == '/' && i + 1 < n && sql[i + 1] == '*') {
-      i += 2;
-      while (i + 1 < n && !(sql[i] == '*' && sql[i + 1] == '/')) {
-        ++i;
-      }
-      i = (i + 2 <= n) ? i + 2 : n;
-      continue;
-    }
-    if (c == '\'' || c == '"' || c == '`') {
-      char quote = c;
-      ++i;
-      while (i < n) {
-        if (sql[i] == quote) {
-          if (i + 1 < n && sql[i + 1] == quote) {
-            i += 2;
-            continue;
-          }
-          ++i;
-          break;
-        }
-        ++i;
-      }
-      continue;
-    }
-    if (c == '(') {
-      ++depth;
-    } else if (c == ')') {
-      --depth;
-      if (depth == 0) {
-        return SkipTrivia(sql, i + 1);
-      }
-    }
-    ++i;
-  }
-  return std::string::npos;
-}
-
-// Top-level clause presence, used by the order-determinism guard. "Top level"
-// = at parenthesis depth 0 (so an ORDER BY / LIMIT inside a subquery or window
-// frame does not count as ordering the OUTER result). Computed by a small scan
-// that skips comments + string/quoted literals and tracks paren depth.
-struct ClauseInfo {
-  bool has_order_by = false;
-  bool has_limit = false;
-  bool has_group_by = false;
-};
-
-ClauseInfo AnalyzeTopLevelClauses(const std::string& sql) {
-  ClauseInfo info;
-  const size_t n = sql.size();
-  size_t i = 0;
-  int depth = 0;
-  std::string prev_word;  // previous identifier word (lowercased).
-  auto is_ident_char = [](char c) {
-    return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
-  };
-  while (i < n) {
-    char c = sql[i];
-    // Whitespace does NOT reset prev_word (so `ORDER` and `BY` separated by
-    // spaces are still seen as the keyword pair).
-    if (std::isspace(static_cast<unsigned char>(c))) {
-      ++i;
-      continue;
-    }
-    if (c == '-' && i + 1 < n && sql[i + 1] == '-') {
-      while (i < n && sql[i] != '\n') {
-        ++i;
-      }
-      continue;
-    }
-    if (c == '/' && i + 1 < n && sql[i + 1] == '*') {
-      i += 2;
-      while (i + 1 < n && !(sql[i] == '*' && sql[i + 1] == '/')) {
-        ++i;
-      }
-      i = (i + 2 <= n) ? i + 2 : n;
-      continue;
-    }
-    if (c == '\'' || c == '"' || c == '`') {
-      char q = c;
-      ++i;
-      while (i < n) {
-        if (sql[i] == q) {
-          if (i + 1 < n && sql[i + 1] == q) {
-            i += 2;
-            continue;
-          }
-          ++i;
-          break;
-        }
-        ++i;
-      }
-      prev_word.clear();
-      continue;
-    }
-    if (c == '(') {
-      ++depth;
-      ++i;
-      prev_word.clear();
-      continue;
-    }
-    if (c == ')') {
-      if (depth > 0) {
-        --depth;
-      }
-      ++i;
-      prev_word.clear();
-      continue;
-    }
-    if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
-      size_t start = i;
-      while (i < n && is_ident_char(sql[i])) {
-        ++i;
-      }
-      std::string word = base::ToLower(sql.substr(start, i - start));
-      if (depth == 0) {
-        if (word == "by" && prev_word == "order") {
-          info.has_order_by = true;
-        } else if (word == "by" && prev_word == "group") {
-          info.has_group_by = true;
-        } else if (word == "limit") {
-          info.has_limit = true;
-        }
-      }
-      prev_word = word;
-      continue;
-    }
-    ++i;
-    prev_word.clear();
-  }
-  return info;
-}
-
-// Silent-divergence guard: COLUMN NAME. For an UNALIASED expression in the
-// top-level SELECT list, SQLite names the result column after the source text
-// (e.g. `COUNT(*)`, `COUNT(1)`, `a + b`) while DuckDB normalizes it (`count_star()`,
-// `count(1)`, `(a + b)`). The diff-test goldens (CSV header row) encode SQLite's
-// spelling, so routing such a query to DuckDB produces a SILENTLY WRONG header.
-// This function detects the most common offender: a FUNCTION CALL `ident(...)`
-// in the top-level projection (between the first top-level SELECT and its
-// matching top-level FROM) that is NOT immediately followed by `AS`. (Aliased
-// expressions are fine - the alias is the column name in both engines.)
-// Returns true => the query has an unaliased expression column => fall back.
-bool HasUnaliasedExprColumn(const std::string& sql);
-
-// A minimal, dependency-free tokenizer over the (raw, user-supplied) SQL. It is
-// intentionally simpler than the real PerfettoSQL/SQLite grammar: its only job
-// is to feed the conservative, default-deny support predicate. Anything it can't
-// confidently classify pushes the query toward INELIGIBLE (fall back), never
-// toward over-claiming support.
-//
-// It recognizes: identifiers (incl. dotted `a.b`, only the first component is
-// treated as a relation/function candidate), the FROM/JOIN context (so an
-// identifier right after FROM or JOIN is a relation), function calls (identifier
-// immediately followed by '('), string/quoted literals (skipped), comments
-// (skipped), and statement separators (';').
-std::vector<Token> Tokenize(const std::string& sql) {
-  std::vector<Token> out;
-  size_t i = 0;
-  const size_t n = sql.size();
-  bool prev_was_from_or_join = false;
-  // CTE-column-list tracking. `cte_name_expected` is true when the next
-  // identifier is the NAME of a CTE (right after the `WITH` keyword, and right
-  // after a comma that separates CTE definitions). In that position an
-  // identifier followed by `(...)  AS` is a CTE with a column list, NOT a
-  // function call. We track the paren-nesting depth (relative to the WITH
-  // clause) so a comma INSIDE a CTE body / column list does not falsely start a
-  // new CTE name, and the WITH clause ends once we leave it.
-  bool in_with_clause = false;
-  bool cte_name_expected = false;
-  int with_paren_depth = 0;
-  auto is_ident_start = [](char c) {
-    return std::isalpha(static_cast<unsigned char>(c)) || c == '_';
-  };
-  auto is_ident_char = [](char c) {
-    return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
-  };
-  while (i < n) {
-    char c = sql[i];
-    // Whitespace.
-    if (std::isspace(static_cast<unsigned char>(c))) {
-      ++i;
-      continue;
-    }
-    // Line comment.
-    if (c == '-' && i + 1 < n && sql[i + 1] == '-') {
-      while (i < n && sql[i] != '\n') {
-        ++i;
-      }
-      continue;
-    }
-    // Block comment.
-    if (c == '/' && i + 1 < n && sql[i + 1] == '*') {
-      i += 2;
-      while (i + 1 < n && !(sql[i] == '*' && sql[i + 1] == '/')) {
-        ++i;
-      }
-      i = (i + 2 <= n) ? i + 2 : n;
-      continue;
-    }
-    // String / quoted literal: skip its contents entirely so identifiers inside
-    // strings are never mistaken for relations.
-    if (c == '\'' || c == '"' || c == '`') {
-      char quote = c;
-      ++i;
-      while (i < n) {
-        if (sql[i] == quote) {
-          // Doubled quote = escaped quote inside the literal.
-          if (i + 1 < n && sql[i + 1] == quote) {
-            i += 2;
-            continue;
-          }
-          ++i;
-          break;
-        }
-        ++i;
-      }
-      // A `"..."` token is a DIALECT divergence: SQLite treats a double-quoted
-      // token that does not resolve to a column as a STRING literal (e.g.
-      // `LN("as")` -> string), whereas DuckDB strictly treats it as a quoted
-      // IDENTIFIER (and errors if no such column exists). Flag it so the
-      // predicate can fall back rather than route a query that would error (or,
-      // worse, bind differently) in DuckDB.
-      if (quote == '"') {
-        out.push_back({Token::kDoubleQuoted, "", false, false, false, false});
-      }
-      prev_was_from_or_join = false;
-      continue;
-    }
-    // Semicolon = statement separator.
-    if (c == ';') {
-      out.push_back({Token::kSemicolon, "", false, false, false, false});
-      ++i;
-      prev_was_from_or_join = false;
-      in_with_clause = false;
-      cte_name_expected = false;
-      with_paren_depth = 0;
-      continue;
-    }
-    // Identifier (or keyword).
-    if (is_ident_start(c)) {
-      size_t start = i;
-      while (i < n && is_ident_char(sql[i])) {
-        ++i;
-      }
-      std::string word = sql.substr(start, i - start);
-      std::string lower = base::ToLower(word);
-      // Dotted reference `a.b`: skip the trailing `.b...` components; only the
-      // first identifier is the relation/alias candidate.
-      bool consumed_dot = false;
-      while (i < n && sql[i] == '.') {
-        consumed_dot = true;
-        ++i;
-        while (i < n && is_ident_char(sql[i])) {
-          ++i;
-        }
-      }
-      // Look ahead (skipping spaces) for a '(' to detect a function call.
-      size_t j = i;
-      while (j < n && std::isspace(static_cast<unsigned char>(sql[j]))) {
-        ++j;
-      }
-      bool followed_by_paren = j < n && sql[j] == '(' && !consumed_dot;
-
-      // Detect a CTE-column-list name: `WITH <name>(<cols>) AS (...)`. Only
-      // when we are at a CTE-name position (right after WITH or a CTE-separating
-      // comma) AND the identifier is followed by `(...)` whose matching `)` is
-      // immediately followed by the `AS` keyword. This deliberately does NOT
-      // fire for a function with an alias (e.g. `SELECT count(x) AS c`) because
-      // that is not in a CTE-name position.
-      bool is_cte_column_list = false;
-      if (cte_name_expected && followed_by_paren && !IsSqlKeyword(lower)) {
-        size_t after_paren = IndexAfterMatchingParen(sql, j);
-        if (after_paren != std::string::npos && after_paren + 1 < n &&
-            (sql[after_paren] == 'a' || sql[after_paren] == 'A') &&
-            (sql[after_paren + 1] == 's' || sql[after_paren + 1] == 'S') &&
-            (after_paren + 2 >= n ||
-             !is_ident_char(sql[after_paren + 2]))) {
-          is_cte_column_list = true;
-        }
-      }
-      // This identifier DEFINES a CTE if we were expecting a CTE name here and
-      // it is a real name (not a keyword). Captured before the slot is consumed.
-      bool is_cte_definition = cte_name_expected && !IsSqlKeyword(lower);
-      // The token consumes the CTE-name slot regardless of whether it had a
-      // column list (a CTE may also be `name AS (...)` with no column list).
-      if (cte_name_expected) {
-        cte_name_expected = false;
-      }
-      if (lower == "with") {
-        in_with_clause = true;
-        with_paren_depth = 0;
-        cte_name_expected = true;
-      } else if (lower == "select" && with_paren_depth == 0) {
-        // A top-level SELECT ends the WITH clause's CTE list: we are now in the
-        // main query body, where a comma no longer starts a new CTE name.
-        in_with_clause = false;
-        cte_name_expected = false;
-      }
-
-      if (lower == "from" || lower == "join") {
-        out.push_back({Token::kIdentifier, lower, false, false, false, false});
-        prev_was_from_or_join = true;
-        continue;
-      }
-      bool relation_pos = prev_was_from_or_join && !IsSqlKeyword(lower);
-      out.push_back({Token::kIdentifier, lower, followed_by_paren, relation_pos,
-                     is_cte_column_list, is_cte_definition});
-      prev_was_from_or_join = false;
-      continue;
-    }
-    // Any other punctuation. Track paren depth + commas so the CTE-name state
-    // machine knows when one CTE definition ends and the next begins. A comma
-    // at WITH-clause top level (paren depth 0) separates CTE definitions, so the
-    // next identifier is again a CTE name.
-    if (c == '(') {
-      ++with_paren_depth;
-    } else if (c == ')') {
-      if (with_paren_depth > 0) {
-        --with_paren_depth;
-      }
-    } else if (c == ',' && in_with_clause && with_paren_depth == 0) {
-      cte_name_expected = true;
-    }
-    out.push_back({Token::kOther, "", false, false, false, false});
-    ++i;
-    prev_was_from_or_join = false;
+    bool adjacent = prev_end != nullptr && t.str.data() == prev_end;
+    std::string str(t.str);
+    std::string lower =
+        t.token_type == sql_token::kId ? base::ToLower(str) : std::string();
+    out.push_back(SigToken{t.token_type, std::move(str), std::move(lower),
+                           adjacent});
+    prev_end = t.str.data() + t.str.size();
   }
   return out;
 }
 
-bool HasUnaliasedExprColumn(const std::string& sql) {
-  const size_t n = sql.size();
-  size_t i = SkipTrivia(sql, 0);
-  // Require the statement to start with a top-level SELECT (a CTE `WITH ...` is
-  // not analyzed here - too complex; such queries are routed and, if the column
-  // name diverges, the diff catches it; the dominant offenders are plain
-  // `SELECT count(*) FROM ...`).
-  auto is_kw = [&](size_t pos, const char* kw) {
-    size_t len = std::strlen(kw);
-    if (pos + len > n) {
-      return false;
-    }
-    for (size_t k = 0; k < len; ++k) {
-      if (std::tolower(static_cast<unsigned char>(sql[pos + k])) != kw[k]) {
-        return false;
-      }
-    }
-    // Must be a whole word.
-    return pos + len >= n ||
-           !(std::isalnum(static_cast<unsigned char>(sql[pos + len])) ||
-             sql[pos + len] == '_');
+// True if `t` is a bare (unquoted) identifier: a real name candidate for a
+// relation or a function call. A double-quoted or backtick-quoted identifier
+// (which syntaqlite ALSO classifies as kId) is excluded - it is handled by the
+// double-quote dialect guard, never treated as a function/relation name.
+bool IsBareName(const SigToken& t) {
+  return t.type == sql_token::kId && !t.str.empty() && t.str.front() != '"' &&
+         t.str.front() != '`';
+}
+
+// True if `t` is a double-quoted (`"..."`) identifier. In SQLite a double-quoted
+// token that does not resolve to a column is a STRING literal (e.g. `LN("as")`),
+// whereas DuckDB strictly treats it as a quoted IDENTIFIER (and errors if no
+// such column exists). The predicate falls back on these.
+bool IsDoubleQuoted(const SigToken& t) {
+  return t.type == sql_token::kId && !t.str.empty() && t.str.front() == '"';
+}
+
+// The outcome of the (cheap, conservative, default-deny) support predicate. When
+// `ineligible_reason` is set the query must fall back to SQLite (or, in honest
+// mode, error). When it is empty the query is eligible to be handed to DuckDB
+// (DuckDB's binder remains the final oracle - any DuckDB error still falls
+// back).
+struct SupportDecision {
+  std::optional<std::string> ineligible_reason;
+};
+
+// Drives the whole support predicate off the real syntaqlite token stream. It is
+// intentionally testable in isolation (no live DuckDB): given the SQL plus the
+// two function-eligibility sets, it returns the same eligibility outcome the
+// engine previously computed with the hand-rolled scanner, just from real
+// tokens.
+//
+// `builtin_allowlist` and `registered_udfs` are the function-name sets a call
+// must match to be eligible (default-deny otherwise). They are passed in so the
+// analysis stays a pure function of (SQL, eligible-function-names).
+SupportDecision AnalyzeSupport(
+    const std::string& sql,
+    const std::unordered_set<std::string>& builtin_allowlist,
+    const std::unordered_set<std::string>& registered_udfs) {
+  auto ineligible = [](std::string why) {
+    return SupportDecision{std::optional<std::string>(std::move(why))};
   };
-  if (!is_kw(i, "select")) {
-    return false;
+
+  std::vector<SigToken> toks = TokenizeSql(sql);
+
+  // Require exactly one statement: a ';' is only OK as a trailing terminator.
+  for (size_t k = 0; k < toks.size(); ++k) {
+    if (toks[k].type != sql_token::kSemi) {
+      continue;
+    }
+    for (size_t m = k + 1; m < toks.size(); ++m) {
+      if (toks[m].type != sql_token::kSemi) {
+        return ineligible("more than one statement");
+      }
+    }
+    break;
   }
-  i += 6;  // past SELECT
-  int depth = 0;
-  auto is_ident_char = [](char c) {
-    return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
-  };
-  while (i < n) {
-    i = SkipTrivia(sql, i);
-    if (i >= n) {
-      break;
+
+  // Dialect guard: a `"..."` double-quoted token is a STRING literal in SQLite
+  // (when it doesn't match a column) but a quoted IDENTIFIER in DuckDB.
+  for (const SigToken& t : toks) {
+    if (IsDoubleQuoted(t)) {
+      return ineligible("double-quoted literal (SQLite string vs DuckDB ident)");
     }
-    char c = sql[i];
-    if (c == '\'' || c == '"' || c == '`') {
-      char q = c;
-      ++i;
-      while (i < n) {
-        if (sql[i] == q) {
-          if (i + 1 < n && sql[i + 1] == q) {
-            i += 2;
-            continue;
-          }
-          ++i;
-          break;
-        }
-        ++i;
-      }
-      continue;
-    }
-    if (c == '(') {
-      ++depth;
-      ++i;
-      continue;
-    }
-    if (c == ')') {
-      if (depth > 0) {
-        --depth;
-      }
-      ++i;
-      continue;
-    }
-    if (c == ';') {
-      break;
-    }
-    if (is_ident_char(c) && (std::isalpha(static_cast<unsigned char>(c)) ||
-                             c == '_')) {
-      size_t start = i;
-      while (i < n && is_ident_char(sql[i])) {
-        ++i;
-      }
-      std::string word = base::ToLower(sql.substr(start, i - start));
-      // A top-level FROM ends the projection list.
-      if (depth == 0 && word == "from") {
-        return false;
-      }
-      // An identifier (at projection top level) immediately followed by `(` is a
-      // function call; if its matching `)` is NOT followed by `AS`, it is an
-      // unaliased expression column => column-name divergence.
-      if (depth == 0) {
-        size_t after_ident = SkipTrivia(sql, i);
-        if (after_ident < n && sql[after_ident] == '(' &&
-            !IsSqlKeyword(word)) {
-          size_t after_paren = IndexAfterMatchingParen(sql, after_ident);
-          if (after_paren == std::string::npos) {
-            return false;  // Unbalanced - let DuckDB/SQLite handle it.
-          }
-          // Is the next token the `AS` keyword (explicit alias)?
-          bool aliased_as =
-              after_paren + 1 < n &&
-              (sql[after_paren] == 'a' || sql[after_paren] == 'A') &&
-              (sql[after_paren + 1] == 's' || sql[after_paren + 1] == 'S') &&
-              (after_paren + 2 >= n ||
-               !is_ident_char(sql[after_paren + 2]));
-          // Or an implicit alias (a bare identifier right after the `)`), e.g.
-          // `count(*) cnt`. SQLite and DuckDB agree on an explicit name.
-          bool aliased_implicit =
-              !aliased_as && after_paren < n &&
-              (std::isalpha(static_cast<unsigned char>(sql[after_paren])) ||
-               sql[after_paren] == '_') &&
-              !is_kw(after_paren, "from") && !is_kw(after_paren, "where") &&
-              !is_kw(after_paren, "group") && !is_kw(after_paren, "order") &&
-              !is_kw(after_paren, "limit");
-          if (!aliased_as && !aliased_implicit) {
-            return true;  // Unaliased function-call column.
-          }
-          i = after_paren;
-          continue;
-        }
-      }
-      continue;
-    }
-    ++i;
   }
-  return false;
+
+  // Dialect guard: USING (col) join. SQLite coalesces the join column; DuckDB
+  // leaves both qualified columns visible, so an unqualified reference binds
+  // ambiguously. `USING` is its OWN keyword token (kUsing) - it is never an
+  // identifier, so this is a direct token-type test (the old code had to special
+  // case the `using(` text to avoid a bogus "missing function" verdict).
+  for (const SigToken& t : toks) {
+    if (t.type == sql_token::kUsing) {
+      return ineligible("USING join clause (DuckDB column-resolution diverges)");
+    }
+  }
+
+  // Dialect guard: a PerfettoSQL MACRO call is `name!(...)`. The perfetto
+  // syntaqlite dialect lexes a lone `!` (not `!=`) as its own kBang token (`!=`
+  // is a single kNe token, never kBang). A kBang that is byte-adjacent to a
+  // preceding identifier is a macro call (`foo!`). DuckDB cannot parse `!`, so
+  // route such queries to the PerfettoSQL frontend.
+  for (size_t k = 0; k < toks.size(); ++k) {
+    const SigToken& t = toks[k];
+    if (t.type == sql_token::kBang && t.adjacent_to_prev && k > 0 &&
+        toks[k - 1].type == sql_token::kId) {
+      return ineligible("PerfettoSQL macro call (DuckDB cannot parse '!')");
+    }
+  }
+
+  // Collect CTE-defined names so a later `FROM <cte>` is recognized as a local
+  // relation (not an external one). A CTE is introduced after `WITH` and after
+  // each top-level (paren-depth-0) comma in the WITH clause: the next bare name
+  // is the CTE name. The WITH clause ends at the first top-level SELECT.
+  std::unordered_set<std::string> cte_names;
+  {
+    bool in_with = false;
+    bool name_expected = false;
+    int depth = 0;
+    for (const SigToken& t : toks) {
+      if (t.type == sql_token::kLp) {
+        ++depth;
+        continue;
+      }
+      if (t.type == sql_token::kRp) {
+        if (depth > 0) {
+          --depth;
+        }
+        continue;
+      }
+      if (!in_with) {
+        // `WITH` introduces the CTE list. (kId named "with" never happens: WITH
+        // is a keyword token, but we match defensively on the lowercase text via
+        // the keyword token's str just in case.)
+        if (base::CaseInsensitiveEqual(std::string(t.str), "with")) {
+          in_with = true;
+          name_expected = true;
+          depth = 0;
+        }
+        continue;
+      }
+      if (depth == 0 && t.type == sql_token::kSelect) {
+        in_with = false;
+        name_expected = false;
+        continue;
+      }
+      if (depth == 0 && t.type == sql_token::kComma) {
+        name_expected = true;
+        continue;
+      }
+      if (name_expected && IsBareName(t)) {
+        cte_names.insert(t.lower);
+        name_expected = false;
+      }
+    }
+  }
+
+  // Function-call + relation pass. A function call is a BARE identifier
+  // immediately followed by `(` and NOT preceded by `.` (a dotted member like
+  // `t.count` is a column, not a call). Because keywords (CAST/VALUES/...) and
+  // quoted identifiers are NOT bare kId tokens, they never reach this test - the
+  // old keyword/quote/CTE-column-list special cases fall out naturally.
+  bool saw_relation = false;
+  bool saw_supported_function = false;
+  bool saw_aggregate = false;
+  for (size_t k = 0; k < toks.size(); ++k) {
+    const SigToken& t = toks[k];
+    if (!IsBareName(t)) {
+      continue;
+    }
+    bool dotted_member = k > 0 && toks[k - 1].type == sql_token::kDot;
+    bool followed_by_paren =
+        k + 1 < toks.size() && toks[k + 1].type == sql_token::kLp;
+
+    // CTE-with-column-list: `WITH name(cols) AS (...)`. Here `name` is a bare id
+    // followed by `(`, but the parens hold COLUMN NAMES, not function args - the
+    // matching `)` is followed by `AS`. Recognize and skip (not a function).
+    if (followed_by_paren && cte_names.find(t.lower) != cte_names.end()) {
+      // Walk to the matching ')' and check the next token is AS.
+      int depth = 0;
+      size_t m = k + 1;
+      for (; m < toks.size(); ++m) {
+        if (toks[m].type == sql_token::kLp) {
+          ++depth;
+        } else if (toks[m].type == sql_token::kRp) {
+          if (--depth == 0) {
+            break;
+          }
+        }
+      }
+      if (m + 1 < toks.size() && toks[m + 1].type == sql_token::kAs) {
+        continue;  // CTE column list, not a function call.
+      }
+    }
+
+    if (followed_by_paren && !dotted_member) {
+      bool in_static_allowlist =
+          builtin_allowlist.find(t.lower) != builtin_allowlist.end();
+      bool is_registered_udf =
+          registered_udfs.find(t.lower) != registered_udfs.end();
+      if (!in_static_allowlist && !is_registered_udf) {
+        // Default-deny: a call to a function DuckDB lacks would ERROR (safe
+        // fallback), but a construct that binds to a DuckDB builtin with
+        // DIVERGENT semantics could produce SILENTLY WRONG output. Guard it.
+        return ineligible("function '" + t.lower + "' not in allowlist");
+      }
+      saw_supported_function = true;
+      if (t.lower == "count" || t.lower == "sum" || t.lower == "min" ||
+          t.lower == "max" || t.lower == "avg") {
+        saw_aggregate = true;
+      }
+      continue;
+    }
+
+    // RELATION POSITION: a bare name right after FROM or JOIN. The predicate
+    // does NOT verify the relation exists - DuckDB's binder is the table oracle
+    // (every dataframe + view is registered/mirrored up front); a reference it
+    // cannot bind makes `duckdb_query` error and we fall back. We only TRACK
+    // whether a relation was seen (to drive the bare-SELECT gate), skipping
+    // local CTE references and dotted members.
+    if (!dotted_member && k > 0 &&
+        (toks[k - 1].type == sql_token::kFrom ||
+         toks[k - 1].type == sql_token::kJoin)) {
+      if (cte_names.find(t.lower) == cte_names.end()) {
+        saw_relation = true;
+      }
+    }
+  }
+
+  // Gate: route a query iff it has a FROM/JOIN relation OR it is a bare (no-FROM)
+  // statement calling at least one allowlisted/registered function (e.g.
+  // `SELECT ln(2)`). A no-FROM statement with neither (e.g. `SELECT 1`) falls
+  // back, to minimize behavioural drift from the SQLite path.
+  if (!saw_relation && !saw_supported_function) {
+    return ineligible("no DuckDB-backed relation or supported function");
+  }
+
+  // Top-level clause presence (paren depth 0) for the row-order and column-name
+  // guards. `kOrder kBy` => ORDER BY; `kGroup kBy` => GROUP BY; `kLimit` =>
+  // LIMIT, all only at depth 0 (a clause inside a subquery does not order the
+  // OUTER result).
+  bool has_order_by = false;
+  bool has_group_by = false;
+  bool has_limit = false;
+  {
+    int depth = 0;
+    for (size_t k = 0; k < toks.size(); ++k) {
+      const SigToken& t = toks[k];
+      if (t.type == sql_token::kLp) {
+        ++depth;
+      } else if (t.type == sql_token::kRp) {
+        if (depth > 0) {
+          --depth;
+        }
+      } else if (depth == 0) {
+        if (t.type == sql_token::kBy && k > 0) {
+          if (toks[k - 1].type == sql_token::kOrder) {
+            has_order_by = true;
+          } else if (toks[k - 1].type == sql_token::kGroup) {
+            has_group_by = true;
+          }
+        } else if (t.type == sql_token::kLimit) {
+          has_limit = true;
+        }
+      }
+    }
+  }
+
+  // Silent-divergence guard: ROW ORDER. SQLite and DuckDB order rows
+  // differently for an under-ordered scan; the goldens encode SQLite's order.
+  //   - relation + top-level LIMIT but NO top-level ORDER BY => non-deterministic
+  //     row SET (the `... LIMIT 10` landmine) => fall back.
+  //   - relation + NO top-level ORDER BY and NOT a single-row pure aggregate
+  //     (aggregate with no GROUP BY) => order-divergence-prone => fall back.
+  if (saw_relation && !has_order_by) {
+    if (has_limit) {
+      return ineligible("LIMIT without ORDER BY (non-deterministic row set)");
+    }
+    bool single_row_aggregate = saw_aggregate && !has_group_by;
+    if (!single_row_aggregate) {
+      return ineligible(
+          "multi-row scan without ORDER BY (engine-defined row order)");
+    }
+  }
+
+  // Silent-divergence guard: COLUMN NAME of an unaliased expression. SQLite names
+  // an unaliased top-level projection column after its source text (`COUNT(*)`,
+  // `COUNT(1)`) while DuckDB normalizes it (`count_star()`, `count(1)`); the
+  // CSV-header diff then fails silently. Detect a function-call column in the
+  // top-level projection (between the first top-level SELECT and its matching
+  // top-level FROM) NOT followed by an alias (an `AS` keyword or a bare implicit
+  // alias name). Only analyzed for a plain leading SELECT (a leading WITH is
+  // routed and caught by the diff if it bites, as before).
+  if (!toks.empty() && toks[0].type == sql_token::kSelect) {
+    int depth = 0;
+    for (size_t k = 1; k < toks.size(); ++k) {
+      const SigToken& t = toks[k];
+      if (t.type == sql_token::kLp) {
+        ++depth;
+        continue;
+      }
+      if (t.type == sql_token::kRp) {
+        if (depth > 0) {
+          --depth;
+        }
+        continue;
+      }
+      if (depth != 0) {
+        continue;
+      }
+      if (t.type == sql_token::kFrom || t.type == sql_token::kSemi) {
+        break;  // End of the top-level projection list.
+      }
+      // A bare-name function call in projection position.
+      if (IsBareName(t) && k + 1 < toks.size() &&
+          toks[k + 1].type == sql_token::kLp &&
+          !(k > 0 && toks[k - 1].type == sql_token::kDot)) {
+        // Find the matching ')'.
+        int d = 0;
+        size_t m = k + 1;
+        for (; m < toks.size(); ++m) {
+          if (toks[m].type == sql_token::kLp) {
+            ++d;
+          } else if (toks[m].type == sql_token::kRp) {
+            if (--d == 0) {
+              break;
+            }
+          }
+        }
+        if (m >= toks.size()) {
+          break;  // Unbalanced - let DuckDB/SQLite handle it.
+        }
+        // Is the call aliased? Either an explicit `AS`, or an implicit alias
+        // (a bare name) right after the `)`. Both spell the column name the
+        // same way in DuckDB and SQLite.
+        const SigToken* after = (m + 1 < toks.size()) ? &toks[m + 1] : nullptr;
+        bool aliased_as = after && after->type == sql_token::kAs;
+        bool aliased_implicit = after && IsBareName(*after);
+        if (!aliased_as && !aliased_implicit) {
+          return ineligible(
+              "unaliased expression column (column-name divergence)");
+        }
+        k = m;  // Skip past the call.
+      }
+    }
+  }
+
+  return SupportDecision{};
 }
 
 }  // namespace
+
+namespace internal {
+std::optional<std::string> AnalyzeSupportForTesting(
+    const std::string& sql,
+    const std::unordered_set<std::string>& builtin_allowlist,
+    const std::unordered_set<std::string>& registered_udfs) {
+  return AnalyzeSupport(sql, builtin_allowlist, registered_udfs)
+      .ineligible_reason;
+}
+}  // namespace internal
 
 DuckDbEngine::DuckDbEngine(StringPool* string_pool,
                            Resolver resolver,
@@ -721,181 +570,16 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   SyncViews();
 
   // --- Support predicate (cheap, conservative, default-deny). ---
-  std::vector<Token> tokens = Tokenize(sql);
-
-  // Require exactly one statement: reject a ';' that is followed by more
-  // non-empty tokens (a trailing ';' is fine).
-  for (size_t k = 0; k < tokens.size(); ++k) {
-    if (tokens[k].kind != Token::kSemicolon) {
-      continue;
-    }
-    for (size_t m = k + 1; m < tokens.size(); ++m) {
-      if (tokens[m].kind != Token::kSemicolon) {
-        return ineligible("more than one statement");
-      }
-    }
-    break;
-  }
-
-  // Collect the names of CTEs defined in this query: a later `FROM <cte>`
-  // references the local CTE, not an external relation, so the relation resolver
-  // must not reject it.
-  std::unordered_set<std::string> cte_names;
-  for (const Token& t : tokens) {
-    if (t.kind == Token::kIdentifier && t.is_cte_definition) {
-      cte_names.insert(t.text);
-    }
-  }
-
-  // Dialect guard: a `USING (col)` join coalesces the join column in SQLite,
-  // but DuckDB resolves the duplicated column differently (it leaves both
-  // qualified columns visible, so an unqualified reference binds ambiguously).
-  // Until that divergence is validated/translated, a query with a USING join is
-  // ineligible so it falls back cleanly rather than erroring inside DuckDB.
-  // (This is distinct from the OLD bug, where `USING(` was mis-reported as a
-  // missing *function*; it is now correctly recognized as the join clause and
-  // treated as an unsupported dialect feature.)
-  for (const Token& t : tokens) {
-    if (t.kind == Token::kIdentifier && t.text == "using") {
-      return ineligible("USING join clause (DuckDB column-resolution diverges)");
-    }
-  }
-
-  // Dialect guard: a `"..."` double-quoted token is a STRING literal in SQLite
-  // (when it doesn't match a column) but a quoted IDENTIFIER in DuckDB. A query
-  // relying on the SQLite quirk (e.g. `LN("as")`) would error or bind
-  // differently in DuckDB, so fall back rather than route it.
-  for (const Token& t : tokens) {
-    if (t.kind == Token::kDoubleQuoted) {
-      return ineligible("double-quoted literal (SQLite string vs DuckDB ident)");
-    }
-  }
-
-  // Dialect guard: a PerfettoSQL MACRO call is `name!(...)` (an identifier
-  // immediately followed by `!`). DuckDB's parser does not understand the `!`
-  // and raises a Parser Error. Macro expansion is a PerfettoSQL-frontend
-  // feature; route such queries to SQLite. (We catch it here cheaply rather
-  // than relying solely on the post-`duckdb_query` parse-error fallback, to
-  // avoid a noisy DuckDB parse attempt.) Note `!=` is a valid operator, so only
-  // a `!` that immediately follows an identifier character (and is not `!=`)
-  // counts as a macro call.
-  {
-    const std::string& s = sql;
-    for (size_t i = 0; i + 1 < s.size(); ++i) {
-      if (s[i] != '!') {
-        continue;
-      }
-      if (s[i + 1] == '=') {
-        continue;  // `!=` operator.
-      }
-      // Preceded by an identifier char => macro call `name!`.
-      if (i > 0 && (std::isalnum(static_cast<unsigned char>(s[i - 1])) ||
-                    s[i - 1] == '_')) {
-        return ineligible("PerfettoSQL macro call (DuckDB cannot parse '!')");
-      }
-    }
-  }
-
-  bool saw_relation = false;
-  bool saw_supported_function = false;
-  bool saw_aggregate = false;
-  for (const Token& t : tokens) {
-    if (t.kind != Token::kIdentifier) {
-      continue;
-    }
-    if (t.followed_by_paren) {
-      // An identifier followed by '(' is a function call UNLESS it is:
-      //  - a SQL keyword used with parentheses (e.g. `CAST(x AS INT)`,
-      //    `USING(col)`, `VALUES(...)`) — structural, not a user function; or
-      //  - the name of a CTE with a column list (`WITH data(a, b) AS (...)`) —
-      //    `data` is a relation name, the parens hold column names.
-      // Neither is checked against the function allowlist. A genuine function
-      // call still must be in the allowlist (default-deny).
-      if (IsSqlKeyword(t.text) || t.is_cte_column_list) {
-        continue;
-      }
-      bool in_static_allowlist = BuiltinFunctionAllowlist().find(t.text) !=
-                                 BuiltinFunctionAllowlist().end();
-      bool is_registered_udf = registered_scalar_functions_.find(t.text) !=
-                               registered_scalar_functions_.end();
-      if (!in_static_allowlist && !is_registered_udf) {
-        // The function allowlist is KEPT (unlike the relation check, which is
-        // delegated to DuckDB's binder below). A call to a function DuckDB does
-        // not have (an unported PerfettoSQL UDF / TVF, a custom intrinsic) would
-        // ERROR inside DuckDB, but - critically - some unsupported constructs
-        // could instead bind to a DuckDB builtin with DIVERGENT semantics and
-        // produce SILENTLY WRONG output. Default-deny on functions guards that.
-        return ineligible("function '" + t.text + "' not in allowlist");
-      }
-      saw_supported_function = true;
-      if (t.text == "count" || t.text == "sum" || t.text == "min" ||
-          t.text == "max" || t.text == "avg") {
-        saw_aggregate = true;
-      }
-      continue;
-    }
-    if (t.after_from_or_join) {
-      // RELATION POSITION. We DO NOT verify that the relation exists in DuckDB
-      // anymore (the old per-table availability gate is removed): every static
-      // dataframe and every PerfettoSQL view is registered/mirrored into
-      // DuckDB's catalog up front (the replacement scan resolves any dataframe
-      // name lazily, SyncViews mirrors every view), so DuckDB's BINDER is the
-      // table oracle. A reference to a CTE defined in this query, or to any
-      // relation DuckDB can bind, is fine; a reference to a relation DuckDB
-      // cannot bind makes the eventual `duckdb_query` raise a Catalog/Binder
-      // error, which we map to a clean fallback below (honest mode: error).
-      // We only TRACK whether a FROM/JOIN relation was seen, to drive the
-      // bare-SELECT gate.
-      if (cte_names.find(t.text) != cte_names.end()) {
-        continue;  // Local CTE: not an external relation.
-      }
-      saw_relation = true;
-    }
-  }
-  // Gate: route a query iff it has a FROM/JOIN relation OR it is a bare (no-FROM)
-  // statement that calls at least one allowlisted/registered function (e.g.
-  // `SELECT ln(2)`). A no-FROM statement with neither (e.g. `SELECT 1`) still
-  // falls back, to minimize behavioural drift from the SQLite path.
-  if (!saw_relation && !saw_supported_function) {
-    return ineligible("no DuckDB-backed relation or supported function");
-  }
-
-  // Silent-divergence guard: ROW ORDER. SQLite and DuckDB produce rows in
-  // different engine-defined orders for a scan that is not fully ordered by a
-  // top-level ORDER BY. The diff-test goldens encode SQLite's order, so routing
-  // an under-ordered multi-row query to DuckDB yields SILENTLY WRONG (re-ordered)
-  // output - and, worse, `LIMIT` without `ORDER BY` returns a DIFFERENT SET of
-  // rows. This is exactly the `thread_slice_time_in_state` (`... LIMIT 10` with
-  // no ORDER BY) landmine. Guard:
-  //   - A query that scans a relation and has a top-level LIMIT but NO top-level
-  //     ORDER BY is non-deterministic -> fall back.
-  //   - A query that scans a relation, has NO top-level ORDER BY, and is NOT a
-  //     single-row pure aggregate (an aggregate function with no GROUP BY -> one
-  //     row, order-irrelevant) is order-divergence-prone -> fall back.
-  // A query WITH a top-level ORDER BY is routed (residual tie-break divergence
-  // is far rarer and is caught by the diff goldens if it bites). This trades a
-  // few honest passes for ZERO order-divergence fallback regressions.
-  if (saw_relation) {
-    ClauseInfo clauses = AnalyzeTopLevelClauses(sql);
-    if (!clauses.has_order_by) {
-      if (clauses.has_limit) {
-        return ineligible("LIMIT without ORDER BY (non-deterministic row set)");
-      }
-      bool single_row_aggregate = saw_aggregate && !clauses.has_group_by;
-      if (!single_row_aggregate) {
-        return ineligible(
-            "multi-row scan without ORDER BY (engine-defined row order)");
-      }
-    }
-  }
-
-  // Silent-divergence guard: COLUMN NAME of an unaliased expression. SQLite
-  // names such a column after its source text (`COUNT(*)`, `COUNT(1)`) while
-  // DuckDB normalizes it (`count_star()`, `count(1)`); the CSV-header diff then
-  // fails silently. Fall back when the top-level projection has an unaliased
-  // function-call column.
-  if (HasUnaliasedExprColumn(sql)) {
-    return ineligible("unaliased expression column (column-name divergence)");
+  // Driven entirely off the real syntaqlite token stream (see AnalyzeSupport):
+  // statement count, the USING / double-quote / macro dialect guards, the
+  // function allowlist, the relation/CTE bookkeeping, and the row-order +
+  // column-name divergence guards. Keywords and quoted identifiers carry their
+  // own token types, so the old keyword/quote/CTE-column-list special cases are
+  // gone - they fall out of proper token classification.
+  SupportDecision decision = AnalyzeSupport(sql, BuiltinFunctionAllowlist(),
+                                            registered_scalar_functions_);
+  if (decision.ineligible_reason) {
+    return ineligible(*decision.ineligible_reason);
   }
 
   // --- Eligible: execute the whole query inside DuckDB. ---

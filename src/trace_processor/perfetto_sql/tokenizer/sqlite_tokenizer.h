@@ -35,18 +35,31 @@ namespace perfetto::trace_processor {
 // full header.  Values must match SYNTAQLITE_TK_* in syntaqlite_perfetto.h.
 // These are verified with static_asserts in the .cc file.
 namespace sql_token {
+inline constexpr int kBy = 9;
 inline constexpr int kId = 40;
+inline constexpr int kStar = 99;
+inline constexpr int kString = 108;
+inline constexpr int kInteger = 110;
+inline constexpr int kFloat = 111;
 inline constexpr int kSemi = 112;
 inline constexpr int kLp = 113;
+inline constexpr int kOrder = 114;
 inline constexpr int kRp = 115;
+inline constexpr int kGroup = 116;
+inline constexpr int kAs = 117;
 inline constexpr int kComma = 118;
+inline constexpr int kDot = 119;
+inline constexpr int kFrom = 127;
+inline constexpr int kValues = 147;
 inline constexpr int kVariable = 153;
 inline constexpr int kSelect = 161;
-inline constexpr int kFrom = 127;
-inline constexpr int kStar = 99;
+inline constexpr int kLimit = 163;
+inline constexpr int kJoin = 164;
+inline constexpr int kUsing = 165;
 inline constexpr int kSpace = 185;
 inline constexpr int kComment = 186;
 inline constexpr int kIllegal = 187;
+inline constexpr int kBang = 188;
 }  // namespace sql_token
 
 // Tokenizes SQL statements according to SQLite SQL language specification:

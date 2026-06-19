@@ -28,18 +28,31 @@
 namespace perfetto::trace_processor {
 
 // Verify that the sql_token constants in the header match the generated values.
+static_assert(sql_token::kBy == SYNTAQLITE_TK_BY);
 static_assert(sql_token::kId == SYNTAQLITE_TK_ID);
+static_assert(sql_token::kStar == SYNTAQLITE_TK_STAR);
+static_assert(sql_token::kString == SYNTAQLITE_TK_STRING);
+static_assert(sql_token::kInteger == SYNTAQLITE_TK_INTEGER);
+static_assert(sql_token::kFloat == SYNTAQLITE_TK_FLOAT);
 static_assert(sql_token::kSemi == SYNTAQLITE_TK_SEMI);
 static_assert(sql_token::kLp == SYNTAQLITE_TK_LP);
+static_assert(sql_token::kOrder == SYNTAQLITE_TK_ORDER);
 static_assert(sql_token::kRp == SYNTAQLITE_TK_RP);
+static_assert(sql_token::kGroup == SYNTAQLITE_TK_GROUP);
+static_assert(sql_token::kAs == SYNTAQLITE_TK_AS);
 static_assert(sql_token::kComma == SYNTAQLITE_TK_COMMA);
+static_assert(sql_token::kDot == SYNTAQLITE_TK_DOT);
+static_assert(sql_token::kFrom == SYNTAQLITE_TK_FROM);
+static_assert(sql_token::kValues == SYNTAQLITE_TK_VALUES);
 static_assert(sql_token::kVariable == SYNTAQLITE_TK_VARIABLE);
 static_assert(sql_token::kSelect == SYNTAQLITE_TK_SELECT);
-static_assert(sql_token::kFrom == SYNTAQLITE_TK_FROM);
-static_assert(sql_token::kStar == SYNTAQLITE_TK_STAR);
+static_assert(sql_token::kLimit == SYNTAQLITE_TK_LIMIT);
+static_assert(sql_token::kJoin == SYNTAQLITE_TK_JOIN);
+static_assert(sql_token::kUsing == SYNTAQLITE_TK_USING);
 static_assert(sql_token::kSpace == SYNTAQLITE_TK_SPACE);
 static_assert(sql_token::kComment == SYNTAQLITE_TK_COMMENT);
 static_assert(sql_token::kIllegal == SYNTAQLITE_TK_ILLEGAL);
+static_assert(sql_token::kBang == SYNTAQLITE_TK_BANG);
 
 SqliteTokenizer::SqliteTokenizer(SqlSource sql) : source_(std::move(sql)) {
   tok_ = syntaqlite_tokenizer_create_with_dialect(
