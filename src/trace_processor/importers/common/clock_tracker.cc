@@ -44,29 +44,6 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 
 namespace perfetto::trace_processor {
-namespace {
-
-std::optional<StringId> GetBuiltinClockNameOrNull(TraceStorage* storage,
-                                                  int64_t clock_id) {
-  switch (clock_id) {
-    case protos::pbzero::BUILTIN_CLOCK_REALTIME:
-      return storage->InternString("REALTIME");
-    case protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE:
-      return storage->InternString("REALTIME_COARSE");
-    case protos::pbzero::BUILTIN_CLOCK_MONOTONIC:
-      return storage->InternString("MONOTONIC");
-    case protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE:
-      return storage->InternString("MONOTONIC_COARSE");
-    case protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW:
-      return storage->InternString("MONOTONIC_RAW");
-    case protos::pbzero::BUILTIN_CLOCK_BOOTTIME:
-      return storage->InternString("BOOTTIME");
-    default:
-      return std::nullopt;
-  }
-}
-
-}  // namespace
 
 // --- ClockTracker: public slow-path methods ---
 
@@ -76,6 +53,15 @@ ClockTracker::ClockTracker(
     ClockSynchronizer* primary_sync,
     bool is_primary)
     : context_(context),
+      realtime_clock_name_(context->storage->InternString("REALTIME")),
+      realtime_coarse_clock_name_(
+          context->storage->InternString("REALTIME_COARSE")),
+      monotonic_clock_name_(context->storage->InternString("MONOTONIC")),
+      monotonic_coarse_clock_name_(
+          context->storage->InternString("MONOTONIC_COARSE")),
+      monotonic_raw_clock_name_(
+          context->storage->InternString("MONOTONIC_RAW")),
+      boottime_clock_name_(context->storage->InternString("BOOTTIME")),
       sync_(context->trace_time_state.get(), std::move(listener)),
       active_sync_(primary_sync),
       is_primary_(is_primary) {
@@ -164,12 +150,32 @@ void ClockTracker::AddSnapshotToTable(
     row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id.clock_id);
     row.clock_value =
         clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
-    row.clock_name = GetBuiltinClockNameOrNull(
-        context_->storage.get(), clock_timestamp.clock.id.clock_id);
+    row.clock_name =
+        GetBuiltinClockNameOrNull(clock_timestamp.clock.id.clock_id);
     row.snapshot_id = snapshot_id;
     row.machine_id = context_->machine_id();
 
     context_->storage->mutable_clock_snapshot_table()->Insert(row);
+  }
+}
+
+std::optional<StringId> ClockTracker::GetBuiltinClockNameOrNull(
+    int64_t clock_id) const {
+  switch (clock_id) {
+    case protos::pbzero::BUILTIN_CLOCK_REALTIME:
+      return realtime_clock_name_;
+    case protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE:
+      return realtime_coarse_clock_name_;
+    case protos::pbzero::BUILTIN_CLOCK_MONOTONIC:
+      return monotonic_clock_name_;
+    case protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE:
+      return monotonic_coarse_clock_name_;
+    case protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW:
+      return monotonic_raw_clock_name_;
+    case protos::pbzero::BUILTIN_CLOCK_BOOTTIME:
+      return boottime_clock_name_;
+    default:
+      return std::nullopt;
   }
 }
 

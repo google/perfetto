@@ -312,4 +312,22 @@ describe('resolveResultColumns', () => {
       resolveResultColumns(['_meta', 'name', 'dur'], ['name', 'dur', '_meta']),
     ).toEqual(['name', 'dur', '_meta']);
   });
+
+  test('hides _row_id by default', () => {
+    expect(
+      resolveResultColumns(null, ['_row_id', 'trace_id', 'name', 'dur']),
+    ).toEqual(['trace_id', 'name', 'dur']);
+  });
+
+  test('keeps _row_id when explicitly chosen', () => {
+    expect(
+      resolveResultColumns(['name', '_row_id'], ['_row_id', 'name', 'dur']),
+    ).toEqual(['name', '_row_id']);
+  });
+
+  test('the all-stale fallback also hides _row_id', () => {
+    expect(resolveResultColumns(['old_a'], ['_row_id', 'name', 'dur'])).toEqual(
+      ['name', 'dur'],
+    );
+  });
 });

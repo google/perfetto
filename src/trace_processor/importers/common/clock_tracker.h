@@ -160,7 +160,19 @@ class ClockTracker {
   void AddSnapshotToTable(uint32_t snapshot_id,
                           const std::vector<ClockTimestamp>& clock_timestamps);
 
+  // Returns the interned name for a builtin clock, or nullopt if |clock_id| is
+  // not a builtin clock. The names are interned once in the constructor.
+  std::optional<StringId> GetBuiltinClockNameOrNull(int64_t clock_id) const;
+
   TraceProcessorContext* context_;
+
+  // Interned builtin clock names, populated in the constructor.
+  StringId realtime_clock_name_;
+  StringId realtime_coarse_clock_name_;
+  StringId monotonic_clock_name_;
+  StringId monotonic_coarse_clock_name_;
+  StringId monotonic_raw_clock_name_;
+  StringId boottime_clock_name_;
 
   // Private ClockSynchronizer used for non-primary traces. Primary traces use
   // the externally provided |primary_sync_| directly and don't use this member.
