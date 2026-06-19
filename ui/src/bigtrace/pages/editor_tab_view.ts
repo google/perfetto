@@ -138,6 +138,14 @@ function buildTabBindings(
       tab.disabledSettings = [...set];
       tabsState.markDirty();
     },
+    getSql: () => tab.editorText,
+    setQueryAndTitle: (perfettoSql, title) => {
+      tab.editorText = perfettoSql;
+      // A title other than "Query N" sticks — maybeAutoNameTab won't replace it.
+      if (title) tab.title = title;
+      tabsState.markDirty();
+      m.redraw();
+    },
   };
 }
 

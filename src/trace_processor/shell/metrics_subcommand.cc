@@ -72,22 +72,17 @@ base::Status MetricsSubcommand::Run(const SubcommandContext& ctx) {
     return base::ErrStatus("metrics: --run is required");
   }
 
-  if (ctx.positional_args.empty()) {
-    return base::ErrStatus("metrics: trace file is required");
-  }
-  std::string trace_file = ctx.positional_args[0];
+  std::string trace_file;
+  RETURN_IF_ERROR(ResolveTraceFileArg(ctx, "metrics", &trace_file, nullptr));
 
   // Metric extensions and their descriptor pool are pre-populated in
   // GlobalOptions; SetupTraceProcessor loads them into TP.
-  auto config = BuildConfig(*ctx.global, ctx.platform);
-  ASSIGN_OR_RETURN(auto tp,
-                   SetupTraceProcessor(*ctx.global, config, ctx.platform));
-
   PERFETTO_CHECK(ctx.global->metric_descriptor_pool);
   auto& pool = *ctx.global->metric_descriptor_pool;
 
-  ASSIGN_OR_RETURN(auto t_load,
-                   LoadTraceFile(tp.get(), ctx.platform, trace_file));
+  base::TimeNanos t_load{};
+  ASSIGN_OR_RETURN(auto tp, CreateTraceProcessor(*ctx.global, ctx.platform,
+                                                 trace_file, &t_load));
 
   // Pre-metrics query.
   if (!pre_path_.empty()) {

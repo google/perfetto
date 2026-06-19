@@ -264,55 +264,79 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       name: '__tracks_to_create',
       engine: ctx.engine,
       as: `
-        with grouped as materialized (
+        with
+        -- A thread's 'thread_overlapping_slice' overflow tracks share the type
+        -- and group_key of its 'thread_execution' track, so they combine into a
+        -- single track.
+        tracks as (
           select
-            t.type,
-            min(t.name) as name,
-            lower(min(t.name)) as lower_name,
+            t.id,
+            t.name,
             extract_arg(t.dimension_arg_set_id, 'utid') as utid,
             extract_arg(t.dimension_arg_set_id, 'upid') as upid,
             extract_arg(t.dimension_arg_set_id, 'gpu') as gpu_id,
             extract_arg(t.source_arg_set_id, 'description') as description,
-            min(t.id) minTrackId,
-            group_concat(t.id) as trackIds,
-            count() as trackCount,
-            max(cs.track_id IS NOT NULL) as hasCallstacks,
-            CASE t.type
-              WHEN 'thread_execution' THEN 0
-              WHEN 'art_method_tracing' THEN 1
-              ELSE 99
-            END as track_rank,
+            iif(t.type = 'thread_overlapping_slice', 'thread_execution', t.type)
+              as type,
+            iif(
+              t.type in ('thread_execution', 'thread_overlapping_slice'),
+              'thread_' || extract_arg(t.dimension_arg_set_id, 'utid'),
+              iif(t.track_group_id is null,
+                  'track_' || t.id,
+                  'group_' || t.track_group_id)) as group_key,
             'slice' as rootTable,
-            min(parent_t.name) as parentName,
-            min(t.parent_id) as parentId
+            parent_t.name as parentName,
+            t.parent_id as parentId
           from _slice_track_summary s
           join track t using (id)
           left join track parent_t on parent_t.id = t.parent_id
-          left join _track_event_tracks_with_callstacks cs on cs.track_id = t.id
           where t.id not in (select distinct parent_id from track where parent_id is not null)
-          group by t.type, upid, utid, gpu_id, t.track_group_id, ifnull(t.track_group_id, t.id)
+
           union all
+
           select
-            t.type,
-            min(t.name) as name,
-            lower(min(t.name)) as lower_name,
+            t.id,
+            t.name,
             extract_arg(t.dimension_arg_set_id, 'utid') as utid,
             extract_arg(t.dimension_arg_set_id, 'upid') as upid,
             extract_arg(t.dimension_arg_set_id, 'gpu') as gpu_id,
             extract_arg(t.source_arg_set_id, 'description') as description,
-            min(t.id) minTrackId,
-            group_concat(t.id) as trackIds,
-            count() as trackCount,
-            0 as hasCallstacks,
-            99 as track_rank,
+            t.type,
+            iif(t.track_group_id is null,
+                'track_' || t.id,
+                'group_' || t.track_group_id) as group_key,
             'state' as rootTable,
-            min(parent_t.name) as parentName,
-            min(t.parent_id) as parentId
+            parent_t.name as parentName,
+            t.parent_id as parentId
           from _state_track_summary s
           join track t using (id)
           left join track parent_t on parent_t.id = t.parent_id
           where t.id not in (select distinct parent_id from track where parent_id is not null)
-          group by t.type, upid, utid, gpu_id, t.track_group_id, ifnull(t.track_group_id, t.id)
+        ),
+        grouped as materialized (
+          select
+            t.type,
+            min(t.name) as name,
+            lower(min(t.name)) as lower_name,
+            t.utid,
+            t.upid,
+            t.gpu_id,
+            t.description,
+            min(t.id) minTrackId,
+            group_concat(t.id) as trackIds,
+            count() as trackCount,
+            max(cs.track_id is not null) as hasCallstacks,
+            case t.type
+              when 'thread_execution' then 0
+              when 'art_method_tracing' then 1
+              else 99
+            end as track_rank,
+            min(t.rootTable) as rootTable,
+            min(t.parentName) as parentName,
+            min(t.parentId) as parentId
+          from tracks t
+          left join _track_event_tracks_with_callstacks cs on cs.track_id = t.id
+          group by t.type, t.upid, t.utid, t.gpu_id, t.group_key
         )
         select
           s.type,

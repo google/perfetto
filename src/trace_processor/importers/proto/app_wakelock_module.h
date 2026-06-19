@@ -39,17 +39,9 @@ class AppWakelockModule : public ProtoImporterModule {
 
   // Tokenize and de-intern WakelockBundles so that bundles of multiple
   // packets are sorted appropriately.
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t ts,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData&,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
  private:
   void ParseWakelockBundle(int64_t ts, protozero::ConstBytes blob);

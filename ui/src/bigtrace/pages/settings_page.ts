@@ -28,6 +28,7 @@ import {PopupPosition} from '../../widgets/popup';
 import {Card, CardStack} from '../../widgets/card';
 import {Icon} from '../../widgets/icon';
 import {classNames} from '../../base/classnames';
+import {arrayEquals} from '../../base/array_utils';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {
   Setting as BigTraceSetting,
@@ -61,10 +62,18 @@ import type {
 } from '../../components/widgets/datagrid/model';
 import {
   BigtraceQueryClient,
+  type TracePreset,
   type TraceColumnDescriptor,
   type TracesSchemaResponse,
 } from '../query/bigtrace_query_client';
 import {BigtraceTraceListDataSource} from '../query/bigtrace_trace_list_data_source';
+import {presetStore} from '../query/preset_store';
+import {encodeFilters} from '../query/filter_encoding';
+import {queryState} from '../query/query_state';
+import {setRoute} from '../router';
+import {Routes} from '../routes';
+import {groupPresetsByCuj, renderCujSelector} from './preset_groups';
+import {formatCompact} from '../query/query_store';
 import {
   traceFilterState as traceFiltersState,
   traceOrderByState,
@@ -231,6 +240,9 @@ function formatSingleFieldOrderBy(
 
 export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   private searchQuery = '';
+  // Active CUJ tab in the preset picker. Defaults to the matched preset's
+  // group (so its highlighted chip is visible), else the first group.
+  private activePresetCuj?: string;
   // Captured on every view() so private methods read it without threading attrs.
   private bindings: SettingsBindings | undefined;
   // Trace-list grid state. Rebuilt whenever the endpoint changes (its
@@ -265,6 +277,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     this.traceListSortField = parsed?.field;
     this.traceListSortDirection = parsed?.direction;
     bigTraceSettingsStorage.loadSettings();
+    void presetStore.load();
   }
 
   // Binding-aware accessors (fall back to globals).
@@ -449,6 +462,160 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     m.redraw();
   }
 
+  // "Load a preset" control atop the settings, on both the standalone
+  // /settings page and the per-tab modal. Applies a preset's trace-selection +
+  // option settings; the per-tab modal also loads its query + title.
+  private renderPresetPicker(): m.Children {
+    const tpls = presetStore.presets;
+    if (tpls.length === 0) return null;
+    const {groups, byCuj} = groupPresetsByCuj(tpls);
+    // The preset the current tab matches 1:1 (incl. SQL), if any — its chip
+    // highlights and its group opens by default.
+    const matchedId = this.matchedPresetId();
+    const matchedCuj = matchedId
+      ? tpls.find((t) => t.id === matchedId)?.category || 'Other'
+      : undefined;
+    const activeCuj =
+      this.activePresetCuj !== undefined && byCuj.has(this.activePresetCuj)
+        ? this.activePresetCuj
+        : matchedCuj !== undefined && byCuj.has(matchedCuj)
+          ? matchedCuj
+          : groups[0][0];
+    return m(
+      Card,
+      {
+        className: 'pf-settings-card pf-bt-preset-picker',
+        style: {display: 'block', marginBottom: '16px'},
+      },
+      m('.pf-settings-card__title', 'Presets'),
+      m(
+        '.pf-settings-card__description',
+        this.bindings
+          ? 'Click a preset to load its query and settings into this tab.'
+          : 'Click a preset to apply its trace selection and options to the ' +
+              'settings below.',
+      ),
+      renderCujSelector(
+        groups.map(([cuj]) => cuj),
+        activeCuj,
+        (cuj) => {
+          this.activePresetCuj = cuj;
+        },
+      ),
+      m(
+        '.pf-bt-preset-chips',
+        (byCuj.get(activeCuj) ?? []).map((t) =>
+          m(
+            'button.pf-bt-preset-chip',
+            {
+              className: classNames(
+                t.id === matchedId && 'pf-bt-preset-chip--active',
+              ),
+              title: t.description || t.name,
+              onclick: () => this.applyPreset(t),
+            },
+            t.name,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // The preset the current context matches 1:1 (SQL + trace selection + the
+  // option settings it specifies), or undefined. Derived each render. Only the
+  // per-tab modal has SQL to compare, so standalone /settings never matches.
+  private matchedPresetId(): string | undefined {
+    if (this.bindings === undefined) return undefined;
+    return presetStore.presets.find((t) => this.presetMatches(t))?.id;
+  }
+
+  private presetMatches(t: TracePreset): boolean {
+    const b = this.bindings;
+    if (b === undefined) return false;
+    // SQL, trimmed. materialized and limit are run-time toolbar params, not
+    // settings, so they're deliberately excluded from the match.
+    if ((b.getSql?.() ?? '').trim() !== t.perfettoSql.trim()) return false;
+    // Trace selection (optional fields default to empty). Filters compared by
+    // canonical key-sorted encoding, so a different key order still matches.
+    if (this.readTraceOrderBy() !== (t.traceOrderBy ?? '')) return false;
+    if (
+      encodeFilters(this.readTraceFilters()) !==
+      encodeFilters(t.traceFilters ?? [])
+    ) {
+      return false;
+    }
+    const cols = t.traceMetadataColumns ?? [];
+    const wantCols = cols.length ? cols : null;
+    const curCols = this.readTraceMetadataColumns();
+    if (curCols === null || wantCols === null) {
+      if (curCols !== wantCols) return false;
+    } else if (!arrayEquals(curCols, wantCols)) {
+      return false;
+    }
+    // Every option setting the preset specifies must equal the effective one.
+    const eff = this.effectiveSettings();
+    for (const s of t.settings ?? []) {
+      const cur = eff.find((e) => e.settingId === s.settingId);
+      if (cur === undefined || !arrayEquals(cur.values, s.values)) return false;
+    }
+    return true;
+  }
+
+  private applyPreset(t: TracePreset): void {
+    // The per-tab modal has an editor, so load the preset's query + title;
+    // standalone /settings has none (the optional setter is absent there).
+    // Everything else routes through the binding-aware writers.
+    this.bindings?.setQueryAndTitle?.(t.perfettoSql, t.name);
+    this.writeTraceFilters([...(t.traceFilters ?? [])]);
+    const cols = t.traceMetadataColumns ?? [];
+    this.writeTraceMetadataColumns(cols.length ? [...cols] : null);
+    this.writeTraceOrderBy(t.traceOrderBy ?? '');
+    // Keep the trace grid's controlled-mode filter in sync with the write.
+    this.traceFilterss = this.readTraceFilters();
+    // The preset's settings are enabled and set; every other setting is turned
+    // off — togglable → disabled, boolean → false (booleans can't disable).
+    const byId = new Map(
+      (t.settings ?? []).map((s) => [s.settingId, s] as const),
+    );
+    for (const raw of bigTraceSettingsStorage.getAllSettings()) {
+      if (raw.category === undefined) continue;
+      const setting = this.boundSetting(raw);
+      const preset = byId.get(raw.id);
+      try {
+        if (preset !== undefined) {
+          if (raw.type !== 'boolean') setting.setDisabled(false);
+          setting.set(this.coerceSettingValue(setting, preset.values));
+        } else if (raw.type === 'boolean') {
+          setting.set(false);
+        } else {
+          setting.setDisabled(true);
+        }
+      } catch (e) {
+        console.error(`preset setting ${raw.id} rejected`, e);
+      }
+    }
+    m.redraw();
+  }
+
+  // The wire ships setting values as strings; coerce to the registered
+  // setting's type before writing it to the global store.
+  private coerceSettingValue(
+    setting: BigTraceSetting<unknown>,
+    values: readonly string[],
+  ): unknown {
+    switch (setting.type) {
+      case 'boolean':
+        return values[0] === 'true';
+      case 'number':
+        return Number(values[0]);
+      case 'multi-select':
+      case 'string-array':
+        return [...values];
+      default:
+        return values[0] ?? '';
+    }
+  }
+
   // Renders the "Traces" card: a caption, a column-picker toggle row, and a
   // DataGrid driven by the trace-list DataSource. The toggle row and the grid's
   // "Add column" menu both write through `traceColumnsState`, so they stay in
@@ -489,6 +656,20 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
             void ds.refresh();
           },
         }),
+        // Standalone /settings only (the per-tab modal is already in a tab).
+        // Opens a new query tab seeded with the current settings (no SQL).
+        !this.bindings &&
+          m(Button, {
+            label: 'Query',
+            rightIcon: 'arrow_forward',
+            intent: Intent.Primary,
+            className: 'pf-bt-trace-card__query',
+            title: 'Open a new query with these settings (no SQL)',
+            onclick: () => {
+              queryState.seedTabFromSettings = true;
+              setRoute(Routes.QUERY);
+            },
+          }),
       ]),
       m(
         '.pf-settings-card__description',
@@ -636,16 +817,22 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     // show it without re-fetching. No-op on /settings (no onTraceMatchCount).
     this.bindings?.onTraceMatchCount?.(n);
     const hasFilter = this.traceFilterss.length > 0;
+    // Compact count (1.2K) like the history sidebar's row counts; the exact
+    // number lives in the hover title.
     const text =
       n === undefined
         ? 'Counting traces…'
         : hasFilter
-          ? `${n.toLocaleString()} trace${n === 1 ? '' : 's'} match`
-          : `${n.toLocaleString()} trace${n === 1 ? '' : 's'}`;
+          ? `${formatCompact(n)} trace${n === 1 ? '' : 's'} match`
+          : `${formatCompact(n)} trace${n === 1 ? '' : 's'}`;
     // Filled label that reads as a status, not a clickable chip.
     return m(
       'span.pf-bt-trace-match-count',
       {
+        title:
+          n === undefined
+            ? undefined
+            : `${n.toLocaleString()} trace${n === 1 ? '' : 's'}`,
         style: {
           display: 'inline-flex',
           alignItems: 'center',
@@ -842,14 +1029,8 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       !hasOtherMatches &&
       !bigTraceSettingsStorage.execConfigLoadError;
 
-    const body = m('.pf-bt-settings-page', [
-      bigTraceSettingsStorage.isExecConfigLoading &&
-        m(EmptyState, {
-          title: 'Loading settings...',
-          icon: 'hourglass_empty',
-          fillHeight: true,
-        }),
-      Array.from(categories.entries()).map(([category, catSettings]) => {
+    const sections = Array.from(categories.entries()).map(
+      ([category, catSettings]) => {
         const categoryHeader: m.Children = m(
           'h2.pf-bt-settings-page__plugin-title',
           category,
@@ -893,7 +1074,29 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
           categoryHeader,
           categoryContent,
         );
-      }),
+      },
+    );
+
+    // The endpoint setting lives in "General"; render the Presets picker
+    // right after that section so the prerequisite (the endpoint) sits above it.
+    const generalIdx = Array.from(categories.keys()).indexOf('General');
+    const sectionsWithPresets =
+      generalIdx >= 0
+        ? [
+            ...sections.slice(0, generalIdx + 1),
+            this.renderPresetPicker(),
+            ...sections.slice(generalIdx + 1),
+          ]
+        : [this.renderPresetPicker(), ...sections];
+
+    const body = m('.pf-bt-settings-page', [
+      bigTraceSettingsStorage.isExecConfigLoading &&
+        m(EmptyState, {
+          title: 'Loading settings...',
+          icon: 'hourglass_empty',
+          fillHeight: true,
+        }),
+      sectionsWithPresets,
       // After the General card so the callout's "Set the Endpoint above" copy
       // points at a field above it.
       bigTraceSettingsStorage.execConfigLoadError &&

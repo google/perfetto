@@ -17,9 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_RPC_UNIXD_H_
 #define SRC_TRACE_PROCESSOR_RPC_UNIXD_H_
 
+#include <cstdint>
 #include <string>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/rpc/session_lifecycle.h"
 
 namespace perfetto::trace_processor {
 
@@ -30,6 +32,12 @@ struct UnixServerArgs {
   std::string socket_path;
   // Human-facing session name, printed in the startup record.
   std::string session_name;
+  // Idle-timeout before the server reaps itself; 0 disables reaping.
+  uint32_t idle_timeout_ms = 0;
+  // When the idle clock applies (see IdleStart).
+  IdleStart idle_start = IdleStart::kAuto;
+  // If true, detach into the background (POSIX only) before serving.
+  bool daemonize = false;
 };
 
 // Runs an RPC server over an AF_UNIX socket at |args.socket_path|, serving the

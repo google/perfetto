@@ -26,8 +26,6 @@
 #include "perfetto/public/pb_macros.h"
 
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidAflags);
-PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraFrameEvent);
-PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraSessionStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidEnergyEstimationBreakdown);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogPacket);
@@ -45,7 +43,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_CpuPerUidData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DeobfuscationMapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EntityStateResidency);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwTraceEventBundle);
-PERFETTO_PB_MSG_DECL(perfetto_protos_EvdevEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ExtensionDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FrameTimelineEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
@@ -377,16 +374,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   78);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_AndroidCameraFrameEvent,
-                  android_camera_frame_event,
-                  80);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_AndroidCameraSessionStats,
-                  android_camera_session_stats,
-                  81);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
                   perfetto_protos_TranslationTable,
                   translation_table,
                   82);
@@ -540,11 +527,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_CpuPerUidData,
                   cpu_per_uid_data,
                   119);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_EvdevEvent,
-                  evdev_event,
-                  121);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_AndroidUserList,
