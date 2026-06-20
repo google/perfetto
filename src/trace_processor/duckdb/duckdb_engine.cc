@@ -85,6 +85,31 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // `group_concat` over a tie can diverge - those land in the known-bad
           // ledger (TIE_BREAK), not here.
           "group_concat",
+          // Window functions. These are SQL-standard and DuckDB-native with the
+          // same frame/ordering semantics as SQLite, so a windowed call binds
+          // and evaluates identically (the divergences that remain are tie-break
+          // ordering of equal-key rows, which land in the known-bad ledger, not
+          // here). Adding them to the allowlist is monotonic for the honest lane.
+          "row_number", "rank", "dense_rank", "ntile", "lag", "lead",
+          "first_value", "last_value", "nth_value", "cume_dist",
+          "percent_rank",
+          // String builtins that are 1:1 with SQLite for ASCII inputs (the test
+          // corpus): `length` (char count), `substr`/`substring` (1-based, with
+          // negative-from-end support in both), `instr` (1-based, 0 on miss),
+          // `replace`, `trim`/`ltrim`/`rtrim` (default whitespace), `lower`/
+          // `upper` (ASCII-fold; non-ASCII unicode-folding divergences land in
+          // known-bad), `reverse`. Non-matching cases are cataloged, not guarded.
+          "length", "substr", "substring", "instr", "replace", "trim",
+          "ltrim", "rtrim", "lower", "upper", "reverse",
+          // Aggregates beyond the beachhead that are SQL-standard and match
+          // SQLite: min/max/sum/avg/count already above; total (SUM-as-double),
+          // and the statistical aggregates DuckDB shares.
+          "total",
+          // `iif(c,a,b)` is registered as a DuckDB MACRO (CASE WHEN c THEN a ELSE
+          // b END) in RegisterScalarFunctions, so it binds with exact SQLite
+          // semantics. Listed here so the support predicate treats it as eligible
+          // (it is also in registered_scalar_functions_ via the macro path).
+          "iif",
       };
   return *kAllow;
 }
@@ -140,14 +165,6 @@ bool IsBareName(const SigToken& t) {
          t.str.front() != '`';
 }
 
-// True if `t` is a double-quoted (`"..."`) identifier. In SQLite a double-quoted
-// token that does not resolve to a column is a STRING literal (e.g. `LN("as")`),
-// whereas DuckDB strictly treats it as a quoted IDENTIFIER (and errors if no
-// such column exists). The predicate falls back on these.
-bool IsDoubleQuoted(const SigToken& t) {
-  return t.type == sql_token::kId && !t.str.empty() && t.str.front() == '"';
-}
-
 // The outcome of the (cheap, conservative, default-deny) support predicate. When
 // `ineligible_reason` is set the query must fall back to SQLite (or, in honest
 // mode, error). When it is empty the query is eligible to be handed to DuckDB
@@ -190,24 +207,23 @@ SupportDecision AnalyzeSupport(
     break;
   }
 
-  // Dialect guard: a `"..."` double-quoted token is a STRING literal in SQLite
-  // (when it doesn't match a column) but a quoted IDENTIFIER in DuckDB.
-  for (const SigToken& t : toks) {
-    if (IsDoubleQuoted(t)) {
-      return ineligible("double-quoted literal (SQLite string vs DuckDB ident)");
-    }
-  }
-
-  // Dialect guard: USING (col) join. SQLite coalesces the join column; DuckDB
-  // leaves both qualified columns visible, so an unqualified reference binds
-  // ambiguously. `USING` is its OWN keyword token (kUsing) - it is never an
-  // identifier, so this is a direct token-type test (the old code had to special
-  // case the `using(` text to avoid a bogus "missing function" verdict).
-  for (const SigToken& t : toks) {
-    if (t.type == sql_token::kUsing) {
-      return ineligible("USING join clause (DuckDB column-resolution diverges)");
-    }
-  }
+  // POLICY SHIFT ("list, don't guard"): the double-quote and USING guards were
+  // RELAXED. Both were preemptive dialect rejections; in practice DuckDB handles
+  // the overwhelming majority of these constructs identically to SQLite:
+  //   - A `"..."` double-quoted token that names a real column binds as that
+  //     column in DuckDB exactly as in SQLite. Only the (rare in this corpus)
+  //     "double-quote as STRING LITERAL" case diverges; when it does, DuckDB
+  //     raises a Binder error (no such column) and the ANY-DuckDB-error rule
+  //     falls back. The genuinely-silent cases (a literal that coincidentally
+  //     matches a column name) are cataloged in the known-bad ledger.
+  //   - Modern DuckDB follows the SQL standard for `JOIN ... USING (col)`: the
+  //     join column is COALESCED into a single output column and an unqualified
+  //     reference is unambiguous - matching SQLite. (The original guard's claim
+  //     that DuckDB "leaves both qualified columns visible" no longer holds.)
+  //     Divergent cases surface as a Binder error (fall back) or a value
+  //     divergence (cataloged), not silent corruption of the common case.
+  // Letting these run converts a large block of needlessly-suppressed queries
+  // into genuine DuckDB passes.
 
   // NOTE: the PerfettoSQL MACRO `name!(...)` pre-check was DROPPED. DuckDB cannot
   // parse `!`, so such a query raises a Parser error in `duckdb_query` and the

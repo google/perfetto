@@ -319,6 +319,25 @@ base::Status RegisterScalarFunctions(
     out_registered->insert("unhex");
   }
 
+  // iif(cond, a, b): SQLite's ternary. DuckDB has no `iif` builtin (it spells it
+  // `CASE WHEN`), so define a MACRO with the exact CASE expansion. This binds
+  // with identical semantics to SQLite (including NULL-condition -> else branch).
+  {
+    duckdb_result res;
+    duckdb_state st = duckdb_query(
+        conn,
+        "CREATE OR REPLACE MACRO iif(c, a, b) AS CASE WHEN c THEN a ELSE b END;",
+        &res);
+    std::string err = st == DuckDBError ? duckdb_result_error(&res) : "";
+    duckdb_destroy_result(&res);
+    if (st == DuckDBError) {
+      return base::ErrStatus(
+          "RegisterScalarFunctions: failed to create iif macro: %s",
+          err.c_str());
+    }
+    out_registered->insert("iif");
+  }
+
   return base::OkStatus();
 }
 
