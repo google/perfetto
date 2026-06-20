@@ -53,6 +53,16 @@ std::string SpanText(SyntaqliteParser* p, SyntaqliteTextSpan span) {
   return {text, len};
 }
 
+// The AUTHORED (pre-macro-expansion) text of AST node `node_id`. Requires
+// per-node extent tracking (enabled in the parser ctor). Returns "" if no
+// extent was recorded.
+std::string RawNodeText(SyntaqliteParser* p, uint32_t node_id) {
+  uint32_t len = 0;
+  uint32_t off = 0;
+  const char* text = syntaqlite_parser_node_text(p, node_id, &len, &off);
+  return text ? std::string(text, len) : std::string();
+}
+
 base::StatusOr<std::vector<sql_argument::ArgumentDefinition>> BuildArgDefs(
     SyntaqliteParser* p,
     uint32_t list_id) {
@@ -412,6 +422,7 @@ base::StatusOr<Statement> ParseCreateFunction(
       NodeSource(rb, n.select),
       "",
       std::nullopt,
+      RawNodeText(p, n.select),
   });
 }
 
@@ -432,6 +443,7 @@ base::StatusOr<Statement> ParseCreateDelegatingFunction(
       SqlSource::FromTraceProcessorImplementation(""),
       "",
       SpanText(p, n.delegate_to),
+      "",
   });
 }
 

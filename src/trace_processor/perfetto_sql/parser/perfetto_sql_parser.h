@@ -74,6 +74,15 @@ class PerfettoSqlParser {
     // Support for DELEGATES TO target_function syntax
     std::optional<std::string>
         target_function;  // Set when DELEGATES TO is used
+    // The AUTHORED (pre-macro-expansion) body text, with `!` macro calls and
+    // `$param` placeholders intact. `sql` above is the post-expansion body used
+    // by the SQLite path; this raw form lets the experimental DuckDB lane
+    // re-run its own rewrite->expand pipeline (so a body using e.g.
+    // interval_intersect can be mapped to DuckDB's native functions rather than
+    // the SQLite-vtable table-pointer ABI). Empty for DELEGATES TO.
+    // Default-initialized so existing positional aggregate initializers that
+    // omit it (e.g. parser unittests) keep compiling.
+    std::string raw_body_sql = {};
   };
   // Indicates that the specified SQL was a CREATE PERFETTO TABLE statement
   // with the following parameters.

@@ -736,6 +736,24 @@ void TraceProcessorImpl::CacheBoundsAndBuildTable() {
 // |        PerfettoSQL related functionality starts here          |
 // =================================================================
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
+std::string TraceProcessorImpl::PipelineDuckDbMirrorBody(
+    const std::string& raw_body) {
+  std::string pre =
+      duckdb_integration::RewriteIntervalIntersectMacro(raw_body);
+  pre = duckdb_integration::RewriteIntervalCreateMacro(pre);
+  pre = duckdb_integration::RewriteIntervalIntersectSingleMacro(pre);
+  pre = duckdb_integration::RewriteIntervalIntersectWithColNamesMacro(pre);
+  pre = duckdb_integration::RewriteGraphReachableMacro(pre);
+  pre = duckdb_integration::RewriteGraphDominatorMacro(pre);
+  if (std::optional<std::string> expanded =
+          engine_->ExpandMacrosToSqlite(SqlSource::FromExecuteQuery(pre))) {
+    return *expanded;
+  }
+  return pre;
+}
+#endif
+
 Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_QUERY",
                     [&](metatrace::Record* r) { r->AddArg("query", sql); });
@@ -789,7 +807,23 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
           [this]() {
             std::vector<duckdb_integration::DuckDbEngine::TableFunction> out;
             for (const auto& fn : engine_->created_table_functions()) {
-              out.push_back({fn.name, fn.arg_names, fn.body_sql});
+              // Prefer the authored body run through the DuckDB rewrite->expand
+              // pipeline (so interval/graph macros map to native functions);
+              // fall back to the already-expanded body when there is no raw
+              // form (e.g. DELEGATES TO). Cached per (name, raw-body).
+              std::string body = fn.body_sql;
+              if (!fn.raw_body_sql.empty()) {
+                auto it = duckdb_mirror_body_cache_.find(fn.name);
+                if (it != duckdb_mirror_body_cache_.end() &&
+                    it->second.first == fn.raw_body_sql) {
+                  body = it->second.second;
+                } else {
+                  std::string piped = PipelineDuckDbMirrorBody(fn.raw_body_sql);
+                  duckdb_mirror_body_cache_[fn.name] = {fn.raw_body_sql, piped};
+                  body = std::move(piped);
+                }
+              }
+              out.push_back({fn.name, fn.arg_names, std::move(body)});
             }
             return out;
           },

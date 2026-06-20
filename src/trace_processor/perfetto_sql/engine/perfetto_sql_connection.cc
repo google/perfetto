@@ -1524,6 +1524,7 @@ base::Status PerfettoSqlConnection::ExecuteCreateFunction(
       rec.arg_names.emplace_back(arg.name().ToStdString());
     }
     rec.body_sql = cf.sql.sql();
+    rec.raw_body_sql = cf.raw_body_sql;
     created_table_functions_.emplace_back(std::move(rec));
   } else {
     runtime_table_fn_context_->temporary_create_state.reset();

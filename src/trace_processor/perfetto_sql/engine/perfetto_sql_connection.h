@@ -381,6 +381,11 @@ class PerfettoSqlConnection {
     std::string name;
     std::vector<std::string> arg_names;
     std::string body_sql;
+    // The AUTHORED (pre-macro-expansion) body, with `!` macros and `$param`
+    // placeholders intact. Lets the DuckDB lane re-run its own rewrite->expand
+    // pipeline so a body using interval_intersect/graph macros maps to DuckDB's
+    // native functions instead of the unbindable table-pointer intrinsic form.
+    std::string raw_body_sql;
   };
 
   // Returns the stdlib RETURNS TABLE functions created on this connection, in

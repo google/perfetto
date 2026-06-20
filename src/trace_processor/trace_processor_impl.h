@@ -204,6 +204,18 @@ class TraceProcessorImpl : public TraceProcessor,
   // config_.enable_duckdb_query_engine is set). Owns the DuckDB
   // database/connection + table provider.
   std::unique_ptr<duckdb_integration::DuckDbEngine> duckdb_engine_;
+  // Cache for the DuckDB table-function mirror: maps a stdlib RETURNS TABLE
+  // function name to {raw authored body, pipelined body}. The pipeline (interval
+  // /graph rewrites + macro expansion) is run once per (name, raw-body); a
+  // CREATE OR REPLACE with a changed body re-pipelines. Avoids re-parsing every
+  // function body on every query.
+  std::unordered_map<std::string, std::pair<std::string, std::string>>
+      duckdb_mirror_body_cache_;
+  // Runs the DuckDB rewrite->expand pipeline over an authored RETURNS TABLE
+  // function body (interval/graph macro rewrites, then macro expansion), so the
+  // function mirrors into DuckDB using native functions. Returns the pipelined
+  // body, or the rewritten-but-unexpanded body if expansion fails.
+  std::string PipelineDuckDbMirrorBody(const std::string& raw_body);
 #endif
 
   // Fallback-honesty counters. See accessors above. Defined unconditionally so
