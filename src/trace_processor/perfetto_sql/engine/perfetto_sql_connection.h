@@ -169,6 +169,20 @@ class PerfettoSqlConnection {
   // are the SAME ones the SQLite path expands, so the result is identical.
   std::optional<std::string> ExpandMacrosToSqlite(SqlSource sql);
 
+  // Installs a set of macro definitions that SHADOW the registry's own (by name)
+  // when expanding via ExpandMacrosToSqliteDuckDb. Used by the experimental
+  // DuckDB engine to provide native definitions of the table-valued intrinsic
+  // macros (interval_intersect / graphs / dominator) that expand to DuckDB
+  // functions instead of the SQLite-vtable table-pointer form, WITHOUT affecting
+  // the SQLite path (which keeps using the originals via ExpandMacrosToSqlite).
+  void SetDuckDbMacroOverrides(std::vector<PerfettoSqlParser::Macro> overrides);
+
+  // Like ExpandMacrosToSqlite, but expands against the registry merged with the
+  // DuckDB overrides installed via SetDuckDbMacroOverrides (overrides win on
+  // name collision). The merged registry is cached and rebuilt only when the
+  // underlying macro count changes.
+  std::optional<std::string> ExpandMacrosToSqliteDuckDb(SqlSource sql);
+
   // Registers a virtual table module with the given name.
   //
   // |name|: name of the module in SQL.
@@ -618,6 +632,14 @@ class PerfettoSqlConnection {
   // experimental DuckDB engine to mirror as scalar macros. Populated by
   // RegisterLegacyRuntimeFunction (the scalar create path).
   std::vector<CreatedScalarFunction> created_scalar_functions_;
+
+  // DuckDB-lane macro overrides (see SetDuckDbMacroOverrides) + the lazily-built
+  // registry-merged-with-overrides used by ExpandMacrosToSqliteDuckDb.
+  // `duckdb_merged_macros_base_count_` is the macro_count() the merge was built
+  // at; a change triggers a rebuild.
+  std::vector<PerfettoSqlParser::Macro> duckdb_macro_overrides_;
+  base::FlatHashMap<std::string, PerfettoSqlParser::Macro> duckdb_merged_macros_;
+  uint64_t duckdb_merged_macros_base_count_ = UINT64_MAX;
 
   // Contains the pointers for all registered virtual table modules where the
   // context class of the module inherits from ModuleStateManagerBase.

@@ -83,6 +83,7 @@
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/plugins/ancestor/ancestor.h"
 #include "src/trace_processor/plugins/args/args.h"
@@ -188,6 +189,56 @@ namespace perfetto::trace_processor {
 namespace {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
+// DuckDB-native definitions of the table-valued intrinsic macros. They expand
+// to the native DuckDB aggregate/combiner functions (registered in
+// DuckDbEngine) instead of the SQLite-vtable __intrinsic_table_ptr form, so
+// `ExpandMacrosToSqliteDuckDb` produces DuckDB-runnable SQL. Installed via
+// PerfettoSqlConnection::SetDuckDbMacroOverrides; they shadow the stdlib macros
+// of the same name ONLY for the DuckDB expansion path. Only macros whose native
+// form is COMPLETE for every argument variation they accept live here (a macro
+// always expands, so a partial native form would silently diverge); the
+// partition-bearing variants (interval_intersect, with_col_names) stay on the
+// guarded text-rewrite path until the combiner learns partitions.
+std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
+  auto mk = [](const char* name, std::vector<std::string> args,
+               const char* body) {
+    return PerfettoSqlParser::Macro{
+        /*replace=*/false, name, std::move(args),
+        SqlSource::FromTraceProcessorImplementation(body)};
+  };
+  std::vector<PerfettoSqlParser::Macro> v;
+  // Bodies are wrapped in parens: these macros RETURN TableOrSubquery and are
+  // used as `FROM name!(...)`, so the expansion must be a parenthesized
+  // subquery.
+  v.push_back(mk(
+      "graph_reachable_bfs", {"graph_table", "start_nodes"},
+      "(SELECT gr.u.node_id AS node_id, gr.u.parent_node_id AS parent_node_id "
+      "FROM (SELECT unnest(__intrinsic_graph_bfs("
+      "(SELECT __intrinsic_graph_agg(source_node_id, dest_node_id) FROM "
+      "$graph_table), (SELECT __intrinsic_int_array_agg(node_id) FROM "
+      "$start_nodes))) AS u) gr)"));
+  v.push_back(mk(
+      "graph_reachable_dfs", {"graph_table", "start_nodes"},
+      "(SELECT gr.u.node_id AS node_id, gr.u.parent_node_id AS parent_node_id "
+      "FROM (SELECT unnest(__intrinsic_graph_dfs("
+      "(SELECT __intrinsic_graph_agg(source_node_id, dest_node_id) FROM "
+      "$graph_table), (SELECT __intrinsic_int_array_agg(node_id) FROM "
+      "$start_nodes))) AS u) gr)"));
+  v.push_back(mk(
+      "graph_dominator_tree", {"graph_table", "root_node_id"},
+      "(SELECT dt.u.node_id AS node_id, dt.u.dominator_node_id AS "
+      "dominator_node_id FROM (SELECT "
+      "unnest(__intrinsic_dominator_tree(source_node_id, dest_node_id, "
+      "($root_node_id))) AS u FROM $graph_table) dt)"));
+  v.push_back(mk(
+      "_interval_intersect_single", {"ts", "dur", "t"},
+      "(SELECT s.u.id_0 AS id, s.u.ts AS ts, s.u.dur AS dur FROM (SELECT "
+      "unnest(__intrinsic_ii_combine(list_value((SELECT __intrinsic_ii_agg(id, "
+      "ts, dur) FROM $t), (SELECT __intrinsic_ii_agg(0, $ts, $dur))))) AS u) "
+      "s)"));
+  return v;
+}
+
 // Copies a plain SQLite-native table (`CREATE TABLE ...`, invisible to the
 // DuckDB dataframe replacement scan) into DuckDB's catalog by reading its rows
 // from the real engine and rebuilding it as a DuckDB table from a VALUES list.
@@ -742,12 +793,9 @@ std::string TraceProcessorImpl::PipelineDuckDbMirrorBody(
   std::string pre =
       duckdb_integration::RewriteIntervalIntersectMacro(raw_body);
   pre = duckdb_integration::RewriteIntervalCreateMacro(pre);
-  pre = duckdb_integration::RewriteIntervalIntersectSingleMacro(pre);
   pre = duckdb_integration::RewriteIntervalIntersectWithColNamesMacro(pre);
-  pre = duckdb_integration::RewriteGraphReachableMacro(pre);
-  pre = duckdb_integration::RewriteGraphDominatorMacro(pre);
   if (std::optional<std::string> expanded =
-          engine_->ExpandMacrosToSqlite(SqlSource::FromExecuteQuery(pre))) {
+          engine_->ExpandMacrosToSqliteDuckDb(SqlSource::FromExecuteQuery(pre))) {
     return *expanded;
   }
   return pre;
@@ -845,6 +893,9 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
           [this](const std::string& name, duckdb_connection conn) -> bool {
             return MaterializeSqliteTableIntoDuckDb(engine_.get(), name, conn);
           });
+      // Install the DuckDB-native macro definitions so ExpandMacrosToSqliteDuckDb
+      // expands the table-valued intrinsic macros to native functions.
+      engine_->SetDuckDbMacroOverrides(BuildDuckDbMacroOverrides());
     }
 
     // Wave-2 multi-statement split: the stdlib surface is reached via
@@ -879,19 +930,21 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
     // already ran in the engine above), so the expanded SQL is identical. If the
     // statement is not a single plain SQL statement, keep it verbatim (DuckDB
     // will then reject it and fall back, as before).
-    // First rewrite `_interval_intersect!(...)` to a plain-SQL overlap join
-    // (BEFORE macro expansion, which would otherwise produce the SQLite-vtable
-    // table-pointer machinery DuckDB cannot run), then expand remaining macros.
+    // Macros whose DuckDB-native form is COMPLETE (graph bfs/dfs, dominator,
+    // interval_intersect_single) are handled by DuckDB-native macro overrides
+    // via ExpandMacrosToSqliteDuckDb below. The partition-bearing variants
+    // (_interval_intersect, _interval_create, _interval_intersect_with_col_names)
+    // are still rewritten to plain SQL here, BEFORE expansion, because their
+    // native form is not yet partition-complete (a macro always expands, so a
+    // partial native macro would silently diverge).
     std::string pre =
         duckdb_integration::RewriteIntervalIntersectMacro(split.last);
     pre = duckdb_integration::RewriteIntervalCreateMacro(pre);
-    pre = duckdb_integration::RewriteIntervalIntersectSingleMacro(pre);
     pre = duckdb_integration::RewriteIntervalIntersectWithColNamesMacro(pre);
-    pre = duckdb_integration::RewriteGraphReachableMacro(pre);
-    pre = duckdb_integration::RewriteGraphDominatorMacro(pre);
     std::string duckdb_sql = pre;
     if (std::optional<std::string> expanded =
-            engine_->ExpandMacrosToSqlite(SqlSource::FromExecuteQuery(pre))) {
+            engine_->ExpandMacrosToSqliteDuckDb(
+                SqlSource::FromExecuteQuery(pre))) {
       duckdb_sql = std::move(*expanded);
     }
 

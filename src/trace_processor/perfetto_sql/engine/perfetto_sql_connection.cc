@@ -508,6 +508,56 @@ std::optional<std::string> PerfettoSqlConnection::ExpandMacrosToSqlite(
   return expanded;
 }
 
+void PerfettoSqlConnection::SetDuckDbMacroOverrides(
+    std::vector<PerfettoSqlParser::Macro> overrides) {
+  duckdb_macro_overrides_ = std::move(overrides);
+  duckdb_merged_macros_base_count_ = UINT64_MAX;  // Force a rebuild.
+}
+
+std::optional<std::string> PerfettoSqlConnection::ExpandMacrosToSqliteDuckDb(
+    SqlSource sql) {
+  if (duckdb_macro_overrides_.empty()) {
+    return ExpandMacrosToSqlite(std::move(sql));
+  }
+  uint64_t base_count = database_->macro_count();
+  if (base_count != duckdb_merged_macros_base_count_) {
+    // Rebuild the merged registry: a copy of the live macros with the DuckDB
+    // overrides layered on top (overrides win on name collision).
+    base::FlatHashMap<std::string, PerfettoSqlParser::Macro> merged;
+    for (auto it = database_->macros().GetIterator(); it; ++it) {
+      merged.Insert(it.key(), it.value());
+    }
+    for (const auto& m : duckdb_macro_overrides_) {
+      // operator[] is unavailable (Macro's SqlSource has no public default
+      // ctor), so overwrite-or-insert explicitly.
+      if (auto* existing = merged.Find(m.name)) {
+        *existing = m;
+      } else {
+        merged.Insert(m.name, m);
+      }
+    }
+    duckdb_merged_macros_ = std::move(merged);
+    duckdb_merged_macros_base_count_ = base_count;
+  }
+  PerfettoSqlParser parser(duckdb_merged_macros_);
+  parser.Reset(std::move(sql));
+  if (!parser.Next()) {
+    return std::nullopt;
+  }
+  if (!std::holds_alternative<PerfettoSqlParser::SqliteSql>(
+          parser.statement())) {
+    return std::nullopt;
+  }
+  std::string expanded = parser.statement_sql().sql();
+  if (parser.Next()) {
+    return std::nullopt;
+  }
+  if (!parser.status().ok()) {
+    return std::nullopt;
+  }
+  return expanded;
+}
+
 void PerfettoSqlConnection::Initialize(Initializer init) {
   // Wrap the ~100 static-table CREATEs in one transaction; otherwise SQLite
   // implicitly commits after each statement.

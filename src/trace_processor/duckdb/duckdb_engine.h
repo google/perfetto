@@ -256,27 +256,6 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql);
 // unchanged if there is no `_interval_create!` call.
 std::string RewriteIntervalCreateMacro(const std::string& sql);
 
-// Rewrites `_interval_intersect_single!(ts, dur, t)` (intersect every row of
-// table `t` with the single interval [ts, ts+dur)) into plain SQL. Must run
-// before macro expansion. Returns the input unchanged if there is no such call.
-std::string RewriteIntervalIntersectSingleMacro(const std::string& sql);
-
-// Rewrites `graph_reachable_bfs!(graph_table, start_nodes)` and the `_dfs`
-// variant into plain SQL backed by the native BFS/DFS reachability functions
-// (RegisterGraphFunctions): each input is aggregated into an opaque handle, a
-// combiner runs the traversal and returns LIST<STRUCT(node_id,
-// parent_node_id)>, which is UNNESTed into rows. Must run BEFORE macro
-// expansion (the macro otherwise expands to the table-pointer form). Returns
-// the input unchanged if there is no such call.
-std::string RewriteGraphReachableMacro(const std::string& sql);
-
-// Rewrites `graph_dominator_tree!(graph_table, root_node_id)` into plain SQL
-// backed by the native Lengauer-Tarjan aggregate (RegisterDominatorTree): a
-// single aggregate over the graph table returns LIST<STRUCT(node_id,
-// dominator_node_id)>, which is UNNESTed into rows. Must run BEFORE macro
-// expansion. Returns the input unchanged if there is no such call.
-std::string RewriteGraphDominatorMacro(const std::string& sql);
-
 // Rewrites the non-partitioned `_interval_intersect_with_col_names!(tab1, id1,
 // ts1, dur1, tab2, id2, ts2, dur2, ())` into the native interval_intersect
 // combiner form (RegisterIntervalIntersect), reading each table's custom id/
