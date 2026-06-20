@@ -794,6 +794,7 @@ std::string TraceProcessorImpl::PipelineDuckDbMirrorBody(
       duckdb_integration::RewriteIntervalIntersectMacro(raw_body);
   pre = duckdb_integration::RewriteIntervalCreateMacro(pre);
   pre = duckdb_integration::RewriteIntervalIntersectWithColNamesMacro(pre);
+  pre = duckdb_integration::RewriteAutoId(pre);
   if (std::optional<std::string> expanded =
           engine_->ExpandMacrosToSqliteDuckDb(SqlSource::FromExecuteQuery(pre))) {
     return *expanded;

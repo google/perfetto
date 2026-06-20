@@ -256,6 +256,13 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql);
 // unchanged if there is no `_interval_create!` call.
 std::string RewriteIntervalCreateMacro(const std::string& sql);
 
+// Rewrites an unqualified `_auto_id` reference to `(row_number() OVER () - 1)`
+// (the 0-based dataframe row index the table_provider hides). Conservative: only
+// the unqualified form, and the whole input is left unchanged if it contains a
+// row-affecting clause (JOIN/WHERE/GROUP/etc.) that would desync row_number from
+// the row index. See the definition for the full contract.
+std::string RewriteAutoId(const std::string& sql);
+
 // Rewrites the non-partitioned `_interval_intersect_with_col_names!(tab1, id1,
 // ts1, dur1, tab2, id2, ts2, dur2, ())` into the native interval_intersect
 // combiner form (RegisterIntervalIntersect), reading each table's custom id/

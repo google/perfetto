@@ -1020,6 +1020,46 @@ std::string RewriteUngroupedColumn(const std::string& sql,
 
 }  // namespace
 
+// Rewrites an UNQUALIFIED `_auto_id` reference to `(row_number() OVER () - 1)`,
+// the 0-based dataframe row index. The table_provider hides the synthetic
+// `_auto_id` column (to keep SELECT * matching SQLite, and DuckDB's C API has no
+// hidden columns), so a body using `_auto_id` otherwise fails to bind. This is
+// valid ONLY for a 1:1 projection of a single base relation: row_number() is
+// computed over the operator's input, so any clause that filters, reorders,
+// joins or groups rows would desync it from the dataframe row index. We
+// therefore bail (leave `_auto_id` untouched -> falls back) on any such clause,
+// and only rewrite the unqualified form (a qualified `t._auto_id` names a
+// specific table's id that row_number over a join could not reproduce). The
+// honest lane verifies correctness: a wrong rewrite shows up as an output
+// mismatch, not a silent pass.
+std::string RewriteAutoId(const std::string& sql) {
+  std::string low = base::ToLower(sql);
+  if (low.find("_auto_id") == std::string::npos) {
+    return sql;
+  }
+  for (const char* kw : {" join ", " where ", " group ", " having ", " union ",
+                         " distinct ", " order by "}) {
+    if (low.find(kw) != std::string::npos) {
+      return sql;
+    }
+  }
+  std::vector<AllToken> toks = TokenizeAll(sql);
+  std::string out;
+  int prev_sig = -1;
+  for (const AllToken& t : toks) {
+    if (t.significant && t.type == sql_token::kId &&
+        base::ToLower(t.str) == "_auto_id" && prev_sig != sql_token::kDot) {
+      out += "(row_number() OVER () - 1)";
+    } else {
+      out += t.str;
+    }
+    if (t.significant) {
+      prev_sig = t.type;
+    }
+  }
+  return out;
+}
+
 std::string RewriteIntervalIntersectMacro(const std::string& sql) {
   std::string cur = sql;
   // Rewrite occurrences one at a time, re-tokenizing after each (the rewrite
@@ -1530,7 +1570,7 @@ void DuckDbEngine::SyncViews() {
     // Create the view, repairing SQLite lax-GROUP-BY rejections by wrapping the
     // offending bare column in ANY_VALUE (see RewriteUngroupedColumn). DuckDB
     // reports one column at a time, so retry (capped).
-    std::string vsql = create_view_sql;
+    std::string vsql = RewriteAutoId(create_view_sql);
     bool created = false;
     for (int attempt = 0; attempt < 32; ++attempt) {
       duckdb_result res;
@@ -1907,6 +1947,7 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   // the ORIGINAL sql so an unaliased `format(...)` header matches SQLite.
   std::string run_sql = RewriteFormatToPrintf(sql);
   run_sql = RewriteCharToChr(run_sql);
+  run_sql = RewriteAutoId(run_sql);
   // Rewrite SQLite table-valued-function joins (`JOIN tvf(args)` with no ON)
   // into DuckDB's `JOIN tvf(args) ON true` lateral joins, for the slice-tree
   // intrinsic macros and stdlib RETURNS TABLE functions called correlated.
