@@ -661,6 +661,83 @@ std::string RewriteFormatToPrintf(const std::string& sql) {
   return out;
 }
 
+// Rewrites SQLite's table-valued-function join `JOIN name(args) [AS a]` (no ON)
+// into DuckDB's `JOIN name(args) [AS a] ON true`. SQLite allows a table function
+// in a JOIN with no ON (an implicit correlated/lateral join); DuckDB requires an
+// ON, and treats `ON true` over a correlated table macro as a lateral join
+// (preserving LEFT-join semantics). Only a JOIN onto a known table macro
+// (`macros`) not already followed by ON/USING is rewritten.
+std::string RewriteTableFunctionJoins(
+    const std::string& sql,
+    const std::unordered_set<std::string>& macros) {
+  std::vector<AllToken> toks = TokenizeAll(sql);
+  std::vector<size_t> sig;
+  for (size_t i = 0; i < toks.size(); ++i) {
+    if (toks[i].significant) {
+      sig.push_back(i);
+    }
+  }
+  auto is_bare_id = [&](size_t s) {
+    const AllToken& t = toks[sig[s]];
+    return t.type == sql_token::kId && !t.str.empty() && t.str.front() != '"' &&
+           t.str.front() != '`';
+  };
+  std::vector<size_t> insert_after;
+  for (size_t k = 0; k + 1 < sig.size(); ++k) {
+    if (toks[sig[k]].type != sql_token::kJoin) {
+      continue;
+    }
+    size_t name = k + 1;
+    if (!is_bare_id(name) ||
+        macros.find(base::ToLower(toks[sig[name]].str)) == macros.end()) {
+      continue;
+    }
+    if (name + 1 >= sig.size() || toks[sig[name + 1]].type != sql_token::kLp) {
+      continue;
+    }
+    int d = 0;
+    size_t m = name + 1;
+    for (; m < sig.size(); ++m) {
+      if (toks[sig[m]].type == sql_token::kLp) {
+        ++d;
+      } else if (toks[sig[m]].type == sql_token::kRp) {
+        if (--d == 0) {
+          break;
+        }
+      }
+    }
+    if (m >= sig.size()) {
+      continue;
+    }
+    size_t after = m + 1;
+    if (after < sig.size() && toks[sig[after]].type == sql_token::kAs) {
+      after += 2;
+    } else if (after < sig.size() && is_bare_id(after) &&
+               toks[sig[after]].type != sql_token::kOn &&
+               toks[sig[after]].type != sql_token::kUsing) {
+      after += 1;
+    }
+    if (after < sig.size() && (toks[sig[after]].type == sql_token::kOn ||
+                               toks[sig[after]].type == sql_token::kUsing)) {
+      continue;
+    }
+    size_t last_sig = (after == m + 1) ? m : after - 1;
+    insert_after.push_back(sig[last_sig]);
+  }
+  if (insert_after.empty()) {
+    return sql;
+  }
+  std::unordered_set<size_t> ins(insert_after.begin(), insert_after.end());
+  std::string out;
+  for (size_t i = 0; i < toks.size(); ++i) {
+    out += toks[i].str;
+    if (ins.find(i) != ins.end()) {
+      out += " ON true";
+    }
+  }
+  return out;
+}
+
 // True if `name` (lowercased) is an aggregate whose argument is ALREADY a valid
 // grouped context - a bare column inside it must NOT be wrapped (that would nest
 // aggregates). Covers the SQL standard aggregates plus any_value/group_concat.
@@ -1078,6 +1155,103 @@ void DuckDbEngine::SyncScalarFunctions() {
   }
 }
 
+void DuckDbEngine::SyncIntrinsicMacros() {
+  if (intrinsic_macros_created_) {
+    return;
+  }
+  // DuckDB binds macro bodies eagerly, so `slice` must be mirrored first.
+  if (mirrored_views_.find("slice") == mirrored_views_.end()) {
+    return;
+  }
+  // The 13-column output schema of the slice-tree intrinsics (the
+  // SliceSubsetTable column list, in order), used by every macro body.
+  static constexpr char kCols[] =
+      "id, ts, dur, track_id, category, name, depth, parent_id, arg_set_id, "
+      "thread_ts, thread_dur, thread_instruction_count, "
+      "thread_instruction_delta";
+  std::string cols = kCols;
+  std::string pcols;  // same columns, prefixed with `p.`.
+  {
+    pcols = "p.id, p.ts, p.dur, p.track_id, p.category, p.name, p.depth, "
+            "p.parent_id, p.arg_set_id, p.thread_ts, p.thread_dur, "
+            "p.thread_instruction_count, p.thread_instruction_delta";
+  }
+  std::string scols;  // same columns, prefixed with `sl.`.
+  {
+    scols = "sl.id, sl.ts, sl.dur, sl.track_id, sl.category, sl.name, sl.depth, "
+            "sl.parent_id, sl.arg_set_id, sl.thread_ts, sl.thread_dur, "
+            "sl.thread_instruction_count, sl.thread_instruction_delta";
+  }
+
+  // ancestor_slice(start_id): walk slice.parent_id upward from start's parent
+  // (mirrors plugins/ancestor GetAncestors). _and_self starts at start itself.
+  std::string ancestor =
+      "WITH RECURSIVE a AS ("
+      "  SELECT " + cols + " FROM __intrinsic_slice WHERE id = "
+      "      (SELECT parent_id FROM __intrinsic_slice WHERE id = start_id)"
+      "  UNION ALL"
+      "  SELECT " + pcols + " FROM __intrinsic_slice p JOIN a ON p.id = a.parent_id) "
+      "SELECT " + cols + " FROM a";
+  std::string ancestor_self =
+      "WITH RECURSIVE a AS ("
+      "  SELECT " + cols + " FROM __intrinsic_slice WHERE id = start_id"
+      "  UNION ALL"
+      "  SELECT " + pcols + " FROM __intrinsic_slice p JOIN a ON p.id = a.parent_id) "
+      "SELECT " + cols + " FROM a";
+
+  // descendant_slice(start_id): same-track, deeper slices whose ts is within
+  // [start.ts, ts_end] (ts_end = start.ts + start.dur, or +inf for an open
+  // slice), keeping a START/END-boundary candidate only if start_id is in its
+  // parent chain (the `pclose` recursive parent-closure), exactly mirroring
+  // plugins/descendant GetDescendantsInternal + IsAncestor.
+  std::string desc_filter =
+      " FROM __intrinsic_slice sl, s"
+      " WHERE sl.track_id = s.tk AND sl.depth > s.d0"
+      "   AND sl.ts >= s.t0 AND sl.ts <= s.te"
+      "   AND ((sl.ts > s.t0 AND sl.ts < s.te)"
+      "        OR sl.id IN (SELECT id FROM pclose))";
+  std::string desc_ctes =
+      "WITH RECURSIVE s AS ("
+      "  SELECT track_id AS tk, ts AS t0, depth AS d0,"
+      "    CASE WHEN dur < 0 THEN 9223372036854775807 ELSE ts + dur END AS te"
+      "  FROM __intrinsic_slice WHERE id = start_id),"
+      " pclose AS ("
+      "  SELECT id FROM __intrinsic_slice WHERE parent_id = start_id"
+      "  UNION ALL"
+      "  SELECT sl.id FROM __intrinsic_slice sl JOIN pclose ON sl.parent_id = pclose.id)";
+  std::string descendant = desc_ctes + " SELECT " + scols + desc_filter;
+  std::string descendant_self =
+      desc_ctes + " SELECT " + cols + " FROM __intrinsic_slice WHERE id = start_id" +
+      " UNION ALL SELECT " + scols + desc_filter;
+
+  struct Macro {
+    const char* name;
+    const std::string& body;
+  };
+  const Macro kMacros[] = {
+      {"ancestor_slice", ancestor},
+      {"_slice_ancestor_and_self", ancestor_self},
+      {"descendant_slice", descendant},
+      {"_slice_descendant_and_self", descendant_self},
+  };
+  for (const Macro& m : kMacros) {
+    std::string lower = base::ToLower(m.name);
+    if (mirrored_table_macros_.find(lower) != mirrored_table_macros_.end()) {
+      continue;
+    }
+    std::string create = std::string("CREATE OR REPLACE MACRO ") + m.name +
+                         "(start_id) AS TABLE (" + m.body + ")";
+    duckdb_result res;
+    if (duckdb_query(conn_, create.c_str(), &res) == DuckDBError) {
+      duckdb_destroy_result(&res);
+      continue;
+    }
+    duckdb_destroy_result(&res);
+    mirrored_table_macros_.insert(lower);
+  }
+  intrinsic_macros_created_ = true;
+}
+
 base::StatusOr<std::optional<DuckDbExecutionResult>>
 DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
                                    bool disable_fallback,
@@ -1115,6 +1289,10 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   // query as DuckDB scalar macros so a call `f(args)` resolves. Cheap:
   // already-mirrored macros are skipped.
   SyncScalarFunctions();
+
+  // Create the hardcoded slice-tree intrinsic macros (descendant_slice etc.)
+  // once the slice view exists. Cheap: a no-op after the first creation.
+  SyncIntrinsicMacros();
 
   // --- Support predicate (cheap, conservative, default-deny). ---
   // Driven entirely off the real syntaqlite token stream (see AnalyzeSupport):
@@ -1156,6 +1334,10 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   // `format` is allowlisted on that basis; the column-name override still uses
   // the ORIGINAL sql so an unaliased `format(...)` header matches SQLite.
   std::string run_sql = RewriteFormatToPrintf(sql);
+  // Rewrite SQLite table-valued-function joins (`JOIN tvf(args)` with no ON)
+  // into DuckDB's `JOIN tvf(args) ON true` lateral joins, for the slice-tree
+  // intrinsic macros and stdlib RETURNS TABLE functions called correlated.
+  run_sql = RewriteTableFunctionJoins(run_sql, mirrored_table_macros_);
   constexpr int kMaxQuoteRewrites = 32;
   for (int attempt = 0;; ++attempt) {
     if (duckdb_query(conn_, run_sql.c_str(), &exec.result) != DuckDBError) {

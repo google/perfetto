@@ -162,6 +162,15 @@ class DuckDbEngine {
   // so the support predicate treats a call to it as eligible.
   void SyncScalarFunctions();
 
+  // Creates the hardcoded DuckDB table macros that FAITHFULLY emulate Perfetto's
+  // C++ slice-tree table intrinsics (ancestor_slice / descendant_slice and their
+  // *_and_self variants), replicating the exact C++ algorithms in SQL:
+  // ancestor_slice walks slice.parent_id up; descendant_slice uses ts/depth
+  // containment plus a parent-chain (recursive) verification for the boundary
+  // candidates - matching plugins/{ancestor,descendant}. Created once, after the
+  // `slice` view is mirrored, with names added to mirrored_table_macros_.
+  void SyncIntrinsicMacros();
+
   StringPool* string_pool_;
   Resolver resolver_;
   ViewProvider view_provider_;
@@ -194,6 +203,9 @@ class DuckDbEngine {
   // extract_arg index must be built whenever such a view is reachable - not only
   // when the user's query text literally mentions extract_arg.
   bool mirrored_uses_extract_arg_ = false;
+
+  // True once the hardcoded slice-tree intrinsic macros have been created.
+  bool intrinsic_macros_created_ = false;
 
   // Lowercased names of scalar UDFs registered on the DuckDB connection at init
   // (via RegisterScalarFunctions). The support predicate treats a call to one as

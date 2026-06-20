@@ -38,6 +38,7 @@ namespace sql_token {
 inline constexpr int kBy = 9;
 inline constexpr int kId = 40;
 inline constexpr int kStar = 99;
+inline constexpr int kOn = 106;
 inline constexpr int kString = 108;
 inline constexpr int kInteger = 110;
 inline constexpr int kFloat = 111;

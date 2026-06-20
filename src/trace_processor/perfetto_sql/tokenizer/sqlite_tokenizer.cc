@@ -31,6 +31,7 @@ namespace perfetto::trace_processor {
 static_assert(sql_token::kBy == SYNTAQLITE_TK_BY);
 static_assert(sql_token::kId == SYNTAQLITE_TK_ID);
 static_assert(sql_token::kStar == SYNTAQLITE_TK_STAR);
+static_assert(sql_token::kOn == SYNTAQLITE_TK_ON);
 static_assert(sql_token::kString == SYNTAQLITE_TK_STRING);
 static_assert(sql_token::kInteger == SYNTAQLITE_TK_INTEGER);
 static_assert(sql_token::kFloat == SYNTAQLITE_TK_FLOAT);
