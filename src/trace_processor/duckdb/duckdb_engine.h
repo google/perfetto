@@ -270,6 +270,13 @@ std::string RewriteIntervalIntersectSingleMacro(const std::string& sql);
 // the input unchanged if there is no such call.
 std::string RewriteGraphReachableMacro(const std::string& sql);
 
+// Rewrites `graph_dominator_tree!(graph_table, root_node_id)` into plain SQL
+// backed by the native Lengauer-Tarjan aggregate (RegisterDominatorTree): a
+// single aggregate over the graph table returns LIST<STRUCT(node_id,
+// dominator_node_id)>, which is UNNESTed into rows. Must run BEFORE macro
+// expansion. Returns the input unchanged if there is no such call.
+std::string RewriteGraphDominatorMacro(const std::string& sql);
+
 // Testing-only entry point for the support predicate's TOKENIZATION + decision
 // logic, exposed so a unittest can exercise the previously-buggy classification
 // cases (CAST(...), USING(...), WITH d(a,b) AS (...), double-quoted literals,

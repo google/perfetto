@@ -55,6 +55,8 @@ source_set("engine") {
   sources = [
     "duckdb_engine.cc",
     "duckdb_engine.h",
+    "dominator_tree_function.cc",
+    "dominator_tree_function.h",
     "extract_arg.cc",
     "extract_arg.h",
     "graph_function.cc",
