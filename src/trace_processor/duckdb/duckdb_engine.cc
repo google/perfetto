@@ -1399,12 +1399,34 @@ void DuckDbEngine::SyncScalarFunctions() {
     std::string body = RewriteDollarParams(fn.body_sql, fn.arg_names);
     std::string create = "CREATE OR REPLACE MACRO " + fn.name + "(" + params +
                          ") AS (" + body + ")";
-    duckdb_result res;
-    if (duckdb_query(conn_, create.c_str(), &res) == DuckDBError) {
+    // DuckDB binds the macro body EAGERLY at CREATE MACRO time, so a body that
+    // references a plain SQLite-native table (e.g. trace_start() ->
+    // `_trace_bounds`) fails unless that table is in DuckDB's catalog. Retry
+    // after materializing such a table (bounded; one missing table per error).
+    bool created = false;
+    for (int attempt = 0; attempt < 8; ++attempt) {
+      duckdb_result res;
+      if (duckdb_query(conn_, create.c_str(), &res) != DuckDBError) {
+        duckdb_destroy_result(&res);
+        created = true;
+        break;
+      }
+      std::string err = duckdb_result_error(&res);
       duckdb_destroy_result(&res);
-      continue;
+      std::optional<std::string> tbl =
+          table_materializer_ ? ParseTableNotExist(err) : std::nullopt;
+      if (!tbl || materialized_tables_.find(*tbl) != materialized_tables_.end() ||
+          mirrored_views_.find(base::ToLower(*tbl)) != mirrored_views_.end()) {
+        break;
+      }
+      if (!table_materializer_(*tbl, conn_)) {
+        break;
+      }
+      materialized_tables_.insert(*tbl);
     }
-    duckdb_destroy_result(&res);
+    if (!created) {
+      continue;  // Leave unmirrored; a call falls back.
+    }
     mirrored_scalar_macros_.insert(lower);
     registered_scalar_functions_.insert(lower);
     if (base::ToLower(body).find("extract_arg") != std::string::npos) {
