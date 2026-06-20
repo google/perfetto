@@ -68,14 +68,15 @@ TEST(DuckDbSupportPredicateTest, CastIsNotAFunction) {
 }
 
 // --- USING: a join clause, NOT a function. The old scanner mis-reported
-// `using(` as a missing function; now it is recognized as the USING keyword and
-// guarded as an unsupported dialect feature (a deliberate fallback). ---
-TEST(DuckDbSupportPredicateTest, UsingIsGuardedNotMissingFunction) {
+// `using(` as a missing function; the USING guard was later RELAXED ("list,
+// don't guard") because modern DuckDB follows the SQL standard for JOIN ...
+// USING. A USING query is now ELIGIBLE (and crucially still not mis-read as a
+// missing function). ---
+TEST(DuckDbSupportPredicateTest, UsingIsEligibleNotMissingFunction) {
   auto reason = Analyze(
       "SELECT a.x FROM a JOIN b USING(col) ORDER BY a.x");
-  ASSERT_TRUE(reason.has_value());
-  EXPECT_NE(reason->find("USING"), std::string::npos) << *reason;
-  EXPECT_EQ(reason->find("not in allowlist"), std::string::npos) << *reason;
+  ASSERT_FALSE(reason.has_value())
+      << "USING should be eligible after the guard relaxation: " << *reason;
 }
 
 // --- WITH name(cols) AS (...): the parens hold COLUMN NAMES, not function args.
@@ -95,20 +96,18 @@ TEST(DuckDbSupportPredicateTest, CteColumnListMultipleColumns) {
 }
 
 // --- Double-quoted token: SQLite string literal vs DuckDB quoted identifier.
-// Must be guarded (fall back), and crucially NOT mis-read as an identifier in
-// relation/function position. ---
-TEST(DuckDbSupportPredicateTest, DoubleQuotedLiteralIsGuarded) {
-  auto reason = Analyze("SELECT ln(\"as\") FROM slice ORDER BY 1");
-  ASSERT_TRUE(reason.has_value());
-  EXPECT_NE(reason->find("double-quoted"), std::string::npos) << *reason;
+// The double-quote guard was RELAXED ("list, don't guard"). A double-quoted
+// column reference now binds in DuckDB exactly as in SQLite (eligible); a
+// double-quoted STRING LITERAL that DuckDB cannot resolve as a column is
+// repaired at execution time (the `Referenced column "x" not found` -> rewrite
+// `"x"` to `'x'` retry loop). Both cases are eligible at the predicate layer and
+// crucially NOT mis-read as an identifier in relation/function position. ---
+TEST(DuckDbSupportPredicateTest, DoubleQuotedLiteralIsEligible) {
+  EXPECT_TRUE(Eligible("SELECT ln(\"as\") FROM slice ORDER BY 1"));
 }
 
-// A double-quoted column reference still trips the same guard (we conservatively
-// fall back on any `"..."` token rather than risk a binding divergence).
-TEST(DuckDbSupportPredicateTest, DoubleQuotedIdentifierIsGuarded) {
-  auto reason = Analyze("SELECT \"dur\" FROM slice ORDER BY 1");
-  ASSERT_TRUE(reason.has_value());
-  EXPECT_NE(reason->find("double-quoted"), std::string::npos) << *reason;
+TEST(DuckDbSupportPredicateTest, DoubleQuotedIdentifierIsEligible) {
+  EXPECT_TRUE(Eligible("SELECT \"dur\" FROM slice ORDER BY 1"));
 }
 
 // A single-quoted string literal is a normal STRING token and must NOT be
@@ -212,11 +211,12 @@ TEST(DuckDbSupportPredicateTest, OrderByInSubqueryNowEligible) {
       "SELECT dur FROM (SELECT dur FROM slice ORDER BY dur)"));
 }
 
-// --- Column-name divergence guard: an unaliased function-call projection. ---
-TEST(DuckDbSupportPredicateTest, UnaliasedAggregateColumnGuarded) {
-  auto reason = Analyze("SELECT count(*) FROM slice");
-  ASSERT_TRUE(reason.has_value());
-  EXPECT_NE(reason->find("column-name"), std::string::npos) << *reason;
+// --- Column-name divergence: an unaliased function-call projection. The GUARD
+// was replaced by a post-execution column-name OVERRIDE (DuckDB's `count_star()`
+// header is rewritten to the SQLite source text `count(*)`), so the query is now
+// ELIGIBLE rather than rejected. ---
+TEST(DuckDbSupportPredicateTest, UnaliasedAggregateColumnEligible) {
+  EXPECT_TRUE(Eligible("SELECT count(*) FROM slice"));
 }
 
 TEST(DuckDbSupportPredicateTest, AliasedAggregateColumnEligible) {

@@ -173,10 +173,12 @@ TEST_F(DuckDbEngineLiveTest, IncludeThenSelectRunsFinalInDuckDb) {
   EXPECT_EQ(duck_->queries_fell_back_to_sqlite(), 0u);
 }
 
-// A query using a function not in the allowlist (a custom intrinsic) falls back.
+// A query using a function not in the allowlist falls back. `typeof` is a real
+// SQLite function (so the golden is valid) that is deliberately NOT in the
+// DuckDB allowlist (its type-name strings diverge from DuckDB's), so the
+// predicate rejects the query before execution.
 TEST_F(DuckDbEngineLiveTest, IneligibleFunctionFallsBack) {
-  // group_concat is a real SQLite aggregate but not in the DuckDB allowlist.
-  ExpectMatch("SELECT group_concat(end_state) FROM sched", 1);
+  ExpectMatch("SELECT typeof(end_state) AS t FROM sched", 1);
   EXPECT_EQ(duck_->queries_executed_in_duckdb(), 0u);
   EXPECT_EQ(duck_->queries_fell_back_to_sqlite(), 1u);
 }
