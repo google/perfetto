@@ -109,6 +109,13 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // known-bad), `reverse`. Non-matching cases are cataloged, not guarded.
           "length", "substr", "substring", "instr", "replace", "trim",
           "ltrim", "rtrim", "lower", "upper", "reverse",
+          // `unicode(s)` (codepoint of the first char) is DuckDB-native with
+          // identical semantics. `char(x)` is SQLite-only: its single-argument
+          // form is rewritten to DuckDB's `chr(x)` (RewriteCharToChr); the
+          // variadic form is left to fall back. Allowlisted here so the
+          // predicate accepts char/unicode-using queries (e.g. the graph
+          // lengauer examples). `chr` is allowed for the rewritten output.
+          "unicode", "char", "chr",
           // Aggregates beyond the beachhead that are SQL-standard and match
           // SQLite: min/max/sum/avg/count already above; total (SUM-as-double),
           // and the statistical aggregates DuckDB shares.
@@ -700,6 +707,91 @@ std::string RewriteFormatToPrintf(const std::string& sql) {
     }
   }
   return out;
+}
+
+// Rewrites SQLite's single-argument `char(X)` to DuckDB's `chr(CAST(X AS
+// INTEGER))` (DuckDB has no `char`, and its `chr` takes a 32-bit INTEGER, not
+// the BIGINT that PerfettoSQL columns are). ONLY the single-argument form is
+// rewritten: SQLite's `char` is variadic (char(a,b,..) builds a multi-char
+// string) whereas `chr` takes one codepoint, so a call with a top-level comma
+// is left untouched (it will fall back rather than silently produce a wrong
+// result).
+std::string RewriteCharToChr(const std::string& sql) {
+  std::string cur = sql;
+  for (int iter = 0; iter < 64; ++iter) {
+    std::vector<AllToken> toks = TokenizeAll(cur);
+    int prev_sig = -1;
+    size_t match_char = toks.size(), match_lp = toks.size(),
+           match_rp = toks.size();
+    for (size_t i = 0; i < toks.size() && match_char == toks.size(); ++i) {
+      const AllToken& t = toks[i];
+      if (!t.significant) {
+        continue;
+      }
+      bool is_char = t.type == sql_token::kId &&
+                     base::ToLower(t.str) == "char" &&
+                     prev_sig != sql_token::kDot;
+      prev_sig = t.type;
+      if (!is_char) {
+        continue;
+      }
+      size_t lp = toks.size();
+      for (size_t j = i + 1; j < toks.size(); ++j) {
+        if (toks[j].significant) {
+          lp = (toks[j].type == sql_token::kLp) ? j : toks.size();
+          break;
+        }
+      }
+      if (lp == toks.size()) {
+        continue;
+      }
+      int depth = 0;
+      bool single_arg = true;
+      size_t rp = toks.size();
+      for (size_t j = lp; j < toks.size(); ++j) {
+        if (!toks[j].significant) {
+          continue;
+        }
+        int tt = toks[j].type;
+        if (tt == sql_token::kLp) {
+          ++depth;
+        } else if (tt == sql_token::kRp) {
+          if (--depth == 0) {
+            rp = j;
+            break;
+          }
+        } else if (depth == 1 && tt == sql_token::kComma) {
+          single_arg = false;
+          break;
+        }
+      }
+      if (single_arg && rp != toks.size()) {
+        match_char = i;
+        match_lp = lp;
+        match_rp = rp;
+      }
+    }
+    if (match_char == toks.size()) {
+      break;  // No more single-arg char() calls.
+    }
+    // Arg text is everything between the '(' and the matching ')'.
+    std::string arg;
+    for (size_t j = match_lp + 1; j < match_rp; ++j) {
+      arg += toks[j].str;
+    }
+    std::string repl = "chr(CAST(" + base::TrimWhitespace(arg) + " AS INTEGER))";
+    std::string out;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (i == match_char) {
+        out += repl;
+        i = match_rp;
+        continue;
+      }
+      out += toks[i].str;
+    }
+    cur = std::move(out);
+  }
+  return cur;
 }
 
 // Rewrites SQLite's table-valued-function join `JOIN name(args) [AS a]` (no ON)
@@ -1988,6 +2080,7 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   // `format` is allowlisted on that basis; the column-name override still uses
   // the ORIGINAL sql so an unaliased `format(...)` header matches SQLite.
   std::string run_sql = RewriteFormatToPrintf(sql);
+  run_sql = RewriteCharToChr(run_sql);
   // Rewrite SQLite table-valued-function joins (`JOIN tvf(args)` with no ON)
   // into DuckDB's `JOIN tvf(args) ON true` lateral joins, for the slice-tree
   // intrinsic macros and stdlib RETURNS TABLE functions called correlated.
