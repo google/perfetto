@@ -233,9 +233,16 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
   v.push_back(mk(
       "_interval_intersect_single", {"ts", "dur", "t"},
       "(SELECT s.u.id_0 AS id, s.u.ts AS ts, s.u.dur AS dur FROM (SELECT "
-      "unnest(__intrinsic_ii_combine(list_value((SELECT __intrinsic_ii_agg(id, "
-      "ts, dur) FROM $t), (SELECT __intrinsic_ii_agg(0, $ts, $dur))))) AS u) "
-      "s)"));
+      "unnest(__intrinsic_ii_combine(list_value((SELECT "
+      "__intrinsic_ii_agg(CAST(id AS BIGINT), CAST(ts AS BIGINT), CAST(dur AS "
+      "BIGINT)) FROM $t), (SELECT __intrinsic_ii_agg(0, CAST($ts AS BIGINT), "
+      "CAST($dur AS BIGINT)))))) AS u) s)"));
+  // cast_int/cast_double: SQLite's INT is 64-bit and REAL is 64-bit double, but
+  // DuckDB's INT is 32-bit (overflow) and REAL is 32-bit float (precision loss).
+  // Override to BIGINT/DOUBLE so the cast matches SQLite. (cast_string -> TEXT
+  // is fine: DuckDB TEXT is an alias for VARCHAR.)
+  v.push_back(mk("cast_int", {"value"}, "CAST($value AS BIGINT)"));
+  v.push_back(mk("cast_double", {"value"}, "CAST($value AS DOUBLE)"));
   return v;
 }
 

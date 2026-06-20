@@ -1161,8 +1161,14 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
       }
       sub += " FROM (SELECT unnest(__intrinsic_ii_combine([";
       for (size_t i = 0; i < tables.size(); ++i) {
+        // CAST to BIGINT: the aggregate is typed BIGINT, but a table's id/ts/dur
+        // may be INTEGER/DOUBLE (e.g. a span_join-built table), which DuckDB
+        // won't implicitly narrow. Durations are integers, matching the SQLite
+        // int64 aggregate.
         sub += (i ? ", " : "") +
-               std::string("(SELECT __intrinsic_ii_agg(id, ts, dur) FROM ") +
+               std::string(
+                   "(SELECT __intrinsic_ii_agg(CAST(id AS BIGINT), CAST(ts AS "
+                   "BIGINT), CAST(dur AS BIGINT)) FROM ") +
                tables[i] + ")";
       }
       sub += "])) AS u) ii)";
@@ -1341,13 +1347,18 @@ std::string RewriteIntervalIntersectWithColNamesMacro(const std::string& sql) {
     if (parts != "()" || tab1.empty() || tab2.empty()) {
       break;
     }
+    auto agg = [](const std::string& id, const std::string& ts,
+                  const std::string& dur, const std::string& tab) {
+      // CAST to BIGINT (the aggregate's param type); custom columns may be
+      // INTEGER/DOUBLE which DuckDB won't implicitly narrow.
+      return "(SELECT __intrinsic_ii_agg(CAST(" + id + " AS BIGINT), CAST(" +
+             ts + " AS BIGINT), CAST(" + dur + " AS BIGINT)) FROM " + tab + ")";
+    };
     std::string sub =
         "(SELECT ii.u.ts AS ts, ii.u.dur AS dur, ii.u.id_0 AS id_0, "
-        "ii.u.id_1 AS id_1 FROM (SELECT unnest(__intrinsic_ii_combine([(SELECT "
-        "__intrinsic_ii_agg(" +
-        id1 + ", " + ts1 + ", " + dur1 + ") FROM " + tab1 +
-        "), (SELECT __intrinsic_ii_agg(" + id2 + ", " + ts2 + ", " + dur2 +
-        ") FROM " + tab2 + ")])) AS u) ii)";
+        "ii.u.id_1 AS id_1 FROM (SELECT unnest(__intrinsic_ii_combine([" +
+        agg(id1, ts1, dur1, tab1) + ", " + agg(id2, ts2, dur2, tab2) +
+        "])) AS u) ii)";
     size_t first_tok = sig[k], last_tok = sig[outer_close];
     std::string out;
     for (size_t i = 0; i < toks.size(); ++i) {
@@ -1640,6 +1651,12 @@ std::string RewriteDollarParams(const std::string& body,
         size_t end = i + 1 + name.size();
         if (body.compare(i + 1, name.size(), name) == 0 &&
             (end >= body.size() || !is_ident_char(body[end]))) {
+          // Prefix the parameter name so it cannot collide with a COLUMN of the
+          // same name in the body's FROM (e.g. a function param `ts` vs a `ts`
+          // column). DuckDB's CREATE MACRO binds the body eagerly and would
+          // otherwise report "Conflicting column names" for the ambiguous ref;
+          // SQLite's runtime-table-function path has no such clash.
+          out.append("__pmacro_");
           out.append(name);
           i = end;
           matched = true;
@@ -1680,7 +1697,7 @@ void DuckDbEngine::SyncTableFunctions() {
       if (i != 0) {
         params += ", ";
       }
-      params += fn.arg_names[i];
+      params += "__pmacro_" + fn.arg_names[i];
     }
     std::string body = RewriteDollarParams(fn.body_sql, fn.arg_names);
     std::string create = "CREATE MACRO " + fn.name + "(" + params +
@@ -1720,7 +1737,7 @@ void DuckDbEngine::SyncScalarFunctions() {
       if (i != 0) {
         params += ", ";
       }
-      params += fn.arg_names[i];
+      params += "__pmacro_" + fn.arg_names[i];
     }
     std::string body = RewriteDollarParams(fn.body_sql, fn.arg_names);
     std::string create = "CREATE OR REPLACE MACRO " + fn.name + "(" + params +
