@@ -1053,6 +1053,88 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
   return cur;
 }
 
+std::string RewriteIntervalIntersectSingleMacro(const std::string& sql) {
+  std::string cur = sql;
+  for (int iter = 0; iter < 64; ++iter) {
+    std::vector<AllToken> toks = TokenizeAll(cur);
+    std::vector<size_t> sig;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (toks[i].significant) {
+        sig.push_back(i);
+      }
+    }
+    auto is_bare_id = [&](size_t s) {
+      const AllToken& t = toks[sig[s]];
+      return t.type == sql_token::kId && !t.str.empty() &&
+             t.str.front() != '"' && t.str.front() != '`';
+    };
+    size_t k = sig.size();
+    for (size_t j = 0; j + 2 < sig.size(); ++j) {
+      if (is_bare_id(j) &&
+          base::ToLower(toks[sig[j]].str) == "_interval_intersect_single" &&
+          toks[sig[j + 1]].type == sql_token::kBang &&
+          toks[sig[j + 2]].type == sql_token::kLp) {
+        k = j;
+        break;
+      }
+    }
+    if (k == sig.size()) {
+      break;
+    }
+    size_t ko = k + 2;
+    int depth = 0;
+    size_t outer_close = sig.size();
+    std::vector<size_t> commas;
+    for (size_t m = ko; m < sig.size(); ++m) {
+      int tt = toks[sig[m]].type;
+      if (tt == sql_token::kLp) {
+        ++depth;
+      } else if (tt == sql_token::kRp) {
+        if (--depth == 0) {
+          outer_close = m;
+          break;
+        }
+      } else if (depth == 1 && tt == sql_token::kComma) {
+        commas.push_back(m);
+      }
+    }
+    if (outer_close == sig.size() || commas.size() != 2) {
+      break;  // Expect three args: ts, dur, table.
+    }
+    auto text_between = [&](size_t lo_excl, size_t hi_excl) {
+      size_t a = sig[lo_excl] + 1, b = sig[hi_excl];
+      std::string s;
+      for (size_t i = a; i < b; ++i) {
+        s += toks[i].str;
+      }
+      return base::TrimWhitespace(s);
+    };
+    std::string ts_arg = text_between(ko, commas[0]);
+    std::string dur_arg = text_between(commas[0], commas[1]);
+    std::string tab = text_between(commas[1], outer_close);
+    if (ts_arg.empty() || dur_arg.empty() || tab.empty()) {
+      break;
+    }
+    // Intersect every row of `tab` with the single interval [ts, ts+dur).
+    std::string g = "greatest(t.ts, (" + ts_arg + "))";
+    std::string l = "least(t.ts + t.dur, (" + ts_arg + ") + (" + dur_arg + "))";
+    std::string sub = "(SELECT t.id AS id, " + g + " AS ts, (" + l + ") - " + g +
+                      " AS dur FROM " + tab + " t WHERE " + g + " < " + l + ")";
+    size_t first_tok = sig[k], last_tok = sig[outer_close];
+    std::string out;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (i == first_tok) {
+        out += sub;
+        i = last_tok;
+        continue;
+      }
+      out += toks[i].str;
+    }
+    cur = std::move(out);
+  }
+  return cur;
+}
+
 std::string RewriteIntervalCreateMacro(const std::string& sql) {
   std::string cur = sql;
   for (int iter = 0; iter < 64; ++iter) {

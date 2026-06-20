@@ -256,6 +256,11 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql);
 // unchanged if there is no `_interval_create!` call.
 std::string RewriteIntervalCreateMacro(const std::string& sql);
 
+// Rewrites `_interval_intersect_single!(ts, dur, t)` (intersect every row of
+// table `t` with the single interval [ts, ts+dur)) into plain SQL. Must run
+// before macro expansion. Returns the input unchanged if there is no such call.
+std::string RewriteIntervalIntersectSingleMacro(const std::string& sql);
+
 // Testing-only entry point for the support predicate's TOKENIZATION + decision
 // logic, exposed so a unittest can exercise the previously-buggy classification
 // cases (CAST(...), USING(...), WITH d(a,b) AS (...), double-quoted literals,
