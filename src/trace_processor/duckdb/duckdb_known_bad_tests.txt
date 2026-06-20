@@ -51,10 +51,11 @@
 # FOLLOW-UP: wiring this file into the diff runner as a DuckDB-lane exclusion is
 # a separate task; for now it is documentation + an evidence ledger.
 
+
 # --- TIE_BREAK -------------------------------------------------------------
 AndroidBitmaps.android_bitmap_count   # TIE_BREAK: identical row set, under-specified order.
 AndroidBitmaps.android_bitmap_memory   # TIE_BREAK: identical row set, under-specified order.
-AndroidBugreport.android_bugreport_battery_stats   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without a total ORDER BY).
+AndroidBugreport.android_bugreport_battery_stats   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without total ORDER BY).
 AndroidBugreport.android_bugreport_logs   # TIE_BREAK: identical row set, under-specified order.
 AndroidBugreport.android_bugreport_trace_types   # TIE_BREAK: identical row set, under-specified order.
 AndroidCpuPerUid.android_cpu_per_uid_basic   # TIE_BREAK: identical row set, under-specified order.
@@ -63,14 +64,14 @@ AndroidStdlib.service_bindings   # TIE_BREAK: identical row set, under-specified
 ArtMethodParser.art_method_smoke   # TIE_BREAK: identical row set, under-specified order.
 ArtMethodParser.art_method_streaming_smoke   # TIE_BREAK: identical row set, under-specified order.
 AtraceErrorHandling.instant_async_atrace_instant_async   # TIE_BREAK: identical row set, under-specified order.
-ChromeMemorySnapshots.memory_snapshot_node_args   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without a total ORDER BY).
-ChromeScrollJankStdlib.chrome_input_pipeline_steps   # TIE_BREAK: lax GROUP BY now runs (ANY_VALUE repair) but the GROUP BY key is non-unique, so the arbitrary pick differs from SQLite.
+ChromeMemorySnapshots.memory_snapshot_node_args   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without total ORDER BY).
+ChromeScrollJankStdlib.chrome_input_pipeline_steps   # TIE_BREAK: lax GROUP BY now runs (ANY_VALUE) but key non-unique -> arbitrary pick differs.
 ChromeScrollJankStdlib.chrome_janky_event_latencies_v3   # TIE_BREAK: identical row set, under-specified order.
 ChromeScrollJankStdlib.task_start_time_input_pipeline   # TIE_BREAK: identical row set, under-specified order.
 ChromeStdlib.chrome_custom_navigation_tasks   # TIE_BREAK: identical row set, under-specified order.
 ChromeStdlib.top_level_java_choreographer_slices_top_level_java_chrome_tasks   # TIE_BREAK: identical row set, under-specified order.
-Fuchsia.fuchsia_workstation_smoke_args   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without a total ORDER BY).
-GeckoParser.gecko_samples_simpleperf_smoke   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without a total ORDER BY).
+Fuchsia.fuchsia_workstation_smoke_args   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without total ORDER BY).
+GeckoParser.gecko_samples_simpleperf_smoke   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without total ORDER BY).
 GeckoParser.gecko_shared_resources   # TIE_BREAK: identical row set, under-specified order.
 GraphicsGpuTrace.gpu_counter_specs   # TIE_BREAK: identical row set, under-specified order.
 GraphicsGpuTrace.gpu_render_stages   # TIE_BREAK: identical row set, under-specified order.
@@ -79,14 +80,14 @@ GraphicsParser.graphics_frame_events_machine_id   # TIE_BREAK: identical row set
 JsonParser.json_all_slice_types   # TIE_BREAK: identical row set, under-specified order.
 LinuxCpu.cpu_eos_counters_freq   # TIE_BREAK: identical row set, under-specified order.
 LinuxCpu.cpu_eos_counters_idle   # TIE_BREAK: identical row set, under-specified order.
-LinuxTests.linux_irqs   # TIE_BREAK: as chrome_input_pipeline_steps (non-unique GROUP BY key, ANY_VALUE arbitrary pick).
+LinuxTests.linux_irqs   # TIE_BREAK: non-unique GROUP BY key, ANY_VALUE arbitrary pick.
 MemoryMetrics.android_dma_heap_inode   # TIE_BREAK: identical row set, under-specified order.
 Parsing.android_sched_and_ps_end_reason_neq   # TIE_BREAK: identical row set, under-specified order.
 Parsing.instants_json_instants   # TIE_BREAK: identical row set, under-specified order.
 Parsing.mm_event   # TIE_BREAK: identical row set, under-specified order.
 Parsing.sched_blocked_reason_symbolized_sched_blocked_reason_function   # TIE_BREAK: identical row set, under-specified order.
-Parsing.sched_remote_clock_sync   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without a total ORDER BY).
-Parsing.sched_remote_clock_sync_vcpu0   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without a total ORDER BY).
+Parsing.sched_remote_clock_sync   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without total ORDER BY).
+Parsing.sched_remote_clock_sync_vcpu0   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without total ORDER BY).
 Parsing.sched_waking_raw_compact_sched   # TIE_BREAK: identical row set, under-specified order.
 Parsing.statsd_atoms_all_atoms   # TIE_BREAK: identical row set, under-specified order.
 PowerPowerRails.android_power_rails_counters   # TIE_BREAK: identical row set, under-specified order.
@@ -95,7 +96,7 @@ ProcessTracking.process_tracking   # TIE_BREAK: identical row set, under-specifi
 ProcessTracking.process_tracking_machine_id   # TIE_BREAK: identical row set, under-specified order.
 ProcessTracking.process_tracking_reused_thread_print   # TIE_BREAK: identical row set, under-specified order.
 ProfilingHeapGraph.heap_graph_superclass   # TIE_BREAK: identical row set, under-specified order.
-SummaryMetricsV2.column_transformation   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without a total ORDER BY).
+SummaryMetricsV2.column_transformation   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without total ORDER BY).
 SummaryMetricsV2.simple_slices_metric_v2   # TIE_BREAK: identical row set, under-specified order.
 SurfaceFlingerLayers.display_rects   # TIE_BREAK: identical row set, under-specified order.
 SurfaceFlingerLayers.input_rects   # TIE_BREAK: identical row set, under-specified order.
@@ -104,29 +105,36 @@ TrackEvent.track_event_counters_counters   # TIE_BREAK: identical row set, under
 ViewCapture.view_rects   # TIE_BREAK: identical row set, under-specified order.
 
 # --- FORMATTING ------------------------------------------------------------
-AndroidInputEvent.motion_dispatch_args   # FORMATTING: cast_string!(real) 15-sig-digit (SQLite) vs shortest-round-trip (DuckDB).
+AndroidInputEvent.motion_dispatch_args   # FORMATTING: cast_string!(real) 15-sig-digit vs shortest-round-trip.
 
 # --- NAN_NULL --------------------------------------------------------------
-AndroidInputEvent.motion_events_args   # NAN_NULL: NaN real stringified in-SQL renders "[NULL]" (SQLite) vs "nan" (DuckDB), plus 15-sig-digit float text.
+AndroidInputEvent.motion_events_args   # NAN_NULL: NaN real -> "[NULL]"(SQLite) vs "nan"(DuckDB) inside cast_string!, + 15-sig-digit float text.
 
 # --- MULTI_STATEMENT -------------------------------------------------------
-ChromeProcesses.chrome_missing_processes_default_trace   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-ChromeScrollJankStdlib.scroll_jank_cause_map   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-JsonParser.invalid_string_ts_and_dur   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-JsonParser.json_async   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-JsonParser.json_id2   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-JsonParser.string_ts_trailing_chars   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-LinuxSysfsPower.charge_from_energy_and_bad_voltage   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-ParsingMemoryCounters.memory_counters_args_string_filter_null   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-SmokeJson.sfgate_smoke   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-TablesSched.thread_executing_span_graph_has_no_null_dur   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-TracedStats.clone_flush_latency_missing_buffer_cloned   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-TracedStats.clone_flush_latency_missing_clone_started   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-TracedStats.trigger_clone_flush_latency_missing_buffer_cloned   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
-TracedStats.trigger_clone_flush_latency_missing_clone_started   # MULTI_STATEMENT: split-path / setup error; pre-existing, independent of routing.
+ChromeProcesses.chrome_missing_processes_default_trace   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+ChromeScrollJankStdlib.scroll_jank_cause_map   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+DynamicTables.descendant_slice_boundary_instant   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+JsonParser.invalid_string_ts_and_dur   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+JsonParser.json_async   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+JsonParser.json_id2   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+JsonParser.string_ts_trailing_chars   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+LinuxSysfsPower.charge_from_energy_and_bad_voltage   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+ParsingMemoryCounters.memory_counters_args_string_filter_null   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+SmokeJson.sfgate_smoke   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+TablesSched.thread_executing_span_graph_has_no_null_dur   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+TracedStats.clone_flush_latency_missing_buffer_cloned   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+TracedStats.clone_flush_latency_missing_clone_started   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+TracedStats.trigger_clone_flush_latency_missing_buffer_cloned   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+TracedStats.trigger_clone_flush_latency_missing_clone_started   # MULTI_STATEMENT: split-path / setup error; pre-existing.
+
+# --- METRIC ----------------------------------------------------------------
+SummaryMetricsV2.smoke_metric_v2   # METRIC: summary v2 computation diverges (wholesale).
 
 # --- OTHER -----------------------------------------------------------------
-AndroidBugreport.android_bugreport_dumpstate   # OTHER: android_dumpstate view body binds with divergent GROUP BY semantics in DuckDB.
-PerfettoTable.create_and_drop_perfetto_index   # OTHER: unaliased MAX(id) inside a WITH/compound query - column-name override only fires for leading-SELECT.
+AndroidBugreport.android_bugreport_dumpstate   # OTHER: android_dumpstate view body divergent GROUP BY in DuckDB.
+GraphSearchTests.next_sibling   # OTHER: graph next_sibling result ordering/value divergence.
+PerfettoTable.create_and_drop_perfetto_index   # OTHER: unaliased MAX(id) in a WITH/compound query (column-name override is leading-SELECT only).
 PerfettoTable.create_or_replace_perfetto_index   # OTHER: as create_and_drop_perfetto_index.
-Tables.ftrace_setup_errors   # OTHER: UNION ALL of INTEGER and STRING column; SQLite keeps per-row dynamic type, DuckDB unifies to VARCHAR.
+PerfettoTableFunction.legacy_table_function_drop_partial   # OTHER: legacy table-function partial-drop semantics.
+Tables.ftrace_setup_errors   # OTHER: UNION ALL of INTEGER + STRING column; SQLite per-row dynamic type vs DuckDB VARCHAR.
+WattsonStdlib.wattson_irq_flattening   # OTHER: aggregation order or arbitrary-pick divergence.
