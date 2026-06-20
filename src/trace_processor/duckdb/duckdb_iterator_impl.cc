@@ -80,6 +80,7 @@ bool DuckDbIteratorImpl::Next() {
       exhausted_ = true;
       return false;
     }
+    produced_row_ = true;
     return true;
   }
 
@@ -299,7 +300,14 @@ uint32_t DuckDbIteratorImpl::StatementCount() const {
 }
 
 uint32_t DuckDbIteratorImpl::StatementCountWithOutput() const {
-  return result_.statement_count_with_output;
+  // A statement counts as "with output" only if it actually produced at least
+  // one row, matching the SQLite path (IncrementCountForStmt skips a statement
+  // whose first step is already done). The shell reads this strictly after the
+  // first Next(), so `produced_row_` is settled by then; a final SELECT that
+  // returns zero rows must report 0 here, otherwise the shell mistakes it for a
+  // prior statement having produced output ("Result rows were returned for
+  // multiple queries").
+  return produced_row_ ? result_.statement_count_with_output : 0;
 }
 
 std::string DuckDbIteratorImpl::LastStatementSql() {

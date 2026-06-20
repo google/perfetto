@@ -114,6 +114,10 @@ class DuckDbIteratorImpl final : public IteratorImpl {
 
   bool called_next_ = false;
   bool exhausted_ = false;
+  // Whether at least one row has been returned by Next(). Drives
+  // StatementCountWithOutput() so an empty final SELECT reports 0 (matching the
+  // SQLite path), avoiding the shell's "multiple queries returned rows" error.
+  bool produced_row_ = false;
   base::Status status_ = base::OkStatus();
 
   // Per-column owned, NUL-terminated copies of the current row's string/blob
