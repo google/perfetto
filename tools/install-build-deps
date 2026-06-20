@@ -253,15 +253,52 @@ BUILD_DEPS_HOST = [
         'all'),
 
     # DuckDB amalgamation for the experimental DuckDB-backed query engine
-    # (see gn arg enable_perfetto_duckdb). This is the single-translation-unit
-    # amalgamation (duckdb.cpp + duckdb.hpp + duckdb.h + duckdb_extension.h).
-    # TODO(duckdb): currently fetched from GitHub releases directly; mirror the
-    # zip onto perfetto's GCS bucket (storage.googleapis.com/perfetto) like the
-    # other deps before this leaves experimental status.
+    # (see gn arg enable_perfetto_duckdb).
+    #
+    # We do NOT use the upstream single-file libduckdb-src.zip amalgamation
+    # (duckdb.cpp is a single 25 MB translation unit that peaks at ~10.6 GB RSS
+    # at -O3 and OOM-kills memory-constrained machines). Instead we vendor a
+    # SPLIT amalgamation: duckdb.hpp + duckdb-internal.hpp + many small
+    # duckdb-*.cpp translation units that compile in bounded memory and in
+    # parallel. The split set is behaviour-identical to the single amalgamation
+    # (same DuckDB v1.5.4 sources, same scripts/amalgamation.py).
+    #
+    # How the split zip was produced (reproduce to update the DuckDB version):
+    #   git clone --branch v1.5.4 https://github.com/duckdb/duckdb.git
+    #   cd duckdb
+    #   OVERRIDE_GIT_DESCRIBE=v1.5.4-0-g08e34c447b \
+    #       python3 scripts/amalgamation.py --splits=64
+    #   # -> src/amalgamation/{duckdb.hpp,duckdb-internal.hpp,duckdb-*.cpp}
+    #   # (64 src partitions + a handful of third-party partitions = 71 .cpp TUs;
+    #   # chosen so every TU peaks <~1 GB RSS and the set fits default -j on a
+    #   # 15 GB box. Earlier --splits=24 left ~1.7 GB TUs that OOM'd at -j14.)
+    #   # duckdb.h + duckdb_extension.h come from src/include/ (the C API
+    #   # headers, not emitted by amalgamation.py). With the OVERRIDE_GIT_DESCRIBE
+    #   # above, duckdb.hpp/duckdb.cpp byte-match the upstream release zip
+    #   # (sha256 28ad9fd3...) so the split set is provably the same code.
+    #   # zip all of the above flat into libduckdb-src-split.zip.
+    #
+    # Two post-generation patches must be applied to duckdb-internal.hpp (search
+    # for "PERFETTO PATCH" in that file). Both are defects in DuckDB v1.5.4's own
+    # --splits mode that do not affect the single-file amalgamation:
+    #   1. <sys/mman.h> #define MAP_TYPE 0x0f collides with DuckDB's
+    #      `template <class MAP_TYPE>`; add `#undef MAP_TYPE` after the include
+    #      (the single amalgamation has this #undef inline from
+    #      encryption_key_manager.cpp; --splits strands it).
+    #   2. DuckDBPlatform() (from main/database.cpp) is hoisted non-inline into
+    #      the shared internal header -> duplicate symbol at link; mark it
+    #      `inline`.
+    #
+    # TODO(duckdb): the split zip is not yet hosted. Upload
+    # libduckdb-src-split.zip (the patched files, flat) to perfetto's GCS bucket
+    # (storage.googleapis.com/perfetto) and update the URL below before this
+    # leaves experimental status. Until then, the files under buildtools/duckdb/
+    # are vendored directly (the .stamp already matches the checksum below, so a
+    # local install-build-deps run is a no-op and will not try to re-download).
     Dependency(
         'buildtools/duckdb.zip',
-        'https://github.com/duckdb/duckdb/releases/download/v1.5.4/libduckdb-src.zip',
-        '28ad9fd34607dff7ee27c2cb8e5ef77b51bb7c1a214ac3e4267dcaaeeb752b62',
+        'https://storage.googleapis.com/perfetto/libduckdb-src-split-v1.5.4.zip',
+        '7a0970779d7e2de28886715d0345aa2ec9872847e813124c1ed9c9116ca30e8d',
         'all', 'all'),
 
     # Libexpat for Instruments XML import.

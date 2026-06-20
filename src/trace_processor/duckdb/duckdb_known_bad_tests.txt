@@ -34,6 +34,13 @@
 #                  (leading-block-in-engine then last-statement-only re-run is not
 #                  always equivalent to one ExecuteUntilLastStatement). Independent
 #                  of this lane's routing.
+#   DIALECT_GROUP_BY  SQLite's lax aggregate extension: a SELECT lists a column
+#                  that is neither grouped nor aggregated (SQLite picks an
+#                  arbitrary row's value); DuckDB's binder rejects it ("column
+#                  must appear in the GROUP BY clause"). A genuine dialect
+#                  divergence, not a value difference. (These BIND-and-error in
+#                  DuckDB -> honest fail; they are NOT recoverable without
+#                  rewriting the stdlib query to be standards-conformant.)
 #   OTHER          divergence of another kind (UNION column-type coercion, a
 #                  view-body dialect/semantic difference, etc.) - see the reason.
 #
@@ -75,6 +82,9 @@ JsonParser.json_id2                                    # MULTI_STATEMENT: split-
 JsonParser.string_ts_trailing_chars                    # MULTI_STATEMENT: split-path.
 ChromeScrollJankStdlib.scroll_jank_cause_map           # MULTI_STATEMENT: split-path.
 TablesSched.thread_executing_span_graph_has_no_null_dur # MULTI_STATEMENT: split-path; also the one fallback-ON regression introduced by relaxing the row-order guard.
+
+# --- DIALECT_GROUP_BY -----------------------------------------------------------
+ChromeScrollJankStdlib.chrome_input_pipeline_steps     # DIALECT_GROUP_BY: SELECT input_type under GROUP BY latency_id (input_type neither grouped nor aggregated). SQLite picks an arbitrary row; DuckDB's binder rejects it. group_concat itself now binds (allowlisted); the remaining blocker is this lax-GROUP-BY divergence.
 
 # --- OTHER ----------------------------------------------------------------------
 Tables.ftrace_setup_errors                             # OTHER: UNION ALL of an INTEGER (stats.value) and a STRING (metadata.str_value) column. SQLite keeps each row's dynamic type (3 numeric); DuckDB unifies the UNION column to VARCHAR ("3").

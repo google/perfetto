@@ -65,6 +65,26 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // an INTEGER (`5`), a type divergence that fails the byte-exact diff.
           // (`trunc(INTEGER)` happens to stay INTEGER in DuckDB, so trunc is OK.)
           "abs", "round", "trunc", "pow", "power",
+          // Null-handling conditionals. These are SQL-standard and resolve to the
+          // SAME semantics in DuckDB as in SQLite: `coalesce`/`ifnull` are
+          // parsed into a COALESCE operator (first non-NULL argument); `nullif`
+          // into `CASE WHEN a=b THEN NULL ELSE a END`. DuckDB transforms them at
+          // parse time (transform_function.cpp / transform_operator.cpp), so they
+          // bind identically regardless of argument types. 1:1 with SQLite.
+          //
+          // `iif`/`format`/`hex` are deliberately EXCLUDED: `iif` is not a DuckDB
+          // builtin (DuckDB has no `iif`; it uses `CASE WHEN`), so it would error
+          // into the fallback; `format` uses Python `{}`-style formatting in
+          // DuckDB (not SQLite's `%`-style printf), so `format('%.5f', x)`
+          // diverges; `hex(INTEGER)` hexes the integer VALUE in DuckDB whereas
+          // SQLite hexes the integer's TEXT rendering - a value divergence.
+          "coalesce", "ifnull", "nullif",
+          // `group_concat(X)` is a DuckDB-native aggregate (alias of `string_agg`)
+          // whose default separator is `,`, matching SQLite. Concatenation ORDER
+          // within a group is engine-defined in both, so an unordered
+          // `group_concat` over a tie can diverge - those land in the known-bad
+          // ledger (TIE_BREAK), not here.
+          "group_concat",
       };
   return *kAllow;
 }
