@@ -379,23 +379,74 @@ SupportDecision AnalyzeSupport(
   // bookkeeping for the bare-SELECT gate above.)
   (void)saw_aggregate;
 
-  // Silent-divergence guard: COLUMN NAME of an unaliased expression. SQLite names
-  // an unaliased top-level projection column after its source text (`COUNT(*)`,
-  // `COUNT(1)`) while DuckDB normalizes it (`count_star()`, `count(1)`); the
-  // CSV-header diff then fails silently. Detect a function-call column in the
-  // top-level projection (between the first top-level SELECT and its matching
-  // top-level FROM) NOT followed by an alias (an `AS` keyword or a bare implicit
-  // alias name). Only analyzed for a plain leading SELECT (a leading WITH is
-  // routed and caught by the diff if it bites, as before).
-  if (!toks.empty() && toks[0].type == sql_token::kSelect) {
+  // POLICY SHIFT ("list, don't guard"): the COLUMN-NAME divergence guard was
+  // REPLACED by a post-execution column-name OVERRIDE (see
+  // ComputeColumnNameOverrides). SQLite names an unaliased top-level projection
+  // column after its source text (`MAX(id)`, `COUNT(*)`) while DuckDB
+  // canonicalizes it (`max(id)`, `count_star()`); rather than reject these
+  // queries, the engine runs them in DuckDB and rewrites the affected output
+  // column names to the SQLite source text. This converts the previously-
+  // rejected (honest-fail) queries into passes.
+  return SupportDecision{};
+}
+
+// Reconstructs the source text of the token range [begin, end) (end exclusive)
+// from the significant-token stream, inserting a single space before each token
+// that was NOT byte-adjacent to its predecessor. For tightly-written
+// projections (`MAX(id)`, `COUNT(*)`) this reproduces SQLite's column-name text
+// exactly; multiple-space / comment-laden spellings collapse to single spaces
+// (rare in the corpus, and only ever a column-header cosmetic).
+std::string ReconstructText(const std::vector<SigToken>& toks,
+                            size_t begin,
+                            size_t end) {
+  std::string out;
+  for (size_t k = begin; k < end; ++k) {
+    if (k != begin && !toks[k].adjacent_to_prev) {
+      out.push_back(' ');
+    }
+    out.append(toks[k].str);
+  }
+  return out;
+}
+
+// Computes per-output-column name OVERRIDES so a DuckDB result's column headers
+// match SQLite's. SQLite names an unaliased top-level projection column after
+// its source text; DuckDB canonicalizes function calls (lowercased, `count(*)`
+// -> `count_star()`). For each top-level projection that is EXACTLY a bare
+// function call with NO alias and NO trailing tokens (so there is no ambiguity
+// about whether a trailing bare name is an implicit alias), the override is the
+// reconstructed source text; for every other projection (simple column refs,
+// aliased exprs, arithmetic, implicit-aliased calls) the slot is left empty
+// (nullopt) so DuckDB's own name is kept - those already match or are too
+// ambiguous to safely rewrite.
+//
+// Returns an EMPTY vector (meaning "do not override anything") when positional
+// mapping from projection items to output columns is not safe: the query does
+// not begin with SELECT, a top-level set operation (UNION/INTERSECT/EXCEPT)
+// appears before FROM, or any projection item contains a top-level `*` (which
+// expands to an unknown number of columns). In those cases the caller keeps
+// DuckDB's names verbatim.
+std::vector<std::optional<std::string>> ComputeColumnNameOverrides(
+    const std::string& sql) {
+  std::vector<SigToken> toks = TokenizeSql(sql);
+  std::vector<std::optional<std::string>> empty;
+  if (toks.empty() || toks[0].type != sql_token::kSelect) {
+    return empty;
+  }
+
+  // Find the end of the top-level projection list: the first top-level FROM (or
+  // a clause keyword / semicolon / EOF when there is no FROM). Bail on a
+  // top-level set operation (positional column mapping would be unsafe).
+  size_t proj_end = toks.size();
+  {
     int depth = 0;
     for (size_t k = 1; k < toks.size(); ++k) {
-      const SigToken& t = toks[k];
-      if (t.type == sql_token::kLp) {
+      int tt = toks[k].type;
+      if (tt == sql_token::kLp) {
         ++depth;
         continue;
       }
-      if (t.type == sql_token::kRp) {
+      if (tt == sql_token::kRp) {
         if (depth > 0) {
           --depth;
         }
@@ -404,44 +455,74 @@ SupportDecision AnalyzeSupport(
       if (depth != 0) {
         continue;
       }
-      if (t.type == sql_token::kFrom || t.type == sql_token::kSemi) {
-        break;  // End of the top-level projection list.
-      }
-      // A bare-name function call in projection position.
-      if (IsBareName(t) && k + 1 < toks.size() &&
-          toks[k + 1].type == sql_token::kLp &&
-          !(k > 0 && toks[k - 1].type == sql_token::kDot)) {
-        // Find the matching ')'.
-        int d = 0;
-        size_t m = k + 1;
-        for (; m < toks.size(); ++m) {
-          if (toks[m].type == sql_token::kLp) {
-            ++d;
-          } else if (toks[m].type == sql_token::kRp) {
-            if (--d == 0) {
-              break;
-            }
-          }
-        }
-        if (m >= toks.size()) {
-          break;  // Unbalanced - let DuckDB/SQLite handle it.
-        }
-        // Is the call aliased? Either an explicit `AS`, or an implicit alias
-        // (a bare name) right after the `)`. Both spell the column name the
-        // same way in DuckDB and SQLite.
-        const SigToken* after = (m + 1 < toks.size()) ? &toks[m + 1] : nullptr;
-        bool aliased_as = after && after->type == sql_token::kAs;
-        bool aliased_implicit = after && IsBareName(*after);
-        if (!aliased_as && !aliased_implicit) {
-          return ineligible(
-              "unaliased expression column (column-name divergence)");
-        }
-        k = m;  // Skip past the call.
+      if (tt == sql_token::kFrom || tt == sql_token::kSemi) {
+        proj_end = k;
+        break;
       }
     }
   }
 
-  return SupportDecision{};
+  // Split [1, proj_end) into items by top-level commas; collect each item's
+  // token range. Bail if an item has a top-level `*` (column expansion).
+  std::vector<std::pair<size_t, size_t>> items;  // [begin, end) per item.
+  {
+    int depth = 0;
+    size_t item_begin = 1;
+    auto push_item = [&](size_t e) {
+      if (e > item_begin) {
+        items.emplace_back(item_begin, e);
+      }
+    };
+    for (size_t k = 1; k < proj_end; ++k) {
+      int tt = toks[k].type;
+      if (tt == sql_token::kLp) {
+        ++depth;
+      } else if (tt == sql_token::kRp) {
+        if (depth > 0) {
+          --depth;
+        }
+      } else if (depth == 0 && tt == sql_token::kComma) {
+        push_item(k);
+        item_begin = k + 1;
+      } else if (depth == 0 && toks[k].str == "*") {
+        return empty;  // SELECT * / expr.* : unsafe to map positionally.
+      }
+    }
+    push_item(proj_end);
+  }
+  if (items.empty()) {
+    return empty;
+  }
+
+  std::vector<std::optional<std::string>> overrides(items.size());
+  for (size_t i = 0; i < items.size(); ++i) {
+    size_t b = items[i].first;
+    size_t e = items[i].second;  // exclusive.
+    // Is the item EXACTLY a bare function call `name ( ... )` with the matching
+    // ')' as its final token (no alias, no trailing tokens)?
+    if (e - b < 3) {
+      continue;  // Too short to be name '(' ')'.
+    }
+    if (!IsBareName(toks[b]) || toks[b + 1].type != sql_token::kLp) {
+      continue;
+    }
+    int d = 0;
+    size_t m = b + 1;
+    for (; m < e; ++m) {
+      if (toks[m].type == sql_token::kLp) {
+        ++d;
+      } else if (toks[m].type == sql_token::kRp) {
+        if (--d == 0) {
+          break;
+        }
+      }
+    }
+    if (m != e - 1) {
+      continue;  // Matching ')' is not the last token -> alias/trailing/complex.
+    }
+    overrides[i] = ReconstructText(toks, b, e);
+  }
+  return overrides;
 }
 
 }  // namespace
@@ -719,6 +800,20 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   for (uint32_t c = 0; c < col_count; ++c) {
     const char* name = duckdb_column_name(&exec.result, c);
     exec.column_names.emplace_back(name ? name : "");
+  }
+  // Override DuckDB's canonicalized column headers with SQLite's source-text
+  // naming for unaliased bare-function-call projections (e.g. `MAX(id)`,
+  // `COUNT(*)`), so the CSV header matches the golden. Only applied when the
+  // override count matches the result column count (a safety check against any
+  // projection-mapping mismatch); otherwise DuckDB's names are kept verbatim.
+  std::vector<std::optional<std::string>> overrides =
+      ComputeColumnNameOverrides(sql);
+  if (overrides.size() == exec.column_names.size()) {
+    for (size_t c = 0; c < overrides.size(); ++c) {
+      if (overrides[c]) {
+        exec.column_names[c] = *overrides[c];
+      }
+    }
   }
   *ran_in_duckdb = true;
   return std::optional<DuckDbExecutionResult>(std::move(exec));

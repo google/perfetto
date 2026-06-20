@@ -243,6 +243,37 @@ void UnhexTrampoline(duckdb_function_info info, duckdb_data_chunk in,
   }
 }
 
+// __intrinsic_hex_text(input VARCHAR) -> VARCHAR. Uppercase hex of the input's
+// UTF-8 bytes. SQLite's `hex(X)` operates on X's TEXT/BLOB rendering (so
+// `hex(123)` hexes the string "123" -> "313233", NOT the integer value), which
+// DuckDB's native `hex(INTEGER)` does NOT do (it hexes the value). The surface
+// `hex` is therefore a MACRO that casts its argument to VARCHAR first and calls
+// this, reproducing SQLite's "hex of the text" semantics for every input type.
+void HexTextTrampoline(duckdb_function_info, duckdb_data_chunk in,
+                       duckdb_vector out) {
+  static const char kHex[] = "0123456789ABCDEF";
+  idx_t n = duckdb_data_chunk_get_size(in);
+  duckdb_vector a0 = duckdb_data_chunk_get_vector(in, 0);
+  duckdb_vector_ensure_validity_writable(out);
+  uint64_t* out_validity = duckdb_vector_get_validity(out);
+  std::string buf;
+  for (idx_t i = 0; i < n; ++i) {
+    if (IsRowNull(a0, i)) {
+      duckdb_validity_set_row_invalid(out_validity, i);
+      continue;
+    }
+    std::string_view s = ReadVarchar(a0, i);
+    buf.clear();
+    buf.reserve(s.size() * 2);
+    for (char ch : s) {
+      auto c = static_cast<unsigned char>(ch);
+      buf.push_back(kHex[c >> 4]);
+      buf.push_back(kHex[c & 0x0f]);
+    }
+    duckdb_vector_assign_string_element_len(out, i, buf.data(), buf.size());
+  }
+}
+
 // Registers a math function under one name: the (DOUBLE)->DOUBLE numeric
 // overload plus the (VARCHAR)->DOUBLE "text -> NULL" overload, matching the
 // Perfetto intrinsic's behaviour on a text argument.
@@ -336,6 +367,30 @@ base::Status RegisterScalarFunctions(
           err.c_str());
     }
     out_registered->insert("iif");
+  }
+
+  // hex(x): SQLite hexes the TEXT rendering of x (uppercase). Register the byte
+  // implementation under a conflict-free name and shadow the surface `hex` with
+  // a MACRO that casts to VARCHAR first (so `hex(123)` -> hex('123') ->
+  // "313233", matching SQLite), mirroring the unhex pattern.
+  RETURN_IF_ERROR(RegisterScalarFunction(
+      conn, "__intrinsic_hex_text", {DUCKDB_TYPE_VARCHAR}, DUCKDB_TYPE_VARCHAR,
+      HexTextTrampoline, out_registered));
+  {
+    duckdb_result res;
+    duckdb_state st = duckdb_query(
+        conn,
+        "CREATE OR REPLACE MACRO hex(x) AS "
+        "__intrinsic_hex_text(CAST(x AS VARCHAR));",
+        &res);
+    std::string err = st == DuckDBError ? duckdb_result_error(&res) : "";
+    duckdb_destroy_result(&res);
+    if (st == DuckDBError) {
+      return base::ErrStatus(
+          "RegisterScalarFunctions: failed to create hex macro: %s",
+          err.c_str());
+    }
+    out_registered->insert("hex");
   }
 
   return base::OkStatus();
