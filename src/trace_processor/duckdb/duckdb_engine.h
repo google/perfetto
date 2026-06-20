@@ -188,6 +188,13 @@ class DuckDbEngine {
   // to registered_scalar_functions_ so the support predicate allows a call.
   std::unordered_set<std::string> mirrored_scalar_macros_;
 
+  // Set true once any mirrored view/table-macro/scalar-macro BODY references
+  // `extract_arg`. extract_arg is most often called INSIDE a view body (e.g.
+  // counter_track, journald, gpu_render_stages), not the user's SQL, so the
+  // extract_arg index must be built whenever such a view is reachable - not only
+  // when the user's query text literally mentions extract_arg.
+  bool mirrored_uses_extract_arg_ = false;
+
   // Lowercased names of scalar UDFs registered on the DuckDB connection at init
   // (via RegisterScalarFunctions). The support predicate treats a call to one as
   // an eligible function (in addition to the static builtin allowlist).

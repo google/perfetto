@@ -706,6 +706,9 @@ void DuckDbEngine::SyncViews() {
     }
     duckdb_destroy_result(&res);
     mirrored_views_.insert(lower);
+    if (base::ToLower(create_view_sql).find("extract_arg") != std::string::npos) {
+      mirrored_uses_extract_arg_ = true;
+    }
   }
 }
 
@@ -791,6 +794,9 @@ void DuckDbEngine::SyncTableFunctions() {
     }
     duckdb_destroy_result(&res);
     mirrored_table_macros_.insert(lower);
+    if (base::ToLower(body).find("extract_arg") != std::string::npos) {
+      mirrored_uses_extract_arg_ = true;
+    }
   }
 }
 
@@ -829,6 +835,9 @@ void DuckDbEngine::SyncScalarFunctions() {
     duckdb_destroy_result(&res);
     mirrored_scalar_macros_.insert(lower);
     registered_scalar_functions_.insert(lower);
+    if (base::ToLower(body).find("extract_arg") != std::string::npos) {
+      mirrored_uses_extract_arg_ = true;
+    }
   }
 }
 
@@ -884,12 +893,15 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
     return ineligible(*decision.ineligible_reason);
   }
 
-  // If the query references extract_arg, make sure its (arg_set_id, key) index
-  // is built BEFORE execution (the build issues its own DuckDB query, which must
-  // not happen re-entrantly inside the UDF trampoline). Cheap case-insensitive
-  // substring check; the build itself is idempotent.
+  // If extract_arg may be called - either the user's query mentions it, or a
+  // mirrored view/macro BODY does (the common case: extract_arg lives inside
+  // view bodies like counter_track/journald, not the user's SQL) - make sure its
+  // (arg_set_id, key) index is built BEFORE execution. The build issues its own
+  // DuckDB query, so it must not happen re-entrantly inside the UDF trampoline.
+  // Idempotent (built once per engine).
   if (extract_arg_state_ && !extract_arg_state_->built &&
-      base::ToLower(sql).find("extract_arg") != std::string::npos) {
+      (mirrored_uses_extract_arg_ ||
+       base::ToLower(sql).find("extract_arg") != std::string::npos)) {
     RETURN_IF_ERROR(EnsureExtractArgIndexBuilt(conn_, extract_arg_state_.get()));
   }
 
