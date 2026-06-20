@@ -852,6 +852,7 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
         duckdb_integration::RewriteIntervalIntersectMacro(split.last);
     pre = duckdb_integration::RewriteIntervalCreateMacro(pre);
     pre = duckdb_integration::RewriteIntervalIntersectSingleMacro(pre);
+    pre = duckdb_integration::RewriteIntervalIntersectWithColNamesMacro(pre);
     pre = duckdb_integration::RewriteGraphReachableMacro(pre);
     pre = duckdb_integration::RewriteGraphDominatorMacro(pre);
     std::string duckdb_sql = pre;

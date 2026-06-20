@@ -1316,6 +1316,100 @@ std::string RewriteGraphReachableMacro(const std::string& sql) {
   return cur;
 }
 
+std::string RewriteIntervalIntersectWithColNamesMacro(const std::string& sql) {
+  std::string cur = sql;
+  for (int iter = 0; iter < 64; ++iter) {
+    std::vector<AllToken> toks = TokenizeAll(cur);
+    std::vector<size_t> sig;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (toks[i].significant) {
+        sig.push_back(i);
+      }
+    }
+    auto is_bare_id = [&](size_t s) {
+      const AllToken& t = toks[sig[s]];
+      return t.type == sql_token::kId && !t.str.empty() &&
+             t.str.front() != '"' && t.str.front() != '`';
+    };
+    size_t k = sig.size();
+    for (size_t j = 0; j + 2 < sig.size(); ++j) {
+      if (is_bare_id(j) &&
+          base::ToLower(toks[sig[j]].str) ==
+              "_interval_intersect_with_col_names" &&
+          toks[sig[j + 1]].type == sql_token::kBang &&
+          toks[sig[j + 2]].type == sql_token::kLp) {
+        k = j;
+        break;
+      }
+    }
+    if (k == sig.size()) {
+      break;
+    }
+    size_t ko = k + 2;
+    int depth = 0;
+    size_t outer_close = sig.size();
+    std::vector<size_t> commas;
+    for (size_t m = ko; m < sig.size(); ++m) {
+      int tt = toks[sig[m]].type;
+      if (tt == sql_token::kLp) {
+        ++depth;
+      } else if (tt == sql_token::kRp) {
+        if (--depth == 0) {
+          outer_close = m;
+          break;
+        }
+      } else if (depth == 1 && tt == sql_token::kComma) {
+        commas.push_back(m);
+      }
+    }
+    // Expect 9 args: tab1,id1,ts1,dur1, tab2,id2,ts2,dur2, (partition_cols).
+    if (outer_close == sig.size() || commas.size() != 8) {
+      break;
+    }
+    auto text_between = [&](size_t lo_excl, size_t hi_excl) {
+      size_t a = sig[lo_excl] + 1, b = sig[hi_excl];
+      std::string s;
+      for (size_t i = a; i < b; ++i) {
+        s += toks[i].str;
+      }
+      return base::TrimWhitespace(s);
+    };
+    std::string tab1 = text_between(ko, commas[0]);
+    std::string id1 = text_between(commas[0], commas[1]);
+    std::string ts1 = text_between(commas[1], commas[2]);
+    std::string dur1 = text_between(commas[2], commas[3]);
+    std::string tab2 = text_between(commas[3], commas[4]);
+    std::string id2 = text_between(commas[4], commas[5]);
+    std::string ts2 = text_between(commas[5], commas[6]);
+    std::string dur2 = text_between(commas[6], commas[7]);
+    std::string parts = text_between(commas[7], outer_close);
+    // Only the non-partitioned form is handled by the native combiner; a
+    // partition list is left to fall back.
+    if (parts != "()" || tab1.empty() || tab2.empty()) {
+      break;
+    }
+    std::string sub =
+        "(SELECT ii.u.ts AS ts, ii.u.dur AS dur, ii.u.id_0 AS id_0, "
+        "ii.u.id_1 AS id_1 FROM (SELECT unnest(__intrinsic_ii_combine([(SELECT "
+        "__intrinsic_ii_agg(" +
+        id1 + ", " + ts1 + ", " + dur1 + ") FROM " + tab1 +
+        "), (SELECT __intrinsic_ii_agg(" + id2 + ", " + ts2 + ", " + dur2 +
+        ") FROM " + tab2 + ")])) AS u) ii)";
+    size_t first_tok = sig[k], last_tok = sig[outer_close];
+    std::string out;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (i == first_tok) {
+        out += sub;
+        i = last_tok;
+        continue;
+      }
+      out += toks[i].str;
+    }
+    cur = std::move(out);
+  }
+  return cur;
+}
+
 std::string RewriteGraphDominatorMacro(const std::string& sql) {
   std::string cur = sql;
   for (int iter = 0; iter < 64; ++iter) {

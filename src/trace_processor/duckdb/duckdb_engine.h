@@ -277,6 +277,13 @@ std::string RewriteGraphReachableMacro(const std::string& sql);
 // expansion. Returns the input unchanged if there is no such call.
 std::string RewriteGraphDominatorMacro(const std::string& sql);
 
+// Rewrites the non-partitioned `_interval_intersect_with_col_names!(tab1, id1,
+// ts1, dur1, tab2, id2, ts2, dur2, ())` into the native interval_intersect
+// combiner form (RegisterIntervalIntersect), reading each table's custom id/
+// ts/dur columns. The partitioned form is left to fall back. Must run BEFORE
+// macro expansion. Returns the input unchanged if there is no such call.
+std::string RewriteIntervalIntersectWithColNamesMacro(const std::string& sql);
+
 // Testing-only entry point for the support predicate's TOKENIZATION + decision
 // logic, exposed so a unittest can exercise the previously-buggy classification
 // cases (CAST(...), USING(...), WITH d(a,b) AS (...), double-quoted literals,
