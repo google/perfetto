@@ -587,6 +587,184 @@ std::string RewriteDoubleQuotedToString(const std::string& sql,
   return out;
 }
 
+// Extracts the column name X from a DuckDB `column "X" must appear in the GROUP
+// BY clause ...` binder error, or nullopt otherwise. DuckDB raises this for the
+// SQLite-lax-aggregate pattern (a projected column neither grouped nor
+// aggregated); SQLite picks an arbitrary row's value, which - when the GROUP BY
+// key is unique - is the single functionally-determined value.
+std::optional<std::string> ParseUngroupedColumn(const std::string& err) {
+  static constexpr char kPrefix[] = "column \"";
+  size_t p = err.find(kPrefix);
+  if (p == std::string::npos) {
+    return std::nullopt;
+  }
+  p += sizeof(kPrefix) - 1;
+  size_t q = err.find("\" must appear in the GROUP BY", p);
+  if (q == std::string::npos) {
+    return std::nullopt;
+  }
+  return err.substr(p, q - p);
+}
+
+// All SQL tokens (including whitespace/comments), for faithful reconstruction.
+struct AllToken {
+  int type;
+  std::string str;
+  bool significant;
+};
+std::vector<AllToken> TokenizeAll(const std::string& sql) {
+  std::vector<AllToken> out;
+  SqliteTokenizer tokenizer(SqlSource::FromTraceProcessorImplementation(sql));
+  for (auto t = tokenizer.Next(); !t.str.empty(); t = tokenizer.Next()) {
+    bool sig = t.token_type != sql_token::kSpace &&
+               t.token_type != sql_token::kComment;
+    out.push_back(AllToken{t.token_type, std::string(t.str), sig});
+  }
+  return out;
+}
+
+// True if `name` (lowercased) is an aggregate whose argument is ALREADY a valid
+// grouped context - a bare column inside it must NOT be wrapped (that would nest
+// aggregates). Covers the SQL standard aggregates plus any_value/group_concat.
+bool IsAggregateName(const std::string& lower) {
+  static const std::unordered_set<std::string>* kAgg =
+      new std::unordered_set<std::string>{
+          "count", "sum", "min", "max", "avg", "total",
+          "group_concat", "any_value", "string_agg"};
+  return kAgg->find(lower) != kAgg->end();
+}
+
+// Repairs a DuckDB lax-GROUP-BY rejection by wrapping the FIRST non-aggregated
+// occurrence of the bare column reference `[alias.]col` in the top-level
+// projection with `ANY_VALUE(...)` - exactly what DuckDB's error suggests, and
+// semantically identical to SQLite's "arbitrary row" when the GROUP BY key is
+// unique. Works at the EXPRESSION level (so `coalesce(r.x, max(p.x))` wraps only
+// the bare `r.x`, never the `max(p.x)` argument), skipping any reference that is
+// inside an aggregate call or is a function name / dotted-member prefix. The
+// caller retries; DuckDB reports one column at a time. Returns the input
+// unchanged if no safe rewrite applies.
+std::string RewriteUngroupedColumn(const std::string& sql,
+                                   const std::string& col) {
+  std::vector<AllToken> toks = TokenizeAll(sql);
+  std::string lcol = base::ToLower(col);
+
+  std::vector<size_t> sig;  // all-token indices of significant tokens.
+  for (size_t i = 0; i < toks.size(); ++i) {
+    if (toks[i].significant) {
+      sig.push_back(i);
+    }
+  }
+  auto is_bare_id = [&](size_t s) {
+    const AllToken& t = toks[sig[s]];
+    return t.type == sql_token::kId && !t.str.empty() && t.str.front() != '"' &&
+           t.str.front() != '`';
+  };
+
+  // First top-level SELECT, then its projection end (top-level FROM/;).
+  int depth = 0;
+  size_t sel = sig.size();
+  for (size_t k = 0; k < sig.size(); ++k) {
+    int tt = toks[sig[k]].type;
+    if (tt == sql_token::kLp) {
+      ++depth;
+    } else if (tt == sql_token::kRp) {
+      depth = depth > 0 ? depth - 1 : 0;
+    } else if (depth == 0 && tt == sql_token::kSelect) {
+      sel = k;
+      break;
+    }
+  }
+  if (sel == sig.size()) {
+    return sql;
+  }
+  depth = 0;
+  size_t proj_end = sig.size();
+  for (size_t k = sel + 1; k < sig.size(); ++k) {
+    int tt = toks[sig[k]].type;
+    if (tt == sql_token::kLp) {
+      ++depth;
+    } else if (tt == sql_token::kRp) {
+      depth = depth > 0 ? depth - 1 : 0;
+    } else if (depth == 0 &&
+               (tt == sql_token::kFrom || tt == sql_token::kSemi)) {
+      proj_end = k;
+      break;
+    }
+  }
+
+  // Walk the projection tracking, per open paren, whether it belongs to an
+  // aggregate call. A bare `[alias.]col` is wrappable iff no enclosing paren is
+  // an aggregate call.
+  std::vector<bool> agg_stack;  // one entry per open '(' in the projection.
+  for (size_t k = sel + 1; k < proj_end; ++k) {
+    int tt = toks[sig[k]].type;
+    if (tt == sql_token::kLp) {
+      // Is this the arg-list of an aggregate function? i.e. the previous
+      // significant token is a bare id naming an aggregate.
+      bool is_agg = k > 0 && is_bare_id(k - 1) &&
+                    IsAggregateName(base::ToLower(toks[sig[k - 1]].str));
+      agg_stack.push_back(is_agg);
+      continue;
+    }
+    if (tt == sql_token::kRp) {
+      if (!agg_stack.empty()) {
+        agg_stack.pop_back();
+      }
+      continue;
+    }
+    bool inside_agg = false;
+    for (bool a : agg_stack) {
+      inside_agg = inside_agg || a;
+    }
+    if (inside_agg || !is_bare_id(k) ||
+        base::ToLower(toks[sig[k]].str) != lcol) {
+      continue;
+    }
+    // `col` token matches. Reject if it is a function name (followed by '(') or
+    // the prefix of a dotted member (followed by '.').
+    if (k + 1 < sig.size() && (toks[sig[k + 1]].type == sql_token::kLp ||
+                               toks[sig[k + 1]].type == sql_token::kDot)) {
+      continue;
+    }
+    // Determine the reference span: a preceding `alias .` makes it `alias.col`.
+    size_t ref_first_sig = k;
+    if (k >= 2 && toks[sig[k - 1]].type == sql_token::kDot && is_bare_id(k - 2)) {
+      ref_first_sig = k - 2;
+    }
+    size_t r_first = sig[ref_first_sig], r_last = sig[k];
+    std::string ref_text;
+    for (size_t i = r_first; i <= r_last; ++i) {
+      ref_text += toks[i].str;
+    }
+    // If the reference is a STANDALONE top-level projection item (not inside any
+    // paren/expression, preceded by SELECT or a comma and followed by a comma /
+    // FROM), wrapping it would rename the output column (`any_value(r.ts)` vs
+    // `ts`); add `AS col` to preserve the name. Inside an expression the
+    // enclosing alias/name is kept, so no alias is added.
+    bool prev_ok = ref_first_sig > 0 &&
+                   (toks[sig[ref_first_sig - 1]].type == sql_token::kSelect ||
+                    toks[sig[ref_first_sig - 1]].type == sql_token::kComma);
+    bool next_ok = (k + 1 >= proj_end) ||
+                   toks[sig[k + 1]].type == sql_token::kComma ||
+                   toks[sig[k + 1]].type == sql_token::kFrom;
+    bool standalone = agg_stack.empty() && prev_ok && next_ok;
+    std::string out;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (i == r_first) {
+        out += "ANY_VALUE(" + ref_text + ")";
+        if (standalone) {
+          out += " AS " + col;
+        }
+        i = r_last;
+        continue;
+      }
+      out += toks[i].str;
+    }
+    return out;
+  }
+  return sql;
+}
+
 }  // namespace
 
 namespace internal {
@@ -699,12 +877,33 @@ void DuckDbEngine::SyncViews() {
     if (mirrored_views_.find(lower) != mirrored_views_.end()) {
       continue;  // Already mirrored.
     }
-    duckdb_result res;
-    if (duckdb_query(conn_, create_view_sql.c_str(), &res) == DuckDBError) {
+    // Create the view, repairing SQLite lax-GROUP-BY rejections by wrapping the
+    // offending bare column in ANY_VALUE (see RewriteUngroupedColumn). DuckDB
+    // reports one column at a time, so retry (capped).
+    std::string vsql = create_view_sql;
+    bool created = false;
+    for (int attempt = 0; attempt < 32; ++attempt) {
+      duckdb_result res;
+      if (duckdb_query(conn_, vsql.c_str(), &res) != DuckDBError) {
+        duckdb_destroy_result(&res);
+        created = true;
+        break;
+      }
+      std::string err = duckdb_result_error(&res);
       duckdb_destroy_result(&res);
-      continue;
+      std::optional<std::string> col = ParseUngroupedColumn(err);
+      if (!col) {
+        break;
+      }
+      std::string rewritten = RewriteUngroupedColumn(vsql, *col);
+      if (rewritten == vsql) {
+        break;
+      }
+      vsql = std::move(rewritten);
     }
-    duckdb_destroy_result(&res);
+    if (!created) {
+      continue;  // Left unmirrored; a query referencing it falls back.
+    }
     mirrored_views_.insert(lower);
     if (base::ToLower(create_view_sql).find("extract_arg") != std::string::npos) {
       mirrored_uses_extract_arg_ = true;
@@ -930,6 +1129,16 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
         if (rewritten != run_sql) {
           run_sql = std::move(rewritten);
           continue;  // Retry with the literal-rewritten SQL.
+        }
+      }
+      // Try the SQLite lax-GROUP-BY repair: wrap the offending bare column in
+      // ANY_VALUE (DuckDB reports one column per error, so the loop converges).
+      std::optional<std::string> gcol = ParseUngroupedColumn(err);
+      if (gcol) {
+        std::string rewritten = RewriteUngroupedColumn(run_sql, *gcol);
+        if (rewritten != run_sql) {
+          run_sql = std::move(rewritten);
+          continue;
         }
       }
     }
