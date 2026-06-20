@@ -660,6 +660,11 @@ base::Status DuckDbEngine::EnsureInitialized() {
   RETURN_IF_ERROR(
       RegisterScalarFunctions(conn_, &registered_scalar_functions_));
 
+  // Register the polymorphic extract_arg(arg_set_id, key) UDF (UNION return).
+  // Its (arg_set_id, key) index is built lazily on first use.
+  ASSIGN_OR_RETURN(extract_arg_state_,
+                   RegisterExtractArg(conn_, &registered_scalar_functions_));
+
   initialized_ = true;
   return base::OkStatus();
 }
@@ -832,6 +837,15 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
                      registered_scalar_functions_, mirrored_table_macros_);
   if (decision.ineligible_reason) {
     return ineligible(*decision.ineligible_reason);
+  }
+
+  // If the query references extract_arg, make sure its (arg_set_id, key) index
+  // is built BEFORE execution (the build issues its own DuckDB query, which must
+  // not happen re-entrantly inside the UDF trampoline). Cheap case-insensitive
+  // substring check; the build itself is idempotent.
+  if (extract_arg_state_ && !extract_arg_state_->built &&
+      base::ToLower(sql).find("extract_arg") != std::string::npos) {
+    RETURN_IF_ERROR(EnsureExtractArgIndexBuilt(conn_, extract_arg_state_.get()));
   }
 
   // --- Eligible: execute the whole query inside DuckDB. ---

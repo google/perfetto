@@ -55,6 +55,8 @@ source_set("engine") {
   sources = [
     "duckdb_engine.cc",
     "duckdb_engine.h",
+    "extract_arg.cc",
+    "extract_arg.h",
   ]
   deps = [
     "../../../gn:default_deps",

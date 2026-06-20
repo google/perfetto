@@ -98,6 +98,13 @@ class DuckDbIteratorImpl final : public IteratorImpl {
   std::string LastStatementSql() override;
 
  private:
+  // Converts the cell at `row` of `vec` to a SqlValue. `buffer_col` selects the
+  // owned string-buffer slot to use for VARCHAR/BLOB results. Handles the
+  // integer/double/string/blob/decimal types and recurses for UNION (reading the
+  // tag and unwrapping the active member), so a polymorphic UDF result (e.g.
+  // extract_arg) surfaces in its natural SqlValue type per row.
+  SqlValue ReadCell(duckdb_vector vec, idx_t row, uint32_t buffer_col) const;
+
   DuckDbExecutionResult result_;
 
   // Current chunk being iterated; null before the first Next() and after EOF.

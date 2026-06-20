@@ -31,6 +31,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
+#include "src/trace_processor/duckdb/extract_arg.h"
 #include "src/trace_processor/duckdb/table_provider.h"
 
 namespace perfetto::trace_processor {
@@ -169,6 +170,12 @@ class DuckDbEngine {
   // (via RegisterScalarFunctions). The support predicate treats a call to one as
   // an eligible function (in addition to the static builtin allowlist).
   std::unordered_set<std::string> registered_scalar_functions_;
+
+  // Backing state for the `extract_arg` UDF: the lazily-built (arg_set_id, key)
+  // index over the trace's args table. Owned here so its raw pointer (the UDF's
+  // extra_info) outlives the connection. Built on first use of a query that
+  // references extract_arg (see EnsureExtractArgIndexBuilt).
+  std::unique_ptr<ExtractArgState> extract_arg_state_;
 };
 
 // Testing-only entry point for the support predicate's TOKENIZATION + decision

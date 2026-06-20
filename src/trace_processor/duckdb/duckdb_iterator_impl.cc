@@ -115,20 +115,36 @@ bool DuckDbIteratorImpl::Next() {
 SqlValue DuckDbIteratorImpl::Get(uint32_t col) const {
   PERFETTO_DCHECK(chunk_);
   PERFETTO_DCHECK(row_in_chunk_ < chunk_size_);
-
   duckdb_vector vec = duckdb_data_chunk_get_vector(chunk_, col);
+  return ReadCell(vec, row_in_chunk_, col);
+}
 
+SqlValue DuckDbIteratorImpl::ReadCell(duckdb_vector vec,
+                                      idx_t row,
+                                      uint32_t col) const {
   // A null validity mask means every row in the vector is valid (no NULLs).
   uint64_t* validity = duckdb_vector_get_validity(vec);
-  if (validity && !duckdb_validity_row_is_valid(validity, row_in_chunk_)) {
+  if (validity && !duckdb_validity_row_is_valid(validity, row)) {
     return SqlValue();  // kNull
   }
 
   duckdb_logical_type logical = duckdb_vector_get_column_type(vec);
   duckdb_type type_id = duckdb_get_type_id(logical);
 
+  // UNION (e.g. the extract_arg result): physically a STRUCT with child 0 the
+  // (UTINYINT) tag and child `member+1` each member's vector. Read the tag and
+  // recurse into the active member so the value surfaces in its natural type.
+  if (type_id == DUCKDB_TYPE_UNION) {
+    duckdb_destroy_logical_type(&logical);
+    duckdb_vector tag_vec = duckdb_struct_vector_get_child(vec, 0);
+    auto* tag_data = static_cast<uint8_t*>(duckdb_vector_get_data(tag_vec));
+    auto member = static_cast<idx_t>(tag_data[row]);
+    duckdb_vector member_vec =
+        duckdb_struct_vector_get_child(vec, member + 1);
+    return ReadCell(member_vec, row, col);
+  }
+
   void* data = duckdb_vector_get_data(vec);
-  const idx_t row = row_in_chunk_;
   SqlValue value;
 
   // DECIMAL is stored as an integer of an internal width; SQLite has no decimal
