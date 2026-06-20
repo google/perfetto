@@ -248,6 +248,14 @@ class DuckDbEngine {
 // unchanged if there is no `_interval_intersect!` call to rewrite.
 std::string RewriteIntervalIntersectMacro(const std::string& sql);
 
+// Rewrites a PerfettoSQL `_interval_create!(starts, ends)` macro call into plain
+// SQL, so it runs in DuckDB without the table-pointer machinery. Faithful
+// semantics: for each start ts, the interval duration is (smallest end strictly
+// greater than the start) - start; a start with no such end is dropped; output
+// ordered by ts. Must be applied BEFORE macro expansion. Returns the input
+// unchanged if there is no `_interval_create!` call.
+std::string RewriteIntervalCreateMacro(const std::string& sql);
+
 // Testing-only entry point for the support predicate's TOKENIZATION + decision
 // logic, exposed so a unittest can exercise the previously-buggy classification
 // cases (CAST(...), USING(...), WITH d(a,b) AS (...), double-quoted literals,

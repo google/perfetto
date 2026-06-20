@@ -1053,6 +1053,91 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
   return cur;
 }
 
+std::string RewriteIntervalCreateMacro(const std::string& sql) {
+  std::string cur = sql;
+  for (int iter = 0; iter < 64; ++iter) {
+    std::vector<AllToken> toks = TokenizeAll(cur);
+    std::vector<size_t> sig;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (toks[i].significant) {
+        sig.push_back(i);
+      }
+    }
+    auto is_bare_id = [&](size_t s) {
+      const AllToken& t = toks[sig[s]];
+      return t.type == sql_token::kId && !t.str.empty() &&
+             t.str.front() != '"' && t.str.front() != '`';
+    };
+    // Find `_interval_create ! (`.
+    size_t k = sig.size();
+    for (size_t j = 0; j + 2 < sig.size(); ++j) {
+      if (is_bare_id(j) && base::ToLower(toks[sig[j]].str) == "_interval_create" &&
+          toks[sig[j + 1]].type == sql_token::kBang &&
+          toks[sig[j + 2]].type == sql_token::kLp) {
+        k = j;
+        break;
+      }
+    }
+    if (k == sig.size()) {
+      break;
+    }
+    size_t ko = k + 2;  // the outer '('.
+    int depth = 0;
+    size_t outer_close = sig.size();
+    std::vector<size_t> comma_at;  // top-level (depth-1) comma sig indices.
+    for (size_t m = ko; m < sig.size(); ++m) {
+      int tt = toks[sig[m]].type;
+      if (tt == sql_token::kLp) {
+        ++depth;
+      } else if (tt == sql_token::kRp) {
+        if (--depth == 0) {
+          outer_close = m;
+          break;
+        }
+      } else if (depth == 1 && tt == sql_token::kComma) {
+        comma_at.push_back(m);
+      }
+    }
+    if (outer_close == sig.size() || comma_at.size() != 1) {
+      break;  // Expect exactly two args.
+    }
+    // arg1 = sig (ko, comma], arg2 = sig (comma, outer_close). Reconstruct text
+    // from the original all-tokens between the boundaries.
+    auto text_between = [&](size_t sig_lo_excl, size_t sig_hi_excl) {
+      // tokens strictly between sig[sig_lo_excl] and sig[sig_hi_excl].
+      size_t a = sig[sig_lo_excl] + 1, b = sig[sig_hi_excl];
+      std::string s;
+      for (size_t i = a; i < b; ++i) {
+        s += toks[i].str;
+      }
+      return s;
+    };
+    std::string starts = base::TrimWhitespace(text_between(ko, comma_at[0]));
+    std::string ends = base::TrimWhitespace(text_between(comma_at[0], outer_close));
+    if (starts.empty() || ends.empty()) {
+      break;
+    }
+    // `starts`/`ends` are used directly as table references: a bare table/CTE
+    // name (`starts`) or an already-parenthesized subquery (`(SELECT ...)`).
+    std::string sub =
+        "(SELECT ts, dur FROM (SELECT s.ts AS ts, (SELECT min(e.ts) FROM " +
+        ends + " e WHERE e.ts > s.ts) - s.ts AS dur FROM " + starts +
+        " s) WHERE dur IS NOT NULL ORDER BY ts)";
+    size_t first_tok = sig[k], last_tok = sig[outer_close];
+    std::string out;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (i == first_tok) {
+        out += sub;
+        i = last_tok;
+        continue;
+      }
+      out += toks[i].str;
+    }
+    cur = std::move(out);
+  }
+  return cur;
+}
+
 namespace internal {
 std::optional<std::string> AnalyzeSupportForTesting(
     const std::string& sql,

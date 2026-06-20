@@ -850,6 +850,7 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
     // table-pointer machinery DuckDB cannot run), then expand remaining macros.
     std::string pre =
         duckdb_integration::RewriteIntervalIntersectMacro(split.last);
+    pre = duckdb_integration::RewriteIntervalCreateMacro(pre);
     std::string duckdb_sql = pre;
     if (std::optional<std::string> expanded =
             engine_->ExpandMacrosToSqlite(SqlSource::FromExecuteQuery(pre))) {
