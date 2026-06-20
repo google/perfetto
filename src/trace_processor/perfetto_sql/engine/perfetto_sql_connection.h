@@ -159,6 +159,16 @@ class PerfettoSqlConnection {
   base::StatusOr<SqliteConnection::PreparedStatement> PrepareSqliteStatement(
       SqlSource sql);
 
+  // Expands PerfettoSQL MACROs in `sql` (using this connection's macro
+  // registry) and, IF the result is exactly one plain SQLite statement, returns
+  // its expanded text. Returns nullopt when `sql` is not a single plain
+  // statement (e.g. it is a CREATE PERFETTO ..., contains multiple statements,
+  // or fails to parse) - the caller should then use the original SQL. Used by
+  // the experimental DuckDB engine to strip `name!(...)` macros (which DuckDB
+  // cannot parse) from a statement before handing it to DuckDB; the macro bodies
+  // are the SAME ones the SQLite path expands, so the result is identical.
+  std::optional<std::string> ExpandMacrosToSqlite(SqlSource sql);
+
   // Registers a virtual table module with the given name.
   //
   // |name|: name of the module in SQL.

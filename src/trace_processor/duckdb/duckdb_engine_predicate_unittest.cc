@@ -239,12 +239,11 @@ TEST(DuckDbSupportPredicateTest, TrailingSemicolonOk) {
   EXPECT_TRUE(Eligible("SELECT count(*) AS c FROM slice;"));
 }
 
-TEST(DuckDbSupportPredicateTest, BareSelectConstantGuarded) {
-  auto reason = Analyze("SELECT 1");
-  ASSERT_TRUE(reason.has_value());
-  EXPECT_NE(reason->find("no DuckDB-backed relation or supported function"),
-            std::string::npos)
-      << *reason;
+TEST(DuckDbSupportPredicateTest, BareSelectConstantEligible) {
+  // The bare-SELECT gate was RELAXED: a no-FROM constant/expression SELECT (e.g.
+  // a macro-expanded `SELECT (SELECT 123 - 100)`) evaluates identically in
+  // DuckDB and SQLite, so it is now eligible.
+  EXPECT_TRUE(Eligible("SELECT 1"));
 }
 
 TEST(DuckDbSupportPredicateTest, BareSelectAllowlistedFunctionEligible) {

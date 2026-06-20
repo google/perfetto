@@ -487,6 +487,27 @@ PerfettoSqlConnection::PrepareSqliteStatement(SqlSource sql_source) {
   return std::move(stmt);
 }
 
+std::optional<std::string> PerfettoSqlConnection::ExpandMacrosToSqlite(
+    SqlSource sql) {
+  PerfettoSqlParser parser(database_->macros());
+  parser.Reset(std::move(sql));
+  if (!parser.Next()) {
+    return std::nullopt;  // Parse error or empty: caller uses the original.
+  }
+  if (!std::holds_alternative<PerfettoSqlParser::SqliteSql>(
+          parser.statement())) {
+    return std::nullopt;  // CREATE PERFETTO ... etc: not a plain statement.
+  }
+  std::string expanded = parser.statement_sql().sql();
+  if (parser.Next()) {
+    return std::nullopt;  // More than one statement.
+  }
+  if (!parser.status().ok()) {
+    return std::nullopt;
+  }
+  return expanded;
+}
+
 void PerfettoSqlConnection::Initialize(Initializer init) {
   // Wrap the ~100 static-table CREATEs in one transaction; otherwise SQLite
   // implicitly commits after each statement.

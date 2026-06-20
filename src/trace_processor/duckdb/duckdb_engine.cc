@@ -363,13 +363,19 @@ SupportDecision AnalyzeSupport(
     }
   }
 
-  // Gate: route a query iff it has a FROM/JOIN relation OR it is a bare (no-FROM)
-  // statement calling at least one allowlisted/registered function (e.g.
-  // `SELECT ln(2)`). A no-FROM statement with neither (e.g. `SELECT 1`) falls
-  // back, to minimize behavioural drift from the SQLite path.
-  if (!saw_relation && !saw_supported_function) {
-    return ineligible("no DuckDB-backed relation or supported function");
-  }
+  // POLICY SHIFT ("list, don't guard"): the bare-SELECT gate was RELAXED. It
+  // used to reject a no-FROM statement that called no allowlisted function (e.g.
+  // `SELECT 1`, or a macro-expanded `SELECT (SELECT 123 - 100)`), to minimize
+  // drift. But such constant/expression SELECTs evaluate identically in DuckDB
+  // and SQLite (integer division included - DuckDB does integer division for
+  // integer operands), so routing them is safe; any genuinely-divergent case
+  // surfaces as a DuckDB error (fall back) or a value divergence (cataloged).
+  // This is what lets a PerfettoSQL MACRO that expands to a bare SELECT run in
+  // DuckDB. A bare SELECT calling an UNALLOWLISTED function is still rejected
+  // above by the function allowlist, so this only admits literal/operator/
+  // allowlisted-function expressions.
+  (void)saw_relation;
+  (void)saw_supported_function;
 
   // POLICY SHIFT ("list, don't guard"): the ROW-ORDER guard was RELAXED. It used
   // to force a fallback whenever a query scanned a relation with no top-level

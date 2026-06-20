@@ -731,10 +731,22 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
       }
     }
 
+    // Expand any PerfettoSQL `name!(...)` MACROs in the final statement before
+    // handing it to DuckDB (DuckDB cannot parse `!`). The macro bodies are the
+    // SAME ones the SQLite path expands (the leading statements that define them
+    // already ran in the engine above), so the expanded SQL is identical. If the
+    // statement is not a single plain SQL statement, keep it verbatim (DuckDB
+    // will then reject it and fall back, as before).
+    std::string duckdb_sql = split.last;
+    if (std::optional<std::string> expanded = engine_->ExpandMacrosToSqlite(
+            SqlSource::FromExecuteQuery(split.last))) {
+      duckdb_sql = std::move(*expanded);
+    }
+
     bool ran_in_duckdb = false;
     base::StatusOr<std::optional<duckdb_integration::DuckDbExecutionResult>> dd =
         duckdb_engine_->TryExecuteWholeQuery(
-            split.last, config_.duckdb_disable_fallback, &ran_in_duckdb);
+            duckdb_sql, config_.duckdb_disable_fallback, &ran_in_duckdb);
     if (!dd.ok()) {
       // Either a genuine DuckDB execution error on an eligible query, or (with
       // fallback disabled) an ineligible query. Surface it through the iterator.
