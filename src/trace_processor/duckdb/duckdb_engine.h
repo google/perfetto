@@ -36,6 +36,7 @@
 
 namespace perfetto::trace_processor {
 class StringPool;
+class ClockConverter;
 }  // namespace perfetto::trace_processor
 
 namespace perfetto::trace_processor::duckdb_integration {
@@ -111,6 +112,13 @@ class DuckDbEngine {
 
   DuckDbEngine(const DuckDbEngine&) = delete;
   DuckDbEngine& operator=(const DuckDbEngine&) = delete;
+
+  // Provides the per-trace ClockConverter used by the to_monotonic/to_realtime/
+  // abs_time_str UDFs. Must be called before the first query (which lazily
+  // registers the functions). May be null.
+  void SetClockConverter(ClockConverter* converter) {
+    clock_converter_ = converter;
+  }
 
   // Attempts to run the ENTIRE query `sql` inside DuckDB. Semantics (per D2):
   //  - returns a populated `DuckDbExecutionResult` iff `sql` is a single
@@ -196,6 +204,10 @@ class DuckDbEngine {
   std::unordered_set<std::string> materialized_tables_;
 
   bool initialized_ = false;
+
+  // The per-trace clock converter for the clock UDFs (may be null). Owned by
+  // TraceProcessorContext; set via SetClockConverter before the first query.
+  ClockConverter* clock_converter_ = nullptr;
   duckdb_database db_ = nullptr;
   duckdb_connection conn_ = nullptr;
   std::unique_ptr<DuckDbTableProvider> provider_;

@@ -897,6 +897,8 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
       // Install the DuckDB-native macro definitions so ExpandMacrosToSqliteDuckDb
       // expands the table-valued intrinsic macros to native functions.
       engine_->SetDuckDbMacroOverrides(BuildDuckDbMacroOverrides());
+      // Bridge the clock-conversion UDFs to this trace's ClockConverter.
+      duckdb_engine_->SetClockConverter(context()->clock_converter.get());
     }
 
     // Wave-2 multi-statement split: the stdlib surface is reached via

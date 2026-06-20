@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/duckdb/clock_function.h"
 #include "src/trace_processor/duckdb/dominator_tree_function.h"
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
 #include "src/trace_processor/duckdb/graph_function.h"
@@ -116,6 +117,10 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // predicate accepts char/unicode-using queries (e.g. the graph
           // lengauer examples). `chr` is allowed for the rewritten output.
           "unicode", "char", "chr",
+          // Clock-conversion UDFs bridged to the trace's ClockConverter
+          // (RegisterClockFunctions); registered directly under their public
+          // names, so a call binds in DuckDB with identical semantics.
+          "to_monotonic", "to_realtime", "abs_time_str",
           // Aggregates beyond the beachhead that are SQL-standard and match
           // SQLite: min/max/sum/avg/count already above; total (SUM-as-double),
           // and the statistical aggregates DuckDB shares.
@@ -1534,6 +1539,10 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // Register the native dominator-tree aggregate (reached via the
   // graph_dominator_tree! rewrite in the router).
   RETURN_IF_ERROR(RegisterDominatorTree(conn_));
+
+  // Register the clock-conversion UDFs (to_monotonic/to_realtime/abs_time_str)
+  // bridged to the trace's ClockConverter.
+  RETURN_IF_ERROR(RegisterClockFunctions(conn_, clock_converter_));
 
   initialized_ = true;
   return base::OkStatus();
