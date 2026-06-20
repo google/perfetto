@@ -693,6 +693,15 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
               out.push_back({fn.name, fn.arg_names, fn.body_sql});
             }
             return out;
+          },
+          // Scalar function provider: mirror runtime scalar CREATE PERFETTO
+          // FUNCTIONs into DuckDB as scalar macros so a call `f(args)` resolves.
+          [this]() {
+            std::vector<duckdb_integration::DuckDbEngine::TableFunction> out;
+            for (const auto& fn : engine_->created_scalar_functions()) {
+              out.push_back({fn.name, fn.arg_names, fn.body_sql});
+            }
+            return out;
           });
     }
 

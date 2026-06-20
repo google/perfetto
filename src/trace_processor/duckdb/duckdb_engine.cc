@@ -603,11 +603,13 @@ std::optional<std::string> AnalyzeSupportForTesting(
 DuckDbEngine::DuckDbEngine(StringPool* string_pool,
                            Resolver resolver,
                            ViewProvider view_provider,
-                           FunctionProvider function_provider)
+                           FunctionProvider function_provider,
+                           ScalarFunctionProvider scalar_function_provider)
     : string_pool_(string_pool),
       resolver_(std::move(resolver)),
       view_provider_(std::move(view_provider)),
-      function_provider_(std::move(function_provider)) {}
+      function_provider_(std::move(function_provider)),
+      scalar_function_provider_(std::move(scalar_function_provider)) {}
 
 DuckDbEngine::~DuckDbEngine() {
   // Destroy the provider BEFORE the database: the replacement scan + table
@@ -792,6 +794,44 @@ void DuckDbEngine::SyncTableFunctions() {
   }
 }
 
+void DuckDbEngine::SyncScalarFunctions() {
+  if (!scalar_function_provider_) {
+    return;
+  }
+  // Mirror each runtime scalar `CREATE PERFETTO FUNCTION` as a DuckDB scalar
+  // MACRO so a call `f(args)` binds to DuckDB's own macro. The body is a SELECT
+  // (with `$arg` placeholders); wrapped as a scalar subquery `AS (<body>)`.
+  // DuckDB binds it EAGERLY at CREATE MACRO time, so a body using SQLite-only
+  // dialect, an intrinsic, or a recursive self-reference (DuckDB macros cannot
+  // recurse) fails to create and stays unmirrored - a call then errors in DuckDB
+  // and falls back. On success the name is added to registered_scalar_functions_
+  // so the support predicate treats a call to it as eligible.
+  for (const TableFunction& fn : scalar_function_provider_()) {
+    std::string lower = base::ToLower(fn.name);
+    if (mirrored_scalar_macros_.find(lower) != mirrored_scalar_macros_.end()) {
+      continue;  // Already mirrored.
+    }
+    std::string params;
+    for (size_t i = 0; i < fn.arg_names.size(); ++i) {
+      if (i != 0) {
+        params += ", ";
+      }
+      params += fn.arg_names[i];
+    }
+    std::string body = RewriteDollarParams(fn.body_sql, fn.arg_names);
+    std::string create = "CREATE OR REPLACE MACRO " + fn.name + "(" + params +
+                         ") AS (" + body + ")";
+    duckdb_result res;
+    if (duckdb_query(conn_, create.c_str(), &res) == DuckDBError) {
+      duckdb_destroy_result(&res);
+      continue;
+    }
+    duckdb_destroy_result(&res);
+    mirrored_scalar_macros_.insert(lower);
+    registered_scalar_functions_.insert(lower);
+  }
+}
+
 base::StatusOr<std::optional<DuckDbExecutionResult>>
 DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
                                    bool disable_fallback,
@@ -824,6 +864,11 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   // DuckDB table macros so `FROM name(args)` resolves. Cheap: already-mirrored
   // macros are skipped.
   SyncTableFunctions();
+
+  // Mirror any runtime scalar CREATE PERFETTO FUNCTIONs created since the last
+  // query as DuckDB scalar macros so a call `f(args)` resolves. Cheap:
+  // already-mirrored macros are skipped.
+  SyncScalarFunctions();
 
   // --- Support predicate (cheap, conservative, default-deny). ---
   // Driven entirely off the real syntaqlite token stream (see AnalyzeSupport):

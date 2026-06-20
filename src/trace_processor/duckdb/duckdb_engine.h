@@ -76,6 +76,12 @@ class DuckDbEngine {
   // `PerfettoSqlConnection::created_table_functions()`. May be empty.
   using FunctionProvider = std::function<std::vector<TableFunction>()>;
 
+  // Supplies the runtime scalar `CREATE PERFETTO FUNCTION`s to mirror into DuckDB
+  // as scalar macros (`CREATE MACRO name(args) AS (body)`), in creation order.
+  // Reuses the `TableFunction` shape (name, arg_names, body_sql). Typically wraps
+  // `PerfettoSqlConnection::created_scalar_functions()`. May be empty.
+  using ScalarFunctionProvider = std::function<std::vector<TableFunction>()>;
+
   // `string_pool` and `resolver` must outlive this object. `resolver` is the
   // live read-through into the engine's table registry (typically a lambda
   // calling `PerfettoSqlConnection::GetDataframeOrNull`). `view_provider` (if
@@ -86,7 +92,8 @@ class DuckDbEngine {
   DuckDbEngine(StringPool* string_pool,
                Resolver resolver,
                ViewProvider view_provider = {},
-               FunctionProvider function_provider = {});
+               FunctionProvider function_provider = {},
+               ScalarFunctionProvider scalar_function_provider = {});
   ~DuckDbEngine();
 
   DuckDbEngine(const DuckDbEngine&) = delete;
@@ -146,10 +153,20 @@ class DuckDbEngine {
   // left unmirrored (a query calling it then errors in DuckDB and falls back).
   void SyncTableFunctions();
 
+  // Mirrors any runtime scalar `CREATE PERFETTO FUNCTION`s from
+  // scalar_function_provider_() not yet in DuckDB's catalog, as scalar macros
+  // (`CREATE MACRO name(args) AS (<body>)`). Called before each query alongside
+  // SyncViews. Idempotent; a body DuckDB cannot bind (SQLite-only dialect, an
+  // intrinsic, or a recursive self-reference) is left unmirrored. A
+  // successfully-mirrored macro's name is added to registered_scalar_functions_
+  // so the support predicate treats a call to it as eligible.
+  void SyncScalarFunctions();
+
   StringPool* string_pool_;
   Resolver resolver_;
   ViewProvider view_provider_;
   FunctionProvider function_provider_;
+  ScalarFunctionProvider scalar_function_provider_;
 
   bool initialized_ = false;
   duckdb_database db_ = nullptr;
@@ -165,6 +182,11 @@ class DuckDbEngine {
   // DuckDB table macros. The support predicate treats a `FROM name(...)` call to
   // one as an eligible table-valued reference (not an unported function).
   std::unordered_set<std::string> mirrored_table_macros_;
+
+  // Lowercased names of runtime scalar functions successfully mirrored as DuckDB
+  // scalar macros (tracked to skip re-creating them). Their names are also added
+  // to registered_scalar_functions_ so the support predicate allows a call.
+  std::unordered_set<std::string> mirrored_scalar_macros_;
 
   // Lowercased names of scalar UDFs registered on the DuckDB connection at init
   // (via RegisterScalarFunctions). The support predicate treats a call to one as

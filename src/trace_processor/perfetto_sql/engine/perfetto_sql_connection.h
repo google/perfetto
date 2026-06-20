@@ -380,6 +380,26 @@ class PerfettoSqlConnection {
     return created_table_functions_;
   }
 
+  // A scalar `CREATE PERFETTO FUNCTION name(args) RETURNS <type> AS <select>`
+  // captured for the experimental DuckDB engine to mirror as a DuckDB scalar
+  // MACRO (`CREATE MACRO name(args) AS (<body>)`). `arg_names` are the parameter
+  // names in prototype order (no `$`); `body_sql` is the SELECT body (with `$arg`
+  // placeholders the engine rewrites to bare names). A body using
+  // dialect/intrinsics DuckDB cannot bind (or a recursive/memoized function)
+  // simply fails to create as a macro and stays unmirrored.
+  struct CreatedScalarFunction {
+    std::string name;
+    std::vector<std::string> arg_names;
+    std::string body_sql;
+  };
+
+  // Returns the scalar RETURNS-<type> functions created on this connection, in
+  // creation order, for the experimental DuckDB engine to mirror as scalar
+  // macros. See `CreatedScalarFunction`.
+  const std::vector<CreatedScalarFunction>& created_scalar_functions() const {
+    return created_scalar_functions_;
+  }
+
   // Registers a function with the prototype |prototype| which returns a value
   // of |return_type| and is implemented by executing the SQL statement |sql|.
   //
@@ -578,6 +598,11 @@ class PerfettoSqlConnection {
   // experimental DuckDB engine to mirror as table macros. Populated by
   // ExecuteCreateFunction (table-returning path only).
   std::vector<CreatedTableFunction> created_table_functions_;
+
+  // Scalar RETURNS-<type> functions, in creation order, recorded for the
+  // experimental DuckDB engine to mirror as scalar macros. Populated by
+  // RegisterLegacyRuntimeFunction (the scalar create path).
+  std::vector<CreatedScalarFunction> created_scalar_functions_;
 
   // Contains the pointers for all registered virtual table modules where the
   // context class of the module inherits from ModuleStateManagerBase.
