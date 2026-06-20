@@ -57,6 +57,8 @@ source_set("engine") {
     "duckdb_engine.h",
     "extract_arg.cc",
     "extract_arg.h",
+    "interval_intersect_function.cc",
+    "interval_intersect_function.h",
   ]
   deps = [
     "../../../gn:default_deps",

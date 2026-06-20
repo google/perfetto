@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
+#include "src/trace_processor/duckdb/interval_intersect_function.h"
 #include "src/trace_processor/duckdb/scalar_functions.h"
 #include "src/trace_processor/duckdb/table_provider.h"
 #include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
@@ -119,6 +120,10 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // only in engine-GENERATED SQL (the _interval_intersect! rewrite), so
           // their (DuckDB-exact) semantics are controlled by us, not user input.
           "greatest", "least",
+          // The native interval_intersect aggregate + combiner and `unnest`,
+          // emitted only by the engine-GENERATED _interval_intersect! rewrite
+          // (RewriteIntervalIntersectMacro). User input cannot reach these.
+          "__intrinsic_ii_agg", "__intrinsic_ii_combine", "unnest",
       };
   return *kAllow;
 }
@@ -988,7 +993,41 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
     if (tables.empty()) {
       break;  // Nothing sensible to rewrite.
     }
-    // Build the overlap-join subquery.
+    // Non-partitioned: run the native N-way interval intersector via the
+    // __intrinsic_ii_agg aggregate (one opaque handle per input table) +
+    // __intrinsic_ii_combine scalar (returns a LIST<STRUCT> of result rows),
+    // UNNESTed into rows. This reuses Trace Processor's own algorithm rather
+    // than betting on the DuckDB planner not to blow an N-way SQL overlap join
+    // into an O(N^k) nested loop. (Partitioned calls still use the SQL IEJoin
+    // form below until the combiner learns partitions.)
+    std::string sub;
+    if (partitions.empty()) {
+      sub = "(SELECT ii.u.ts AS ts, ii.u.dur AS dur";
+      for (size_t i = 0; i < tables.size(); ++i) {
+        std::string c = "id_" + std::to_string(i);
+        sub += ", ii.u." + c + " AS " + c;
+      }
+      sub += " FROM (SELECT unnest(__intrinsic_ii_combine([";
+      for (size_t i = 0; i < tables.size(); ++i) {
+        sub += (i ? ", " : "") +
+               std::string("(SELECT __intrinsic_ii_agg(id, ts, dur) FROM ") +
+               tables[i] + ")";
+      }
+      sub += "])) AS u) ii)";
+      size_t first_tok_np = sig[k], last_tok_np = sig[outer_close];
+      std::string out_np;
+      for (size_t i = 0; i < toks.size(); ++i) {
+        if (i == first_tok_np) {
+          out_np += sub;
+          i = last_tok_np;
+          continue;
+        }
+        out_np += toks[i].str;
+      }
+      cur = std::move(out_np);
+      continue;
+    }
+    // Build the overlap-join subquery (partitioned path).
     auto starts = [&]() {
       std::string s;
       for (size_t i = 0; i < tables.size(); ++i) {
@@ -1009,8 +1048,8 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
     std::string end_expr = tables.size() == 1
                                ? tables[0] + ".ts + " + tables[0] + ".dur"
                                : "least(" + ends() + ")";
-    std::string sub = "(SELECT " + ts_expr + " AS ts, (" + end_expr + ") - (" +
-                      ts_expr + ") AS dur";
+    sub = "(SELECT " + ts_expr + " AS ts, (" + end_expr + ") - (" +
+          ts_expr + ") AS dur";
     for (size_t i = 0; i < tables.size(); ++i) {
       sub += ", " + tables[i] + ".id AS id_" + std::to_string(i);
     }
@@ -1022,8 +1061,33 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
       sub += (i ? ", " : "") + tables[i];
     }
     std::string where;
-    if (tables.size() > 1) {
-      where = ts_expr + " < " + end_expr;
+    // Pairwise interval-overlap predicates. By Helly's theorem in one
+    // dimension, a set of (convex) intervals has a common intersection iff
+    // every pair overlaps, so the N-way intersection is exactly the set of
+    // tuples whose intervals pairwise overlap. Crucially, emitting the pairwise
+    // *simple* inequalities `a.ts < cmp_end(b) AND b.ts < cmp_end(a)` lets
+    // DuckDB plan an inequality/range join (IEJoin, ~O(N log N)); the single
+    // compound `greatest(starts) < least(ends)` predicate instead forces a full
+    // O(N^k) nested-loop cartesian product that hangs on large traces.
+    //
+    // `cmp_end` is `ts + dur` except for an instant (dur == 0), where it is
+    // bumped by 1 so the half-open `<` test still admits the instant's single
+    // point (an instant behaves as a closed point: it intersects an interval
+    // [c, d) iff c <= p < d, and another instant iff equal). The bump affects
+    // ONLY the overlap test; the result `dur` below uses the real ends, so a
+    // matched instant still yields dur = 0. The bump is conditional on dur == 0
+    // so real intervals are unchanged and touching intervals stay excluded.
+    auto cmp_end = [&](const std::string& t) {
+      return t + ".ts + " + t + ".dur + CASE WHEN " + t + ".dur = 0 THEN 1 ELSE 0 END";
+    };
+    for (size_t i = 0; i < tables.size(); ++i) {
+      for (size_t j = i + 1; j < tables.size(); ++j) {
+        if (!where.empty()) {
+          where += " AND ";
+        }
+        where += tables[i] + ".ts < " + cmp_end(tables[j]) + " AND " +
+                 tables[j] + ".ts < " + cmp_end(tables[i]);
+      }
     }
     for (const std::string& p : partitions) {
       for (size_t i = 1; i < tables.size(); ++i) {
@@ -1115,11 +1179,20 @@ std::string RewriteIntervalIntersectSingleMacro(const std::string& sql) {
     if (ts_arg.empty() || dur_arg.empty() || tab.empty()) {
       break;
     }
-    // Intersect every row of `tab` with the single interval [ts, ts+dur).
+    // Intersect every row of `tab` with the single interval [ts, ts+dur). The
+    // result ts/dur use the real ends (greatest/least); the WHERE uses the
+    // pairwise overlap test with the instant (dur == 0) bump (see
+    // RewriteIntervalIntersectMacro) so a zero-length row or a zero-length
+    // single interval still matches as a closed point rather than being
+    // dropped by the half-open `<`.
     std::string g = "greatest(t.ts, (" + ts_arg + "))";
     std::string l = "least(t.ts + t.dur, (" + ts_arg + ") + (" + dur_arg + "))";
+    std::string t_end = "t.ts + t.dur + CASE WHEN t.dur = 0 THEN 1 ELSE 0 END";
+    std::string s_end = "(" + ts_arg + ") + (" + dur_arg +
+                        ") + CASE WHEN (" + dur_arg + ") = 0 THEN 1 ELSE 0 END";
     std::string sub = "(SELECT t.id AS id, " + g + " AS ts, (" + l + ") - " + g +
-                      " AS dur FROM " + tab + " t WHERE " + g + " < " + l + ")";
+                      " AS dur FROM " + tab + " t WHERE t.ts < " + s_end +
+                      " AND (" + ts_arg + ") < " + t_end + ")";
     size_t first_tok = sig[k], last_tok = sig[outer_close];
     std::string out;
     for (size_t i = 0; i < toks.size(); ++i) {
@@ -1299,6 +1372,10 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // Its (arg_set_id, key) index is built lazily on first use.
   ASSIGN_OR_RETURN(extract_arg_state_,
                    RegisterExtractArg(conn_, &registered_scalar_functions_));
+
+  // Register the interval_intersect aggregate + combiner (the native N-way
+  // algorithm, reached via the _interval_intersect! rewrite in the router).
+  RETURN_IF_ERROR(RegisterIntervalIntersect(conn_));
 
   initialized_ = true;
   return base::OkStatus();
