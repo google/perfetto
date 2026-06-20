@@ -65,6 +65,8 @@ source_set("engine") {
     "graph_function.h",
     "interval_intersect_function.cc",
     "interval_intersect_function.h",
+    "tree_function.cc",
+    "tree_function.h",
     "udf_handle_registry.h",
   ]
   deps = [

@@ -38,6 +38,7 @@
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
 #include "src/trace_processor/duckdb/graph_function.h"
 #include "src/trace_processor/duckdb/interval_intersect_function.h"
+#include "src/trace_processor/duckdb/tree_function.h"
 #include "src/trace_processor/duckdb/scalar_functions.h"
 #include "src/trace_processor/duckdb/table_provider.h"
 #include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
@@ -1554,6 +1555,10 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // Register the clock-conversion UDFs (to_monotonic/to_realtime/abs_time_str)
   // bridged to the trace's ClockConverter.
   RETURN_IF_ERROR(RegisterClockFunctions(conn_, clock_converter_));
+
+  // Register the tree pipeline (currently a no-op stub; the tree::* algorithm
+  // core is in place, bindings to follow).
+  RETURN_IF_ERROR(RegisterTreeFunctions(conn_));
 
   initialized_ = true;
   return base::OkStatus();
