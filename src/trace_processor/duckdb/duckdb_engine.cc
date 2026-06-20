@@ -79,6 +79,11 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // diverges; `hex(INTEGER)` hexes the integer VALUE in DuckDB whereas
           // SQLite hexes the integer's TEXT rendering - a value divergence.
           "coalesce", "ifnull", "nullif",
+          // `format` is SQLite's C-style printf. It is rewritten to DuckDB's
+          // C-style `printf` before execution (RewriteFormatToPrintf); DuckDB's
+          // own `format` is Python `{}`-style and would diverge, so it is the
+          // rewrite - not a direct bind - that makes this eligible.
+          "format",
           // `group_concat(X)` is a DuckDB-native aggregate (alias of `string_agg`)
           // whose default separator is `,`, matching SQLite. Concatenation ORDER
           // within a group is engine-defined in both, so an unordered
@@ -623,6 +628,39 @@ std::vector<AllToken> TokenizeAll(const std::string& sql) {
   return out;
 }
 
+// Renames every `format(` function call to `printf(` in `sql`. SQLite's
+// `format`/`printf` use C-style `%` specifiers; DuckDB's `printf` is the C-style
+// one (DuckDB's `format` is Python `{}`-style), so the rename makes a SQLite
+// format() call evaluate identically in DuckDB. SQLite-only specifiers (%q/%Q/
+// %w/%z) make DuckDB printf error -> safe fallback. Reconstructs from the full
+// token stream so only a function-call `format` (a bare id followed by `(`, not
+// a dotted member) is renamed - never a column/string literal named "format".
+std::string RewriteFormatToPrintf(const std::string& sql) {
+  std::vector<AllToken> toks = TokenizeAll(sql);
+  std::string out;
+  out.reserve(sql.size() + 8);
+  int prev_sig = -1;  // type of previous significant token.
+  for (size_t i = 0; i < toks.size(); ++i) {
+    const AllToken& t = toks[i];
+    bool rename = false;
+    if (t.significant && t.type == sql_token::kId &&
+        base::ToLower(t.str) == "format" && prev_sig != sql_token::kDot) {
+      for (size_t j = i + 1; j < toks.size(); ++j) {
+        if (!toks[j].significant) {
+          continue;
+        }
+        rename = toks[j].type == sql_token::kLp;
+        break;
+      }
+    }
+    out += rename ? "printf" : t.str;
+    if (t.significant) {
+      prev_sig = t.type;
+    }
+  }
+  return out;
+}
+
 // True if `name` (lowercased) is an aggregate whose argument is ALREADY a valid
 // grouped context - a bare column inside it must NOT be wrapped (that would nest
 // aggregates). Covers the SQL standard aggregates plus any_value/group_concat.
@@ -1113,7 +1151,11 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   // reports one missing column, so the loop converges (capped defensively).
   DuckDbExecutionResult exec;
   exec.last_statement_sql = sql;
-  std::string run_sql = sql;
+  // Rename any SQLite C-style format() call to DuckDB's C-style printf() up
+  // front (DuckDB's own `format` is Python-style). Done once, proactively, since
+  // `format` is allowlisted on that basis; the column-name override still uses
+  // the ORIGINAL sql so an unaliased `format(...)` header matches SQLite.
+  std::string run_sql = RewriteFormatToPrintf(sql);
   constexpr int kMaxQuoteRewrites = 32;
   for (int attempt = 0;; ++attempt) {
     if (duckdb_query(conn_, run_sql.c_str(), &exec.result) != DuckDBError) {
