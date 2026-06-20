@@ -525,6 +525,68 @@ std::vector<std::optional<std::string>> ComputeColumnNameOverrides(
   return overrides;
 }
 
+// Extracts the column name X from a DuckDB `Referenced column "X" not found ...`
+// binder error, or nullopt if the error is not of that shape. DuckDB raises this
+// when a double-quoted token is treated as an identifier that does not exist -
+// which, in SQLite, would instead be a STRING LITERAL.
+std::optional<std::string> ParseReferencedColumnNotFound(
+    const std::string& err) {
+  static constexpr char kPrefix[] = "Referenced column \"";
+  size_t p = err.find(kPrefix);
+  if (p == std::string::npos) {
+    return std::nullopt;
+  }
+  p += sizeof(kPrefix) - 1;
+  size_t q = err.find("\" not found", p);
+  if (q == std::string::npos) {
+    return std::nullopt;
+  }
+  return err.substr(p, q - p);
+}
+
+// Rewrites every double-quoted identifier token in `sql` whose UNQUOTED content
+// equals `name` into a single-quoted STRING LITERAL, reproducing SQLite's rule
+// that a double-quoted token which does not resolve to a column is a string
+// literal. The full SQL is reconstructed by concatenating every token (the
+// tokenizer emits whitespace and comments as tokens too), so no byte-offset
+// bookkeeping is needed. Returns the (possibly unchanged) rewritten SQL.
+std::string RewriteDoubleQuotedToString(const std::string& sql,
+                                        const std::string& name) {
+  std::string out;
+  out.reserve(sql.size());
+  SqliteTokenizer tokenizer(SqlSource::FromTraceProcessorImplementation(sql));
+  for (auto t = tokenizer.Next(); !t.str.empty(); t = tokenizer.Next()) {
+    if (t.token_type == sql_token::kId && t.str.size() >= 2 &&
+        t.str.front() == '"' && t.str.back() == '"') {
+      // Unquote: strip the surrounding quotes, collapse a doubled "" -> ".
+      std::string content;
+      std::string_view inner = t.str.substr(1, t.str.size() - 2);
+      for (size_t i = 0; i < inner.size(); ++i) {
+        if (inner[i] == '"' && i + 1 < inner.size() && inner[i + 1] == '"') {
+          content.push_back('"');
+          ++i;
+        } else {
+          content.push_back(inner[i]);
+        }
+      }
+      if (content == name) {
+        // Emit as a single-quoted string literal, escaping any single quote.
+        out.push_back('\'');
+        for (char c : content) {
+          if (c == '\'') {
+            out.push_back('\'');
+          }
+          out.push_back(c);
+        }
+        out.push_back('\'');
+        continue;
+      }
+    }
+    out.append(t.str);
+  }
+  return out;
+}
+
 }  // namespace
 
 namespace internal {
@@ -773,11 +835,33 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   }
 
   // --- Eligible: execute the whole query inside DuckDB. ---
+  // The query is run with a bounded DOUBLE-QUOTE-LITERAL repair loop: DuckDB
+  // treats `"x"` strictly as an identifier, but in SQLite a double-quoted token
+  // that does not resolve to a column is a STRING LITERAL. So on a
+  // `Referenced column "x" not found` binder error we rewrite that `"x"` token
+  // to `'x'` and retry, faithfully reproducing SQLite's rule. Each DuckDB error
+  // reports one missing column, so the loop converges (capped defensively).
   DuckDbExecutionResult exec;
   exec.last_statement_sql = sql;
-  if (duckdb_query(conn_, sql.c_str(), &exec.result) == DuckDBError) {
+  std::string run_sql = sql;
+  constexpr int kMaxQuoteRewrites = 32;
+  for (int attempt = 0;; ++attempt) {
+    if (duckdb_query(conn_, run_sql.c_str(), &exec.result) != DuckDBError) {
+      break;  // Success.
+    }
     std::string err = duckdb_result_error(&exec.result);
     duckdb_destroy_result(&exec.result);
+    // Try the double-quote-as-string-literal repair before giving up.
+    if (attempt < kMaxQuoteRewrites) {
+      std::optional<std::string> col = ParseReferencedColumnNotFound(err);
+      if (col) {
+        std::string rewritten = RewriteDoubleQuotedToString(run_sql, *col);
+        if (rewritten != run_sql) {
+          run_sql = std::move(rewritten);
+          continue;  // Retry with the literal-rewritten SQL.
+        }
+      }
+    }
     // Now that the predicate no longer pre-verifies relations (DuckDB's binder
     // is the table oracle), a DuckDB ERROR here can be: a Catalog/Binder error
     // (unknown relation), a Parser error (residual SQLite/PerfettoSQL dialect),
@@ -787,9 +871,9 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
     // result, and if SQLite ALSO errors the diff fails honestly. Crucially,
     // falling back on an ERROR never masks SILENT WRONG OUTPUT - that does not
     // error and is handled by the divergence guards above (order, USING,
-    // double-quote, ceil/floor, function allowlist). So: ANY DuckDB error =>
-    // ineligible => fall back (or, with fallback disabled, error honestly so the
-    // measurement lane is trustworthy).
+    // ceil/floor, function allowlist). So: ANY DuckDB error => ineligible =>
+    // fall back (or, with fallback disabled, error honestly so the measurement
+    // lane is trustworthy).
     return ineligible("DuckDB could not execute the query: " + err);
   }
 
