@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
+#include "src/trace_processor/duckdb/graph_function.h"
 #include "src/trace_processor/duckdb/interval_intersect_function.h"
 #include "src/trace_processor/duckdb/scalar_functions.h"
 #include "src/trace_processor/duckdb/table_provider.h"
@@ -124,6 +125,11 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // emitted only by the engine-GENERATED _interval_intersect! rewrite
           // (RewriteIntervalIntersectMacro). User input cannot reach these.
           "__intrinsic_ii_agg", "__intrinsic_ii_combine", "unnest",
+          // The native graph BFS/DFS aggregates + combiners, emitted only by
+          // the engine-GENERATED graph_reachable_bfs!/_dfs! rewrite
+          // (RewriteGraphReachableMacro). User input cannot reach these.
+          "__intrinsic_graph_agg", "__intrinsic_int_array_agg",
+          "__intrinsic_graph_bfs", "__intrinsic_graph_dfs",
       };
   return *kAllow;
 }
@@ -1117,6 +1123,103 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
   return cur;
 }
 
+std::string RewriteGraphReachableMacro(const std::string& sql) {
+  std::string cur = sql;
+  for (int iter = 0; iter < 64; ++iter) {
+    std::vector<AllToken> toks = TokenizeAll(cur);
+    std::vector<size_t> sig;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (toks[i].significant) {
+        sig.push_back(i);
+      }
+    }
+    auto is_bare_id = [&](size_t s) {
+      const AllToken& t = toks[sig[s]];
+      return t.type == sql_token::kId && !t.str.empty() &&
+             t.str.front() != '"' && t.str.front() != '`';
+    };
+    // Find `graph_reachable_bfs ! (` or `graph_reachable_dfs ! (`.
+    size_t k = sig.size();
+    const char* combiner = nullptr;
+    for (size_t j = 0; j + 2 < sig.size(); ++j) {
+      if (!is_bare_id(j) || toks[sig[j + 1]].type != sql_token::kBang ||
+          toks[sig[j + 2]].type != sql_token::kLp) {
+        continue;
+      }
+      std::string name = base::ToLower(toks[sig[j]].str);
+      if (name == "graph_reachable_bfs") {
+        combiner = "__intrinsic_graph_bfs";
+      } else if (name == "graph_reachable_dfs") {
+        combiner = "__intrinsic_graph_dfs";
+      } else {
+        continue;
+      }
+      k = j;
+      break;
+    }
+    if (k == sig.size()) {
+      break;  // No more occurrences.
+    }
+    // Parse the two top-level args (graph_table, start_nodes) by text.
+    size_t ko = k + 2;
+    int depth = 0;
+    size_t outer_close = sig.size();
+    std::vector<size_t> commas;
+    for (size_t m = ko; m < sig.size(); ++m) {
+      int tt = toks[sig[m]].type;
+      if (tt == sql_token::kLp) {
+        ++depth;
+      } else if (tt == sql_token::kRp) {
+        if (--depth == 0) {
+          outer_close = m;
+          break;
+        }
+      } else if (depth == 1 && tt == sql_token::kComma) {
+        commas.push_back(m);
+      }
+    }
+    if (outer_close == sig.size() || commas.size() != 1) {
+      break;  // Expect exactly two args.
+    }
+    auto text_between = [&](size_t lo_excl, size_t hi_excl) {
+      size_t a = sig[lo_excl] + 1, b = sig[hi_excl];
+      std::string s;
+      for (size_t i = a; i < b; ++i) {
+        s += toks[i].str;
+      }
+      return base::TrimWhitespace(s);
+    };
+    std::string graph_arg = text_between(ko, commas[0]);
+    std::string start_arg = text_between(commas[0], outer_close);
+    if (graph_arg.empty() || start_arg.empty()) {
+      break;
+    }
+    // Aggregate each input into an opaque handle, then run the native BFS/DFS
+    // in the combiner; UNNEST the LIST<STRUCT> back into rows. The arg text is
+    // used verbatim as a FROM source (a bare table name or a subquery both
+    // work), matching the surface macro's TableOrSubquery params.
+    std::string sub =
+        "(SELECT gr.u.node_id AS node_id, gr.u.parent_node_id AS "
+        "parent_node_id FROM (SELECT unnest(" +
+        std::string(combiner) +
+        "((SELECT __intrinsic_graph_agg(source_node_id, dest_node_id) FROM " +
+        graph_arg + "), (SELECT __intrinsic_int_array_agg(node_id) FROM " +
+        start_arg + "))) AS u) gr)";
+    size_t first_tok = sig[k], last_tok = sig[outer_close];
+    std::string out;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (i == first_tok) {
+        out += sub;
+        i = last_tok;
+        continue;
+      }
+      out += toks[i].str;
+    }
+    cur = std::move(out);
+  }
+  return cur;
+}
+
 std::string RewriteIntervalIntersectSingleMacro(const std::string& sql) {
   std::string cur = sql;
   for (int iter = 0; iter < 64; ++iter) {
@@ -1376,6 +1479,10 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // Register the interval_intersect aggregate + combiner (the native N-way
   // algorithm, reached via the _interval_intersect! rewrite in the router).
   RETURN_IF_ERROR(RegisterIntervalIntersect(conn_));
+
+  // Register the graph BFS/DFS aggregates + combiners (native reachability,
+  // reached via the graph_reachable_bfs!/_dfs! rewrite in the router).
+  RETURN_IF_ERROR(RegisterGraphFunctions(conn_));
 
   initialized_ = true;
   return base::OkStatus();

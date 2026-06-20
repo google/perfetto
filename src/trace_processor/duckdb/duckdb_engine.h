@@ -261,6 +261,15 @@ std::string RewriteIntervalCreateMacro(const std::string& sql);
 // before macro expansion. Returns the input unchanged if there is no such call.
 std::string RewriteIntervalIntersectSingleMacro(const std::string& sql);
 
+// Rewrites `graph_reachable_bfs!(graph_table, start_nodes)` and the `_dfs`
+// variant into plain SQL backed by the native BFS/DFS reachability functions
+// (RegisterGraphFunctions): each input is aggregated into an opaque handle, a
+// combiner runs the traversal and returns LIST<STRUCT(node_id,
+// parent_node_id)>, which is UNNESTed into rows. Must run BEFORE macro
+// expansion (the macro otherwise expands to the table-pointer form). Returns
+// the input unchanged if there is no such call.
+std::string RewriteGraphReachableMacro(const std::string& sql);
+
 // Testing-only entry point for the support predicate's TOKENIZATION + decision
 // logic, exposed so a unittest can exercise the previously-buggy classification
 // cases (CAST(...), USING(...), WITH d(a,b) AS (...), double-quoted literals,
