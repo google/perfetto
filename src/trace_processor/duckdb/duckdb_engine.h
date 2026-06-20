@@ -82,6 +82,18 @@ class DuckDbEngine {
   // `PerfettoSqlConnection::created_scalar_functions()`. May be empty.
   using ScalarFunctionProvider = std::function<std::vector<TableFunction>()>;
 
+  // Materializes a plain SQLite-native table (one created with `CREATE TABLE`,
+  // e.g. the prelude's `_trace_bounds`) into DuckDB's catalog so a reference to
+  // it resolves. Such tables are NOT dataframes/views, so the replacement scan
+  // cannot reach them; the engine is deliberately decoupled from SQLite. Given a
+  // table name and the DuckDB connection, the callback (which DOES have the
+  // SQLite engine) should `CREATE OR REPLACE TABLE <name>` in DuckDB with the
+  // table's current rows and return true, or return false if `name` is not a
+  // materializable SQLite-native table. Invoked on a DuckDB catalog miss. May be
+  // empty (no materialization).
+  using TableMaterializer =
+      std::function<bool(const std::string& name, duckdb_connection conn)>;
+
   // `string_pool` and `resolver` must outlive this object. `resolver` is the
   // live read-through into the engine's table registry (typically a lambda
   // calling `PerfettoSqlConnection::GetDataframeOrNull`). `view_provider` (if
@@ -93,7 +105,8 @@ class DuckDbEngine {
                Resolver resolver,
                ViewProvider view_provider = {},
                FunctionProvider function_provider = {},
-               ScalarFunctionProvider scalar_function_provider = {});
+               ScalarFunctionProvider scalar_function_provider = {},
+               TableMaterializer table_materializer = {});
   ~DuckDbEngine();
 
   DuckDbEngine(const DuckDbEngine&) = delete;
@@ -176,6 +189,11 @@ class DuckDbEngine {
   ViewProvider view_provider_;
   FunctionProvider function_provider_;
   ScalarFunctionProvider scalar_function_provider_;
+  TableMaterializer table_materializer_;
+
+  // SQLite-native table names already materialized into DuckDB this session (so
+  // the catalog-miss retry does not re-materialize on every reference).
+  std::unordered_set<std::string> materialized_tables_;
 
   bool initialized_ = false;
   duckdb_database db_ = nullptr;

@@ -598,6 +598,22 @@ std::string RewriteDoubleQuotedToString(const std::string& sql,
   return out;
 }
 
+// Extracts the table name X from a DuckDB `Catalog Error: Table with name X does
+// not exist!` error, or nullopt otherwise.
+std::optional<std::string> ParseTableNotExist(const std::string& err) {
+  static constexpr char kPrefix[] = "Table with name ";
+  size_t p = err.find(kPrefix);
+  if (p == std::string::npos) {
+    return std::nullopt;
+  }
+  p += sizeof(kPrefix) - 1;
+  size_t q = err.find(" does not exist", p);
+  if (q == std::string::npos) {
+    return std::nullopt;
+  }
+  return err.substr(p, q - p);
+}
+
 // Extracts the column name X from a DuckDB `column "X" must appear in the GROUP
 // BY clause ...` binder error, or nullopt otherwise. DuckDB raises this for the
 // SQLite-lax-aggregate pattern (a projected column neither grouped nor
@@ -903,12 +919,14 @@ DuckDbEngine::DuckDbEngine(StringPool* string_pool,
                            Resolver resolver,
                            ViewProvider view_provider,
                            FunctionProvider function_provider,
-                           ScalarFunctionProvider scalar_function_provider)
+                           ScalarFunctionProvider scalar_function_provider,
+                           TableMaterializer table_materializer)
     : string_pool_(string_pool),
       resolver_(std::move(resolver)),
       view_provider_(std::move(view_provider)),
       function_provider_(std::move(function_provider)),
-      scalar_function_provider_(std::move(scalar_function_provider)) {}
+      scalar_function_provider_(std::move(scalar_function_provider)),
+      table_materializer_(std::move(table_materializer)) {}
 
 DuckDbEngine::~DuckDbEngine() {
   // Destroy the provider BEFORE the database: the replacement scan + table
@@ -1281,6 +1299,21 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
 
   RETURN_IF_ERROR(EnsureInitialized());
 
+  // Re-materialize SQLite-native tables FRESH per query: a materialized table is
+  // a SNAPSHOT, and such tables (e.g. a span_join output, or one populated
+  // during trace load) may change between queries. DROP the snapshots from the
+  // last query and clear the set, so (a) the next reference re-snapshots current
+  // data, and (b) a snapshot taken during load - when a real VIEW of the same
+  // name had not yet mirrored - no longer SHADOWS that view (DuckDB resolves a
+  // catalog table before firing the replacement scan).
+  for (const std::string& t : materialized_tables_) {
+    duckdb_result drop_res;
+    duckdb_query(conn_, ("DROP TABLE IF EXISTS \"" + t + "\"").c_str(),
+                 &drop_res);
+    duckdb_destroy_result(&drop_res);
+  }
+  materialized_tables_.clear();
+
   // Mirror any PerfettoSQL views created since the last query (after_eof
   // prelude, user INCLUDEs, runtime CREATE PERFETTO VIEW) so `FROM <view>`
   // resolves. Cheap: already-mirrored views are skipped.
@@ -1369,6 +1402,29 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
         if (rewritten != run_sql) {
           run_sql = std::move(rewritten);
           continue;
+        }
+      }
+      // Architectural: a referenced table DuckDB cannot find may be a plain
+      // SQLite-native table (e.g. the prelude's `_trace_bounds`), invisible to
+      // the dataframe replacement scan. Ask the materializer to copy it into
+      // DuckDB's catalog, then retry. Each table is materialized at most once.
+      if (table_materializer_) {
+        std::optional<std::string> tbl = ParseTableNotExist(err);
+        // Never materialize a name that is (or will be) a mirrored VIEW or table
+        // MACRO: a snapshot table would shadow it. Those resolve via the
+        // replacement scan / catalog once their dependencies exist; a transient
+        // "does not exist" for them must NOT be turned into a stale snapshot.
+        std::string lower = tbl ? base::ToLower(*tbl) : std::string();
+        bool is_view_or_macro =
+            tbl && (mirrored_views_.find(lower) != mirrored_views_.end() ||
+                    mirrored_table_macros_.find(lower) !=
+                        mirrored_table_macros_.end());
+        if (tbl && !is_view_or_macro &&
+            materialized_tables_.find(*tbl) == materialized_tables_.end()) {
+          if (table_materializer_(*tbl, conn_)) {
+            materialized_tables_.insert(*tbl);
+            continue;  // Retry now that the table exists in DuckDB.
+          }
         }
       }
     }

@@ -187,6 +187,105 @@
 namespace perfetto::trace_processor {
 namespace {
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
+// Copies a plain SQLite-native table (`CREATE TABLE ...`, invisible to the
+// DuckDB dataframe replacement scan) into DuckDB's catalog by reading its rows
+// from the real engine and rebuilding it as a DuckDB table from a VALUES list.
+// Returns false (no materialization) if `name` is not a simple identifier, the
+// table is empty (cannot infer column types), or any column is FLOAT/BLOB (exact
+// re-serialization is unsafe). See DuckDbEngine::TableMaterializer.
+bool MaterializeSqliteTableIntoDuckDb(PerfettoSqlConnection* engine,
+                                      const std::string& name,
+                                      duckdb_connection conn) {
+  for (char c : name) {
+    if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_')) {
+      return false;
+    }
+  }
+  // Only materialize PLAIN SQLite-native tables. A name that resolves to a
+  // dataframe (every storage/runtime table, incl. `__intrinsic_*`) is reached by
+  // the replacement scan; snapshotting it here would create a STALE copy that
+  // shadows the live data - e.g. an `__intrinsic_*` table still being populated
+  // during trace load. `_trace_bounds` (a real `CREATE TABLE`) is not a
+  // dataframe, so it is materialized; intrinsics are skipped.
+  if (engine->GetDataframeOrNull(name) != nullptr) {
+    return false;
+  }
+  base::StatusOr<PerfettoSqlConnection::ExecutionResult> res =
+      engine->ExecuteUntilLastStatement(
+          SqlSource::FromTraceProcessorImplementation("SELECT * FROM " + name));
+  if (!res.ok()) {
+    return false;
+  }
+  sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
+  int ncols = sqlite3_column_count(stmt);
+  if (ncols <= 0) {
+    return false;
+  }
+  std::vector<std::string> col_names;
+  for (int c = 0; c < ncols; ++c) {
+    col_names.emplace_back(sqlite3_column_name(stmt, c));
+  }
+  std::string values;
+  size_t nrows = 0;
+  constexpr size_t kMaxRows = 100000;
+  for (; !res->stmt.IsDone(); res->stmt.Step()) {
+    if (nrows >= kMaxRows) {
+      return false;
+    }
+    values += nrows == 0 ? "(" : ",(";
+    for (int c = 0; c < ncols; ++c) {
+      if (c != 0) {
+        values += ",";
+      }
+      switch (sqlite3_column_type(stmt, c)) {
+        case SQLITE_INTEGER:
+          values += std::to_string(sqlite3_column_int64(stmt, c));
+          break;
+        case SQLITE_NULL:
+          values += "NULL";
+          break;
+        case SQLITE_TEXT: {
+          const auto* txt = sqlite3_column_text(stmt, c);
+          int len = sqlite3_column_bytes(stmt, c);
+          values += "'";
+          for (int i = 0; i < len; ++i) {
+            char ch = static_cast<char>(txt[i]);
+            if (ch == '\'') {
+              values += "'";  // SQL-escape the single quote.
+            }
+            values += ch;
+          }
+          values += "'";
+          break;
+        }
+        default:
+          return false;  // FLOAT/BLOB: unsafe to re-serialize exactly.
+      }
+    }
+    values += ")";
+    ++nrows;
+  }
+  if (!res->stmt.status().ok() || nrows == 0) {
+    return false;
+  }
+  std::string collist;
+  for (size_t i = 0; i < col_names.size(); ++i) {
+    if (i != 0) {
+      collist += ",";
+    }
+    collist += "\"" + col_names[i] + "\"";
+  }
+  std::string create = "CREATE OR REPLACE TABLE " + name +
+                       " AS SELECT * FROM (VALUES " + values + ") AS v(" +
+                       collist + ")";
+  duckdb_result dres;
+  bool ok = duckdb_query(conn, create.c_str(), &dres) != DuckDBError;
+  duckdb_destroy_result(&dres);
+  return ok;
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
+
 base::Status RegisterAllProtoBuilderFunctions(
     const DescriptorPool* pool,
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
@@ -702,6 +801,15 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
               out.push_back({fn.name, fn.arg_names, fn.body_sql});
             }
             return out;
+          },
+          // Table materializer: copy a plain SQLite-native table (e.g. the
+          // prelude's `_trace_bounds`, which backs trace_start/trace_end and is
+          // not a dataframe/view the replacement scan can reach) into DuckDB by
+          // reading its rows from the real engine and rebuilding it as a DuckDB
+          // table. Bails (false) on an empty table or any FLOAT/BLOB column
+          // (exact re-serialization is unsafe) - those simply fall back.
+          [this](const std::string& name, duckdb_connection conn) -> bool {
+            return MaterializeSqliteTableIntoDuckDb(engine_.get(), name, conn);
           });
     }
 
