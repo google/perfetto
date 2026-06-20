@@ -845,9 +845,14 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
     // already ran in the engine above), so the expanded SQL is identical. If the
     // statement is not a single plain SQL statement, keep it verbatim (DuckDB
     // will then reject it and fall back, as before).
-    std::string duckdb_sql = split.last;
-    if (std::optional<std::string> expanded = engine_->ExpandMacrosToSqlite(
-            SqlSource::FromExecuteQuery(split.last))) {
+    // First rewrite `_interval_intersect!(...)` to a plain-SQL overlap join
+    // (BEFORE macro expansion, which would otherwise produce the SQLite-vtable
+    // table-pointer machinery DuckDB cannot run), then expand remaining macros.
+    std::string pre =
+        duckdb_integration::RewriteIntervalIntersectMacro(split.last);
+    std::string duckdb_sql = pre;
+    if (std::optional<std::string> expanded =
+            engine_->ExpandMacrosToSqlite(SqlSource::FromExecuteQuery(pre))) {
       duckdb_sql = std::move(*expanded);
     }
 

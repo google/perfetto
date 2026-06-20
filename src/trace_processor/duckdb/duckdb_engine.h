@@ -237,6 +237,17 @@ class DuckDbEngine {
   std::unique_ptr<ExtractArgState> extract_arg_state_;
 };
 
+// Rewrites a PerfettoSQL `_interval_intersect!((t0, t1, ...), (p0, p1, ...))`
+// macro call into an equivalent plain-SQL interval-overlap join, so it runs in
+// DuckDB WITHOUT the SQLite-vtable table-pointer machinery the normal macro
+// expansion produces (an interval-tree aggregate + __intrinsic_table_ptr). The
+// semantics are faithful: the intersection of N intervals is non-empty iff
+// greatest(starts) < least(ends), and the partition columns must match across
+// all tables. Must be applied BEFORE macro expansion (the macro is otherwise
+// expanded to the intrinsic form). Returns the rewritten SQL, or the input
+// unchanged if there is no `_interval_intersect!` call to rewrite.
+std::string RewriteIntervalIntersectMacro(const std::string& sql);
+
 // Testing-only entry point for the support predicate's TOKENIZATION + decision
 // logic, exposed so a unittest can exercise the previously-buggy classification
 // cases (CAST(...), USING(...), WITH d(a,b) AS (...), double-quoted literals,

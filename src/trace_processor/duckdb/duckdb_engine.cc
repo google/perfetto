@@ -115,6 +115,10 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // semantics. Listed here so the support predicate treats it as eligible
           // (it is also in registered_scalar_functions_ via the macro path).
           "iif",
+          // `greatest`/`least` are DuckDB-native variadic max/min. They appear
+          // only in engine-GENERATED SQL (the _interval_intersect! rewrite), so
+          // their (DuckDB-exact) semantics are controlled by us, not user input.
+          "greatest", "least",
       };
   return *kAllow;
 }
@@ -903,6 +907,151 @@ std::string RewriteUngroupedColumn(const std::string& sql,
 }
 
 }  // namespace
+
+std::string RewriteIntervalIntersectMacro(const std::string& sql) {
+  std::string cur = sql;
+  // Rewrite occurrences one at a time, re-tokenizing after each (the rewrite
+  // changes offsets). Capped to avoid any pathological loop.
+  for (int iter = 0; iter < 64; ++iter) {
+    std::vector<AllToken> toks = TokenizeAll(cur);
+    std::vector<size_t> sig;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (toks[i].significant) {
+        sig.push_back(i);
+      }
+    }
+    auto is_bare_id = [&](size_t s) {
+      const AllToken& t = toks[sig[s]];
+      return t.type == sql_token::kId && !t.str.empty() &&
+             t.str.front() != '"' && t.str.front() != '`';
+    };
+    // Find `_interval_intersect ! (`.
+    size_t k = sig.size();
+    for (size_t j = 0; j + 2 < sig.size(); ++j) {
+      if (is_bare_id(j) &&
+          base::ToLower(toks[sig[j]].str) == "_interval_intersect" &&
+          toks[sig[j + 1]].type == sql_token::kBang &&
+          toks[sig[j + 2]].type == sql_token::kLp) {
+        k = j;
+        break;
+      }
+    }
+    if (k == sig.size()) {
+      break;  // No more occurrences.
+    }
+    // Parse the two parenthesized lists inside the outer '(' at sig[k+2].
+    // Outer '(' opens at sig index ko = k+2. Inside: '(' tables ')' ',' '('
+    // partitions ')'. Find the outer matching ')'.
+    size_t ko = k + 2;
+    int depth = 0;
+    size_t outer_close = sig.size();
+    for (size_t m = ko; m < sig.size(); ++m) {
+      if (toks[sig[m]].type == sql_token::kLp) {
+        ++depth;
+      } else if (toks[sig[m]].type == sql_token::kRp) {
+        if (--depth == 0) {
+          outer_close = m;
+          break;
+        }
+      }
+    }
+    if (outer_close == sig.size()) {
+      break;  // Malformed; leave as-is (will fall back).
+    }
+    // Collect bare-id names within the first and second top-level (depth-1)
+    // nested paren groups inside the outer parens.
+    std::vector<std::string> tables, partitions;
+    int group = 0;  // 0 = before first '(', 1 = in tables, 2 = between, 3 = in
+                    // partitions.
+    int d = 0;
+    for (size_t m = ko + 1; m < outer_close; ++m) {
+      int tt = toks[sig[m]].type;
+      if (tt == sql_token::kLp) {
+        ++d;
+        if (d == 1) {
+          group = (group == 0) ? 1 : 3;
+        }
+        continue;
+      }
+      if (tt == sql_token::kRp) {
+        --d;
+        continue;
+      }
+      if (d == 1 && is_bare_id(m)) {
+        if (group == 1) {
+          tables.push_back(toks[sig[m]].str);
+        } else if (group == 3) {
+          partitions.push_back(toks[sig[m]].str);
+        }
+      }
+    }
+    if (tables.empty()) {
+      break;  // Nothing sensible to rewrite.
+    }
+    // Build the overlap-join subquery.
+    auto starts = [&]() {
+      std::string s;
+      for (size_t i = 0; i < tables.size(); ++i) {
+        s += (i ? ", " : "") + tables[i] + ".ts";
+      }
+      return s;
+    };
+    auto ends = [&]() {
+      std::string s;
+      for (size_t i = 0; i < tables.size(); ++i) {
+        s += (i ? ", " : "") + tables[i] + ".ts + " + tables[i] + ".dur";
+      }
+      return s;
+    };
+    std::string ts_expr = tables.size() == 1
+                              ? tables[0] + ".ts"
+                              : "greatest(" + starts() + ")";
+    std::string end_expr = tables.size() == 1
+                               ? tables[0] + ".ts + " + tables[0] + ".dur"
+                               : "least(" + ends() + ")";
+    std::string sub = "(SELECT " + ts_expr + " AS ts, (" + end_expr + ") - (" +
+                      ts_expr + ") AS dur";
+    for (size_t i = 0; i < tables.size(); ++i) {
+      sub += ", " + tables[i] + ".id AS id_" + std::to_string(i);
+    }
+    for (const std::string& p : partitions) {
+      sub += ", " + tables[0] + "." + p + " AS " + p;
+    }
+    sub += " FROM ";
+    for (size_t i = 0; i < tables.size(); ++i) {
+      sub += (i ? ", " : "") + tables[i];
+    }
+    std::string where;
+    if (tables.size() > 1) {
+      where = ts_expr + " < " + end_expr;
+    }
+    for (const std::string& p : partitions) {
+      for (size_t i = 1; i < tables.size(); ++i) {
+        if (!where.empty()) {
+          where += " AND ";
+        }
+        where += tables[0] + "." + p + " = " + tables[i] + "." + p;
+      }
+    }
+    if (!where.empty()) {
+      sub += " WHERE " + where;
+    }
+    sub += ")";
+    // Replace all-token span [sig[k] .. sig[outer_close]] with `sub`.
+    size_t first_tok = sig[k], last_tok = sig[outer_close];
+    std::string out;
+    for (size_t i = 0; i < toks.size(); ++i) {
+      if (i == first_tok) {
+        out += sub;
+        i = last_tok;
+        continue;
+      }
+      out += toks[i].str;
+    }
+    cur = std::move(out);
+  }
+  return cur;
+}
 
 namespace internal {
 std::optional<std::string> AnalyzeSupportForTesting(
