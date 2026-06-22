@@ -165,6 +165,10 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // (RewriteGraphReachableMacro). User input cannot reach these.
           "__intrinsic_graph_agg", "__intrinsic_int_array_agg",
           "__intrinsic_graph_bfs", "__intrinsic_graph_dfs",
+          // Native weight-bounded DFS (graph_reachable_weight_bounded_dfs!
+          // override): weighted-edge + root aggregates + combiner.
+          "__intrinsic_wgraph_agg", "__intrinsic_root_weight_agg",
+          "__intrinsic_dfs_weight_bounded",
           // Native dominator-tree aggregate, emitted only by the engine-
           // GENERATED graph_dominator_tree! rewrite (RewriteGraphDominatorMacro).
           "__intrinsic_dominator_tree",

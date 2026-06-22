@@ -225,6 +225,16 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
       "$graph_table), (SELECT __intrinsic_int_array_agg(node_id) FROM "
       "$start_nodes))) AS u) gr)"));
   v.push_back(mk(
+      "graph_reachable_weight_bounded_dfs",
+      {"graph_table", "root_table", "is_target_weight_floor"},
+      "(SELECT d.u.root_node_id AS root_node_id, d.u.node_id AS node_id, "
+      "d.u.parent_node_id AS parent_node_id FROM (SELECT "
+      "unnest(__intrinsic_dfs_weight_bounded("
+      "(SELECT __intrinsic_wgraph_agg(source_node_id, dest_node_id, "
+      "edge_weight) FROM $graph_table), "
+      "(SELECT __intrinsic_root_weight_agg(root_node_id, root_target_weight) "
+      "FROM $root_table), ($is_target_weight_floor))) AS u) d)"));
+  v.push_back(mk(
       "graph_dominator_tree", {"graph_table", "root_node_id"},
       "(SELECT dt.u.node_id AS node_id, dt.u.dominator_node_id AS "
       "dominator_node_id FROM (SELECT "
