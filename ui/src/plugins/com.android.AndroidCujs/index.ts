@@ -42,7 +42,7 @@ export async function addJankCUJDebugTrack(
 }
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
-  SELECT RUN_METRIC('android/jank/android_jank_cuj_init.sql');
+  INCLUDE PERFETTO MODULE android.cujs.base;
   INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 `;
 
@@ -61,61 +61,22 @@ function generateJankCujTrackConfig(cujNames: string | string[] = []) {
 const JANK_CUJ_QUERY = `
     SELECT
       CASE
-        WHEN
-          EXISTS(
-              SELECT 1
-              FROM slice AS cuj_state_marker
-                     JOIN track marker_track
-                          ON marker_track.id = cuj_state_marker.track_id
-              WHERE
-                cuj_state_marker.ts >= cuj.ts
-                AND cuj_state_marker.ts + cuj_state_marker.dur <= cuj.ts + cuj.dur
-                AND
-                ( /* e.g. J<CUJ_NAME>#FT#cancel#0 this for backward compatibility */
-                      cuj_state_marker.name GLOB(cuj.name || '#FT#cancel*')
-                    OR (marker_track.name = cuj.name AND cuj_state_marker.name GLOB 'FT#cancel*')
-                  )
-            )
-          THEN ' ❌ '
-        WHEN
-          EXISTS(
-              SELECT 1
-              FROM slice AS cuj_state_marker
-                     JOIN track marker_track
-                          ON marker_track.id = cuj_state_marker.track_id
-              WHERE
-                cuj_state_marker.ts >= cuj.ts
-                AND cuj_state_marker.ts + cuj_state_marker.dur <= cuj.ts + cuj.dur
-                AND
-                ( /* e.g. J<CUJ_NAME>#FT#end#0 this for backward compatibility */
-                      cuj_state_marker.name GLOB(cuj.name || '#FT#end*')
-                    OR (marker_track.name = cuj.name AND cuj_state_marker.name GLOB 'FT#end*')
-                  )
-            )
-          THEN ' ✅ '
+        WHEN state = 'canceled' THEN ' ❌ '
+        WHEN state = 'completed' THEN ' ✅ '
         ELSE ' ❓ '
-        END || cuj.name AS name,
+        END || cuj_slice_name AS name,
       total_frames,
       missed_app_frames,
       missed_sf_frames,
       sf_callback_missed_frames,
       hwui_callback_missed_frames,
-      cuj_layer.layer_name,
-      /* Boundaries table doesn't contain ts and dur when a CUJ didn't complete successfully.
-        In that case we still want to show that it was canceled, so let's take the slice timestamps. */
-      CASE WHEN boundaries.ts IS NOT NULL THEN boundaries.ts ELSE cuj.ts END AS ts,
-      CASE WHEN boundaries.dur IS NOT NULL THEN boundaries.dur ELSE cuj.dur END AS dur,
-      cuj.track_id,
-      cuj.slice_id
-    FROM slice AS cuj
-           JOIN process_track AS pt ON cuj.track_id = pt.id
-           LEFT JOIN android_jank_cuj jc
-                     ON pt.upid = jc.upid AND cuj.name = jc.cuj_slice_name AND cuj.ts = jc.ts
-           LEFT JOIN android_jank_cuj_main_thread_cuj_boundary boundaries using (cuj_id)
-           LEFT JOIN android_jank_cuj_layer_name cuj_layer USING (cuj_id)
-           LEFT JOIN android_jank_cuj_counter_metrics USING (cuj_id)
-    WHERE cuj.name GLOB 'J<*>'
-      AND cuj.dur > 0
+      layer_name,
+      ts,
+      dur,
+      track_id,
+      slice_id
+    FROM android_jank_cuj_all
+    WHERE dur > 0
 `;
 
 const JANK_COLUMNS = [

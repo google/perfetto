@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
+INCLUDE PERFETTO MODULE android.frames.jank_type;
+
 -- Macro defining the filtering conditions for a jank or latency CUJ slice in relevant processes.
 CREATE PERFETTO MACRO _is_jank_slice(
   slice TableOrSubquery,
@@ -258,17 +260,8 @@ WHERE
   AND (vsync >= begin_vsync OR begin_vsync IS NULL)
   AND (vsync <= end_vsync OR end_vsync IS NULL);
 
--- Resolves the layer name for each CUJ.
--- The layer can be identified in two ways:
--- 1. Explicit Marker: The Android framework may log a 'layerId#<id>' instant event. If
---    present, this is extracted into `cuj_layer_id` inside `_cuj_instant_events`.
---    We then filter `_all_frames_in_cuj` to exactly that layer.
--- 2. Fallback Inference: On older versions and when the proper way to report CUJs
---    is not used (e.g. on some apps that copy the same convention to report CUJs),
---    we try to infer the layer name. We check if the app rendered exactly one layer
---    per frame during the CUJ (`HAVING MAX(layers_per_frame) = 1`). If so, we safely
---    use that layer's name (extracted via `MAX(layer_name)`). If multiple layers
---    were rendered simultaneously, we can't safely guess, and return NULL.
+-- Resolves the layer name for each CUJ, either using the explicit 'layerId#<id>' marker
+-- or by falling back to inferring the layer name if only a single layer was rendered.
 CREATE PERFETTO TABLE _android_jank_cuj_layer_name(
   -- CUJ id.
   cuj_id LONG,
@@ -322,7 +315,209 @@ SELECT cuj_id, layer_name FROM explicit_layer_name
 UNION ALL
 SELECT cuj_id, layer_name FROM fallback_layer_name;
 
--- Table tracking all jank CUJs information.
+-- Table tracking all jank CUJs information, including completed and canceled CUJs.
+-- This table enriches each CUJ with boundary-adjusted timestamps, frame timeline
+-- statistics, layer name, and track ID. The UI plugin reads from this table directly.
+CREATE PERFETTO TABLE android_jank_cuj_all(
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- process id.
+  upid JOINID(process.id),
+  -- process name.
+  process_name STRING,
+  -- Name of the CUJ slice.
+  cuj_slice_name STRING,
+  -- Name of the CUJ without the 'J<' prefix.
+  cuj_name STRING,
+  -- Id of the CUJ slice in perfetto.
+  slice_id JOINID(slice.id),
+  -- Start timestamp of the CUJ. For completed CUJs, adjusted to the start of the
+  -- first Choreographer doFrame. For canceled CUJs, the raw slice timestamp.
+  ts TIMESTAMP,
+  -- End timestamp of the CUJ. For completed CUJs, adjusted to the end of the last
+  -- Choreographer doFrame. For canceled CUJs, the raw slice end.
+  ts_end TIMESTAMP,
+  -- Duration of the CUJ calculated based on the ts and ts_end values.
+  dur DURATION,
+  -- State of the CUJ. One of "completed", "canceled" or NULL. NULL in cases where the FT#cancel or
+  -- FT#end instant event is not present for the CUJ.
+  state STRING,
+  -- thread id of the UI thread.
+  ui_thread JOINID(thread.id),
+  -- layer id associated with the actual frame.
+  layer_id LONG,
+  -- vysnc id of the first frame that falls within the CUJ boundary.
+  begin_vsync LONG,
+  -- vysnc id of the last frame that falls within the CUJ boundary.
+  end_vsync LONG,
+  -- Track id of the CUJ slice. Can be used to place the CUJ on the correct
+  -- track in the UI.
+  track_id JOINID(track.id),
+  -- the layer name, if available.
+  layer_name STRING,
+  -- Total number of frames in this CUJ according to the timeline.
+  total_frames LONG,
+  -- Number of frames in this CUJ where the app missed its deadline.
+  missed_app_frames LONG,
+  -- Number of frames in this CUJ where SurfaceFlinger missed its deadline.
+  missed_sf_frames LONG,
+  -- Number of frames in this CUJ with missed SF callbacks.
+  sf_callback_missed_frames LONG,
+  -- Number of frames in this CUJ with missed HWUI callbacks.
+  hwui_callback_missed_frames LONG
+)
+AS
+WITH
+  -- Frame boundaries from Choreographer doFrame slices.
+  frame_bounds AS (
+    SELECT cuj_id, MIN(ts) AS ts, MAX(ts_end) AS ts_end
+    FROM _android_jank_cuj_do_frames
+    GROUP BY
+      cuj_id
+  ),
+  -- Compute vsync boundary per CUJ from existing tables.
+  vsync_boundary AS (
+    SELECT
+      cuj.cuj_id,
+      cuj.upid,
+      cuj_events.layer_id,
+      IFNULL(cuj_events.begin_vsync, MIN(vsync)) AS vsync_min,
+      IFNULL(cuj_events.end_vsync, MAX(vsync)) AS vsync_max
+    FROM _jank_cujs_slices AS cuj
+    JOIN _cuj_instant_events AS cuj_events USING (cuj_id)
+    JOIN _android_jank_cuj_do_frames USING (cuj_id)
+    GROUP BY
+      cuj.cuj_id,
+      cuj.upid,
+      cuj_events.layer_id
+  ),
+  -- Match actual frame timeline slices to CUJ vsync ranges.
+  actual_timeline_with_vsync AS (
+    SELECT *, CAST(name AS INTEGER) AS vsync
+    FROM actual_frame_timeline_slice
+    WHERE
+      dur > 0
+  ),
+  frame_timeline AS (
+    SELECT
+      cuj_id,
+      vsync,
+      MAX(android_is_app_jank_type(jank_type)) AS app_missed,
+      MAX(android_is_sf_jank_type(jank_type)) AS sf_missed,
+      IFNULL(MAX(sf_callback_missed), 0) AS sf_callback_missed,
+      IFNULL(MAX(hwui_callback_missed), 0) AS hwui_callback_missed
+    FROM vsync_boundary AS boundary
+    JOIN actual_timeline_with_vsync AS timeline
+      ON vsync >= vsync_min
+      AND vsync <= vsync_max
+      AND boundary.upid = timeline.upid
+    LEFT JOIN _vsync_missed_callback AS missed_callback USING (vsync)
+    WHERE
+      boundary.layer_id IS NULL
+      OR (timeline.layer_name GLOB '*#*'
+      AND boundary.layer_id
+      = CAST(STR_SPLIT(timeline.layer_name, '#', 1) AS INTEGER))
+    GROUP BY
+      cuj_id,
+      vsync
+  ),
+  -- Aggregate frame stats per CUJ.
+  frame_stats AS (
+    SELECT
+      cuj_id,
+      COUNT(1) AS total_frames,
+      SUM(app_missed) AS missed_app_frames,
+      SUM(sf_missed) AS missed_sf_frames,
+      SUM(sf_callback_missed) AS sf_callback_missed_frames,
+      SUM(hwui_callback_missed) AS hwui_callback_missed_frames
+    FROM frame_timeline
+    GROUP BY
+      cuj_id
+  )
+SELECT
+  cuj.cuj_id,
+  cuj.upid,
+  cuj.process_name,
+  cuj.cuj_slice_name,
+  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
+  cuj.slice_id,
+  -- ts: Adjusted to frame boundaries for completed CUJs, raw slice ts otherwise.
+  CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id
+        AND csm.marker_type = 'end'
+    )
+    AND fb.ts IS NOT NULL THEN fb.ts
+    ELSE cuj.ts
+  END AS ts,
+  -- ts_end: Adjusted to frame boundaries for completed CUJs, raw slice end otherwise.
+  CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id
+        AND csm.marker_type = 'end'
+    )
+    AND fb.ts_end IS NOT NULL THEN fb.ts_end
+    ELSE cuj.ts_end
+  END AS ts_end,
+  -- dur: Derived from adjusted ts and ts_end.
+  CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id
+        AND csm.marker_type = 'end'
+    )
+    AND fb.ts IS NOT NULL
+    AND fb.ts_end IS NOT NULL THEN fb.ts_end - fb.ts
+    ELSE cuj.dur
+  END AS dur,
+  -- state
+  CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id
+        AND csm.marker_type = 'cancel'
+    ) THEN 'canceled'
+    WHEN EXISTS (
+      SELECT 1
+      FROM _cuj_state_markers AS csm
+      WHERE
+        csm.cuj_id = cuj.cuj_id
+        AND csm.marker_type = 'end'
+    ) THEN 'completed'
+    ELSE NULL
+  END AS state,
+  cuj_events.ui_thread,
+  cuj_events.layer_id,
+  cuj_events.begin_vsync,
+  cuj_events.end_vsync,
+  slice.track_id,
+  cuj_layer.layer_name,
+  IFNULL(stats.total_frames, 0) AS total_frames,
+  IFNULL(stats.missed_app_frames, 0) AS missed_app_frames,
+  IFNULL(stats.missed_sf_frames, 0) AS missed_sf_frames,
+  IFNULL(stats.sf_callback_missed_frames, 0) AS sf_callback_missed_frames,
+  IFNULL(stats.hwui_callback_missed_frames, 0) AS hwui_callback_missed_frames
+FROM _jank_cujs_slices AS cuj
+JOIN _cuj_instant_events AS cuj_events USING (cuj_id)
+JOIN slice
+  ON slice.id = cuj.slice_id
+LEFT JOIN frame_bounds AS fb USING (cuj_id)
+LEFT JOIN _android_jank_cuj_layer_name AS cuj_layer USING (cuj_id)
+LEFT JOIN frame_stats AS stats USING (cuj_id)
+ORDER BY
+  ts;
+
+-- Table tracking only completed jank CUJs.
 CREATE PERFETTO TABLE android_jank_cuj(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
@@ -347,7 +542,7 @@ CREATE PERFETTO TABLE android_jank_cuj(
   ts_end TIMESTAMP,
   -- Duration of the CUJ calculated based on the ts and ts_end values.
   dur DURATION,
-  -- State of the CUJ. One of "completed", "cancelled" or NULL. NULL in cases where the FT#cancel or
+  -- State of the CUJ. One of "completed", "canceled" or NULL. NULL in cases where the FT#cancel or
   -- FT#end instant event is not present for the CUJ.
   state STRING,
   -- thread id of the UI thread.
@@ -361,35 +556,25 @@ CREATE PERFETTO TABLE android_jank_cuj(
 )
 AS
 SELECT
-  cuj.*,
-  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
-  CASE
-    WHEN EXISTS (
-      SELECT 1
-      FROM _cuj_state_markers AS csm
-      WHERE
-        csm.cuj_id = cuj.cuj_id
-        AND csm.marker_type = 'cancel'
-    ) THEN 'canceled'
-    WHEN EXISTS (
-      SELECT 1
-      FROM _cuj_state_markers AS csm
-      WHERE
-        csm.cuj_id = cuj.cuj_id
-        AND csm.marker_type = 'end'
-    ) THEN 'completed'
-    ELSE NULL
-  END AS state,
-  cuj_events.ui_thread,
-  cuj_events.layer_id,
-  cuj_events.begin_vsync,
-  cuj_events.end_vsync
-FROM _jank_cujs_slices AS cuj
-JOIN _cuj_instant_events AS cuj_events USING (cuj_id)
+  cuj_id,
+  upid,
+  process_name,
+  cuj_slice_name,
+  cuj_name,
+  slice_id,
+  ts,
+  ts_end,
+  dur,
+  state,
+  ui_thread,
+  layer_id,
+  begin_vsync,
+  end_vsync
+FROM android_jank_cuj_all
 WHERE
   state != 'canceled'
   -- Older builds don't have the state markers so we allow NULL but filter out
   -- CUJs that are <4ms long - assuming CUJ was canceled in that case.
-  OR (state IS NULL AND cuj.dur > 4e6)
+  OR (state IS NULL AND dur > 4e6)
 ORDER BY
   ts;

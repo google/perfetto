@@ -42,7 +42,7 @@ CREATE PERFETTO TABLE android_sysui_jank_cujs(
   ts_end TIMESTAMP,
   -- Duration of the CUJ calculated based on the ts and ts_end values.
   dur DURATION,
-  -- State of the CUJ. One of "completed", "cancelled" or NULL. NULL in cases where the FT#cancel or
+  -- State of the CUJ. One of "completed", "canceled" or NULL. NULL in cases where the FT#cancel or
   -- FT#end instant event is not present for the CUJ.
   state STRING,
   -- thread id of the UI thread.
@@ -169,7 +169,7 @@ CREATE PERFETTO TABLE android_sysui_latency_cujs(
   ts_end TIMESTAMP,
   -- Duration of the CUJ calculated based on the ts and ts_end values.
   dur DURATION,
-  -- State of the CUJ whether it was completed/cancelled.
+  -- State of the CUJ whether it was completed/canceled.
   state STRING
 )
 AS
@@ -236,7 +236,7 @@ CREATE PERFETTO TABLE android_jank_latency_cujs(
   ts_end TIMESTAMP,
   -- Duration of the CUJ calculated based on the ts and ts_end values.
   dur DURATION,
-  -- State of the CUJ. One of "completed", "cancelled" or NULL. NULL in cases where the FT#cancel or
+  -- State of the CUJ. One of "completed", "canceled" or NULL. NULL in cases where the FT#cancel or
   -- FT#end instant event is not present for the CUJ.
   state STRING,
   -- thread id of the UI thread. In case of latency CUJs, this will always be the main thread of

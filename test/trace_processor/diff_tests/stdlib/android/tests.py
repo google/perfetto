@@ -1936,3 +1936,19 @@ class AndroidStdlib(TestSuite):
         "matching","system_pkg","no_package"
         "com.fake.package","AID_SYSTEM_USER","uid=12345"
         """))
+
+  def test_android_jank_cuj_all(self):
+    return DiffTestBlueprint(
+        trace=Path('../../metrics/graphics/android_jank_cuj.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.cujs.base;
+        SELECT cuj_id, cuj_name, layer_name, state
+        FROM android_jank_cuj_all
+        ORDER BY cuj_id;
+        """,
+        out=Csv("""
+        "cuj_id","cuj_name","layer_name","state"
+        1,"FIRST_CUJ","TX - NotificationShade#0","completed"
+        2,"SHADE_ROW_EXPAND","TX - NotificationShade#0","completed"
+        3,"CANCELED","[NULL]","canceled"
+        """))
