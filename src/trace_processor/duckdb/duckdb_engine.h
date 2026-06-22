@@ -305,6 +305,14 @@ std::string RewriteAutoId(const std::string& sql);
 // macro expansion. Returns the input unchanged if there is no such call.
 std::string RewriteIntervalIntersectWithColNamesMacro(const std::string& sql);
 
+// Rewrites every empty double-quoted token `""` to an empty SQL string literal
+// `''`. SQLite treats `""` as an empty STRING; DuckDB rejects it at PARSE time
+// ("zero-length delimited identifier"), which also prevents the bind-error
+// double-quote-literal repair from running on the rest of the statement. `""`
+// can never be a real column, so this rewrite is unconditional + safe. Must run
+// BEFORE the statement reaches DuckDB.
+std::string RewriteEmptyDoubleQuotedString(const std::string& sql);
+
 // Testing-only entry point for the support predicate's TOKENIZATION + decision
 // logic, exposed so a unittest can exercise the previously-buggy classification
 // cases (CAST(...), USING(...), WITH d(a,b) AS (...), double-quoted literals,

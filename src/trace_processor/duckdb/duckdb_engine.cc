@@ -1097,6 +1097,23 @@ std::string RewriteAutoId(const std::string& sql) {
   return out;
 }
 
+std::string RewriteEmptyDoubleQuotedString(const std::string& sql) {
+  if (sql.find("\"\"") == std::string::npos) {
+    return sql;
+  }
+  std::string out;
+  out.reserve(sql.size());
+  SqliteTokenizer tokenizer(SqlSource::FromTraceProcessorImplementation(sql));
+  for (auto t = tokenizer.Next(); !t.str.empty(); t = tokenizer.Next()) {
+    if (t.token_type == sql_token::kId && t.str == "\"\"") {
+      out += "''";
+    } else {
+      out.append(t.str);
+    }
+  }
+  return out;
+}
+
 std::string RewriteIntervalIntersectMacro(const std::string& sql) {
   std::string cur = sql;
   // Rewrite occurrences one at a time, re-tokenizing after each (the rewrite

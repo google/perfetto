@@ -1438,6 +1438,10 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
     // partial native macro would silently diverge).
     std::string pre =
         duckdb_integration::RewriteIntervalIntersectMacro(split.last);
+    // `""` is an empty STRING in SQLite but a PARSE error in DuckDB; rewrite to
+    // `''` so the statement parses (and the bind-error double-quote repair can
+    // then handle any non-empty `"literal"`).
+    pre = duckdb_integration::RewriteEmptyDoubleQuotedString(pre);
     pre = duckdb_integration::RewriteIntervalCreateMacro(pre);
     pre = duckdb_integration::RewriteIntervalIntersectWithColNamesMacro(pre);
     // Map the stdlib-docs introspection table fns to their materialized
