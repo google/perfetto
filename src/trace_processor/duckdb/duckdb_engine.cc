@@ -613,7 +613,10 @@ std::optional<std::string> ParseReferencedColumnNotFound(
     return std::nullopt;
   }
   p += sizeof(kPrefix) - 1;
-  size_t q = err.find("\" not found", p);
+  // The trailing wording varies across DuckDB versions ("... not found" vs
+  // "... was not found because the FROM clause is missing"), so match the
+  // closing quote of the column name rather than a fixed suffix.
+  size_t q = err.find('"', p);
   if (q == std::string::npos) {
     return std::nullopt;
   }

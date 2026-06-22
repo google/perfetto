@@ -96,6 +96,7 @@ ProcessTracking.process_tracking   # TIE_BREAK: identical row set, under-specifi
 ProcessTracking.process_tracking_machine_id   # TIE_BREAK: identical row set, under-specified order.
 ProcessTracking.process_tracking_reused_thread_print   # TIE_BREAK: identical row set, under-specified order.
 ProfilingHeapGraph.heap_graph_superclass   # TIE_BREAK: identical row set, under-specified order.
+StdlibIntervals.intervals_overlap_count_by_group   # TIE_BREAK: identical row set, under-specified order (now DuckDB-eligible via the double-quote-literal repair).
 SummaryMetricsV2.column_transformation   # TIE_BREAK: under-specified order (LIMIT/GROUP BY without total ORDER BY).
 SummaryMetricsV2.simple_slices_metric_v2   # TIE_BREAK: identical row set, under-specified order.
 SurfaceFlingerLayers.display_rects   # TIE_BREAK: identical row set, under-specified order.
