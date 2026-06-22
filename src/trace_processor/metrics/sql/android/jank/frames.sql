@@ -54,24 +54,11 @@ JOIN actual_timeline_with_vsync timeline
 LEFT JOIN expected_frame_timeline_slice expected
   ON expected.upid = timeline.upid AND expected.name = timeline.name
 LEFT JOIN _vsync_missed_callback missed_callback USING(vsync)
+LEFT JOIN _android_jank_cuj_layer_name cuj_layer USING (cuj_id)
 WHERE
-  boundary.layer_id IS NULL
-  OR (
-    timeline.layer_name GLOB '*#*'
-    AND boundary.layer_id
-      = CAST(STR_SPLIT(timeline.layer_name, '#', 1) AS INTEGER))
+  cuj_layer.layer_name IS NULL
+  OR timeline.layer_name = cuj_layer.layer_name
 GROUP BY cuj_id, vsync;
-
-DROP TABLE IF EXISTS android_jank_cuj_layer_name;
-CREATE PERFETTO TABLE android_jank_cuj_layer_name AS
-SELECT
-    cuj_id,
-    MAX(frame_layer_name) as layer_name
-FROM android_jank_cuj_frame_timeline timeline
-GROUP BY cuj_id
--- Return only cujs where the max number of layers for all frames in the whole cuj equals 1,
--- this is to infer the layer name if the cuj marker for layer id is not present
-HAVING MAX(number_of_layers_for_frame) = 1;
 
 -- Matches slices and boundaries to compute estimated frame boundaries across
 -- all threads. Joins with the actual timeline to figure out which frames missed
@@ -126,11 +113,10 @@ WITH android_jank_cuj_timeline_sf_frame AS (
         boundary.upid = timeline.upid
         AND CAST(timeline.name AS INTEGER) >= vsync_min
         AND CAST(timeline.name AS INTEGER) <= vsync_max
+    LEFT JOIN _android_jank_cuj_layer_name cuj_layer USING (cuj_id)
     WHERE
-        boundary.layer_id IS NULL
-      OR (
-        timeline.layer_name GLOB '*#*'
-        AND boundary.layer_id = CAST(STR_SPLIT(timeline.layer_name, '#', 1) AS INTEGER))
+        cuj_layer.layer_name IS NULL
+      OR timeline.layer_name = cuj_layer.layer_name
 ),
 android_jank_cuj_sf_frame_base AS (
     SELECT DISTINCT

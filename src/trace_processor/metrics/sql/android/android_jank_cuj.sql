@@ -128,5 +128,5 @@ SELECT
         ))
       FROM android_jank_cuj cuj
       LEFT JOIN android_jank_cuj_boundary boundary USING (cuj_id)
-      LEFT JOIN android_jank_cuj_layer_name cuj_layer USING (cuj_id)
+      LEFT JOIN _android_jank_cuj_layer_name cuj_layer USING (cuj_id)
       ORDER BY cuj.cuj_id ASC));
