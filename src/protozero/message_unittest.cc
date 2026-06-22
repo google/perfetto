@@ -403,7 +403,7 @@ TEST_F(MessageTest, MessageHandle) {
   MessageHandle<FakeRootMessage> handle4(msg4);
   ASSERT_EQ(msg4, &*handle4);
   msg4->Finalize();
-  ASSERT_THAT(handle4.operator->(), testing::IsNull());
+  ASSERT_THAT(handle4.get(), testing::IsNull());
 #endif
 
   // Test also the behavior of handle with non-root (nested) messages.
