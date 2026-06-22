@@ -1,7 +1,7 @@
 packet {
   trusted_uid: 10225
   trusted_packet_sequence_id: 12
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 3981
   first_packet_on_sequence: true
   [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_handler_mappings] {

@@ -59,7 +59,7 @@ packet {
     trusted_uid: 1000
     trusted_packet_sequence_id: 4
     trusted_pid: 1678
-    previous_packet_dropped: true
+    previous_packet_dropped: 1
 }
 
 packet {

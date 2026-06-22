@@ -57,6 +57,7 @@ source_set("shell") {
     "../../traceconv:traceconv_lib",
     "../metrics",
     "../rpc",
+    "../rpc:lifecycle",
     "../rpc:session_util",
     "../rpc:stdiod",
     "../trace_summary",
@@ -73,7 +74,10 @@ source_set("shell") {
     deps += [ "../rpc:httpd" ]
   }
   if (enable_perfetto_ipc) {
-    deps += [ "../rpc:unixd" ]
+    deps += [
+      "../rpc:client",
+      "../rpc:unixd",
+    ]
   }
   public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
 }

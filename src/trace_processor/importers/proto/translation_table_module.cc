@@ -43,16 +43,12 @@ TranslationTableModule::TranslationTableModule(
 TranslationTableModule::~TranslationTableModule() = default;
 
 ModuleResult TranslationTableModule::TokenizePacket(
-    const protos::pbzero::TracePacket_Decoder& decoder,
-    TraceBlobView* /*packet*/,
-    int64_t /*packet_timestamp*/,
-    RefPtr<PacketSequenceStateGeneration> /*state*/,
-    uint32_t field_id) {
-  if (field_id != TracePacket::kTranslationTableFieldNumber) {
+    const TokenizePacketArgs& args) {
+  if (args.field.id() != TracePacket::kTranslationTableFieldNumber) {
     return ModuleResult::Ignored();
   }
-  const auto translation_table =
-      protos::pbzero::TranslationTable::Decoder(decoder.translation_table());
+  const auto translation_table = protos::pbzero::TranslationTable::Decoder(
+      args.field.Cast<TracePacket::kTranslationTable>());
   if (translation_table.has_chrome_histogram()) {
     ParseChromeHistogramRules(translation_table.chrome_histogram());
   } else if (translation_table.has_chrome_user_event()) {

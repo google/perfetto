@@ -342,6 +342,16 @@ void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
   }
 }
 
+// Shmem emulation is only for relay (remote-host) producers whose SMB is copied
+// over IPC. An in-process producer always has a real shared SMB, so it must use
+// kDefault even when it carries a non-default machine id.
+SharedMemoryABI::ShmemMode GetShmemMode(const ClientIdentity& client_identity,
+                                        bool in_process) {
+  return (client_identity.machine_id() == kDefaultMachineID || in_process)
+             ? SharedMemoryABI::ShmemMode::kDefault
+             : SharedMemoryABI::ShmemMode::kShmemEmulation;
+}
+
 }  // namespace
 
 TracingServiceImpl::TracingServiceImpl(
@@ -430,9 +440,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
       PERFETTO_DLOG(
           "Adopting producer-provided SMB of %zu kB for producer \"%s\"",
           shm_size / 1024, endpoint->name_.c_str());
-      auto shmem_mode = client_identity.machine_id() == kDefaultMachineID
-                            ? SharedMemoryABI::ShmemMode::kDefault
-                            : SharedMemoryABI::ShmemMode::kShmemEmulation;
+      auto shmem_mode = GetShmemMode(client_identity, in_process);
       endpoint->SetupSharedMemory(std::move(shm), page_size,
                                   /*provided_by_producer=*/true, shmem_mode);
     } else {
@@ -2730,7 +2738,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
     while (!did_hit_threshold) {
       TracePacket packet;
       TraceBuffer::PacketSequenceProperties sequence_properties{};
-      bool previous_packet_dropped;
+      uint32_t previous_packet_dropped;
       if (!tbuf.ReadNextTracePacket(&packet, &sequence_properties,
                                     &previous_packet_dropped)) {
         break;
@@ -3462,9 +3470,7 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
     // physical memory.
     auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
     auto shmem_mode =
-        producer->client_identity().machine_id() == kDefaultMachineID
-            ? SharedMemoryABI::ShmemMode::kDefault
-            : SharedMemoryABI::ShmemMode::kShmemEmulation;
+        GetShmemMode(producer->client_identity(), producer->in_process_);
     producer->SetupSharedMemory(std::move(shared_memory), page_size,
                                 /*provided_by_producer=*/false, shmem_mode);
   }

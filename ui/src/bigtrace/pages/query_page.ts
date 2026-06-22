@@ -18,7 +18,10 @@ import {EmptyState} from '../../widgets/empty_state';
 import {SplitPanel} from '../../widgets/split_panel';
 import {Spinner} from '../../widgets/spinner';
 import {Tabs, type TabsTab} from '../../widgets/tabs';
-import {QueryHistoryComponent} from '../query/query_history';
+import {
+  QueryHistoryComponent,
+  setHistoryActiveTab,
+} from '../query/query_history';
 import {QueryRunner} from '../query/query_runner';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {sqlTablesLoader} from '../query/sql_tables';
@@ -57,6 +60,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     if (this.useBigtraceBackend) {
       bigTraceSettingsStorage.loadSettings();
     }
+    // Open History on the sub-tab matching the active tab's Persistent mode;
+    // its default ('standard') otherwise wins on every mount.
+    const activeTab = this.tabsState.getActiveTab();
+    if (activeTab) {
+      setHistoryActiveTab(activeTab.materialize);
+    }
     sqlTablesLoader.load();
   }
 
@@ -74,6 +83,29 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         this.tabsState.addNewTab(undefined, initialQuery);
       }
       this.tabsState.markDirty();
+    }
+
+    // Read-and-clear initialPreset (set by a home-page preset card);
+    // seeds a fresh tab with the recipe's query + trace-selection settings.
+    const initialPreset = queryState.initialPreset;
+    if (initialPreset !== undefined) {
+      queryState.initialPreset = undefined;
+      this.tabsState.addTabFromPreset(initialPreset);
+    }
+
+    // Read-and-clear the settings-page "Query" signal: open a fresh tab. With
+    // no stored snapshot it inherits the current /settings globals — the trace
+    // selection + options just configured, no SQL.
+    if (queryState.seedTabFromSettings) {
+      queryState.seedTabFromSettings = false;
+      this.tabsState.addNewTab(
+        undefined,
+        '',
+        undefined,
+        undefined,
+        undefined,
+        true, // forceNew
+      );
     }
 
     const editorTabs: TabsTab[] = this.tabsState.tabs.map((tab) => ({

@@ -28,8 +28,10 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -386,6 +388,30 @@ bool WaitForSocketBound(const std::string& path) {
   return false;
 }
 
+// Binds an ephemeral TCP port on 127.0.0.1 and returns it (the socket is closed
+// on return, so there is a small TOCTOU window before the server rebinds it).
+int GetFreeInetPort() {
+  auto sock = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kInet,
+                                                 base::SockType::kStream);
+  PERFETTO_CHECK(sock && sock.Bind("127.0.0.1:0"));
+  std::string addr = sock.GetSockAddr();  // "127.0.0.1:PORT"
+  return base::StringToInt32(addr.substr(addr.rfind(':') + 1)).value_or(0);
+}
+
+// Polls until a TCP connect to 127.0.0.1:|port| succeeds, up to ~5s.
+bool WaitForTcpPort(int port) {
+  std::string addr = "127.0.0.1:" + std::to_string(port);
+  for (int i = 0; i < 500; ++i) {
+    auto sock = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kInet,
+                                                   base::SockType::kStream);
+    sock.SetBlocking(true);
+    if (sock && sock.Connect(addr))
+      return true;
+    base::SleepMicroseconds(10 * 1000);
+  }
+  return false;
+}
+
 TEST(TraceProcessorShellIntegrationTest, ServerUnixBindAndCleanup) {
   // `server unix` binds the socket, then unlinks it on SIGTERM.
   auto trace = WriteSimpleSystrace();
@@ -399,6 +425,25 @@ TEST(TraceProcessorShellIntegrationTest, ServerUnixBindAndCleanup) {
   server.Start();
 
   EXPECT_TRUE(WaitForSocketBound(sock));
+
+  server.KillAndWaitForTermination(SIGTERM);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerUnixNoTraceFile) {
+  // Like http mode, `server unix` may start without a trace file (a client can
+  // load one later over the wire).
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server({ShellPath(), "server", "unix", "--path", sock,
+                           "--idle-timeout", "never"});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+
+  EXPECT_TRUE(WaitForSocketBound(sock));
+  EXPECT_EQ(server.status(), base::Subprocess::kRunning);
 
   server.KillAndWaitForTermination(SIGTERM);
   EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
@@ -425,6 +470,192 @@ TEST(TraceProcessorShellIntegrationTest, ServerUnixStaleSocketCleanup) {
 
   server.KillAndWaitForTermination(SIGTERM);
   // Wait for the socket to be unlinked before the TempDir is torn down.
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerUnixIdleReap) {
+  // With --idle-start last-query the idle clock is always armed, so an idle
+  // server reaps itself (and unlinks its socket) after the timeout.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server({ShellPath(), "server", "unix", "--path", sock,
+                           "--idle-start", "last-query", "--idle-timeout", "1s",
+                           trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  // No queries: it should self-reap well within this window.
+  EXPECT_TRUE(server.Wait(/*timeout_ms=*/15000));
+  EXPECT_EQ(server.status(), base::Subprocess::kTerminated);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, RemoteQueryRoundTrip) {
+  // A `query --remote <sock>` runs against a warm `server unix` and returns the
+  // same result the local path would, exercising the full RemoteTraceProcessor
+  // round-trip (request marshalling + CellsBatch decode).
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server(
+      {ShellPath(), "server", "unix", "--path", sock, trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  // Two queries on two independent connections: validates that the shared
+  // server tolerates a fresh client (seq reset) each time.
+  auto r1 = RunShell({"query", "--remote", sock, "SELECT 200 + 61 AS v"});
+  EXPECT_EQ(r1.exit_code, 0) << r1.out;
+  EXPECT_THAT(r1.out, HasSubstr("261"));
+
+  auto r2 = RunShell({"query", "--remote", sock,
+                      "SELECT 'hello' AS s, count(*) AS n FROM slice"});
+  EXPECT_EQ(r2.exit_code, 0) << r2.out;
+  EXPECT_THAT(r2.out, HasSubstr("hello"));
+
+  // A SQL error is surfaced with a non-zero exit code.
+  auto r3 =
+      RunShell({"query", "--remote", sock, "SELECT * FROM no_such_table"});
+  EXPECT_NE(r3.exit_code, 0);
+
+  server.KillAndWaitForTermination(SIGTERM);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerKill) {
+  // `server kill` shuts down a running session and unlinks its socket.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server({ShellPath(), "server", "unix", "--path", sock,
+                           "--idle-timeout", "never", trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  auto kill = RunShell({"server", "kill", sock});
+  EXPECT_EQ(kill.exit_code, 0) << kill.out;
+
+  EXPECT_TRUE(server.Wait(/*timeout_ms=*/5000));
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerKillNoSession) {
+  auto result = RunShell({"server", "kill", "no-such-session"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("No live session"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerKillHttpDeferred) {
+  auto result = RunShell({"server", "kill", "localhost:9001"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("not supported"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, RemoteWebSocketRoundTrip) {
+  // `query --remote host:port` connects to the http server's /websocket
+  // endpoint and runs over the same RPC byte-pipe as the unix transport.
+  auto trace = WriteSimpleSystrace();
+  int port = GetFreeInetPort();
+  std::string addr = "127.0.0.1:" + std::to_string(port);
+
+  base::Subprocess server({ShellPath(), "server", "http", "--ip-address",
+                           "127.0.0.1", "--port", std::to_string(port),
+                           trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForTcpPort(port));
+
+  auto r = RunShell({"query", "--remote", addr, "SELECT 200 + 61 AS v"});
+  EXPECT_EQ(r.exit_code, 0) << r.out;
+  EXPECT_THAT(r.out, HasSubstr("261"));
+
+  server.KillAndWaitForTermination(SIGTERM);
+}
+
+TEST(TraceProcessorShellIntegrationTest, RemoteNoSession) {
+  // Querying a session that isn't running fails with a clear, actionable error.
+  auto result = RunShell({"query", "--remote", "no-such-session", "SELECT 1"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("No live session"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, RemoteHttpNoServer) {
+  // --remote to an HTTP address with nothing listening fails to connect.
+  int port = GetFreeInetPort();  // Free now; nothing is listening.
+  auto result = RunShell(
+      {"query", "--remote", "127.0.0.1:" + std::to_string(port), "SELECT 1"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Could not connect"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, RemoteRejectsIncompatibleFlags) {
+  // Global flags that configure local parsing or register local engine state
+  // cannot be honored over --remote (the trace is already loaded server-side),
+  // so they are rejected explicitly rather than silently ignored. The check
+  // runs before connecting, so no server is needed.
+  auto r1 = RunShell({"query", "--remote", "some-session", "--add-sql-package",
+                      "/tmp/p@x", "SELECT 1"});
+  EXPECT_NE(r1.exit_code, 0);
+  EXPECT_THAT(r1.out, HasSubstr("--add-sql-package"));
+  EXPECT_THAT(r1.out, HasSubstr("cannot be combined with --remote"));
+
+  auto r2 = RunShell({"query", "--remote", "some-session", "--metatrace",
+                      "/tmp/m.pb", "SELECT 1"});
+  EXPECT_NE(r2.exit_code, 0);
+  EXPECT_THAT(r2.out, HasSubstr("--metatrace"));
+  EXPECT_THAT(r2.out, HasSubstr("cannot be combined with --remote"));
+}
+
+TEST(TraceProcessorShellIntegrationTest,
+     RemoteInteractiveAbandonedQueryNoDesync) {
+  // Regression test: abandoning a multi-message streaming result mid-iteration
+  // must not corrupt the shared socket for the next query. The first query
+  // returns >50000 rows, which the server splits into multiple batches (one
+  // socket message each); typing 'q' at the interactive pager after the first
+  // 32-row page abandons the iterator with later messages still queued.
+  // RemoteIteratorImpl drains them on destruction, so the second query reads
+  // its own response (123) rather than leftover batches from the first.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server(
+      {ShellPath(), "server", "unix", "--path", sock, trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  base::Subprocess p;
+  p.args.exec_cmd = {ShellPath(), "interactive", "--remote", sock};
+  p.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.input =
+      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x "
+      "< "
+      "60000) SELECT x FROM c;\n"
+      "q\n"
+      "SELECT 100 + 23 AS computed;\n";
+  p.Start();
+  ASSERT_TRUE(p.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(p.returncode(), 0) << p.output();
+  // "123" only appears in the second query's result, not in any input SQL, so
+  // its presence proves the second query round-tripped on a clean socket.
+  EXPECT_THAT(p.output(), HasSubstr("123"));
+
+  server.KillAndWaitForTermination(SIGTERM);
   EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
 }
 #endif  // !PERFETTO_OS_WIN

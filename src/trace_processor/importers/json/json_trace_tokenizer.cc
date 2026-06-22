@@ -494,8 +494,7 @@ JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
       systrace_stream_(context_->sorter->CreateStream(
           std::make_unique<SystraceSink>(&parser_))),
       v8_stream_(context_->sorter->CreateStream(
-          std::make_unique<V8Sink>(v8_tracker_.get()))),
-      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)) {}
+          std::make_unique<V8Sink>(v8_tracker_.get()))) {}
 JsonTraceTokenizer::~JsonTraceTokenizer() = default;
 
 int64_t JsonTraceTokenizer::CurrentByteOffset() const {
@@ -839,7 +838,7 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     }
     return true;
   }
-  auto trace_ts = context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+  auto trace_ts = context_->clock_tracker->ConvertDefaultClockToTraceTime(ts);
   if (trace_ts) {
     json_stream_->Push(*trace_ts, std::move(event));
   }
@@ -897,7 +896,7 @@ base::Status JsonTraceTokenizer::ParseV8SampleEvent(const JsonEvent& event) {
     ASSIGN_OR_RETURN(int64_t ts,
                      v8_tracker_->AddDeltaAndGetTs(
                          id, event.pid, profile.time_deltas[i] * 1000));
-    auto trace_ts = context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+    auto trace_ts = context_->clock_tracker->ConvertDefaultClockToTraceTime(ts);
     if (trace_ts) {
       v8_stream_->Push(*trace_ts,
                        LegacyV8CpuProfileEvent{id, event.pid, event.tid,
@@ -1017,7 +1016,7 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
     SystraceLine line;
     RETURN_IF_ERROR(systrace_line_tokenizer_.Tokenize(raw_line, &line));
     auto trace_ts =
-        context_->clock_tracker->ToTraceTime(trace_file_clock_, line.ts);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(line.ts);
     if (trace_ts) {
       // SystraceLineParser populates tables from line.ts, so the conversion
       // must be written back, not just used as the sorting key.

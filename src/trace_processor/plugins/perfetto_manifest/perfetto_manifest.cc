@@ -14,41 +14,41 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/plugins/perfetto_metadata/perfetto_metadata.h"
+#include "src/trace_processor/plugins/perfetto_manifest/perfetto_manifest.h"
 
 #include <memory>
 
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/core/plugin/plugin.h"
-#include "src/trace_processor/plugins/perfetto_metadata/perfetto_metadata_reader.h"
+#include "src/trace_processor/plugins/perfetto_manifest/perfetto_manifest_reader.h"
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/util/trace_type.h"
 
-namespace perfetto::trace_processor::perfetto_metadata {
+namespace perfetto::trace_processor::perfetto_manifest {
 namespace {
 
-class PerfettoMetadataPlugin : public Plugin<PerfettoMetadataPlugin> {
+class PerfettoManifestPlugin : public Plugin<PerfettoManifestPlugin> {
  public:
-  ~PerfettoMetadataPlugin() override;
+  ~PerfettoManifestPlugin() override;
 
   void RegisterImporters(TraceReaderRegistry& registry) override {
-    registry.RegisterTraceReaderWithFileId<PerfettoMetadataReader>(
-        kPerfettoMetadataTraceType);
+    registry.RegisterTraceReaderWithFileId<PerfettoManifestReader>(
+        kPerfettoManifestTraceType);
   }
 };
 
-PerfettoMetadataPlugin::~PerfettoMetadataPlugin() = default;
+PerfettoManifestPlugin::~PerfettoManifestPlugin() = default;
 
 }  // namespace
 
 void RegisterPlugin() {
   static PluginRegistration reg(
       []() -> std::unique_ptr<PluginBase> {
-        return std::make_unique<PerfettoMetadataPlugin>();
+        return std::make_unique<PerfettoManifestPlugin>();
       },
-      PerfettoMetadataPlugin::kPluginId, PerfettoMetadataPlugin::kDepIds.data(),
-      PerfettoMetadataPlugin::kDepIds.size());
+      PerfettoManifestPlugin::kPluginId, PerfettoManifestPlugin::kDepIds.data(),
+      PerfettoManifestPlugin::kDepIds.size());
   base::ignore_result(reg);
 }
 
-}  // namespace perfetto::trace_processor::perfetto_metadata
+}  // namespace perfetto::trace_processor::perfetto_manifest

@@ -212,9 +212,9 @@ void BM_FtraceEventScan(benchmark::State& state, const char* trace_name) {
                           static_cast<int64_t>(trace.num_ftrace_events));
 }
 
-// Today's extension mechanism on top of ScanPackets(): each module
-// registered for an out-of-tree extension field probes the packet with
-// GetExtensionSlowly(), which re-scans the packet buffer per probe. Four
+// The pre-selective extension mechanism on top of ScanPackets(): each module
+// registered for an out-of-tree extension field probes the packet with a
+// FindField() buffer re-scan (what GetExtensionSlowly() used to do). Four
 // probed ids model a modest set of registered extension modules.
 uint64_t ScanPacketsExtensionsToday(const LoadedTrace& trace) {
   uint64_t acc = 0;
@@ -229,7 +229,7 @@ uint64_t ScanPacketsExtensionsToday(const LoadedTrace& trace) {
     acc += d.has_track_event();
     acc += d.has_interned_data();
     for (uint32_t ext_id : kProbedExtensionIds)
-      acc += d.GetExtensionSlowly(ext_id).valid();
+      acc += ProtoDecoder(p.data, p.size).FindField(ext_id).valid();
   }
   return acc;
 }

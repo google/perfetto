@@ -38,7 +38,6 @@ namespace perfetto::trace_processor::primes {
 
 PrimesTraceTokenizer::PrimesTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)),
       stream_(
           ctx->sorter->CreateStream(std::make_unique<PrimesTraceParser>(ctx))) {
 }
@@ -100,7 +99,7 @@ base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
     TraceBlobView edge_slice = slice->slice_off(
         static_cast<size_t>((*edge).data - slice->data()), (*edge).size);
     auto trace_ts =
-        context_->clock_tracker->ToTraceTime(trace_file_clock_, edge_timestamp);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(edge_timestamp);
     if (trace_ts) {
       stream_->Push(*trace_ts, std::move(edge_slice));
     }

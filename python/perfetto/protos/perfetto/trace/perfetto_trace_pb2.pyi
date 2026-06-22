@@ -4208,7 +4208,7 @@ class RedactionRule(_message.Message):
     def __init__(self, pattern: _Optional[str] = ..., match_mode: _Optional[_Union[RedactionRule.MatchMode, str]] = ..., keep_full: bool = ..., replacement_name: _Optional[str] = ..., keep_file_extension: bool = ..., keep_path_elements: _Optional[int] = ...) -> None: ...
 
 class JavaHprofConfig(_message.Message):
-    __slots__ = ("process_cmdline", "pid", "target_installed_by", "continuous_dump_config", "min_anonymous_memory_kb", "min_java_heap_size_kb", "dump_smaps", "smaps_config", "ignored_types")
+    __slots__ = ("process_cmdline", "pid", "target_installed_by", "continuous_dump_config", "min_anonymous_memory_kb", "min_java_heap_size_kb", "dump_smaps", "smaps_config", "ignored_types", "dump_oome_callstack")
     class ContinuousDumpConfig(_message.Message):
         __slots__ = ("dump_phase_ms", "dump_interval_ms", "scan_pids_only_on_start")
         DUMP_PHASE_MS_FIELD_NUMBER: _ClassVar[int]
@@ -4227,6 +4227,7 @@ class JavaHprofConfig(_message.Message):
     DUMP_SMAPS_FIELD_NUMBER: _ClassVar[int]
     SMAPS_CONFIG_FIELD_NUMBER: _ClassVar[int]
     IGNORED_TYPES_FIELD_NUMBER: _ClassVar[int]
+    DUMP_OOME_CALLSTACK_FIELD_NUMBER: _ClassVar[int]
     process_cmdline: _containers.RepeatedScalarFieldContainer[str]
     pid: _containers.RepeatedScalarFieldContainer[int]
     target_installed_by: _containers.RepeatedScalarFieldContainer[str]
@@ -4236,7 +4237,8 @@ class JavaHprofConfig(_message.Message):
     dump_smaps: bool
     smaps_config: SmapsConfig
     ignored_types: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[JavaHprofConfig.ContinuousDumpConfig, _Mapping]] = ..., min_anonymous_memory_kb: _Optional[int] = ..., min_java_heap_size_kb: _Optional[int] = ..., dump_smaps: bool = ..., smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., ignored_types: _Optional[_Iterable[str]] = ...) -> None: ...
+    dump_oome_callstack: bool
+    def __init__(self, process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[JavaHprofConfig.ContinuousDumpConfig, _Mapping]] = ..., min_anonymous_memory_kb: _Optional[int] = ..., min_java_heap_size_kb: _Optional[int] = ..., dump_smaps: bool = ..., smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., ignored_types: _Optional[_Iterable[str]] = ..., dump_oome_callstack: bool = ...) -> None: ...
 
 class PerfEvents(_message.Message):
     __slots__ = ()
@@ -18552,14 +18554,26 @@ class PackedSmaps(_message.Message):
     def __init__(self, string_table: _Optional[_Iterable[str]] = ..., name_id: _Optional[_Iterable[int]] = ..., aggregate_count: _Optional[_Iterable[int]] = ..., size_kb: _Optional[_Iterable[int]] = ..., rss_kb: _Optional[_Iterable[int]] = ..., anonymous_kb: _Optional[_Iterable[int]] = ..., swap_kb: _Optional[_Iterable[int]] = ..., shared_clean_kb: _Optional[_Iterable[int]] = ..., shared_dirty_kb: _Optional[_Iterable[int]] = ..., private_clean_kb: _Optional[_Iterable[int]] = ..., private_dirty_kb: _Optional[_Iterable[int]] = ..., locked_kb: _Optional[_Iterable[int]] = ..., pss_kb: _Optional[_Iterable[int]] = ..., pss_dirty_kb: _Optional[_Iterable[int]] = ..., swap_pss_kb: _Optional[_Iterable[int]] = ...) -> None: ...
 
 class SmapsPacket(_message.Message):
-    __slots__ = ("pid", "entries", "packed_entries")
+    __slots__ = ("pid", "entries", "packed_entries", "recording_type")
+    class RecordingType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        RECORDING_TYPE_UNKNOWN: _ClassVar[SmapsPacket.RecordingType]
+        RECORDING_TYPE_STANDALONE: _ClassVar[SmapsPacket.RecordingType]
+        RECORDING_TYPE_ART_HPROF_POSTFORK: _ClassVar[SmapsPacket.RecordingType]
+        RECORDING_TYPE_ART_HPROF_PREFORK: _ClassVar[SmapsPacket.RecordingType]
+    RECORDING_TYPE_UNKNOWN: SmapsPacket.RecordingType
+    RECORDING_TYPE_STANDALONE: SmapsPacket.RecordingType
+    RECORDING_TYPE_ART_HPROF_POSTFORK: SmapsPacket.RecordingType
+    RECORDING_TYPE_ART_HPROF_PREFORK: SmapsPacket.RecordingType
     PID_FIELD_NUMBER: _ClassVar[int]
     ENTRIES_FIELD_NUMBER: _ClassVar[int]
     PACKED_ENTRIES_FIELD_NUMBER: _ClassVar[int]
+    RECORDING_TYPE_FIELD_NUMBER: _ClassVar[int]
     pid: int
     entries: _containers.RepeatedCompositeFieldContainer[SmapsEntry]
     packed_entries: PackedSmaps
-    def __init__(self, pid: _Optional[int] = ..., entries: _Optional[_Iterable[_Union[SmapsEntry, _Mapping]]] = ..., packed_entries: _Optional[_Union[PackedSmaps, _Mapping]] = ...) -> None: ...
+    recording_type: SmapsPacket.RecordingType
+    def __init__(self, pid: _Optional[int] = ..., entries: _Optional[_Iterable[_Union[SmapsEntry, _Mapping]]] = ..., packed_entries: _Optional[_Union[PackedSmaps, _Mapping]] = ..., recording_type: _Optional[_Union[SmapsPacket.RecordingType, str]] = ...) -> None: ...
 
 class ProcessStats(_message.Message):
     __slots__ = ("processes", "collection_end_timestamp")

@@ -62,7 +62,7 @@ export class ResizableArrayBuffer {
     } else {
       // We must make a copy of the used portion of the buffer to return it as
       // an ArrayBuffer.
-      return this.get().buffer;
+      return this.buf.buffer.slice(0, this._size);
     }
   }
 

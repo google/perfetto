@@ -734,6 +734,8 @@ CREATE PERFETTO VIEW machine(
   id ID,
   -- Raw machine identifier in the trace packet.
   raw_id LONG,
+  -- Human-readable name of the machine, used as its label in the UI.
+  name STRING,
   -- The name of the operating system.
   sysname STRING,
   -- The current release of the operating system.
