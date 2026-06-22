@@ -60,6 +60,8 @@ source_set("engine") {
     "clock_function.h",
     "duckdb_engine.cc",
     "duckdb_engine.h",
+    "critical_path_function.cc",
+    "critical_path_function.h",
     "dominator_tree_function.cc",
     "dominator_tree_function.h",
     "extract_arg.cc",

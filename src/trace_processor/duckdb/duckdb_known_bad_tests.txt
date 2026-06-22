@@ -102,6 +102,7 @@ SummaryMetricsV2.simple_slices_metric_v2   # TIE_BREAK: identical row set, under
 SurfaceFlingerLayers.display_rects   # TIE_BREAK: identical row set, under-specified order.
 SurfaceFlingerLayers.input_rects   # TIE_BREAK: identical row set, under-specified order.
 SurfaceFlingerLayers.layer_rects   # TIE_BREAK: identical row set, under-specified order.
+TablesSched.thread_executing_span_critical_path_by_roots   # TIE_BREAK: correct rows, under-specified order (test has no ORDER BY); now DuckDB-eligible via the critical_path chain port.
 TrackEvent.track_event_counters_counters   # TIE_BREAK: identical row set, under-specified order.
 ViewCapture.view_rects   # TIE_BREAK: identical row set, under-specified order.
 

@@ -234,6 +234,106 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
       "edge_weight) FROM $graph_table), "
       "(SELECT __intrinsic_root_weight_agg(root_node_id, root_target_weight) "
       "FROM $root_table), ($is_target_weight_floor))) AS u) d)"));
+  // _critical_path_with_depth_by_roots: native wakeup-graph walk (the SQLite
+  // form uses __intrinsic_table_ptr). Output columns root_id, depth, ts, dur,
+  // id (=blocker_id), parent_id (blocker_utid is computed but unused upstream).
+  v.push_back(mk(
+      "_critical_path_with_depth_by_roots", {"_roots_table", "_node_table"},
+      "(SELECT cp.u.root_id AS root_id, cp.u.depth AS depth, cp.u.ts AS ts, "
+      "cp.u.dur AS dur, cp.u.blocker_id AS id, cp.u.parent_id AS parent_id "
+      "FROM (SELECT unnest(__intrinsic_critical_path_walk("
+      "(SELECT __intrinsic_wakeup_graph_agg(CAST(id AS BIGINT), "
+      "CAST(utid AS BIGINT), CAST(ts AS BIGINT), CAST(dur AS BIGINT), "
+      "CAST(idle_dur AS BIGINT), CAST(waker_id AS BIGINT), "
+      "CAST(prev_id AS BIGINT)) FROM $_node_table), "
+      "(SELECT __intrinsic_cp_roots_agg(CAST(root_node_id AS BIGINT)) "
+      "FROM $_roots_table))) AS u) cp)"));
+  // _critical_path_by_roots: the stdlib final SELECT groups by (root_id, ts)
+  // but selects bare flat.id/flat.dur (lax GROUP BY) -> any_value (unique per
+  // (root_id, ts) after _intervals_flatten, so deterministic).
+  v.push_back(mk(
+      "_critical_path_by_roots", {"_roots_table", "_node_table"},
+      "(WITH _frames AS (SELECT * FROM "
+      "_critical_path_with_depth_by_roots!($_roots_table, $_node_table)), "
+      "_root_spans AS (SELECT root_id, min(ts) AS root_ts, "
+      "max(ts + dur) - min(ts) AS root_dur FROM _frames GROUP BY root_id), "
+      "_flatten_input AS (SELECT _frames.root_id, root_ts, root_dur, "
+      "parent_id, id, ts, dur FROM _frames JOIN _root_spans USING (root_id)) "
+      "SELECT flat.root_id, any_value(flat.id) AS id, flat.ts, "
+      "any_value(flat.dur) AS dur FROM _intervals_flatten!(_flatten_input) AS "
+      "flat WHERE flat.dur > 0 GROUP BY flat.root_id, flat.ts)"));
+  // _intervals_to_roots is a pure-SQL stdlib macro that DuckDB rejects on two
+  // SQLite-isms: 2-arg scalar max/min (-> greatest/least; DuckDB min/max are
+  // aggregate-only) and lax GROUP BY (the _start/_end CTEs select ungrouped
+  // _interval_to_root_nodes.utid / _source.dur -> ANY_VALUE; both are constant
+  // within the group). This override is the SAME logic, DuckDB-dialect-correct.
+  v.push_back(mk(
+      "_intervals_to_roots", {"_source_table", "_node_table"},
+      "(WITH _interval_to_root_nodes AS (SELECT * FROM $_node_table), "
+      "_source AS (SELECT * FROM $_source_table), "
+      "_thread_bounds AS (SELECT utid, min(ts) AS min_start, max(ts) AS "
+      "max_start FROM _interval_to_root_nodes GROUP BY utid), "
+      "_start AS (SELECT ANY_VALUE(_interval_to_root_nodes.utid) AS utid, "
+      "max(_interval_to_root_nodes.id) AS _start_id, _source.ts, "
+      "ANY_VALUE(_source.dur) AS dur FROM _interval_to_root_nodes "
+      "JOIN _thread_bounds USING (utid) JOIN _source ON _source.utid = "
+      "_interval_to_root_nodes.utid AND greatest(_source.ts, min_start) >= "
+      "_interval_to_root_nodes.ts GROUP BY _source.ts, _source.utid), "
+      "_end AS (SELECT ANY_VALUE(_interval_to_root_nodes.utid) AS utid, "
+      "min(_interval_to_root_nodes.id) AS _end_id, _source.ts, "
+      "ANY_VALUE(_source.dur) AS dur FROM _interval_to_root_nodes "
+      "JOIN _thread_bounds USING (utid) JOIN _source ON _source.utid = "
+      "_interval_to_root_nodes.utid AND least((_source.ts + _source.dur), "
+      "max_start) <= _interval_to_root_nodes.ts GROUP BY _source.ts, "
+      "_source.utid), "
+      "_bound AS (SELECT _start.utid, _start.ts, _start.dur, _start_id, "
+      "_end_id FROM _start JOIN _end ON _start.ts = _end.ts AND _start.dur = "
+      "_end.dur AND _start.utid = _end.utid) "
+      "SELECT DISTINCT id AS root_node_id, id - coalesce(prev_id, id) AS "
+      "capacity FROM _bound JOIN _interval_to_root_nodes ON "
+      "_interval_to_root_nodes.id BETWEEN _start_id AND _end_id AND "
+      "_interval_to_root_nodes.utid = _bound.utid)"));
+  // _intervals_flatten (intervals.overlap; used by 6 stdlib files incl. the
+  // critical_path chain). DuckDB-dialect fixes vs the SQLite stdlib body:
+  //  - `FROM ($arg)` -> `FROM $arg`: DuckDB rejects parens around a bare CTE
+  //    name (the caller passes a CTE name, not a subquery).
+  //  - `GROUP BY .. HAVING priority = max(priority)` with a bare `id` is
+  //    SQLite's "bare column follows max()" idiom -> DuckDB `arg_max(id,
+  //    priority)`.
+  //  - bare `root_ts`/`root_dur` under GROUP BY -> `any_value(..)` (constant
+  //    within a root). HAVING aliases inlined (DuckDB HAVING can't see them).
+  v.push_back(mk(
+      "_intervals_flatten", {"children_with_roots_table"},
+      "(WITH _children_with_roots AS (SELECT * FROM "
+      "$children_with_roots_table WHERE root_dur > 0 AND (dur IS NULL OR "
+      "dur > 0)), "
+      "_ends AS (SELECT root_id, root_ts, root_dur, "
+      "coalesce(parent_id, root_id) AS id, ts + dur AS ts FROM "
+      "_children_with_roots WHERE id IS NOT NULL), "
+      "_events AS (SELECT root_id, root_ts, root_dur, id, ts, 1 AS priority "
+      "FROM _children_with_roots UNION ALL SELECT root_id, root_ts, root_dur, "
+      "id, ts, 0 AS priority FROM _ends), "
+      "_events_deduped AS (SELECT root_id, any_value(root_ts) AS root_ts, "
+      "any_value(root_dur) AS root_dur, arg_max(id, priority) AS id, ts FROM "
+      "_events GROUP BY root_id, ts), "
+      "_intervals AS (SELECT root_id, root_ts, root_dur, id, ts, "
+      "lead(ts) OVER (PARTITION BY root_id ORDER BY ts) - ts AS dur FROM "
+      "_events_deduped), "
+      "_only_middle AS (SELECT * FROM _intervals WHERE dur > 0), "
+      "_only_start AS (SELECT root_id, root_id AS id, any_value(root_ts) AS "
+      "ts, min(ts) - any_value(root_ts) AS dur FROM _only_middle GROUP BY "
+      "root_id HAVING min(ts) - any_value(root_ts) > 0), "
+      "_only_end AS (SELECT root_id, root_id AS id, max(ts + dur) AS ts, "
+      "any_value(root_ts) + any_value(root_dur) - max(ts + dur) AS dur FROM "
+      "_only_middle GROUP BY root_id HAVING any_value(root_ts) + "
+      "any_value(root_dur) - max(ts + dur) > 0), "
+      "_only_singleton AS (SELECT root_id, root_id AS id, "
+      "any_value(root_ts) AS ts, any_value(root_dur) AS dur FROM "
+      "_children_with_roots WHERE id IS NULL GROUP BY root_id) "
+      "SELECT root_id, id, ts, dur FROM _only_middle UNION ALL SELECT "
+      "root_id, id, ts, dur FROM _only_start UNION ALL SELECT root_id, id, "
+      "ts, dur FROM _only_end UNION ALL SELECT root_id, id, ts, dur FROM "
+      "_only_singleton)"));
   v.push_back(mk(
       "tree_structural_partition_by_group", {"tree_table"},
       "(SELECT s.u.node_id AS id, s.u.parent_node_id AS parent_id, "

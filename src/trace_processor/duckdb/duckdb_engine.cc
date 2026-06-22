@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/duckdb/clock_function.h"
+#include "src/trace_processor/duckdb/critical_path_function.h"
 #include "src/trace_processor/duckdb/dominator_tree_function.h"
 #include "src/trace_processor/duckdb/structural_tree_partition_function.h"
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
@@ -143,6 +144,16 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // SQLite: min/max/sum/avg/count already above; total (SUM-as-double),
           // and the statistical aggregates DuckDB shares.
           "total",
+          // `any_value(x)` returns an arbitrary value from the group - the same
+          // semantics as SQLite's lax GROUP BY (a bare column under GROUP BY).
+          // It is the target of the ungrouped-column repair and the
+          // _intervals_to_roots override (where the wrapped columns are constant
+          // within the group, so the choice is deterministic).
+          "any_value",
+          // `arg_max(arg, val)` returns `arg` from the row with the largest
+          // `val` - the DuckDB equivalent of SQLite's "bare column follows
+          // max()" GROUP BY idiom (used by the _intervals_flatten override).
+          "arg_max",
           // `iif(c,a,b)` is registered as a DuckDB MACRO (CASE WHEN c THEN a ELSE
           // b END) in RegisterScalarFunctions, so it binds with exact SQLite
           // semantics. Listed here so the support predicate treats it as eligible
@@ -176,6 +187,9 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // Native structural tree partition (tree_structural_partition_by_group!
           // override): single aggregate -> LIST<STRUCT>.
           "__intrinsic_structural_tree_partition",
+          // Native critical-path walk (_critical_path_with_depth_by_roots! override).
+          "__intrinsic_wakeup_graph_agg", "__intrinsic_cp_roots_agg",
+          "__intrinsic_critical_path_walk",
           // Native tree pipeline (std.trees.*). The from_table aggregate and
           // to_table combiner (__intrinsic_*) are emitted only by the DuckDb
           // _tree_from_table!/_tree_to_table! macro overrides. The
@@ -1639,6 +1653,7 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // Register the native dominator-tree aggregate (reached via the
   // graph_dominator_tree! rewrite in the router).
   RETURN_IF_ERROR(RegisterDominatorTree(conn_));
+  RETURN_IF_ERROR(RegisterCriticalPath(conn_));
   RETURN_IF_ERROR(RegisterStructuralTreePartition(conn_));
 
   // Register the clock-conversion UDFs (to_monotonic/to_realtime/abs_time_str)
