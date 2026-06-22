@@ -60,8 +60,8 @@
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
-#include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/selective_track_event_decoder.h"
+#include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_parser.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -825,8 +825,7 @@ class TrackEventEventImporter {
 
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationBegin());
     auto opt_slice_id = context_->slice_tracker->Begin(
-        ts_, track_id, category_id_, name_id_,
-        [this](BoundInserter* inserter) {
+        ts_, track_id, category_id_, name_id_, [this](BoundInserter* inserter) {
           if (DispatchSlicePlugins(SliceId(inserter->id()))) {
             ParseTrackEventArgs(inserter);
           }
@@ -852,8 +851,7 @@ class TrackEventEventImporter {
     }
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationEnd());
     auto opt_slice_id = context_->slice_tracker->End(
-        ts_, track_id, category_id_, name_id_,
-        [this](BoundInserter* inserter) {
+        ts_, track_id, category_id_, name_id_, [this](BoundInserter* inserter) {
           if (DispatchSlicePlugins(SliceId(inserter->id()))) {
             ParseTrackEventArgs(inserter);
           }
@@ -1111,8 +1109,7 @@ class TrackEventEventImporter {
   base::Status ParseAsyncEndEvent() {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationEnd());
     auto opt_slice_id = context_->slice_tracker->End(
-        ts_, track_id, category_id_, name_id_,
-        [this](BoundInserter* inserter) {
+        ts_, track_id, category_id_, name_id_, [this](BoundInserter* inserter) {
           if (DispatchSlicePlugins(SliceId(inserter->id()))) {
             ParseTrackEventArgs(inserter);
           }
