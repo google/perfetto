@@ -15,7 +15,7 @@
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {time} from '../../base/time';
-import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, STR} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
 import {
@@ -251,26 +251,8 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       }
 
       for (const upid of upids) {
-        let group = trackGroupsPlugin.getGroupForProcess(upid);
-        if (!group) {
-          group = trace.defaultWorkspace.getTrackByUri(`/process_${upid}`);
-        }
-        if (!group) {
-          const processResult = await trace.engine.query(
-            `SELECT pid, name FROM process WHERE upid = ${upid}`,
-          );
-          if (processResult.numRows() === 0) continue;
-          const row = processResult.firstRow({pid: NUM, name: STR_NULL});
-          const pid = row.pid;
-          const name = row.name ?? `Uid ${upid}`;
-
-          group = new TrackNode({
-            uri: `/process_${upid}`,
-            name: `${name} ${pid}`,
-            isSummary: true,
-          });
-          trace.defaultWorkspace.addChildInOrder(group);
-        }
+        const group = await trackGroupsPlugin.getOrCreateGroupForProcess(upid);
+        if (!group) continue;
 
         const store = assertExists(this.store);
         const uri = trackUri(upid, heapType);

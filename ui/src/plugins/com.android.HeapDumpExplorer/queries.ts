@@ -498,11 +498,9 @@ export async function getOverview(
   }
 
   const oomeRes = await engine.query(`
-    SELECT g.upid, g.ts
-    FROM heap_graph g
-    JOIN process p ON g.upid = p.upid
-    JOIN process p_dump ON p.pid = p_dump.pid
-    WHERE p_dump.upid = ${activeDump.upid} AND g.dump_reason = 'OOME'
+    SELECT upid, ts
+    FROM heap_graph
+    WHERE upid = ${activeDump.upid} AND dump_reason = 'OOME'
     LIMIT 1
   `);
   let oomeUpid: number | null = null;
