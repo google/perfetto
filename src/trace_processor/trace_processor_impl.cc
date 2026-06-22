@@ -456,6 +456,83 @@ bool MaterializeStdlibDocsTable(PerfettoSqlConnection* engine,
   return ok;
 }
 
+// Materializes `perfetto_table_info('X')` into `__duckdb_table_info__X` by
+// running the SQLite-side intrinsic and snapshotting (faithful: rows copied).
+// `name` is the encoded DuckDB table name; the table arg follows the
+// `__duckdb_table_info__` prefix. Re-snapshotted per query, so a runtime table
+// created in the leading statements is reflected.
+bool MaterializeTableInfoTable(PerfettoSqlConnection* engine,
+                               duckdb_connection conn,
+                               const std::string& name) {
+  constexpr char kPrefix[] = "__duckdb_table_info__";
+  std::string arg = name.substr(sizeof(kPrefix) - 1);
+  if (arg.empty()) {
+    return false;
+  }
+  std::vector<std::string> col_names;
+  std::string values;
+  size_t nrows = 0;
+  if (!AppendQueryRowsAsValues(
+          engine, "SELECT * FROM perfetto_table_info('" + arg + "')", nullptr,
+          "", &col_names, &values, &nrows) ||
+      nrows == 0 || col_names.empty()) {
+    return false;
+  }
+  std::string collist;
+  for (size_t i = 0; i < col_names.size(); ++i) {
+    if (i != 0) {
+      collist += ",";
+    }
+    collist += "\"" + col_names[i] + "\"";
+  }
+  std::string create = "CREATE OR REPLACE TABLE " + name +
+                       " AS SELECT * FROM (VALUES " + values + ") AS v(" +
+                       collist + ")";
+  duckdb_result dres;
+  bool ok = duckdb_query(conn, create.c_str(), &dres) != DuckDBError;
+  duckdb_destroy_result(&dres);
+  return ok;
+}
+
+// Rewrites `perfetto_table_info('X')` (X a simple identifier) to the
+// materialized `__duckdb_table_info__X` table (built lazily on first reference).
+// Non-identifier args are left untouched (fall back).
+std::string RewritePerfettoTableInfo(const std::string& sql) {
+  const std::string call = "perfetto_table_info(";
+  if (sql.find(call) == std::string::npos) {
+    return sql;
+  }
+  std::string out = sql;
+  for (size_t p = out.find(call); p != std::string::npos;
+       p = out.find(call, p + 1)) {
+    size_t open = p + call.size();
+    // Expect `'IDENT')`.
+    if (open >= out.size() || out[open] != '\'') {
+      continue;
+    }
+    size_t close_q = out.find('\'', open + 1);
+    if (close_q == std::string::npos || close_q + 1 >= out.size() ||
+        out[close_q + 1] != ')') {
+      continue;
+    }
+    std::string ident = out.substr(open + 1, close_q - (open + 1));
+    bool simple = !ident.empty();
+    for (char ch : ident) {
+      if (!(std::isalnum(static_cast<unsigned char>(ch)) || ch == '_')) {
+        simple = false;
+        break;
+      }
+    }
+    if (!simple) {
+      continue;
+    }
+    std::string repl = "__duckdb_table_info__" + ident;
+    out.replace(p, (close_q + 2) - p, repl);
+    p += repl.size();
+  }
+  return out;
+}
+
 // Rewrites the stdlib-docs introspection table-function calls to queries
 // against the materialized __duckdb_stdlib_* tables (DuckDB has no equivalent
 // of the SQLite StaticTableFunction surface). `__intrinsic_stdlib_modules()` ->
@@ -524,6 +601,9 @@ bool MaterializeSqliteTableIntoDuckDb(PerfettoSqlConnection* engine,
   // from an existing table.
   if (name.rfind("__duckdb_stdlib_", 0) == 0) {
     return MaterializeStdlibDocsTable(engine, conn, name);
+  }
+  if (name.rfind("__duckdb_table_info__", 0) == 0) {
+    return MaterializeTableInfoTable(engine, conn, name);
   }
   for (char c : name) {
     if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_')) {
@@ -1235,6 +1315,8 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
     // Map the stdlib-docs introspection table fns to their materialized
     // __duckdb_stdlib_* tables (built lazily by the table materializer).
     pre = RewriteStdlibDocs(pre);
+    // Map perfetto_table_info('X') to its materialized __duckdb_table_info__X.
+    pre = RewritePerfettoTableInfo(pre);
     std::string duckdb_sql = pre;
     if (std::optional<std::string> expanded =
             engine_->ExpandMacrosToSqliteDuckDb(
