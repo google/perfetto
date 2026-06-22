@@ -21,7 +21,11 @@ import {NUM} from '../../trace_processor/query_result';
 import HeapProfilePlugin, {
   traceHasTimelineData,
 } from '../dev.perfetto.HeapProfile';
-import {HeapDumpPage} from './heap_dump_page';
+import {
+  HeapDumpPage,
+  resetCachedOverview,
+  disposeBaseline,
+} from './heap_dump_page';
 import {HeapDumpExplorerSession} from './session';
 import {migrateHdeState} from './persisted_state';
 
@@ -57,6 +61,14 @@ export default class implements PerfettoPlugin {
       store,
     );
     const restored = await session.loadDumps();
+
+    resetCachedOverview();
+    disposeBaseline();
+    // The eager dispose above only runs when the next trace also has heap
+    // data. Defer disposal onto the trace's trash too, so baseline engines
+    // (each a separate trace_processor Worker) are torn down when this trace
+    // is closed or replaced by a non-heap trace, not leaked.
+    ctx.trash.defer(disposeBaseline);
 
     ctx.pages.registerPage({
       route: '/heapdump',

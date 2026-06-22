@@ -38,6 +38,12 @@ const FLAMEGRAPH_TAB_SCHEMA = z.object({
 const INSTANCE_TAB_SCHEMA = z.object({
   objId: z.number(),
   label: z.string(),
+  // In diff mode an object tab pairs a current-side and a baseline-side object
+  // id; either may be absent when the object exists on only one side. Plain
+  // (non-diff) tabs leave currentId = objId and baselineId = null. Optional so
+  // older permalinks (and non-diff tabs) parse unchanged.
+  currentId: z.number().nullable().optional(),
+  baselineId: z.number().nullable().optional(),
 });
 
 export const HDE_STATE_SCHEMA = z

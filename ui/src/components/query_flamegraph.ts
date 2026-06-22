@@ -118,6 +118,12 @@ export interface QueryFlamegraphMetric {
   //
   // Examples include marking inlined functions, optimized code, etc.
   readonly optionalMarker?: FlamegraphOptionalMarker;
+
+  // When true, the metric's SQL is expected to project a `color_hint`
+  // column (CSS color string — `hsl(...)`, `#rgb`, `#rrggbb`). The widget
+  // uses it instead of the default name-hash palette, with intensity-coded
+  // colors. Used by diff flamegraphs to color nodes by delta direction.
+  readonly colorHint?: boolean;
 }
 
 export interface MetricsFromTableOrSubqueryOptions {
@@ -263,6 +269,7 @@ async function computeFlamegraphTree(
     optionalNodeActions,
     optionalRootActions,
     optionalMarker,
+    colorHint: colorHintEnabled,
   }: QueryFlamegraphMetric,
   {filters, view}: FlamegraphState,
 ): Promise<FlamegraphQueryData> {
@@ -287,7 +294,22 @@ async function computeFlamegraphTree(
 
   const agg = aggregatableProperties ?? [];
   const aggCols = agg.map((x) => x.name);
-  const unagg = unaggregatableProperties ?? [];
+  // When the metric opts into colorHint, auto-add `color_hint` as a
+  // hidden unaggregatable property so the layout macro projects it
+  // through. The render path lifts it out of `properties` onto
+  // FlamegraphNode.colorHint and never shows it in the tooltip.
+  const unagg: QueryFlamegraphColumn[] = [
+    ...(unaggregatableProperties ?? []),
+    ...(colorHintEnabled
+      ? [
+          {
+            name: 'color_hint',
+            displayName: 'Color',
+            isVisible: () => false,
+          } as QueryFlamegraphColumn,
+        ]
+      : []),
+  ];
   const unaggCols = unagg.map((x) => x.name);
 
   const matchingColumns = ['name', ...unaggCols];
@@ -557,6 +579,12 @@ async function computeFlamegraphTree(
       marker = optionalMarker.name;
     }
 
+    let colorHint: string | undefined;
+    if (colorHintEnabled) {
+      const p = properties.get('color_hint');
+      if (p !== undefined) colorHint = p.value;
+      properties.delete('color_hint');
+    }
     nodes.push({
       id: it.id,
       parentId: it.parentId,
@@ -569,6 +597,7 @@ async function computeFlamegraphTree(
       xEnd: it.xEnd,
       properties,
       marker,
+      colorHint,
     });
     if (it.depth === 1) {
       postiveRootsValue += it.cumulativeValue;
