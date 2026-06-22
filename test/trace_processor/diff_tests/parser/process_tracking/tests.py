@@ -569,7 +569,7 @@ class ProcessTracking(TestSuite):
           trusted_uid: 304336
           trusted_packet_sequence_id: 3
           trusted_pid: 1137063
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         """),
         query="""
@@ -607,7 +607,7 @@ class ProcessTracking(TestSuite):
           trusted_uid: 304336
           trusted_packet_sequence_id: 3
           trusted_pid: 1137063
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         """),
         query="""
