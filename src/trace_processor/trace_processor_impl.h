@@ -218,6 +218,11 @@ class TraceProcessorImpl : public TraceProcessor,
   // scratch (DuckDB may call the scalar from worker threads).
   std::unique_ptr<ArgSetToJson::Context> duckdb_arg_set_json_ctx_;
   std::mutex duckdb_arg_set_json_mu_;
+  // Per-query side-map for the generic table-valued-function snapshot: index N
+  // holds the `SELECT * FROM <fn>(<args>)` that __duckdb_tvf_<N> materializes
+  // (see RewriteTableValuedFunctions). Cleared at the start of each DuckDB
+  // attempt; read by the table materializer on first reference.
+  std::vector<std::string> duckdb_tvf_calls_;
   // Runs the DuckDB rewrite->expand pipeline over an authored RETURNS TABLE
   // function body (interval/graph macro rewrites, then macro expansion), so the
   // function mirrors into DuckDB using native functions. Returns the pipelined

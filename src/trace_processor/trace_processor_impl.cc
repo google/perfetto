@@ -456,6 +456,102 @@ bool MaterializeStdlibDocsTable(PerfettoSqlConnection* engine,
   return ok;
 }
 
+// Runs `select_sql` in `engine` and snapshots its result into a DuckDB table
+// `table_name` (CREATE OR REPLACE ... AS VALUES). Faithful: rows are copied.
+// Returns false on error / empty / FLOAT / BLOB.
+bool MaterializeSelectAsTable(PerfettoSqlConnection* engine,
+                             duckdb_connection conn,
+                             const std::string& table_name,
+                             const std::string& select_sql) {
+  std::vector<std::string> col_names;
+  std::string values;
+  size_t nrows = 0;
+  if (!AppendQueryRowsAsValues(engine, select_sql, nullptr, "", &col_names,
+                               &values, &nrows) ||
+      nrows == 0 || col_names.empty()) {
+    return false;
+  }
+  std::string collist;
+  for (size_t i = 0; i < col_names.size(); ++i) {
+    if (i != 0) {
+      collist += ",";
+    }
+    collist += "\"" + col_names[i] + "\"";
+  }
+  std::string create = "CREATE OR REPLACE TABLE " + table_name +
+                       " AS SELECT * FROM (VALUES " + values + ") AS v(" +
+                       collist + ")";
+  duckdb_result dres;
+  bool ok = duckdb_query(conn, create.c_str(), &dres) != DuckDBError;
+  duckdb_destroy_result(&dres);
+  return ok;
+}
+
+// The C++ table-valued intrinsics whose args are NON-constant (subqueries), so
+// they can't use the name-encoding snapshot (perfetto_table_info) and have no
+// DuckDB-native port. RewriteTableValuedFunctions snapshots each call's result
+// via the SQLite engine into a numbered __duckdb_tvf_<N> table. Scoped to this
+// exact set so a natively-ported / mirrored TVF is never shadowed.
+const std::vector<std::string>& MaterializableTvfNames() {
+  static const std::vector<std::string>* kNames = new std::vector<std::string>{
+      "experimental_flamegraph",
+      "experimental_annotated_callstack",
+  };
+  return *kNames;
+}
+
+// Replaces each `<fn>(<args>)` call (fn in MaterializableTvfNames) with a
+// placeholder table `__duckdb_tvf_<N>`, recording "SELECT * FROM <fn>(<args>)"
+// at index N in `*calls`. The table materializer runs+snapshots calls[N] on
+// first reference (the leading statements have already run, so subquery args
+// resolve). `calls` is the per-query side-map (cleared by the caller).
+std::string RewriteTableValuedFunctions(const std::string& sql,
+                                        std::vector<std::string>* calls) {
+  std::string out = sql;
+  for (const std::string& fn : MaterializableTvfNames()) {
+    std::string call = fn + "(";
+    size_t p = 0;
+    while ((p = out.find(call, p)) != std::string::npos) {
+      // Word boundary: the char before `fn` must not be part of an identifier.
+      if (p > 0) {
+        char prev = out[p - 1];
+        if (std::isalnum(static_cast<unsigned char>(prev)) || prev == '_') {
+          p += call.size();
+          continue;
+        }
+      }
+      size_t argstart = p + call.size();
+      int depth = 1;
+      bool in_str = false;
+      size_t i = argstart;
+      for (; i < out.size() && depth > 0; ++i) {
+        char ch = out[i];
+        if (in_str) {
+          if (ch == '\'') {
+            in_str = false;
+          }
+        } else if (ch == '\'') {
+          in_str = true;
+        } else if (ch == '(') {
+          ++depth;
+        } else if (ch == ')') {
+          --depth;
+        }
+      }
+      if (depth != 0) {
+        break;  // Malformed; leave the rest untouched.
+      }
+      std::string full_call = out.substr(p, i - p);  // fn(<args>)
+      size_t n = calls->size();
+      calls->push_back("SELECT * FROM " + full_call);
+      std::string repl = "__duckdb_tvf_" + std::to_string(n);
+      out.replace(p, i - p, repl);
+      p += repl.size();
+    }
+  }
+  return out;
+}
+
 // Materializes `perfetto_table_info('X')` into `__duckdb_table_info__X` by
 // running the SQLite-side intrinsic and snapshotting (faithful: rows copied).
 // `name` is the encoded DuckDB table name; the table arg follows the
@@ -1249,6 +1345,20 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
           // table. Bails (false) on an empty table or any FLOAT/BLOB column
           // (exact re-serialization is unsafe) - those simply fall back.
           [this](const std::string& name, duckdb_connection conn) -> bool {
+            // A numbered __duckdb_tvf_<N> table is the snapshot of a non-constant
+            // table-valued intrinsic call recorded by RewriteTableValuedFunctions
+            // in `duckdb_tvf_calls_` for THIS query.
+            constexpr char kTvf[] = "__duckdb_tvf_";
+            if (name.rfind(kTvf, 0) == 0) {
+              char* end = nullptr;
+              unsigned long n =
+                  std::strtoul(name.c_str() + sizeof(kTvf) - 1, &end, 10);
+              if (end && *end == '\0' && n < duckdb_tvf_calls_.size()) {
+                return MaterializeSelectAsTable(engine_.get(), conn, name,
+                                                duckdb_tvf_calls_[n]);
+              }
+              return false;
+            }
             return MaterializeSqliteTableIntoDuckDb(engine_.get(), name, conn);
           });
       // Install the DuckDB-native macro definitions so ExpandMacrosToSqliteDuckDb
@@ -1317,6 +1427,10 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
     pre = RewriteStdlibDocs(pre);
     // Map perfetto_table_info('X') to its materialized __duckdb_table_info__X.
     pre = RewritePerfettoTableInfo(pre);
+    // Snapshot non-constant-arg table-valued intrinsics (experimental_flamegraph
+    // etc.) into per-query __duckdb_tvf_<N> tables built by the materializer.
+    duckdb_tvf_calls_.clear();
+    pre = RewriteTableValuedFunctions(pre, &duckdb_tvf_calls_);
     std::string duckdb_sql = pre;
     if (std::optional<std::string> expanded =
             engine_->ExpandMacrosToSqliteDuckDb(
