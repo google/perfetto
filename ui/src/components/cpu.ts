@@ -19,10 +19,11 @@ export class Cpu {
     readonly ucpu: number,
     readonly cpu: number,
     readonly machine: number,
+    readonly machineName?: string,
   ) {}
 
   public maybeMachineLabel(): string {
-    return maybeMachineLabel(this.machine);
+    return maybeMachineLabel(this.machine, this.machineName);
   }
 
   public toString(): string {

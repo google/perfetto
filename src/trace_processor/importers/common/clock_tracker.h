@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -66,14 +67,27 @@ class ClockTracker {
       int64_t timestamp,
       std::optional<size_t> byte_offset = std::nullopt,
       bool suppress_errors = false) {
-    if (PERFETTO_UNLIKELY(deferred_identity_clock_.has_value())) {
-      FlushDeferredIdentitySync();
+    if (PERFETTO_UNLIKELY(deferred_clock_sync_.has_value())) {
+      FlushDeferredClockSync();
     }
     auto* state = context_->trace_time_state.get();
     ++num_conversions_;
     auto ts = active_sync_->Convert(clock_id, timestamp, state->clock_id,
                                     byte_offset, suppress_errors);
     return ts ? std::optional(ToHostTraceTime(*ts)) : ts;
+  }
+
+  // Converts |ts|, expressed in this trace file's default clock (set by
+  // ForwardingTraceParser via SetTraceDefaultClock), to trace time. Tokenizers
+  // for single-clock formats call this instead of naming a builtin clock, so a
+  // perfetto_manifest override that swaps the default clock for the file's
+  // private clock transparently redirects them.
+  PERFETTO_ALWAYS_INLINE std::optional<int64_t> ConvertDefaultClockToTraceTime(
+      int64_t ts,
+      std::optional<size_t> byte_offset = std::nullopt,
+      bool suppress_errors = false) {
+    PERFETTO_DCHECK(trace_default_clock_.has_value());
+    return ToTraceTime(*trace_default_clock_, ts, byte_offset, suppress_errors);
   }
 
   // Converts a timestamp between two arbitrary clock domains.
@@ -88,6 +102,11 @@ class ClockTracker {
 
   // --- Slow-path public APIs ---
 
+  // Adds a clock snapshot to the clock graph and records it in the
+  // clock_snapshot table (one row per clock, converted to trace time, best
+  // effort), which backs ClockConverter (to_realtime, abs_time_str, the UI
+  // wall-clock axis). Every edge entering the graph is recorded this way;
+  // deferred syncs record when their edge is actually injected.
   base::StatusOr<uint32_t> AddSnapshot(
       const std::vector<ClockTimestamp>& clock_timestamps);
 
@@ -103,10 +122,18 @@ class ClockTracker {
   // Used as fallback when no timestamp_clock_id is specified.
   void SetTraceDefaultClock(ClockId clock_id);
 
-  // Registers a deferred identity sync: on the first ToTraceTime call that
-  // fails, a zero-offset edge between |clock_id| and the global trace time
-  // clock will be injected and the conversion retried.
-  void AddDeferredIdentitySync(ClockId clock_id);
+  // Registers a deferred clock edge: on the first ToTraceTime call, if |from|
+  // (at |from_ts|) cannot already reach |to| through the clock graph, an edge
+  // correlating |from|:|from_ts| with |to|:|to_ts| is injected into the shared
+  // machine graph. |to| defaults to the trace time clock (resolved at flush);
+  // |from_ts|/|to_ts| default to zero. With all defaults this is the plain
+  // identity-to-trace-time edge every trace file registers for its source
+  // clock; a perfetto_manifest override passes a non-zero offset and/or an
+  // explicit target. All timestamps must be non-negative.
+  void AddDeferredClockSync(ClockId from,
+                            int64_t from_ts = 0,
+                            std::optional<ClockId> to = std::nullopt,
+                            int64_t to_ts = 0);
 
   // Returns the trace default clock, if one has been set.
   std::optional<ClockId> trace_default_clock() const {
@@ -134,13 +161,40 @@ class ClockTracker {
       return timestamp;
     }
     auto* state = context_->trace_time_state.get();
-    int64_t clock_offset = state->remote_clock_offsets[state->clock_id];
-    return timestamp - clock_offset;
+    // Find, not operator[]: a lookup must not insert a spurious zero offset.
+    int64_t* clock_offset = state->remote_clock_offsets.Find(state->clock_id);
+    return timestamp - (clock_offset ? *clock_offset : 0);
   }
 
-  PERFETTO_NO_INLINE void FlushDeferredIdentitySync();
+  PERFETTO_NO_INLINE void FlushDeferredClockSync();
+
+  // Adds an edge directly to |active_sync_| (bypassing the single-clock
+  // rejection and the non-primary sync switch of the public AddSnapshot)
+  // and records it in the clock_snapshot table. Every graph mutation goes
+  // through here so the table is a faithful record of the graph.
+  base::StatusOr<uint32_t> AddSnapshotInternal(
+      const std::vector<ClockTimestamp>& clock_timestamps);
+
+  // Records a snapshot already added to the graph (which assigned it
+  // |snapshot_id|) into the clock_snapshot table: pure bookkeeping, one
+  // best-effort row per clock; performs no deferred-sync flush and counts
+  // no conversions.
+  void AddSnapshotToTable(uint32_t snapshot_id,
+                          const std::vector<ClockTimestamp>& clock_timestamps);
+
+  // Returns the interned name for a builtin clock, or nullopt if |clock_id| is
+  // not a builtin clock. The names are interned once in the constructor.
+  std::optional<StringId> GetBuiltinClockNameOrNull(int64_t clock_id) const;
 
   TraceProcessorContext* context_;
+
+  // Interned builtin clock names, populated in the constructor.
+  StringId realtime_clock_name_;
+  StringId realtime_coarse_clock_name_;
+  StringId monotonic_clock_name_;
+  StringId monotonic_coarse_clock_name_;
+  StringId monotonic_raw_clock_name_;
+  StringId boottime_clock_name_;
 
   // Private ClockSynchronizer used for non-primary traces. Primary traces use
   // the externally provided |primary_sync_| directly and don't use this member.
@@ -165,10 +219,16 @@ class ClockTracker {
   // is specified.
   std::optional<ClockId> trace_default_clock_;
 
-  // Clock registered via AddDeferredIdentitySync. Flushed (and cleared) on
-  // first ToTraceTime call: if the clock is not yet in the graph, a 0:0
-  // identity edge is injected.
-  std::optional<ClockId> deferred_identity_clock_;
+  // Edge registered via AddDeferredClockSync, flushed (and cleared) on the
+  // first ToTraceTime call. |to| == nullopt means the trace time clock,
+  // resolved at flush time.
+  struct DeferredSync {
+    ClockId from;
+    int64_t from_ts;
+    std::optional<ClockId> to;
+    int64_t to_ts;
+  };
+  std::optional<DeferredSync> deferred_clock_sync_;
 };
 
 class ClockSynchronizerListenerImpl : public ClockSynchronizerListener {

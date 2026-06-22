@@ -2532,6 +2532,10 @@ message JavaHprofConfig {
   // Exclude objects of the following types from the profile. This can be
   // useful if lots of uninteresting objects, e.g. "sun.misc.Cleaner".
   repeated string ignored_types = 6;
+
+  // Dump the callsite of the thread triggering the OutOfMemoryError.
+  // Only applicable to OutOfMemoryError heap dumps
+  optional bool dump_oome_callstack = 10;
 }
 
 // End of protos/perfetto/config/profiling/java_hprof_config.proto
@@ -5894,7 +5898,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 17
+// Next id: 18
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
@@ -5959,6 +5963,14 @@ message SystemInfo {
   //
   // Introduced in perfetto v54 / Android 26Q1+.
   optional uint64 system_ram_bytes = 16;
+
+  // Human-readable name of the machine this SystemInfo describes, used as the
+  // machine's label in the UI (falling back to "machine <id>" when unset).
+  //
+  // A producer attributing its data to a non-host machine can set this by
+  // emitting a SystemInfo packet to give that machine a name. Only meaningful
+  // when the packet carries a non-zero machine_id.
+  optional string machine_name = 17;
 }
 
 // End of protos/perfetto/common/system_info.proto
@@ -7891,158 +7903,6 @@ message EtwTraceEventBundle {
   repeated EtwTraceEvent event = 2;
 }
 // End of protos/perfetto/trace/etw/etw_event_bundle.proto
-
-// Begin of protos/perfetto/trace/evdev.proto
-
-// Records an event in the evdev protocol, as used by Linux and some other *nix
-// kernels to report events from human interface devices.
-//
-// Next ID: 5
-message EvdevEvent {
-  // The device's unique ID number. This need not be the number of its
-  // /dev/input/event node.
-  optional uint32 device_id = 1;
-
-  oneof event {
-    InputEvent input_event = 2;
-    DeviceAddition add_event = 3;
-    DeviceRemoval remove_event = 4;
-  }
-
-  // Proto version of Linux's struct input_event. The meaning of types and codes
-  // are described in the Linux kernel documentation at
-  // https://www.kernel.org/doc/html/latest/input/event-codes.html.
-  //
-  // Next ID: 5
-  message InputEvent {
-    // The monotonic timestamp at which the event occurred, as reported by the
-    // kernel, in integer nanoseconds. If omitted, assume that it hasn't changed
-    // since the previous event.
-    optional uint64 kernel_timestamp = 1;
-
-    // The code grouping for this event, used to distinguish signals, absolute
-    // and relative axis changes, and other types of event.
-    optional uint32 type = 2;
-    // The precise type of the event, such as the axis code for absolute and
-    // relative events.
-    optional uint32 code = 3;
-    // The new value of the axis described by type and code.
-    optional sint32 value = 4;
-  }
-
-  // Describes an evdev device being added to the system.
-  //
-  // Next ID: 2
-  message DeviceAddition {
-    optional EvdevDevice device = 1;
-  }
-
-  // Describes an evdev device being removed from the system.
-  //
-  // Next ID: 1
-  message DeviceRemoval {
-    // Empty — we don't need to record any data other than the device ID for
-    // this event type.
-  }
-}
-
-// The properties of an input device that don't change during the time that it's
-// connected, as well as the current values for all of its axes.
-//
-// Next ID: 13
-message EvdevDevice {
-  // The device's unique ID number. This need not be the number of its
-  // /dev/input/event node.
-  optional uint32 device_id = 1;
-  // The number of the evdev device (i.e. from its /dev/input/eventX node path).
-  optional uint32 device_num = 2;
-
-  // The device's name.
-  optional string name = 3;
-  // The physical path to the device in the system hierarchy.
-  optional string phys = 4;
-  // The unique identification code for the device (if it has one).
-  optional string uniq = 5;
-
-  // Proto version of Linux's struct input_id. Although uint32s are used for the
-  // fields, the kernel uses 16-bit ints so values will be less than 2^16.
-  //
-  // Next ID: 5
-  message Identifier {
-    // The bus that the device is connected to. Values will be one of Linux's
-    // BUS_* constants.
-    optional uint32 bustype = 1;
-    // A number identifying the vendor of the device. Often a USB or Bluetooth
-    // vendor ID, but not always.
-    optional uint32 vendor = 2;
-    optional uint32 product = 3;
-    optional uint32 version = 4;
-  }
-  // The device's ID numbers.
-  optional Identifier id = 6;
-
-  // Proto version of Linux's struct input_absinfo, excluding the value field
-  // (which is tracked elsewhere).
-  //
-  // Next ID: 6
-  message AbsInfo {
-    optional sint32 minimum = 1;
-    optional sint32 maximum = 2;
-    optional int32 fuzz = 3;
-    optional int32 flat = 4;
-    optional int32 resolution = 5;
-  }
-  // A map of information for each of the device's absolute axes. Keys are the
-  // Linux ABS_* constants.
-  map<uint32, AbsInfo> absolute_axis_infos = 7;
-
-  // Bitmask specifying which types of events the device declares.
-  optional bytes ev_bitmask = 8;
-  // A map of bitmasks specifying which axes of each type the device declares.
-  // Keys are the Linux EV_* constants.
-  map<uint32, bytes> event_type_bitmasks = 9;
-  // Bitmask of properties declared by the device.
-  optional bytes prop_bitmask = 10;
-
-  // Contains the current values of all axes of a particular type (e.g. EV_ABS,
-  // EV_KEY, etc.).
-  //
-  // Next ID: 2
-  message AxisMap {
-    // Current values of all axes, other than ABS_MT_* axes (which have multiple
-    // slots), which are kept in abs_mt_states instead.
-    //
-    // The keys are the Linux axis codes, e.g. ABS_* for absolute axes. If there
-    // is no entry for a particular axis, assume that its value is 0.
-    map<uint32, sint32> axis_states = 1;
-  }
-
-  // Current states of device axes.
-  //
-  // The keys are the Linux event type constants (e.g. EV_KEY, EV_ABS, etc.). We
-  // don't need to keep track of states for all axis types, only KEY, SW, LED,
-  // and ABS, so only those will have entries in this map. States for ABS_MT_*
-  // axes (which have multiple slots) will be kept in abs_mt_states instead.
-  map<uint32, AxisMap> axis_states = 11;
-
-  // Contains the current values of a single ABS_MT_* axis across all of its
-  // slots.
-  //
-  // Next ID: 2
-  message SlotValuesMap {
-    // Current values for all slots.
-    //
-    // The keys are the slot numbers. If there is no entry for a particular
-    // slot, assume that its value is 0.
-    map<uint32, sint32> slot_values = 1;
-  }
-
-  // Current states of ABS_MT_* axes other than ABS_MT_SLOT. The keys are the
-  // ABS axis codes.
-  map<uint32, SlotValuesMap> abs_mt_states = 12;
-}
-
-// End of protos/perfetto/trace/evdev.proto
 
 // Begin of protos/perfetto/common/descriptor.proto
 
@@ -16731,7 +16591,8 @@ message SmapsEntry {
   // for field upload (instead of path).
   optional string file_name = 5;
 
-  // TODO(crbug.com/1098746): Consider encoding this as incremental values.
+  // Fields below added and used only for Chromium memory infra, see
+  // crbug.com/1098746.
   optional uint64 start_address = 6;
   optional uint64 module_timestamp = 7;
   optional string module_debugid = 8;
@@ -16782,6 +16643,26 @@ message SmapsPacket {
   optional uint32 pid = 1;
   repeated SmapsEntry entries = 2;
   optional PackedSmaps packed_entries = 3;
+
+  // Records how the snapshot was generated, as the message is shared by
+  // multiple smaps writers.
+  // If populating |packed_entries|, set explicitly to RECORDING_TYPE_STANDALONE
+  // as otherwise the trace importer might transform the data.
+  enum RecordingType {
+    RECORDING_TYPE_UNKNOWN = 0;
+    // Normal recording.
+    RECORDING_TYPE_STANDALONE = 1;
+    // Android: recorded in the perfetto_hprof ART plugin as part of a managed
+    // heap dump. Recording is done inside of a forked child process, which
+    // means private/shared and pss fields are misleading as there is
+    // copy-on-write page sharing with the forked child.
+    RECORDING_TYPE_ART_HPROF_POSTFORK = 2;
+    // Android: recorded in the perfetto_hprof ART plugin as part of a managed
+    // heap dump, but with the original smaps calculated before forking in the
+    // plugin.
+    RECORDING_TYPE_ART_HPROF_PREFORK = 3;
+  }
+  optional RecordingType recording_type = 4;
 }
 
 // End of protos/perfetto/trace/profiling/smaps.proto
@@ -18336,8 +18217,6 @@ message TracePacket {
 
     CpuPerUidData cpu_per_uid_data = 119;
 
-    EvdevEvent evdev_event = 121;
-
     AndroidUserList user_list = 123;
 
     SystemdJournaldEvent journald_event = 132;
@@ -18384,7 +18263,10 @@ message TracePacket {
   //
   // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto
   //   116: AppWakelockBundle app_wakelock_bundle
-  extensions 56, 88, 92, 93, 94, 96, 97, 104, 105, 112, 114, 116;
+  //
+  // protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto
+  //   121: EvdevEvent evdev_event
+  extensions 56, 88, 92, 93, 94, 96, 97, 104, 105, 112, 114, 116, 121;
 
   // Reserved for future OOT extensions. New allocations are carved out of this
   // range and registered in protos/perfetto/trace/extensions.json.

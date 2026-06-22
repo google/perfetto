@@ -1459,7 +1459,7 @@ class Parsing(TestSuite):
           trusted_uid: 9999
           trusted_packet_sequence_id: 2
           trusted_pid: 521
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         """),
         query="""
@@ -1857,7 +1857,7 @@ class Parsing(TestSuite):
           trusted_uid: 9999
           trusted_packet_sequence_id: 2
           trusted_pid: 521
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         """),
         query="""

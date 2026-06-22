@@ -69,7 +69,7 @@ class TraceStorage;
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
-struct TraceMetadataState;
+struct TraceManifestState;
 struct TraceTimeState;
 struct TrackCompressorGroupIdxState;
 
@@ -101,6 +101,11 @@ class TraceProcessorContext {
 
   struct TraceState {
     TraceId trace_id;
+
+    // True when a perfetto_manifest override pinned this trace onto a single
+    // private clock. The trace must then stay single-clock and single-machine,
+    // so ClockSnapshots and remote machine ids are rejected on it.
+    bool has_clock_override = false;
   };
 
   struct UuidState {
@@ -158,7 +163,7 @@ class TraceProcessorContext {
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
   GlobalPtr<TraceTimeState> trace_time_state;
-  GlobalPtr<TraceMetadataState> trace_metadata_state;
+  GlobalPtr<TraceManifestState> trace_manifest_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
@@ -253,6 +258,13 @@ class TraceProcessorContext {
 
   MachineId machine_id() const;
   TraceId trace_id() const;
+
+  // True when a perfetto_manifest clock override constrains this trace to a
+  // single clock and machine. False for root/container contexts that have no
+  // per-trace state.
+  bool has_clock_override() const {
+    return trace_state && trace_state->has_clock_override;
+  }
 
  private:
   explicit TraceProcessorContext(const Config& config);

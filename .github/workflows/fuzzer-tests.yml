@@ -32,7 +32,7 @@ jobs:
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-fuzzer
       PERFETTO_TEST_GN_ARGS: 'is_debug=false is_fuzzer=true is_asan=true cc_wrapper=\"ccache\"'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Restore cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore

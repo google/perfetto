@@ -46,19 +46,7 @@ class VideoFrameModule : public ProtoImporterModule {
                    std::vector<TraceBlobView>* au_data);
   ~VideoFrameModule() override;
 
-  // Re-stamps an access-unit packet with its presentation time during
-  // tokenization so the table timestamp goes through the sorter (see the .cc).
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
-
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData& data,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
   // Parse-time per-stream byte cap, a backstop against traces recorded
   // without a producer cap. Matches the producer's 256 MB default.
@@ -68,11 +56,10 @@ class VideoFrameModule : public ProtoImporterModule {
   }
 
  private:
-  void ParseVideoFrame(const protos::pbzero::TracePacket::Decoder& decoder,
+  void ParseVideoFrame(protozero::ConstBytes bytes,
                        int64_t ts,
                        const TracePacketData& data);
-  void ParseVideoFrameError(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts);
+  void ParseVideoFrameError(protozero::ConstBytes bytes, int64_t ts);
 
   struct StreamInfo {
     // display_name and codec_string arrive on the codec_config packet and

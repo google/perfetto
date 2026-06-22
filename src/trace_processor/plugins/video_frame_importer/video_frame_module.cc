@@ -17,27 +17,20 @@
 #include "src/trace_processor/plugins/video_frame_importer/video_frame_module.h"
 
 #include <cstdint>
-#include <optional>
-#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/field.h"
-#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
-#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/plugins/video_frame_importer/tables_py.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 
@@ -62,64 +55,26 @@ VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
 
 VideoFrameModule::~VideoFrameModule() = default;
 
-void VideoFrameModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
-                                            int64_t ts,
-                                            const TracePacketData& data,
-                                            uint32_t field_id) {
-  switch (field_id) {
+void VideoFrameModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case FrameworksBaseTracePacket::kVideoFrameFieldNumber:
-      ParseVideoFrame(decoder, ts, data);
+      ParseVideoFrame(args.field.Cast<FrameworksBaseTracePacket::kVideoFrame>(),
+                      args.ts, args.data);
       break;
     case FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber:
-      ParseVideoFrameError(decoder, ts);
+      ParseVideoFrameError(
+          args.field.Cast<FrameworksBaseTracePacket::kVideoFrameError>(),
+          args.ts);
       break;
     default:
       break;
   }
 }
 
-ModuleResult VideoFrameModule::TokenizePacket(
-    const TracePacket::Decoder& decoder,
-    TraceBlobView* packet,
-    int64_t /*packet_timestamp*/,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) {
-  // A video frame belongs on the timeline at its presentation time, not the
-  // packet's encode-drain timestamp. pts_us is that presentation time, on
-  // CLOCK_MONOTONIC for SurfaceFlinger surface input. Translate it and push the
-  // packet through the sorter at that time here, during tokenization, so the
-  // table timestamp is one the sorter ordered. Anything without a convertible
-  // pts keeps the packet timestamp via the default path.
-  if (field_id != FrameworksBaseTracePacket::kVideoFrameFieldNumber) {
-    return ModuleResult::Ignored();
-  }
-  VideoFrame::Decoder frame(
-      decoder
-          .GetExtensionSlowly<
-              FrameworksBaseTracePacket::kVideoFrameFieldNumber>()
-          .as_bytes());
-  if (!frame.has_pts_us()) {
-    return ModuleResult::Ignored();
-  }
-  std::optional<int64_t> present = context_->clock_tracker->ToTraceTime(
-      ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-      static_cast<int64_t>(frame.pts_us()) * 1000);
-  if (!present.has_value()) {
-    return ModuleResult::Ignored();
-  }
-  module_context_->trace_packet_stream->Push(
-      *present, TracePacketData{std::move(*packet), std::move(state)});
-  return ModuleResult::Handled();
-}
-
-void VideoFrameModule::ParseVideoFrame(const TracePacket::Decoder& decoder,
+void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
                                        int64_t ts,
                                        const TracePacketData& data) {
-  VideoFrame::Decoder frame(
-      decoder
-          .GetExtensionSlowly<
-              FrameworksBaseTracePacket::kVideoFrameFieldNumber>()
-          .as_bytes());
+  VideoFrame::Decoder frame(bytes);
 
   const uint32_t display_id = frame.has_display_id() ? frame.display_id() : 0u;
 
@@ -195,13 +150,9 @@ void VideoFrameModule::ParseVideoFrame(const TracePacket::Decoder& decoder,
   au_data_->emplace_back(packet.slice(payload.data, payload.size));
 }
 
-void VideoFrameModule::ParseVideoFrameError(const TracePacket::Decoder& decoder,
+void VideoFrameModule::ParseVideoFrameError(protozero::ConstBytes bytes,
                                             int64_t ts) {
-  VideoFrameError::Decoder err(
-      decoder
-          .GetExtensionSlowly<
-              FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber>()
-          .as_bytes());
+  VideoFrameError::Decoder err(bytes);
   if (!err.has_reason())
     return;
   const uint32_t display_id = err.has_display_id() ? err.display_id() : 0u;

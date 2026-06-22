@@ -4068,7 +4068,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
   trusted_pid: 1634
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
 }
 
 packet {
@@ -8110,5 +8110,5 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 3
   trusted_pid: 1634
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
 }

@@ -81,17 +81,23 @@ export function renderResultsGrid(
 
   if (dataSource instanceof BigtraceAsyncDataSource) {
     const error = dataSource.getError();
-    if (
+    // A 400 before the query reaches a terminal state usually means the results
+    // aren't ready yet, not a real failure — keep the loading state until the
+    // run finishes. A 400 after completion (e.g. a bad filter) or any non-400
+    // error is a real error worth surfacing.
+    const isRealError =
       error !== null &&
       error !== '' &&
-      (isTerminal || error.includes('status: 400') === false)
-    ) {
+      (isTerminal || dataSource.getErrorStatus() !== 400);
+    if (isRealError) {
+      // Render in a selectable <pre> (not an EmptyState, whose text is
+      // truncated and user-select:none) so the full message is readable and
+      // copyable.
       tableContent.push(
-        m(EmptyState, {
-          title: `Failed to load schema: ${error}`,
-          icon: 'error',
-          fillHeight: true,
-        }),
+        m('.pf-bt-results-error', [
+          m('.pf-bt-results-error__title', 'Failed to load results'),
+          m('pre.pf-bt-error-content', error),
+        ]),
       );
       return tableContent;
     }
@@ -151,9 +157,10 @@ function renderDataGrid(
   }
   const schema: SchemaRegistry = {data: columnSchema};
 
-  // Per-tab visible subset (empty/unset → all); shipped as the
+  // Per-tab visible subset (empty/unset → defaults); shipped as the
   // `:fetch_results` `columns` projection.
   const visible = resolveResultColumns(tab.resultColumns, allColumns);
+  const defaultVisible = resolveResultColumns(null, allColumns);
   const isAsync = dataSource instanceof BigtraceAsyncDataSource;
   const sortState = resultsSortByTab.get(tab);
 
@@ -191,7 +198,7 @@ function renderDataGrid(
     fillHeight: true,
     showExportButton: true,
     emptyStateMessage:
-      isAsync && allColumns.length === visible.length
+      isAsync && visible.length >= defaultVisible.length
         ? 'Query returned no rows'
         : 'No rows match the visible columns',
     toolbarItemsLeft: [

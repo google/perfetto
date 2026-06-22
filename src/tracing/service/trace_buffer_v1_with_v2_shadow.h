@@ -73,9 +73,10 @@ class TraceBufferV1WithV2Shadow : public TraceBuffer {
   void BeginRead() override;
 
   // ReadNextTracePacket forwards to V1 only. Hash comparison is performed.
-  bool ReadNextTracePacket(TracePacket*,
-                           PacketSequenceProperties* sequence_properties,
-                           bool* previous_packet_on_sequence_dropped) override;
+  bool ReadNextTracePacket(
+      TracePacket*,
+      PacketSequenceProperties* sequence_properties,
+      uint32_t* previous_packet_on_sequence_dropped) override;
 
   std::unique_ptr<TraceBuffer> CloneReadOnly() const override;
 

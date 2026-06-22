@@ -1,5 +1,17 @@
 Unreleased:
   Tracing service and probes:
+   *
+  Trace Processor:
+    * Added a client-server mode to `trace_processor_shell`: start a server
+      over a unix socket (`server unix`) or WebSocket (`server http`) and
+      connect a thin client with `--remote`.
+  UI:
+   *
+  SDK:
+   *
+
+v57.0 - 2026-06-19:
+  Tracing service and probes:
     * Scoped the RelayPort IPC service so it is only exposed on producer
       sockets explicitly opted-in. Added `--enable-relay-endpoint-on=<sock>`
       as a narrower variant of `--enable-relay-endpoint` that turns RelayPort
@@ -12,13 +24,61 @@ Unreleased:
       config should specify no_startup=true if any wildcard patterns are
       included in process_cmdline. Otherwise the matching semantics are the same
       as the perf profiling and java heap dump data sources.
+    * Added support for listing the `psci_domain_idle_enter` and
+      `psci_domain_idle_exit` ftrace events, giving finer-grained insight into
+      which CPU power states are entered than `cpu_idle` alone.
+    * Added support for the `disp_dpu_line_underrun` and panel settings ftrace
+      events.
+    * Added `system_io_provider_events` to the Windows ETW data source.
+    * Added a `linux.journald` data source for capturing systemd journald logs.
   Trace Processor:
-   *
+    * Added support for explicit thread and process ordering in track
+      descriptors.
+    * Added support for "state tracks": a new track type for recording the
+      state of a system or subsystem over time, ingested into a new `state` SQL
+      table.
+    * Added support for ingesting systemd journald logs, stored alongside
+      Android logs in a unified log table with a new `log_source` column.
+    * Added parsing of the Adreno GPU `adreno_cmdbatch_retired` and
+      `adreno_cmdbatch_sync` ftrace events into GPU timeline slices.
+    * `trace_processor_shell` can now load traces directly from URLs and
+      ui.perfetto.dev permalinks.
+    * The `perfetto` Python package now defaults to the pinned `trace_processor`
+      binary shipped with the package instead of downloading the latest build at
+      runtime. The old behavior is available by opting in via the new
+      `TraceProcessorConfig.fetch_latest_trace_processor` flag.
   UI:
-   *
+    * Added shift + mouse-wheel to scroll the timeline horizontally.
+    * Added an smaps plugin with an instants track and a datagrid details panel.
+    * Added a JournaldLog plugin to display logs from the `linux.journald` data
+      source.
+    * Added the ability to re-open and edit saved custom textproto record
+      configs.
+    * Improved the Heap Dump Explorer: it now opens by default on more traces,
+      its state is preserved in shared permalinks, and the overview shows
+      `oom_score_adj`.
+    * Improved the query results grid with column sort, reorder, and hide, a
+      collapsible sidebar, and proper surfacing of SQL errors.
+    * Adjacent slices that start and end at the same timestamp now render with a
+      1px gap, making it possible to distinguish consecutive instances of the
+      same slice.
+    * Added support for the Arm Telemetry Solution: a new (non-default,
+      opt-in) plugin adding an Arm CPU page under Support for loading Arm CPU
+      telemetry specs, which surface derived per-CPU performance metrics
+      (e.g. IPC, cache misses) as tracks computed from raw PMU counters.
   SDK:
     * Added nested track support with sibling ordering and merging to the C SDK
       high-level ABI and the Android Java SDK (`PerfettoTrack`).
+    * Added track event correlation ids to the C SDK high-level ABI
+      (`PERFETTO_TE_CORRELATION_ID()` / `PERFETTO_TE_CORRELATION_ID_STR()`) and
+      the Android Java SDK (`PerfettoTrackEventBuilder.setCorrelationId()`).
+    * Added the `TRACE_STATE` API for recording the state of a system or
+      subsystem over time as a dedicated "state track".
+  AI:
+    * Perfetto now ships a single installable AI skill that teaches coding
+      agents how to record, query, and analyze traces. It is loadable by any
+      Agent Skills-compatible agent (Claude Code, OpenAI Codex, Gemini CLI, and
+      others) and is installed via https://get.perfetto.dev/agents-install.
 
 v56.1 - 2026-06-04:
   SDK:

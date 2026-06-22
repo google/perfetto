@@ -81,19 +81,86 @@ source_set("session_util") {
   ]
 }
 
-source_set("unixd") {
+# Self-managing lifecycle (idle-timeout reaping + orphan detection) shared by the
+# unix and http servers. Base-only.
+source_set("lifecycle") {
   sources = [
-    "unixd.cc",
-    "unixd.h",
+    "session_lifecycle.cc",
+    "session_lifecycle.h",
   ]
   deps = [
-    ":rpc",
-    ":session_util",
     "../../../gn:default_deps",
     "../../base",
-    "../../protozero",
-    "../../protozero:proto_ring_buffer",
   ]
+}
+
+# Depends on the IPC layer (AF_UNIX sockets), which is not available on all
+# platforms (e.g. Chromium+Windows). Gated accordingly; the shell falls back to
+# an error when the unix server isn't compiled in.
+if (enable_perfetto_ipc) {
+  source_set("unixd") {
+    sources = [
+      "unixd.cc",
+      "unixd.h",
+    ]
+    deps = [
+      ":rpc",
+      ":session_util",
+      "../../../gn:default_deps",
+      "../../base",
+      "../../base:unix_socket",
+      "../../protozero",
+      "../../protozero:proto_ring_buffer",
+    ]
+
+    # unixd.h exposes IdleStart from session_lifecycle.h.
+    public_deps = [ ":lifecycle" ]
+  }
+}
+
+# Decodes the QueryResult wire format produced by query_result_serializer.cc.
+# The inverse of ":rpc"'s serializer, kept in its own target so the lean
+# ":client" and the serializer unittests can share one decoder.
+source_set("deserializer") {
+  sources = [
+    "query_result_deserializer.cc",
+    "query_result_deserializer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/trace_processor",
+    "../../../protos/perfetto/trace_processor:zero",
+    "../../base",
+    "../../protozero",
+  ]
+}
+
+# The --remote client: a TraceProcessor implementation that marshals every
+# method over the RPC wire to a warm server, over either an AF_UNIX byte pipe
+# or a WebSocket (to an http server). Needs the IPC layer (AF_UNIX sockets),
+# so gated like ":unixd".
+if (enable_perfetto_ipc) {
+  source_set("client") {
+    sources = [
+      "remote_trace_processor.cc",
+      "remote_trace_processor.h",
+      "rpc_transport.cc",
+      "rpc_transport.h",
+    ]
+    deps = [
+      ":deserializer",
+      ":session_util",
+      "..:lib",
+      "../../../gn:default_deps",
+      "../../../protos/perfetto/trace_processor:zero",
+      "../../../protos/perfetto/trace_summary:zero",
+      "../../base",
+      "../../base:unix_socket",
+      "../../protozero",
+      "../../protozero:proto_ring_buffer",
+    ]
+    public_deps = [ "../../../include/perfetto/trace_processor" ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -103,6 +170,7 @@ perfetto_unittest_source_set("unittests") {
     "session_paths_unittest.cc",
   ]
   deps = [
+    ":deserializer",
     ":rpc",
     ":session_util",
     "..:lib",
@@ -129,6 +197,9 @@ if (enable_perfetto_trace_processor_httpd) {
       "../../base/http",
       "../../protozero",
     ]
+
+    # httpd.h exposes IdleStart from session_lifecycle.h.
+    public_deps = [ ":lifecycle" ]
   }
 }
 

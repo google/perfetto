@@ -83,7 +83,6 @@ class GeckoTraceTokenizer : public ChunkedTraceReader {
   TraceProcessorContext* const context_;
   std::unique_ptr<TraceSorter::Stream<GeckoEvent>> stream_;
   std::string pending_json_;
-  ClockTracker::ClockId trace_file_clock_;
 
   // Shared across all threads to avoid creating duplicate mappings.
   DummyMemoryMapping* dummy_mapping_ = nullptr;
