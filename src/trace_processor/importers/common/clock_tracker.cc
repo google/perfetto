@@ -70,6 +70,17 @@ ClockTracker::ClockTracker(
 
 base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
     const std::vector<ClockTimestamp>& clock_timestamps) {
+  // A snapshot correlates multiple clock domains, which proves this trace is
+  // not single-clock; perfetto_manifest clock overrides are only valid for
+  // single-clock traces. This is the chokepoint for all snapshot producers
+  // (proto ClockSnapshots, ftrace bundles, instruments); rejecting the
+  // snapshot here also prevents an overridden trace from switching away from
+  // the shared primary sync.
+  if (PERFETTO_UNLIKELY(context_->has_clock_override())) {
+    return base::ErrStatus(
+        "perfetto_manifest: clock overrides require the trace to use a "
+        "single clock");
+  }
   if (PERFETTO_UNLIKELY(!is_primary_)) {
     // Non-primary trace: if we were using the primary's pool and already
     // converted timestamps, those conversions may have used different clock
@@ -115,7 +126,7 @@ void ClockTracker::AddSnapshotToTable(
     // future conversions. Don't pass byte_offset since we expect failures
     // here (e.g., non-monotonic clocks). Convert directly rather than via
     // ToTraceTime: recording is bookkeeping, so it must not flush the
-    // deferred identity sync or count as an event conversion.
+    // deferred clock sync or count as an event conversion.
     auto* state = context_->trace_time_state.get();
     std::optional<int64_t> converted = active_sync_->Convert(
         clock_timestamp.clock.id, ts_to_convert, state->clock_id,
@@ -201,25 +212,31 @@ void ClockTracker::SetTraceDefaultClock(ClockId clock_id) {
   trace_default_clock_ = clock_id;
 }
 
-void ClockTracker::AddDeferredIdentitySync(ClockId clock_id) {
-  deferred_identity_clock_ = clock_id;
+void ClockTracker::AddDeferredClockSync(ClockId from,
+                                        int64_t from_ts,
+                                        std::optional<ClockId> to,
+                                        int64_t to_ts) {
+  PERFETTO_DCHECK(from_ts >= 0 && to_ts >= 0);
+  deferred_clock_sync_ = {from, from_ts, to, to_ts};
 }
 
-void ClockTracker::FlushDeferredIdentitySync() {
-  ClockId clock_id = *deferred_identity_clock_;
-  deferred_identity_clock_.reset();
-  auto* state = context_->trace_time_state.get();
-  if (clock_id == state->clock_id) {
+void ClockTracker::FlushDeferredClockSync() {
+  DeferredSync sync = *deferred_clock_sync_;
+  deferred_clock_sync_.reset();
+  // An omitted target means the trace time clock, resolved now.
+  ClockId to = sync.to.value_or(context_->trace_time_state->clock_id);
+  if (sync.from == to) {
     return;
   }
-  // Inject only if the clock cannot already reach trace time: a clock can
-  // be in the graph yet disconnected from the trace time clock.
-  if (active_sync_->Convert(clock_id, 0, state->clock_id, std::nullopt,
+  // Inject only if |from| cannot already reach |to|: a real snapshot (e.g. a
+  // proto spine that bridges the target to trace time) takes precedence over
+  // the deferred edge.
+  if (active_sync_->Convert(sync.from, sync.from_ts, to, std::nullopt,
                             /*suppress_errors=*/true)) {
     return;
   }
   // The lazy edge becomes real here, so it is recorded like any other.
-  AddSnapshotInternal({{clock_id, 0}, {state->clock_id, 0}});
+  AddSnapshotInternal({{sync.from, sync.from_ts}, {to, sync.to_ts}});
 }
 
 std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(

@@ -157,7 +157,6 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
   json::Iterator it_;
   json::Iterator inner_it_;
 
-  ClockTracker::ClockId trace_file_clock_;
   uint64_t offset_ = 0;
   // Points at the start of the trace event object currently being parsed (i.e.
   // the opening '{'). Valid only while inside ParseTraceEventContents.

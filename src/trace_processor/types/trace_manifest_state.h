@@ -30,9 +30,29 @@ namespace perfetto::trace_processor {
 // follow. Populated by the perfetto_manifest plugin's reader and consulted
 // by ForwardingTraceParser for each trace file.
 struct TraceManifestState {
+  // A file's "clocks" override, normalized to a single concept: file time
+  // |file_ts_ns| (nanoseconds, the unit every tokenizer normalizes to)
+  // corresponds to |clock_ts_ns| on |clock|. "native" parses to a zero/zero
+  // mapping onto the named clock, "offset_ns" to a mapping of file time 0 onto
+  // the file's per-format clock at the offset (or, for a negative offset, of
+  // file time -offset onto the clock's zero), and an "anchor" sets all three
+  // fields explicitly.
+  //
+  // Invariant: both timestamps are non-negative, so the override never
+  // introduces negative timestamps into the clock graph. The reader rebases
+  // offsets and rejects negative anchors to maintain this.
+  struct ClockOverride {
+    // Builtin clock id this file's timeline is correlated with; nullopt = the
+    // file's per-format clock.
+    std::optional<uint32_t> clock;
+    int64_t file_ts_ns = 0;
+    int64_t clock_ts_ns = 0;
+  };
+
   struct FileEntry {
     // Exact path of the member within the archive.
     std::string path;
+    std::optional<ClockOverride> clock_override;
   };
 
   // True once a perfetto_manifest file has been parsed; a second one is an
