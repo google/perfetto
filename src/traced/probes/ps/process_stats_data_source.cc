@@ -51,7 +51,6 @@
 // /proc/pid/cmdline needs updating.
 // TODO(rsavitski): consider invalidating on task creation or death ftrace
 // events if available.
-
 namespace perfetto {
 namespace {
 
@@ -178,6 +177,7 @@ ProcessStatsDataSource::ProcessStatsDataSource(
   record_process_age_ = cfg.record_process_age();
   record_process_runtime_ = cfg.record_process_runtime();
   record_process_dmabuf_rss_ = cfg.record_process_dmabuf_rss();
+  skip_main_thread_message_ = cfg.skip_main_thread_message();
 
   enable_on_demand_dumps_ = true;
   for (auto quirk = cfg.quirks(); quirk; ++quirk) {
@@ -240,10 +240,10 @@ void ProcessStatsDataSource::WriteAllProcesses() {
       continue;
 
     while (int32_t tid = ReadNextNumericDir(*task_dir)) {
+      if (tid == pid)
+        continue;
       if (record_thread_names_ || namespaced_process) {
-        // For the main thread (tid == pid) we've already read the status file.
-        const std::string& tid_status =
-            (tid == pid) ? pid_status : ReadProcPidFile(tid, "status");
+        std::string tid_status = ReadProcPidFile(tid, "status");
         WriteDetailedThread(tid, pid, tid_status);
       } else {
         WriteThread(tid, pid);
@@ -347,9 +347,6 @@ void ProcessStatsDataSource::WriteProcessOrThread(int32_t pid) {
     const std::string& proc_stat =
         record_process_age_ ? ReadProcPidFile(tgid, "stat") : "";
     WriteProcess(tgid, proc_status_tgid, proc_stat);
-    // Also emit an explicit record for the main thread, so its comm/nstid are
-    // described and not just implied by the process entry written above.
-    WriteDetailedThread(tgid, tgid, proc_status_tgid);
   }
   if (pid != tgid) {
     PERFETTO_DCHECK(!seen_pids_.count(pid));
@@ -405,6 +402,13 @@ bool ProcessStatsDataSource::WriteProcess(int32_t pid,
       base::StringToInt32(ProcStatusEntry(proc_status, "Kthread:"));
   if (kthread.has_value() && (*kthread == 0 || *kthread == 1)) {
     proc->set_is_kthread(*kthread);
+  }
+
+  // perfetto v58+: explicit message for the main thread, instead of it being
+  // implied by the process message. Makes sure that comm and nstid are recorded
+  // if requested.
+  if (!skip_main_thread_message_) {
+    WriteDetailedThread(pid, pid, proc_status);
   }
 
   seen_pids_.insert({pid, pid});

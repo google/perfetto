@@ -312,8 +312,7 @@ TEST_F(ProcessStatsDataSourceTest, RenamePids) {
              process.cmdline()[0] == "new_" + std::to_string(pid);
     };
   };
-  // record_thread_names is off here, so the main thread is described only by
-  // its tid/tgid (tid == tgid for the main thread).
+  // Without record_thread_names
   auto expected_main_thread = [](int pid) {
     return [pid](const protos::gen::ProcessTree::Thread& thread) {
       return thread.tid() == pid && thread.tgid() == pid && !thread.has_name();
@@ -604,8 +603,7 @@ TEST_F(ProcessStatsDataSourceTest, NamespacedProcess) {
   auto nspid = first_process.nspid();
   EXPECT_THAT(nspid, ElementsAre(2));
 
-  // The main thread (tid == tgid == 42) is now emitted explicitly, carrying its
-  // own namespaced tid, followed by the non-main thread (43).
+  // Main thread (42), followed by secondary thread (43).
   ASSERT_EQ(ps_tree.threads_size(), 2);
   auto main_thread = ps_tree.threads()[0];
   EXPECT_EQ(main_thread.tid(), 42);
@@ -756,6 +754,66 @@ TEST_F(ProcessStatsDataSourceTest, WriteKthread) {
   ASSERT_THAT(process.cmdline(), ElementsAreArray({"kthreadd"}));
   EXPECT_TRUE(process.is_kthread());
   EXPECT_TRUE(process.cmdline_is_comm());
+}
+
+TEST_F(ProcessStatsDataSourceTest, SkipMainThreadMessage) {
+  {
+    // Default behaviour.
+    DataSourceConfig ds_config;
+    ProcessStatsConfig cfg;
+    cfg.set_record_thread_names(true);
+    ds_config.set_process_stats_config_raw(cfg.SerializeAsString());
+    auto data_source = GetProcessStatsDataSource(ds_config);
+
+    EXPECT_CALL(*data_source, ReadProcPidFile(2, "status"))
+        .WillOnce(Return(kKthreadStatus));
+    EXPECT_CALL(*data_source, ReadProcPidFile(2, "cmdline"))  //
+        .WillOnce(Return(""));
+
+    data_source->OnPids({2});
+
+    auto trace = writer_raw_->GetAllTracePackets();
+    ASSERT_EQ(trace.size(), 1u);
+    auto ps_tree = trace[0].process_tree();
+    ASSERT_EQ(ps_tree.processes_size(), 1);
+    auto process = ps_tree.processes()[0];
+    ASSERT_EQ(process.pid(), 2);
+    ASSERT_THAT(process.cmdline(), ElementsAreArray({"kthreadd"}));
+
+    // Also explicit message for the main thread.
+    ASSERT_EQ(ps_tree.threads_size(), 1);
+    auto thread = ps_tree.threads()[0];
+    ASSERT_EQ(thread.tid(), 2);
+    ASSERT_EQ(thread.name(), "kthreadd");
+  }
+
+  {
+    // Set option to omit primary thread messages as in perfetto <v58.
+    DataSourceConfig ds_config;
+    ProcessStatsConfig cfg;
+    cfg.set_record_thread_names(true);
+    cfg.set_skip_main_thread_message(true);
+    ds_config.set_process_stats_config_raw(cfg.SerializeAsString());
+    auto data_source = GetProcessStatsDataSource(ds_config);
+
+    EXPECT_CALL(*data_source, ReadProcPidFile(2, "status"))
+        .WillOnce(Return(kKthreadStatus));
+    EXPECT_CALL(*data_source, ReadProcPidFile(2, "cmdline"))  //
+        .WillOnce(Return(""));
+
+    data_source->OnPids({2});
+
+    auto trace = writer_raw_->GetAllTracePackets();
+    ASSERT_EQ(trace.size(), 1u);
+    auto ps_tree = trace[0].process_tree();
+    ASSERT_EQ(ps_tree.processes_size(), 1);
+    auto process = ps_tree.processes()[0];
+    ASSERT_EQ(process.pid(), 2);
+    ASSERT_THAT(process.cmdline(), ElementsAreArray({"kthreadd"}));
+
+    // No thread messages.
+    ASSERT_EQ(ps_tree.threads_size(), 0);
+  }
 }
 
 }  // namespace

@@ -542,9 +542,8 @@ class ProcessTracking(TestSuite):
         28,28,"kworker/1:0","kworker/1:0"
         """))
 
-  # The main thread is now described explicitly in the process tree (in addition
-  # to the process entry), so its comm - which can differ from the process
-  # cmdline - is recorded against the main thread.
+  # perfetto v58+: main threads are now explicitly serialised, so we know
+  # the main thread's comm.
   def test_main_thread_comm_from_process_tree(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -583,11 +582,6 @@ class ProcessTracking(TestSuite):
         100,100,"AppMainThread","/usr/bin/app"
         """))
 
-  # A process' main thread is now emitted explicitly. For a kworker, the process
-  # entry and the main thread entry are derived from the same procfs status, so
-  # they carry the same raw, transient comm (including the last workqueue
-  # suffix). The importer redacts the thread name the same way as the process
-  # name, so the misleading suffix doesn't end up as the thread name.
   def test_kworker_main_thread_name_redacted(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
