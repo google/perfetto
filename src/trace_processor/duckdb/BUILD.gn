@@ -40,6 +40,7 @@ source_set("duckdb") {
     "../../../include/perfetto/trace_processor",
     "../../base",
     "../../base/regex",  # scalar_functions.cc uses base::Regex for regexp_extract.
+    "..:demangle",  # scalar_functions.cc demangle() UDF.
     "..:iterator_impl_hdr",  # duckdb_iterator_impl.h includes iterator_impl.h.
     "../containers",
     "../core/dataframe",

@@ -18,6 +18,8 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstring>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -32,6 +34,8 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/trace_processor/demangle.h"
 
 namespace perfetto::trace_processor::duckdb_integration {
 namespace {
@@ -277,6 +281,31 @@ void HexTextTrampoline(duckdb_function_info, duckdb_data_chunk in,
 // Registers a math function under one name: the (DOUBLE)->DOUBLE numeric
 // overload plus the (VARCHAR)->DOUBLE "text -> NULL" overload, matching the
 // Perfetto intrinsic's behaviour on a text argument.
+// demangle(VARCHAR) -> VARCHAR. Reuses the SAME C++ demangler as the SQLite
+// __intrinsic_demangle (byte-identical output). NULL in / un-demanglable -> NULL.
+void DemangleTrampoline(duckdb_function_info, duckdb_data_chunk in,
+                        duckdb_vector out) {
+  idx_t n = duckdb_data_chunk_get_size(in);
+  duckdb_vector a0 = duckdb_data_chunk_get_vector(in, 0);
+  duckdb_vector_ensure_validity_writable(out);
+  uint64_t* out_validity = duckdb_vector_get_validity(out);
+  for (idx_t i = 0; i < n; ++i) {
+    if (IsRowNull(a0, i)) {
+      duckdb_validity_set_row_invalid(out_validity, i);
+      continue;
+    }
+    std::string mangled(ReadVarchar(a0, i));
+    std::unique_ptr<char, base::FreeDeleter> demangled =
+        demangle::Demangle(mangled.c_str());
+    if (!demangled) {
+      duckdb_validity_set_row_invalid(out_validity, i);
+      continue;
+    }
+    duckdb_vector_assign_string_element_len(out, i, demangled.get(),
+                                            std::strlen(demangled.get()));
+  }
+}
+
 base::Status RegisterMath(duckdb_connection conn,
                           const char* name,
                           duckdb_scalar_function_t numeric,
@@ -312,6 +341,16 @@ base::Status RegisterScalarFunctions(
     RETURN_IF_ERROR(RegisterMath(conn, m.surface, m.fn, out_registered));
     RETURN_IF_ERROR(RegisterMath(conn, m.intrinsic, m.fn, out_registered));
   }
+
+  // demangle(VARCHAR) -> VARCHAR, under both the public surface name (DELEGATES
+  // TO __intrinsic_demangle, so the surface name reaches DuckDB) and the
+  // intrinsic name. Same C++ demangler -> byte-identical to SQLite.
+  RETURN_IF_ERROR(RegisterScalarFunction(conn, "demangle", {DUCKDB_TYPE_VARCHAR},
+                                         DUCKDB_TYPE_VARCHAR, DemangleTrampoline,
+                                         out_registered));
+  RETURN_IF_ERROR(RegisterScalarFunction(
+      conn, "__intrinsic_demangle", {DUCKDB_TYPE_VARCHAR}, DUCKDB_TYPE_VARCHAR,
+      DemangleTrampoline, out_registered));
 
   // regexp_extract(VARCHAR, VARCHAR) -> VARCHAR.
   RETURN_IF_ERROR(RegisterScalarFunction(
