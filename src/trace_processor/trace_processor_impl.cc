@@ -945,6 +945,17 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
       engine_->SetDuckDbMacroOverrides(BuildDuckDbMacroOverrides());
       // Bridge the clock-conversion UDFs to this trace's ClockConverter.
       duckdb_engine_->SetClockConverter(context()->clock_converter.get());
+      // Bridge __intrinsic_arg_set_to_json to the args plugin's nested-JSON
+      // serializer (reused verbatim for byte-exact output). The Context holds
+      // mutable scratch, so serialize calls with a mutex (DuckDB may evaluate
+      // scalars on worker threads).
+      duckdb_arg_set_json_ctx_ =
+          std::make_unique<ArgSetToJson::Context>(context()->storage.get());
+      duckdb_engine_->SetArgSetJsonConverter(
+          [this](int64_t arg_set_id) -> std::optional<std::string> {
+            std::lock_guard<std::mutex> lock(duckdb_arg_set_json_mu_);
+            return duckdb_arg_set_json_ctx_->ToJson(arg_set_id);
+          });
     }
 
     // Wave-2 multi-statement split: the stdlib surface is reached via

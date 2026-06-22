@@ -53,6 +53,8 @@ source_set("duckdb") {
 # target intentionally does NOT depend on ":lib", so there is no cycle.
 source_set("engine") {
   sources = [
+    "arg_set_json_function.cc",
+    "arg_set_json_function.h",
     "clock_function.cc",
     "clock_function.h",
     "duckdb_engine.cc",

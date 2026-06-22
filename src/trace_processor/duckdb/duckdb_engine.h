@@ -30,6 +30,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/duckdb/arg_set_json_function.h"
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
 #include "src/trace_processor/duckdb/extract_arg.h"
 #include "src/trace_processor/duckdb/table_provider.h"
@@ -120,6 +121,13 @@ class DuckDbEngine {
     clock_converter_ = converter;
   }
 
+  // Provides the arg_set_id -> JSON converter used by the
+  // __intrinsic_arg_set_to_json UDF (the args plugin's nested-JSON serializer,
+  // reused verbatim). Must be set before the first query. May be empty.
+  void SetArgSetJsonConverter(ArgSetJsonConverter converter) {
+    arg_set_json_converter_ = std::move(converter);
+  }
+
   // Attempts to run the ENTIRE query `sql` inside DuckDB. Semantics (per D2):
   //  - returns a populated `DuckDbExecutionResult` iff `sql` is a single
   //    relational statement referencing only DuckDB-available relations and
@@ -208,6 +216,11 @@ class DuckDbEngine {
   // The per-trace clock converter for the clock UDFs (may be null). Owned by
   // TraceProcessorContext; set via SetClockConverter before the first query.
   ClockConverter* clock_converter_ = nullptr;
+
+  // arg_set_id -> JSON converter for __intrinsic_arg_set_to_json; set via
+  // SetArgSetJsonConverter before the first query. A stable address is passed to
+  // the registered UDF, so this member must outlive the connection.
+  ArgSetJsonConverter arg_set_json_converter_;
   duckdb_database db_ = nullptr;
   duckdb_connection conn_ = nullptr;
   std::unique_ptr<DuckDbTableProvider> provider_;

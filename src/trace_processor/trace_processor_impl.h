@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <list>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -40,6 +41,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
 #include "src/trace_processor/duckdb/duckdb_engine.h"
+#include "src/trace_processor/plugins/args/args.h"
 #endif
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
@@ -211,6 +213,11 @@ class TraceProcessorImpl : public TraceProcessor,
   // function body on every query.
   std::unordered_map<std::string, std::pair<std::string, std::string>>
       duckdb_mirror_body_cache_;
+  // Backs the DuckDB-lane __intrinsic_arg_set_to_json UDF: the args plugin's
+  // converter (reused for byte-exact JSON) + a mutex serializing its mutable
+  // scratch (DuckDB may call the scalar from worker threads).
+  std::unique_ptr<ArgSetToJson::Context> duckdb_arg_set_json_ctx_;
+  std::mutex duckdb_arg_set_json_mu_;
   // Runs the DuckDB rewrite->expand pipeline over an authored RETURNS TABLE
   // function body (interval/graph macro rewrites, then macro expansion), so the
   // function mirrors into DuckDB using native functions. Returns the pipelined

@@ -198,6 +198,33 @@ void ExtractArgFunction::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
   }
 }
 
+std::optional<std::string> ArgSetToJson::Context::ToJson(int64_t arg_set_id) {
+  // Set filter value and execute cursor.
+  arg_cursor.SetFilterValueUnchecked(0, static_cast<uint32_t>(arg_set_id));
+  arg_cursor.Execute();
+
+  // Reuse arg_set - clear but retain capacity.
+  arg_set.Clear();
+  for (; !arg_cursor.Eof(); arg_cursor.Next()) {
+    const auto result = arg_set.AppendArg(storage->GetString(arg_cursor.key()),
+                                          GetArgValue(*storage, arg_cursor));
+    if (!result.ok()) {
+      return std::nullopt;
+    }
+  }
+
+  // Reuse json_serializer - clear but retain capacity.
+  json_serializer.Clear();
+  json::JsonValueSerializer(json_serializer)
+      .WriteDict([&](json::JsonDictSerializer& writer) {
+        for (const auto& [key, value] : arg_set.root().GetDict()) {
+          WriteArgNode(value, storage, writer, key);
+        }
+      });
+  base::StringView json_sv = json_serializer.GetStringView();
+  return std::string(json_sv.data(), json_sv.size());
+}
+
 // static
 void ArgSetToJson::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
   sqlite::Type arg_set_value = sqlite::value::Type(argv[0]);
@@ -208,39 +235,13 @@ void ArgSetToJson::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     return sqlite::result::Error(
         ctx, "PRINT_ARGS: 1st argument should be arg set id");
   }
-  auto arg_set_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
-
-  auto* user_data = GetUserData(ctx);
-  auto* storage = user_data->storage;
-  auto& args_cursor = user_data->arg_cursor;
-  auto& arg_set = user_data->arg_set;
-  auto& json_serializer = user_data->json_serializer;
-
-  // Set filter value and execute cursor
-  args_cursor.SetFilterValueUnchecked(0, arg_set_id);
-  args_cursor.Execute();
-
-  // Reuse arg_set - clear but retain capacity
-  arg_set.Clear();
-  for (; !args_cursor.Eof(); args_cursor.Next()) {
-    const auto result = arg_set.AppendArg(storage->GetString(args_cursor.key()),
-                                          GetArgValue(*storage, args_cursor));
-    if (!result.ok()) {
-      return sqlite::result::Error(ctx, result.c_message());
-    }
+  std::optional<std::string> json =
+      GetUserData(ctx)->ToJson(sqlite::value::Int64(argv[0]));
+  if (!json) {
+    return sqlite::result::Error(ctx, "arg_set_to_json: failed to build args");
   }
-
-  // Reuse json_serializer - clear but retain capacity
-  json_serializer.Clear();
-  json::JsonValueSerializer(json_serializer)
-      .WriteDict([&](json::JsonDictSerializer& writer) {
-        for (const auto& [key, value] : arg_set.root().GetDict()) {
-          WriteArgNode(value, storage, writer, key);
-        }
-      });
-  auto json_sv = json_serializer.GetStringView();
-  return sqlite::result::TransientString(ctx, json_sv.data(),
-                                         static_cast<int>(json_sv.size()));
+  return sqlite::result::TransientString(ctx, json->data(),
+                                         static_cast<int>(json->size()));
 }
 
 namespace args {

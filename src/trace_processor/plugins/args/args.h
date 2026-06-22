@@ -16,6 +16,7 @@
 #define SRC_TRACE_PROCESSOR_PLUGINS_ARGS_ARGS_H_
 
 #include <optional>
+#include <string>
 
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
@@ -64,6 +65,12 @@ struct ArgSetToJson : public sqlite::Function<ArgSetToJson> {
     tables::ArgTable::ConstCursor arg_cursor;
     json::JsonSerializer json_serializer;
     ArgSet arg_set;
+
+    // Builds the JSON-object string for `arg_set_id` (the shared core of the
+    // SQLite Step and the DuckDB-lane bridge). Returns nullopt only on an
+    // internal arg-append error. NOT thread-safe (mutates the scratch members);
+    // callers that may run concurrently must serialize.
+    std::optional<std::string> ToJson(int64_t arg_set_id);
   };
 
   using UserData = Context;

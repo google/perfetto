@@ -100,8 +100,10 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // whose default separator is `,`, matching SQLite. Concatenation ORDER
           // within a group is engine-defined in both, so an unordered
           // `group_concat` over a tie can diverge - those land in the known-bad
-          // ledger (TIE_BREAK), not here.
-          "group_concat",
+          // ledger (TIE_BREAK), not here. `string_agg(X, sep)` is the same
+          // DuckDB-native aggregate group_concat aliases - identical semantics,
+          // same tie-break caveat. Safe, monotonic add.
+          "group_concat", "string_agg",
           // Window functions. These are SQL-standard and DuckDB-native with the
           // same frame/ordering semantics as SQLite, so a windowed call binds
           // and evaluates identically (the divergences that remain are tie-break
@@ -129,6 +131,10 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // (RegisterClockFunctions); registered directly under their public
           // names, so a call binds in DuckDB with identical semantics.
           "to_monotonic", "to_realtime", "abs_time_str",
+          // `__intrinsic_arg_set_to_json(arg_set_id)` bridged to the args
+          // plugin's nested-JSON serializer (RegisterArgSetJsonFunction);
+          // byte-identical to the SQLite intrinsic (same C++ converter).
+          "__intrinsic_arg_set_to_json",
           // Aggregates beyond the beachhead that are SQL-standard and match
           // SQLite: min/max/sum/avg/count already above; total (SUM-as-double),
           // and the statistical aggregates DuckDB shares.
@@ -1575,9 +1581,13 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // bridged to the trace's ClockConverter.
   RETURN_IF_ERROR(RegisterClockFunctions(conn_, clock_converter_));
 
-  // Register the tree pipeline (currently a no-op stub; the tree::* algorithm
-  // core is in place, bindings to follow).
+  // Register the native tree pipeline (from_table aggregate + constraint/where/
+  // filter/propagate/to_table scalars).
   RETURN_IF_ERROR(RegisterTreeFunctions(conn_));
+
+  // Register __intrinsic_arg_set_to_json bridged to the args plugin's converter.
+  RETURN_IF_ERROR(
+      RegisterArgSetJsonFunction(conn_, &arg_set_json_converter_));
 
   initialized_ = true;
   return base::OkStatus();
