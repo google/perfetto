@@ -35,6 +35,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/duckdb/clock_function.h"
 #include "src/trace_processor/duckdb/dominator_tree_function.h"
+#include "src/trace_processor/duckdb/structural_tree_partition_function.h"
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
 #include "src/trace_processor/duckdb/graph_function.h"
 #include "src/trace_processor/duckdb/interval_intersect_function.h"
@@ -172,6 +173,9 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // Native dominator-tree aggregate, emitted only by the engine-
           // GENERATED graph_dominator_tree! rewrite (RewriteGraphDominatorMacro).
           "__intrinsic_dominator_tree",
+          // Native structural tree partition (tree_structural_partition_by_group!
+          // override): single aggregate -> LIST<STRUCT>.
+          "__intrinsic_structural_tree_partition",
           // Native tree pipeline (std.trees.*). The from_table aggregate and
           // to_table combiner (__intrinsic_*) are emitted only by the DuckDb
           // _tree_from_table!/_tree_to_table! macro overrides. The
@@ -1635,6 +1639,7 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // Register the native dominator-tree aggregate (reached via the
   // graph_dominator_tree! rewrite in the router).
   RETURN_IF_ERROR(RegisterDominatorTree(conn_));
+  RETURN_IF_ERROR(RegisterStructuralTreePartition(conn_));
 
   // Register the clock-conversion UDFs (to_monotonic/to_realtime/abs_time_str)
   // bridged to the trace's ClockConverter.

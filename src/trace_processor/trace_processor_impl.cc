@@ -235,6 +235,13 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
       "(SELECT __intrinsic_root_weight_agg(root_node_id, root_target_weight) "
       "FROM $root_table), ($is_target_weight_floor))) AS u) d)"));
   v.push_back(mk(
+      "tree_structural_partition_by_group", {"tree_table"},
+      "(SELECT s.u.node_id AS id, s.u.parent_node_id AS parent_id, "
+      "s.u.group_key AS group_key FROM (SELECT "
+      "unnest(__intrinsic_structural_tree_partition(CAST(g.id AS BIGINT), "
+      "CAST(g.parent_id AS BIGINT), CAST(g.group_key AS BIGINT))) AS u "
+      "FROM $tree_table AS g) s)"));
+  v.push_back(mk(
       "graph_dominator_tree", {"graph_table", "root_node_id"},
       "(SELECT dt.u.node_id AS node_id, dt.u.dominator_node_id AS "
       "dominator_node_id FROM (SELECT "
