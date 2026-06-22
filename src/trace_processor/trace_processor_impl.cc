@@ -285,6 +285,231 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
   return v;
 }
 
+// Appends one SQLite cell (at column `c` of `stmt`) to `out` as a SQL literal.
+// Returns false for FLOAT/BLOB (unsafe to re-serialize byte-exactly).
+bool FormatSqliteCellAsSqlLiteral(sqlite3_stmt* stmt, int c, std::string* out) {
+  switch (sqlite3_column_type(stmt, c)) {
+    case SQLITE_INTEGER:
+      *out += std::to_string(sqlite3_column_int64(stmt, c));
+      return true;
+    case SQLITE_NULL:
+      *out += "NULL";
+      return true;
+    case SQLITE_TEXT: {
+      const auto* txt = sqlite3_column_text(stmt, c);
+      int len = sqlite3_column_bytes(stmt, c);
+      *out += "'";
+      for (int i = 0; i < len; ++i) {
+        char ch = static_cast<char>(txt[i]);
+        if (ch == '\'') {
+          *out += "'";  // SQL-escape the single quote.
+        }
+        *out += ch;
+      }
+      *out += "'";
+      return true;
+    }
+    default:
+      return false;  // FLOAT/BLOB.
+  }
+}
+
+// Runs `select_sql` in `engine` and appends its rows to `values` as VALUES
+// tuples (comma-separated, each parenthesized). If `prefix_col` is non-empty,
+// each tuple is prefixed with `prefix_val` and `prefix_col` is prepended to
+// `col_names`. On the first call `col_names` (assumed empty) is set from the
+// statement. Returns false on error / FLOAT / BLOB / row cap.
+bool AppendQueryRowsAsValues(PerfettoSqlConnection* engine,
+                             const std::string& select_sql,
+                             const char* prefix_col,
+                             const std::string& prefix_val,
+                             std::vector<std::string>* col_names,
+                             std::string* values,
+                             size_t* nrows) {
+  base::StatusOr<PerfettoSqlConnection::ExecutionResult> res =
+      engine->ExecuteUntilLastStatement(
+          SqlSource::FromTraceProcessorImplementation(select_sql));
+  if (!res.ok()) {
+    return false;
+  }
+  sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
+  int ncols = sqlite3_column_count(stmt);
+  if (ncols <= 0) {
+    return false;
+  }
+  if (col_names->empty()) {
+    if (prefix_col && *prefix_col) {
+      col_names->emplace_back(prefix_col);
+    }
+    for (int c = 0; c < ncols; ++c) {
+      col_names->emplace_back(sqlite3_column_name(stmt, c));
+    }
+  }
+  constexpr size_t kMaxRows = 100000;
+  for (; !res->stmt.IsDone(); res->stmt.Step()) {
+    if (*nrows >= kMaxRows) {
+      return false;
+    }
+    *values += *nrows == 0 ? "(" : ",(";
+    bool first = true;
+    if (prefix_col && *prefix_col) {
+      *values += prefix_val;
+      first = false;
+    }
+    for (int c = 0; c < ncols; ++c) {
+      if (!first) {
+        *values += ",";
+      }
+      first = false;
+      if (!FormatSqliteCellAsSqlLiteral(stmt, c, values)) {
+        return false;
+      }
+    }
+    *values += ")";
+    ++(*nrows);
+  }
+  return res->stmt.status().ok();
+}
+
+// Materializes one of the static stdlib-docs introspection tables
+// (__duckdb_stdlib_{modules,tables,functions,macros}) into DuckDB by running the
+// SQLite-side __intrinsic_stdlib_* table functions across every module and
+// snapshotting the result (faithful by construction). The parameterized tables
+// gain a leading `module` column so the RewriteStdlibDocs rewrite can filter by
+// module. Per-module parse failures are skipped (a module that fails to parse
+// would error on the SQLite side too, so the corresponding test falls back).
+bool MaterializeStdlibDocsTable(PerfettoSqlConnection* engine,
+                                duckdb_connection conn,
+                                const std::string& name) {
+  std::vector<std::string> col_names;
+  std::string values;
+  size_t nrows = 0;
+  if (name == "__duckdb_stdlib_modules") {
+    if (!AppendQueryRowsAsValues(
+            engine, "SELECT module, package FROM __intrinsic_stdlib_modules()",
+            nullptr, "", &col_names, &values, &nrows)) {
+      return false;
+    }
+  } else {
+    const char* fn = name == "__duckdb_stdlib_tables" ? "__intrinsic_stdlib_tables"
+                     : name == "__duckdb_stdlib_functions"
+                         ? "__intrinsic_stdlib_functions"
+                     : name == "__duckdb_stdlib_macros" ? "__intrinsic_stdlib_macros"
+                                                        : nullptr;
+    if (!fn) {
+      return false;
+    }
+    // Collect the module list.
+    std::vector<std::string> modules;
+    {
+      base::StatusOr<PerfettoSqlConnection::ExecutionResult> res =
+          engine->ExecuteUntilLastStatement(
+              SqlSource::FromTraceProcessorImplementation(
+                  "SELECT module FROM __intrinsic_stdlib_modules()"));
+      if (!res.ok()) {
+        return false;
+      }
+      sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
+      for (; !res->stmt.IsDone(); res->stmt.Step()) {
+        if (sqlite3_column_type(stmt, 0) == SQLITE_TEXT) {
+          modules.emplace_back(
+              reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)),
+              static_cast<size_t>(sqlite3_column_bytes(stmt, 0)));
+        }
+      }
+      if (!res->stmt.status().ok()) {
+        return false;
+      }
+    }
+    for (const std::string& m : modules) {
+      std::string mlit = "'";
+      for (char ch : m) {
+        if (ch == '\'') {
+          mlit += "'";
+        }
+        mlit += ch;
+      }
+      mlit += "'";
+      std::string sel = std::string("SELECT * FROM ") + fn + "(" + mlit + ")";
+      // Skip a module whose docs fail to parse (non-fatal): it would error on
+      // the SQLite side too, so any test of it falls back rather than diverging.
+      AppendQueryRowsAsValues(engine, sel, "module", mlit, &col_names, &values,
+                              &nrows);
+    }
+  }
+  if (nrows == 0 || col_names.empty()) {
+    return false;
+  }
+  std::string collist;
+  for (size_t i = 0; i < col_names.size(); ++i) {
+    if (i != 0) {
+      collist += ",";
+    }
+    collist += "\"" + col_names[i] + "\"";
+  }
+  std::string create = "CREATE OR REPLACE TABLE " + name +
+                       " AS SELECT * FROM (VALUES " + values + ") AS v(" +
+                       collist + ")";
+  duckdb_result dres;
+  bool ok = duckdb_query(conn, create.c_str(), &dres) != DuckDBError;
+  duckdb_destroy_result(&dres);
+  return ok;
+}
+
+// Rewrites the stdlib-docs introspection table-function calls to queries
+// against the materialized __duckdb_stdlib_* tables (DuckDB has no equivalent
+// of the SQLite StaticTableFunction surface). `__intrinsic_stdlib_modules()` ->
+// `__duckdb_stdlib_modules`; the parameterized forms ->
+// `(SELECT * FROM __duckdb_stdlib_X WHERE module = <arg>)`. The tables are built
+// lazily by the table materializer on first reference.
+std::string RewriteStdlibDocs(const std::string& sql) {
+  if (sql.find("__intrinsic_stdlib_") == std::string::npos) {
+    return sql;
+  }
+  std::string out = sql;
+  const std::string modules_call = "__intrinsic_stdlib_modules()";
+  for (size_t p = out.find(modules_call); p != std::string::npos;
+       p = out.find(modules_call)) {
+    out.replace(p, modules_call.size(), "__duckdb_stdlib_modules");
+  }
+  for (const char* fn : {"tables", "functions", "macros"}) {
+    std::string call = std::string("__intrinsic_stdlib_") + fn + "(";
+    std::string tbl = std::string("__duckdb_stdlib_") + fn;
+    for (size_t p = out.find(call); p != std::string::npos;
+         p = out.find(call, p)) {
+      // Find the matching ')', tracking single-quoted string literals so a paren
+      // inside a module name does not throw off the depth counter.
+      size_t argstart = p + call.size();
+      int depth = 1;
+      bool in_str = false;
+      size_t i = argstart;
+      for (; i < out.size() && depth > 0; ++i) {
+        char ch = out[i];
+        if (in_str) {
+          if (ch == '\'') {
+            in_str = false;
+          }
+        } else if (ch == '\'') {
+          in_str = true;
+        } else if (ch == '(') {
+          ++depth;
+        } else if (ch == ')') {
+          --depth;
+        }
+      }
+      if (depth != 0) {
+        break;  // Malformed; leave the rest untouched.
+      }
+      std::string arg = out.substr(argstart, (i - 1) - argstart);
+      std::string repl =
+          "(SELECT * FROM " + tbl + " WHERE module = " + arg + ")";
+      out.replace(p, i - p, repl);
+      p += repl.size();
+    }
+  }
+  return out;
+}
+
 // Copies a plain SQLite-native table (`CREATE TABLE ...`, invisible to the
 // DuckDB dataframe replacement scan) into DuckDB's catalog by reading its rows
 // from the real engine and rebuilding it as a DuckDB table from a VALUES list.
@@ -294,6 +519,12 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
 bool MaterializeSqliteTableIntoDuckDb(PerfettoSqlConnection* engine,
                                       const std::string& name,
                                       duckdb_connection conn) {
+  // The stdlib-docs introspection tables are synthesized from the SQLite
+  // __intrinsic_stdlib_* table functions (see RewriteStdlibDocs), not copied
+  // from an existing table.
+  if (name.rfind("__duckdb_stdlib_", 0) == 0) {
+    return MaterializeStdlibDocsTable(engine, conn, name);
+  }
   for (char c : name) {
     if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_')) {
       return false;
@@ -1001,6 +1232,9 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
         duckdb_integration::RewriteIntervalIntersectMacro(split.last);
     pre = duckdb_integration::RewriteIntervalCreateMacro(pre);
     pre = duckdb_integration::RewriteIntervalIntersectWithColNamesMacro(pre);
+    // Map the stdlib-docs introspection table fns to their materialized
+    // __duckdb_stdlib_* tables (built lazily by the table materializer).
+    pre = RewriteStdlibDocs(pre);
     std::string duckdb_sql = pre;
     if (std::optional<std::string> expanded =
             engine_->ExpandMacrosToSqliteDuckDb(
