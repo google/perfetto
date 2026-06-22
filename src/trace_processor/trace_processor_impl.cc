@@ -243,6 +243,45 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
   // is fine: DuckDB TEXT is an alias for VARCHAR.)
   v.push_back(mk("cast_int", {"value"}, "CAST($value AS BIGINT)"));
   v.push_back(mk("cast_double", {"value"}, "CAST($value AS DOUBLE)"));
+
+  // std.trees pipeline. The stdlib _tree_from_table/_tree_to_table macros build
+  // on the SQLite `__intrinsic_table_ptr` ABI and a VARIADIC aggregate, neither
+  // of which DuckDB supports. These overrides target the native tree functions
+  // (RegisterTreeFunctions): from_table packs the (variable) passthrough columns
+  // into a typed STRUCT for the fixed-arity aggregate; to_table UNNESTs the
+  // combiner's LIST<STRUCT> (passthrough type-erased into UNION columns c4..c9,
+  // selected by name). The _tree_constraint/_tree_where/_tree_filter/
+  // _tree_propagate_down DELEGATES-TO functions reach their __intrinsic_*
+  // targets via the normal scalar-macro mirroring, so they need no override.
+  //
+  // DuckDB struct/union literals use `:=`/`:`, which the SQLite-grammar
+  // tokenizer (syntaqlite) rejects, so the passthrough columns are passed
+  // colon-free as a parallel pair: their NAMES as a list_value of string
+  // literals and their VALUES as a positional row(). The from_table aggregate
+  // zips them back into named, typed columns.
+  v.push_back(mk("_tree_name_str", {"col"}, "__intrinsic_stringify!($col)"));
+  v.push_back(mk("_tree_row_val", {"col"}, "t.$col"));
+  v.push_back(mk(
+      "_tree_from_table", {"source_table", "columns"},
+      "(SELECT __intrinsic_tree_from_table("
+      "CAST(t.id AS BIGINT), CAST(t.parent_id AS BIGINT), "
+      "list_value(__intrinsic_token_apply!(_tree_name_str, $columns)), "
+      "row(__intrinsic_token_apply!(_tree_row_val, $columns))) "
+      "FROM $source_table AS t)"));
+  // Helper: stringify a passthrough column name for the to_table name args.
+  v.push_back(
+      mk("_tree_stringify_col", {"col"}, "__intrinsic_stringify!($col)"));
+  // Helper: project unnested struct field `idx` under its passthrough name.
+  v.push_back(
+      mk("_tree_to_table_col_sel", {"idx", "col"}, "tt.u.$idx AS $col"));
+  v.push_back(mk(
+      "_tree_to_table", {"tree_ptr", "columns"},
+      "(SELECT tt.u.c0 AS _tree_id, tt.u.c1 AS _tree_parent_id, "
+      "tt.u.c2 AS id, tt.u.c3 AS parent_id, "
+      "__intrinsic_token_apply!(_tree_to_table_col_sel, "
+      "(c4, c5, c6, c7, c8, c9), $columns) "
+      "FROM (SELECT unnest(__intrinsic_tree_to_table($tree_ptr, "
+      "__intrinsic_token_apply!(_tree_stringify_col, $columns))) AS u) tt)"));
   return v;
 }
 

@@ -89,6 +89,13 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // own `format` is Python `{}`-style and would diverge, so it is the
           // rewrite - not a direct bind - that makes this eligible.
           "format",
+          // `printf` is SQLite's C-style printf, and DuckDB's `printf` is also
+          // C-style (the same target `format` is rewritten to). Standard
+          // specifiers (%d/%s/%f/%x/...) match SQLite exactly; SQLite-only
+          // extensions (%q/%w/%z) make DuckDB printf ERROR -> safe fallback (no
+          // silent divergence). So a direct `printf(...)` binds with matching
+          // semantics, same trust as the format->printf rewrite.
+          "printf",
           // `group_concat(X)` is a DuckDB-native aggregate (alias of `string_agg`)
           // whose default separator is `,`, matching SQLite. Concatenation ORDER
           // within a group is engine-defined in both, so an unordered
@@ -152,6 +159,18 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // Native dominator-tree aggregate, emitted only by the engine-
           // GENERATED graph_dominator_tree! rewrite (RewriteGraphDominatorMacro).
           "__intrinsic_dominator_tree",
+          // Native tree pipeline (std.trees.*). The from_table aggregate and
+          // to_table combiner (__intrinsic_*) are emitted only by the DuckDb
+          // _tree_from_table!/_tree_to_table! macro overrides. The
+          // constraint/where/filter/propagate_down functions are DELEGATES-TO
+          // PerfettoSQL functions: they are NOT macro-expanded, so they reach
+          // DuckDB under their SURFACE names, registered directly as scalars by
+          // RegisterTreeFunctions. `struct_pack` builds the typed passthrough
+          // struct fed to the from_table aggregate. All engine-controlled
+          // (reachable only after `INCLUDE PERFETTO MODULE std.trees.*`).
+          "__intrinsic_tree_from_table", "__intrinsic_tree_to_table",
+          "_tree_constraint", "_tree_where", "_tree_filter",
+          "_tree_propagate_down", "struct_pack",
       };
   return *kAllow;
 }
