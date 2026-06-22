@@ -51,33 +51,6 @@ export default class implements PerfettoPlugin {
     return this.processGroups.get(upid);
   }
 
-  async getOrCreateGroupForProcess(
-    upid: number,
-  ): Promise<TrackNode | undefined> {
-    let group = this.getGroupForProcess(upid);
-    if (!group) {
-      group = this.ctx.defaultWorkspace.getTrackByUri(`/process_${upid}`);
-    }
-    if (!group) {
-      const processResult = await this.ctx.engine.query(
-        `SELECT pid, name FROM process WHERE upid = ${upid}`,
-      );
-      if (processResult.numRows() === 0) return undefined;
-      const row = processResult.firstRow({pid: NUM, name: STR_NULL});
-      const pid = row.pid;
-      const name = row.name ?? `Uid ${upid}`;
-
-      group = new TrackNode({
-        uri: `/process_${upid}`,
-        name: `${name} ${pid}`,
-        isSummary: true,
-      });
-      this.ctx.defaultWorkspace.addChildInOrder(group);
-      this.processGroups.set(upid, group);
-    }
-    return group;
-  }
-
   getGroupForThread(utid: number): TrackNode | undefined {
     return this.threadGroups.get(utid);
   }

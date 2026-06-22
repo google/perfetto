@@ -251,7 +251,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       }
 
       for (const upid of upids) {
-        const group = await trackGroupsPlugin.getOrCreateGroupForProcess(upid);
+        const group = trackGroupsPlugin.getGroupForProcess(upid);
         if (!group) continue;
 
         const store = assertExists(this.store);
