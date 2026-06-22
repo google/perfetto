@@ -222,8 +222,8 @@ std::optional<int64_t> ClockSynchronizer::ConvertSlowpath(
     } else {
       error = ClockSyncErrorType::kNoPath;
     }
-    last_error_ = ClockSyncError{error, src_clock_id, target_clock_id,
-                                 src_timestamp};
+    last_error_ =
+        ClockSyncError{error, src_clock_id, target_clock_id, src_timestamp};
     return std::nullopt;
   }
 

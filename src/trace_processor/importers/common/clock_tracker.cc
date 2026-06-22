@@ -240,8 +240,8 @@ void ClockTracker::FlushDeferredClockSync() {
   // source clock to trace time via its machine-canonical node, so an isolated
   // file's other clocks stay isolated yet it can still reach trace time.
   if (sync.from_ts == 0 && !sync.to && sync.to_ts == 0) {
-    ClockId qualified = ClockId::Qualify(sync.from, machine_id_,
-                                         current_file_tag_);
+    ClockId qualified =
+        ClockId::Qualify(sync.from, machine_id_, current_file_tag_);
     ClockId canonical = ClockId::Qualify(sync.from, machine_id_, 0);
     if (qualified != canonical && !sync_->Convert(qualified, 0, canonical)) {
       AddSnapshotInternal({{qualified, 0}, {canonical, 0}});
