@@ -80,6 +80,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
     this.store = ctx.mountStore(InstrumentsSamplesProfilePlugin.id, (init) =>
       this.migrateInstrumentsSamplesProfilePluginState(init),
     );
+    await ctx.engine.query('INCLUDE PERFETTO MODULE callstacks.stack_profile;');
     const pResult = await ctx.engine.query(`
       select distinct upid
       from instruments_sample
@@ -108,6 +109,80 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
           },
         ),
       });
+      // const slicesUri = `${uri}_slices`;
+      // const tableName = `slices_${slicesUri.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      // await ctx.engine.query(`
+      //   CREATE TABLE ${tableName} AS
+      //   WITH samples AS (
+      //     SELECT
+      //       p.id AS sample_id,
+      //       ts,
+      //       LEAD(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (ORDER BY ts) - ts AS dur,
+      //       callsite_id
+      //     FROM instruments_sample p
+      //     JOIN thread USING (utid)
+      //     WHERE callsite_id IS NOT NULL
+      //       AND upid = ${upid}
+      //   ),
+      //   callstack_path AS (
+      //     SELECT
+      //       callsite_id,
+      //       id AS forest_id,
+      //       parent_id AS forest_parent_id,
+      //       name,
+      //       0 AS depth
+      //     FROM _callstack_spc_forest
+      //     WHERE callsite_id IN (SELECT DISTINCT callsite_id FROM samples)
+      //       AND is_leaf_function_in_callsite_frame = 1
+      //
+      //     UNION ALL
+      //
+      //     SELECT
+      //       p.callsite_id,
+      //       f.id AS forest_id,
+      //       f.parent_id AS forest_parent_id,
+      //       f.name,
+      //       p.depth + 1 AS depth
+      //     FROM callstack_path p
+      //     JOIN _callstack_spc_forest f ON p.forest_parent_id = f.id
+      //   ),
+      //   path_with_max_depth AS (
+      //     SELECT
+      //       callsite_id,
+      //       name,
+      //       depth,
+      //       MAX(depth) OVER (PARTITION BY callsite_id) AS max_depth
+      //     FROM callstack_path
+      //   )
+      //   SELECT
+      //     s.sample_id AS id,
+      //     s.ts,
+      //     s.dur,
+      //     p.name,
+      //     (p.max_depth - p.depth) AS depth,
+      //     s.callsite_id AS callsiteId
+      //   FROM samples s
+      //   JOIN path_with_max_depth p USING (callsite_id)
+      // `);
+      // ctx.tracks.registerTrack({
+      //   uri: slicesUri,
+      //   tags: {
+      //     kinds: [INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND],
+      //     upid,
+      //   },
+      //   renderer: createProcessInstrumentsSamplesCallstackSlicesTrack(
+      //     ctx,
+      //     slicesUri,
+      //     tableName,
+      //     upid,
+      //     store.state.detailsPanelFlamegraphState,
+      //     (state) => {
+      //       store.edit((draft) => {
+      //         draft.detailsPanelFlamegraphState = state;
+      //       });
+      //     },
+      //   ),
+      // });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForProcess(upid);
@@ -117,6 +192,12 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
         sortOrder: -40,
       });
       group?.addChildInOrder(track);
+      // const slicesTrack = new TrackNode({
+      //   uri: slicesUri,
+      //   name: 'Process Callstack Slices',
+      //   sortOrder: -39,
+      // });
+      // group?.addChildInOrder(slicesTrack);
     }
     const tResult = await ctx.engine.query(`
       select distinct
@@ -163,11 +244,93 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
           },
         ),
       });
+      // const slicesUri = `${uri}_slices`;
+      // const tableName = `slices_${slicesUri.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      // await ctx.engine.query(`
+      //   CREATE TABLE ${tableName} AS
+      //   WITH samples AS (
+      //     SELECT
+      //       p.id AS sample_id,
+      //       ts,
+      //       LEAD(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (ORDER BY ts) - ts AS dur,
+      //       callsite_id
+      //     FROM instruments_sample p
+      //     WHERE callsite_id IS NOT NULL
+      //       AND utid = ${utid}
+      //   ),
+      //   callstack_path AS (
+      //     SELECT
+      //       callsite_id,
+      //       id AS forest_id,
+      //       parent_id AS forest_parent_id,
+      //       name,
+      //       0 AS depth
+      //     FROM _callstack_spc_forest
+      //     WHERE callsite_id IN (SELECT DISTINCT callsite_id FROM samples)
+      //       AND is_leaf_function_in_callsite_frame = 1
+      //
+      //     UNION ALL
+      //
+      //     SELECT
+      //       p.callsite_id,
+      //       f.id AS forest_id,
+      //       f.parent_id AS forest_parent_id,
+      //       f.name,
+      //       p.depth + 1 AS depth
+      //     FROM callstack_path p
+      //     JOIN _callstack_spc_forest f ON p.forest_parent_id = f.id
+      //   ),
+      //   path_with_max_depth AS (
+      //     SELECT
+      //       callsite_id,
+      //       name,
+      //       depth,
+      //       MAX(depth) OVER (PARTITION BY callsite_id) AS max_depth
+      //     FROM callstack_path
+      //   )
+      //   SELECT
+      //     s.sample_id AS id,
+      //     s.ts,
+      //     s.dur,
+      //     p.name,
+      //     (p.max_depth - p.depth) AS depth,
+      //     s.callsite_id AS callsiteId
+      //   FROM samples s
+      //   JOIN path_with_max_depth p USING (callsite_id)
+      // `);
+      // ctx.tracks.registerTrack({
+      //   uri: slicesUri,
+      //   tags: {
+      //     kinds: [INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND],
+      //     utid,
+      //     upid: upid ?? undefined,
+      //   },
+      //   renderer: createThreadInstrumentsSamplesCallstackSlicesTrack(
+      //     ctx,
+      //     slicesUri,
+      //     tableName,
+      //     utid,
+      //     store.state.detailsPanelFlamegraphState,
+      //     (state) => {
+      //       store.edit((draft) => {
+      //         draft.detailsPanelFlamegraphState = state;
+      //       });
+      //     },
+      //   ),
+      // });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForThread(utid);
       const track = new TrackNode({uri, name, sortOrder: -50});
       group?.addChildInOrder(track);
+      // const slicesTrack = new TrackNode({
+      //   uri: slicesUri,
+      //   name: threadName === null
+      //     ? `Thread Callstack Slices ${tid}`
+      //     : `${threadName} Callstack Slices ${tid}`,
+      //   sortOrder: -49,
+      // });
+      // group?.addChildInOrder(slicesTrack);
     }
 
     ctx.onTraceReady.addListener(async () => {
@@ -411,3 +574,105 @@ export function createThreadInstrumentsSamplesProfileTrack(
     onDetailsPanelStateChange,
   );
 }
+
+// export function createProcessInstrumentsSamplesCallstackSlicesTrack(
+//   trace: Trace,
+//   uri: string,
+//   tableName: string,
+//   upid: number,
+//   detailsPanelState: FlamegraphState | undefined,
+//   onDetailsPanelStateChange: (state: FlamegraphState) => void,
+// ) {
+//   return createCallstackSlicesTrack(
+//     trace,
+//     uri,
+//     {
+//       dataset: new SourceDataset({
+//         schema: {
+//           id: NUM,
+//           ts: LONG,
+//           callsiteId: NUM,
+//         },
+//         src: `
+//           SELECT
+//             p.id,
+//             ts,
+//             callsite_id AS callsiteId,
+//             upid
+//           FROM instruments_sample p
+//           JOIN thread USING (utid)
+//           WHERE callsite_id IS NOT NULL
+//           ORDER BY ts
+//         `,
+//         filter: {
+//           col: 'upid',
+//           eq: upid,
+//         },
+//       }),
+//       callsiteQuery: (ts) => `
+//         SELECT p.callsite_id
+//         FROM instruments_sample p
+//         JOIN thread t USING (utid)
+//         WHERE p.ts = ${ts}
+//           AND t.upid = ${upid}
+//       `,
+//       sqlModule: 'appleos.instruments.samples',
+//       metricName: 'Instruments Samples',
+//       panelTitle: 'Instruments Samples',
+//       sliceName: 'Instruments Sample',
+//     },
+//     tableName,
+//     detailsPanelState,
+//     onDetailsPanelStateChange,
+//   );
+// }
+//
+// export function createThreadInstrumentsSamplesCallstackSlicesTrack(
+//   trace: Trace,
+//   uri: string,
+//   tableName: string,
+//   utid: number,
+//   detailsPanelState: FlamegraphState | undefined,
+//   onDetailsPanelStateChange: (state: FlamegraphState) => void,
+// ) {
+//   return createCallstackSlicesTrack(
+//     trace,
+//     uri,
+//     {
+//       dataset: new SourceDataset({
+//         schema: {
+//           id: NUM,
+//           ts: LONG,
+//           callsiteId: NUM,
+//         },
+//         src: `
+//           SELECT
+//             p.id,
+//             ts,
+//             callsite_id AS callsiteId,
+//             utid
+//           FROM instruments_sample p
+//           WHERE callsite_id IS NOT NULL
+//           ORDER BY ts
+//         `,
+//         filter: {
+//           col: 'utid',
+//           eq: utid,
+//         },
+//       }),
+//       callsiteQuery: (ts) => `
+//         SELECT p.callsite_id
+//         FROM instruments_sample p
+//         WHERE p.ts = ${ts}
+//           AND p.utid = ${utid}
+//       `,
+//       sqlModule: 'appleos.instruments.samples',
+//       metricName: 'Instruments Samples',
+//       panelTitle: 'Instruments Samples',
+//       sliceName: 'Instruments Sample',
+//     },
+//     tableName,
+//     detailsPanelState,
+//     onDetailsPanelStateChange,
+//   );
+// }

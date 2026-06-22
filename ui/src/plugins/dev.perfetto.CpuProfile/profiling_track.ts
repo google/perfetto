@@ -30,7 +30,8 @@ import {
 } from '../../widgets/flamegraph';
 import type {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import type {SourceDataset} from '../../trace_processor/dataset';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 /**
  * Configuration for creating a profiling track (CPU profile, perf samples, etc)
@@ -205,4 +206,96 @@ function renderProfilingDetailsPanel(
       m(FlamegraphPanel, {trace, metrics, state, onStateChange}),
     ),
   );
+}
+
+/**
+ * Creates a profiling track displaying callstack samples as actual slices with depth.
+ */
+export function createCallstackSlicesTrack(
+  trace: Trace,
+  uri: string,
+  config: ProfilingTrackConfig,
+  tableName: string,
+  detailsPanelState: FlamegraphState | undefined,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+) {
+  return SliceTrack.createMaterialized({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        name: STR,
+        depth: NUM,
+        callsiteId: NUM,
+      },
+      src: tableName,
+    }),
+    sliceName: (row) => row.name,
+    // colorizer: (row) => getColorForSample(row.callsiteId),
+    detailsPanel: (row) => {
+      const ts = Time.fromRaw(row.ts);
+      const metrics: ReadonlyArray<QueryFlamegraphMetric> =
+        metricsFromTableOrSubquery({
+          tableOrSubquery: `
+            (
+              select
+                id,
+                parent_id as parentId,
+                name,
+                mapping_name,
+                source_file || ':' || line_number as source_location,
+                self_count
+              from _callstacks_for_callsites!((
+                \n${config.callsiteQuery(ts)}\n
+              ))
+            )
+          `,
+          tableMetrics: [
+            {
+              name: config.metricName,
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          dependencySql: `include perfetto module ${config.sqlModule}`,
+          unaggregatableProperties: [
+            {name: 'mapping_name', displayName: 'Mapping'},
+          ],
+          aggregatableProperties: [
+            {
+              name: 'source_location',
+              displayName: 'Source Location',
+              mergeAggregation: 'ONE_OR_SUMMARY',
+            },
+          ],
+          nameColumnLabel: 'Symbol',
+        });
+      let state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
+      if (detailsPanelState === undefined) {
+        onDetailsPanelStateChange(state);
+      }
+      return {
+        load: async () => {},
+        render: () =>
+          renderProfilingDetailsPanel(
+            trace,
+            ts,
+            config,
+            state,
+            (newState) => {
+              state = newState;
+              onDetailsPanelStateChange(newState);
+            },
+            metrics,
+          ),
+        serialization: {
+          schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+          state: undefined as FlamegraphState | undefined,
+        },
+      };
+    },
+  });
 }
