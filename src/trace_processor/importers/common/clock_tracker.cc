@@ -61,6 +61,13 @@ ClockTracker::ClockTracker(TraceProcessorContext* context,
       monotonic_raw_clock_name_(
           context->storage->InternString("MONOTONIC_RAW")),
       boottime_clock_name_(context->storage->InternString("BOOTTIME")),
+      source_clock_id_key_(context->storage->InternString("source_clock_id")),
+      target_clock_id_key_(context->storage->InternString("target_clock_id")),
+      source_timestamp_key_(context->storage->InternString("source_timestamp")),
+      source_sequence_id_key_(
+          context->storage->InternString("source_sequence_id")),
+      target_sequence_id_key_(
+          context->storage->InternString("target_sequence_id")),
       sync_(sync),
       machine_id_(context->machine_id().value),
       own_file_id_(context->trace_id().value),
@@ -117,14 +124,13 @@ void ClockTracker::AddSnapshotToTable(
     int64_t ts_to_convert =
         clock_timestamp.clock.is_incremental ? 0 : clock_timestamp.timestamp;
     // Even if we have trace time from snapshot, we still convert to optimise
-    // future conversions. Don't pass byte_offset since we expect failures
-    // here (e.g., non-monotonic clocks). Convert directly rather than via
-    // ToTraceTime: recording is bookkeeping, so it must not flush the
+    // future conversions. Use the error-discarding Convert since we expect
+    // failures here (e.g., non-monotonic clocks). Convert directly rather than
+    // via ToTraceTime: recording is bookkeeping, so it must not flush the
     // deferred identity sync or count as an event conversion.
     auto* state = context_->trace_time_state.get();
-    std::optional<int64_t> opt_trace_ts =
-        sync_->Convert(clock_timestamp.clock.id, ts_to_convert, state->clock_id,
-                       /*byte_offset=*/std::nullopt, /*suppress_errors=*/true);
+    std::optional<int64_t> opt_trace_ts = sync_->Convert(
+        clock_timestamp.clock.id, ts_to_convert, state->clock_id);
 
     int64_t trace_ts_value;
     if (!opt_trace_ts) {
@@ -223,8 +229,7 @@ void ClockTracker::FlushDeferredIdentitySync() {
   // R2: an isolated file bridges its own trace clock to the machine-canonical
   // node (1:1), so its other clocks stay isolated yet it can reach trace time.
   if (qualified != canonical &&
-      !sync_->Convert(qualified, 0, canonical, std::nullopt,
-                      /*suppress_errors=*/true)) {
+      !sync_->Convert(qualified, 0, canonical)) {
     AddSnapshotInternal({{qualified, 0}, {canonical, 0}});
   }
   // Ensure the machine-canonical node reaches the global clock. Real edges
@@ -233,8 +238,7 @@ void ClockTracker::FlushDeferredIdentitySync() {
   // a different machine, D1 for the same machine — both "assume this clock
   // equals trace time", which for a G anchored to another machine is exactly
   // "this machine's clock == that machine's clock").
-  if (canonical != g && !sync_->Convert(canonical, 0, g, std::nullopt,
-                                        /*suppress_errors=*/true)) {
+  if (canonical != g && !sync_->Convert(canonical, 0, g)) {
     AddSnapshotInternal({{canonical, 0}, {g, 0}});
   }
 }
@@ -270,15 +274,55 @@ uint32_t ClockTracker::cache_hits_for_testing() const {
   return sync_->cache_hits_for_testing();
 }
 
+void ClockTracker::RecordConversionError(const ClockSyncError& error,
+                                         std::optional<size_t> byte_offset) {
+  size_t stat_key;
+  switch (error.type) {
+    case ClockSyncErrorType::kUnknownSourceClock:
+      stat_key = stats::clock_sync_failure_unknown_source_clock;
+      break;
+    case ClockSyncErrorType::kUnknownTargetClock:
+      stat_key = stats::clock_sync_failure_unknown_target_clock;
+      break;
+    case ClockSyncErrorType::kNoPath:
+      stat_key = stats::clock_sync_failure_no_path;
+      break;
+  }
+  auto args = [&](ArgsTracker::BoundInserter& inserter) {
+    if (error.source_clock.seq_id != 0) {
+      inserter.AddArg(source_sequence_id_key_,
+                      Variadic::UnsignedInteger(error.source_clock.seq_id));
+    }
+    inserter.AddArg(source_clock_id_key_,
+                    Variadic::Integer(error.source_clock.clock_id));
+    inserter.AddArg(source_timestamp_key_,
+                    Variadic::Integer(error.source_timestamp));
+    if (error.target_clock.seq_id != 0) {
+      inserter.AddArg(target_sequence_id_key_,
+                      Variadic::UnsignedInteger(error.target_clock.seq_id));
+    }
+    inserter.AddArg(target_clock_id_key_,
+                    Variadic::Integer(error.target_clock.clock_id));
+  };
+  if (byte_offset) {
+    context_->import_logs_tracker->RecordTokenizationError(stat_key,
+                                                           *byte_offset, args);
+  } else {
+    context_->import_logs_tracker->RecordAnalysisError(stat_key, args);
+  }
+}
+
 // --- ClockSynchronizerListenerImpl ---
 
 ClockSynchronizerListenerImpl::ClockSynchronizerListenerImpl(
     TraceProcessorContext* context)
     : context_(context) {}
 
-// The clock graph is global (shared by all traces/machines), so its diagnostics
-// are recorded globally rather than against a single trace's import log: there
-// is no one owning trace to attribute a cross-machine conversion to.
+// The cache and clock graph are global (shared by all traces/machines), so
+// these diagnostics are recorded globally: a cache miss or an invalid snapshot
+// is a property of the shared graph, not of any one trace. Per-conversion
+// failures, by contrast, are attributed to the initiating trace by
+// ClockTracker::RecordConversionError.
 base::Status ClockSynchronizerListenerImpl::OnClockSyncCacheMiss() {
   context_->global_stats_tracker->IncrementStats(std::nullopt, std::nullopt,
                                                  stats::clock_sync_cache_miss);
@@ -289,34 +333,6 @@ base::Status ClockSynchronizerListenerImpl::OnInvalidClockSnapshot() {
   context_->global_stats_tracker->IncrementStats(
       std::nullopt, std::nullopt, stats::invalid_clock_snapshots);
   return base::OkStatus();
-}
-
-void ClockSynchronizerListenerImpl::RecordConversionError(
-    ClockSyncErrorType error_type,
-    ClockId source_clock_id,
-    ClockId /*target_clock_id*/,
-    int64_t /*source_timestamp*/,
-    std::optional<size_t> /*byte_offset*/) {
-  size_t stat_key;
-  switch (error_type) {
-    case ClockSyncErrorType::kUnknownSourceClock:
-      stat_key = stats::clock_sync_failure_unknown_source_clock;
-      break;
-    case ClockSyncErrorType::kUnknownTargetClock:
-      stat_key = stats::clock_sync_failure_unknown_target_clock;
-      break;
-    case ClockSyncErrorType::kNoPath:
-      stat_key = stats::clock_sync_failure_no_path;
-      break;
-    case ClockSyncErrorType::kOk:
-      PERFETTO_FATAL("RecordConversionError called with kOk");
-      return;
-  }
-  std::optional<MachineId> machine_id;
-  if (source_clock_id.machine_id != 0)
-    machine_id = MachineId(source_clock_id.machine_id);
-  context_->global_stats_tracker->IncrementStats(machine_id, std::nullopt,
-                                                 stat_key);
 }
 
 }  // namespace perfetto::trace_processor

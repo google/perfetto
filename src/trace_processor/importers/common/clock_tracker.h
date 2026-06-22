@@ -71,9 +71,12 @@ class ClockTracker {
     }
     auto* state = context_->trace_time_state.get();
     ++num_conversions_;
-    return sync_->Convert(
+    std::optional<int64_t> ts = sync_->Convert(
         ClockId::Qualify(clock_id, machine_id_, current_file_tag_), timestamp,
-        state->clock_id, byte_offset, suppress_errors);
+        state->clock_id);
+    if (PERFETTO_UNLIKELY(!ts && !suppress_errors))
+      RecordConversionError(sync_->last_error(), byte_offset);
+    return ts;
   }
 
   // Converts a timestamp between two arbitrary clock domains.
@@ -83,9 +86,12 @@ class ClockTracker {
       ClockId target,
       std::optional<size_t> byte_offset = {}) {
     ++num_conversions_;
-    return sync_->Convert(
+    std::optional<int64_t> converted = sync_->Convert(
         ClockId::Qualify(src, machine_id_, current_file_tag_), ts,
-        ClockId::Qualify(target, machine_id_, current_file_tag_), byte_offset);
+        ClockId::Qualify(target, machine_id_, current_file_tag_));
+    if (PERFETTO_UNLIKELY(!converted))
+      RecordConversionError(sync_->last_error(), byte_offset);
+    return converted;
   }
 
   // --- Slow-path public APIs ---
@@ -141,6 +147,13 @@ class ClockTracker {
  private:
   friend class ClockTrackerTest;
 
+  // Records a failed clock conversion in this trace's import log, with the
+  // source/target clock ids and source timestamp as args (plus |byte_offset|
+  // for a tokenization error, else an analysis error).
+  PERFETTO_NO_INLINE void RecordConversionError(
+      const ClockSyncError& error,
+      std::optional<size_t> byte_offset);
+
   PERFETTO_NO_INLINE void FlushDeferredIdentitySync();
 
   // Adds an edge directly to the global sync and records it in the
@@ -169,6 +182,14 @@ class ClockTracker {
   StringId monotonic_coarse_clock_name_;
   StringId monotonic_raw_clock_name_;
   StringId boottime_clock_name_;
+
+  // Interned arg keys for conversion-error import logs, populated in the
+  // constructor.
+  StringId source_clock_id_key_;
+  StringId target_clock_id_key_;
+  StringId source_timestamp_key_;
+  StringId source_sequence_id_key_;
+  StringId target_sequence_id_key_;
 
   // The single global clock graph, shared by all trace/machine trackers.
   ClockSynchronizer* sync_;
@@ -208,12 +229,6 @@ class ClockSynchronizerListenerImpl : public ClockSynchronizerListener {
   base::Status OnClockSyncCacheMiss() override;
 
   base::Status OnInvalidClockSnapshot() override;
-
-  void RecordConversionError(ClockSyncErrorType,
-                             ClockId source_clock_id,
-                             ClockId target_clock_id,
-                             int64_t source_timestamp,
-                             std::optional<size_t>) override;
 
  private:
   TraceProcessorContext* context_;

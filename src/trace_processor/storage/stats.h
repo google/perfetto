@@ -346,8 +346,8 @@ namespace perfetto::trace_processor::stats {
   F(psi_unknown_resource,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(vulkan_allocations_invalid_string_id,                                      \
                                           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
-  F(clock_sync_failure,                   kSingle,  kError,    kAnalysis, Scope::kGlobal, ""), \
-  F(clock_sync_failure_unknown_source_clock, kSingle, kError, kAnalysis, Scope::kGlobal,      \
+  F(clock_sync_failure,                   kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(clock_sync_failure_unknown_source_clock, kSingle, kError, kAnalysis, Scope::kMachineAndTrace,      \
       "A packet with a timestamp could not be converted to trace time "        \
       "because the source clock ID has never appeared in any ClockSnapshot. "  \
       "This indicates the trace producer emitted packets with a clock_id but " \
@@ -355,11 +355,11 @@ namespace perfetto::trace_processor::stats {
       "ClockSnapshots are emitted before any packets using that clock_id. "    \
       "For sequence-scoped clocks (64-128), ensure each packet sequence "      \
       "emits its own ClockSnapshot."),                                         \
-  F(clock_sync_failure_unknown_target_clock, kSingle, kError, kAnalysis, Scope::kGlobal,      \
+  F(clock_sync_failure_unknown_target_clock, kSingle, kError, kAnalysis, Scope::kMachineAndTrace,      \
       "A packet timestamp could not be converted because the target trace "    \
       "time clock has never appeared in any ClockSnapshot. This is an "        \
       "internal error that should not occur."),                                \
-  F(clock_sync_failure_no_path, kSingle, kError, kAnalysis, Scope::kGlobal,                   \
+  F(clock_sync_failure_no_path, kSingle, kError, kAnalysis, Scope::kMachineAndTrace,                   \
       "A packet timestamp could not be converted to trace time because no "    \
       "ClockSnapshot path exists connecting the source clock to the trace "    \
       "time clock. Both clocks exist in snapshots, but never together or "     \

@@ -217,10 +217,19 @@ struct ClockTimestamp {
 
 // Error type when clock conversion fails.
 enum class ClockSyncErrorType {
-  kOk = 0,
   kUnknownSourceClock,  // Source clock never seen in any snapshot
   kUnknownTargetClock,  // Target clock never seen in any snapshot
   kNoPath,              // No snapshot path connects source to target
+};
+
+// Full context of a failed conversion. When Convert returns nullopt it stashes
+// this on the synchronizer (see last_error()) so the per-trace caller can
+// record a detailed import log without paying for it on the success path.
+struct ClockSyncError {
+  ClockSyncErrorType type;
+  ClockId source_clock;
+  ClockId target_clock;
+  int64_t source_timestamp;
 };
 
 // Shared state for the trace time clock. Owned externally (e.g. by
@@ -260,11 +269,6 @@ class ClockSynchronizerListener {
   virtual ~ClockSynchronizerListener();
   virtual base::Status OnClockSyncCacheMiss() = 0;
   virtual base::Status OnInvalidClockSnapshot() = 0;
-  virtual void RecordConversionError(ClockSyncErrorType,
-                                     ClockId,
-                                     ClockId,
-                                     int64_t,
-                                     std::optional<size_t>) = 0;
 };
 
 class ClockSynchronizer {
@@ -286,12 +290,13 @@ class ClockSynchronizer {
 
   // Converts a timestamp between two clock domains. Tries to use the cache
   // first (only for single-path resolutions), then falls back on path finding
-  // as described in the header.
+  // as described in the header. Returns the converted timestamp, or nullopt on
+  // failure; on failure last_error() holds why (until the next Convert call),
+  // so a per-trace caller can record a detailed import log without burdening
+  // the success path.
   std::optional<int64_t> Convert(ClockId src_clock_id,
                                  int64_t src_timestamp,
-                                 ClockId target_clock_id,
-                                 std::optional<size_t> byte_offset,
-                                 bool suppress_errors = false) {
+                                 ClockId target_clock_id) {
     if (PERFETTO_LIKELY(src_clock_id == target_clock_id)) {
       return src_timestamp;
     }
@@ -312,9 +317,12 @@ class ClockSynchronizer {
         }
       }
     }
-    return ConvertSlowpath(src_clock_id, src_timestamp, ns, target_clock_id,
-                           byte_offset, suppress_errors);
+    return ConvertSlowpath(src_clock_id, src_timestamp, ns, target_clock_id);
   }
+
+  // The reason the most recent Convert that returned nullopt failed. Valid
+  // only until the next Convert call. Undefined if the last Convert succeeded.
+  const ClockSyncError& last_error() const { return last_error_; }
 
   // For testing:
   void set_cache_lookups_disabled_for_testing(bool v) {
@@ -416,9 +424,7 @@ class ClockSynchronizer {
   std::optional<int64_t> ConvertSlowpath(ClockId src_clock_id,
                                          int64_t src_timestamp,
                                          std::optional<int64_t> src_ts_ns,
-                                         ClockId target_clock_id,
-                                         std::optional<size_t> byte_offset,
-                                         bool suppress_errors);
+                                         ClockId target_clock_id);
 
   // Returns whether |global_clock_id| represents a sequence-scoped clock, i.e.
   // a ClockId returned by SequenceToGlobalClock().
@@ -439,6 +445,10 @@ class ClockSynchronizer {
   std::array<CachedClockPath, 8> cache_{};
   bool cache_lookups_disabled_for_testing_ = false;
   uint32_t cache_hits_for_testing_ = 0;
+
+  // Set by ConvertSlowpath whenever it returns nullopt; read by the caller via
+  // last_error() before the next Convert call.
+  ClockSyncError last_error_{};
   std::minstd_rand rnd_;  // For cache eviction.
   uint32_t cur_snapshot_id_ = 0;
   std::unique_ptr<ClockSynchronizerListener> clock_event_listener_;
