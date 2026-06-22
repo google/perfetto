@@ -537,19 +537,28 @@ async function getSchedCpus(ctx: Trace): Promise<Cpu[]> {
     SELECT DISTINCT
       ucpu,
       cpu.machine_id AS machine_id,
-      cpu.cpu AS cpu
+      cpu.cpu AS cpu,
+      machine.name AS machine_name
     FROM sched
     JOIN cpu USING (ucpu)
+    LEFT JOIN machine ON machine.id = cpu.machine_id
     ORDER BY ucpu
   `);
 
   const ucpus: Cpu[] = [];
   for (
-    const it = queryRes.iter({ucpu: NUM, machine_id: NUM, cpu: NUM});
+    const it = queryRes.iter({
+      ucpu: NUM,
+      machine_id: NUM,
+      cpu: NUM,
+      machine_name: STR_NULL,
+    });
     it.valid();
     it.next()
   ) {
-    ucpus.push(new Cpu(it.ucpu, it.cpu, it.machine_id));
+    ucpus.push(
+      new Cpu(it.ucpu, it.cpu, it.machine_id, it.machine_name ?? undefined),
+    );
   }
 
   return ucpus;
