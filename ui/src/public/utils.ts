@@ -31,6 +31,7 @@ export function getTrackName(
     threadTrack: boolean;
     uidTrack: boolean;
     machine: number | null;
+    machineName: string | null;
   }>,
 ) {
   const {
@@ -47,6 +48,7 @@ export function getTrackName(
     threadTrack,
     uidTrack,
     machine,
+    machineName,
   } = args;
 
   const hasName = name !== undefined && name !== null && name !== '[NULL]';
@@ -66,7 +68,7 @@ export function getTrackName(
   // upid/utid) we show the track kind to help with tracking
   // down where this is coming from.
   const kindSuffix = hasKind ? ` (${kind})` : '';
-  const machineLabel = maybeMachineLabel(machine ?? undefined);
+  const machineLabel = maybeMachineLabel(machine ?? undefined, machineName);
 
   if (isThreadTrack && hasName && hasTid) {
     return `${name} (${tid})`;
@@ -132,7 +134,16 @@ export async function getTimeSpanOfSelectionOrVisibleWindow(
   }
 }
 
-export function maybeMachineLabel(machine?: number): string {
+export function maybeMachineLabel(
+  machine?: number,
+  machineName?: string | null,
+): string {
   const m = machine ?? 0;
-  return m > 0 ? ` (machine ${m})` : '';
+  if (m <= 0) return '';
+  // Prefer the human-readable machine name (machine.name) when the trace
+  // provides one; otherwise fall back to the numeric machine id.
+  if (machineName !== undefined && machineName !== null && machineName !== '') {
+    return ` (${machineName})`;
+  }
+  return ` (machine ${m})`;
 }

@@ -299,8 +299,11 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto [scoped_state, inserted] = sequence_state_.Insert(seq_id, {});
   if (decoder.has_trusted_packet_sequence_id()) {
-    if (!inserted && decoder.previous_packet_dropped()) {
-      ++scoped_state->previous_packet_dropped_count;
+    if (!inserted) {
+      if (uint32_t reasons = decoder.previous_packet_dropped(); reasons) {
+        ++scoped_state->previous_packet_dropped_count;
+        RecordDataLossCauses(scoped_state, reasons);
+      }
     }
   }
 
@@ -599,6 +602,29 @@ void ProtoTraceReader::HandlePreviousPacketDropped(
       ->OnPacketLoss();
 }
 
+void ProtoTraceReader::RecordDataLossCauses(SequenceScopedState* seq,
+                                            uint32_t reasons) {
+  using TracePacket = protos::pbzero::TracePacket;
+  auto record = [&](uint32_t mask, uint32_t& count) {
+    if (reasons & mask) {
+      ++count;
+    }
+  };
+  record(TracePacket::DATA_LOSS_READ_GAP, seq->data_loss_read_gap_count);
+  record(TracePacket::DATA_LOSS_CHUNK_CORRUPTED,
+         seq->data_loss_chunk_corrupted_count);
+  record(TracePacket::DATA_LOSS_ORPHAN_CONTINUATION,
+         seq->data_loss_orphan_continuation_count);
+  record(TracePacket::DATA_LOSS_REASSEMBLY_GAP,
+         seq->data_loss_reassembly_gap_count);
+  record(TracePacket::DATA_LOSS_REASSEMBLY_BROKEN_CHAIN,
+         seq->data_loss_reassembly_broken_chain_count);
+  record(TracePacket::DATA_LOSS_OVERWRITE, seq->data_loss_overwrite_count);
+  record(TracePacket::DATA_LOSS_WRITER_ABORT,
+         seq->data_loss_writer_abort_count);
+  record(TracePacket::DATA_LOSS_SMB_FULL, seq->data_loss_smb_full_count);
+}
+
 void ProtoTraceReader::ParseTracePacketDefaults(
     const protos::pbzero::TracePacket_Decoder& packet_decoder,
     TraceBlobView trace_packet_defaults) {
@@ -707,54 +733,6 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
       context_->clock_tracker->AddSnapshot(clock_timestamps);
   if (!snapshot_id.ok()) {
     PERFETTO_ELOG("%s", snapshot_id.status().c_message());
-    return base::OkStatus();
-  }
-
-  std::optional<int64_t> trace_time_from_snapshot =
-      context_->clock_tracker->ToTraceTimeFromSnapshot(clock_timestamps);
-
-  // Add the all the clock snapshots to the clock snapshot table.
-  std::optional<int64_t> trace_ts_for_check;
-  for (const auto& clock_timestamp : clock_timestamps) {
-    // If the clock is incremental, we need to use 0 to map correctly to
-    // |absolute_timestamp|.
-    int64_t ts_to_convert =
-        clock_timestamp.clock.is_incremental ? 0 : clock_timestamp.timestamp;
-    // Even if we have trace time from snapshot, we still run ToTraceTime to
-    // optimise future conversions. Don't pass byte_offset since we expect
-    // failures here (e.g., non-monotonic clocks).
-    auto opt_trace_ts = context_->clock_tracker->ToTraceTime(
-        clock_timestamp.clock.id, ts_to_convert);
-
-    int64_t trace_ts_value;
-    if (!opt_trace_ts) {
-      // This can happen if |AddSnapshot| failed to resolve this clock, e.g. if
-      // clock is not monotonic. Try to fetch trace time from snapshot.
-      if (!trace_time_from_snapshot) {
-        continue;
-      }
-      trace_ts_value = *trace_time_from_snapshot;
-    } else {
-      trace_ts_value = *opt_trace_ts;
-    }
-
-    // Double check that all the clocks in this snapshot resolve to the same
-    // trace timestamp value.
-    PERFETTO_DCHECK(!trace_ts_for_check ||
-                    trace_ts_value == trace_ts_for_check.value());
-    trace_ts_for_check = trace_ts_value;
-
-    tables::ClockSnapshotTable::Row row;
-    row.ts = trace_ts_value;
-    row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id.clock_id);
-    row.clock_value =
-        clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
-    row.clock_name =
-        GetBuiltinClockNameOrNull(clock_timestamp.clock.id.clock_id);
-    row.snapshot_id = *snapshot_id;
-    row.machine_id = context_->machine_id();
-
-    context_->storage->mutable_clock_snapshot_table()->Insert(row);
   }
   return base::OkStatus();
 }
@@ -876,26 +854,6 @@ ProtoTraceReader::CalculateClockOffsets(
   }
 
   return clock_offsets;
-}
-
-std::optional<StringId> ProtoTraceReader::GetBuiltinClockNameOrNull(
-    int64_t clock_id) {
-  switch (clock_id) {
-    case protos::pbzero::ClockSnapshot::Clock::REALTIME:
-      return context_->storage->InternString("REALTIME");
-    case protos::pbzero::ClockSnapshot::Clock::REALTIME_COARSE:
-      return context_->storage->InternString("REALTIME_COARSE");
-    case protos::pbzero::ClockSnapshot::Clock::MONOTONIC:
-      return context_->storage->InternString("MONOTONIC");
-    case protos::pbzero::ClockSnapshot::Clock::MONOTONIC_COARSE:
-      return context_->storage->InternString("MONOTONIC_COARSE");
-    case protos::pbzero::ClockSnapshot::Clock::MONOTONIC_RAW:
-      return context_->storage->InternString("MONOTONIC_RAW");
-    case protos::pbzero::ClockSnapshot::Clock::BOOTTIME:
-      return context_->storage->InternString("BOOTTIME");
-    default:
-      return std::nullopt;
-  }
 }
 
 base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
@@ -1106,6 +1064,14 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
   struct BufStats {
     uint32_t packet_loss = 0;
     uint32_t incremental_sequences_dropped = 0;
+    uint32_t data_loss_read_gap = 0;
+    uint32_t data_loss_chunk_corrupted = 0;
+    uint32_t data_loss_orphan_continuation = 0;
+    uint32_t data_loss_reassembly_gap = 0;
+    uint32_t data_loss_reassembly_broken_chain = 0;
+    uint32_t data_loss_overwrite = 0;
+    uint32_t data_loss_writer_abort = 0;
+    uint32_t data_loss_smb_full = 0;
   };
   base::FlatHashMap<int32_t, BufStats> stats_per_buffer;
   for (auto it = evt.writer_stats(); it; ++it) {
@@ -1118,16 +1084,48 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
           s->needs_incremental_state_skipped > 0 &&
           s->needs_incremental_state_skipped ==
               s->needs_incremental_state_total;
+      stats.data_loss_read_gap += s->data_loss_read_gap_count;
+      stats.data_loss_chunk_corrupted += s->data_loss_chunk_corrupted_count;
+      stats.data_loss_orphan_continuation +=
+          s->data_loss_orphan_continuation_count;
+      stats.data_loss_reassembly_gap += s->data_loss_reassembly_gap_count;
+      stats.data_loss_reassembly_broken_chain +=
+          s->data_loss_reassembly_broken_chain_count;
+      stats.data_loss_overwrite += s->data_loss_overwrite_count;
+      stats.data_loss_writer_abort += s->data_loss_writer_abort_count;
+      stats.data_loss_smb_full += s->data_loss_smb_full_count;
     }
   }
 
   for (auto it = stats_per_buffer.GetIterator(); it; ++it) {
     auto& v = it.value();
+    auto buf = it.key();
     context_->stats_tracker->SetIndexedStats(
-        stats::traced_buf_sequence_packet_loss, it.key(), v.packet_loss);
+        stats::traced_buf_sequence_packet_loss, buf, v.packet_loss);
     context_->stats_tracker->SetIndexedStats(
-        stats::traced_buf_incremental_sequences_dropped, it.key(),
+        stats::traced_buf_incremental_sequences_dropped, buf,
         v.incremental_sequences_dropped);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_read_gap, buf, v.data_loss_read_gap);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_chunk_corrupted, buf,
+        v.data_loss_chunk_corrupted);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_orphan_continuation, buf,
+        v.data_loss_orphan_continuation);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_reassembly_gap, buf,
+        v.data_loss_reassembly_gap);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_reassembly_broken_chain, buf,
+        v.data_loss_reassembly_broken_chain);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_overwrite, buf, v.data_loss_overwrite);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_writer_abort, buf,
+        v.data_loss_writer_abort);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_smb_full, buf, v.data_loss_smb_full);
   }
 }
 

@@ -129,7 +129,8 @@ std::vector<FlagSpec> ServerSubcommand::GetFlags() {
 
 namespace {
 
-base::StatusOr<IdleStart> ParseIdleStart(const std::string& s) {
+[[maybe_unused]] base::StatusOr<IdleStart> ParseIdleStart(
+    const std::string& s) {
   if (s == "auto")
     return IdleStart::kAuto;
   if (s == "orphaned")
@@ -142,14 +143,16 @@ base::StatusOr<IdleStart> ParseIdleStart(const std::string& s) {
 }
 
 // Resolves --idle-timeout to milliseconds. "auto" means |auto_default_ms|.
-base::StatusOr<uint32_t> ResolveIdleTimeout(const std::string& s,
-                                            uint32_t auto_default_ms) {
+[[maybe_unused]] base::StatusOr<uint32_t> ResolveIdleTimeout(
+    const std::string& s,
+    uint32_t auto_default_ms) {
   if (s.empty() || s == "auto")
     return auto_default_ms;
   return session::ParseDurationMs(s);
 }
 
-constexpr uint32_t kUnixDefaultIdleMs = 30 * 60 * 1000;  // 30 minutes.
+[[maybe_unused]] constexpr uint32_t kUnixDefaultIdleMs =
+    30 * 60 * 1000;  // 30 minutes.
 
 // Returns true if |pid| is alive (POSIX probe; Windows opens a handle).
 bool IsPidAlive(int pid) {

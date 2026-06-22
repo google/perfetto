@@ -44,6 +44,10 @@ void MachineTracker::SetMachineInfo(StringId sysname,
   row.set_arch(arch);
 }
 
+void MachineTracker::SetMachineName(StringId name) {
+  getRow().set_name(name);
+}
+
 void MachineTracker::SetNumCpus(uint32_t cpus) {
   getRow().set_num_cpus(cpus);
 }

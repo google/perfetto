@@ -246,3 +246,61 @@ jobs:
           EOF
           )"
           echo "::notice::Opened ai-agents bundle PR and tagged $VERSION."
+
+  # Builds and uploads the perfetto package to PyPI via Trusted Publishing.
+  # Requires a `pypi` Environment and a PyPI trusted publisher for
+  # (google/perfetto, finalize-release.yml, env: pypi). See
+  # https://docs.pypi.org/trusted-publishers/.
+  publish-pypi:
+    name: Publish Python package to PyPI
+    needs: finalize
+    runs-on: ubuntu-latest
+    environment: pypi
+    timeout-minutes: 15
+    permissions:
+      id-token: write  # OIDC token for Trusted Publishing.
+    steps:
+      - name: Validate input
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must match vX.Y (got: $VERSION)"
+            exit 1
+          fi
+
+      - name: Checkout release tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.version }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Build sdist + wheel
+        env:
+          VERSION: ${{ inputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          # setup.py derives the version from the CHANGELOG's first vX.Y entry;
+          # fail early if it doesn't match the tag being published.
+          TOP_VER="$(grep -m1 -oE '^v[0-9]+\.[0-9]+' CHANGELOG)"
+          if [[ "$TOP_VER" != "$VERSION" ]]; then
+            echo "::error::CHANGELOG top release entry ($TOP_VER) != tag $VERSION. The CHANGELOG's first vX.Y entry must be $VERSION."
+            exit 1
+          fi
+          # download_url is PyPI metadata only; point it at this tag's archive.
+          ARCHIVE="https://github.com/${REPO}/archive/refs/tags/${VERSION}.zip"
+          sed -i -E "s#download_url\s*=\s*'[^']*'#download_url='${ARCHIVE}'#" \
+            python/setup.py
+          python -m pip install --upgrade build
+          python -m build python
+
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: python/dist
+          skip-existing: true  # Safe re-runs: skip a version already on PyPI.

@@ -49,8 +49,15 @@ interface PostedTrace {
   pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
 }
 
+// The raw, un-sanitized trace as received over postMessage(). Senders routinely
+// pass a view (e.g. Uint8Array) for |buffer| despite PostedTrace typing it as a
+// pure ArrayBuffer, so model that here. sanitizePostedTrace() normalizes it.
+interface RawPostedTrace extends Omit<PostedTrace, 'buffer'> {
+  buffer: ArrayBuffer | ArrayBufferView;
+}
+
 interface PostedTraceWrapped {
-  perfetto: PostedTrace;
+  perfetto: RawPostedTrace;
 }
 
 interface PostedScrollToRangeWrapped {
@@ -121,6 +128,21 @@ function saveUserTrustedOrigin(hostname: string) {
 // the 'perfettoIgnore' field in the event data.
 function shouldGracefullyIgnoreMessage(messageEvent: MessageEvent) {
   return messageEvent.data.perfettoIgnore === true;
+}
+
+export function parsePostedTrace(
+  data: MessageEvent['data'],
+): PostedTrace | undefined {
+  if (isPostedTraceWrapped(data)) {
+    return sanitizePostedTrace(data.perfetto);
+  } else if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+    return {
+      title: 'External trace',
+      buffer: toArrayBuffer(data),
+    };
+  } else {
+    return undefined;
+  }
 }
 
 // The message handler supports loading traces from an ArrayBuffer.
@@ -200,22 +222,8 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     return;
   }
 
-  let postedTrace: PostedTrace;
-  let keepApiOpen = false;
-  if (isPostedTraceWrapped(messageEvent.data)) {
-    postedTrace = sanitizePostedTrace(messageEvent.data.perfetto);
-    if (postedTrace.keepApiOpen) {
-      keepApiOpen = true;
-    }
-  } else if (
-    messageEvent.data instanceof ArrayBuffer ||
-    ArrayBuffer.isView(messageEvent.data)
-  ) {
-    postedTrace = {
-      title: 'External trace',
-      buffer: toArrayBuffer(messageEvent.data),
-    };
-  } else {
+  const postedTrace = parsePostedTrace(messageEvent.data);
+  if (!postedTrace) {
     console.warn(
       'Unknown postMessage() event received. If you are trying to open a ' +
         'trace via postMessage(), this is a bug in your code. If not, this ' +
@@ -229,7 +237,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     throw new Error('Incoming message trace buffer is empty');
   }
 
-  if (!keepApiOpen) {
+  if (!postedTrace.keepApiOpen) {
     /* Removing this event listener to avoid callers posting the trace multiple
      * times. If the callers add an event listener which upon receiving 'PONG'
      * posts the trace to ui.perfetto.dev, the callers can receive multiple
@@ -308,7 +316,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   });
 }
 
-function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
+function sanitizePostedTrace(postedTrace: RawPostedTrace): PostedTrace {
   const result: PostedTrace = {
     title: sanitizeString(postedTrace.title),
     // Senders routinely pass a view (e.g. Uint8Array) despite the static type;
@@ -379,8 +387,13 @@ function isPostedTraceWrapped(obj: any): obj is PostedTraceWrapped {
   if (wrapped.perfetto === undefined) {
     return false;
   }
+  // Senders routinely pass a view (e.g. Uint8Array) for |buffer| despite the
+  // static ArrayBuffer type, so accept either. Anything else (string, number,
+  // undefined) is rejected here rather than slipping through and being treated
+  // as an ArrayBuffer downstream.
+  const buffer = wrapped.perfetto.buffer;
   return (
-    wrapped.perfetto.buffer !== undefined &&
-    wrapped.perfetto.title !== undefined
+    (buffer instanceof ArrayBuffer || ArrayBuffer.isView(buffer)) &&
+    typeof wrapped.perfetto.title === 'string'
   );
 }

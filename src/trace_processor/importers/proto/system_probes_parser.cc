@@ -924,6 +924,12 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   MachineTracker* machine_tracker = context_->machine_tracker.get();
   SystemInfoTracker* system_info_tracker =
       SystemInfoTracker::GetOrCreate(context_);
+
+  if (packet.has_machine_name()) {
+    machine_tracker->SetMachineName(
+        context_->storage->InternString(packet.machine_name()));
+  }
+
   if (packet.has_utsname()) {
     ConstBytes utsname_blob = packet.utsname();
     protos::pbzero::Utsname::Decoder utsname(utsname_blob);

@@ -16,7 +16,7 @@ import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
@@ -36,6 +36,7 @@ export default class implements PerfettoPlugin {
         t2.id AS idleTrackId,
         cpu.ucpu AS ucpu,
         track.machine_id AS machineId,
+        machine.name AS machineName,
         track.cpu AS cpu
       FROM cpu_counter_track track
       JOIN cpu
@@ -45,6 +46,8 @@ export default class implements PerfettoPlugin {
         ON track.cpu = t2.cpu
        AND track.machine_id = t2.machine_id
        AND t2.type = 'cpu_idle'
+      LEFT JOIN machine
+        ON machine.id = track.machine_id
       WHERE
         track.type = 'cpu_frequency'
       ORDER BY ucpu
@@ -72,6 +75,7 @@ export default class implements PerfettoPlugin {
       const it = tracksResult.iter({
         freqTrackId: NUM,
         machineId: NUM,
+        machineName: STR_NULL,
         cpu: NUM,
         ucpu: NUM,
         idleTrackId: NUM_NULL,
@@ -79,7 +83,7 @@ export default class implements PerfettoPlugin {
       it.valid();
       it.next()
     ) {
-      const {freqTrackId, idleTrackId, machineId, cpu, ucpu} = it;
+      const {freqTrackId, idleTrackId, machineId, machineName, cpu, ucpu} = it;
       const uri = `/cpu_freq_cpu${ucpu}`;
 
       ctx.tracks.registerTrack({
@@ -116,7 +120,7 @@ export default class implements PerfettoPlugin {
 
       const trackNode = new TrackNode({
         uri,
-        name: `CPU ${new Cpu(ucpu, cpu, machineId).toString()} Frequency`,
+        name: `CPU ${new Cpu(ucpu, cpu, machineId, machineName ?? undefined).toString()} Frequency`,
       });
 
       group.addChildInOrder(trackNode);

@@ -14,34 +14,17 @@
 
 import '../../frontend/home_page.scss';
 import m from 'mithril';
-import {assetSrc} from '../../base/assets';
+import {Anchor} from '../../widgets/anchor';
+import {Card} from '../../widgets/card';
+import {EmptyState} from '../../widgets/empty_state';
 import {Icon} from '../../widgets/icon';
-import {Switch} from '../../widgets/switch';
 import {queryState} from '../query/query_state';
-import {settingsStorage} from '../settings/settings_storage';
+import type {TracePreset} from '../query/bigtrace_query_client';
+import {presetStore} from '../query/preset_store';
+import {groupPresetsByCuj, renderCujSelector} from './preset_groups';
 import {setRoute} from '../router';
 import {Routes} from '../routes';
 
-const LMK_QUERY = `INCLUDE PERFETTO MODULE android.memory.lmk;
-
-SELECT 
-  *
-FROM android_lmk_events
-WHERE oom_score_adj <= 200
-ORDER BY oom_score_adj
-LIMIT 1;`;
-
-const CPU_TIME_QUERY = `SELECT
-  p.name,
-  sum(s.dur)/1e9 as cpu_sec
-FROM sched s
-JOIN thread t USING (utid)
-JOIN process p USING (upid)
-GROUP BY p.name
-ORDER BY cpu_sec DESC
-LIMIT 10`;
-
-// Landing-page action button.
 function homeButton(
   label: string,
   icon: string,
@@ -55,80 +38,134 @@ function homeButton(
   );
 }
 
-// Stash the query for the new tab to pick up, then open the editor.
-function exampleQueryButton(
-  label: string,
-  icon: string,
-  query: string,
-): m.Children {
-  return homeButton(label, icon, () => {
-    queryState.initialQuery = query;
-    setRoute(Routes.QUERY);
-  });
+// A backend may send an absent or malformed icon name; fall back to a generic
+// glyph so it never renders as raw ligature text.
+function presetIcon(icon?: string): string {
+  return icon && /^[a-z0-9_]+$/.test(icon) ? icon : 'bookmark';
+}
+
+// Clicking stashes the preset so QueryPage seeds a fresh tab from it, then
+// routes to the editor.
+function presetCard(t: TracePreset): m.Children {
+  return m(
+    Card,
+    {
+      className: 'pf-bt-preset-card',
+      interactive: true,
+      title: t.description || t.name,
+      onclick: () => {
+        queryState.initialPreset = t;
+        setRoute(Routes.QUERY);
+      },
+    },
+    m('.pf-bt-preset-card__icon', m(Icon, {icon: presetIcon(t.icon)})),
+    m(
+      '.pf-bt-preset-card__body',
+      m('.pf-bt-preset-card__title', t.name),
+      t.description && m('.pf-bt-preset-card__desc', t.description),
+    ),
+  );
 }
 
 export class HomePage implements m.ClassComponent {
-  view() {
-    const themeSetting = settingsStorage.get('theme');
-    const isDarkMode = themeSetting ? themeSetting.get() === 'dark' : false;
+  // Active CUJ tab; defaults to the catalog's first.
+  private activeCuj?: string;
 
+  oninit() {
+    void presetStore.load();
+  }
+
+  view() {
+    const hasPresets = presetStore.presets.length > 0;
     return m(
       '.pf-home-page',
       m(
         '.pf-home-page__center.pf-bt-home-center',
-        m(
-          '.pf-home-page__title',
-          m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
-          'BigTrace',
-        ),
-        m(
-          '.pf-home-page__hints',
-          m(
-            '.pf-home-page__section',
-            m('.pf-home-page__section-title', 'Quick start'),
-            m(
-              '.pf-home-page__section-content',
-              m(
-                '.pf-home-page__getting-started-buttons',
-                homeButton('Configure backend', 'settings', () =>
-                  setRoute(Routes.SETTINGS),
-                ),
-                homeButton('Open query editor', 'edit', () =>
-                  setRoute(Routes.QUERY),
-                ),
-              ),
-            ),
-          ),
-          m(
-            '.pf-home-page__section',
-            m('.pf-home-page__section-title', 'Example queries'),
-            m(
-              '.pf-home-page__section-content',
-              m(
-                '.pf-home-page__getting-started-buttons',
-                exampleQueryButton('LMK events', 'search', LMK_QUERY),
-                exampleQueryButton(
-                  'Top CPU consumers',
-                  'timer',
-                  CPU_TIME_QUERY,
-                ),
-              ),
-            ),
-          ),
-          // Footer: theme toggle.
-          m(
-            '.pf-home-page__links',
-            m(Switch, {
-              label: 'Dark mode',
-              checked: isDarkMode,
-              onchange: (e) => {
-                themeSetting?.set(
-                  (e.target as HTMLInputElement).checked ? 'dark' : 'light',
-                );
-              },
-            }),
-          ),
-        ),
+        // The content block shrinks to its widest row and the parent centers
+        // it: a full 3-up grid reads as a left-aligned column, a 1–2 card grid
+        // centers as a tight cluster. With no backend the empty state stands
+        // alone.
+        hasPresets
+          ? m(
+              '.pf-bt-home-content',
+              this.renderIntro(),
+              this.renderPresets(),
+              this.renderCustomLink(),
+            )
+          : presetStore.isLoading
+            ? null
+            : this.renderEmptyState(),
+      ),
+    );
+  }
+
+  private renderIntro(): m.Children {
+    return m(
+      '.pf-bt-home-intro',
+      m('.pf-bt-home-intro__title', 'Query traces at scale'),
+      m(
+        '.pf-bt-home-intro__subtitle',
+        'Ready-to-run presets for common issues.',
+      ),
+    );
+  }
+
+  // Shown when no backend is configured (or it's unreachable / has no presets).
+  private renderEmptyState(): m.Children {
+    return m(
+      EmptyState,
+      {
+        icon: 'cloud_off',
+        title: 'Connect a backend to get started',
+      },
+      m(
+        '.pf-bt-home-empty__detail',
+        'BigTrace runs your queries against a backend that holds the traces.',
+      ),
+      homeButton('Configure backend', 'settings', () =>
+        setRoute(Routes.SETTINGS),
+      ),
+    );
+  }
+
+  private renderPresets(): m.Children {
+    const tpls = presetStore.presets;
+    if (tpls.length === 0) return null;
+
+    const {groups, byCuj} = groupPresetsByCuj(tpls);
+    const active =
+      this.activeCuj !== undefined && byCuj.has(this.activeCuj)
+        ? this.activeCuj
+        : groups[0][0];
+    const cards = byCuj.get(active) ?? [];
+
+    return m(
+      '.pf-bt-home-presets',
+      renderCujSelector(
+        groups.map(([cuj]) => cuj),
+        active,
+        (cuj) => {
+          this.activeCuj = cuj;
+        },
+      ),
+      // One column per card, capped at 3, so a sparse category leaves no empty
+      // tracks; the content block then centers the whole cluster.
+      m(
+        `.pf-bt-preset-list.pf-bt-preset-list--cols-${Math.min(cards.length, 3)}`,
+        cards.map(presetCard),
+      ),
+    );
+  }
+
+  // The build-your-own path: a link to the settings page to choose traces and
+  // set query options by hand.
+  private renderCustomLink(): m.Children {
+    return m(
+      '.pf-bt-home-custom-link',
+      m(
+        Anchor,
+        {startIcon: 'tune', onclick: () => setRoute(Routes.SETTINGS)},
+        'Configure trace selection',
       ),
     );
   }

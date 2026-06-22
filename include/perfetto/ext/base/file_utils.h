@@ -108,6 +108,10 @@ bool Mkdir(const std::string& path, uint32_t mode = 0755);
 // Calls rmdir() on UNIX, _rmdir() on Windows.
 bool Rmdir(const std::string& path);
 
+// Removes a file: unlink() on UNIX, _unlink() on Windows. Takes a const char*
+// and is async-signal-safe on POSIX, so it's callable from a signal handler.
+bool Unlink(const char* path);
+
 // Wrapper around access(path, F_OK).
 bool FileExists(const std::string& path);
 
