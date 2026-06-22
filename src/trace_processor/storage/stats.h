@@ -260,6 +260,31 @@ namespace perfetto::trace_processor::stats {
       "In either case, see "                                                   \
       "https://perfetto.dev/docs/concepts/buffers"                             \
       "#incremental-state-in-trace-packets"),                                  \
+  F(traced_buf_data_loss_read_gap,        kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses TraceBufferV2 attributed to a read-time ChunkID "  \
+      "gap, per buffer."),                                                     \
+  F(traced_buf_data_loss_chunk_corrupted, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses TraceBufferV2 attributed to a chunk whose "        \
+      "fragments couldn't be tokenized (malformed / out-of-bounds), per "      \
+      "buffer."),                                                              \
+  F(traced_buf_data_loss_orphan_continuation, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,     \
+      "Sequence data losses TraceBufferV2 attributed to a continuation/end "   \
+      "fragment with no preceding begin fragment, per buffer."),               \
+  F(traced_buf_data_loss_reassembly_gap,  kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses TraceBufferV2 attributed to a ChunkID gap in the " \
+      "middle of a fragmented packet, per buffer."),                           \
+  F(traced_buf_data_loss_reassembly_broken_chain, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace, \
+      "Sequence data losses TraceBufferV2 attributed to a broken fragment "    \
+      "chain despite contiguous ChunkIDs, per buffer."),                       \
+  F(traced_buf_data_loss_overwrite,       kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses TraceBufferV2 attributed to a ring-buffer wrap "   \
+      "evicting unread chunks, per buffer."),                                  \
+  F(traced_buf_data_loss_writer_abort,    kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses TraceBufferV2 attributed to a trace writer "       \
+      "aborting an in-progress fragmented packet, per buffer."),               \
+  F(traced_buf_data_loss_smb_full,        kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Sequence data losses the producer attributed to its shared memory "     \
+      "buffer being full, per buffer."),                                       \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_v2s_packets_seen,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
        "Shadow mode: total packets read."),                                    \
@@ -684,12 +709,27 @@ namespace perfetto::trace_processor::stats {
       "recording a trace. Common causes of this include incorrect "            \
       "incremental timestamps, bad clock synchronization or kernel bugs in "   \
       "drivers emitting timestamps"),                                          \
-  F(slice_drop_overlapping_complete_event,        kSingle,  kError,  kTrace, Scope::kMachineAndTrace,   \
-      "A complete slice was dropped because it overlaps with another "         \
-      "slice. This can happen e.g. in JSON traces using X events or in other " \
-      "cases where a duration is part of the trace. To solve this problem "    \
-      "make sure that your X events do not overlap on the same track (e.g. "   \
-      "thread/process)"),                                                      \
+  F(slice_drop_overlapping_complete_event,        kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,   \
+      "A complete slice was dropped because it partially overlaps another "    \
+      "slice on the same track. Overlapping duration events are out of spec "  \
+      "and ambiguous: nothing in the trace says how they should nest, so the " \
+      "slice cannot be placed and is discarded. If you are hitting this, "     \
+      "please file a bug against the tool that produced the trace asking it "  \
+      "not to emit overlapping events, and also file a bug at "                \
+      "https://github.com/google/perfetto/issues with a trace that "           \
+      "reproduces it so we can help"),                                         \
+  F(slice_spill_overlapping_complete_event,       kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,   \
+      "A complete slice (typically a JSON 'X' event) partially overlaps "      \
+      "another slice on the same thread track, so it cannot nest there. "      \
+      "Instead of dropping it, Perfetto moved it onto a separate overflow "    \
+      "track that is merged back onto the thread at display time. No data is " \
+      "lost, but because overlapping duration events are inherently "          \
+      "ambiguous (nothing in the trace says how they should nest), the "       \
+      "resulting layout might not match what you intended when you emitted "   \
+      "these events. See https://github.com/google/perfetto/issues/4280 "      \
+      "and, specifically, https://github.com/google/perfetto/issues/4280"      \
+      "#issuecomment-4742119340 for a detailed explanation and how to fix "    \
+      "it"),                                                                   \
   F(perf_text_importer_sample_no_frames,        kSingle,  kError,  kTrace, Scope::kMachineAndTrace,     \
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
@@ -829,6 +869,14 @@ namespace perfetto::trace_processor::stats {
       "corresponding extra_counter_track_uuids (neither in the event nor in "  \
       "TrackEventDefaults). The event is dropped. This is a bug in the trace " \
       "producer."),                                                            \
+  F(track_event_state_missing_track_uuid,     kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace, \
+      "A TrackEvent with TYPE_STATE was received without a track_uuid. "       \
+      "State events require a track_uuid to identify which state track to "     \
+      "use. The event is dropped. This is a bug in the trace producer."),       \
+  F(track_event_state_invalid_track_uuid,     kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace, \
+      "A TrackEvent with TYPE_STATE specified a track_uuid that was not "      \
+      "declared as a state track. The event is dropped. This is a bug in the " \
+      "trace producer."),  \
   F(track_event_extra_counter_track_uuid_mismatch, kSingle, kError, kAnalysis, Scope::kMachineAndTrace, \
       "A TrackEvent provided more extra counter values than "                  \
       "extra_counter_track_uuids. Arrays must have matching lengths. The "     \

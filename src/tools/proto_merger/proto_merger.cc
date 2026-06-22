@@ -26,6 +26,16 @@ namespace perfetto {
 namespace proto_merger {
 namespace {
 
+void StripDeletedElementComment(std::vector<std::string>& leading_comments) {
+  while (leading_comments.size() >= 3 && leading_comments[0].empty() &&
+         leading_comments[1] ==
+             " The following enums/messages/fields are not present upstream" &&
+         leading_comments[2].empty()) {
+    leading_comments.erase(leading_comments.begin(),
+                           leading_comments.begin() + 3);
+  }
+}
+
 template <typename Key, typename Value>
 std::optional<Value> FindInMap(const std::map<Key, Value>& map,
                                const Key& key) {
@@ -43,6 +53,13 @@ const T* FindByName(const std::vector<T>& items, const std::string& name) {
       return &item;
   }
   return nullptr;
+}
+
+template <typename T>
+T CleanDeletedItem(const T& input_item) {
+  T item = input_item;
+  StripDeletedElementComment(item.leading_comments);
+  return item;
 }
 
 // Compute the items present in the |input| vector but deleted in
@@ -63,7 +80,7 @@ std::vector<T> ComputeDeletedByName(const std::vector<T>& input,
   for (const auto& input_item : input) {
     if (seen.count(input_item.name))
       continue;
-    deleted.emplace_back(input_item);
+    deleted.emplace_back(CleanDeletedItem(input_item));
   }
   return deleted;
 }
@@ -98,7 +115,7 @@ std::vector<T> ComputeDeletedByNumber(const std::vector<T>& input,
   for (const auto& input_item : input) {
     if (seen.count(input_item.number))
       continue;
-    deleted.emplace_back(input_item);
+    deleted.emplace_back(CleanDeletedItem(input_item));
   }
   return deleted;
 }

@@ -21,8 +21,8 @@
 #include <unordered_map>
 #include <vector>
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/android/surfaceflinger_common.pbzero.h"
-#include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_common.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_visibility_computation.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_rect_tracker.h"
@@ -34,8 +34,9 @@ namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
 namespace {
 using TraceRectTableId = tables::WinscopeTraceRectTable::Id;
-using SnapshotDecoder = protos::pbzero::LayersSnapshotProto::Decoder;
-using LayerDecoder = protos::pbzero::LayerProto::Decoder;
+using SnapshotDecoder =
+    com::android::internal::pbzero::LayersSnapshotProto::Decoder;
+using LayerDecoder = com::android::internal::pbzero::LayerProto::Decoder;
 }  // namespace
 
 struct SurfaceFlingerRects {
@@ -46,7 +47,8 @@ struct SurfaceFlingerRects {
 class RectComputation {
  public:
   explicit RectComputation(
-      const protos::pbzero::LayersSnapshotProto::Decoder& snapshot_decoder,
+      const com::android::internal::pbzero::LayersSnapshotProto::Decoder&
+          snapshot_decoder,
       const std::vector<LayerDecoder>& layers_top_to_bottom,
       const std::unordered_map<int32_t, VisibilityProperties>&
           computed_visibility,

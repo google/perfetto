@@ -29,7 +29,8 @@ namespace {
 
 std::unordered_map<int32_t, bool> ComputeVisibility(
     const std::string& snapshot) {
-  protos::pbzero::ViewCapture::Decoder snapshot_decoder(snapshot);
+  com::android::internal::pbzero::ViewCapture::Decoder snapshot_decoder(
+      snapshot);
   const std::vector<ViewDecoder> views_top_to_bottom =
       ExtractViewsTopToBottom(snapshot_decoder);
   return VisibilityComputation(views_top_to_bottom).Compute();

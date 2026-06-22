@@ -40,6 +40,30 @@ class SliceTracker {
   using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter*)>;
   using OnSliceBeginCallback = std::function<void(TrackId, SliceId)>;
 
+  // Describes a partial overlap detected while adding a scoped slice: the
+  // incoming slice partially intersects an already-open slice on the same
+  // track, so it can neither nest inside it nor sit after it. Overlapping
+  // duration events are out of spec and ambiguous; this captures enough context
+  // to point a user at the offending events. See
+  // https://github.com/google/perfetto/issues/4280.
+  struct OverlapInfo {
+    // The half-open interval [start, end) shared by the incoming slice and the
+    // already-open slice it conflicts with.
+    int64_t start;
+    int64_t end;
+    // The already-open slice the incoming slice conflicts with.
+    StringId conflicting_name;
+    int64_t conflicting_ts;
+    int64_t conflicting_dur;
+  };
+
+  // Writes args describing |info| (the ambiguous overlap interval and the slice
+  // it conflicts with) onto |inserter|, using the arg-name keys interned once
+  // in the constructor. Shared by the two overlap-logging paths (the "drop"
+  // path here and the JSON "spill onto an overflow track" path) so both surface
+  // the same queryable context in the TraceImportLogsTable.
+  void AddOverlapArgs(const OverlapInfo&, ArgsTracker::BoundInserter&) const;
+
   explicit SliceTracker(TraceProcessorContext*);
   virtual ~SliceTracker();
 
@@ -75,13 +99,21 @@ class SliceTracker {
   }
 
   // virtual for testing
+  //
+  // If |overlap_out| is non-null and the slice partially overlaps an open slice
+  // on the track, the overlap details are reported via |*overlap_out| (and
+  // nullopt is returned) instead of dropping the slice and logging
+  // |slice_drop_overlapping_complete_event|, letting the caller recover (e.g.
+  // by spilling onto an overflow track). When |overlap_out| is null, the drop
+  // is logged with the same overlap details.
   virtual std::optional<SliceId> Scoped(
       int64_t timestamp,
       TrackId track_id,
       StringId category,
       StringId raw_name,
       int64_t duration,
-      SetArgsCallback args_callback = SetArgsCallback());
+      SetArgsCallback args_callback = SetArgsCallback(),
+      std::optional<OverlapInfo>* overlap_out = nullptr);
 
   template <typename Table>
   std::optional<SliceId> ScopedTyped(
@@ -146,11 +178,13 @@ class SliceTracker {
   };
 
   // virtual for testing.
-  virtual std::optional<SliceId> StartSlice(int64_t timestamp,
-                                            int64_t duration,
-                                            TrackId track_id,
-                                            SetArgsCallback args_callback,
-                                            std::function<SliceId()> inserter);
+  virtual std::optional<SliceId> StartSlice(
+      int64_t timestamp,
+      int64_t duration,
+      TrackId track_id,
+      SetArgsCallback args_callback,
+      std::function<SliceId()> inserter,
+      std::optional<OverlapInfo>* overlap_out = nullptr);
 
   std::optional<SliceId> CompleteSlice(
       int64_t timestamp,
@@ -161,7 +195,8 @@ class SliceTracker {
   [[nodiscard]] bool MaybeCloseStack(int64_t ts,
                                      int64_t dur,
                                      const SlicesStack&,
-                                     TrackId track_id);
+                                     TrackId track_id,
+                                     std::optional<OverlapInfo>* overlap_out);
 
   std::optional<uint32_t> MatchingIncompleteSliceIndex(const SlicesStack& stack,
                                                        StringId name,
@@ -182,6 +217,14 @@ class SliceTracker {
   const StringId legacy_unnestable_last_begin_ts_string_id_;
 
   TraceProcessorContext* const context_;
+
+  // Interned arg-name keys for the overlap import logs (see AddOverlapArgs).
+  const StringId overlap_start_key_;
+  const StringId overlap_end_key_;
+  const StringId overlap_conflicting_name_key_;
+  const StringId overlap_conflicting_ts_key_;
+  const StringId overlap_conflicting_dur_key_;
+
   StackMap stacks_;
   std::vector<TranslatableArgs> translatable_args_;
 };

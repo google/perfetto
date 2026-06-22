@@ -1,7 +1,7 @@
 import os
 import re
 
-from distutils.core import setup
+from setuptools import setup
 
 
 def _version_from_changelog():

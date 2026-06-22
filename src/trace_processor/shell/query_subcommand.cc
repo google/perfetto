@@ -168,10 +168,11 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
 }
 
 base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
-  if (ctx.positional_args.empty()) {
-    return base::ErrStatus("query: trace file is required");
-  }
-  std::string trace_file = ctx.positional_args[0];
+  // With --remote, the trace is already loaded server-side, so there is no
+  // trace-file positional: the first positional (if any) is the SQL.
+  std::string trace_file;
+  size_t sql_pos = 0;
+  RETURN_IF_ERROR(ResolveTraceFileArg(ctx, "query", &trace_file, &sql_pos));
 
   // Advanced: structured query mode.
   if (!structured_query_id_.empty()) {
@@ -186,8 +187,8 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   std::string sql;
   bool read_stdin =
       query_file_ == "-" || (query_file_.empty() && !isatty(STDIN_FILENO));
-  if (ctx.positional_args.size() >= 2) {
-    sql = ctx.positional_args[1];
+  if (ctx.positional_args.size() > sql_pos) {
+    sql = ctx.positional_args[sql_pos];
   } else if (read_stdin) {
     if (!base::ReadFileDescriptor(STDIN_FILENO, &sql))
       return base::ErrStatus("query: failed to read SQL from stdin");
@@ -200,11 +201,9 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
         "stdin.");
   }
 
-  auto config = BuildConfig(*ctx.global, ctx.platform);
-  ASSIGN_OR_RETURN(auto tp,
-                   SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  ASSIGN_OR_RETURN(auto t_load,
-                   LoadTraceFile(tp.get(), ctx.platform, trace_file));
+  base::TimeNanos t_load{};
+  ASSIGN_OR_RETURN(auto tp, CreateTraceProcessor(*ctx.global, ctx.platform,
+                                                 trace_file, &t_load));
 
   if (!query_file_.empty()) {
     if (!base::ReadFile(query_file_, &sql)) {
@@ -250,11 +249,9 @@ base::Status QuerySubcommand::RunStructuredQuery(
         "query: --structured-query-id requires at least one --summary-spec");
   }
 
-  auto config = BuildConfig(*ctx.global, ctx.platform);
-  ASSIGN_OR_RETURN(auto tp,
-                   SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  ASSIGN_OR_RETURN(auto t_load,
-                   LoadTraceFile(tp.get(), ctx.platform, trace_file));
+  base::TimeNanos t_load{};
+  ASSIGN_OR_RETURN(auto tp, CreateTraceProcessor(*ctx.global, ctx.platform,
+                                                 trace_file, &t_load));
 
   std::unique_ptr<Summarizer> summarizer;
   RETURN_IF_ERROR(tp->CreateSummarizer(&summarizer));

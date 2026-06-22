@@ -61,6 +61,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kSimpleperfProtoTraceType:
     case kTarTraceType:
     case kPrimesTraceType:
+    case kPerfettoManifestTraceType:
       return false;
   }
   PERFETTO_FATAL("For GCC");
@@ -70,9 +71,10 @@ bool RequiresZlibSupport(TraceType type) {
 void TraceReaderRegistry::RegisterPluginTraceReader(
     TraceType trace_type,
     std::function<std::unique_ptr<ChunkedTraceReader>()> factory) {
-  RegisterFactory(trace_type, [f = std::move(factory)](TraceProcessorContext*) {
-    return f();
-  });
+  RegisterFactory(trace_type,
+                  [f = std::move(factory)](TraceProcessorContext*, uint32_t) {
+                    return f();
+                  });
 }
 
 void TraceReaderRegistry::RegisterFactory(TraceType trace_type,
@@ -82,9 +84,10 @@ void TraceReaderRegistry::RegisterFactory(TraceType trace_type,
 
 base::StatusOr<std::unique_ptr<ChunkedTraceReader>>
 TraceReaderRegistry::CreateTraceReader(TraceType type,
-                                       TraceProcessorContext* context) {
+                                       TraceProcessorContext* context,
+                                       uint32_t file_id) {
   if (auto* it = factories_.Find(type); it) {
-    return (*it)(context);
+    return (*it)(context, file_id);
   }
 
   if (RequiresZlibSupport(type) && !util::IsGzipSupported()) {

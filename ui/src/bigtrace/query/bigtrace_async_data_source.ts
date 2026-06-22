@@ -22,6 +22,7 @@ import type {Row, SqlValue} from '../../trace_processor/query_result';
 import type {QueryResult} from '../../base/query_slot';
 import {
   type BigtraceQueryClient,
+  BigtraceHttpError,
   QueryCancelledError,
 } from './bigtrace_query_client';
 import {encodeFilters} from './filter_encoding';
@@ -37,11 +38,15 @@ export class BigtraceAsyncDataSource implements DataSource {
   private isFetching = false;
   private columns: string[] = [];
   private error: string | null = null;
+  // HTTP status of the last error, when it was an HTTP error (undefined
+  // otherwise). Lets the results view tell a not-ready-yet 400 from a real
+  // failure without parsing the message string.
+  private errorStatus: number | undefined;
   private hasInitialFetchCompleted = false;
   // Window in `loadedRows`, for range-change detection.
   private loadedOffset = 0;
   private loadedLimit = 0;
-  // AIP-132 §Ordering. Empty = materialization order.
+  // AIP-132 §Ordering. Empty = default order.
   private currentOrderBy = '';
   // Aliases pre-resolved to field names. `currentFilterKey` is the JSON
   // form for cheap equality checks.
@@ -49,9 +54,21 @@ export class BigtraceAsyncDataSource implements DataSource {
   private currentFilterKey = '';
   // `useRows` falls back to `getTotalRows()` when undefined.
   private _filteredTotalRows: number | undefined;
+  // Field-mask shipped as `:fetch_results` `columns`. Tracks the visible
+  // results-grid columns so a column toggle refetches a narrower page (and
+  // pulls in a metadata column when the user just enabled it).
+  private currentColumns: readonly string[] = [];
+  private currentColumnsKey = '';
+  // availableColumnNames from the last fetch — the results-page column picker
+  // reads this to know what's selectable.
+  private _availableColumnNames: ReadonlyArray<string> | undefined;
 
   get filteredTotalRows(): number | undefined {
     return this._filteredTotalRows;
+  }
+
+  get availableColumnNames(): ReadonlyArray<string> | undefined {
+    return this._availableColumnNames;
   }
 
   // `signal`: owner aborts on close. `getTotalRows`: scrollbar sizing.
@@ -69,17 +86,29 @@ export class BigtraceAsyncDataSource implements DataSource {
     const wantedFilterKey = encodeFilters(wantedFilter);
     const wantedOffset = model.pagination?.offset ?? 0;
     const wantedLimit = model.pagination?.limit ?? 0;
+    // Columns the grid is currently displaying; shipped as the `:fetch_results`
+    // `columns` field-mask.
+    const wantedColumns = (model.columns ?? []).map((c) => c.field);
+    const wantedColumnsKey = JSON.stringify(wantedColumns);
 
-    // Fetch on sort/filter/range/initial change; skip if in flight (avoids redraw storms).
+    // Fetch on sort/filter/range/columns/initial change; skip if in flight
+    // (avoids redraw storms).
     const sortChanged = wantedOrderBy !== this.currentOrderBy;
     const filterChanged = wantedFilterKey !== this.currentFilterKey;
     const rangeChanged =
       this.hasInitialFetchCompleted &&
       (wantedOffset !== this.loadedOffset ||
         (wantedLimit > 0 && wantedLimit !== this.loadedLimit));
+    const columnsChanged =
+      this.hasInitialFetchCompleted &&
+      wantedColumnsKey !== this.currentColumnsKey;
     const needsInitial = !this.hasInitialFetchCompleted && wantedLimit > 0;
     if (
-      (sortChanged || filterChanged || rangeChanged || needsInitial) &&
+      (sortChanged ||
+        filterChanged ||
+        rangeChanged ||
+        columnsChanged ||
+        needsInitial) &&
       !this.isFetching
     ) {
       this.currentOrderBy = wantedOrderBy;
@@ -89,6 +118,8 @@ export class BigtraceAsyncDataSource implements DataSource {
         // Briefly oversized scrollbar > briefly collapsed while refetching.
         this._filteredTotalRows = undefined;
       }
+      this.currentColumns = wantedColumns;
+      this.currentColumnsKey = wantedColumnsKey;
       // First render may have limit=0; fall back so the schema comes back.
       const fetchLimit = wantedLimit > 0 ? wantedLimit : 100;
       this.fetchMoreRows(wantedOffset, fetchLimit);
@@ -116,7 +147,7 @@ export class BigtraceAsyncDataSource implements DataSource {
     };
   }
 
-  // Resolve widget alias → SELECT field (backend whitelists fields).
+  // Resolve widget alias → backend field name for the order_by wire string.
   private formatOrderBy(model: ModelWithColumns): string {
     const sort = model.sort;
     if (!sort) return '';
@@ -147,6 +178,7 @@ export class BigtraceAsyncDataSource implements DataSource {
   private async fetchMoreRows(offset: number, limit: number) {
     if (this.signal?.aborted) return;
     this.error = null;
+    this.errorStatus = undefined;
     this.isFetching = true;
     m.redraw();
     try {
@@ -157,12 +189,14 @@ export class BigtraceAsyncDataSource implements DataSource {
         this.signal,
         this.currentOrderBy,
         this.currentFilter,
+        this.currentColumns.length > 0 ? this.currentColumns : undefined,
       );
       this.loadedRows = [...result.rows];
       this.loadedOffset = offset;
       this.loadedLimit = limit;
       this.hasInitialFetchCompleted = true;
       this._filteredTotalRows = result.totalFilteredRows;
+      this._availableColumnNames = result.availableColumnNames;
 
       if (this.columns.length === 0 && result.columns.length > 0) {
         this.columns = [...result.columns];
@@ -171,7 +205,14 @@ export class BigtraceAsyncDataSource implements DataSource {
       // Abort is expected when the owning tab closes; don't surface it.
       if (e instanceof QueryCancelledError) return;
       console.error('[bigtrace] fetch_results failed:', e);
-      this.error = e instanceof Error ? e.message : String(e);
+      if (e instanceof BigtraceHttpError) {
+        // Surface the backend's detail (not the wrapped message) and keep the
+        // status for the results view's not-ready-yet check.
+        this.error = e.detail;
+        this.errorStatus = e.status;
+      } else {
+        this.error = e instanceof Error ? e.message : String(e);
+      }
     } finally {
       this.isFetching = false;
       m.redraw();
@@ -186,6 +227,12 @@ export class BigtraceAsyncDataSource implements DataSource {
 
   getError(): string | null {
     return this.error;
+  }
+
+  // HTTP status of the last fetch error, if it was an HTTP error (undefined
+  // otherwise).
+  getErrorStatus(): number | undefined {
+    return this.errorStatus;
   }
 
   getColumns(): string[] {

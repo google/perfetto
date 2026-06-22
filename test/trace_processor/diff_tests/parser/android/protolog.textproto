@@ -2,7 +2,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
   sequence_flags: 1
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1716
   first_packet_on_sequence: true
 }
@@ -34,7 +34,7 @@ packet {
   sequence_flags: 2
   trusted_pid: 1716
   timestamp: 857384100
-  protolog_message {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_message] {
     message_id: 6924537961316301726
     str_param_iids: 1
     sint64_params: 888
@@ -47,7 +47,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 3
   sequence_flags: 1
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1716
   first_packet_on_sequence: true
 }
@@ -56,7 +56,7 @@ packet {
   trusted_packet_sequence_id: 3
   trusted_pid: 1716
   timestamp: 857384110
-  protolog_message {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_message] {
     message_id: 1994837961123301128
     sint64_params: 888
     sint64_params: 888
@@ -93,7 +93,7 @@ packet {
   sequence_flags: 2
   trusted_pid: 1716
   timestamp: 857384130
-  protolog_message {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_message] {
     message_id: 9274895847396301003
     str_param_iids: 1
     str_param_iids: 1
@@ -115,7 +115,7 @@ packet {
 packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 3
-  protolog_viewer_config {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_viewer_config] {
     groups {
       id: 12
       name: "MY_NON_PROCESSED_GROUP"
@@ -126,7 +126,7 @@ packet {
 packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 3
-  protolog_viewer_config {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_viewer_config] {
     messages {
       message_id: 9084537961316395367
       message: "My non-processed proto message with a string (%s), an int (%d), a double %g, and a boolean %b."
@@ -141,7 +141,7 @@ packet {
   sequence_flags: 2
   trusted_pid: 1716
   timestamp: 857384140
-  protolog_message {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_message] {
     message_id: 9084537961316395367
     str_param_iids: 12
     sint64_params: 888
@@ -156,7 +156,7 @@ packet {
   sequence_flags: 2
   trusted_pid: 1716
   timestamp: 857384150
-  protolog_message {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_message] {
     message_id: 555
     str_param_iids: 1
   }
@@ -164,10 +164,10 @@ packet {
 packet {
   trusted_uid: 10224
   trusted_packet_sequence_id: 10
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 2063
   first_packet_on_sequence: true
-  protolog_viewer_config {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_viewer_config] {
     messages {
       message_id: 555
       message: "Test message with percent sign: %% and a string %s"

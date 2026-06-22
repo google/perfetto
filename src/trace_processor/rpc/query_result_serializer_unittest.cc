@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/rpc/query_result_deserializer.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -41,6 +42,8 @@ namespace perfetto::trace_processor {
 inline bool operator==(const SqlValue& a, const SqlValue& b) {
   if (a.type != b.type)
     return false;
+  if (a.type == SqlValue::kNull)
+    return true;
   if (a.type == SqlValue::kString)
     return strcmp(a.string_value, b.string_value) == 0;
   if (a.type == SqlValue::kBytes) {
@@ -74,7 +77,6 @@ inline std::ostream& operator<<(std::ostream& stream, const SqlValue& v) {
 namespace {
 
 using ::testing::ElementsAre;
-using BatchProto = protos::pbzero::QueryResult::CellsBatch;
 using ResultProto = protos::pbzero::QueryResult;
 
 void RunQueryChecked(TraceProcessor* tp, const std::string& query) {
@@ -83,7 +85,10 @@ void RunQueryChecked(TraceProcessor* tp, const std::string& query) {
   ASSERT_TRUE(iter.Status().ok()) << iter.Status().message();
 }
 
-// Implements a minimal deserializer for QueryResultSerializer.
+// Thin wrapper over the production QueryResultDeserializer that flattens the
+// decoded cells into SqlValues for the assertions below. elapsed_time_ms is
+// read directly here since the deserializer (used by the --remote client)
+// doesn't surface it.
 class TestDeserializer {
  public:
   void SerializeAndDeserialize(QueryResultSerializer*);
@@ -96,13 +101,14 @@ class TestDeserializer {
   std::optional<double> elapsed_time_ms;
 
  private:
-  std::vector<std::unique_ptr<char[]>> copied_buf_;
+  QueryResultDeserializer deser_;
+  // Stable storage so the SqlValue string/blob pointers in |cells| stay valid.
+  std::deque<QueryResultDeserializer::Cell> owned_cells_;
 };
 
 void TestDeserializer::SerializeAndDeserialize(
     QueryResultSerializer* serializer) {
   std::vector<uint8_t> buf;
-  error.clear();
   for (eof_reached = false; !eof_reached;) {
     serializer->Serialize(&buf);
     DeserializeBuffer(buf.data(), buf.size());
@@ -111,94 +117,21 @@ void TestDeserializer::SerializeAndDeserialize(
 }
 
 void TestDeserializer::DeserializeBuffer(const uint8_t* start, size_t size) {
+  std::vector<QueryResultDeserializer::Cell> batch_cells;
+  base::Status status = deser_.AddMessage(start, size, &batch_cells);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  columns = deser_.column_names();
+  error = deser_.error();
+  eof_reached = deser_.eof();
+
   ResultProto::Decoder result(start, size);
-  error += result.error().ToStdString();
-  for (auto it = result.column_names(); it; ++it)
-    columns.push_back(it->as_std_string());
-
-  if (result.has_elapsed_time_ms()) {
+  if (result.has_elapsed_time_ms())
     elapsed_time_ms = result.elapsed_time_ms();
-  }
 
-  for (auto batch_it = result.batch(); batch_it; ++batch_it) {
-    ASSERT_FALSE(eof_reached);
-    auto batch_bytes = batch_it->as_bytes();
-
-    ResultProto::CellsBatch::Decoder batch(batch_bytes.data, batch_bytes.size);
-    eof_reached = batch.is_last_batch();
-    std::deque<int64_t> varints;
-    std::deque<double> doubles;
-    std::deque<std::string> blobs;
-
-    bool parse_error = false;
-    for (auto it = batch.varint_cells(&parse_error); it; ++it)
-      varints.emplace_back(*it);
-
-    for (auto it = batch.float64_cells(&parse_error); it; ++it)
-      doubles.emplace_back(*it);
-
-    for (auto it = batch.blob_cells(); it; ++it)
-      blobs.emplace_back((*it).ToStdString());
-
-    std::string merged_strings = batch.string_cells().ToStdString();
-    std::deque<std::string> strings;
-    for (size_t pos = 0; pos < merged_strings.size();) {
-      // Will return npos for the last string, but it's fine
-      size_t next_sep = merged_strings.find('\0', pos);
-      strings.emplace_back(merged_strings.substr(pos, next_sep - pos));
-      pos = next_sep == std::string::npos ? next_sep : next_sep + 1;
-    }
-
-    uint32_t num_cells = 0;
-    for (auto it = batch.cells(&parse_error); it; ++it, ++num_cells) {
-      uint8_t cell_type = static_cast<uint8_t>(*it);
-      switch (cell_type) {
-        case BatchProto::CELL_INVALID:
-          break;
-        case BatchProto::CELL_NULL:
-          cells.emplace_back(SqlValue());
-          break;
-        case BatchProto::CELL_VARINT:
-          ASSERT_GT(varints.size(), 0u);
-          cells.emplace_back(SqlValue::Long(varints.front()));
-          varints.pop_front();
-          break;
-        case BatchProto::CELL_FLOAT64:
-          ASSERT_GT(doubles.size(), 0u);
-          cells.emplace_back(SqlValue::Double(doubles.front()));
-          doubles.pop_front();
-          break;
-        case BatchProto::CELL_STRING: {
-          ASSERT_GT(strings.size(), 0u);
-          const std::string& str = strings.front();
-          copied_buf_.emplace_back(new char[str.size() + 1]);
-          char* new_buf = copied_buf_.back().get();
-          memcpy(new_buf, str.c_str(), str.size() + 1);
-          cells.emplace_back(SqlValue::String(new_buf));
-          strings.pop_front();
-          break;
-        }
-        case BatchProto::CELL_BLOB: {
-          ASSERT_GT(blobs.size(), 0u);
-          auto bytes = blobs.front();
-          copied_buf_.emplace_back(new char[bytes.size()]);
-          memcpy(copied_buf_.back().get(), bytes.data(), bytes.size());
-          cells.emplace_back(
-              SqlValue::Bytes(copied_buf_.back().get(), bytes.size()));
-          blobs.pop_front();
-          break;
-        }
-        default:
-          FAIL() << "Unknown cell type " << cell_type;
-      }
-
-      EXPECT_FALSE(parse_error);
-    }
-    if (columns.empty()) {
-      EXPECT_EQ(num_cells, 0u);
-    } else {
-      EXPECT_EQ(num_cells % columns.size(), 0u);
-    }
+  for (auto& cell : batch_cells) {
+    owned_cells_.push_back(std::move(cell));
+    cells.push_back(owned_cells_.back().ToSqlValue());
   }
 }
 

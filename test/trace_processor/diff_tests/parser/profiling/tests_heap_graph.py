@@ -63,7 +63,7 @@ class ProfilingHeapGraph(TestSuite):
         packet {
           trusted_packet_sequence_id: 999
           timestamp: 10
-          heap_graph {
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
             pid: 2
             types {
               id: 1
@@ -181,7 +181,7 @@ class ProfilingHeapGraph(TestSuite):
         packet {
           trusted_packet_sequence_id: 999
           timestamp: 10
-          heap_graph {
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
             pid: 2
             types {
               id: 1
@@ -625,7 +625,7 @@ class ProfilingHeapGraph(TestSuite):
         packet {
           trusted_packet_sequence_id: 999
           timestamp: 10
-          heap_graph {
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
             pid: 2
             types {
               id: 3
@@ -670,4 +670,46 @@ class ProfilingHeapGraph(TestSuite):
         out=Csv("""
         "field_name","owner","owned"
         "runtimeInternalObjects","java.lang.DexCache","java.lang.Object"
+        """))
+
+  def test_heap_graph_heap_size(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+            pid: 2
+            heap_bytes_allocated: 100000
+            types {
+              id: 1
+              class_name: "java.lang.Object"
+            }
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+            }
+            continued: false
+            index: 0
+          }
+        }
+        """),
+        query="""
+        SELECT ts, heap_size
+        FROM heap_graph;
+        """,
+        out=Csv("""
+        "ts","heap_size"
+        10,100000
         """))

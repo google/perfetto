@@ -58,6 +58,7 @@ class ProtoTraceReader;
 class RegisteredFileTracker;
 class SchedEventTracker;
 class SliceTracker;
+class StateTracker;
 class SliceTranslationTable;
 class StackProfileTracker;
 class SymbolTracker;
@@ -68,6 +69,7 @@ class TraceStorage;
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
+struct TraceManifestState;
 struct TraceTimeState;
 struct TrackCompressorGroupIdxState;
 
@@ -156,6 +158,7 @@ class TraceProcessorContext {
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
   GlobalPtr<TraceTimeState> trace_time_state;
+  GlobalPtr<TraceManifestState> trace_manifest_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
@@ -226,6 +229,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<TrackTracker> track_tracker;
   PerTraceAndMachinePtr<TrackCompressor> track_compressor;
   PerTraceAndMachinePtr<SliceTracker> slice_tracker;
+  PerTraceAndMachinePtr<StateTracker> state_tracker;
   PerTraceAndMachinePtr<FileIoTracker> file_io_tracker;
   PerTraceAndMachinePtr<FlowTracker> flow_tracker;
   PerTraceAndMachinePtr<EventTracker> event_tracker;

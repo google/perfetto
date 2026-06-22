@@ -124,7 +124,7 @@ void TraceBufferV1WithV2Shadow::BeginRead() {
   for (;;) {
     TracePacket packet;
     PacketSequenceProperties seq_props{};
-    bool prev_dropped = false;
+    uint32_t prev_dropped = 0;
     if (!v2_->ReadNextTracePacket(&packet, &seq_props, &prev_dropped))
       break;
     auto hash = ComputePacketHash(packet, seq_props);
@@ -135,7 +135,7 @@ void TraceBufferV1WithV2Shadow::BeginRead() {
 bool TraceBufferV1WithV2Shadow::ReadNextTracePacket(
     TracePacket* packet,
     PacketSequenceProperties* sequence_properties,
-    bool* previous_packet_on_sequence_dropped) {
+    uint32_t* previous_packet_on_sequence_dropped) {
   bool result = v1_->ReadNextTracePacket(packet, sequence_properties,
                                          previous_packet_on_sequence_dropped);
   if (result && packets_seen_ < kMaxPacketHashes) {

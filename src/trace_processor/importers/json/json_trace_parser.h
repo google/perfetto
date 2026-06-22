@@ -18,8 +18,10 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_H_
 
 #include <cstdint>
+#include <functional>
 
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
@@ -49,7 +51,19 @@ class JsonTraceParser {
   StringId thread_sort_index_hint_id_;
   StringId running_string_id_;
 
-  void MaybeAddFlow(StringPool* pool, TrackId track_id, const JsonEvent& event);
+  void MaybeAddFlow(int64_t timestamp,
+                    StringPool* pool,
+                    TrackId track_id,
+                    const JsonEvent& event);
+
+  // Records a parser error against |event| at |timestamp|, attaching the event
+  // name and phase as args to make the import log queryable and actionable. If
+  // |extra_args| is set, it is invoked to attach further context-specific args.
+  void RecordEventError(
+      int64_t timestamp,
+      const JsonEvent& event,
+      size_t stat_key,
+      std::function<void(ArgsTracker::BoundInserter&)> extra_args = {});
 };
 
 }  // namespace perfetto::trace_processor

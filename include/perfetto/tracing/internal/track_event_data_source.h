@@ -477,11 +477,32 @@ class TrackEvent {
             typename... Arguments>
   static void TraceForCategory(uint32_t instances,
                                const CategoryType& category,
-                               const EventNameType& name,
+                               EventNameType&& name,
                                perfetto::protos::pbzero::TrackEvent::Type type,
                                Arguments&&... args) PERFETTO_ALWAYS_INLINE {
-    TraceForCategoryBody(instances, DecayStrType(category), DecayStrType(name),
-                         type, DecayArgType(args)...);
+    internal::ValidateEventNameType<EventNameType>();
+    TraceForCategoryBody(
+        instances, DecayStrType(category),
+        internal::DecayEventNameType(std::forward<EventNameType>(name)), type,
+        DecayArgType(args)...);
+  }
+
+  // TraceState overloads
+  template <
+      typename CategoryType,
+      typename StateValueType,
+      typename... Args,
+      std::enable_if_t<internal::IsValidEventNameType<StateValueType>, int> = 0>
+  static void TraceState(uint32_t instances,
+                         const CategoryType& category,
+                         StateValueType&& state_value,
+                         const StateTrack& track,
+                         Args&&... args) PERFETTO_ALWAYS_INLINE {
+    TraceForCategoryImplNoTimestamp(
+        instances, DecayStrType(category),
+        DecayEventNameType(std::forward<StateValueType>(state_value)),
+        protos::pbzero::TrackEvent::TYPE_STATE, track,
+        std::forward<Args>(args)...);
   }
 
 #if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
@@ -494,15 +515,17 @@ class TrackEvent {
   static void TraceForCategoryLegacy(
       uint32_t instances,
       const CategoryType& category,
-      const EventNameType& event_name,
+      EventNameType&& event_name,
       perfetto::protos::pbzero::TrackEvent::Type type,
       TrackType&& track,
       char phase,
       uint32_t flags,
       Arguments&&... args) PERFETTO_ALWAYS_INLINE {
-    TraceForCategoryLegacyBody(instances, DecayStrType(category),
-                               DecayStrType(event_name), type, track, phase,
-                               flags, DecayArgType(args)...);
+    internal::ValidateEventNameType<EventNameType>();
+    TraceForCategoryLegacyBody(
+        instances, DecayStrType(category),
+        internal::DecayEventNameType(std::forward<EventNameType>(event_name)),
+        type, track, phase, flags, DecayArgType(args)...);
   }
 
   template <typename TrackType,
@@ -517,16 +540,18 @@ class TrackEvent {
   static void TraceForCategoryLegacy(
       uint32_t instances,
       const CategoryType& category,
-      const EventNameType& event_name,
+      EventNameType&& event_name,
       perfetto::protos::pbzero::TrackEvent::Type type,
       TrackType&& track,
       char phase,
       uint32_t flags,
       TimestampType&& timestamp,
       Arguments&&... args) PERFETTO_ALWAYS_INLINE {
-    TraceForCategoryLegacyBody(instances, DecayStrType(category),
-                               DecayStrType(event_name), type, track, phase,
-                               flags, timestamp, DecayArgType(args)...);
+    internal::ValidateEventNameType<EventNameType>();
+    TraceForCategoryLegacyBody(
+        instances, DecayStrType(category),
+        internal::DecayEventNameType(std::forward<EventNameType>(event_name)),
+        type, track, phase, flags, timestamp, DecayArgType(args)...);
   }
 
   template <typename TrackType,
@@ -540,7 +565,7 @@ class TrackEvent {
   static void TraceForCategoryLegacyWithId(
       uint32_t instances,
       const CategoryType& category,
-      const EventNameType& event_name,
+      EventNameType&& event_name,
       perfetto::protos::pbzero::TrackEvent::Type type,
       TrackType&& track,
       char phase,
@@ -548,9 +573,11 @@ class TrackEvent {
       ThreadIdType thread_id,
       LegacyIdType legacy_id,
       Arguments&&... args) PERFETTO_ALWAYS_INLINE {
+    internal::ValidateEventNameType<EventNameType>();
     TraceForCategoryLegacyWithIdBody(
-        instances, DecayStrType(category), DecayStrType(event_name), type,
-        track, phase, flags, thread_id, legacy_id, DecayArgType(args)...);
+        instances, DecayStrType(category),
+        internal::DecayEventNameType(std::forward<EventNameType>(event_name)),
+        type, track, phase, flags, thread_id, legacy_id, DecayArgType(args)...);
   }
 
   template <typename TrackType,
@@ -567,7 +594,7 @@ class TrackEvent {
   static void TraceForCategoryLegacyWithId(
       uint32_t instances,
       const CategoryType& category,
-      const EventNameType& event_name,
+      EventNameType&& event_name,
       perfetto::protos::pbzero::TrackEvent::Type type,
       TrackType&& track,
       char phase,
@@ -576,10 +603,12 @@ class TrackEvent {
       LegacyIdType legacy_id,
       TimestampType&& timestamp,
       Arguments&&... args) PERFETTO_ALWAYS_INLINE {
-    TraceForCategoryLegacyWithIdBody(instances, DecayStrType(category),
-                                     DecayStrType(event_name), type, track,
-                                     phase, flags, thread_id, legacy_id,
-                                     timestamp, DecayArgType(args)...);
+    internal::ValidateEventNameType<EventNameType>();
+    TraceForCategoryLegacyWithIdBody(
+        instances, DecayStrType(category),
+        internal::DecayEventNameType(std::forward<EventNameType>(event_name)),
+        type, track, phase, flags, thread_id, legacy_id, timestamp,
+        DecayArgType(args)...);
   }
 #endif
 
