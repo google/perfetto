@@ -123,40 +123,51 @@ struct ClockId {
   uint32_t clock_id = 0;
   uint32_t seq_id = 0;
   uint32_t trace_file_id = 0;
+  // Machine the clock belongs to; 0 is the host. Distinguishes machines that
+  // share one file (a multi-machine proto trace is a single trace_file_id);
+  // trace_file_id distinguishes files on the same machine.
+  uint32_t machine_id = 0;
 
   constexpr ClockId() = default;
 
-  // Factory for machine-scoped builtin clocks (e.g. BOOTTIME, MONOTONIC).
+  // Factory for the host machine's builtin clocks (e.g. BOOTTIME, MONOTONIC).
   static constexpr ClockId Machine(uint32_t builtin_clock_id) {
-    return {builtin_clock_id, 0, 0};
+    return {builtin_clock_id, 0, 0, 0};
+  }
+
+  // Factory for a specific machine's builtin clock.
+  static constexpr ClockId Machine(uint32_t machine_id,
+                                   uint32_t builtin_clock_id) {
+    return {builtin_clock_id, 0, 0, machine_id};
   }
 
   // Factory for trace-file-scoped clocks.
   static constexpr ClockId TraceFile(uint32_t tfi) {
-    return {protos::pbzero::BUILTIN_CLOCK_TRACE_FILE, 0, tfi};
+    return {protos::pbzero::BUILTIN_CLOCK_TRACE_FILE, 0, tfi, 0};
   }
 
   // Factory for sequence-scoped clocks.
   static constexpr ClockId Sequence(uint32_t tfi, uint32_t sid, uint32_t cid) {
     PERFETTO_DCHECK(IsSequenceClock(cid));
-    return {cid, sid, tfi};
+    return {cid, sid, tfi, 0};
   }
 
   bool operator==(const ClockId& o) const {
     return clock_id == o.clock_id && seq_id == o.seq_id &&
-           trace_file_id == o.trace_file_id;
+           trace_file_id == o.trace_file_id && machine_id == o.machine_id;
   }
   bool operator!=(const ClockId& o) const { return !(*this == o); }
   bool operator<(const ClockId& o) const {
-    return std::tie(clock_id, seq_id, trace_file_id) <
-           std::tie(o.clock_id, o.seq_id, o.trace_file_id);
+    return std::tie(clock_id, seq_id, trace_file_id, machine_id) <
+           std::tie(o.clock_id, o.seq_id, o.trace_file_id, o.machine_id);
   }
 
   std::string ToString() const;
 
   template <typename H>
   friend H PerfettoHashValue(H h, const ClockId& c) {
-    return H::Combine(std::move(h), c.clock_id, c.seq_id, c.trace_file_id);
+    return H::Combine(std::move(h), c.clock_id, c.seq_id, c.trace_file_id,
+                      c.machine_id);
   }
 
   static constexpr bool IsSequenceClock(uint32_t clock_id) {
@@ -165,11 +176,22 @@ struct ClockId {
 
   bool IsSequenceClock() const { return IsSequenceClock(clock_id); }
 
+  // Returns |c| scoped to |machine|; builtin clocks (tf=0,seq=0) are also
+  // tagged with |file_tag| so same-machine files stay isolated in one graph.
+  static constexpr ClockId Qualify(ClockId c,
+                                   uint32_t machine,
+                                   uint32_t file_tag) {
+    c.machine_id = machine;
+    if (c.seq_id == 0 && c.trace_file_id == 0)
+      c.trace_file_id = file_tag;
+    return c;
+  }
+
  private:
   friend class ClockSynchronizer;
 
-  constexpr ClockId(uint32_t cid, uint32_t sid, uint32_t tfi)
-      : clock_id(cid), seq_id(sid), trace_file_id(tfi) {}
+  constexpr ClockId(uint32_t cid, uint32_t sid, uint32_t tfi, uint32_t mid)
+      : clock_id(cid), seq_id(sid), trace_file_id(tfi), machine_id(mid) {}
 };
 
 // Clock description.
@@ -229,10 +251,6 @@ struct TraceTimeState {
   }
 
   std::optional<int64_t> timezone_offset;
-
-  // TODO(lalitm): remote_clock_offsets is a hack. We should have a proper
-  // definition for dealing with cross-machine clock synchronization.
-  base::FlatHashMap<ClockId, int64_t> remote_clock_offsets;
 };
 
 // Virtual interface for listening to clock synchronization events.

@@ -774,10 +774,17 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
     context_->clock_tracker->AddSnapshot(clock_timestamps);
   }
 
-  // Calculate clock offsets and report to the ClockTracker.
+  // Express each per-clock offset as a cross-machine edge in the single clock
+  // graph: at the synced instant the host clock reads 0 and this (client)
+  // machine's clock reads |offset|, so the two are linked directly.
+  uint32_t client_machine = context_->machine_id().value;
+  uint32_t host_machine = context_->trace_time_state->clock_id.machine_id;
   auto clock_offsets = CalculateClockOffsets(sync_clock_snapshots);
   for (auto it = clock_offsets.GetIterator(); it; ++it) {
-    context_->clock_tracker->SetRemoteClockOffset(it.key(), it.value());
+    uint32_t builtin = it.key().clock_id;
+    context_->clock_tracker->AddQualifiedSnapshot(
+        {{ClockId::Machine(host_machine, builtin), 0},
+         {ClockId::Machine(client_machine, builtin), it.value()}});
   }
   return base::OkStatus();
 }

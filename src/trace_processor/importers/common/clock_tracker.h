@@ -47,14 +47,14 @@ class ClockTracker {
   using ClockTimestamp = ::perfetto::trace_processor::ClockTimestamp;
   using Clock = ::perfetto::trace_processor::Clock;
 
-  // |primary_sync| is the primary trace's ClockSynchronizer. For the primary
-  // trace (first trace for a machine), snapshots are added directly to
-  // |primary_sync| and it is used for all conversions. For non-primary traces,
-  // |primary_sync| is used for conversions until the first AddSnapshot call,
-  // at which point the tracker switches to its own internal sync.
+  // |sync| is the single global clock graph shared by all traces/machines.
+  // This tracker stamps every clock it touches with its (machine, file) tag so
+  // its clocks are isolated from other files'. |is_primary| (first trace of its
+  // machine) keeps its builtins on the machine-canonical tag (f=0) so later
+  // snapshot-less files can resolve through them; non-primary files that bring
+  // their own snapshots isolate onto their own file tag.
   ClockTracker(TraceProcessorContext* context,
-               std::unique_ptr<ClockSynchronizerListenerImpl> listener,
-               ClockSynchronizer* primary_sync,
+               ClockSynchronizer* sync,
                bool is_primary);
 
   // --- Hot-path APIs (inlined) ---
@@ -71,9 +71,9 @@ class ClockTracker {
     }
     auto* state = context_->trace_time_state.get();
     ++num_conversions_;
-    auto ts = active_sync_->Convert(clock_id, timestamp, state->clock_id,
-                                    byte_offset, suppress_errors);
-    return ts ? std::optional(ToHostTraceTime(*ts)) : ts;
+    return sync_->Convert(
+        ClockId::Qualify(clock_id, machine_id_, current_file_tag_), timestamp,
+        state->clock_id, byte_offset, suppress_errors);
   }
 
   // Converts a timestamp between two arbitrary clock domains.
@@ -83,7 +83,9 @@ class ClockTracker {
       ClockId target,
       std::optional<size_t> byte_offset = {}) {
     ++num_conversions_;
-    return active_sync_->Convert(src, ts, target, byte_offset);
+    return sync_->Convert(
+        ClockId::Qualify(src, machine_id_, current_file_tag_), ts,
+        ClockId::Qualify(target, machine_id_, current_file_tag_), byte_offset);
   }
 
   // --- Slow-path public APIs ---
@@ -93,7 +95,15 @@ class ClockTracker {
   // effort), which backs ClockConverter (to_realtime, abs_time_str, the UI
   // wall-clock axis). Every edge entering the graph is recorded this way;
   // deferred syncs record when their edge is actually injected.
+  // Taken by value and (machine, file)-qualified in place; callers pass
+  // temporaries, so it moves in without a copy.
   base::StatusOr<uint32_t> AddSnapshot(
+      std::vector<ClockTimestamp> clock_timestamps);
+
+  // Adds a snapshot whose clocks are already fully (machine, file) qualified,
+  // bypassing this tracker's own tagging. Used for cross-machine edges (e.g.
+  // remote_clock_sync), which relate clocks on two different machines.
+  base::StatusOr<uint32_t> AddQualifiedSnapshot(
       const std::vector<ClockTimestamp>& clock_timestamps);
 
   // --- Low-level clock primitives. Do not call without understanding the
@@ -121,35 +131,21 @@ class ClockTracker {
   std::optional<int64_t> ToTraceTimeFromSnapshot(
       const std::vector<ClockTimestamp>& snapshot);
 
-  void SetRemoteClockOffset(ClockId clock_id, int64_t offset);
   std::optional<int64_t> timezone_offset() const;
   void set_timezone_offset(int64_t offset);
 
   // --- Testing ---
   void set_cache_lookups_disabled_for_testing(bool v);
-  const base::FlatHashMap<ClockId, int64_t>& remote_clock_offsets_for_testing();
   uint32_t cache_hits_for_testing() const;
 
  private:
   friend class ClockTrackerTest;
 
-  PERFETTO_ALWAYS_INLINE int64_t ToHostTraceTime(int64_t timestamp) {
-    if (PERFETTO_LIKELY(context_->machine_id() ==
-                        MachineId(kDefaultMachineId))) {
-      return timestamp;
-    }
-    auto* state = context_->trace_time_state.get();
-    // Find, not operator[]: a lookup must not insert a spurious zero offset.
-    int64_t* clock_offset = state->remote_clock_offsets.Find(state->clock_id);
-    return timestamp - (clock_offset ? *clock_offset : 0);
-  }
-
   PERFETTO_NO_INLINE void FlushDeferredIdentitySync();
 
-  // Adds an edge directly to |active_sync_| (bypassing the non-primary sync
-  // switch of the public AddSnapshot) and records it in the clock_snapshot
-  // table. Every graph mutation goes through here so the table is a
-  // faithful record of the graph.
+  // Adds an edge directly to the global sync and records it in the
+  // clock_snapshot table. Every graph mutation goes through here so the table
+  // is a faithful record of the graph. Clocks must already be qualified.
   base::StatusOr<uint32_t> AddSnapshotInternal(
       const std::vector<ClockTimestamp>& clock_timestamps);
 
@@ -174,22 +170,24 @@ class ClockTracker {
   StringId monotonic_raw_clock_name_;
   StringId boottime_clock_name_;
 
-  // Private ClockSynchronizer used for non-primary traces. Primary traces use
-  // the externally provided |primary_sync_| directly and don't use this member.
-  ClockSynchronizer sync_;
+  // The single global clock graph, shared by all trace/machine trackers.
+  ClockSynchronizer* sync_;
 
-  // Points to the ClockSynchronizer used for conversions. Starts at
-  // |primary_sync_| and switches to |sync_| for non-primary traces
-  // on the first AddSnapshot call.
-  ClockSynchronizer* active_sync_;
+  // This tracker's machine and trace-file ids, used to (machine, file) qualify
+  // the clocks it touches.
+  uint32_t machine_id_ = 0;
+  uint32_t own_file_id_ = 0;
 
-  // Whether this is the primary trace for its machine. Non-primary
-  // traces start using primary_sync_ and switch to sync_ on first AddSnapshot.
+  // The file tag stamped onto this tracker's builtins: 0 (machine-canonical)
+  // for primary traces and for non-primary traces until they bring their own
+  // snapshot, then |own_file_id_| (isolated). See AddSnapshot.
+  uint32_t current_file_tag_ = 0;
+
+  // Whether this is the primary (first) trace of its machine. Non-primary
+  // traces isolate onto their own file tag once they add a snapshot.
   bool is_primary_ = true;
 
-  // Total number of conversions performed. When a non-primary trace switches
-  // to its own sync, this value indicates how many conversions used the
-  // primary trace's clocks.
+  // Total number of conversions performed.
   uint32_t num_conversions_ = 0;
 
   // The default clock for this trace file, set via SetTraceDefaultClock.
@@ -219,11 +217,6 @@ class ClockSynchronizerListenerImpl : public ClockSynchronizerListener {
 
  private:
   TraceProcessorContext* context_;
-  StringId source_clock_id_key_;
-  StringId target_clock_id_key_;
-  StringId source_timestamp_key_;
-  StringId source_sequence_id_key_;
-  StringId target_sequence_id_key_;
 };
 
 }  // namespace perfetto::trace_processor

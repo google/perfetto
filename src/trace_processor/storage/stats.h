@@ -141,7 +141,7 @@ namespace perfetto::trace_processor::stats {
   F(graphics_frame_event_parser_errors,   kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(guess_trace_type_duration_ns,         kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(interned_data_tokenizer_errors,       kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
-  F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, Scope::kGlobal, ""), \
   F(invalid_cpu_times,                    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(kernel_wakelock_reused_id,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Duplicated interning ID seen. Should never happen."),                  \
@@ -346,8 +346,8 @@ namespace perfetto::trace_processor::stats {
   F(psi_unknown_resource,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(vulkan_allocations_invalid_string_id,                                      \
                                           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
-  F(clock_sync_failure,                   kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
-  F(clock_sync_failure_unknown_source_clock, kSingle, kError, kAnalysis, Scope::kMachineAndTrace,      \
+  F(clock_sync_failure,                   kSingle,  kError,    kAnalysis, Scope::kGlobal, ""), \
+  F(clock_sync_failure_unknown_source_clock, kSingle, kError, kAnalysis, Scope::kGlobal,      \
       "A packet with a timestamp could not be converted to trace time "        \
       "because the source clock ID has never appeared in any ClockSnapshot. "  \
       "This indicates the trace producer emitted packets with a clock_id but " \
@@ -355,11 +355,11 @@ namespace perfetto::trace_processor::stats {
       "ClockSnapshots are emitted before any packets using that clock_id. "    \
       "For sequence-scoped clocks (64-128), ensure each packet sequence "      \
       "emits its own ClockSnapshot."),                                         \
-  F(clock_sync_failure_unknown_target_clock, kSingle, kError, kAnalysis, Scope::kMachineAndTrace,      \
+  F(clock_sync_failure_unknown_target_clock, kSingle, kError, kAnalysis, Scope::kGlobal,      \
       "A packet timestamp could not be converted because the target trace "    \
       "time clock has never appeared in any ClockSnapshot. This is an "        \
       "internal error that should not occur."),                                \
-  F(clock_sync_failure_no_path, kSingle, kError, kAnalysis, Scope::kMachineAndTrace,                   \
+  F(clock_sync_failure_no_path, kSingle, kError, kAnalysis, Scope::kGlobal,                   \
       "A packet timestamp could not be converted to trace time because no "    \
       "ClockSnapshot path exists connecting the source clock to the trace "    \
       "time clock. Both clocks exist in snapshots, but never together or "     \
@@ -379,7 +379,7 @@ namespace perfetto::trace_processor::stats {
       "results. This can happen when a sequence-scoped clock (64-127) is "    \
       "used before the ClockSnapshot defining it arrives, and the sorter "     \
       "has already started flushing."),                                        \
-  F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A namespaced thread association was received but the corresponding "    \

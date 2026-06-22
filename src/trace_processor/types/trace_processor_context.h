@@ -158,6 +158,9 @@ class TraceProcessorContext {
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
   GlobalPtr<TraceTimeState> trace_time_state;
+  // One clock graph for the whole import. Clocks are isolated per-(machine,
+  // file) via ClockId, so cross-machine/cross-file syncs are ordinary edges.
+  GlobalPtr<ClockSynchronizer> clock_sync;
   GlobalPtr<TraceManifestState> trace_manifest_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
@@ -209,7 +212,6 @@ class TraceProcessorContext {
 
   PerMachinePtr<SymbolTracker> symbol_tracker;
   PerMachinePtr<ProcessTracker> process_tracker;
-  PerMachinePtr<ClockSynchronizer> primary_clock_sync;
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
