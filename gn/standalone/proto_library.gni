@@ -56,15 +56,7 @@ template("proto_library") {
   if (defined(perfetto_protobuf_src_dir)) {
     _protobuf_src_dir = perfetto_protobuf_src_dir
   }
-  _has_protobuf_src = false
-  foreach(d, import_dirs) {
-    if (rebase_path(d, "//") == rebase_path(_protobuf_src_dir, "//")) {
-      _has_protobuf_src = true
-    }
-  }
-  if (!_has_protobuf_src) {
-    import_dirs += [ _protobuf_src_dir ]
-  }
+  import_dirs += [ _protobuf_src_dir ]
 
   # If false will not generate the default .pb.{cc,h} files. Used for custom
   # codegen plugins.
