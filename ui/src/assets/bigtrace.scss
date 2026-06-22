@@ -29,6 +29,17 @@
   pointer-events: none;
 }
 
+// Settings-card title row (bigtrace): Switch + title left, optional per-setting
+// reset pushed right. pf-bt classes — not the shared pf-settings-card BEM.
+.pf-bt-settings-card-title {
+  display: flex;
+  align-items: center;
+}
+
+.pf-bt-settings-card-reset {
+  margin-left: auto;
+}
+
 .pf-bt-settings-category-header {
   display: flex;
   align-items: center;
@@ -88,16 +99,6 @@
 
 // ---------- Layout ----------
 
-// QueryPage stays mounted across routes (preserves DataGrid state); contents
-// = no extra box when active, none = hidden but mounted.
-.pf-bt-route-pane {
-  display: contents;
-}
-
-.pf-bt-route-pane--hidden {
-  display: none;
-}
-
 // Bounds the page + SplitPanel/Tabs chain so DataGrid fillHeight scrolls.
 .pf-bt-query-page {
   height: 100%;
@@ -145,12 +146,204 @@
   height: 1em;
 }
 
-// Compound (.pf-home-page__center.pf-bt-home-center) outranks the shared
-// single-class rule, so this overrides its justify-content.
-.pf-bt-home-center {
+// Outrank the shared `.pf-home-page__center` centering so the column sits at
+// the top and stretches full-width — justify-self: stretch beats the grid's
+// justify-items: center, which would otherwise shrink it to content width.
+.pf-home-page .pf-home-page__center.pf-bt-home-center {
+  justify-self: stretch;
   justify-content: flex-start;
-  padding-top: 15vh;
-  gap: 24px;
+  padding-top: 48px;
+  gap: 20px;
+}
+
+// One block holding the intro, presets, and link. It shrinks to its widest
+// row (the grid) and the parent centers it, so a full 3-up grid reads as a
+// left-aligned column while a 1–2 card grid centers as a tight cluster.
+.pf-bt-home-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: fit-content;
+  max-width: min(960px, 92%);
+}
+
+.pf-bt-home-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+
+  &__title {
+    font-size: 36px;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    color: var(--pf-color-text);
+  }
+
+  &__subtitle {
+    font-size: 16px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-bt-home-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// Flat segmented control selecting the active CUJ. Deliberately not the
+// document-tab widget (no panel chrome) — mirrors the record page's flat look.
+.pf-bt-cuj-selector {
+  display: flex;
+  gap: 4px;
+
+  &__item {
+    font: inherit;
+    padding: 4px 12px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    color: var(--pf-color-text-muted);
+    cursor: pointer;
+
+    &:hover {
+      background: color_hover(transparent);
+      color: var(--pf-color-text);
+    }
+
+    &--active {
+      background: var(--pf-color-background-secondary);
+      border-color: var(--pf-color-border);
+      color: var(--pf-color-text);
+      font-weight: 600;
+    }
+  }
+}
+
+// ---------- Analysis preset cards (home page) ----------
+
+// One column per card (capped at 3) via the --cols-N modifier, so a sparse
+// category leaves no empty tracks and the content block can center it.
+.pf-bt-preset-list {
+  display: grid;
+  gap: 16px;
+
+  &--cols-1 {
+    grid-template-columns: minmax(240px, 309px);
+  }
+  &--cols-2 {
+    grid-template-columns: repeat(2, minmax(240px, 309px));
+  }
+  &--cols-3 {
+    grid-template-columns: repeat(3, minmax(240px, 309px));
+  }
+}
+
+// Intentionally richer than the minimal house style — this is the landing
+// surface, so the cards carry color (icon tint) and hover depth.
+.pf-bt-preset-card {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    border-color: var(--pf-color-primary);
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 4px;
+    background: rgba(var(--pf-color-primary-rgb), 0.12);
+    color: var(--pf-color-primary);
+
+    .pf-icon {
+      font-size: 24px;
+    }
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  &__desc {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
+  }
+}
+
+.pf-bt-home-empty__detail {
+  color: var(--pf-color-text-muted);
+  margin-bottom: 12px;
+}
+
+// ---------- Analysis preset chips (settings page / modal) ----------
+// Apply-only tags: clicking applies the preset's trace-selection + option
+// settings (no SQL). `--active` marks the last-applied chip.
+
+.pf-bt-preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+// In the settings picker the selector follows the description; give it room.
+.pf-bt-preset-picker .pf-bt-cuj-selector {
+  margin-top: 8px;
+}
+
+.pf-bt-preset-chip {
+  font: inherit;
+  padding: 3px 10px;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  background: none;
+  color: var(--pf-color-text);
+  cursor: pointer;
+
+  &:hover {
+    background: color_hover(transparent);
+  }
+
+  &:active {
+    background: color_active(transparent);
+  }
+
+  // The preset last applied on the settings surface.
+  &--active {
+    border-color: var(--pf-color-primary);
+    background: rgba(var(--pf-color-primary-rgb), 0.1);
+    color: var(--pf-color-primary);
+
+    &:hover {
+      background: rgba(var(--pf-color-primary-rgb), 0.16);
+    }
+  }
 }
 
 // ---------- Editor tabs & toolbar ----------
@@ -295,10 +488,30 @@
 // Anchors the abs-positioned buttons; the shared float made a BFC that
 // squeezed the meta card.
 .pf-query-history__item {
-  // margin-bottom: 10px;
+  // Real gap between entries so each reads as a distinct unit. Safe to set now
+  // that the buttons are position:absolute / float:none — the old float BFC
+  // that squeezed the meta card (and forced this margin off) is gone.
+  margin-bottom: 12px;
   max-height: none;
   overflow-y: visible;
   position: relative;
+}
+
+// Whole-entry hover highlight. The shared widgets/query_history.scss provides
+// this via color_hover(), but the bigtrace bundle re-implements the history
+// styles and dropped it — restate it here. The entry's surfaces (meta /
+// details / pre) are opaque and layered, so overlay the translucent tint via
+// background-image (which paints over each surface's background-color) instead
+// of replacing the background.
+.pf-query-history__item:hover {
+  .pf-bt-history-item-meta,
+  .pf-bt-history-item-details,
+  pre {
+    background-image: linear-gradient(
+      color_hover(transparent),
+      color_hover(transparent)
+    );
+  }
 }
 
 .pf-query-history__item-buttons {
@@ -312,6 +525,8 @@
 // Status-colored left bar, meta card only (clashes with the pre's border).
 .pf-bt-history-item-meta {
   border-left: 3px solid transparent;
+  // The band opens the query on click (same as the Open button).
+  cursor: pointer;
 }
 
 .pf-query-history__item:has(.pf-bt-status-success) .pf-bt-history-item-meta {
@@ -524,6 +739,25 @@ pre.pf-bt-history-item-query--standalone {
   white-space: pre-wrap;
 }
 
+// A fetch_results failure shown in place of the results grid: a short heading
+// plus the selectable, scrollable error body (reusing .pf-bt-error-content).
+.pf-bt-results-error {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  &__title {
+    padding: 12px 12px 0;
+    font-weight: 500;
+    color: var(--pf-color-danger);
+  }
+
+  .pf-bt-error-content {
+    flex: 1;
+  }
+}
+
 // min-height:0 chain lets DataGrid fillHeight work; only the body scrolls.
 .pf-bt-results-panel {
   display: flex;
@@ -710,5 +944,130 @@ pre.pf-bt-history-item-query--standalone {
     padding: 8px 12px;
     background: var(--pf-minimal-background);
     border-radius: 4px;
+  }
+
+  // The settings cards live in a CardStack, but BigTraceSettingsCard wraps
+  // each Card in a <div> for its disabled-state class — that wrapper hides the
+  // cards from CardStack's unified-seam styling, so they render flush with no
+  // gap. Render every settings card as a distinct, spaced, bordered card
+  // instead (clearer for the mix of simple key/value settings and the compound
+  // Traces / Query Result Columns cards).
+  .pf-card-stack {
+    border: none;
+    box-shadow: none;
+    overflow: visible;
+    gap: 12px;
+  }
+
+  .pf-card-stack > .pf-card,
+  .pf-card-stack > div > .pf-card {
+    border: solid 1px var(--pf-color-border);
+    border-radius: 4px;
+  }
+}
+
+// ---------- Query-page settings bar + per-chip modals ----------
+
+.pf-bt-editor-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.pf-bt-editor-tab > .pf-split-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pf-bt-settings-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--pf-color-background-secondary);
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+  flex: 0 0 auto;
+
+  &__chips {
+    flex: 1 1 auto;
+    min-width: 0;
+
+    // A chip with a long value (e.g. a trace-path filter) must ellipsize, not
+    // grow the editor panel past the split and scroll the whole page. The
+    // shared chip pins min-width: max-content, so cap and let it shrink here;
+    // its label already has text-overflow: ellipsis.
+    .pf-chip {
+      min-width: 0;
+      max-width: 100%;
+    }
+  }
+
+  // Only the "Edit settings" chip is clickable — give it the pointer cursor.
+  // The other chips are read-only display (× still removes), so they keep the
+  // default cursor.
+  &__add {
+    cursor: pointer;
+  }
+}
+
+// "Traces" card header — title with the refresh icon directly to its
+// right. Used by both /settings and the embedded SettingsPage (+Add modal).
+.pf-bt-trace-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  .pf-settings-card__title {
+    margin: 0;
+  }
+
+  // The "Query" CTA sits at the far right of the Traces header.
+  .pf-bt-trace-card__query {
+    margin-left: auto;
+  }
+}
+
+// Per-chip edit modal — narrow, content stacked vertically. The +Add modal
+// hosts the full SettingsPage embedded view (.pf-bt-settings-embedded below).
+.pf-bt-settings-chip-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 320px;
+  padding: 4px 0;
+}
+
+.pf-bt-settings-chip-modal__description {
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+  line-height: 1.4;
+}
+
+.pf-bt-settings-chip-modal__control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+// Vertical column of checkboxes for the "Show with results" picker.
+.pf-bt-settings-chip-modal__checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+// Settings sub-tab embedded SettingsPage — scrollable container, no
+// SettingsShell chrome.
+.pf-bt-settings-embedded {
+  overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 16px 20px 24px;
+
+  .pf-bt-settings-page {
+    margin: 0;
   }
 }

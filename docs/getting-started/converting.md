@@ -87,6 +87,12 @@ import uuid
 from perfetto.trace_builder.proto_builder import TraceProtoBuilder
 from perfetto.protos.perfetto.trace.perfetto_trace_pb2 import TrackEvent, TrackDescriptor, ProcessDescriptor, ThreadDescriptor
 
+# Define a unique ID for this sequence of packets (generate once per trace producer)
+TRUSTED_PACKET_SEQUENCE_ID = 1001 # Choose any unique integer
+
+def get_uuid() -> int:
+    return uuid.uuid4().int & ((1 << 63) - 1)
+
 def populate_packets(builder: TraceProtoBuilder):
     """
     This function is where you will define and add your TracePackets
@@ -129,7 +135,7 @@ def main():
       f.write(builder.serialize())
 
     print(f"Trace written to {output_filename}")
-    print(f"Open with [https://ui.perfetto.dev](https://ui.perfetto.dev).")
+    print("Open with [https://ui.perfetto.dev](https://ui.perfetto.dev).")
 
 if __name__ == "__main__":
     main()
@@ -192,9 +198,6 @@ your `trace_converter_template.py` script.
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    # Define a unique ID for this sequence of packets (generate once per trace producer)
-    TRUSTED_PACKET_SEQUENCE_ID = 1001 # Choose any unique integer
-
     # Define a unique UUID for your custom track (generate a 64-bit random number)
     CUSTOM_TRACK_UUID = 12345678 # Example UUID
 
@@ -297,9 +300,6 @@ your `trace_converter_template.py` script.
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    # Define a unique ID for this sequence of packets
-    TRUSTED_PACKET_SEQUENCE_ID = 2002 # Using a new ID for this example
-
     # Define a unique UUID for this example's custom track
     NESTED_SLICE_TRACK_UUID = 987654321 # Example UUID
 
@@ -406,13 +406,12 @@ your `trace_converter_template.py` script:
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    TRUSTED_PACKET_SEQUENCE_ID = 3003
     # Common name for all individual connection tracks for UI grouping
     ASYNC_TRACK_GROUP_NAME = "HTTP Connections"
 
     # Helper to define a new track with a unique UUID
     def define_track(group_name):
-        track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+        track_uuid = get_uuid()
         packet = builder.add_packet()
         packet.track_descriptor.uuid = track_uuid
         packet.track_descriptor.name = group_name
@@ -496,9 +495,8 @@ your `trace_converter_template.py` script.
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    TRUSTED_PACKET_SEQUENCE_ID = 4004
     # UUID for the counter track
-    OUTSTANDING_REQUESTS_TRACK_UUID = uuid.uuid4().int & ((1 << 63) - 1)
+    OUTSTANDING_REQUESTS_TRACK_UUID = get_uuid()
 
     # 1. Define the Counter Track
     packet = builder.add_packet()
@@ -596,11 +594,9 @@ your `trace_converter_template.py` script.
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    TRUSTED_PACKET_SEQUENCE_ID = 5005
-
     # --- Define Custom Tracks ---
-    REQUEST_HANDLER_TRACK_UUID = uuid.uuid4().int & ((1 << 63) - 1)
-    DATA_PROCESSOR_TRACK_UUID = uuid.uuid4().int & ((1 << 63) - 1)
+    REQUEST_HANDLER_TRACK_UUID = get_uuid()
+    DATA_PROCESSOR_TRACK_UUID = get_uuid()
 
     # Request Handler Track
     packet = builder.add_packet()
@@ -626,8 +622,8 @@ your `trace_converter_template.py` script.
         packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
 
     # --- Define unique flow IDs for the causal links ---
-    DISPATCH_TO_PROCESS_FLOW_ID = uuid.uuid4().int & ((1<<63)-1)
-    PROCESS_COMPLETION_FLOW_ID = uuid.uuid4().int & ((1<<63)-1)
+    DISPATCH_TO_PROCESS_FLOW_ID = get_uuid()
+    PROCESS_COMPLETION_FLOW_ID = get_uuid()
 
     # 1. Request Handler: Dispatch data processing (origin of the first flow)
     add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN,
@@ -712,13 +708,11 @@ your `trace_converter_template.py` script.
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    TRUSTED_PACKET_SEQUENCE_ID = 6006
-
     # --- Define Track UUIDs ---
-    main_system_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
-    subsystem_a_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
-    subsystem_b_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
-    detail_a1_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    main_system_track_uuid = get_uuid()
+    subsystem_a_track_uuid = get_uuid()
+    subsystem_b_track_uuid = get_uuid()
+    detail_a1_track_uuid = get_uuid()
 
     # Helper to define a TrackDescriptor
     def define_custom_track(track_uuid, name, parent_track_uuid=None):
@@ -821,14 +815,12 @@ your `trace_converter_template.py` script.
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    TRUSTED_PACKET_SEQUENCE_ID = 7007
-
     # --- Define Track UUIDs ---
-    root_request_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
-    auth_service_call_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
-    data_service_call_track_uuid = uuid.uuid4().int & ((1 << 63) - 1)
+    root_request_track_uuid = get_uuid()
+    auth_service_call_track_uuid = get_uuid()
+    data_service_call_track_uuid = get_uuid()
     # UUID for an internal step within data_service_call
-    data_service_internal_step_track_uuid = uuid.uuid4().int & ((1<<63)-1)
+    data_service_internal_step_track_uuid = get_uuid()
 
     # Helper to define a TrackDescriptor
     def define_custom_track(track_uuid, name, parent_track_uuid=None):
@@ -940,9 +932,6 @@ your `trace_converter_template.py` script.
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    # Define a unique ID for this sequence of packets
-    TRUSTED_PACKET_SEQUENCE_ID = 6001
-
     # Define a unique UUID for your custom track
     DEBUG_TRACK_UUID = 87654321
 
@@ -1043,9 +1032,6 @@ your `trace_converter_template.py` script.
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    # Define a unique ID for this sequence of packets
-    TRUSTED_PACKET_SEQUENCE_ID = 6002
-
     # Define a unique UUID for your custom track
     NESTED_DEBUG_TRACK_UUID = 87654322
 
@@ -1153,9 +1139,6 @@ your `trace_converter_template.py` script.
 <summary><b>Click to expand/collapse Python code</b></summary>
 
 ```python
-    # Define a unique ID for this sequence of packets
-    TRUSTED_PACKET_SEQUENCE_ID = 7001
-
     # Define a unique UUID for your custom track
     CALLSTACK_TRACK_UUID = 98765432
 

@@ -23,7 +23,6 @@
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "src/trace_processor/importers/generic_kernel/generic_kernel_module.h"
-#include "src/trace_processor/importers/proto/android_camera_event_module.h"
 #include "src/trace_processor/importers/proto/android_cpu_per_uid_module.h"
 #include "src/trace_processor/importers/proto/android_extension.descriptor.h"
 #include "src/trace_processor/importers/proto/android_kernel_wakelocks_module.h"
@@ -77,8 +76,6 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
       new TranslationTableModule(module_context, context));
   module_context->modules.emplace_back(
       new StatsdModule(module_context, context));
-  module_context->modules.emplace_back(
-      new AndroidCameraEventModule(module_context, context));
   module_context->modules.emplace_back(
       new MetadataModule(module_context, context));
   module_context->modules.emplace_back(new V8Module(module_context, context));

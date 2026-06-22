@@ -149,6 +149,37 @@ TEST_F(TrackCompressorUnittest, OnlyInternScoped) {
   ASSERT_EQ(a, d);
 }
 
+TEST_F(TrackCompressorUnittest, LegacyOverlappingScopedNests) {
+  // Same input as |OnlyInternScoped|, but contained slices nest onto one lane.
+  TrackId a = tracker_->InternLegacyOverlappingScoped(
+      kNestable, tracks::Dimensions(1), 100, 10);
+  TrackId b = tracker_->InternLegacyOverlappingScoped(
+      kNestable, tracks::Dimensions(1), 105, 2);
+  TrackId c = tracker_->InternLegacyOverlappingScoped(
+      kNestable, tracks::Dimensions(1), 107, 3);
+  TrackId d = tracker_->InternLegacyOverlappingScoped(
+      kNestable, tracks::Dimensions(1), 110, 5);
+
+  ASSERT_EQ(a, b);
+  ASSERT_EQ(a, c);
+  ASSERT_EQ(a, d);
+}
+
+TEST_F(TrackCompressorUnittest, LegacyOverlappingScopedPartialOverlapSpills) {
+  // b=[50,150] partially overlaps a=[0,100] so spills; c=[60,70] is contained
+  // in a so nests under a, not b.
+  TrackId a = tracker_->InternLegacyOverlappingScoped(
+      kNestable, tracks::Dimensions(1), 0, 100);
+  TrackId b = tracker_->InternLegacyOverlappingScoped(
+      kNestable, tracks::Dimensions(1), 50, 100);
+  TrackId c = tracker_->InternLegacyOverlappingScoped(
+      kNestable, tracks::Dimensions(1), 60, 10);
+
+  ASSERT_NE(a, b);
+  ASSERT_EQ(a, c);
+  ASSERT_NE(b, c);
+}
+
 TEST_F(TrackCompressorUnittest, MixInternScopedAndBeginEnd) {
   TrackId a = tracker_->InternScoped(kNestable, tracks::Dimensions(1), 100, 10);
 

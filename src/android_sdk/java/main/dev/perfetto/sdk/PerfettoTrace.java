@@ -17,7 +17,6 @@
 package dev.perfetto.sdk;
 
 import com.google.errorprone.annotations.CompileTimeConstant;
-
 import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
 import java.util.List;
@@ -328,6 +327,17 @@ public final class PerfettoTrace {
    */
   public static PerfettoTrackEventBuilder expensiveDebugCallStack(Category category,
     String eventName, StackTraceElement[] stackTrace) {
+    return expensiveDebugCallStack(category, eventName, stackTrace, 2);
+  }
+
+  /**
+   * Writes a provided call stack to the Perfetto trace, skipping a specified number of frames from
+   * the top of the stack.
+   * A stack can be captured with Thread.getStackTrace() but note that it is expensive
+   * and should only be used for local debugging or low-frequency diagnostic events.
+   */
+  public static PerfettoTrackEventBuilder expensiveDebugCallStack(
+      Category category, String eventName, StackTraceElement[] stackTrace, int skipFrames) {
     if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
         return PerfettoTrace.instant(category, eventName);
     }
@@ -342,14 +352,17 @@ public final class PerfettoTrace {
         .beginProto().beginNested(FIELD_TRACK_EVENT_CALLSTACK);
 
     // Iterate from the bottom of the stack (main) up to the caller
-    // stackTrace[0] is getStackTrace()
-    // stackTrace[1] is emitStackInPerfetto()
     // We start at the end and stop before reaching these internal methods
-    for (int i = stackTrace.length - 1; i >= 2; i--) {
+    int limit = Math.max(0, Math.min(stackTrace.length, skipFrames));
+    for (int i = stackTrace.length - 1; i >= limit; i--) {
         StackTraceElement element = stackTrace[i];
 
-        builder = builder.beginNested(FIELD_CALLSTACK_FRAMES)
-            .addField(FIELD_FRAME_FUNCTION_NAME, element.getClassName() + "." + element.getMethodName());
+        builder =
+            builder
+                .beginNested(FIELD_CALLSTACK_FRAMES)
+                .addField(
+                    FIELD_FRAME_FUNCTION_NAME,
+                    element.getClassName() + "." + element.getMethodName());
 
         if (element.getFileName() != null) {
             builder = builder.addField(FIELD_FRAME_SOURCE_FILE, element.getFileName());

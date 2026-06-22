@@ -90,10 +90,12 @@ class VideoFrameModuleTest : public testing::Test {
     std::vector<uint8_t> bytes = packet.SerializeAsArray();
 
     TraceBlobView tbv(TraceBlob::CopyFrom(bytes.data(), bytes.size()));
-    TracePacket::Decoder decoder(tbv.data(), tbv.length());
     TracePacketData tpd{tbv.copy(), {}};
-    module.ParseTracePacketData(
-        decoder, ts, tpd, FrameworksBaseTracePacket::kVideoFrameFieldNumber);
+    SelectiveTracePacketDecoder decoder(tbv.data(), tbv.length());
+    TracePacketField field = decoder.FindUnknownField(
+        FrameworksBaseTracePacket::kVideoFrameFieldNumber);
+    ASSERT_TRUE(field.valid());
+    module.ParseField({decoder, ts, tpd, field});
   }
 
   uint32_t FrameRowCount() { return table_->row_count(); }

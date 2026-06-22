@@ -76,7 +76,7 @@ class LinuxTests(TestSuite):
             }
           }
           trusted_packet_sequence_id: 4
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         packet {
           interned_data {

@@ -22,7 +22,7 @@ packet {
 }
 packet {
   trusted_packet_sequence_id: 1
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   incremental_state_cleared: true
   timestamp: 100
   profile_packet {

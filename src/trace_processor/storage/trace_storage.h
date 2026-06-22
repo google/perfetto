@@ -69,6 +69,7 @@ using ArgSetId = uint32_t;
 using TrackId = tables::TrackTable_Id;
 
 using CounterId = tables::CounterTable_Id;
+using StateId = tables::StateTable_Id;
 
 using SliceId = tables::SliceTable_Id;
 
@@ -313,6 +314,12 @@ class TraceStorage {
   tables::CounterTable* mutable_counter_table() {
     return mutable_table<tables::CounterTable>();
   }
+  const tables::StateTable& state_table() const {
+    return table<tables::StateTable>();
+  }
+  tables::StateTable* mutable_state_table() {
+    return mutable_table<tables::StateTable>();
+  }
 
   const SqlStats& sql_stats() const { return sql_stats_; }
   SqlStats* mutable_sql_stats() { return &sql_stats_; }
@@ -514,6 +521,31 @@ class TraceStorage {
   }
   tables::AndroidUserListTable* mutable_user_list_table() {
     return mutable_table<tables::AndroidUserListTable>();
+  }
+
+  const tables::HeapGraphTable& heap_graph_table() const {
+    return table<tables::HeapGraphTable>();
+  }
+  tables::HeapGraphTable* mutable_heap_graph_table() {
+    return mutable_table<tables::HeapGraphTable>();
+  }
+
+  const tables::HeapGraphThreadCallsiteTable& heap_graph_thread_callsite_table()
+      const {
+    return table<tables::HeapGraphThreadCallsiteTable>();
+  }
+  tables::HeapGraphThreadCallsiteTable*
+  mutable_heap_graph_thread_callsite_table() {
+    return mutable_table<tables::HeapGraphThreadCallsiteTable>();
+  }
+
+  const tables::HeapGraphJavaOomeDetailsTable&
+  heap_graph_java_oome_details_table() const {
+    return table<tables::HeapGraphJavaOomeDetailsTable>();
+  }
+  tables::HeapGraphJavaOomeDetailsTable*
+  mutable_heap_graph_java_oome_details_table() {
+    return mutable_table<tables::HeapGraphJavaOomeDetailsTable>();
   }
 
   const tables::AndroidGameInterventionListTable&

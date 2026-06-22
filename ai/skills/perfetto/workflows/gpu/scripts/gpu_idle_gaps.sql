@@ -6,9 +6,9 @@
 -- submission/launch latency, host-side synchronization or waits, device memory
 -- allocation, host-device copies, or host-side work starving the device.
 --
--- No parameters; operates on the whole trace. Returns the top idle gaps as
--- (gap_start_rel_ns, gap_dur_ns), where gap_start_rel_ns is relative to
--- trace_start(). To attribute a gap to host work, take a gap's
+-- No parameters; operates on the whole trace. One row per idle gap (the 10
+-- largest, biggest first): gap_start_rel_ns (relative to trace_start()),
+-- gap_dur_ns. To attribute a gap to host work, take a gap's
 -- [gap_start, gap_start + gap_dur] window and run the host-attribution query
 -- in timeline_occupancy.md.
 --

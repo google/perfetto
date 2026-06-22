@@ -88,17 +88,69 @@
     },
     {
       "scope": "perfetto.protos.TracePacket",
-      "ranges": [[116, 116], [1000, 1999]],
+      "ranges": [[56, 56], [88, 88], [92, 92], [93, 94], [96, 97], [104, 105], [112, 112], [114, 114], [116, 116], [121, 121], [1000, 1999]],
       "allocations": [
         {
           "name": "android_frameworks_base",
           "description": "frameworks/base TracePacket extensions",
           "comment": [
             "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto.",
-            "Wrapper: FrameworksBaseTracePacket.",
-            "1000: VideoFrame video_frame, 1001: VideoFrameError video_frame_error."
+            "Wrapper: FrameworksBaseTracePacket."
           ],
           "ranges": [[116, 116], [1000, 1001]],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
+        },
+        {
+          "name": "android_frameworks_native",
+          "description": "frameworks/native TracePacket extensions",
+          "comment": [
+            "Defined in third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto.",
+            "Wrapper: FrameworksNativeTracePacket."
+          ],
+          "ranges": [[121, 121]],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
+        },
+        {
+          "name": "art_heap_graph",
+          "description": "ART Java heap graph",
+          "comment": [
+            "Defined in the Android tree under art/perfetto_hprof/proto/, mirrored",
+            "here at third_party/android/art/heap_graph.proto.",
+            "Wrapper: ArtHeapGraphTracePacket (56). Field number matches the",
+            "original in-tree field for wire compatibility."
+          ],
+          "ranges": [[56, 56]],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
+        },
+        {
+          "name": "bluetooth",
+          "description": "Bluetooth HCI trace events",
+          "comment": [
+            "Defined in the Android tree under",
+            "packages/modules/Bluetooth/system/gd/proto/tracing/, mirrored here at",
+            "third_party/android/packages/modules/bluetooth/tracing/bluetooth_trace.proto.",
+            "Wrapper: BluetoothTracePacket (114). Field number matches the original",
+            "in-tree field for wire compatibility."
+          ],
+          "ranges": [[114, 114]],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
+        },
+        {
+          "name": "connectivity_network",
+          "description": "Connectivity network packet trace",
+          "comment": [
+            "Defined in the Android tree under",
+            "packages/modules/Connectivity/service-t/native/libs/libnetworkstats/proto/,",
+            "mirrored here at third_party/android/connectivity/network_trace.proto.",
+            "Wrapper: ConnectivityTracePacket (88: network_packet,",
+            "92: network_packet_bundle). Field numbers match the original in-tree",
+            "fields for wire compatibility."
+          ],
+          "ranges": [[88, 88], [92, 92]],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
           "repo": "android-internal"
         },
@@ -106,12 +158,26 @@
           "name": "unallocated",
           "comment": ["The next allocation goes here. Shrink and take from here."],
           "range": [1002, 1999]
+        },
+        {
+          "name": "winscope",
+          "description": "Winscope TracePacket payloads (SurfaceFlinger, Shell, ProtoLog)",
+          "comment": [
+            "Defined in the Android tree under frameworks/{native,base}/tracing/winscope/,",
+            "mirrored here at third_party/android/frameworks/{native,base}/.../winscope/.",
+            "Wrappers: FrameworksNativeWinscopeTracePacket (93,94,104,105,112) and",
+            "FrameworksBaseWinscopeTracePacket (96,97). Field numbers match the original",
+            "in-tree fields for wire compatibility."
+          ],
+          "ranges": [[93, 94], [96, 97], [104, 105], [112, 112]],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
         }
       ]
     },
     {
       "scope": "perfetto.protos.InternedData",
-      "ranges": [[42, 42], [44, 44], [1000, 9999]],
+      "ranges": [[30, 30], [42, 42], [44, 44], [1000, 9999]],
       "allocations": [
         {
           "name": "android_frameworks_base",
@@ -121,6 +187,20 @@
             "Wrapper: FrameworksBaseInternedData."
           ],
           "ranges": [[42, 42], [44, 44]],
+          "registry": "/system/extras/tracing/system_tracing_protos.json",
+          "repo": "android-internal"
+        },
+        {
+          "name": "connectivity_network",
+          "description": "Connectivity network packet interned context",
+          "comment": [
+            "Defined in the Android tree under",
+            "packages/modules/Connectivity/service-t/native/libs/libnetworkstats/proto/,",
+            "mirrored here at third_party/android/connectivity/network_trace.proto.",
+            "Wrapper: ConnectivityInternedData (30: packet_context). Field number",
+            "matches the original in-tree field for wire compatibility."
+          ],
+          "ranges": [[30, 30]],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
           "repo": "android-internal"
         },

@@ -392,7 +392,6 @@ Env-var overrides:
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
     compileProtos();
-    genVersion();
     generateStdlibDocs();
 
     const tsProjects = ['ui', 'ui/src/service_worker'];
@@ -604,17 +603,6 @@ function compileProtos() {
   addTask(postProcessProtosDts, []);
 }
 
-// Generates a .ts source that defines the VERSION and SCM_REVISION constants.
-function genVersion() {
-  const cmd = 'python3';
-  const args = [
-    VERSION_SCRIPT,
-    '--ts_out',
-    pjoin(cfg.outGenDir, 'perfetto_version.ts'),
-  ];
-  addTask(exec, [cmd, args]);
-}
-
 function generateStdlibDocs() {
   const cmd = pjoin(ROOT_DIR, 'tools/gen_stdlib_docs_json.py');
   const stdlibDir = pjoin(ROOT_DIR, 'src/trace_processor/perfetto_sql/stdlib');
@@ -703,8 +691,22 @@ function copySyntaqliteRuntime() {
     'syntaqlite-sqlite.wasm',
   ]) {
     addTask(cp, [pjoin(srcDir, fname), pjoin(dstDir, fname)]);
+    // The bigtrace bundle resolves assets against its own serving root.
+    if (cfg.bigtrace) {
+      addTask(cp, [
+        pjoin(srcDir, fname),
+        pjoin(cfg.outBigtraceDistDir, 'assets', fname),
+      ]);
+    }
   }
   addTask(buildSyntaqlitePerfettoDialect, []);
+  if (cfg.bigtrace) {
+    // Tasks run in queue order, so this copies the freshly-built dialect.
+    addTask(cp, [
+      pjoin(cfg.outDistDir, 'assets', 'syntaqlite-perfetto.wasm'),
+      pjoin(cfg.outBigtraceDistDir, 'assets', 'syntaqlite-perfetto.wasm'),
+    ]);
+  }
 }
 
 function getBuildToolsBinDir() {
