@@ -18,10 +18,14 @@
 
 #include <cinttypes>
 #include <cstdint>
+#include <cstdio>
+#include <limits>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -37,6 +41,63 @@
 
 namespace perfetto::trace_processor::perfetto_manifest {
 namespace {
+
+using FileEntry = TraceManifestState::FileEntry;
+using ClockOverride = TraceManifestState::ClockOverride;
+
+bool IsLeapYear(int y) {
+  return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+}
+
+// Parses an ISO-8601 UTC timestamp ("2026-06-10T10:15:30.123Z") into
+// nanoseconds since the unix epoch. All fields are range-validated and the
+// arithmetic is integer-only: a double-based epoch computation loses up to
+// ~256ns near the current epoch (1.7e18 ns exceeds double's 2^53
+// exact-integer range). The seconds fraction is parsed by hand to stay
+// independent of the LC_NUMERIC locale of embedding applications.
+std::optional<int64_t> ParseUtcTimestamp(const std::string& utc) {
+  int y, mon, day, h, min, sec;
+  int consumed = 0;
+  if (sscanf(utc.c_str(), "%4d-%2d-%2dT%2d:%2d:%2d%n", &y, &mon, &day, &h, &min,
+             &sec, &consumed) != 6) {
+    return std::nullopt;
+  }
+  // The upper year bound keeps the result well inside int64 nanoseconds
+  // (which overflows in 2262).
+  static constexpr int kDaysPerMonth[] = {31, 28, 31, 30, 31, 30,
+                                          31, 31, 30, 31, 30, 31};
+  if (y < 1970 || y > 2200 || mon < 1 || mon > 12 || h < 0 || h > 23 ||
+      min < 0 || min > 59 || sec < 0 || sec > 60) {
+    return std::nullopt;
+  }
+  int max_day = kDaysPerMonth[mon - 1] + (mon == 2 && IsLeapYear(y) ? 1 : 0);
+  if (day < 1 || day > max_day) {
+    return std::nullopt;
+  }
+  const char* rest = utc.c_str() + consumed;
+  int64_t frac_ns = 0;
+  if (*rest == '.') {
+    ++rest;
+    int significant = 0;
+    int total = 0;
+    for (; *rest >= '0' && *rest <= '9'; ++rest, ++total) {
+      if (significant < 9) {
+        frac_ns = frac_ns * 10 + (*rest - '0');
+        ++significant;
+      }
+    }
+    if (total == 0) {
+      return std::nullopt;
+    }
+    for (; significant < 9; ++significant) {
+      frac_ns *= 10;
+    }
+  }
+  if (rest[0] != 'Z' || rest[1] != '\0') {
+    return std::nullopt;
+  }
+  return base::MkTime(y, mon, day, h, min, sec) * 1000000000 + frac_ns;
+}
 
 base::StatusOr<uint32_t> ParseClockName(const json::Dom& value) {
   if (!value.IsString()) {
@@ -58,6 +119,120 @@ base::StatusOr<uint32_t> ParseClockName(const json::Dom& value) {
     return BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
   return base::ErrStatus("perfetto_manifest: unknown clock name: %s",
                          name.c_str());
+}
+
+// Reads a required, non-negative integral nanosecond timestamp stored under
+// `key` in `obj`. `label` names the field in error messages (it may be
+// qualified, e.g. "is.ts").
+base::StatusOr<int64_t> ParseAnchorTs(const json::Dom& obj,
+                                      const char* key,
+                                      const char* label) {
+  if (!obj.HasMember(key) || !obj[key].IsIntegral()) {
+    return base::ErrStatus(
+        "perfetto_manifest: anchor: missing required field: %s", label);
+  }
+  int64_t ts = obj[key].AsInt64();
+  if (ts < 0) {
+    return base::ErrStatus("perfetto_manifest: anchor: %s must not be negative",
+                           label);
+  }
+  return ts;
+}
+
+base::StatusOr<ClockOverride> ParseAnchor(const json::Dom& anchor) {
+  ClockOverride result;
+  ASSIGN_OR_RETURN(result.file_ts_ns, ParseAnchorTs(anchor, "ts", "ts"));
+  if (!anchor.HasMember("is") || !anchor["is"].IsObject()) {
+    return base::ErrStatus(
+        "perfetto_manifest: anchor: missing required field: is");
+  }
+
+  const json::Dom& is = anchor["is"];
+  if (is.HasMember("utc")) {
+    if (is.HasMember("clock") || is.HasMember("ts")) {
+      return base::ErrStatus(
+          "perfetto_manifest: anchor: utc cannot be combined with clock/ts");
+    }
+    if (!is["utc"].IsString()) {
+      return base::ErrStatus("perfetto_manifest: anchor: utc must be a string");
+    }
+    std::string utc = is["utc"].AsString();
+    auto ts = ParseUtcTimestamp(utc);
+    if (!ts) {
+      return base::ErrStatus(
+          "perfetto_manifest: anchor: invalid utc timestamp: %s", utc.c_str());
+    }
+    result.clock = protos::pbzero::BUILTIN_CLOCK_REALTIME;
+    result.clock_ts_ns = *ts;
+    return result;
+  }
+  if (!is.HasMember("clock")) {
+    return base::ErrStatus(
+        "perfetto_manifest: anchor: missing required field: clock");
+  }
+  ASSIGN_OR_RETURN(uint32_t clock, ParseClockName(is["clock"]));
+  result.clock = clock;
+  ASSIGN_OR_RETURN(result.clock_ts_ns, ParseAnchorTs(is, "ts", "is.ts"));
+  return result;
+}
+
+base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
+  // Exclusivity diagnostics: each rejected combination would override the
+  // file's timeline twice.
+  if (clocks.HasMember("offset_ns") && clocks.HasMember("anchor")) {
+    return base::ErrStatus(
+        "perfetto_manifest: offset_ns and anchor are mutually exclusive");
+  }
+  if (clocks.HasMember("native") && clocks.HasMember("anchor")) {
+    return base::ErrStatus(
+        "perfetto_manifest: native and anchor are mutually exclusive");
+  }
+  if (clocks.HasMember("anchor")) {
+    if (!clocks["anchor"].IsObject()) {
+      return base::ErrStatus("perfetto_manifest: anchor must be an object");
+    }
+    return ParseAnchor(clocks["anchor"]);
+  }
+  ClockOverride result;
+  if (clocks.HasMember("native")) {
+    ASSIGN_OR_RETURN(uint32_t native, ParseClockName(clocks["native"]));
+    result.clock = native;
+  }
+  if (clocks.HasMember("offset_ns")) {
+    if (!clocks["offset_ns"].IsIntegral()) {
+      return base::ErrStatus("perfetto_manifest: offset_ns must be an integer");
+    }
+    int64_t offset_ns = clocks["offset_ns"].AsInt64();
+    if (offset_ns == std::numeric_limits<int64_t>::min()) {
+      return base::ErrStatus("perfetto_manifest: offset_ns is out of range");
+    }
+    // Snapshot timestamps must never be negative: a backwards shift is
+    // expressed by mapping a later file timestamp to the clock's zero
+    // instead.
+    if (offset_ns < 0) {
+      result.file_ts_ns = -offset_ns;
+    } else {
+      result.clock_ts_ns = offset_ns;
+    }
+  }
+  return result;
+}
+
+base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
+  if (!file.IsObject() || !file["path"].IsString()) {
+    return base::ErrStatus(
+        "perfetto_manifest: files entries must be objects with a string "
+        "path");
+  }
+  FileEntry entry;
+  entry.path = file["path"].AsString();
+  if (file.HasMember("clocks")) {
+    if (!file["clocks"].IsObject()) {
+      return base::ErrStatus("perfetto_manifest: clocks must be an object");
+    }
+    ASSIGN_OR_RETURN(entry.clock_override, ParseClocks(file["clocks"]));
+  }
+  return entry;
 }
 
 }  // namespace
@@ -113,12 +288,8 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
       return base::ErrStatus("perfetto_manifest: files must be an array");
     }
     for (const json::Dom& file : meta["files"]) {
-      if (!file["path"].IsString()) {
-        return base::ErrStatus(
-            "perfetto_manifest: files entries must be objects with a string "
-            "path");
-      }
-      state->files.push_back({file["path"].AsString()});
+      ASSIGN_OR_RETURN(FileEntry entry, ParseFileEntry(file));
+      state->files.push_back(std::move(entry));
     }
   }
 
