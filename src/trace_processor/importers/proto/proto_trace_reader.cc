@@ -299,8 +299,11 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto [scoped_state, inserted] = sequence_state_.Insert(seq_id, {});
   if (decoder.has_trusted_packet_sequence_id()) {
-    if (!inserted && decoder.previous_packet_dropped()) {
-      ++scoped_state->previous_packet_dropped_count;
+    if (!inserted) {
+      if (uint32_t reasons = decoder.previous_packet_dropped(); reasons) {
+        ++scoped_state->previous_packet_dropped_count;
+        RecordDataLossCauses(scoped_state, reasons);
+      }
     }
   }
 
@@ -597,6 +600,29 @@ void ProtoTraceReader::HandlePreviousPacketDropped(
   GetIncrementalStateForPacketSequence(
       packet_decoder.trusted_packet_sequence_id())
       ->OnPacketLoss();
+}
+
+void ProtoTraceReader::RecordDataLossCauses(SequenceScopedState* seq,
+                                            uint32_t reasons) {
+  using TracePacket = protos::pbzero::TracePacket;
+  auto record = [&](uint32_t mask, uint32_t& count) {
+    if (reasons & mask) {
+      ++count;
+    }
+  };
+  record(TracePacket::DATA_LOSS_READ_GAP, seq->data_loss_read_gap_count);
+  record(TracePacket::DATA_LOSS_CHUNK_CORRUPTED,
+         seq->data_loss_chunk_corrupted_count);
+  record(TracePacket::DATA_LOSS_ORPHAN_CONTINUATION,
+         seq->data_loss_orphan_continuation_count);
+  record(TracePacket::DATA_LOSS_REASSEMBLY_GAP,
+         seq->data_loss_reassembly_gap_count);
+  record(TracePacket::DATA_LOSS_REASSEMBLY_BROKEN_CHAIN,
+         seq->data_loss_reassembly_broken_chain_count);
+  record(TracePacket::DATA_LOSS_OVERWRITE, seq->data_loss_overwrite_count);
+  record(TracePacket::DATA_LOSS_WRITER_ABORT,
+         seq->data_loss_writer_abort_count);
+  record(TracePacket::DATA_LOSS_SMB_FULL, seq->data_loss_smb_full_count);
 }
 
 void ProtoTraceReader::ParseTracePacketDefaults(
@@ -1038,6 +1064,14 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
   struct BufStats {
     uint32_t packet_loss = 0;
     uint32_t incremental_sequences_dropped = 0;
+    uint32_t data_loss_read_gap = 0;
+    uint32_t data_loss_chunk_corrupted = 0;
+    uint32_t data_loss_orphan_continuation = 0;
+    uint32_t data_loss_reassembly_gap = 0;
+    uint32_t data_loss_reassembly_broken_chain = 0;
+    uint32_t data_loss_overwrite = 0;
+    uint32_t data_loss_writer_abort = 0;
+    uint32_t data_loss_smb_full = 0;
   };
   base::FlatHashMap<int32_t, BufStats> stats_per_buffer;
   for (auto it = evt.writer_stats(); it; ++it) {
@@ -1050,16 +1084,48 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
           s->needs_incremental_state_skipped > 0 &&
           s->needs_incremental_state_skipped ==
               s->needs_incremental_state_total;
+      stats.data_loss_read_gap += s->data_loss_read_gap_count;
+      stats.data_loss_chunk_corrupted += s->data_loss_chunk_corrupted_count;
+      stats.data_loss_orphan_continuation +=
+          s->data_loss_orphan_continuation_count;
+      stats.data_loss_reassembly_gap += s->data_loss_reassembly_gap_count;
+      stats.data_loss_reassembly_broken_chain +=
+          s->data_loss_reassembly_broken_chain_count;
+      stats.data_loss_overwrite += s->data_loss_overwrite_count;
+      stats.data_loss_writer_abort += s->data_loss_writer_abort_count;
+      stats.data_loss_smb_full += s->data_loss_smb_full_count;
     }
   }
 
   for (auto it = stats_per_buffer.GetIterator(); it; ++it) {
     auto& v = it.value();
+    auto buf = it.key();
     context_->stats_tracker->SetIndexedStats(
-        stats::traced_buf_sequence_packet_loss, it.key(), v.packet_loss);
+        stats::traced_buf_sequence_packet_loss, buf, v.packet_loss);
     context_->stats_tracker->SetIndexedStats(
-        stats::traced_buf_incremental_sequences_dropped, it.key(),
+        stats::traced_buf_incremental_sequences_dropped, buf,
         v.incremental_sequences_dropped);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_read_gap, buf, v.data_loss_read_gap);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_chunk_corrupted, buf,
+        v.data_loss_chunk_corrupted);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_orphan_continuation, buf,
+        v.data_loss_orphan_continuation);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_reassembly_gap, buf,
+        v.data_loss_reassembly_gap);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_reassembly_broken_chain, buf,
+        v.data_loss_reassembly_broken_chain);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_overwrite, buf, v.data_loss_overwrite);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_writer_abort, buf,
+        v.data_loss_writer_abort);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_smb_full, buf, v.data_loss_smb_full);
   }
 }
 

@@ -1,7 +1,7 @@
 packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1336
   first_packet_on_sequence: true
   [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] {
@@ -35,7 +35,7 @@ packet {
 packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 3
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1336
   first_packet_on_sequence: true
   [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] {
@@ -46,7 +46,7 @@ packet {
 packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 5
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1336
   first_packet_on_sequence: true
   [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] {
@@ -57,7 +57,7 @@ packet {
 packet {
   trusted_uid: 10225
   trusted_packet_sequence_id: 12
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 3981
   first_packet_on_sequence: true
   [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] {

@@ -1,7 +1,7 @@
 packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1305
   first_packet_on_sequence: true
   [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] {
@@ -42,7 +42,7 @@ packet {
 packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 3
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1305
   first_packet_on_sequence: true
   [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] {
@@ -56,7 +56,7 @@ packet {
 packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 4
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1305
   first_packet_on_sequence: true
   [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] { id: 7 starting_window_remove_time_ns: 77706603918 }
@@ -64,7 +64,7 @@ packet {
 packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 5
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 1305
   first_packet_on_sequence: true
   [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] {
@@ -90,7 +90,7 @@ packet {
 packet {
   trusted_uid: 10241
   trusted_packet_sequence_id: 6
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 2528
   first_packet_on_sequence: true
   [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] { id: 7 dispatch_time_ns: 76879063147 handler: 2 }
