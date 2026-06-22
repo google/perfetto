@@ -20,26 +20,19 @@ INCLUDE PERFETTO MODULE android.cujs.threads;
 
 DROP TABLE IF EXISTS android_jank_cuj_main_thread;
 CREATE PERFETTO TABLE android_jank_cuj_main_thread AS
-SELECT cuj_id, cuj.upid, utid, thread.name, thread_track.id AS track_id
-FROM thread
-JOIN android_jank_cuj cuj USING (upid)
-JOIN thread_track USING (utid)
-WHERE
-  (cuj.ui_thread IS NULL AND thread.is_main_thread)
-  -- Some CUJs use a dedicated thread for Choreographer callbacks
-  OR (cuj.ui_thread = thread.utid);
+SELECT * FROM _android_jank_cuj_main_thread;
 
 DROP TABLE IF EXISTS android_jank_cuj_gpu_completion_thread;
 CREATE PERFETTO TABLE android_jank_cuj_gpu_completion_thread AS
-SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('GPU completion');
+SELECT * FROM _android_jank_cuj_gpu_completion_thread;
 
 DROP TABLE IF EXISTS android_jank_cuj_hwc_release_thread;
 CREATE PERFETTO TABLE android_jank_cuj_hwc_release_thread AS
-SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('HWC release');
+SELECT * FROM _android_jank_cuj_hwc_release_thread;
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_process;
 CREATE PERFETTO TABLE android_jank_cuj_sf_process AS
-SELECT * FROM _android_sf_process;
+SELECT * FROM _android_jank_cuj_sf_process;
 
 -- TODO(devianb): Remove table once we migrate google3 pipelines away from using them.
 DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread;
@@ -53,8 +46,8 @@ SELECT * FROM _android_sf_thread($thread_name);
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_gpu_completion_thread AS
-SELECT * FROM _ANDROID_SF_THREAD('GPU completion');
+SELECT * FROM _android_jank_cuj_sf_gpu_completion_thread;
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_render_engine_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_render_engine_thread AS
-SELECT * FROM _ANDROID_SF_THREAD('RenderEngine');
+SELECT * FROM _android_jank_cuj_sf_render_engine_thread;
