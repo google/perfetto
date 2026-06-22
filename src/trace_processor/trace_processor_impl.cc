@@ -1377,6 +1377,24 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
             std::lock_guard<std::mutex> lock(duckdb_arg_set_json_mu_);
             return duckdb_arg_set_json_ctx_->ToJson(arg_set_id);
           });
+      // Bridge to_ftrace to the to_ftrace plugin's SystraceSerializer (reused
+      // verbatim - byte-exact). Mutex-serialized (mutable scratch).
+      duckdb_to_ftrace_ud_ =
+          std::make_unique<ToFtrace::UserData>(context());
+      duckdb_engine_->SetToFtraceConverter(
+          [this](int64_t row) -> std::optional<std::string> {
+            if (row < 0) {
+              return std::nullopt;
+            }
+            std::lock_guard<std::mutex> lock(duckdb_to_ftrace_mu_);
+            SystraceSerializer::ScopedCString s =
+                duckdb_to_ftrace_ud_->serializer.SerializeToString(
+                    static_cast<uint32_t>(row));
+            if (!s.get()) {
+              return std::nullopt;
+            }
+            return std::string(s.get());
+          });
     }
 
     // Wave-2 multi-statement split: the stdlib surface is reached via

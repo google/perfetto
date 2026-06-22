@@ -42,6 +42,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
 #include "src/trace_processor/duckdb/duckdb_engine.h"
 #include "src/trace_processor/plugins/args/args.h"
+#include "src/trace_processor/plugins/to_ftrace/to_ftrace.h"
 #endif
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
@@ -218,6 +219,10 @@ class TraceProcessorImpl : public TraceProcessor,
   // scratch (DuckDB may call the scalar from worker threads).
   std::unique_ptr<ArgSetToJson::Context> duckdb_arg_set_json_ctx_;
   std::mutex duckdb_arg_set_json_mu_;
+  // Backs the DuckDB-lane to_ftrace UDF: the to_ftrace plugin's serializer
+  // (reused for byte-exact output) + a mutex serializing its mutable scratch.
+  std::unique_ptr<ToFtrace::UserData> duckdb_to_ftrace_ud_;
+  std::mutex duckdb_to_ftrace_mu_;
   // Per-query side-map for the generic table-valued-function snapshot: index N
   // holds the `SELECT * FROM <fn>(<args>)` that __duckdb_tvf_<N> materializes
   // (see RewriteTableValuedFunctions). Cleared at the start of each DuckDB

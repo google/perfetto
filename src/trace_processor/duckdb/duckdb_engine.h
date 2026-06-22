@@ -128,6 +128,13 @@ class DuckDbEngine {
     arg_set_json_converter_ = std::move(converter);
   }
 
+  // Provides the ftrace-row-id -> systrace-line converter used by the to_ftrace
+  // UDF (the to_ftrace plugin's SystraceSerializer, reused verbatim). Must be
+  // set before the first query. May be empty.
+  void SetToFtraceConverter(Int64ToVarcharConverter converter) {
+    to_ftrace_converter_ = std::move(converter);
+  }
+
   // Attempts to run the ENTIRE query `sql` inside DuckDB. Semantics (per D2):
   //  - returns a populated `DuckDbExecutionResult` iff `sql` is a single
   //    relational statement referencing only DuckDB-available relations and
@@ -221,6 +228,9 @@ class DuckDbEngine {
   // SetArgSetJsonConverter before the first query. A stable address is passed to
   // the registered UDF, so this member must outlive the connection.
   ArgSetJsonConverter arg_set_json_converter_;
+  // ftrace row id -> systrace line for to_ftrace; set via SetToFtraceConverter.
+  // Stable address passed to the registered UDF, so it must outlive the conn.
+  Int64ToVarcharConverter to_ftrace_converter_;
   duckdb_database db_ = nullptr;
   duckdb_connection conn_ = nullptr;
   std::unique_ptr<DuckDbTableProvider> provider_;

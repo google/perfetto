@@ -135,6 +135,9 @@ const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
           // plugin's nested-JSON serializer (RegisterArgSetJsonFunction);
           // byte-identical to the SQLite intrinsic (same C++ converter).
           "__intrinsic_arg_set_to_json",
+          // `to_ftrace(id)` bridged to the to_ftrace plugin's SystraceSerializer
+          // (RegisterInt64ToVarcharFunction); byte-identical to the SQLite fn.
+          "to_ftrace",
           // Aggregates beyond the beachhead that are SQL-standard and match
           // SQLite: min/max/sum/avg/count already above; total (SUM-as-double),
           // and the statistical aggregates DuckDB shares.
@@ -1588,6 +1591,10 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // Register __intrinsic_arg_set_to_json bridged to the args plugin's converter.
   RETURN_IF_ERROR(
       RegisterArgSetJsonFunction(conn_, &arg_set_json_converter_));
+
+  // Register to_ftrace bridged to the to_ftrace plugin's SystraceSerializer.
+  RETURN_IF_ERROR(RegisterInt64ToVarcharFunction(conn_, "to_ftrace",
+                                                 &to_ftrace_converter_));
 
   initialized_ = true;
   return base::OkStatus();

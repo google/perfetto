@@ -28,17 +28,25 @@
 
 namespace perfetto::trace_processor::duckdb_integration {
 
-// A converter from arg_set_id to its JSON-object string (the shared C++ core of
-// the SQLite `__intrinsic_arg_set_to_json` function, exposed by the args plugin
-// so the DuckDB lane reuses the EXACT same nested-JSON serialization). Returns
-// nullopt on an internal error (-> NULL). Implementations need not be
-// thread-safe; the closure passed in serializes if its backing state requires.
-using ArgSetJsonConverter = std::function<std::optional<std::string>(int64_t)>;
+// A converter from a BIGINT key (arg_set_id, ftrace row id, ...) to a string,
+// reusing the EXACT C++ logic of the matching SQLite intrinsic so the DuckDB
+// lane is byte-identical. Returns nullopt on an internal error / un-serializable
+// input (-> NULL). Need not be thread-safe; the closure serializes if its
+// backing state (mutable scratch) requires.
+using Int64ToVarcharConverter =
+    std::function<std::optional<std::string>(int64_t)>;
+using ArgSetJsonConverter = Int64ToVarcharConverter;  // back-compat alias.
 
-// Registers the DuckDB scalar `__intrinsic_arg_set_to_json(BIGINT) -> VARCHAR`,
-// delegating to `*converter` (a stable pointer; may hold an empty std::function
-// when no trace/converter is wired, in which case calls return NULL). A NULL
-// input or a converter error yields NULL (matching the SQLite intrinsic).
+// Registers a DuckDB scalar `name(BIGINT) -> VARCHAR` delegating to `*converter`
+// (a stable pointer; may hold an empty std::function when unwired -> NULL). A
+// NULL input or a converter error yields NULL.
+base::Status RegisterInt64ToVarcharFunction(
+    duckdb_connection conn,
+    const char* name,
+    const Int64ToVarcharConverter* converter);
+
+// Registers `__intrinsic_arg_set_to_json(BIGINT) -> VARCHAR` (the args plugin's
+// nested-JSON serializer). Thin wrapper over RegisterInt64ToVarcharFunction.
 base::Status RegisterArgSetJsonFunction(duckdb_connection conn,
                                         const ArgSetJsonConverter* converter);
 
