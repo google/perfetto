@@ -425,7 +425,7 @@ TEST_F(ClockTrackerTest, ClockOffset) {
 // it assume-aligned with the global clock (offset 0).
 TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
   auto rt = MakeRemoteTracker(0x1001);
-  rt->AddDeferredIdentitySync(BOOTTIME);
+  rt->AddDeferredClockSync(BOOTTIME);
 
   rt->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   rt->AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
@@ -622,11 +622,11 @@ TEST_F(ClockTrackerTest, SetTraceTimeClockBehavior) {
   EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
 }
 
-TEST_F(ClockTrackerTest, AddDeferredIdentitySync_InjectsEdge) {
-  // AddDeferredIdentitySync injects a zero-offset edge between the given clock
+TEST_F(ClockTrackerTest, AddDeferredClockSync_InjectsEdge) {
+  // AddDeferredClockSync injects a zero-offset edge between the given clock
   // and the trace time clock (BOOTTIME in test fixture).
   constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
-  ct_->AddDeferredIdentitySync(TRACE_FILE);
+  ct_->AddDeferredClockSync(TRACE_FILE);
 
   // The identity edge allows conversion: TRACE_FILE timestamps pass through.
   EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 42), 42);
@@ -641,20 +641,20 @@ TEST_F(ClockTrackerTest, SetTraceDefaultClock_SetsDefaultClock) {
   EXPECT_EQ(*ct_->trace_default_clock(), TRACE_FILE);
 }
 
-TEST_F(ClockTrackerTest, AddDeferredIdentitySync_MatchesTraceTimeClock) {
+TEST_F(ClockTrackerTest, AddDeferredClockSync_MatchesTraceTimeClock) {
   // If the identity clock IS the trace time clock, no edge needed.
-  ct_->AddDeferredIdentitySync(BOOTTIME);
+  ct_->AddDeferredClockSync(BOOTTIME);
 
   ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
   EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 42), 42);
 }
 
-TEST_F(ClockTrackerTest, AddDeferredIdentitySync_WithExplicitSnapshot) {
-  // AddDeferredIdentitySync creates a zero-offset edge TRACE_FILE ↔ BOOTTIME
+TEST_F(ClockTrackerTest, AddDeferredClockSync_WithExplicitSnapshot) {
+  // AddDeferredClockSync creates a zero-offset edge TRACE_FILE ↔ BOOTTIME
   // (since BOOTTIME is the global trace time clock in the test fixture).
   constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
-  ct_->AddDeferredIdentitySync(TRACE_FILE);
+  ct_->AddDeferredClockSync(TRACE_FILE);
 
   // Without any other snapshot, TRACE_FILE converts to BOOTTIME at offset 0.
   EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 42), 42);
@@ -665,13 +665,37 @@ TEST_F(ClockTrackerTest, AddDeferredIdentitySync_WithExplicitSnapshot) {
   EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 1100), 1100);
 }
 
-TEST_F(ClockTrackerTest,
-       AddDeferredIdentitySync_DoesNotChangeGlobalTraceClock) {
+TEST_F(ClockTrackerTest, AddDeferredClockSync_WithOffset) {
+  // A non-zero offset pins from_ts on |from| to to_ts on trace time, so the
+  // file's events are shifted (a perfetto_manifest bare offset).
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(7);
+  ct_->AddDeferredClockSync(TRACE_FILE, /*from_ts=*/0, /*to=*/std::nullopt,
+                            /*to_ts=*/500);
+
+  // TRACE_FILE 0 == BOOTTIME 500, so a TRACE_FILE event is shifted by +500.
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 100), 600);
+}
+
+TEST_F(ClockTrackerTest, AddDeferredClockSync_NamedTargetComposesWithGraph) {
+  // A named target (not trace time) is bridged to trace time by a real
+  // snapshot already in the graph (a perfetto_manifest anchor to REALTIME with
+  // trace time BOOTTIME, as a proto spine would provide REALTIME<->BOOTTIME).
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(7);
+  ct_->AddSnapshot({{REALTIME, 1000}, {BOOTTIME, 5000}});  // REALTIME = BT+4000
+  ct_->AddDeferredClockSync(TRACE_FILE, /*from_ts=*/0, /*to=*/REALTIME,
+                            /*to_ts=*/1000);
+
+  // TRACE_FILE 0 == REALTIME 1000 == BOOTTIME 5000, so a TRACE_FILE event
+  // routes TRACE_FILE -> REALTIME -> BOOTTIME.
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 10), 5010);
+}
+
+TEST_F(ClockTrackerTest, AddDeferredClockSync_DoesNotChangeGlobalTraceClock) {
   // Trace time starts as BOOTTIME (test fixture default).
   constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
-  ct_->AddDeferredIdentitySync(TRACE_FILE);
+  ct_->AddDeferredClockSync(TRACE_FILE);
 
-  // AddDeferredIdentitySync does NOT change the global trace time clock.
+  // AddDeferredClockSync does NOT change the global trace time clock.
   EXPECT_EQ(context_.trace_time_state->clock_id, BOOTTIME);
 }
 

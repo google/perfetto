@@ -66,8 +66,8 @@ class ClockTracker {
       int64_t timestamp,
       std::optional<size_t> byte_offset = std::nullopt,
       bool suppress_errors = false) {
-    if (PERFETTO_UNLIKELY(deferred_identity_clock_.has_value())) {
-      FlushDeferredIdentitySync();
+    if (PERFETTO_UNLIKELY(deferred_clock_sync_.has_value())) {
+      FlushDeferredClockSync();
     }
     auto* state = context_->trace_time_state.get();
     ++num_conversions_;
@@ -77,6 +77,18 @@ class ClockTracker {
     if (PERFETTO_UNLIKELY(!ts && !suppress_errors))
       RecordConversionError(sync_->last_error(), byte_offset);
     return ts;
+  }
+
+  // Converts |ts|, expressed in this trace file's default clock (set via
+  // SetTraceDefaultClock), to trace time. Single-clock tokenizers call this
+  // instead of naming a builtin, so a perfetto_manifest override that swaps the
+  // default clock for the file's private clock transparently redirects them.
+  PERFETTO_ALWAYS_INLINE std::optional<int64_t> ConvertDefaultClockToTraceTime(
+      int64_t ts,
+      std::optional<size_t> byte_offset = std::nullopt,
+      bool suppress_errors = false) {
+    PERFETTO_DCHECK(trace_default_clock_.has_value());
+    return ToTraceTime(*trace_default_clock_, ts, byte_offset, suppress_errors);
   }
 
   // Converts a timestamp between two arbitrary clock domains.
@@ -124,10 +136,19 @@ class ClockTracker {
   // Used as fallback when no timestamp_clock_id is specified.
   void SetTraceDefaultClock(ClockId clock_id);
 
-  // Registers a deferred identity sync: on the first ToTraceTime call, if
-  // |clock_id| cannot reach the global trace time clock through the clock
-  // graph, a zero-offset identity edge between the two is injected.
-  void AddDeferredIdentitySync(ClockId clock_id);
+  // Registers a deferred clock edge, flushed on the first ToTraceTime call.
+  // With all defaults this is the plain identity-to-trace-time edge every trace
+  // file registers for its source clock: if |from| cannot already reach trace
+  // time through the graph, a zero-offset edge is injected (bridged via this
+  // file's machine-canonical node so isolated files still resolve).
+  // A perfetto_manifest clock pin passes a non-zero |from_ts|/|to_ts| offset
+  // and/or an explicit |to| target (omitted means trace time); that edge is
+  // injected directly from this file's (qualified) |from| clock to |to|.
+  // All timestamps must be non-negative.
+  void AddDeferredClockSync(ClockId from,
+                            int64_t from_ts = 0,
+                            std::optional<ClockId> to = std::nullopt,
+                            int64_t to_ts = 0);
 
   // Returns the trace default clock, if one has been set.
   std::optional<ClockId> trace_default_clock() const {
@@ -154,7 +175,7 @@ class ClockTracker {
       const ClockSyncError& error,
       std::optional<size_t> byte_offset);
 
-  PERFETTO_NO_INLINE void FlushDeferredIdentitySync();
+  PERFETTO_NO_INLINE void FlushDeferredClockSync();
 
   // Adds an edge directly to the global sync and records it in the
   // clock_snapshot table. Every graph mutation goes through here so the table
@@ -216,10 +237,16 @@ class ClockTracker {
   // is specified.
   std::optional<ClockId> trace_default_clock_;
 
-  // Clock registered via AddDeferredIdentitySync. Flushed (and cleared) on
-  // first ToTraceTime call: if the clock cannot reach trace time, a 0:0
-  // identity edge is injected.
-  std::optional<ClockId> deferred_identity_clock_;
+  // Edge registered via AddDeferredClockSync, flushed (and cleared) on the
+  // first ToTraceTime call. |to| == nullopt means the trace time clock,
+  // resolved at flush time.
+  struct DeferredSync {
+    ClockId from;
+    int64_t from_ts;
+    std::optional<ClockId> to;
+    int64_t to_ts;
+  };
+  std::optional<DeferredSync> deferred_clock_sync_;
 };
 
 class ClockSynchronizerListenerImpl : public ClockSynchronizerListener {

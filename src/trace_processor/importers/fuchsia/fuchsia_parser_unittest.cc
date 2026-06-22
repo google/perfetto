@@ -213,6 +213,11 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.clock_tracker = std::make_unique<ClockTracker>(
         &context_, primary_sync_.get(), /*is_primary=*/true);
     clock_ = context_.clock_tracker.get();
+    // ForwardingTraceParser normally sets the file's default clock; the
+    // tokenizer converts its events through it
+    // (ConvertDefaultClockToTraceTime).
+    clock_->SetTraceDefaultClock(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(

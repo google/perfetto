@@ -77,6 +77,15 @@ ClockTracker::ClockTracker(TraceProcessorContext* context,
 
 base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
     std::vector<ClockTimestamp> clock_timestamps) {
+  // A snapshot correlates multiple clock domains, which proves this trace is
+  // not single-clock; perfetto_manifest clock overrides are only valid for
+  // single-clock traces. This is the chokepoint for all snapshot producers
+  // (proto ClockSnapshots, ftrace bundles, instruments).
+  if (PERFETTO_UNLIKELY(context_->has_clock_override())) {
+    return base::ErrStatus(
+        "perfetto_manifest: clock overrides require the trace to use a "
+        "single clock");
+  }
   // A non-primary trace that brings its own snapshot isolates its builtins onto
   // its own file tag so they cannot corrupt other files' conversions (e.g. an
   // in-app trace + a system trace on the same machine).
@@ -213,34 +222,50 @@ void ClockTracker::SetTraceDefaultClock(ClockId clock_id) {
   trace_default_clock_ = clock_id;
 }
 
-void ClockTracker::AddDeferredIdentitySync(ClockId clock_id) {
-  deferred_identity_clock_ = clock_id;
+void ClockTracker::AddDeferredClockSync(ClockId from,
+                                        int64_t from_ts,
+                                        std::optional<ClockId> to,
+                                        int64_t to_ts) {
+  PERFETTO_DCHECK(from_ts >= 0 && to_ts >= 0);
+  deferred_clock_sync_ = {from, from_ts, to, to_ts};
 }
 
-void ClockTracker::FlushDeferredIdentitySync() {
-  ClockId raw = *deferred_identity_clock_;
-  deferred_identity_clock_.reset();
+void ClockTracker::FlushDeferredClockSync() {
+  DeferredSync sync = *deferred_clock_sync_;
+  deferred_clock_sync_.reset();
   auto* state = context_->trace_time_state.get();
   ClockId g = state->clock_id;
 
-  ClockId qualified = ClockId::Qualify(raw, machine_id_, current_file_tag_);
-  ClockId canonical = ClockId::Qualify(raw, machine_id_, 0);
+  // The plain identity case (no offset, default target): bridge this file's
+  // source clock to trace time via its machine-canonical node, so an isolated
+  // file's other clocks stay isolated yet it can still reach trace time.
+  if (sync.from_ts == 0 && !sync.to && sync.to_ts == 0) {
+    ClockId qualified = ClockId::Qualify(sync.from, machine_id_,
+                                         current_file_tag_);
+    ClockId canonical = ClockId::Qualify(sync.from, machine_id_, 0);
+    if (qualified != canonical && !sync_->Convert(qualified, 0, canonical)) {
+      AddSnapshotInternal({{qualified, 0}, {canonical, 0}});
+    }
+    if (canonical != g && !sync_->Convert(canonical, 0, g)) {
+      AddSnapshotInternal({{canonical, 0}, {g, 0}});
+    }
+    return;
+  }
 
-  // R2: an isolated file bridges its own trace clock to the machine-canonical
-  // node (1:1), so its other clocks stay isolated yet it can reach trace time.
-  if (qualified != canonical &&
-      !sync_->Convert(qualified, 0, canonical)) {
-    AddSnapshotInternal({{qualified, 0}, {canonical, 0}});
+  // The perfetto_manifest clock-pin case: inject the offset edge directly from
+  // this file's (qualified) private clock to the requested target. An omitted
+  // target means trace time; a named target is the machine-canonical builtin so
+  // it connects to the shared graph. Real edges (e.g. a proto spine) win, so
+  // inject only if |from| cannot already reach |to|.
+  ClockId from = ClockId::Qualify(sync.from, machine_id_, current_file_tag_);
+  ClockId to = sync.to ? ClockId::Qualify(*sync.to, machine_id_, 0) : g;
+  if (from == to) {
+    return;
   }
-  // Ensure the machine-canonical node reaches the global clock. Real edges
-  // (snapshots, remote_clock_sync, manifest clock_sync) win; only if none
-  // connects it do we inject the assume-aligned identity straight to G (R3 for
-  // a different machine, D1 for the same machine — both "assume this clock
-  // equals trace time", which for a G anchored to another machine is exactly
-  // "this machine's clock == that machine's clock").
-  if (canonical != g && !sync_->Convert(canonical, 0, g)) {
-    AddSnapshotInternal({{canonical, 0}, {g, 0}});
+  if (sync_->Convert(from, sync.from_ts, to)) {
+    return;
   }
+  AddSnapshotInternal({{from, sync.from_ts}, {to, sync.to_ts}});
 }
 
 std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(
