@@ -1147,32 +1147,59 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
     if (outer_close == sig.size()) {
       break;  // Malformed; leave as-is (will fall back).
     }
-    // Collect bare-id names within the first and second top-level (depth-1)
-    // nested paren groups inside the outer parens.
+    // Collect the comma-separated ELEMENTS of the first (tables) and second
+    // (partitions) top-level paren groups. A table element is either a bare id
+    // (`A`) or a parenthesized subquery (`(SELECT ...)`); a partition element is
+    // a bare column name. Each element's text is the space-joined significant
+    // tokens (SQL is whitespace-insensitive). `group_idx` counts groups opened:
+    // 1 = tables, 2 = partitions; `d` is the paren depth inside the current
+    // group (the group's own parens are not part of any element).
     std::vector<std::string> tables, partitions;
-    int group = 0;  // 0 = before first '(', 1 = in tables, 2 = between, 3 = in
-                    // partitions.
+    int group_idx = 0;
     int d = 0;
+    std::string elem;
+    auto append = [&](size_t m) {
+      if (!elem.empty()) {
+        elem += " ";
+      }
+      elem += toks[sig[m]].str;
+    };
+    auto flush = [&]() {
+      if (!elem.empty()) {
+        (group_idx == 1 ? tables : partitions).push_back(elem);
+        elem.clear();
+      }
+    };
     for (size_t m = ko + 1; m < outer_close; ++m) {
       int tt = toks[sig[m]].type;
       if (tt == sql_token::kLp) {
-        ++d;
-        if (d == 1) {
-          group = (group == 0) ? 1 : 3;
+        if (d == 0) {  // Opens a group; not element text.
+          ++group_idx;
+          d = 1;
+        } else {  // Subquery paren inside an element.
+          ++d;
+          append(m);
         }
         continue;
       }
       if (tt == sql_token::kRp) {
-        --d;
+        if (d == 1) {  // Closes the current group.
+          flush();
+          d = 0;
+        } else {
+          --d;
+          append(m);
+        }
         continue;
       }
-      if (d == 1 && is_bare_id(m)) {
-        if (group == 1) {
-          tables.push_back(toks[sig[m]].str);
-        } else if (group == 3) {
-          partitions.push_back(toks[sig[m]].str);
-        }
+      if (d == 0) {
+        continue;  // Between groups (e.g. the separating comma): ignore.
       }
+      if (tt == sql_token::kComma && d == 1) {  // Element separator.
+        flush();
+        continue;
+      }
+      append(m);
     }
     if (tables.empty()) {
       break;  // Nothing sensible to rewrite.
@@ -1217,38 +1244,41 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
       cur = std::move(out_np);
       continue;
     }
-    // Build the overlap-join subquery (partitioned path).
+    // Build the overlap-join subquery (partitioned path). Each table element is
+    // aliased `ii_t<i>` (it may be a subquery, which cannot be referenced as
+    // `(SELECT ...).col`).
+    auto alias = [](size_t i) { return "ii_t" + std::to_string(i); };
     auto starts = [&]() {
       std::string s;
       for (size_t i = 0; i < tables.size(); ++i) {
-        s += (i ? ", " : "") + tables[i] + ".ts";
+        s += (i ? ", " : "") + alias(i) + ".ts";
       }
       return s;
     };
     auto ends = [&]() {
       std::string s;
       for (size_t i = 0; i < tables.size(); ++i) {
-        s += (i ? ", " : "") + tables[i] + ".ts + " + tables[i] + ".dur";
+        s += (i ? ", " : "") + alias(i) + ".ts + " + alias(i) + ".dur";
       }
       return s;
     };
     std::string ts_expr = tables.size() == 1
-                              ? tables[0] + ".ts"
+                              ? alias(0) + ".ts"
                               : "greatest(" + starts() + ")";
     std::string end_expr = tables.size() == 1
-                               ? tables[0] + ".ts + " + tables[0] + ".dur"
+                               ? alias(0) + ".ts + " + alias(0) + ".dur"
                                : "least(" + ends() + ")";
     sub = "(SELECT " + ts_expr + " AS ts, (" + end_expr + ") - (" +
           ts_expr + ") AS dur";
     for (size_t i = 0; i < tables.size(); ++i) {
-      sub += ", " + tables[i] + ".id AS id_" + std::to_string(i);
+      sub += ", " + alias(i) + ".id AS id_" + std::to_string(i);
     }
     for (const std::string& p : partitions) {
-      sub += ", " + tables[0] + "." + p + " AS " + p;
+      sub += ", " + alias(0) + "." + p + " AS " + p;
     }
     sub += " FROM ";
     for (size_t i = 0; i < tables.size(); ++i) {
-      sub += (i ? ", " : "") + tables[i];
+      sub += (i ? ", " : "") + tables[i] + " AS " + alias(i);
     }
     std::string where;
     // Pairwise interval-overlap predicates. By Helly's theorem in one
@@ -1267,16 +1297,18 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
     // ONLY the overlap test; the result `dur` below uses the real ends, so a
     // matched instant still yields dur = 0. The bump is conditional on dur == 0
     // so real intervals are unchanged and touching intervals stay excluded.
-    auto cmp_end = [&](const std::string& t) {
-      return t + ".ts + " + t + ".dur + CASE WHEN " + t + ".dur = 0 THEN 1 ELSE 0 END";
+    auto cmp_end = [&](size_t i) {
+      std::string t = alias(i);
+      return t + ".ts + " + t + ".dur + CASE WHEN " + t +
+             ".dur = 0 THEN 1 ELSE 0 END";
     };
     for (size_t i = 0; i < tables.size(); ++i) {
       for (size_t j = i + 1; j < tables.size(); ++j) {
         if (!where.empty()) {
           where += " AND ";
         }
-        where += tables[i] + ".ts < " + cmp_end(tables[j]) + " AND " +
-                 tables[j] + ".ts < " + cmp_end(tables[i]);
+        where += alias(i) + ".ts < " + cmp_end(j) + " AND " + alias(j) +
+                 ".ts < " + cmp_end(i);
       }
     }
     for (const std::string& p : partitions) {
@@ -1284,7 +1316,7 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
         if (!where.empty()) {
           where += " AND ";
         }
-        where += tables[0] + "." + p + " = " + tables[i] + "." + p;
+        where += alias(0) + "." + p + " = " + alias(i) + "." + p;
       }
     }
     if (!where.empty()) {
