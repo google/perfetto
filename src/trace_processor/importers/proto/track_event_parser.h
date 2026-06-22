@@ -18,10 +18,8 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PARSER_H_
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -52,7 +50,9 @@ class DummyMemoryMapping;
 
 class TrackEventParser {
  public:
-  TrackEventParser(TraceProcessorContext*, TrackEventTracker*);
+  TrackEventParser(TrackEventPluginContext*,
+                   TraceProcessorContext*,
+                   TrackEventTracker*);
 
   void ParseTrackDescriptor(int64_t packet_timestamp,
                             protozero::ConstBytes,
@@ -71,15 +71,10 @@ class TrackEventParser {
  private:
   friend class TrackEventEventImporter;
 
-  // Registers |plugin| as the owner of each id in |field_ids| (CHECKs if an id
-  // is already owned).
-  void RegisterPlugin(std::unique_ptr<TrackEventPlugin> plugin,
-                      const std::vector<uint32_t>& field_ids);
-
-  bool has_plugins() const { return !plugins_.empty(); }
+  bool has_plugins() const { return !plugin_context_->plugins.empty(); }
 
   TrackEventPlugin* PluginForField(uint32_t field_id) const {
-    auto* it = plugin_by_field_.Find(field_id);
+    auto* it = plugin_context_->plugins_by_field.Find(field_id);
     return it ? *it : nullptr;
   }
 
@@ -143,13 +138,11 @@ class TrackEventParser {
   const StringId callsite_id_key_id_;
   const StringId end_callsite_id_key_id_;
 
+  TrackEventPluginContext* plugin_context_;
   ChromeStringLookup chrome_string_lookup_;
   std::vector<uint32_t> reflect_fields_;
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;
   DummyMemoryMapping* inline_callstack_dummy_mapping_ = nullptr;
-
-  std::vector<std::unique_ptr<TrackEventPlugin>> plugins_;
-  base::FlatHashMap<uint32_t, TrackEventPlugin*> plugin_by_field_;
 };
 
 }  // namespace perfetto::trace_processor

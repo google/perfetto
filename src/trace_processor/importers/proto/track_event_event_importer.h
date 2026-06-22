@@ -1377,21 +1377,21 @@ class TrackEventEventImporter {
   bool DispatchSlicePlugins(SliceId id) {
     return DispatchPlugins(
         [id](TrackEventPlugin* plugin, const TrackEventExtensionField& f) {
-          return plugin->OnSlice(f, id);
+          return plugin->OnTrackEventSliceExtension(f, id);
         });
   }
 
   bool DispatchCounterPlugins(CounterId id) {
     return DispatchPlugins(
         [id](TrackEventPlugin* plugin, const TrackEventExtensionField& f) {
-          return plugin->OnCounter(f, id);
+          return plugin->OnTrackEventCounterExtension(f, id);
         });
   }
 
   bool DispatchStatePlugins(StateId id) {
     return DispatchPlugins(
         [id](TrackEventPlugin* plugin, const TrackEventExtensionField& f) {
-          return plugin->OnState(f, id);
+          return plugin->OnTrackEventStateExtension(f, id);
         });
   }
 

@@ -138,7 +138,8 @@ std::optional<base::Status> MaybeParseAndroidJobName(
 
 }  // namespace
 
-TrackEventParser::TrackEventParser(TraceProcessorContext* context,
+TrackEventParser::TrackEventParser(TrackEventPluginContext* plugin_context,
+                                   TraceProcessorContext* context,
                                    TrackEventTracker* track_event_tracker)
     : args_parser_(*context->descriptor_pool_),
       context_(context),
@@ -234,6 +235,7 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       callsite_id_key_id_(context_->storage->InternString("callsite_id")),
       end_callsite_id_key_id_(
           context_->storage->InternString("end_callsite_id")),
+      plugin_context_(plugin_context),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
   // Opt into DebugAnnotation handling: ParseMessage routes DebugAnnotation
@@ -299,20 +301,6 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
   for (uint16_t index : kReflectFields) {
     reflect_fields_.push_back(index);
   }
-
-  // Register compiled-in TrackEvent extension plugins here, e.g.:
-  //   RegisterPlugin(std::make_unique<FooPlugin>(context_), {1234, 1235});
-}
-
-void TrackEventParser::RegisterPlugin(std::unique_ptr<TrackEventPlugin> plugin,
-                                      const std::vector<uint32_t>& field_ids) {
-  PERFETTO_CHECK(plugin);
-  TrackEventPlugin* raw = plugin.get();
-  for (uint32_t field_id : field_ids) {
-    PERFETTO_CHECK(!plugin_by_field_.Find(field_id));
-    plugin_by_field_.Insert(field_id, raw);
-  }
-  plugins_.push_back(std::move(plugin));
 }
 
 void TrackEventParser::ParseTrackDescriptor(

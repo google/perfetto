@@ -17,20 +17,31 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PLUGIN_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PLUGIN_H_
 
+#include <cstdint>
+#include <memory>
+#include <vector>
+
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/proto/typed_proto_field.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
 
+struct TrackEventPluginContext;
+
 // A single out-of-tree extension field (`extensions 1000 to 9999`) of a
-// TrackEvent, handed to plugins for inspection. The plugin decodes it with the
-// generated field metadata of the extension it owns, e.g.
+// TrackEvent, handed to plugins. The plugin decodes it with the generated field
+// metadata of the extension it owns, e.g.
 //   field.Cast<FrameworksBaseTrackEvent::kProcessStart>()  // -> ConstBytes
 using TrackEventExtensionField = TypedProtoField;
 
-// Observes TrackEvent extension fields once the core slice/counter/state row
-// has been inserted. A plugin registers (via TrackEventParser) the extension
-// field ids it owns; each id is owned by exactly one plugin. Only modern
+// Base class for plugins that handle TrackEvent extension fields. This is the
+// TrackEvent-extension analogue of ProtoImporterModule: a plugin registers (via
+// RegisterTrackEventExtension) the extension field ids it owns, and the matching
+// On*() callback is invoked after the core counter/slice/state row has been
+// inserted, so the plugin receives its Id and can populate its own side tables.
+//
+// Each extension field id is owned by exactly one plugin. Only modern
 // counter/slice/state events are dispatched, never legacy ones.
 class TrackEventPlugin {
  public:
@@ -38,12 +49,33 @@ class TrackEventPlugin {
   // the args table; kIgnored leaves it untouched.
   enum class Result { kHandled, kIgnored };
 
+  explicit TrackEventPlugin(TrackEventPluginContext* context);
   virtual ~TrackEventPlugin();
 
   // Default to kIgnored so a plugin only overrides the kinds it handles.
-  virtual Result OnCounter(const TrackEventExtensionField& field, CounterId id);
-  virtual Result OnSlice(const TrackEventExtensionField& field, SliceId id);
-  virtual Result OnState(const TrackEventExtensionField& field, StateId id);
+  virtual Result OnTrackEventCounterExtension(
+      const TrackEventExtensionField& field,
+      CounterId id);
+  virtual Result OnTrackEventSliceExtension(
+      const TrackEventExtensionField& field,
+      SliceId id);
+  virtual Result OnTrackEventStateExtension(
+      const TrackEventExtensionField& field,
+      StateId id);
+
+ protected:
+  // Registers this plugin as the owner of |field_id| (CHECKs if already owned).
+  void RegisterTrackEventExtension(uint32_t field_id);
+
+  TrackEventPluginContext* context_;
+};
+
+// Per-trace registry of TrackEvent extension plugins, mirroring
+// ProtoImporterModuleContext: |plugins| owns them and |plugins_by_field| maps
+// each registered extension field id to its owner.
+struct TrackEventPluginContext {
+  std::vector<std::unique_ptr<TrackEventPlugin>> plugins;
+  base::FlatHashMap<uint32_t, TrackEventPlugin*> plugins_by_field;
 };
 
 }  // namespace perfetto::trace_processor
