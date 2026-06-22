@@ -24,12 +24,16 @@ import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {sqlNameSafe} from '../../base/string_utils';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {uuidv4} from '../../base/uuid';
+import RecordTraceV2Plugin, {
+  registerRecordSubpageProvider,
+} from '../dev.perfetto.RecordTraceV2';
 import {CpuPage} from './cpu_page';
 import {ARM_TELEMETRY_CPU_SPEC_SCHEMA} from './arm_telemetry_spec';
 import type {ArmTelemetryCpuSpec} from './arm_telemetry_spec';
 import {z} from 'zod';
 import type {ArmTelemetrySpecManager} from './arm_telemetry_spec_manager';
 import {ArmTelemetrySpecManagerImpl} from './arm_telemetry_spec_manager_impl';
+import {pmuRecordSection} from './pmu';
 
 type ApplicableMetricDesc = {
   name: string;
@@ -57,7 +61,7 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
     used to create per-CPU metric tracks.
     Use the Arm CPU page to load and manage CPU specification files.
   `;
-  static readonly dependencies = [StandardGroupsPlugin];
+  static readonly dependencies = [StandardGroupsPlugin, RecordTraceV2Plugin];
   private static specManager: ArmTelemetrySpecManager;
 
   static onActivate(app: App): void {
@@ -88,6 +92,9 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
       href: '#!/arm_cpu',
       icon: 'memory',
     });
+    registerRecordSubpageProvider((recMgr) =>
+      pmuRecordSection(recMgr, app, ArmTelemetryPlugin.specManager),
+    );
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
