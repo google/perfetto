@@ -18,13 +18,16 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PARSER_H_
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
+#include "src/trace_processor/importers/proto/track_event_plugin.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
@@ -67,6 +70,18 @@ class TrackEventParser {
 
  private:
   friend class TrackEventEventImporter;
+
+  // Registers |plugin| as the owner of each id in |field_ids| (CHECKs if an id
+  // is already owned).
+  void RegisterPlugin(std::unique_ptr<TrackEventPlugin> plugin,
+                      const std::vector<uint32_t>& field_ids);
+
+  bool has_plugins() const { return !plugins_.empty(); }
+
+  TrackEventPlugin* PluginForField(uint32_t field_id) const {
+    auto* it = plugin_by_field_.Find(field_id);
+    return it ? *it : nullptr;
+  }
 
   void ParseChromeProcessDescriptor(UniquePid, protozero::ConstBytes);
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
@@ -132,6 +147,9 @@ class TrackEventParser {
   std::vector<uint32_t> reflect_fields_;
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;
   DummyMemoryMapping* inline_callstack_dummy_mapping_ = nullptr;
+
+  std::vector<std::unique_ptr<TrackEventPlugin>> plugins_;
+  base::FlatHashMap<uint32_t, TrackEventPlugin*> plugin_by_field_;
 };
 
 }  // namespace perfetto::trace_processor

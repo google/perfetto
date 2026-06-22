@@ -299,6 +299,20 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
   for (uint16_t index : kReflectFields) {
     reflect_fields_.push_back(index);
   }
+
+  // Register compiled-in TrackEvent extension plugins here, e.g.:
+  //   RegisterPlugin(std::make_unique<FooPlugin>(context_), {1234, 1235});
+}
+
+void TrackEventParser::RegisterPlugin(std::unique_ptr<TrackEventPlugin> plugin,
+                                      const std::vector<uint32_t>& field_ids) {
+  PERFETTO_CHECK(plugin);
+  TrackEventPlugin* raw = plugin.get();
+  for (uint32_t field_id : field_ids) {
+    PERFETTO_CHECK(!plugin_by_field_.Find(field_id));
+    plugin_by_field_.Insert(field_id, raw);
+  }
+  plugins_.push_back(std::move(plugin));
 }
 
 void TrackEventParser::ParseTrackDescriptor(
