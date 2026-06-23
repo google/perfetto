@@ -108,8 +108,9 @@ MACHINE_TABLE = Table(
             'name':
                 '''
                   Human-readable name of the machine (from
-                  SystemInfo.machine_name), used as the machine's label in the
-                  UI. NULL when the machine did not advertise a name.
+                  SystemInfo.machine_name or a perfetto_manifest machine
+                  override), used as the machine's label in the UI. NULL when
+                  the machine did not advertise a name.
                 ''',
             'sysname':
                 '''

@@ -106,6 +106,10 @@ class TraceProcessorContext {
     // private clock. The trace must then stay single-clock and single-machine,
     // so ClockSnapshots and remote machine ids are rejected on it.
     bool has_clock_override = false;
+
+    // Set when a perfetto_manifest entry attributed this file to a machine;
+    // lets readers reject it later if it proves to be multi-machine.
+    bool has_machine_override = false;
   };
 
   struct UuidState {
@@ -266,6 +270,12 @@ class TraceProcessorContext {
   // per-trace state.
   bool has_clock_override() const {
     return trace_state && trace_state->has_clock_override;
+  }
+
+  // True when a perfetto_manifest entry attributed this trace to a single
+  // machine. False for root/container contexts that have no per-trace state.
+  bool has_machine_override() const {
+    return trace_state && trace_state->has_machine_override;
   }
 
  private:
