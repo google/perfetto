@@ -390,7 +390,6 @@ TEST_F(ProcessTrackerTest, BareThreadIsAliveWithoutProcess) {
   ASSERT_TRUE(context.process_tracker->IsThreadAlive(t));
 }
 
-
 // After an explicit EndThread the tid no longer resolves; a fresh incarnation
 // is minted on the next GetOrCreateThread, and the old row gets an end_ts.
 TEST_F(ProcessTrackerTest, EndThreadRemovesFromBareLookupAndStampsEndTs) {
@@ -419,9 +418,9 @@ TEST_F(ProcessTrackerTest, EndThreadOnUnknownTidIsNoOp) {
 // Ending a non-main thread ends only the thread; the process stays alive and
 // its main thread keeps resolving.
 TEST_F(ProcessTrackerTest, EndNonMainThreadKeepsProcessAlive) {
-  context.process_tracker->StartNewProcess(
-      100, std::nullopt, /*pid=*/123, kNullStringId,
-      ThreadNamePriority::kFtrace);
+  context.process_tracker->StartNewProcess(100, std::nullopt, /*pid=*/123,
+                                           kNullStringId,
+                                           ThreadNamePriority::kFtrace);
   UniqueTid sub =
       context.process_tracker->UpdateThread(/*tid=*/124, /*pid=*/123);
 
@@ -438,9 +437,9 @@ TEST_F(ProcessTrackerTest, EndNonMainThreadKeepsProcessAlive) {
 // Ending the main thread (tid == pid) ends the whole process, so its other
 // threads stop resolving by bare tid.
 TEST_F(ProcessTrackerTest, EndMainThreadEndsProcessAndOrphansThreads) {
-  context.process_tracker->StartNewProcess(
-      100, std::nullopt, /*pid=*/123, kNullStringId,
-      ThreadNamePriority::kFtrace);
+  context.process_tracker->StartNewProcess(100, std::nullopt, /*pid=*/123,
+                                           kNullStringId,
+                                           ThreadNamePriority::kFtrace);
   UniqueTid sub =
       context.process_tracker->UpdateThread(/*tid=*/124, /*pid=*/123);
   ASSERT_EQ(context.process_tracker->GetThreadOrNull(124), sub);
@@ -459,9 +458,9 @@ TEST_F(ProcessTrackerTest, EndMainThreadEndsProcessAndOrphansThreads) {
 // EndThread on a worker thread after its process already ended must not
 // resurrect the process or create rows (regression b/193520421).
 TEST_F(ProcessTrackerTest, EndThreadAfterProcessEndCreatesNothing) {
-  context.process_tracker->StartNewProcess(
-      100, std::nullopt, /*pid=*/123, kNullStringId,
-      ThreadNamePriority::kFtrace);
+  context.process_tracker->StartNewProcess(100, std::nullopt, /*pid=*/123,
+                                           kNullStringId,
+                                           ThreadNamePriority::kFtrace);
   context.process_tracker->UpdateThread(/*tid=*/124, /*pid=*/123);
 
   context.process_tracker->EndThread(200, /*tid=*/123);  // ends process
@@ -472,7 +471,6 @@ TEST_F(ProcessTrackerTest, EndThreadAfterProcessEndCreatesNothing) {
   ASSERT_EQ(context.storage->thread_table().row_count(), threads);
   ASSERT_EQ(context.storage->process_table().row_count(), procs);
 }
-
 
 // GetOrCreateProcess is stable: repeated calls for the same pid return the
 // same upid (no implicit recycle).
@@ -501,18 +499,18 @@ TEST_F(ProcessTrackerTest, StartNewProcessRecyclesLivePid) {
 // must invalidate the *old* process's worker threads for bare lookups. This
 // is what the lazy `pids_` check inside IsThreadAlive currently provides.
 TEST_F(ProcessTrackerTest, ImplicitPidRecycleInvalidatesOldWorkerThreads) {
-  context.process_tracker->StartNewProcess(
-      std::nullopt, std::nullopt, /*pid=*/10, kNullStringId,
-      ThreadNamePriority::kFtrace);
+  context.process_tracker->StartNewProcess(std::nullopt, std::nullopt,
+                                           /*pid=*/10, kNullStringId,
+                                           ThreadNamePriority::kFtrace);
   UniqueTid worker =
       context.process_tracker->UpdateThread(/*tid=*/20, /*pid=*/10);
   ASSERT_EQ(context.process_tracker->GetThreadOrNull(20), worker);
   ASSERT_TRUE(context.process_tracker->IsThreadAlive(worker));
 
   // Recycle pid 10 into a brand new process without ending anything.
-  context.process_tracker->StartNewProcess(
-      std::nullopt, std::nullopt, /*pid=*/10, kNullStringId,
-      ThreadNamePriority::kFtrace);
+  context.process_tracker->StartNewProcess(std::nullopt, std::nullopt,
+                                           /*pid=*/10, kNullStringId,
+                                           ThreadNamePriority::kFtrace);
 
   // The old worker's process was superseded -> dead, must not resolve.
   ASSERT_FALSE(context.process_tracker->IsThreadAlive(worker));
@@ -537,7 +535,6 @@ TEST_F(ProcessTrackerTest, PidReuseMintsFreshThreadsAndProcesses) {
   // The latest worker for tid 2 is the one parented to the latest process.
   ASSERT_EQ(context.process_tracker->GetThreadOrNull(2), t2);
 }
-
 
 // A bare-created thread (unknown process) is adopted by the first WithParent
 // call rather than creating a new utid.
@@ -576,7 +573,8 @@ TEST_F(ProcessTrackerTest, WithParentDisambiguatesSameTidAcrossProcesses) {
 
 // UpdateThread(tid==pid) marks the thread as the process main thread.
 TEST_F(ProcessTrackerTest, UpdateThreadMainThreadFlag) {
-  UniqueTid main = context.process_tracker->UpdateThread(/*tid=*/42, /*pid=*/42);
+  UniqueTid main =
+      context.process_tracker->UpdateThread(/*tid=*/42, /*pid=*/42);
   UniqueTid worker =
       context.process_tracker->UpdateThread(/*tid=*/43, /*pid=*/42);
   ASSERT_TRUE(context.storage->thread_table()[main].is_main_thread().value());
@@ -595,18 +593,18 @@ TEST_F(ProcessTrackerTest, ResurrectsOlderLiveIncarnationWhenNewestStale) {
   UniqueTid a = context.process_tracker->UpdateThread(/*tid=*/5, /*pid=*/1);
 
   // Newer incarnation B of the same tid 5 under a different process (pid 2).
-  context.process_tracker->StartNewProcess(
-      std::nullopt, std::nullopt, /*pid=*/2, kNullStringId,
-      ThreadNamePriority::kFtrace);
+  context.process_tracker->StartNewProcess(std::nullopt, std::nullopt,
+                                           /*pid=*/2, kNullStringId,
+                                           ThreadNamePriority::kFtrace);
   UniqueTid b = context.process_tracker->UpdateThread(/*tid=*/5, /*pid=*/2);
   ASSERT_NE(a, b);
   // B is newest, so it wins the bare lookup right now.
   ASSERT_EQ(context.process_tracker->GetThreadOrNull(5), b);
 
   // Recycle pid 2: B becomes stale, but A (pid 1) is still alive.
-  context.process_tracker->StartNewProcess(
-      std::nullopt, std::nullopt, /*pid=*/2, kNullStringId,
-      ThreadNamePriority::kFtrace);
+  context.process_tracker->StartNewProcess(std::nullopt, std::nullopt,
+                                           /*pid=*/2, kNullStringId,
+                                           ThreadNamePriority::kFtrace);
   ASSERT_FALSE(context.process_tracker->IsThreadAlive(b));
   ASSERT_TRUE(context.process_tracker->IsThreadAlive(a));
   ASSERT_EQ(p1, *context.process_tracker->UpidForPidForTesting(1));
@@ -614,7 +612,6 @@ TEST_F(ProcessTrackerTest, ResurrectsOlderLiveIncarnationWhenNewestStale) {
   // Falls back to the older live incarnation A.
   ASSERT_EQ(context.process_tracker->GetThreadOrNull(5), a);
 }
-
 
 // Before declaring the idle process, tid 0 is an ordinary tid: it does not map
 // to the reserved swapper utid and GetOrCreateThread mints a fresh utid.
@@ -633,7 +630,6 @@ TEST_F(ProcessTrackerTest, TidZeroResolvesToSwapperAfterIdleDeclared) {
             context.process_tracker->swapper_utid());
 }
 
-
 // IsThreadAlive returns false once a thread's own end_ts is set, false once its
 // process ends, and false once its process pid is recycled; true otherwise.
 TEST_F(ProcessTrackerTest, IsThreadAliveTruthTable) {
@@ -642,9 +638,9 @@ TEST_F(ProcessTrackerTest, IsThreadAliveTruthTable) {
   ASSERT_TRUE(context.process_tracker->IsThreadAlive(bare));
 
   // (2) thread with a live process -> alive.
-  context.process_tracker->StartNewProcess(
-      std::nullopt, std::nullopt, /*pid=*/30, kNullStringId,
-      ThreadNamePriority::kFtrace);
+  context.process_tracker->StartNewProcess(std::nullopt, std::nullopt,
+                                           /*pid=*/30, kNullStringId,
+                                           ThreadNamePriority::kFtrace);
   UniqueTid worker =
       context.process_tracker->UpdateThread(/*tid=*/31, /*pid=*/30);
   ASSERT_TRUE(context.process_tracker->IsThreadAlive(worker));

@@ -282,7 +282,8 @@ class ProcessTracker {
   // erases it). Cold path: lifecycle transitions only.
   void RefreshLiveTid(int64_t tid);
 
-  // Refreshes live_tid_ for every thread of |upid|, when it ends or is recycled.
+  // Refreshes live_tid_ for every thread of |upid|, when it ends or is
+  // recycled.
   void InvalidateProcessThreads(UniquePid upid);
 
   // Returns the utid of a thread whos parent matches the provided pid
