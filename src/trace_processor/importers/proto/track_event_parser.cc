@@ -120,19 +120,17 @@ std::optional<base::Status> MaybeParseSourceLocation(
 std::optional<base::Status> MaybeParseAndroidJobName(
     const protozero::Field& field,
     util::ProtoToArgsParser::Delegate& delegate) {
-  auto* decoder =
-      delegate.seq_state()
-          ->LookupInternedMessage<
-              com::android::internal::pbzero::FrameworksBaseInternedData::
-                  kAndroidJobNameFieldNumber,
-              com::android::internal::pbzero::AndroidJobName>(
-              field.as_uint64());
-  if (!decoder) {
+  std::optional<base::StringView> name =
+      delegate.seq_state()->InternedStringView(
+          com::android::internal::pbzero::FrameworksBaseInternedData::
+              kAndroidJobNameFieldNumber,
+          field.as_uint64());
+  if (!name) {
     return std::nullopt;
   }
 
   delegate.AddString(util::ProtoToArgsParser::Key("job_scheduler_job.job_name"),
-                     decoder->name());
+                     protozero::ConstChars{name->data(), name->size()});
   return base::OkStatus();
 }
 
