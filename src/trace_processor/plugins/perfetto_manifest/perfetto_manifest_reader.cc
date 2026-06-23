@@ -246,7 +246,8 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
     }
     if (machine.HasMember("id")) {
       if (!machine["id"].IsNumeric()) {
-        return base::ErrStatus("perfetto_manifest: machine: id must be numeric");
+        return base::ErrStatus(
+            "perfetto_manifest: machine: id must be numeric");
       }
       int64_t machine_id = machine["id"].AsInt64();
       if (machine_id < 1 || machine_id > std::numeric_limits<uint32_t>::max()) {

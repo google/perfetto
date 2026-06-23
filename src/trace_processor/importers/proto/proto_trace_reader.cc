@@ -269,8 +269,9 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
       if (PERFETTO_UNLIKELY(inserted)) {
         auto* machine_context =
             context_->ForkContextForMachineInCurrentTrace(decoder.machine_id());
-        *it = std::make_unique<ProtoTraceReader>(machine_context,
-                                                 /*is_machine_dispatcher=*/false);
+        *it =
+            std::make_unique<ProtoTraceReader>(machine_context,
+                                               /*is_machine_dispatcher=*/false);
         auto parent_default = context_->clock_tracker->trace_default_clock();
         if (parent_default) {
           machine_context->clock_tracker->SetTraceDefaultClock(*parent_default);

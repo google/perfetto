@@ -277,12 +277,12 @@ void ClockTracker::BridgeToTraceTime(ClockId clock_id, ClockId trace_time) {
 
   // Prefer aligning on REALTIME. REALTIME is the same absolute (UTC) clock on
   // every machine, so if |clock_id| reaches this machine's REALTIME (there is a
-  // path through realtime, i.e. a boot<->realtime snapshot) we tie that REALTIME
-  // to the trace time machine's REALTIME (the global rendezvous node) with an
-  // assume-aligned zero-offset edge, and |clock_id| reaches trace time through
-  // it. Taken only when the rendezvous node itself reaches trace time. A real
-  // cross-machine sync (remote_clock_sync), if present, already connects the
-  // clocks and wins via the early return above.
+  // path through realtime, i.e. a boot<->realtime snapshot) we tie that
+  // REALTIME to the trace time machine's REALTIME (the global rendezvous node)
+  // with an assume-aligned zero-offset edge, and |clock_id| reaches trace time
+  // through it. Taken only when the rendezvous node itself reaches trace time.
+  // A real cross-machine sync (remote_clock_sync), if present, already connects
+  // the clocks and wins via the early return above.
   ClockId realtime = ClockId::Qualify(
       ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME), machine_id_, 0);
   ClockId global_realtime = ClockId::Machine(
@@ -307,8 +307,8 @@ void ClockTracker::BridgeToTraceTime(ClockId clock_id, ClockId trace_time) {
   //    physical clock, e.g. two machines' BOOTTIME assumed to share a boot
   //    instant).
   // Across different real domains (e.g. BOOTTIME vs REALTIME) we do not
-  // fabricate a relationship: the conversion fails so the events are dropped and
-  // logged rather than silently misplaced.
+  // fabricate a relationship: the conversion fails so the events are dropped
+  // and logged rather than silently misplaced.
   bool either_private =
       clock_id.clock_id == protos::pbzero::BUILTIN_CLOCK_TRACE_FILE ||
       trace_time.clock_id == protos::pbzero::BUILTIN_CLOCK_TRACE_FILE;

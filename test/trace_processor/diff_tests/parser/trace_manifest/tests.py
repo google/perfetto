@@ -157,7 +157,8 @@ def _proto_rt(name, seq, uuid, boot, realtime, at):
       '  track_event { type: TYPE_SLICE_BEGIN track_uuid: %d name: "%s" } }\n'
       'packet { trusted_packet_sequence_id: %d timestamp: %d\n'
       '  track_event { type: TYPE_SLICE_END track_uuid: %d } }\n' %
-      (boot, realtime, seq, uuid, seq, at, uuid, name, seq, at + 100000000, uuid))
+      (boot, realtime, seq, uuid, seq, at, uuid, name, seq, at + 100000000,
+       uuid))
 
 
 # A proto trace with a BOOTTIME-only clock snapshot (no REALTIME): its events
@@ -630,7 +631,9 @@ class TraceManifest(TestSuite):
                     'files': [{
                         'path': 'sys.systrace',
                         'clocks': {
-                            'is': {'clock': 'BOOTTIME'}
+                            'is': {
+                                'clock': 'BOOTTIME'
+                            }
                         }
                     }],
                 }),
@@ -661,7 +664,9 @@ class TraceManifest(TestSuite):
                     'files': [{
                         'path': 'sys.systrace',
                         'clocks': {
-                            'is': {'clock': 'BOOTTIME'},
+                            'is': {
+                                'clock': 'BOOTTIME'
+                            },
                             'offset_ns': 100000000
                         }
                     }],
@@ -1030,7 +1035,8 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
+                    'version':
+                        1,
                     'files': [{
                         'path': 'app.json',
                         'machine': {
@@ -1239,18 +1245,19 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
+                    'version':
+                        1,
                     'files': [
                         _machine_file('a.pb', 'phone'),
                         _machine_file('b.pb', 'server'),
                     ],
                 }),
             'a.pb':
-                _proto_rt('a_slice', 1, 111, 1000000000,
-                          1700000001000000000, 1100000000),
+                _proto_rt('a_slice', 1, 111, 1000000000, 1700000001000000000,
+                          1100000000),
             'b.pb':
-                _proto_rt('b_slice', 2, 222, 1000000000,
-                          1700000002000000000, 1100000000),
+                _proto_rt('b_slice', 2, 222, 1000000000, 1700000002000000000,
+                          1100000000),
         }),
         query=_ALIGN_QUERY,
         out=Csv('''
@@ -1266,7 +1273,8 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
+                    'version':
+                        1,
                     'files': [
                         _machine_file('a.pb', 'phone'),
                         _machine_file('b.pb', 'server'),
@@ -1274,14 +1282,14 @@ class TraceManifest(TestSuite):
                     ],
                 }),
             'a.pb':
-                _proto_rt('a_slice', 1, 111, 1000000000,
-                          1700000001000000000, 1100000000),
+                _proto_rt('a_slice', 1, 111, 1000000000, 1700000001000000000,
+                          1100000000),
             'b.pb':
-                _proto_rt('b_slice', 2, 222, 1000000000,
-                          1700000002000000000, 1100000000),
+                _proto_rt('b_slice', 2, 222, 1000000000, 1700000002000000000,
+                          1100000000),
             'c.pb':
-                _proto_rt('c_slice', 3, 333, 1000000000,
-                          1700000003000000000, 1100000000),
+                _proto_rt('c_slice', 3, 333, 1000000000, 1700000003000000000,
+                          1100000000),
         }),
         query=_ALIGN_QUERY,
         out=Csv('''
@@ -1300,18 +1308,19 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
+                    'version':
+                        1,
                     'files': [
                         _machine_file('a.pb', 'phone'),
                         _machine_file('b.pb', 'server'),
                     ],
                 }),
             'a.pb':
-                _proto_rt('a_slice', 1, 111, 1000000000,
-                          1700000001000000000, 1100000000),
+                _proto_rt('a_slice', 1, 111, 1000000000, 1700000001000000000,
+                          1100000000),
             'b.pb':
-                _proto_rt('b_slice', 2, 222, 5000000000,
-                          1700000001000000000, 5100000000),
+                _proto_rt('b_slice', 2, 222, 5000000000, 1700000001000000000,
+                          5100000000),
         }),
         query=_ALIGN_QUERY,
         out=Csv('''
@@ -1329,15 +1338,16 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
+                    'version':
+                        1,
                     'files': [
                         _machine_file('a.pb', 'phone'),
                         _machine_file('b.pb', 'server'),
                     ],
                 }),
             'a.pb':
-                _proto_rt('a_slice', 1, 111, 1000000000,
-                          1700000001000000000, 1100000000),
+                _proto_rt('a_slice', 1, 111, 1000000000, 1700000001000000000,
+                          1100000000),
             'b.pb':
                 _proto_boot_snap('b_slice', 2, 222, 1000000000, 3000000000),
         }),
@@ -1358,7 +1368,8 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
+                    'version':
+                        1,
                     'files': [
                         _machine_file('a.pb', 'phone'),
                         _machine_file('b.pb', 'server'),
@@ -1367,8 +1378,8 @@ class TraceManifest(TestSuite):
             'a.pb':
                 _proto_boot_snap('a_slice', 1, 111, 1000000000, 1100000000),
             'b.pb':
-                _proto_rt('b_slice', 2, 222, 1000000000,
-                          1700000002000000000, 1100000000),
+                _proto_rt('b_slice', 2, 222, 1000000000, 1700000002000000000,
+                          1100000000),
         }),
         query=_ALIGN_QUERY,
         out=Csv('''
@@ -1386,11 +1397,12 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
+                    'version':
+                        1,
                     'files': [
                         _machine_file('a.pb', 'phone'),
-                        _machine_file('b.json', 'server',
-                                      realtime=1700000001500000000),
+                        _machine_file(
+                            'b.json', 'server', realtime=1700000001500000000),
                     ],
                 }),
             'a.pb':
@@ -1413,13 +1425,14 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
+                    'version':
+                        1,
                     'files': [
                         _machine_file('a.pb', 'phone'),
-                        _machine_file('b.json', 'server',
-                                      realtime=1700000001500000000),
-                        _machine_file('c.json', 'watch',
-                                      realtime=1700000002500000000),
+                        _machine_file(
+                            'b.json', 'server', realtime=1700000001500000000),
+                        _machine_file(
+                            'c.json', 'watch', realtime=1700000002500000000),
                     ],
                 }),
             'a.pb':
@@ -1447,11 +1460,13 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
-                    'trace_time_clock': 'REALTIME',
+                    'version':
+                        1,
+                    'trace_time_clock':
+                        'REALTIME',
                     'files': [
-                        _machine_file('a.json', 'phone',
-                                      realtime=1700000001500000000),
+                        _machine_file(
+                            'a.json', 'phone', realtime=1700000001500000000),
                         _machine_file('b.pb', 'server'),
                     ],
                 }),
@@ -1474,11 +1489,13 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
-                    'trace_time_clock': 'REALTIME',
+                    'version':
+                        1,
+                    'trace_time_clock':
+                        'REALTIME',
                     'files': [
-                        _machine_file('a.json', 'phone',
-                                      realtime=1700000001500000000),
+                        _machine_file(
+                            'a.json', 'phone', realtime=1700000001500000000),
                         _machine_file('b.pb', 'server'),
                     ],
                 }),
@@ -1504,7 +1521,8 @@ class TraceManifest(TestSuite):
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
+                    'version':
+                        1,
                     'files': [
                         _machine_file('a.pb', 'phone'),
                         _machine_file('b.pb', 'server'),
