@@ -2156,6 +2156,12 @@ message ProcessStatsConfig {
   // recognized.
   optional bool resolve_process_fds = 9;
 
+  // If true, do *not* write a ProcessTree::Thread message for the main thread
+  // of a process. This was the default behaviour before perfetto v58.
+  //
+  // Added in perfetto v58.
+  optional bool skip_main_thread_message = 14;
+
   // record_thread_time_in_state
   reserved 7;
   // thread_time_in_state_cache_size
@@ -18341,7 +18347,38 @@ message TracePacket {
   // packet on this sequence (regardless of SEQ_NEEDS_INCREMENTAL_STATE).
   optional TracePacketDefaults trace_packet_defaults = 59;
 
-  // Flag set by the service if, for the current packet sequence (see
+  // Bit flags OR-ed together into |previous_packet_dropped| to describe why
+  // packets were dropped. DATA_LOSS_PRESENT is set on every loss; the remaining
+  // bits attribute the cause and are set either by TraceBufferV2 in the service
+  // or by the producer's trace writer.
+  enum DataLossReason {
+    DATA_LOSS_UNSPECIFIED = 0;
+    // A loss was detected (set on every loss). On its own (value 1) it means
+    // dropped with no specific cause, e.g. TraceBufferV1 or a producer.
+    DATA_LOSS_PRESENT = 1;
+    // A read started on a non-successor ChunkID (a gap in the stream).
+    DATA_LOSS_READ_GAP = 2;
+    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds).
+    DATA_LOSS_CHUNK_CORRUPTED = 4;
+    // A continuation/end fragment with no preceding begin fragment.
+    DATA_LOSS_ORPHAN_CONTINUATION = 8;
+    // Reassembly abandoned because of a ChunkID gap mid-packet.
+    DATA_LOSS_REASSEMBLY_GAP = 16;
+    // Reassembly abandoned because the fragment chain was broken even though
+    // the ChunkIDs were contiguous.
+    DATA_LOSS_REASSEMBLY_BROKEN_CHAIN = 32;
+    // Unconsumed fragments were evicted while overwriting (ring buffer wrap).
+    DATA_LOSS_OVERWRITE = 64;
+    // The trace writer aborted an in-progress fragmented packet (it stamped
+    // the kPacketSizeDropPacket sentinel in the last fragment header).
+    DATA_LOSS_WRITER_ABORT = 128;
+    // The producer's shared memory buffer was full: the trace writer couldn't
+    // acquire a chunk and dropped packets until one became available. Set by
+    // the producer, not the service.
+    DATA_LOSS_SMB_FULL = 256;
+  }
+
+  // Set by the service if, for the current packet sequence (see
   // |trusted_packet_sequence_id|), either:
   // * this is the first packet, or
   // * one or multiple packets were dropped since the last packet that the
@@ -18349,10 +18386,17 @@ message TracePacket {
   //   buffer are overridden before the consumer could read them when the trace
   //   is configured in ring buffer mode.
   //
+  // 0 means not dropped, nonzero means dropped (so this stays compatible with
+  // the historical bool semantics). The value is a DataLossReason bitmask:
+  // DATA_LOSS_PRESENT (bit 0) is always set when there is a loss, and
+  // TraceBufferV2 additionally sets a bit identifying the cause. TraceBufferV1
+  // and producer-signalled drops set the bare value 1 (DATA_LOSS_PRESENT), i.e.
+  // dropped with no specific cause attributed.
+  //
   // When packet loss occurs, incrementally emitted data (including interned
   // data) on the sequence should be considered invalid up until the next packet
   // with SEQ_INCREMENTAL_STATE_CLEARED set.
-  optional bool previous_packet_dropped = 42;
+  optional uint32 previous_packet_dropped = 42;
 
   // Flag set by a producer (starting from SDK v29) if, for the current packet
   // sequence (see |trusted_packet_sequence_id|), this is the first packet.

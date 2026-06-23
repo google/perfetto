@@ -122,6 +122,29 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TracePacket, SequenceFlags){
                                   SEQ_NEEDS_INCREMENTAL_STATE) = 2,
 };
 
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TracePacket, DataLossReason){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_PRESENT) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_READ_GAP) = 2,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_CHUNK_CORRUPTED) = 4,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_ORPHAN_CONTINUATION) = 8,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_REASSEMBLY_GAP) = 16,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_REASSEMBLY_BROKEN_CHAIN) = 32,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_OVERWRITE) = 64,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_WRITER_ABORT) = 128,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_SMB_FULL) = 256,
+};
+
 PERFETTO_PB_MSG(perfetto_protos_TracePacket);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket, VARINT, uint64_t, timestamp, 8);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
@@ -587,7 +610,7 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   59);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   VARINT,
-                  bool,
+                  uint32_t,
                   previous_packet_dropped,
                   42);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
