@@ -27,7 +27,10 @@ test.beforeAll(async ({browser}, _testInfo) => {
 });
 
 test('OOME callstack track', async () => {
-  const processGrp = pth.locateTrack('com.example.oometest 12345');
+  await page.click('a[href="#!/viewer"]');
+  await pth.waitForPerfettoIdle();
+
+  const processGrp = pth.locateTrack('com.example.gcchurning 2399');
   await processGrp.scrollIntoViewIfNeeded();
   const expandBtn = processGrp.locator('button', {hasText: 'expand_more'});
   if ((await expandBtn.count()) > 0) {
@@ -36,7 +39,7 @@ test('OOME callstack track', async () => {
   }
 
   const oomeTrack = pth.locateTrack(
-    'com.example.oometest 12345/OOME Callstack',
+    'com.example.gcchurning 2399/OOME Callstack',
     processGrp,
   );
   await oomeTrack.scrollIntoViewIfNeeded();
