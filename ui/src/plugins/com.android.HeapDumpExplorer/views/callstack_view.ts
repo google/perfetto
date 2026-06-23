@@ -20,17 +20,18 @@ import {FlamegraphPanel} from '../../../components/flamegraph_panel';
 import {Flamegraph, type FlamegraphState} from '../../../widgets/flamegraph';
 import {Stack} from '../../../widgets/stack';
 import {EmptyState} from '../../../widgets/empty_state';
-import {Spinner} from '../../../widgets/spinner';
+
 import {
   buildOomeCallstackMetrics,
   loadOomeErrorMsg,
 } from '../../dev.perfetto.HeapProfile/oome_callstack_common';
 import type {OomeData} from '../types';
+import {getOome} from '../queries';
+import type {HeapDump} from '../queries';
 
 interface CallstackViewAttrs {
   readonly trace: Trace;
-  readonly oomeData: OomeData | undefined;
-  readonly isOomeDataLoaded: boolean;
+  readonly dump: HeapDump;
   readonly state: FlamegraphState | undefined;
   readonly onStateChange: (state: FlamegraphState) => void;
 }
@@ -40,17 +41,48 @@ export const CallstackView: m.ClosureComponent<CallstackViewAttrs> = () => {
   let cachedKey: string | undefined;
   let errorMsg: string | undefined;
 
+  let cachedDump: HeapDump | undefined;
+  let oomeData: OomeData | undefined;
+  let isLoading = false;
+
+  async function loadData(trace: Trace, dump: HeapDump) {
+    isLoading = true;
+    try {
+      oomeData = await getOome(trace.engine, dump);
+    } catch {
+      oomeData = undefined;
+    } finally {
+      isLoading = false;
+      m.redraw();
+    }
+  }
+
   async function loadErrorMsg(trace: Trace, ts: bigint) {
     errorMsg = await loadOomeErrorMsg(trace.engine, Time.fromRaw(ts));
   }
 
   return {
     view({attrs}) {
-      if (!attrs.isOomeDataLoaded) {
-        return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
+      if (attrs.dump !== cachedDump) {
+        cachedDump = attrs.dump;
+        oomeData = undefined;
+        loadData(attrs.trace, attrs.dump);
       }
 
-      if (attrs.oomeData === undefined) {
+      if (isLoading) {
+        return m(
+          'div',
+          {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
+          m(FlamegraphPanel, {
+            trace: attrs.trace,
+            metrics: undefined,
+            state: attrs.state,
+            onStateChange: attrs.onStateChange,
+          }),
+        );
+      }
+
+      if (oomeData === undefined) {
         return m(
           EmptyState,
           {
@@ -65,8 +97,8 @@ export const CallstackView: m.ClosureComponent<CallstackViewAttrs> = () => {
         );
       }
 
-      const upid = attrs.oomeData.upid;
-      const ts = attrs.oomeData.ts;
+      const upid = oomeData.upid;
+      const ts = oomeData.ts;
       const key = `${upid}:${ts}`;
       if (cachedMetrics === undefined || key !== cachedKey) {
         cachedMetrics = buildOomeCallstackMetrics(Time.fromRaw(ts));

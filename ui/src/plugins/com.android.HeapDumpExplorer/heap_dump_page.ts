@@ -195,8 +195,7 @@ function buildTabs(
       title: 'Callstack',
       content: m(CallstackView, {
         trace,
-        oomeData: session.cachedOomeData,
-        isOomeDataLoaded: session.isOomeDataLoaded,
+        dump: activeDump,
         state: session.callstackPanelState,
         onStateChange: session.setCallstackPanelState,
       }),
@@ -317,10 +316,6 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     session.syncFromSubpage(subpage);
     session.syncInstanceTabFromNav();
     session.syncFlamegraphTabFromNav();
-
-    if (activeTabKey(session) === 'callstack') {
-      session.loadOome();
-    }
 
     const active = session.activeDump;
     const overview = session.cachedOverview;

@@ -29,7 +29,7 @@ import {
   stateToSubpage,
   subpageToState,
 } from './nav_state';
-import type {OverviewData, OomeData} from './types';
+import type {OverviewData} from './types';
 import type {FlamegraphState} from '../../widgets/flamegraph';
 import type {HdeState} from './persisted_state';
 import {
@@ -75,9 +75,6 @@ export class HeapDumpExplorerSession {
 
   private _dumps: ReadonlyArray<queries.HeapDump> = [];
   private _overview: OverviewData | null = null;
-  private _oomeData: OomeData | undefined = undefined;
-  private _oomeDataLoading = false;
-  private _oomeDataLoaded = false;
   private readonly _counts = new Map<string, number>();
 
   // Set when the plugin auto-redirected to HDE on load; gates the
@@ -145,9 +142,6 @@ export class HeapDumpExplorerSession {
 
   private switchToDump(d: queries.HeapDump): void {
     this._overview = null;
-    this._oomeData = undefined;
-    this._oomeDataLoading = false;
-    this._oomeDataLoaded = false;
     this._counts.clear();
     this.store.edit((s) => {
       s.activeDump = {upid: d.upid, ts: d.ts.toString()};
@@ -403,14 +397,6 @@ export class HeapDumpExplorerSession {
     return this._overview;
   }
 
-  get cachedOomeData(): OomeData | undefined {
-    return this._oomeData;
-  }
-
-  get isOomeDataLoaded(): boolean {
-    return this._oomeDataLoaded;
-  }
-
   // Pins the dump at fetch start; if the user switches dumps before the result
   // arrives, the result is dropped instead of briefly showing the wrong dump.
   async loadOverview(): Promise<void> {
@@ -425,32 +411,6 @@ export class HeapDumpExplorerSession {
     } catch (err) {
       console.error('Failed to load overview:', err);
     } finally {
-      m.redraw();
-    }
-  }
-
-  async loadOome(): Promise<void> {
-    if (this._oomeDataLoaded || this._oomeDataLoading) return;
-    this._oomeDataLoading = true;
-    const dump = this.activeDump;
-    if (dump === null) {
-      this._oomeDataLoading = false;
-      return;
-    }
-    try {
-      const oomeData = await queries.getOome(this.engine, dump);
-      if (this.activeDump === dump) {
-        this._oomeData = oomeData;
-        this._oomeDataLoaded = true;
-      }
-    } catch (err) {
-      console.error('Failed to load OOME:', err);
-      if (this.activeDump === dump) {
-        this._oomeData = undefined;
-        this._oomeDataLoaded = true;
-      }
-    } finally {
-      this._oomeDataLoading = false;
       m.redraw();
     }
   }
