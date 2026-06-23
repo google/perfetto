@@ -159,6 +159,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   bool record_process_age_ = false;
   bool record_process_runtime_ = false;
   bool record_process_dmabuf_rss_ = false;
+  bool skip_main_thread_message_ = false;
 
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes

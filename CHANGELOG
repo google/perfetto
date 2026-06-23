@@ -1,14 +1,17 @@
 Unreleased:
   Tracing service and probes:
-   *
+    * The procfs scraper (process_stats data source) now writes an explicit
+      Thread message for a process' main thread, instead of leaving it implied
+      by the process entry. This fixes missing main thread names when a trace
+      is recorded using procfs alone.
   Trace Processor:
     * Added a client-server mode to `trace_processor_shell`: start a server
       over a unix socket (`server unix`) or WebSocket (`server http`) and
       connect a thin client with `--remote`.
   UI:
-   *
+    *
   SDK:
-   *
+    *
 
 v57.0 - 2026-06-19:
   Tracing service and probes:
