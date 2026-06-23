@@ -278,6 +278,13 @@ class ProcessTracker {
   std::optional<uint32_t> GetThreadOrNull(int64_t tid,
                                           std::optional<int64_t> pid);
 
+  // Repoints live_tid_[tid] at the newest alive incarnation in |tids_| (or
+  // erases it). Cold path: lifecycle transitions only.
+  void RefreshLiveTid(int64_t tid);
+
+  // Refreshes live_tid_ for every thread of |upid|, when it ends or is recycled.
+  void InvalidateProcessThreads(UniquePid upid);
+
   // Returns the utid of a thread whos parent matches the provided pid
   // or creates a new thread if not present. If a new thread is created,
   // |is_main_thread| determines if it is marked as the main thread.
@@ -319,6 +326,14 @@ class ProcessTracker {
   // (though it seems like there are subtle things which break in Chrome if this
   // changes).
   base::FlatHashMap<int64_t /* tid */, std::vector<UniqueTid>> tids_;
+
+  // Cache of the newest alive incarnation of each tid: the answer to a bare
+  // (no parent pid) lookup. Kept in sync via tids_ on lifecycle transitions.
+  base::FlatHashMap<int64_t /* tid */, UniqueTid> live_tid_;
+
+  // upid -> its utids, used to refresh live_tid_ when a process ends or its pid
+  // is recycled.
+  base::FlatHashMap<UniquePid, std::vector<UniqueTid>> process_threads_;
 
   // Mapping of the most recently seen pid to the associated upid.
   base::FlatHashMap<int64_t /* pid (aka tgid) */, UniquePid> pids_;
