@@ -29,6 +29,9 @@ import type {OomeData} from '../types';
 import {getOome} from '../queries';
 import type {HeapDump} from '../queries';
 
+import {AsyncLimiter} from '../../../base/async_limiter';
+import {Monitor} from '../../../base/monitor';
+
 interface CallstackViewAttrs {
   readonly trace: Trace;
   readonly dump: HeapDump;
@@ -36,104 +39,102 @@ interface CallstackViewAttrs {
   readonly onStateChange: (state: FlamegraphState) => void;
 }
 
-export const CallstackView: m.ClosureComponent<CallstackViewAttrs> = () => {
-  let cachedMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
-  let cachedKey: string | undefined;
-  let errorMsg: string | undefined;
+export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
+  private oomeData?: OomeData;
+  private oomeDataLoaded = false;
+  private cachedMetrics?: ReadonlyArray<QueryFlamegraphMetric>;
+  private cachedKey?: string;
+  private errorMsg?: string;
+  private readonly limiter = new AsyncLimiter();
+  private monitor?: Monitor;
 
-  let cachedDump: HeapDump | undefined;
-  let oomeData: OomeData | undefined;
-  let isLoading = false;
+  async loadErrorMsg(trace: Trace, ts: bigint) {
+    this.errorMsg = await loadOomeErrorMsg(trace.engine, Time.fromRaw(ts));
+    m.redraw();
+  }
 
-  async function loadData(trace: Trace, dump: HeapDump) {
-    isLoading = true;
-    try {
-      oomeData = await getOome(trace.engine, dump);
-    } catch {
-      oomeData = undefined;
-    } finally {
-      isLoading = false;
-      m.redraw();
+  view({attrs}: m.Vnode<CallstackViewAttrs>) {
+    this.monitor ??= new Monitor([() => attrs.dump]);
+    if (this.monitor.ifStateChanged()) {
+      this.oomeData = undefined;
+      this.oomeDataLoaded = false;
+      const dump = attrs.dump;
+      this.limiter.schedule(async () => {
+        try {
+          this.oomeData = await getOome(attrs.trace.engine, dump);
+        } catch {
+          this.oomeData = undefined;
+        } finally {
+          this.oomeDataLoaded = true;
+          m.redraw();
+        }
+      });
     }
-  }
 
-  async function loadErrorMsg(trace: Trace, ts: bigint) {
-    errorMsg = await loadOomeErrorMsg(trace.engine, Time.fromRaw(ts));
-  }
-
-  return {
-    view({attrs}) {
-      if (attrs.dump !== cachedDump) {
-        cachedDump = attrs.dump;
-        oomeData = undefined;
-        loadData(attrs.trace, attrs.dump);
-      }
-
-      if (isLoading) {
-        return m(
-          'div',
-          {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
-          m(FlamegraphPanel, {
-            trace: attrs.trace,
-            metrics: undefined,
-            state: attrs.state,
-            onStateChange: attrs.onStateChange,
-          }),
-        );
-      }
-
-      if (oomeData === undefined) {
-        return m(
-          EmptyState,
-          {
-            icon: 'data_array',
-            title: 'Data is not available in this trace',
-            fillHeight: true,
-          },
-          m(
-            'div',
-            'Callstacks in heap dumps are only available in Perfetto heap dumps collected on OutOfMemoryError and in recent versions of Android',
-          ),
-        );
-      }
-
-      const upid = oomeData.upid;
-      const ts = oomeData.ts;
-      const key = `${upid}:${ts}`;
-      if (cachedMetrics === undefined || key !== cachedKey) {
-        cachedMetrics = buildOomeCallstackMetrics(Time.fromRaw(ts));
-        cachedKey = key;
-        errorMsg = undefined;
-        loadErrorMsg(attrs.trace, ts);
-      }
-      const metrics = cachedMetrics;
-
-      let state = attrs.state;
-      if (state === undefined) {
-        state = Flamegraph.createDefaultState(metrics);
-        attrs.onStateChange(state);
-      }
-
+    if (!this.oomeDataLoaded) {
       return m(
         'div',
         {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
+        m(FlamegraphPanel, {
+          trace: attrs.trace,
+          metrics: undefined,
+          state: attrs.state,
+          onStateChange: attrs.onStateChange,
+        }),
+      );
+    }
+
+    if (this.oomeData === undefined) {
+      return m(
+        EmptyState,
+        {
+          icon: 'data_array',
+          title: 'Data is not available in this trace',
+          fillHeight: true,
+        },
         m(
-          Stack,
-          {orientation: 'vertical'},
-          errorMsg &&
-            m(
-              'div',
-              {style: {padding: '8px', fontSize: '14px', color: '#ff4081'}},
-              errorMsg,
-            ),
-          m(FlamegraphPanel, {
-            trace: attrs.trace,
-            metrics,
-            state,
-            onStateChange: attrs.onStateChange,
-          }),
+          'div',
+          'Callstacks in heap dumps are only available in Perfetto heap dumps collected on OutOfMemoryError and in recent versions of Android',
         ),
       );
-    },
-  };
-};
+    }
+
+    const upid = this.oomeData.upid;
+    const ts = this.oomeData.ts;
+    const key = `${upid}:${ts}`;
+    if (this.cachedMetrics === undefined || key !== this.cachedKey) {
+      this.cachedMetrics = buildOomeCallstackMetrics(Time.fromRaw(ts));
+      this.cachedKey = key;
+      this.errorMsg = undefined;
+      this.loadErrorMsg(attrs.trace, ts);
+    }
+    const metrics = this.cachedMetrics;
+
+    let state = attrs.state;
+    if (state === undefined) {
+      state = Flamegraph.createDefaultState(metrics);
+      attrs.onStateChange(state);
+    }
+
+    return m(
+      'div',
+      {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
+      m(
+        Stack,
+        {orientation: 'vertical'},
+        this.errorMsg &&
+          m(
+            'div',
+            {style: {padding: '8px', fontSize: '14px', color: '#ff4081'}},
+            this.errorMsg,
+          ),
+        m(FlamegraphPanel, {
+          trace: attrs.trace,
+          metrics,
+          state,
+          onStateChange: attrs.onStateChange,
+        }),
+      ),
+    );
+  }
+}
