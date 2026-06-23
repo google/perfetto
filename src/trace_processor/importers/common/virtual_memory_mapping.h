@@ -61,7 +61,9 @@ class VirtualMemoryMapping {
   const std::optional<BuildId>& build_id() const { return build_id_; }
 
   // Whether this maps to a region that holds jitted code.
-  bool is_jitted() const { return jit_cache_ != nullptr; }
+  bool is_jitted() const;
+
+  std::optional<UniquePid> upid() const { return upid_; }
 
   // Converts an absolute address into a relative one.
   uint64_t ToRelativePc(uint64_t address) const {
@@ -89,6 +91,7 @@ class VirtualMemoryMapping {
 
  protected:
   VirtualMemoryMapping(TraceProcessorContext* context,
+                       std::optional<UniquePid> upid,
                        CreateMappingParams params);
 
   TraceProcessorContext* context() const { return context_; }
@@ -109,8 +112,6 @@ class VirtualMemoryMapping {
       std::optional<base::StringView> source_file,
       std::optional<uint32_t> line_number);
 
-  void SetJitCache(JitCache* jit_cache) { jit_cache_ = jit_cache; }
-
   TraceProcessorContext* const context_;
   const MappingId mapping_id_;
   const AddressRange memory_range_;
@@ -118,7 +119,7 @@ class VirtualMemoryMapping {
   const uint64_t load_bias_;
   const std::string name_;
   std::optional<BuildId> const build_id_;
-  JitCache* jit_cache_ = nullptr;
+  const std::optional<UniquePid> upid_;
 
   struct FrameKey {
     uint64_t rel_pc;
@@ -154,15 +155,13 @@ class KernelMemoryMapping : public VirtualMemoryMapping {
 class UserMemoryMapping : public VirtualMemoryMapping {
  public:
   ~UserMemoryMapping() override;
-  UniquePid upid() const { return upid_; }
+  UniquePid upid() const { return *VirtualMemoryMapping::upid(); }
 
  private:
   friend class MappingTracker;
   UserMemoryMapping(TraceProcessorContext* context,
                     UniquePid upid,
                     CreateMappingParams params);
-
-  const UniquePid upid_;
 };
 
 // Dummy mapping to be able to create frames when we have no real pc addresses

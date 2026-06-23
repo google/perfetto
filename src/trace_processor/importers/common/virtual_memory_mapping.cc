@@ -31,6 +31,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -56,6 +57,7 @@ MappingId CreateMapping(TraceProcessorContext* context,
 }  // namespace
 
 VirtualMemoryMapping::VirtualMemoryMapping(TraceProcessorContext* context,
+                                           std::optional<UniquePid> upid,
                                            CreateMappingParams params)
     : context_(context),
       mapping_id_(CreateMapping(context, params)),
@@ -63,31 +65,44 @@ VirtualMemoryMapping::VirtualMemoryMapping(TraceProcessorContext* context,
       offset_(params.exact_offset),
       load_bias_(params.load_bias),
       name_(std::move(params.name)),
-      build_id_(std::move(params.build_id)) {}
+      build_id_(std::move(params.build_id)),
+      upid_(upid) {}
 
 VirtualMemoryMapping::~VirtualMemoryMapping() = default;
 
 KernelMemoryMapping::KernelMemoryMapping(TraceProcessorContext* context,
                                          CreateMappingParams params)
-    : VirtualMemoryMapping(context, std::move(params)) {}
+    : VirtualMemoryMapping(context, std::nullopt, std::move(params)) {}
 
 KernelMemoryMapping::~KernelMemoryMapping() = default;
 
 UserMemoryMapping::UserMemoryMapping(TraceProcessorContext* context,
                                      UniquePid upid,
                                      CreateMappingParams params)
-    : VirtualMemoryMapping(context, std::move(params)), upid_(upid) {}
+    : VirtualMemoryMapping(context, upid, std::move(params)) {}
 
 UserMemoryMapping::~UserMemoryMapping() = default;
+
+bool VirtualMemoryMapping::is_jitted() const {
+  if (!upid_) {
+    return false;
+  }
+  return context_->mapping_tracker->HasJitResourcesOverlapping(*upid_, memory_range_);
+}
 
 FrameId VirtualMemoryMapping::InternFrame(
     uint64_t rel_pc,
     base::StringView function_name,
     std::optional<base::StringView> source_file,
     std::optional<uint32_t> line_number) {
+  JitCache* jit_cache = nullptr;
+  if (upid_) {
+    jit_cache = context_->mapping_tracker->FindJitCacheForAddress(
+        *upid_, ToAddress(rel_pc));
+  }
   auto [frame_id, was_inserted] =
-      jit_cache_
-          ? jit_cache_->InternFrame(this, rel_pc, function_name)
+      jit_cache
+          ? jit_cache->InternFrame(this, rel_pc, function_name)
           : InternFrameImpl(rel_pc, function_name, source_file, line_number);
   if (was_inserted) {
     frames_by_rel_pc_[rel_pc].push_back(frame_id);
@@ -152,7 +167,7 @@ DummyMemoryMapping::~DummyMemoryMapping() = default;
 
 DummyMemoryMapping::DummyMemoryMapping(TraceProcessorContext* context,
                                        CreateMappingParams params)
-    : VirtualMemoryMapping(context, std::move(params)) {}
+    : VirtualMemoryMapping(context, std::nullopt, std::move(params)) {}
 
 FrameId DummyMemoryMapping::InternDummyFrame(
     base::StringView function_name,
