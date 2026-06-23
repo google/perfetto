@@ -2156,6 +2156,12 @@ message ProcessStatsConfig {
   // recognized.
   optional bool resolve_process_fds = 9;
 
+  // If true, do *not* write a ProcessTree::Thread message for the main thread
+  // of a process. This was the default behaviour before perfetto v58.
+  //
+  // Added in perfetto v58.
+  optional bool skip_main_thread_message = 14;
+
   // record_thread_time_in_state
   reserved 7;
   // thread_time_in_state_cache_size
