@@ -22,6 +22,8 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "perfetto/base/status.h"
@@ -139,81 +141,82 @@ base::StatusOr<int64_t> ParseAnchorTs(const json::Dom& obj,
   return ts;
 }
 
-base::StatusOr<ClockOverride> ParseAnchor(const json::Dom& anchor) {
-  ClockOverride result;
-  ASSIGN_OR_RETURN(result.file_ts_ns, ParseAnchorTs(anchor, "ts", "ts"));
-  if (!anchor.HasMember("is") || !anchor["is"].IsObject()) {
-    return base::ErrStatus(
-        "perfetto_manifest: anchor: missing required field: is");
-  }
-
-  const json::Dom& is = anchor["is"];
-  if (is.HasMember("utc")) {
-    if (is.HasMember("clock") || is.HasMember("ts")) {
-      return base::ErrStatus(
-          "perfetto_manifest: anchor: utc cannot be combined with clock/ts");
-    }
-    if (!is["utc"].IsString()) {
-      return base::ErrStatus("perfetto_manifest: anchor: utc must be a string");
-    }
-    std::string utc = is["utc"].AsString();
-    auto ts = ParseUtcTimestamp(utc);
-    if (!ts) {
-      return base::ErrStatus(
-          "perfetto_manifest: anchor: invalid utc timestamp: %s", utc.c_str());
-    }
-    result.clock = protos::pbzero::BUILTIN_CLOCK_REALTIME;
-    result.clock_ts_ns = *ts;
-    return result;
-  }
-  if (!is.HasMember("clock")) {
-    return base::ErrStatus(
-        "perfetto_manifest: anchor: missing required field: clock");
-  }
-  ASSIGN_OR_RETURN(uint32_t clock, ParseClockName(is["clock"]));
-  result.clock = clock;
-  ASSIGN_OR_RETURN(result.clock_ts_ns, ParseAnchorTs(is, "ts", "is.ts"));
-  return result;
-}
-
+// Parses a file's "clocks" block. The file's clock is related to a reference
+// |is| (a builtin clock, or trace time when |is| is omitted) by either an
+// |offset_ns| or a pair of coinciding readings (|ts| on this file, |is.ts| on
+// the reference). Normalized into ClockOverride: file reading |file_ts_ns|
+// corresponds to |clock_ts_ns| on |clock| (nullopt clock = trace time).
+//   {is:{clock:"X"}}                          file clock IS X (identity)
+//   {offset_ns:N}                             file = trace time + N
+//   {ts:A, is:{clock:"X", ts:B}}              file reads A when X reads B
+//   {is:{utc:"<ISO>"}}                        anchor onto REALTIME wall time
+// (is.file / is.machine and a source `clock` field arrive in later changes.)
 base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
-  // Exclusivity diagnostics: each rejected combination would override the
-  // file's timeline twice.
-  if (clocks.HasMember("offset_ns") && clocks.HasMember("anchor")) {
-    return base::ErrStatus(
-        "perfetto_manifest: offset_ns and anchor are mutually exclusive");
-  }
-  if (clocks.HasMember("native") && clocks.HasMember("anchor")) {
-    return base::ErrStatus(
-        "perfetto_manifest: native and anchor are mutually exclusive");
-  }
-  if (clocks.HasMember("anchor")) {
-    if (!clocks["anchor"].IsObject()) {
-      return base::ErrStatus("perfetto_manifest: anchor must be an object");
-    }
-    return ParseAnchor(clocks["anchor"]);
-  }
   ClockOverride result;
-  if (clocks.HasMember("native")) {
-    ASSIGN_OR_RETURN(uint32_t native, ParseClockName(clocks["native"]));
-    result.clock = native;
+
+  bool has_is_ts = false;
+  if (clocks.HasMember("is")) {
+    const json::Dom& is = clocks["is"];
+    if (!is.IsObject()) {
+      return base::ErrStatus("perfetto_manifest: clocks: is must be an object");
+    }
+    if (is.HasMember("utc")) {
+      if (is.HasMember("clock") || is.HasMember("ts")) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: is.utc cannot be combined with "
+            "clock/ts");
+      }
+      if (!is["utc"].IsString()) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: is.utc must be a string");
+      }
+      std::string utc = is["utc"].AsString();
+      auto ts = ParseUtcTimestamp(utc);
+      if (!ts) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: invalid is.utc timestamp: %s",
+            utc.c_str());
+      }
+      result.clock = protos::pbzero::BUILTIN_CLOCK_REALTIME;
+      result.clock_ts_ns = *ts;
+    } else {
+      if (!is.HasMember("clock")) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: is needs a clock (or utc)");
+      }
+      ASSIGN_OR_RETURN(uint32_t clock, ParseClockName(is["clock"]));
+      result.clock = clock;
+      if (is.HasMember("ts")) {
+        ASSIGN_OR_RETURN(result.clock_ts_ns, ParseAnchorTs(is, "ts", "is.ts"));
+        has_is_ts = true;
+      }
+    }
   }
+
   if (clocks.HasMember("offset_ns")) {
+    if (has_is_ts || clocks.HasMember("ts")) {
+      return base::ErrStatus(
+          "perfetto_manifest: clocks: offset_ns and a reading (ts) are "
+          "mutually exclusive");
+    }
     if (!clocks["offset_ns"].IsIntegral()) {
-      return base::ErrStatus("perfetto_manifest: offset_ns must be an integer");
+      return base::ErrStatus(
+          "perfetto_manifest: clocks: offset_ns must be an integer");
     }
     int64_t offset_ns = clocks["offset_ns"].AsInt64();
     if (offset_ns == std::numeric_limits<int64_t>::min()) {
-      return base::ErrStatus("perfetto_manifest: offset_ns is out of range");
+      return base::ErrStatus(
+          "perfetto_manifest: clocks: offset_ns is out of range");
     }
-    // Snapshot timestamps must never be negative: a backwards shift is
-    // expressed by mapping a later file timestamp to the clock's zero
-    // instead.
+    // Snapshot timestamps must never be negative: a backwards shift maps a
+    // later file reading onto the reference's zero instead.
     if (offset_ns < 0) {
       result.file_ts_ns = -offset_ns;
     } else {
       result.clock_ts_ns = offset_ns;
     }
+  } else if (clocks.HasMember("ts")) {
+    ASSIGN_OR_RETURN(result.file_ts_ns, ParseAnchorTs(clocks, "ts", "ts"));
   }
   return result;
 }
@@ -231,6 +234,39 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
       return base::ErrStatus("perfetto_manifest: clocks must be an object");
     }
     ASSIGN_OR_RETURN(entry.clock_override, ParseClocks(file["clocks"]));
+  }
+  if (file.HasMember("machine")) {
+    const json::Dom& machine = file["machine"];
+    if (!machine.IsObject()) {
+      return base::ErrStatus("perfetto_manifest: machine must be an object");
+    }
+    if (!machine.HasMember("id") && !machine.HasMember("name")) {
+      return base::ErrStatus(
+          "perfetto_manifest: machine must have a name and/or an id");
+    }
+    if (machine.HasMember("id")) {
+      if (!machine["id"].IsNumeric()) {
+        return base::ErrStatus("perfetto_manifest: machine: id must be numeric");
+      }
+      int64_t machine_id = machine["id"].AsInt64();
+      if (machine_id < 1 || machine_id > std::numeric_limits<uint32_t>::max()) {
+        return base::ErrStatus(
+            "perfetto_manifest: machine: id must be in [1, 4294967295]");
+      }
+      entry.machine_id = static_cast<uint32_t>(machine_id);
+    }
+    if (machine.HasMember("name")) {
+      if (!machine["name"].IsString()) {
+        return base::ErrStatus(
+            "perfetto_manifest: machine: name must be a string");
+      }
+      std::string name = machine["name"].AsString();
+      if (name.empty()) {
+        return base::ErrStatus(
+            "perfetto_manifest: machine: name must be non-empty");
+      }
+      entry.machine_name = std::move(name);
+    }
   }
   return entry;
 }
@@ -291,6 +327,31 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
       ASSIGN_OR_RETURN(FileEntry entry, ParseFileEntry(file));
       state->files.push_back(std::move(entry));
     }
+  }
+
+  // Assign a synthetic raw id to each distinct name-only machine, in first-seen
+  // order, skipping ids claimed explicitly so a named machine never collides
+  // with an id-keyed one.
+  std::unordered_set<uint32_t> explicit_ids;
+  for (const FileEntry& entry : state->files) {
+    if (entry.machine_id) {
+      explicit_ids.insert(*entry.machine_id);
+    }
+  }
+  std::unordered_map<std::string, uint32_t> name_to_id;
+  uint32_t next_id = 1;
+  for (FileEntry& entry : state->files) {
+    if (!entry.machine_name || entry.machine_id) {
+      continue;
+    }
+    auto [it, inserted] = name_to_id.try_emplace(*entry.machine_name, 0);
+    if (inserted) {
+      while (explicit_ids.count(next_id)) {
+        ++next_id;
+      }
+      it->second = next_id++;
+    }
+    entry.machine_id = it->second;
   }
 
   // This file has no per-trace context (and thus no ClockTracker), so it

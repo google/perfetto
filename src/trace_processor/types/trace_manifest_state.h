@@ -53,6 +53,10 @@ struct TraceManifestState {
     // Exact path of the member within the archive.
     std::string path;
     std::optional<ClockOverride> clock_override;
+    // Explicit id, or a synthetic id the reader allocates per distinct
+    // |machine_name| so files sharing a name land on the same machine.
+    std::optional<uint32_t> machine_id;
+    std::optional<std::string> machine_name;
   };
 
   // True once a perfetto_manifest file has been parsed; a second one is an

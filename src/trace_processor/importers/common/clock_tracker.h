@@ -177,6 +177,14 @@ class ClockTracker {
 
   PERFETTO_NO_INLINE void FlushDeferredClockSync();
 
+  // Guarantees a flushed |clock_id| can reach the trace time clock. If the graph
+  // already relates them, does nothing. Otherwise prefers a cross-machine
+  // REALTIME alignment (routing through the trace time machine's REALTIME as a
+  // global rendezvous node), falling back to assuming |clock_id| is itself
+  // aligned with trace time. Both fallbacks are zero-offset (assume-aligned)
+  // edges; a real relationship always wins.
+  void BridgeToTraceTime(ClockId clock_id, ClockId trace_time);
+
   // Adds an edge directly to the global sync and records it in the
   // clock_snapshot table. Every graph mutation goes through here so the table
   // is a faithful record of the graph. Clocks must already be qualified.
