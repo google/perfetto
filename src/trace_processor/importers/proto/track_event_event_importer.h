@@ -271,11 +271,10 @@ class TrackEventEventImporter {
     // string.
     if (PERFETTO_LIKELY(category_iids.size() == 1 &&
                         category_strings.empty())) {
-      auto* decoder = sequence_state_->LookupInternedMessage<
-          protos::pbzero::InternedData::kEventCategoriesFieldNumber,
-          protos::pbzero::EventCategory>(category_iids[0]);
-      if (decoder) {
-        category_id = storage_->InternString(decoder->name());
+      if (auto id = sequence_state_->InternedStringId(
+              protos::pbzero::InternedData::kEventCategoriesFieldNumber,
+              category_iids[0])) {
+        category_id = *id;
       } else {
         base::DynamicStringWriter writer;
         writer.AppendLiteral("unknown(");
@@ -291,15 +290,13 @@ class TrackEventEventImporter {
       // TODO(eseckler): Support multi-category events in the table schema.
       std::string categories;
       for (uint64_t iid : category_iids) {
-        auto* decoder = sequence_state_->LookupInternedMessage<
-            protos::pbzero::InternedData::kEventCategoriesFieldNumber,
-            protos::pbzero::EventCategory>(iid);
-        if (!decoder)
+        auto name = sequence_state_->InternedStringView(
+            protos::pbzero::InternedData::kEventCategoriesFieldNumber, iid);
+        if (!name)
           continue;
-        base::StringView name = decoder->name();
         if (!categories.empty())
           categories.append(",");
-        categories.append(name.data(), name.size());
+        categories.append(name->data(), name->size());
       }
       for (const protozero::ConstChars& cat : category_strings) {
         if (!categories.empty())
@@ -319,11 +316,9 @@ class TrackEventEventImporter {
       name_iid = legacy_event_.name_iid();
 
     if (PERFETTO_LIKELY(name_iid)) {
-      auto* decoder = sequence_state_->LookupInternedMessage<
-          protos::pbzero::InternedData::kEventNamesFieldNumber,
-          protos::pbzero::EventName>(name_iid);
-      if (decoder)
-        return storage_->InternString(decoder->name());
+      if (auto id = sequence_state_->InternedStringId(
+              protos::pbzero::InternedData::kEventNamesFieldNumber, name_iid))
+        return *id;
     } else if (event_.has_name()) {
       return storage_->InternString(event_.name());
     }
@@ -683,11 +678,10 @@ class TrackEventEventImporter {
     StringId state_id = kNullStringId;
 
     if (event_.has_name_iid()) {
-      auto* decoder = sequence_state_->LookupInternedMessage<
-          protos::pbzero::InternedData::kEventNamesFieldNumber,
-          protos::pbzero::EventName>(event_.name_iid());
-      if (decoder) {
-        state_id = storage_->InternString(decoder->name());
+      if (auto id = sequence_state_->InternedStringId(
+              protos::pbzero::InternedData::kEventNamesFieldNumber,
+              event_.name_iid())) {
+        state_id = *id;
       }
     } else if (event_.has_name()) {
       state_id = storage_->InternString(event_.name());
@@ -1361,13 +1355,12 @@ class TrackEventEventImporter {
                            base::StringView(event_.correlation_id_str()))));
     }
     if (event_.has_correlation_id_str_iid()) {
-      auto* decoder = sequence_state_->LookupInternedMessage<
-          protos::pbzero::InternedData::kCorrelationIdStrFieldNumber,
-          protos::pbzero::InternedString>(event_.correlation_id_str_iid());
-      inserter->AddArg(parser_->correlation_id_key_id_,
-                       Variadic::String(storage_->InternString(base::StringView(
-                           reinterpret_cast<const char*>(decoder->str().data),
-                           decoder->str().size))));
+      if (auto id = sequence_state_->InternedStringId(
+              protos::pbzero::InternedData::kCorrelationIdStrFieldNumber,
+              event_.correlation_id_str_iid())) {
+        inserter->AddArg(parser_->correlation_id_key_id_,
+                         Variadic::String(*id));
+      }
     }
     if (legacy_trace_source_id_) {
       inserter->AddArg(parser_->legacy_trace_source_id_key_id_,
@@ -1483,14 +1476,13 @@ class TrackEventEventImporter {
 
     protos::pbzero::LogMessage::Decoder message(blob);
 
-    auto* body_decoder = sequence_state_->LookupInternedMessage<
+    std::optional<StringId> body_id = sequence_state_->InternedStringId(
         protos::pbzero::InternedData::kLogMessageBodyFieldNumber,
-        protos::pbzero::LogMessageBody>(message.body_iid());
-    if (!body_decoder)
+        message.body_iid());
+    if (!body_id)
       return base::ErrStatus("LogMessage with invalid body_iid");
 
-    const StringId log_message_id =
-        storage_->InternString(body_decoder->body());
+    const StringId log_message_id = *body_id;
     inserter->AddArg(parser_->log_message_body_key_id_,
                      Variadic::String(log_message_id));
 
@@ -1555,14 +1547,14 @@ class TrackEventEventImporter {
           "name_iid can be set.");
     }
 
-    auto* decoder = sequence_state_->LookupInternedMessage<
+    std::optional<StringId> name_id = sequence_state_->InternedStringId(
         protos::pbzero::InternedData::kHistogramNamesFieldNumber,
-        protos::pbzero::HistogramName>(sample.name_iid());
-    if (!decoder)
+        sample.name_iid());
+    if (!name_id)
       return base::ErrStatus("HistogramName with invalid name_iid");
 
     inserter->AddArg(parser_->histogram_name_key_id_,
-                     Variadic::String(storage_->InternString(decoder->name())));
+                     Variadic::String(*name_id));
     return base::OkStatus();
   }
 

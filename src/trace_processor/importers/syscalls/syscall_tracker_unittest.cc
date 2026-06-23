@@ -16,10 +16,12 @@
 
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 
+#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "test/gtest_and_gmock.h"
 
@@ -27,44 +29,9 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-using ::testing::_;
-using ::testing::DoAll;
-using ::testing::Return;
-using ::testing::SaveArg;
-
-class MockSliceTracker : public SliceTracker {
- public:
-  MockSliceTracker(TraceProcessorContext* context) : SliceTracker(context) {}
-  ~MockSliceTracker() override = default;
-
-  MOCK_METHOD(std::optional<SliceId>,
-              Begin,
-              (int64_t timestamp,
-               TrackId track_id,
-               StringId cat,
-               StringId name,
-               SetArgsCallback args_callback),
-              (override));
-  MOCK_METHOD(std::optional<SliceId>,
-              End,
-              (int64_t timestamp,
-               TrackId track_id,
-               StringId cat,
-               StringId name,
-               SetArgsCallback args_callback),
-              (override));
-  MOCK_METHOD(std::optional<SliceId>,
-              Scoped,
-              (int64_t timestamp,
-               TrackId track_id,
-               StringId cat,
-               StringId name,
-               int64_t duration,
-               SetArgsCallback args_callback,
-               std::optional<OverlapInfo>* overlap_out),
-              (override));
-};
-
+// These tests drive a real SliceTracker (SliceTracker's slice methods are
+// templated on the args callback and no longer virtual, so they cannot be
+// mocked) and assert on the slices that end up in storage.
 class SyscallTrackerTest : public ::testing::Test {
  public:
   SyscallTrackerTest() {
@@ -79,84 +46,85 @@ class SyscallTrackerTest : public ::testing::Test {
     context.stats_tracker = std::make_unique<StatsTracker>(&context);
     context.global_args_tracker.reset(
         new GlobalArgsTracker(context.storage.get()));
+    context.args_translation_table =
+        std::make_unique<ArgsTranslationTable>(context.storage.get());
+    context.slice_translation_table =
+        std::make_unique<SliceTranslationTable>(context.storage.get());
     track_tracker = new TrackTracker(&context);
     context.track_tracker.reset(track_tracker);
-    slice_tracker = new MockSliceTracker(&context);
-    context.slice_tracker.reset(slice_tracker);
+    context.slice_tracker.reset(new SliceTracker(&context));
+  }
+
+  const tables::SliceTable& slices() const {
+    return context.storage->slice_table();
+  }
+
+  std::string SliceName(uint32_t row) const {
+    return context.storage
+        ->GetString(slices()[row].name().value_or(kNullStringId))
+        .ToStdString();
   }
 
  protected:
   TraceProcessorContext context;
-  MockSliceTracker* slice_tracker;
   TrackTracker* track_tracker;
 };
 
 TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
-  constexpr TrackId track{0u};
-  StringId begin_name = kNullStringId;
-  StringId end_name = kNullStringId;
-  EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(std::nullopt)));
-  EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&end_name), Return(std::nullopt)));
-
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
   syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
-  EXPECT_EQ(context.storage->GetString(begin_name), "sys_57");
-  EXPECT_EQ(context.storage->GetString(end_name), "sys_57");
+
+  ASSERT_EQ(slices().row_count(), 1u);
+  EXPECT_EQ(slices()[0].ts(), 100);
+  EXPECT_EQ(slices()[0].dur(), 10);
+  EXPECT_EQ(SliceName(0), "sys_57");
 }
 
 TEST_F(SyscallTrackerTest, ReportSysreturn) {
-  EXPECT_CALL(*slice_tracker, Scoped(_, _, _, _, _, _, _)).Times(1);
-
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->SetArchitecture(Architecture::kArm64);
   syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 139);
+
+  // sys_rt_sigreturn does not return, so it is emitted as an instant (Scoped)
+  // slice with zero duration from the Enter event alone.
+  ASSERT_EQ(slices().row_count(), 1u);
+  EXPECT_EQ(slices()[0].ts(), 100);
+  EXPECT_EQ(slices()[0].dur(), 0);
+  EXPECT_EQ(SliceName(0), "sys_rt_sigreturn");
 }
 
 TEST_F(SyscallTrackerTest, Arm64) {
-  constexpr TrackId track{0u};
-  StringId begin_name = kNullStringId;
-  StringId end_name = kNullStringId;
-  EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(std::nullopt)));
-  EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&end_name), Return(std::nullopt)));
-
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->SetArchitecture(Architecture::kArm64);
   syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 63 /*sys_read*/);
   syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 63 /*sys_read*/);
-  EXPECT_EQ(context.storage->GetString(begin_name), "sys_read");
-  EXPECT_EQ(context.storage->GetString(end_name), "sys_read");
+
+  ASSERT_EQ(slices().row_count(), 1u);
+  EXPECT_EQ(slices()[0].ts(), 100);
+  EXPECT_EQ(slices()[0].dur(), 10);
+  EXPECT_EQ(SliceName(0), "sys_read");
 }
 
 TEST_F(SyscallTrackerTest, x8664) {
-  constexpr TrackId track{0u};
-  StringId begin_name = kNullStringId;
-  StringId end_name = kNullStringId;
-  EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(std::nullopt)));
-  EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&end_name), Return(std::nullopt)));
-
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->SetArchitecture(Architecture::kX86_64);
   syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 0 /*sys_read*/);
   syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 0 /*sys_read*/);
-  EXPECT_EQ(context.storage->GetString(begin_name), "sys_read");
-  EXPECT_EQ(context.storage->GetString(end_name), "sys_read");
+
+  ASSERT_EQ(slices().row_count(), 1u);
+  EXPECT_EQ(slices()[0].ts(), 100);
+  EXPECT_EQ(slices()[0].dur(), 10);
+  EXPECT_EQ(SliceName(0), "sys_read");
 }
 
 TEST_F(SyscallTrackerTest, SyscallNumberTooLarge) {
-  EXPECT_CALL(*slice_tracker, Begin(_, _, _, _, _)).Times(0);
-  EXPECT_CALL(*slice_tracker, End(_, _, _, _, _)).Times(0);
-
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->SetArchitecture(Architecture::kArm64);
   syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 9999);
   syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 9999);
+
+  EXPECT_EQ(slices().row_count(), 0u);
 }
 
 }  // namespace

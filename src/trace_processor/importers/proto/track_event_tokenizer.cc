@@ -677,11 +677,10 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
   const auto& thread = state.thread_descriptor();
   for (auto it = event.debug_annotations(); it; ++it) {
     protos::pbzero::DebugAnnotation::Decoder da(*it);
-    auto* interned_name = state.LookupInternedMessage<
+    std::optional<base::StringView> name = state.InternedStringView(
         protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber,
-        protos::pbzero::DebugAnnotationName>(da.name_iid());
-    base::StringView name(interned_name->name());
-    if (name != "data" || !da.has_legacy_json_value()) {
+        da.name_iid());
+    if (!name || *name != "data" || !da.has_legacy_json_value()) {
       continue;
     }
     auto json = da.legacy_json_value();
