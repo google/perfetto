@@ -141,7 +141,7 @@ namespace perfetto::trace_processor::stats {
   F(graphics_frame_event_parser_errors,   kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(guess_trace_type_duration_ns,         kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(interned_data_tokenizer_errors,       kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
-  F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, Scope::kGlobal, ""), \
   F(invalid_cpu_times,                    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(kernel_wakelock_reused_id,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Duplicated interning ID seen. Should never happen."),                  \
@@ -379,7 +379,7 @@ namespace perfetto::trace_processor::stats {
       "results. This can happen when a sequence-scoped clock (64-127) is "    \
       "used before the ClockSnapshot defining it arrives, and the sorter "     \
       "has already started flushing."),                                        \
-  F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A namespaced thread association was received but the corresponding "    \
