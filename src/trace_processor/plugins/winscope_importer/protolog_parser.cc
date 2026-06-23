@@ -46,7 +46,9 @@ using ProtoLogLevel = winscope::ProtoLogLevel;
 
 ProtoLogParser::ProtoLogParser(winscope::WinscopeContext* context)
     : context_(context),
-      args_parser_{*context->trace_processor_context_->descriptor_pool_},
+      args_parser_{
+          *context->trace_processor_context_->descriptor_pool_,
+          *context->trace_processor_context_->storage->mutable_string_pool()},
       log_level_debug_string_id_(
           context->trace_processor_context_->storage->InternString("DEBUG")),
       log_level_verbose_string_id_(
