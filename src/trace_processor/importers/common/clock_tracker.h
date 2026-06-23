@@ -124,6 +124,18 @@ class ClockTracker {
   base::StatusOr<uint32_t> AddQualifiedSnapshot(
       const std::vector<ClockTimestamp>& clock_timestamps);
 
+  // Records a snapshot already added to the graph (which assigned it
+  // |snapshot_id|) into the clock_snapshot table: one best-effort row per
+  // clock, tagged with the clock's own machine. Static so the perfetto_manifest
+  // reader, which has no per-machine tracker, can record the cross-machine
+  // edges it adds straight to the global graph.
+  static void AddSnapshotToTable(
+      TraceStorage* storage,
+      ClockSynchronizer* sync,
+      ClockId trace_time,
+      uint32_t snapshot_id,
+      const std::vector<ClockTimestamp>& clock_timestamps);
+
   // --- Low-level clock primitives. Do not call without understanding the
   // --- consequences. Most callers should use the helpers below these.
 
@@ -191,26 +203,13 @@ class ClockTracker {
   base::StatusOr<uint32_t> AddSnapshotInternal(
       const std::vector<ClockTimestamp>& clock_timestamps);
 
-  // Records a snapshot already added to the graph (which assigned it
-  // |snapshot_id|) into the clock_snapshot table: pure bookkeeping, one
-  // best-effort row per clock; performs no deferred-sync flush and counts
-  // no conversions.
-  void AddSnapshotToTable(uint32_t snapshot_id,
-                          const std::vector<ClockTimestamp>& clock_timestamps);
-
   // Returns the interned name for a builtin clock, or nullopt if |clock_id| is
-  // not a builtin clock. The names are interned once in the constructor.
-  std::optional<StringId> GetBuiltinClockNameOrNull(int64_t clock_id) const;
+  // not a builtin clock.
+  static std::optional<StringId> GetBuiltinClockNameOrNull(
+      TraceStorage* storage,
+      int64_t clock_id);
 
   TraceProcessorContext* context_;
-
-  // Interned builtin clock names, populated in the constructor.
-  StringId realtime_clock_name_;
-  StringId realtime_coarse_clock_name_;
-  StringId monotonic_clock_name_;
-  StringId monotonic_coarse_clock_name_;
-  StringId monotonic_raw_clock_name_;
-  StringId boottime_clock_name_;
 
   // Interned arg keys for conversion-error import logs, populated in the
   // constructor.
