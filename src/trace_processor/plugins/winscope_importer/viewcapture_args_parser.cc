@@ -132,13 +132,12 @@ std::optional<ConstChars> ViewCaptureArgsParser::DeinternString(
 
 template <uint32_t FieldNumber>
 std::optional<ConstChars> ViewCaptureArgsParser::DeinternString(uint64_t iid) {
-  auto* decoder =
-      seq_state()->LookupInternedMessage<FieldNumber, InternedString>(iid);
-  if (!decoder) {
+  std::optional<base::StringView> sv =
+      seq_state()->InternedStringView(FieldNumber, iid);
+  if (!sv) {
     return std::nullopt;
   }
-  auto blob = decoder->str();
-  return ConstChars{reinterpret_cast<const char*>(blob.data), blob.size};
+  return ConstChars{sv->data(), sv->size()};
 }
 
 }  // namespace perfetto::trace_processor::winscope

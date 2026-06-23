@@ -285,6 +285,7 @@ source_set("packet_sequence_state_generation_hdr") {
     "../../../../include/perfetto/ext/base",
     "../../../../protos/perfetto/trace:non_minimal_zero",
     "../../../../protos/perfetto/trace/track_event:zero",
+    "../../containers",
     "../../types:types",
     "../../util:interned_message_view",
     "../common:synthetic_tid_hdr",

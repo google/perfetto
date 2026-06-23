@@ -90,13 +90,11 @@ void ProtoLogParser::ParseProtoLogMessage(
   std::vector<std::string> string_params;
   if (protolog_message.has_str_param_iids()) {
     for (auto it = protolog_message.str_param_iids(); it; ++it) {
-      auto* decoder =
-          sequence_state
-              ->LookupInternedMessage<perfetto::protos::pbzero::InternedData::
-                                          kProtologStringArgsFieldNumber,
-                                      perfetto::protos::pbzero::InternedString>(
-                  it.field().as_uint32());
-      if (!decoder) {
+      std::optional<base::StringView> str = sequence_state->InternedStringView(
+          perfetto::protos::pbzero::InternedData::
+              kProtologStringArgsFieldNumber,
+          it.field().as_uint32());
+      if (!str) {
         // This shouldn't happen since we already checked the incremental
         // state is valid.
         string_params.emplace_back("<ERROR>");
@@ -104,26 +102,23 @@ void ProtoLogParser::ParseProtoLogMessage(
             stats::winscope_protolog_missing_interned_arg_parse_errors);
         continue;
       }
-      string_params.emplace_back(decoder->str().ToStdString());
+      string_params.emplace_back(str->ToStdString());
     }
   }
 
   std::optional<StringId> stacktrace = std::nullopt;
   if (protolog_message.has_stacktrace_iid()) {
-    auto* stacktrace_decoder = sequence_state->LookupInternedMessage<
-        perfetto::protos::pbzero::InternedData::kProtologStacktraceFieldNumber,
-        perfetto::protos::pbzero::InternedString>(
-        protolog_message.stacktrace_iid());
-
-    if (!stacktrace_decoder) {
+    if (auto id = sequence_state->InternedStringId(
+            perfetto::protos::pbzero::InternedData::
+                kProtologStacktraceFieldNumber,
+            protolog_message.stacktrace_iid())) {
+      stacktrace = *id;
+    } else {
       // This shouldn't happen since we already checked the incremental
       // state is valid.
       string_params.emplace_back("<ERROR>");
       context_->trace_processor_context_->stats_tracker->IncrementStats(
           stats::winscope_protolog_missing_interned_stacktrace_parse_errors);
-    } else {
-      stacktrace = storage->InternString(
-          base::StringView(stacktrace_decoder->str().ToStdString()));
     }
   }
 
