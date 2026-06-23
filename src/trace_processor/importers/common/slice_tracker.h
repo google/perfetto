@@ -43,7 +43,7 @@ class SliceTracker {
  public:
   using OnSliceBeginCallback = std::function<void(TrackId, SliceId)>;
 
-  // Sentinel default args callback; ArgsPresent() compiles arg handling away.
+  // Sentinel default args callback; WantsArgs() compiles arg handling away.
   struct NoArgsCallback {
     void operator()(ArgsTracker::BoundInserter*) const {}
   };
@@ -140,7 +140,7 @@ class SliceTracker {
                              ArgsCb args = {}) {
     // Split so args are invoked inline between setting the duration and the
     // pop.
-    EndedSlice e = CompleteSliceBegin(timestamp, track_id, raw_name, category,
+    EndedSlice e = CompleteSliceBegin(timestamp, track_id, category, raw_name,
                                       WantsArgs(args));
     if (!e.id)
       return std::nullopt;
@@ -235,8 +235,8 @@ class SliceTracker {
   // CompleteSliceFinalize before any other op on the track.
   EndedSlice CompleteSliceBegin(int64_t timestamp,
                                 TrackId track_id,
-                                StringId raw_name,
                                 StringId category,
+                                StringId raw_name,
                                 bool want_args);
 
   // Second half of End(): legacy args + pop.

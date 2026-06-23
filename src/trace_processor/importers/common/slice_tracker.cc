@@ -146,8 +146,8 @@ SliceTracker::StartedSlice SliceTracker::StartSlice(
 
 SliceTracker::EndedSlice SliceTracker::CompleteSliceBegin(int64_t timestamp,
                                                           TrackId track_id,
-                                                          StringId raw_name,
                                                           StringId category,
+                                                          StringId raw_name,
                                                           bool want_args) {
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
