@@ -183,8 +183,16 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
       trace_context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
     }
     if (manifest_entry) {
+      // A `machines` block declares the file IS multi-machine, so it is not a
+      // single-machine override; instead the proto dispatcher remaps embedded
+      // ids through it.
+      bool is_multi = !manifest_entry->machine_mappings.empty();
       trace_context_->trace_state->has_machine_override =
-          manifest_entry->machine_id.has_value();
+          manifest_entry->machine_id.has_value() && !is_multi;
+      if (is_multi) {
+        trace_context_->trace_state->machine_remap =
+            &manifest_entry->machine_remap;
+      }
     }
   }
   ASSIGN_OR_RETURN(reader_, input_context_->reader_registry->CreateTraceReader(

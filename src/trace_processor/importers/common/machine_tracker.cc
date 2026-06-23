@@ -33,9 +33,8 @@ namespace {
 MachineTable::Id LookupOrCreateMachineRow(TraceProcessorContext* context,
                                           uint32_t raw_machine_id) {
   if (auto* manifest = context->trace_manifest_state.get()) {
-    auto it = manifest->raw_id_to_table_id.find(raw_machine_id);
-    if (it != manifest->raw_id_to_table_id.end()) {
-      return MachineTable::Id(it->second);
+    if (uint32_t* row = manifest->raw_id_to_table_id.Find(raw_machine_id)) {
+      return MachineTable::Id(*row);
     }
   }
   return context->storage->mutable_machine_table()->Insert({raw_machine_id}).id;

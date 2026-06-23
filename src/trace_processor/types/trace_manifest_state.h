@@ -20,10 +20,17 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/flat_hash_map.h"
+
 namespace perfetto::trace_processor {
+
+// perfetto_manifest allocates synthetic machine ids from here upwards so they
+// never collide with embedded proto machine_ids, which the proto layer rejects
+// at or above this value.
+constexpr uint32_t kFirstManifestMachineId = 1u << 31;
 
 // Parsed contents of a perfetto_manifest sidecar file: a JSON file which,
 // as the first file of the trace (typically inside an archive, where sorting
@@ -41,9 +48,12 @@ struct TraceManifestState {
   //     (e.g. a proto's BOOTTIME). This only RELATES that clock to the
   //     reference via a cross-machine edge; it does not pin or reject
   //     snapshots.
-  // |ref_file| / |ref_machine| are the is.file/is.machine names; they pick
-  // which machine the reference |clock| lives on (default: this file's own
-  // machine).
+  // |ref_file| / |ref_machine| are the is.file/is.machine names; together they
+  // pick which machine the reference |clock| lives on (default: this file's own
+  // machine). A multi-machine file is several machines, so a reference into one
+  // needs both (the file locates the trace, the machine picks the row within
+  // it); a single-machine file needs only |ref_file|. |ref_machine| alone is
+  // ambiguous - embedded ids are scoped to their trace - and is rejected.
   //
   // Invariant: both timestamps are non-negative, so the override never
   // introduces negative timestamps into the clock graph.
@@ -60,10 +70,15 @@ struct TraceManifestState {
     // Exact path of the member within the archive.
     std::string path;
     std::optional<ClockOverride> clock_override;
-    // Explicit id, or a synthetic id the reader allocates per distinct
-    // |machine_name| so files sharing a name land on the same machine.
+    // The file's base machine: a synthetic row id the reader allocates per
+    // distinct |machine_name|, so files sharing a name land on one machine.
     std::optional<uint32_t> machine_id;
     std::optional<std::string> machine_name;
+    // From a `machines` block: each (embedded proto machine_id, declared name)
+    // pair. The reader resolves the names to rows in |machine_remap| (embedded
+    // id -> row id), which the proto dispatcher uses to place remote machines.
+    std::vector<std::pair<uint32_t, std::string>> machine_mappings;
+    base::FlatHashMap<uint32_t, uint32_t> machine_remap;
   };
 
   // True once a perfetto_manifest file has been parsed; a second one is an
@@ -71,11 +86,13 @@ struct TraceManifestState {
   bool config_seen = false;
 
   // The global trace time clock named by the top-level `trace_time` block.
-  // |trace_time_clock| is the builtin domain; |trace_time_file|, when set,
-  // names the file whose machine the clock belongs to (its row is
-  // pre-allocated, so the reader claims the qualified clock directly).
+  // |trace_time_clock| is the builtin domain; |trace_time_file| (+
+  // |trace_time_machine| for a multi-machine file) name the machine whose clock
+  // is trace time, resolved the same way as a clocks is.file/is.machine
+  // reference (its row is pre-allocated, so the reader claims it directly).
   std::optional<uint32_t> trace_time_clock;
   std::optional<std::string> trace_time_file;
+  std::optional<std::string> trace_time_machine;
   std::vector<FileEntry> files;
 
   // Maps a machine's logical (raw) id - the id the manifest assigns and names
@@ -84,7 +101,7 @@ struct TraceManifestState {
   // clock-referenced) machine and records it here, so references resolve to
   // real rows at parse time and ForkContextForTrace (via MachineTracker) reuses
   // the same row when the file is later forked.
-  std::unordered_map<uint32_t, uint32_t> raw_id_to_table_id;
+  base::FlatHashMap<uint32_t, uint32_t> raw_id_to_table_id;
 
   FileEntry* FindEntry(const std::string& path) {
     for (FileEntry& entry : files) {

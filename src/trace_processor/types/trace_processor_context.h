@@ -107,9 +107,16 @@ class TraceProcessorContext {
     // so ClockSnapshots and remote machine ids are rejected on it.
     bool has_clock_override = false;
 
-    // Set when a perfetto_manifest entry attributed this file to a machine;
-    // lets readers reject it later if it proves to be multi-machine.
+    // Set when a perfetto_manifest entry attributed this file to a single
+    // machine; lets readers reject it later if it proves to be multi-machine.
     bool has_machine_override = false;
+
+    // For a multi-machine proto file described by a manifest `machines` block:
+    // points at that entry's embedded machine_id -> raw machine id map (owned
+    // by the manifest state, which outlives parsing). The proto dispatcher
+    // forks remote machines onto these instead of rejecting. Null for other
+    // files.
+    const base::FlatHashMap<uint32_t, uint32_t>* machine_remap = nullptr;
   };
 
   struct UuidState {
