@@ -59,6 +59,15 @@ function generateJankCujTrackConfig(cujNames: string | string[] = []) {
 }
 
 const JANK_CUJ_QUERY = `
+    WITH missed_frame_counts AS (
+      SELECT cuj_id,
+        COUNT(*) AS total_frames,
+        SUM(app_missed) AS missed_app_frames,
+        SUM(sf_missed) AS missed_sf_frames
+      FROM
+        android_jank_cuj_frame_timeline
+      GROUP BY cuj_id
+    )
     SELECT
       CASE
         WHEN
@@ -95,11 +104,10 @@ const JANK_CUJ_QUERY = `
           THEN ' ✅ '
         ELSE ' ❓ '
         END || cuj.name AS name,
+      p.name AS process_name,
       total_frames,
       missed_app_frames,
       missed_sf_frames,
-      sf_callback_missed_frames,
-      hwui_callback_missed_frames,
       cuj_layer.layer_name,
       /* Boundaries table doesn't contain ts and dur when a CUJ didn't complete successfully.
         In that case we still want to show that it was canceled, so let's take the slice timestamps. */
@@ -108,12 +116,13 @@ const JANK_CUJ_QUERY = `
       cuj.track_id,
       cuj.slice_id
     FROM slice AS cuj
-           JOIN process_track AS pt ON cuj.track_id = pt.id
-           LEFT JOIN android_jank_cuj jc
-                     ON pt.upid = jc.upid AND cuj.name = jc.cuj_slice_name AND cuj.ts = jc.ts
-           LEFT JOIN android_jank_cuj_main_thread_cuj_boundary boundaries using (cuj_id)
-           LEFT JOIN android_jank_cuj_layer_name cuj_layer USING (cuj_id)
-           LEFT JOIN android_jank_cuj_counter_metrics USING (cuj_id)
+          JOIN process_track AS pt ON cuj.track_id = pt.id
+          JOIN process AS p ON pt.upid = p.upid
+          LEFT JOIN android_jank_cuj jc
+                    ON pt.upid = jc.upid AND cuj.name = jc.cuj_slice_name AND cuj.ts = jc.ts
+          LEFT JOIN android_jank_cuj_main_thread_cuj_boundary boundaries using (cuj_id)
+          LEFT JOIN android_jank_cuj_layer_name cuj_layer USING (cuj_id)
+          LEFT JOIN missed_frame_counts USING (cuj_id)
     WHERE cuj.name GLOB 'J<*>'
       AND cuj.dur > 0
 `;
