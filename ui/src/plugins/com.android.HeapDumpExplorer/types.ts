@@ -43,6 +43,11 @@ export interface DuplicateArrayGroup {
   wastedBytes: number;
 }
 
+export interface OomeData {
+  upid: number;
+  ts: bigint;
+}
+
 export interface OverviewData {
   reachableInstanceCount: number;
   unreachableInstanceCount: number;
@@ -63,10 +68,6 @@ export interface OverviewData {
   dmabufRssSize: bigint | null;
   /** The process uptime at the time of the heap dump. */
   processUptime: bigint | null;
-  /** The upid of the process that triggered the OOME. */
-  oomeUpid: number | null;
-  /** The timestamp of the OOME event. */
-  oomeTs: bigint | null;
 }
 
 export type PrimOrRef =

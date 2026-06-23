@@ -14,21 +14,23 @@
 
 import m from 'mithril';
 import type {Trace} from '../../../public/trace';
-import type {time} from '../../../base/time';
+import {Time} from '../../../base/time';
 import type {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../../components/flamegraph_panel';
 import {Flamegraph, type FlamegraphState} from '../../../widgets/flamegraph';
 import {Stack} from '../../../widgets/stack';
 import {EmptyState} from '../../../widgets/empty_state';
+import {Spinner} from '../../../widgets/spinner';
 import {
   buildOomeCallstackMetrics,
   loadOomeErrorMsg,
 } from '../../dev.perfetto.HeapProfile/oome_callstack_common';
+import type {OomeData} from '../types';
 
 interface CallstackViewAttrs {
   readonly trace: Trace;
-  readonly upid: number | undefined;
-  readonly ts: time | undefined;
+  readonly oomeData: OomeData | undefined;
+  readonly isOomeDataLoaded: boolean;
   readonly state: FlamegraphState | undefined;
   readonly onStateChange: (state: FlamegraphState) => void;
 }
@@ -38,13 +40,17 @@ export const CallstackView: m.ClosureComponent<CallstackViewAttrs> = () => {
   let cachedKey: string | undefined;
   let errorMsg: string | undefined;
 
-  async function loadErrorMsg(trace: Trace, ts: time) {
-    errorMsg = await loadOomeErrorMsg(trace.engine, ts);
+  async function loadErrorMsg(trace: Trace, ts: bigint) {
+    errorMsg = await loadOomeErrorMsg(trace.engine, Time.fromRaw(ts));
   }
 
   return {
     view({attrs}) {
-      if (attrs.upid === undefined || attrs.ts === undefined) {
+      if (!attrs.isOomeDataLoaded) {
+        return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
+      }
+
+      if (attrs.oomeData === undefined) {
         return m(
           EmptyState,
           {
@@ -59,12 +65,14 @@ export const CallstackView: m.ClosureComponent<CallstackViewAttrs> = () => {
         );
       }
 
-      const key = `${attrs.upid}:${attrs.ts}`;
+      const upid = attrs.oomeData.upid;
+      const ts = attrs.oomeData.ts;
+      const key = `${upid}:${ts}`;
       if (cachedMetrics === undefined || key !== cachedKey) {
-        cachedMetrics = buildOomeCallstackMetrics(attrs.ts);
+        cachedMetrics = buildOomeCallstackMetrics(Time.fromRaw(ts));
         cachedKey = key;
         errorMsg = undefined;
-        loadErrorMsg(attrs.trace, attrs.ts);
+        loadErrorMsg(attrs.trace, ts);
       }
       const metrics = cachedMetrics;
 
