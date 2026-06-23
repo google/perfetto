@@ -30,7 +30,9 @@ namespace perfetto::trace_processor::winscope {
 
 ViewCaptureParser::ViewCaptureParser(WinscopeContext* context)
     : context_{context},
-      args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
+      args_parser_{
+          *context->trace_processor_context_->descriptor_pool_,
+          *context->trace_processor_context_->storage->mutable_string_pool()} {}
 
 void ViewCaptureParser::Parse(int64_t timestamp,
                               protozero::ConstBytes blob,
