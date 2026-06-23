@@ -19,10 +19,14 @@
 
 #include <stdint.h>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <optional>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -37,8 +41,12 @@ class TraceProcessorContext;
 
 class SliceTracker {
  public:
-  using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter*)>;
   using OnSliceBeginCallback = std::function<void(TrackId, SliceId)>;
+
+  // Sentinel default args callback; ArgsPresent() compiles arg handling away.
+  struct NoArgsCallback {
+    void operator()(ArgsTracker::BoundInserter*) const {}
+  };
 
   // Describes a partial overlap detected while adding a scoped slice: the
   // incoming slice partially intersects an already-open slice on the same
@@ -65,15 +73,20 @@ class SliceTracker {
   void AddOverlapArgs(const OverlapInfo&, ArgsTracker::BoundInserter&) const;
 
   explicit SliceTracker(TraceProcessorContext*);
-  virtual ~SliceTracker();
+  ~SliceTracker();
 
-  // virtual for testing
-  virtual std::optional<SliceId> Begin(
-      int64_t timestamp,
-      TrackId track_id,
-      StringId category,
-      StringId raw_name,
-      SetArgsCallback args_callback = SetArgsCallback());
+  template <typename ArgsCb = NoArgsCallback>
+  std::optional<SliceId> Begin(int64_t timestamp,
+                               TrackId track_id,
+                               StringId category,
+                               StringId raw_name,
+                               ArgsCb args = {}) {
+    StartedSlice s =
+        StartSlice(timestamp, kPendingDuration, track_id, category, raw_name,
+                   WantsArgs(args), /*overlap_out=*/nullptr);
+    InvokeArgs(s.inserter, args);
+    return s.id;
+  }
 
   // Unnestable slices are slices which do not have any concept of nesting so
   // starting a new slice when a slice already exists leads to no new slice
@@ -81,68 +94,75 @@ class SliceTracker {
   // as the latest time we saw a begin event. For legacy Android use only. See
   // the comment in SystraceParser::ParseSystracePoint for information on why
   // this method exists.
-  void BeginLegacyUnnestable(tables::SliceTable::Row row,
-                             SetArgsCallback args_callback);
-
-  template <typename Table>
-  std::optional<SliceId> BeginTyped(
-      Table* table,
-      typename Table::Row row,
-      SetArgsCallback args_callback = SetArgsCallback()) {
-    // Ensure that the duration is pending for this row.
-    row.dur = kPendingDuration;
-    if (row.name) {
-      row.name = context_->slice_translation_table->TranslateName(*row.name);
-    }
-    return StartSlice(row.ts, row.dur, row.track_id, args_callback,
-                      [table, &row]() { return table->Insert(row).id; });
+  template <typename ArgsCb>
+  void BeginLegacyUnnestable(tables::SliceTable::Row row, ArgsCb args) {
+#if PERFETTO_DCHECK_IS_ON()
+    auto* it = stacks_.Find(row.track_id);
+    PERFETTO_DCHECK(!it || it->is_legacy_unnestable);
+#endif
+    GetOrCreateTrackInfo(row.track_id).is_legacy_unnestable = true;
+    StartedSlice s = StartSlice(row.ts, kPendingDuration, row.track_id,
+                                kNullStringId, row.name.value_or(kNullStringId),
+                                WantsArgs(args), /*overlap_out=*/nullptr);
+    InvokeArgs(s.inserter, args);
   }
 
-  // virtual for testing
-  //
   // If |overlap_out| is non-null and the slice partially overlaps an open slice
   // on the track, the overlap details are reported via |*overlap_out| (and
   // nullopt is returned) instead of dropping the slice and logging
   // |slice_drop_overlapping_complete_event|, letting the caller recover (e.g.
   // by spilling onto an overflow track). When |overlap_out| is null, the drop
   // is logged with the same overlap details.
-  virtual std::optional<SliceId> Scoped(
+  template <typename ArgsCb = NoArgsCallback>
+  std::optional<SliceId> Scoped(
       int64_t timestamp,
       TrackId track_id,
       StringId category,
       StringId raw_name,
       int64_t duration,
-      SetArgsCallback args_callback = SetArgsCallback(),
-      std::optional<OverlapInfo>* overlap_out = nullptr);
-
-  template <typename Table>
-  std::optional<SliceId> ScopedTyped(
-      Table* table,
-      typename Table::Row row,
-      SetArgsCallback args_callback = SetArgsCallback()) {
-    PERFETTO_DCHECK(row.dur >= 0);
-    if (row.name) {
-      row.name = context_->slice_translation_table->TranslateName(*row.name);
+      ArgsCb args = {},
+      std::optional<OverlapInfo>* overlap_out = nullptr) {
+    if (duration < 0) {
+      RecordSliceNegativeDuration(timestamp);
+      return std::nullopt;
     }
-    return StartSlice(row.ts, row.dur, row.track_id, args_callback,
-                      [table, &row]() { return table->Insert(row).id; });
+    StartedSlice s = StartSlice(timestamp, duration, track_id, category,
+                                raw_name, WantsArgs(args), overlap_out);
+    InvokeArgs(s.inserter, args);
+    return s.id;
   }
 
-  // virtual for testing
-  virtual std::optional<SliceId> End(
-      int64_t timestamp,
-      TrackId track_id,
-      StringId opt_category = {},
-      StringId opt_raw_name = {},
-      SetArgsCallback args_callback = SetArgsCallback());
+  template <typename ArgsCb = NoArgsCallback>
+  std::optional<SliceId> End(int64_t timestamp,
+                             TrackId track_id,
+                             StringId category = {},
+                             StringId raw_name = {},
+                             ArgsCb args = {}) {
+    // Split so args are invoked inline between setting the duration and the
+    // pop.
+    EndedSlice e = CompleteSliceBegin(timestamp, track_id, raw_name, category,
+                                      WantsArgs(args));
+    if (!e.id)
+      return std::nullopt;
+    InvokeArgs(e.inserter, args);
+    CompleteSliceFinalize(e.state);
+    return e.id;
+  }
 
   // Usually args should be added in the Begin or End args_callback but this
   // method is for the situation where new args need to be added to an
   // in-progress slice.
+  template <typename ArgsCb>
   std::optional<uint32_t> AddArgs(TrackId track_id,
                                   StringId category,
                                   StringId name,
-                                  SetArgsCallback args_callback);
+                                  ArgsCb args) {
+    std::optional<ArgsTracker::BoundInserter> inserter;
+    std::optional<uint32_t> row =
+        AddArgsImpl(track_id, category, name, WantsArgs(args), &inserter);
+    InvokeArgs(inserter, args);
+    return row;
+  }
 
   void FlushPendingSlices();
 
@@ -155,9 +175,11 @@ class SliceTracker {
   // with this duration placeholder.
   static constexpr int64_t kPendingDuration = -1;
 
+  // |args| is lazily acquired from |args_pool_| only if the slice gets args,
+  // and is null otherwise; recycled on pop.
   struct SliceInfo {
     tables::SliceTable::RowNumber row;
-    ArgsTracker args_tracker;
+    ArgsTracker* args = nullptr;
   };
   using SlicesStack = std::vector<SliceInfo>;
 
@@ -177,38 +199,125 @@ class SliceTracker {
     ArgsTracker::CompactArgSet compact_arg_set;
   };
 
-  // virtual for testing.
-  virtual std::optional<SliceId> StartSlice(
-      int64_t timestamp,
-      int64_t duration,
-      TrackId track_id,
-      SetArgsCallback args_callback,
-      std::function<SliceId()> inserter,
-      std::optional<OverlapInfo>* overlap_out = nullptr);
+  // Carried from CompleteSliceBegin to CompleteSliceFinalize across End()'s
+  // args.
+  struct CompleteSliceState {
+    TrackInfo* track_info;
+    uint32_t stack_idx;
+  };
 
-  std::optional<SliceId> CompleteSlice(
-      int64_t timestamp,
-      TrackId track_id,
-      SetArgsCallback args_callback,
-      std::function<std::optional<uint32_t>(const SlicesStack&)> finder);
+  // Return of the out-of-line Begin/End fast paths: the new/closed slice id
+  // and, when args were requested, a BoundInserter already bound to its
+  // ArgsTracker.
+  struct StartedSlice {
+    std::optional<SliceId> id;
+    std::optional<ArgsTracker::BoundInserter> inserter;
+  };
+  struct EndedSlice {
+    std::optional<SliceId> id;
+    std::optional<ArgsTracker::BoundInserter> inserter;
+    CompleteSliceState state;
+  };
 
-  [[nodiscard]] bool MaybeCloseStack(int64_t ts,
+  // Single out-of-line body for Begin/Scoped: translate, insert and push the
+  // slice, and (if want_args) acquire its BoundInserter. The only thing the
+  // templated callers inline is the args callback on the returned inserter.
+  StartedSlice StartSlice(int64_t timestamp,
+                          int64_t duration,
+                          TrackId track_id,
+                          StringId category,
+                          StringId raw_name,
+                          bool want_args,
+                          std::optional<OverlapInfo>* overlap_out);
+
+  // First half of End(): translate, find the slice and set its duration. The
+  // caller invokes args (if any) on the returned inserter, then calls
+  // CompleteSliceFinalize before any other op on the track.
+  EndedSlice CompleteSliceBegin(int64_t timestamp,
+                                TrackId track_id,
+                                StringId raw_name,
+                                StringId category,
+                                bool want_args);
+
+  // Second half of End(): legacy args + pop.
+  void CompleteSliceFinalize(const CompleteSliceState& state);
+
+  // Body of AddArgs(): finds the slice and (if want_args) returns its inserter.
+  std::optional<uint32_t> AddArgsImpl(
+      TrackId track_id,
+      StringId category,
+      StringId name,
+      bool want_args,
+      std::optional<ArgsTracker::BoundInserter>* inserter);
+
+  // True if |args| should run (false for NoArgsCallback / empty std::function).
+  template <typename ArgsCb>
+  static bool WantsArgs(const ArgsCb& args) {
+    if constexpr (std::is_same_v<ArgsCb, NoArgsCallback>) {
+      base::ignore_result(args);
+      return false;
+    } else if constexpr (std::is_constructible_v<bool, const ArgsCb&>) {
+      return static_cast<bool>(args);
+    } else {
+      base::ignore_result(args);
+      return true;
+    }
+  }
+
+  // Runs |args| on the inserter returned by the out-of-line entrypoints. The
+  // only per-callsite code for an arg-bearing slice; nothing for
+  // NoArgsCallback.
+  template <typename ArgsCb>
+  static void InvokeArgs(std::optional<ArgsTracker::BoundInserter>& inserter,
+                         ArgsCb& args) {
+    if constexpr (std::is_same_v<ArgsCb, NoArgsCallback>) {
+      base::ignore_result(inserter, args);
+    } else if (inserter) {
+      args(&*inserter);
+    }
+  }
+
+  // Legacy bookkeeping + MaybeCloseStack; false if the slice should be dropped.
+  [[nodiscard]] bool PrepareStartSlice(TrackInfo& track_info,
+                                       int64_t timestamp,
+                                       int64_t duration,
+                                       std::optional<OverlapInfo>* overlap_out);
+
+  void LogMaxDepthExceeded(const SliceInfo& parent, StringId name);
+
+  void AddLegacyUnnestableArgs(SliceInfo& slice_info,
+                               const TrackInfo& track_info);
+
+  void RecordSliceNegativeDuration(int64_t timestamp);
+
+  [[nodiscard]] bool MaybeCloseStack(TrackInfo& track_info,
+                                     int64_t ts,
                                      int64_t dur,
-                                     const SlicesStack&,
-                                     TrackId track_id,
                                      std::optional<OverlapInfo>* overlap_out);
 
   std::optional<uint32_t> MatchingIncompleteSliceIndex(const SlicesStack& stack,
                                                        StringId name,
                                                        StringId category);
 
-  void StackPop(TrackId track_id);
-  void StackPush(TrackId track_id, tables::SliceTable::RowReference);
+  void StackPop(TrackInfo& track_info);
+  void StackPush(TrackInfo& track_info,
+                 TrackId track_id,
+                 tables::SliceTable::RowNumber row_number,
+                 SliceId id);
 
-  // If args need translation, adds them to a list of pending translatable args,
-  // so that they are translated at the end of the trace. Takes ownership of the
-  // arg set for the slice. Otherwise, this is a noop, and the args are added to
-  // the args table immediately when the slice is popped.
+  // Resolve a track once per event and thread the reference through the call;
+  // the map is small and hot so a cross-call last-track cache measured as
+  // noise.
+  TrackInfo& GetOrCreateTrackInfo(TrackId track_id) {
+    return stacks_[track_id];
+  }
+  TrackInfo* FindTrackInfo(TrackId track_id) { return stacks_.Find(track_id); }
+
+  // BoundInserter for |slice_info|, lazily acquiring its pooled ArgsTracker.
+  ArgsTracker::BoundInserter ArgsInserter(SliceInfo& slice_info, SliceId id);
+
+  // Defers args needing translation to end-of-trace (taking ownership of the
+  // arg set), else no-op. Requires |slice_info.args| non-null.
   void MaybeAddTranslatableArgs(SliceInfo& slice_info);
 
   OnSliceBeginCallback on_slice_begin_callback_;
@@ -227,6 +336,11 @@ class SliceTracker {
 
   StackMap stacks_;
   std::vector<TranslatableArgs> translatable_args_;
+
+  // Recyclable per-slice ArgsTrackers; deque for pointer stability, free list
+  // of cleared ones.
+  std::deque<ArgsTracker> args_pool_;
+  std::vector<ArgsTracker*> free_args_;
 };
 
 }  // namespace perfetto::trace_processor
