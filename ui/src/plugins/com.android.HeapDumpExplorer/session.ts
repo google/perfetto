@@ -69,7 +69,7 @@ function countKey(pathHashes: string, isDominator: boolean): string {
 // serializes into permalinks and restores before the plugin loads. The session
 // is a thin controller over it: mutations are store edits, views render from
 // the store, restoration is automatic. Non-serializable trace-derived data (the
-// dumps, overview, oome, per-tab counts) is cached here instead.
+// dumps, overview, per-tab counts) is cached here instead.
 export class HeapDumpExplorerSession {
   private _navigateCallback?: (subpage: string) => void;
 
