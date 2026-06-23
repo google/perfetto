@@ -200,6 +200,7 @@ source_set("proto_to_args_parser") {
     ":descriptors",
     ":interned_message_view",
     "../../base",
+    "../containers",
   ]
 }
 
