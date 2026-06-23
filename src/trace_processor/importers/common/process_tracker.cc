@@ -684,27 +684,38 @@ void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
                    ThreadNamePriority::kTraceProcessorConstant);
 }
 
-ArgsTracker::BoundInserter ProcessTracker::AddArgsToProcess(UniquePid upid) {
-  return args_tracker_.AddArgsToProcess(upid);
+ArgsTracker::BoundInserter& ProcessTracker::AddArgsToProcess(UniquePid upid) {
+  auto [it, inserted] =
+      process_args_.Insert(upid, ArgsTracker::BoundInserter());
+  if (PERFETTO_UNLIKELY(inserted))
+    *it = args_tracker_.AddArgsToProcess(upid);
+  return *it;
 }
 
-ArgsTracker::BoundInserter ProcessTracker::AddArgsToThread(UniqueTid utid) {
-  return args_tracker_.AddArgsToThread(utid);
+ArgsTracker::BoundInserter& ProcessTracker::AddArgsToThread(UniqueTid utid) {
+  auto [it, inserted] = thread_args_.Insert(utid, ArgsTracker::BoundInserter());
+  if (PERFETTO_UNLIKELY(inserted))
+    *it = args_tracker_.AddArgsToThread(utid);
+  return *it;
 }
 
 void ProcessTracker::OnEventsFullyExtracted() {
   for (auto it = process_sort_indexes_.GetIterator(); it; ++it) {
-    auto inserter = AddArgsToProcess(it.key());
-    inserter.AddArg(context_->storage->InternString("process_sort_index_hint"),
-                    Variadic::Integer(it.value().value));
+    AddArgsToProcess(it.key()).AddArg(
+        context_->storage->InternString("process_sort_index_hint"),
+        Variadic::Integer(it.value().value));
   }
   for (auto it = thread_sort_indexes_.GetIterator(); it; ++it) {
-    auto inserter = AddArgsToThread(it.key());
-    inserter.AddArg(context_->storage->InternString("thread_sort_index_hint"),
-                    Variadic::Integer(it.value().value));
+    AddArgsToThread(it.key()).AddArg(
+        context_->storage->InternString("thread_sort_index_hint"),
+        Variadic::Integer(it.value().value));
   }
 
-  args_tracker_.Flush();
+  // Trace fully loaded: commit the merged process/thread args by destroying the
+  // inserters.
+  process_args_.Clear();
+  thread_args_.Clear();
+
   tids_.Clear();
   pids_.Clear();
   pending_assocs_.clear();

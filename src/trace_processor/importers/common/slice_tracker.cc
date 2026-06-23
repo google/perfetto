@@ -140,7 +140,7 @@ SliceTracker::StartedSlice SliceTracker::StartSlice(
   StartedSlice result;
   result.id = inserted.id;
   if (want_args)
-    result.inserter.emplace(ArgsInserter(stack.back(), inserted.id));
+    result.inserter = GetArgsInserter(stack.back(), inserted.id);
   return result;
 }
 
@@ -184,16 +184,15 @@ SliceTracker::EndedSlice SliceTracker::CompleteSliceBegin(int64_t timestamp,
   result.state.track_info = &track_info;
   result.state.stack_idx = *stack_idx;
   if (want_args)
-    result.inserter.emplace(ArgsInserter(slice_info, ref.id()));
+    result.inserter = GetArgsInserter(slice_info, ref.id());
   return result;
 }
 
-std::optional<uint32_t> SliceTracker::AddArgsImpl(
-    TrackId track_id,
-    StringId category,
-    StringId name,
-    bool want_args,
-    std::optional<ArgsTracker::BoundInserter>* inserter) {
+std::optional<uint32_t> SliceTracker::AddArgsImpl(TrackId track_id,
+                                                  StringId category,
+                                                  StringId name,
+                                                  bool want_args,
+                                                  ArgsInserter** inserter) {
   auto* it = FindTrackInfo(track_id);
   if (!it)
     return std::nullopt;
@@ -214,7 +213,7 @@ std::optional<uint32_t> SliceTracker::AddArgsImpl(
   PERFETTO_DCHECK(ref.dur() == kPendingDuration);
 
   if (want_args)
-    inserter->emplace(ArgsInserter(slice_info, ref.id()));
+    *inserter = GetArgsInserter(slice_info, ref.id());
   return num.row_number();
 }
 
@@ -232,30 +231,23 @@ void SliceTracker::CompleteSliceFinalize(const CompleteSliceState& state) {
     StackPop(track_info);
 }
 
-ArgsTracker::BoundInserter SliceTracker::ArgsInserter(SliceInfo& slice_info,
-                                                      SliceId id) {
-  // Lazily acquire a pooled ArgsTracker (deque => stable BoundInserter ptrs).
+ArgsInserter* SliceTracker::GetArgsInserter(SliceInfo& slice_info, SliceId id) {
+  // Lazily bind the slice's inserter; reused so all its args merge into one
+  // set.
   if (!slice_info.args) {
-    if (!free_args_.empty()) {
-      slice_info.args = free_args_.back();
-      free_args_.pop_back();
-    } else {
-      args_pool_.emplace_back(context_);
-      slice_info.args = &args_pool_.back();
-    }
+    slice_info.args = ArgsTracker(context_).AddArgsTo(id);
   }
-  return slice_info.args->AddArgsTo(id);
+  return &*slice_info.args;
 }
 
 void SliceTracker::AddLegacyUnnestableArgs(SliceInfo& slice_info,
                                            const TrackInfo& track_info) {
   auto* slices = context_->storage->mutable_slice_table();
   SliceId id = slice_info.row.ToRowReference(slices).id();
-  auto bound_inserter = ArgsInserter(slice_info, id);
-  bound_inserter.AddArg(
-      legacy_unnestable_begin_count_string_id_,
-      Variadic::Integer(track_info.legacy_unnestable_begin_count));
-  bound_inserter.AddArg(
+  ArgsInserter* inserter = GetArgsInserter(slice_info, id);
+  inserter->AddArg(legacy_unnestable_begin_count_string_id_,
+                   Variadic::Integer(track_info.legacy_unnestable_begin_count));
+  inserter->AddArg(
       legacy_unnestable_last_begin_ts_string_id_,
       Variadic::Integer(track_info.legacy_unnestable_last_begin_ts));
 }
@@ -297,11 +289,7 @@ void SliceTracker::MaybeAddTranslatableArgs(SliceInfo& slice_info) {
   tables::SliceTable::ConstRowReference ref =
       slice_info.row.ToRowReference(table);
   translatable_args_.emplace_back(TranslatableArgs{
-      ref.id(),
-      std::move(*slice_info.args)
-          .ToCompactArgSet(table.dataframe(),
-                           tables::SliceTable::ColumnIndex::arg_set_id,
-                           slice_info.row.row_number())});
+      ref.id(), std::move(*slice_info.args).ToCompactArgSet()});
 }
 
 void SliceTracker::FlushPendingSlices() {
@@ -313,8 +301,7 @@ void SliceTracker::FlushPendingSlices() {
   // setting their duration to |trace_end - event_start|. Might still want some
   // additional way of flagging these events as "incomplete" to the UI.
 
-  // Defer translatable args; the rest are flushed when |args_pool_| is
-  // destroyed.
+  // Defer translatable args; the rest commit when the stacks are cleared below.
   for (auto it = stacks_.GetIterator(); it; ++it) {
     auto& track_info = it.value();
     for (auto& slice_info : track_info.slice_stack) {
@@ -333,10 +320,6 @@ void SliceTracker::FlushPendingSlices() {
   translatable_args_.clear();
 
   stacks_.Clear();
-
-  // Pool destruction flushes any remaining non-translatable args (dtor Flush).
-  args_pool_.clear();
-  free_args_.clear();
 }
 
 void SliceTracker::SetOnSliceBeginCallback(OnSliceBeginCallback callback) {
@@ -484,13 +467,10 @@ void SliceTracker::StackPop(TrackInfo& track_info) {
   auto& stack = track_info.slice_stack;
   SliceInfo& info = stack.back();
   if (info.args) {
-    // Order matters: translatable args are moved out first; Flush is then a
-    // no-op for them and commits the rest.
+    // Move translatable args out first (deferred to end-of-trace); reset then
+    // commits whatever remains.
     MaybeAddTranslatableArgs(info);
-    info.args->Flush();
-    info.args->Clear();
-    free_args_.push_back(info.args);
-    info.args = nullptr;
+    info.args.reset();
   }
   stack.pop_back();
 }
@@ -499,7 +479,7 @@ void SliceTracker::StackPush(TrackInfo& track_info,
                              TrackId track_id,
                              tables::SliceTable::RowNumber row_number,
                              SliceId id) {
-  track_info.slice_stack.push_back(SliceInfo{row_number, nullptr});
+  track_info.slice_stack.push_back(SliceInfo{row_number, std::nullopt});
   if (on_slice_begin_callback_) {
     on_slice_begin_callback_(track_id, id);
   }

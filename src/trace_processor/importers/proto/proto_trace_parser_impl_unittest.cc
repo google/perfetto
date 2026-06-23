@@ -232,9 +232,7 @@ class MockProcessTracker : public ProcessTracker {
 
 class MockBoundInserter : public ArgsTracker::BoundInserter {
  public:
-  MockBoundInserter()
-      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u, 0u),
-        tracker_(nullptr) {
+  MockBoundInserter() {
     ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
   }
 
@@ -245,9 +243,6 @@ class MockBoundInserter : public ArgsTracker::BoundInserter {
                Variadic v,
                ArgsTracker::UpdatePolicy update_policy),
               (override));
-
- private:
-  ArgsTracker tracker_;
 };
 
 class ProtoTraceParserTest : public ::testing::Test {

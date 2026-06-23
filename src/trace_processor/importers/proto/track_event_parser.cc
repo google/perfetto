@@ -403,7 +403,7 @@ void TrackEventParser::ParseChromeProcessDescriptor(
           : ProcessNamePriority::kChromeProcessLabel;
   context_->process_tracker->UpdateProcessName(upid, name_id, priority);
 
-  ArgsTracker::BoundInserter process_args =
+  ArgsTracker::BoundInserter& process_args =
       context_->process_tracker->AddArgsToProcess(upid);
   // For identifying Chrome processes in system traces.
   process_args.AddArg(chrome_process_type_id_, Variadic::String(name_id));

@@ -244,15 +244,13 @@ class ProcessTracker {
   // traces, we always have the "swapper" (idle) process having tid/pid 0.
   void SetPidZeroIsUpidZeroIdleProcess();
 
-  // Returns a BoundInserter to add arguments to the arg set of a process.
-  // Arguments are flushed into trace storage only after the trace was loaded in
-  // its entirety.
-  ArgsTracker::BoundInserter AddArgsToProcess(UniquePid upid);
+  // Returns the inserter accumulating args for a process; args from all callers
+  // merge into one arg set, committed in OnEventsFullyExtracted. The reference
+  // is valid until the next AddArgsToProcess call.
+  ArgsTracker::BoundInserter& AddArgsToProcess(UniquePid upid);
 
-  // Returns a BoundInserter to add arguments to the arg set of a thread.
-  // Arguments are flushed into trace storage only after the trace was loaded in
-  // its entirety.
-  ArgsTracker::BoundInserter AddArgsToThread(UniqueTid utid);
+  // As AddArgsToProcess, for a thread.
+  ArgsTracker::BoundInserter& AddArgsToThread(UniqueTid utid);
 
   // Called when the trace was fully loaded.
   void OnEventsFullyExtracted();
@@ -310,7 +308,15 @@ class ProcessTracker {
 
   TraceProcessorContext* const context_;
 
+  // Factory used to bind the inserters below to process/thread rows.
   ArgsTracker args_tracker_;
+
+  // One inserter per process/thread that received args, so args from all
+  // callers merge into one set; committed in OnEventsFullyExtracted. The
+  // reference returned by AddArgsTo{Process,Thread} is only valid until the
+  // next such call (the map may rehash); every caller uses it before then.
+  base::FlatHashMap<UniquePid, ArgsTracker::BoundInserter> process_args_;
+  base::FlatHashMap<UniqueTid, ArgsTracker::BoundInserter> thread_args_;
 
   // Mapping for tid to the vector of possible UniqueTids.
   // TODO(lalitm): this is a one-many mapping because this code was written
