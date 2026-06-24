@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -91,9 +92,15 @@ class ProcessTracker {
   // Returns whether a thread is considered alive by the process tracker.
   bool IsThreadAlive(UniqueTid utid);
 
-  // Called when sched_process_exit is observed. This forces the tracker to
-  // end the thread lifetime for the utid associated with the given tid.
+  // Called when sched_process_free is observed (the task_struct is freed).
+  // This ends the thread lifetime for the utid associated with the given tid,
+  // and the process lifetime if it's the main thread.
   void EndThread(int64_t timestamp, int64_t tid);
+
+  // Called when sched_process_exit is observed (do_exit). Note that this is
+  // distinct from when the kernel frees the task struct, which is handled by
+  // |EndThread|.
+  void MarkProcessExited(int64_t tid);
 
   // Returns the thread utid or std::nullopt if it doesn't exist.
   std::optional<UniqueTid> GetThreadOrNull(int64_t tid);
@@ -385,6 +392,10 @@ class ProcessTracker {
   };
   base::FlatHashMap<UniquePid, SortIndex> process_sort_indexes_;
   base::FlatHashMap<UniqueTid, SortIndex> thread_sort_indexes_;
+
+  // Processes which have exited (sched_process_exit) but not yet been freed
+  // (sched_process_free).
+  base::FlatSet<UniquePid> exited_upids_;
 };
 
 }  // namespace perfetto::trace_processor
