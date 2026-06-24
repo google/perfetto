@@ -210,6 +210,8 @@ interface FilterTypeOption {
   readonly label: string;
   readonly shortLabel: string;
   readonly description: string;
+  // Example regular expression used in tips for this filter type.
+  readonly example: string;
 }
 
 const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
@@ -217,6 +219,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     value: 'SHOW_STACK',
     label: 'Show Stack',
     shortLabel: 'SS',
+    example: 'main',
     description:
       'Keep only samples whose stack contains a matching frame. ' +
       'Non-matching samples are removed entirely.',
@@ -225,6 +228,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     value: 'HIDE_STACK',
     label: 'Hide Stack',
     shortLabel: 'HS',
+    example: 'malloc',
     description:
       'Remove samples whose stack contains a matching frame. ' +
       'Also called "Drop function" in other profilers.',
@@ -233,6 +237,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     value: 'SHOW_FROM_FRAME',
     label: 'Show From Frame',
     shortLabel: 'SFF',
+    example: 'main',
     description:
       'Keep only matching frames and their descendants, removing ancestors. ' +
       'Also called "Focus on subtree" in other profilers.',
@@ -241,6 +246,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     value: 'HIDE_FRAME',
     label: 'Hide Frame',
     shortLabel: 'HF',
+    example: 'alloc.*',
     description:
       'Remove matching frames from all stacks, collapsing children into parent. ' +
       'Also called "Merge function" in other profilers.',
@@ -249,6 +255,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     value: 'PIVOT',
     label: 'Pivot',
     shortLabel: 'P',
+    example: 'std::.*',
     description:
       'Re-root the flamegraph at matching frames. ' +
       'Shows callers above and callees below the pivot point.',
@@ -300,31 +307,52 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
           this.filter = v;
         },
       }),
+      m(
+        '.pf-filter-builder__hint',
+        'Matched as a regex: bare text is a substring match (e.g. ',
+        m('code', 'malloc'),
+        '); anchor with ',
+        m('code', '^'),
+        '/',
+        m('code', '$'),
+        ' for exact matches.',
+      ),
       hasPivot &&
         this.type === 'PIVOT' &&
         m('.pf-filter-builder__warn', 'Replaces current pivot'),
       m('.pf-filter-builder__separator'),
-      m(
-        '.pf-filter-builder__tip',
-        m(Icon, {icon: 'lightbulb_outline'}),
-        ' You can also type directly in the filter bar ',
+      opt &&
         m(
-          Tooltip,
-          {trigger: m(Icon, {icon: 'help_outline'})},
+          '.pf-filter-builder__tip',
+          m(Icon, {icon: 'lightbulb_outline'}),
+          ' Tip: type ',
+          m('code', `${opt.shortLabel}: ${opt.example}`),
+          ' directly in the filter bar ',
           m(
-            '.pf-filter-builder__help',
-            m('.pf-filter-builder__help-title', 'Filter bar syntax:'),
-            FILTER_TYPES.map((o) =>
+            Tooltip,
+            {trigger: m(Icon, {icon: 'help_outline'})},
+            m(
+              '.pf-filter-builder__help',
+              m(
+                '.pf-filter-builder__help-title',
+                'Filter bar syntax (patterns are regular expressions):',
+              ),
+              FILTER_TYPES.map((o) =>
+                m(
+                  '.pf-filter-builder__help-row',
+                  m('strong', `${o.shortLabel}:`),
+                  ` ${o.label}, e.g. `,
+                  m('code', `${o.shortLabel}: ${o.example}`),
+                ),
+              ),
               m(
                 '.pf-filter-builder__help-row',
-                m('strong', `${o.shortLabel}:`),
-                ` ${o.label}`,
+                'Combine filters by separating with spaces, e.g. ',
+                m('code', 'SS: main HF: alloc.*'),
               ),
             ),
-            m('.pf-filter-builder__help-row', 'Example: SS: main HF: alloc.*'),
           ),
         ),
-      ),
     );
   }
 }
@@ -850,7 +878,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           }
         },
         onTagRemove: removeTag,
-        placeholder: hasFilters ? '' : 'e.g. SS: main HF: alloc.*',
+        placeholder: hasFilters
+          ? ''
+          : 'e.g. malloc (contains), or regex like ^main$ — press + for more filter options',
         renderTag: (text, onRemove) =>
           m(Chip, {
             ondblclick: () => {
