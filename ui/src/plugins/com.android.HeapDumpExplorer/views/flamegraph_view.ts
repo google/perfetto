@@ -143,6 +143,9 @@ function buildHeapGraphMetrics(
     isDominator: boolean,
   ): FlamegraphOptionalAction => ({
     name: 'Show objects from this class',
+    icon: 'data_object',
+    category: 'DRILL',
+    description: 'List the individual objects of this class.',
     execute: async ({properties}) => {
       const pathHashes = properties.get('path_hash_stable');
       if (pathHashes === undefined) return;
