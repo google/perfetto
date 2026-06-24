@@ -168,9 +168,7 @@ bool MappingTracker::HasJitResourcesOverlapping(UniquePid upid,
                                                 AddressRange range) const {
   if (auto* delegates = jit_caches_.Find(upid); delegates) {
     bool overlaps = false;
-    delegates->ForOverlaps(range, [&](const auto&) {
-      overlaps = true;
-    });
+    delegates->ForOverlaps(range, [&](const auto&) { overlaps = true; });
     return overlaps;
   }
   return false;

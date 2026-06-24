@@ -412,7 +412,6 @@ TEST(AddressRangeMap, ConstForOverlaps) {
   const_map.ForOverlaps(AddressRange(15, 36), cb.AsStdFunction());
 }
 
-
 TEST(AddressSet, Empty) {
   AddressSet empty;
   EXPECT_THAT(empty, ElementsAre());

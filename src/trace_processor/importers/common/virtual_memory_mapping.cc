@@ -27,11 +27,11 @@
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/jit_cache.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/importers/common/mapping_tracker.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -87,7 +87,8 @@ bool VirtualMemoryMapping::is_jitted() const {
   if (!upid_) {
     return false;
   }
-  return context_->mapping_tracker->HasJitResourcesOverlapping(*upid_, memory_range_);
+  return context_->mapping_tracker->HasJitResourcesOverlapping(*upid_,
+                                                               memory_range_);
 }
 
 FrameId VirtualMemoryMapping::InternFrame(

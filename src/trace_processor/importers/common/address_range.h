@@ -423,11 +423,11 @@ class AddressRangeMap {
       return;
     }
     for (auto it = ranges_.upper_bound(range.start());
-         it != ranges_.end() && range.end() > it->first.start(); ++it) {
+         it != ranges_.end(); ++it) {
+      if (it->first.start() >= range.end()) break;
       cb(*it);
     }
   }
-
 
  private:
   // Trim an entry's address range to a new value. The new value must be fully
