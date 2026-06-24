@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PLUGIN_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PLUGIN_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_EXTENSION_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_EXTENSION_PARSER_H_
 
 #include <cstdint>
 #include <memory>
@@ -27,7 +27,7 @@
 
 namespace perfetto::trace_processor {
 
-struct TrackEventPluginContext;
+struct TrackEventExtensionParserContext;
 
 // A single out-of-tree extension field (`extensions 1000 to 9999`) of a
 // TrackEvent, handed to plugins. The plugin decodes it with the generated field
@@ -44,14 +44,14 @@ using TrackEventExtensionField = TypedProtoField;
 //
 // Each extension field id is owned by exactly one plugin. Only modern
 // counter/slice/state events are dispatched, never legacy ones.
-class TrackEventPlugin {
+class TrackEventExtensionParser {
  public:
   // kHandled means the parser skips the default flattening of the event into
   // the args table; kIgnored leaves it untouched.
   enum class Result { kHandled, kIgnored };
 
-  explicit TrackEventPlugin(TrackEventPluginContext* context);
-  virtual ~TrackEventPlugin();
+  explicit TrackEventExtensionParser(TrackEventExtensionParserContext* context);
+  virtual ~TrackEventExtensionParser();
 
   // Default to kIgnored so a plugin only overrides the kinds it handles.
   virtual Result OnTrackEventCounterExtension(
@@ -68,17 +68,17 @@ class TrackEventPlugin {
   // Registers this plugin as the owner of |field_id| (CHECKs if already owned).
   void RegisterTrackEventExtension(uint32_t field_id);
 
-  TrackEventPluginContext* context_;
+  TrackEventExtensionParserContext* context_;
 };
 
-// Per-trace registry of TrackEvent extension plugins, mirroring
-// ProtoImporterModuleContext: |plugins| owns them and |plugins_by_field| maps
+// Per-trace registry of TrackEvent extension parsers, mirroring
+// ProtoImporterModuleContext: |parsers| owns them and |parsers_by_field| maps
 // each registered extension field id to its owner.
-struct TrackEventPluginContext {
-  std::vector<std::unique_ptr<TrackEventPlugin>> plugins;
-  base::FlatHashMap<uint32_t, TrackEventPlugin*> plugins_by_field;
+struct TrackEventExtensionParserContext {
+  std::vector<std::unique_ptr<TrackEventExtensionParser>> parsers;
+  base::FlatHashMap<uint32_t, TrackEventExtensionParser*> parsers_by_field;
 };
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PLUGIN_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_EXTENSION_PARSER_H_

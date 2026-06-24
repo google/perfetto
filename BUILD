@@ -456,6 +456,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":src_trace_processor_plugins_android_framework_track_event_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -752,6 +753,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":src_trace_processor_plugins_android_framework_track_event_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -3243,12 +3245,12 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/stack_profile_sequence_state.cc",
         "src/trace_processor/importers/proto/stack_profile_sequence_state.h",
         "src/trace_processor/importers/proto/track_event_event_importer.h",
+        "src/trace_processor/importers/proto/track_event_extension_parser.cc",
+        "src/trace_processor/importers/proto/track_event_extension_parser.h",
         "src/trace_processor/importers/proto/track_event_module.cc",
         "src/trace_processor/importers/proto/track_event_module.h",
         "src/trace_processor/importers/proto/track_event_parser.cc",
         "src/trace_processor/importers/proto/track_event_parser.h",
-        "src/trace_processor/importers/proto/track_event_plugin.cc",
-        "src/trace_processor/importers/proto/track_event_plugin.h",
         "src/trace_processor/importers/proto/track_event_sequence_state.cc",
         "src/trace_processor/importers/proto/track_event_tokenizer.cc",
         "src/trace_processor/importers/proto/track_event_tokenizer.h",
@@ -4354,6 +4356,19 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/android_framework_track_event/android_framework_track_event.cc",
         "src/trace_processor/plugins/android_framework_track_event/android_framework_track_event.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/android_framework_track_event:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_plugins_android_framework_track_event_tables",
+    srcs = [
+        "src/trace_processor/plugins/android_framework_track_event/tables.py",
+    ],
+    outs = [
+        "src/trace_processor/plugins/android_framework_track_event/all_tables_fwd.h",
+        "src/trace_processor/plugins/android_framework_track_event/tables_fwd.h",
+        "src/trace_processor/plugins/android_framework_track_event/tables_py.h",
     ],
 )
 
@@ -10978,6 +10993,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":src_trace_processor_plugins_android_framework_track_event_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -11304,6 +11320,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":src_trace_processor_plugins_android_framework_track_event_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",

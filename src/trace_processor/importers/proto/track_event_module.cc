@@ -41,10 +41,10 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
     : ProtoImporterModule(module_context),
       track_event_tracker_(new TrackEventTracker(context)),
       tokenizer_(module_context, context, track_event_tracker_.get()),
-      parser_(&plugin_context_, context, track_event_tracker_.get()) {
-  // Register compiled-in TrackEvent extension plugins here, e.g.:
-  //   plugin_context_.plugins.emplace_back(
-  //       std::make_unique<FooPlugin>(&plugin_context_, context));
+      parser_(&extension_parser_context_, context, track_event_tracker_.get()) {
+  // Register compiled-in TrackEvent extension parsers here, e.g.:
+  //   extension_parser_context_.parsers.emplace_back(
+  //       std::make_unique<FooPlugin>(&extension_parser_context_, context));
 
   RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber);
   RegisterForField(TracePacket::kTrackEventFieldNumber);

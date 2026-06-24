@@ -29,7 +29,6 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
-from src.trace_processor.tables.metadata_tables import PROCESS_TABLE
 from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 ANDROID_CPU_PER_UID_TRACK_TABLE = Table(
@@ -369,30 +368,6 @@ ANDROID_AFLAGS_TABLE = Table(
     ),
 )
 
-ANDROID_TRACK_EVENT_PROCESS_TABLE = Table(
-    python_module=__file__,
-    class_name='AndroidTrackEventProcessTable',
-    sql_name='__intrinsic_android_track_event_process',
-    columns=[
-        C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
-        C('fw_start_ts',
-          CppOptional(CppInt64()),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C('fw_end_ts',
-          CppOptional(CppInt64()),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-    ],
-    tabledoc=TableDoc(
-        doc='Per-process lifecycle from Android framework TrackEvents.',
-        group='Android',
-        columns={
-            'upid': 'The process this row describes.',
-            'fw_start_ts': 'Timestamp of AndroidProcessStartEvent.',
-            'fw_end_ts': 'Timestamp of AndroidBinderDiedEvent.',
-        },
-    ),
-)
-
 # Keep this list sorted.
 ALL_TABLES = [
     ANDROID_AFLAGS_TABLE,
@@ -402,6 +377,5 @@ ALL_TABLES = [
     ANDROID_INPUT_EVENT_DISPATCH_TABLE,
     ANDROID_KEY_EVENTS_TABLE,
     ANDROID_MOTION_EVENTS_TABLE,
-    ANDROID_TRACK_EVENT_PROCESS_TABLE,
     ANDROID_USER_LIST_TABLE,
 ]

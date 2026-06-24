@@ -13,6 +13,13 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
+import("../../../../gn/perfetto_tp_tables.gni")
+
+assert(enable_perfetto_trace_processor_sqlite)
+
+perfetto_tp_tables("tables") {
+  sources = [ "tables.py" ]
+}
 
 source_set("android_framework_track_event") {
   sources = [
@@ -20,6 +27,7 @@ source_set("android_framework_track_event") {
     "android_framework_track_event.h",
   ]
   deps = [
+    ":tables",
     "../../../../gn:default_deps",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_zero",
     "../../../base",

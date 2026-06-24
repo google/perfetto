@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -27,11 +28,9 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/importers/proto/track_event_module.h"
-#include "src/trace_processor/importers/proto/track_event_plugin.h"
+#include "src/trace_processor/importers/proto/track_event_extension_parser.h"
+#include "src/trace_processor/plugins/android_framework_track_event/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::android_framework_track_event {
@@ -42,16 +41,19 @@ using AndroidProcessStartEvent =
     ::com::android::internal::pbzero::AndroidProcessStartEvent;
 using AndroidBinderDiedEvent =
     ::com::android::internal::pbzero::AndroidBinderDiedEvent;
+using AndroidTrackEventProcessTable = tables::AndroidTrackEventProcessTable;
 
 // Records AndroidProcessStartEvent and AndroidBinderDiedEvent into
-// __intrinsic_android_track_event_process (upid, fw_start_ts, fw_end_ts). Both
-// events are emitted as instant TrackEvents, so they arrive via
-// OnTrackEventSliceExtension.
-class Parser : public TrackEventPlugin {
+// __intrinsic_android_track_event_process. Both events are emitted as instant
+// TrackEvents, so they arrive via OnTrackEventSliceExtension.
+class Parser : public TrackEventExtensionParser {
  public:
-  Parser(TrackEventPluginContext* plugin_context,
-         TraceProcessorContext* context)
-      : TrackEventPlugin(plugin_context), trace_context_(context) {
+  Parser(TrackEventExtensionParserContext* extension_parser_context,
+         TraceProcessorContext* context,
+         AndroidTrackEventProcessTable* table)
+      : TrackEventExtensionParser(extension_parser_context),
+        trace_context_(context),
+        table_(table) {
     RegisterTrackEventExtension(FBTE::kProcessStartEventFieldNumber);
     RegisterTrackEventExtension(FBTE::kBinderDiedEventFieldNumber);
   }
@@ -72,9 +74,9 @@ class Parser : public TrackEventPlugin {
       default:
         break;
     }
-    // Leave the event to be flattened into the args table: this plugin only
-    // adds a side table, it doesn't take ownership of the event.
-    return Result::kIgnored;
+    // Everything needed is captured into the side table, so take ownership and
+    // skip the default flattening of the event into the args table.
+    return Result::kHandled;
   }
 
  private:
@@ -91,18 +93,15 @@ class Parser : public TrackEventPlugin {
     }
   }
 
-  tables::AndroidTrackEventProcessTable::RowReference GetOrInsertRow(
-      UniquePid upid) {
-    auto* table =
-        trace_context_->storage->mutable_android_track_event_process_table();
+  AndroidTrackEventProcessTable::RowReference GetOrInsertRow(UniquePid upid) {
     auto it_and_ins =
-        upid_to_row_.Insert(upid, tables::AndroidTrackEventProcessTable::Id{0});
+        upid_to_row_.Insert(upid, AndroidTrackEventProcessTable::Id{0});
     if (it_and_ins.second) {
-      tables::AndroidTrackEventProcessTable::Row row;
+      AndroidTrackEventProcessTable::Row row;
       row.upid = upid;
-      *it_and_ins.first = table->Insert(row).id;
+      *it_and_ins.first = table_->Insert(row).id;
     }
-    return (*table)[*it_and_ins.first];
+    return (*table_)[*it_and_ins.first];
   }
 
   void HandleProcessStart(protozero::ConstBytes data, int64_t ts) {
@@ -118,6 +117,22 @@ class Parser : public TrackEventPlugin {
     auto row = GetOrInsertRow(upid);
     if (!row.fw_start_ts().has_value()) {
       row.set_fw_start_ts(ts);
+    }
+    if (evt.has_trigger_type()) {
+      row.set_trigger_type(static_cast<int32_t>(evt.trigger_type()));
+    }
+    if (evt.has_hosting_type()) {
+      row.set_hosting_type(static_cast<int32_t>(evt.hosting_type()));
+    }
+    if (evt.has_hosting_name()) {
+      row.set_hosting_name(
+          trace_context_->storage->InternString(evt.hosting_name()));
+    }
+    if (evt.has_bind_application_delay_ms()) {
+      row.set_bind_application_delay_ms(evt.bind_application_delay_ms());
+    }
+    if (evt.has_process_start_delay_ms()) {
+      row.set_process_start_delay_ms(evt.process_start_delay_ms());
     }
   }
 
@@ -149,26 +164,41 @@ class Parser : public TrackEventPlugin {
   }
 
   TraceProcessorContext* trace_context_;
-  base::FlatHashMap<UniquePid, tables::AndroidTrackEventProcessTable::Id>
-      upid_to_row_;
+  AndroidTrackEventProcessTable* table_;
+  base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
 };
 
 // Core plugin: lives in `full`, so the frameworks proto never reaches
-// `minimal`. It installs the Parser into the TrackEventModule's plugin context
-// during proto-module registration (track_module is already published by
-// RegisterDefaultModules at this point).
+// `minimal`. It owns the side table and installs the Parser through the
+// dedicated TrackEvent extension registration hook.
 class AndroidFrameworkTrackEventPlugin
     : public Plugin<AndroidFrameworkTrackEventPlugin> {
  public:
   ~AndroidFrameworkTrackEventPlugin() override;
 
-  void RegisterProtoImporterModules(
-      ProtoImporterModuleContext* module_context,
-      TraceProcessorContext* trace_context) override {
-    TrackEventPluginContext* ctx =
-        module_context->track_module->mutable_plugin_context();
-    ctx->plugins.emplace_back(std::make_unique<Parser>(ctx, trace_context));
+  void RegisterDataframes(std::vector<PluginDataframe>& out) override {
+    EnsureTable();
+    out.push_back(
+        {&table_->dataframe(), AndroidTrackEventProcessTable::Name(), {}});
   }
+
+  void RegisterTrackEventExtensions(
+      TrackEventExtensionParserContext* ctx,
+      TraceProcessorContext* trace_context) override {
+    EnsureTable();
+    ctx->parsers.emplace_back(
+        std::make_unique<Parser>(ctx, trace_context, table_.get()));
+  }
+
+ private:
+  void EnsureTable() {
+    if (!table_) {
+      table_ = std::make_unique<AndroidTrackEventProcessTable>(
+          trace_context_->storage->mutable_string_pool());
+    }
+  }
+
+  std::unique_ptr<AndroidTrackEventProcessTable> table_;
 };
 
 AndroidFrameworkTrackEventPlugin::~AndroidFrameworkTrackEventPlugin() = default;

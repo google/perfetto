@@ -1346,7 +1346,7 @@ class TrackEventEventImporter {
   // skipped). Only scans the blob when a plugin is registered.
   template <typename Fn>
   bool DispatchPlugins(Fn on_field) {
-    if (PERFETTO_LIKELY(!parser_->has_plugins())) {
+    if (PERFETTO_LIKELY(!parser_->has_extension_parsers())) {
       return true;
     }
     // Plugins are not dispatched for legacy events.
@@ -1356,12 +1356,12 @@ class TrackEventEventImporter {
     bool parse_args = true;
     SelectiveTrackEventDecoder decoder(blob_);
     for (const protozero::Field& f : decoder.unknown_fields()) {
-      TrackEventPlugin* plugin = parser_->PluginForField(f.id());
+      TrackEventExtensionParser* plugin = parser_->PluginForField(f.id());
       if (!plugin) {
         continue;
       }
       if (on_field(plugin, TrackEventExtensionField(f)) ==
-          TrackEventPlugin::Result::kHandled) {
+          TrackEventExtensionParser::Result::kHandled) {
         parse_args = false;
       }
     }
@@ -1369,24 +1369,24 @@ class TrackEventEventImporter {
   }
 
   bool DispatchSlicePlugins(SliceId id) {
-    return DispatchPlugins(
-        [id](TrackEventPlugin* plugin, const TrackEventExtensionField& f) {
-          return plugin->OnTrackEventSliceExtension(f, id);
-        });
+    return DispatchPlugins([id](TrackEventExtensionParser* plugin,
+                                const TrackEventExtensionField& f) {
+      return plugin->OnTrackEventSliceExtension(f, id);
+    });
   }
 
   bool DispatchCounterPlugins(CounterId id) {
-    return DispatchPlugins(
-        [id](TrackEventPlugin* plugin, const TrackEventExtensionField& f) {
-          return plugin->OnTrackEventCounterExtension(f, id);
-        });
+    return DispatchPlugins([id](TrackEventExtensionParser* plugin,
+                                const TrackEventExtensionField& f) {
+      return plugin->OnTrackEventCounterExtension(f, id);
+    });
   }
 
   bool DispatchStatePlugins(StateId id) {
-    return DispatchPlugins(
-        [id](TrackEventPlugin* plugin, const TrackEventExtensionField& f) {
-          return plugin->OnTrackEventStateExtension(f, id);
-        });
+    return DispatchPlugins([id](TrackEventExtensionParser* plugin,
+                                const TrackEventExtensionField& f) {
+      return plugin->OnTrackEventStateExtension(f, id);
+    });
   }
 
   void ParseTrackEventArgs(BoundInserter* inserter) {

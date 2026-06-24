@@ -75,6 +75,7 @@
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/deobfuscation_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
+#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
@@ -405,6 +406,16 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
         RegisterAdditionalModules(mctx, tctx);
         for (auto& p : plugins_) {
           p->RegisterProtoImporterModules(mctx, tctx);
+        }
+        // The TrackEventModule is published by RegisterDefaultModules (run by
+        // RegisterAdditionalModules above), so its extension parser registry is
+        // ready for plugins to populate.
+        if (mctx->track_module) {
+          auto* ext_ctx =
+              mctx->track_module->mutable_extension_parser_context();
+          for (auto& p : plugins_) {
+            p->RegisterTrackEventExtensions(ext_ctx, tctx);
+          }
         }
       };
 
