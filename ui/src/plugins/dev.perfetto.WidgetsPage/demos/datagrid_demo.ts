@@ -254,6 +254,7 @@ export function renderDataGrid(app: App): m.Children {
         });
       },
       initialOpts: {
+        searchable: true,
         showExportButton: false,
         structuredQueryCompatMode: false,
         disablePivotControls: false,

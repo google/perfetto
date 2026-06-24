@@ -22,7 +22,7 @@ import {NUM, type Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import type {DataSourceRows, FlatModel} from '../data_source';
 import {type SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
-import {filterToSql, toAlias} from '../sql_utils';
+import {filterToSql, searchToSql, toAlias} from '../sql_utils';
 
 export class SQLDataSourceFlat {
   private readonly rowCountSlot: QuerySlot<number>;
@@ -50,7 +50,7 @@ export class SQLDataSourceFlat {
    * Returns aggregate summaries for columns that have an aggregate function defined.
    */
   getSummaries(model: FlatModel): QueryResult<Row> {
-    const {columns, filters = []} = model;
+    const {columns, filters = [], search} = model;
 
     // Find columns with aggregate functions
     const aggColumns = columns.filter((col) => col.aggregate !== undefined);
@@ -64,6 +64,7 @@ export class SQLDataSourceFlat {
       key: {
         columns: aggColumns,
         filters: serializeFilters(filters),
+        search,
       },
       queryFn: async () => {
         const resolver = new SQLSchemaResolver(
@@ -82,7 +83,7 @@ export class SQLDataSourceFlat {
 
         let sql = `SELECT ${selectExprs.join(', ')}`;
         sql = addFromClause(sql, resolver);
-        sql = addFilterClause(sql, resolver, filters);
+        sql = addWhereClause(sql, resolver, filters, columns, search);
 
         const result = await this.engine.query(sql);
         return result.firstRow({}) as Row;
@@ -91,7 +92,7 @@ export class SQLDataSourceFlat {
   }
 
   getRows(model: FlatModel): DataSourceRows {
-    const {columns, filters = [], pagination, sort} = model;
+    const {columns, filters = [], pagination, sort, search} = model;
 
     // Load the row count first
     const rowCountResult = this.rowCountSlot.use({
@@ -99,12 +100,14 @@ export class SQLDataSourceFlat {
         // The row count doesn't depend on pagination or sort
         columns,
         filters: serializeFilters(filters),
+        search,
       },
       queryFn: async () => {
         const query = buildQuery(this.sqlSchema, this.rootSchemaName, {
           mode: 'flat',
           columns,
           filters,
+          search,
         });
         const result = await this.engine.query(
           `SELECT COUNT(*) as count FROM (${query})`,
@@ -117,6 +120,7 @@ export class SQLDataSourceFlat {
       key: {
         columns: model.columns,
         filters: serializeFilters(filters),
+        search,
         pagination,
         sort,
       },
@@ -170,13 +174,13 @@ function serializeFilters(filters: FlatModel['filters']) {
 function buildQuery(
   sqlSchema: SQLSchemaRegistry,
   rootSchemaName: string,
-  {columns, filters, pagination, sort}: FlatModel,
+  {columns, filters, pagination, sort, search}: FlatModel,
 ): string {
   const resolver = new SQLSchemaResolver(sqlSchema, rootSchemaName);
 
   let sql = buildSelectClause(resolver, columns);
   sql = addFromClause(sql, resolver);
-  sql = addFilterClause(sql, resolver, filters);
+  sql = addWhereClause(sql, resolver, filters, columns, search);
   sql = addOrderByClause(sql, sort);
   sql = addPaginationClause(sql, pagination);
 
@@ -216,17 +220,34 @@ function addFromClause(sql: string, resolver: SQLSchemaResolver): string {
   return sql;
 }
 
-function addFilterClause(
+function addWhereClause(
   sql: string,
   resolver: SQLSchemaResolver,
   filters: FlatModel['filters'],
+  columns: FlatModel['columns'],
+  search: FlatModel['search'],
 ): string {
+  const conditions: string[] = [];
+
   if (filters && filters.length > 0) {
-    const whereConditions = filters.map((filter) => {
+    for (const filter of filters) {
       const sqlExpr = resolver.resolveColumnPath(filter.field);
-      return filterToSql(filter, sqlExpr ?? filter.field);
-    });
-    sql += `\nWHERE ${whereConditions.join(' AND ')}`;
+      conditions.push(filterToSql(filter, sqlExpr ?? filter.field));
+    }
+  }
+
+  // Free-text search: match the term against any visible column.
+  if (search) {
+    const exprs = columns
+      .map((col) => resolver.resolveColumnPath(col.field))
+      .filter((expr): expr is string => expr !== undefined);
+    if (exprs.length > 0) {
+      conditions.push(searchToSql(exprs, search));
+    }
+  }
+
+  if (conditions.length > 0) {
+    sql += `\nWHERE ${conditions.join(' AND ')}`;
   }
   return sql;
 }

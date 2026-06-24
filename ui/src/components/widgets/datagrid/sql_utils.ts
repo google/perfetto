@@ -191,6 +191,24 @@ export function filterToSql(filter: Filter, sqlExpr: string): string {
 }
 
 /**
+ * Builds a SQL condition that matches rows where any of the given column
+ * expressions contains `term` as a case-insensitive substring. Used to
+ * implement free-text search across all visible columns.
+ */
+export function searchToSql(sqlExprs: readonly string[], term: string): string {
+  // Escape the LIKE wildcards (% and _) and the escape character itself so the
+  // term is matched literally.
+  const escaped = term.replace(/[\\%_]/g, (c) => '\\' + c);
+  const pattern = sqlValue(`%${escaped}%`);
+  const conditions = sqlExprs.map(
+    (expr) => `CAST(${expr} AS TEXT) LIKE ${pattern} ESCAPE '\\'`,
+  );
+  return conditions.length === 1
+    ? conditions[0]
+    : `(${conditions.join(' OR ')})`;
+}
+
+/**
  * Builds an aggregate expression string from function and field.
  * E.g., sqlAggregateExpr('SUM', 'dur') returns 'SUM(dur)'.
  */
