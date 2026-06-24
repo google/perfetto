@@ -1,4 +1,4 @@
--- Copyright 2025 The Android Open Source Project
+-- Copyright 2026 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -13,22 +13,17 @@
 -- limitations under the License.
 
 -- Provides unified access to Android App Wakelock events.
---
--- Suggested minimal config:
---
--- data_sources: {
---   config: {
---     name: "linux.ftrace"
---     ftrace_config: {
---       atrace_apps: "*"
---       atrace_categories: "power"
---     }
---   }
--- }
 INCLUDE PERFETTO MODULE android.battery_stats;
 
 -- Table for app wakelocks sourced from SDK trace events.
 -- This is the preferred source.
+-- Suggested minimal config:
+--
+-- data_sources: {
+--   config: {
+--     name: "android.app_wakelocks"
+--   }
+-- }
 CREATE PERFETTO TABLE android_app_wakelocks_sdk(
   -- Start timestamp of the wakelock.
   ts TIMESTAMP,
@@ -38,11 +33,13 @@ CREATE PERFETTO TABLE android_app_wakelocks_sdk(
   safe_dur DURATION,
   -- Wakelock name/tag.
   name STRING,
+  -- Overall UID (prefers work_uid, falls back to owner_uid).
+  uid LONG,
   -- UID of the app that owns the wakelock.
   owner_uid LONG,
   -- PID of the process that owns the wakelock.
   owner_pid LONG,
-  -- UID of app on behalf of which work is being done. Can be null.
+  -- UID of app on behalf of which work is being done.
   work_uid LONG,
   -- PowerManager wakelock flags.
   flags LONG
@@ -53,6 +50,10 @@ SELECT
   s.dur,
   iif(s.dur = -1, trace_end() - s.ts, s.dur) AS safe_dur,
   s.name,
+  coalesce(
+    extract_arg(s.arg_set_id, 'work_uid'),
+    extract_arg(s.arg_set_id, 'owner_uid')
+  ) AS uid,
   extract_arg(s.arg_set_id, 'owner_uid') AS owner_uid,
   extract_arg(s.arg_set_id, 'owner_pid') AS owner_pid,
   extract_arg(s.arg_set_id, 'work_uid') AS work_uid,
@@ -65,6 +66,17 @@ WHERE
 
 -- Table for app wakelocks sourced from BatteryStats.
 -- This is a fallback for traces that do not contain the SDK events.
+-- Suggested minimal config:
+--
+-- data_sources: {
+--   config: {
+--     name: "linux.ftrace"
+--     ftrace_config: {
+--       atrace_apps: "*"
+--       atrace_categories: "power"
+--     }
+--   }
+-- }
 CREATE PERFETTO TABLE android_app_wakelocks_batterystats(
   -- Start timestamp of the wakelock.
   ts TIMESTAMP,
@@ -74,25 +86,11 @@ CREATE PERFETTO TABLE android_app_wakelocks_batterystats(
   safe_dur DURATION,
   -- Wakelock name/tag.
   name STRING,
-  -- UID of the app that owns the wakelock.
-  owner_uid LONG,
-  -- PID of the process that owns the wakelock.
-  owner_pid LONG,
-  -- UID of app on behalf of which work is being done. Can be null.
-  work_uid LONG,
-  -- PowerManager wakelock flags.
-  flags LONG
+  -- UID of the app that owns the wakelock (resolved to work_uid or owner_uid at source).
+  uid LONG
 )
 AS
-SELECT
-  ts,
-  dur,
-  safe_dur,
-  str_value AS name,
-  int_value AS owner_uid,
-  NULL AS owner_pid,
-  NULL AS work_uid,
-  NULL AS flags
+SELECT ts, dur, safe_dur, str_value AS name, int_value AS uid
 FROM android_battery_stats_event_slices
 WHERE
   track_name = 'battery_stats.longwake';
@@ -109,42 +107,15 @@ CREATE PERFETTO VIEW android_app_wakelocks(
   safe_dur DURATION,
   -- Wakelock name/tag.
   name STRING,
-  -- UID of the app that owns the wakelock.
-  owner_uid LONG,
-  -- PID of the process that owns the wakelock.
-  owner_pid LONG,
-  -- UID of app on behalf of which work is being done. Can be null.
-  work_uid LONG,
-  -- PowerManager wakelock flags.
-  flags LONG,
-  -- Which underlying data source this row comes from (sdk or battery_stats).
-  data_source STRING
+  -- Overall UID.
+  uid LONG
 )
 AS
 -- 1. Select from SDK if it exists
-SELECT
-  ts,
-  dur,
-  safe_dur,
-  name,
-  owner_uid,
-  owner_pid,
-  work_uid,
-  flags,
-  'sdk' AS data_source
-FROM android_app_wakelocks_sdk
+SELECT ts, dur, safe_dur, name, uid FROM android_app_wakelocks_sdk
 UNION ALL
 -- 2. Fallback to BatteryStats if SDK does not exist
-SELECT
-  ts,
-  dur,
-  safe_dur,
-  name,
-  owner_uid,
-  owner_pid,
-  work_uid,
-  flags,
-  'battery_stats' AS data_source
+SELECT ts, dur, safe_dur, name, uid
 FROM android_app_wakelocks_batterystats
 WHERE
   NOT EXISTS (SELECT 1 FROM android_app_wakelocks_sdk);

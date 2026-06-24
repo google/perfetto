@@ -1,4 +1,4 @@
--- Copyright 2025 The Android Open Source Project
+-- Copyright 2026 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -13,7 +13,10 @@
 -- limitations under the License.
 
 -- Provides unified access to Android Media Codec events from ATrace.
---
+
+INCLUDE PERFETTO MODULE android.keyvalue_lookup;
+
+-- Parsed codec track events
 -- Suggested minimal config:
 --
 -- data_sources: {
@@ -25,28 +28,6 @@
 --         }
 --     }
 -- }
-
-INCLUDE PERFETTO MODULE android.common.utils;
-
--- Table for raw codec track instant events
-CREATE PERFETTO TABLE android_codec_events_raw(
-  -- Timestamp of codec event.
-  ts TIMESTAMP,
-  -- Full track name, e.g., codec.track.state.c2.google.av1.decoder.123
-  track_name STRING,
-  -- Raw atrace payload, e.g., { event="allocated" pid=1234 uid=1001 }
-  atrace_payload STRING
-)
-AS
-SELECT s.ts, t.name AS track_name, s.name AS atrace_payload
-FROM slice AS s
-JOIN track AS t
-  ON s.track_id = t.id
-WHERE
-  t.name GLOB 'codec.track.*'
-  AND s.dur = 0;
-
--- Parsed codec track events
 CREATE PERFETTO TABLE android_codec_events(
   -- Timestamp of codec event.
   ts TIMESTAMP,
@@ -82,32 +63,43 @@ CREATE PERFETTO TABLE android_codec_events(
 )
 AS
 WITH
+  codec_events_raw AS (
+    SELECT s.ts, t.name AS track_name, s.name AS atrace_payload
+    FROM slice AS s
+    JOIN track AS t
+      ON s.track_id = t.id
+    WHERE
+      t.name GLOB 'codec.track.*'
+      AND s.dur = 0
+  ),
   codeceventshelper AS (
     SELECT
       ts,
       track_name,
       atrace_payload,
-      length('codec.track.') AS prefix_len,
       instr(substr(track_name, length('codec.track.') + 1), '.')
       + length('codec.track.') AS dot2_pos,
       length(track_name) - instr(reverse(track_name), '.') + 1 AS last_dot_pos
-    FROM android_codec_events_raw
+    FROM codec_events_raw
   )
 SELECT
   ts,
   track_name,
-  substr(track_name, prefix_len + 1, dot2_pos - prefix_len - 1) AS track_event_type,
+  str_split(track_name, '.', 2) AS track_event_type,
   substr(track_name, dot2_pos + 1, last_dot_pos - dot2_pos - 1) AS codec_name,
   substr(track_name, last_dot_pos + 1) AS unique_no,
   atrace_payload,
   -- Extract key-value pairs from atrace_payload using the generic function
-  android_common_extract_key_value_arg(atrace_payload, 'event') AS event,
-  android_common_extract_key_value_arg(atrace_payload, 'metadata') AS metadata,
-  android_common_extract_key_value_arg(atrace_payload, 'info') AS info,
-  CAST(android_common_extract_key_value_arg(atrace_payload, 'pid') AS LONG) AS pid,
-  CAST(android_common_extract_key_value_arg(atrace_payload, 'uid') AS LONG) AS uid,
-  android_common_extract_key_value_arg(atrace_payload, 'render') AS render,
-  CAST(android_common_extract_key_value_arg(atrace_payload, 'intervalMs') AS LONG) AS interval_ms,
-  CAST(android_common_extract_key_value_arg(atrace_payload, 'count') AS LONG) AS count,
-  CAST(android_common_extract_key_value_arg(atrace_payload, 'ctr') AS LONG) AS ctr
+  _android_keyvalue_lookup_extract_key_value_arg(atrace_payload, 'event') AS event,
+  _android_keyvalue_lookup_extract_key_value_arg(atrace_payload, 'metadata') AS metadata,
+  _android_keyvalue_lookup_extract_key_value_arg(atrace_payload, 'info') AS info,
+  CAST(_android_keyvalue_lookup_extract_key_value_arg(atrace_payload, 'pid') AS LONG) AS pid,
+  CAST(_android_keyvalue_lookup_extract_key_value_arg(atrace_payload, 'uid') AS LONG) AS uid,
+  _android_keyvalue_lookup_extract_key_value_arg(atrace_payload, 'render') AS render,
+  CAST(_android_keyvalue_lookup_extract_key_value_arg(
+    atrace_payload,
+    'intervalMs'
+  ) AS LONG) AS interval_ms,
+  CAST(_android_keyvalue_lookup_extract_key_value_arg(atrace_payload, 'count') AS LONG) AS count,
+  CAST(_android_keyvalue_lookup_extract_key_value_arg(atrace_payload, 'ctr') AS LONG) AS ctr
 FROM codeceventshelper;

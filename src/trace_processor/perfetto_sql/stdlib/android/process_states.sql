@@ -1,4 +1,4 @@
--- Copyright 2025 The Android Open Source Project
+-- Copyright 2026 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -20,31 +20,10 @@
 --     config: {
 --         name: "android.statsd"
 --         statsd_config: {
---             atom_id: 27  # UidProcessStateChanged
+--             push_atom_id: ATOM_UID_PROCESS_STATE_CHANGED
 --         }
 --     }
 -- }
-
--- Table for Process State Changes from StatsD atom uid_process_state_changed
-CREATE PERFETTO TABLE android_process_state_changes(
-  -- Timestamp of process state change.
-  ts TIMESTAMP,
-  -- UID of process.
-  uid LONG,
-  -- Process state name.
-  process_state_name STRING
-)
-AS
-SELECT
-  s.ts,
-  extract_arg(s.arg_set_id, 'uid_process_state_changed.uid') AS uid,
-  extract_arg(s.arg_set_id, 'uid_process_state_changed.state') AS process_state_name
-FROM slice AS s
-JOIN track AS t
-  ON s.track_id = t.id
-WHERE
-  t.name = 'Statsd Atoms'
-  AND s.name = 'uid_process_state_changed';
 
 -- View to get process state intervals, showing how long each process stayed in each state.
 CREATE PERFETTO VIEW android_process_state(
@@ -58,6 +37,19 @@ CREATE PERFETTO VIEW android_process_state(
   process_state_name STRING
 )
 AS
+WITH
+  process_state_changes AS (
+    SELECT
+      s.ts,
+      extract_arg(s.arg_set_id, 'uid_process_state_changed.uid') AS uid,
+      extract_arg(s.arg_set_id, 'uid_process_state_changed.state') AS process_state_name
+    FROM slice AS s
+    JOIN track AS t
+      ON s.track_id = t.id
+    WHERE
+      t.name = 'Statsd Atoms'
+      AND s.name = 'uid_process_state_changed'
+  )
 SELECT
   ts,
   lead(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (
@@ -68,4 +60,4 @@ SELECT
   - ts AS dur,
   uid,
   process_state_name
-FROM android_process_state_changes;
+FROM process_state_changes;
