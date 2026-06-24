@@ -111,6 +111,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         [ProfileType.GENERIC_HEAP_PROFILE]: {},
         [ProfileType.JAVA_HEAP_SAMPLES]: {},
         [ProfileType.JAVA_HEAP_GRAPH]: {},
+        [ProfileType.OOME_CALLSTACK]: {},
       }
     );
   }
@@ -126,8 +127,11 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     // For applicable heap types, register an area selection
     for (const heapType of heapTypes) {
       const descriptor = profileDescriptor(heapType);
-      if (descriptor.type === ProfileType.JAVA_HEAP_GRAPH) {
-        // There's no area selection for java heap dumps.
+      if (
+        descriptor.type === ProfileType.JAVA_HEAP_GRAPH ||
+        descriptor.type === ProfileType.OOME_CALLSTACK
+      ) {
+        // There's no area selection for java heap dumps or OOME callstacks.
         continue;
       }
       trace.selection.registerAreaSelectionTab(
@@ -141,6 +145,10 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private async createHeapProfileTable(trace: Trace) {
+    await trace.engine.query(
+      'INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;',
+    );
+
     await createPerfettoTable({
       engine: trace.engine,
       name: EVENT_TABLE_NAME,
@@ -183,6 +191,18 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           0 AS depth,
           'heap_profile:' || heap_name AS type
         FROM heap_profile_slices
+
+        UNION ALL
+
+        SELECT
+          id,
+          ts,
+          upid,
+          0 AS dur,
+          0 AS depth,
+          'oome_callstack' AS type
+        FROM heap_graph
+        WHERE dump_reason = 'OOME'
       `,
     });
   }
@@ -288,7 +308,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
       !(await traceHasTimelineData(ctx));
     const javaHeapGraphFilter = hdeWillTakeOver
-      ? `WHERE type != 'java_heap_graph'`
+      ? `WHERE type != 'java_heap_graph' AND type != 'oome_callstack'`
       : '';
     const result = await ctx.engine.query(`
         SELECT
@@ -308,7 +328,11 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     const track = this.trackMap.get(uri);
     if (!track) return;
 
-    if (profileDescriptor(iter.type).type === ProfileType.JAVA_HEAP_GRAPH) {
+    const profileType = profileDescriptor(iter.type).type;
+    if (
+      profileType === ProfileType.JAVA_HEAP_GRAPH ||
+      profileType === ProfileType.OOME_CALLSTACK
+    ) {
       ctx.selection.selectTrackEvent(track.uri, iter.id);
     } else {
       ctx.selection.selectArea({
