@@ -575,6 +575,10 @@ function getHeapGraphNodeOptionalActions(
   return [
     {
       name: 'Open in Heapdump Explorer',
+      icon: 'open_in_new',
+      category: 'DRILL',
+      description:
+        "Inspect this class's retained objects in the Heap Dump Explorer.",
       execute: async ({properties, node}) => {
         const pathHashes = properties.get('path_hash_stable');
         if (pathHashes === undefined) return;
@@ -597,6 +601,8 @@ function getHeapGraphRootOptionalActions(
   return [
     {
       name: 'Reference paths by class',
+      icon: 'account_tree',
+      description: 'Group duplicate reference paths by class in a table.',
       execute: async () => {
         const viewName = `_heap_graph${tableModifier(isDominator)}duplicate_objects`;
         const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;
