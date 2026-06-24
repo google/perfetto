@@ -256,31 +256,15 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // Any compressed packets should have been handled by the tokenizer.
   PERFETTO_CHECK(!decoder.has_compressed_packets());
 
-  // When the trace packet is emitted from a remote machine: parse the packet
-  // using a different ProtoTraceReader instance. The packet will be parsed
-  // in the context of the remote machine.
+  // When the trace packet is emitted from a remote machine, parse it with a
+  // separate ProtoTraceReader bound to that machine's context.
   if (PERFETTO_UNLIKELY(decoder.machine_id())) {
-    // A machine_id proves the trace is multi-machine, which a perfetto_manifest
-    // clock/machine override (single-machine by construction) cannot describe.
     RETURN_IF_ERROR(CheckManifestSingleMachine());
     if (is_machine_dispatcher_) {
       auto [it, inserted] =
           machine_to_proto_readers_.Insert(decoder.machine_id(), nullptr);
       if (PERFETTO_UNLIKELY(inserted)) {
-        auto* machine_context =
-            context_->ForkContextForMachineInCurrentTrace(decoder.machine_id());
-        *it =
-            std::make_unique<ProtoTraceReader>(machine_context,
-                                               /*is_machine_dispatcher=*/false);
-        auto parent_default = context_->clock_tracker->trace_default_clock();
-        if (parent_default) {
-          machine_context->clock_tracker->SetTraceDefaultClock(*parent_default);
-        }
-        machine_context->clock_tracker->AddDeferredClockSync(
-            ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
-        // TODO(lalitm): this doesn't seem the right place for this but I cannot
-        // think of a much better place either.
-        machine_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+        RETURN_IF_ERROR(CreateRemoteMachineReader(decoder.machine_id(), it));
       }
       return it->get()->ParsePacket(std::move(packet));
     }
@@ -760,16 +744,57 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   return base::OkStatus();
 }
 
+PERFETTO_NO_INLINE base::Status ProtoTraceReader::CreateRemoteMachineReader(
+    uint32_t machine_id,
+    std::unique_ptr<ProtoTraceReader>* out) {
+  // Embedded ids are uint32, always below kFirstManifestMachineId (1<<32), so
+  // they never collide with the manifest's synthetic raw ids; no check needed.
+  int64_t raw_machine_id = machine_id;
+  const auto* remap =
+      context_->trace_state ? context_->trace_state->machine_remap : nullptr;
+  if (remap) {
+    int64_t* mapped = remap->Find(machine_id);
+    if (!mapped) {
+      return base::ErrStatus(
+          "perfetto_manifest: machines: trace has a packet from undeclared "
+          "machine id %u",
+          machine_id);
+    }
+    raw_machine_id = *mapped;
+  }
+  auto* machine_context =
+      context_->ForkContextForMachineInCurrentTrace(raw_machine_id);
+  *out = std::make_unique<ProtoTraceReader>(machine_context,
+                                            /*is_machine_dispatcher=*/false);
+  auto parent_default = context_->clock_tracker->trace_default_clock();
+  if (parent_default) {
+    machine_context->clock_tracker->SetTraceDefaultClock(*parent_default);
+  }
+  machine_context->clock_tracker->AddDeferredClockSync(
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+  // TODO(lalitm): this doesn't seem the right place for this but I cannot think
+  // of a much better place either.
+  machine_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  return base::OkStatus();
+}
+
 base::Status ProtoTraceReader::CheckManifestSingleMachine() {
   if (context_->has_machine_override()) {
     return base::ErrStatus(
-        "perfetto_manifest: machine override requires the trace to come "
-        "from a single machine");
+        "perfetto_manifest: a `machine` override attributes the file to one "
+        "machine, but the file contains packets from multiple machines. "
+        "Replace `machine` with a `machines` block that maps each embedded "
+        "machine_id to a named machine, e.g. "
+        R"("machines": [{"id": 0, "name": "phone"}, {"id": 7, "name": "vm"}].)");
   }
   if (context_->has_clock_override()) {
     return base::ErrStatus(
-        "perfetto_manifest: clock overrides require the trace to come "
-        "from a single machine");
+        "perfetto_manifest: a `clocks` override applies only to a "
+        "single-machine file, but the file contains packets from multiple "
+        "machines. Remove the `clocks` override and let the trace's own "
+        "remote clock snapshots align the machines; if you need to anchor a "
+        "specific embedded machine, split it into its own file and override "
+        "that.");
   }
   return base::OkStatus();
 }

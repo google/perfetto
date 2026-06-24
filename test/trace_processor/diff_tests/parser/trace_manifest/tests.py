@@ -106,6 +106,19 @@ _M7_CLOCK_SNAPSHOT = '''
   }
 '''
 
+# Packets from remote machine 7 with a BOOTTIME snapshot and a slice 'vm_slice'
+# at BOOTTIME 50_100_000_000.
+_M7_SLICE = '''
+  packet { machine_id: 7
+    clock_snapshot { clocks { clock_id: 6 timestamp: 50000000000 } } }
+  packet { machine_id: 7 trusted_packet_sequence_id: 2
+    track_descriptor { uuid: 77 } }
+  packet { machine_id: 7 trusted_packet_sequence_id: 2 timestamp: 50100000000
+    track_event { type: TYPE_SLICE_BEGIN track_uuid: 77 name: "vm_slice" } }
+  packet { machine_id: 7 trusted_packet_sequence_id: 2 timestamp: 50200000000
+    track_event { type: TYPE_SLICE_END track_uuid: 77 } }
+'''
+
 
 # A Chrome JSON trace with one complete event at ts=2000us, dur=500us and an
 # embedded systrace ('systemTraceEvents') with one slice 'sys_in_json' from
@@ -894,60 +907,35 @@ class TraceManifest(TestSuite):
         }),
         query='SELECT 1;',
         out=ExpectedError(
-            'clock overrides require the trace to come from a single machine'))
+            'a `clocks` override applies only to a single-machine file'))
 
   # --- Machines ---
 
-  # Assigning a file to a machine id no other trace establishes creates that
-  # machine. The JSON file's events land on machine 7; with no snapshots in
-  # machine 7's clock graph the identity sync applies and ts is unchanged.
-  def test_machine_assignment_fresh_machine(self):
-    return DiffTestBlueprint(
-        trace=Zip({
-            'meta.json':
-                _meta({
-                    'version': 1,
-                    'files': [{
-                        'path': 'app.json',
-                        'machine': {
-                            'id': 7
-                        }
-                    }],
-                }),
-            'app.json':
-                _json_trace('json_slice'),
-            'spine.pb':
-                SPINE,
-        }),
-        query='''
-          SELECT s.name, m.raw_id, s.ts
-          FROM slice s
-          JOIN thread_track tt ON s.track_id = tt.id
-          JOIN thread t USING(utid)
-          JOIN machine m ON t.machine_id = m.id
-          WHERE s.name = 'json_slice';
-        ''',
-        out=Csv('''
-        "name","raw_id","ts"
-        "json_slice",7,2000000
-        '''))
-
-  # A JSON file assigned to machine 7 shares per-machine state with proto
-  # packets from machine 7 in the same archive: pid 30 exists in the proto's
-  # machine-7 process tree and in the JSON trace, and must resolve to a single
-  # thread, and the JSON file's slice must be attributed to machine 7.
+  # A JSON file and a proto's remapped machine that share a name land on one
+  # machine: pid 30 is in both the proto's remapped machine 7 (named 'vm') and
+  # the JSON trace, so it must resolve to a single thread on 'vm'.
   def test_machine_assignment_merges_with_proto(self):
     return DiffTestBlueprint(
         trace=Zip({
             'meta.json':
                 _meta({
-                    'version': 1,
-                    'files': [{
-                        'path': 'app.json',
-                        'machine': {
-                            'id': 7
-                        }
-                    }],
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path': 'app.json',
+                            'machine': {
+                                'name': 'vm'
+                            }
+                        },
+                        {
+                            'path': 'spine.pb',
+                            'machines': [{
+                                'id': 7,
+                                'name': 'vm'
+                            }]
+                        },
+                    ],
                 }),
             'app.json':
                 _json_trace('m7_json_slice', pid=30),
@@ -957,7 +945,7 @@ class TraceManifest(TestSuite):
         query='''
           SELECT
             (SELECT count(*) FROM thread WHERE tid = 30) AS threads,
-            (SELECT m.raw_id
+            (SELECT m.name
              FROM slice s
              JOIN thread_track tt ON s.track_id = tt.id
              JOIN thread t USING(utid)
@@ -966,12 +954,71 @@ class TraceManifest(TestSuite):
         ''',
         out=Csv('''
         "threads","slice_machine"
-        1,7
+        1,"vm"
+        '''))
+
+  # Two separate captures merged onto two different embedded machines of one
+  # multi-machine proto: the host json lands on 'host' (embedded 0) and the vm
+  # json on 'vm' (embedded 7). This is the host-trace-plus-per-VM-capture flow.
+  def test_machines_two_siblings_merge_distinct(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path': 'host.json',
+                            'machine': {
+                                'name': 'host'
+                            }
+                        },
+                        {
+                            'path': 'vm.json',
+                            'machine': {
+                                'name': 'vm'
+                            }
+                        },
+                        {
+                            'path':
+                                'spine.pb',
+                            'machines': [{
+                                'id': 0,
+                                'name': 'host'
+                            }, {
+                                'id': 7,
+                                'name': 'vm'
+                            }]
+                        },
+                    ],
+                }),
+            'host.json':
+                _json_trace('host_json', pid=100),
+            'vm.json':
+                _json_trace('vm_json', pid=30),
+            'spine.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE + _M7_PROCESS),
+        }),
+        query='''
+          SELECT s.name, m.name AS machine
+          FROM slice s
+          JOIN thread_track tt ON s.track_id = tt.id
+          JOIN thread t USING(utid)
+          JOIN machine m ON t.machine_id = m.id
+          WHERE s.name IN ('host_json', 'vm_json')
+          ORDER BY s.name;
+        ''',
+        out=Csv('''
+        "name","machine"
+        "host_json","host"
+        "vm_json","vm"
         '''))
 
   # Anchor clock names resolve in the file's machine context: BOOTTIME means
-  # machine 7's BOOTTIME (50_000_000_000 per its snapshot), not the host's.
-  # The slice at 2000us lands at 50_000_000_000 + 2_000_000.
+  # machine 'vm's BOOTTIME (50_000_000_000 per the proto's snapshot for the
+  # remapped machine 7), not the host's. The slice at 2000us lands at
+  # 50_000_000_000 + 2_000_000.
   def test_machine_anchor_in_machine_domain(self):
     return DiffTestBlueprint(
         trace=Zip({
@@ -979,19 +1026,28 @@ class TraceManifest(TestSuite):
                 _meta({
                     'version':
                         1,
-                    'files': [{
-                        'path': 'app.json',
-                        'machine': {
-                            'id': 7
-                        },
-                        'clocks': {
-                            'ts': 0,
-                            'is': {
-                                'clock': 'BOOTTIME',
-                                'ts': 50000000000
+                    'files': [
+                        {
+                            'path': 'app.json',
+                            'machine': {
+                                'name': 'vm'
                             },
+                            'clocks': {
+                                'ts': 0,
+                                'is': {
+                                    'clock': 'BOOTTIME',
+                                    'ts': 50000000000
+                                }
+                            }
                         },
-                    }],
+                        {
+                            'path': 'spine.pb',
+                            'machines': [{
+                                'id': 7,
+                                'name': 'vm'
+                            }]
+                        },
+                    ],
                 }),
             'app.json':
                 _json_trace('json_slice'),
@@ -1021,7 +1077,7 @@ class TraceManifest(TestSuite):
                     'files': [{
                         'path': 'm7.pb',
                         'machine': {
-                            'id': 7
+                            'name': 'vm'
                         }
                     }],
                 }),
@@ -1033,7 +1089,7 @@ class TraceManifest(TestSuite):
         query='''
           SELECT
             (SELECT count(*) FROM slice) AS slices,
-            (SELECT m.raw_id
+            (SELECT m.name
              FROM slice s
              JOIN track t ON s.track_id = t.id
              JOIN machine m ON t.machine_id = m.id
@@ -1041,7 +1097,7 @@ class TraceManifest(TestSuite):
         ''',
         out=Csv('''
         "slices","m7_machine"
-        2,7
+        2,"vm"
         '''))
 
   # A name-keyed override attributes the file to a machine labelled with that
@@ -1186,7 +1242,7 @@ class TraceManifest(TestSuite):
 
   # --- Machine override errors ---
 
-  def test_error_machine_id_out_of_range(self):
+  def test_error_machines_id_out_of_range(self):
     return DiffTestBlueprint(
         trace=Zip({
             'meta.json':
@@ -1195,9 +1251,10 @@ class TraceManifest(TestSuite):
                         1,
                     'files': [{
                         'path': 'app.json',
-                        'machine': {
-                            'id': 4294967296
-                        }
+                        'machines': [{
+                            'id': 4294967296,
+                            'name': 'vm'
+                        }]
                     }],
                 }),
             'app.json':
@@ -1205,10 +1262,11 @@ class TraceManifest(TestSuite):
         }),
         query='SELECT 1;',
         out=ExpectedError(
-            'perfetto_manifest: machine: id must be in [1, 4294967295]'))
+            'perfetto_manifest: machines: id must be in [0, 4294967295]'))
 
-  # A machine override on a proto trace containing packets from a remote
-  # machine fails: the trace manages its own machine identity.
+  # A single-machine `machine` override on a proto trace with packets from a
+  # remote machine fails: it claimed one machine but is actually multi-machine
+  # (use `machines` to remap them instead).
   def test_error_proto_multi_machine_machine_override(self):
     return DiffTestBlueprint(
         trace=Zip({
@@ -1218,7 +1276,7 @@ class TraceManifest(TestSuite):
                     'files': [{
                         'path': 'spine.pb',
                         'machine': {
-                            'id': 3
+                            'name': 'vm'
                         }
                     }],
                 }),
@@ -1226,9 +1284,7 @@ class TraceManifest(TestSuite):
                 TextProto(_PROTO_SLICE + _M7_PROCESS),
         }),
         query='SELECT 1;',
-        out=ExpectedError(
-            'machine override requires the trace to come from a single machine')
-    )
+        out=ExpectedError('Replace `machine` with a `machines` block'))
 
   def test_error_machine_empty(self):
     return DiffTestBlueprint(
@@ -1238,7 +1294,33 @@ class TraceManifest(TestSuite):
                     'version': 1,
                     'files': [{
                         'path': 'app.json',
-                        'machine': {}
+                        'machine': {
+                            'name': ''
+                        }
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError('perfetto_manifest: machine: name must be non-empty'))
+
+  def test_error_machine_and_machines_exclusive(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'app.json',
+                        'machine': {
+                            'name': 'a'
+                        },
+                        'machines': [{
+                            'id': 0,
+                            'name': 'b'
+                        }]
                     }],
                 }),
             'app.json':
@@ -1246,7 +1328,7 @@ class TraceManifest(TestSuite):
         }),
         query='SELECT 1;',
         out=ExpectedError(
-            'perfetto_manifest: machine must have a name and/or an id'))
+            'perfetto_manifest: machine and machines are mutually exclusive'))
 
   # --- Cross-machine REALTIME alignment ---
   #
@@ -1580,7 +1662,8 @@ class TraceManifest(TestSuite):
         "server_slice",1100000500,"server"
         '''))
 
-  # is.machine names the reference machine directly (instead of via a file).
+  # is.machine names the reference machine within is.file. Here phone.pb is
+  # single-machine, so its only machine is 'phone'.
   def test_is_machine_offset(self):
     return DiffTestBlueprint(
         trace=Zip({
@@ -1604,6 +1687,7 @@ class TraceManifest(TestSuite):
                                 'clock': 'BOOTTIME',
                                 'offset_ns': 500,
                                 'is': {
+                                    'file': 'phone.pb',
                                     'machine': 'phone',
                                     'clock': 'BOOTTIME'
                                 }
@@ -1753,4 +1837,456 @@ class TraceManifest(TestSuite):
         "name","ts","machine"
         "a_slice",1100000000,"phone"
         "b_slice",3000000000,"server"
+        '''))
+
+  # --- Multi-machine remap (machines) ---
+
+  # A `machines` block remaps a single multi-machine proto's embedded ids to
+  # named machines: embedded 0 (host) -> phone, embedded 7 -> vm. Each slice is
+  # attributed to its declared machine.
+  def test_machines_remap(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path':
+                            'multi.pb',
+                        'machines': [{
+                            'id': 0,
+                            'name': 'phone'
+                        }, {
+                            'id': 7,
+                            'name': 'vm'
+                        }]
+                    }],
+                }),
+            'multi.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE + _M7_SLICE),
+        }),
+        query=_ALIGN_QUERY,
+        out=Csv('''
+        "name","ts","machine"
+        "proto_slice",1100000000,"phone"
+        "vm_slice",50100000000,"vm"
+        '''))
+
+  # The realistic multi-machine shape: the remote machine's clock is related to
+  # the host's via a `remote_clock_sync` packet (not a standalone per-machine
+  # snapshot). The `machines` remap must survive its own remote_clock_sync (it
+  # passes CheckManifestSingleMachine only because the remap clears
+  # has_machine_override) and fork machine 7 onto 'vm' before the sync is
+  # parsed, so vm_slice is shifted onto the host timeline by the synced offset
+  # (client BOOTTIME 50s == host BOOTTIME 2s, so guest 50.1s -> host 2.1s).
+  def test_machines_remote_clock_sync(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path':
+                            'multi.pb',
+                        'machines': [{
+                            'id': 0,
+                            'name': 'host'
+                        }, {
+                            'id': 7,
+                            'name': 'vm'
+                        }]
+                    }],
+                }),
+            'multi.pb':
+                TextProto('''
+                  packet {
+                    clock_snapshot {
+                      clocks { clock_id: 6 timestamp: 1000000000 }
+                    }
+                  }
+                  packet {
+                    trusted_packet_sequence_id: 1
+                    track_descriptor { uuid: 1 }
+                  }
+                  packet {
+                    trusted_packet_sequence_id: 1 timestamp: 1100000000
+                    timestamp_clock_id: 6
+                    track_event {
+                      type: TYPE_SLICE_BEGIN track_uuid: 1 name: "host_slice"
+                    }
+                  }
+                  packet {
+                    trusted_packet_sequence_id: 1 timestamp: 1200000000
+                    timestamp_clock_id: 6
+                    track_event { type: TYPE_SLICE_END track_uuid: 1 }
+                  }
+                  packet {
+                    machine_id: 7
+                    remote_clock_sync {
+                      synced_clocks {
+                        client_clocks {
+                          clocks { clock_id: 6 timestamp: 50000000000 }
+                        }
+                        host_clocks {
+                          clocks { clock_id: 6 timestamp: 2000000000 }
+                        }
+                      }
+                      synced_clocks {
+                        client_clocks {
+                          clocks { clock_id: 6 timestamp: 50000000000 }
+                        }
+                        host_clocks {
+                          clocks { clock_id: 6 timestamp: 2000000000 }
+                        }
+                      }
+                    }
+                  }
+                  packet {
+                    machine_id: 7 trusted_packet_sequence_id: 2
+                    track_descriptor { uuid: 7 }
+                  }
+                  packet {
+                    machine_id: 7 trusted_packet_sequence_id: 2
+                    timestamp: 50100000000 timestamp_clock_id: 6
+                    track_event {
+                      type: TYPE_SLICE_BEGIN track_uuid: 7 name: "vm_slice"
+                    }
+                  }
+                  packet {
+                    machine_id: 7 trusted_packet_sequence_id: 2
+                    timestamp: 50200000000 timestamp_clock_id: 6
+                    track_event { type: TYPE_SLICE_END track_uuid: 7 }
+                  }
+                '''),
+        }),
+        query=_ALIGN_QUERY,
+        out=Csv('''
+        "name","ts","machine"
+        "host_slice",1100000000,"host"
+        "vm_slice",2100000000,"vm"
+        '''))
+
+  # A packet from an embedded machine id the `machines` block does not declare
+  # is an error.
+  def test_error_machines_undeclared_id(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'multi.pb',
+                        'machines': [{
+                            'id': 0,
+                            'name': 'phone'
+                        }]
+                    }],
+                }),
+            'multi.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE + _M7_SLICE),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            'perfetto_manifest: machines: trace has a packet from undeclared '
+            'machine id 7'))
+
+  # Embedded machine ids are scoped to their trace: the same embedded id 7 in
+  # two different proto files maps to two distinct machines (pb and qb). Only an
+  # explicitly shared name would merge them.
+  def test_machines_embedded_ids_scoped_per_file(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path':
+                                'p.pb',
+                            'machines': [{
+                                'id': 0,
+                                'name': 'pa'
+                            }, {
+                                'id': 7,
+                                'name': 'pb'
+                            }]
+                        },
+                        {
+                            'path':
+                                'q.pb',
+                            'machines': [{
+                                'id': 0,
+                                'name': 'qa'
+                            }, {
+                                'id': 7,
+                                'name': 'qb'
+                            }]
+                        },
+                    ],
+                }),
+            'p.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE + _M7_SLICE),
+            'q.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT +
+                          _PROTO_SLICE.replace('proto_slice', 'q_slice') +
+                          _M7_SLICE.replace('vm_slice', 'qvm_slice')),
+        }),
+        query='''
+          SELECT s.name, m.name AS machine
+          FROM slice s
+          JOIN track t ON s.track_id = t.id
+          JOIN machine m ON t.machine_id = m.id
+          WHERE s.name GLOB '*_slice'
+          ORDER BY s.name;
+        ''',
+        out=Csv('''
+        "name","machine"
+        "proto_slice","pa"
+        "q_slice","qa"
+        "qvm_slice","qb"
+        "vm_slice","pb"
+        '''))
+
+  # Naming the same embedded id the same in two files merges them onto one
+  # machine: the two embedded-7 machines resolve to the single machine 'shared'.
+  def test_machines_shared_name_merges(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path':
+                                'p.pb',
+                            'machines': [{
+                                'id': 0,
+                                'name': 'host_p'
+                            }, {
+                                'id': 7,
+                                'name': 'shared'
+                            }]
+                        },
+                        {
+                            'path':
+                                'q.pb',
+                            'machines': [{
+                                'id': 0,
+                                'name': 'host_q'
+                            }, {
+                                'id': 7,
+                                'name': 'shared'
+                            }]
+                        },
+                    ],
+                }),
+            'p.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE + _M7_SLICE),
+            'q.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT +
+                          _PROTO_SLICE.replace('proto_slice', 'q_slice') +
+                          _M7_SLICE.replace('vm_slice', 'qvm_slice')),
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM machine WHERE name = 'shared') AS shared,
+            (SELECT count(DISTINCT t.machine_id)
+             FROM slice s
+             JOIN track t ON s.track_id = t.id
+             JOIN machine m ON t.machine_id = m.id
+             WHERE s.name IN ('vm_slice', 'qvm_slice')) AS distinct_machines;
+        ''',
+        out=Csv('''
+        "shared","distinct_machines"
+        1,1
+        '''))
+
+  # is.file referencing a multi-machine file must also name the machine: the
+  # file is several machines, so the file alone is ambiguous.
+  def test_error_is_file_multi_machine_needs_machine(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path':
+                                'multi.pb',
+                            'machines': [{
+                                'id': 0,
+                                'name': 'phone'
+                            }, {
+                                'id': 7,
+                                'name': 'vm'
+                            }]
+                        },
+                        {
+                            'path': 'server.pb',
+                            'machine': {
+                                'name': 'server'
+                            },
+                            'clocks': {
+                                'clock': 'BOOTTIME',
+                                'offset_ns': 500,
+                                'is': {
+                                    'file': 'multi.pb',
+                                    'clock': 'BOOTTIME'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'multi.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE + _M7_SLICE),
+            'server.pb':
+                _proto_boot_snap('server_slice', 3, 333, 1000000000,
+                                 1100000000),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            "perfetto_manifest: clocks: is.file 'multi.pb' is a multi-machine "
+            "trace; also name the machine with clocks: is.machine"))
+
+  # A bare is.machine (no is.file) is ambiguous and rejected.
+  def test_error_is_machine_without_file(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'a.pb',
+                        'machine': {
+                            'name': 'phone'
+                        },
+                        'clocks': {
+                            'clock': 'BOOTTIME',
+                            'offset_ns': 1,
+                            'is': {
+                                'machine': 'phone',
+                                'clock': 'BOOTTIME'
+                            }
+                        }
+                    },],
+                }),
+            'a.pb':
+                _proto_boot_snap('a_slice', 1, 111, 1000000000, 1100000000),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            "perfetto_manifest: clocks: is.machine 'phone' needs clocks: "
+            "is.file too"))
+
+  # is.machine must name a machine the referenced file itself declares.
+  def test_error_is_machine_not_in_file(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path':
+                                'multi.pb',
+                            'machines': [{
+                                'id': 0,
+                                'name': 'phone'
+                            }, {
+                                'id': 7,
+                                'name': 'vm'
+                            }]
+                        },
+                        {
+                            'path': 'server.pb',
+                            'machine': {
+                                'name': 'server'
+                            },
+                            'clocks': {
+                                'clock': 'BOOTTIME',
+                                'offset_ns': 500,
+                                'is': {
+                                    'file': 'multi.pb',
+                                    'machine': 'ghost',
+                                    'clock': 'BOOTTIME'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'multi.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE + _M7_SLICE),
+            'server.pb':
+                _proto_boot_snap('server_slice', 3, 333, 1000000000,
+                                 1100000000),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            "perfetto_manifest: clocks: is.machine 'ghost' is not a machine "
+            "declared by file 'multi.pb'"))
+
+  # Cross-file clock sync onto a specific machine inside a multi-machine file:
+  # server's BOOTTIME = vm's BOOTTIME + 500, where vm is embedded id 7 of
+  # multi.pb. server's slice aligns onto vm's timeline (~50s), not phone's (~1s).
+  def test_is_file_machine_offset(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'trace_time': {
+                        'file': 'multi.pb',
+                        'machine': 'vm',
+                        'clock': 'BOOTTIME'
+                    },
+                    'files': [
+                        {
+                            'path':
+                                'multi.pb',
+                            'machines': [{
+                                'id': 0,
+                                'name': 'phone'
+                            }, {
+                                'id': 7,
+                                'name': 'vm'
+                            }]
+                        },
+                        {
+                            'path': 'server.pb',
+                            'machine': {
+                                'name': 'server'
+                            },
+                            'clocks': {
+                                'clock': 'BOOTTIME',
+                                'offset_ns': 500,
+                                'is': {
+                                    'file': 'multi.pb',
+                                    'machine': 'vm',
+                                    'clock': 'BOOTTIME'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'multi.pb':
+                TextProto(_SPINE_CLOCK_SNAPSHOT + _PROTO_SLICE + _M7_SLICE),
+            'server.pb':
+                _proto_boot_snap('server_slice', 3, 333, 50000000000,
+                                 50100000000),
+        }),
+        query=_ALIGN_QUERY,
+        out=Csv('''
+        "name","ts","machine"
+        "proto_slice",1100000000,"phone"
+        "vm_slice",50100000000,"vm"
+        "server_slice",50100000500,"server"
         '''))

@@ -22,13 +22,12 @@
 #include <limits>
 #include <optional>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -122,8 +121,10 @@ base::StatusOr<uint32_t> ParseClockName(const json::Dom& value) {
     return BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW;
   if (name == "BOOTTIME")
     return BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
-  return base::ErrStatus("perfetto_manifest: unknown clock name: %s",
-                         name.c_str());
+  return base::ErrStatus(
+      "perfetto_manifest: unknown clock name: %s. Use one of REALTIME, "
+      "REALTIME_COARSE, MONOTONIC, MONOTONIC_COARSE, MONOTONIC_RAW, BOOTTIME.",
+      name.c_str());
 }
 
 // Reads a required, non-negative integral nanosecond timestamp stored under
@@ -173,11 +174,8 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
     if (!is.IsObject()) {
       return base::ErrStatus("perfetto_manifest: clocks: is must be an object");
     }
-    if (is.HasMember("file") && is.HasMember("machine")) {
-      return base::ErrStatus(
-          "perfetto_manifest: clocks: is.file and is.machine are mutually "
-          "exclusive");
-    }
+    // is.file and is.machine are complementary, not exclusive: naming a machine
+    // inside a multi-machine file needs both (see resolve_ref below).
     if (is.HasMember("file")) {
       if (!is["file"].IsString()) {
         return base::ErrStatus(
@@ -267,55 +265,73 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
     }
     ASSIGN_OR_RETURN(entry.clock_override, ParseClocks(file["clocks"]));
   }
+  if (file.HasMember("machine") && file.HasMember("machines")) {
+    return base::ErrStatus(
+        "perfetto_manifest: machine and machines are mutually exclusive. Use "
+        "`machine` for a single-machine file, or `machines` to remap a "
+        "multi-machine proto's embedded ids; not both.");
+  }
+  // `machine` attributes the whole file to one named machine. It is an object
+  // (rather than a bare string) so future per-machine attributes can be added
+  // without a breaking format change.
   if (file.HasMember("machine")) {
     const json::Dom& machine = file["machine"];
-    if (!machine.IsObject()) {
-      return base::ErrStatus("perfetto_manifest: machine must be an object");
-    }
-    if (!machine.HasMember("id") && !machine.HasMember("name")) {
+    if (!machine.IsObject() || !machine.HasMember("name") ||
+        !machine["name"].IsString()) {
       return base::ErrStatus(
-          "perfetto_manifest: machine must have a name and/or an id");
+          "perfetto_manifest: machine must be an object with a string name, "
+          R"(e.g. "machine": {"name": "phone"}.)");
     }
-    if (machine.HasMember("id")) {
-      if (!machine["id"].IsNumeric()) {
-        return base::ErrStatus(
-            "perfetto_manifest: machine: id must be numeric");
-      }
-      int64_t machine_id = machine["id"].AsInt64();
-      if (machine_id < 1 || machine_id > std::numeric_limits<uint32_t>::max()) {
-        return base::ErrStatus(
-            "perfetto_manifest: machine: id must be in [1, 4294967295]");
-      }
-      entry.machine_id = static_cast<uint32_t>(machine_id);
+    std::string name = machine["name"].AsString();
+    if (name.empty()) {
+      return base::ErrStatus(
+          "perfetto_manifest: machine: name must be non-empty");
     }
-    if (machine.HasMember("name")) {
-      if (!machine["name"].IsString()) {
+    entry.machine_name = std::move(name);
+  }
+  // `machines` remaps a multi-machine proto's embedded machine_ids to named
+  // machines.
+  if (file.HasMember("machines")) {
+    if (!file["machines"].IsArray()) {
+      return base::ErrStatus("perfetto_manifest: machines must be an array");
+    }
+    for (const json::Dom& m : file["machines"]) {
+      if (!m.IsObject() || !m.HasMember("id") || !m["id"].IsNumeric() ||
+          !m.HasMember("name") || !m["name"].IsString()) {
         return base::ErrStatus(
-            "perfetto_manifest: machine: name must be a string");
+            "perfetto_manifest: machines entries need an integer id and a "
+            R"(string name, e.g. "machines": [{"id": 0, "name": "phone"}].)");
       }
-      std::string name = machine["name"].AsString();
+      int64_t id = m["id"].AsInt64();
+      if (id < 0 || id > std::numeric_limits<uint32_t>::max()) {
+        return base::ErrStatus(
+            "perfetto_manifest: machines: id must be in [0, 4294967295]");
+      }
+      std::string name = m["name"].AsString();
       if (name.empty()) {
         return base::ErrStatus(
-            "perfetto_manifest: machine: name must be non-empty");
+            "perfetto_manifest: machines: name must be non-empty");
       }
-      entry.machine_name = std::move(name);
+      entry.machine_mappings.emplace_back(static_cast<uint32_t>(id),
+                                          std::move(name));
     }
   }
-  return entry;
+  return std::move(entry);
 }
 
 // Allocates (once) the machine-table row for |raw_machine_id| and records it so
 // later forks reuse the same row. Returns the row id.
 uint32_t EnsureMachineRow(TraceProcessorContext* context,
-                          uint32_t raw_machine_id) {
+                          int64_t raw_machine_id) {
   auto& map = context->trace_manifest_state->raw_id_to_table_id;
-  auto [it, inserted] = map.try_emplace(raw_machine_id, 0u);
-  if (inserted) {
-    it->second = context->storage->mutable_machine_table()
+  if (uint32_t* row = map.Find(raw_machine_id)) {
+    return *row;
+  }
+  uint32_t row = context->storage->mutable_machine_table()
                      ->Insert({raw_machine_id})
                      .id.value;
-  }
-  return it->second;
+  map.Insert(raw_machine_id, row);
+  return row;
 }
 
 }  // namespace
@@ -357,7 +373,8 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
     return base::ErrStatus("perfetto_manifest: version must be an integer");
   }
   if (version.AsInt64() != 1) {
-    return base::ErrStatus("perfetto_manifest: unsupported version: %" PRId64,
+    return base::ErrStatus("perfetto_manifest: unsupported version: %" PRId64
+                           ". Only version 1 is supported; set \"version\": 1.",
                            version.AsInt64());
   }
 
@@ -378,6 +395,13 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
       }
       state->trace_time_file = trace_time["file"].AsString();
     }
+    if (trace_time.HasMember("machine")) {
+      if (!trace_time["machine"].IsString()) {
+        return base::ErrStatus(
+            "perfetto_manifest: trace_time: machine must be a string");
+      }
+      state->trace_time_machine = trace_time["machine"].AsString();
+    }
   }
 
   if (meta.HasMember("files")) {
@@ -390,62 +414,105 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
     }
   }
 
-  // Assign a synthetic raw id to each distinct name-only machine, in first-seen
-  // order, skipping ids claimed explicitly so a named machine never collides
-  // with an id-keyed one.
-  std::unordered_set<uint32_t> explicit_ids;
-  for (const FileEntry& entry : state->files) {
-    if (entry.machine_id) {
-      explicit_ids.insert(*entry.machine_id);
+  // Allocate one raw machine id per distinct name (the `machine` shorthand and
+  // every `machines` entry share the namespace, so the same name is one
+  // machine), pre-allocating and naming its row so clock references resolve to
+  // it and ForkContextForTrace reuses it. Then set each file's base machine and
+  // its embedded-id remap.
+  auto& machine_table = *context_->storage->mutable_machine_table();
+  base::FlatHashMap<std::string, int64_t> name_to_id;
+  int64_t next_id = kFirstManifestMachineId;
+  auto raw_id_for_name = [&](const std::string& name) {
+    if (int64_t* id = name_to_id.Find(name)) {
+      return *id;
     }
-  }
-  std::unordered_map<std::string, uint32_t> name_to_id;
-  uint32_t next_id = 1;
+    int64_t id = next_id++;
+    machine_table[MachineId(EnsureMachineRow(context_, id))].set_name(
+        context_->storage->InternString(base::StringView(name)));
+    name_to_id.Insert(name, id);
+    return id;
+  };
   for (FileEntry& entry : state->files) {
-    if (!entry.machine_name || entry.machine_id) {
-      continue;
+    if (entry.machine_name) {
+      entry.machine_id = raw_id_for_name(*entry.machine_name);
     }
-    auto [it, inserted] = name_to_id.try_emplace(*entry.machine_name, 0);
-    if (inserted) {
-      while (explicit_ids.count(next_id)) {
-        ++next_id;
+    for (const auto& [embedded, name] : entry.machine_mappings) {
+      int64_t raw = raw_id_for_name(name);
+      entry.machine_remap.Insert(embedded, raw);
+      if (embedded == 0) {
+        entry.machine_id = raw;
+        entry.machine_name = name;
       }
-      it->second = next_id++;
     }
-    entry.machine_id = it->second;
   }
 
-  // Pre-allocate a machine-table row for every declared machine and name it, so
-  // clock references resolve to real rows and ForkContextForTrace reuses them.
-  auto& machine_table = *context_->storage->mutable_machine_table();
-  std::unordered_map<std::string, uint32_t> machine_name_to_id;
-  for (const FileEntry& entry : state->files) {
-    if (!entry.machine_id) {
-      continue;
+  // Resolves a clock-reference target (a clocks is.file/is.machine, or the
+  // trace_time file/machine) to a raw machine id. |file_label|/|machine_label|
+  // name the two fields in error messages. The rules:
+  //   - machine without file: ambiguous, rejected. A machine name alone is not
+  //     a stable key because embedded ids are scoped to their trace.
+  //   - file + machine: the machine must be one |ref_file| itself declares;
+  //     (file, name) is the key.
+  //   - file alone: only a single-machine file; a multi-machine file is several
+  //     machines, so it must also name which one.
+  //   - neither: |fallback| (the referencing file's own machine).
+  auto resolve_ref = [&](const char* file_label, const char* machine_label,
+                         const std::optional<std::string>& ref_file,
+                         const std::optional<std::string>& ref_machine,
+                         int64_t fallback) -> base::StatusOr<int64_t> {
+    if (ref_machine && !ref_file) {
+      return base::ErrStatus(
+          "perfetto_manifest: %s '%s' needs %s too: a machine name alone is "
+          "ambiguous because embedded machine ids are scoped to their trace.",
+          machine_label, ref_machine->c_str(), file_label);
     }
-    uint32_t row = EnsureMachineRow(context_, *entry.machine_id);
-    if (entry.machine_name) {
-      machine_table[MachineId(row)].set_name(context_->storage->InternString(
-          base::StringView(*entry.machine_name)));
-      machine_name_to_id[*entry.machine_name] = *entry.machine_id;
+    if (!ref_file) {
+      return fallback;
     }
-  }
+    FileEntry* r = state->FindEntry(*ref_file);
+    if (!r) {
+      return base::ErrStatus(
+          "perfetto_manifest: %s names unknown file '%s'. It must match the "
+          "`path` of an entry in the `files` array.",
+          file_label, ref_file->c_str());
+    }
+    if (!ref_machine) {
+      if (!r->machine_mappings.empty()) {
+        return base::ErrStatus(
+            "perfetto_manifest: %s '%s' is a multi-machine trace; also name "
+            "the machine with %s.",
+            file_label, ref_file->c_str(), machine_label);
+      }
+      return r->machine_id.value_or(0);
+    }
+    bool declared = r->machine_name && *r->machine_name == *ref_machine;
+    for (const auto& [embedded, name] : r->machine_mappings) {
+      if (name == *ref_machine) {
+        declared = true;
+        break;
+      }
+    }
+    if (!declared) {
+      return base::ErrStatus(
+          "perfetto_manifest: %s '%s' is not a machine declared by file '%s'.",
+          machine_label, ref_machine->c_str(), ref_file->c_str());
+    }
+    return *name_to_id.Find(*ref_machine);
+  };
 
   // Claim the global trace time clock directly: the manifest is the first file,
-  // so its claim wins over later traces. trace_time.file pins it to that file's
-  // (pre-allocated) machine.
+  // so its claim wins over later traces. trace_time.file (+ .machine) pins it
+  // to that file's (pre-allocated) machine.
   if (state->trace_time_clock) {
     ClockId trace_time = ClockId::Machine(*state->trace_time_clock);
-    if (state->trace_time_file) {
-      FileEntry* f = state->FindEntry(*state->trace_time_file);
-      if (!f) {
-        return base::ErrStatus(
-            "perfetto_manifest: trace_time: file names unknown file '%s'",
-            state->trace_time_file->c_str());
-      }
-      trace_time = ClockId::Machine(
-          EnsureMachineRow(context_, f->machine_id.value_or(0u)),
-          *state->trace_time_clock);
+    if (state->trace_time_file || state->trace_time_machine) {
+      ASSIGN_OR_RETURN(
+          int64_t raw,
+          resolve_ref("trace_time: file", "trace_time: machine",
+                      state->trace_time_file, state->trace_time_machine,
+                      /*fallback=*/0));
+      trace_time = ClockId::Machine(EnsureMachineRow(context_, raw),
+                                    *state->trace_time_clock);
     }
     context_->trace_time_state->TrySetClock(trace_time, file_id_);
     context_->global_metadata_tracker->SetMetadata(
@@ -466,31 +533,14 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
     }
     const ClockOverride& co = *entry.clock_override;
     ClockId source = ClockId::Machine(
-        EnsureMachineRow(context_, entry.machine_id.value_or(0u)),
+        EnsureMachineRow(context_, entry.machine_id.value_or(0)),
         *co.source_clock);
     ClockId ref = trace_time;
     if (co.clock) {
-      uint32_t ref_raw;
-      if (co.ref_machine) {
-        auto it = machine_name_to_id.find(*co.ref_machine);
-        if (it == machine_name_to_id.end()) {
-          return base::ErrStatus(
-              "perfetto_manifest: clocks: is.machine names unknown machine "
-              "'%s'",
-              co.ref_machine->c_str());
-        }
-        ref_raw = it->second;
-      } else if (co.ref_file) {
-        FileEntry* r = state->FindEntry(*co.ref_file);
-        if (!r) {
-          return base::ErrStatus(
-              "perfetto_manifest: clocks: is.file names unknown file '%s'",
-              co.ref_file->c_str());
-        }
-        ref_raw = r->machine_id.value_or(0u);
-      } else {
-        ref_raw = entry.machine_id.value_or(0u);
-      }
+      ASSIGN_OR_RETURN(
+          int64_t ref_raw,
+          resolve_ref("clocks: is.file", "clocks: is.machine", co.ref_file,
+                      co.ref_machine, entry.machine_id.value_or(0)));
       ref = ClockId::Machine(EnsureMachineRow(context_, ref_raw), *co.clock);
     }
     std::vector<ClockTimestamp> clocks = {{source, co.file_ts_ns},
