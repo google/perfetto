@@ -70,6 +70,8 @@ source_set("engine") {
     "graph_function.h",
     "interval_intersect_function.cc",
     "interval_intersect_function.h",
+    "sql_lowering.cc",
+    "sql_lowering.h",
     "structural_tree_partition_function.cc",
     "structural_tree_partition_function.h",
     "tree_function.cc",
@@ -85,6 +87,7 @@ source_set("engine") {
     "../containers",
     "../core/dataframe",
     "../importers/common",  # clock_function.cc clock UDFs (ClockConverter).
+    "../perfetto_sql/syntaqlite",  # sql_lowering.cc AST-driven dialect lowering.
     "../perfetto_sql/tokenizer",  # Support predicate tokenizes via SqliteTokenizer.
     "../sqlite",  # SqlSource (the SqliteTokenizer input).
   ]

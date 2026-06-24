@@ -34,6 +34,7 @@ source_set("syntaqlite") {
   defines = [ "SYNTAQLITE_INLINE_DIALECT_DISPATCH=\"src/trace_processor/perfetto_sql/syntaqlite/inline_dispatch.h\"" ]
   deps = [ "../../../../gn:default_deps" ]
   visibility = [
+    "../../duckdb:engine",  # sql_lowering.cc AST-driven dialect lowering.
     "../../util:sql_module_doc_parser",
     "../lineage_resolver:lineage_resolver",
     "../parser:*",
