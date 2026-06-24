@@ -71,11 +71,11 @@ class TrackEventParser {
  private:
   friend class TrackEventEventImporter;
 
-  bool has_extension_parsers() const {
+  bool has_parsers() const {
     return !extension_parser_context_->parsers.empty();
   }
 
-  TrackEventExtensionParser* PluginForField(uint32_t field_id) const {
+  TrackEventExtensionParser* ParserForField(uint32_t field_id) const {
     auto* it = extension_parser_context_->parsers_by_field.Find(field_id);
     return it ? *it : nullptr;
   }

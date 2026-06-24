@@ -407,9 +407,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
         for (auto& p : plugins_) {
           p->RegisterProtoImporterModules(mctx, tctx);
         }
-        // The TrackEventModule is published by RegisterDefaultModules (run by
-        // RegisterAdditionalModules above), so its extension parser registry is
-        // ready for plugins to populate.
+        // track_module is published by RegisterAdditionalModules above.
         if (mctx->track_module) {
           auto* ext_ctx =
               mctx->track_module->mutable_extension_parser_context();

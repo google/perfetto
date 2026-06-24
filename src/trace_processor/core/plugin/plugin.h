@@ -65,10 +65,6 @@ class PluginBase {
   virtual void RegisterProtoImporterModules(
       ProtoImporterModuleContext* module_context,
       TraceProcessorContext* trace_context);
-  // Dedicated registration point for TrackEvent extension parsers. The
-  // framework hands the per-trace registry directly, so a plugin owning an
-  // out-of-tree TrackEvent extension just adds its parser to |context| without
-  // reaching through the proto module graph.
   virtual void RegisterTrackEventExtensions(
       TrackEventExtensionParserContext* context,
       TraceProcessorContext* trace_context);

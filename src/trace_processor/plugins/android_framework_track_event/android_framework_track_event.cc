@@ -44,8 +44,7 @@ using AndroidBinderDiedEvent =
 using AndroidTrackEventProcessTable = tables::AndroidTrackEventProcessTable;
 
 // Records AndroidProcessStartEvent and AndroidBinderDiedEvent into
-// __intrinsic_android_track_event_process. Both events are emitted as instant
-// TrackEvents, so they arrive via OnTrackEventSliceExtension.
+// __intrinsic_android_track_event_process.
 class Parser : public TrackEventExtensionParser {
  public:
   Parser(TrackEventExtensionParserContext* extension_parser_context,
@@ -61,8 +60,6 @@ class Parser : public TrackEventExtensionParser {
 
   Result OnTrackEventSliceExtension(const TrackEventExtensionField& field,
                                     SliceId id) override {
-    // The extension carries no timestamp of its own; the just-inserted slice
-    // does (an instant event's ts is the event ts).
     int64_t ts = trace_context_->storage->slice_table()[id].ts();
     switch (field.id()) {
       case FBTE::kProcessStartEventFieldNumber:
@@ -74,8 +71,6 @@ class Parser : public TrackEventExtensionParser {
       default:
         break;
     }
-    // Everything needed is captured into the side table, so take ownership and
-    // skip the default flattening of the event into the args table.
     return Result::kHandled;
   }
 
@@ -112,8 +107,7 @@ class Parser : public TrackEventExtensionParser {
     UniquePid upid = trace_context_->process_tracker->GetOrCreateProcess(
         static_cast<uint32_t>(evt.pid()));
     SetProcessMetadata(upid, data);
-    // Keep the earliest start so the process_bound event (which shares this
-    // proto) is captured rather than a later process_start.
+    // First start wins; the shared process_bound event arrives later.
     auto row = GetOrInsertRow(upid);
     if (!row.fw_start_ts().has_value()) {
       row.set_fw_start_ts(ts);
@@ -141,10 +135,8 @@ class Parser : public TrackEventExtensionParser {
     if (!evt.has_pid()) {
       return;
     }
-    // Resolve the process without creating one. If ftrace sched already ended
-    // it (freeing the pid), GetOrCreateProcess would resurrect a phantom
-    // process, so look it up via its still-tracked main thread instead and bail
-    // if the process is already gone.
+    // Look up via the still-tracked main thread; GetOrCreateProcess would
+    // resurrect an already-freed pid.
     std::optional<UniqueTid> utid =
         trace_context_->process_tracker->GetThreadOrNull(
             static_cast<uint32_t>(evt.pid()));
@@ -157,8 +149,6 @@ class Parser : public TrackEventExtensionParser {
       return;
     }
     GetOrInsertRow(*upid).set_fw_end_ts(ts);
-    // End the process so its pid is freed for reuse. With only an initial
-    // ftrace snapshot (no ongoing sched) this is the sole signal that ends it.
     trace_context_->process_tracker->EndThread(
         ts, static_cast<uint32_t>(evt.pid()));
   }
@@ -168,9 +158,6 @@ class Parser : public TrackEventExtensionParser {
   base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
 };
 
-// Core plugin: lives in `full`, so the frameworks proto never reaches
-// `minimal`. It owns the side table and installs the Parser through the
-// dedicated TrackEvent extension registration hook.
 class AndroidFrameworkTrackEventPlugin
     : public Plugin<AndroidFrameworkTrackEventPlugin> {
  public:

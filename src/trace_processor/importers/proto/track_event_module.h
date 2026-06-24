@@ -50,9 +50,6 @@ class TrackEventModule : public ProtoImporterModule {
 
   void OnEventsFullyExtracted() override;
 
-  // Lets a plugin own out-of-tree TrackEvent extension fields (registered from
-  // `full` via the Plugin framework) without compiling the plugin or its protos
-  // into `minimal`.
   TrackEventExtensionParserContext* mutable_extension_parser_context() {
     return &extension_parser_context_;
   }
