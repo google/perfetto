@@ -175,6 +175,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
     // parsed first so that we do not get issues with
     // SetPidZeroIsUpidZeroIdleProcess()
+    // The machine row was pre-allocated by the manifest reader (which also
+    // named it); this fork reuses it via MachineTracker.
     trace_context_ =
         input_context_->ForkContextForTrace(file_id_, raw_machine_id);
     if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
@@ -183,11 +185,6 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     if (manifest_entry) {
       trace_context_->trace_state->has_machine_override =
           manifest_entry->machine_id.has_value();
-      if (manifest_entry->machine_name) {
-        trace_context_->machine_tracker->SetMachineName(
-            input_context_->storage->InternString(
-                base::StringView(*manifest_entry->machine_name)));
-      }
     }
   }
   ASSIGN_OR_RETURN(reader_, input_context_->reader_registry->CreateTraceReader(
@@ -247,12 +244,16 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME);
   }
   auto& clock_tracker = trace_context_->clock_tracker;
-  if (manifest_entry && manifest_entry->clock_override) {
-    // The manifest overrules the format's best-effort clock: move this file's
-    // events onto a private TraceFile clock and register a single implicit
-    // edge connecting that clock to the graph as the manifest dictates. The
-    // file is now single-clock / single-machine; stray ClockSnapshots or
-    // remote machine ids on it are rejected (see has_clock_override()).
+  // A "relate" override (source_clock set) is a cross-machine edge that the
+  // manifest reader already added to the global graph. The remaining override
+  // is the "pin" form below.
+  if (manifest_entry && manifest_entry->clock_override &&
+      !manifest_entry->clock_override->source_clock) {
+    // "Pin" form: the file has no usable clock, so move its events onto a
+    // private TraceFile clock and register a single implicit edge connecting
+    // that clock to the graph as the manifest dictates. The file is now
+    // single-clock / single-machine; stray ClockSnapshots or remote machine
+    // ids on it are rejected (see has_clock_override()).
     const TraceManifestState::ClockOverride& clock_override =
         *manifest_entry->clock_override;
     ClockId file_clock = ClockId::TraceFile(trace_context_->trace_id().value);
