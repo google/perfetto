@@ -577,7 +577,8 @@ function getHeapGraphNodeOptionalActions(
       name: 'Open in Heapdump Explorer',
       icon: 'open_in_new',
       category: 'DRILL',
-      description: "Inspect this class's retained objects in the Heap Dump Explorer.",
+      description:
+        "Inspect this class's retained objects in the Heap Dump Explorer.",
       execute: async ({properties, node}) => {
         const pathHashes = properties.get('path_hash_stable');
         if (pathHashes === undefined) return;
