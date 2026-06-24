@@ -151,14 +151,6 @@ class Trace(object):
     sched_process_free.comm = comm
     sched_process_free.prio = prio
 
-  def add_process_exit(self, ts, pid, tid, comm, prio=0):
-    ftrace = self.__add_ftrace_event(ts, tid)
-    sched_process_exit = ftrace.sched_process_exit
-    sched_process_exit.pid = tid
-    sched_process_exit.tgid = pid
-    sched_process_exit.comm = comm
-    sched_process_exit.prio = prio
-
   def add_rename(self, ts, tid, old_comm, new_comm, oom_score_adj):
     ftrace = self.__add_ftrace_event(ts, tid)
     task_rename = ftrace.task_rename
