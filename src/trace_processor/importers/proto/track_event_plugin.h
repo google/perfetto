@@ -37,9 +37,10 @@ using TrackEventExtensionField = TypedProtoField;
 
 // Base class for plugins that handle TrackEvent extension fields. This is the
 // TrackEvent-extension analogue of ProtoImporterModule: a plugin registers (via
-// RegisterTrackEventExtension) the extension field ids it owns, and the matching
-// On*() callback is invoked after the core counter/slice/state row has been
-// inserted, so the plugin receives its Id and can populate its own side tables.
+// RegisterTrackEventExtension) the extension field ids it owns, and the
+// matching On*() callback is invoked after the core counter/slice/state row has
+// been inserted, so the plugin receives its Id and can populate its own side
+// tables.
 //
 // Each extension field id is owned by exactly one plugin. Only modern
 // counter/slice/state events are dispatched, never legacy ones.
