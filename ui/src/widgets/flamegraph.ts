@@ -251,6 +251,8 @@ interface FilterTypeOption {
   readonly icon: string;
   readonly category: ActionCategory;
   readonly description: string;
+  // Example regular expression used in tips for this filter type.
+  readonly example: string;
   // Name used by other profilers, if any; surfaced in the node menu.
   readonly aka?: string;
 }
@@ -261,6 +263,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     label: 'Show Stack',
     friendlyLabel: 'Keep stacks matching name',
     shortLabel: 'SS',
+    example: 'main',
     icon: 'visibility',
     category: 'FILTER',
     description:
@@ -271,6 +274,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     label: 'Hide Stack',
     friendlyLabel: 'Hide stacks matching name',
     shortLabel: 'HS',
+    example: 'malloc',
     icon: 'visibility_off',
     category: 'FILTER',
     description:
@@ -282,6 +286,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     label: 'Show From Frame',
     friendlyLabel: 'Focus on matching subtrees',
     shortLabel: 'SFF',
+    example: 'main',
     icon: 'center_focus_strong',
     category: 'FOCUS',
     description:
@@ -293,6 +298,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     label: 'Hide Frame',
     friendlyLabel: 'Merge matching frames into caller',
     shortLabel: 'HF',
+    example: 'alloc.*',
     icon: 'call_merge',
     category: 'FILTER',
     description:
@@ -304,6 +310,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     label: 'Pivot',
     friendlyLabel: 'Pivot on matching frames',
     shortLabel: 'P',
+    example: 'std::.*',
     icon: 'account_tree',
     category: 'FOCUS',
     description:
@@ -356,31 +363,52 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
           this.filter = v;
         },
       }),
+      m(
+        '.pf-filter-builder__hint',
+        'Matched as a regex: bare text is a substring match (e.g. ',
+        m('code', 'malloc'),
+        '); anchor with ',
+        m('code', '^'),
+        '/',
+        m('code', '$'),
+        ' for exact matches.',
+      ),
       hasPivot &&
         this.type === 'PIVOT' &&
         m('.pf-filter-builder__warn', 'Replaces current pivot'),
       m('.pf-filter-builder__separator'),
-      m(
-        '.pf-filter-builder__tip',
-        m(Icon, {icon: 'lightbulb_outline'}),
-        ' You can also type directly in the filter bar ',
+      opt &&
         m(
-          Tooltip,
-          {trigger: m(Icon, {icon: 'help_outline'})},
+          '.pf-filter-builder__tip',
+          m(Icon, {icon: 'lightbulb_outline'}),
+          ' Tip: type ',
+          m('code', `${opt.shortLabel}: ${opt.example}`),
+          ' directly in the filter bar ',
           m(
-            '.pf-filter-builder__help',
-            m('.pf-filter-builder__help-title', 'Filter bar syntax:'),
-            FILTER_TYPES.map((o) =>
+            Tooltip,
+            {trigger: m(Icon, {icon: 'help_outline'})},
+            m(
+              '.pf-filter-builder__help',
+              m(
+                '.pf-filter-builder__help-title',
+                'Filter bar syntax (patterns are regular expressions):',
+              ),
+              FILTER_TYPES.map((o) =>
+                m(
+                  '.pf-filter-builder__help-row',
+                  m('strong', `${o.shortLabel}:`),
+                  ` ${o.label}, e.g. `,
+                  m('code', `${o.shortLabel}: ${o.example}`),
+                ),
+              ),
               m(
                 '.pf-filter-builder__help-row',
-                m('strong', `${o.shortLabel}:`),
-                ` ${o.friendlyLabel}`,
+                'Combine filters by separating with spaces, e.g. ',
+                m('code', 'SS: main HF: alloc.*'),
               ),
             ),
-            m('.pf-filter-builder__help-row', 'Example: SS: main HF: alloc.*'),
           ),
         ),
-      ),
     );
   }
 }
@@ -906,7 +934,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           }
         },
         onTagRemove: removeTag,
-        placeholder: hasFilters ? '' : 'e.g. SS: main HF: alloc.*',
+        placeholder: hasFilters
+          ? ''
+          : 'e.g. malloc (contains), or regex like ^main$ — press + for more filter options',
         renderTag: (text, onRemove) =>
           m(Chip, {
             ondblclick: () => {

@@ -164,12 +164,23 @@
     margin: 4px 0;
   }
   &__desc,
-  &__warn {
+  &__warn,
+  &__hint {
     font-size: smaller;
     margin-bottom: 8px;
   }
-  &__desc {
+  &__desc,
+  &__hint {
     color: var(--pf-color-text-muted);
+  }
+  &__hint {
+    margin-top: 4px;
+  }
+  code {
+    font-family: var(--pf-font-monospace, monospace);
+    background: var(--pf-color-background-secondary, rgba(0, 0, 0, 0.06));
+    border-radius: 3px;
+    padding: 0 3px;
   }
   &__warn {
     color: var(--pf-color-warning);
