@@ -71,6 +71,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/types/version_number.h"
+#include "src/trace_processor/util/interned_message_view.h"
 
 #include "protos/perfetto/trace/ftrace/android_fs.pbzero.h"
 #include "protos/perfetto/trace/ftrace/bcl_exynos.pbzero.h"
@@ -1843,18 +1844,13 @@ void FtraceParser::ParseTypedFtraceToRaw(
     if (it != kKernelFunctionFields.end()) {
       PERFETTO_CHECK(type == ProtoSchemaType::kUint64);
 
-      auto* interned_string = seq_state->LookupInternedMessage<
-          protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
-          protos::pbzero::InternedString>(fld.as_uint64());
-
       // If we don't have the string for this field (can happen if
       // symbolization wasn't enabled, if reading the symbols errored out or
       // on legacy traces) then just add the field as a normal arg.
-      if (interned_string) {
-        protozero::ConstBytes str = interned_string->str();
-        StringId str_id = context_->storage->InternString(base::StringView(
-            reinterpret_cast<const char*>(str.data), str.size));
-        inserter.AddArg(name_id, Variadic::String(str_id));
+      if (auto str_id = seq_state->InternedStringId(
+              protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
+              fld.as_uint64())) {
+        inserter.AddArg(name_id, Variadic::String(*str_id));
         continue;
       }
     }
@@ -3283,16 +3279,8 @@ void FtraceParser::ParseSchedBlockedReason(
   uint32_t pid = static_cast<uint32_t>(event.pid());
   auto utid = context_->process_tracker->GetOrCreateThread(pid);
   uint32_t caller_iid = static_cast<uint32_t>(event.caller());
-  auto* interned_string = seq_state->LookupInternedMessage<
-      protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
-      protos::pbzero::InternedString>(caller_iid);
-
-  std::optional<StringId> blocked_function_str_id = std::nullopt;
-  if (interned_string) {
-    protozero::ConstBytes str = interned_string->str();
-    blocked_function_str_id = context_->storage->InternString(
-        base::StringView(reinterpret_cast<const char*>(str.data), str.size));
-  }
+  std::optional<StringId> blocked_function_str_id = seq_state->InternedStringId(
+      protos::pbzero::InternedData::kKernelSymbolsFieldNumber, caller_iid);
 
   ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
       utid, event.io_wait(), blocked_function_str_id);
@@ -4419,19 +4407,12 @@ void FtraceParser::ParsePanelWriteGeneric(int64_t timestamp,
 StringId FtraceParser::InternedKernelSymbolOrFallback(
     uint64_t key,
     PacketSequenceStateGeneration* seq_state) {
-  auto* interned_string = seq_state->LookupInternedMessage<
-      protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
-      protos::pbzero::InternedString>(key);
-  StringId name_id;
-  if (interned_string) {
-    protozero::ConstBytes str = interned_string->str();
-    name_id = context_->storage->InternString(
-        base::StringView(reinterpret_cast<const char*>(str.data), str.size));
-  } else {
-    base::StackString<255> slice_name("%#" PRIx64, key);
-    name_id = context_->storage->InternString(slice_name.string_view());
+  if (std::optional<StringId> name_id = seq_state->InternedStringId(
+          protos::pbzero::InternedData::kKernelSymbolsFieldNumber, key)) {
+    return *name_id;
   }
-  return name_id;
+  base::StackString<255> slice_name("%#" PRIx64, key);
+  return context_->storage->InternString(slice_name.string_view());
 }
 
 void FtraceParser::ParseDeviceFrequency(int64_t ts,

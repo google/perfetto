@@ -164,6 +164,26 @@ source_set("v8_profile_parser") {
   ]
 }
 
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [
+      "clock_tracker_benchmark.cc",
+      "slice_tracker_benchmark.cc",
+    ]
+    deps = [
+      ":common",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../../protos/perfetto/common:zero",
+      "../../storage",
+      "../../tables",
+      "../../types",
+      "../../util:clock",
+    ]
+  }
+}
+
 source_set("unittests") {
   sources = [
     "address_range_unittest.cc",

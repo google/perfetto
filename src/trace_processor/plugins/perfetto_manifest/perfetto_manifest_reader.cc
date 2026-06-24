@@ -22,15 +22,20 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -139,81 +144,111 @@ base::StatusOr<int64_t> ParseAnchorTs(const json::Dom& obj,
   return ts;
 }
 
-base::StatusOr<ClockOverride> ParseAnchor(const json::Dom& anchor) {
-  ClockOverride result;
-  ASSIGN_OR_RETURN(result.file_ts_ns, ParseAnchorTs(anchor, "ts", "ts"));
-  if (!anchor.HasMember("is") || !anchor["is"].IsObject()) {
-    return base::ErrStatus(
-        "perfetto_manifest: anchor: missing required field: is");
-  }
-
-  const json::Dom& is = anchor["is"];
-  if (is.HasMember("utc")) {
-    if (is.HasMember("clock") || is.HasMember("ts")) {
-      return base::ErrStatus(
-          "perfetto_manifest: anchor: utc cannot be combined with clock/ts");
-    }
-    if (!is["utc"].IsString()) {
-      return base::ErrStatus("perfetto_manifest: anchor: utc must be a string");
-    }
-    std::string utc = is["utc"].AsString();
-    auto ts = ParseUtcTimestamp(utc);
-    if (!ts) {
-      return base::ErrStatus(
-          "perfetto_manifest: anchor: invalid utc timestamp: %s", utc.c_str());
-    }
-    result.clock = protos::pbzero::BUILTIN_CLOCK_REALTIME;
-    result.clock_ts_ns = *ts;
-    return result;
-  }
-  if (!is.HasMember("clock")) {
-    return base::ErrStatus(
-        "perfetto_manifest: anchor: missing required field: clock");
-  }
-  ASSIGN_OR_RETURN(uint32_t clock, ParseClockName(is["clock"]));
-  result.clock = clock;
-  ASSIGN_OR_RETURN(result.clock_ts_ns, ParseAnchorTs(is, "ts", "is.ts"));
-  return result;
-}
-
+// Parses a file's "clocks" block. The file's clock is related to a reference
+// |is| (a builtin clock, or trace time when |is| is omitted) by either an
+// |offset_ns| or a pair of coinciding readings (|ts| on this file, |is.ts| on
+// the reference). Normalized into ClockOverride: file reading |file_ts_ns|
+// corresponds to |clock_ts_ns| on |clock| (nullopt clock = trace time).
+//   {is:{clock:"X"}}                          file clock IS X (identity)
+//   {offset_ns:N}                             file = trace time + N
+//   {ts:A, is:{clock:"X", ts:B}}              file reads A when X reads B
+//   {is:{utc:"<ISO>"}}                        anchor onto REALTIME wall time
+//   {clock:"X", is:{file:"f", clock:"Y"}}     relate this file's X to file f's
+//   Y
+// A top-level `clock` names which of this file's clocks to relate (an existing
+// clock of an internally-clocked trace); without it the file's own private
+// clock is pinned. is.file/is.machine point the reference at another file's or
+// machine's clock.
 base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
-  // Exclusivity diagnostics: each rejected combination would override the
-  // file's timeline twice.
-  if (clocks.HasMember("offset_ns") && clocks.HasMember("anchor")) {
-    return base::ErrStatus(
-        "perfetto_manifest: offset_ns and anchor are mutually exclusive");
-  }
-  if (clocks.HasMember("native") && clocks.HasMember("anchor")) {
-    return base::ErrStatus(
-        "perfetto_manifest: native and anchor are mutually exclusive");
-  }
-  if (clocks.HasMember("anchor")) {
-    if (!clocks["anchor"].IsObject()) {
-      return base::ErrStatus("perfetto_manifest: anchor must be an object");
-    }
-    return ParseAnchor(clocks["anchor"]);
-  }
   ClockOverride result;
-  if (clocks.HasMember("native")) {
-    ASSIGN_OR_RETURN(uint32_t native, ParseClockName(clocks["native"]));
-    result.clock = native;
+
+  if (clocks.HasMember("clock")) {
+    ASSIGN_OR_RETURN(uint32_t source_clock, ParseClockName(clocks["clock"]));
+    result.source_clock = source_clock;
   }
+
+  bool has_is_ts = false;
+  if (clocks.HasMember("is")) {
+    const json::Dom& is = clocks["is"];
+    if (!is.IsObject()) {
+      return base::ErrStatus("perfetto_manifest: clocks: is must be an object");
+    }
+    if (is.HasMember("file") && is.HasMember("machine")) {
+      return base::ErrStatus(
+          "perfetto_manifest: clocks: is.file and is.machine are mutually "
+          "exclusive");
+    }
+    if (is.HasMember("file")) {
+      if (!is["file"].IsString()) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: is.file must be a string");
+      }
+      result.ref_file = is["file"].AsString();
+    }
+    if (is.HasMember("machine")) {
+      if (!is["machine"].IsString()) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: is.machine must be a string");
+      }
+      result.ref_machine = is["machine"].AsString();
+    }
+    if (is.HasMember("utc")) {
+      if (is.HasMember("clock") || is.HasMember("ts")) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: is.utc cannot be combined with "
+            "clock/ts");
+      }
+      if (!is["utc"].IsString()) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: is.utc must be a string");
+      }
+      std::string utc = is["utc"].AsString();
+      auto ts = ParseUtcTimestamp(utc);
+      if (!ts) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: invalid is.utc timestamp: %s",
+            utc.c_str());
+      }
+      result.clock = protos::pbzero::BUILTIN_CLOCK_REALTIME;
+      result.clock_ts_ns = *ts;
+    } else {
+      if (!is.HasMember("clock")) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: is needs a clock (or utc)");
+      }
+      ASSIGN_OR_RETURN(uint32_t clock, ParseClockName(is["clock"]));
+      result.clock = clock;
+      if (is.HasMember("ts")) {
+        ASSIGN_OR_RETURN(result.clock_ts_ns, ParseAnchorTs(is, "ts", "is.ts"));
+        has_is_ts = true;
+      }
+    }
+  }
+
   if (clocks.HasMember("offset_ns")) {
+    if (has_is_ts || clocks.HasMember("ts")) {
+      return base::ErrStatus(
+          "perfetto_manifest: clocks: offset_ns and a reading (ts) are "
+          "mutually exclusive");
+    }
     if (!clocks["offset_ns"].IsIntegral()) {
-      return base::ErrStatus("perfetto_manifest: offset_ns must be an integer");
+      return base::ErrStatus(
+          "perfetto_manifest: clocks: offset_ns must be an integer");
     }
     int64_t offset_ns = clocks["offset_ns"].AsInt64();
     if (offset_ns == std::numeric_limits<int64_t>::min()) {
-      return base::ErrStatus("perfetto_manifest: offset_ns is out of range");
+      return base::ErrStatus(
+          "perfetto_manifest: clocks: offset_ns is out of range");
     }
-    // Snapshot timestamps must never be negative: a backwards shift is
-    // expressed by mapping a later file timestamp to the clock's zero
-    // instead.
+    // Snapshot timestamps must never be negative: a backwards shift maps a
+    // later file reading onto the reference's zero instead.
     if (offset_ns < 0) {
       result.file_ts_ns = -offset_ns;
     } else {
       result.clock_ts_ns = offset_ns;
     }
+  } else if (clocks.HasMember("ts")) {
+    ASSIGN_OR_RETURN(result.file_ts_ns, ParseAnchorTs(clocks, "ts", "ts"));
   }
   return result;
 }
@@ -232,7 +267,55 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
     }
     ASSIGN_OR_RETURN(entry.clock_override, ParseClocks(file["clocks"]));
   }
+  if (file.HasMember("machine")) {
+    const json::Dom& machine = file["machine"];
+    if (!machine.IsObject()) {
+      return base::ErrStatus("perfetto_manifest: machine must be an object");
+    }
+    if (!machine.HasMember("id") && !machine.HasMember("name")) {
+      return base::ErrStatus(
+          "perfetto_manifest: machine must have a name and/or an id");
+    }
+    if (machine.HasMember("id")) {
+      if (!machine["id"].IsNumeric()) {
+        return base::ErrStatus(
+            "perfetto_manifest: machine: id must be numeric");
+      }
+      int64_t machine_id = machine["id"].AsInt64();
+      if (machine_id < 1 || machine_id > std::numeric_limits<uint32_t>::max()) {
+        return base::ErrStatus(
+            "perfetto_manifest: machine: id must be in [1, 4294967295]");
+      }
+      entry.machine_id = static_cast<uint32_t>(machine_id);
+    }
+    if (machine.HasMember("name")) {
+      if (!machine["name"].IsString()) {
+        return base::ErrStatus(
+            "perfetto_manifest: machine: name must be a string");
+      }
+      std::string name = machine["name"].AsString();
+      if (name.empty()) {
+        return base::ErrStatus(
+            "perfetto_manifest: machine: name must be non-empty");
+      }
+      entry.machine_name = std::move(name);
+    }
+  }
   return entry;
+}
+
+// Allocates (once) the machine-table row for |raw_machine_id| and records it so
+// later forks reuse the same row. Returns the row id.
+uint32_t EnsureMachineRow(TraceProcessorContext* context,
+                          uint32_t raw_machine_id) {
+  auto& map = context->trace_manifest_state->raw_id_to_table_id;
+  auto [it, inserted] = map.try_emplace(raw_machine_id, 0u);
+  if (inserted) {
+    it->second = context->storage->mutable_machine_table()
+                     ->Insert({raw_machine_id})
+                     .id.value;
+  }
+  return it->second;
 }
 
 }  // namespace
@@ -278,9 +361,23 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
                            version.AsInt64());
   }
 
-  if (meta.HasMember("trace_time_clock")) {
-    ASSIGN_OR_RETURN(uint32_t clock, ParseClockName(meta["trace_time_clock"]));
+  if (meta.HasMember("trace_time")) {
+    const json::Dom& trace_time = meta["trace_time"];
+    if (!trace_time.IsObject()) {
+      return base::ErrStatus("perfetto_manifest: trace_time must be an object");
+    }
+    if (!trace_time.HasMember("clock")) {
+      return base::ErrStatus("perfetto_manifest: trace_time needs a clock");
+    }
+    ASSIGN_OR_RETURN(uint32_t clock, ParseClockName(trace_time["clock"]));
     state->trace_time_clock = clock;
+    if (trace_time.HasMember("file")) {
+      if (!trace_time["file"].IsString()) {
+        return base::ErrStatus(
+            "perfetto_manifest: trace_time: file must be a string");
+      }
+      state->trace_time_file = trace_time["file"].AsString();
+    }
   }
 
   if (meta.HasMember("files")) {
@@ -293,17 +390,115 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
     }
   }
 
-  // This file has no per-trace context (and thus no ClockTracker), so it
-  // cannot go through ClockTracker::SetGlobalClock. Claim the trace time
-  // clock on the shared state directly via the same primitive, using this
-  // file's id as the owner: it is unique, so no later trace file's
-  // SetGlobalClock can override the choice.
+  // Assign a synthetic raw id to each distinct name-only machine, in first-seen
+  // order, skipping ids claimed explicitly so a named machine never collides
+  // with an id-keyed one.
+  std::unordered_set<uint32_t> explicit_ids;
+  for (const FileEntry& entry : state->files) {
+    if (entry.machine_id) {
+      explicit_ids.insert(*entry.machine_id);
+    }
+  }
+  std::unordered_map<std::string, uint32_t> name_to_id;
+  uint32_t next_id = 1;
+  for (FileEntry& entry : state->files) {
+    if (!entry.machine_name || entry.machine_id) {
+      continue;
+    }
+    auto [it, inserted] = name_to_id.try_emplace(*entry.machine_name, 0);
+    if (inserted) {
+      while (explicit_ids.count(next_id)) {
+        ++next_id;
+      }
+      it->second = next_id++;
+    }
+    entry.machine_id = it->second;
+  }
+
+  // Pre-allocate a machine-table row for every declared machine and name it, so
+  // clock references resolve to real rows and ForkContextForTrace reuses them.
+  auto& machine_table = *context_->storage->mutable_machine_table();
+  std::unordered_map<std::string, uint32_t> machine_name_to_id;
+  for (const FileEntry& entry : state->files) {
+    if (!entry.machine_id) {
+      continue;
+    }
+    uint32_t row = EnsureMachineRow(context_, *entry.machine_id);
+    if (entry.machine_name) {
+      machine_table[MachineId(row)].set_name(context_->storage->InternString(
+          base::StringView(*entry.machine_name)));
+      machine_name_to_id[*entry.machine_name] = *entry.machine_id;
+    }
+  }
+
+  // Claim the global trace time clock directly: the manifest is the first file,
+  // so its claim wins over later traces. trace_time.file pins it to that file's
+  // (pre-allocated) machine.
   if (state->trace_time_clock) {
-    context_->trace_time_state->TrySetClock(
-        ClockId::Machine(*state->trace_time_clock), file_id_);
+    ClockId trace_time = ClockId::Machine(*state->trace_time_clock);
+    if (state->trace_time_file) {
+      FileEntry* f = state->FindEntry(*state->trace_time_file);
+      if (!f) {
+        return base::ErrStatus(
+            "perfetto_manifest: trace_time: file names unknown file '%s'",
+            state->trace_time_file->c_str());
+      }
+      trace_time = ClockId::Machine(
+          EnsureMachineRow(context_, f->machine_id.value_or(0u)),
+          *state->trace_time_clock);
+    }
+    context_->trace_time_state->TrySetClock(trace_time, file_id_);
     context_->global_metadata_tracker->SetMetadata(
         std::nullopt, std::nullopt, metadata::trace_time_clock_id,
         Variadic::Integer(*state->trace_time_clock));
+  }
+
+  // Add each relate-override's cross-machine edge to the global clock graph
+  // now, before any file is parsed (a file may reference another parsed later),
+  // recording it in the clock_snapshot table as ClockTracker would. The source
+  // is this file's clock; the reference is another machine's clock (is.machine
+  // names it, is.file uses that file's machine), or trace time when no clock is
+  // named.
+  ClockId trace_time = context_->trace_time_state->clock_id;
+  for (const FileEntry& entry : state->files) {
+    if (!entry.clock_override || !entry.clock_override->source_clock) {
+      continue;
+    }
+    const ClockOverride& co = *entry.clock_override;
+    ClockId source = ClockId::Machine(
+        EnsureMachineRow(context_, entry.machine_id.value_or(0u)),
+        *co.source_clock);
+    ClockId ref = trace_time;
+    if (co.clock) {
+      uint32_t ref_raw;
+      if (co.ref_machine) {
+        auto it = machine_name_to_id.find(*co.ref_machine);
+        if (it == machine_name_to_id.end()) {
+          return base::ErrStatus(
+              "perfetto_manifest: clocks: is.machine names unknown machine "
+              "'%s'",
+              co.ref_machine->c_str());
+        }
+        ref_raw = it->second;
+      } else if (co.ref_file) {
+        FileEntry* r = state->FindEntry(*co.ref_file);
+        if (!r) {
+          return base::ErrStatus(
+              "perfetto_manifest: clocks: is.file names unknown file '%s'",
+              co.ref_file->c_str());
+        }
+        ref_raw = r->machine_id.value_or(0u);
+      } else {
+        ref_raw = entry.machine_id.value_or(0u);
+      }
+      ref = ClockId::Machine(EnsureMachineRow(context_, ref_raw), *co.clock);
+    }
+    std::vector<ClockTimestamp> clocks = {{source, co.file_ts_ns},
+                                          {ref, co.clock_ts_ns}};
+    ASSIGN_OR_RETURN(uint32_t id, context_->clock_sync->AddSnapshot(clocks));
+    ClockTracker::AddSnapshotToTable(context_->storage.get(),
+                                     context_->clock_sync.get(), trace_time, id,
+                                     clocks);
   }
   return base::OkStatus();
 }

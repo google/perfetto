@@ -86,11 +86,12 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   if (!mapping) {
     return std::nullopt;
   }
-  delegate.AddUnsignedInteger(
-      util::ProtoToArgsParser::Key(prefix + ".mapping_id"),
-      mapping->mapping_id().value);
-  delegate.AddUnsignedInteger(util::ProtoToArgsParser::Key(prefix + ".rel_pc"),
-                              decoder->rel_pc());
+  auto mapping_key =
+      delegate.InternString(base::StringView(prefix + ".mapping_id"));
+  delegate.AddUnsignedInteger(mapping_key, mapping_key,
+                              mapping->mapping_id().value);
+  auto rel_pc_key = delegate.InternString(base::StringView(prefix + ".rel_pc"));
+  delegate.AddUnsignedInteger(rel_pc_key, rel_pc_key, decoder->rel_pc());
   return base::OkStatus();
 }
 
@@ -106,33 +107,38 @@ std::optional<base::Status> MaybeParseSourceLocation(
     return std::nullopt;
   }
 
-  delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".file_name"),
+  auto file_name_key =
+      delegate.InternString(base::StringView(prefix + ".file_name"));
+  delegate.AddString(file_name_key, file_name_key,
                      NormalizePathSeparators(decoder->file_name()));
-  delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".function_name"),
+  auto function_name_key =
+      delegate.InternString(base::StringView(prefix + ".function_name"));
+  delegate.AddString(function_name_key, function_name_key,
                      decoder->function_name());
   if (decoder->has_line_number()) {
-    delegate.AddInteger(util::ProtoToArgsParser::Key(prefix + ".line_number"),
+    auto line_number_key =
+        delegate.InternString(base::StringView(prefix + ".line_number"));
+    delegate.AddInteger(line_number_key, line_number_key,
                         decoder->line_number());
   }
   return base::OkStatus();
 }
 
 std::optional<base::Status> MaybeParseAndroidJobName(
+    StringId job_name_key,
     const protozero::Field& field,
     util::ProtoToArgsParser::Delegate& delegate) {
-  auto* decoder =
-      delegate.seq_state()
-          ->LookupInternedMessage<
-              com::android::internal::pbzero::FrameworksBaseInternedData::
-                  kAndroidJobNameFieldNumber,
-              com::android::internal::pbzero::AndroidJobName>(
-              field.as_uint64());
-  if (!decoder) {
+  std::optional<base::StringView> name =
+      delegate.seq_state()->InternedStringView(
+          com::android::internal::pbzero::FrameworksBaseInternedData::
+              kAndroidJobNameFieldNumber,
+          field.as_uint64());
+  if (!name) {
     return std::nullopt;
   }
 
-  delegate.AddString(util::ProtoToArgsParser::Key("job_scheduler_job.job_name"),
-                     decoder->name());
+  delegate.AddString(job_name_key, job_name_key,
+                     protozero::ConstChars{name->data(), name->size()});
   return base::OkStatus();
 }
 
@@ -141,7 +147,8 @@ std::optional<base::Status> MaybeParseAndroidJobName(
 TrackEventParser::TrackEventParser(TrackEventPluginContext* plugin_context,
                                    TraceProcessorContext* context,
                                    TrackEventTracker* track_event_tracker)
-    : args_parser_(*context->descriptor_pool_),
+    : args_parser_(*context->descriptor_pool_,
+                   *context->storage->mutable_string_pool()),
       context_(context),
       track_event_tracker_(track_event_tracker),
       counter_name_thread_time_id_(
@@ -154,6 +161,8 @@ TrackEventParser::TrackEventParser(TrackEventPluginContext* plugin_context,
           context->storage->InternString("task.posted_from.function_name")),
       task_line_number_args_key_id_(
           context->storage->InternString("task.posted_from.line_number")),
+      job_scheduler_job_name_args_key_id_(
+          context->storage->InternString("job_scheduler_job.job_name")),
       log_message_body_key_id_(
           context->storage->InternString("track_event.log_message.message")),
       log_message_source_location_function_name_key_id_(
@@ -285,9 +294,10 @@ TrackEventParser::TrackEventParser(TrackEventPluginContext* plugin_context,
       });
   args_parser_.AddParsingOverrideForField(
       "job_scheduler_job.job_name_iid",
-      [](const protozero::Field& field,
-         util::ProtoToArgsParser::Delegate& delegate) {
-        return MaybeParseAndroidJobName(field, delegate);
+      [this](const protozero::Field& field,
+             util::ProtoToArgsParser::Delegate& delegate) {
+        return MaybeParseAndroidJobName(job_scheduler_job_name_args_key_id_,
+                                        field, delegate);
       });
 
   args_parser_.AddParsingOverrideForField(

@@ -170,9 +170,11 @@ std::optional<uint32_t> ParseTracingServiceMajorVersion(
 
 }  // namespace
 
-ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
+ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
+                                   bool is_machine_dispatcher)
     : context_(ctx),
       parser_(std::make_unique<ProtoTraceParserImpl>(ctx, &module_context_)),
+      is_machine_dispatcher_(is_machine_dispatcher),
       protovm_(ctx),
       skipped_packet_key_id_(ctx->storage->InternString("skipped_packet")),
       invalid_incremental_state_key_id_(
@@ -258,21 +260,18 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // using a different ProtoTraceReader instance. The packet will be parsed
   // in the context of the remote machine.
   if (PERFETTO_UNLIKELY(decoder.machine_id())) {
-    // A packet with a machine_id proves this trace contains data from more
-    // than one machine, which is incompatible with a perfetto_manifest
-    // clock pin: the pin is ambiguous across machines.
-    if (context_->has_clock_override()) {
-      return base::ErrStatus(
-          "perfetto_manifest: clock overrides require the trace to come "
-          "from a single machine");
-    }
-    if (context_->machine_id() == MachineId(kDefaultMachineId)) {
+    // A machine_id proves the trace is multi-machine, which a perfetto_manifest
+    // clock/machine override (single-machine by construction) cannot describe.
+    RETURN_IF_ERROR(CheckManifestSingleMachine());
+    if (is_machine_dispatcher_) {
       auto [it, inserted] =
           machine_to_proto_readers_.Insert(decoder.machine_id(), nullptr);
       if (PERFETTO_UNLIKELY(inserted)) {
         auto* machine_context =
             context_->ForkContextForMachineInCurrentTrace(decoder.machine_id());
-        *it = std::make_unique<ProtoTraceReader>(machine_context);
+        *it =
+            std::make_unique<ProtoTraceReader>(machine_context,
+                                               /*is_machine_dispatcher=*/false);
         auto parent_default = context_->clock_tracker->trace_default_clock();
         if (parent_default) {
           machine_context->clock_tracker->SetTraceDefaultClock(*parent_default);
@@ -286,10 +285,10 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
       return it->get()->ParsePacket(std::move(packet));
     }
   }
-  // Assert that the packet is parsed using the right instance of reader.
-  // machine_id is set only for remote machines.
-  PERFETTO_DCHECK(decoder.has_machine_id() ==
-                  (context_->machine_id() != MachineId(kDefaultMachineId)));
+  // Assert that the packet is parsed using the right instance of reader: the
+  // top-level dispatcher handles host packets (no machine_id), and the
+  // sub-readers it forks handle their own machine's packets (machine_id set).
+  PERFETTO_DCHECK(decoder.has_machine_id() == !is_machine_dispatcher_);
 
   // Execute ProtoVM logic right after the "machine ID fork" as detailed in
   // go/perfetto-proto-vm.
@@ -353,7 +352,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   if (decoder.has_remote_clock_sync()) {
-    PERFETTO_DCHECK(context_->machine_id() != MachineId(kDefaultMachineId));
+    PERFETTO_DCHECK(!is_machine_dispatcher_);
     return ParseRemoteClockSync(decoder.remote_clock_sync());
   }
 
@@ -761,7 +760,26 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   return base::OkStatus();
 }
 
+base::Status ProtoTraceReader::CheckManifestSingleMachine() {
+  if (context_->has_machine_override()) {
+    return base::ErrStatus(
+        "perfetto_manifest: machine override requires the trace to come "
+        "from a single machine");
+  }
+  if (context_->has_clock_override()) {
+    return base::ErrStatus(
+        "perfetto_manifest: clock overrides require the trace to come "
+        "from a single machine");
+  }
+  return base::OkStatus();
+}
+
 base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
+  // Remote clock syncs prove the trace is multi-machine/multi-clock. The
+  // machine_id branch in ParsePacket normally rejects overridden traces
+  // first, but a packet carrying remote_clock_sync without a machine_id
+  // would bypass it (the DCHECK above is a no-op in release builds).
+  RETURN_IF_ERROR(CheckManifestSingleMachine());
   protos::pbzero::RemoteClockSync::Decoder evt(blob);
 
   std::vector<SyncClockSnapshots> sync_clock_snapshots;
@@ -798,10 +816,32 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
     context_->clock_tracker->AddSnapshot(clock_timestamps);
   }
 
-  // Calculate clock offsets and report to the ClockTracker.
+  // Express each per-clock offset as a cross-machine edge in the single clock
+  // graph: at a synced instant the host clock reads |host_anchor| and this
+  // (client) machine's clock reads |host_anchor + offset|, so the two are
+  // linked directly. The anchor is a real host reading (the last sync round
+  // that observed this clock) rather than a literal 0: that keeps the snapshot
+  // rows we materialise to the clock_snapshot table at meaningful, in-bounds
+  // timestamps instead of converting the epoch (e.g. REALTIME 0) into a wildly
+  // negative trace time.
+  uint32_t client_machine = context_->machine_id().value;
+  uint32_t host_machine = context_->trace_time_state->clock_id.machine_id;
   auto clock_offsets = CalculateClockOffsets(sync_clock_snapshots);
   for (auto it = clock_offsets.GetIterator(); it; ++it) {
-    context_->clock_tracker->SetRemoteClockOffset(it.key(), it.value());
+    uint32_t builtin = it.key().clock_id;
+    int64_t offset = it.value();
+
+    // CalculateClockOffsets only emits an offset for a clock that was observed
+    // on both sides, so at least one round carries a non-zero host reading.
+    int64_t host_anchor = 0;
+    for (const auto& round : sync_clock_snapshots) {
+      if (auto* clocks = round.Find(builtin); clocks && clocks->first)
+        host_anchor = static_cast<int64_t>(clocks->first);
+    }
+
+    context_->clock_tracker->AddQualifiedSnapshot(
+        {{ClockId::Machine(host_machine, builtin), host_anchor},
+         {ClockId::Machine(client_machine, builtin), host_anchor + offset}});
   }
   return base::OkStatus();
 }

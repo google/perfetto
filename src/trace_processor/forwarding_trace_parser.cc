@@ -25,10 +25,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -147,9 +149,10 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   input_context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
 
   // If the perfetto_manifest file has an entry for this file (matched by
-  // exact path), it overrides clock handling below.
+  // exact path), it overrides clock/machine handling below.
   TraceManifestState::FileEntry* manifest_entry = FindManifestEntry();
-  if (manifest_entry && manifest_entry->clock_override &&
+  if (manifest_entry &&
+      (manifest_entry->clock_override || manifest_entry->machine_id) &&
       (IsContainerTraceType(trace_type_) ||
        trace_type_ == kPerfettoManifestTraceType)) {
     return base::ErrStatus(
@@ -166,12 +169,22 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     PERFETTO_DCHECK(!input_context_->trace_state);
     trace_context_ = input_context_;
   } else {
+    uint32_t raw_machine_id = manifest_entry && manifest_entry->machine_id
+                                  ? *manifest_entry->machine_id
+                                  : 0;
     // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
     // parsed first so that we do not get issues with
     // SetPidZeroIsUpidZeroIdleProcess()
-    trace_context_ = input_context_->ForkContextForTrace(file_id_, 0);
+    // The machine row was pre-allocated by the manifest reader (which also
+    // named it); this fork reuses it via MachineTracker.
+    trace_context_ =
+        input_context_->ForkContextForTrace(file_id_, raw_machine_id);
     if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
       trace_context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+    }
+    if (manifest_entry) {
+      trace_context_->trace_state->has_machine_override =
+          manifest_entry->machine_id.has_value();
     }
   }
   ASSIGN_OR_RETURN(reader_, input_context_->reader_registry->CreateTraceReader(
@@ -231,12 +244,16 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME);
   }
   auto& clock_tracker = trace_context_->clock_tracker;
-  if (manifest_entry && manifest_entry->clock_override) {
-    // The manifest overrules the format's best-effort clock: move this file's
-    // events onto a private TraceFile clock and register a single implicit
-    // edge connecting that clock to the graph as the manifest dictates. The
-    // file is now single-clock / single-machine; stray ClockSnapshots or
-    // remote machine ids on it are rejected (see has_clock_override()).
+  // A "relate" override (source_clock set) is a cross-machine edge that the
+  // manifest reader already added to the global graph. The remaining override
+  // is the "pin" form below.
+  if (manifest_entry && manifest_entry->clock_override &&
+      !manifest_entry->clock_override->source_clock) {
+    // "Pin" form: the file has no usable clock, so move its events onto a
+    // private TraceFile clock and register a single implicit edge connecting
+    // that clock to the graph as the manifest dictates. The file is now
+    // single-clock / single-machine; stray ClockSnapshots or remote machine
+    // ids on it are rejected (see has_clock_override()).
     const TraceManifestState::ClockOverride& clock_override =
         *manifest_entry->clock_override;
     ClockId file_clock = ClockId::TraceFile(trace_context_->trace_id().value);

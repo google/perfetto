@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace perfetto::trace_processor {
@@ -30,21 +31,27 @@ namespace perfetto::trace_processor {
 // follow. Populated by the perfetto_manifest plugin's reader and consulted
 // by ForwardingTraceParser for each trace file.
 struct TraceManifestState {
-  // A file's "clocks" override, normalized to a single concept: file time
-  // |file_ts_ns| (nanoseconds, the unit every tokenizer normalizes to)
-  // corresponds to |clock_ts_ns| on |clock|. "native" parses to a zero/zero
-  // mapping onto the named clock, "offset_ns" to a mapping of file time 0 onto
-  // the file's per-format clock at the offset (or, for a negative offset, of
-  // file time -offset onto the clock's zero), and an "anchor" sets all three
-  // fields explicitly.
+  // A file's "clocks" block, normalized: the source clock reading |file_ts_ns|
+  // corresponds to |clock_ts_ns| on the reference (|clock|; nullopt = trace
+  // time). offset_ns and the ts/is.ts anchor both set these. The source is:
+  //   - |source_clock| unset: the file's own private timeline. The file is
+  //     PINNED onto it (single-clock; the file's own ClockSnapshots are then
+  //     rejected). Used for clockless files (JSON, ...).
+  //   - |source_clock| set: an existing clock of an internally-clocked file
+  //     (e.g. a proto's BOOTTIME). This only RELATES that clock to the
+  //     reference via a cross-machine edge; it does not pin or reject
+  //     snapshots.
+  // |ref_file| / |ref_machine| are the is.file/is.machine names; they pick
+  // which machine the reference |clock| lives on (default: this file's own
+  // machine).
   //
   // Invariant: both timestamps are non-negative, so the override never
-  // introduces negative timestamps into the clock graph. The reader rebases
-  // offsets and rejects negative anchors to maintain this.
+  // introduces negative timestamps into the clock graph.
   struct ClockOverride {
-    // Builtin clock id this file's timeline is correlated with; nullopt = the
-    // file's per-format clock.
+    std::optional<uint32_t> source_clock;
     std::optional<uint32_t> clock;
+    std::optional<std::string> ref_file;
+    std::optional<std::string> ref_machine;
     int64_t file_ts_ns = 0;
     int64_t clock_ts_ns = 0;
   };
@@ -53,14 +60,31 @@ struct TraceManifestState {
     // Exact path of the member within the archive.
     std::string path;
     std::optional<ClockOverride> clock_override;
+    // Explicit id, or a synthetic id the reader allocates per distinct
+    // |machine_name| so files sharing a name land on the same machine.
+    std::optional<uint32_t> machine_id;
+    std::optional<std::string> machine_name;
   };
 
   // True once a perfetto_manifest file has been parsed; a second one is an
   // error.
   bool config_seen = false;
 
+  // The global trace time clock named by the top-level `trace_time` block.
+  // |trace_time_clock| is the builtin domain; |trace_time_file|, when set,
+  // names the file whose machine the clock belongs to (its row is
+  // pre-allocated, so the reader claims the qualified clock directly).
   std::optional<uint32_t> trace_time_clock;
+  std::optional<std::string> trace_time_file;
   std::vector<FileEntry> files;
+
+  // Maps a machine's logical (raw) id - the id the manifest assigns and names
+  // machines by - to its machine-table row id, which is what the clock graph
+  // keys on. The manifest reader pre-allocates a row for every declared (or
+  // clock-referenced) machine and records it here, so references resolve to
+  // real rows at parse time and ForkContextForTrace (via MachineTracker) reuses
+  // the same row when the file is later forked.
+  std::unordered_map<uint32_t, uint32_t> raw_id_to_table_id;
 
   FileEntry* FindEntry(const std::string& path) {
     for (FileEntry& entry : files) {

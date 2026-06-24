@@ -95,6 +95,7 @@ class TrackEventParser {
   const StringId task_file_name_args_key_id_;
   const StringId task_function_name_args_key_id_;
   const StringId task_line_number_args_key_id_;
+  const StringId job_scheduler_job_name_args_key_id_;
   const StringId log_message_body_key_id_;
   const StringId log_message_source_location_function_name_key_id_;
   const StringId log_message_source_location_file_name_key_id_;

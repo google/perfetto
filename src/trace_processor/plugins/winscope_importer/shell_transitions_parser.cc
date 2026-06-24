@@ -41,7 +41,9 @@ namespace trace_processor {
 ShellTransitionsParser::ShellTransitionsParser(
     winscope::WinscopeContext* context)
     : context_(context),
-      args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
+      args_parser_{
+          *context->trace_processor_context_->descriptor_pool_,
+          *context->trace_processor_context_->storage->mutable_string_pool()} {}
 
 void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   com::android::internal::pbzero::ShellTransition::Decoder transition(blob);

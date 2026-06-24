@@ -302,6 +302,13 @@ class ArgsTracker {
   // Virtual for testing.
   virtual void Flush();
 
+  // Resets state for reuse (retaining buffer capacity); does not commit. Call
+  // Flush() first if pending args still need writing.
+  void Clear() {
+    args_.clear();
+    array_indexes_.Clear();
+  }
+
  private:
   template <typename T>
   BoundInserter AddArgsTo(T* table, typename T::Id id) {

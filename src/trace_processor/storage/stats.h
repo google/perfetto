@@ -141,7 +141,7 @@ namespace perfetto::trace_processor::stats {
   F(graphics_frame_event_parser_errors,   kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(guess_trace_type_duration_ns,         kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(interned_data_tokenizer_errors,       kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
-  F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, Scope::kGlobal, ""), \
   F(invalid_cpu_times,                    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(kernel_wakelock_reused_id,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Duplicated interning ID seen. Should never happen."),                  \
@@ -365,6 +365,15 @@ namespace perfetto::trace_processor::stats {
       "time clock. Both clocks exist in snapshots, but never together or "     \
       "via a common intermediate clock. Ensure ClockSnapshots link all used "  \
       "clocks to the trace time clock."),                                      \
+  F(clock_sync_unrelatable_clock_domains, kSingle, kError, kAnalysis, Scope::kMachineAndTrace,         \
+      "A file's clock domain could not be related to the trace time clock, so "\
+      "its events were dropped. The two are different real clock domains (the "\
+      "args record the source and trace-time clock ids, e.g. BOOTTIME=6 "      \
+      "against a REALTIME=1 trace time) with nothing connecting them, and "    \
+      "trace_processor does not assume different real clocks are aligned. "    \
+      "Provide a relationship - a ClockSnapshot, a remote_clock_sync, or a "   \
+      "perfetto_manifest clock anchor - or attribute the file to a machine "   \
+      "that shares a clock with the rest of the trace."),                      \
   F(clock_sync_mixed_clock_sources,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A non-primary trace file used both the primary trace's clock "          \
       "snapshots and its own for timestamp conversion. Timestamps "            \
@@ -379,7 +388,7 @@ namespace perfetto::trace_processor::stats {
       "results. This can happen when a sequence-scoped clock (64-127) is "    \
       "used before the ClockSnapshot defining it arrives, and the sorter "     \
       "has already started flushing."),                                        \
-  F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A namespaced thread association was received but the corresponding "    \
