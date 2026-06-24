@@ -33,6 +33,7 @@ import StringsView from './views/strings_view';
 import ArraysView from './views/arrays_view';
 import FlamegraphObjectsView from './views/flamegraph_objects_view';
 import FlamegraphView from './views/flamegraph_view';
+import {CallstackView} from './views/callstack_view';
 import type {HeapDumpExplorerSession} from './session';
 
 interface HeapDumpPageAttrs {
@@ -187,6 +188,16 @@ function buildTabs(
         initialArrayHash:
           state.view === 'arrays' ? state.params.arrayHash : undefined,
         hasFieldValues: overview.hasFieldValues,
+      }),
+    },
+    {
+      key: 'callstack',
+      title: 'Callstack',
+      content: m(CallstackView, {
+        trace,
+        dump: activeDump,
+        state: session.callstackPanelState,
+        onStateChange: session.setCallstackPanelState,
       }),
     },
   ];

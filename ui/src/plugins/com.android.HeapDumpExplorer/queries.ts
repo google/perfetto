@@ -25,6 +25,7 @@ import {
 } from '../../trace_processor/query_result';
 import type {
   OverviewData,
+  OomeData,
   HeapInfo,
   InstanceRow,
   InstanceDetail,
@@ -514,6 +515,23 @@ export async function getOverview(
     dmabufRssSize,
     processUptime,
   };
+}
+
+export async function getOome(
+  engine: Engine,
+  activeDump: HeapDump,
+): Promise<OomeData | undefined> {
+  const oomeRes = await engine.query(`
+    SELECT upid, ts
+    FROM heap_graph
+    WHERE upid = ${activeDump.upid} AND dump_reason = 'OOME'
+    LIMIT 1
+  `);
+  if (oomeRes.numRows() > 0) {
+    const row = oomeRes.firstRow({upid: NUM, ts: LONG});
+    return {upid: row.upid, ts: row.ts};
+  }
+  return undefined;
 }
 
 export async function getAllocations(

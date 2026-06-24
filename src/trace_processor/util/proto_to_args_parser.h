@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -27,9 +28,13 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/interned_message_view.h"
 
@@ -81,30 +86,53 @@ class ProtoToArgsParser {
 
     std::string flat_key;
     std::string key;
+
+    // Parser-internal scratch: the interned ids for |flat_key| / |key|, set by
+    // the parser (from its traversal tree on the hot path, or interned for
+    // dynamic keys) immediately before each emission. Delegates receive these
+    // ids directly and do not read them off the Key.
+    StringPool::Id flat_key_id = StringPool::Id::Null();
+    StringPool::Id key_id = StringPool::Id::Null();
   };
 
   class Delegate {
    public:
     virtual ~Delegate();
 
-    virtual void AddInteger(const Key& key, int64_t value) = 0;
-    virtual void AddUnsignedInteger(const Key& key, uint64_t value) = 0;
-    virtual void AddString(const Key& key,
+    // Keys are passed as already-interned StringPool ids: the parser owns key
+    // interning (and caches it per descriptor path in its traversal tree on the
+    // reflection hot path), so delegates never re-intern key strings.
+    // |flat_key| is the path without array indices; |key| includes them (the
+    // two are equal when no array is on the path).
+    using Id = StringPool::Id;
+
+    // Interns a key string into the same StringPool the parser uses. Manual
+    // callers that build their own (non-cached) keys use this to obtain the
+    // ids the Add* methods now require.
+    virtual Id InternString(base::StringView) = 0;
+
+    virtual void AddInteger(Id flat_key, Id key, int64_t value) = 0;
+    virtual void AddUnsignedInteger(Id flat_key, Id key, uint64_t value) = 0;
+    virtual void AddString(Id flat_key,
+                           Id key,
                            const protozero::ConstChars& value) = 0;
-    virtual void AddString(const Key& key, const std::string& value) = 0;
-    virtual void AddDouble(const Key& key, double value) = 0;
-    virtual void AddPointer(const Key& key, uint64_t value) = 0;
-    virtual void AddBoolean(const Key& key, bool value) = 0;
-    virtual void AddBytes(const Key& key, const protozero::ConstBytes& value) {
+    virtual void AddString(Id flat_key, Id key, const std::string& value) = 0;
+    virtual void AddDouble(Id flat_key, Id key, double value) = 0;
+    virtual void AddPointer(Id flat_key, Id key, uint64_t value) = 0;
+    virtual void AddBoolean(Id flat_key, Id key, bool value) = 0;
+    virtual void AddBytes(Id flat_key,
+                          Id key,
+                          const protozero::ConstBytes& value) {
       // In the absence of a better implementation default to showing
       // bytes as string with the size:
       std::string msg = "<bytes size=" + std::to_string(value.size) + ">";
-      AddString(key, msg);
+      AddString(flat_key, key, msg);
     }
     // Returns whether an entry was added or not.
-    virtual bool AddJson(const Key& key,
+    virtual bool AddJson(Id flat_key,
+                         Id key,
                          const protozero::ConstChars& value) = 0;
-    virtual void AddNull(const Key& key) = 0;
+    virtual void AddNull(Id flat_key, Id key) = 0;
 
     virtual size_t GetArrayEntryIndex(const std::string& array_key) = 0;
     virtual size_t IncrementArrayEntryIndex(const std::string& array_key) = 0;
@@ -183,7 +211,11 @@ class ProtoToArgsParser {
       std::function<std::optional<base::Status>(const protozero::Field&,
                                                 Delegate& delegate)>;
 
-  explicit ProtoToArgsParser(const DescriptorPool& descriptor_pool);
+  // The parser interns all key strings into |string_pool| and caches the
+  // result per descriptor path in its traversal tree, so delegates receive
+  // already-interned key ids and never re-intern keys themselves.
+  ProtoToArgsParser(const DescriptorPool& descriptor_pool,
+                    StringPool& string_pool);
   ~ProtoToArgsParser();
 
   // Given a view of bytes that represent a serialized protozero message of
@@ -239,39 +271,6 @@ class ProtoToArgsParser {
   void AddParsingOverrideForField(const std::string& field_path,
                                   ParsingOverrideForField parsing_override);
 
-  using ParsingOverrideForType = std::function<std::optional<base::Status>(
-      ScopedNestedKeyContext& key,
-      const protozero::ConstBytes& data,
-      Delegate& delegate)>;
-
-  // Installs an override for all fields with the given type. We will invoke
-  // |parsing_override| when a field with the given message type is encountered.
-  // Note that the path-based overrides take precedence over type overrides.
-  //
-  // The return value of |parsing_override| indicates whether the override
-  // parsed the sub-message and ProtoToArgsParser should skip it (std::nullopt)
-  // or the sub-message should continue to be parsed by ProtoToArgsParser using
-  // the descriptor (base::Status).
-  //
-  //
-  // For example, given the following protos and a type override for SubMessage,
-  // all three fields will be parsed using this override.
-  //
-  // message SubMessage {
-  //   optional int32 value = 1;
-  // }
-  //
-  // message MainMessage1 {
-  //   optional SubMessage field1 = 1;
-  //   optional SubMessage field2 = 2;
-  // }
-  //
-  // message MainMessage2 {
-  //   optional SubMessage field3 = 1;
-  // }
-  void AddParsingOverrideForType(const std::string& message_type,
-                                 ParsingOverrideForType parsing_override);
-
  private:
   // Forward-declared here so the variant alias below can name them. The
   // definitions live in the .cc; do not reference them from outside the
@@ -279,11 +278,16 @@ class ProtoToArgsParser {
   struct WorkItem;
   struct DebugAnnotationWorkItem;
   struct NestedValueWorkItem;
+  struct PathNode;
   using WorkItemVariant =
       std::variant<WorkItem, DebugAnnotationWorkItem, NestedValueWorkItem>;
 
   base::Status RunWorkLoop(Delegate& delegate);
   base::Status StepProtoMessage(WorkItem& item, Delegate& delegate, bool& done);
+  // Emits default-valued args for fields absent from |item|. Outlined; the
+  // caller only reaches it (under UNLIKELY) when add_defaults is set.
+  PERFETTO_NO_INLINE base::Status AddMessageDefaults(WorkItem& item,
+                                                     Delegate& delegate);
   base::Status PushDebugAnnotation(protozero::ConstBytes data,
                                    Delegate& delegate);
   base::Status StepDebugAnnotation(DebugAnnotationWorkItem& item,
@@ -313,20 +317,16 @@ class ProtoToArgsParser {
       const FieldDescriptor& field_descriptor,
       std::unordered_map<size_t, int>& repeated_field_index,
       protozero::Field field,
+      uint32_t parent_path,
       Delegate& delegate);
 
   std::optional<base::Status> MaybeApplyOverrideForField(
       const protozero::Field&,
       Delegate& delegate);
 
-  std::optional<base::Status> MaybeApplyOverrideForType(
-      const std::string& message_type,
-      ScopedNestedKeyContext& key,
-      const protozero::ConstBytes& data,
-      Delegate& delegate);
-
   base::Status ParseSimpleField(const FieldDescriptor& descriptor,
                                 const protozero::Field& field,
+                                uint32_t node,
                                 Delegate& delegate);
 
   base::Status AddDefault(const FieldDescriptor& descriptor,
@@ -334,11 +334,72 @@ class ProtoToArgsParser {
 
   base::Status AddEnum(const FieldDescriptor& descriptor,
                        int32_t value,
+                       uint32_t node,
                        Delegate& delegate);
 
-  std::unordered_map<std::string, ParsingOverrideForField> field_overrides_;
-  std::unordered_map<std::string, ParsingOverrideForType> type_overrides_;
+  // A node in the traversal tree, a flattened trie over the descriptor path.
+  // Nodes live in the |path_nodes_| arena and reference each other by index, so
+  // the arena can grow without invalidating handles. Each field is a pure
+  // function of the path, derived once per type.
+  struct PathNode {
+    // Interned flat_key prefix up to and including this node's field.
+    StringPool::Id flat_key_id = StringPool::Id::Null();
+
+    // Pool index of a message/enum field's resolved type (an index, not a
+    // pointer, as the pool can reallocate between parses). |resolved_done|
+    // separates "not looked up" from "looked up, absent".
+    bool resolved_done = false;
+    std::optional<uint32_t> resolved_idx;
+
+    // True if this node or an ancestor is repeated, so |key| (with "[i]")
+    // differs from |flat_key| and is interned per occurrence.
+    bool has_array = false;
+  };
+
+  // Sentinel |path_nodes_| index: no descriptor path to cache.
+  static constexpr uint32_t kNoPath = std::numeric_limits<uint32_t>::max();
+
+  // Packs (parent index, discriminator) into a |path_index_| key.
+  static uint64_t PathEdgeKey(uint32_t parent, uint32_t discriminator) {
+    return (static_cast<uint64_t>(parent) << 32) | discriminator;
+  }
+
+  // Returns |parent|'s child for |field_id|, creating it on first use. The hot
+  // lookup stays inline; CreatePathChild outlines the cold create. The caller
+  // must have appended this field's name to key_prefix_.flat_key.
+  uint32_t GetOrCreatePathChild(uint32_t parent,
+                                uint32_t field_id,
+                                bool is_repeated);
+  PERFETTO_NO_INLINE uint32_t CreatePathChild(uint64_t key,
+                                              uint32_t parent,
+                                              bool is_repeated);
+
+  // Appends a node and records |key| -> its index. The one cold creation site,
+  // shared by roots and children.
+  PERFETTO_NO_INLINE uint32_t AppendPathNode(uint64_t key,
+                                             StringPool::Id flat_key_id,
+                                             bool has_array);
+
+  // Pool index of |descriptor|'s message/enum type, cached in |node| unless
+  // kNoPath. Nullopt if absent from the pool.
+  std::optional<uint32_t> ResolveTypeDescriptorIdx(
+      const FieldDescriptor& descriptor,
+      uint32_t node);
+
+  // Interns the current key_prefix_.flat_key / key into key_prefix_'s id
+  // scratch fields. Used for dynamic (non-cached) keys: defaults,
+  // DebugAnnotation / NestedValue dictionary and array entries.
+  void InternCurrentKey();
+
+  base::FlatHashMap<std::string, ParsingOverrideForField> field_overrides_;
   const DescriptorPool& pool_;
+  StringPool& string_pool_;
+  // Arena of traversal-tree nodes, referenced by index. Persists across parses;
+  // grows as new descriptor paths are first seen.
+  std::vector<PathNode> path_nodes_;
+  // Edge -> child node index in |path_nodes_| (see |PathEdgeKey|). Roots are
+  // keyed by pool descriptor index under the kNoPath parent.
+  base::FlatHashMap<uint64_t, uint32_t> path_index_;
   Key key_prefix_;
   // Parameters to ParseMessage that apply uniformly to every ProtoMessage
   // WorkItem on the stack. Set by ParseMessage; read by StepProtoMessage.

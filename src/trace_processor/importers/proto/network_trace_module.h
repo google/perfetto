@@ -45,17 +45,9 @@ class NetworkTraceModule : public ProtoImporterModule {
   // details (packet_timestamps and packet_lengths) into one NetworkTraceEvent
   // per packet. Bundles with aggregates (i.e. total_packets) are forwarded
   // after de-interning the packet context.
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t ts,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData&,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
  private:
   void ParseGenericEvent(int64_t ts,

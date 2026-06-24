@@ -74,11 +74,12 @@ is still encountered in several situations:
     It does not attempt to replicate specific rendering quirks or undocumented
     behaviors of the legacy `chrome://tracing` tool unless they are critical for
     basic trace understanding.
-  - Perfetto enforces strict nesting for duration events (`B` and `E` pairs).
-    Overlapping, non-nested events might not be visualized or processed as they
-    are in the legacy `chrome://tracing` viewer, which could be more lenient.
-    For more details, see the
-    [FAQ on overlapping JSON events](/docs/faq.md#why-are-overlapping-events-in-json-traces-not-displayed-correctly).
+  - Perfetto's data model requires duration events (`B`/`E` pairs and `X`
+    events) to nest, as mandated by the spec. Overlapping, non-nested events are
+    out of spec and inherently ambiguous; Perfetto keeps them visible by laying
+    them out on a separate overflow track, but the result might not match what
+    you intended. For details and the recommended fix (async events), see
+    [issue #4280](https://github.com/google/perfetto/issues/4280).
   - Support for some less common or highly specific features of the JSON format
     might be limited. Refer to the
     [FAQ on obscure JSON features](/docs/faq.md#why-does-perfetto-not-support-some-obscure-json-format-feature).

@@ -43,7 +43,6 @@ export interface RawQueryExecution {
   readonly traceFilters?: ReadonlyArray<Filter>;
   readonly traceMetadataColumns?: ReadonlyArray<string>;
   readonly traceOrderBy?: string;
-  readonly traceLimit?: number;
 }
 
 // Snapshot settings as echoed on the wire. Responses are camelCase (like every

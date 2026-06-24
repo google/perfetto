@@ -51,12 +51,6 @@
 // /proc/pid/cmdline needs updating.
 // TODO(rsavitski): consider invalidating on task creation or death ftrace
 // events if available.
-//
-// TODO(rsavitski): we're not emitting an explicit description of the main
-// thread (instead, it's implied by the process entry). This might be slightly
-// inaccurate in edge cases like wanting to know the primary thread's name
-// (comm) based on procfs alone.
-
 namespace perfetto {
 namespace {
 
@@ -183,6 +177,7 @@ ProcessStatsDataSource::ProcessStatsDataSource(
   record_process_age_ = cfg.record_process_age();
   record_process_runtime_ = cfg.record_process_runtime();
   record_process_dmabuf_rss_ = cfg.record_process_dmabuf_rss();
+  skip_main_thread_message_ = cfg.skip_main_thread_message();
 
   enable_on_demand_dumps_ = true;
   for (auto quirk = cfg.quirks(); quirk; ++quirk) {
@@ -407,6 +402,13 @@ bool ProcessStatsDataSource::WriteProcess(int32_t pid,
       base::StringToInt32(ProcStatusEntry(proc_status, "Kthread:"));
   if (kthread.has_value() && (*kthread == 0 || *kthread == 1)) {
     proc->set_is_kthread(*kthread);
+  }
+
+  // perfetto v58+: explicit message for the main thread, instead of it being
+  // implied by the process message. Makes sure that comm and nstid are recorded
+  // if requested.
+  if (!skip_main_thread_message_) {
+    WriteDetailedThread(pid, pid, proc_status);
   }
 
   seen_pids_.insert({pid, pid});

@@ -49,7 +49,9 @@ using com::android::internal::pbzero::AndroidWindowInputDispatchEvent;
 using perfetto::protos::pbzero::TracePacket;
 
 AndroidInputEventParser::AndroidInputEventParser(TraceProcessorContext* context)
-    : context_(*context), args_parser_{*context->descriptor_pool_} {}
+    : context_(*context),
+      args_parser_{*context->descriptor_pool_,
+                   *context->storage->mutable_string_pool()} {}
 
 void AndroidInputEventParser::ParseAndroidInputEvent(
     int64_t packet_ts,
@@ -218,10 +220,8 @@ void AndroidInputEventParser::ConvertMonotonicTimestampField(
       ClockId::Machine(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
       monotonic_time);
   if (boottime.has_value()) {
-    util::ProtoToArgsParser::Key key;
-    key.flat_key = key_string;
-    key.key = key_string;
-    writer.AddInteger(key, boottime.value());
+    auto key = writer.InternString(base::StringView(key_string));
+    writer.AddInteger(key, key, boottime.value());
   }
 }
 

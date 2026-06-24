@@ -1459,7 +1459,7 @@ class Parsing(TestSuite):
           trusted_uid: 9999
           trusted_packet_sequence_id: 2
           trusted_pid: 521
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         """),
         query="""
@@ -1795,6 +1795,36 @@ class Parsing(TestSuite):
         5230425693562,0,49,1
         """))
 
+  # remote_clock_sync offsets are recorded as synthetic cross-machine clock
+  # snapshots. These used to be anchored at a literal host value of 0, so the
+  # materialised rows for absolute clocks (REALTIME, REALTIME_COARSE) converted
+  # the 1970 epoch into a wildly negative trace time. Anchoring at a real host
+  # reading keeps every remote clock snapshot at a sane, positive timestamp.
+  def test_remote_clock_sync_snapshot_timestamps(self):
+    return DiffTestBlueprint(
+        trace=DataPath('multi_machine_trace.pb'),
+        query="""
+        SELECT clock_name, clock_value, ts
+        FROM clock_snapshot
+        WHERE machine_id = 1 AND clock_name IS NOT NULL
+        ORDER BY clock_name, clock_value
+        """,
+        out=Csv("""
+        "clock_name","clock_value","ts"
+        "BOOTTIME",2890363618846,5218684183615
+        "BOOTTIME",5218684183615,5218684183615
+        "MONOTONIC",2890363619390,5218684183776
+        "MONOTONIC",5218684183989,5218684183776
+        "MONOTONIC_COARSE",2890363212637,5218684036772
+        "MONOTONIC_COARSE",5218683914708,5218684036772
+        "MONOTONIC_RAW",2890222891864,5218684183843
+        "MONOTONIC_RAW",5218631083965,5218684183843
+        "REALTIME",1719185606706808973,5218684183748
+        "REALTIME",1719185606981249395,5218684183748
+        "REALTIME_COARSE",1719185606706402343,5218684036772
+        "REALTIME_COARSE",1719185606980980186,5218684036772
+        """))
+
   # Kernel idle tasks created by /sbin/init should be filtered.
   def test_task_newtask_swapper_by_init(self):
     return DiffTestBlueprint(
@@ -1857,7 +1887,7 @@ class Parsing(TestSuite):
           trusted_uid: 9999
           trusted_packet_sequence_id: 2
           trusted_pid: 521
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         """),
         query="""

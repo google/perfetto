@@ -214,7 +214,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
   trusted_pid: 31778
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
 }
 packet {
   timestamp: 517481517002349

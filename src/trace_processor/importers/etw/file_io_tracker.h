@@ -189,13 +189,13 @@ class FileIoTracker {
                   StringId name,
                   int64_t timestamp,
                   UniqueTid utid,
-                  SliceTracker::SetArgsCallback args);
+                  std::function<void(ArgsTracker::BoundInserter*)> args);
 
   // Adds the ending event to the trace as a slice.
   void EndEvent(std::optional<Irp> irp,
                 int64_t timestamp,
                 UniqueTid utid,
-                SliceTracker::SetArgsCallback args);
+                std::function<void(ArgsTracker::BoundInserter*)> args);
 
   // Ends the given event with a duration of zero, and adds an argument labeling
   // it as missing a matching end event.
@@ -203,16 +203,18 @@ class FileIoTracker {
 
   // Records an "EndOperation" event with a duration of zero, and adds an
   // argument labeling it as missing a matching start event.
-  void RecordUnmatchedEnd(int64_t timestamp,
-                          UniqueTid utid,
-                          SliceTracker::SetArgsCallback args);
+  void RecordUnmatchedEnd(
+      int64_t timestamp,
+      UniqueTid utid,
+      std::function<void(ArgsTracker::BoundInserter*)> args);
 
   // Records an event without an IRP identifier with a duration of zero (as it's
   // unable to be matched with a corresponding start or end event).
-  void RecordEventWithoutIrp(StringId name,
-                             int64_t timestamp,
-                             UniqueTid utid,
-                             SliceTracker::SetArgsCallback args);
+  void RecordEventWithoutIrp(
+      StringId name,
+      int64_t timestamp,
+      UniqueTid utid,
+      std::function<void(ArgsTracker::BoundInserter*)> args);
 
   // Helper function to get the value to display for `info_class`: either its
   // string representation, if known, or its numerical value.

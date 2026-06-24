@@ -25,7 +25,8 @@ export type NavState =
       view: 'flamegraph-objects';
       params: {pathHashes?: string; isDominator?: boolean};
     }
-  | {view: 'flamegraph'; params: Record<string, never>};
+  | {view: 'flamegraph'; params: Record<string, never>}
+  | {view: 'callstack'; params: Record<string, never>};
 
 export type NavView = NavState['view'];
 
@@ -90,6 +91,8 @@ function stateToParts(state: NavState): {path: string; query: string} {
     }
     case 'flamegraph':
       return {path: 'flamegraph', query: ''};
+    case 'callstack':
+      return {path: 'callstack', query: ''};
   }
 }
 
@@ -176,6 +179,8 @@ export function subpageToState(subpage: string | undefined): NavState {
     }
     case 'flamegraph':
       return {view: 'flamegraph', params: {}};
+    case 'callstack':
+      return {view: 'callstack', params: {}};
     default:
       return {view: 'overview', params: {}};
   }

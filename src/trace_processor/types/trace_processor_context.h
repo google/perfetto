@@ -69,7 +69,7 @@ class TraceStorage;
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
-struct TraceMetadataState;
+struct TraceManifestState;
 struct TraceTimeState;
 struct TrackCompressorGroupIdxState;
 
@@ -101,6 +101,15 @@ class TraceProcessorContext {
 
   struct TraceState {
     TraceId trace_id;
+
+    // True when a perfetto_manifest override pinned this trace onto a single
+    // private clock. The trace must then stay single-clock and single-machine,
+    // so ClockSnapshots and remote machine ids are rejected on it.
+    bool has_clock_override = false;
+
+    // Set when a perfetto_manifest entry attributed this file to a machine;
+    // lets readers reject it later if it proves to be multi-machine.
+    bool has_machine_override = false;
   };
 
   struct UuidState {
@@ -158,7 +167,10 @@ class TraceProcessorContext {
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
   GlobalPtr<TraceTimeState> trace_time_state;
-  GlobalPtr<TraceMetadataState> trace_metadata_state;
+  // One clock graph for the whole import. Clocks are isolated per-(machine,
+  // file) via ClockId, so cross-machine/cross-file syncs are ordinary edges.
+  GlobalPtr<ClockSynchronizer> clock_sync;
+  GlobalPtr<TraceManifestState> trace_manifest_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
@@ -209,7 +221,6 @@ class TraceProcessorContext {
 
   PerMachinePtr<SymbolTracker> symbol_tracker;
   PerMachinePtr<ProcessTracker> process_tracker;
-  PerMachinePtr<ClockSynchronizer> primary_clock_sync;
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
@@ -253,6 +264,19 @@ class TraceProcessorContext {
 
   MachineId machine_id() const;
   TraceId trace_id() const;
+
+  // True when a perfetto_manifest clock override constrains this trace to a
+  // single clock and machine. False for root/container contexts that have no
+  // per-trace state.
+  bool has_clock_override() const {
+    return trace_state && trace_state->has_clock_override;
+  }
+
+  // True when a perfetto_manifest entry attributed this trace to a single
+  // machine. False for root/container contexts that have no per-trace state.
+  bool has_machine_override() const {
+    return trace_state && trace_state->has_machine_override;
+  }
 
  private:
   explicit TraceProcessorContext(const Config& config);

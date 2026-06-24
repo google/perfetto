@@ -33,7 +33,9 @@ WindowManagerParser::WindowManagerParser(WinscopeContext* context)
     : context_{context},
       hierarchy_walker_{
           context_->trace_processor_context_->storage->mutable_string_pool()},
-      args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
+      args_parser_{
+          *context->trace_processor_context_->descriptor_pool_,
+          *context->trace_processor_context_->storage->mutable_string_pool()} {}
 
 void WindowManagerParser::Parse(int64_t timestamp, protozero::ConstBytes blob) {
   com::android::internal::pbzero::WindowManagerTraceEntry::Decoder
