@@ -169,9 +169,9 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     PERFETTO_DCHECK(!input_context_->trace_state);
     trace_context_ = input_context_;
   } else {
-    uint32_t raw_machine_id = manifest_entry && manifest_entry->machine_id
-                                  ? *manifest_entry->machine_id
-                                  : 0;
+    int64_t raw_machine_id = manifest_entry && manifest_entry->machine_id
+                                 ? *manifest_entry->machine_id
+                                 : 0;
     // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
     // parsed first so that we do not get issues with
     // SetPidZeroIsUpidZeroIdleProcess()

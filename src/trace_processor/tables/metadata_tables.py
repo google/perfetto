@@ -37,7 +37,7 @@ MACHINE_TABLE = Table(
     sql_name='__intrinsic_machine',
     wrapping_sql_view=WrappingSqlView('machine'),
     columns=[
-        C('raw_id', CppUint32()),
+        C('raw_id', CppInt64()),
         C(
             'name',
             CppOptional(CppString()),

@@ -27,10 +27,10 @@
 
 namespace perfetto::trace_processor {
 
-// perfetto_manifest allocates synthetic machine ids from here upwards so they
-// never collide with embedded proto machine_ids, which the proto layer rejects
-// at or above this value.
-constexpr uint32_t kFirstManifestMachineId = 1u << 31;
+// Synthetic manifest machine ids start here. Embedded proto machine_ids fill
+// the whole uint32 range, so 1<<32 is the only boundary they can't reach; hence
+// raw machine ids are int64 throughout trace_processor.
+constexpr int64_t kFirstManifestMachineId = 1ll << 32;
 
 // Parsed contents of a perfetto_manifest sidecar file: a JSON file which,
 // as the first file of the trace (typically inside an archive, where sorting
@@ -70,15 +70,16 @@ struct TraceManifestState {
     // Exact path of the member within the archive.
     std::string path;
     std::optional<ClockOverride> clock_override;
-    // The file's base machine: a synthetic row id the reader allocates per
+    // The file's base machine: a synthetic raw id the reader allocates per
     // distinct |machine_name|, so files sharing a name land on one machine.
-    std::optional<uint32_t> machine_id;
+    std::optional<int64_t> machine_id;
     std::optional<std::string> machine_name;
     // From a `machines` block: each (embedded proto machine_id, declared name)
-    // pair. The reader resolves the names to rows in |machine_remap| (embedded
-    // id -> row id), which the proto dispatcher uses to place remote machines.
+    // pair. The reader resolves the names to entries in |machine_remap|
+    // (embedded uint32 id -> synthetic raw id), which the proto dispatcher uses
+    // to place remote machines.
     std::vector<std::pair<uint32_t, std::string>> machine_mappings;
-    base::FlatHashMap<uint32_t, uint32_t> machine_remap;
+    base::FlatHashMap<uint32_t, int64_t> machine_remap;
   };
 
   // True once a perfetto_manifest file has been parsed; a second one is an
@@ -101,7 +102,7 @@ struct TraceManifestState {
   // clock-referenced) machine and records it here, so references resolve to
   // real rows at parse time and ForkContextForTrace (via MachineTracker) reuses
   // the same row when the file is later forked.
-  base::FlatHashMap<uint32_t, uint32_t> raw_id_to_table_id;
+  base::FlatHashMap<int64_t, uint32_t> raw_id_to_table_id;
 
   FileEntry* FindEntry(const std::string& path) {
     for (FileEntry& entry : files) {

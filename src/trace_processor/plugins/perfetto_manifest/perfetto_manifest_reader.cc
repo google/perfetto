@@ -322,7 +322,7 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
 // Allocates (once) the machine-table row for |raw_machine_id| and records it so
 // later forks reuse the same row. Returns the row id.
 uint32_t EnsureMachineRow(TraceProcessorContext* context,
-                          uint32_t raw_machine_id) {
+                          int64_t raw_machine_id) {
   auto& map = context->trace_manifest_state->raw_id_to_table_id;
   if (uint32_t* row = map.Find(raw_machine_id)) {
     return *row;
@@ -420,13 +420,13 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
   // it and ForkContextForTrace reuses it. Then set each file's base machine and
   // its embedded-id remap.
   auto& machine_table = *context_->storage->mutable_machine_table();
-  base::FlatHashMap<std::string, uint32_t> name_to_id;
-  uint32_t next_id = kFirstManifestMachineId;
+  base::FlatHashMap<std::string, int64_t> name_to_id;
+  int64_t next_id = kFirstManifestMachineId;
   auto raw_id_for_name = [&](const std::string& name) {
-    if (uint32_t* id = name_to_id.Find(name)) {
+    if (int64_t* id = name_to_id.Find(name)) {
       return *id;
     }
-    uint32_t id = next_id++;
+    int64_t id = next_id++;
     machine_table[MachineId(EnsureMachineRow(context_, id))].set_name(
         context_->storage->InternString(base::StringView(name)));
     name_to_id.Insert(name, id);
@@ -437,7 +437,7 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
       entry.machine_id = raw_id_for_name(*entry.machine_name);
     }
     for (const auto& [embedded, name] : entry.machine_mappings) {
-      uint32_t raw = raw_id_for_name(name);
+      int64_t raw = raw_id_for_name(name);
       entry.machine_remap.Insert(embedded, raw);
       if (embedded == 0) {
         entry.machine_id = raw;
@@ -459,7 +459,7 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
   auto resolve_ref = [&](const char* file_label, const char* machine_label,
                          const std::optional<std::string>& ref_file,
                          const std::optional<std::string>& ref_machine,
-                         uint32_t fallback) -> base::StatusOr<uint32_t> {
+                         int64_t fallback) -> base::StatusOr<int64_t> {
     if (ref_machine && !ref_file) {
       return base::ErrStatus(
           "perfetto_manifest: %s '%s' needs %s too: a machine name alone is "
@@ -483,7 +483,7 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
             "the machine with %s.",
             file_label, ref_file->c_str(), machine_label);
       }
-      return r->machine_id.value_or(0u);
+      return r->machine_id.value_or(0);
     }
     bool declared = r->machine_name && *r->machine_name == *ref_machine;
     for (const auto& [embedded, name] : r->machine_mappings) {
@@ -507,10 +507,10 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
     ClockId trace_time = ClockId::Machine(*state->trace_time_clock);
     if (state->trace_time_file || state->trace_time_machine) {
       ASSIGN_OR_RETURN(
-          uint32_t raw,
+          int64_t raw,
           resolve_ref("trace_time: file", "trace_time: machine",
                       state->trace_time_file, state->trace_time_machine,
-                      /*fallback=*/0u));
+                      /*fallback=*/0));
       trace_time = ClockId::Machine(EnsureMachineRow(context_, raw),
                                     *state->trace_time_clock);
     }
@@ -533,14 +533,14 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
     }
     const ClockOverride& co = *entry.clock_override;
     ClockId source = ClockId::Machine(
-        EnsureMachineRow(context_, entry.machine_id.value_or(0u)),
+        EnsureMachineRow(context_, entry.machine_id.value_or(0)),
         *co.source_clock);
     ClockId ref = trace_time;
     if (co.clock) {
       ASSIGN_OR_RETURN(
-          uint32_t ref_raw,
+          int64_t ref_raw,
           resolve_ref("clocks: is.file", "clocks: is.machine", co.ref_file,
-                      co.ref_machine, entry.machine_id.value_or(0u)));
+                      co.ref_machine, entry.machine_id.value_or(0)));
       ref = ClockId::Machine(EnsureMachineRow(context_, ref_raw), *co.clock);
     }
     std::vector<ClockTimestamp> clocks = {{source, co.file_ts_ns},

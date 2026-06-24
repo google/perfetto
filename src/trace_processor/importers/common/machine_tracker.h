@@ -27,7 +27,7 @@ namespace perfetto::trace_processor {
 // Tracks information in the machine table.
 class MachineTracker {
  public:
-  MachineTracker(TraceProcessorContext* context, uint32_t raw_machine_id);
+  MachineTracker(TraceProcessorContext* context, int64_t raw_machine_id);
   ~MachineTracker();
 
   // Converts bytes to GB using power of 10.

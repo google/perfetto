@@ -57,7 +57,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
-#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -748,22 +747,18 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
 PERFETTO_NO_INLINE base::Status ProtoTraceReader::CreateRemoteMachineReader(
     uint32_t machine_id,
     std::unique_ptr<ProtoTraceReader>* out) {
-  if (PERFETTO_UNLIKELY(machine_id >= kFirstManifestMachineId)) {
-    return base::ErrStatus(
-        "Embedded machine_id %u is too large: values >= %u are reserved for "
-        "machines synthesized by perfetto_manifest",
-        machine_id, kFirstManifestMachineId);
-  }
-  uint32_t raw_machine_id = machine_id;
+  // Embedded ids are uint32, always below kFirstManifestMachineId (1<<32), so
+  // they never collide with the manifest's synthetic raw ids; no check needed.
+  int64_t raw_machine_id = machine_id;
   const auto* remap =
       context_->trace_state ? context_->trace_state->machine_remap : nullptr;
   if (remap) {
-    uint32_t* mapped = remap->Find(raw_machine_id);
+    int64_t* mapped = remap->Find(machine_id);
     if (!mapped) {
       return base::ErrStatus(
           "perfetto_manifest: machines: trace has a packet from undeclared "
           "machine id %u",
-          raw_machine_id);
+          machine_id);
     }
     raw_machine_id = *mapped;
   }

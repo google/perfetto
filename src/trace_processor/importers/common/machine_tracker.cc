@@ -31,7 +31,7 @@ namespace {
 // references could resolve to it before any file forked. Reuse that row;
 // otherwise create one now.
 MachineTable::Id LookupOrCreateMachineRow(TraceProcessorContext* context,
-                                          uint32_t raw_machine_id) {
+                                          int64_t raw_machine_id) {
   if (auto* manifest = context->trace_manifest_state.get()) {
     if (uint32_t* row = manifest->raw_id_to_table_id.Find(raw_machine_id)) {
       return MachineTable::Id(*row);
@@ -42,7 +42,7 @@ MachineTable::Id LookupOrCreateMachineRow(TraceProcessorContext* context,
 }  // namespace
 
 MachineTracker::MachineTracker(TraceProcessorContext* context,
-                               uint32_t raw_machine_id)
+                               int64_t raw_machine_id)
     : machine_id_(LookupOrCreateMachineRow(context, raw_machine_id)),
       context_(context) {}
 MachineTracker::~MachineTracker() = default;
