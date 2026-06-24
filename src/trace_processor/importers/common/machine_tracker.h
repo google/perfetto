@@ -44,6 +44,12 @@ class MachineTracker {
   void SetAndroidSdkVersion(int64_t sdk_version);
   void SetSystemRamBytes(int64_t system_ram_bytes);
 
+  // Relabels this machine's raw (embedded) machine id (used for adoption).
+  void SetRawMachineId(int64_t raw_machine_id);
+
+  // The raw (embedded) machine id of this machine's row.
+  int64_t raw_machine_id() const;
+
   MachineId machine_id() const { return machine_id_; }
 
  private:

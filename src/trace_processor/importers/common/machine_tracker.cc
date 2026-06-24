@@ -86,6 +86,14 @@ void MachineTracker::SetSystemRamBytes(int64_t system_ram_bytes) {
   row.set_system_ram_gb(BytesToGB(system_ram_bytes));
 }
 
+void MachineTracker::SetRawMachineId(int64_t raw_machine_id) {
+  getRow().set_raw_id(raw_machine_id);
+}
+
+int64_t MachineTracker::raw_machine_id() const {
+  return context_->storage->machine_table()[machine_id_].raw_id();
+}
+
 PERFETTO_ALWAYS_INLINE
 MachineTable::RowReference MachineTracker::getRow() {
   auto& machines = *context_->storage->mutable_machine_table();

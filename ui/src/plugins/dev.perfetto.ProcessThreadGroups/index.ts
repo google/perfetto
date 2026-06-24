@@ -15,8 +15,14 @@
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
-import {maybeMachineLabel} from '../../public/utils';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {getMachineCount, maybeMachineLabel} from '../../public/utils';
 
 function stripPathFromExecutable(path: string) {
   if (path[0] === '/') {
@@ -135,6 +141,7 @@ export default class implements PerfettoPlugin {
   // Adds top level groups for processes and thread that don't belong to a
   // process.
   private async addProcessGroups(): Promise<void> {
+    const numMachines = await getMachineCount(this.ctx.engine);
     const result = await this.ctx.engine.query(`
       with processGroups as (
         select
@@ -189,7 +196,8 @@ export default class implements PerfettoPlugin {
           pid as id,
           processName as name,
           processGroups.machine as machine,
-          m.name as machineName
+          m.name as machineName,
+          m.label_index as machineLabelIndex
         from processGroups
         left join machine m on m.id = processGroups.machine
         order by
@@ -213,7 +221,8 @@ export default class implements PerfettoPlugin {
           tid as id,
           threadName as name,
           threadGroups.machine as machine,
-          m.name as machineName
+          m.name as machineName,
+          m.label_index as machineLabelIndex
         from threadGroups
         left join machine m on m.id = threadGroups.machine
         order by
@@ -234,6 +243,7 @@ export default class implements PerfettoPlugin {
       name: STR_NULL,
       machine: NUM,
       machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const {kind, uid, id, name} = it;
@@ -244,7 +254,11 @@ export default class implements PerfettoPlugin {
           continue;
         }
 
-        const machineLabel = maybeMachineLabel(it.machine, it.machineName);
+        const machineLabel = maybeMachineLabel(
+          it.machineLabelIndex ?? undefined,
+          it.machineName,
+          numMachines,
+        );
         function getProcessDisplayName(
           processName: string | undefined,
           pid: number,
