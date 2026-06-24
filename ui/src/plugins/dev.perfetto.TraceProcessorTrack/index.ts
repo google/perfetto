@@ -706,6 +706,11 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       optionalActions: [
         {
           name: 'Find matching slices',
+          icon: 'search',
+          category: 'DRILL',
+          description:
+            'Open the duration distribution of all slices with this name in ' +
+            'the selection.',
           execute: ({node}) => {
             if (node === undefined) return;
             openDistributionTab(trace, {

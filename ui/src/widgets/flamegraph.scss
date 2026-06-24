@@ -186,3 +186,66 @@
     color: var(--pf-color-warning);
   }
 }
+
+// All category buttons share the width of the widest one: equal 1fr columns in
+// a grid sized to its content (width: max-content), so the bar shrink-wraps
+// instead of stretching the buttons to fill a wider tooltip.
+.pf-button-bar.pf-flamegraph-action-bar {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  width: max-content;
+  gap: 8px;
+  margin-top: 6px;
+
+  > .pf-button {
+    justify-content: center;
+  }
+}
+
+// Compound selector overrides .pf-popup's own max-width.
+.pf-flamegraph-action-menu.pf-popup {
+  max-width: 460px;
+}
+
+.pf-flamegraph-action-menu {
+  .pf-menu {
+    // Drop the default vertical margin so item hover reaches the popup edges.
+    margin: 0;
+    max-height: min(60vh, 480px);
+    overflow-y: auto;
+    // overflow-y:auto also implies overflow-x:auto; pin it off to avoid a
+    // spurious horizontal scrollbar.
+    overflow-x: hidden;
+  }
+
+  // Let items shrink so descriptions wrap instead of widening the popup.
+  .pf-menu-item {
+    min-width: 0;
+  }
+}
+
+// Rendered in a popup portal outside .pf-flamegraph, hence a top-level selector.
+.pf-flamegraph-action {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  &__title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.3;
+  }
+
+  &__desc {
+    font-size: smaller;
+    color: var(--pf-color-text-muted);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+  }
+
+  &__aka {
+    font-style: italic;
+  }
+}
