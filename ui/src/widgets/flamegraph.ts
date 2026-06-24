@@ -43,6 +43,9 @@ import {type Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
 import type {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
+import {KeycapGlyph} from './hotkey_glyphs';
+import type {Key} from '../base/hotkeys';
+import {elementIsEditable} from '../base/dom_utils';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
@@ -138,6 +141,8 @@ interface NodeAction {
   readonly icon: string;
   readonly description?: m.Children;
   readonly category: ActionCategory;
+  // Single-key shortcut, active while this node's tooltip is showing.
+  readonly key?: Key;
   execute(): void;
 }
 
@@ -458,10 +463,45 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   oncreate() {
     this.flushPendingScroll();
+    window.addEventListener('keydown', this.onKeyDown);
+  }
+
+  onremove() {
+    window.removeEventListener('keydown', this.onKeyDown);
   }
 
   onupdate() {
     this.flushPendingScroll();
+  }
+
+  // While a node's tooltip is showing (hovered or pinned), a bare letter key
+  // runs that node's matching action. Modified chords and keystrokes aimed at
+  // an editable element (e.g. the filter bar) are left alone.
+  private readonly onKeyDown = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (elementIsEditable(e.target)) return;
+    const ctx = this.activeNodeContext();
+    if (ctx === undefined) return;
+    const pressed = e.key.toUpperCase();
+    const action = this.buildNodeActions(ctx.source, ctx.name, ctx.node).find(
+      (a) => a.key === pressed,
+    );
+    if (action === undefined) return;
+    e.preventDefault();
+    action.execute();
+    m.redraw();
+  };
+
+  // The node whose tooltip is currently showing, if it is a real node.
+  private activeNodeContext():
+    | {source: NodeSource; name: string; node: FlamegraphNode}
+    | undefined {
+    const pos = this.tooltipPos;
+    if (pos === undefined || pos.source.kind !== 'NODE') return undefined;
+    const data = this.attrs.data;
+    if (data === undefined) return undefined;
+    const node = data.nodes[pos.source.queryIdx];
+    return {source: pos.source, name: node.name, node};
   }
 
   private flushPendingScroll() {
@@ -1157,22 +1197,28 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private renderNodeActionItem(a: NodeAction): m.Children {
     return m(MenuItem, {
       icon: a.icon,
-      label: this.actionItemLabel(a.label, a.description),
+      label: this.actionItemLabel(a.label, a.description, a.key),
       onclick: a.execute,
     });
   }
 
-  // Two-line menu label: name on top, muted description beneath. A name with no
-  // description renders as a plain single line.
+  // Two-line menu label: name on top, muted description beneath, with an
+  // optional keycap on the right of the name. A bare name (no description, no
+  // key) renders as a plain single line.
   private actionItemLabel(
     label: m.Children,
     description?: m.Children,
+    key?: Key,
   ): m.Children {
-    if (description == null) return label;
+    if (description == null && key === undefined) return label;
     return m(
       '.pf-flamegraph-action',
-      m('.pf-flamegraph-action__title', label),
-      m('.pf-flamegraph-action__desc', description),
+      m(
+        '.pf-flamegraph-action__title',
+        m('span', label),
+        key !== undefined && m(KeycapGlyph, {keyValue: key}),
+      ),
+      description != null && m('.pf-flamegraph-action__desc', description),
     );
   }
 
@@ -1189,12 +1235,17 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       applyState(addFilter(this.attrs.state, {kind, filter}));
     const ft = (v: FilterType) =>
       assertExists(FILTER_TYPES.find((o) => o.value === v));
-    const filterAction = (v: FilterType, execute: () => void): NodeAction => {
+    const filterAction = (
+      v: FilterType,
+      key: Key,
+      execute: () => void,
+    ): NodeAction => {
       const o = ft(v);
       return {
         label: o.friendlyLabel,
         icon: o.icon,
         category: o.category,
+        key,
         description: [
           o.description,
           o.aka !== undefined && [
@@ -1214,28 +1265,30 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         label: 'Zoom in',
         icon: 'zoom_in',
         category: 'FOCUS',
+        key: 'Z',
         description:
           'Enlarge this branch. Nothing is removed, so you can zoom out anytime.',
         execute: () => {
           this.zoomRegion = source;
         },
       },
-      filterAction('SHOW_FROM_FRAME', () =>
+      filterAction('SHOW_FROM_FRAME', 'F', () =>
         addF('SHOW_FROM_FRAME', `^${name}$`),
       ),
-      filterAction('PIVOT', () =>
+      filterAction('PIVOT', 'P', () =>
         applyState({
           ...this.attrs.state,
           view: {kind: 'PIVOT', pivot: `^${name}$`},
         }),
       ),
-      filterAction('SHOW_STACK', () => addF('SHOW_STACK', `^${name}$`)),
-      filterAction('HIDE_STACK', () => addF('HIDE_STACK', `^${name}$`)),
-      filterAction('HIDE_FRAME', () => addF('HIDE_FRAME', `^${name}$`)),
+      filterAction('SHOW_STACK', 'S', () => addF('SHOW_STACK', `^${name}$`)),
+      filterAction('HIDE_STACK', 'H', () => addF('HIDE_STACK', `^${name}$`)),
+      filterAction('HIDE_FRAME', 'M', () => addF('HIDE_FRAME', `^${name}$`)),
       {
         label: 'Copy stack',
         icon: Icons.Copy,
         category: 'COPY',
+        key: 'C',
         description: 'Copy this stack as text.',
         execute: () => copyToClipboard(this.buildStackString(node, false)),
       },

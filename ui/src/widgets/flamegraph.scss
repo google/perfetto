@@ -221,9 +221,17 @@
   min-width: 0;
 
   &__title {
-    white-space: normal;
-    overflow-wrap: anywhere;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
     line-height: 1.3;
+
+    // The label text; the trailing keycap is pushed to the right edge.
+    > span {
+      flex: 1;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
   }
 
   &__desc {
