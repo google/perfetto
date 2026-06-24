@@ -372,7 +372,7 @@ TEST(AddressRangeMap, ForOverlapsEmptyRangeDoesNothing) {
   map.Emplace(AddressRange(10, 20), 1);
   map.Emplace(AddressRange(25, 30), 2);
 
-  MockFunction<void(AddressRangeMap<int>::value_type&)> cb;
+  MockFunction<void(const AddressRangeMap<int>::value_type&)> cb;
   EXPECT_CALL(cb, Call).Times(0);
 
   map.ForOverlaps(AddressRange(5, 5), cb.AsStdFunction());
@@ -386,7 +386,7 @@ TEST(AddressRangeMap, ForOverlaps) {
   map.Emplace(AddressRange(35, 40), 3);
   map.Emplace(AddressRange(40, 50), 4);
 
-  MockFunction<void(AddressRangeMap<int>::value_type&)> cb;
+  MockFunction<void(const AddressRangeMap<int>::value_type&)> cb;
   EXPECT_CALL(cb, Call(MapEntry(10, 20, 1)));
   EXPECT_CALL(cb, Call(MapEntry(20, 30, 2)));
   EXPECT_CALL(cb, Call(MapEntry(35, 40, 3)));
