@@ -292,10 +292,7 @@ async function computeFlamegraphTree(
 
   const matchingColumns = ['name', ...unaggCols];
   const matchExpr = (x: string) =>
-    matchingColumns.map(
-      (c) =>
-        `(IFNULL(${c}, '') like ${sqliteString(makeSqlFilter(x))} escape '\\')`,
-    );
+    matchingColumns.map((c) => `(IFNULL(${c}, '') REGEXP ${sqliteString(x)})`);
 
   const showStackFilter =
     showStackAndPivot.length === 0
@@ -592,22 +589,6 @@ async function computeFlamegraphTree(
     nodeActions,
     rootActions,
   };
-}
-
-function makeSqlFilter(x: string) {
-  const hasStart = x.startsWith('^');
-  const hasEnd = x.endsWith('$');
-  const pattern = x.slice(hasStart ? 1 : 0, hasEnd ? -1 : undefined);
-
-  if (hasStart && hasEnd) {
-    return pattern; // Exact match
-  } else if (hasStart) {
-    return `${pattern}%`; // Starts with
-  } else if (hasEnd) {
-    return `%${pattern}`; // Ends with
-  } else {
-    return `%${pattern}%`; // Contains
-  }
 }
 
 function getPivotFilter(
