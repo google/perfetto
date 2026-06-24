@@ -1,4 +1,4 @@
--- Copyright 2025 The Android Open Source Project
+-- Copyright 2026 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -12,12 +12,12 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Provides common utility functions for Android Perfetto SQL modules.
+-- Contains utility functions for extracting key-value pairs from ATrace payloads.
 
 -- Extracts the value associated with a given key from a string containing key-value pairs.
 -- The payload string is expected to be in a format like '{ key1=value1 key2="value2" ... }'.
 -- This function handles both quoted and unquoted values.
-CREATE PERFETTO FUNCTION android_common_extract_key_value_arg(
+CREATE PERFETTO FUNCTION _android_keyvalue_lookup_extract_key_value_arg(
   -- The string containing key-value pairs, typically from an ATrace event payload.
   atrace_payload STRING,
   -- The name of the key whose value is to be extracted.

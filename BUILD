@@ -3727,24 +3727,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_battery_battery",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/android/battery/app_wakelocks.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/battery/audio.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery/charging_states.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/battery/codec.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery/doze.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/battery/foreground_services.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/battery/freezer.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/battery/job_scheduler.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/battery/process_states.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/battery/standby_bucket.sql",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/stdlib/android/common:common
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_android_common_common",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/android/common/utils.sql",
     ],
 )
 
@@ -3890,7 +3874,6 @@ perfetto_filegroup(
     srcs = [
         ":src_trace_processor_perfetto_sql_stdlib_android_auto_auto",
         ":src_trace_processor_perfetto_sql_stdlib_android_battery_battery",
-        ":src_trace_processor_perfetto_sql_stdlib_android_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_android_cpu_cpu",
         ":src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
         ":src_trace_processor_perfetto_sql_stdlib_android_dumpsys_dumpsys",
@@ -3904,12 +3887,15 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/aflags.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/anrs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/app_process_starts.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/app_wakelocks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/audio.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery_stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/binder.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/binder_breakdown.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/bitmaps.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/broadcasts.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/codec.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/critical_blocking_calls.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/desktop_mode.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/device.sql",
@@ -3922,17 +3908,20 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/kernel_wakelocks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/keyvalue_lookup.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/network_packets.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/oom_adjuster.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/package_lookup.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/power_rails.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/process_metadata.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/process_uid_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/render_thread.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/screen_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/screenshots.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/services.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/standby_bucket.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/statsd.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/surfaceflinger.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/suspend.sql",
