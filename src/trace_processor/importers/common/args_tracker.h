@@ -97,11 +97,16 @@ class ArgsTracker {
           reinterpret_cast<uintptr_t>(ptr_), col_, row_, key)];
     }
 
+    // The id of the row these args are being added to (the value of the typed
+    // Id passed to ArgsTracker::AddArgsTo).
+    uint32_t id() const { return id_; }
+
    protected:
     BoundInserter(ArgsTracker* args_tracker,
                   dataframe::Dataframe* dataframe,
                   uint32_t col,
-                  uint32_t row);
+                  uint32_t row,
+                  uint32_t id);
 
    private:
     friend class ArgsTracker;
@@ -110,6 +115,7 @@ class ArgsTracker {
     void* ptr_ = nullptr;
     uint32_t col_ = 0;
     uint32_t row_ = 0;
+    uint32_t id_ = 0;
   };
 
   explicit ArgsTracker(TraceProcessorContext*);
@@ -227,7 +233,8 @@ class ArgsTracker {
     auto* table = context_->storage->mutable_metadata_table();
     uint32_t row = (*table)[id].ToRowNumber().row_number();
     return BoundInserter(this, &table->dataframe(),
-                         tables::MetadataTable::ColumnIndex::int_value, row);
+                         tables::MetadataTable::ColumnIndex::int_value, row,
+                         id.value);
   }
 
   BoundInserter AddArgsTo(TrackId id) {
@@ -235,7 +242,7 @@ class ArgsTracker {
     uint32_t row = (*table)[id].ToRowNumber().row_number();
     return BoundInserter(this, &table->dataframe(),
                          tables::TrackTable::ColumnIndex::source_arg_set_id,
-                         row);
+                         row, id.value);
   }
 
   BoundInserter AddArgsTo(VulkanAllocId id) {
@@ -246,13 +253,13 @@ class ArgsTracker {
   BoundInserter AddArgsToProcess(UniquePid id) {
     auto* table = context_->storage->mutable_process_table();
     return BoundInserter(this, &table->dataframe(),
-                         tables::ProcessTable::ColumnIndex::arg_set_id, id);
+                         tables::ProcessTable::ColumnIndex::arg_set_id, id, id);
   }
 
   BoundInserter AddArgsToThread(UniqueTid id) {
     auto* table = context_->storage->mutable_thread_table();
     return BoundInserter(this, &table->dataframe(),
-                         tables::ThreadTable::ColumnIndex::arg_set_id, id);
+                         tables::ThreadTable::ColumnIndex::arg_set_id, id, id);
   }
 
   BoundInserter AddArgsTo(tables::ExperimentalProtoPathTable::Id id) {
@@ -307,7 +314,7 @@ class ArgsTracker {
   BoundInserter AddArgsTo(T* table, typename T::Id id) {
     uint32_t row = (*table)[id].ToRowNumber().row_number();
     return BoundInserter(this, &table->dataframe(), T::ColumnIndex::arg_set_id,
-                         row);
+                         row, id.value);
   }
 
   void AddArg(void* ptr,

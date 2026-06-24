@@ -53,6 +53,7 @@ class TrackEventModule : public ProtoImporterModule {
  private:
   std::unique_ptr<TrackEventTracker> track_event_tracker_;
   TrackEventTokenizer tokenizer_;
+  TrackEventPluginContext plugin_context_;
   TrackEventParser parser_;
 };
 

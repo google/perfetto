@@ -194,8 +194,13 @@ bool ArgsTracker::NeedsTranslation(const ArgsTranslationTable& table) const {
 ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
                                           dataframe::Dataframe* dataframe,
                                           uint32_t col,
-                                          uint32_t row)
-    : args_tracker_(args_tracker), ptr_(dataframe), col_(col), row_(row) {}
+                                          uint32_t row,
+                                          uint32_t id)
+    : args_tracker_(args_tracker),
+      ptr_(dataframe),
+      col_(col),
+      row_(row),
+      id_(id) {}
 
 ArgsTracker::BoundInserter::~BoundInserter() = default;
 
