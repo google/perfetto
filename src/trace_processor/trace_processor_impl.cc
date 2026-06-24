@@ -85,6 +85,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/plugins/ancestor/ancestor.h"
+#include "src/trace_processor/plugins/android_framework_track_event/android_framework_track_event.h"
 #include "src/trace_processor/plugins/args/args.h"
 #include "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.h"
 #include "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.h"
@@ -317,6 +318,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // we call here before GetPluginSet() builds its cached set. Remove these
   // explicit calls once the static-init based registration is restored.
   ancestor::RegisterPlugin();
+  android_framework_track_event::RegisterPlugin();
   args::RegisterPlugin();
   art_heap_graph_functions::RegisterPlugin();
   art_process_metadata_importer::RegisterPlugin();

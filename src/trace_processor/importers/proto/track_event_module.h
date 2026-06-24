@@ -50,6 +50,11 @@ class TrackEventModule : public ProtoImporterModule {
 
   void OnEventsFullyExtracted() override;
 
+  // Lets out-of-tree plugins (registered from `full` via the Plugin framework)
+  // own their TrackEvent extension fields without compiling the plugin or its
+  // protos into `minimal`.
+  TrackEventPluginContext* mutable_plugin_context() { return &plugin_context_; }
+
  private:
   std::unique_ptr<TrackEventTracker> track_event_tracker_;
   TrackEventTokenizer tokenizer_;

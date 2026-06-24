@@ -376,6 +376,15 @@ class TraceStorage {
     return mutable_table<tables::AndroidMotionEventsTable>();
   }
 
+  const tables::AndroidTrackEventProcessTable&
+  android_track_event_process_table() const {
+    return table<tables::AndroidTrackEventProcessTable>();
+  }
+  tables::AndroidTrackEventProcessTable*
+  mutable_android_track_event_process_table() {
+    return mutable_table<tables::AndroidTrackEventProcessTable>();
+  }
+
   const tables::AndroidInputEventDispatchTable&
   android_input_event_dispatch_table() const {
     return table<tables::AndroidInputEventDispatchTable>();
