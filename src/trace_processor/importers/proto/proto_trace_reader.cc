@@ -817,16 +817,31 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
   }
 
   // Express each per-clock offset as a cross-machine edge in the single clock
-  // graph: at the synced instant the host clock reads 0 and this (client)
-  // machine's clock reads |offset|, so the two are linked directly.
+  // graph: at a synced instant the host clock reads |host_anchor| and this
+  // (client) machine's clock reads |host_anchor + offset|, so the two are
+  // linked directly. The anchor is a real host reading (the last sync round
+  // that observed this clock) rather than a literal 0: that keeps the snapshot
+  // rows we materialise to the clock_snapshot table at meaningful, in-bounds
+  // timestamps instead of converting the epoch (e.g. REALTIME 0) into a wildly
+  // negative trace time.
   uint32_t client_machine = context_->machine_id().value;
   uint32_t host_machine = context_->trace_time_state->clock_id.machine_id;
   auto clock_offsets = CalculateClockOffsets(sync_clock_snapshots);
   for (auto it = clock_offsets.GetIterator(); it; ++it) {
     uint32_t builtin = it.key().clock_id;
+    int64_t offset = it.value();
+
+    // CalculateClockOffsets only emits an offset for a clock that was observed
+    // on both sides, so at least one round carries a non-zero host reading.
+    int64_t host_anchor = 0;
+    for (const auto& round : sync_clock_snapshots) {
+      if (auto* clocks = round.Find(builtin); clocks && clocks->first)
+        host_anchor = static_cast<int64_t>(clocks->first);
+    }
+
     context_->clock_tracker->AddQualifiedSnapshot(
-        {{ClockId::Machine(host_machine, builtin), 0},
-         {ClockId::Machine(client_machine, builtin), it.value()}});
+        {{ClockId::Machine(host_machine, builtin), host_anchor},
+         {ClockId::Machine(client_machine, builtin), host_anchor + offset}});
   }
   return base::OkStatus();
 }
