@@ -181,6 +181,43 @@ TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
   EXPECT_THAT(context_.storage->jit_frame_table().row_count(), Eq(1u));
 }
 
+TEST_F(JitTrackerTest, MappingLargerThanJitRange) {
+  const UniquePid upid = context_.process_tracker->GetOrCreateProcess(1234);
+  const UniqueTid utid = context_.process_tracker->UpdateThread(4321, 1234);
+
+  // JIT range is [1000, 2000)
+  const AddressRange jit_range(1000, 2000);
+  JitCache* cache = jit_tracker_.CreateJitCache("name", upid, jit_range);
+
+  // Mapping is larger [0, 5000) and contains JIT range
+  const AddressRange mapping_range(0, 5000);
+  auto& mapping = AddMapping(upid, mapping_range);
+
+  // Load JIT code at [1200, 1300)
+  const StringId function_name = context_.storage->InternString("JitFunction");
+  const StringId source_file = context_.storage->InternString("SourceFile");
+  const int64_t create_ts = 12345;
+  const AddressRange code_range(1200, 1300);
+
+  cache->LoadCode(create_ts, utid, code_range, function_name,
+                  JitCache::SourceLocation{source_file, 10},
+                  TraceBlobView());
+
+  // Intern frame at 1250 (inside JIT code)
+  FrameId frame_id_jit = mapping.InternFrame(1250, "");
+  auto frame_jit = context_.storage->stack_profile_frame_table()[frame_id_jit];
+  EXPECT_THAT(frame_jit.name(), Eq(function_name));
+
+  // Intern frame at 500 (outside JIT range, but inside mapping)
+  // This should NOT be resolved by JIT cache, and should NOT increment jit_unknown_frame
+  EXPECT_THAT(context_.stats_tracker->GetStats(stats::jit_unknown_frame), Eq(0));
+  FrameId frame_id_normal = mapping.InternFrame(500, "normal_func");
+  EXPECT_THAT(context_.stats_tracker->GetStats(stats::jit_unknown_frame), Eq(0));
+  auto frame_normal = context_.storage->stack_profile_frame_table()[frame_id_normal];
+  EXPECT_THAT(context_.storage->GetString(frame_normal.name()), Eq("normal_func"));
+  EXPECT_THAT(frame_id_jit, Ne(frame_id_normal));
+}
+
 }  // namespace
 
 }  // namespace trace_processor

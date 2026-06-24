@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cinttypes>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -94,11 +95,8 @@ UserMemoryMapping& MappingTracker::CreateUserMemoryMapping(
   user_memory_[upid].TrimOverlapsAndEmplace(mapping_range, mapping.get());
 
   jit_caches_[upid].ForOverlaps(
-      mapping_range, [&](std::pair<const AddressRange, JitCache*>& entry) {
-        const auto& jit_range = entry.first;
-        JitCache* jit_cache = entry.second;
-        PERFETTO_CHECK(jit_range.Contains(mapping_range));
-        mapping->SetJitCache(jit_cache);
+      mapping_range, [&](std::pair<const AddressRange, JitCache*>&) {
+        mapping->SetIsJitted();
       });
 
   return AddMapping(std::move(mapping));
@@ -133,6 +131,16 @@ UserMemoryMapping* MappingTracker::FindUserMappingForAddress(
   return nullptr;
 }
 
+JitCache* MappingTracker::FindJitCacheForAddress(UniquePid upid,
+                                                 uint64_t address) const {
+  if (auto* caches = jit_caches_.Find(upid); caches) {
+    if (auto it = caches->Find(address); it != caches->end()) {
+      return it->second;
+    }
+  }
+  return nullptr;
+}
+
 std::vector<VirtualMemoryMapping*> MappingTracker::FindMappings(
     base::StringView name,
     const std::optional<BuildId>& build_id) const {
@@ -162,8 +170,7 @@ void MappingTracker::AddJitRange(UniquePid upid,
   jit_caches_[upid].TrimOverlapsAndEmplace(jit_range, jit_cache);
   user_memory_[upid].ForOverlaps(
       jit_range, [&](std::pair<const AddressRange, UserMemoryMapping*>& entry) {
-        PERFETTO_CHECK(jit_range.Contains(entry.first));
-        entry.second->SetJitCache(jit_cache);
+        entry.second->SetIsJitted();
       });
 }
 
