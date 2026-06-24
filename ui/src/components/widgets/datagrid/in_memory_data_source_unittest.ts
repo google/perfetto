@@ -84,12 +84,14 @@ describe('InMemoryDataSource', () => {
     columns?: FlatModel['columns'];
     filters?: readonly Filter[];
     sort?: FlatModel['sort'];
+    search?: string;
   }): FlatModel {
     return {
       mode: 'flat',
       columns: options?.columns ?? defaultColumns,
       filters: options?.filters,
       sort: options?.sort,
+      search: options?.search,
     };
   }
 
@@ -295,6 +297,58 @@ describe('InMemoryDataSource', () => {
       // Sorted by value desc: Trent, Charlie, Alice, Eve (Alice/Eve order by original due to stable sort on value)
       expect(result.rows?.map((r) => r.id)).toEqual([7, 3, 1, 5]);
       result.rows?.forEach((row) => expect(row.active).toBe(1));
+    });
+  });
+
+  describe('search', () => {
+    test('matches a substring in any column', () => {
+      const result = dataSource.useRows(makeModel({search: 'li'}));
+      // Alice and Charlie both contain 'li' (case-insensitive substring)
+      expect(result.rows?.map((r) => r.id).sort()).toEqual([1, 3]);
+    });
+
+    test('matches against numeric columns', () => {
+      const result = dataSource.useRows(makeModel({search: '100'}));
+      // Alice and Eve both have value 100
+      expect(result.rows?.map((r) => r.id).sort()).toEqual([1, 5]);
+    });
+
+    test('matches bigint values', () => {
+      const result = dataSource.useRows(makeModel({search: '300'}));
+      expect(result.rows?.map((r) => r.id)).toEqual([6]); // Mallory (300n)
+    });
+
+    test('empty search returns all rows', () => {
+      const result = dataSource.useRows(makeModel({search: ''}));
+      expect(result.totalRows).toBe(sampleData.length);
+    });
+
+    test('no matches returns empty', () => {
+      const result = dataSource.useRows(makeModel({search: 'zzzzz'}));
+      expect(result.totalRows).toBe(0);
+    });
+
+    test('only searches visible columns', () => {
+      // 'Mallory' is in the name column; if name isn't visible it shouldn't match
+      const result = dataSource.useRows(
+        makeModel({
+          columns: [{field: 'tag', alias: 'tag'}],
+          search: 'Mallory',
+        }),
+      );
+      expect(result.totalRows).toBe(0);
+    });
+
+    test('blob columns never match', () => {
+      const result = dataSource.useRows(makeModel({search: 'Uint8'}));
+      expect(result.totalRows).toBe(0);
+    });
+
+    test('combines with filters', () => {
+      const filters: Filter[] = [{field: 'tag', op: '=', value: 'A'}];
+      const result = dataSource.useRows(makeModel({filters, search: 'li'}));
+      // tag A: Alice, Charlie, Trent; of those containing 'li': Alice, Charlie
+      expect(result.rows?.map((r) => r.id).sort()).toEqual([1, 3]);
     });
   });
 

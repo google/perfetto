@@ -37,6 +37,7 @@ import {
 import {Icon} from '../../../widgets/icon';
 import {LinearProgress} from '../../../widgets/linear_progress';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
+import {TextInput} from '../../../widgets/text_input';
 import {
   AggregateMenu,
   ColumnMenu,
@@ -371,6 +372,35 @@ export interface DataGridAttrs {
    * Custom message to display in the empty state when there are no rows to show
    */
   readonly emptyStateMessage?: string;
+
+  /**
+   * When true, shows a free-text search box on the toolbar that filters rows to
+   * those where any visible column contains the search term. Only supported in
+   * flat mode (ignored when pivoting or in tree mode). Default = false.
+   */
+  readonly disableSearch?: boolean;
+
+  /**
+   * Free-text search term - can operate in controlled or uncontrolled mode.
+   *
+   * In controlled mode: Provide this prop along with onSearchChanged callback.
+   * In uncontrolled mode: Omit this prop to let the grid manage search state
+   * internally.
+   */
+  readonly search?: string;
+
+  /**
+   * Initial search term to apply on first load.
+   * This is ignored in controlled mode (i.e. when `search` is provided).
+   */
+  readonly initialSearch?: string;
+
+  /**
+   * Callback triggered when the search term changes.
+   * Required for controlled mode - when provided with search, the parent
+   * component becomes responsible for updating the search prop.
+   */
+  readonly onSearchChanged?: (search: string) => void;
 }
 
 export interface DataGridApi {
@@ -437,6 +467,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private filters: readonly Filter[] = [];
   private pivot?: Pivot;
   private tree?: IdBasedTree;
+  private search: string = '';
 
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
@@ -466,6 +497,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialTree) {
       this.tree = attrs.initialTree;
     }
+
+    if (attrs.initialSearch !== undefined) {
+      this.search = attrs.initialSearch;
+    }
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -477,6 +512,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       filters,
       pivot,
       tree,
+      search,
       schema,
       rootSchema,
       structuredQueryCompatMode = false,
@@ -484,6 +520,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       toolbarItemsRight,
       showExportButton,
       emptyStateMessage,
+      disableSearch,
     } = attrs;
 
     // Update internal state if any are in controlled mode.
@@ -491,6 +528,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (filters) this.filters = filters;
     if (pivot) this.pivot = pivot;
     if (tree) this.tree = tree;
+    if (search !== undefined) this.search = search;
 
     // Determine if we're in tree mode (has id-based tree config)
     const isTreeMode = this.tree !== undefined;
@@ -625,6 +663,16 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ],
         rightItems: [
           toolbarItemsRight,
+          // Search is only supported in flat mode (not pivot or tree).
+          !disableSearch &&
+            !isPivotMode &&
+            !isTreeMode &&
+            m(TextInput, {
+              leftIcon: 'search',
+              placeholder: 'Search…',
+              value: this.search,
+              onInput: (value: string) => this.updateSearch(value, attrs),
+            }),
           showExportButton &&
             m(DataGridExportButton, {
               onExportData: (format) =>
@@ -746,6 +794,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ...baseModel,
         mode: 'flat',
         sort,
+        search: this.search || undefined,
         filters: [...(this.filters ?? []), ...drillDownFilters],
         columns: this.columns
           .map((col) => ({
@@ -809,6 +858,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ...baseModel,
         mode: 'flat',
         sort,
+        search: this.search || undefined,
         columns: this.columns
           .map((col) => ({
             field: col.field,
@@ -849,6 +899,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private clearFilters(attrs: DataGridAttrs): void {
     this.filters = [];
     attrs.onFiltersChanged?.([]);
+  }
+
+  private updateSearch(search: string, attrs: DataGridAttrs): void {
+    this.search = search;
+    // The result set changes, so jump back to the top.
+    this.paginationOffset = 0;
+    attrs.onSearchChanged?.(search);
   }
 
   private removeFilter(index: number, attrs: DataGridAttrs): void {
