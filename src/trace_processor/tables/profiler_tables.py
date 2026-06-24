@@ -601,6 +601,8 @@ HEAP_GRAPH_TABLE = Table(
         C(
             'ts',
             CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'upid',

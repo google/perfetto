@@ -167,9 +167,6 @@ class ClockTracker {
     return trace_default_clock_;
   }
 
-  std::optional<int64_t> ToTraceTimeFromSnapshot(
-      const std::vector<ClockTimestamp>& snapshot);
-
   std::optional<int64_t> timezone_offset() const;
   void set_timezone_offset(int64_t offset);
 

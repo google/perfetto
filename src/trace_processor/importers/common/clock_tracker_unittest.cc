@@ -130,15 +130,6 @@ TEST_F(ClockTrackerTest, ClockDomainConversions) {
             static_cast<int64_t>(100000 - 1000 + 1e6));
 }
 
-TEST_F(ClockTrackerTest, ToTraceTimeFromSnapshot) {
-  EXPECT_FALSE(ct_->ToTraceTime(REALTIME, 0).has_value());
-
-  EXPECT_EQ(*ct_->ToTraceTimeFromSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}}),
-            10010);
-  EXPECT_EQ(ct_->ToTraceTimeFromSnapshot({{MONOTONIC, 10}, {REALTIME, 10010}}),
-            std::nullopt);
-}
-
 // When a clock moves backwards conversions *from* that clock are forbidden
 // but conversions *to* that clock should still work.
 // Think to the case of REALTIME going backwards from 3AM to 2AM during DST day.

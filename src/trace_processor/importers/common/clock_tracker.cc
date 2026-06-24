@@ -309,19 +309,6 @@ void ClockTracker::BridgeToTraceTime(ClockId clock_id, ClockId trace_time) {
       });
 }
 
-std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(
-    const std::vector<ClockTimestamp>& snapshot) {
-  auto* state = context_->trace_time_state.get();
-  auto it = std::find_if(snapshot.begin(), snapshot.end(),
-                         [state](const ClockTimestamp& clock_timestamp) {
-                           return clock_timestamp.clock.id == state->clock_id;
-                         });
-  if (it == snapshot.end()) {
-    return std::nullopt;
-  }
-  return it->timestamp;
-}
-
 std::optional<int64_t> ClockTracker::timezone_offset() const {
   return context_->trace_time_state->timezone_offset;
 }
