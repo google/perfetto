@@ -246,26 +246,89 @@ void ClockTracker::FlushDeferredClockSync() {
     if (qualified != canonical && !sync_->Convert(qualified, 0, canonical)) {
       AddSnapshotInternal({{qualified, 0}, {canonical, 0}});
     }
-    if (canonical != g && !sync_->Convert(canonical, 0, g)) {
-      AddSnapshotInternal({{canonical, 0}, {g, 0}});
-    }
+    BridgeToTraceTime(canonical, g);
     return;
   }
 
   // The perfetto_manifest clock-pin case: inject the offset edge directly from
-  // this file's (qualified) private clock to the requested target. An omitted
-  // target means trace time; a named target is the machine-canonical builtin so
-  // it connects to the shared graph. Real edges (e.g. a proto spine) win, so
-  // inject only if |from| cannot already reach |to|.
+  // this file's (qualified) private clock to the requested reference clock (its
+  // machine-canonical node, so it joins the shared graph). An omitted target is
+  // trace time itself. Real edges (e.g. a proto spine) win, so inject only if
+  // |from| cannot already reach |to|.
   ClockId from = ClockId::Qualify(sync.from, machine_id_, current_file_tag_);
   ClockId to = sync.to ? ClockId::Qualify(*sync.to, machine_id_, 0) : g;
-  if (from == to) {
+  if (from != to && !sync_->Convert(from, sync.from_ts, to)) {
+    AddSnapshotInternal({{from, sync.from_ts}, {to, sync.to_ts}});
+  }
+  // Then bridge the reference clock to trace time the same way every clock
+  // reaches it. A machine override can put |to| on a non-host machine with no
+  // path to G (its other clocks live in a different machine's domain); this is
+  // what lets independent single-machine captures pinned onto a shared clock
+  // (e.g. REALTIME) line up on one axis without a remote_clock_sync.
+  BridgeToTraceTime(to, g);
+}
+
+void ClockTracker::BridgeToTraceTime(ClockId clock_id, ClockId trace_time) {
+  // Already related to trace time: a real snapshot, an earlier bridge, or
+  // |clock_id| is itself the trace time clock. Nothing to do.
+  if (clock_id == trace_time || sync_->Convert(clock_id, 0, trace_time)) {
     return;
   }
-  if (sync_->Convert(from, sync.from_ts, to)) {
+
+  // Prefer aligning on REALTIME. REALTIME is the same absolute (UTC) clock on
+  // every machine, so if |clock_id| reaches this machine's REALTIME (there is a
+  // path through realtime, i.e. a boot<->realtime snapshot) we tie that
+  // REALTIME to the trace time machine's REALTIME (the global rendezvous node)
+  // with an assume-aligned zero-offset edge, and |clock_id| reaches trace time
+  // through it. Taken only when the rendezvous node itself reaches trace time.
+  // A real cross-machine sync (remote_clock_sync), if present, already connects
+  // the clocks and wins via the early return above.
+  ClockId realtime = ClockId::Qualify(
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME), machine_id_, 0);
+  ClockId global_realtime = ClockId::Machine(
+      trace_time.machine_id, protos::pbzero::BUILTIN_CLOCK_REALTIME);
+  if (realtime != global_realtime && sync_->Convert(clock_id, 0, realtime) &&
+      sync_->Convert(global_realtime, 0, trace_time)) {
+    if (!sync_->Convert(realtime, 0, global_realtime)) {
+      AddSnapshotInternal({{realtime, 0}, {global_realtime, 0}});
+    }
     return;
   }
-  AddSnapshotInternal({{from, sync.from_ts}, {to, sync.to_ts}});
+
+  // Last resort: nothing relates |clock_id| to the global trace time clock.
+  // Inject a zero-offset (assume-aligned) edge only when that assumption is
+  // defensible:
+  //  - either endpoint is a private per-file clock (BUILTIN_CLOCK_TRACE_FILE):
+  //    it has no intrinsic domain and may legitimately map to any clock,
+  //    whether it is the source (e.g. a JSON file) or the trace time itself
+  //    (e.g. a proto with no ClockSnapshot, whose master timeline is the
+  //    synthetic trace-file clock); or
+  //  - the two are the same clock domain on different machines/files (the same
+  //    physical clock, e.g. two machines' BOOTTIME assumed to share a boot
+  //    instant).
+  // Across different real domains (e.g. BOOTTIME vs REALTIME) we do not
+  // fabricate a relationship: the conversion fails so the events are dropped
+  // and logged rather than silently misplaced.
+  bool either_private =
+      clock_id.clock_id == protos::pbzero::BUILTIN_CLOCK_TRACE_FILE ||
+      trace_time.clock_id == protos::pbzero::BUILTIN_CLOCK_TRACE_FILE;
+  if (either_private || clock_id.clock_id == trace_time.clock_id) {
+    AddSnapshotInternal({{clock_id, 0}, {trace_time, 0}});
+    return;
+  }
+
+  // Declined: |clock_id| stays unconnected, so its events fail to convert and
+  // are dropped (and counted by clock_sync_failure_no_path). Record a clear
+  // analysis log explaining why, rather than leaving only that generic
+  // no-path error which advises emitting ClockSnapshots.
+  context_->import_logs_tracker->RecordAnalysisError(
+      stats::clock_sync_unrelatable_clock_domains,
+      [&](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(source_clock_id_key_,
+                        Variadic::Integer(clock_id.clock_id));
+        inserter.AddArg(target_clock_id_key_,
+                        Variadic::Integer(trace_time.clock_id));
+      });
 }
 
 std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(

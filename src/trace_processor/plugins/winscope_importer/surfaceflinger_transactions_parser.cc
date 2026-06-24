@@ -33,7 +33,9 @@ namespace trace_processor {
 
 SurfaceFlingerTransactionsParser::SurfaceFlingerTransactionsParser(
     TraceProcessorContext* context)
-    : context_{context}, args_parser_{*context->descriptor_pool_} {}
+    : context_{context},
+      args_parser_{*context->descriptor_pool_,
+                   *context->storage->mutable_string_pool()} {}
 
 void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
                                              protozero::ConstBytes blob) {

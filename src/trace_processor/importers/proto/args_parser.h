@@ -25,10 +25,11 @@
 namespace perfetto::trace_processor {
 
 // A ProtoToArgsParser::Delegate that writes the parsed proto data into
-// TraceStorage after interning key strings.
+// TraceStorage. Keys arrive already interned (the parser owns key interning).
 class ArgsParser : public util::ProtoToArgsParser::Delegate {
  public:
   using Key = util::ProtoToArgsParser::Key;
+  using Id = StringPool::Id;
 
   ArgsParser(int64_t packet_timestamp,
              ArgsTracker::BoundInserter& inserter,
@@ -36,16 +37,17 @@ class ArgsParser : public util::ProtoToArgsParser::Delegate {
              PacketSequenceStateGeneration* sequence_state = nullptr,
              bool support_json = false);
   ~ArgsParser() override;
-  void AddInteger(const Key&, int64_t) override;
-  void AddUnsignedInteger(const Key&, uint64_t) override;
-  void AddString(const Key&, const protozero::ConstChars&) override;
-  void AddString(const Key&, const std::string&) override;
-  void AddDouble(const Key&, double) override;
-  void AddPointer(const Key&, uint64_t) override;
-  void AddBoolean(const Key&, bool) override;
-  void AddBytes(const Key&, const protozero::ConstBytes&) override;
-  bool AddJson(const Key&, const protozero::ConstChars&) override;
-  void AddNull(const Key&) override;
+  Id InternString(base::StringView) override;
+  void AddInteger(Id flat_key, Id key, int64_t) override;
+  void AddUnsignedInteger(Id flat_key, Id key, uint64_t) override;
+  void AddString(Id flat_key, Id key, const protozero::ConstChars&) override;
+  void AddString(Id flat_key, Id key, const std::string&) override;
+  void AddDouble(Id flat_key, Id key, double) override;
+  void AddPointer(Id flat_key, Id key, uint64_t) override;
+  void AddBoolean(Id flat_key, Id key, bool) override;
+  void AddBytes(Id flat_key, Id key, const protozero::ConstBytes&) override;
+  bool AddJson(Id flat_key, Id key, const protozero::ConstChars&) override;
+  void AddNull(Id flat_key, Id key) override;
   size_t GetArrayEntryIndex(const std::string& array_key) override;
   size_t IncrementArrayEntryIndex(const std::string& array_key) override;
   int64_t packet_timestamp() override;

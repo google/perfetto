@@ -72,30 +72,26 @@ base::Status ParseGenericEvent(const protozero::ConstBytes& cb,
     switch (f.type()) {
       case protozero::proto_utils::ProtoWireType::kLengthDelimited: {
         base::StackString<64> name("field_%u", f.id());
-        std::string name_str = name.ToStdString();
-        util::ProtoToArgsParser::Key key{name_str, name_str};
-        delegate.AddBytes(key, f.as_bytes());
+        auto key = delegate.InternString(name.string_view());
+        delegate.AddBytes(key, key, f.as_bytes());
         break;
       }
       case protozero::proto_utils::ProtoWireType::kVarInt: {
         base::StackString<64> name("field_%u", f.id());
-        std::string name_str = name.ToStdString();
-        util::ProtoToArgsParser::Key key{name_str, name_str};
-        delegate.AddInteger(key, f.as_int64());
+        auto key = delegate.InternString(name.string_view());
+        delegate.AddInteger(key, key, f.as_int64());
         break;
       }
       case protozero::proto_utils::ProtoWireType::kFixed32: {
         base::StackString<64> name("field_%u_assuming_float", f.id());
-        std::string name_str = name.ToStdString();
-        util::ProtoToArgsParser::Key key{name_str, name_str};
-        delegate.AddDouble(key, static_cast<double>(f.as_float()));
+        auto key = delegate.InternString(name.string_view());
+        delegate.AddDouble(key, key, static_cast<double>(f.as_float()));
         break;
       }
       case protozero::proto_utils::ProtoWireType::kFixed64: {
         base::StackString<64> name("field_%u_assuming_double", f.id());
-        std::string name_str = name.ToStdString();
-        util::ProtoToArgsParser::Key key{name_str, name_str};
-        delegate.AddDouble(key, f.as_double());
+        auto key = delegate.InternString(name.string_view());
+        delegate.AddDouble(key, key, f.as_double());
         break;
       }
     }
@@ -112,7 +108,8 @@ StatsdModule::StatsdModule(ProtoImporterModuleContext* module_context,
                            TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_(context),
-      args_parser_(*context_->descriptor_pool_) {
+      args_parser_(*context_->descriptor_pool_,
+                   *context_->storage->mutable_string_pool()) {
   RegisterForField(TracePacket::kStatsdAtomFieldNumber);
   context_->descriptor_pool_->AddFromFileDescriptorSet(
       kAtomsDescriptor.data(), kAtomsDescriptor.size(), {},
