@@ -36,7 +36,7 @@ import {
 } from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {
@@ -595,7 +595,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const areaSelection =
       trace.selection.selection.kind === 'area' && trace.selection.selection;
 
-    assertExists(this.interactions).update([
+    ensureExists(this.interactions).update([
       shiftDragPanInteraction(trace, timelineRect, timescale),
       areaSelection !== false && {
         id: 'start-edit',

@@ -63,7 +63,7 @@ import type {Trace} from '../../public/trace';
 import {renderSliceArguments} from '../../components/details/slice_args';
 import {TrackEventRef} from '../../components/widgets/track_event_ref';
 import {SLICE_TABLE} from '../../components/widgets/sql/table_definitions';
-import {assertExists, assertTrue} from '../../base/assert';
+import {ensureExists, assertTrue} from '../../base/assert';
 import {
   EVENT_LATENCY_TRACK,
   SCROLL_TIMELINE_TRACK,
@@ -534,7 +534,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderRelatedTrackReferences(): m.Child {
-    const references = assertExists(this.references);
+    const references = ensureExists(this.references);
     const children: m.Children = [];
     if (references.scrollUpdatePluginSliceId !== undefined) {
       children.push(
@@ -567,7 +567,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderStdlibReferences(): m.Child {
-    const references = assertExists(this.references);
+    const references = ensureExists(this.references);
     return m(
       TreeNode,
       {
@@ -596,7 +596,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private getStageReferences(): m.Child {
-    const parent = assertExists(this.references!.parent);
+    const parent = ensureExists(this.references!.parent);
     return trackEventRefTreeNode({
       trace: this.trace,
       table: EVENT_LATENCY_TRACK.tableName,

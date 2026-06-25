@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists, assertUnreachable} from '../../base/assert';
+import {ensureExists, assertUnreachable} from '../../base/assert';
 import {findRef} from '../../base/dom_utils';
 import type {Size2D} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
@@ -65,7 +65,7 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
   }
 
   private renderBrushes(trace: TraceImpl, element: Element) {
-    const timeline = assertExists(findRef(element, MINIMAP_REF));
+    const timeline = ensureExists(findRef(element, MINIMAP_REF));
     const timelineWidth = timeline.getBoundingClientRect().width;
     const traceTime = trace.traceInfo;
     const pxBounds = {left: 0, right: timelineWidth};

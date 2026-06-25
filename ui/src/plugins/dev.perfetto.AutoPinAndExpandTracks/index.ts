@@ -18,7 +18,7 @@ import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Track} from '../../public/track';
 import {z} from 'zod';
-import {assertIsInstance} from '../../base/assert';
+import {ensureIsInstance} from '../../base/assert';
 import type {RouteArg, RouteArgs} from '../../public/route_schema';
 import {arrayEquals} from '../../base/array_utils';
 
@@ -182,7 +182,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
       name: 'Import by name: Pinned tracks',
       callback: async () => {
         const files = document.querySelector('.pinned_tracks_import_selector');
-        assertIsInstance<HTMLInputElement>(files, HTMLInputElement).click();
+        ensureIsInstance(files, HTMLInputElement).click();
       },
     });
 

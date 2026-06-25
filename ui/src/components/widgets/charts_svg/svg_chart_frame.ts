@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {SimpleResizeObserver} from '../../../base/resize_observer';
 import {Spinner} from '../../../widgets/spinner';
-import {assertIsInstance} from '../../../base/assert';
+import {ensureIsInstance} from '../../../base/assert';
 
 export interface SvgChartFrameAttrs {
   /** Show a spinner instead of the chart. */
@@ -51,7 +51,7 @@ export class SvgChartFrame implements m.ClassComponent<SvgChartFrameAttrs> {
   private prevH = 0;
 
   oncreate({dom, attrs}: m.CVnodeDOM<SvgChartFrameAttrs>) {
-    this.container = assertIsInstance(dom, HTMLElement);
+    this.container = ensureIsInstance(dom, HTMLElement);
     this.currentAttrs = attrs;
     const {width, height} = this.container.getBoundingClientRect();
     this.prevW = width;
@@ -68,7 +68,7 @@ export class SvgChartFrame implements m.ClassComponent<SvgChartFrameAttrs> {
   }
 
   onupdate({dom, attrs}: m.CVnodeDOM<SvgChartFrameAttrs>) {
-    this.container = assertIsInstance(dom, HTMLElement);
+    this.container = ensureIsInstance(dom, HTMLElement);
     this.currentAttrs = attrs;
     const {width, height} = this.container.getBoundingClientRect();
     this.prevW = width;

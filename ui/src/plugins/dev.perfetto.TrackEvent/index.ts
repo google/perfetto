@@ -25,7 +25,7 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
-import {assertExists, assertTrue} from '../../base/assert';
+import {ensureExists, assertTrue} from '../../base/assert';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {createTraceProcessorStateTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_state_track';
@@ -359,7 +359,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(FlamegraphPanel, {
@@ -458,7 +458,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Symbol',
     });
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
@@ -478,13 +478,13 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     hasChildren: number,
   ): TrackNode {
     if (parentId !== undefined) {
-      return assertExists(trackIdToTrackNode.get(parentId));
+      return ensureExists(trackIdToTrackNode.get(parentId));
     }
     if (utid !== undefined) {
-      return assertExists(processGroupsPlugin.getGroupForThread(utid));
+      return ensureExists(processGroupsPlugin.getGroupForThread(utid));
     }
     if (upid !== undefined) {
-      return assertExists(processGroupsPlugin.getGroupForProcess(upid));
+      return ensureExists(processGroupsPlugin.getGroupForProcess(upid));
     }
     if (hasChildren) {
       return ctx.defaultWorkspace.tracks;

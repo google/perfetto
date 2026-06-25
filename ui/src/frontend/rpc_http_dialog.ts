@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import protos from '../protos';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {VERSION} from '../virtual/version';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
@@ -155,7 +155,7 @@ export async function checkHttpRpcConnection(): Promise<void> {
     // No RPC = exit immediately to the WASM UI.
     return;
   }
-  const tpStatus = assertExists(state.status);
+  const tpStatus = ensureExists(state.status);
 
   function forceWasm() {
     AppImpl.instance.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';

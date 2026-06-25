@@ -22,7 +22,7 @@ import {
   NUM_NULL,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
@@ -86,7 +86,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
       join thread using (utid)
       where callsite_id is not null and upid is not null
     `);
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     for (const it = pResult.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       const uri = makeUriForProc(upid);
@@ -195,7 +195,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
         if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(FlamegraphPanel, {
@@ -248,7 +248,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
       dependencySql: 'include perfetto module appleos.instruments.samples',
       nameColumnLabel: 'Symbol',
     });
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
@@ -260,7 +260,7 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
 }
 
 async function selectInstrumentsSample(ctx: Trace) {
-  const profile = await assertExists(ctx.engine).query(`
+  const profile = await ensureExists(ctx.engine).query(`
     select upid
     from instruments_sample
     join thread using (utid)
@@ -291,7 +291,7 @@ function getUpidsFromInstrumentsSampleAreaSelection(
       ) &&
       trackInfo.tags?.utid === undefined
     ) {
-      upids.push(assertExists(trackInfo.tags?.upid));
+      upids.push(ensureExists(trackInfo.tags?.upid));
     }
   }
   return upids;

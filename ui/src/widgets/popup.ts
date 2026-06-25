@@ -19,7 +19,7 @@ import m from 'mithril';
 import {type MountOptions, Portal, type PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, isOrContains, toHTMLElement} from '../base/dom_utils';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import type {ExtendedModifiers} from './popper_utils';
 
 // Note: We could just use the Placement type from popper.js instead, which is a
@@ -257,7 +257,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       },
       onContentMount: (dom: HTMLElement) => {
         const popupElement = toHTMLElement(
-          assertExists(findRef(dom, Popup.POPUP_REF)),
+          ensureExists(findRef(dom, Popup.POPUP_REF)),
         );
         this.popupElement = popupElement;
         this.createOrUpdatePopper(attrs);
@@ -305,7 +305,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   }
 
   oncreate({dom}: m.VnodeDOM<PopupAttrs, this>) {
-    this.triggerElement = assertExists(findRef(dom, Popup.TRIGGER_REF));
+    this.triggerElement = ensureExists(findRef(dom, Popup.TRIGGER_REF));
   }
 
   onupdate({attrs}: m.VnodeDOM<PopupAttrs, this>) {
@@ -477,8 +477,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
 
   private eventInPopupOrTrigger(e: Event): boolean {
     const target = e.target as HTMLElement;
-    const onTrigger = isOrContains(assertExists(this.triggerElement), target);
-    const onPopup = isOrContains(assertExists(this.popupElement), target);
+    const onTrigger = isOrContains(ensureExists(this.triggerElement), target);
+    const onPopup = isOrContains(ensureExists(this.popupElement), target);
     return onTrigger || onPopup;
   }
 

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer, type Deferred} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/assert';
+import {ensureExists, assertTrue} from '../base/assert';
 import {exists} from '../base/utils';
 import type {TraceChunk, TraceStream} from '../public/stream';
 
@@ -44,13 +44,13 @@ export class TraceFileStream implements TraceStream {
   }
 
   private onLoad() {
-    const pendingRead = assertExists(this.pendingRead);
+    const pendingRead = ensureExists(this.pendingRead);
     this.pendingRead = undefined;
     if (this.reader.error) {
       pendingRead.reject(this.reader.error);
       return;
     }
-    const res = assertExists(this.reader.result) as ArrayBuffer;
+    const res = ensureExists(this.reader.result) as ArrayBuffer;
     this.bytesRead += res.byteLength;
     pendingRead.resolve({
       data: new Uint8Array(res),
