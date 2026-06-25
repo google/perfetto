@@ -634,16 +634,11 @@ void GpuEventParser::ParseExtraComputeArg(
   } else if (arg.has_double_value()) {
     inserter->AddArg(name_id, Variadic::Real(arg.double_value()));
   } else if (arg.has_string_value_iid()) {
-    auto* interned = sequence_state->LookupInternedMessage<
-        protos::pbzero::InternedData::kDebugAnnotationStringValuesFieldNumber,
-        protos::pbzero::InternedString>(
-        static_cast<size_t>(arg.string_value_iid()));
-    if (interned) {
-      inserter->AddArg(
-          name_id,
-          Variadic::String(context_->storage->InternString(base::StringView(
-              reinterpret_cast<const char*>(interned->str().data),
-              interned->str().size))));
+    if (auto id = sequence_state->InternedStringId(
+            protos::pbzero::InternedData::
+                kDebugAnnotationStringValuesFieldNumber,
+            arg.string_value_iid())) {
+      inserter->AddArg(name_id, Variadic::String(*id));
     }
   } else if (arg.has_string_value()) {
     inserter->AddArg(

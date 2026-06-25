@@ -41,7 +41,11 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
     : ProtoImporterModule(module_context),
       track_event_tracker_(new TrackEventTracker(context)),
       tokenizer_(module_context, context, track_event_tracker_.get()),
-      parser_(context, track_event_tracker_.get()) {
+      parser_(&plugin_context_, context, track_event_tracker_.get()) {
+  // Register compiled-in TrackEvent extension plugins here, e.g.:
+  //   plugin_context_.plugins.emplace_back(
+  //       std::make_unique<FooPlugin>(&plugin_context_, context));
+
   RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber);
   RegisterForField(TracePacket::kTrackEventFieldNumber);
   RegisterForField(TracePacket::kTrackDescriptorFieldNumber);
@@ -59,47 +63,38 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
 
 TrackEventModule::~TrackEventModule() = default;
 
-ModuleResult TrackEventModule::TokenizePacket(
-    const TracePacket::Decoder& decoder,
-    TraceBlobView* packet,
-    int64_t packet_timestamp,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) {
-  switch (field_id) {
+ModuleResult TrackEventModule::TokenizePacket(const TokenizePacketArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kTrackEventRangeOfInterestFieldNumber:
-      return tokenizer_.TokenizeRangeOfInterestPacket(std::move(state), decoder,
-                                                      packet, packet_timestamp);
+      return tokenizer_.TokenizeRangeOfInterestPacket(args);
     case TracePacket::kTrackDescriptorFieldNumber:
-      return tokenizer_.TokenizeTrackDescriptorPacket(std::move(state), decoder,
-                                                      packet, packet_timestamp);
+      return tokenizer_.TokenizeTrackDescriptorPacket(args);
     case TracePacket::kTrackEventFieldNumber:
-      return tokenizer_.TokenizeTrackEventPacket(std::move(state), decoder,
-                                                 packet, packet_timestamp);
+      return tokenizer_.TokenizeTrackEventPacket(args);
     case TracePacket::kThreadDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      return tokenizer_.TokenizeThreadDescriptorPacket(std::move(state),
-                                                       decoder, packet);
+      return tokenizer_.TokenizeThreadDescriptorPacket(args);
   }
   return ModuleResult::Ignored();
 }
 
-void TrackEventModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
-                                            int64_t ts,
-                                            const TracePacketData&,
-                                            uint32_t field_id) {
-  switch (field_id) {
+void TrackEventModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kTrackDescriptorFieldNumber:
-      parser_.ParseTrackDescriptor(ts, decoder.track_descriptor(),
-                                   decoder.trusted_packet_sequence_id());
+      parser_.ParseTrackDescriptor(
+          args.ts, args.field.Cast<TracePacket::kTrackDescriptor>(),
+          args.decoder.trusted_packet_sequence_id());
       break;
     case TracePacket::kProcessDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      parser_.ParseProcessDescriptor(ts, decoder.process_descriptor());
+      parser_.ParseProcessDescriptor(
+          args.ts, args.field.Cast<TracePacket::kProcessDescriptor>());
       break;
     case TracePacket::kThreadDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      parser_.ParseThreadDescriptor(decoder.thread_descriptor(),
-                                    /*is_sandboxed=*/false);
+      parser_.ParseThreadDescriptor(
+          args.field.Cast<TracePacket::kThreadDescriptor>(),
+          /*is_sandboxed=*/false);
       break;
     case TracePacket::kTrackEventFieldNumber:
       PERFETTO_DFATAL("Wrong TracePacket number");

@@ -401,14 +401,6 @@ message Geometry {
   // hit-testable in the DOM.
   BoundingRect visible_bounding_box = 2 [features = { field_presence: EXPLICIT }];
 
-  // The bounding box of the content node relative to the viewport including all
-  // ancestor clipping. This is conceptually the same as `visible_bounding_box`,
-  // but with coordinates calculated by the compositor on the client side. This
-  // geometry should be more in sync with the browser screenshot, and should be
-  // used for screenshot redaction when present. See crbug.com/441532128 for more
-  // details.
-  BoundingRect compositor_bounding_box = 7 [features = { field_presence: EXPLICIT }];
-
   // Multiple boxes are used when there are multiple rectangles belonging to
   // the same node, e.g.: across multiple lines, columns or pages. In layout
   // terms, a node that does this is called a fragmentainer.
@@ -428,7 +420,7 @@ message Geometry {
   // The computed CSS position property.
   CssPosition css_position = 8 [features = { field_presence: EXPLICIT }];
 
-  reserved 4, 5;
+  reserved 4, 5, 7;
 }
 
 message BoundingRect {
@@ -608,12 +600,16 @@ message TextStyle {
 }
 
 // Information about the image. In the future, this may include a pixmap.
-// Next ID: 5
+// Next ID: 6
 message ImageInfo {
   string image_caption = 2 [features = { field_presence: EXPLICIT }];
 
   // Provides the source origin for the image.
   SecurityOrigin security_origin = 4 [features = { field_presence: EXPLICIT }];
+
+  // The image's source (`src`) URL. If redirected, this remains the original
+  // URL, not the final resolved destination.
+  string url = 5 [features = { field_presence: EXPLICIT }];
 
   reserved 1, 3;
 }
@@ -822,7 +818,7 @@ message FrameData {
 
   // Positive used line height in CSS px. Needed for scaling-proof
   // geometry rules (e.g. menu popup heuristics expecting a minimum size).
-  int32 default_line_height_px = 12 [features = { field_presence: EXPLICIT }];
+  uint32 default_line_height_px = 12 [features = { field_presence: EXPLICIT }];
 
   reserved 7, 10;
 }
@@ -986,6 +982,7 @@ message PageInteractionInfo {
 
   // The content node ID of the content node that is currently focused by a
   // screen reader. If this is set, it means that a screen reader is being used.
+  // This is only tracked for the main frame.
   // TODO(linnan): Deprecate this field in favor of
   // FrameInteractionInfo.accessibility_focused_node_id.
   int32 accessibility_focused_node_id = 2 [features = { field_presence: EXPLICIT }];
@@ -998,7 +995,7 @@ message PageInteractionInfo {
 
   // The identifier of the frame that currently has accessibility focus. If the
   // field is present but the identifier is empty, it means no frame has
-  // accessibility focus.
+  // accessibility focus. This could be main frame or an iframe.
   DocumentIdentifier accessibility_focused_frame = 5 [features = { field_presence: EXPLICIT }];
 }
 
@@ -1068,10 +1065,27 @@ message GeminiInChromePageMetadata {
 // The screenshot information for the page. While the screenshot is not
 // conveyed in the parent message, this metadata should be used to inform the
 // model about the screenshot.
-// Next ID: 2
+// Next ID: 3
 message ScreenshotInfo {
   // Whether the screenshot contains a selection region.
   bool has_selection_region_in_screenshot = 1 [features = { field_presence: EXPLICIT }];
+
+  // Information about the iframes in the screenshot.
+  repeated IframeInfo iframe_info = 2;
+}
+
+// Information about an iframe in the screenshot.
+// Next ID: 4
+message IframeInfo {
+  // The security origin of the iframe.
+  SecurityOrigin security_origin = 1 [features = { field_presence: EXPLICIT }];
+
+  // The URL of the iframe.
+  string url = 2 [features = { field_presence: EXPLICIT }];
+
+  // The bounding box of the iframe node in the coordinate space of the
+  // screenshot, including all ancestor clipping.
+  BoundingRect bounding_box = 3 [features = { field_presence: EXPLICIT }];
 }
 
 // Uniquely identifies a DOM elements across all frames.
@@ -1163,18 +1177,6 @@ message FormFieldData {
 
 message TableRow {
   repeated ContentNode cells = 1;
-}
-
-message UserAnnotationsEntry {
-  // The row ID of this entry from the user annotations database. This is
-  // immutable except when retrieving the row from the database.
-  int64 entry_id = 1 [features = { field_presence: EXPLICIT }];
-
-  // The key for this entry. Not necessarily unique.
-  string key = 2 [features = { field_presence: EXPLICIT }];
-
-  // The value for this entry.
-  string value = 3 [features = { field_presence: EXPLICIT }];
 }
 
 message TabGroup {
@@ -1842,7 +1844,7 @@ enum AXRole {
 }
 
 // AX String attribute enum.
-// Next ID: 43
+// Next ID: 47
 enum AXStringAttribute {
   AX_SA_NONE = 0;
 
@@ -1929,6 +1931,14 @@ enum AXStringAttribute {
   AX_SA_DATETIME = 41;
 
   AX_SA_HTMLINPUTNAME = 42;
+
+  AX_SA_MATHARG = 43;
+
+  AX_SA_MATHINTENT = 44;
+
+  AX_SA_CANVASANNOTATION = 45;
+
+  AX_SA_ARIAVALUETEXT = 46;
 }
 
 // AX Int attribute enum.
@@ -2269,7 +2279,7 @@ enum AnnotatedPageContentMode {
 // When adding new types, please also update AIPageContentAttributeType in
 // third_party/blink/public/mojom/content_extraction/ai_page_content.mojom.
 // See crrev.com/c/6072788 for an example.
-// Next ID: 28
+// Next ID: 30
 enum ContentAttributeType {
   // Unknown is not a valid attribute type and should never be used by the
   // client. You can consider discarding ContentNodes with this attribute type.
@@ -2316,6 +2326,11 @@ enum ContentAttributeType {
   CONTENT_ATTRIBUTE_TABLE_ROW = 21;
 
   CONTENT_ATTRIBUTE_TABLE_CELL = 11;
+
+  // Dialog/modal containers.
+  CONTENT_ATTRIBUTE_DIALOG_MODAL = 28;
+
+  CONTENT_ATTRIBUTE_DIALOG_MODELESS = 29;
 
   reserved 12, 13, 14, 15, 16, 17, 18, 19;
 }

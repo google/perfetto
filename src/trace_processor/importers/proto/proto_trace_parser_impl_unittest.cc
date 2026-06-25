@@ -233,7 +233,7 @@ class MockProcessTracker : public ProcessTracker {
 class MockBoundInserter : public ArgsTracker::BoundInserter {
  public:
   MockBoundInserter()
-      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u, 0u),
+      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u, 0u, 0u),
         tracker_(nullptr) {
     ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
   }
@@ -294,8 +294,7 @@ class ProtoTraceParserTest : public ::testing::Test {
         context_.trace_time_state.get(),
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.clock_tracker = std::make_unique<ClockTracker>(
-        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
-        primary_sync_.get(), true);
+        &context_, primary_sync_.get(), /*is_primary=*/true);
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(

@@ -461,12 +461,23 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
         ResolveShortType(check.extendee_full_name, check.existing_raw_type);
     std::optional<uint32_t> opt_new_idx =
         ResolveShortType(check.extendee_full_name, check.new_raw_type);
+    // Both types must resolve before we can compare; either can be absent.
+    //  - existing: TP's pool may reference a type whose definition wasn't
+    //  loaded.
+    //  - new: trace's descriptor may name a type without including its
+    //  definition.
     if (!opt_existing_idx.has_value() || !opt_new_idx.has_value()) {
-      return base::ErrStatus(
-          "Field %s re-introduced as %s (was %s): cannot verify "
-          "compatibility because a type could not be resolved",
+      // A type isn't in the pool: normal for a trace recorded before an
+      // out-of-tree migration renamed it. Can't compare structurally, but the
+      // tag and wire type already matched and the existing definition is kept,
+      // so the field still decodes. Tolerate rather than reject the trace.
+      // TODO(b/524094370): harden this once OOT migrations stabilize.
+      PERFETTO_DLOG(
+          "Field %s re-introduced as %s (was %s): unresolved type, "
+          "skipping compatibility check",
           check.field_name.c_str(), check.new_raw_type.c_str(),
           check.existing_raw_type.c_str());
+      continue;
     }
     std::set<CanonicalDescriptorPair> comparisons_in_progress;
     if (!DescriptorsStructurallyEqual(opt_existing_idx.value(),

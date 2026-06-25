@@ -86,6 +86,23 @@ constexpr auto kGlobalTrackBlueprint = tracks::SliceBlueprint(
     tracks::DimensionBlueprints(tracks::LongDimensionBlueprint("track_uuid")),
     tracks::DynamicNameBlueprint());
 
+constexpr auto kThreadStateTrackBlueprint = tracks::StateBlueprint(
+    "thread_state_track_event",
+    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint,
+                                tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kProcessStateTrackBlueprint = tracks::StateBlueprint(
+    "process_state_track_event",
+    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
+                                tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kGlobalStateTrackBlueprint = tracks::StateBlueprint(
+    "global_state_track_event",
+    tracks::DimensionBlueprints(tracks::LongDimensionBlueprint("track_uuid")),
+    tracks::DynamicNameBlueprint());
+
 constexpr auto kThreadTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
     "thread_merged_track_event",
     tracks::DimensionBlueprints(
@@ -248,6 +265,18 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
       context_->process_tracker->GetTrustedPid(uuid);
   DescriptorTrackReservation& reservation = state_ptr->reservation;
 
+  bool process_ordering_explicit = false;
+  bool thread_ordering_explicit = false;
+  if (State* root_state =
+          descriptor_tracks_state_.Find(kDefaultDescriptorTrackUuid)) {
+    process_ordering_explicit =
+        (root_state->reservation.process_ordering ==
+         DescriptorTrackReservation::ProcessOrdering::kExplicit);
+    thread_ordering_explicit =
+        (root_state->reservation.thread_ordering ==
+         DescriptorTrackReservation::ThreadOrdering::kExplicit);
+  }
+
   // Try to resolve to root-level pid and tid if the process is pid-namespaced.
   if (trusted_pid && reservation.pid) {
     std::optional<uint32_t> resolved_pid =
@@ -300,7 +329,13 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
           *reservation.tid, *reservation.pid);
       PERFETTO_CHECK(updated_utid == utid);
     }
-    return ResolvedDescriptorTrack::Thread(utid, reservation.is_counter, true);
+    if (thread_ordering_explicit && reservation.sibling_order_rank) {
+      context_->process_tracker->SetThreadSortIndex(
+          utid, *reservation.sibling_order_rank,
+          SortIndexPriority::kTrackDescriptor);
+    }
+    return ResolvedDescriptorTrack::Thread(utid, reservation.is_counter,
+                                           reservation.is_state, true);
   }
 
   if (reservation.pid) {
@@ -325,24 +360,31 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
           std::nullopt, std::nullopt, *reservation.pid, kNullStringId,
           ThreadNamePriority::kTrackDescriptor);
     }
-    return ResolvedDescriptorTrack::Process(upid, reservation.is_counter, true);
+    if (process_ordering_explicit && reservation.sibling_order_rank) {
+      context_->process_tracker->SetProcessSortIndex(
+          upid, *reservation.sibling_order_rank,
+          SortIndexPriority::kTrackDescriptor);
+    }
+    return ResolvedDescriptorTrack::Process(upid, reservation.is_counter,
+                                            reservation.is_state, true);
   }
 
   if (parent_resolved_track) {
     switch (parent_resolved_track->scope()) {
       case ResolvedDescriptorTrack::Scope::kThread:
-        return ResolvedDescriptorTrack::Thread(parent_resolved_track->utid(),
-                                               reservation.is_counter,
-                                               false /* is_root */);
+        return ResolvedDescriptorTrack::Thread(
+            parent_resolved_track->utid(), reservation.is_counter,
+            reservation.is_state, false /* is_root */);
       case ResolvedDescriptorTrack::Scope::kProcess:
-        return ResolvedDescriptorTrack::Process(parent_resolved_track->upid(),
-                                                reservation.is_counter,
-                                                false /* is_root*/);
+        return ResolvedDescriptorTrack::Process(
+            parent_resolved_track->upid(), reservation.is_counter,
+            reservation.is_state, false /* is_root*/);
       case ResolvedDescriptorTrack::Scope::kGlobal:
         break;
     }
   }
-  return ResolvedDescriptorTrack::Global(reservation.is_counter);
+  return ResolvedDescriptorTrack::Global(reservation.is_counter,
+                                         reservation.is_state);
 }
 
 std::optional<std::variant<TrackId, TrackCompressor::TrackFactory>>
@@ -396,7 +438,8 @@ TrackEventTracker::InternDescriptorTrackImpl(
               tracks::DynamicUnit(reservation->counter_details->unit));
         } else if (reservation->use_separate_track) {
           return context_->track_tracker->InternTrack(
-              kThreadTrackBlueprint,
+              resolved->is_state() ? kThreadStateTrackBlueprint
+                                   : kThreadTrackBlueprint,
               tracks::Dimensions(resolved->utid(), static_cast<int64_t>(uuid)),
               tracks::DynamicName(reservation->name), args_fn_root);
         }
@@ -413,7 +456,8 @@ TrackEventTracker::InternDescriptorTrackImpl(
               tracks::DynamicUnit(reservation->counter_details->unit));
         }
         return context_->track_tracker->InternTrack(
-            kProcessTrackBlueprint,
+            resolved->is_state() ? kProcessStateTrackBlueprint
+                                 : kProcessTrackBlueprint,
             tracks::Dimensions(resolved->upid(), static_cast<int64_t>(uuid)),
             tracks::DynamicName(translated_name), args_fn_root);
       }
@@ -455,9 +499,11 @@ TrackEventTracker::InternDescriptorTrackImpl(
           }
           return id;
         }
-        if (reservation->sibling_merge_behavior == M::kNone) {
+        if (reservation->sibling_merge_behavior == M::kNone ||
+            reservation->is_state) {
           TrackId id = context_->track_tracker->InternTrack(
-              kThreadTrackBlueprint,
+              reservation->is_state ? kThreadStateTrackBlueprint
+                                    : kThreadTrackBlueprint,
               tracks::Dimensions(parent_resolved_track->utid(),
                                  static_cast<int64_t>(uuid)),
               tracks::DynamicName(name), args_fn_non_root);
@@ -504,9 +550,11 @@ TrackEventTracker::InternDescriptorTrackImpl(
         }
         StringId translated_name =
             context_->process_track_translation_table->TranslateName(name);
-        if (reservation->sibling_merge_behavior == M::kNone) {
+        if (reservation->sibling_merge_behavior == M::kNone ||
+            reservation->is_state) {
           TrackId id = context_->track_tracker->InternTrack(
-              kProcessTrackBlueprint,
+              reservation->is_state ? kProcessStateTrackBlueprint
+                                    : kProcessTrackBlueprint,
               tracks::Dimensions(parent_resolved_track->upid(),
                                  static_cast<int64_t>(uuid)),
               tracks::DynamicName(translated_name), args_fn_non_root);
@@ -547,9 +595,12 @@ TrackEventTracker::InternDescriptorTrackImpl(
     set_parent_id(id);
     return id;
   }
-  if (reservation->sibling_merge_behavior == M::kNone) {
+  if (reservation->sibling_merge_behavior == M::kNone ||
+      reservation->is_state) {
     TrackId id = context_->track_tracker->InternTrack(
-        kGlobalTrackBlueprint, tracks::Dimensions(static_cast<int64_t>(uuid)),
+        reservation->is_state ? kGlobalStateTrackBlueprint
+                              : kGlobalTrackBlueprint,
+        tracks::Dimensions(static_cast<int64_t>(uuid)),
         tracks::DynamicName(name),
         is_root_in_scope ? args_fn_root : args_fn_non_root);
     set_parent_id(id);
@@ -695,10 +746,12 @@ void TrackEventTracker::RecordTrackError(size_t stat_key, uint64_t track_uuid) {
 TrackEventTracker::ResolvedDescriptorTrack
 TrackEventTracker::ResolvedDescriptorTrack::Process(UniquePid upid,
                                                     bool is_counter,
+                                                    bool is_state,
                                                     bool is_root) {
   ResolvedDescriptorTrack track;
   track.scope_ = Scope::kProcess;
   track.is_counter_ = is_counter;
+  track.is_state_ = is_state;
   track.upid_ = upid;
   track.is_root_ = is_root;
   return track;
@@ -707,20 +760,24 @@ TrackEventTracker::ResolvedDescriptorTrack::Process(UniquePid upid,
 TrackEventTracker::ResolvedDescriptorTrack
 TrackEventTracker::ResolvedDescriptorTrack::Thread(UniqueTid utid,
                                                    bool is_counter,
+                                                   bool is_state,
                                                    bool is_root) {
   ResolvedDescriptorTrack track;
   track.scope_ = Scope::kThread;
   track.is_counter_ = is_counter;
+  track.is_state_ = is_state;
   track.utid_ = utid;
   track.is_root_ = is_root;
   return track;
 }
 
 TrackEventTracker::ResolvedDescriptorTrack
-TrackEventTracker::ResolvedDescriptorTrack::Global(bool is_counter) {
+TrackEventTracker::ResolvedDescriptorTrack::Global(bool is_counter,
+                                                   bool is_state) {
   ResolvedDescriptorTrack track;
   track.scope_ = Scope::kGlobal;
   track.is_counter_ = is_counter;
+  track.is_state_ = is_state;
   track.is_root_ = false;
   return track;
 }

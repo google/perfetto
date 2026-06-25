@@ -38,8 +38,8 @@ class ViewCaptureArgsParser : public ArgsParser {
                         PacketSequenceStateGeneration* sequence_state,
                         tables::ViewCaptureTable::RowReference* snapshot_row,
                         tables::ViewCaptureViewTable::RowReference* view_row);
-  void AddInteger(const Key&, int64_t) override;
-  void AddUnsignedInteger(const Key&, uint64_t) override;
+  void AddInteger(Id flat_key, Id key, int64_t) override;
+  void AddUnsignedInteger(Id flat_key, Id key, uint64_t) override;
 
   base::FlatHashMap<StringId, IidToStringMap> flat_key_to_iid_args;
 

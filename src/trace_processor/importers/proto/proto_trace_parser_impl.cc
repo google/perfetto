@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,19 +28,23 @@
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -53,6 +58,7 @@
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
+#include "protos/perfetto/trace/profiling/art_process_metadata.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -77,22 +83,22 @@ ProtoTraceParserImpl::~ProtoTraceParserImpl() = default;
 
 void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
   const TraceBlobView& blob = data.packet;
-  protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   // TODO(eseckler): Propagate statuses from modules.
   auto& modules = module_context_->modules_by_field;
-  // GetExtensionSlowly() (not Get()) so modules registered for out-of-tree
-  // extension field ids in the `extensions 1000 to 1999` range are dispatched:
-  // Get() can't see fields beyond the highest in-tree field id. It fast-paths
-  // in-tree ids, and the scan only runs for the (rare) registered high ids.
-  for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
-    if (!modules[field_id].empty() &&
-        packet.GetExtensionSlowly(field_id).valid()) {
-      for (ProtoImporterModule* module : modules[field_id])
-        module->ParseTracePacketData(packet, ts, data, field_id);
-      return;
-    }
+  // One pass over the packet: the first registered field found wins. This
+  // also covers fields in the out-of-tree `extensions 1000 to 1999` range,
+  // which a typed decoder would not store. Packets claimed by a module skip
+  // the full typed decode below entirely.
+  SelectiveTracePacketDecoder packet_fields(blob.data(), blob.length());
+  for (const protozero::Field& f : packet_fields.unknown_fields()) {
+    if (f.id() >= modules.size() || modules[f.id()].empty())
+      continue;
+    for (ProtoImporterModule* module : modules[f.id()])
+      module->ParseField({packet_fields, ts, data, TracePacketField(f)});
+    return;
   }
 
+  protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   if (packet.has_chrome_events()) {
     ParseChromeEvents(ts, packet.chrome_events());
   }

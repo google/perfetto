@@ -39,6 +39,7 @@ void ResetForTesting() {
 
 struct PerfettoProducerBackendInitArgs {
   uint32_t shmem_size_hint_kb = 0;
+  uint32_t machine_id = 0;
 };
 
 struct PerfettoProducerBackendInitArgs*
@@ -52,6 +53,12 @@ void PerfettoProducerBackendInitArgsSetShmemSizeHintKb(
   backend_args->shmem_size_hint_kb = size;
 }
 
+void PerfettoProducerBackendInitArgsSetMachineId(
+    struct PerfettoProducerBackendInitArgs* backend_args,
+    uint32_t machine_id) {
+  backend_args->machine_id = machine_id;
+}
+
 void PerfettoProducerBackendInitArgsDestroy(
     struct PerfettoProducerBackendInitArgs* backend_args) {
   delete backend_args;
@@ -62,6 +69,7 @@ void PerfettoProducerInProcessInit(
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kInProcessBackend;
   args.shmem_size_hint_kb = backend_args->shmem_size_hint_kb;
+  args.machine_id = backend_args->machine_id;
   perfetto::Tracing::Initialize(args);
 }
 

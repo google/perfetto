@@ -43,7 +43,6 @@ class PrimesTraceTokenizer : public ChunkedTraceReader {
  private:
   util::TraceBlobViewReader reader_;
   TraceProcessorContext* const context_;
-  ClockTracker::ClockId trace_file_clock_;
   std::unique_ptr<TraceSorter::Stream<TraceBlobView>> stream_;
 };
 

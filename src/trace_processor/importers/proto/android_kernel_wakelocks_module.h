@@ -40,10 +40,7 @@ class AndroidKernelWakelocksModule : public ProtoImporterModule {
 
   ~AndroidKernelWakelocksModule() override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData&,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
  private:
   void UpdateCounter(int64_t ts,

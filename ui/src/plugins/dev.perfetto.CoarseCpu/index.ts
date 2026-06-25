@@ -20,7 +20,7 @@ import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
@@ -118,12 +118,14 @@ export default class implements PerfettoPlugin {
         extract_arg(ct.dimension_arg_set_id, 'cpu') as cpu,
         extract_arg(ct.dimension_arg_set_id, 'cpustat_key') as metric,
         ct.machine_id as machineId,
+        machine.name as machineName,
         ifnull(cpu.ucpu, extract_arg(ct.dimension_arg_set_id, 'cpu')) as ucpu
       from counter_track ct
       join _counter_track_summary using (id)
       left join cpu
         on cpu.cpu = extract_arg(ct.dimension_arg_set_id, 'cpu')
        and cpu.machine_id = ct.machine_id
+      left join machine on machine.id = ct.machine_id
       where ct.type = 'cpustat'
       order by metric, ucpu
     `);
@@ -133,6 +135,7 @@ export default class implements PerfettoPlugin {
       cpu: NUM,
       metric: STR,
       machineId: NUM,
+      machineName: STR_NULL,
       ucpu: NUM,
     });
     if (!it.valid()) return;
@@ -144,7 +147,7 @@ export default class implements PerfettoPlugin {
     const metricGroups = new Map<string, TrackNode>();
 
     for (; it.valid(); it.next()) {
-      const {trackId, cpu, metric, machineId, ucpu} = it;
+      const {trackId, cpu, metric, machineId, machineName, ucpu} = it;
 
       const info = assertExists(METRICS[metric]);
 
@@ -159,7 +162,7 @@ export default class implements PerfettoPlugin {
         cpuStandardGroup.addChildInOrder(metricGroup);
       }
 
-      const trackName = `${info.groupName} (CPU ${new Cpu(ucpu, cpu, machineId).toString()})`;
+      const trackName = `${info.groupName} (CPU ${new Cpu(ucpu, cpu, machineId, machineName ?? undefined).toString()})`;
       const uri = `/coarse_cpu_${trackId}`;
 
       ctx.tracks.registerTrack({

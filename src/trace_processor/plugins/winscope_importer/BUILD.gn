@@ -71,17 +71,15 @@ source_set("winscope_importer") {
     "winscope_transform_tracker.h",
   ]
   deps = [
-    ":gen_cc_winscope_descriptor",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
-    "../../../../protos/perfetto/trace/android:winscope_common_zero",
-    "../../../../protos/perfetto/trace/android:winscope_extensions_zero",
-    "../../../../protos/perfetto/trace/android:winscope_regular_zero",
     "../../../../protos/perfetto/trace/android:zero",
     "../../../../protos/perfetto/trace/interned_data:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../../protos/third_party/android/frameworks/native/tracing/winscope:winscope_extensions_zero",
+    "../../../../protos/third_party/android/frameworks/native/tracing/winscope:winscope_regular_zero",
     "../../../base",
     "../../../protozero",
     "../../containers",
@@ -98,22 +96,15 @@ source_set("winscope_importer") {
   ]
 }
 
-perfetto_cc_proto_descriptor("gen_cc_winscope_descriptor") {
-  descriptor_name = "winscope.descriptor"
-  descriptor_target =
-      "../../../../protos/perfetto/trace/android:winscope_descriptor"
-}
-
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":winscope_importer",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/trace/android:winscope_common_cpp",
-    "../../../../protos/perfetto/trace/android:winscope_common_zero",
-    "../../../../protos/perfetto/trace/android:winscope_extensions_zero",
-    "../../../../protos/perfetto/trace/android:winscope_regular_cpp",
+    "../../../../protos/third_party/android/frameworks/native/tracing/winscope:winscope_extensions_zero",
+    "../../../../protos/third_party/android/frameworks/native/tracing/winscope:winscope_regular_cpp",
+    "../../../../protos/third_party/android/frameworks/native/tracing/winscope:winscope_regular_zero",
     "../../../../src/protozero",
     "../../importers/common",
     "../../storage",

@@ -233,12 +233,14 @@ async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
       extract_arg(t.dimension_arg_set_id, 'gpu') AS gpu_id,
       t.machine_id AS machine_id,
       g.name AS gpu_name,
+      m.name AS machine_name,
       p.pid AS pid,
       p.name AS process_name
     FROM gpu_slice s
     JOIN gpu_track t ON s.track_id = t.id
     JOIN process p USING (upid)
     LEFT JOIN gpu g ON extract_arg(t.dimension_arg_set_id, 'ugpu') = g.id
+    LEFT JOIN machine m ON m.id = t.machine_id
     WHERE s.upid IS NOT NULL AND s.hw_queue_id IS NOT NULL
       AND (extract_arg(s.arg_set_id, 'device') IS NULL
            OR extract_arg(s.arg_set_id, 'stream') IS NULL)
@@ -254,6 +256,7 @@ async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
     gpu_id: NUM_NULL,
     machine_id: NUM,
     gpu_name: STR_NULL,
+    machine_name: STR_NULL,
     pid: NUM_NULL,
     process_name: STR_NULL,
   });
@@ -277,6 +280,7 @@ async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
             it.gpu_id,
             it.machine_id,
             it.gpu_name ?? undefined,
+            it.machine_name ?? undefined,
           )
         : null;
     rows.push({

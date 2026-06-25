@@ -37,7 +37,12 @@ MACHINE_TABLE = Table(
     sql_name='__intrinsic_machine',
     wrapping_sql_view=WrappingSqlView('machine'),
     columns=[
-        C('raw_id', CppUint32()),
+        C('raw_id', CppInt64()),
+        C(
+            'name',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
         C(
             'sysname',
             CppOptional(CppString()),
@@ -99,6 +104,13 @@ MACHINE_TABLE = Table(
                 '''
                   Raw machine identifier in the trace packet, non-zero for
                   remote machines.
+                ''',
+            'name':
+                '''
+                  Human-readable name of the machine (from
+                  SystemInfo.machine_name or a perfetto_manifest machine
+                  override), used as the machine's label in the UI. NULL when
+                  the machine did not advertise a name.
                 ''',
             'sysname':
                 '''

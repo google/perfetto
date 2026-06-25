@@ -43,6 +43,11 @@ export interface DuplicateArrayGroup {
   wastedBytes: number;
 }
 
+export interface OomeData {
+  upid: number;
+  ts: bigint;
+}
+
 export interface OverviewData {
   reachableInstanceCount: number;
   unreachableInstanceCount: number;
@@ -126,7 +131,7 @@ export interface InstanceDetail {
     width: number;
     height: number;
     format: string;
-    data: Uint8Array;
+    data: Uint8Array<ArrayBuffer>;
   } | null;
   reverseRefs: InstanceRow[];
   dominated: InstanceRow[];

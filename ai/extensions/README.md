@@ -1,8 +1,8 @@
 # Perfetto Agent Extensions
 
 Per-agent **extension manifests** that let supported coding agents install
-the Perfetto skills. The skills themselves live in
-[`ai/skills/`](../skills/) and are shared across agents; only the
+the Perfetto skill. The skill itself lives in
+[`ai/skills/perfetto/`](../skills/) and is shared across agents; only the
 install-time manifest is per-agent.
 
 This directory is the source of truth. The release pipeline assembles it
@@ -30,6 +30,13 @@ and Codex are the only agents that need a per-agent manifest. Every other
 agent (OpenCode, Pi, Antigravity, …) is a fallback consumer of the root
 `skills/` tree, installed via `tools/agents-install` (served at
 <https://get.perfetto.dev/agents-install>) — no manifest required.
+
+The one content difference between the two consumers is the environment
+setup the bundler resolves into the skill: plugin consumers
+(`plugins/perfetto/skills/`) get the bundled-`trace_processor` variant,
+fallback consumers (root `skills/`) get the standalone fetch-it-yourself
+variant. See [`ai/skills/README.md`](../skills/README.md) for how the
+bundler assembles the single skill.
 
 ## Versioning
 

@@ -66,12 +66,8 @@ GraphicsEventModule::GraphicsEventModule(
 GraphicsEventModule::~GraphicsEventModule() = default;
 
 ModuleResult GraphicsEventModule::TokenizePacket(
-    const TracePacket::Decoder& decoder,
-    TraceBlobView* packet,
-    int64_t /*packet_timestamp*/,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) {
-  if (field_id != TracePacket::kGpuCounterEventFieldNumber) {
+    const TokenizePacketArgs& args) {
+  if (args.field.id() != TracePacket::kGpuCounterEventFieldNumber) {
     return ModuleResult::Ignored();
   }
 
@@ -82,16 +78,17 @@ ModuleResult GraphicsEventModule::TokenizePacket(
   //  - the event section (the counter samples) is handled at parse time.
   // The descriptor section is processed unconditionally, even if the packet has
   // no timestamp.
-  GpuCounterEvent::Decoder event(decoder.gpu_counter_event());
-  TokenizeGpuCounterEvent(state.get(), packet->offset(), event);
+  GpuCounterEvent::Decoder event(
+      args.field.Cast<TracePacket::kGpuCounterEvent>());
+  TokenizeGpuCounterEvent(args.state.get(), args.packet->offset(), event);
 
   // Only the event section needs a timestamp (the samples have to be sorted). A
   // descriptor-only packet legitimately has no samples and no timestamp, so
   // only flag/drop the packet when it actually carries samples. Returning a
   // non-Ignored result stops it from reaching the sorter.
-  if (event.counters() && !decoder.has_timestamp()) {
+  if (event.counters() && !args.decoder.has_timestamp()) {
     context_->import_logs_tracker->RecordTokenizationError(
-        stats::gpu_counters_missing_timestamp, packet->offset());
+        stats::gpu_counters_missing_timestamp, args.packet->offset());
     return ModuleResult::Handled();
   }
 
@@ -223,39 +220,40 @@ void GraphicsEventModule::ParseGpuCounterEvent(
                                /*report_missing=*/false, event);
 }
 
-void GraphicsEventModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData& data,
-    uint32_t field_id) {
-  switch (field_id) {
+void GraphicsEventModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kFrameTimelineEventFieldNumber:
       frame_timeline_parser_.ParseFrameTimelineEvent(
-          ts, decoder.frame_timeline_event());
+          args.ts, args.field.Cast<TracePacket::kFrameTimelineEvent>());
       return;
     case TracePacket::kGpuCounterEventFieldNumber:
-      ParseGpuCounterEvent(ts, data.sequence_state.get(),
-                           decoder.gpu_counter_event());
+      ParseGpuCounterEvent(args.ts, args.data.sequence_state.get(),
+                           args.field.Cast<TracePacket::kGpuCounterEvent>());
       return;
     case TracePacket::kGpuRenderStageEventFieldNumber:
-      parser_.ParseGpuRenderStageEvent(ts, data.sequence_state.get(),
-                                       decoder.gpu_render_stage_event());
+      parser_.ParseGpuRenderStageEvent(
+          args.ts, args.data.sequence_state.get(),
+          args.field.Cast<TracePacket::kGpuRenderStageEvent>());
       return;
     case TracePacket::kGpuLogFieldNumber:
-      parser_.ParseGpuLog(ts, decoder.gpu_log());
+      parser_.ParseGpuLog(args.ts, args.field.Cast<TracePacket::kGpuLog>());
       return;
     case TracePacket::kGraphicsFrameEventFieldNumber:
-      frame_parser_.ParseGraphicsFrameEvent(ts, decoder.graphics_frame_event());
+      frame_parser_.ParseGraphicsFrameEvent(
+          args.ts, args.field.Cast<TracePacket::kGraphicsFrameEvent>());
       return;
     case TracePacket::kVulkanMemoryEventFieldNumber:
-      parser_.ParseVulkanMemoryEvent(data.sequence_state.get(),
-                                     decoder.vulkan_memory_event());
+      parser_.ParseVulkanMemoryEvent(
+          args.data.sequence_state.get(),
+          args.field.Cast<TracePacket::kVulkanMemoryEvent>());
       return;
     case TracePacket::kVulkanApiEventFieldNumber:
-      parser_.ParseVulkanApiEvent(ts, decoder.vulkan_api_event());
+      parser_.ParseVulkanApiEvent(
+          args.ts, args.field.Cast<TracePacket::kVulkanApiEvent>());
       return;
     case TracePacket::kGpuMemTotalEventFieldNumber:
-      parser_.ParseGpuMemTotalEvent(ts, decoder.gpu_mem_total_event());
+      parser_.ParseGpuMemTotalEvent(
+          args.ts, args.field.Cast<TracePacket::kGpuMemTotalEvent>());
       return;
   }
 }

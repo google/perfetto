@@ -27,6 +27,7 @@ perfetto_sql_source_set("heap_graph") {
     "heap_graph_stats.sql",
     "helpers.sql",
     "object_tree.sql",
+    "oome.sql",
     "raw_dominator_tree.sql",
   ]
 }

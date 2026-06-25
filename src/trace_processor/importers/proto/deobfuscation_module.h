@@ -32,10 +32,7 @@ class DeobfuscationModule : public ProtoImporterModule {
   ~DeobfuscationModule() override;
 
   // TODO (ddiproietto): Is it better to use TokenizePacket instead?
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData& data,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
  private:
   void StoreDeobfuscationMapping(protozero::ConstBytes);

@@ -18,6 +18,7 @@ import '../assets/bigtrace.scss';
 import '../frontend/ui_main.scss';
 import m from 'mithril';
 import {defer} from '../base/deferred';
+import {Gate} from '../base/mithril_utils';
 import {reportError, addErrorHandler, type ErrorDetails} from '../base/logging';
 import {initLiveReload} from '../core/live_reload';
 import {settingsStorage} from './settings/settings_storage';
@@ -56,7 +57,9 @@ function setupContentSecurityPolicy() {
   // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
   const policy = {
     'default-src': [`'self'`],
-    'script-src': [`'self'`],
+    // wasm-unsafe-eval: the SQL formatter runs as WebAssembly; this allows
+    // Wasm compilation without enabling JS eval().
+    'script-src': [`'self'`, `'wasm-unsafe-eval'`],
     'object-src': ['none'],
     'connect-src': [
       `'self'`,
@@ -146,6 +149,17 @@ class BigTraceLayout implements m.ClassComponent {
     const items: SidebarMenuItem[] = [
       {
         section: 'bigtrace',
+        text: 'Home',
+        href: `#!${Routes.HOME}`,
+        icon: 'home',
+        // Mirror resolvePage: the home page shows for any non-Query/Settings
+        // route, so highlight Home in those same cases.
+        active:
+          currentRoute !== Routes.QUERY && currentRoute !== Routes.SETTINGS,
+        onclick: () => {},
+      },
+      {
+        section: 'bigtrace',
         text: 'Query (SQL)',
         href: `#!${Routes.QUERY}`,
         icon: 'database',
@@ -209,14 +223,16 @@ class BigTraceRoot implements m.ClassComponent {
 
   private resolvePage(route: string): m.Children {
     return [
-      // QueryPage stays mounted across route changes to preserve DataGrid
-      // state (filters, scroll position, sort order).
+      // QueryPage stays mounted (Gate) to preserve its DataGrid state across
+      // route changes; while closed its view() isn't called.
       m(
-        'div.pf-bt-route-pane',
-        {className: route === Routes.QUERY ? '' : 'pf-bt-route-pane--hidden'},
+        Gate,
+        {open: route === Routes.QUERY},
         m(QueryPage, {useBigtraceBackend: true}),
       ),
-      route === Routes.SETTINGS && m(SettingsPage),
+      // SettingsPage stays mounted (Gate) so the trace-list grid keeps its
+      // loaded rows across route changes; while closed its view() isn't called.
+      m(Gate, {open: route === Routes.SETTINGS}, m(SettingsPage)),
       route !== Routes.QUERY && route !== Routes.SETTINGS && m(HomePage),
     ];
   }

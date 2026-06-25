@@ -37,17 +37,12 @@ EtwModuleImpl::EtwModuleImpl(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kEtwEventsFieldNumber);
 }
 
-ModuleResult EtwModuleImpl::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView* packet,
-    int64_t /*packet_timestamp*/,
-    RefPtr<PacketSequenceStateGeneration> seq_state,
-    uint32_t field_id) {
-  switch (field_id) {
+ModuleResult EtwModuleImpl::TokenizePacket(const TokenizePacketArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kEtwEventsFieldNumber: {
-      auto etw_field = decoder.etw_events();
+      auto etw_field = args.field.Cast<TracePacket::kEtwEvents>();
       tokenizer_.TokenizeEtwBundle(
-          packet->slice(etw_field.data, etw_field.size), std::move(seq_state));
+          args.packet->slice(etw_field.data, etw_field.size), args.state);
       return ModuleResult::Handled();
     }
   }

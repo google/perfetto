@@ -104,10 +104,14 @@ class TraceBuffer {
   // Returns the next packet in the buffer, if any, and the producer_id,
   // producer_uid, and writer_id of the producer/writer that wrote it.
   // Returns false if no packets can be read at this point.
+  // |previous_packet_on_sequence_dropped| is a bitmask: 0 if no data was lost
+  // on the sequence before this packet, otherwise nonzero. TraceBufferV2 sets
+  // the DataLossReason cause bits; TraceBufferV1 just sets 1. The value is
+  // forwarded into TracePacket.previous_packet_dropped.
   virtual bool ReadNextTracePacket(
       TracePacket*,
       PacketSequenceProperties* sequence_properties,
-      bool* previous_packet_on_sequence_dropped) = 0;
+      uint32_t* previous_packet_on_sequence_dropped) = 0;
 
   // Creates a read-only clone of the trace buffer. The read iterators of the
   // new buffer will be reset, as if no Read() had been called.

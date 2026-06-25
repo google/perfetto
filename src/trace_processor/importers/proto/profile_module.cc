@@ -118,42 +118,36 @@ ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
 
 ProfileModule::~ProfileModule() = default;
 
-ModuleResult ProfileModule::TokenizePacket(
-    const TracePacket::Decoder& decoder,
-    TraceBlobView* packet,
-    int64_t /*packet_timestamp*/,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) {
-  switch (field_id) {
+ModuleResult ProfileModule::TokenizePacket(const TokenizePacketArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kStreamingProfilePacketFieldNumber:
-      return TokenizeStreamingProfilePacket(std::move(state), packet,
-                                            decoder.streaming_profile_packet());
+      return TokenizeStreamingProfilePacket(
+          std::move(args.state), args.packet,
+          args.field.Cast<TracePacket::kStreamingProfilePacket>());
   }
   return ModuleResult::Ignored();
 }
 
-void ProfileModule::ParseTracePacketData(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData& data,
-    uint32_t field_id) {
-  switch (field_id) {
+void ProfileModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kStreamingProfilePacketFieldNumber:
-      ParseStreamingProfilePacket(ts, data.sequence_state.get(),
-                                  decoder.streaming_profile_packet());
+      ParseStreamingProfilePacket(
+          args.ts, args.data.sequence_state.get(),
+          args.field.Cast<TracePacket::kStreamingProfilePacket>());
       return;
     case TracePacket::kPerfSampleFieldNumber:
-      ParsePerfSample(ts, data.sequence_state.get(), decoder);
+      ParsePerfSample(args.ts, args.data.sequence_state.get(), args.decoder,
+                      args.field);
       return;
     case TracePacket::kProfilePacketFieldNumber:
-      ParseProfilePacket(ts, data.sequence_state.get(),
-                         decoder.profile_packet());
+      ParseProfilePacket(args.ts, args.data.sequence_state.get(),
+                         args.field.Cast<TracePacket::kProfilePacket>());
       return;
     case TracePacket::kModuleSymbolsFieldNumber:
-      ParseModuleSymbols(decoder.module_symbols());
+      ParseModuleSymbols(args.field.Cast<TracePacket::kModuleSymbols>());
       return;
     case TracePacket::kSmapsPacketFieldNumber:
-      ParseSmapsPacket(ts, decoder.smaps_packet());
+      ParseSmapsPacket(args.ts, args.field.Cast<TracePacket::kSmapsPacket>());
       return;
   }
 }
@@ -241,10 +235,10 @@ void ProfileModule::ParseStreamingProfilePacket(
 void ProfileModule::ParsePerfSample(
     int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
-    const TracePacket::Decoder& decoder) {
+    const SelectiveTracePacketDecoder& decoder,
+    const TracePacketField& field) {
   using PerfSample = protos::pbzero::PerfSample;
-  const auto& sample_raw = decoder.perf_sample();
-  PerfSample::Decoder sample(sample_raw.data, sample_raw.size);
+  PerfSample::Decoder sample(field.Cast<TracePacket::kPerfSample>());
 
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
   PerfSampleTracker::SamplingStreamInfo sampling_stream =

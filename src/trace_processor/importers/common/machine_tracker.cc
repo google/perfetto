@@ -19,16 +19,31 @@
 #include <cmath>
 
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
 
 using tables::MachineTable;
 
+namespace {
+// A perfetto_manifest may have already created this machine's row so that clock
+// references could resolve to it before any file forked. Reuse that row;
+// otherwise create one now.
+MachineTable::Id LookupOrCreateMachineRow(TraceProcessorContext* context,
+                                          int64_t raw_machine_id) {
+  if (auto* manifest = context->trace_manifest_state.get()) {
+    if (uint32_t* row = manifest->raw_id_to_table_id.Find(raw_machine_id)) {
+      return MachineTable::Id(*row);
+    }
+  }
+  return context->storage->mutable_machine_table()->Insert({raw_machine_id}).id;
+}
+}  // namespace
+
 MachineTracker::MachineTracker(TraceProcessorContext* context,
-                               uint32_t raw_machine_id)
-    : machine_id_(context->storage->mutable_machine_table()
-                      ->Insert({raw_machine_id})
-                      .id),
+                               int64_t raw_machine_id)
+    : machine_id_(LookupOrCreateMachineRow(context, raw_machine_id)),
       context_(context) {}
 MachineTracker::~MachineTracker() = default;
 
@@ -42,6 +57,10 @@ void MachineTracker::SetMachineInfo(StringId sysname,
   row.set_release(release);
   row.set_version(version);
   row.set_arch(arch);
+}
+
+void MachineTracker::SetMachineName(StringId name) {
+  getRow().set_name(name);
 }
 
 void MachineTracker::SetNumCpus(uint32_t cpus) {

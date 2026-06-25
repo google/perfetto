@@ -18,14 +18,14 @@
 
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/android/windowmanager.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/windowmanager.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/plugins/winscope_importer/windowmanager_hierarchy_walker.h"
 #include "src/trace_processor/plugins/winscope_importer/windowmanager_proto_clone.h"
+#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor::winscope {
 
@@ -33,10 +33,13 @@ WindowManagerParser::WindowManagerParser(WinscopeContext* context)
     : context_{context},
       hierarchy_walker_{
           context_->trace_processor_context_->storage->mutable_string_pool()},
-      args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
+      args_parser_{
+          *context->trace_processor_context_->descriptor_pool_,
+          *context->trace_processor_context_->storage->mutable_string_pool()} {}
 
 void WindowManagerParser::Parse(int64_t timestamp, protozero::ConstBytes blob) {
-  protos::pbzero::WindowManagerTraceEntry::Decoder entry_decoder(blob);
+  com::android::internal::pbzero::WindowManagerTraceEntry::Decoder
+      entry_decoder(blob);
 
   auto snapshot_id = InsertSnapshotRow(timestamp, entry_decoder);
 
@@ -52,7 +55,8 @@ void WindowManagerParser::Parse(int64_t timestamp, protozero::ConstBytes blob) {
 
 tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
     int64_t timestamp,
-    protos::pbzero::WindowManagerTraceEntry::Decoder& entry_decoder) {
+    com::android::internal::pbzero::WindowManagerTraceEntry::Decoder&
+        entry_decoder) {
   const auto pruned_entry_proto =
       windowmanager_proto_clone::CloneEntryProtoPruningChildren(entry_decoder);
   protozero::ConstBytes pruned_proto_bytes{pruned_entry_proto.data(),
@@ -61,15 +65,16 @@ tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
   auto* trace_processor_context = context_->trace_processor_context_;
   tables::WindowManagerTable::Row row;
   row.ts = timestamp;
-  protos::pbzero::WindowManagerTraceEntry::Decoder entry(pruned_proto_bytes);
+  com::android::internal::pbzero::WindowManagerTraceEntry::Decoder entry(
+      pruned_proto_bytes);
   row.has_invalid_elapsed_ts = entry.elapsed_realtime_nanos() == 0;
   row.base64_proto_id =
       trace_processor_context->storage->mutable_string_pool()
           ->InternString(base::StringView(base::Base64Encode(
               pruned_proto_bytes.data, pruned_proto_bytes.size)))
           .raw_id();
-  protos::pbzero::WindowManagerServiceDumpProto::Decoder service(
-      entry_decoder.window_manager_service());
+  com::android::internal::pbzero::WindowManagerServiceDumpProto::Decoder
+      service(entry_decoder.window_manager_service());
   row.focused_display_id = static_cast<uint32_t>(service.focused_display_id());
   auto row_id = trace_processor_context->storage->mutable_windowmanager_table()
                     ->Insert(row)
@@ -183,9 +188,9 @@ void WindowManagerParser::InsertWindowContainerArgs(
     const WindowManagerHierarchyWalker::ExtractedWindowContainer&
         window_container) {
   bool is_root = !window_container.parent_token.has_value();
-  const char* proto_name = is_root
-                               ? ".perfetto.protos.RootWindowContainerProto"
-                               : ".perfetto.protos.WindowContainerChildProto";
+  const char* proto_name =
+      is_root ? ".com.android.internal.RootWindowContainerProto"
+              : ".com.android.internal.WindowContainerChildProto";
   protozero::ConstBytes bytes{window_container.pruned_proto.data(),
                               window_container.pruned_proto.size()};
   ArgsTracker tracker(context_->trace_processor_context_);

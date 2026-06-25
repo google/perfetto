@@ -20,20 +20,22 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_view.h"
-#include "protos/perfetto/trace/android/surfaceflinger_transactions.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_transactions.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 SurfaceFlingerTransactionsParser::SurfaceFlingerTransactionsParser(
     TraceProcessorContext* context)
-    : context_{context}, args_parser_{*context->descriptor_pool_} {}
+    : context_{context},
+      args_parser_{*context->descriptor_pool_,
+                   *context->storage->mutable_string_pool()} {}
 
 void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
                                              protozero::ConstBytes blob) {
@@ -44,7 +46,8 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
                                 base::Base64Encode(blob.data, blob.size)))
                             .raw_id();
 
-  protos::pbzero::TransactionTraceEntry::Decoder snapshot_decoder(blob);
+  com::android::internal::pbzero::TransactionTraceEntry::Decoder
+      snapshot_decoder(blob);
   row.vsync_id = snapshot_decoder.vsync_id();
 
   auto snapshot_id =
@@ -118,7 +121,8 @@ void SurfaceFlingerTransactionsParser::ParseTransaction(
     int64_t timestamp,
     protozero::ConstBytes transaction,
     tables::SurfaceFlingerTransactionsTable::Id snapshot_id) {
-  protos::pbzero::TransactionState::Decoder transaction_decoder(transaction);
+  com::android::internal::pbzero::TransactionState::Decoder transaction_decoder(
+      transaction);
 
   auto transaction_id = transaction_decoder.transaction_id();
   auto pid = transaction_decoder.pid();
@@ -155,7 +159,8 @@ void SurfaceFlingerTransactionsParser::ParseAddedLayer(
     int64_t timestamp,
     protozero::ConstBytes layer_creation_args,
     tables::SurfaceFlingerTransactionsTable::Id snapshot_id) {
-  protos::pbzero::LayerCreationArgs::Decoder decoder(layer_creation_args);
+  com::android::internal::pbzero::LayerCreationArgs::Decoder decoder(
+      layer_creation_args);
 
   tables::SurfaceFlingerTransactionTable::Row transaction;
   transaction.snapshot_id = snapshot_id;
@@ -173,7 +178,7 @@ void SurfaceFlingerTransactionsParser::ParseAddedLayer(
                     .id;
 
   AddArgs(timestamp, layer_creation_args, row_id,
-          ".perfetto.protos.LayerCreationArgs", std::nullopt);
+          ".com.android.internal.LayerCreationArgs", std::nullopt);
 }
 
 void SurfaceFlingerTransactionsParser::AddNoopRow(
@@ -206,7 +211,8 @@ void SurfaceFlingerTransactionsParser::AddLayerChangedRow(
   row.pid = pid;
   row.uid = uid;
 
-  protos::pbzero::LayerState::Decoder state_decoder(layer_state);
+  com::android::internal::pbzero::LayerState::Decoder state_decoder(
+      layer_state);
   row.layer_id = state_decoder.layer_id();
   row.transaction_type =
       context_->storage->mutable_string_pool()->InternString("LAYER_CHANGED");
@@ -228,66 +234,80 @@ void SurfaceFlingerTransactionsParser::AddLayerChangedRow(
       layer_flag_ids_[what] = curr_size;
 
       auto all_flags_low = std::vector<int32_t>{
-          protos::pbzero::LayerState::ePositionChanged,
-          protos::pbzero::LayerState::eLayerChanged,
-          protos::pbzero::LayerState::eAlphaChanged,
-          protos::pbzero::LayerState::eMatrixChanged,
-          protos::pbzero::LayerState::eTransparentRegionChanged,
-          protos::pbzero::LayerState::eFlagsChanged,
-          protos::pbzero::LayerState::eLayerStackChanged,
-          protos::pbzero::LayerState::eReleaseBufferListenerChanged,
-          protos::pbzero::LayerState::eShadowRadiusChanged,
-          protos::pbzero::LayerState::eShadowRadiusChanged,
-          protos::pbzero::LayerState::eBufferCropChanged,
-          protos::pbzero::LayerState::eRelativeLayerChanged,
-          protos::pbzero::LayerState::eReparent,
-          protos::pbzero::LayerState::eColorChanged,
-          protos::pbzero::LayerState::eBufferTransformChanged,
-          protos::pbzero::LayerState::eTransformToDisplayInverseChanged,
-          protos::pbzero::LayerState::eCropChanged,
-          protos::pbzero::LayerState::eBufferChanged,
-          protos::pbzero::LayerState::eAcquireFenceChanged,
-          protos::pbzero::LayerState::eDataspaceChanged,
-          protos::pbzero::LayerState::eHdrMetadataChanged,
-          protos::pbzero::LayerState::eSurfaceDamageRegionChanged,
-          protos::pbzero::LayerState::eApiChanged,
-          protos::pbzero::LayerState::eSidebandStreamChanged,
-          protos::pbzero::LayerState::eColorTransformChanged,
-          protos::pbzero::LayerState::eHasListenerCallbacksChanged,
-          protos::pbzero::LayerState::eInputInfoChanged,
-          protos::pbzero::LayerState::eCornerRadiusChanged,
+          com::android::internal::pbzero::LayerState::ePositionChanged,
+          com::android::internal::pbzero::LayerState::eLayerChanged,
+          com::android::internal::pbzero::LayerState::eAlphaChanged,
+          com::android::internal::pbzero::LayerState::eMatrixChanged,
+          com::android::internal::pbzero::LayerState::eTransparentRegionChanged,
+          com::android::internal::pbzero::LayerState::eFlagsChanged,
+          com::android::internal::pbzero::LayerState::eLayerStackChanged,
+          com::android::internal::pbzero::LayerState::
+              eReleaseBufferListenerChanged,
+          com::android::internal::pbzero::LayerState::eShadowRadiusChanged,
+          com::android::internal::pbzero::LayerState::eShadowRadiusChanged,
+          com::android::internal::pbzero::LayerState::eBufferCropChanged,
+          com::android::internal::pbzero::LayerState::eRelativeLayerChanged,
+          com::android::internal::pbzero::LayerState::eReparent,
+          com::android::internal::pbzero::LayerState::eColorChanged,
+          com::android::internal::pbzero::LayerState::eBufferTransformChanged,
+          com::android::internal::pbzero::LayerState::
+              eTransformToDisplayInverseChanged,
+          com::android::internal::pbzero::LayerState::eCropChanged,
+          com::android::internal::pbzero::LayerState::eBufferChanged,
+          com::android::internal::pbzero::LayerState::eAcquireFenceChanged,
+          com::android::internal::pbzero::LayerState::eDataspaceChanged,
+          com::android::internal::pbzero::LayerState::eHdrMetadataChanged,
+          com::android::internal::pbzero::LayerState::
+              eSurfaceDamageRegionChanged,
+          com::android::internal::pbzero::LayerState::eApiChanged,
+          com::android::internal::pbzero::LayerState::eSidebandStreamChanged,
+          com::android::internal::pbzero::LayerState::eColorTransformChanged,
+          com::android::internal::pbzero::LayerState::
+              eHasListenerCallbacksChanged,
+          com::android::internal::pbzero::LayerState::eInputInfoChanged,
+          com::android::internal::pbzero::LayerState::eCornerRadiusChanged,
       };
       auto low_tokens = DecodeFlags(what & 0xFFFFFFFFULL, all_flags_low);
       auto low_translated = std::vector<std::string>{};
       for (auto flag : low_tokens) {
-        low_translated.push_back(protos::pbzero::LayerState_ChangesLsb_Name(
-            static_cast<protos::pbzero::LayerState_ChangesLsb>(flag)));
+        low_translated.push_back(
+            com::android::internal::pbzero::LayerState_ChangesLsb_Name(
+                static_cast<
+                    com::android::internal::pbzero::LayerState_ChangesLsb>(
+                    flag)));
       }
       AddFlags(low_translated, row.flags_id.value());
 
       auto all_flags_high = std::vector<int32_t>{
-          protos::pbzero::LayerState::eDestinationFrameChanged,
-          protos::pbzero::LayerState::eCachedBufferChanged,
-          protos::pbzero::LayerState::eBackgroundColorChanged,
-          protos::pbzero::LayerState::eMetadataChanged,
-          protos::pbzero::LayerState::eColorSpaceAgnosticChanged,
-          protos::pbzero::LayerState::eFrameRateSelectionPriority,
-          protos::pbzero::LayerState::eFrameRateChanged,
-          protos::pbzero::LayerState::eBackgroundBlurRadiusChanged,
-          protos::pbzero::LayerState::eProducerDisconnect,
-          protos::pbzero::LayerState::eFixedTransformHintChanged,
-          protos::pbzero::LayerState::eFrameNumberChanged,
-          protos::pbzero::LayerState::eBlurRegionsChanged,
-          protos::pbzero::LayerState::eAutoRefreshChanged,
-          protos::pbzero::LayerState::eStretchChanged,
-          protos::pbzero::LayerState::eTrustedOverlayChanged,
-          protos::pbzero::LayerState::eDropInputModeChanged,
+          com::android::internal::pbzero::LayerState::eDestinationFrameChanged,
+          com::android::internal::pbzero::LayerState::eCachedBufferChanged,
+          com::android::internal::pbzero::LayerState::eBackgroundColorChanged,
+          com::android::internal::pbzero::LayerState::eMetadataChanged,
+          com::android::internal::pbzero::LayerState::
+              eColorSpaceAgnosticChanged,
+          com::android::internal::pbzero::LayerState::
+              eFrameRateSelectionPriority,
+          com::android::internal::pbzero::LayerState::eFrameRateChanged,
+          com::android::internal::pbzero::LayerState::
+              eBackgroundBlurRadiusChanged,
+          com::android::internal::pbzero::LayerState::eProducerDisconnect,
+          com::android::internal::pbzero::LayerState::
+              eFixedTransformHintChanged,
+          com::android::internal::pbzero::LayerState::eFrameNumberChanged,
+          com::android::internal::pbzero::LayerState::eBlurRegionsChanged,
+          com::android::internal::pbzero::LayerState::eAutoRefreshChanged,
+          com::android::internal::pbzero::LayerState::eStretchChanged,
+          com::android::internal::pbzero::LayerState::eTrustedOverlayChanged,
+          com::android::internal::pbzero::LayerState::eDropInputModeChanged,
       };
       auto high_tokens = DecodeFlags(what >> 32, all_flags_high);
       auto high_translated = std::vector<std::string>{};
       for (auto flag : high_tokens) {
-        high_translated.push_back(protos::pbzero::LayerState_ChangesMsb_Name(
-            static_cast<protos::pbzero::LayerState_ChangesMsb>(flag)));
+        high_translated.push_back(
+            com::android::internal::pbzero::LayerState_ChangesMsb_Name(
+                static_cast<
+                    com::android::internal::pbzero::LayerState_ChangesMsb>(
+                    flag)));
       }
       AddFlags(high_translated, row.flags_id.value());
     }
@@ -296,7 +316,7 @@ void SurfaceFlingerTransactionsParser::AddLayerChangedRow(
   auto row_id = context_->storage->mutable_surfaceflinger_transaction_table()
                     ->Insert(row)
                     .id;
-  AddArgs(timestamp, layer_state, row_id, ".perfetto.protos.LayerState",
+  AddArgs(timestamp, layer_state, row_id, ".com.android.internal.LayerState",
           transaction);
 }
 
@@ -322,7 +342,8 @@ void SurfaceFlingerTransactionsParser::ParseDisplayState(
     row.uid = uid.value();
   }
 
-  protos::pbzero::DisplayState::Decoder state_decoder(display_state);
+  com::android::internal::pbzero::DisplayState::Decoder state_decoder(
+      display_state);
   row.display_id = state_decoder.id();
 
   row.base64_proto_id = context_->storage->mutable_string_pool()
@@ -342,17 +363,21 @@ void SurfaceFlingerTransactionsParser::ParseDisplayState(
       display_flag_ids_[what] = curr_size;
 
       auto all_flags = std::vector<int32_t>{
-          protos::pbzero::DisplayState::eSurfaceChanged,
-          protos::pbzero::DisplayState::eLayerStackChanged,
-          protos::pbzero::DisplayState::eDisplayProjectionChanged,
-          protos::pbzero::DisplayState::eDisplaySizeChanged,
-          protos::pbzero::DisplayState::eFlagsChanged,
+          com::android::internal::pbzero::DisplayState::eSurfaceChanged,
+          com::android::internal::pbzero::DisplayState::eLayerStackChanged,
+          com::android::internal::pbzero::DisplayState::
+              eDisplayProjectionChanged,
+          com::android::internal::pbzero::DisplayState::eDisplaySizeChanged,
+          com::android::internal::pbzero::DisplayState::eFlagsChanged,
       };
       auto tokens = DecodeFlags(what, all_flags);
       auto translated = std::vector<std::string>{};
       for (auto flag : tokens) {
-        translated.push_back(protos::pbzero::DisplayState_Changes_Name(
-            static_cast<protos::pbzero::DisplayState_Changes>(flag)));
+        translated.push_back(
+            com::android::internal::pbzero::DisplayState_Changes_Name(
+                static_cast<
+                    com::android::internal::pbzero::DisplayState_Changes>(
+                    flag)));
       }
       AddFlags(translated, row.flags_id.value());
     }
@@ -362,8 +387,8 @@ void SurfaceFlingerTransactionsParser::ParseDisplayState(
                     ->Insert(row)
                     .id;
 
-  AddArgs(timestamp, display_state, row_id, ".perfetto.protos.DisplayState",
-          transaction);
+  AddArgs(timestamp, display_state, row_id,
+          ".com.android.internal.DisplayState", transaction);
 }
 
 void SurfaceFlingerTransactionsParser::AddArgs(
@@ -385,7 +410,7 @@ void SurfaceFlingerTransactionsParser::AddArgs(
     // add apply token and transaction barriers to same arg set
     std::vector<uint32_t> allowed_fields = {10, 11};
     args_parser_.ParseMessage(transaction.value(),
-                              ".perfetto.protos.TransactionState",
+                              ".com.android.internal.TransactionState",
                               &allowed_fields, writer);
   }
 }

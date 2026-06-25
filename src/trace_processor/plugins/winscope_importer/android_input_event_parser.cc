@@ -26,30 +26,32 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/trace/android/android_input_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/android_input_event.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
-#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor {
 
-using perfetto::protos::pbzero::AndroidInputEvent;
-using perfetto::protos::pbzero::AndroidKeyEvent;
-using perfetto::protos::pbzero::AndroidMotionEvent;
-using perfetto::protos::pbzero::AndroidWindowInputDispatchEvent;
+using com::android::internal::pbzero::AndroidInputEvent;
+using com::android::internal::pbzero::AndroidKeyEvent;
+using com::android::internal::pbzero::AndroidMotionEvent;
+using com::android::internal::pbzero::AndroidWindowInputDispatchEvent;
 using perfetto::protos::pbzero::TracePacket;
 
 AndroidInputEventParser::AndroidInputEventParser(TraceProcessorContext* context)
-    : context_(*context), args_parser_{*context->descriptor_pool_} {}
+    : context_(*context),
+      args_parser_{*context->descriptor_pool_,
+                   *context->storage->mutable_string_pool()} {}
 
 void AndroidInputEventParser::ParseAndroidInputEvent(
     int64_t packet_ts,
@@ -215,13 +217,11 @@ void AndroidInputEventParser::ConvertMonotonicTimestampField(
     const std::string& key_string,
     ArgsParser& writer) {
   auto boottime = context_.clock_tracker->ToTraceTime(
-      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      ClockId::Machine(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
       monotonic_time);
   if (boottime.has_value()) {
-    util::ProtoToArgsParser::Key key;
-    key.flat_key = key_string;
-    key.key = key_string;
-    writer.AddInteger(key, boottime.value());
+    auto key = writer.InternString(base::StringView(key_string));
+    writer.AddInteger(key, key, boottime.value());
   }
 }
 

@@ -1105,7 +1105,7 @@ message PixelModemConfig {
 
 // End of protos/perfetto/config/android/pixel_modem_config.proto
 
-// Begin of protos/perfetto/common/protolog_common.proto
+// Begin of protos/perfetto/config/android/protolog_config.proto
 
 enum ProtoLogLevel {
   PROTOLOG_LEVEL_UNDEFINED = 0;
@@ -1116,9 +1116,6 @@ enum ProtoLogLevel {
   PROTOLOG_LEVEL_ERROR = 5;
   PROTOLOG_LEVEL_WTF = 6;
 }
-// End of protos/perfetto/common/protolog_common.proto
-
-// Begin of protos/perfetto/config/android/protolog_config.proto
 
 // Custom configuration for the "android.protolog" data source.
 // ProtoLog is a logging mechanism that is intented to be more efficient than
@@ -2159,6 +2156,12 @@ message ProcessStatsConfig {
   // recognized.
   optional bool resolve_process_fds = 9;
 
+  // If true, do *not* write a ProcessTree::Thread message for the main thread
+  // of a process. This was the default behaviour before perfetto v58.
+  //
+  // Added in perfetto v58.
+  optional bool skip_main_thread_message = 14;
+
   // record_thread_time_in_state
   reserved 7;
   // thread_time_in_state_cache_size
@@ -2210,13 +2213,26 @@ message HeapprofdConfig {
   // this value.
   optional uint64 adaptive_sampling_max_sampling_interval_bytes = 25;
 
-  // E.g. surfaceflinger, com.android.phone
+  // Names of process cmdlines to profile. The semantics before perfetto v57 are
+  // as the following section (A), and on newer versions are both (A) and (B):
+  //
+  // (A) E.g. surfaceflinger, com.android.phone
   // This input is normalized in the following way: if it contains slashes,
   // everything up to the last slash is discarded. If it contains "@",
   // everything after the first @ is discared.
   // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
   // This transformation is also applied to the processes' command lines when
   // matching.
+  //
+  // (B) Perfetto v57+: a pattern may also contain a wildcard ('*'), in which
+  // case it is matched against running processes' command lines using glob
+  // semantics. If the pattern starts with '/' it is matched against the full
+  // argv0 (e.g. "/system/bin/*"), otherwise it is matched against the binary
+  // name part of argv0 (e.g. "system_*"). Wildcard patterns are *not*
+  // normalized as described above.
+  // Wildcard patterns are supported only for profiling already-running
+  // processes. A config must set no_startup=true if using wildcards, or it will
+  // be rejected.
   repeated string process_cmdline = 2;
 
   // For watermark based triggering or local debugging.
@@ -2501,6 +2517,9 @@ message JavaHprofConfig {
   // Do not profile processes whose anon RSS + swap < given value.
   optional uint32 min_anonymous_memory_kb = 4;
 
+  // Do not profile processes whose Java heap size < given value.
+  optional uint32 min_java_heap_size_kb = 9;
+
   // Include the process' /proc/self/smaps.
   // This only shows maps that:
   // * start with /system
@@ -2519,6 +2538,10 @@ message JavaHprofConfig {
   // Exclude objects of the following types from the profile. This can be
   // useful if lots of uninteresting objects, e.g. "sun.misc.Cleaner".
   repeated string ignored_types = 6;
+
+  // Dump the callsite of the thread triggering the OutOfMemoryError.
+  // Only applicable to OutOfMemoryError heap dumps
+  optional bool dump_oome_callstack = 10;
 }
 
 // End of protos/perfetto/config/profiling/java_hprof_config.proto
@@ -5881,7 +5904,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 17
+// Next id: 18
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
@@ -5946,6 +5969,14 @@ message SystemInfo {
   //
   // Introduced in perfetto v54 / Android 26Q1+.
   optional uint64 system_ram_bytes = 16;
+
+  // Human-readable name of the machine this SystemInfo describes, used as the
+  // machine's label in the UI (falling back to "machine <id>" when unset).
+  //
+  // A producer attributing its data to a non-host machine can set this by
+  // emitting a SystemInfo packet to give that machine a name. Only meaningful
+  // when the packet carries a non-zero machine_id.
+  optional string machine_name = 17;
 }
 
 // End of protos/perfetto/common/system_info.proto
@@ -6403,198 +6434,6 @@ message AndroidSystemProperty {
 
 // End of protos/perfetto/trace/android/android_system_property.proto
 
-// Begin of protos/perfetto/trace/android/bluetooth_trace.proto
-
-// Describes the packet type and direction. CMD and EVT are unidirectional, so
-// no need to differentiate the direction.
-enum BluetoothTracePacketType {
-  HCI_CMD = 1;
-  HCI_EVT = 2;
-  HCI_ACL_RX = 3;
-  HCI_ACL_TX = 4;
-  HCI_SCO_RX = 5;
-  HCI_SCO_TX = 6;
-  HCI_ISO_RX = 7;
-  HCI_ISO_TX = 8;
-}
-
-// Trace event for bluetooth
-message BluetoothTraceEvent {
-  // Packet type and direction
-  optional BluetoothTracePacketType packet_type = 1;
-
-  // Total count of the packets collected during the collection interval
-  optional uint32 count = 2;
-
-  // Total cumulative length of the packets collected during the collection
-  // interval
-  optional uint32 length = 3;
-
-  // The collection interval in nanoseconds. This is the duration between the
-  // first and last packets collected.
-  optional uint32 duration = 4;
-
-  // In case of CMD type, further breakdown of the type of command
-  optional uint32 op_code = 5;
-
-  // In the case of EVT type, further breakdown of the type of event
-  optional uint32 event_code = 6;
-
-  // When applicable for EVT type, further breakdown of event type into specific
-  // subevent
-  optional uint32 subevent_code = 7;
-
-  // Associated handle for the bluetooth packet
-  optional uint32 connection_handle = 8;
-}
-
-// End of protos/perfetto/trace/android/bluetooth_trace.proto
-
-// Begin of protos/perfetto/trace/android/camera_event.proto
-
-// A profiling event corresponding to a single camera frame. This message
-// collects important details and timestamps involved in producing a single
-// camera frame.
-// Next ID: 17
-message AndroidCameraFrameEvent {
-  // Identifier for the CameraCaptureSession this frame originates from. See:
-  // https://developer.android.com/reference/android/hardware/camera2/CameraCaptureSession
-  optional uint64 session_id = 1;
-  // Identifier for the camera sensor that is the source of this frame. This may
-  // be either a physical or logical camera (up to vendor interpretation).
-  optional uint32 camera_id = 2;
-  // The frame number identifying this frame on this camera.
-  optional int64 frame_number = 3;
-  // Identifier for the CaptureRequest. See:
-  // https://developer.android.com/reference/android/hardware/camera2/CaptureRequest
-  //
-  // If multiple cameras are streaming simultaneously, the request_id may be
-  // used to identify which frames were captured in service of the same request.
-  optional int64 request_id = 4;
-
-  // The CLOCK_BOOTTIME timestamp at which the camera framework request is
-  // received by the camera HAL pipeline. Note that this request may wait for
-  // some time before processing actually begins. See also
-  // request_processing_started_ns.
-  optional int64 request_received_ns = 5;
-  // The CLOCK_BOOTTIME timestamp at which the framework request is accepted for
-  // processing by the camera HAL pipeline. This is the time at which the
-  // pipeline actually begins to work on the request.
-  optional int64 request_processing_started_ns = 6;
-
-  // The CLOCK_BOOTTIME timestamp at which the sensor begins its exposure.
-  optional int64 start_of_exposure_ns = 7;
-  // The CLOCK_BOOTTIME timestamp corresponding to the sensor start of frame
-  // event.
-  optional int64 start_of_frame_ns = 8;
-  // The CLOCK_BOOTTIME timestamp at which the camera HAL has sent all responses
-  // for the frame.
-  optional int64 responses_all_sent_ns = 9;
-
-  // The error status, if any, reported to the camera framework. Any status
-  // other than STATUS_OK indicates a dropped frame.
-  // Next Enum: 6
-  enum CaptureResultStatus {
-    STATUS_UNSPECIFIED = 0;
-    STATUS_OK = 1;
-    // Early metadata was returned to the camera framework with an error.
-    STATUS_EARLY_METADATA_ERROR = 2;
-    // Final metadata was returned to the camera framework with an error.
-    STATUS_FINAL_METADATA_ERROR = 3;
-    // One or more buffers were returned to the camera framework with an error.
-    STATUS_BUFFER_ERROR = 4;
-    // The frame was dropped as a result of a flush operation.
-    STATUS_FLUSH_ERROR = 5;
-  }
-  optional CaptureResultStatus capture_result_status = 10;
-
-  // The number of sensor frames that were skipped between this frame and the
-  // previous frame. Under normal operation, this should be zero. Any number
-  // greater than zero indicates dropped sensor frames.
-  optional int32 skipped_sensor_frames = 11;
-
-  // The value of CONTROL_CAPTURE_INTENT. See:
-  // https://developer.android.com/reference/android/hardware/camera2/CaptureRequest#CONTROL_CAPTURE_INTENT
-  optional int32 capture_intent = 12;
-  // The number of streams in the capture request.
-  optional int32 num_streams = 13;
-
-  // A profiling event corresponding to a single node processing within the
-  // camera pipeline. Intuitively this corresponds to a single stage of
-  // processing to produce a camera frame. Next ID: 6
-  message CameraNodeProcessingDetails {
-    optional int64 node_id = 1;
-    // The timestamp at which node processing begins to run.
-    optional int64 start_processing_ns = 2;
-    // The timestamp at which node processing finishes running.
-    optional int64 end_processing_ns = 3;
-    // The delay between inputs becoming ready and the node actually beginning
-    // to run.
-    optional int64 scheduling_latency_ns = 4;
-  }
-  repeated CameraNodeProcessingDetails node_processing_details = 14;
-
-  // These fields capture vendor-specific additions to this proto message. In
-  // practice `vendor_data` typically contains a serialized message of the
-  // vendor's design, and `vendor_data_version` is incremented each time there
-  // is a backwards incompatible change made to the message.
-  optional int32 vendor_data_version = 15;
-  optional bytes vendor_data = 16;
-}
-
-// A profiling event that may be emitted periodically (i.e., at a slower rate
-// than `AndroidCameraFrameEvent`s) to record fixed and aggregated camera
-// session-specific values.
-message AndroidCameraSessionStats {
-  // Identifier for the CameraCaptureSession this frame originates from. See:
-  // https://developer.android.com/reference/android/hardware/camera2/CameraCaptureSession
-  optional uint64 session_id = 1;
-
-  // Although vendor implementations may vary, camera pipeline processing is
-  // typically arranged into a directed graph-like structure. This message is
-  // used to record that graph.
-  message CameraGraph {
-    message CameraNode {
-      optional int64 node_id = 1;
-      // A list of inputs consumed by this node.
-      repeated int64 input_ids = 2;
-      // A list of outputs produced by this node.
-      repeated int64 output_ids = 3;
-
-      // These fields capture vendor-specific additions to this proto message.
-      // In practice `vendor_data` typically contains a serialized message of
-      // the vendor's design, and `vendor_data_version` is incremented each time
-      // there is a backwards incompatible change made to the message.
-      optional int32 vendor_data_version = 4;
-      optional bytes vendor_data = 5;
-    }
-    repeated CameraNode nodes = 1;
-
-    // An adjacency list describing connections between CameraNodes, mapping
-    // nodes and their outputs to other nodes that consume them as inputs.
-    message CameraEdge {
-      // The pair of IDs identifying the node and output connected by this edge.
-      optional int64 output_node_id = 1;
-      optional int64 output_id = 2;
-
-      // The pair of IDs identifying the node and input connected by this edge.
-      optional int64 input_node_id = 3;
-      optional int64 input_id = 4;
-
-      // These fields capture vendor-specific additions to this proto message.
-      // In practice `vendor_data` typically contains a serialized message of
-      // the vendor's design, and `vendor_data_version` is incremented each time
-      // there is a backwards incompatible change made to the message.
-      optional int32 vendor_data_version = 5;
-      optional bytes vendor_data = 6;
-    }
-    repeated CameraEdge edges = 2;
-  }
-  optional CameraGraph graph = 2;
-}
-
-// End of protos/perfetto/trace/android/camera_event.proto
-
 // Begin of protos/perfetto/trace/android/cpu_per_uid_data.proto
 
 message CpuPerUidData {
@@ -6932,88 +6771,6 @@ message KernelWakelockData {
 
 // End of protos/perfetto/trace/android/kernel_wakelock_data.proto
 
-// Begin of protos/perfetto/trace/android/network_trace.proto
-
-enum TrafficDirection {
-  DIR_UNSPECIFIED = 0;
-  DIR_INGRESS = 1;
-  DIR_EGRESS = 2;
-}
-
-// NetworkPacketEvent records the details of a single packet sent or received
-// on the network (in Linux kernel terminology, one sk_buff struct).
-message NetworkPacketEvent {
-  // The direction traffic is flowing for this event.
-  optional TrafficDirection direction = 1;
-
-  // The name of the network interface if available (e.g. 'rmnet0').
-  optional string network_interface = 2;
-
-  // The length of the packet in bytes (wire_size - L2_header_size). Ignored
-  // when using NetworkPacketEvent as the ctx in either NetworkPacketBundle or
-  // NetworkPacketContext.
-  optional uint32 length = 3;
-
-  // The Linux user id associated with the packet's socket.
-  optional uint32 uid = 4;
-
-  // The Android network tag associated with the packet's socket.
-  optional uint32 tag = 5;
-
-  // The packet's IP protocol (TCP=6, UDP=17, etc).
-  optional uint32 ip_proto = 6;
-
-  // The packet's TCP flags as a bitmask (FIN=0x1, SYN=0x2, RST=0x4, etc).
-  optional uint32 tcp_flags = 7;
-
-  // The local udp/tcp port of the packet.
-  optional uint32 local_port = 8;
-
-  // The remote udp/tcp port of the packet.
-  optional uint32 remote_port = 9;
-
-  // The 1-byte ICMP type identifier.
-  optional uint32 icmp_type = 10;
-
-  // The 1-byte ICMP code identifier.
-  optional uint32 icmp_code = 11;
-}
-
-// NetworkPacketBundle bundles one or more packets sharing the same attributes.
-message NetworkPacketBundle {
-  oneof packet_context {
-    // The intern id for looking up the associated packet context.
-    uint64 iid = 1;
-
-    // The inlined context for events in this bundle.
-    NetworkPacketEvent ctx = 2;
-  }
-
-  // The timestamp of the i-th packet encoded as the nanoseconds since the
-  // enclosing TracePacket's timestamp.
-  repeated uint64 packet_timestamps = 3 [packed = true];
-
-  // The length of the i-th packet in bytes (wire_size - L2_header_size).
-  repeated uint32 packet_lengths = 4 [packed = true];
-
-  // Total number of packets in the bundle (when above aggregation_threshold).
-  optional uint32 total_packets = 5;
-
-  // Duration between first and last packet (when above aggregation_threshold).
-  optional uint64 total_duration = 6;
-
-  // Total packet length in bytes (when above aggregation_threshold).
-  optional uint64 total_length = 7;
-}
-
-// An internable packet context.
-message NetworkPacketContext {
-  optional uint64 iid = 1;
-  optional NetworkPacketEvent ctx = 2;
-}
-
-// End of protos/perfetto/trace/android/network_trace.proto
-
 // Begin of protos/perfetto/trace/android/packages_list.proto
 
 message PackagesList {
@@ -7057,928 +6814,6 @@ message PixelModemTokenDatabase {
 
 // End of protos/perfetto/trace/android/pixel_modem_events.proto
 
-// Begin of protos/perfetto/trace/android/protolog.proto
-
-/* represents a single log entry */
-message ProtoLogMessage {
-  /* log statement identifier, created from message string and log level. */
-  optional fixed64 message_id = 1 [jstype = JS_STRING];
-  /* string parameters passed to the log call that have been interned. */
-  repeated uint32 str_param_iids = 2;
-  /* integer parameters passed to the log call. */
-  repeated sint64 sint64_params = 3 [jstype = JS_STRING];
-  /* floating point parameters passed to the log call. */
-  repeated double double_params = 4;
-  /* boolean parameters passed to the log call. */
-  repeated int32 boolean_params = 5;
-  // id of the interned stacktrace string
-  // (only dumped if explicitly confuigured to do so)
-  optional uint32 stacktrace_iid = 6;
-}
-
-/* contains all the data required to fully decode the protolog messages */
-message ProtoLogViewerConfig {
-  message MessageData {
-    // the id of the message that is logged in a ProtoLogMessage
-    optional fixed64 message_id = 1 [jstype = JS_STRING];
-    // the string representation of the message
-    optional string message = 2;
-    // the level of the message
-    optional ProtoLogLevel level = 3;
-    // the id of the log group this message belongs to
-    optional uint32 group_id = 4;
-    // path to the file where the message was logged
-    optional string location = 5;
-  }
-
-  /* information about a ProtoLog log group */
-  message Group {
-    optional uint32 id = 1;
-    optional string name = 2;
-    optional string tag = 3;
-  }
-
-  repeated MessageData messages = 1;
-  repeated Group groups = 2;
-}
-
-// End of protos/perfetto/trace/android/protolog.proto
-
-// Begin of protos/perfetto/trace/android/graphics/rect.proto
-
-message RectProto {
-  optional int32 left = 1;
-  optional int32 top = 2;
-  optional int32 right = 3;
-  optional int32 bottom = 4;
-}
-
-// End of protos/perfetto/trace/android/graphics/rect.proto
-
-// Begin of protos/perfetto/trace/android/shell_transition.proto
-
-// ShellTransition messages record information about the shell transitions in
-// the system. This is used to track the animations that are created and execute
-// through the shell transition system.
-message ShellTransition {
-  // The unique identifier of the transition.
-  optional int32 id = 1;
-
-  // The time the transition was created on the WM side
-  // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 create_time_ns = 2 [jstype = JS_STRING];
-  // The time the transition was sent from the WM side to shell
-  // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 send_time_ns = 3 [jstype = JS_STRING];
-  // The time the transition was dispatched by shell to execute
-  // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 dispatch_time_ns = 4 [jstype = JS_STRING];
-  // If the transition merge was accepted by the transition handler, this
-  // contains the time the transition was merged into transition with id
-  // `merge_target`.
-  // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 merge_time_ns = 5 [jstype = JS_STRING];
-  // The time shell proposed the transition should be merged to the transition
-  // handler into transition with id `merge_target`.
-  // (using SystemClock.elapsedRealtimeNanos()).
-  optional int64 merge_request_time_ns = 6 [jstype = JS_STRING];
-  // If the transition was aborted on the shell side, this is the time that
-  // occurred.
-  // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 shell_abort_time_ns = 7 [jstype = JS_STRING];
-  // If the transition was aborted on the wm side, this is the time that
-  // occurred.
-  // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 wm_abort_time_ns = 8 [jstype = JS_STRING];
-  // The time WM considers the transition to be complete.
-  // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 finish_time_ns = 9 [jstype = JS_STRING];
-
-  // The id of the transaction that WM proposed to use as the starting
-  // transaction. It contains all the layer changes required to setup the
-  // transition and should be executed right at the start of the transition
-  // by the transition handler.
-  optional uint64 start_transaction_id = 10 [jstype = JS_STRING];
-  // The if of the transaction that WM proposed to use as the finish
-  // transaction. It contains all the layer changes required to set the final
-  // state of the transition.
-  optional uint64 finish_transaction_id = 11 [jstype = JS_STRING];
-
-  // The id of the handler that executed the transition. A HandlerMappings
-  // message in the trace will contain the mapping of id to a string
-  // representation of the handler.
-  optional int32 handler = 12;
-  // The transition type of this transition (e.g. TO_FRONT, OPEN, CLOSE).
-  optional int32 type = 13;
-
-  // The list of changes that are part of this transition.
-  repeated Change changes = 14;
-  // The id of the transition we have requested to merge or have merged this
-  // transition into.
-  optional int32 merge_target = 15;
-
-  // The flags set on this transition.
-  optional int32 flags = 16;
-  // The time the starting window was removed. Tracked because this can
-  // happen after the transition finishes, but the app may not yet be visible
-  // until the starting window is removed. So in a sense the transition is not
-  // finished until the starting window is removed. (b/284302118)
-  // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 starting_window_remove_time_ns = 17 [jstype = JS_STRING];
-
-  // Contains the information about the windows changed in a transition.
-  message Change {
-    // The transition mode of this change (e.g. TO_FRONT, CLOSE...)
-    optional int32 mode = 1;
-    // The layer id of this change.
-    optional int32 layer_id = 2;
-    // The window id of this change.
-    optional int32 window_id = 3;
-    // The flags set on this change.
-    optional int32 flags = 4;
-    // The display id the change is transitioning on before the transition.
-    optional int32 start_display_id = 5;
-    // The display id the change is transitioning on after the transition.
-    optional int32 end_display_id = 6;
-    // The rotation of the change before the transition.
-    optional int32 start_rotation = 7;
-    // The rotation of the change after the transition.
-    optional int32 end_rotation = 8;
-    // The absolute screen bounds of the change before the transition.
-    optional RectProto start_absolute_bounds = 9;
-    // The absolute screen bounds of the change after the transition.
-    optional RectProto end_absolute_bounds = 10;
-  }
-}
-
-// Contains mappings from handler ids to string representation of the handlers.
-message ShellHandlerMappings {
-  repeated ShellHandlerMapping mapping = 1;
-}
-
-message ShellHandlerMapping {
-  // The id of the handler used in the ShellTransition message.
-  optional int32 id = 1;
-  // A human readable and meaningful string representation of the handler.
-  optional string name = 2;
-}
-
-// End of protos/perfetto/trace/android/shell_transition.proto
-
-// Begin of protos/perfetto/trace/android/graphics/corner_radii.proto
-
-message CornerRadiiProto {
-  optional float tl = 1;
-  optional float tr = 2;
-  optional float bl = 3;
-  optional float br = 4;
-}
-
-// End of protos/perfetto/trace/android/graphics/corner_radii.proto
-
-// Begin of protos/perfetto/trace/android/surfaceflinger_common.proto
-
-message RegionProto {
-  // Previously: uint64 id
-  reserved 1;
-  repeated RectProto rect = 2;
-}
-
-message SizeProto {
-  optional int32 w = 1;
-  optional int32 h = 2;
-}
-
-message TransformProto {
-  optional float dsdx = 1;
-  optional float dtdx = 2;
-  optional float dsdy = 3;
-  optional float dtdy = 4;
-  optional int32 type = 5;
-}
-
-message ColorProto {
-  optional float r = 1;
-  optional float g = 2;
-  optional float b = 3;
-  optional float a = 4;
-}
-
-message InputWindowInfoProto {
-  optional uint32 layout_params_flags = 1;
-  optional int32 layout_params_type = 2;
-  optional RectProto frame = 3;
-  optional RegionProto touchable_region = 4;
-
-  optional int32 surface_inset = 5;
-  optional bool visible = 6;
-  optional bool can_receive_keys = 7 [deprecated = true];
-  optional bool focusable = 8;
-  optional bool has_wallpaper = 9;
-
-  optional float global_scale_factor = 10;
-  optional float window_x_scale = 11 [deprecated = true];
-  optional float window_y_scale = 12 [deprecated = true];
-
-  optional int32 crop_layer_id = 13;
-  optional bool replace_touchable_region_with_crop = 14;
-  optional RectProto touchable_region_crop = 15;
-  optional TransformProto transform = 16;
-  optional uint32 input_config = 17;
-}
-
-message BlurRegion {
-  optional uint32 blur_radius = 1;
-  optional uint32 corner_radius_tl = 2 [deprecated = true];
-  optional uint32 corner_radius_tr = 3 [deprecated = true];
-  optional uint32 corner_radius_bl = 4 [deprecated = true];
-  optional float corner_radius_br = 5 [deprecated = true];
-  optional float corner_radius_tlx = 11;
-  optional float corner_radius_tly = 12;
-  optional float corner_radius_trx = 13;
-  optional float corner_radius_try = 14;
-  optional float corner_radius_blx = 15;
-  optional float corner_radius_bly = 16;
-  optional float corner_radius_brx = 17;
-  optional float corner_radius_bry = 18;
-  optional float alpha = 6;
-  optional int32 left = 7;
-  optional int32 top = 8;
-  optional int32 right = 9;
-  optional int32 bottom = 10;
-}
-
-message ColorTransformProto {
-  // This will be a 4x4 matrix of float values
-  repeated float val = 1 [packed = true];
-}
-
-enum TrustedOverlay {
-  UNSET = 0;
-  DISABLED = 1;
-  ENABLED = 2;
-};
-message BoxShadowSettings {
-  message BoxShadowParams {
-    optional float blur_radius = 1;
-    optional float spread_radius = 2;
-    optional int32 color = 3;
-    optional float offset_x = 4;
-    optional float offset_y = 5;
-  }
-  repeated BoxShadowParams box_shadows = 1;
-}
-
-message BorderSettings {
-  optional float stroke_width = 1;
-  optional int32 color = 2;
-}
-// End of protos/perfetto/trace/android/surfaceflinger_common.proto
-
-// Begin of protos/perfetto/trace/android/surfaceflinger_layers.proto
-
-// Message used by Winscope to process legacy trace files.
-// Represents a file full of surface flinger trace entries.
-// Encoded, it should start with 0x4c 0x59 0x52 0x54 0x52 0x41 0x43 0x45
-// (.LYRTRACE), such that they can be easily identified.
-message LayersTraceFileProto {
-  // constant; MAGIC_NUMBER = (long) MAGIC_NUMBER_H << 32 |
-  // MagicNumber.MAGIC_NUMBER_L (this is needed because enums have to be 32 bits
-  // and there's no nice way to put 64bit constants into .proto files.
-  enum MagicNumber {
-    INVALID = 0;
-    // LYRT (little-endian ASCII)
-    MAGIC_NUMBER_L = 0x5452594c;
-    // RACE (little-endian ASCII)
-    MAGIC_NUMBER_H = 0x45434152;
-  }
-
-  // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1 [jstype = JS_STRING];
-
-  repeated LayersSnapshotProto entry = 2;
-
-  // Offset between real-time clock and elapsed time clock in nanoseconds.
-  // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
-  // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
-}
-
-message LayersSnapshotProto {
-  // elapsed realtime in nanos since boot of when this entry was logged
-  optional sfixed64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
-
-  // SurfaceFlinger's stage where the snapshot was triggered.
-  // Currently either "visibleRegionsDirty" or "bufferLatched".
-  optional string where = 2;
-
-  optional LayersProto layers = 3;
-
-  // Blob for the current HWC information for all layers, reported by dumpsys.
-  // Example:
-  //   "maxDownScale: 4, maxFullWidth: 8192, HWState: 1, AssignedState: 3, ..."
-  optional string hwc_blob = 4;
-
-  // Excludes state sent during composition like visible region and composition
-  // type.
-  optional bool excludes_composition_state = 5;
-
-  // Number of missed entries since the last entry was recorded.
-  optional uint32 missed_entries = 6;
-
-  repeated DisplayProto displays = 7;
-
-  optional int64 vsync_id = 8 [jstype = JS_STRING];
-}
-
-// ProtoVM Patch Proto
-// Merged by ProtoVM into LayersSnapshotProto
-message LayersPatchProto {
-  // Layers that have been modified or added in this patch.
-  repeated LayerProto layers = 1;
-  // Displays that have been modified or added in this patch.
-  repeated DisplayProto displays = 2;
-
-  // IDs of layers that have been deleted.
-  repeated int32 deleted_layer_ids = 3;
-  // IDs of displays that have been deleted.
-  repeated uint64 deleted_display_ids = 4;
-
-  // elapsed realtime in nanos since boot of when this entry was logged
-  optional sfixed64 elapsed_realtime_nanos = 5;
-
-  // SurfaceFlinger's stage where the snapshot was triggered.
-  // Currently either "visibleRegionsDirty" or "bufferLatched".
-  optional string where = 6;
-
-  // Blob for the current HWC information for all layers, reported by dumpsys.
-  optional string hwc_blob = 7;
-
-  // Excludes state sent during composition like visible region and composition
-  // type.
-  optional bool excludes_composition_state = 8;
-
-  // Number of missed entries since the last entry was recorded.
-  optional uint32 missed_entries = 9;
-
-  // VSync ID associated with this patch.
-  optional int64 vsync_id = 10;
-}
-
-// Contains a list of all layers.
-message LayersProto {
-  repeated LayerProto layers = 1;
-}
-
-message DisplayProto {
-  optional uint64 id = 1 [jstype = JS_STRING];
-  // Display descriptor, e.g. "Built-In Screen"
-  optional string name = 2;
-  optional uint32 layer_stack = 3;
-  optional SizeProto size = 4;
-  optional RectProto layer_stack_space_rect = 5;
-  optional TransformProto transform = 6;
-  optional bool is_virtual = 7;
-  optional double dpi_x = 8;
-  optional double dpi_y = 9;
-}
-
-// Must match definition in the IComposerClient HAL
-enum HwcCompositionType {
-  // Invalid composition type
-  HWC_TYPE_UNSPECIFIED = 0;
-  // Layer was composited by the client into the client target buffer
-  HWC_TYPE_CLIENT = 1;
-  // Layer was composited by the device through hardware overlays
-  HWC_TYPE_DEVICE = 2;
-  // Layer was composited by the device using a color
-  HWC_TYPE_SOLID_COLOR = 3;
-  // Similar to DEVICE, but the layer position may have been asynchronously set
-  // through setCursorPosition
-  HWC_TYPE_CURSOR = 4;
-  // Layer was composited by the device via a sideband stream
-  HWC_TYPE_SIDEBAND = 5;
-  // Layer was composited by hardware optimized for display decoration
-  HWC_TYPE_DISPLAY_DECORATION = 6;
-}
-
-// Information about each layer.
-message LayerProto {
-  // unique id per layer.
-  optional int32 id = 1;
-  // unique name per layer.
-  // Example: "Wallpaper".
-  optional string name = 2;
-  // list of children this layer may have. May be empty.
-  repeated int32 children = 3 [packed = true];
-  // list of layers that are z order relative to this layer.
-  repeated int32 relatives = 4 [packed = true];
-  // The type of layer.
-  // Examples: "ContainerLayer", "BufferStateLayer".
-  optional string type = 5;
-  optional RegionProto transparent_region = 6;
-  optional RegionProto visible_region = 7;
-  optional RegionProto damage_region = 8;
-  optional uint32 layer_stack = 9;
-  // The layer's z order. Can be z order in layer stack, relative to parent,
-  // or relative to another layer specified in zOrderRelative.
-  optional int32 z = 10;
-  // The layer's position on the display.
-  optional PositionProto position = 11;
-  // The layer's requested position.
-  optional PositionProto requested_position = 12;
-  // The layer's size.
-  optional SizeProto size = 13;
-  // The layer's crop in its own bounds.
-  optional RectProto crop = 14;
-  // The layer's crop in its parent's bounds.
-  optional RectProto final_crop = 15 [deprecated = true];
-  optional bool is_opaque = 16;
-  optional bool invalidate = 17;
-  // Composition states's dataspace.
-  // Examples: "STANDARD_BT709", "STANDARD_BT601_625".
-  // See full enum in
-  // frameworks/native/libs/nativewindow/include/android/data_space.h
-  optional string dataspace = 18;
-  // Buffer's pixel format
-  // Examples: "PIXEL_FORMAT_TRANSLUCENT", "PIXEL_FORMAT_RGBA_8888".
-  // See full enum in frameworks/native/libs/ui/include/ui/PixelFormat.h
-  optional string pixel_format = 19;
-  // The layer's actual color.
-  optional ColorProto color = 20;
-  // The layer's requested color.
-  optional ColorProto requested_color = 21;
-  // Can be any combination of
-  //    hidden = 0x01
-  //    opaque = 0x02,
-  //    secure = 0x80,
-  optional uint32 flags = 22;
-  // The layer's actual transform
-  optional TransformProto transform = 23;
-  // The layer's requested transform.
-  optional TransformProto requested_transform = 24;
-  // The parent layer. This value can be null if there is no parent.
-  optional int32 parent = 25;
-  // The layer that this layer has a z order relative to. This value can be
-  // null.
-  optional int32 z_order_relative_of = 26;
-  // This value can be null if there's nothing to draw.
-  optional ActiveBufferProto active_buffer = 27;
-  // The number of frames available.
-  optional int32 queued_frames = 28;
-  optional bool refresh_pending = 29;
-  // The layer's composer backend destination frame
-  optional RectProto hwc_frame = 30;
-  // The layer's composer backend source crop
-  optional FloatRectProto hwc_crop = 31;
-  // The layer's composer backend transform
-  optional int32 hwc_transform = 32;
-  optional int32 window_type = 33 [deprecated = true];
-  optional int32 app_id = 34 [deprecated = true];
-  // The layer's composition type
-  optional HwcCompositionType hwc_composition_type = 35;
-  // If it's a buffer layer, indicate if the content is protected
-  optional bool is_protected = 36;
-  // Current frame number being rendered.
-  optional uint64 curr_frame = 37 [jstype = JS_STRING];
-  // A list of barriers that the layer is waiting to update state.
-  repeated BarrierLayerProto barrier_layer = 38;
-  // If active_buffer is not null, record its transform.
-  optional TransformProto buffer_transform = 39;
-  optional int32 effective_scaling_mode = 40;
-  // Layer's corner radius
-  optional float corner_radius = 41 [deprecated = true];
-  // Metadata map. May be empty.
-  map<int32, bytes> metadata = 42;
-
-  optional TransformProto effective_transform = 43;
-  optional FloatRectProto source_bounds = 44;
-  optional FloatRectProto bounds = 45;
-  optional FloatRectProto screen_bounds = 46;
-
-  optional InputWindowInfoProto input_window_info = 47;
-
-  // Crop used to draw the rounded corner.
-  optional FloatRectProto corner_radius_crop = 48;
-
-  // length of the shadow to draw around the layer, it may be set on the
-  // layer or set by a parent layer.
-  optional float shadow_radius = 49;
-  optional ColorTransformProto color_transform = 50;
-
-  optional bool is_relative_of = 51;
-  // Layer's background blur radius in pixels.
-  optional int32 background_blur_radius = 52;
-
-  optional uint32 owner_uid = 53;
-
-  // Regions of a layer, where blur should be applied.
-  repeated BlurRegion blur_regions = 54;
-
-  optional bool is_trusted_overlay = 55;
-
-  // Corner radius explicitly set on layer rather than inherited
-  optional float requested_corner_radius = 56 [deprecated = true];
-
-  optional RectProto destination_frame = 57;
-
-  optional uint32 original_id = 58;
-
-  optional TrustedOverlay trusted_overlay = 59;
-
-  // Layer's scale during background blur, relative to 1.0f=100%
-  optional float background_blur_scale = 60;
-
-  // Layer's corner radius.
-  optional CornerRadiiProto corner_radii = 61;
-
-  // Corner radius explicitly set on layer rather than inherited
-  optional CornerRadiiProto requested_corner_radii = 62;
-
-  // Corner radius explicity set as drawn by client
-  optional CornerRadiiProto client_drawn_corner_radii = 63;
-
-  // Priority value of the layer set by the system.
-  optional int32 system_content_priority = 64;
-
-  // Settings which specify how shadows should be drawn for a layer.
-  optional BoxShadowSettings box_shadow_settings = 65;
-
-  // Settings which specify how an outline should be drawn for a layer.
-  optional BorderSettings border_settings = 66;
-
-  // "True" corner radii of the layer computed by SurfaceFlinger.
-  optional CornerRadiiProto effective_radii = 67;
-
-  // Reported corner radii of the layer.
-  optional CornerRadiiProto reported_radii = 68;
-
-  // Flag indicating if client-drawn radii are disabled.
-  optional bool disable_client_drawn_radii = 69;
-}
-
-message PositionProto {
-  optional float x = 1;
-  optional float y = 2;
-}
-
-message FloatRectProto {
-  optional float left = 1;
-  optional float top = 2;
-  optional float right = 3;
-  optional float bottom = 4;
-}
-
-message ActiveBufferProto {
-  optional uint32 width = 1;
-  optional uint32 height = 2;
-  optional uint32 stride = 3;
-  optional int32 format = 4;
-  optional uint64 usage = 5 [jstype = JS_STRING];
-}
-
-message BarrierLayerProto {
-  // layer id the barrier is waiting on.
-  optional int32 id = 1;
-  // frame number the barrier is waiting on.
-  optional uint64 frame_number = 2 [jstype = JS_STRING];
-}
-
-// End of protos/perfetto/trace/android/surfaceflinger_layers.proto
-
-// Begin of protos/perfetto/trace/android/surfaceflinger_transactions.proto
-
-// Message used by Winscope to process legacy trace files.
-// Represents a file full of surface flinger transactions.
-// Encoded, it should start with 0x54 0x4E 0x58 0x54 0x52 0x41 0x43 0x45
-// (.TNXTRACE), such that they can be easily identified.
-message TransactionTraceFile {
-  // constant; MAGIC_NUMBER = (long) MAGIC_NUMBER_H << 32 |
-  // MagicNumber.MAGIC_NUMBER_L (this is needed because enums have to be 32 bits
-  // and there's no nice way to put 64bit constants into .proto files.
-  enum MagicNumber {
-    INVALID = 0;
-    // TNXT (little-endian ASCII)
-    MAGIC_NUMBER_L = 0x54584E54;
-    // RACE (little-endian ASCII)
-    MAGIC_NUMBER_H = 0x45434152;
-  }
-
-  // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1 [jstype = JS_STRING];
-  repeated TransactionTraceEntry entry = 2;
-
-  // offset between real-time clock and elapsed time clock in nanoseconds.
-  // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
-  // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
-  optional uint32 version = 4;
-}
-
-message TransactionTraceEntry {
-  optional int64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
-  optional int64 vsync_id = 2 [jstype = JS_STRING];
-  repeated TransactionState transactions = 3;
-  repeated LayerCreationArgs added_layers = 4;
-  repeated uint32 destroyed_layers = 5;
-  repeated DisplayState added_displays = 6;
-  repeated int32 removed_displays = 7;
-  repeated uint32 destroyed_layer_handles = 8;
-  optional bool displays_changed = 9;
-  repeated DisplayInfo displays = 10;
-}
-
-message DisplayInfo {
-  optional uint32 layer_stack = 1;
-  optional int32 display_id = 2;
-  optional int32 logical_width = 3;
-  optional int32 logical_height = 4;
-  optional Transform transform_inverse = 5;
-  optional Transform transform = 6;
-  optional bool receives_input = 7;
-  optional bool is_secure = 8;
-  optional bool is_primary = 9;
-  optional bool is_virtual = 10;
-  optional int32 rotation_flags = 11;
-  optional int32 transform_hint = 12;
-}
-
-message LayerCreationArgs {
-  optional uint32 layer_id = 1;
-  optional string name = 2;
-  optional uint32 flags = 3;
-  optional uint32 parent_id = 4;
-  optional uint32 mirror_from_id = 5;
-  optional bool add_to_root = 6;
-  optional uint32 layer_stack_to_mirror = 7;
-}
-
-message Transform {
-  optional float dsdx = 1;
-  optional float dtdx = 2;
-  optional float dtdy = 3;
-  optional float dsdy = 4;
-  optional float tx = 5;
-  optional float ty = 6;
-}
-
-message TransactionBarrier {
-  optional string barrier_token = 1;
-  optional uint32 kind = 2;
-}
-
-message TransactionState {
-  optional int32 pid = 1;
-  optional int32 uid = 2;
-  optional int64 vsync_id = 3 [jstype = JS_STRING];
-  optional int32 input_event_id = 4;
-  optional int64 post_time = 5 [jstype = JS_STRING];
-  optional uint64 transaction_id = 6 [jstype = JS_STRING];
-  repeated LayerState layer_changes = 7;
-  repeated DisplayState display_changes = 8;
-  repeated uint64 merged_transaction_ids = 9 [jstype = JS_STRING];
-  optional uint64 apply_token = 10 [jstype = JS_STRING];
-  repeated TransactionBarrier transaction_barriers = 11;
-}
-
-// Keep insync with layer_state_t
-message LayerState {
-  optional uint32 layer_id = 1;
-  // Changes are split into ChangesLsb and ChangesMsb. First 32 bits are in
-  // ChangesLsb and the next 32 bits are in ChangesMsb. This is needed because
-  // enums have to be 32 bits and there's no nice way to put 64bit constants
-  // into .proto files.
-  enum ChangesLsb {
-    eChangesLsbNone = 0;
-    ePositionChanged = 0x00000001;
-    eLayerChanged = 0x00000002;
-    // unused = 0x00000004;
-    eAlphaChanged = 0x00000008;
-
-    eMatrixChanged = 0x00000010;
-    eTransparentRegionChanged = 0x00000020;
-    eFlagsChanged = 0x00000040;
-    eLayerStackChanged = 0x00000080;
-
-    eReleaseBufferListenerChanged = 0x00000400;
-    eShadowRadiusChanged = 0x00000800;
-
-    eBufferCropChanged = 0x00002000;
-    eRelativeLayerChanged = 0x00004000;
-    eReparent = 0x00008000;
-
-    eColorChanged = 0x00010000;
-    eBufferTransformChanged = 0x00040000;
-    eTransformToDisplayInverseChanged = 0x00080000;
-
-    eCropChanged = 0x00100000;
-    eBufferChanged = 0x00200000;
-    eAcquireFenceChanged = 0x00400000;
-    eDataspaceChanged = 0x00800000;
-
-    eHdrMetadataChanged = 0x01000000;
-    eSurfaceDamageRegionChanged = 0x02000000;
-    eApiChanged = 0x04000000;
-    eSidebandStreamChanged = 0x08000000;
-
-    eColorTransformChanged = 0x10000000;
-    eHasListenerCallbacksChanged = 0x20000000;
-    eInputInfoChanged = 0x40000000;
-    // 0x80000000; (proto stores enums as signed int)
-    eCornerRadiusChanged = -2147483648;
-  };
-  enum ChangesMsb {
-    eChangesMsbNone = 0;
-    eDestinationFrameChanged = 0x1;
-    eCachedBufferChanged = 0x2;
-    eBackgroundColorChanged = 0x4;
-    eMetadataChanged = 0x8;
-    eColorSpaceAgnosticChanged = 0x10;
-    eFrameRateSelectionPriority = 0x20;
-    eFrameRateChanged = 0x40;
-    eBackgroundBlurRadiusChanged = 0x80;
-    eProducerDisconnect = 0x100;
-    eFixedTransformHintChanged = 0x200;
-    eFrameNumberChanged = 0x400;
-    eBlurRegionsChanged = 0x800;
-    eAutoRefreshChanged = 0x1000;
-    eStretchChanged = 0x2000;
-    eTrustedOverlayChanged = 0x4000;
-    eDropInputModeChanged = 0x8000;
-    eClientDrawnCornerRadiusChanged = 0x00010000;
-    eSystemContentPriorityChanged = 0x00020000;
-    eBoxShadowSettingsChanged = 0x00040000;
-    eBorderSettingsChanged = 0x00080000;
-  };
-  optional uint64 what = 2 [jstype = JS_STRING];
-  optional float x = 3;
-  optional float y = 4;
-  optional int32 z = 5;
-  optional uint32 w = 6;
-  optional uint32 h = 7;
-  optional uint32 layer_stack = 8;
-
-  enum Flags {
-    eFlagsNone = 0;
-    eLayerHidden = 0x01;
-    eLayerOpaque = 0x02;
-    eLayerSkipScreenshot = 0x40;
-    eLayerSecure = 0x80;
-    eEnableBackpressure = 0x100;
-    eLayerIsDisplayDecoration = 0x200;
-  };
-  optional uint32 flags = 9;
-  optional uint32 mask = 10;
-
-  message Matrix22 {
-    optional float dsdx = 1;
-    optional float dtdx = 2;
-    optional float dtdy = 3;
-    optional float dsdy = 4;
-  };
-
-  message CornerRadii {
-    optional float tl = 1;
-    optional float tr = 2;
-    optional float bl = 3;
-    optional float br = 4;
-  }
-  optional Matrix22 matrix = 11;
-  optional float corner_radius = 12 [deprecated = true];
-  optional uint32 background_blur_radius = 13;
-  optional uint32 parent_id = 14;
-  optional uint32 relative_parent_id = 15;
-
-  optional float alpha = 16;
-  message Color3 {
-    optional float r = 1;
-    optional float g = 2;
-    optional float b = 3;
-  }
-  optional Color3 color = 17;
-  optional RegionProto transparent_region = 18;
-  optional uint32 transform = 19;
-  optional bool transform_to_display_inverse = 20;
-  optional RectProto crop = 21;
-
-  message BufferData {
-    optional uint64 buffer_id = 1 [jstype = JS_STRING];
-    optional uint32 width = 2;
-    optional uint32 height = 3;
-    optional uint64 frame_number = 4 [jstype = JS_STRING];
-
-    enum BufferDataChange {
-      BufferDataChangeNone = 0;
-      fenceChanged = 0x01;
-      frameNumberChanged = 0x02;
-      cachedBufferChanged = 0x04;
-    }
-    optional uint32 flags = 5;
-    optional uint64 cached_buffer_id = 6 [jstype = JS_STRING];
-
-    enum PixelFormat {
-      PIXEL_FORMAT_UNKNOWN = 0;
-      PIXEL_FORMAT_CUSTOM = -4;
-      PIXEL_FORMAT_TRANSLUCENT = -3;
-      PIXEL_FORMAT_TRANSPARENT = -2;
-      PIXEL_FORMAT_OPAQUE = -1;
-      PIXEL_FORMAT_RGBA_8888 = 1;
-      PIXEL_FORMAT_RGBX_8888 = 2;
-      PIXEL_FORMAT_RGB_888 = 3;
-      PIXEL_FORMAT_RGB_565 = 4;
-      PIXEL_FORMAT_BGRA_8888 = 5;
-      PIXEL_FORMAT_RGBA_5551 = 6;
-      PIXEL_FORMAT_RGBA_4444 = 7;
-      PIXEL_FORMAT_RGBA_FP16 = 22;
-      PIXEL_FORMAT_RGBA_1010102 = 43;
-      PIXEL_FORMAT_R_8 = 0x38;
-    }
-    optional PixelFormat pixel_format = 7;
-    optional uint64 usage = 8 [jstype = JS_STRING];
-  }
-  optional BufferData buffer_data = 22;
-  optional int32 api = 23;
-  optional bool has_sideband_stream = 24;
-  optional ColorTransformProto color_transform = 25;
-  repeated BlurRegion blur_regions = 26;
-
-  message WindowInfo {
-    optional uint32 layout_params_flags = 1;
-    optional int32 layout_params_type = 2;
-    optional RegionProto touchable_region = 3;
-    optional int32 surface_inset = 4;
-    // unused
-    optional bool focusable = 5;
-    // unused
-    optional bool has_wallpaper = 6;
-    optional float global_scale_factor = 7;
-    optional uint32 crop_layer_id = 8;
-    optional bool replace_touchable_region_with_crop = 9;
-    optional RectProto touchable_region_crop = 10;
-    optional Transform transform = 11;
-    optional uint32 input_config = 12;
-  }
-  optional WindowInfo window_info_handle = 27;
-  optional float bg_color_alpha = 28;
-  optional int32 bg_color_dataspace = 29;
-  optional bool color_space_agnostic = 30;
-  optional float shadow_radius = 31;
-  optional int32 frame_rate_selection_priority = 32;
-  optional float frame_rate = 33;
-  optional int32 frame_rate_compatibility = 34;
-  optional int32 change_frame_rate_strategy = 35;
-  optional uint32 fixed_transform_hint = 36;
-  optional uint64 frame_number = 37 [jstype = JS_STRING];
-  optional bool auto_refresh = 38;
-  // unused
-  optional bool is_trusted_overlay = 39;
-  optional RectProto buffer_crop = 40;
-  optional RectProto destination_frame = 41;
-
-  enum DropInputMode {
-    NONE = 0;
-    ALL = 1;
-    OBSCURED = 2;
-  };
-  optional DropInputMode drop_input_mode = 42;
-
-  optional TrustedOverlay trusted_overlay = 43;
-
-  optional float background_blur_scale = 44;
-
-  optional CornerRadii corner_radii = 45;
-
-  optional CornerRadii client_drawn_corner_radii = 46;
-
-  optional int32 system_content_priority = 47;
-
-  optional BoxShadowSettings box_shadow_settings = 48;
-
-  optional BorderSettings border_settings = 49;
-}
-
-message DisplayState {
-  enum Changes {
-    eChangesNone = 0;
-    eSurfaceChanged = 0x01;
-    eLayerStackChanged = 0x02;
-    eDisplayProjectionChanged = 0x04;
-    eDisplaySizeChanged = 0x08;
-    eFlagsChanged = 0x10;
-  };
-  optional int32 id = 1;
-  optional uint32 what = 2;
-  optional uint32 flags = 3;
-  optional uint32 layer_stack = 4;
-  optional uint32 orientation = 5;
-  optional RectProto layer_stack_space_rect = 6;
-  optional RectProto oriented_display_space_rect = 7;
-  optional uint32 width = 8;
-  optional uint32 height = 9;
-}
-
-// End of protos/perfetto/trace/android/surfaceflinger_transactions.proto
-
 // Begin of protos/perfetto/trace/android/user_list.proto
 
 message AndroidUserList {
@@ -7995,14 +6830,6 @@ message AndroidUserList {
 }
 
 // End of protos/perfetto/trace/android/user_list.proto
-
-// Begin of protos/perfetto/trace/android/winscope_extensions.proto
-
-message WinscopeExtensions {
-  extensions 1 to 8;
-}
-
-// End of protos/perfetto/trace/android/winscope_extensions.proto
 
 // Begin of protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto
 
@@ -8937,158 +7764,6 @@ message EtwTraceEventBundle {
   repeated EtwTraceEvent event = 2;
 }
 // End of protos/perfetto/trace/etw/etw_event_bundle.proto
-
-// Begin of protos/perfetto/trace/evdev.proto
-
-// Records an event in the evdev protocol, as used by Linux and some other *nix
-// kernels to report events from human interface devices.
-//
-// Next ID: 5
-message EvdevEvent {
-  // The device's unique ID number. This need not be the number of its
-  // /dev/input/event node.
-  optional uint32 device_id = 1;
-
-  oneof event {
-    InputEvent input_event = 2;
-    DeviceAddition add_event = 3;
-    DeviceRemoval remove_event = 4;
-  }
-
-  // Proto version of Linux's struct input_event. The meaning of types and codes
-  // are described in the Linux kernel documentation at
-  // https://www.kernel.org/doc/html/latest/input/event-codes.html.
-  //
-  // Next ID: 5
-  message InputEvent {
-    // The monotonic timestamp at which the event occurred, as reported by the
-    // kernel, in integer nanoseconds. If omitted, assume that it hasn't changed
-    // since the previous event.
-    optional uint64 kernel_timestamp = 1;
-
-    // The code grouping for this event, used to distinguish signals, absolute
-    // and relative axis changes, and other types of event.
-    optional uint32 type = 2;
-    // The precise type of the event, such as the axis code for absolute and
-    // relative events.
-    optional uint32 code = 3;
-    // The new value of the axis described by type and code.
-    optional sint32 value = 4;
-  }
-
-  // Describes an evdev device being added to the system.
-  //
-  // Next ID: 2
-  message DeviceAddition {
-    optional EvdevDevice device = 1;
-  }
-
-  // Describes an evdev device being removed from the system.
-  //
-  // Next ID: 1
-  message DeviceRemoval {
-    // Empty — we don't need to record any data other than the device ID for
-    // this event type.
-  }
-}
-
-// The properties of an input device that don't change during the time that it's
-// connected, as well as the current values for all of its axes.
-//
-// Next ID: 13
-message EvdevDevice {
-  // The device's unique ID number. This need not be the number of its
-  // /dev/input/event node.
-  optional uint32 device_id = 1;
-  // The number of the evdev device (i.e. from its /dev/input/eventX node path).
-  optional uint32 device_num = 2;
-
-  // The device's name.
-  optional string name = 3;
-  // The physical path to the device in the system hierarchy.
-  optional string phys = 4;
-  // The unique identification code for the device (if it has one).
-  optional string uniq = 5;
-
-  // Proto version of Linux's struct input_id. Although uint32s are used for the
-  // fields, the kernel uses 16-bit ints so values will be less than 2^16.
-  //
-  // Next ID: 5
-  message Identifier {
-    // The bus that the device is connected to. Values will be one of Linux's
-    // BUS_* constants.
-    optional uint32 bustype = 1;
-    // A number identifying the vendor of the device. Often a USB or Bluetooth
-    // vendor ID, but not always.
-    optional uint32 vendor = 2;
-    optional uint32 product = 3;
-    optional uint32 version = 4;
-  }
-  // The device's ID numbers.
-  optional Identifier id = 6;
-
-  // Proto version of Linux's struct input_absinfo, excluding the value field
-  // (which is tracked elsewhere).
-  //
-  // Next ID: 6
-  message AbsInfo {
-    optional sint32 minimum = 1;
-    optional sint32 maximum = 2;
-    optional int32 fuzz = 3;
-    optional int32 flat = 4;
-    optional int32 resolution = 5;
-  }
-  // A map of information for each of the device's absolute axes. Keys are the
-  // Linux ABS_* constants.
-  map<uint32, AbsInfo> absolute_axis_infos = 7;
-
-  // Bitmask specifying which types of events the device declares.
-  optional bytes ev_bitmask = 8;
-  // A map of bitmasks specifying which axes of each type the device declares.
-  // Keys are the Linux EV_* constants.
-  map<uint32, bytes> event_type_bitmasks = 9;
-  // Bitmask of properties declared by the device.
-  optional bytes prop_bitmask = 10;
-
-  // Contains the current values of all axes of a particular type (e.g. EV_ABS,
-  // EV_KEY, etc.).
-  //
-  // Next ID: 2
-  message AxisMap {
-    // Current values of all axes, other than ABS_MT_* axes (which have multiple
-    // slots), which are kept in abs_mt_states instead.
-    //
-    // The keys are the Linux axis codes, e.g. ABS_* for absolute axes. If there
-    // is no entry for a particular axis, assume that its value is 0.
-    map<uint32, sint32> axis_states = 1;
-  }
-
-  // Current states of device axes.
-  //
-  // The keys are the Linux event type constants (e.g. EV_KEY, EV_ABS, etc.). We
-  // don't need to keep track of states for all axis types, only KEY, SW, LED,
-  // and ABS, so only those will have entries in this map. States for ABS_MT_*
-  // axes (which have multiple slots) will be kept in abs_mt_states instead.
-  map<uint32, AxisMap> axis_states = 11;
-
-  // Contains the current values of a single ABS_MT_* axis across all of its
-  // slots.
-  //
-  // Next ID: 2
-  message SlotValuesMap {
-    // Current values for all slots.
-    //
-    // The keys are the slot numbers. If there is no entry for a particular
-    // slot, assume that its value is 0.
-    map<uint32, sint32> slot_values = 1;
-  }
-
-  // Current states of ABS_MT_* axes other than ABS_MT_SLOT. The keys are the
-  // ABS axis codes.
-  map<uint32, SlotValuesMap> abs_mt_states = 12;
-}
-
-// End of protos/perfetto/trace/evdev.proto
 
 // Begin of protos/perfetto/common/descriptor.proto
 
@@ -12737,6 +11412,16 @@ message GpuPowerStateFtraceEvent {
   optional int32 old_state = 1;
   optional int32 new_state = 2;
 }
+message PsciDomainIdleExitFtraceEvent {
+  optional uint32 cpu_id = 1;
+  optional uint32 state = 2;
+  optional uint32 s2idle = 3;
+}
+message PsciDomainIdleEnterFtraceEvent {
+  optional uint32 cpu_id = 1;
+  optional uint32 state = 2;
+  optional uint32 s2idle = 3;
+}
 
 // End of protos/perfetto/trace/ftrace/power.proto
 
@@ -14270,6 +12955,8 @@ message FtraceEvent {
     PanelSettingsFullFtraceEvent panel_settings_full = 611;
     PanelSettingsLiteFtraceEvent panel_settings_lite = 612;
     DpuDispDpuLineUnderrunFtraceEvent dpu_disp_dpu_line_underrun = 613;
+    PsciDomainIdleExitFtraceEvent psci_domain_idle_exit = 614;
+    PsciDomainIdleEnterFtraceEvent psci_domain_idle_enter = 615;
   }
 }
 
@@ -16254,7 +14941,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 57.
+// Next reserved id: 13 (up to 15). Next id: 58.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -16310,6 +14997,14 @@ message TrackEvent {
     // that most other TrackEvent fields (e.g. categories, name, ..) are not
     // supported for TYPE_COUNTER events. See also CounterDescriptor.
     TYPE_COUNTER = 4;
+
+    // Event that provides a state value update for a state track. Think of this
+    // as a symbolic counter (a TYPE_COUNTER with literals rather then numbers).
+    // |track_uuid| should refer to a state track, and the state value update is
+    // carried in the |state| field. An empty or unset state field indicates "no
+    // state" / "idle". For more details, see
+    // [RFC-0023](https://github.com/google/perfetto/discussions/5549).
+    TYPE_STATE = 5;
   }
   optional Type type = 9;
 
@@ -16764,9 +15459,6 @@ message InternedData {
   // Interned string values in the DebugAnnotation proto.
   repeated InternedString debug_annotation_string_values = 29;
 
-  // Interned packet context for android.network_packets.
-  repeated NetworkPacketContext packet_context = 30;
-
   // Interned name of a js function. We only intern js functions as there is a
   // lot of duplication for them, but less so for other strings in the V8 data
   // source.
@@ -16798,28 +15490,27 @@ message InternedData {
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
-  // Interned job names for Android Job Names. These are separate from
-  // other strings because they are under app control.
-  repeated AndroidJobName android_job_name = 44;
-
   // Description of GPU counters available in a data source.
   repeated InternedGpuCounterDescriptor gpu_counter_descriptors = 47;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
 
-  // App wakelock (AppWakelockInfo). Schema:
+  // Android out-of-tree extensions. These payloads are defined in the Android
+  // tree and mirrored under protos/third_party/android/; each hole keeps its
+  // original field number for wire compatibility. Per schema:
+  //
+  // protos/third_party/android/connectivity/network_trace.proto
+  //   30: NetworkPacketContext packet_context
+  //
   // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto
-  extensions 42;
+  //   42: AppWakelockInfo app_wakelock_info
+  //   44: AndroidJobName android_job_name
+  extensions 30, 42, 44;
 
   // Extension range for domain-specific interned data. See
   // protos/perfetto/trace/extensions.json for the allocation registry.
   extensions 1000 to 9999;
-}
-
-message AndroidJobName {
-  optional uint64 iid = 1;
-  optional string name = 2;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
@@ -17396,167 +16087,6 @@ message DeobfuscationMapping {
 }
 // End of protos/perfetto/trace/profiling/deobfuscation.proto
 
-// Begin of protos/perfetto/trace/profiling/heap_graph.proto
-
-message HeapGraphRoot {
-  enum Type {
-    ROOT_UNKNOWN = 0;
-    ROOT_JNI_GLOBAL = 1;
-    ROOT_JNI_LOCAL = 2;
-    ROOT_JAVA_FRAME = 3;
-    ROOT_NATIVE_STACK = 4;
-    ROOT_STICKY_CLASS = 5;
-    ROOT_THREAD_BLOCK = 6;
-    ROOT_MONITOR_USED = 7;
-    ROOT_THREAD_OBJECT = 8;
-    ROOT_INTERNED_STRING = 9;
-    ROOT_FINALIZING = 10;
-    ROOT_DEBUGGER = 11;
-    ROOT_REFERENCE_CLEANUP = 12;
-    ROOT_VM_INTERNAL = 13;
-    ROOT_JNI_MONITOR = 14;
-  };
-  // Objects retained by this root.
-  repeated uint64 object_ids = 1 [packed = true];
-
-  optional Type root_type = 2;
-}
-
-message HeapGraphType {
-  enum Kind {
-    KIND_UNKNOWN = 0;
-    KIND_NORMAL = 1;
-    KIND_NOREFERENCES = 2;
-    KIND_STRING = 3;
-    KIND_ARRAY = 4;
-    KIND_CLASS = 5;
-    KIND_CLASSLOADER = 6;
-    KIND_DEXCACHE = 7;
-    KIND_SOFT_REFERENCE = 8;
-    KIND_WEAK_REFERENCE = 9;
-    KIND_FINALIZER_REFERENCE = 10;
-    KIND_PHANTOM_REFERENCE = 11;
-  };
-  // TODO(fmayer): Consider removing this and using the index in the repeaed
-  // field to save space.
-  optional uint64 id = 1;
-  optional uint64 location_id = 2;
-  optional string class_name = 3;
-  // Size of objects of this type.
-  optional uint64 object_size = 4;
-  optional uint64 superclass_id = 5;
-  // Indices for InternedData.field_names for the names of the fields of
-  // instances of this class. This does NOT include the fields from
-  // superclasses. The consumer of this data needs to walk all super
-  // classes to get a full lists of fields. Objects always write the
-  // fields in order of most specific class to the furthest up superclass.
-  repeated uint64 reference_field_id = 6 [packed = true];
-  optional Kind kind = 7;
-  optional uint64 classloader_id = 8;
-}
-
-message HeapGraphObject {
-  oneof identifier {
-    uint64 id = 1;
-    uint64 id_delta = 7;
-  }
-
-  // Index for InternedData.types for the name of the type of this object.
-  optional uint64 type_id = 2;
-
-  // Bytes occupied by this objects.
-  optional uint64 self_size = 3;
-
-  // Add this to all non-zero values in reference_object_id. This is used to
-  // get more compact varint encoding.
-  //
-  // The name is confusing, but this has always been used as a base for
-  // reference_object_id. The field should be named reference_object_id_base.
-  optional uint64 reference_field_id_base = 6;
-
-  // Indices for InternedData.field_names for the name of the field referring
-  // to the object. For Android S+ and for instances of normal classes (e.g.
-  // not instances of java.lang.Class or arrays), this is instead set in the
-  // corresponding HeapGraphType, and this is left empty.
-  repeated uint64 reference_field_id = 4 [packed = true];
-
-  // Ids of the Object that is referred to.
-  repeated uint64 reference_object_id = 5 [packed = true];
-
-  enum HeapType {
-    HEAP_TYPE_UNKNOWN = 0;
-    HEAP_TYPE_APP = 1;
-    HEAP_TYPE_ZYGOTE = 2;
-    HEAP_TYPE_BOOT_IMAGE = 3;
-  }
-  // To reduce the space required we only emit the heap type if it has changed
-  // from the previous object we recorded.
-  optional HeapType heap_type_delta = 9;
-
-  // Ids of the Objects referred by this object, not via fields, but via
-  // internal runtime structures.
-  repeated uint64 runtime_internal_object_id = 10 [packed = true];
-
-  // =================================================================
-  // |                      Object value fields                      |
-  // =================================================================
-
-  // `libcore.util.NativeAllocationRegistry.size`: Maps to the size (bytes) of
-  // the corresponding objects registered with the native allocation registry.
-  // N.B. this can be an approximation.
-  optional int64 native_allocation_registry_size_field = 8;
-
-  // Bitmap-specific field captures, only applicable to objects of this type.
-  // `android.graphics.Bitmap.mId`: Used for storage type and deduplication.
-  optional int64 bitmap_id_field = 11;
-  // `android.graphics.Bitmap.mSourceId`: Used to identify the source process.
-  optional int64 bitmap_source_id_field = 12;
-  // `android.graphics.Bitmap.mWidth`: Width in pixels
-  optional uint32 bitmap_width_field = 13;
-  // `android.graphics.Bitmap.mHeight`: Height in pixels
-  optional uint32 bitmap_height_field = 14;
-
-  // ApplicationInfo field captures
-  // `android.content.pm.ApplicationInfo.longVersionCode`: Used to identify
-  // the dumped process version code (without the full package list)
-  optional int64 application_info_long_version_code_field = 15;
-}
-
-// Next id: 11
-message HeapGraph {
-  optional int32 pid = 1;
-  optional int64 heap_bytes_allocated = 10;
-
-  // This contains all objects at the time this dump was taken. Some of these
-  // will be live, some of those unreachable (garbage). To find the live
-  // objects, the client needs to build the transitive closure of objects
-  // reachable from |roots|.
-  // All objects not contained within that transitive closure are garbage that
-  // has not yet been collected.
-  repeated HeapGraphObject objects = 2;
-
-  // Roots at the time this dump was taken.
-  // All live objects are reachable from the roots. All other objects are
-  // garbage.
-  repeated HeapGraphRoot roots = 7;
-
-  // Types used in HeapGraphObjects.
-  repeated HeapGraphType types = 9;
-
-  reserved 3;
-
-  // Field names for references in managed heap graph.
-  repeated InternedString field_names = 4;
-
-  // Paths of files used in managed heap graph.
-  repeated InternedString location_names = 8;
-
-  optional bool continued = 5;
-  optional uint64 index = 6;
-}
-
-// End of protos/perfetto/trace/profiling/heap_graph.proto
-
 // Begin of protos/perfetto/trace/profiling/profile_packet.proto
 
 // This file contains a mixture of messages emitted by various sampling
@@ -17922,7 +16452,8 @@ message SmapsEntry {
   // for field upload (instead of path).
   optional string file_name = 5;
 
-  // TODO(crbug.com/1098746): Consider encoding this as incremental values.
+  // Fields below added and used only for Chromium memory infra, see
+  // crbug.com/1098746.
   optional uint64 start_address = 6;
   optional uint64 module_timestamp = 7;
   optional string module_debugid = 8;
@@ -17973,6 +16504,26 @@ message SmapsPacket {
   optional uint32 pid = 1;
   repeated SmapsEntry entries = 2;
   optional PackedSmaps packed_entries = 3;
+
+  // Records how the snapshot was generated, as the message is shared by
+  // multiple smaps writers.
+  // If populating |packed_entries|, set explicitly to RECORDING_TYPE_STANDALONE
+  // as otherwise the trace importer might transform the data.
+  enum RecordingType {
+    RECORDING_TYPE_UNKNOWN = 0;
+    // Normal recording.
+    RECORDING_TYPE_STANDALONE = 1;
+    // Android: recorded in the perfetto_hprof ART plugin as part of a managed
+    // heap dump. Recording is done inside of a forked child process, which
+    // means private/shared and pss fields are misleading as there is
+    // copy-on-write page sharing with the forked child.
+    RECORDING_TYPE_ART_HPROF_POSTFORK = 2;
+    // Android: recorded in the perfetto_hprof ART plugin as part of a managed
+    // heap dump, but with the original smaps calculated before forking in the
+    // plugin.
+    RECORDING_TYPE_ART_HPROF_PREFORK = 3;
+  }
+  optional RecordingType recording_type = 4;
 }
 
 // End of protos/perfetto/trace/profiling/smaps.proto
@@ -18858,6 +17409,16 @@ message CounterDescriptor {
 
 // End of protos/perfetto/trace/track_event/counter_descriptor.proto
 
+// Begin of protos/perfetto/trace/track_event/state_descriptor.proto
+
+// Descriptor for a state track.
+message StateDescriptor {
+  // For now, this message is empty. It is used to identify a track as a state
+  // track.
+}
+
+// End of protos/perfetto/trace/track_event/state_descriptor.proto
+
 // Begin of protos/perfetto/trace/track_event/track_descriptor.proto
 
 // Defines a track for TrackEvents. Slices and instant events on the same track
@@ -18873,7 +17434,7 @@ message CounterDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 18.
+// Next id: 21.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -19005,6 +17566,10 @@ message TrackDescriptor {
   // |extra_counter_values|).
   optional CounterDescriptor counter = 8;
 
+  // Descriptor for a state track. If set, the track will support
+  // TYPE_STATE TrackEvents.
+  optional StateDescriptor state = 18;
+
   // If true, forces Trace Processor to use separate tracks for track events
   // and system events for the same thread.
   //
@@ -19018,8 +17583,11 @@ message TrackDescriptor {
   // value is simply a *hint* to the UI: the UI is not guarnateed to respect
   // this if it has a good reason not to do so.
   //
-  // Note: for tracks where `thread` or `process` are set, this option is
-  // *ignored*. See `parent_uuid` for details.
+  // Note: for tracks where `thread` or `process` are set (i.e. process tracks
+  // and thread tracks), this option is *ignored*. Instead, use
+  // `thread_ordering` and `process_ordering` on the root track descriptor (uuid
+  // = 0) to configure process and thread track ordering. See `parent_uuid` for
+  // details.
   enum ChildTracksOrdering {
     // The default ordering, with no bearing on how the UI will visualise the
     // tracks.
@@ -19039,17 +17607,20 @@ message TrackDescriptor {
   }
   optional ChildTracksOrdering child_ordering = 11;
 
-  // An opaque value which allows specifying how two sibling tracks should be
+  // An opaque value which allows specifying how sibling tracks should be
   // ordered relative to each other: tracks with lower ranks will appear before
   // tracks with higher ranks. An unspecified rank will be treated as a rank of
   // 0.
   //
-  // Note: this option is only relevant for tracks where the parent has
-  // `child_ordering` set to `EXPLICIT`. It is ignored otherwise.
+  // This rank is used in the following scenarios:
+  // - For standard child tracks, if the parent track has `child_ordering` set
+  //   to `EXPLICIT`.
+  // - For process tracks, if the root track descriptor (uuid = 0) has
+  //   `process_ordering` set to `PROCESS_ORDERING_EXPLICIT`.
+  // - For thread tracks, if the root track descriptor (uuid = 0) has
+  //   `thread_ordering` set to `THREAD_ORDERING_EXPLICIT`.
   //
-  // Note: for tracks where the parent has `thread` or `process` are set, this
-  // option is *ignored* (even if the parent's `child_ordering` is `EXPLICIT``).
-  // See `parent_uuid` for details.
+  // In all other cases, this value is ignored.
   optional int32 sibling_order_rank = 12;
 
   // Specifies how the analysis tools should "merge" different sibling
@@ -19175,6 +17746,37 @@ message TrackDescriptor {
     string sibling_merge_key = 16;
     uint64 sibling_merge_key_int = 17;
   }
+
+  // Specifies how the UI should display top-level process tracks relative to
+  // each other. Note that this value is simply a *hint* to the UI and is only
+  // valid on the root track descriptor (uuid = 0).
+  enum ProcessOrdering {
+    // The default ordering, with no bearing on how the UI will visualise the
+    // processes.
+    PROCESS_ORDERING_UNSPECIFIED = 0;
+
+    // Order processes by `sibling_order_rank` of their process track
+    // descriptors. Processes with lower ranks will be shown before processes
+    // with higher ranks. Processes with no rank specified will be treated as
+    // having a rank of 0.
+    PROCESS_ORDERING_EXPLICIT = 1;
+  }
+  optional ProcessOrdering process_ordering = 19;
+
+  // Specifies how the UI should display thread tracks within a process group
+  // relative to each other. Note that this value is simply a *hint* to the UI
+  // and is only valid on the root track descriptor (uuid = 0).
+  enum ThreadOrdering {
+    // The default ordering, with no bearing on how the UI will visualise the
+    // threads.
+    THREAD_ORDERING_UNSPECIFIED = 0;
+
+    // Order threads by `sibling_order_rank` of their thread track descriptors.
+    // Threads with lower ranks will be shown before threads with higher ranks.
+    // Threads with no rank specified will be treated as having a rank of 0.
+    THREAD_ORDERING_EXPLICIT = 1;
+  }
+  optional ThreadOrdering thread_ordering = 20;
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto
@@ -19397,7 +17999,6 @@ message TracePacket {
     GpuRenderStageEvent gpu_render_stage_event = 53;
     StreamingProfilePacket streaming_profile_packet = 54;
     ArtProcessMetadata art_process_metadata = 131;
-    HeapGraph heap_graph = 56;
     GraphicsFrameEvent graphics_frame_event = 57;
     VulkanMemoryEvent vulkan_memory_event = 62;
     GpuLog gpu_log = 63;
@@ -19412,8 +18013,6 @@ message TracePacket {
     FrameTimelineEvent frame_timeline_event = 76;
     AndroidEnergyEstimationBreakdown android_energy_estimation_breakdown = 77;
     UiState ui_state = 78;
-    AndroidCameraFrameEvent android_camera_frame_event = 80;
-    AndroidCameraSessionStats android_camera_session_stats = 81;
     TranslationTable translation_table = 82;
     AndroidGameInterventionList android_game_intervention_list = 83;
     StatsdAtom statsd_atom = 84;
@@ -19457,21 +18056,6 @@ message TracePacket {
     // even if the extension proto is not checked in the Perfetto repo.
     ExtensionDescriptor extension_descriptor = 72;
 
-    // Represents a single packet sent or received by the network.
-    NetworkPacketEvent network_packet = 88;
-
-    // Represents one or more packets sent or received by the network.
-    NetworkPacketBundle network_packet_bundle = 92;
-
-    // Winscope traces
-    LayersSnapshotProto surfaceflinger_layers_snapshot = 93;
-    TransactionTraceEntry surfaceflinger_transactions = 94;
-    ShellTransition shell_transition = 96;
-    ShellHandlerMappings shell_handler_mappings = 97;
-    ProtoLogMessage protolog_message = 104;
-    ProtoLogViewerConfig protolog_viewer_config = 105;
-    WinscopeExtensions winscope_extensions = 112;
-
     // Events from the Windows etw infrastructure.
     EtwTraceEventBundle etw_events = 95;
 
@@ -19488,13 +18072,9 @@ message TracePacket {
 
     Trigger clone_snapshot_trigger = 113;
 
-    BluetoothTraceEvent bluetooth_trace_event = 114;
-
     KernelWakelockData kernel_wakelock_data = 115;
 
     CpuPerUidData cpu_per_uid_data = 119;
-
-    EvdevEvent evdev_event = 121;
 
     AndroidUserList user_list = 123;
 
@@ -19515,9 +18095,41 @@ message TracePacket {
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 55;
 
-  // App wakelock (AppWakelockBundle). Schema:
+  // removed AndroidCameraFrameEvent android_camera_frame_event
+  // removed AndroidCameraSessionStats android_camera_session_stats
+  reserved 80, 81;
+
+  // Android out-of-tree extensions. These payloads are defined in the Android
+  // tree and mirrored under protos/third_party/android/; each hole keeps its
+  // original field number for wire compatibility. Per schema:
+  //
+  // protos/third_party/android/art/heap_graph.proto
+  //   56: HeapGraph heap_graph
+  //
+  // protos/third_party/android/connectivity/network_trace.proto
+  //   88: NetworkPacketEvent network_packet
+  //   92: NetworkPacketBundle network_packet_bundle
+  //
+  // protos/third_party/android/frameworks/native/tracing/winscope/frameworks_native_winscope.proto
+  //   93: LayersSnapshotProto surfaceflinger_layers_snapshot
+  //   94: TransactionTraceEntry surfaceflinger_transactions
+  //   104: ProtoLogMessage protolog_message
+  //   105: ProtoLogViewerConfig protolog_viewer_config
+  //   112: WinscopeExtensions winscope_extensions
+  //
+  // protos/third_party/android/frameworks/base/proto/tracing/winscope/frameworks_base_winscope.proto
+  //   96: ShellTransition shell_transition
+  //   97: ShellHandlerMappings shell_handler_mappings
+  //
+  // protos/third_party/android/packages/modules/bluetooth/tracing/bluetooth_trace.proto
+  //   114: BluetoothTraceEvent bluetooth_trace_event
+  //
   // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto
-  extensions 116;
+  //   116: AppWakelockBundle app_wakelock_bundle
+  //
+  // protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto
+  //   121: EvdevEvent evdev_event
+  extensions 56, 88, 92, 93, 94, 96, 97, 104, 105, 112, 114, 116, 121;
 
   // Reserved for future OOT extensions. New allocations are carved out of this
   // range and registered in protos/perfetto/trace/extensions.json.
@@ -19592,7 +18204,38 @@ message TracePacket {
   // packet on this sequence (regardless of SEQ_NEEDS_INCREMENTAL_STATE).
   optional TracePacketDefaults trace_packet_defaults = 59;
 
-  // Flag set by the service if, for the current packet sequence (see
+  // Bit flags OR-ed together into |previous_packet_dropped| to describe why
+  // packets were dropped. DATA_LOSS_PRESENT is set on every loss; the remaining
+  // bits attribute the cause and are set either by TraceBufferV2 in the service
+  // or by the producer's trace writer.
+  enum DataLossReason {
+    DATA_LOSS_UNSPECIFIED = 0;
+    // A loss was detected (set on every loss). On its own (value 1) it means
+    // dropped with no specific cause, e.g. TraceBufferV1 or a producer.
+    DATA_LOSS_PRESENT = 1;
+    // A read started on a non-successor ChunkID (a gap in the stream).
+    DATA_LOSS_READ_GAP = 2;
+    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds).
+    DATA_LOSS_CHUNK_CORRUPTED = 4;
+    // A continuation/end fragment with no preceding begin fragment.
+    DATA_LOSS_ORPHAN_CONTINUATION = 8;
+    // Reassembly abandoned because of a ChunkID gap mid-packet.
+    DATA_LOSS_REASSEMBLY_GAP = 16;
+    // Reassembly abandoned because the fragment chain was broken even though
+    // the ChunkIDs were contiguous.
+    DATA_LOSS_REASSEMBLY_BROKEN_CHAIN = 32;
+    // Unconsumed fragments were evicted while overwriting (ring buffer wrap).
+    DATA_LOSS_OVERWRITE = 64;
+    // The trace writer aborted an in-progress fragmented packet (it stamped
+    // the kPacketSizeDropPacket sentinel in the last fragment header).
+    DATA_LOSS_WRITER_ABORT = 128;
+    // The producer's shared memory buffer was full: the trace writer couldn't
+    // acquire a chunk and dropped packets until one became available. Set by
+    // the producer, not the service.
+    DATA_LOSS_SMB_FULL = 256;
+  }
+
+  // Set by the service if, for the current packet sequence (see
   // |trusted_packet_sequence_id|), either:
   // * this is the first packet, or
   // * one or multiple packets were dropped since the last packet that the
@@ -19600,10 +18243,17 @@ message TracePacket {
   //   buffer are overridden before the consumer could read them when the trace
   //   is configured in ring buffer mode.
   //
+  // 0 means not dropped, nonzero means dropped (so this stays compatible with
+  // the historical bool semantics). The value is a DataLossReason bitmask:
+  // DATA_LOSS_PRESENT (bit 0) is always set when there is a loss, and
+  // TraceBufferV2 additionally sets a bit identifying the cause. TraceBufferV1
+  // and producer-signalled drops set the bare value 1 (DATA_LOSS_PRESENT), i.e.
+  // dropped with no specific cause attributed.
+  //
   // When packet loss occurs, incrementally emitted data (including interned
   // data) on the sequence should be considered invalid up until the next packet
   // with SEQ_INCREMENTAL_STATE_CLEARED set.
-  optional bool previous_packet_dropped = 42;
+  optional uint32 previous_packet_dropped = 42;
 
   // Flag set by a producer (starting from SDK v29) if, for the current packet
   // sequence (see |trusted_packet_sequence_id|), this is the first packet.

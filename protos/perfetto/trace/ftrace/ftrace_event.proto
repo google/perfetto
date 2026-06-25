@@ -765,5 +765,7 @@ message FtraceEvent {
     PanelSettingsFullFtraceEvent panel_settings_full = 611;
     PanelSettingsLiteFtraceEvent panel_settings_lite = 612;
     DpuDispDpuLineUnderrunFtraceEvent dpu_disp_dpu_line_underrun = 613;
+    PsciDomainIdleExitFtraceEvent psci_domain_idle_exit = 614;
+    PsciDomainIdleEnterFtraceEvent psci_domain_idle_enter = 615;
   }
 }

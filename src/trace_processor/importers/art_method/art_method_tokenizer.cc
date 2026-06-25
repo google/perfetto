@@ -45,8 +45,6 @@
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
-
 namespace perfetto::trace_processor::art_method {
 namespace {
 
@@ -231,9 +229,9 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
       evt.action = ArtMethodEvent::kExit;
       break;
   }
-  std::optional<int64_t> ts = context_->clock_tracker->ToTraceTime(
-      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-      (ts_ + ts_delta) * 1000);
+  std::optional<int64_t> ts =
+      context_->clock_tracker->ConvertDefaultClockToTraceTime((ts_ + ts_delta) *
+                                                              1000);
   if (ts) {
     stream_->Push(*ts, evt);
   }

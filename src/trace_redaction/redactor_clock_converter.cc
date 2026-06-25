@@ -42,16 +42,6 @@ base::Status RedactorClockSynchronizerListenerImpl::OnInvalidClockSnapshot() {
   return base::ErrStatus("Invalid clocks snapshot found during redaction");
 }
 
-void RedactorClockSynchronizerListenerImpl::RecordConversionError(
-    trace_processor::ClockSyncErrorType,
-    trace_processor::ClockId,
-    trace_processor::ClockId,
-    int64_t,
-    std::optional<size_t>) {
-  // Redactor doesn't need to record conversion errors to a database
-  // Errors are handled via status returns in ConvertToTrace
-}
-
 RedactorClockConverter::RedactorClockConverter()
     : trace_time_state_{ClockId::Machine(
           protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME)},
@@ -137,8 +127,7 @@ base::StatusOr<uint64_t> RedactorClockConverter::ConvertToTrace(
         "Cannot convert timestamp: no trace clock has been set");
   }
   std::optional<int64_t> trace_ts = clock_synchronizer_.Convert(
-      source_clock_id, static_cast<int64_t>(source_ts), *primary_trace_clock_,
-      std::nullopt);
+      source_clock_id, static_cast<int64_t>(source_ts), *primary_trace_clock_);
   if (!trace_ts.has_value()) {
     return base::ErrStatus("Failed to convert timestamp from clock id=%" PRIu32
                            " to trace time clock",
