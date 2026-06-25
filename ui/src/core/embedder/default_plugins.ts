@@ -91,6 +91,7 @@ export const defaultPlugins = [
   'dev.perfetto.Screenshots',
   'dev.perfetto.SettingsPage',
   'dev.perfetto.Smaps',
+  'dev.perfetto.Spaghetti',
   'dev.perfetto.SqlModules',
   'dev.perfetto.StackSamples',
   'dev.perfetto.StandardGroups',

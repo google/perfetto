@@ -1,0 +1,127 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// While a drag is in progress, rows slide around to preview the drop
+// result. The class is removed before transforms are cleared, so rows snap
+// (not animate) into their final rendered positions on drop.
+.pf-spag-drag-active > .pf-spag-row {
+  transition: transform 150ms ease;
+
+  // Suppress hover chrome on rows being dragged over.
+  &:hover {
+    background: none;
+
+    .pf-spag-delete {
+      opacity: 0;
+    }
+
+    .pf-spag-draghandle,
+    .pf-spag-alias-btn {
+      opacity: 0.4;
+    }
+  }
+}
+
+.pf-spag-row {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  position: relative;
+  border-radius: 4px;
+
+  &:hover {
+    background: var(--pf-color-background-hover);
+  }
+
+  // The drag handle and alias pill occupy layout space, so they stay
+  // faintly visible at rest (hiding them would leave mystery gaps) and
+  // brighten on hover.
+  .pf-spag-draghandle,
+  .pf-spag-alias-btn {
+    opacity: 0.4;
+    transition: opacity 100ms ease-in-out;
+  }
+
+  &:hover,
+  &:focus-within {
+    .pf-spag-draghandle,
+    .pf-spag-alias-btn {
+      opacity: 0.7;
+    }
+
+    .pf-spag-delete {
+      opacity: 0.6;
+    }
+
+    .pf-spag-draghandle:hover,
+    .pf-spag-alias-btn:hover {
+      opacity: 1;
+    }
+  }
+
+  // The delete button is the same width in every row, so it can vanish
+  // completely at rest without breaking alignment.
+  .pf-spag-delete {
+    opacity: 0;
+    transition: opacity 100ms ease-in-out;
+    margin-right: -6px;
+    color: var(--pf-color-text-muted);
+
+    &:hover {
+      opacity: 1;
+      color: var(--pf-color-danger);
+    }
+  }
+
+  // The row being dragged: grayed out in place while it previews its
+  // destination slot (the browser's drag image follows the cursor).
+  &.pf-dragging {
+    opacity: 0.35;
+    filter: grayscale(1);
+  }
+
+  // Select elements shrink to current value.
+  .pf-select {
+    flex: 0 0 auto;
+    field-sizing: content;
+    width: auto;
+  }
+
+  // Value text input grows to fill remaining space.
+  .pf-text-input {
+    flex: 1;
+    min-width: 0;
+    field-sizing: content;
+    width: auto;
+
+    input {
+      width: 0;
+      min-width: 50px;
+    }
+  }
+
+  // Drag handle icon.
+  .pf-spag-draghandle {
+    cursor: grab;
+    flex: 0 0 auto;
+    margin-left: -6px;
+    font-size: 16px;
+    align-self: center;
+    color: var(--pf-color-text-muted);
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+}

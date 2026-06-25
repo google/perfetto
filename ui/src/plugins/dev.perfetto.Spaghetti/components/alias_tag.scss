@@ -1,0 +1,45 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Inline alias editor: "as" label + text input.
+.pf-spag-alias-tag {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+
+  &__label {
+    color: var(--pf-color-text-muted);
+    font-size: 11px;
+    font-style: italic;
+  }
+}
+
+// Compact "as" pill that expands into the alias editor.
+.pf-spag-alias-btn {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0 6px;
+  border: 1px dashed var(--pf-color-border);
+  border-radius: 8px;
+  background: none;
+  color: var(--pf-color-text-muted);
+  font-size: 11px;
+  font-style: italic;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--pf-color-accent);
+    color: var(--pf-color-text);
+  }
+}
