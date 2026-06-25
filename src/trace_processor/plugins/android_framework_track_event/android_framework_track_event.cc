@@ -117,12 +117,12 @@ class Parser : public TrackEventExtensionParser {
     }
     if (evt.has_trigger_type()) {
       row.set_trigger_type(
-          InternEnum(trigger_type_idx_, ".com.android.internal.TriggerType",
+          InternEnum(trigger_type_cache_, ".com.android.internal.TriggerType",
                      static_cast<int32_t>(evt.trigger_type())));
     }
     if (evt.has_hosting_type()) {
       row.set_hosting_type(
-          InternEnum(hosting_type_idx_, ".com.android.internal.HostingTypeId",
+          InternEnum(hosting_type_cache_, ".com.android.internal.HostingTypeId",
                      static_cast<int32_t>(evt.hosting_type())));
     }
     if (evt.has_hosting_name()) {
@@ -159,24 +159,18 @@ class Parser : public TrackEventExtensionParser {
         ts, static_cast<uint32_t>(evt.pid()));
   }
 
-  StringId InternEnum(std::optional<uint32_t>& cached_idx,
-                      const char* enum_full_name,
+  StringId InternEnum(DescriptorPool::CachedDescriptor& cache,
+                      const char* enum_name,
                       int32_t value) {
-    const auto& pool = *trace_context_->descriptor_pool_;
-    if (!cached_idx) {
-      cached_idx = pool.FindDescriptorIdx(enum_full_name);
-    }
-    std::optional<std::string> name;
-    if (cached_idx) {
-      name = pool.descriptors()[*cached_idx].FindEnumString(value);
-    }
+    auto name = trace_context_->descriptor_pool_->FindEnumString(
+        cache, enum_name, value);
     return trace_context_->storage->InternString(
         base::StringView(name ? *name : std::to_string(value)));
   }
 
   TraceProcessorContext* trace_context_;
-  std::optional<uint32_t> trigger_type_idx_;
-  std::optional<uint32_t> hosting_type_idx_;
+  DescriptorPool::CachedDescriptor trigger_type_cache_;
+  DescriptorPool::CachedDescriptor hosting_type_cache_;
   AndroidTrackEventProcessTable* table_;
   base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
 };

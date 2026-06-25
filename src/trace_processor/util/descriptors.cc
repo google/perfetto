@@ -597,6 +597,19 @@ std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
   return it->second;
 }
 
+std::optional<std::string> DescriptorPool::FindEnumString(
+    CachedDescriptor& cache,
+    const std::string& enum_name,
+    int32_t value) const {
+  if (!cache.descriptor_idx_) {
+    cache.descriptor_idx_ = FindDescriptorIdx(enum_name);
+  }
+  if (!cache.descriptor_idx_) {
+    return std::nullopt;
+  }
+  return descriptors_[*cache.descriptor_idx_].FindEnumString(value);
+}
+
 std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {
   protozero::HeapBuffered<protos::pbzero::DescriptorSet> descs;
   for (const auto& desc : descriptors()) {
