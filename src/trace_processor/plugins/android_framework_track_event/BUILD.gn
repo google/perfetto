@@ -39,5 +39,6 @@ source_set("android_framework_track_event") {
     "../../storage",
     "../../tables",
     "../../types",
+    "../../util:descriptors",
   ]
 }

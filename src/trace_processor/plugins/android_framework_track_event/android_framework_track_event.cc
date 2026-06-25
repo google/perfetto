@@ -19,10 +19,12 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/core/plugin/plugin.h"
@@ -32,6 +34,7 @@
 #include "src/trace_processor/plugins/android_framework_track_event/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor::android_framework_track_event {
 namespace {
@@ -113,10 +116,14 @@ class Parser : public TrackEventExtensionParser {
       row.set_fw_start_ts(ts);
     }
     if (evt.has_trigger_type()) {
-      row.set_trigger_type(static_cast<int32_t>(evt.trigger_type()));
+      row.set_trigger_type(
+          InternEnum(trigger_type_idx_, ".com.android.internal.TriggerType",
+                     static_cast<int32_t>(evt.trigger_type())));
     }
     if (evt.has_hosting_type()) {
-      row.set_hosting_type(static_cast<int32_t>(evt.hosting_type()));
+      row.set_hosting_type(
+          InternEnum(hosting_type_idx_, ".com.android.internal.HostingTypeId",
+                     static_cast<int32_t>(evt.hosting_type())));
     }
     if (evt.has_hosting_name()) {
       row.set_hosting_name(
@@ -152,7 +159,24 @@ class Parser : public TrackEventExtensionParser {
         ts, static_cast<uint32_t>(evt.pid()));
   }
 
+  StringId InternEnum(std::optional<uint32_t>& cached_idx,
+                      const char* enum_full_name,
+                      int32_t value) {
+    const auto& pool = *trace_context_->descriptor_pool_;
+    if (!cached_idx) {
+      cached_idx = pool.FindDescriptorIdx(enum_full_name);
+    }
+    std::optional<std::string> name;
+    if (cached_idx) {
+      name = pool.descriptors()[*cached_idx].FindEnumString(value);
+    }
+    return trace_context_->storage->InternString(
+        base::StringView(name ? *name : std::to_string(value)));
+  }
+
   TraceProcessorContext* trace_context_;
+  std::optional<uint32_t> trigger_type_idx_;
+  std::optional<uint32_t> hosting_type_idx_;
   AndroidTrackEventProcessTable* table_;
   base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
 };
