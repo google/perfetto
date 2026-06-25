@@ -93,6 +93,8 @@ bool SliceTracker::PrepareStartSlice(TrackInfo& track_info,
   return MaybeCloseStack(track_info, timestamp, duration, overlap_out);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-noreturn"
 void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent, StringId name) {
   auto* slices = context_->storage->mutable_slice_table();
   auto parent_name = context_->storage->GetString(
@@ -103,6 +105,7 @@ void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent, StringId name) {
   PERFETTO_DLOG("Current slice: %s", current_name.c_str());
   PERFETTO_DFATAL("Slices with too large depth found.");
 }
+#pragma GCC diagnostic pop
 
 SliceTracker::StartedSlice SliceTracker::StartSlice(
     int64_t timestamp,
