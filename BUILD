@@ -4365,6 +4365,9 @@ perfetto_cc_tp_tables(
     srcs = [
         "src/trace_processor/plugins/android_framework_track_event/tables.py",
     ],
+    deps = [
+        ":src_trace_processor_tables_tables_python",
+    ],
     outs = [
         "src/trace_processor/plugins/android_framework_track_event/all_tables_fwd.h",
         "src/trace_processor/plugins/android_framework_track_event/tables_fwd.h",
