@@ -70,6 +70,9 @@ import {ColumnsTab} from './columns_tab';
 import {GraphTab} from './graph_tab';
 import {IrTab} from './materialization_tab';
 import {SqlTab} from './sql_tab';
+import {TextInput} from '../../../widgets/text_input';
+import {findRef} from '../../../base/dom_utils';
+import {assertExists, assertIsInstance} from '../../../base/assert';
 
 export interface SpaghettiPage {
   readonly trace: Trace;
@@ -591,35 +594,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
       const toolbarItems: m.Children[] = [];
 
-      function nodeMenuItem(type: string): m.Children {
-        const manifest = getManifest(type);
-        return m(MenuItem, {
-          label: manifest.title,
-          icon: manifest.icon,
-          style: {borderLeft: `3px solid hsl(${manifest.hue}, 60%, 65%)`},
-          onclick: () => addNode(type),
-        });
-      }
-
-      const nodeTypes: string[] = [
-        'from',
-        'time_range',
-        'select',
-        'extend',
-        'drop',
-        'filter',
-        'extract_arg',
-        'sort',
-        'limit',
-        'groupby',
-        'join',
-        'union',
-        'interval_intersect',
-        'chart',
-        'sql',
-      ];
-      const addNodeMenuItems = nodeTypes.map(nodeMenuItem);
-
       toolbarItems.push(
         m(
           PopupMenu,
@@ -631,7 +605,9 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               icon: 'add',
             }),
           },
-          addNodeMenuItems,
+          m(AddNodeMenu, {
+            onAddNode: addNode,
+          }),
         ),
       );
 
@@ -1181,6 +1157,80 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
           secondPanel: bottomPanel,
         }),
       );
+    },
+  };
+}
+
+interface AddNodeMenuAttrs {
+  readonly onAddNode?: (type: string) => void;
+}
+
+function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
+  const SEARCH_BOX_REF = 'SearchBox';
+  let searchTerm = '';
+
+  return {
+    view({attrs}) {
+      function nodeMenuItem(type: string): m.Children {
+        const manifest = getManifest(type);
+        return m(MenuItem, {
+          label: manifest.title,
+          icon: manifest.icon,
+          style: {borderLeft: `3px solid hsl(${manifest.hue}, 60%, 65%)`},
+          onclick: () => onAddNode?.(type),
+        });
+      }
+
+      const {onAddNode} = attrs;
+
+      const nodeTypes: string[] = [
+        'from',
+        'time_range',
+        'select',
+        'extend',
+        'drop',
+        'filter',
+        'extract_arg',
+        'sort',
+        'limit',
+        'groupby',
+        'join',
+        'union',
+        'interval_intersect',
+        'chart',
+        'sql',
+      ];
+
+      // Filter node types by search text.
+      const filteredNodeTypes = nodeTypes.filter((type: string) => {
+        const manifest = getManifest(type);
+        return (
+          !searchTerm ||
+          manifest.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          type.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      });
+
+      const addNodeMenuItems = filteredNodeTypes.map(nodeMenuItem);
+
+      // Build the popup content: search box + filtered items.
+      const searchBox = m(TextInput, {
+        ref: SEARCH_BOX_REF,
+        placeholder: 'Filter nodes…',
+        icon: 'search',
+        value: searchTerm,
+        oninput: (e: InputEvent) => {
+          searchTerm = (e.target as HTMLInputElement).value;
+        },
+      });
+
+      return [searchBox, addNodeMenuItems];
+    },
+    oncreate({dom}) {
+      const textBoxElement = findRef(dom, SEARCH_BOX_REF);
+      assertExists(textBoxElement);
+      assertIsInstance(textBoxElement, HTMLInputElement);
+      textBoxElement.focus();
     },
   };
 }
