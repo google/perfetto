@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {perfettoSqlTypeToString} from '../../../trace_processor/perfetto_sql_type';
-import {ColumnDef} from '../graph_utils';
+import type {ColumnDef} from '../graph_utils';
 
 export interface ColumnsTabAttrs {
   readonly outputColumns: ColumnDef[] | undefined;
