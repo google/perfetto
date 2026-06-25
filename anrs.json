@@ -1,0 +1,570 @@
+{
+  "nodes": [
+    {
+      "type": "from",
+      "id": "n_proc",
+      "y": 200,
+      "next": {
+        "config": {
+          "filterExpression": "",
+          "conjunction": "AND",
+          "conditions": [
+            {
+              "op": "=",
+              "column": "name",
+              "value": "'system_server'"
+            }
+          ]
+        },
+        "id": "n_proc_filter",
+        "type": "filter"
+      },
+      "config": {
+        "table": "process"
+      },
+      "x": 50
+    },
+    {
+      "x": 50,
+      "config": {
+        "table": "process_counter_track"
+      },
+      "y": 50,
+      "type": "from",
+      "id": "n_pct"
+    },
+    {
+      "y": 0,
+      "id": "n_pct_anr",
+      "type": "filter",
+      "x": 250,
+      "config": {
+        "conjunction": "AND",
+        "conditions": [
+          {
+            "value": "'ErrorId:*'",
+            "op": "GLOB",
+            "column": "name"
+          }
+        ],
+        "filterExpression": ""
+      }
+    },
+    {
+      "x": 267,
+      "config": {
+        "filterExpression": "",
+        "conditions": [
+          {
+            "op": "GLOB",
+            "column": "name",
+            "value": "'Subject(for ErrorId *'"
+          }
+        ],
+        "conjunction": "AND"
+      },
+      "y": 233,
+      "id": "n_pct_subj",
+      "type": "filter"
+    },
+    {
+      "x": 496,
+      "config": {
+        "columns": [],
+        "leftColumn": "upid",
+        "joinType": "INNER",
+        "rightColumn": "upid"
+      },
+      "y": 31,
+      "type": "join",
+      "id": "n_anr_j1"
+    },
+    {
+      "y": 300,
+      "type": "from",
+      "id": "n_cnt",
+      "x": 500,
+      "config": {
+        "table": "counter"
+      }
+    },
+    {
+      "id": "n_anr_j2",
+      "type": "join",
+      "y": 150,
+      "next": {
+        "config": {
+          "entries": [
+            {
+              "alias": "",
+              "column": "ts"
+            },
+            {
+              "alias": "",
+              "column": "upid"
+            }
+          ],
+          "expressions": [
+            {
+              "alias": "process_name",
+              "expression": "str_split(substr(str_split(name, '#', 0), 9), ' ', 0)"
+            },
+            {
+              "alias": "pid",
+              "expression": "cast_int!(STR_SPLIT(SUBSTR(STR_SPLIT(name, '#', 0), 9), ' ', 1))"
+            },
+            {
+              "alias": "error_id",
+              "expression": "str_split(name, '#', 1)"
+            }
+          ]
+        },
+        "type": "select",
+        "id": "n_anr_sel"
+      },
+      "config": {
+        "leftColumn": "id",
+        "joinType": "INNER",
+        "rightColumn": "track_id",
+        "columns": [
+          {
+            "alias": "",
+            "column": "ts"
+          }
+        ]
+      },
+      "x": 750
+    },
+    {
+      "config": {
+        "columns": [],
+        "leftColumn": "upid",
+        "joinType": "INNER",
+        "rightColumn": "upid"
+      },
+      "x": 510,
+      "next": {
+        "config": {
+          "entries": [],
+          "expressions": [
+            {
+              "alias": "error_id",
+              "expression": "substr(str_split(name, ')', 0), 21)"
+            },
+            {
+              "alias": "subject",
+              "expression": "substr(name, length(str_split(name, ')', 0)) + 3)"
+            }
+          ]
+        },
+        "type": "select",
+        "id": "n_subj_sel"
+      },
+      "y": 420,
+      "id": "n_subj_j",
+      "type": "join"
+    },
+    {
+      "config": {
+        "table": "slice"
+      },
+      "x": 50,
+      "next": {
+        "id": "n_slc_flt",
+        "type": "filter",
+        "config": {
+          "conjunction": "AND",
+          "conditions": [
+            {
+              "value": "'expired(*,*,*,*,*)'",
+              "op": "GLOB",
+              "column": "name"
+            }
+          ],
+          "filterExpression": ""
+        },
+        "next": {
+          "next": {
+            "config": {
+              "entries": [
+                {
+                  "alias": "",
+                  "column": "timer_ts"
+                }
+              ],
+              "expressions": [
+                {
+                  "alias": "timer_id",
+                  "expression": "cast_int!(STR_SPLIT(params, ',', 0))"
+                },
+                {
+                  "alias": "pid",
+                  "expression": "cast_int!(STR_SPLIT(params, ',', 1))"
+                },
+                {
+                  "alias": "uid",
+                  "expression": "cast_int!(STR_SPLIT(params, ',', 2))"
+                },
+                {
+                  "alias": "anr_type",
+                  "expression": "str_split(params, ',', 3)"
+                },
+                {
+                  "alias": "anr_dur_ms",
+                  "expression": "cast_int!(STR_SPLIT(params, ',', 4))"
+                }
+              ]
+            },
+            "id": "n_tmr_s2",
+            "type": "select"
+          },
+          "id": "n_tmr_s1",
+          "type": "select",
+          "config": {
+            "entries": [
+              {
+                "alias": "timer_ts",
+                "column": "ts"
+              }
+            ],
+            "expressions": [
+              {
+                "alias": "params",
+                "expression": "trim(substr(name, length('expired(') + 1), ')')"
+              }
+            ]
+          }
+        }
+      },
+      "y": 500,
+      "type": "from",
+      "id": "n_slc"
+    },
+    {
+      "type": "join",
+      "id": "n_pot_j",
+      "y": 300,
+      "next": {
+        "next": {
+          "type": "filter",
+          "id": "n_pot_flt",
+          "config": {
+            "filterExpression": "timer_ts IS NULL OR ts >= timer_ts",
+            "conditions": [],
+            "conjunction": "AND"
+          }
+        },
+        "config": {
+          "expressions": [
+            {
+              "alias": "time_diff",
+              "expression": "ts - timer_ts"
+            }
+          ],
+          "entries": []
+        },
+        "id": "n_pot_sel",
+        "type": "select"
+      },
+      "config": {
+        "columns": [
+          {
+            "column": "timer_ts",
+            "alias": ""
+          },
+          {
+            "alias": "",
+            "column": "anr_type"
+          },
+          {
+            "column": "anr_dur_ms",
+            "alias": ""
+          }
+        ],
+        "leftColumn": "pid",
+        "joinType": "LEFT",
+        "rightColumn": "pid"
+      },
+      "x": 1050
+    },
+    {
+      "type": "sql",
+      "id": "n_best",
+      "y": 315.06640625,
+      "x": 1318.61328125,
+      "config": {
+        "sql": "SELECT * FROM (SELECT *, row_number() OVER (PARTITION BY error_id ORDER BY CASE WHEN timer_ts IS NULL THEN 1 ELSE 0 END ASC, time_diff ASC) AS rn FROM anr_pot) WHERE rn = 1",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int"
+          },
+          {
+            "name": "type",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "upid",
+            "type": "int"
+          },
+          {
+            "name": "machine_id",
+            "type": "int"
+          },
+          {
+            "name": "ts",
+            "type": "timestamp"
+          },
+          {
+            "name": "process_name",
+            "type": "string"
+          },
+          {
+            "name": "pid",
+            "type": "int"
+          },
+          {
+            "name": "error_id",
+            "type": "string"
+          },
+          {
+            "name": "timer_ts",
+            "type": "timestamp"
+          },
+          {
+            "name": "anr_type",
+            "type": "string"
+          },
+          {
+            "name": "anr_dur_ms",
+            "type": "int"
+          },
+          {
+            "name": "time_diff",
+            "type": "int"
+          },
+          {
+            "name": "rn",
+            "type": "int"
+          }
+        ],
+        "inputPorts": ["anr_pot"]
+      }
+    },
+    {
+      "y": 8,
+      "type": "join",
+      "id": "n_fin_j1",
+      "x": 1012,
+      "config": {
+        "leftColumn": "error_id",
+        "joinType": "LEFT",
+        "rightColumn": "error_id",
+        "columns": [
+          {
+            "column": "subject",
+            "alias": ""
+          }
+        ]
+      }
+    },
+    {
+      "config": {
+        "joinType": "LEFT",
+        "rightColumn": "error_id",
+        "leftColumn": "error_id",
+        "columns": [
+          {
+            "column": "timer_ts",
+            "alias": ""
+          },
+          {
+            "alias": "",
+            "column": "anr_type"
+          },
+          {
+            "alias": "",
+            "column": "anr_dur_ms"
+          }
+        ]
+      },
+      "x": 1650,
+      "id": "n_fin_j2",
+      "type": "join",
+      "y": 200,
+      "next": {
+        "next": {
+          "config": {
+            "expressions": [
+              {
+                "alias": "intent",
+                "expression": "_get_intent(anr_type, subject)"
+              },
+              {
+                "alias": "component",
+                "expression": "_get_component(anr_type, subject)"
+              },
+              {
+                "alias": "default_anr_dur_ms",
+                "expression": "_default_anr_dur(anr_type, subject)"
+              }
+            ],
+            "entries": []
+          },
+          "type": "select",
+          "id": "n_fin_s2"
+        },
+        "config": {
+          "entries": [
+            {
+              "alias": "",
+              "column": "process_name"
+            },
+            {
+              "alias": "",
+              "column": "pid"
+            },
+            {
+              "alias": "",
+              "column": "upid"
+            },
+            {
+              "column": "error_id",
+              "alias": ""
+            },
+            {
+              "column": "ts",
+              "alias": ""
+            },
+            {
+              "column": "subject",
+              "alias": ""
+            }
+          ],
+          "expressions": [
+            {
+              "alias": "timer_delay",
+              "expression": "ts - timer_ts"
+            },
+            {
+              "alias": "anr_type",
+              "expression": "coalesce(_platform_to_standard_anr_type(anr_type), _extract_anr_type(subject, process_name))"
+            },
+            {
+              "alias": "anr_dur_ms",
+              "expression": "coalesce(anr_dur_ms, _extract_anr_duration_from_subject(subject))"
+            }
+          ]
+        },
+        "type": "select",
+        "id": "n_fin_s1"
+      }
+    },
+    {
+      "type": "from",
+      "id": "cv0um9JGQ",
+      "x": 1633.2109375,
+      "y": 1181.24609375,
+      "config": {
+        "table": "android_anrs"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "toPort": 0,
+      "fromNode": "n_pct",
+      "toNode": "n_pct_anr",
+      "fromPort": 0
+    },
+    {
+      "toPort": 0,
+      "fromNode": "n_pct",
+      "toNode": "n_pct_subj",
+      "fromPort": 0
+    },
+    {
+      "fromPort": 0,
+      "fromNode": "n_pct_anr",
+      "toNode": "n_anr_j1",
+      "toPort": 0
+    },
+    {
+      "fromPort": 0,
+      "fromNode": "n_proc_filter",
+      "toNode": "n_anr_j1",
+      "toPort": 1
+    },
+    {
+      "toPort": 0,
+      "fromNode": "n_anr_j1",
+      "toNode": "n_anr_j2",
+      "fromPort": 0
+    },
+    {
+      "fromPort": 0,
+      "fromNode": "n_cnt",
+      "toNode": "n_anr_j2",
+      "toPort": 1
+    },
+    {
+      "fromPort": 0,
+      "fromNode": "n_pct_subj",
+      "toNode": "n_subj_j",
+      "toPort": 0
+    },
+    {
+      "fromNode": "n_proc_filter",
+      "toNode": "n_subj_j",
+      "fromPort": 0,
+      "toPort": 1
+    },
+    {
+      "toPort": 0,
+      "fromNode": "n_anr_sel",
+      "toNode": "n_pot_j",
+      "fromPort": 0
+    },
+    {
+      "toPort": 1,
+      "fromNode": "n_tmr_s2",
+      "toNode": "n_pot_j",
+      "fromPort": 0
+    },
+    {
+      "fromPort": 0,
+      "fromNode": "n_pot_flt",
+      "toNode": "n_best",
+      "toPort": 0
+    },
+    {
+      "toPort": 0,
+      "fromNode": "n_anr_sel",
+      "toNode": "n_fin_j1",
+      "fromPort": 0
+    },
+    {
+      "fromNode": "n_subj_sel",
+      "toNode": "n_fin_j1",
+      "fromPort": 0,
+      "toPort": 1
+    },
+    {
+      "fromPort": 0,
+      "fromNode": "n_fin_j1",
+      "toNode": "n_fin_j2",
+      "toPort": 0
+    },
+    {
+      "toPort": 1,
+      "fromPort": 0,
+      "fromNode": "n_best",
+      "toNode": "n_fin_j2"
+    }
+  ],
+  "labels": []
+}
