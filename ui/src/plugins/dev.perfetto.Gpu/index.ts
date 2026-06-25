@@ -70,7 +70,7 @@ interface GpuSliceSchema {
 
 // Sort order base for summary-only groups (Counters, Hardware Queues, etc.)
 // that should appear below leaf tracks (Frequency, Memory).
-const SUMMARY_GROUP_SORT_BASE = 1000000;
+export const SUMMARY_GROUP_SORT_BASE = 1000000;
 
 const GPU_COUNTER_SCHEMAS: ReadonlyArray<GpuCounterSchema> = [
   {
