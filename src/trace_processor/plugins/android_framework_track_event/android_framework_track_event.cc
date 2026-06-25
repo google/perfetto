@@ -107,7 +107,7 @@ class Parser : public TrackEventExtensionParser {
     UniquePid upid = trace_context_->process_tracker->GetOrCreateProcess(
         static_cast<uint32_t>(evt.pid()));
     SetProcessMetadata(upid, data);
-    // First start wins; the shared process_bound event arrives later.
+
     auto row = GetOrInsertRow(upid);
     if (!row.fw_start_ts().has_value()) {
       row.set_fw_start_ts(ts);
@@ -135,8 +135,7 @@ class Parser : public TrackEventExtensionParser {
     if (!evt.has_pid()) {
       return;
     }
-    // Look up via the still-tracked main thread; GetOrCreateProcess would
-    // resurrect an already-freed pid.
+
     std::optional<UniqueTid> utid =
         trace_context_->process_tracker->GetThreadOrNull(
             static_cast<uint32_t>(evt.pid()));
