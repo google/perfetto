@@ -90,7 +90,7 @@ const cfg = {
   engineBench: false,
   startHttpServer: false,
   bundle: false,
-  useDevServer: false,
+  useHmr: false,
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: undefined,
   onlyWasmMemory64: false,
@@ -325,7 +325,7 @@ Env-var overrides:
   }
   cfg.check = !!args.typecheck;
   cfg.bundle = !!args.bundle;
-  cfg.useDevServer = cfg.watch && cfg.startHttpServer && !cfg.bundle;
+  cfg.useHmr = cfg.watch && cfg.startHttpServer && !cfg.bundle;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
@@ -462,7 +462,7 @@ Env-var overrides:
   if (cfg.watch) console.log('\nFirst build completed!');
 
   if (cfg.startHttpServer) {
-    if (cfg.useDevServer) {
+    if (cfg.useHmr) {
       await startViteDevServer();
     } else {
       startServer();
@@ -809,7 +809,7 @@ function runVite() {
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
   };
   const bundles = ['engine', 'traceconv', 'service_worker', 'chrome_extension'];
-  if (!cfg.useDevServer) bundles.unshift('frontend');
+  if (!cfg.useHmr) bundles.unshift('frontend');
   if (cfg.bigtrace) bundles.push('bigtrace');
   if (cfg.engineBench) bundles.push('engine_bench', 'engine_bench_worker');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
@@ -1169,7 +1169,7 @@ function isDistComplete() {
   // the Vite dev server, never materialised on disk. Only require the
   // artifacts that genuinely have to exist before the user can load a trace.
   const requiredArtifacts = [
-    ...(cfg.useDevServer ? [] : ['frontend_bundle.js', 'frontend.css']),
+    ...(cfg.useHmr ? [] : ['frontend_bundle.js', 'frontend.css']),
     'engine_bundle.js',
     'traceconv_bundle.js',
     ...cfg.wasmModules.map((wasmMod) => `${wasmMod}.wasm`),
