@@ -1,0 +1,318 @@
+{
+  "nodes": [
+    {
+      "type": "from",
+      "id": "n1",
+      "x": 410.15234375,
+      "y": 122.2265625,
+      "config": {
+        "table": "process_counter_track"
+      },
+      "next": {
+        "type": "join",
+        "id": "n3",
+        "config": {
+          "columns": [
+            {
+              "column": "name",
+              "alias": "procname"
+            }
+          ],
+          "rightColumn": "upid",
+          "leftColumn": "upid",
+          "joinType": "LEFT"
+        },
+        "next": {
+          "type": "filter",
+          "id": "n4",
+          "config": {
+            "conjunction": "AND",
+            "conditions": [
+              {
+                "op": "GLOB",
+                "value": "ErrorId:*",
+                "column": "name"
+              },
+              {
+                "op": "=",
+                "value": "system_server",
+                "column": "procname"
+              }
+            ]
+          },
+          "next": {
+            "type": "join",
+            "id": "n7",
+            "config": {
+              "leftColumn": "id",
+              "rightColumn": "track_id",
+              "columns": [],
+              "joinType": "LEFT"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "from",
+      "id": "n2",
+      "x": 149.625,
+      "y": 296.140625,
+      "config": {
+        "table": "process"
+      }
+    },
+    {
+      "type": "from",
+      "id": "n6",
+      "x": 143.70703125,
+      "y": 532.3515625,
+      "config": {
+        "table": "counter"
+      }
+    },
+    {
+      "type": "sql",
+      "id": "n8",
+      "x": 772.5859375,
+      "y": 348.82421875,
+      "config": {
+        "sql": "SELECT \n  *, \n  substr(substr(name, 10), 0, instr(substr(name, 10), ' ')) AS process_name, \n  CAST(substr(name, 10 + instr(substr(name, 10), ' ')) AS INT) AS pid, \n  substr(name, instr(name, '#') + 1) AS error_id \nFROM n7",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ],
+        "inputPorts": ["n7"],
+        "textareaWidth": 649,
+        "textareaHeight": 193
+      }
+    },
+    {
+      "type": "from",
+      "id": "cWfCV7hEc",
+      "x": 380.96875,
+      "y": 836.6328125,
+      "config": {
+        "table": "slice"
+      }
+    },
+    {
+      "type": "interval_intersect",
+      "id": "cd0cIJ5O7",
+      "x": 639.4140625,
+      "y": 940.35546875,
+      "config": {
+        "numInputs": 2,
+        "partitionColumns": [],
+        "filterNegativeDur": true
+      }
+    },
+    {
+      "type": "time_range",
+      "id": "cCnnXGB2a",
+      "x": 356.6640625,
+      "y": 1034.0859375,
+      "config": {
+        "ts": "142104834959996",
+        "dur": "1106506666"
+      }
+    },
+    {
+      "type": "from",
+      "id": "cRMOFvTB7",
+      "x": 1134.7265625,
+      "y": 1052.92578125,
+      "config": {
+        "table": "slice"
+      },
+      "next": {
+        "type": "join",
+        "id": "cSu1dWrPQ",
+        "config": {
+          "leftColumn": "track_id",
+          "rightColumn": "id",
+          "columns": [
+            {
+              "column": "name",
+              "alias": "track_name"
+            }
+          ],
+          "joinType": "LEFT"
+        }
+      }
+    },
+    {
+      "type": "from",
+      "id": "c1YiDkDkB",
+      "x": 908.1484375,
+      "y": 1216.3125,
+      "config": {
+        "table": "track"
+      }
+    },
+    {
+      "type": "chart",
+      "id": "cepnnT5TK",
+      "x": 902.16796875,
+      "y": 928.546875,
+      "config": {
+        "charts": [
+          {
+            "xCol": "dur",
+            "yCol": ""
+          }
+        ],
+        "numInputs": 1
+      }
+    },
+    {
+      "type": "from",
+      "id": "czXpVqMZJ",
+      "x": 1096.1015625,
+      "y": 1416.9375,
+      "config": {
+        "table": "thread_state"
+      },
+      "next": {
+        "type": "join",
+        "id": "c6MmXIzFj",
+        "config": {
+          "leftColumn": "utid",
+          "rightColumn": "id",
+          "columns": [
+            {
+              "column": "name",
+              "alias": "thread_name"
+            }
+          ],
+          "joinType": "LEFT"
+        },
+        "next": {
+          "type": "filter",
+          "id": "cXXDIQt5s",
+          "config": {
+            "filterExpression": "",
+            "conditions": [
+              {
+                "column": "thread_name",
+                "op": "=",
+                "value": "TracingMuxer"
+              }
+            ],
+            "conjunction": "AND"
+          }
+        }
+      }
+    },
+    {
+      "type": "from",
+      "id": "csafWUU5f",
+      "x": 887.1640625,
+      "y": 1403.12109375,
+      "config": {
+        "table": "thread"
+      }
+    },
+    {
+      "type": "interval_intersect",
+      "id": "clIY3J3SL",
+      "x": 1472.71875,
+      "y": 1414.078125,
+      "config": {
+        "numInputs": 2,
+        "partitionColumns": [],
+        "filterNegativeDur": true
+      }
+    },
+    {
+      "type": "join",
+      "id": "c2rrgOJrZ",
+      "x": 521.7734375,
+      "y": 1264.5,
+      "config": {
+        "joinType": "LEFT",
+        "leftColumn": "",
+        "rightColumn": "",
+        "columns": []
+      }
+    }
+  ],
+  "connections": [
+    {
+      "fromNode": "n2",
+      "fromPort": 0,
+      "toNode": "n3",
+      "toPort": 1
+    },
+    {
+      "fromNode": "n6",
+      "fromPort": 0,
+      "toNode": "n7",
+      "toPort": 1
+    },
+    {
+      "fromNode": "n7",
+      "fromPort": 0,
+      "toNode": "n8",
+      "toPort": 0
+    },
+    {
+      "fromNode": "cCnnXGB2a",
+      "fromPort": 0,
+      "toNode": "cd0cIJ5O7",
+      "toPort": 1
+    },
+    {
+      "fromNode": "cWfCV7hEc",
+      "fromPort": 0,
+      "toNode": "cd0cIJ5O7",
+      "toPort": 0
+    },
+    {
+      "fromNode": "cd0cIJ5O7",
+      "fromPort": 0,
+      "toNode": "cepnnT5TK",
+      "toPort": 0
+    },
+    {
+      "fromNode": "c1YiDkDkB",
+      "fromPort": 0,
+      "toNode": "cSu1dWrPQ",
+      "toPort": 1
+    },
+    {
+      "fromNode": "cSu1dWrPQ",
+      "fromPort": 0,
+      "toNode": "clIY3J3SL",
+      "toPort": 0
+    },
+    {
+      "fromNode": "csafWUU5f",
+      "fromPort": 0,
+      "toNode": "c6MmXIzFj",
+      "toPort": 1
+    },
+    {
+      "fromNode": "cXXDIQt5s",
+      "fromPort": 0,
+      "toNode": "clIY3J3SL",
+      "toPort": 1
+    }
+  ],
+  "labels": []
+}
+
+
+
+
+
+
+
+
+
