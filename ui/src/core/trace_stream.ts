@@ -308,3 +308,19 @@ export class TraceMultipleFilesStream implements TraceStream {
     }
   }
 }
+
+// Materializes the on-the-fly TAR (manifest + traces) of a multi-file set into a
+// single in-memory blob, for the "download the merged trace" sinks. Reopening
+// this blob reproduces the merge. Revisit for very large sets.
+export async function tarFileListToBlob(
+  files: ReadonlyArray<File>,
+): Promise<Blob> {
+  const stream = new TraceMultipleFilesStream(files);
+  const chunks: Uint8Array[] = [];
+  for (;;) {
+    const chunk = await stream.readChunk();
+    chunks.push(chunk.data);
+    if (chunk.eof) break;
+  }
+  return new Blob(chunks as BlobPart[], {type: 'application/x-tar'});
+}

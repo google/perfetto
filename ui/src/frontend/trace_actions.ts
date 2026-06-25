@@ -45,7 +45,7 @@ export async function convertTraceToJson(trace: Trace): Promise<void> {
   await convertTraceToJsonAndDownload(file);
 }
 
-export function downloadTrace(trace: TraceImpl) {
+export async function downloadTrace(trace: TraceImpl) {
   if (!trace.traceInfo.downloadable) return;
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
 
@@ -56,7 +56,22 @@ export function downloadTrace(trace: TraceImpl) {
       accept: {'*/*': ['.pftrace', '.gz']},
     },
   ];
-  if (src.type === 'URL') {
+  if (src.type === 'MULTIPLE_FILES') {
+    // A merged set is downloaded as the same on-the-fly TAR (manifest + traces)
+    // that was opened; reopening it reproduces the merge.
+    download({
+      content: await trace.getTraceFile(),
+      fileName: 'merged-trace.tar',
+      filePicker: {
+        types: [
+          {
+            description: 'Merged Perfetto trace',
+            accept: {'application/x-tar': ['.tar']},
+          },
+        ],
+      },
+    });
+  } else if (src.type === 'URL') {
     const fileName = src.url.split('/').slice(-1)[0];
     downloadUrl({url: src.url, fileName});
   } else if (src.type === 'ARRAY_BUFFER') {
