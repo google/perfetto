@@ -46,6 +46,19 @@
     font-size: var(--pf-font-size-xxl);
   }
 
+  &__side-panel-btn {
+    opacity: 0.6;
+
+    &:hover {
+      opacity: 1;
+    }
+
+    &--active {
+      opacity: 1;
+      color: var(--pf-color-primary);
+    }
+  }
+
   &__error-popup {
     width: 100px;
     font-size: var(--pf-font-size-m);

@@ -18,6 +18,7 @@ $border-radius: $border-radius-large;
 
 @layer pf-widgets {
   .pf-card {
+    background: var(--pf-color-background-secondary);
     padding: 12px 16px;
     box-shadow: $box-shadow-1;
     border-radius: $border-radius;

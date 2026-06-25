@@ -956,7 +956,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         {
           trigger: m(Button, {
             icon: Icons.Add,
-            compact: true,
             active: this.showFilterBuilder,
             onclick: () => {
               this.showFilterBuilder = !this.showFilterBuilder;
@@ -975,12 +974,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       ),
       m(CopyToClipboardButton(), {
         textToCopy: () => tags.join(' '),
-        compact: true,
         disabled: !hasFilters,
       }),
       m(Button, {
         icon: 'delete',
-        compact: true,
         disabled: !hasFilters,
         onclick: () => {
           attrs.onStateChange({
@@ -1299,7 +1296,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       {
         trigger: m(Button, {
           icon: 'menu',
-          compact: true,
         }),
         position: PopupPosition.Bottom,
       },
