@@ -239,6 +239,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/perf_counter",
       "plugins/perfetto_manifest",
       "plugins/pprof_functions",
+      "plugins/process_state_importer",
       "plugins/slice_mipmap_operator",
       "plugins/span_join_operator",
       "plugins/sql_stats_table",

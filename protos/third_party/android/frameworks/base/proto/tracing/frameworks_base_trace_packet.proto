@@ -106,10 +106,75 @@ message VideoFrameError {
   optional Reason reason = 2;
 }
 
+// A point-in-time snapshot of the process / service / provider importance graph
+// (the data behind `dumpsys activity` and the OomAdjuster). This is the
+// snapshot counterpart to the incremental Android{Process,Service,Provider}-
+// StateChangedEvent track events: a process node carries the same fields those
+// events do (ProcessStateEnum proc state, oom score, ProcessCapabilityEnum
+// flags), and bindings mirror the service / provider connection edges.
+//
+// Emitted one packet per snapshot by the android.process_state_snapshot data
+// source and decoded by the process_state_importer trace_processor plugin into
+// intrinsic tables (no vendored AMS proto). Enum-valued fields are plain ints
+// carrying the values of the enums named below; the importer resolves them to
+// names via the generated <Enum>_Name() helpers.
+message ProcessStateSnapshot {
+  // A running process (a node in the graph).
+  message Process {
+    optional int32 pid = 1;
+    optional int32 uid = 2;
+    optional string name = 3;
+    // oom_adj score (lower = more important).
+    optional int32 oom_score = 4;
+    // Current process state; values of ProcessStateEnum.
+    optional int32 proc_state = 5;
+    // Bitmask of ProcessCapabilityEnum (bit i set => capability with enum value
+    // i+1 is granted).
+    optional int32 capability_flags = 6;
+    optional bool persistent = 7;
+  }
+  // A running service, referenced by ServiceBinding.service_id.
+  message Service {
+    // Per-snapshot id, unique within this packet.
+    optional int32 id = 1;
+    optional int32 owning_pid = 2;
+    optional string name = 3;  // component / short instance name
+    // Bitmask of ServiceInfo.FOREGROUND_SERVICE_TYPE_* (0 if not an FGS).
+    optional int32 foreground_service_type = 4;
+  }
+  // A client process bound to a service (an edge).
+  message ServiceBinding {
+    optional int32 client_pid = 1;
+    optional int32 service_id = 2;  // -> Service.id within this packet
+    optional bool foreground = 3;   // Context.BIND_FOREGROUND_SERVICE
+  }
+  // A running content provider, referenced by ProviderBinding.provider_id.
+  message Provider {
+    // Per-snapshot id, unique within this packet.
+    optional int32 id = 1;
+    optional int32 owning_pid = 2;
+    optional string authority = 3;
+  }
+  // A client process referencing a content provider (an edge).
+  message ProviderBinding {
+    optional int32 client_pid = 1;
+    optional int32 provider_id = 2;  // -> Provider.id within this packet
+    optional bool stable = 3;        // ContentProviderConnection.stable
+  }
+  repeated Process processes = 1;
+  repeated Service services = 2;
+  repeated ServiceBinding service_bindings = 3;
+  repeated Provider providers = 4;
+  repeated ProviderBinding provider_bindings = 5;
+}
+
 message FrameworksBaseTracePacket {
   extend perfetto.protos.TracePacket {
     optional AppWakelockBundle app_wakelock_bundle = 116;
     optional VideoFrame video_frame = 1000;
     optional VideoFrameError video_frame_error = 1001;
+    // Process / service / provider importance graph snapshot (dumpsys
+    // activity).
+    optional ProcessStateSnapshot process_state_snapshot = 1002;
   }
 }

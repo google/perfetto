@@ -50,7 +50,6 @@ const schema = {
   depth: NUM,
   thread_dur: LONG_NULL,
   category: STR_NULL,
-  correlation_id: STR_NULL,
   arg_set_id: NUM_NULL,
   parent_id: NUM_NULL,
   track_id: NUM,
@@ -89,11 +88,6 @@ export async function createTraceProcessorSliceTrack({
       ? (row) => detailsPanel(row)
       : () => new ThreadSliceDetailsPanel(trace),
     colorizer: (row) => {
-      if (row.correlation_id) {
-        return getColorForSlice(row.correlation_id, {
-          stripTrailingDigits: false,
-        });
-      }
       if (row.name) {
         return getColorForSlice(row.name);
       }
@@ -122,7 +116,6 @@ async function getDataset(
         thread_dur: 'thread_dur',
         track_id: 'track_id',
         category: 'category',
-        correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
         arg_set_id: 'arg_set_id',
         parent_id: 'parent_id',
       },
@@ -167,7 +160,6 @@ async function getDataset(
         thread_dur: 'thread_dur',
         track_id: 'track_id',
         category: 'category',
-        correlation_id: "extract_arg(arg_set_id, 'correlation_id')",
         arg_set_id: 'arg_set_id',
         parent_id: 'parent_id',
       },
