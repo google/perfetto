@@ -31,8 +31,10 @@ The branch layout produced:
     skills/
         index.json                      ← OpenCode discovery
         perfetto/SKILL.md               ← fallback variant of the skill
-    agents-install                      ← bundled fallback installer
     BRANCH_METADATA.json                ← main_sha, tag, built_at
+
+The fallback installer is not bundled here: get.perfetto.dev/agents-install
+serves it straight from main's `tools/agents-install`.
 
 There is one skill, `ai/skills/perfetto/`, whose entry point is
 `SKILL-template.md` (not a loadable `SKILL.md`, so the source tree is a
@@ -50,7 +52,7 @@ fallback consumer, not a plugin consumer, because the release branch
 cannot currently pin `agy plugin install` to a non-default git ref.
 
 This script does no stamping: the release version is written into the
-source manifests and the bundled `agents-install` by tools/release/
+source manifests and `tools/agents-install` by tools/release/
 roll-prebuilts (alongside the prebuilt binary roll), so this just copies
 already-versioned files. At release time the finalize-release GitHub
 Action rolls the prebuilts, checks the release tag out into a separate
@@ -81,7 +83,6 @@ DEFAULT_SKILLS_SRC = REPO_ROOT / 'ai' / 'skills'
 SKILL_NAME = 'perfetto'
 EXTENSIONS_SRC = REPO_ROOT / 'ai' / 'extensions'
 TRACE_PROCESSOR_SRC = REPO_ROOT / 'tools' / 'trace_processor'
-AGENTS_INSTALL_SRC = REPO_ROOT / 'tools' / 'agents-install'
 # The manifest whose `version` field we treat as the bundle's version (all
 # manifests carry the same value, stamped by roll-prebuilts).
 VERSION_MANIFEST = EXTENSIONS_SRC / 'claude-code' / 'marketplace.json'
@@ -169,13 +170,11 @@ def build(output: Path, skills_src: Path) -> None:
       (EXTENSIONS_SRC / 'codex' / 'plugin.json',
        output / 'plugins' / 'perfetto' / '.codex-plugin' / 'plugin.json'),
       (TRACE_PROCESSOR_SRC, output / 'bin' / 'trace_processor'),
-      (AGENTS_INSTALL_SRC, output / 'agents-install'),
   ]
   for src, dst in copies:
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(src, dst)
   (output / 'bin' / 'trace_processor').chmod(0o755)
-  (output / 'agents-install').chmod(0o755)
 
   _emit_skill(skill_src, 'plugin', output / 'plugins' / 'perfetto' / 'skills')
   _emit_skill(skill_src, 'fallback', output / 'skills')
