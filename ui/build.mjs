@@ -89,7 +89,6 @@ const cfg = {
   bigtrace: false,
   engineBench: false,
   startHttpServer: false,
-  bundle: false,
   useHmr: false,
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: undefined,
@@ -324,8 +323,7 @@ Env-var overrides:
     cfg.crossOriginIsolation = true;
   }
   cfg.check = !!args.typecheck;
-  cfg.bundle = !!args.bundle;
-  cfg.useHmr = cfg.watch && cfg.startHttpServer && !cfg.bundle;
+  cfg.useHmr = cfg.watch && cfg.startHttpServer && !!!args.bundle;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
