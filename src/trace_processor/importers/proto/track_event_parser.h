@@ -25,7 +25,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
-#include "src/trace_processor/importers/proto/track_event_plugin.h"
+#include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
@@ -50,7 +50,7 @@ class DummyMemoryMapping;
 
 class TrackEventParser {
  public:
-  TrackEventParser(TrackEventPluginContext*,
+  TrackEventParser(TrackEventExtensionParserContext*,
                    TraceProcessorContext*,
                    TrackEventTracker*);
 
@@ -71,10 +71,12 @@ class TrackEventParser {
  private:
   friend class TrackEventEventImporter;
 
-  bool has_plugins() const { return !plugin_context_->plugins.empty(); }
+  bool has_parsers() const {
+    return !extension_parser_context_->parsers.empty();
+  }
 
-  TrackEventPlugin* PluginForField(uint32_t field_id) const {
-    auto* it = plugin_context_->plugins_by_field.Find(field_id);
+  TrackEventExtensionParser* ParserForField(uint32_t field_id) const {
+    auto* it = extension_parser_context_->parsers_by_field.Find(field_id);
     return it ? *it : nullptr;
   }
 
@@ -139,7 +141,7 @@ class TrackEventParser {
   const StringId callsite_id_key_id_;
   const StringId end_callsite_id_key_id_;
 
-  TrackEventPluginContext* plugin_context_;
+  TrackEventExtensionParserContext* extension_parser_context_;
   ChromeStringLookup chrome_string_lookup_;
   std::vector<uint32_t> reflect_fields_;
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;

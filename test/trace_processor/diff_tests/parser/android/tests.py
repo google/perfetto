@@ -290,3 +290,16 @@ class AndroidParser(TestSuite):
           "ScreenState",0,1000,2.000000
           "ScreenState",1,2000,1.000000
         """))
+
+  def test_android_framework_track_event_process(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_track_event.textproto'),
+        query="""
+        SELECT p.pid, p.name, p.uid, t.fw_start_ts, t.fw_end_ts
+        FROM __intrinsic_android_track_event_process t
+        JOIN process p USING (upid);
+        """,
+        out=Csv("""
+          "pid","name","uid","fw_start_ts","fw_end_ts"
+          100,"com.example.app",10001,2000,5000
+        """))

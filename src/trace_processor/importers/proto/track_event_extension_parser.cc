@@ -14,38 +14,42 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/track_event_plugin.h"
+#include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 
 #include "perfetto/base/logging.h"
 
 namespace perfetto::trace_processor {
 
-TrackEventPlugin::TrackEventPlugin(TrackEventPluginContext* context)
+TrackEventExtensionParser::TrackEventExtensionParser(
+    TrackEventExtensionParserContext* context)
     : context_(context) {}
 
-TrackEventPlugin::~TrackEventPlugin() = default;
+TrackEventExtensionParser::~TrackEventExtensionParser() = default;
 
-TrackEventPlugin::Result TrackEventPlugin::OnTrackEventCounterExtension(
+TrackEventExtensionParser::Result
+TrackEventExtensionParser::OnTrackEventCounterExtension(
     const TrackEventExtensionField&,
     CounterId) {
   return Result::kIgnored;
 }
 
-TrackEventPlugin::Result TrackEventPlugin::OnTrackEventSliceExtension(
+TrackEventExtensionParser::Result
+TrackEventExtensionParser::OnTrackEventSliceExtension(
     const TrackEventExtensionField&,
     SliceId) {
   return Result::kIgnored;
 }
 
-TrackEventPlugin::Result TrackEventPlugin::OnTrackEventStateExtension(
+TrackEventExtensionParser::Result
+TrackEventExtensionParser::OnTrackEventStateExtension(
     const TrackEventExtensionField&,
     StateId) {
   return Result::kIgnored;
 }
 
-void TrackEventPlugin::RegisterTrackEventExtension(uint32_t field_id) {
-  PERFETTO_CHECK(!context_->plugins_by_field.Find(field_id));
-  context_->plugins_by_field.Insert(field_id, this);
+void TrackEventExtensionParser::RegisterTrackEventExtension(uint32_t field_id) {
+  PERFETTO_CHECK(!context_->parsers_by_field.Find(field_id));
+  context_->parsers_by_field.Insert(field_id, this);
 }
 
 }  // namespace perfetto::trace_processor

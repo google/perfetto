@@ -670,7 +670,7 @@ class TrackEventEventImporter {
     context_->event_tracker->PushCounter(
         ts_, static_cast<double>(event_data_->counter_value), track_id,
         [this](BoundInserter* inserter) {
-          if (DispatchCounterPlugins(CounterId(inserter->id()))) {
+          if (DispatchCounterParsers(CounterId(inserter->id()))) {
             ParseTrackEventArgs(inserter);
           }
         });
@@ -696,13 +696,13 @@ class TrackEventEventImporter {
       auto opt_state_id =
           context_->state_tracker->UpdateState(ts_, track_id, kNullStringId);
       if (opt_state_id) {
-        DispatchStatePlugins(*opt_state_id);
+        DispatchStateParsers(*opt_state_id);
       }
     } else {
       context_->state_tracker->UpdateState(
           ts_, track_id, state_id, category_id_,
           [this](BoundInserter* inserter) {
-            if (DispatchStatePlugins(StateId(inserter->id()))) {
+            if (DispatchStateParsers(StateId(inserter->id()))) {
               ParseTrackEventArgs(inserter);
             }
           });
@@ -820,7 +820,7 @@ class TrackEventEventImporter {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationBegin());
     auto opt_slice_id = context_->slice_tracker->Begin(
         ts_, track_id, category_id_, name_id_, [this](BoundInserter* inserter) {
-          if (DispatchSlicePlugins(SliceId(inserter->id()))) {
+          if (DispatchSliceParsers(SliceId(inserter->id()))) {
             ParseTrackEventArgs(inserter);
           }
         });
@@ -846,7 +846,7 @@ class TrackEventEventImporter {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationEnd());
     auto opt_slice_id = context_->slice_tracker->End(
         ts_, track_id, category_id_, name_id_, [this](BoundInserter* inserter) {
-          if (DispatchSlicePlugins(SliceId(inserter->id()))) {
+          if (DispatchSliceParsers(SliceId(inserter->id()))) {
             ParseTrackEventArgs(inserter);
           }
         });
@@ -1026,7 +1026,7 @@ class TrackEventEventImporter {
     int64_t tidelta = 0;
     std::optional<tables::SliceTable::Id> opt_slice_id;
     auto args_inserter = [this, phase](BoundInserter* inserter) {
-      if (!DispatchSlicePlugins(SliceId(inserter->id()))) {
+      if (!DispatchSliceParsers(SliceId(inserter->id()))) {
         return;
       }
       ParseTrackEventArgs(inserter);
@@ -1063,7 +1063,7 @@ class TrackEventEventImporter {
 
   base::Status ParseAsyncBeginEvent(char phase) {
     auto args_inserter = [this, phase](BoundInserter* inserter) {
-      if (!DispatchSlicePlugins(SliceId(inserter->id()))) {
+      if (!DispatchSliceParsers(SliceId(inserter->id()))) {
         return;
       }
       ParseTrackEventArgs(inserter);
@@ -1104,7 +1104,7 @@ class TrackEventEventImporter {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationEnd());
     auto opt_slice_id = context_->slice_tracker->End(
         ts_, track_id, category_id_, name_id_, [this](BoundInserter* inserter) {
-          if (DispatchSlicePlugins(SliceId(inserter->id()))) {
+          if (DispatchSliceParsers(SliceId(inserter->id()))) {
             ParseTrackEventArgs(inserter);
           }
         });
@@ -1156,7 +1156,7 @@ class TrackEventEventImporter {
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts_, track_id, category_id_, name_id_, duration_ns,
         [this](BoundInserter* inserter) {
-          if (DispatchSlicePlugins(SliceId(inserter->id()))) {
+          if (DispatchSliceParsers(SliceId(inserter->id()))) {
             ParseTrackEventArgs(inserter);
           }
         });
@@ -1342,51 +1342,51 @@ class TrackEventEventImporter {
     return base::OkStatus();
   }
 
-  // Returns false if a plugin claimed the event (default args should be
-  // skipped). Only scans the blob when a plugin is registered.
+  // Returns false if a parser claimed the event (default args should be
+  // skipped). Only scans the blob when a parser is registered.
   template <typename Fn>
-  bool DispatchPlugins(Fn on_field) {
-    if (PERFETTO_LIKELY(!parser_->has_plugins())) {
+  bool DispatchParsers(Fn on_field) {
+    if (PERFETTO_LIKELY(!parser_->has_parsers())) {
       return true;
     }
-    // Plugins are not dispatched for legacy events.
+    // Extension parsers are not dispatched for legacy events.
     if (legacy_event_.has_phase()) {
       return true;
     }
     bool parse_args = true;
     SelectiveTrackEventDecoder decoder(blob_);
     for (const protozero::Field& f : decoder.unknown_fields()) {
-      TrackEventPlugin* plugin = parser_->PluginForField(f.id());
-      if (!plugin) {
+      TrackEventExtensionParser* parser = parser_->ParserForField(f.id());
+      if (!parser) {
         continue;
       }
-      if (on_field(plugin, TrackEventExtensionField(f)) ==
-          TrackEventPlugin::Result::kHandled) {
+      if (on_field(parser, TrackEventExtensionField(f)) ==
+          TrackEventExtensionParser::Result::kHandled) {
         parse_args = false;
       }
     }
     return parse_args;
   }
 
-  bool DispatchSlicePlugins(SliceId id) {
-    return DispatchPlugins(
-        [id](TrackEventPlugin* plugin, const TrackEventExtensionField& f) {
-          return plugin->OnTrackEventSliceExtension(f, id);
-        });
+  bool DispatchSliceParsers(SliceId id) {
+    return DispatchParsers([id](TrackEventExtensionParser* parser,
+                                const TrackEventExtensionField& f) {
+      return parser->OnTrackEventSliceExtension(f, id);
+    });
   }
 
-  bool DispatchCounterPlugins(CounterId id) {
-    return DispatchPlugins(
-        [id](TrackEventPlugin* plugin, const TrackEventExtensionField& f) {
-          return plugin->OnTrackEventCounterExtension(f, id);
-        });
+  bool DispatchCounterParsers(CounterId id) {
+    return DispatchParsers([id](TrackEventExtensionParser* parser,
+                                const TrackEventExtensionField& f) {
+      return parser->OnTrackEventCounterExtension(f, id);
+    });
   }
 
-  bool DispatchStatePlugins(StateId id) {
-    return DispatchPlugins(
-        [id](TrackEventPlugin* plugin, const TrackEventExtensionField& f) {
-          return plugin->OnTrackEventStateExtension(f, id);
-        });
+  bool DispatchStateParsers(StateId id) {
+    return DispatchParsers([id](TrackEventExtensionParser* parser,
+                                const TrackEventExtensionField& f) {
+      return parser->OnTrackEventStateExtension(f, id);
+    });
   }
 
   void ParseTrackEventArgs(BoundInserter* inserter) {

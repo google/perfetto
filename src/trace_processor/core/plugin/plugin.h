@@ -33,6 +33,7 @@ class TraceProcessorContext;
 class TraceReaderRegistry;
 class TraceStorage;
 struct ProtoImporterModuleContext;
+struct TrackEventExtensionParserContext;
 
 // Compile-time tag for plugin identity. Each Plugin subclass gets a unique
 // runtime ID via the address of a per-instantiation static member.
@@ -63,6 +64,9 @@ class PluginBase {
   virtual void RegisterImporters(TraceReaderRegistry& registry);
   virtual void RegisterProtoImporterModules(
       ProtoImporterModuleContext* module_context,
+      TraceProcessorContext* trace_context);
+  virtual void RegisterTrackEventExtensions(
+      TrackEventExtensionParserContext* context,
       TraceProcessorContext* trace_context);
   virtual void RegisterDataframes(std::vector<PluginDataframe>& tables);
   virtual void RegisterStaticTableFunctions(
