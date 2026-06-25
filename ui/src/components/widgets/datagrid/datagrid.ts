@@ -729,6 +729,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           this.renderTreeToolbarItems(attrs),
         ],
         rightItems: [
+          rowsResult.totalRows !== undefined &&
+            m(
+              'span.pf-data-grid__row-count',
+              `${rowsResult.totalRows.toLocaleString()} rows`,
+            ),
           toolbarItemsRight,
           showQuickFilter && this.renderQuickFilterBox(attrs),
           showExportButton &&
@@ -2322,7 +2327,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               className:
                 'pf-visible-on-row-hover pf-datagrid__drilldown-button',
               icon: Icons.GoTo,
-              rounded: true,
               title: 'Drill down into this group',
               fillWidth: true,
               onclick: () => {
