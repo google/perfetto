@@ -218,6 +218,65 @@ TEST_F(JitTrackerTest, MappingLargerThanJitRange) {
   EXPECT_THAT(frame_id_jit, Ne(frame_id_normal));
 }
 
+TEST_F(JitTrackerTest, TwoJitCachesForSameMapping) {
+  const UniquePid upid = context_.process_tracker->GetOrCreateProcess(1234);
+  const UniqueTid utid = context_.process_tracker->UpdateThread(4321, 1234);
+
+  // Create two JIT caches: [1000, 2000) and [3000, 4000)
+  const AddressRange jit_range_1(1000, 2000);
+  JitCache* cache_1 = jit_tracker_.CreateJitCache("cache_1", upid, jit_range_1);
+
+  const AddressRange jit_range_2(3000, 4000);
+  JitCache* cache_2 = jit_tracker_.CreateJitCache("cache_2", upid, jit_range_2);
+
+  // Mapping is [0, 5000) and contains both JIT ranges
+  const AddressRange mapping_range(0, 5000);
+  auto& mapping = AddMapping(upid, mapping_range);
+
+  // Load JIT code 1 at [1200, 1300) in cache 1
+  const StringId function_name_1 = context_.storage->InternString("JitFunction1");
+  const StringId source_file = context_.storage->InternString("SourceFile");
+  const int64_t create_ts = 12345;
+  const AddressRange code_range_1(1200, 1300);
+  cache_1->LoadCode(create_ts, utid, code_range_1, function_name_1,
+                    JitCache::SourceLocation{source_file, 10},
+                    TraceBlobView());
+
+  // Load JIT code 2 at [3200, 3300) in cache 2
+  const StringId function_name_2 = context_.storage->InternString("JitFunction2");
+  const AddressRange code_range_2(3200, 3300);
+  cache_2->LoadCode(create_ts, utid, code_range_2, function_name_2,
+                    JitCache::SourceLocation{source_file, 10},
+                    TraceBlobView());
+
+  // Intern frame at 1250 (inside JIT code 1)
+  FrameId frame_id_jit_1 = mapping.InternFrame(1250, "");
+  auto frame_jit_1 = context_.storage->stack_profile_frame_table()[frame_id_jit_1];
+  EXPECT_THAT(frame_jit_1.name(), Eq(function_name_1));
+
+  // Intern frame at 3250 (inside JIT code 2)
+  FrameId frame_id_jit_2 = mapping.InternFrame(3250, "");
+  auto frame_jit_2 = context_.storage->stack_profile_frame_table()[frame_id_jit_2];
+  EXPECT_THAT(frame_jit_2.name(), Eq(function_name_2));
+
+  // Intern frame at 500 (outside JIT ranges, but inside mapping)
+  EXPECT_THAT(context_.stats_tracker->GetStats(stats::jit_unknown_frame), Eq(0));
+  FrameId frame_id_normal = mapping.InternFrame(500, "normal_func");
+  EXPECT_THAT(context_.stats_tracker->GetStats(stats::jit_unknown_frame), Eq(0));
+  auto frame_normal = context_.storage->stack_profile_frame_table()[frame_id_normal];
+  EXPECT_THAT(context_.storage->GetString(frame_normal.name()), Eq("normal_func"));
+
+  // Intern frame at 2500 (between JIT ranges, inside mapping)
+  FrameId frame_id_normal_2 = mapping.InternFrame(2500, "normal_func_2");
+  EXPECT_THAT(context_.stats_tracker->GetStats(stats::jit_unknown_frame), Eq(0));
+  auto frame_normal_2 = context_.storage->stack_profile_frame_table()[frame_id_normal_2];
+  EXPECT_THAT(context_.storage->GetString(frame_normal_2.name()), Eq("normal_func_2"));
+
+  EXPECT_THAT(frame_id_jit_1, Ne(frame_id_jit_2));
+  EXPECT_THAT(frame_id_jit_1, Ne(frame_id_normal));
+  EXPECT_THAT(frame_id_jit_2, Ne(frame_id_normal_2));
+}
+
 }  // namespace
 
 }  // namespace trace_processor
