@@ -15,7 +15,10 @@
 import {WasmEngineProxy} from '../../trace_processor/wasm_engine_proxy';
 import {uuidv4} from '../../base/uuid';
 import {getErrorMessage} from '../../base/errors';
-import {TraceFileStream, TraceMultipleFilesStream} from '../../core/trace_stream';
+import {
+  TraceFileStream,
+  TraceMultipleFilesStream,
+} from '../../core/trace_stream';
 import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import type {TraceStream} from '../../public/stream';
 import {BUILTIN_CLOCKS, type FileAnalysis} from './multi_trace_types';
@@ -38,9 +41,7 @@ export interface TraceAnalyzer {
   ): Promise<FileAnalysis>;
 
   // Whole-set dry-run: build the manifest+files archive and report alignment.
-  analyzeMergedAlignment(
-    files: ReadonlyArray<File>,
-  ): Promise<AlignmentVerdict>;
+  analyzeMergedAlignment(files: ReadonlyArray<File>): Promise<AlignmentVerdict>;
 }
 
 // Maps internal trace type names to user-friendly format names.

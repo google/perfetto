@@ -478,11 +478,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     if (trace.status === 'error') {
       return m(
         '.pf-multi-trace-modal__config',
-        m(
-          Callout,
-          {intent: Intent.Danger, icon: 'error_outline'},
-          trace.error,
-        ),
+        m(Callout, {intent: Intent.Danger, icon: 'error_outline'}, trace.error),
       );
     }
     if (trace.status !== 'analyzed') {

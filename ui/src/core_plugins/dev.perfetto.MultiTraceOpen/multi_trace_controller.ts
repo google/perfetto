@@ -215,7 +215,11 @@ export class MultiTraceController {
   // The baseline trace for an all-private set (user's choice, else the first);
   // undefined when a real clock anchors instead.
   referenceTraceUuid(): string | undefined {
-    if (this._traces.length < 2 || !this.allAnalyzed() || !this.allPrivateClock()) {
+    if (
+      this._traces.length < 2 ||
+      !this.allAnalyzed() ||
+      !this.allPrivateClock()
+    ) {
       return undefined;
     }
     if (
