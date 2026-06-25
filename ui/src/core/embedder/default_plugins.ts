@@ -73,7 +73,6 @@ export const defaultPlugins = [
   'dev.perfetto.JournaldLog',
   'dev.perfetto.HeapProfile',
   'dev.perfetto.InstrumentsSamplesProfile',
-  'dev.perfetto.Intelletto',
   'dev.perfetto.KernelTrackEvent',
   'dev.perfetto.LinuxPerf',
   'dev.perfetto.MetricsPage',
