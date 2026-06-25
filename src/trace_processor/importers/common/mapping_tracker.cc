@@ -16,9 +16,9 @@
 
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
-#include <cinttypes>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -94,10 +94,10 @@ UserMemoryMapping& MappingTracker::CreateUserMemoryMapping(
 
   user_memory_[upid].TrimOverlapsAndEmplace(mapping_range, mapping.get());
 
-  jit_caches_[upid].ForOverlaps(
-      mapping_range, [&](std::pair<const AddressRange, JitCache*>&) {
-        mapping->SetIsJitted();
-      });
+  jit_caches_[upid].ForOverlaps(mapping_range,
+                                [&](std::pair<const AddressRange, JitCache*>&) {
+                                  mapping->SetIsJitted();
+                                });
 
   return AddMapping(std::move(mapping));
 }

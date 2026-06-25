@@ -89,7 +89,8 @@ FrameId VirtualMemoryMapping::InternFrame(
   JitCache* jit_cache = nullptr;
   if (is_jitted_) {
     if (auto u = GetUpid()) {
-      jit_cache = context_->mapping_tracker->FindJitCacheForAddress(*u, ToAddress(rel_pc));
+      jit_cache = context_->mapping_tracker->FindJitCacheForAddress(
+          *u, ToAddress(rel_pc));
     }
   }
   auto [frame_id, was_inserted] =
