@@ -53,26 +53,28 @@ function renderIrBlock(
   ]);
 }
 
-export function renderIrTab(attrs: IrTabAttrs): m.Children {
-  const {irEntries, reportByHash, activeNodeId} = attrs;
-  return m(
-    '',
-    {
-      style: {
-        display: 'flex',
-        flexDirection: 'column',
-        flex: '1',
-        overflow: 'auto',
-        padding: '8px',
-        gap: '8px',
+export class IrTab implements m.ClassComponent<IrTabAttrs> {
+  view({attrs}: m.Vnode<IrTabAttrs>) {
+    const {irEntries, reportByHash, activeNodeId} = attrs;
+    return m(
+      '',
+      {
+        style: {
+          display: 'flex',
+          flexDirection: 'column',
+          flex: '1',
+          overflow: 'auto',
+          padding: '8px',
+          gap: '8px',
+        },
       },
-    },
-    irEntries.length > 0
-      ? irEntries.map((e) => renderIrBlock(e, reportByHash))
-      : m(
-          'span',
-          {style: {opacity: '0.5', fontSize: '12px'}},
-          activeNodeId ? 'No IR available' : 'Select a node',
-        ),
-  );
+      irEntries.length > 0
+        ? irEntries.map((e) => renderIrBlock(e, reportByHash))
+        : m(
+            'span',
+            {style: {opacity: '0.5', fontSize: '12px'}},
+            activeNodeId ? 'No IR available' : 'Select a node',
+          ),
+    );
+  }
 }

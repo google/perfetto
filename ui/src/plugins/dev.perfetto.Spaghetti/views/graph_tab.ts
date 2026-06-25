@@ -23,9 +23,7 @@ export interface GraphTabAttrs {
   readonly onApply: (json: string) => void;
 }
 
-export function GraphTab(
-  _initialVnode: m.Vnode<GraphTabAttrs>,
-): m.Component<GraphTabAttrs> {
+export function GraphTab(): m.Component<GraphTabAttrs> {
   let editing = false;
   let editValue = '';
   let applyError: string | undefined;

@@ -40,41 +40,43 @@ function renderPreBlock(text: string, hasContent: boolean): m.Children {
   );
 }
 
-export function renderSqlTab(attrs: SqlTabAttrs): m.Children {
-  const {displaySql, sqlText} = attrs;
-  return m(
-    '',
-    {
-      style: {
-        display: 'flex',
-        flexDirection: 'column',
-        flex: '1',
-        overflow: 'hidden',
+export class SqlTab implements m.ClassComponent<SqlTabAttrs> {
+  view({attrs}: m.Vnode<SqlTabAttrs>) {
+    const {displaySql, sqlText} = attrs;
+    return m(
+      '',
+      {
+        style: {
+          display: 'flex',
+          flexDirection: 'column',
+          flex: '1',
+          overflow: 'hidden',
+        },
       },
-    },
-    [
-      displaySql
-        ? m(
-            '',
-            {
-              style: {
-                display: 'flex',
-                justifyContent: 'flex-end',
-                padding: '4px 8px 0',
-                gap: '4px',
+      [
+        displaySql
+          ? m(
+              '',
+              {
+                style: {
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  padding: '4px 8px 0',
+                  gap: '4px',
+                },
               },
-            },
-            m(Button, {
-              variant: ButtonVariant.Filled,
-              icon: 'content_copy',
-              label: 'Copy',
-              onclick: () => {
-                navigator.clipboard.writeText(displaySql);
-              },
-            }),
-          )
-        : null,
-      renderPreBlock(sqlText, !!displaySql),
-    ],
-  );
+              m(Button, {
+                variant: ButtonVariant.Filled,
+                icon: 'content_copy',
+                label: 'Copy',
+                onclick: () => {
+                  navigator.clipboard.writeText(displaySql);
+                },
+              }),
+            )
+          : null,
+        renderPreBlock(sqlText, !!displaySql),
+      ],
+    );
+  }
 }
