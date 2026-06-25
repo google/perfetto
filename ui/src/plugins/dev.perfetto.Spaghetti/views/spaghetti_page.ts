@@ -605,6 +605,8 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         'from',
         'time_range',
         'select',
+        'extend',
+        'drop',
         'filter',
         'extract_arg',
         'sort',
