@@ -21,43 +21,45 @@ export interface ColumnsTabAttrs {
   readonly activeNodeId: string | undefined;
 }
 
-export function renderColumnsTab(attrs: ColumnsTabAttrs): m.Children {
-  const {outputColumns, activeNodeId} = attrs;
+export class ColumnsTab implements m.ClassComponent<ColumnsTabAttrs> {
+  view({attrs}: m.Vnode<ColumnsTabAttrs>) {
+    const {outputColumns, activeNodeId} = attrs;
 
-  if (!outputColumns || outputColumns.length === 0) {
+    if (!outputColumns || outputColumns.length === 0) {
+      return m(
+        '',
+        {
+          style: {
+            display: 'flex',
+            flex: '1',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: '0.5',
+            fontSize: '13px',
+          },
+        },
+        activeNodeId ? 'No columns available' : 'Select a node',
+      );
+    }
+
     return m(
       '',
       {
         style: {
           display: 'flex',
+          flexDirection: 'column',
           flex: '1',
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: '0.5',
-          fontSize: '13px',
+          overflow: 'auto',
+          padding: '8px',
+          gap: '4px',
         },
       },
-      activeNodeId ? 'No columns available' : 'Select a node',
+      outputColumns.map((col, i) =>
+        m('.pf-qb-col-row', {key: i}, [
+          m('span.pf-qb-col-name', col.name),
+          m('span.pf-qb-col-type', perfettoSqlTypeToString(col.type)),
+        ]),
+      ),
     );
   }
-
-  return m(
-    '',
-    {
-      style: {
-        display: 'flex',
-        flexDirection: 'column',
-        flex: '1',
-        overflow: 'auto',
-        padding: '8px',
-        gap: '4px',
-      },
-    },
-    outputColumns.map((col, i) =>
-      m('.pf-qb-col-row', {key: i}, [
-        m('span.pf-qb-col-name', col.name),
-        m('span.pf-qb-col-type', perfettoSqlTypeToString(col.type)),
-      ]),
-    ),
-  );
 }

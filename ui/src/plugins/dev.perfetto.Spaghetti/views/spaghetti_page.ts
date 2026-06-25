@@ -62,26 +62,21 @@ import {
   getOutputColumnsForNode,
   type GraphIndex,
 } from '../graph_utils';
-import type NodeQueryBuilderPlugin from '../index';
-import type {QueryBuilderDelegate} from '../index';
 import {buildIR} from '../ir';
 import {MaterializationService} from '../materialization';
 import type {DetailsContext, RenderContext} from '../node_types';
-import {renderCacheTab} from './cache_tab';
-import {renderColumnsTab} from './columns_tab';
+import {CacheTab} from './cache_tab';
+import {ColumnsTab} from './columns_tab';
 import {GraphTab} from './graph_tab';
-import {renderIrTab} from './materialization_tab';
-import {renderSqlTab} from './sql_tab';
+import {IrTab} from './materialization_tab';
+import {SqlTab} from './sql_tab';
 
-export interface QueryBuilderPageAttrs {
+export interface SpaghettiPage {
   readonly trace: Trace;
   readonly sqlModules: SqlModules | undefined;
-  readonly plugin?: NodeQueryBuilderPlugin;
 }
 
-export function QueryBuilderPage(
-  _initialVnode: m.Vnode<QueryBuilderPageAttrs>,
-): m.Component<QueryBuilderPageAttrs> {
+export function SpaghettiPage(): m.Component<SpaghettiPage> {
   let graphApi: NodeGraphApi | undefined;
 
   // Initialize store
@@ -575,53 +570,10 @@ export function QueryBuilderPage(
   }
 
   return {
-    oncreate({attrs}: m.VnodeDOM<QueryBuilderPageAttrs>) {
-      if (attrs.plugin) {
-        const delegate: QueryBuilderDelegate = {
-          getStore: () => store,
-          setStore: (newStore) => {
-            store = newStore;
-            rebuildIndex();
-            history.splice(0, history.length, store);
-            historyIndex = 0;
-            selectedNodeIds.clear();
-            pinnedNodeId = undefined;
-            saveGraph();
-            m.redraw();
-          },
-          serializeStore: () => serializeStore(store),
-          deserializeAndSetStore: (json: string) => {
-            store = deserializeStore(json);
-            rebuildIndex();
-            history.splice(0, history.length, store);
-            historyIndex = 0;
-            selectedNodeIds.clear();
-            pinnedNodeId = undefined;
-            saveGraph();
-            m.redraw();
-          },
-          selectNode: (nodeId: string) => {
-            selectedNodeIds.clear();
-            selectedNodeIds.add(nodeId);
-            m.redraw();
-          },
-          pinNode: (nodeId: string | undefined) => {
-            pinnedNodeId = nodeId;
-            if (nodeId) {
-              selectedNodeIds.clear();
-              selectedNodeIds.add(nodeId);
-            }
-            m.redraw();
-          },
-        };
-        attrs.plugin.registerDelegate(delegate);
-      }
-    },
-    onremove({attrs}: m.VnodeDOM<QueryBuilderPageAttrs>) {
+    onremove(_: m.VnodeDOM<SpaghettiPage>) {
       matService?.dispose();
-      attrs.plugin?.unregisterDelegate();
     },
-    view({attrs}: m.Vnode<QueryBuilderPageAttrs>) {
+    view({attrs}: m.Vnode<SpaghettiPage>) {
       const {trace, sqlModules} = attrs;
 
       // Get table names from SqlModules, falling back to a basic list
@@ -1014,22 +966,22 @@ export function QueryBuilderPage(
             {
               key: 'sql',
               title: 'SQL',
-              content: renderSqlTab({displaySql, sqlText}),
+              content: m(SqlTab, {displaySql, sqlText}),
             },
             {
               key: 'columns',
               title: 'Columns',
-              content: renderColumnsTab({outputColumns, activeNodeId}),
+              content: m(ColumnsTab, {outputColumns, activeNodeId}),
             },
             {
               key: 'materialization',
               title: 'Materialization',
-              content: renderIrTab({irEntries, reportByHash, activeNodeId}),
+              content: m(IrTab, {irEntries, reportByHash, activeNodeId}),
             },
             {
               key: 'cache',
               title: `Cache (${cacheEntries.length})`,
-              content: renderCacheTab({
+              content: m(CacheTab, {
                 cacheEntries,
                 onClearCache: () => matService?.clearCache(),
               }),
