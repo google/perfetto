@@ -307,6 +307,12 @@ Config BuildConfig(const GlobalOptions& opts,
       }
       config.dev_flags.emplace(kv[0], kv[1]);
     }
+    // Hidden knob: `--dev-flag tokenize_only=true` tokenizes without sorting or
+    // full parsing, for inspecting what the tokenizer alone populates.
+    auto tok = config.dev_flags.find("tokenize_only");
+    if (tok != config.dev_flags.end() && tok->second == "true") {
+      config.parsing_mode = ParsingMode::kTokenizeOnly;
+    }
   }
 
   if (opts.extra_checks) {
