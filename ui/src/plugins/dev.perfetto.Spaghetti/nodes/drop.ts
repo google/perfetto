@@ -125,8 +125,7 @@ function emitIr(config: DropConfig, ctx: IrContext) {
     return {sql: `SELECT *\nFROM ${ref}`};
   }
 
-  const selectClause =
-    kept.length > 1 ? '\n  ' + kept.join(',\n  ') : kept[0];
+  const selectClause = kept.length > 1 ? '\n  ' + kept.join(',\n  ') : kept[0];
   return {sql: `SELECT ${selectClause}\nFROM ${ref}`};
 }
 

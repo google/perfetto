@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {CacheEntry} from '../materialization';
+import type {CacheEntry} from '../materialization';
 
 export interface CacheTabAttrs {
   readonly cacheEntries: readonly CacheEntry[];

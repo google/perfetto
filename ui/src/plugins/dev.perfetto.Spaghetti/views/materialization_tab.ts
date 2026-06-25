@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {IrEntry} from '../ir';
-import {EntryReport} from '../materialization';
+import type {IrEntry} from '../ir';
+import type {EntryReport} from '../materialization';
 
 export interface IrTabAttrs {
   readonly irEntries: IrEntry[];

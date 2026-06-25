@@ -126,7 +126,9 @@ function ExtendContent(): m.Component<{
                     'pf-drag-over-top',
                     'pf-drag-over-bottom',
                   );
-                  const fromIdx = parseInt(e.dataTransfer!.getData('text/plain'));
+                  const fromIdx = parseInt(
+                    e.dataTransfer!.getData('text/plain'),
+                  );
                   let toIdx = isBottom ? i + 1 : i;
                   if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
                     const updated = [...config.entries];
