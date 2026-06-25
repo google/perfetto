@@ -18,6 +18,8 @@ import {manifest as filterNode} from './nodes/filter';
 import {manifest as fromNode} from './nodes/from';
 import {manifest as timeRangeNode} from './nodes/time_range';
 import {manifest as selectNode} from './nodes/select';
+import {manifest as extendNode} from './nodes/extend';
+import {manifest as dropNode} from './nodes/drop';
 import {manifest as groupByNode} from './nodes/groupby';
 import {manifest as joinNode} from './nodes/join';
 import {manifest as extractArgNode} from './nodes/extract_arg';
@@ -35,6 +37,8 @@ const NODE_REGISTRY: Record<string, NodeManifest> = {
   from: fromNode,
   time_range: timeRangeNode,
   select: selectNode,
+  extend: extendNode,
+  drop: dropNode,
   filter: filterNode,
   sort: sortNode,
   limit: limitNode,
