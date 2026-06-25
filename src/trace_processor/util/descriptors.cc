@@ -599,10 +599,10 @@ std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
 
 std::optional<std::string> DescriptorPool::FindEnumString(
     CachedDescriptor& cache,
-    const std::string& enum_name,
+    std::string_view enum_name,
     int32_t value) const {
   if (!cache.descriptor_idx_) {
-    cache.descriptor_idx_ = FindDescriptorIdx(enum_name);
+    cache.descriptor_idx_ = FindDescriptorIdx(std::string(enum_name));
   }
   if (!cache.descriptor_idx_) {
     return std::nullopt;

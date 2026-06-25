@@ -23,6 +23,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -252,7 +253,7 @@ class DescriptorPool {
   // if the enum or the value is unknown. |cache| stores the resolved descriptor
   // so later calls skip the by-name lookup.
   std::optional<std::string> FindEnumString(CachedDescriptor& cache,
-                                            const std::string& enum_name,
+                                            std::string_view enum_name,
                                             int32_t value) const;
 
  private:
