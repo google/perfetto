@@ -49,9 +49,11 @@ DEFAULT_BRANCH = 'ai-agents'
 
 # tools/release/roll-prebuilts stamps the rolled release version here so the
 # installer served from get.perfetto.dev defaults to that release (and a saved
-# copy keeps reinstalling it). Left at the sentinel in a dev checkout, installs
-# track the live `ai-agents` branch tip.
-DEFAULT_VERSION = 'v56.1'
+# copy keeps reinstalling it). At the sentinel, installs track the live
+# `ai-agents` branch tip; held there for now so default installs serve the
+# rebuilt single-skill bundle until the next release re-stamps a pinned
+# version.
+DEFAULT_VERSION = '__VERSION__'
 
 # Custom ref namespace mapping a release version to its ai-agents bundle commit,
 # e.g. refs/ai-agent-tag/v56.0 (created by the release pipeline). Kept out of
