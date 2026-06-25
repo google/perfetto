@@ -14,10 +14,15 @@
 # limitations under the License.
 """Fallback installer for the Perfetto AI agents skills bundle.
 
-Downloads the `ai-agents` release branch and copies the root `skills/`
-directory and the bundled `bin/trace_processor` wrapper into a target
+Downloads the `ai-agents` release branch and copies the Perfetto skills it
+ships, plus the bundled `bin/trace_processor` wrapper, into a target
 directory. Used by fallback consumers (OpenCode, Antigravity, Pi) and any
 agent without a native plugin marketplace.
+
+The destination skills/ dir may be shared with skills the user installed
+from elsewhere (e.g. pi's ~/.agents/skills), so the installer touches only
+the Perfetto skill and prompts before replacing an existing one. Pass
+--yes to replace without prompting.
 
 Python, not a shell script, on purpose: the bundled `trace_processor`
 wrapper already requires Python 3, so this adds no new dependency and runs
@@ -27,9 +32,6 @@ unmodified on Linux, macOS and Windows.
                     python3 - --target <path>
   Windows:      curl.exe -fsSL https://get.perfetto.dev/agents-install | \
                     python - --target <path>
-
-  (On Windows use curl.exe, not curl: in PowerShell `curl` aliases to
-  Invoke-WebRequest, which does not pipe bytes to a process.)
 """
 
 import argparse
@@ -47,9 +49,11 @@ DEFAULT_BRANCH = 'ai-agents'
 
 # tools/release/roll-prebuilts stamps the rolled release version here so the
 # installer served from get.perfetto.dev defaults to that release (and a saved
-# copy keeps reinstalling it). Left at the sentinel in a dev checkout, installs
-# track the live `ai-agents` branch tip.
-DEFAULT_VERSION = 'v56.1'
+# copy keeps reinstalling it). At the sentinel, installs track the live
+# `ai-agents` branch tip; held there for now so default installs serve the
+# rebuilt single-skill bundle until the next release re-stamps a pinned
+# version.
+DEFAULT_VERSION = '__VERSION__'
 
 # Custom ref namespace mapping a release version to its ai-agents bundle commit,
 # e.g. refs/ai-agent-tag/v56.0 (created by the release pipeline). Kept out of
@@ -66,6 +70,13 @@ AGENT_TARGETS = {
     'antigravity': '.antigravity',
     'pi': '.agents',
 }
+
+# The single skill the bundle ships and the only thing this installer manages.
+SKILL_NAME = 'perfetto'
+
+# Agents that discover skills through skills/index.json. We only write that file
+# for them; other agents load skills/<name>/SKILL.md directly and never need it.
+INDEX_AGENTS = {'opencode'}
 
 
 def err(msg: str) -> None:
@@ -144,19 +155,89 @@ def download_and_extract(ref: str, workdir: str) -> str:
   return os.path.join(workdir, roots[0])
 
 
-def install(extracted: str, target: str) -> None:
-  src_skills = os.path.join(extracted, 'skills')
-  if not os.path.isdir(src_skills):
-    err('branch is missing skills/ (wrong ref?)')
+def _confirm(question: str) -> Optional[bool]:
+  """Ask a yes/no question on the controlling terminal.
+
+  The installer is normally run as `curl ... | python3 -`, so sys.stdin is the
+  piped script, not the user — input() would hit EOF. Read from the terminal
+  directly instead. Returns None when there is no terminal to ask (e.g. CI), so
+  the caller can decide how to proceed.
+  """
+  tty_name = 'CON' if os.name == 'nt' else '/dev/tty'
+  try:
+    with open(tty_name, 'r') as tty_in, open(tty_name, 'w') as tty_out:
+      tty_out.write(f'{question} [y/N] ')
+      tty_out.flush()
+      answer = tty_in.readline().strip().lower()
+  except OSError:
+    return None
+  return answer in ('y', 'yes')
+
+
+def _refresh_index(dst_skills: str) -> None:
+  """Point skills/index.json at the just-installed Perfetto skill.
+
+  OpenCode discovers skills via this file. The destination skills/ dir may be
+  shared with skills the user installed elsewhere, so we replace only the
+  Perfetto entry and leave any others in place (creating the file if absent).
+  """
+  index_path = os.path.join(dst_skills, 'index.json')
+  entries = []
+  if os.path.isfile(index_path):
+    try:
+      with open(index_path) as f:
+        loaded = json.load(f).get('skills', [])
+      if isinstance(loaded, list):
+        entries = [e for e in loaded if isinstance(e, dict)]
+    except (OSError, ValueError):
+      entries = []
+
+  files = []
+  skill_dir = os.path.join(dst_skills, SKILL_NAME)
+  for root, _, fnames in os.walk(skill_dir):
+    for f in fnames:
+      files.append(os.path.relpath(os.path.join(root, f), skill_dir))
+
+  merged = [e for e in entries if e.get('name') != SKILL_NAME]
+  merged.append({'name': SKILL_NAME, 'files': sorted(files)})
+  merged.sort(key=lambda e: e.get('name', ''))
+  with open(index_path, 'w') as f:
+    f.write(json.dumps({'skills': merged}, indent=2) + '\n')
+
+
+def install(extracted: str, target: str, agent: Optional[str],
+            assume_yes: bool) -> None:
+  src_skill = os.path.join(extracted, 'skills', SKILL_NAME)
+  if not os.path.isdir(src_skill):
+    err(f'branch is missing skills/{SKILL_NAME} (wrong ref?)')
 
   os.makedirs(os.path.join(target, 'bin'), exist_ok=True)
-
-  # Re-running the installer is the documented update path, so replace the
-  # skills tree rather than nesting a new copy inside the old one.
   dst_skills = os.path.join(target, 'skills')
-  if os.path.exists(dst_skills):
-    shutil.rmtree(dst_skills)
-  shutil.copytree(src_skills, dst_skills)
+  os.makedirs(dst_skills, exist_ok=True)
+
+  # Touch only the Perfetto skill: the destination skills/ dir is often shared
+  # with skills the user installed elsewhere (e.g. pi's ~/.agents/skills), so we
+  # never remove anything but our own.
+  dst_skill = os.path.join(dst_skills, SKILL_NAME)
+  if os.path.exists(dst_skill):
+    if not assume_yes:
+      confirmed = _confirm(f'Replace the existing Perfetto skill at '
+                           f'{dst_skill}?')
+      if confirmed is None:
+        err(f'{dst_skill} already exists and there is no terminal to confirm '
+            f'the replacement; re-run with --yes to replace it.')
+      if not confirmed:
+        print('Aborted: left the existing Perfetto skill untouched.')
+        return
+    shutil.rmtree(dst_skill)
+  shutil.copytree(src_skill, dst_skill)
+
+  # index.json is only meaningful for agents that discover skills through it.
+  # Refresh it for those, and for any target that already has one, but never
+  # fabricate it for agents that load SKILL.md directly.
+  if agent in INDEX_AGENTS or os.path.isfile(
+      os.path.join(dst_skills, 'index.json')):
+    _refresh_index(dst_skills)
 
   src_tp = os.path.join(extracted, 'bin', 'trace_processor')
   if os.path.isfile(src_tp):
@@ -197,6 +278,12 @@ def main() -> int:
   ap.add_argument(
       '--ref',
       help='Raw git ref to download (branch, tag or SHA). Overrides --version.')
+  ap.add_argument(
+      '-y',
+      '--yes',
+      action='store_true',
+      help='Replace an existing Perfetto skill without prompting (for '
+      'non-interactive installs).')
   args = ap.parse_args()
 
   target = resolve_target(args.target, args.agent)
@@ -204,7 +291,7 @@ def main() -> int:
 
   with tempfile.TemporaryDirectory() as workdir:
     extracted = download_and_extract(ref, workdir)
-    install(extracted, target)
+    install(extracted, target, args.agent, args.yes)
 
   print_path_hint(target)
   return 0
