@@ -51,7 +51,7 @@
 import '../base/static_initializers';
 import protobuf from 'protobufjs/minimal';
 import {defer, type Deferred} from '../base/deferred';
-import {assertExists, assertFalse, assertTrue} from '../base/assert';
+import {ensureExists, assertFalse, assertTrue} from '../base/assert';
 import {utf8Decode} from '../base/string_utils';
 import {Duration, type duration, Time, type time} from '../base/time';
 
@@ -629,7 +629,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     if (this.allRowsPromise === undefined) {
       this.waitAllRows(); // Will populate |this.allRowsPromise|.
     }
-    return assertExists(this.allRowsPromise);
+    return ensureExists(this.allRowsPromise);
   }
 
   get errorInfo(): QueryErrorInfo {
@@ -921,7 +921,7 @@ class RowIteratorImpl implements RowIteratorBase {
     this.numColumns = this.columnNames.length;
 
     this.batchIdx = nextBatchIdx;
-    const batch = assertExists(this.resultObj.batches[nextBatchIdx]);
+    const batch = ensureExists(this.resultObj.batches[nextBatchIdx]);
     this.batchBytes = batch.batchBytes;
     this.nextCellTypeOff = batch.cellTypesOff;
     this.cellTypesEnd = batch.cellTypesOff + batch.cellTypesLen;

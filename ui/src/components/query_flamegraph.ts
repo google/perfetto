@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {uuidv4Sql} from '../base/uuid';
 import type {Engine} from '../trace_processor/engine';
 import {
@@ -228,7 +228,7 @@ export class QueryFlamegraph implements AsyncDisposable {
     metrics: ReadonlyArray<QueryFlamegraphMetric>,
     state: FlamegraphState,
   ) {
-    const metric = assertExists(
+    const metric = ensureExists(
       metrics.find((x) => state.selectedMetricName === x.name),
     );
     const engine = this.trace.engine;

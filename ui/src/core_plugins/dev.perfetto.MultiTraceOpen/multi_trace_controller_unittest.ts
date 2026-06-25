@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import type {Mock} from 'vitest';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {MultiTraceController} from './multi_trace_controller';
 import type {
   TraceFileAnalyzed,
@@ -80,7 +80,7 @@ class FakeTraceAnalyzer implements TraceAnalyzer {
     onProgress(1.0);
 
     if (this.errors.has(file.name)) {
-      throw new Error(assertExists(this.errors.get(file.name)?.message));
+      throw new Error(ensureExists(this.errors.get(file.name)?.message));
     }
     const result = this.results.get(file.name);
     if (result) {

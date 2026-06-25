@@ -22,47 +22,94 @@
 // In addition to runtime checks, these assertions help TypeScript narrow types.
 // For example, after calling assertExists(x), TypeScript knows x is non-null.
 
-export function assertExists<A>(
-  value: A | null | undefined,
-  optMsg?: string,
-): A {
-  if (value === null || value === undefined) {
-    throw new Error(optMsg ?? 'Value is null or undefined');
+type Nullable<T> = T | undefined | null; // T or nullish (null or undefined)
+type Maybe<T> = T | undefined; // T or undefined
+type Falsy = false | 0 | -0 | 0n | '' | null | undefined; // All falsy types
+
+// Asserts that x is truthy, throwing at runtime otherwise. The `asserts x`
+// return annotation narrows x in the caller, stripping falsy members from its
+// type (e.g. `string | undefined` becomes `string`) for the rest of the scope.
+export function assertTrue(x: unknown, msg?: string): asserts x {
+  if (!Boolean(x)) {
+    throw new Error(msg ?? 'Failed assertion');
   }
-  return value;
 }
 
-// assertExists trips over NULLs, but in many contexts NULL is a valid SQL value
-// we have to work with.
-export function assertDefined<T>(value: T | undefined, optMsg?: string): T {
-  if (value === undefined) {
-    throw new Error(optMsg ?? 'Value is undefined');
+// Asserts that x is falsy, throwing at runtime otherwise. The `asserts x is
+// Extract<T, Falsy>` annotation narrows x in the caller to just the falsy
+// members of its type for the rest of the scope.
+export function assertFalse<T>(
+  x: T,
+  msg?: string,
+): asserts x is Extract<T, Falsy> {
+  if (Boolean(x)) {
+    throw new Error(msg ?? 'Failed assertion');
   }
-  return value;
 }
 
-// Asserts that the value is an instance of the given class. Returns the value
-// with a narrowed type if the assertion passes, otherwise throws an error.
-export function assertIsInstance<T>(
-  value: unknown,
+// Throws at runtime if x is null or undefined, otherwise returns x with its
+// type narrowed to non-nullable. Use this when you need the value as an
+// expression (e.g. `const y = ensureExists(maybeY)`).
+export function ensureExists<T>(x: Nullable<T>, msg?: string): T {
+  if (x === null || x === undefined) {
+    throw new Error(msg ?? 'Value is null or undefined');
+  }
+  return x;
+}
+
+// Asserts that x is neither null nor undefined, throwing at runtime otherwise.
+// The `asserts x is T` annotation narrows x to non-nullable in the caller for
+// the rest of the scope. Use this when x is already a variable you can keep
+// using; prefer ensureExists when you need the value as an expression.
+export function assertExists<T>(x: Nullable<T>, msg?: string): asserts x is T {
+  if (x === null || x === undefined) {
+    throw new Error(msg ?? 'Value is null or undefined');
+  }
+}
+
+// Like ensureExists, but only undefined is rejected; null is allowed through.
+// ensureExists/assertExists trip over nulls, but in many contexts null is a
+// valid SQL value we have to work with.
+export function ensureDefined<T>(x: Maybe<T>, msg?: string): T {
+  if (x === undefined) {
+    throw new Error(msg ?? 'Value is undefined');
+  }
+  return x;
+}
+
+// Like assertExists, but only undefined is rejected; null is allowed through.
+// Narrows x to exclude undefined in the caller for the rest of the scope.
+export function assertDefined<T>(x: Maybe<T>, msg?: string): asserts x is T {
+  if (x === undefined) {
+    throw new Error(msg ?? 'Value is undefined');
+  }
+}
+
+// Throws at runtime unless x is an instance of clazz, otherwise returns x typed
+// as that class. Use this when you need the value as an expression; prefer
+// assertIsInstance when x is already a variable you can keep using.
+export function ensureIsInstance<T>(
+  x: unknown,
   clazz: abstract new (...args: never[]) => T,
-  optMsg?: string,
+  msg?: string,
 ): T {
-  assertTrue(
-    value instanceof clazz,
-    optMsg ?? `Value is not an instance of ${clazz.name}`,
-  );
-  return value as T;
-}
-
-export function assertTrue(value: boolean, optMsg?: string) {
-  if (!value) {
-    throw new Error(optMsg ?? 'Failed assertion');
+  if (!(x instanceof clazz)) {
+    throw new Error(msg ?? `Value is not an instance of ${clazz.name}`);
   }
+  return x;
 }
 
-export function assertFalse(value: boolean, optMsg?: string) {
-  assertTrue(!value, optMsg);
+// Asserts that x is an instance of clazz, throwing at runtime otherwise. The
+// `asserts x is T` annotation narrows x to that class in the caller for the
+// rest of the scope.
+export function assertIsInstance<T>(
+  x: unknown,
+  clazz: abstract new (...args: never[]) => T,
+  msg?: string,
+): asserts x is T {
+  if (!(x instanceof clazz)) {
+    throw new Error(msg ?? `Value is not an instance of ${clazz.name}`);
+  }
 }
 
 // This function serves two purposes.

@@ -22,7 +22,7 @@ import type {
   Transform1D,
   VerticalBounds,
 } from '../../base/geom';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
   type CancellationSignal,
@@ -1273,7 +1273,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       this.trace.timeline.highlightedSliceName = this.hoveredSlice?.title;
       if (this.hoveredSlice === undefined) {
         if (this.attrs.onSliceOut) {
-          this.attrs.onSliceOut({slice: assertExists(prevHoveredSlice)});
+          this.attrs.onSliceOut({slice: ensureExists(prevHoveredSlice)});
         }
       } else {
         if (this.attrs.onSliceOver) {

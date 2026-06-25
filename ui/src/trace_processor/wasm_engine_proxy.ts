@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assetSrc} from '../base/assets';
-import {assertExists, assertTrue} from '../base/assert';
+import {ensureExists, assertTrue} from '../base/assert';
 import {EngineBase} from '../trace_processor/engine';
 import {traceProcessorWasmUrl} from './wasm_modules';
 
@@ -67,7 +67,7 @@ export class WasmEngineProxy extends EngineBase implements Disposable {
 
     const worker = this.worker;
     // warmupWasmWorker() guarantees precompiledWasmModule is set.
-    assertExists(precompiledWasmModule).then((wasmModule) => {
+    ensureExists(precompiledWasmModule).then((wasmModule) => {
       worker.postMessage({port: port1, wasmModule}, [port1]);
     });
     this.port.onmessage = this.onMessage.bind(this);

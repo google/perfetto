@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {removeFalsyValues} from '../../base/array_utils';
 import {AsyncLimiter} from '../../base/async_limiter';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Time} from '../../base/time';
 import {
   createAggregationTab,
@@ -469,19 +469,19 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   ) {
     switch (topLevelGroup) {
       case 'PROCESS': {
-        const process = assertExists(
+        const process = ensureExists(
           ctx.plugins
             .getPlugin(ProcessThreadGroupsPlugin)
-            .getGroupForProcess(assertExists(upid)),
+            .getGroupForProcess(ensureExists(upid)),
         );
         this.getGroupByName(process, group, upid).addChildInOrder(track);
         break;
       }
       case 'THREAD': {
-        const thread = assertExists(
+        const thread = ensureExists(
           ctx.plugins
             .getPlugin(ProcessThreadGroupsPlugin)
-            .getGroupForThread(assertExists(utid)),
+            .getGroupForThread(ensureExists(utid)),
         );
         this.getGroupByName(thread, group, utid).addChildInOrder(track);
         break;
@@ -581,7 +581,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         if (computed === undefined && !isLoading) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading,
           content:
@@ -728,7 +728,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Slice Name',
     });
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
@@ -807,8 +807,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         // Only process upids that have valid track groups
         const rows: MinimapRow[] = [];
         const sortedUpids = Array.from(upidOrderMap.keys()).sort((a, b) => {
-          const orderA = assertExists(upidOrderMap.get(a));
-          const orderB = assertExists(upidOrderMap.get(b));
+          const orderA = ensureExists(upidOrderMap.get(a));
+          const orderB = ensureExists(upidOrderMap.get(b));
           return orderA - orderB;
         });
 

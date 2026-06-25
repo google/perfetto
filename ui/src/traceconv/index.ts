@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {addErrorHandler, type ErrorDetails, reportError} from '../base/logging';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import type {time} from '../base/time';
 import traceconv from '../gen/traceconv';
 
@@ -65,7 +65,7 @@ function forwardError(error: ErrorDetails) {
 }
 
 function fsNodeToBuffer(fsNode: traceconv.FileSystemNode): Uint8Array {
-  const fileSize = assertExists(fsNode.usedBytes);
+  const fileSize = ensureExists(fsNode.usedBytes);
   return new Uint8Array(fsNode.contents.buffer, 0, fileSize);
 }
 
@@ -79,7 +79,7 @@ async function runTraceconv(trace: Blob, args: string[]) {
   });
   module.FS.mkdir('/fs');
   module.FS.mount(
-    assertExists(module.FS.filesystems.WORKERFS),
+    ensureExists(module.FS.filesystems.WORKERFS),
     {blobs: [{name: 'trace.proto', data: trace}]},
     '/fs',
   );

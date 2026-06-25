@@ -54,7 +54,7 @@ import {Icon} from './icon';
 import {PopupMenu} from './menu';
 import {classNames} from '../base/classnames';
 import {Icons} from '../base/semantic_icons';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {shortUuid} from '../base/uuid';
 
 // Default height estimate for labels (used for box selection calculations)
@@ -839,7 +839,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     // Query ports within this NodeGraph instance only (not globally).
     // Using document.querySelectorAll would pick up ports from other
     // NodeGraph instances (e.g. hidden tabs), causing incorrect positions.
-    const container = assertExists(canvasElement);
+    const container = ensureExists(canvasElement);
     const allPorts = container.querySelectorAll('.pf-port[data-port]');
     allPorts.forEach((portElement) => {
       const portId = portElement.getAttribute('data-port');
@@ -1080,7 +1080,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
     // Scope to this NodeGraph instance to avoid matching elements from other
     // instances (e.g. hidden tabs with the same node IDs).
-    const scope = assertExists(canvasElement);
+    const scope = ensureExists(canvasElement);
     const portElement = scope.querySelector(selector);
 
     if (portElement) {
@@ -1197,7 +1197,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   }
 
   function getNodeDimensions(nodeId: string): {width: number; height: number} {
-    const scope = assertExists(canvasElement);
+    const scope = ensureExists(canvasElement);
     const nodeElement = scope.querySelector(`[data-node="${nodeId}"]`);
     if (nodeElement) {
       const rect = nodeElement.getBoundingClientRect();

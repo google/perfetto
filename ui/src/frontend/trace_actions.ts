@@ -29,7 +29,7 @@ import {
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
 import {showModal} from '../widgets/modal';
-import {assertExists, assertIsArrayBufferView} from '../base/assert';
+import {ensureExists, assertIsArrayBufferView} from '../base/assert';
 
 const TRACE_SUFFIX = '.perfetto-trace';
 
@@ -109,7 +109,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
           action: () => {
             enableMetatracing();
             engine.enableMetatrace(
-              assertExists(getEnabledMetatracingCategories()),
+              ensureExists(getEnabledMetatracingCategories()),
             );
           },
         },
@@ -120,7 +120,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
     });
   } else {
     enableMetatracing();
-    engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
+    engine.enableMetatrace(ensureExists(getEnabledMetatracingCategories()));
   }
 }
 

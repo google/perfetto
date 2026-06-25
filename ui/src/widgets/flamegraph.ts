@@ -14,7 +14,7 @@
 
 import './flamegraph.scss';
 import m from 'mithril';
-import {assertExists, assertTrue} from '../base/assert';
+import {ensureExists, assertTrue} from '../base/assert';
 import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
 import {Chip} from './chip';
@@ -778,7 +778,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
     const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes} =
       this.attrs.data;
-    const unit = assertExists(this.selectedMetric).unit;
+    const unit = ensureExists(this.selectedMetric).unit;
 
     ctx.font = LABEL_FONT_STYLE;
     ctx.textBaseline = 'middle';
@@ -1035,8 +1035,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       unfilteredCumulativeValue,
       nodeActions,
       rootActions,
-    } = assertExists(this.attrs.data);
-    const {unit, nameColumnLabel} = assertExists(this.selectedMetric);
+    } = ensureExists(this.attrs.data);
+    const {unit, nameColumnLabel} = ensureExists(this.selectedMetric);
     if (source.kind === 'ROOT') {
       const val = displaySize(allRootsCumulativeValue, unit);
       const percent = displayPercentage(
@@ -1218,7 +1218,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const addF = (kind: FlamegraphFilter['kind'], filter: string) =>
       applyState(addFilter(this.attrs.state, {kind, filter}));
     const ft = (v: FilterType) =>
-      assertExists(FILTER_TYPES.find((o) => o.value === v));
+      ensureExists(FILTER_TYPES.find((o) => o.value === v));
     const filterAction = (v: FilterType, execute: () => void): NodeAction => {
       const o = ft(v);
       return {
@@ -1375,15 +1375,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   }
 
   private buildStackString(node: FlamegraphNode, withDetails: boolean): string {
-    const {nodes, unfilteredCumulativeValue} = assertExists(this.attrs.data);
-    const metric = assertExists(this.selectedMetric);
+    const {nodes, unfilteredCumulativeValue} = ensureExists(this.attrs.data);
+    const metric = ensureExists(this.selectedMetric);
     const view = this.attrs.state.view;
 
     // Walk via parentId for all modes. Reverse for TOP_DOWN and PIVOT below.
     const stack: FlamegraphNode[] = [];
     let currentId = node.id;
     while (currentId !== -1) {
-      const current = assertExists(nodes.find((n) => n.id === currentId));
+      const current = ensureExists(nodes.find((n) => n.id === currentId));
       stack.push(current);
       currentId = current.parentId;
     }
