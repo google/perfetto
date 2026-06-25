@@ -320,7 +320,7 @@ message FormFillingRequest {
 
   // Enumerates the purposes for forms. Note that although the type of data
   // (address or credit card) is encoded that autofill already detects the type,
-  // but does not detect the purpose (e.g. shipping v.s. billing address)
+  // but does not detect the purpose (e.g. shipping vs. billing address)
   // provide here.
   enum RequestedData {
     // The requested data is not specified.
