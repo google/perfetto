@@ -20,7 +20,7 @@
   flex-direction: row;
   align-items: baseline;
   gap: 2px;
-  padding: 2px;
+  border: 2px solid var(--pf-color-background-secondary);
   border-radius: $border-radius-large;
   background: color-mix(
     in srgb,

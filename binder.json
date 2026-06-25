@@ -1,0 +1,1459 @@
+{
+  "nodes": [
+    {
+      "id": "sync_slice",
+      "type": "from",
+      "x": 100,
+      "y": 100,
+      "config": {
+        "table": "slice"
+      },
+      "next": {
+        "id": "sync_filter",
+        "type": "filter",
+        "config": {
+          "conjunction": "AND",
+          "conditions": [
+            {
+              "column": "name",
+              "op": "=",
+              "value": "binder transaction"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "broken_sql",
+      "type": "sql",
+      "x": 100,
+      "y": 200,
+      "config": {
+        "sql": "WITH maybe_broken AS (SELECT ancestor.id FROM slice JOIN slice AS ancestor ON ancestor.id = slice.parent_id WHERE ancestor.name = 'binder transaction' GROUP BY ancestor.id), nested AS (SELECT DISTINCT root_node_id AS id FROM _slice_following_flow!(maybe_broken)) SELECT id FROM maybe_broken EXCEPT SELECT id FROM nested",
+        "inputPorts": []
+      }
+    },
+    {
+      "id": "sync_broken_join",
+      "type": "join",
+      "x": 300,
+      "y": 100,
+      "config": {
+        "joinType": "LEFT",
+        "rightColumn": "id",
+        "leftColumn": "id",
+        "columns": [
+          {
+            "column": "id",
+            "alias": "broken_id"
+          }
+        ]
+      },
+      "next": {
+        "id": "sync_broken_filter",
+        "type": "filter",
+        "config": {
+          "conjunction": "AND",
+          "conditions": [
+            {
+              "column": "broken_id",
+              "op": "IS NULL",
+              "value": ""
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "from",
+      "id": "sync_tt",
+      "x": 100,
+      "y": 300,
+      "config": {
+        "table": "thread_track"
+      }
+    },
+    {
+      "x": 500,
+      "y": 100,
+      "id": "sync_tt_join",
+      "type": "join",
+      "config": {
+        "columns": [
+          {
+            "alias": "",
+            "column": "utid"
+          }
+        ],
+        "joinType": "INNER",
+        "rightColumn": "id",
+        "leftColumn": "track_id"
+      }
+    },
+    {
+      "type": "from",
+      "id": "sync_t",
+      "x": 100,
+      "y": 400,
+      "config": {
+        "table": "thread"
+      }
+    },
+    {
+      "id": "sync_t_join",
+      "type": "join",
+      "x": 700,
+      "y": 100,
+      "config": {
+        "joinType": "INNER",
+        "rightColumn": "utid",
+        "leftColumn": "utid",
+        "columns": [
+          {
+            "alias": "",
+            "column": "upid"
+          },
+          {
+            "alias": "client_thread",
+            "column": "name"
+          },
+          {
+            "column": "tid",
+            "alias": "client_tid"
+          },
+          {
+            "alias": "",
+            "column": "is_main_thread"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sync_p",
+      "type": "from",
+      "x": 100,
+      "y": 500,
+      "config": {
+        "table": "process"
+      }
+    },
+    {
+      "y": 100,
+      "id": "sync_p_join",
+      "type": "join",
+      "x": 900,
+      "next": {
+        "id": "sync_client_select",
+        "config": {
+          "expressions": [],
+          "entries": [
+            {
+              "column": "id",
+              "alias": "binder_txn_id"
+            },
+            {
+              "column": "ts",
+              "alias": "client_ts"
+            },
+            {
+              "column": "dur",
+              "alias": "client_dur"
+            },
+            {
+              "column": "track_id",
+              "alias": "track_id"
+            },
+            {
+              "alias": "client_utid",
+              "column": "utid"
+            },
+            {
+              "column": "upid",
+              "alias": "client_upid"
+            },
+            {
+              "alias": "",
+              "column": "client_thread"
+            },
+            {
+              "alias": "",
+              "column": "client_tid"
+            },
+            {
+              "alias": "",
+              "column": "is_main_thread"
+            },
+            {
+              "alias": "",
+              "column": "client_process"
+            },
+            {
+              "column": "client_pid",
+              "alias": ""
+            }
+          ]
+        },
+        "type": "select"
+      },
+      "config": {
+        "joinType": "INNER",
+        "rightColumn": "upid",
+        "leftColumn": "upid",
+        "columns": [
+          {
+            "alias": "client_process",
+            "column": "name"
+          },
+          {
+            "alias": "client_pid",
+            "column": "pid"
+          }
+        ]
+      }
+    },
+    {
+      "y": 600,
+      "type": "from",
+      "id": "sync_flow",
+      "x": 100,
+      "config": {
+        "table": "flow"
+      }
+    },
+    {
+      "config": {
+        "joinType": "INNER",
+        "rightColumn": "slice_out",
+        "leftColumn": "binder_txn_id",
+        "columns": [
+          {
+            "alias": "",
+            "column": "slice_in"
+          }
+        ]
+      },
+      "x": 1100,
+      "type": "join",
+      "id": "sync_flow_join",
+      "y": 100
+    },
+    {
+      "x": 100,
+      "config": {
+        "table": "slice"
+      },
+      "y": 700,
+      "type": "from",
+      "id": "sync_s_slice"
+    },
+    {
+      "id": "sync_s_slice_join",
+      "type": "join",
+      "y": 100,
+      "config": {
+        "columns": [
+          {
+            "column": "id",
+            "alias": "binder_reply_id"
+          },
+          {
+            "alias": "server_ts",
+            "column": "ts"
+          },
+          {
+            "column": "dur",
+            "alias": "server_dur"
+          },
+          {
+            "alias": "s_track_id",
+            "column": "track_id"
+          }
+        ],
+        "leftColumn": "slice_in",
+        "joinType": "INNER",
+        "rightColumn": "id"
+      },
+      "x": 1300
+    },
+    {
+      "id": "sync_s_tt",
+      "type": "from",
+      "y": 800,
+      "config": {
+        "table": "thread_track"
+      },
+      "x": 100
+    },
+    {
+      "y": 100,
+      "type": "join",
+      "id": "sync_s_tt_join",
+      "x": 1500,
+      "config": {
+        "columns": [
+          {
+            "alias": "server_utid",
+            "column": "utid"
+          }
+        ],
+        "joinType": "INNER",
+        "rightColumn": "id",
+        "leftColumn": "s_track_id"
+      }
+    },
+    {
+      "y": 900,
+      "id": "sync_s_t",
+      "type": "from",
+      "x": 100,
+      "config": {
+        "table": "thread"
+      }
+    },
+    {
+      "y": 100,
+      "id": "sync_s_t_join",
+      "type": "join",
+      "x": 1700,
+      "config": {
+        "columns": [
+          {
+            "alias": "server_upid",
+            "column": "upid"
+          },
+          {
+            "alias": "server_thread",
+            "column": "name"
+          },
+          {
+            "alias": "server_tid",
+            "column": "tid"
+          }
+        ],
+        "leftColumn": "server_utid",
+        "joinType": "INNER",
+        "rightColumn": "utid"
+      }
+    },
+    {
+      "y": 1000,
+      "type": "from",
+      "id": "sync_s_p",
+      "x": 100,
+      "config": {
+        "table": "process"
+      }
+    },
+    {
+      "y": 100,
+      "id": "sync_s_p_join",
+      "type": "join",
+      "x": 1900,
+      "config": {
+        "joinType": "INNER",
+        "rightColumn": "upid",
+        "leftColumn": "server_upid",
+        "columns": [
+          {
+            "alias": "server_process",
+            "column": "name"
+          },
+          {
+            "column": "pid",
+            "alias": "server_pid"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sync_aidl_slice",
+      "type": "from",
+      "y": 1100,
+      "next": {
+        "id": "sync_aidl_filter",
+        "config": {
+          "conditions": [
+            {
+              "value": "AIDL::*Server",
+              "column": "name",
+              "op": "GLOB"
+            },
+            {
+              "column": "name",
+              "op": "GLOB",
+              "value": "AIDL::*server"
+            },
+            {
+              "value": "HIDL::*server",
+              "op": "GLOB",
+              "column": "name"
+            }
+          ],
+          "conjunction": "OR"
+        },
+        "type": "filter"
+      },
+      "config": {
+        "table": "slice"
+      },
+      "x": 100
+    },
+    {
+      "x": 2100,
+      "config": {
+        "joinType": "LEFT",
+        "rightColumn": "parent_id",
+        "leftColumn": "binder_reply_id",
+        "columns": [
+          {
+            "column": "name",
+            "alias": "aidl_name"
+          },
+          {
+            "alias": "aidl_ts",
+            "column": "ts"
+          },
+          {
+            "column": "dur",
+            "alias": "aidl_dur"
+          }
+        ]
+      },
+      "next": {
+        "next": {
+          "config": {
+            "conditions": [
+              {
+                "op": "=",
+                "column": "is_valid",
+                "value": "1"
+              },
+              {
+                "value": "-1",
+                "column": "client_dur",
+                "op": "!="
+              },
+              {
+                "value": "-1",
+                "op": "!=",
+                "column": "server_dur"
+              }
+            ],
+            "conjunction": "AND"
+          },
+          "type": "filter",
+          "id": "sync_server_filter",
+          "next": {
+            "id": "sync_groupby",
+            "next": {
+              "config": {
+                "expressions": [
+                  {
+                    "expression": "1",
+                    "alias": "is_sync"
+                  }
+                ],
+                "entries": [
+                  {
+                    "column": "binder_txn_id",
+                    "alias": ""
+                  },
+                  {
+                    "column": "client_ts",
+                    "alias": ""
+                  },
+                  {
+                    "alias": "",
+                    "column": "client_dur"
+                  },
+                  {
+                    "column": "client_utid",
+                    "alias": ""
+                  },
+                  {
+                    "column": "client_upid",
+                    "alias": ""
+                  },
+                  {
+                    "alias": "",
+                    "column": "client_thread"
+                  },
+                  {
+                    "column": "client_tid",
+                    "alias": ""
+                  },
+                  {
+                    "column": "is_main_thread",
+                    "alias": ""
+                  },
+                  {
+                    "column": "client_process",
+                    "alias": ""
+                  },
+                  {
+                    "column": "client_pid",
+                    "alias": ""
+                  },
+                  {
+                    "alias": "",
+                    "column": "binder_reply_id"
+                  },
+                  {
+                    "column": "server_ts",
+                    "alias": ""
+                  },
+                  {
+                    "alias": "",
+                    "column": "server_dur"
+                  },
+                  {
+                    "alias": "",
+                    "column": "server_utid"
+                  },
+                  {
+                    "column": "server_upid",
+                    "alias": ""
+                  },
+                  {
+                    "alias": "",
+                    "column": "server_thread"
+                  },
+                  {
+                    "column": "server_tid",
+                    "alias": ""
+                  },
+                  {
+                    "alias": "",
+                    "column": "server_process"
+                  },
+                  {
+                    "alias": "",
+                    "column": "server_pid"
+                  },
+                  {
+                    "alias": "",
+                    "column": "aidl_name"
+                  },
+                  {
+                    "alias": "",
+                    "column": "aidl_ts"
+                  },
+                  {
+                    "alias": "",
+                    "column": "aidl_dur"
+                  }
+                ]
+              },
+              "type": "select",
+              "id": "sync_final_select"
+            },
+            "config": {
+              "groupColumns": [
+                "binder_txn_id",
+                "client_ts",
+                "client_dur",
+                "client_utid",
+                "client_upid",
+                "client_thread",
+                "client_tid",
+                "is_main_thread",
+                "client_process",
+                "client_pid",
+                "binder_reply_id",
+                "server_ts",
+                "server_dur",
+                "server_utid",
+                "server_upid",
+                "server_thread",
+                "server_tid",
+                "server_process",
+                "server_pid"
+              ],
+              "aggregations": [
+                {
+                  "alias": "aidl_name",
+                  "column": "aidl_name",
+                  "func": "MIN"
+                },
+                {
+                  "column": "aidl_ts",
+                  "func": "MIN",
+                  "alias": "aidl_ts"
+                },
+                {
+                  "func": "MIN",
+                  "column": "aidl_dur",
+                  "alias": "aidl_dur"
+                }
+              ]
+            },
+            "type": "groupby"
+          }
+        },
+        "id": "sync_server_select",
+        "config": {
+          "entries": [],
+          "expressions": [
+            {
+              "alias": "is_valid",
+              "expression": "client_dur >= server_dur"
+            }
+          ]
+        },
+        "type": "select"
+      },
+      "y": 100,
+      "type": "join",
+      "id": "sync_aidl_join"
+    },
+    {
+      "id": "async_slice",
+      "type": "from",
+      "y": 1200,
+      "next": {
+        "config": {
+          "conditions": [
+            {
+              "value": "binder transaction async",
+              "op": "=",
+              "column": "name"
+            }
+          ],
+          "conjunction": "AND"
+        },
+        "type": "filter",
+        "id": "async_filter"
+      },
+      "config": {
+        "table": "slice"
+      },
+      "x": 100
+    },
+    {
+      "y": 1300,
+      "type": "from",
+      "id": "async_tt",
+      "x": 100,
+      "config": {
+        "table": "thread_track"
+      }
+    },
+    {
+      "id": "async_tt_join",
+      "type": "join",
+      "y": 1200,
+      "config": {
+        "columns": [
+          {
+            "alias": "",
+            "column": "utid"
+          }
+        ],
+        "leftColumn": "track_id",
+        "joinType": "INNER",
+        "rightColumn": "id"
+      },
+      "x": 500
+    },
+    {
+      "config": {
+        "table": "thread"
+      },
+      "x": 100,
+      "id": "async_t",
+      "type": "from",
+      "y": 1400
+    },
+    {
+      "x": 700,
+      "config": {
+        "leftColumn": "utid",
+        "joinType": "INNER",
+        "rightColumn": "utid",
+        "columns": [
+          {
+            "column": "upid",
+            "alias": ""
+          },
+          {
+            "column": "name",
+            "alias": "client_thread"
+          },
+          {
+            "alias": "client_tid",
+            "column": "tid"
+          },
+          {
+            "alias": "",
+            "column": "is_main_thread"
+          }
+        ]
+      },
+      "y": 1200,
+      "type": "join",
+      "id": "async_t_join"
+    },
+    {
+      "y": 1500,
+      "type": "from",
+      "id": "async_p",
+      "x": 100,
+      "config": {
+        "table": "process"
+      }
+    },
+    {
+      "y": 1200,
+      "type": "join",
+      "id": "async_p_join",
+      "x": 900,
+      "config": {
+        "columns": [
+          {
+            "column": "name",
+            "alias": "client_process"
+          },
+          {
+            "column": "pid",
+            "alias": "client_pid"
+          }
+        ],
+        "leftColumn": "upid",
+        "joinType": "INNER",
+        "rightColumn": "upid"
+      },
+      "next": {
+        "id": "async_client_select",
+        "config": {
+          "entries": [
+            {
+              "column": "id",
+              "alias": "binder_txn_id"
+            },
+            {
+              "alias": "client_ts",
+              "column": "ts"
+            },
+            {
+              "alias": "client_dur",
+              "column": "dur"
+            },
+            {
+              "column": "track_id",
+              "alias": "track_id"
+            },
+            {
+              "alias": "client_utid",
+              "column": "utid"
+            },
+            {
+              "alias": "client_upid",
+              "column": "upid"
+            },
+            {
+              "column": "client_thread",
+              "alias": ""
+            },
+            {
+              "alias": "",
+              "column": "client_tid"
+            },
+            {
+              "alias": "",
+              "column": "is_main_thread"
+            },
+            {
+              "alias": "",
+              "column": "client_process"
+            },
+            {
+              "column": "client_pid",
+              "alias": ""
+            }
+          ],
+          "expressions": []
+        },
+        "type": "select"
+      }
+    },
+    {
+      "id": "async_flow",
+      "type": "from",
+      "y": 1600,
+      "config": {
+        "table": "flow"
+      },
+      "x": 100
+    },
+    {
+      "x": 1100,
+      "config": {
+        "joinType": "INNER",
+        "rightColumn": "slice_out",
+        "leftColumn": "binder_txn_id",
+        "columns": [
+          {
+            "alias": "",
+            "column": "slice_in"
+          }
+        ]
+      },
+      "y": 1200,
+      "type": "join",
+      "id": "async_flow_join"
+    },
+    {
+      "type": "sql",
+      "id": "async_reply_sql",
+      "y": 1700,
+      "config": {
+        "sql": "WITH async_reply AS (SELECT id, ts, dur, track_id, name FROM slice WHERE name GLOB 'AIDL::*Server' OR name GLOB 'AIDL::*server' OR name GLOB 'HIDL::*server' OR name = 'binder async rcv') SELECT *, lead(name) OVER (PARTITION BY track_id ORDER BY ts) AS next_name, lead(ts) OVER (PARTITION BY track_id ORDER BY ts) AS next_ts, lead(dur) OVER (PARTITION BY track_id ORDER BY ts) AS next_dur FROM async_reply",
+        "inputPorts": []
+      },
+      "next": {
+        "id": "async_reply_filter",
+        "config": {
+          "conditions": [
+            {
+              "value": "binder async rcv",
+              "column": "name",
+              "op": "="
+            }
+          ],
+          "conjunction": "AND"
+        },
+        "type": "filter"
+      },
+      "x": 100
+    },
+    {
+      "x": 1300,
+      "config": {
+        "columns": [
+          {
+            "alias": "binder_reply_id",
+            "column": "id"
+          },
+          {
+            "alias": "server_ts",
+            "column": "ts"
+          },
+          {
+            "column": "dur",
+            "alias": "server_dur"
+          },
+          {
+            "alias": "s_track_id",
+            "column": "track_id"
+          },
+          {
+            "alias": "aidl_name_raw",
+            "column": "next_name"
+          },
+          {
+            "alias": "aidl_ts_raw",
+            "column": "next_ts"
+          },
+          {
+            "alias": "aidl_dur_raw",
+            "column": "next_dur"
+          }
+        ],
+        "joinType": "INNER",
+        "rightColumn": "id",
+        "leftColumn": "slice_in"
+      },
+      "y": 1200,
+      "id": "async_reply_join",
+      "type": "join"
+    },
+    {
+      "y": 1800,
+      "type": "from",
+      "id": "async_s_tt",
+      "x": 100,
+      "config": {
+        "table": "thread_track"
+      }
+    },
+    {
+      "type": "join",
+      "id": "async_s_tt_join",
+      "y": 1200,
+      "config": {
+        "columns": [
+          {
+            "column": "utid",
+            "alias": "server_utid"
+          }
+        ],
+        "leftColumn": "s_track_id",
+        "joinType": "INNER",
+        "rightColumn": "id"
+      },
+      "x": 1500
+    },
+    {
+      "x": 100,
+      "config": {
+        "table": "thread"
+      },
+      "y": 1900,
+      "type": "from",
+      "id": "async_s_t"
+    },
+    {
+      "id": "async_s_t_join",
+      "type": "join",
+      "y": 1200,
+      "config": {
+        "columns": [
+          {
+            "alias": "server_upid",
+            "column": "upid"
+          },
+          {
+            "column": "name",
+            "alias": "server_thread"
+          },
+          {
+            "alias": "server_tid",
+            "column": "tid"
+          }
+        ],
+        "leftColumn": "server_utid",
+        "joinType": "INNER",
+        "rightColumn": "utid"
+      },
+      "x": 1700
+    },
+    {
+      "config": {
+        "table": "process"
+      },
+      "x": 100,
+      "id": "async_s_p",
+      "type": "from",
+      "y": 2000
+    },
+    {
+      "next": {
+        "id": "async_final_select",
+        "config": {
+          "entries": [
+            {
+              "column": "binder_txn_id",
+              "alias": ""
+            },
+            {
+              "column": "client_ts",
+              "alias": ""
+            },
+            {
+              "column": "client_dur",
+              "alias": ""
+            },
+            {
+              "column": "client_utid",
+              "alias": ""
+            },
+            {
+              "column": "client_upid",
+              "alias": ""
+            },
+            {
+              "alias": "",
+              "column": "client_thread"
+            },
+            {
+              "column": "client_tid",
+              "alias": ""
+            },
+            {
+              "column": "is_main_thread",
+              "alias": ""
+            },
+            {
+              "column": "client_process",
+              "alias": ""
+            },
+            {
+              "column": "client_pid",
+              "alias": ""
+            },
+            {
+              "alias": "",
+              "column": "binder_reply_id"
+            },
+            {
+              "column": "server_ts",
+              "alias": ""
+            },
+            {
+              "alias": "",
+              "column": "server_dur"
+            },
+            {
+              "alias": "",
+              "column": "server_utid"
+            },
+            {
+              "alias": "",
+              "column": "server_upid"
+            },
+            {
+              "alias": "",
+              "column": "server_thread"
+            },
+            {
+              "alias": "",
+              "column": "server_tid"
+            },
+            {
+              "column": "server_process",
+              "alias": ""
+            },
+            {
+              "column": "server_pid",
+              "alias": ""
+            }
+          ],
+          "expressions": [
+            {
+              "alias": "aidl_name",
+              "expression": "iif(aidl_name_raw = 'binder async rcv', NULL, aidl_name_raw)"
+            },
+            {
+              "expression": "iif(aidl_name_raw = 'binder async rcv', NULL, aidl_ts_raw)",
+              "alias": "aidl_ts"
+            },
+            {
+              "alias": "aidl_dur",
+              "expression": "iif(aidl_name_raw = 'binder async rcv', NULL, aidl_dur_raw)"
+            },
+            {
+              "expression": "0",
+              "alias": "is_sync"
+            }
+          ]
+        },
+        "type": "select"
+      },
+      "config": {
+        "columns": [
+          {
+            "column": "name",
+            "alias": "server_process"
+          },
+          {
+            "alias": "server_pid",
+            "column": "pid"
+          }
+        ],
+        "leftColumn": "server_upid",
+        "joinType": "INNER",
+        "rightColumn": "upid"
+      },
+      "x": 1900,
+      "id": "async_s_p_join",
+      "type": "join",
+      "y": 1200
+    },
+    {
+      "x": 2300,
+      "config": {
+        "distinct": false,
+        "numInputs": 2
+      },
+      "y": 600,
+      "id": "union",
+      "type": "union"
+    },
+    {
+      "x": 100,
+      "config": {
+        "inputPorts": [],
+        "sql": "SELECT process.upid, cast_int!(c.value) AS value, c.ts, coalesce(lead(ts) OVER (PARTITION BY upid ORDER BY ts), trace_end()) AS end_ts FROM counter AS c JOIN process_counter_track AS t ON c.track_id = t.id JOIN process USING (upid) WHERE t.name = 'oom_score_adj'"
+      },
+      "y": 2100,
+      "type": "sql",
+      "id": "oom_sql"
+    },
+    {
+      "y": 600,
+      "id": "n_oom_join",
+      "type": "sql",
+      "x": 2600,
+      "config": {
+        "sql": "SELECT b.*, c.value AS client_oom_score, s.value AS server_oom_score FROM combined b LEFT JOIN oom c ON b.client_upid = c.upid AND b.client_ts BETWEEN c.ts AND c.end_ts LEFT JOIN oom s ON b.server_upid = s.upid AND b.server_ts BETWEEN s.ts AND s.end_ts",
+        "inputPorts": ["combined", "oom"]
+      }
+    },
+    {
+      "y": 2200,
+      "type": "from",
+      "id": "meta_c",
+      "x": 100,
+      "config": {
+        "table": "android_process_metadata"
+      }
+    },
+    {
+      "x": 2900,
+      "config": {
+        "joinType": "LEFT",
+        "rightColumn": "upid",
+        "leftColumn": "client_upid",
+        "columns": [
+          {
+            "alias": "client_package_version_code",
+            "column": "version_code"
+          },
+          {
+            "alias": "is_client_package_debuggable",
+            "column": "debuggable"
+          }
+        ]
+      },
+      "y": 600,
+      "id": "meta_c_join",
+      "type": "join"
+    },
+    {
+      "config": {
+        "table": "android_process_metadata"
+      },
+      "x": 100,
+      "id": "meta_s",
+      "type": "from",
+      "y": 2300
+    },
+    {
+      "x": 3200,
+      "config": {
+        "leftColumn": "server_upid",
+        "joinType": "LEFT",
+        "rightColumn": "upid",
+        "columns": [
+          {
+            "column": "version_code",
+            "alias": "server_package_version_code"
+          },
+          {
+            "column": "debuggable",
+            "alias": "is_server_package_debuggable"
+          }
+        ]
+      },
+      "next": {
+        "config": {
+          "expressions": [
+            {
+              "alias": "interface",
+              "expression": "str_split(aidl_name, '::', 2)"
+            },
+            {
+              "expression": "str_split(aidl_name, '::', 3)",
+              "alias": "method_name"
+            },
+            {
+              "alias": "client_monotonic_dur",
+              "expression": "_extract_duration_without_suspend(client_ts, client_dur)"
+            },
+            {
+              "expression": "_extract_duration_without_suspend(server_ts, server_dur)",
+              "alias": "server_monotonic_dur"
+            }
+          ],
+          "entries": []
+        },
+        "type": "select",
+        "id": "final_select",
+        "next": {
+          "id": "final_sort",
+          "config": {
+            "conditions": [
+              {
+                "column": "binder_txn_id",
+                "order": "ASC"
+              }
+            ],
+            "sortColumn": "",
+            "sortOrder": "ASC"
+          },
+          "type": "sort"
+        }
+      },
+      "y": 600,
+      "type": "join",
+      "id": "meta_s_join"
+    }
+  ],
+  "connections": [
+    {
+      "toNode": "sync_broken_join",
+      "toPort": 0,
+      "fromPort": 0,
+      "fromNode": "sync_filter"
+    },
+    {
+      "fromNode": "broken_sql",
+      "fromPort": 0,
+      "toNode": "sync_broken_join",
+      "toPort": 1
+    },
+    {
+      "fromNode": "sync_broken_filter",
+      "fromPort": 0,
+      "toNode": "sync_tt_join",
+      "toPort": 0
+    },
+    {
+      "fromNode": "sync_tt",
+      "fromPort": 0,
+      "toNode": "sync_tt_join",
+      "toPort": 1
+    },
+    {
+      "toNode": "sync_t_join",
+      "toPort": 0,
+      "fromPort": 0,
+      "fromNode": "sync_tt_join"
+    },
+    {
+      "toNode": "sync_t_join",
+      "toPort": 1,
+      "fromPort": 0,
+      "fromNode": "sync_t"
+    },
+    {
+      "fromNode": "sync_t_join",
+      "toNode": "sync_p_join",
+      "toPort": 0,
+      "fromPort": 0
+    },
+    {
+      "fromPort": 0,
+      "toNode": "sync_p_join",
+      "toPort": 1,
+      "fromNode": "sync_p"
+    },
+    {
+      "fromPort": 0,
+      "toNode": "sync_flow_join",
+      "toPort": 0,
+      "fromNode": "sync_client_select"
+    },
+    {
+      "fromNode": "sync_flow",
+      "toNode": "sync_flow_join",
+      "toPort": 1,
+      "fromPort": 0
+    },
+    {
+      "fromPort": 0,
+      "toNode": "sync_s_slice_join",
+      "toPort": 0,
+      "fromNode": "sync_flow_join"
+    },
+    {
+      "fromNode": "sync_s_slice",
+      "toNode": "sync_s_slice_join",
+      "toPort": 1,
+      "fromPort": 0
+    },
+    {
+      "fromNode": "sync_s_slice_join",
+      "fromPort": 0,
+      "toNode": "sync_s_tt_join",
+      "toPort": 0
+    },
+    {
+      "fromPort": 0,
+      "toNode": "sync_s_tt_join",
+      "toPort": 1,
+      "fromNode": "sync_s_tt"
+    },
+    {
+      "fromNode": "sync_s_tt_join",
+      "fromPort": 0,
+      "toNode": "sync_s_t_join",
+      "toPort": 0
+    },
+    {
+      "fromNode": "sync_s_t",
+      "fromPort": 0,
+      "toNode": "sync_s_t_join",
+      "toPort": 1
+    },
+    {
+      "fromPort": 0,
+      "toNode": "sync_s_p_join",
+      "toPort": 0,
+      "fromNode": "sync_s_t_join"
+    },
+    {
+      "fromNode": "sync_s_p",
+      "toNode": "sync_s_p_join",
+      "toPort": 1,
+      "fromPort": 0
+    },
+    {
+      "fromPort": 0,
+      "toNode": "sync_aidl_join",
+      "toPort": 0,
+      "fromNode": "sync_s_p_join"
+    },
+    {
+      "fromNode": "sync_aidl_filter",
+      "toNode": "sync_aidl_join",
+      "toPort": 1,
+      "fromPort": 0
+    },
+    {
+      "fromPort": 0,
+      "toNode": "async_tt_join",
+      "toPort": 0,
+      "fromNode": "async_filter"
+    },
+    {
+      "fromPort": 0,
+      "toNode": "async_tt_join",
+      "toPort": 1,
+      "fromNode": "async_tt"
+    },
+    {
+      "fromNode": "async_tt_join",
+      "fromPort": 0,
+      "toNode": "async_t_join",
+      "toPort": 0
+    },
+    {
+      "fromNode": "async_t",
+      "toNode": "async_t_join",
+      "toPort": 1,
+      "fromPort": 0
+    },
+    {
+      "toNode": "async_p_join",
+      "toPort": 0,
+      "fromPort": 0,
+      "fromNode": "async_t_join"
+    },
+    {
+      "fromNode": "async_p",
+      "fromPort": 0,
+      "toNode": "async_p_join",
+      "toPort": 1
+    },
+    {
+      "fromPort": 0,
+      "toNode": "async_flow_join",
+      "toPort": 0,
+      "fromNode": "async_client_select"
+    },
+    {
+      "fromNode": "async_flow",
+      "toNode": "async_flow_join",
+      "toPort": 1,
+      "fromPort": 0
+    },
+    {
+      "fromNode": "async_flow_join",
+      "toNode": "async_reply_join",
+      "toPort": 0,
+      "fromPort": 0
+    },
+    {
+      "fromNode": "async_reply_filter",
+      "fromPort": 0,
+      "toNode": "async_reply_join",
+      "toPort": 1
+    },
+    {
+      "toNode": "async_s_tt_join",
+      "toPort": 0,
+      "fromPort": 0,
+      "fromNode": "async_reply_join"
+    },
+    {
+      "toNode": "async_s_tt_join",
+      "toPort": 1,
+      "fromPort": 0,
+      "fromNode": "async_s_tt"
+    },
+    {
+      "toNode": "async_s_t_join",
+      "toPort": 0,
+      "fromPort": 0,
+      "fromNode": "async_s_tt_join"
+    },
+    {
+      "fromNode": "async_s_t",
+      "fromPort": 0,
+      "toNode": "async_s_t_join",
+      "toPort": 1
+    },
+    {
+      "fromNode": "async_s_t_join",
+      "fromPort": 0,
+      "toNode": "async_s_p_join",
+      "toPort": 0
+    },
+    {
+      "toNode": "async_s_p_join",
+      "toPort": 1,
+      "fromPort": 0,
+      "fromNode": "async_s_p"
+    },
+    {
+      "fromNode": "sync_final_select",
+      "fromPort": 0,
+      "toNode": "union",
+      "toPort": 0
+    },
+    {
+      "fromNode": "async_final_select",
+      "fromPort": 0,
+      "toNode": "union",
+      "toPort": 1
+    },
+    {
+      "toNode": "n_oom_join",
+      "toPort": 0,
+      "fromPort": 0,
+      "fromNode": "union"
+    },
+    {
+      "fromNode": "oom_sql",
+      "toNode": "n_oom_join",
+      "toPort": 1,
+      "fromPort": 0
+    },
+    {
+      "toNode": "meta_c_join",
+      "toPort": 0,
+      "fromPort": 0,
+      "fromNode": "n_oom_join"
+    },
+    {
+      "fromNode": "meta_c",
+      "fromPort": 0,
+      "toNode": "meta_c_join",
+      "toPort": 1
+    },
+    {
+      "fromNode": "meta_c_join",
+      "toNode": "meta_s_join",
+      "toPort": 0,
+      "fromPort": 0
+    },
+    {
+      "fromPort": 0,
+      "toNode": "meta_s_join",
+      "toPort": 1,
+      "fromNode": "meta_s"
+    }
+  ],
+  "labels": []
+}
