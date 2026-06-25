@@ -147,15 +147,15 @@ namespace perfetto::trace_processor::stats {
        "Duplicated interning ID seen. Should never happen."),                  \
   F(kernel_wakelock_unknown_id,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Interning ID not found. Should never happen."),                        \
-  F(kernel_wakelock_zero_value_reported,  kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+  F(kernel_wakelock_zero_value_reported,  kSingle,  kInfo, kTrace, Scope::kMachineAndTrace,             \
        "Zero value received from SuspendControlService. Indicates a transient "\
        "error in SuspendControlService."),                                     \
   F(kernel_wakelock_non_monotonic_value_reported,                              \
-                                          kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+                                          kSingle,  kInfo, kTrace, Scope::kMachineAndTrace,             \
        "Decreased value received from SuspendControlService. Indicates a "     \
        "transient error in SuspendControlService."),                           \
   F(kernel_wakelock_implausibly_large_value_reported,                          \
-                                          kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+                                          kSingle,  kInfo, kTrace, Scope::kMachineAndTrace,             \
        "Implausibly large increment to value received from "                   \
        "SuspendControlService. Indicates a transient error in "                \
        "SuspendControlService."),                                              \
