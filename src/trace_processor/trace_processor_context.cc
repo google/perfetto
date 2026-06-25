@@ -148,6 +148,10 @@ Ptr<TraceSorter> CreateSorter(TraceProcessorContext* context,
     if (it != config.dev_flags.end() && it->second == "true") {
       event_handling = TraceSorter::EventHandling::kSortAndDrop;
     }
+    auto tok = config.dev_flags.find("tokenize-only");
+    if (tok != config.dev_flags.end() && tok->second == "true") {
+      event_handling = TraceSorter::EventHandling::kDrop;
+    }
   }
   return Ptr<TraceSorter>::MakeRoot(context, TraceSorter::SortingMode::kDefault,
                                     event_handling);
