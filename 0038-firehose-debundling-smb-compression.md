@@ -141,7 +141,7 @@ Two things matter here:
 
 - Only scheduler data is expensive, so a trace's growth tracks its scheduler
   byte-share (a clean linear relationship, shown in the
-  [workbook](media/0038/workbook.md)). A trace with no sched is free to de-bundle.
+  [workbook](https://github.com/google/perfetto/blob/rfcs/media/0038/workbook.md)). A trace with no sched is free to de-bundle.
 - The worst case is ~5×, from a pure-scheduler config: sched events only, no
   atrace, nothing but context switches. A sched-only capture on a real Pixel
   de-bundles 4.98× / 5.64×, matching a host-built reference. Field traces carry
@@ -226,7 +226,7 @@ After the initial sweep we re-audited the harness against the live traced (its
 cpuset, cpu cgroup and `nice` all match, so the reader is not over-privileged)
 and re-ran boot and first-unlock. The loss numbers reproduced, with boot's median
 staying under 1% out to ~65 MB/s. Details are in the
-[workbook](media/0038/workbook.md).
+[workbook](https://github.com/google/perfetto/blob/rfcs/media/0038/workbook.md).
 
 ### Why boot is different: the drain-ceiling rule
 
