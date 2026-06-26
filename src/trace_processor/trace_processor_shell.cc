@@ -796,9 +796,9 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     shell::BundleSubcommand bundle_subcommand;
     shell::UtilSubcommand util_subcommand;
     std::vector<shell::Subcommand*> subcommands = {
-        &query_subcommand,  &interactive_subcommand, &convert_subcommand,
-        &summarize_subcommand, &bundle_subcommand,   &util_subcommand,
-        &server_subcommand, &export_subcommand,      &metrics_subcommand,
+        &query_subcommand,     &interactive_subcommand, &convert_subcommand,
+        &summarize_subcommand, &bundle_subcommand,      &util_subcommand,
+        &server_subcommand,    &export_subcommand,      &metrics_subcommand,
     };
 
     // Handle "help" pseudo-subcommand: `tp help <command>` or bare `tp help`.

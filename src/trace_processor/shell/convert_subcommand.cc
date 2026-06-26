@@ -179,12 +179,12 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
              format == "java_heap_profile" || format == "firefox" ||
              format == "decompress_packets") {
     if (truncate_keep != trace_to_text::Keep::kAll) {
-      return base::ErrStatus(
-          "--truncate is unsupported for the '%s' format.", format.c_str());
+      return base::ErrStatus("--truncate is unsupported for the '%s' format.",
+                             format.c_str());
     }
     if (full_sort_) {
-      return base::ErrStatus(
-          "--full-sort is unsupported for the '%s' format.", format.c_str());
+      return base::ErrStatus("--full-sort is unsupported for the '%s' format.",
+                             format.c_str());
     }
     if (format == "text") {
       trace_to_text::TraceToTextOptions options;
