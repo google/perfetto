@@ -57,8 +57,7 @@ Formats:
   json                  Convert to Chrome JSON format
   ctrace                Convert to compressed systrace format
   text                  Convert to human-readable text format
-  profile               Convert profile data to pprof format (use --java-heap
-                        for a Java heap graph profile)
+  profile               Convert profile data to pprof format
   firefox               Convert to Firefox profiler format
 
 If no input file is given, reads from stdin.

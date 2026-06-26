@@ -878,7 +878,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_zip_reader",
         ":src_traceconv_lib",
         ":src_traceconv_pprofbuilder",
-        ":src_traceconv_traceconv_lib",
         ":src_traceconv_utils",
         "src/trace_processor/trace_processor_shell.cc",
     ],
@@ -891,7 +890,6 @@ perfetto_cc_library(
         ":include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":include_perfetto_ext_trace_processor_rpc_query_result_serializer",
         ":include_perfetto_ext_trace_processor_trace_processor_shell",
-        ":include_perfetto_ext_traceconv_traceconv",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_profiling_pprof_builder",
         ":include_perfetto_protozero_protozero",
@@ -5343,8 +5341,12 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_shell_shell",
     srcs = [
+        "src/trace_processor/shell/bundle_subcommand.cc",
+        "src/trace_processor/shell/bundle_subcommand.h",
         "src/trace_processor/shell/common_flags.cc",
         "src/trace_processor/shell/common_flags.h",
+        "src/trace_processor/shell/convert_helpers.cc",
+        "src/trace_processor/shell/convert_helpers.h",
         "src/trace_processor/shell/convert_subcommand.cc",
         "src/trace_processor/shell/convert_subcommand.h",
         "src/trace_processor/shell/export_subcommand.cc",
@@ -5371,6 +5373,8 @@ perfetto_filegroup(
         "src/trace_processor/shell/sql_packages.h",
         "src/trace_processor/shell/summarize_subcommand.cc",
         "src/trace_processor/shell/summarize_subcommand.h",
+        "src/trace_processor/shell/util_subcommand.cc",
+        "src/trace_processor/shell/util_subcommand.h",
     ],
 )
 
