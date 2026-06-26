@@ -20,7 +20,7 @@ import {
   type SliceBuffers,
   SLICE_GAP_PX,
 } from '../renderer';
-import {createBuffer, createProgram, getUniformLocation} from './gl';
+import {createProgram, getUniformLocation} from './gl';
 
 // Static quad geometry shared by all slice batches
 const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
@@ -215,20 +215,20 @@ export class SliceBatch {
     this.prog = createSliceProgram(gl);
 
     // Create static quad buffers
-    this.quadCornerBuffer = createBuffer(gl);
+    this.quadCornerBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, QUAD_CORNERS, gl.STATIC_DRAW);
 
-    this.quadIndexBuffer = createBuffer(gl);
+    this.quadIndexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, QUAD_INDICES, gl.STATIC_DRAW);
 
     // Create dynamic instance buffers
-    this.leftBuffer = createBuffer(gl);
-    this.rightBuffer = createBuffer(gl);
-    this.depthBuffer = createBuffer(gl);
-    this.colorBuffer = createBuffer(gl);
-    this.flagsBuffer = createBuffer(gl);
+    this.leftBuffer = gl.createBuffer();
+    this.rightBuffer = gl.createBuffer();
+    this.depthBuffer = gl.createBuffer();
+    this.colorBuffer = gl.createBuffer();
+    this.flagsBuffer = gl.createBuffer();
   }
 
   /**
