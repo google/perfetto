@@ -168,6 +168,7 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     sources = [
+      "args_tracker_benchmark.cc",
       "clock_tracker_benchmark.cc",
       "slice_tracker_benchmark.cc",
     ]

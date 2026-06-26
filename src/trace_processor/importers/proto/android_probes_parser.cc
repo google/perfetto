@@ -309,7 +309,6 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts,
       power_rails_args_tracker_->AddArgsTo(*maybe_counter_id)
           .AddArg(rail_packet_timestamp_id_,
                   Variadic::UnsignedInteger(trace_packet_ts));
-      power_rails_args_tracker_->Flush();
     }
   } else {
     context_->stats_tracker->IncrementStats(stats::power_rail_unknown_index);

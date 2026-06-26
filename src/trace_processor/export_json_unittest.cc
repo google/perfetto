@@ -1669,9 +1669,9 @@ TEST_F(ExportJsonTest, ArgumentFilter) {
   StringId val_id = context_.storage->InternString(base::StringView("val"));
 
   auto* slices = context_.storage->mutable_slice_table();
-  std::vector<ArgsTracker::BoundInserter> slice_inserters;
   {
     ArgsTracker args_tracker(&context_);
+    std::vector<ArgsTracker::BoundInserter> slice_inserters;
     for (auto& name_id : name_ids) {
       auto id = slices->Insert({0, 0, track, cat_id, name_id, 0}).id;
       slice_inserters.emplace_back(args_tracker.AddArgsTo(id));
@@ -2000,15 +2000,15 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
 
   {
     ArgsTracker args_tracker(&context_);
-    args_tracker.AddArgsTo(node1_id).AddArg(
-        context_.storage->InternString(
-            base::StringView(kScalarAttrName + ".value")),
-        Variadic::Integer(kScalarAttrValue));
-    args_tracker.AddArgsTo(node1_id).AddArg(
+    auto inserter = args_tracker.AddArgsTo(node1_id);
+    inserter.AddArg(context_.storage->InternString(
+                        base::StringView(kScalarAttrName + ".value")),
+                    Variadic::Integer(kScalarAttrValue));
+    inserter.AddArg(
         context_.storage->InternString(
             base::StringView(kScalarAttrName + ".unit")),
         Variadic::String(context_.storage->InternString(kScalarAttrUnits)));
-    args_tracker.AddArgsTo(node1_id).AddArg(
+    inserter.AddArg(
         context_.storage->InternString(
             base::StringView(kStringAttrName + ".value")),
         Variadic::String(context_.storage->InternString(kStringAttrValue)));
