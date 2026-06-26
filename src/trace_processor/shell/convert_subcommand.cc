@@ -34,7 +34,6 @@
 #include "src/traceconv/trace_to_profile.h"
 #include "src/traceconv/trace_to_systrace.h"
 #include "src/traceconv/trace_to_text.h"
-#include "src/traceconv/trace_unpack.h"
 
 namespace perfetto::trace_processor::shell {
 
@@ -58,17 +57,15 @@ Formats:
   json                  Convert to Chrome JSON format
   ctrace                Convert to compressed systrace format
   text                  Convert to human-readable text format
-  profile               Convert profile data to pprof format
-  java_heap_profile     Legacy alias for "profile --java-heap"
+  profile               Convert profile data to pprof format (use --java-heap
+                        for a Java heap graph profile)
   firefox               Convert to Firefox profiler format
-  decompress_packets    Decompress compressed trace packets
-  binary                Convert text proto to binary format
 
 If no input file is given, reads from stdin.
 If no output file is given, writes to stdout.
 
-To symbolize/deobfuscate or to create a self-contained bundle, see the
-'bundle' and 'util' commands.)";
+To symbolize/deobfuscate, decompress packets or convert a text proto to binary,
+see the 'util' command. To create a self-contained bundle, see 'bundle'.)";
 }
 
 std::vector<FlagSpec> ConvertSubcommand::GetFlags() {
@@ -143,16 +140,14 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
   if (java_heap_)
     profile_type = trace_to_text::ConversionMode::kJavaHeapProfile;
 
-  const bool is_profile = format == "profile" || format == "java_heap_profile";
+  const bool is_profile = format == "profile";
   if (!is_profile && (pid != 0 || !timestamps.empty())) {
     return base::ErrStatus(
-        "--pid and --timestamps are supported only for the 'profile' and "
-        "'java_heap_profile' formats.");
+        "--pid and --timestamps are supported only for the 'profile' format.");
   }
   if (!is_profile && !output_dir_.empty()) {
     return base::ErrStatus(
-        "--output-dir is supported only for the 'profile' and "
-        "'java_heap_profile' formats.");
+        "--output-dir is supported only for the 'profile' format.");
   }
 
   std::ifstream input_file;
@@ -164,9 +159,7 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
   RETURN_IF_ERROR(OpenConversionOutput(output_path, &output_file, &output));
 
   int ret = 0;
-  if (format == "binary") {
-    ret = TextToTrace(input, output);
-  } else if (format == "json") {
+  if (format == "json") {
     ret = trace_to_text::TraceToJson(input, output, /*compress=*/false,
                                      truncate_keep, full_sort_);
   } else if (format == "systrace") {
@@ -175,9 +168,7 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
   } else if (format == "ctrace") {
     ret = trace_to_text::TraceToSystrace(input, output, /*ctrace=*/true,
                                          truncate_keep, full_sort_);
-  } else if (format == "text" || format == "profile" ||
-             format == "java_heap_profile" || format == "firefox" ||
-             format == "decompress_packets") {
+  } else if (format == "text" || format == "profile" || format == "firefox") {
     if (truncate_keep != trace_to_text::Keep::kAll) {
       return base::ErrStatus("--truncate is unsupported for the '%s' format.",
                              format.c_str());
@@ -199,19 +190,8 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
       ret = trace_to_text::TraceToProfile(input, pid, timestamps,
                                           !no_annotations_, output_dir_,
                                           profile_type, verbose_);
-    } else if (format == "java_heap_profile") {
-      if (!output_path.empty()) {
-        return base::ErrStatus(
-            "output file is not supported for 'java_heap_profile', use "
-            "--output-dir instead.");
-      }
-      ret = trace_to_text::TraceToProfile(
-          input, pid, timestamps, !no_annotations_, output_dir_,
-          trace_to_text::ConversionMode::kJavaHeapProfile, verbose_);
-    } else if (format == "firefox") {
+    } else {  // firefox
       ret = trace_to_text::TraceToFirefoxProfile(input, output) ? 0 : 1;
-    } else {  // decompress_packets
-      ret = trace_to_text::UnpackCompressedPackets(input, output) ? 0 : 1;
     }
   } else {
     return base::ErrStatus("convert: unknown format '%s'.", format.c_str());

@@ -45,17 +45,7 @@ const char* BundleSubcommand::detailed_help() const {
 
 Outputs a TAR containing the trace plus the symbols and deobfuscation
 mappings needed to make it self-contained. Both <input> and <output> must be
-real file paths (stdin/stdout are not supported).
-
-Options:
-  --symbol-paths PATH1,PATH2,...   Additional paths to search for symbols.
-  --no-auto-symbol-paths           Disable automatic symbol path discovery.
-  --proguard-map [pkg=]PATH        ProGuard/R8 mapping.txt for Java/Kotlin
-                                   deobfuscation (may be repeated). The pkg=
-                                   prefix scopes the map to a package.
-  --no-auto-proguard-maps          Disable automatic ProGuard/R8 mapping
-                                   discovery (e.g. Gradle project layout).
-  --verbose                        Print more detailed output.)";
+real file paths (stdin/stdout are not supported).)";
 }
 
 std::vector<FlagSpec> BundleSubcommand::GetFlags() {
@@ -66,7 +56,8 @@ std::vector<FlagSpec> BundleSubcommand::GetFlags() {
                "Disable automatic symbol path discovery.",
                &no_auto_symbol_paths_),
       FlagSpec{"proguard-map", '\0', true, "[pkg=]PATH",
-               "ProGuard/R8 mapping.txt for deobfuscation (may be repeated).",
+               "ProGuard/R8 mapping.txt for deobfuscation (may be repeated). The "
+               "pkg= prefix scopes the map to a package.",
                [this](const char* v) { proguard_maps_.emplace_back(v); }},
       BoolFlag("no-auto-proguard-maps", '\0',
                "Disable automatic ProGuard/R8 mapping discovery.",
