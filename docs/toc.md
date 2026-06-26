@@ -22,6 +22,7 @@
   - [Cookbooks](#)
 
     - [Analysing Android Traces](getting-started/android-trace-analysis.md) {.tag-android}
+    - [Linux Tracing Recipes](getting-started/linux-cookbook.md) {.tag-linux}
     - [Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
     - [Boot Tracing](case-studies/android-boot-tracing.md) {.tag-android}
     - [OutOfMemoryError](case-studies/android-outofmemoryerror.md) {.tag-android}
@@ -64,6 +65,7 @@
       - [CPU Scheduling](data-sources/cpu-scheduling.md) {.tag-android .tag-linux}
       - [System Calls](data-sources/syscalls.md) {.tag-android .tag-linux}
       - [CPU Frequency](data-sources/cpu-freq.md) {.tag-android .tag-linux}
+      - [Function Graph](data-sources/funcgraph.md) {.tag-android .tag-linux}
       - [GPU](data-sources/gpu.md) {.tag-android .tag-linux .tag-perf}
 
     - [Memory](#)
