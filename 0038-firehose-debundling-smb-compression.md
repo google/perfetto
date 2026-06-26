@@ -38,11 +38,11 @@ running on a real Android device (a Pixel Fold, Tensor G2):
 
 ![Exec summary across five representative traces: de-bundling is bigger on the wire, the SMB loses ~0 at the real rate, and zstd-3 brings it back to ~today](media/0038/findings_hero.png)
 
-| The worry                                | What we found                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| De-bundling explodes the wire (~5×)      | ~1.5× today (a boot trace ~46 MB → ~60 MB), ~1.9–2.5× once you discount atrace events. The 5× is the real worst case, hit only by a pure-scheduler config (sched events and nothing else): 4.94–4.98× / 5.64×, confirmed on a real Pixel.                                                                                                                                                                                                                                            |
-| The SMB can't absorb the bigger stream   | It can, except during a real boot. When the reader keeps up (idle, cold-start, heavy compile), a 512 KB SMB carries ~90–145 MB/s with zero loss, so de-bundling's ~1.5–2.5× increase (to ~20–33 MB/s from the real ~13 MB/s) costs nothing. A real boot is the exception: replaying the de-bundled stream through the SMB during a boot drops ~0.12% even at its real ~13 MB/s rate (the reader is starved), and the higher ~20–33 MB/s rate pushes that to ~0.1–0.5%.               |
-| We can't recompress back to today's size | zstd lands at or below today; lz4 doesn't. zstd-3 is roughly break-even with today at a fraction of the CPU; zstd-6 lands below today on 11 of 12 traces (the one miss is within ~3%). lz4 stays bigger than today on the load traces even at its best level (lz4-12), so it never recompresses back. For example zstd-6 after-unlock 23.5 MB → 23.2 MB, 24 h sparse 2.4 MB → 1.4 MB. zstd is both smaller and faster than the gzip we ship today, on the slow cores traced runs on. |
+| The worry                                | What we found |
+| ---------------------------------------- | --- |
+| De-bundling explodes the wire (~5×)      | <ul><li>**~1.5× today** (a boot trace ~46 MB → ~60 MB)</li><li>~1.9–2.5× once you discount atrace events</li><li>The **5×** is the real worst case, hit only by a pure-scheduler config (sched events and nothing else): 4.94–4.98× / 5.64×, confirmed on a real Pixel</li></ul> |
+| The SMB can't absorb the bigger stream   | <ul><li>It can, except during a real boot</li><li>When the reader keeps up (idle, cold-start, heavy compile), a 512 KB SMB carries **~90–145 MB/s** with zero loss, so de-bundling's ~1.5–2.5× increase (to ~20–33 MB/s from the real ~13 MB/s) costs nothing</li><li>A real boot is the exception: replaying the de-bundled stream through the SMB during a boot drops ~0.12% even at its real ~13 MB/s rate (the reader is starved), and the higher ~20–33 MB/s rate pushes that to ~0.1–0.5%</li></ul> |
+| We can't recompress back to today's size | <ul><li>zstd-3 is roughly break-even with today at a fraction of the CPU; zstd-6 lands below today on **11 of 12 traces** (the one miss is within ~3%)</li><li>lz4 stays bigger than today on the load traces even at its best level (lz4-12), so it never recompresses back</li><li>For example zstd-6 after-unlock 23.5 MB → 23.2 MB, 24 h sparse 2.4 MB → 1.4 MB</li><li>zstd is both smaller and faster than the gzip we ship today, on the slow cores traced runs on</li></ul> |
 
 The data and every experiment behind it live in [workbook](https://github.com/google/perfetto/blob/rfcs/media/0038/workbook.md);
 the scripts that produced these numbers are under [scripts](https://github.com/google/perfetto/tree/rfcs/media/0038/scripts).
@@ -272,13 +272,6 @@ Up to ~91 MB/s, `nice −10` takes boot/unlock loss from a few percent to ~0 and
 wipes out the heavy-compile loss entirely. traced already holds `SYS_NICE`, so
 this is a one-line ship-fix. And Android won't grant a service `−20` anyway, so
 `−10` is the realistic target, and it is enough.
-
-The one ugly cell (the `*`: real-boot at 130 MB/s, where `−10` is worse than `0`)
-is boot noise. real_boot is one-shot per reboot at 3 reps, and its nice-0 row is
-itself non-monotonic (4.7/2.8/3.8/2.6). Trust the shape (the fix closes the
-realistic range), not that single high-rate boot point. A bigger-rep real-boot
-confirm is the only follow-up, and 130 MB/s during a boot is already well past
-anything de-bundling needs.
 
 ### Reading it as sessions, and why routing helps
 
