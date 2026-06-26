@@ -4,16 +4,19 @@
 
 **Status:** Draft
 
-[RFC-0014](https://github.com/google/perfetto/discussions/4508) sketches a
-tracing protocol where the producer becomes a firehose: the writer dumps full,
-self-contained events with little producer-side packing (close to a zero-copy
-memcpy), and the space optimization moves into traced, in batches, off the hot
-path. The bet is that traced recovers most of it with "batch-based transparent
-compression using LZ4/ZSTD", leaning far less on hand-rolled interning; and that
-[RFC-0028](https://github.com/google/perfetto/discussions/6179)'s routing lets the
-writer emit each event once and tee it to every session that wants it.
+RFC-0014 sketches a tracing protocol where the producer becomes a firehose: the
+writer dumps full, self-contained events with little producer-side packing
+(close to a zero-copy memcpy), and the space optimization moves into traced, in
+batches, off the hot path. The bet is that traced recovers most of it with
+"batch-based transparent compression using LZ4/ZSTD", leaning far less on
+hand-rolled interning; and that RFC-0028's routing lets the writer emit each
+event once and tee it to every session that wants it.
 
-This document is the experiment that checks whether that holds on. We picked ftrace on purpose: it is the highest-volume source and also the most heavily hand-optimized one (`CompactSched` is columnar, delta-coded and comm-interned), so everything the firehose wants to move off the writer is concentrated in one place.
+This document is the experiment that checks whether that holds on. We picked
+ftrace on purpose: it is the highest-volume source and also the most heavily
+hand-optimized one (`CompactSched` is columnar, delta-coded and comm-interned),
+so everything the firehose wants to move off the writer is concentrated in one
+place.
 
 ## The three questions
 
@@ -35,10 +38,10 @@ running on a real Android device (a Pixel Fold, Tensor G2):
 
 ![Exec summary across five representative traces: de-bundling is bigger on the wire, the SMB loses ~0 at the real rate, and zstd-3 brings it back to ~today](media/0038/findings_hero.png)
 
-| The worry | What we found |
-|---|---|
-| De-bundling explodes the wire (~5×) | ~1.5× today (a boot trace ~46 MB → ~60 MB), ~1.9–2.5× once you discount atrace events. The 5× is the real worst case, hit only by a pure-scheduler config (sched events and nothing else): 4.94–4.98× / 5.64×, confirmed on a real Pixel. |
-| The SMB can't absorb the bigger stream | It can, except during a real boot. When the reader keeps up (idle, cold-start, heavy compile), a 512 KB SMB carries ~90–145 MB/s with zero loss, so de-bundling's ~1.5–2.5× increase (to ~20–33 MB/s from the real ~13 MB/s) costs nothing. A real boot is the exception: replaying the de-bundled stream through the SMB during a boot drops ~0.12% even at its real ~13 MB/s rate (the reader is starved), and the higher ~20–33 MB/s rate pushes that to ~0.1–0.5%. |
+| The worry                                | What we found                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| De-bundling explodes the wire (~5×)      | ~1.5× today (a boot trace ~46 MB → ~60 MB), ~1.9–2.5× once you discount atrace events. The 5× is the real worst case, hit only by a pure-scheduler config (sched events and nothing else): 4.94–4.98× / 5.64×, confirmed on a real Pixel.                                                                                                                                                                                                                                            |
+| The SMB can't absorb the bigger stream   | It can, except during a real boot. When the reader keeps up (idle, cold-start, heavy compile), a 512 KB SMB carries ~90–145 MB/s with zero loss, so de-bundling's ~1.5–2.5× increase (to ~20–33 MB/s from the real ~13 MB/s) costs nothing. A real boot is the exception: replaying the de-bundled stream through the SMB during a boot drops ~0.12% even at its real ~13 MB/s rate (the reader is starved), and the higher ~20–33 MB/s rate pushes that to ~0.1–0.5%.               |
 | We can't recompress back to today's size | zstd lands at or below today; lz4 doesn't. zstd-3 is roughly break-even with today at a fraction of the CPU; zstd-6 lands below today on 11 of 12 traces (the one miss is within ~3%). lz4 stays bigger than today on the load traces even at its best level (lz4-12), so it never recompresses back. For example zstd-6 after-unlock 23.5 MB → 23.2 MB, 24 h sparse 2.4 MB → 1.4 MB. zstd is both smaller and faster than the gzip we ship today, on the slow cores traced runs on. |
 
 The data and every experiment behind it live in the companion
@@ -115,24 +118,24 @@ scheduler share. Across 12 real captures (6 scenarios × 2, all data-loss-free):
 
 ![Today (bundled) vs v2 (de-bundled): the SMB cost, in MB](media/0038/size_onwire.png)
 
-| trace type | events | today MB | de-bundled MB | × bigger (event bytes) | × bigger (incl. packet header) |
-|---|--:|--:|--:|--:|--:|
-| general load (`aot`) | 1.45 M | 45.8 | 60.3 | 1.32 | 1.50 |
-| startup load (`aot_boot`) | 1.56 M | 45.7 | 60.1 | 1.32 | 1.51 |
-| cold start (`cold_start`) | 1.64 M | 46.0 | 65.8 | 1.43 | 1.64 |
-| post-unlock (`first_unlock`) | 2.55 M | 61.6 | 107.9 | 1.75 | 1.99 |
-| random sampling (`sys_random`) | 1.50 M | 36.2 | 59.6 | 1.64 | 1.92 |
-| sparse 24 h (`battery_long`) | 0.12 M | 15.8 | 16.0 | 1.01 | 1.06 |
+| trace type                     | events | today MB | de-bundled MB | × bigger (event bytes) | × bigger (incl. packet header) |
+| ------------------------------ | -----: | -------: | ------------: | ---------------------: | -----------------------------: |
+| general load (`aot`)           | 1.45 M |     45.8 |          60.3 |                   1.32 |                           1.50 |
+| startup load (`aot_boot`)      | 1.56 M |     45.7 |          60.1 |                   1.32 |                           1.51 |
+| cold start (`cold_start`)      | 1.64 M |     46.0 |          65.8 |                   1.43 |                           1.64 |
+| post-unlock (`first_unlock`)   | 2.55 M |     61.6 |         107.9 |                   1.75 |                           1.99 |
+| random sampling (`sys_random`) | 1.50 M |     36.2 |          59.6 |                   1.64 |                           1.92 |
+| sparse 24 h (`battery_long`)   | 0.12 M |     15.8 |          16.0 |                   1.01 |                           1.06 |
 
 Rolled up, and bracketed two ways (event bytes only, or including the per-event
 packet header; the real v2 framing sits between them):
 
-| ftrace stream | × bigger (event bytes) | × bigger (incl. packet header) |
-|---|--:|--:|
-| all ftrace, today | 1.3–1.7× (mean 1.46) | 1.5–2.0× (mean 1.67) |
-| not counting atrace events (the v2 number) | ~1.9× (up to 2.5×) | ~2.2× (up to 2.9×) |
-| other kernel events (binder, irq, …) | ~1.07× | ~1.30× |
-| pure-scheduler ceiling (the true upper bound) | 4.94–4.98× | 5.64× |
+| ftrace stream                                 | × bigger (event bytes) | × bigger (incl. packet header) |
+| --------------------------------------------- | ---------------------: | -----------------------------: |
+| all ftrace, today                             |   1.3–1.7× (mean 1.46) |           1.5–2.0× (mean 1.67) |
+| not counting atrace events (the v2 number)    |     ~1.9× (up to 2.5×) |             ~2.2× (up to 2.9×) |
+| other kernel events (binder, irq, …)          |                 ~1.07× |                         ~1.30× |
+| pure-scheduler ceiling (the true upper bound) |             4.94–4.98× |                          5.64× |
 
 Two things matter here:
 
@@ -175,13 +178,13 @@ timestamps), so the x-axis is just MB/s; we swept ~13 → 182 MB/s.
 
 ![How much ftrace MB/s the SMB absorbs, by device condition (512 KB)](media/0038/sessions_under_load.png)
 
-| condition | absorbs @ <0.1% loss | absorbs @ <1% loss | reader |
-|---|--:|--:|---|
-| idle | ~98 MB/s | ~143 MB/s | healthy |
-| cold app start (everyday) | ~91 MB/s | ~143 MB/s | ~healthy |
-| busy phone (heavy compile) | ~70 MB/s | ~99 MB/s | heavy, keeps up |
-| first-unlock | ~20 MB/s | ~91 MB/s | spike (noisy) |
-| real boot (harshest) | ≤13 MB/s | ~47 MB/s | starved |
+| condition                  | absorbs @ <0.1% loss | absorbs @ <1% loss | reader          |
+| -------------------------- | -------------------: | -----------------: | --------------- |
+| idle                       |             ~98 MB/s |          ~143 MB/s | healthy         |
+| cold app start (everyday)  |             ~91 MB/s |          ~143 MB/s | ~healthy        |
+| busy phone (heavy compile) |             ~70 MB/s |           ~99 MB/s | heavy, keeps up |
+| first-unlock               |             ~20 MB/s |           ~91 MB/s | spike (noisy)   |
+| real boot (harshest)       |             ≤13 MB/s |           ~47 MB/s | starved         |
 
 The full sweep, loss % at each write rate, per condition (the de-bundled stream
 is ~13 MB/s; de-bundling's 1.5–2.5× boundary is ~20–33 MB/s):
@@ -192,15 +195,15 @@ in the replay (a missing number is a real drop). So 0.12% means about 1 event in
 800 never reached the reader, and never made it into the trace; 0% means nothing
 was dropped.
 
-| write rate | idle | cold start | heavy compile | first-unlock | real boot |
-|---|--:|--:|--:|--:|--:|
-| 13 MB/s (1× real) | 0.001% | 0.001% | 0.001% | 0.001% | 0.12% |
-| 26 MB/s | 0.001% | 0.000% | 0.001% | 0.20% | 0.18% |
-| 39 MB/s | 0.000% | 0.000% | 0.001% | 0.22% | 0.53% |
-| 65 MB/s | 0.011% | 0.000% | 0.000% | 0.61% | 2.10% |
-| 91 MB/s | 0.025% | 0.061% | 0.49% | 0.63% | 4.54% |
-| 130 MB/s | 0.48% | 0.65% | 3.06% | 9.94% | 27.9% |
-| 182 MB/s | 2.16% | 2.56% | 3.18% | 19.3% | 36.1% |
+| write rate        |   idle | cold start | heavy compile | first-unlock | real boot |
+| ----------------- | -----: | ---------: | ------------: | -----------: | --------: |
+| 13 MB/s (1× real) | 0.001% |     0.001% |        0.001% |       0.001% |     0.12% |
+| 26 MB/s           | 0.001% |     0.000% |        0.001% |        0.20% |     0.18% |
+| 39 MB/s           | 0.000% |     0.000% |        0.001% |        0.22% |     0.53% |
+| 65 MB/s           | 0.011% |     0.000% |        0.000% |        0.61% |     2.10% |
+| 91 MB/s           | 0.025% |     0.061% |         0.49% |        0.63% |     4.54% |
+| 130 MB/s          |  0.48% |      0.65% |         3.06% |        9.94% |     27.9% |
+| 182 MB/s          |  2.16% |      2.56% |         3.18% |        19.3% |     36.1% |
 
 Each cell is the median of 3 repetitions. Values below ~0.01% are at the
 measurement noise floor (a few stray events out of millions per run); treat them
@@ -241,12 +244,12 @@ up, and does almost nothing once it's starved:
 
 ![A bigger SMB helps when the reader keeps up, and barely moves a starved real boot](media/0038/buffer_vs_condition.png)
 
-| loss @ ~130 MB/s | 256 KB | 512 KB | 1 MB | 2 MB | 4 MB |
-|---|--:|--:|--:|--:|--:|
-| idle | 2.1% | 0.38% | 0.003% | 0.001% | 0% |
-| cold start | 2.8% | 0.73% | 0.19% | 0.000% | 0% |
-| heavy compile | 7.3% | 3.4% | 0.86% | 0.08% | 0% |
-| real boot (starved) | 15.5% | 10.5% | 17.3% | 5.7% | 8.0% (flat/noisy) |
+| loss @ ~130 MB/s    | 256 KB | 512 KB |   1 MB |   2 MB |              4 MB |
+| ------------------- | -----: | -----: | -----: | -----: | ----------------: |
+| idle                |   2.1% |  0.38% | 0.003% | 0.001% |                0% |
+| cold start          |   2.8% |  0.73% |  0.19% | 0.000% |                0% |
+| heavy compile       |   7.3% |   3.4% |  0.86% |  0.08% |                0% |
+| real boot (starved) |  15.5% |  10.5% |  17.3% |   5.7% | 8.0% (flat/noisy) |
 
 For the keep-up conditions, 1–2 MB takes even ~130 MB/s to ~0. For a starved
 boot, every size loses about the same: memory can't buy back a reader that has
@@ -263,11 +266,11 @@ that matter for the spikes. This is the same lever we reached for once before, i
 
 ![The nice fix in the faithful model: nice 0 vs −10 under heavy load](media/0038/nice_fix_faithful.png)
 
-| condition | metric | 39 MB/s | 65 MB/s | 91 MB/s | 130 MB/s |
-|---|---|--:|--:|--:|--:|
-| heavy compile | nice 0 → −10 | 0.00 → 0.00 | 0.00 → 0.00 | 0.44 → 0.00 | 3.21 → 0.00 |
-| real boot | nice 0 → −10 | 4.70 → 0.001 | 2.78 → 0.07 | 3.80 → 1.34 | 2.65 → 7.31\* |
-| first-unlock | nice 0 → −10 | 0.59 → 0.001 | 0.63 → 0.28 | 0.73 → 0.33 | 2.69 → 1.14 |
+| condition     | metric       |      39 MB/s |     65 MB/s |     91 MB/s |      130 MB/s |
+| ------------- | ------------ | -----------: | ----------: | ----------: | ------------: |
+| heavy compile | nice 0 → −10 |  0.00 → 0.00 | 0.00 → 0.00 | 0.44 → 0.00 |   3.21 → 0.00 |
+| real boot     | nice 0 → −10 | 4.70 → 0.001 | 2.78 → 0.07 | 3.80 → 1.34 | 2.65 → 7.31\* |
+| first-unlock  | nice 0 → −10 | 0.59 → 0.001 | 0.63 → 0.28 | 0.73 → 0.33 |   2.69 → 1.14 |
 
 Up to ~91 MB/s, `nice −10` takes boot/unlock loss from a few percent to ~0 and
 wipes out the heavy-compile loss entirely. traced already holds `SYS_NICE`, so
@@ -286,11 +289,11 @@ anything de-bundling needs.
 That headroom has a second reading: how many concurrent ftrace traces one SMB can
 feed, and whether the routing from RFC-0028 changes that.
 
-| scenario | per-trace SMB write rate | concurrent traces one 512 KB SMB carries |
-|---|--:|--:|
-| today, bundled (no dedup) | ~13 MB/s | ~7–11 (the ~90–145 MB/s headroom ÷ 13) |
-| today, de-bundled (no dedup) | ~20–33 MB/s | ~3–7 (de-bundling spends ~1.5–2.5× per trace) |
-| with routing (emit once, tee to all) | ~13–33 MB/s total, any N | not capped by the SMB |
+| scenario                             | per-trace SMB write rate |      concurrent traces one 512 KB SMB carries |
+| ------------------------------------ | -----------------------: | --------------------------------------------: |
+| today, bundled (no dedup)            |                 ~13 MB/s |        ~7–11 (the ~90–145 MB/s headroom ÷ 13) |
+| today, de-bundled (no dedup)         |              ~20–33 MB/s | ~3–7 (de-bundling spends ~1.5–2.5× per trace) |
+| with routing (emit once, tee to all) | ~13–33 MB/s total, any N |                         not capped by the SMB |
 
 Without dedup, every extra trace re-emits the same events, so N concurrent traces
 cost ~N× the write rate and the SMB scales with the number of traces.
@@ -333,11 +336,11 @@ de-bundled stream after each candidate codec, as size (× today) and little-core
 compression speed (Cortex-A55, the slowest core traced is pinned to). Sizes are
 whole-stream and core-independent; speeds are the little-core floor.
 
-| trace type | ftrace window | produced (uncompressed) | today (bundled + gzip) | dbun + lz4-1 | lz4-1 MB/s | dbun + lz4-12 | lz4-12 MB/s | dbun + zstd-3 | zstd-3 MB/s | dbun + zstd-6 | zstd-6 MB/s |
-|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| always-on | ~4.7 s | ~13 MB/s | 16.0 MB | 27.6 MB (1.73×) | 58 | 19.4 MB (1.22×) | 2.8 | 14.9 MB (0.94×) | 51 | 13.1 MB (0.82×) | 14 |
-| after unlock (heaviest) | ~21 s | ~4.8 MB/s | 23.5 MB | 44.7 MB (1.91×) | 66 | 31.4 MB (1.34×) | 3.2 | 26.9 MB (1.15×) | 52 | 23.2 MB (0.99×) | 14 |
-| 24 h sparse | ~24 h | ~0.0002 MB/s | 2.4 MB | 2.8 MB (1.15×) | 245 | 1.9 MB (0.81×) | 6.1 | 1.6 MB (0.65×) | 99 | 1.4 MB (0.59×) | 29 |
+| trace type              | ftrace window | produced (uncompressed) | today (bundled + gzip) |    dbun + lz4-1 | lz4-1 MB/s |   dbun + lz4-12 | lz4-12 MB/s |   dbun + zstd-3 | zstd-3 MB/s |   dbun + zstd-6 | zstd-6 MB/s |
+| ----------------------- | ------------: | ----------------------: | ---------------------: | --------------: | ---------: | --------------: | ----------: | --------------: | ----------: | --------------: | ----------: |
+| always-on               |        ~4.7 s |                ~13 MB/s |                16.0 MB | 27.6 MB (1.73×) |         58 | 19.4 MB (1.22×) |         2.8 | 14.9 MB (0.94×) |          51 | 13.1 MB (0.82×) |          14 |
+| after unlock (heaviest) |         ~21 s |               ~4.8 MB/s |                23.5 MB | 44.7 MB (1.91×) |         66 | 31.4 MB (1.34×) |         3.2 | 26.9 MB (1.15×) |          52 | 23.2 MB (0.99×) |          14 |
+| 24 h sparse             |         ~24 h |            ~0.0002 MB/s |                 2.4 MB |  2.8 MB (1.15×) |        245 |  1.9 MB (0.81×) |         6.1 |  1.6 MB (0.65×) |          99 |  1.4 MB (0.59×) |          29 |
 
 Reading the table:
 
@@ -379,10 +382,10 @@ a little as blocks grow, but with clear diminishing returns:
 
 ![Bigger compression blocks help a little, then flatten out](media/0038/4_block_size.png)
 
-| block size (zstd-12) | 512 KB | 1 MB | 2 MB | 4 MB | whole stream |
-|---|--:|--:|--:|--:|--:|
-| after unlock (busy, dense events) | 4.56× | 4.76× | 4.94× | 5.08× | 5.25× |
-| 24 h sparse (mostly idle) | 10.5× | 11.2× | 11.6× | 11.9× | 12.2× |
+| block size (zstd-12)              | 512 KB |  1 MB |  2 MB |  4 MB | whole stream |
+| --------------------------------- | -----: | ----: | ----: | ----: | -----------: |
+| after unlock (busy, dense events) |  4.56× | 4.76× | 4.94× | 5.08× |        5.25× |
+| 24 h sparse (mostly idle)         |  10.5× | 11.2× | 11.6× | 11.9× |        12.2× |
 
 - 512 KB -> 4 MB buys about 10%, and compressing the whole stream as one block
   (which we can't actually do while streaming) adds only a few percent beyond
@@ -403,10 +406,10 @@ both fall back to storing incompressible data in raw/uncompressed blocks, so the
 worst case is a few bytes of bookkeeping, not a doubling. For a 1 MB block of
 fully incompressible data:
 
-| codec | real worst case | library's safe bound (for buffer sizing) |
-|---|--:|--:|
-| gzip / DEFLATE | +103 B (1,048,679) | +333 B (`compressBound`) |
-| zstd | +34 B (1,048,610) | +4096 B (`ZSTD_COMPRESSBOUND`) |
+| codec          |    real worst case | library's safe bound (for buffer sizing) |
+| -------------- | -----------------: | ---------------------------------------: |
+| gzip / DEFLATE | +103 B (1,048,679) |                 +333 B (`compressBound`) |
+| zstd           |  +34 B (1,048,610) |           +4096 B (`ZSTD_COMPRESSBOUND`) |
 
 The two columns mean different things:
 
@@ -452,11 +455,11 @@ and leaves everything else about the same (~1.07×), so a trace grows by roughly
 however much of it is scheduler data. A trace with no scheduler data doesn't grow
 at all; it shrinks:
 
-| trace | scheduler data | re-expands to | after de-bundling |
-|---|--:|--:|--:|
-| 24 h sparse (no scheduler) | 0 MB | 0 MB | 17.7 → 16.7 MB (shrinks, 0.95×) |
-| heaviest load | 12.3 MB | 53.3 MB (4.3×) | 64.6 → 113.4 MB (grows, 1.76×) |
-| pure-scheduler config (worst case) | n/a | n/a | ~4.9× |
+| trace                              | scheduler data |  re-expands to |               after de-bundling |
+| ---------------------------------- | -------------: | -------------: | ------------------------------: |
+| 24 h sparse (no scheduler)         |           0 MB |           0 MB | 17.7 → 16.7 MB (shrinks, 0.95×) |
+| heaviest load                      |        12.3 MB | 53.3 MB (4.3×) |  64.6 → 113.4 MB (grows, 1.76×) |
+| pure-scheduler config (worst case) |            n/a |            n/a |                           ~4.9× |
 
 The sparse trace records almost nothing but suspend/resume events, with
 `CompactSched` off, so there's nothing to re-expand. It even shrinks: it flushes
@@ -466,10 +469,10 @@ de-bundling drops that wrapper (~0.97 MB, the whole shrink).
 Then zstd wins it back, and that's about repetition. Once compressed, all that
 matters is how repetitive the atrace text is:
 
-| trace | distinct event types | atrace lines | distinct strings | strings making up half the bytes | zstd-6 ratio |
-|---|--:|--:|--:|--:|--:|
-| 24 h sparse | 2 | 106,410 | 31,647 | 225 | 11.7× |
-| heaviest load | 28 | 740,163 | 220,710 | 3,075 | 4.9× |
+| trace         | distinct event types | atrace lines | distinct strings | strings making up half the bytes | zstd-6 ratio |
+| ------------- | -------------------: | -----------: | ---------------: | -------------------------------: | -----------: |
+| 24 h sparse   |                    2 |      106,410 |           31,647 |                              225 |        11.7× |
+| heaviest load |                   28 |      740,163 |          220,710 |                            3,075 |         4.9× |
 
 - The sparse trace has just 2 event types (atrace `print` + `suspend_resume`) and
   a small string vocabulary, so the stream is uniform and compresses easily. Just
