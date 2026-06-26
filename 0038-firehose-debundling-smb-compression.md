@@ -44,10 +44,8 @@ running on a real Android device (a Pixel Fold, Tensor G2):
 | The SMB can't absorb the bigger stream   | It can, except during a real boot. When the reader keeps up (idle, cold-start, heavy compile), a 512 KB SMB carries ~90–145 MB/s with zero loss, so de-bundling's ~1.5–2.5× increase (to ~20–33 MB/s from the real ~13 MB/s) costs nothing. A real boot is the exception: replaying the de-bundled stream through the SMB during a boot drops ~0.12% even at its real ~13 MB/s rate (the reader is starved), and the higher ~20–33 MB/s rate pushes that to ~0.1–0.5%.               |
 | We can't recompress back to today's size | zstd lands at or below today; lz4 doesn't. zstd-3 is roughly break-even with today at a fraction of the CPU; zstd-6 lands below today on 11 of 12 traces (the one miss is within ~3%). lz4 stays bigger than today on the load traces even at its best level (lz4-12), so it never recompresses back. For example zstd-6 after-unlock 23.5 MB → 23.2 MB, 24 h sparse 2.4 MB → 1.4 MB. zstd is both smaller and faster than the gzip we ship today, on the slow cores traced runs on. |
 
-The data and every experiment behind it live in the companion
-[workbook](https://github.com/google/perfetto/blob/rfcs/media/0038/workbook.md);
-the scripts that produced these numbers are under
-[`media/0038/scripts/`](https://github.com/google/perfetto/tree/rfcs/media/0038/scripts).
+The data and every experiment behind it live in [workbook](https://github.com/google/perfetto/blob/rfcs/media/0038/workbook.md);
+the scripts that produced these numbers are under [scripts](https://github.com/google/perfetto/tree/rfcs/media/0038/scripts).
 
 The traces, and what each short name means:
 
@@ -89,7 +87,7 @@ differently:
 
 - Bundling (the `repeated FtraceEvent event`). Most events (atrace `print`,
   binder, irq) are already full standalone messages in that array; they just share
-  the bundle's one `cpu` and one packet header. De-bundling gives each its own, but
+  the bundle's one cpu and one packet header. De-bundling gives each its own, but
   the payload is byte-for-byte identical, about 1.07×. Essentially free.
 - `CompactSched` (the `compact_sched` field). Scheduler events (`sched_switch`,
   `sched_waking`), the highest-frequency events, are packed columnar: delta
@@ -99,7 +97,7 @@ differently:
 
 The v2 change itself is small, and it leaves the event payloads untouched
 (validated field-for-field against a `compact_sched`-disabled capture): kill the
-bundle, emit one `FtraceEvent` per `TracePacket`, and move `cpu` onto the event.
+bundle, emit one `FtraceEvent` per `TracePacket`, and move cpu onto the event.
 This is exactly the firehose shape from RFC-0014: the writer stops packing and
 just dumps full events.
 
@@ -140,13 +138,13 @@ packet header; the real v2 framing sits between them):
 Two things matter here:
 
 - Only scheduler data is expensive, so a trace's growth tracks its scheduler
-  byte-share (a clean linear relationship, shown in the
-  [workbook](https://github.com/google/perfetto/blob/rfcs/media/0038/workbook.md)). A trace with no sched is free to de-bundle.
-- The worst case is ~5×, from a pure-scheduler config: sched events only, no
-  atrace, nothing but context switches. A sched-only capture on a real Pixel
+  byte-share (a clean linear relationship, shown in the [workbook](https://github.com/google/perfetto/blob/rfcs/media/0038/workbook.md)). 
+  A trace with no sched is free to de-bundle.
+- The worst case is **~5×**, from a pure-scheduler config: sched events only,
+  no atrace, nothing but context switches. A sched-only capture on a real Pixel
   de-bundles 4.98× / 5.64×, matching a host-built reference. Field traces carry
-  atrace and mixed events, so they land far lower (~1.5×); 5× is the ceiling a
-  config can hit.
+  atrace and mixed events, so they land far lower (**~1.5×**); 5× is the
+  ceiling a config can hit.
 
 ---
 
@@ -165,8 +163,7 @@ drop rather than what today did.
 
 ### How we apply the load: bigger bursts on the real timeline
 
-We replay the boot's per-CPU ftrace through the actual
-[v2 shared_ring_buffer](https://github.com/google/perfetto/compare/main...dev/primiano/ringbuf)
+We replay the boot's per-CPU ftrace through the actual [v2 shared_ring_buffer](https://github.com/google/perfetto/compare/main...dev/primiano/ringbuf)
 prototype and dial the write rate up by duplicating each event at its real
 instant: more bytes at the same moments, with the real quiet gaps preserved. That
 is exactly what de-bundling does to the stream (bigger events at the same
@@ -213,8 +210,8 @@ rounding noise).
 What this says:
 
 - De-bundling needs ~13 MB/s, or ~20–33 MB/s at its 1.5–2.5× boundary.
-- When the reader keeps up, the SMB carries it to ~90–145 MB/s with zero loss:
-  idle, the everyday cold-start, even a whole-device compile.
+- When the reader keeps up, the SMB carries it to **~90–145 MB/s** with zero
+  loss: idle, the everyday cold-start, even a whole-device compile.
 - A real boot is the one exception. Replaying the de-bundled stream during a boot
   drops ~0.12% even at its real ~13 MB/s rate, because whole-system contention
   starves the reader; the higher ~20–33 MB/s rate pushes that to ~0.1–0.5%.
@@ -223,10 +220,9 @@ So boot is the only case that needs the reader-starvation fix below; everywhere
 else there is no loss at any realistic rate.
 
 After the initial sweep we re-audited the harness against the live traced (its
-cpuset, cpu cgroup and `nice` all match, so the reader is not over-privileged)
+cpuset, cpu cgroup and nice all match, so the reader is not over-privileged)
 and re-ran boot and first-unlock. The loss numbers reproduced, with boot's median
-staying under 1% out to ~65 MB/s. Details are in the
-[workbook](https://github.com/google/perfetto/blob/rfcs/media/0038/workbook.md).
+staying under 1% out to ~65 MB/s. Details are in the [workbook](https://github.com/google/perfetto/blob/rfcs/media/0038/workbook.md).
 
 ### Why boot is different: the drain-ceiling rule
 
@@ -258,8 +254,8 @@ lost the CPU.
 ### Cutting boot loss by lowering the reader's nice
 
 The lever for the boot case is reader scheduling, not buffer size: give traced's
-reader a stronger (more negative) `nice` so it keeps the CPU and drains the SMB
-even mid-boot. A strong negative `nice` (no real-time policy) closes the loss in
+reader a stronger (more negative) nice so it keeps the CPU and drains the SMB
+even mid-boot. A strong negative nice (no real-time policy) closes the loss in
 the faithful model: emphatically for sustained load, and sharply at the rates
 that matter for the spikes. This is the same lever we reached for once before, in
 [aosp/2743797](https://android-review.googlesource.com/c/platform/external/perfetto/+/2743797).
@@ -336,11 +332,11 @@ de-bundled stream after each candidate codec, as size (× today) and little-core
 compression speed (Cortex-A55, the slowest core traced is pinned to). Sizes are
 whole-stream and core-independent; speeds are the little-core floor.
 
-| trace type              | ftrace window | produced (uncompressed) | today (bundled + gzip) |    dbun + lz4-1 | lz4-1 MB/s |   dbun + lz4-12 | lz4-12 MB/s |   dbun + zstd-3 | zstd-3 MB/s |   dbun + zstd-6 | zstd-6 MB/s |
-| ----------------------- | ------------: | ----------------------: | ---------------------: | --------------: | ---------: | --------------: | ----------: | --------------: | ----------: | --------------: | ----------: |
-| always-on               |        ~4.7 s |                ~13 MB/s |                16.0 MB | 27.6 MB (1.73×) |         58 | 19.4 MB (1.22×) |         2.8 | 14.9 MB (0.94×) |          51 | 13.1 MB (0.82×) |          14 |
-| after unlock (heaviest) |         ~21 s |               ~4.8 MB/s |                23.5 MB | 44.7 MB (1.91×) |         66 | 31.4 MB (1.34×) |         3.2 | 26.9 MB (1.15×) |          52 | 23.2 MB (0.99×) |          14 |
-| 24 h sparse             |         ~24 h |            ~0.0002 MB/s |                 2.4 MB |  2.8 MB (1.15×) |        245 |  1.9 MB (0.81×) |         6.1 |  1.6 MB (0.65×) |          99 |  1.4 MB (0.59×) |          29 |
+| trace type              | ftrace window | produced (uncompressed) | today (bundled + gzip) |    dbun + lz4-1 | lz4-1 MB/s |   dbun + lz4-12 | lz4-12 MB/s |       dbun + zstd-3 | zstd-3 MB/s |   dbun + zstd-6 | zstd-6 MB/s |
+| ----------------------- | ------------: | ----------------------: | ---------------------: | --------------: | ---------: | --------------: | ----------: | ------------------: | ----------: | --------------: | ----------: |
+| always-on               |        ~4.7 s |                ~13 MB/s |                16.0 MB | 27.6 MB (1.73×) |         58 | 19.4 MB (1.22×) |         2.8 | **14.9 MB (0.94×)** |          51 | 13.1 MB (0.82×) |          14 |
+| after unlock (heaviest) |         ~21 s |               ~4.8 MB/s |                23.5 MB | 44.7 MB (1.91×) |         66 | 31.4 MB (1.34×) |         3.2 | **26.9 MB (1.15×)** |          52 | 23.2 MB (0.99×) |          14 |
+| 24 h sparse             |         ~24 h |            ~0.0002 MB/s |                 2.4 MB |  2.8 MB (1.15×) |        245 |  1.9 MB (0.81×) |         6.1 |  **1.6 MB (0.65×)** |          99 |  1.4 MB (0.59×) |          29 |
 
 Reading the table:
 
@@ -513,14 +509,14 @@ Where there's no regression versus today:
 - On-device CPU stays cheap. zstd-3 compresses at ~50 MB/s on a single little
   core, ~4× the ~13 MB/s peak the stream is produced at.
 - Data loss stays at ~0. At the real ~13 MB/s rate the SMB drops essentially
-  nothing (~0.12%, and only mid-boot, which the `nice` fix closes). Because it
+  nothing (~0.12%, and only mid-boot, which the nice fix closes). Because it
   absorbs ~90–145 MB/s whenever the reader keeps up, the ~1.5–2.5× de-bundling
   increase still sits far inside that, so loss is no worse than today.
 
 Where it is strictly better:
 
-- Smaller uploads. zstd-6 is ~10% smaller than today on dense traces and ~40% on
-  sparse long ones, before the columnar upside.
+- Smaller uploads. zstd-6 is **~10% smaller** than today on dense traces and
+  **~40%** on sparse long ones, before the columnar upside.
 - Cheaper compression. zstd is smaller and faster than today's gzip on the cores
   traced actually runs on: a win we can take immediately, independent of the
   rewrite.
