@@ -18,7 +18,6 @@
 
 #include <cinttypes>
 #include <cstdint>
-#include <cstdio>
 #include <limits>
 #include <optional>
 #include <string>
@@ -26,7 +25,6 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
@@ -48,60 +46,6 @@ namespace {
 
 using FileEntry = TraceManifestState::FileEntry;
 using ClockOverride = TraceManifestState::ClockOverride;
-
-bool IsLeapYear(int y) {
-  return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
-}
-
-// Parses an ISO-8601 UTC timestamp ("2026-06-10T10:15:30.123Z") into
-// nanoseconds since the unix epoch. All fields are range-validated and the
-// arithmetic is integer-only: a double-based epoch computation loses up to
-// ~256ns near the current epoch (1.7e18 ns exceeds double's 2^53
-// exact-integer range). The seconds fraction is parsed by hand to stay
-// independent of the LC_NUMERIC locale of embedding applications.
-std::optional<int64_t> ParseUtcTimestamp(const std::string& utc) {
-  int y, mon, day, h, min, sec;
-  int consumed = 0;
-  if (sscanf(utc.c_str(), "%4d-%2d-%2dT%2d:%2d:%2d%n", &y, &mon, &day, &h, &min,
-             &sec, &consumed) != 6) {
-    return std::nullopt;
-  }
-  // The upper year bound keeps the result well inside int64 nanoseconds
-  // (which overflows in 2262).
-  static constexpr int kDaysPerMonth[] = {31, 28, 31, 30, 31, 30,
-                                          31, 31, 30, 31, 30, 31};
-  if (y < 1970 || y > 2200 || mon < 1 || mon > 12 || h < 0 || h > 23 ||
-      min < 0 || min > 59 || sec < 0 || sec > 60) {
-    return std::nullopt;
-  }
-  int max_day = kDaysPerMonth[mon - 1] + (mon == 2 && IsLeapYear(y) ? 1 : 0);
-  if (day < 1 || day > max_day) {
-    return std::nullopt;
-  }
-  const char* rest = utc.c_str() + consumed;
-  int64_t frac_ns = 0;
-  if (*rest == '.') {
-    ++rest;
-    int significant = 0;
-    int total = 0;
-    for (; *rest >= '0' && *rest <= '9'; ++rest, ++total) {
-      if (significant < 9) {
-        frac_ns = frac_ns * 10 + (*rest - '0');
-        ++significant;
-      }
-    }
-    if (total == 0) {
-      return std::nullopt;
-    }
-    for (; significant < 9; ++significant) {
-      frac_ns *= 10;
-    }
-  }
-  if (rest[0] != 'Z' || rest[1] != '\0') {
-    return std::nullopt;
-  }
-  return base::MkTime(y, mon, day, h, min, sec) * 1000000000 + frac_ns;
-}
 
 base::StatusOr<uint32_t> ParseClockName(const json::Dom& value) {
   if (!value.IsString()) {
@@ -127,108 +71,66 @@ base::StatusOr<uint32_t> ParseClockName(const json::Dom& value) {
       name.c_str());
 }
 
-// Reads a required, non-negative integral nanosecond timestamp stored under
-// `key` in `obj`. `label` names the field in error messages (it may be
-// qualified, e.g. "is.ts").
-base::StatusOr<int64_t> ParseAnchorTs(const json::Dom& obj,
-                                      const char* key,
-                                      const char* label) {
-  if (!obj.HasMember(key) || !obj[key].IsIntegral()) {
-    return base::ErrStatus(
-        "perfetto_manifest: anchor: missing required field: %s", label);
-  }
-  int64_t ts = obj[key].AsInt64();
-  if (ts < 0) {
-    return base::ErrStatus("perfetto_manifest: anchor: %s must not be negative",
-                           label);
-  }
-  return ts;
-}
-
-// Parses a file's "clocks" block. The file's clock is related to a reference
-// |is| (a builtin clock, or trace time when |is| is omitted) by either an
-// |offset_ns| or a pair of coinciding readings (|ts| on this file, |is.ts| on
-// the reference). Normalized into ClockOverride: file reading |file_ts_ns|
-// corresponds to |clock_ts_ns| on |clock| (nullopt clock = trace time).
-//   {is:{clock:"X"}}                          file clock IS X (identity)
-//   {offset_ns:N}                             file = trace time + N
-//   {ts:A, is:{clock:"X", ts:B}}              file reads A when X reads B
-//   {is:{utc:"<ISO>"}}                        anchor onto REALTIME wall time
-//   {clock:"X", is:{file:"f", clock:"Y"}}     relate this file's X to file f's
-//   Y
+// Parses a file's "clocks" block ("manual" mode): relate one of this file's
+// clocks to a clock in another trace (`sync_to`) at a fixed `offset_ns`.
+// Normalized into ClockOverride (see its doc for the field semantics).
+//   {sync_to:{file:"f"}}                        relate to f's sole clock
+//   {sync_to:{file:"f", clock:"X"}}             relate to f's clock X
+//   {clock:"X", sync_to:{file:"f", clock:"Y"}}  relate this file's X to f's Y
+//   {machine:"m", clock:"X", sync_to:{...}}     ... where X is on this file's
+//                                               declared machine m
+//   {..., offset_ns:N}                          at offset N
 // A top-level `clock` names which of this file's clocks to relate (an existing
 // clock of an internally-clocked trace); without it the file's own private
-// clock is pinned. is.file/is.machine point the reference at another file's or
-// machine's clock.
+// clock is pinned. `machine` names which machine declared by this file owns
+// that clock. sync_to.file/machine/clock pick the reference clock.
 base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
   ClockOverride result;
 
+  if (clocks.HasMember("machine")) {
+    if (!clocks["machine"].IsString()) {
+      return base::ErrStatus(
+          "perfetto_manifest: clocks: machine must be a string");
+    }
+    result.source_machine = clocks["machine"].AsString();
+  }
   if (clocks.HasMember("clock")) {
     ASSIGN_OR_RETURN(uint32_t source_clock, ParseClockName(clocks["clock"]));
     result.source_clock = source_clock;
   }
 
-  bool has_is_ts = false;
-  if (clocks.HasMember("is")) {
-    const json::Dom& is = clocks["is"];
-    if (!is.IsObject()) {
-      return base::ErrStatus("perfetto_manifest: clocks: is must be an object");
+  if (!clocks.HasMember("sync_to")) {
+    return base::ErrStatus(
+        "perfetto_manifest: clocks: a sync_to block is required. Manual clock "
+        R"(handling relates this file to a clock in another trace, e.g. )"
+        R"("sync_to": {"file": "other.pb"}.)");
+  }
+  const json::Dom& sync_to = clocks["sync_to"];
+  if (!sync_to.IsObject()) {
+    return base::ErrStatus(
+        "perfetto_manifest: clocks: sync_to must be an object");
+  }
+  // sync_to.file and sync_to.machine are complementary, not exclusive: naming a
+  // machine inside a multi-machine file needs both (see resolve_ref below).
+  if (!sync_to.HasMember("file") || !sync_to["file"].IsString()) {
+    return base::ErrStatus(
+        "perfetto_manifest: clocks: sync_to.file is required and must be a "
+        "string");
+  }
+  result.ref_file = sync_to["file"].AsString();
+  if (sync_to.HasMember("machine")) {
+    if (!sync_to["machine"].IsString()) {
+      return base::ErrStatus(
+          "perfetto_manifest: clocks: sync_to.machine must be a string");
     }
-    // is.file and is.machine are complementary, not exclusive: naming a machine
-    // inside a multi-machine file needs both (see resolve_ref below).
-    if (is.HasMember("file")) {
-      if (!is["file"].IsString()) {
-        return base::ErrStatus(
-            "perfetto_manifest: clocks: is.file must be a string");
-      }
-      result.ref_file = is["file"].AsString();
-    }
-    if (is.HasMember("machine")) {
-      if (!is["machine"].IsString()) {
-        return base::ErrStatus(
-            "perfetto_manifest: clocks: is.machine must be a string");
-      }
-      result.ref_machine = is["machine"].AsString();
-    }
-    if (is.HasMember("utc")) {
-      if (is.HasMember("clock") || is.HasMember("ts")) {
-        return base::ErrStatus(
-            "perfetto_manifest: clocks: is.utc cannot be combined with "
-            "clock/ts");
-      }
-      if (!is["utc"].IsString()) {
-        return base::ErrStatus(
-            "perfetto_manifest: clocks: is.utc must be a string");
-      }
-      std::string utc = is["utc"].AsString();
-      auto ts = ParseUtcTimestamp(utc);
-      if (!ts) {
-        return base::ErrStatus(
-            "perfetto_manifest: clocks: invalid is.utc timestamp: %s",
-            utc.c_str());
-      }
-      result.clock = protos::pbzero::BUILTIN_CLOCK_REALTIME;
-      result.clock_ts_ns = *ts;
-    } else {
-      if (!is.HasMember("clock")) {
-        return base::ErrStatus(
-            "perfetto_manifest: clocks: is needs a clock (or utc)");
-      }
-      ASSIGN_OR_RETURN(uint32_t clock, ParseClockName(is["clock"]));
-      result.clock = clock;
-      if (is.HasMember("ts")) {
-        ASSIGN_OR_RETURN(result.clock_ts_ns, ParseAnchorTs(is, "ts", "is.ts"));
-        has_is_ts = true;
-      }
-    }
+    result.ref_machine = sync_to["machine"].AsString();
+  }
+  if (sync_to.HasMember("clock")) {
+    ASSIGN_OR_RETURN(uint32_t ref_clock, ParseClockName(sync_to["clock"]));
+    result.ref_clock = ref_clock;
   }
 
   if (clocks.HasMember("offset_ns")) {
-    if (has_is_ts || clocks.HasMember("ts")) {
-      return base::ErrStatus(
-          "perfetto_manifest: clocks: offset_ns and a reading (ts) are "
-          "mutually exclusive");
-    }
     if (!clocks["offset_ns"].IsIntegral()) {
       return base::ErrStatus(
           "perfetto_manifest: clocks: offset_ns must be an integer");
@@ -238,15 +140,7 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
       return base::ErrStatus(
           "perfetto_manifest: clocks: offset_ns is out of range");
     }
-    // Snapshot timestamps must never be negative: a backwards shift maps a
-    // later file reading onto the reference's zero instead.
-    if (offset_ns < 0) {
-      result.file_ts_ns = -offset_ns;
-    } else {
-      result.clock_ts_ns = offset_ns;
-    }
-  } else if (clocks.HasMember("ts")) {
-    ASSIGN_OR_RETURN(result.file_ts_ns, ParseAnchorTs(clocks, "ts", "ts"));
+    result.offset_ns = offset_ns;
   }
   return result;
 }
@@ -520,31 +414,82 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
         Variadic::Integer(*state->trace_time_clock));
   }
 
-  // Add each relate-override's cross-machine edge to the global clock graph
-  // now, before any file is parsed (a file may reference another parsed later),
-  // recording it in the clock_snapshot table as ClockTracker would. The source
-  // is this file's clock; the reference is another machine's clock (is.machine
-  // names it, is.file uses that file's machine), or trace time when no clock is
-  // named.
+  // Resolves which machine declared by |entry| owns its source clock: the named
+  // |source_machine| (which must be one this file itself declares), or - when
+  // unset - the file's sole machine. A multi-machine file is several machines,
+  // so it must name which one.
+  auto resolve_source_machine =
+      [&](const FileEntry& entry,
+          const ClockOverride& co) -> base::StatusOr<int64_t> {
+    if (!co.source_machine) {
+      if (!entry.machine_mappings.empty()) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: file '%s' is a multi-machine trace; "
+            "name which machine the clock is on with clocks: machine.",
+            entry.path.c_str());
+      }
+      return entry.machine_id.value_or(0);
+    }
+    bool declared =
+        entry.machine_name && *entry.machine_name == *co.source_machine;
+    for (const auto& [embedded, name] : entry.machine_mappings) {
+      if (name == *co.source_machine) {
+        declared = true;
+        break;
+      }
+    }
+    if (!declared) {
+      return base::ErrStatus(
+          "perfetto_manifest: clocks: machine '%s' is not a machine declared "
+          "by file '%s'.",
+          co.source_machine->c_str(), entry.path.c_str());
+    }
+    return *name_to_id.Find(*co.source_machine);
+  };
+
+  // Resolve every override's reference machine and (for a RELATE override with
+  // a named reference clock) add its cross-machine edge to the global clock
+  // graph now, before any file is parsed (a file may reference another parsed
+  // later), recording it in the clock_snapshot table as ClockTracker would. A
+  // pinned (clockless) source, and a reference whose clock is omitted
+  // (single-clock), are deferred to ForwardingTraceParser, which has the
+  // file/trace ids the edge needs; |ref_machine_row| is stashed here so it need
+  // not re-resolve. At a common instant the source reads T when the reference
+  // reads T + offset_ns.
   ClockId trace_time = context_->trace_time_state->clock_id;
-  for (const FileEntry& entry : state->files) {
-    if (!entry.clock_override || !entry.clock_override->source_clock) {
+  for (FileEntry& entry : state->files) {
+    if (!entry.clock_override || !entry.clock_override->ref_file) {
       continue;
     }
-    const ClockOverride& co = *entry.clock_override;
-    ClockId source = ClockId::Machine(
-        EnsureMachineRow(context_, entry.machine_id.value_or(0)),
-        *co.source_clock);
-    ClockId ref = trace_time;
-    if (co.clock) {
-      ASSIGN_OR_RETURN(
-          int64_t ref_raw,
-          resolve_ref("clocks: is.file", "clocks: is.machine", co.ref_file,
-                      co.ref_machine, entry.machine_id.value_or(0)));
-      ref = ClockId::Machine(EnsureMachineRow(context_, ref_raw), *co.clock);
+    ClockOverride& co = *entry.clock_override;
+    ASSIGN_OR_RETURN(int64_t source_raw, resolve_source_machine(entry, co));
+    ASSIGN_OR_RETURN(
+        int64_t ref_raw,
+        resolve_ref("clocks: sync_to.file", "clocks: sync_to.machine",
+                    co.ref_file, co.ref_machine, source_raw));
+    co.ref_machine_row = EnsureMachineRow(context_, ref_raw);
+
+    if (!co.source_clock) {
+      continue;  // PIN (clockless source): deferred.
     }
-    std::vector<ClockTimestamp> clocks = {{source, co.file_ts_ns},
-                                          {ref, co.clock_ts_ns}};
+    if (!co.ref_clock) {
+      // RELATE with sync_to.clock omitted: deferred. The deferred path
+      // qualifies the source clock onto the file's base machine, so it cannot
+      // express a non-base source machine.
+      if (co.source_machine || !entry.machine_mappings.empty()) {
+        return base::ErrStatus(
+            "perfetto_manifest: clocks: name sync_to.clock when relating a "
+            "clock on a multi-machine source (file '%s').",
+            entry.path.c_str());
+      }
+      continue;
+    }
+    ClockId source = ClockId::Machine(EnsureMachineRow(context_, source_raw),
+                                      *co.source_clock);
+    ClockId ref = ClockId::Machine(*co.ref_machine_row, *co.ref_clock);
+    int64_t source_ts = co.offset_ns < 0 ? -co.offset_ns : 0;
+    int64_t ref_ts = co.offset_ns > 0 ? co.offset_ns : 0;
+    std::vector<ClockTimestamp> clocks = {{source, source_ts}, {ref, ref_ts}};
     ASSIGN_OR_RETURN(uint32_t id, context_->clock_sync->AddSnapshot(clocks));
     ClockTracker::AddSnapshotToTable(context_->storage.get(),
                                      context_->clock_sync.get(), trace_time, id,

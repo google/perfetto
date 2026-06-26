@@ -21,9 +21,18 @@ import type {
   TraceTimeConfig,
 } from './multi_trace_types';
 
+// "Manual" mode: relate this file's clock to a clock in another trace
+// (sync_to) at a fixed offset. The reference is the baseline trace (the
+// trace-time master, i.e. the first file); its clock is left unnamed so the
+// importer uses the baseline's sole clock.
+export interface ManifestClocks {
+  sync_to: {file: string; clock?: ClockName};
+  offset_ns?: number;
+}
+
 export interface ManifestFileEntry {
   path: string;
-  clocks?: {offset_ns: number};
+  clocks?: ManifestClocks;
 }
 
 export interface PerfettoManifest {
@@ -39,11 +48,29 @@ export interface MergeFile {
 
 const MANIFEST_FILENAME = 'perfetto_manifest.json';
 
-function fileClocks(config: FileMergeConfig): {offset_ns: number} | undefined {
+// A non-baseline file with a fixed-offset config syncs to the baseline trace's
+// clock at that offset. |baselinePath| is the baseline (first) file's path.
+function fileClocks(
+  config: FileMergeConfig,
+  baselinePath: string,
+): ManifestClocks | undefined {
   if (config.alignMode === 'offset' && config.offsetNs !== undefined) {
-    return {offset_ns: config.offsetNs};
+    return {sync_to: {file: baselinePath}, offset_ns: config.offsetNs};
   }
   return undefined;
+}
+
+// The clocks block for a file, or undefined. The baseline (first) trace is the
+// reference others sync to, so it never carries a sync_to of its own.
+function entryClocks(
+  files: ReadonlyArray<MergeFile>,
+  index: number,
+): ManifestClocks | undefined {
+  const baselinePath = files[0]?.path;
+  if (index === 0 || baselinePath === undefined) {
+    return undefined;
+  }
+  return fileClocks(files[index].config, baselinePath);
 }
 
 function buildManifest(
@@ -54,8 +81,8 @@ function buildManifest(
   if (traceTime.clock !== undefined) {
     manifest.trace_time = {clock: traceTime.clock};
   }
-  const entries = files.map(({path, config}) => {
-    const clocks = fileClocks(config);
+  const entries = files.map(({path}, i) => {
+    const clocks = entryClocks(files, i);
     return clocks === undefined ? {path} : {path, clocks};
   });
   // Bare {path} entries are no-ops; omit `files` when none carry config.
@@ -72,7 +99,7 @@ export function isTrivialManifest(
 ): boolean {
   return (
     traceTime.clock === undefined &&
-    !files.some((f) => fileClocks(f.config) !== undefined)
+    !files.some((_, i) => entryClocks(files, i) !== undefined)
   );
 }
 
