@@ -127,19 +127,6 @@ message InternedData {
   // duplication.
   repeated InternedV8Isolate v8_isolate = 35;
 
-  // Interned protolog strings args.
-  repeated InternedString protolog_string_args = 36;
-  // Interned protolog stacktraces.
-  repeated InternedString protolog_stacktrace = 37;
-
-  // viewcapture
-  repeated InternedString viewcapture_package_name = 38;
-  repeated InternedString viewcapture_window_name = 39;
-  repeated InternedString viewcapture_view_id = 40;
-  repeated InternedString viewcapture_class_name = 41;
-  repeated InternedString viewcapture_content_description = 45;
-  repeated InternedString viewcapture_text = 46;
-
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
 
@@ -157,9 +144,17 @@ message InternedData {
   //   30: NetworkPacketContext packet_context
   //
   // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto
+  //   36: InternedString protolog_string_args
+  //   37: InternedString protolog_stacktrace
+  //   38: InternedString viewcapture_package_name
+  //   39: InternedString viewcapture_window_name
+  //   40: InternedString viewcapture_view_id
+  //   41: InternedString viewcapture_class_name
   //   42: AppWakelockInfo app_wakelock_info
   //   44: AndroidJobName android_job_name
-  extensions 30, 42, 44;
+  //   45: InternedString viewcapture_content_description
+  //   46: InternedString viewcapture_text
+  extensions 30, 36, 37, 38, 39, 40, 41, 42, 44, 45, 46;
 
   // Extension range for domain-specific interned data. See
   // protos/perfetto/trace/extensions.json for the allocation registry.
