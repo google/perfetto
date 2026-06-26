@@ -627,7 +627,8 @@ async function getTraceInfo(
   const downloadable =
     (traceSource.type === 'ARRAY_BUFFER' && !traceSource.localOnly) ||
     traceSource.type === 'FILE' ||
-    traceSource.type === 'URL';
+    traceSource.type === 'URL' ||
+    traceSource.type === 'MULTIPLE_FILES';
 
   return {
     ...traceTime,
