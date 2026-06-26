@@ -17875,9 +17875,6 @@ message TracePacket {
   // protos/third_party/android/art/heap_graph.proto
   //   56: HeapGraph heap_graph
   //
-  // protos/third_party/android/frameworks/native/tracing/frame_timeline_event.proto
-  //   76: FrameTimelineEvent frame_timeline_event
-  //
   // protos/third_party/android/connectivity/network_trace.proto
   //   88: NetworkPacketEvent network_packet
   //   92: NetworkPacketBundle network_packet_bundle
