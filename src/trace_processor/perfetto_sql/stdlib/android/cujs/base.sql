@@ -269,7 +269,7 @@ WHERE
 --    per frame during the CUJ (`HAVING MAX(layers_per_frame) = 1`). If so, we safely
 --    use that layer's name (extracted via `MAX(layer_name)`). If multiple layers
 --    were rendered simultaneously, we can't safely guess, and return NULL.
-CREATE PERFETTO TABLE _android_jank_cuj_layer_name(
+CREATE PERFETTO TABLE android_jank_cuj_layer_name(
   -- CUJ id.
   cuj_id LONG,
   -- Layer name of the CUJ.

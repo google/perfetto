@@ -31,7 +31,7 @@ import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 
 const DAY_EXPLORER_TRACK_KIND = 'day_explorer_counter_track';
 
@@ -156,7 +156,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
         if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(FlamegraphPanel, {
@@ -228,7 +228,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Component',
     });
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,

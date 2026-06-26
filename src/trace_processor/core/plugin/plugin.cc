@@ -130,6 +130,8 @@ PluginBase::~PluginBase() = default;
 void PluginBase::RegisterImporters(TraceReaderRegistry&) {}
 void PluginBase::RegisterProtoImporterModules(ProtoImporterModuleContext*,
                                               TraceProcessorContext*) {}
+void PluginBase::RegisterTrackEventExtensions(TrackEventExtensionParserContext*,
+                                              TraceProcessorContext*) {}
 void PluginBase::RegisterDataframes(std::vector<PluginDataframe>&) {}
 void PluginBase::RegisterStaticTableFunctions(
     PerfettoSqlConnection*,

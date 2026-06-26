@@ -54,7 +54,7 @@ JOIN actual_timeline_with_vsync timeline
 LEFT JOIN expected_frame_timeline_slice expected
   ON expected.upid = timeline.upid AND expected.name = timeline.name
 LEFT JOIN _vsync_missed_callback missed_callback USING(vsync)
-LEFT JOIN _android_jank_cuj_layer_name cuj_layer USING (cuj_id)
+LEFT JOIN android_jank_cuj_layer_name cuj_layer USING (cuj_id)
 WHERE
   cuj_layer.layer_name IS NULL
   OR timeline.layer_name = cuj_layer.layer_name
@@ -113,7 +113,7 @@ WITH android_jank_cuj_timeline_sf_frame AS (
         boundary.upid = timeline.upid
         AND CAST(timeline.name AS INTEGER) >= vsync_min
         AND CAST(timeline.name AS INTEGER) <= vsync_max
-    LEFT JOIN _android_jank_cuj_layer_name cuj_layer USING (cuj_id)
+    LEFT JOIN android_jank_cuj_layer_name cuj_layer USING (cuj_id)
     WHERE
         cuj_layer.layer_name IS NULL
       OR timeline.layer_name = cuj_layer.layer_name

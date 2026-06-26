@@ -60,6 +60,8 @@ Other usecases Perfetto is commonly used for include:
 - **Collecting, analysing and visualizing in-app traces** to debug functional
   and performance issues in C/C++ and Rust apps and libraries on Windows,
   macOS and Linux-based embedded systems.
+- **Collecting, analysing and visualizing system traces on Linux** to debug
+  kernel issues via ftrace, scheduling latency or IPCs between processes.
 - **Collecting, analysing and visualizing heap profiles on Linux** to debug high
   memory usage of C/C++/Rust apps and libraries.
 - **Analysing and visualizing CPU profiles (Linux perf profiles) on Linux** to

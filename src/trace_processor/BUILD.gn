@@ -205,6 +205,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "perfetto_sql/generator",
       "perfetto_sql/stdlib",
       "plugins/ancestor",
+      "plugins/android_framework_track_event",
       "plugins/args",
       "plugins/art_heap_graph_functions",
       "plugins/art_process_metadata_importer",

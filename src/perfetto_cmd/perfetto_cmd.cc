@@ -888,7 +888,8 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     }
 
     PERFETTO_CHECK(snapshot_threads_.empty());  // No threads before Daemonize.
-    base::Daemonize([this]() -> int {
+    base::Daemonize([this](pid_t pid) -> int {
+      printf("%d\n", pid);
       background_wait_pipe_.wr.reset();
 
       if (background_wait_) {

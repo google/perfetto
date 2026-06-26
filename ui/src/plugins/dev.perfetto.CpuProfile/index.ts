@@ -28,7 +28,7 @@ import {
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
 
@@ -73,7 +73,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
       where not is_idle
     `);
 
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     const it = result.iter({
       utid: NUM,
       upid: NUM_NULL,
@@ -139,7 +139,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
         if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(FlamegraphPanel, {
@@ -208,7 +208,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Symbol',
     });
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
@@ -220,7 +220,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
 }
 
 async function selectCpuProfileCallsite(trace: Trace) {
-  const profile = await assertExists(trace.engine).query(`
+  const profile = await ensureExists(trace.engine).query(`
     select utid, upid
     from cpu_profile_stack_sample
     join thread using(utid)

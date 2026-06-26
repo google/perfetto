@@ -44,6 +44,10 @@ import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
 import {type ProfileDescriptor, ProfileType} from './common';
+import {
+  buildOomeCallstackMetrics,
+  loadOomeErrorMsg,
+} from './oome_callstack_common';
 
 interface Props {
   ts: time;
@@ -55,6 +59,7 @@ export class HeapProfileFlamegraphDetailsPanel
 {
   private readonly props: Props;
   private flamegraphModalDismissed = false;
+  private oomeErrorMsg?: string;
 
   // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
   // We moved serialization from being attached to selections to instead being
@@ -103,6 +108,11 @@ export class HeapProfileFlamegraphDetailsPanel
   }
 
   async load() {
+    if (this.props.type === ProfileType.OOME_CALLSTACK) {
+      this.oomeErrorMsg = await loadOomeErrorMsg(this.trace.engine, this.ts);
+      m.redraw();
+    }
+
     // If the state in the serialization is not undefined, we should read from
     // it.
     // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
@@ -125,7 +135,17 @@ export class HeapProfileFlamegraphDetailsPanel
         DetailsShell,
         {
           fillHeight: true,
-          title: m('span', this.profileDescriptor.label),
+          title: m(
+            Stack,
+            {orientation: 'vertical'},
+            m('span', this.profileDescriptor.label),
+            this.oomeErrorMsg &&
+              m(
+                'span',
+                {style: {fontSize: '12px', color: '#ff4081'}},
+                this.oomeErrorMsg,
+              ),
+          ),
           buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
             m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
             (type === ProfileType.NATIVE_HEAP_PROFILE ||
@@ -435,6 +455,8 @@ function flamegraphMetrics(
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
         },
       ];
+    case ProfileType.OOME_CALLSTACK:
+      return buildOomeCallstackMetrics(ts);
   }
 }
 
@@ -553,6 +575,10 @@ function getHeapGraphNodeOptionalActions(
   return [
     {
       name: 'Open in Heapdump Explorer',
+      icon: 'open_in_new',
+      category: 'DRILL',
+      description:
+        "Inspect this class's retained objects in the Heap Dump Explorer.",
       execute: async ({properties, node}) => {
         const pathHashes = properties.get('path_hash_stable');
         if (pathHashes === undefined) return;
@@ -575,6 +601,8 @@ function getHeapGraphRootOptionalActions(
   return [
     {
       name: 'Reference paths by class',
+      icon: 'account_tree',
+      description: 'Group duplicate reference paths by class in a table.',
       execute: async () => {
         const viewName = `_heap_graph${tableModifier(isDominator)}duplicate_objects`;
         const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes`;

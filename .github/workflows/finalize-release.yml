@@ -238,8 +238,8 @@ jobs:
             --title "Update ai-agents skills bundle ($VERSION)" \
             --body "$(cat <<EOF
           Automated agent-skills bundle for **$VERSION** (RFC-0026): this tag's
-          \`skills/\` plus the freshly rolled \`bin/trace_processor\`, the
-          per-agent manifests, and the \`agents-install\` fallback installer.
+          \`skills/\` plus the freshly rolled \`bin/trace_processor\` and the
+          per-agent manifests.
           The version pin \`refs/ai-agent-tag/$VERSION\` already points at this
           bundle commit (\`$BUNDLE_SHA\`). On merge, \`ai-agents\` advances and
           installed agents pick up the update through their normal channels.

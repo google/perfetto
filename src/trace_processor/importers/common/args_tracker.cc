@@ -67,19 +67,22 @@ void WriteArgSetId(dataframe::Dataframe* df,
 ArgsInserter::ArgsInserter(GlobalArgsTracker* global,
                            dataframe::Dataframe* df,
                            uint32_t col,
-                           uint32_t row)
+                           uint32_t row,
+                           uint32_t id)
     : global_(global),
       buffer_(global->AcquireArgsBuffer()),
       df_(df),
       col_(col),
-      row_(row) {}
+      row_(row),
+      id_(id) {}
 
 ArgsInserter::ArgsInserter(ArgsInserter&& other) noexcept
     : global_(other.global_),
       buffer_(other.buffer_),
       df_(other.df_),
       col_(other.col_),
-      row_(other.row_) {
+      row_(other.row_),
+      id_(other.id_) {
   other.global_ = nullptr;
   other.buffer_ = nullptr;
 }

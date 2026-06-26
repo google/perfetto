@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {uuidv4Sql} from '../base/uuid';
 import type {Engine} from '../trace_processor/engine';
 import {
@@ -228,7 +228,7 @@ export class QueryFlamegraph implements AsyncDisposable {
     metrics: ReadonlyArray<QueryFlamegraphMetric>,
     state: FlamegraphState,
   ) {
-    const metric = assertExists(
+    const metric = ensureExists(
       metrics.find((x) => state.selectedMetricName === x.name),
     );
     const engine = this.trace.engine;
@@ -292,10 +292,7 @@ async function computeFlamegraphTree(
 
   const matchingColumns = ['name', ...unaggCols];
   const matchExpr = (x: string) =>
-    matchingColumns.map(
-      (c) =>
-        `(IFNULL(${c}, '') like ${sqliteString(makeSqlFilter(x))} escape '\\')`,
-    );
+    matchingColumns.map((c) => `(IFNULL(${c}, '') REGEXP ${sqliteString(x)})`);
 
   const showStackFilter =
     showStackAndPivot.length === 0
@@ -592,22 +589,6 @@ async function computeFlamegraphTree(
     nodeActions,
     rootActions,
   };
-}
-
-function makeSqlFilter(x: string) {
-  const hasStart = x.startsWith('^');
-  const hasEnd = x.endsWith('$');
-  const pattern = x.slice(hasStart ? 1 : 0, hasEnd ? -1 : undefined);
-
-  if (hasStart && hasEnd) {
-    return pattern; // Exact match
-  } else if (hasStart) {
-    return `${pattern}%`; // Starts with
-  } else if (hasEnd) {
-    return `%${pattern}`; // Ends with
-  } else {
-    return `%${pattern}%`; // Contains
-  }
 }
 
 function getPivotFilter(

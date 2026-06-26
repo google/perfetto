@@ -40,7 +40,7 @@ export interface TraceFileAnalyzing extends TraceFileBase {
 // A trace file that has been successfully analyzed.
 export interface TraceFileAnalyzed extends TraceFileBase {
   status: 'analyzed';
-  format: string;
+  analysis: FileAnalysis;
 }
 
 // A trace file that failed to be analyzed.
@@ -58,3 +58,44 @@ export type TraceFile =
 
 // A union of all possible status strings.
 export type TraceStatus = TraceFile['status'];
+
+// =============================================================================
+// Merge configuration: how each file is placed on the shared timeline.
+// Serializes to a perfetto_manifest (see merge_manifest.ts).
+// =============================================================================
+
+export type ClockName = 'REALTIME' | 'BOOTTIME' | 'MONOTONIC';
+
+// Builtin clock id<->name, in display order. Single source of truth.
+export const BUILTIN_CLOCKS: ReadonlyArray<{id: number; name: ClockName}> = [
+  {id: 1, name: 'REALTIME'},
+  {id: 3, name: 'MONOTONIC'},
+  {id: 6, name: 'BOOTTIME'},
+];
+
+// Manual modes supply values the UI doesn't compute (offset only, for now).
+export type AlignMode = 'auto' | 'offset';
+
+// Defaults emit nothing beyond the path, so the importer auto-aligns.
+export interface FileMergeConfig {
+  alignMode: AlignMode;
+  offsetNs?: number;
+}
+
+export interface TraceTimeConfig {
+  clock?: ClockName; // undefined => omit trace_time
+}
+
+export function defaultFileMergeConfig(): FileMergeConfig {
+  return {alignMode: 'auto'};
+}
+
+// Populated by the tokenize-only dry-run; gates which controls each file shows.
+export interface FileAnalysis {
+  format: string;
+  singleClock?: boolean;
+  // No real clock, only a private trace-file clock (e.g. a Chrome JSON trace).
+  privateClockOnly?: boolean;
+  // The builtin clock ids present (a subset of BUILTIN_CLOCKS).
+  builtinClockIds?: ReadonlyArray<number>;
+}

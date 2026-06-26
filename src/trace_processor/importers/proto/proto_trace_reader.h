@@ -116,6 +116,10 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   using ConstBytes = protozero::ConstBytes;
   base::Status ParsePacket(TraceBlobView);
+  // Out-of-line cold path: forks the sub-reader for a remote machine.
+  base::Status CreateRemoteMachineReader(
+      uint32_t machine_id,
+      std::unique_ptr<ProtoTraceReader>* out);
   base::Status TimestampTokenizeAndPushToSorter(TraceBlobView);
   base::Status ParseServiceEvent(int64_t ts, ConstBytes);
   base::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);

@@ -334,6 +334,8 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
       }
       ASSIGN_OR_RETURN(socket_path, session::SessionSocketPath(session_name));
     } else {
+      // Anchor a relative --path before binding: daemonizing chdirs to "/".
+      socket_path = session::MakeAbsolutePath(socket_path);
       RETURN_IF_ERROR(session::ValidateAfUnixPathLength(socket_path));
       if (session_name.empty())
         session_name = socket_path;

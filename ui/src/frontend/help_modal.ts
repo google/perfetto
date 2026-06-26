@@ -14,7 +14,7 @@
 
 import './help_modal.scss';
 import m from 'mithril';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {AppImpl} from '../core/app_impl';
 import {HotkeyGlyphs, Keycap} from '../widgets/hotkey_glyphs';
 import {showModal} from '../widgets/modal';
@@ -169,7 +169,7 @@ class KeyMappingsHelp implements m.ClassComponent {
                 'td',
                 m(HotkeyGlyphs, {
                   spacing: 'large',
-                  hotkey: assertExists(defaultHotkey),
+                  hotkey: ensureExists(defaultHotkey),
                 }),
               ),
               m('td', name),

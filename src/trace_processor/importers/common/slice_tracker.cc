@@ -93,7 +93,9 @@ bool SliceTracker::PrepareStartSlice(TrackInfo& track_info,
   return MaybeCloseStack(track_info, timestamp, duration, overlap_out);
 }
 
-void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent, StringId name) {
+PERFETTO_NORETURN void SliceTracker::LogMaxDepthExceeded(
+    const SliceInfo& parent,
+    StringId name) {
   auto* slices = context_->storage->mutable_slice_table();
   auto parent_name = context_->storage->GetString(
       parent.row.ToRowReference(slices).name().value_or(kNullStringId));
@@ -101,7 +103,7 @@ void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent, StringId name) {
       context_->storage->GetString(name.is_null() ? kNullStringId : name);
   PERFETTO_DLOG("Last slice: %s", parent_name.c_str());
   PERFETTO_DLOG("Current slice: %s", current_name.c_str());
-  PERFETTO_DFATAL("Slices with too large depth found.");
+  PERFETTO_FATAL("Slices with too large depth found.");
 }
 
 SliceTracker::StartedSlice SliceTracker::StartSlice(
@@ -124,7 +126,6 @@ SliceTracker::StartedSlice SliceTracker::StartSlice(
   size_t depth = stack.size();
   if (PERFETTO_UNLIKELY(depth >= kMaxDepth)) {
     LogMaxDepthExceeded(stack.back(), name);
-    return {};
   }
 
   // Set depth/parent pre-insert so they ride the single table insert.

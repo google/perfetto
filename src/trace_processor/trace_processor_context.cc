@@ -93,7 +93,7 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context,
       });
 }
 
-void InitPerMachineState(TraceProcessorContext* context, uint32_t machine_id) {
+void InitPerMachineState(TraceProcessorContext* context, int64_t machine_id) {
   context->symbol_tracker = Ptr<SymbolTracker>::MakeRoot(context);
   context->machine_tracker = Ptr<MachineTracker>::MakeRoot(context, machine_id);
   context->process_tracker = Ptr<ProcessTracker>::MakeRoot(context);
@@ -147,6 +147,10 @@ Ptr<TraceSorter> CreateSorter(TraceProcessorContext* context,
     auto it = config.dev_flags.find("drop-after-sort");
     if (it != config.dev_flags.end() && it->second == "true") {
       event_handling = TraceSorter::EventHandling::kSortAndDrop;
+    }
+    auto tok = config.dev_flags.find("tokenize-only");
+    if (tok != config.dev_flags.end() && tok->second == "true") {
+      event_handling = TraceSorter::EventHandling::kDrop;
     }
   }
   return Ptr<TraceSorter>::MakeRoot(context, TraceSorter::SortingMode::kDefault,
@@ -232,7 +236,7 @@ TraceProcessorContext::~TraceProcessorContext() = default;
 
 TraceProcessorContext* TraceProcessorContext::ForkContextForTrace(
     TraceId trace_id,
-    uint32_t default_raw_machine_id) const {
+    int64_t default_raw_machine_id) const {
   auto [it, inserted] =
       forked_context_state->trace_and_machine_to_context.Insert(
           std::pair(trace_id.value, default_raw_machine_id), nullptr);
@@ -270,7 +274,7 @@ TraceProcessorContext* TraceProcessorContext::ForkContextForTrace(
 
 TraceProcessorContext*
 TraceProcessorContext::ForkContextForMachineInCurrentTrace(
-    uint32_t raw_machine_id) const {
+    int64_t raw_machine_id) const {
   PERFETTO_CHECK(trace_state);
   return ForkContextForTrace(trace_id(), raw_machine_id);
 }

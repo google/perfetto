@@ -144,8 +144,10 @@ std::optional<base::Status> MaybeParseAndroidJobName(
 
 }  // namespace
 
-TrackEventParser::TrackEventParser(TraceProcessorContext* context,
-                                   TrackEventTracker* track_event_tracker)
+TrackEventParser::TrackEventParser(
+    TrackEventExtensionParserContext* extension_parser_context,
+    TraceProcessorContext* context,
+    TrackEventTracker* track_event_tracker)
     : args_parser_(*context->descriptor_pool_,
                    *context->storage->mutable_string_pool()),
       context_(context),
@@ -243,6 +245,7 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       callsite_id_key_id_(context_->storage->InternString("callsite_id")),
       end_callsite_id_key_id_(
           context_->storage->InternString("end_callsite_id")),
+      extension_parser_context_(extension_parser_context),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
   // Opt into DebugAnnotation handling: ParseMessage routes DebugAnnotation

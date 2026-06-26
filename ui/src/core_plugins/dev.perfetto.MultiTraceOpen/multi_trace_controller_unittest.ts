@@ -13,14 +13,15 @@
 // limitations under the License.
 
 import type {Mock} from 'vitest';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {MultiTraceController} from './multi_trace_controller';
 import type {
+  FileAnalysis,
   TraceFileAnalyzed,
   TraceFileAnalyzing,
   TraceFileError,
 } from './multi_trace_types';
-import type {TraceAnalysisResult, TraceAnalyzer} from './trace_analyzer';
+import type {AlignmentVerdict, TraceAnalyzer} from './trace_analyzer';
 
 // Helper to create a mock TraceFileAnalyzed object for tests
 function createMockAnalyzedTrace(
@@ -31,7 +32,7 @@ function createMockAnalyzedTrace(
     uuid,
     file: new File([], `${uuid}.pftrace`),
     status: 'analyzed',
-    format,
+    analysis: {format},
   };
 }
 
@@ -60,10 +61,10 @@ function createMockErrorTrace(uuid: string, error: string): TraceFileError {
 
 // A fake TraceAnalyzer for testing purposes.
 class FakeTraceAnalyzer implements TraceAnalyzer {
-  private results = new Map<string, TraceAnalysisResult>();
+  private results = new Map<string, FileAnalysis>();
   private errors = new Map<string, Error>();
 
-  setResult(fileName: string, result: TraceAnalysisResult) {
+  setResult(fileName: string, result: FileAnalysis) {
     this.results.set(fileName, result);
   }
 
@@ -74,19 +75,25 @@ class FakeTraceAnalyzer implements TraceAnalyzer {
   async analyze(
     file: File,
     onProgress: (progress: number) => void,
-  ): Promise<TraceAnalysisResult> {
+  ): Promise<FileAnalysis> {
     // Simulate progress
     onProgress(0.5);
     onProgress(1.0);
 
     if (this.errors.has(file.name)) {
-      throw new Error(assertExists(this.errors.get(file.name)?.message));
+      throw new Error(ensureExists(this.errors.get(file.name)?.message));
     }
     const result = this.results.get(file.name);
     if (result) {
       return result;
     }
     throw new Error(`No mock result set for ${file.name}`);
+  }
+
+  async analyzeMergedAlignment(
+    _files: ReadonlyArray<File>,
+  ): Promise<AlignmentVerdict> {
+    return {ok: true, droppedEvents: 0};
   }
 }
 
@@ -263,7 +270,7 @@ describe('MultiTraceController', () => {
 
       expect(controller.traces[0].status).toBe('analyzed');
       if (controller.traces[0].status === 'analyzed') {
-        expect(controller.traces[0].format).toBe('Perfetto');
+        expect(controller.traces[0].analysis.format).toBe('Perfetto');
       }
     });
 

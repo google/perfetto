@@ -31,7 +31,7 @@ class BypassCache {
   static async isBypassed(): Promise<boolean> {
     try {
       return await caches.has(BYPASS_ID);
-    } catch (_) {
+    } catch {
       // TODO(288483453): Reinstate:
       // return ignoreCacheUnactionableErrors(e, false);
       return false;
@@ -45,7 +45,7 @@ class BypassCache {
       } else {
         await caches.delete(BYPASS_ID);
       }
-    } catch (_) {
+    } catch {
       // TODO(288483453): Reinstate:
       // ignoreCacheUnactionableErrors(e, undefined);
     }

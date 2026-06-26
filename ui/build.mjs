@@ -89,6 +89,7 @@ const cfg = {
   bigtrace: false,
   engineBench: false,
   startHttpServer: false,
+  useHmr: false,
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: undefined,
   onlyWasmMemory64: false,
@@ -233,6 +234,11 @@ Env-var overrides:
     action: 'store_true',
     help: 'Only type-check (tsc --noEmit), skip bundling',
   });
+  parser.add_argument('--bundle', {
+    action: 'store_true',
+    help: 'Serve the bundled frontend instead of the Vite HMR server ' +
+          '(fewer requests, better over a remote/SSH dev server)',
+  });
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
   });
@@ -317,6 +323,7 @@ Env-var overrides:
     cfg.crossOriginIsolation = true;
   }
   cfg.check = !!args.typecheck;
+  cfg.useHmr = cfg.watch && cfg.startHttpServer && !!!args.bundle;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
@@ -453,7 +460,7 @@ Env-var overrides:
   if (cfg.watch) console.log('\nFirst build completed!');
 
   if (cfg.startHttpServer) {
-    if (cfg.watch) {
+    if (cfg.useHmr) {
       await startViteDevServer();
     } else {
       startServer();
@@ -799,9 +806,8 @@ function runVite() {
     MINIFY_JS: cfg.minifyJs || '',
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
   };
-  const useDevServer = cfg.watch && cfg.startHttpServer;
   const bundles = ['engine', 'traceconv', 'service_worker', 'chrome_extension'];
-  if (!useDevServer) bundles.unshift('frontend');
+  if (!cfg.useHmr) bundles.unshift('frontend');
   if (cfg.bigtrace) bundles.push('bigtrace');
   if (cfg.engineBench) bundles.push('engine_bench', 'engine_bench_worker');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
@@ -1160,9 +1166,8 @@ function isDistComplete() {
   // In watch+serve mode the frontend bundle and its CSS are served live by
   // the Vite dev server, never materialised on disk. Only require the
   // artifacts that genuinely have to exist before the user can load a trace.
-  const useDevServer = cfg.watch && cfg.startHttpServer;
   const requiredArtifacts = [
-    ...(useDevServer ? [] : ['frontend_bundle.js', 'frontend.css']),
+    ...(cfg.useHmr ? [] : ['frontend_bundle.js', 'frontend.css']),
     'engine_bundle.js',
     'traceconv_bundle.js',
     ...cfg.wasmModules.map((wasmMod) => `${wasmMod}.wasm`),

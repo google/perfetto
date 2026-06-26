@@ -243,7 +243,7 @@ void UnsetEnv(const std::string& key) {
 #endif
 }
 
-void Daemonize(std::function<int()> parent_cb) {
+void Daemonize(std::function<int(pid_t)> parent_cb) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
@@ -279,8 +279,7 @@ void Daemonize(std::function<int()> parent_cb) {
       pipe.wr.reset();
       char one = '\0';
       PERFETTO_CHECK(Read(*pipe.rd, &one, sizeof(one)) == 1 && one == '1');
-      printf("%d\n", pid);
-      int err = parent_cb();
+      int err = parent_cb(pid);
       exit(err);
     }
   }

@@ -1795,6 +1795,36 @@ class Parsing(TestSuite):
         5230425693562,0,49,1
         """))
 
+  # remote_clock_sync offsets are recorded as synthetic cross-machine clock
+  # snapshots. These used to be anchored at a literal host value of 0, so the
+  # materialised rows for absolute clocks (REALTIME, REALTIME_COARSE) converted
+  # the 1970 epoch into a wildly negative trace time. Anchoring at a real host
+  # reading keeps every remote clock snapshot at a sane, positive timestamp.
+  #
+  # The output aggregates over all machines deliberately: machine_id is an
+  # unstable surrogate id, so filtering or grouping by it would make the test
+  # flaky. Asserting the min/max trace time per clock is enough to catch the
+  # regression (a negative min_ts would mean the epoch leaked back in).
+  def test_remote_clock_sync_snapshot_timestamps(self):
+    return DiffTestBlueprint(
+        trace=DataPath('multi_machine_trace.pb'),
+        query="""
+        SELECT clock_name, MIN(ts) AS min_ts, MAX(ts) AS max_ts
+        FROM clock_snapshot
+        WHERE clock_name IS NOT NULL
+        GROUP BY clock_name
+        ORDER BY clock_name
+        """,
+        out=Csv("""
+        "clock_name","min_ts","max_ts"
+        "BOOTTIME",5218684183615,5232377520710
+        "MONOTONIC",5218684183776,5232377520710
+        "MONOTONIC_COARSE",5218684036772,5232377520710
+        "MONOTONIC_RAW",5218684183843,5232377520710
+        "REALTIME",5218684183748,5232377520710
+        "REALTIME_COARSE",5218684036772,5232377520710
+        """))
+
   # Kernel idle tasks created by /sbin/init should be filtered.
   def test_task_newtask_swapper_by_init(self):
     return DiffTestBlueprint(

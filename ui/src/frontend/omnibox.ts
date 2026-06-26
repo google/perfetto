@@ -20,7 +20,7 @@ import {
   type FuzzySegment,
   computeHighlightSegments,
 } from '../base/fuzzy';
-import {assertExists, assertUnreachable} from '../base/assert';
+import {ensureExists, assertUnreachable} from '../base/assert';
 import {isString} from '../base/object_utils';
 import {exists} from '../base/utils';
 import {AppImpl} from '../core/app_impl';
@@ -83,7 +83,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
 
   private renderPromptOmnibox(): m.Children {
     const omnibox = AppImpl.instance.omnibox;
-    const prompt = assertExists(omnibox.pendingPrompt);
+    const prompt = ensureExists(omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
 
@@ -221,7 +221,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
 
   private renderRegisteredMode(): m.Children {
     const omnibox = AppImpl.instance.omnibox;
-    const desc = assertExists(omnibox.activeRegisteredMode);
+    const desc = ensureExists(omnibox.activeRegisteredMode);
     return m(OmniboxWidget, {
       value: omnibox.text,
       placeholder: desc.placeholder,

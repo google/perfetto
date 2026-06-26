@@ -18,3 +18,8 @@ perfetto_proto_library("frameworks_native_track_event_@TYPE@") {
   sources = [ "frameworks_native_track_event.proto" ]
   public_deps = [ "../../../../../perfetto/trace/track_event:@TYPE@" ]
 }
+
+perfetto_proto_library("frameworks_native_trace_packet_@TYPE@") {
+  sources = [ "frameworks_native_trace_packet.proto" ]
+  public_deps = [ "../../../../../perfetto/trace:non_minimal_@TYPE@" ]
+}
