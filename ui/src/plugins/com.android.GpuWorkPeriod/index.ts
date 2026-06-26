@@ -79,9 +79,12 @@ export default class implements PerfettoPlugin {
       packageName: STR,
     });
 
-    const gpuGroup = ctx.plugins
-      .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(ctx.defaultWorkspace, 'GPU');
+    let gpuGroup: TrackNode | undefined;
+    const getGpuGroup = () => {
+      return (gpuGroup ??= ctx.plugins
+        .getPlugin(StandardGroupsPlugin)
+        .getOrCreateStandardGroup(ctx.defaultWorkspace, 'GPU'));
+    };
 
     // Cache the work-period group(s) by name so each is created only once.
     const groupsByName = new Map<string, TrackNode>();
@@ -137,7 +140,7 @@ export default class implements PerfettoPlugin {
           sortOrder: SUMMARY_GROUP_SORT_BASE,
         });
         groupsByName.set(groupName, group);
-        gpuGroup.addChildInOrder(group);
+        getGpuGroup().addChildInOrder(group);
       }
       group.addChildInOrder(new TrackNode({name: packageName, uri}));
     }
