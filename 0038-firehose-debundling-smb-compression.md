@@ -8,9 +8,7 @@ The direction we've been converging on is a tracing protocol where the producer 
 **firehose**: it emits full, self-contained events (no interning, no columnar
 packing), and **all** the space optimization moves into *traced*, in batches, off the
 hot path. Background and the broader design live in
-[RFC-0014](https://github.com/google/perfetto/discussions/4508) (the big-picture
-redesign) and [RFC-0028](https://github.com/google/perfetto/discussions/6179)
-(routing and dedup).
+[RFC-0014](https://github.com/google/perfetto/discussions/4508) (the big-picture redesign) and [RFC-0028](https://github.com/google/perfetto/discussions/6179) (routing and dedup).
 
 This document doesn't re-open that design. It answers the one question underneath it
 that everything else rides on: **is the firehose actually affordable?**
@@ -52,7 +50,7 @@ under [`media/0038/scripts/`](media/0038/scripts).
 **The traces** (what each short name means):
 
 - **always-on, boot** (*aot_boot*): the always-on trace, started once system_server is
-  ready during boot. This is the stream we replay for the SMB test in #2 (it began ~26 s
+  ready during boot. This is the stream we replay for the SMB test in part 2 (it began ~26 s
   into the boot, roughly when system_server came up).
 - **always-on** (*aot*): the always-on background trace, triggered when something goes
   wrong on the device.
