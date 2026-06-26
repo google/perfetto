@@ -35,17 +35,17 @@ import {
 describe('EventSet', () => {
   test('Event', () => {
     {
-      const keyset: EmptyKeySet = {};
-      const event: Event<typeof keyset> = {
+      const _keyset: EmptyKeySet = {};
+      const event: Event<typeof _keyset> = {
         id: 'foo',
       };
       void event;
     }
     {
-      const keyset = {
+      const _keyset = {
         bar: Num,
       };
-      const event: Event<typeof keyset> = {
+      const event: Event<typeof _keyset> = {
         id: 'foo',
         bar: 42,
       };
