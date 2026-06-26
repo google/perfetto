@@ -425,18 +425,7 @@ at all, it gets *smaller*:
 The sparse trace records almost nothing but suspend/resume events, with *CompactSched*
 turned off, so there is nothing to re-expand. It even shrinks a little, because it flushes
 only ~1.6 events at a time and most of its file was the per-bundle wrapper around them;
-de-bundling drops that wrapper (~0.97 MB, which is the whole shrink). The load trace is
-the opposite: its 12.3 MB of scheduler data balloons to 53.3 MB once the thread names and
-timestamps are written out in full, and that jump is its entire de-bundling cost.
-
-(This is why the sparse trace shows two numbers across the doc, and they aren't a
-contradiction: it's the *same* de-bundled file (~16.7 MB) divided by two different "today"
-baselines. #1 strips all framing and compares event bytes only (15.8 → 16.0 MB = 1.01×);
-here we count the whole file, so "today" includes its bundle wrappers (17.7 → 16.7 MB =
-0.95×). The numerator barely moves; only the denominator changes by whether you count
-today's framing. It straddles 1.0 only for this trace because, at ~1.6 events per bundle,
-that framing is ~11% of the file; on every dense trace the framing is negligible and the
-two views agree. Either way, de-bundling the sparse trace is essentially free.)
+de-bundling drops that wrapper (~0.97 MB, which is the whole shrink).
 
 **Then zstd has to win that back, and that's about repetition.** Once it's compressed, the
 only thing that matters is how repetitive the atrace text is. The sparse trace is almost
