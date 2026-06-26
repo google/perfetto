@@ -407,14 +407,12 @@ class AddressRangeMap {
   // is, there is a point so for which `AddressRange::Contains` returns true for
   // both the entry and the given `range'
   template <typename Callback>
-  void ForOverlaps(AddressRange range, Callback cb) const {
+  void ForOverlaps(AddressRange range, Callback cb) {
     if (range.empty()) {
       return;
     }
-    for (auto it = ranges_.upper_bound(range.start()); it != ranges_.end();
-         ++it) {
-      if (it->first.start() >= range.end())
-        break;
+    for (auto it = ranges_.upper_bound(range.start());
+         it != ranges_.end() && range.end() > it->first.start(); ++it) {
       cb(*it);
     }
   }

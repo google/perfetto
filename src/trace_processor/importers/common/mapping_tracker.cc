@@ -93,6 +93,14 @@ UserMemoryMapping& MappingTracker::CreateUserMemoryMapping(
 
   user_memory_[upid].TrimOverlapsAndEmplace(mapping_range, mapping.get());
 
+  jit_caches_[upid].ForOverlaps(
+      mapping_range, [&](std::pair<const AddressRange, JitCache*>& entry) {
+        const auto& jit_range = entry.first;
+        JitCache* jit_cache = entry.second;
+        PERFETTO_CHECK(jit_range.Contains(mapping_range));
+        mapping->SetJitCache(jit_cache);
+      });
+
   return AddMapping(std::move(mapping));
 }
 
@@ -142,7 +150,7 @@ VirtualMemoryMapping& MappingTracker::InternMemoryMapping(
   }
 
   std::unique_ptr<VirtualMemoryMapping> mapping(
-      new VirtualMemoryMapping(context_, std::nullopt, params));
+      new VirtualMemoryMapping(context_, params));
   interned_mappings_.Insert(std::move(params), mapping.get());
   return AddMapping(std::move(mapping));
 }
@@ -152,26 +160,11 @@ void MappingTracker::AddJitRange(UniquePid upid,
                                  JitCache* jit_cache) {
   // TODO(carlscab): Deal with overlaps
   jit_caches_[upid].TrimOverlapsAndEmplace(jit_range, jit_cache);
-}
-
-JitCache* MappingTracker::FindJitCacheForAddress(UniquePid upid,
-                                                 uint64_t address) const {
-  if (auto* delegates = jit_caches_.Find(upid); delegates) {
-    if (auto it = delegates->Find(address); it != delegates->end()) {
-      return it->second;
-    }
-  }
-  return nullptr;
-}
-
-bool MappingTracker::HasJitResourcesOverlapping(UniquePid upid,
-                                                AddressRange range) const {
-  if (auto* delegates = jit_caches_.Find(upid); delegates) {
-    bool overlaps = false;
-    delegates->ForOverlaps(range, [&](const auto&) { overlaps = true; });
-    return overlaps;
-  }
-  return false;
+  user_memory_[upid].ForOverlaps(
+      jit_range, [&](std::pair<const AddressRange, UserMemoryMapping*>& entry) {
+        PERFETTO_CHECK(jit_range.Contains(entry.first));
+        entry.second->SetJitCache(jit_cache);
+      });
 }
 
 DummyMemoryMapping& MappingTracker::CreateDummyMapping(std::string name) {

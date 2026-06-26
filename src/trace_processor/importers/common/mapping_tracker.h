@@ -96,9 +96,6 @@ class MappingTracker {
   // Jitted ranges will only be applied to UserMemoryMappings
   void AddJitRange(UniquePid upid, AddressRange range, JitCache* jit_cache);
 
-  JitCache* FindJitCacheForAddress(UniquePid upid, uint64_t address) const;
-  bool HasJitResourcesOverlapping(UniquePid upid, AddressRange range) const;
-
  private:
   template <typename MappingImpl>
   MappingImpl& AddMapping(std::unique_ptr<MappingImpl> mapping);
