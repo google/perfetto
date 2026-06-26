@@ -69,23 +69,6 @@ struct TraceManifestState {
     std::optional<std::string> ref_machine;
     std::optional<uint32_t> ref_clock;
     int64_t offset_ns = 0;
-    // The machine-table row the reference (|ref_file|/|ref_machine|) resolves
-    // to, filled in by the reader (which alone holds the name->row map) so
-    // ForwardingTraceParser can build the reference clock without re-resolving.
-    std::optional<uint32_t> ref_machine_row;
-  };
-
-  // A trace file's resolved default clock, recorded by ForwardingTraceParser
-  // once the file has finished tokenizing. Stored as the raw ClockId fields -
-  // already qualified to the file's machine-canonical node - to keep this
-  // widely-included header free of the clock headers. Lets a later file's
-  // `clocks` override target "the reference's sole clock" when sync_to.clock is
-  // omitted.
-  struct ResolvedClockId {
-    uint32_t clock_id = 0;
-    uint32_t seq_id = 0;
-    uint32_t trace_file_id = 0;
-    uint32_t machine_id = 0;
   };
 
   struct FileEntry {
@@ -125,11 +108,6 @@ struct TraceManifestState {
   // real rows at parse time and ForkContextForTrace (via MachineTracker) reuses
   // the same row when the file is later forked.
   base::FlatHashMap<int64_t, uint32_t> raw_id_to_table_id;
-
-  // The resolved default clock of each file that has finished tokenizing, keyed
-  // by its manifest `path`. Populated by ForwardingTraceParser; read when a
-  // later file's `clocks` override omits sync_to.clock (see ResolvedClockId).
-  base::FlatHashMap<std::string, ResolvedClockId> file_default_clock;
 
   FileEntry* FindEntry(const std::string& path) {
     for (FileEntry& entry : files) {

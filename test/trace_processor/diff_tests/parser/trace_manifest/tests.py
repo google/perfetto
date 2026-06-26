@@ -1771,10 +1771,10 @@ class TraceManifest(TestSuite):
         "phone_slice",1100000000,"phone"
         '''))
 
-  # sync_to.clock may be omitted when the reference is single-clock: the
-  # reference's resolved default clock (here phone.pb's BOOTTIME) is used. Same
-  # result as naming BOOTTIME explicitly.
-  def test_sync_to_clock_omitted_single_clock_ref(self):
+  # sync_to.clock may be omitted to relate to the reference's own private
+  # (clockless) timeline: b.json's events sit on a.json's timeline + 500. a.json,
+  # the first file, owns trace time, so its slice keeps its identity ts.
+  def test_sync_to_clock_omitted_clockless_ref(self):
     return DiffTestBlueprint(
         trace=Zip({
             'meta.json':
@@ -1783,35 +1783,33 @@ class TraceManifest(TestSuite):
                         1,
                     'files': [
                         {
-                            'path': 'phone.pb',
-                            'machine': {
-                                'name': 'phone'
-                            }
+                            'path': 'a.json'
                         },
                         {
-                            'path': 'app.json',
-                            'machine': {
-                                'name': 'server'
-                            },
+                            'path': 'b.json',
                             'clocks': {
                                 'offset_ns': 500,
                                 'sync_to': {
-                                    'file': 'phone.pb'
+                                    'file': 'a.json'
                                 }
                             }
                         },
                     ],
                 }),
-            'phone.pb':
-                _proto_boot_snap('phone_slice', 1, 111, 1000000000, 1100000000),
-            'app.json':
-                _json_trace('json_slice'),
+            'a.json':
+                _json_trace('a_slice', pid=10),
+            'b.json':
+                _json_trace('b_slice', pid=11),
         }),
-        query=_ALIGN_QUERY,
+        query='''
+          SELECT name, ts FROM slice
+          WHERE name IN ('a_slice', 'b_slice')
+          ORDER BY name;
+        ''',
         out=Csv('''
-        "name","ts","machine"
-        "json_slice",2000500,"server"
-        "phone_slice",1100000000,"phone"
+        "name","ts"
+        "a_slice",2000000
+        "b_slice",2000500
         '''))
 
   # A multi-machine source names which of its declared machines owns the related

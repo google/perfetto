@@ -307,6 +307,15 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
       state->files.push_back(std::move(entry));
     }
   }
+  return ApplyManifest();
+}
+
+// Applies the parsed manifest to the clock graph and machine table: allocates
+// and names a machine row per declared machine, claims the global trace-time
+// clock, and injects every file's clock-override edge. Runs entirely at parse
+// time (before any other trace file), so forward references resolve.
+base::Status PerfettoManifestReader::ApplyManifest() {
+  auto* state = context_->trace_manifest_state.get();
 
   // Allocate one raw machine id per distinct name (the `machine` shorthand and
   // every `machines` entry share the namespace, so the same name is one
@@ -447,46 +456,62 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
     return *name_to_id.Find(*co.source_machine);
   };
 
-  // Resolve every override's reference machine and (for a RELATE override with
-  // a named reference clock) add its cross-machine edge to the global clock
-  // graph now, before any file is parsed (a file may reference another parsed
-  // later), recording it in the clock_snapshot table as ClockTracker would. A
-  // pinned (clockless) source, and a reference whose clock is omitted
-  // (single-clock), are deferred to ForwardingTraceParser, which has the
-  // file/trace ids the edge needs; |ref_machine_row| is stashed here so it need
-  // not re-resolve. At a common instant the source reads T when the reference
-  // reads T + offset_ns.
+  // Resolves a declared file's trace_file_table id by path; a TraceFile-clock
+  // edge endpoint needs it. All archive members are added to the table before
+  // any is parsed, so the ids exist by the time this (the first file's) reader
+  // runs.
+  auto find_trace_file_id =
+      [&](const std::string& path) -> base::StatusOr<uint32_t> {
+    StringId name = context_->storage->InternString(base::StringView(path));
+    for (auto it = context_->storage->trace_file_table().IterateRows(); it;
+         ++it) {
+      if (it.name() && *it.name() == name) {
+        return it.id().value;
+      }
+    }
+    return base::ErrStatus(
+        "perfetto_manifest: clocks: could not resolve file '%s'. It must match "
+        "the `path` of an entry in the `files` array.",
+        path.c_str());
+  };
+
+  // Add every override's cross-machine edge to the global clock graph now,
+  // before any file is parsed (a file may reference another parsed later),
+  // recording it in the clock_snapshot table as ClockTracker would. The source
+  // is a named builtin (RELATE) or this file's own private TraceFile clock (a
+  // pinned/clockless source); the reference is a named builtin or - an omitted
+  // clock - the reference's private TraceFile clock. At a common instant the
+  // source reads T when the reference reads T + offset_ns.
   ClockId trace_time = context_->trace_time_state->clock_id;
-  for (FileEntry& entry : state->files) {
+  for (const FileEntry& entry : state->files) {
     if (!entry.clock_override || !entry.clock_override->ref_file) {
       continue;
     }
-    ClockOverride& co = *entry.clock_override;
+    const ClockOverride& co = *entry.clock_override;
     ASSIGN_OR_RETURN(int64_t source_raw, resolve_source_machine(entry, co));
     ASSIGN_OR_RETURN(
         int64_t ref_raw,
         resolve_ref("clocks: sync_to.file", "clocks: sync_to.machine",
                     co.ref_file, co.ref_machine, source_raw));
-    co.ref_machine_row = EnsureMachineRow(context_, ref_raw);
+    uint32_t source_row = EnsureMachineRow(context_, source_raw);
+    uint32_t ref_row = EnsureMachineRow(context_, ref_raw);
 
-    if (!co.source_clock) {
-      continue;  // PIN (clockless source): deferred.
+    ClockId source;
+    if (co.source_clock) {
+      source = ClockId::Machine(source_row, *co.source_clock);
+    } else {
+      ASSIGN_OR_RETURN(uint32_t tid, find_trace_file_id(entry.path));
+      source = ClockId::TraceFile(tid);
+      source.machine_id = source_row;
     }
-    if (!co.ref_clock) {
-      // RELATE with sync_to.clock omitted: deferred. The deferred path
-      // qualifies the source clock onto the file's base machine, so it cannot
-      // express a non-base source machine.
-      if (co.source_machine || !entry.machine_mappings.empty()) {
-        return base::ErrStatus(
-            "perfetto_manifest: clocks: name sync_to.clock when relating a "
-            "clock on a multi-machine source (file '%s').",
-            entry.path.c_str());
-      }
-      continue;
+    ClockId ref;
+    if (co.ref_clock) {
+      ref = ClockId::Machine(ref_row, *co.ref_clock);
+    } else {
+      ASSIGN_OR_RETURN(uint32_t tid, find_trace_file_id(*co.ref_file));
+      ref = ClockId::TraceFile(tid);
+      ref.machine_id = ref_row;
     }
-    ClockId source = ClockId::Machine(EnsureMachineRow(context_, source_raw),
-                                      *co.source_clock);
-    ClockId ref = ClockId::Machine(*co.ref_machine_row, *co.ref_clock);
     int64_t source_ts = co.offset_ns < 0 ? -co.offset_ns : 0;
     int64_t ref_ts = co.offset_ns > 0 ? co.offset_ns : 0;
     std::vector<ClockTimestamp> clocks = {{source, source_ts}, {ref, ref_ts}};

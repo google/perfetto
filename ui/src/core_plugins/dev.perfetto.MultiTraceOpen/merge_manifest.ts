@@ -44,33 +44,34 @@ export interface PerfettoManifest {
 export interface MergeFile {
   readonly path: string;
   readonly config: FileMergeConfig;
+  // This file's single real clock, if it has exactly one; undefined for a
+  // clockless trace. Names the reference clock when this file is the baseline.
+  readonly clock?: ClockName;
 }
 
 const MANIFEST_FILENAME = 'perfetto_manifest.json';
 
-// A non-baseline file with a fixed-offset config syncs to the baseline trace's
-// clock at that offset. |baselinePath| is the baseline (first) file's path.
-function fileClocks(
-  config: FileMergeConfig,
-  baselinePath: string,
-): ManifestClocks | undefined {
-  if (config.alignMode === 'offset' && config.offsetNs !== undefined) {
-    return {sync_to: {file: baselinePath}, offset_ns: config.offsetNs};
-  }
-  return undefined;
-}
-
 // The clocks block for a file, or undefined. The baseline (first) trace is the
-// reference others sync to, so it never carries a sync_to of its own.
+// reference others sync to, so it never carries a sync_to of its own; a
+// non-baseline file with a fixed offset syncs to the baseline's clock (named
+// when the baseline has one, else its private timeline) at that offset.
 function entryClocks(
   files: ReadonlyArray<MergeFile>,
   index: number,
 ): ManifestClocks | undefined {
-  const baselinePath = files[0]?.path;
-  if (index === 0 || baselinePath === undefined) {
+  const baseline = files[0];
+  if (index === 0 || baseline === undefined) {
     return undefined;
   }
-  return fileClocks(files[index].config, baselinePath);
+  const {alignMode, offsetNs} = files[index].config;
+  if (alignMode !== 'offset' || offsetNs === undefined) {
+    return undefined;
+  }
+  const syncTo =
+    baseline.clock === undefined
+      ? {file: baseline.path}
+      : {file: baseline.path, clock: baseline.clock};
+  return {sync_to: syncTo, offset_ns: offsetNs};
 }
 
 function buildManifest(

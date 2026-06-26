@@ -203,10 +203,9 @@ void ClockTracker::SetTraceDefaultClock(ClockId clock_id) {
 void ClockTracker::AddDeferredClockSync(ClockId from,
                                         int64_t from_ts,
                                         std::optional<ClockId> to,
-                                        int64_t to_ts,
-                                        bool to_prequalified) {
+                                        int64_t to_ts) {
   PERFETTO_DCHECK(from_ts >= 0 && to_ts >= 0);
-  deferred_clock_sync_ = {from, from_ts, to, to_ts, to_prequalified};
+  deferred_clock_sync_ = {from, from_ts, to, to_ts};
 }
 
 void ClockTracker::FlushDeferredClockSync() {
@@ -235,13 +234,7 @@ void ClockTracker::FlushDeferredClockSync() {
   // trace time itself. Real edges (e.g. a proto spine) win, so inject only if
   // |from| cannot already reach |to|.
   ClockId from = ClockId::Qualify(sync.from, machine_id_, current_file_tag_);
-  // A prequalified |to| already names its (possibly other) machine, so keep it;
-  // otherwise it is a builtin relative to this file's own machine.
-  ClockId to =
-      sync.to ? ClockId::Qualify(
-                    *sync.to,
-                    sync.to_prequalified ? sync.to->machine_id : machine_id_, 0)
-              : g;
+  ClockId to = sync.to ? ClockId::Qualify(*sync.to, machine_id_, 0) : g;
   if (from != to && !sync_->Convert(from, sync.from_ts, to)) {
     AddSnapshotInternal({{from, sync.from_ts}, {to, sync.to_ts}});
   }

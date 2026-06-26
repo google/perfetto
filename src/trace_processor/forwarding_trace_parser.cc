@@ -253,75 +253,20 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   }
   auto& clock_tracker = trace_context_->clock_tracker;
 
-  // A perfetto_manifest clock override ("manual" mode) relates this file's
-  // clock to a clock in another trace at an offset. A RELATE override with a
-  // named reference clock already had its edge added to the global graph by the
-  // manifest reader, so only the format's normal setup (below) is needed. The
-  // other shapes are injected here as a deferred edge because they need the
-  // file's (and the reference's) clock/trace ids: a pinned/clockless source, or
-  // a reference whose clock is omitted (the reference's single clock, resolved
-  // from its recorded default clock).
-  const TraceManifestState::ClockOverride* co =
-      manifest_entry && manifest_entry->clock_override
-          ? &*manifest_entry->clock_override
-          : nullptr;
-  if (co && !(co->source_clock && co->ref_clock)) {
-    // The reference clock: a named builtin on the reference's machine, or -
-    // when omitted - the reference file's recorded (already machine-qualified)
-    // default clock.
-    ClockId target;
-    if (co->ref_clock) {
-      target = ClockId::Machine(*co->ref_machine_row, *co->ref_clock);
-    } else {
-      auto* state = input_context_->trace_manifest_state.get();
-      auto* rc = state->file_default_clock.Find(*co->ref_file);
-      if (!rc) {
-        return base::ErrStatus(
-            "perfetto_manifest: clocks: file '%s' relates to '%s', whose clock "
-            "is not known yet. Name it with sync_to.clock, or ensure '%s' is "
-            "processed before '%s'.",
-            manifest_entry->path.c_str(), co->ref_file->c_str(),
-            co->ref_file->c_str(), manifest_entry->path.c_str());
-      }
-      target.clock_id = rc->clock_id;
-      target.seq_id = rc->seq_id;
-      target.trace_file_id = rc->trace_file_id;
-      target.machine_id = rc->machine_id;
-    }
-    // The source clock: this file's private TraceFile clock when pinned
-    // (clockless), else the named builtin on its own machine.
-    ClockId from;
-    if (!co->source_clock) {
-      from = ClockId::TraceFile(trace_context_->trace_id().value);
-      clock_tracker->SetTraceDefaultClock(from);
-      trace_context_->trace_state->has_clock_override = true;
-      if (claim_global_clock) {
-        clock_tracker->SetGlobalClock(from);
-      }
-    } else {
-      from = ClockId::Machine(*co->source_clock);
-      // Proto manages its own default clock; every other format converts its
-      // events through the default clock.
-      if (trace_type_ != kProtoTraceType) {
-        clock_tracker->SetTraceDefaultClock(from);
-        if (claim_global_clock) {
-          clock_tracker->SetGlobalClock(from);
-        }
-      }
-    }
-    // At a common instant the source reads T when the reference reads
-    // T + offset_ns; keep both readings non-negative.
-    int64_t from_ts = co->offset_ns < 0 ? -co->offset_ns : 0;
-    int64_t to_ts = co->offset_ns > 0 ? co->offset_ns : 0;
-    clock_tracker->AddDeferredClockSync(from, from_ts, target, to_ts,
-                                        /*to_prequalified=*/true);
-    return base::OkStatus();
+  // A perfetto_manifest "manual" clock override relates this file's clock to a
+  // clock in another trace; the manifest reader has already added every such
+  // edge to the global graph. A pinned (clockless) source also has no real
+  // clock of its own, so flag it: the file is now single-clock / single-machine
+  // and any ClockSnapshot or remote machine id on it is rejected. It still
+  // converts through the default clock set up below, like any clockless format.
+  if (manifest_entry && manifest_entry->clock_override &&
+      !manifest_entry->clock_override->source_clock) {
+    trace_context_->trace_state->has_clock_override = true;
   }
 
-  // No override (or a static RELATE whose edge already exists): set up the
-  // format's best-effort source clock as before. Proto manages its own default
-  // clock (primary_trace_clock / ClockSnapshot) so it must not be set here;
-  // every other format converts its events through the default clock via
+  // Set up the format's source clock. Proto manages its own default clock
+  // (primary_trace_clock / ClockSnapshot) so it must not be set here; every
+  // other format converts its events through the default clock via
   // ClockTracker::ConvertDefaultClockToTraceTime.
   if (trace_clock) {
     if (trace_type_ != kProtoTraceType) {
@@ -361,26 +306,7 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
 
 base::Status ForwardingTraceParser::OnPushDataToSorter() {
   if (reader_) {
-    RETURN_IF_ERROR(reader_->OnPushDataToSorter());
-  }
-  // Record this file's resolved default clock so a later file's `clocks`
-  // override can target it when sync_to.clock is omitted. Only files named in
-  // the manifest's `files` array are referenceable, so this is a no-op without
-  // a manifest.
-  if (trace_context_ && trace_context_ != input_context_) {
-    if (TraceManifestState::FileEntry* entry = FindManifestEntry()) {
-      using ClockId = ClockTracker::ClockId;
-      auto& clock_tracker = trace_context_->clock_tracker;
-      // Proto and other self-clocked formats expose no default clock; fall back
-      // to BOOTTIME on this file's machine (a single-clock proto's clock).
-      ClockId dc =
-          clock_tracker->CanonicalDefaultClock().value_or(ClockId::Qualify(
-              ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
-              clock_tracker->machine_id(), 0));
-      input_context_->trace_manifest_state->file_default_clock.Insert(
-          entry->path,
-          {dc.clock_id, dc.seq_id, dc.trace_file_id, dc.machine_id});
-    }
+    return reader_->OnPushDataToSorter();
   }
   return base::OkStatus();
 }

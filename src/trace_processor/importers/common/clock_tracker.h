@@ -148,18 +148,6 @@ class ClockTracker {
   // Used as fallback when no timestamp_clock_id is specified.
   void SetTraceDefaultClock(ClockId clock_id);
 
-  // Returns this file's default clock qualified to its machine-canonical node
-  // (file_tag 0), the form usable as a cross-file edge target. nullopt if no
-  // default clock is set (e.g. proto, which manages its own).
-  std::optional<ClockId> CanonicalDefaultClock() const {
-    if (!trace_default_clock_)
-      return std::nullopt;
-    return ClockId::Qualify(*trace_default_clock_, machine_id_, 0);
-  }
-
-  // This tracker's machine-table row id.
-  uint32_t machine_id() const { return machine_id_; }
-
   // Registers a deferred clock edge, flushed on the first ToTraceTime call.
   // With all defaults this is the plain identity-to-trace-time edge every trace
   // file registers for its source clock: if |from| cannot already reach trace
@@ -167,16 +155,12 @@ class ClockTracker {
   // file's machine-canonical node so isolated files still resolve).
   // A perfetto_manifest clock pin passes a non-zero |from_ts|/|to_ts| offset
   // and/or an explicit |to| target (omitted means trace time); that edge is
-  // injected directly from this file's (qualified) |from| clock to |to|. By
-  // default |to| is a builtin relative to this file's own machine; pass
-  // |to_prequalified| when |to| is already qualified to another machine (a
-  // cross-file/cross-machine reference), so its machine is kept as-is.
+  // injected directly from this file's (qualified) |from| clock to |to|.
   // All timestamps must be non-negative.
   void AddDeferredClockSync(ClockId from,
                             int64_t from_ts = 0,
                             std::optional<ClockId> to = std::nullopt,
-                            int64_t to_ts = 0,
-                            bool to_prequalified = false);
+                            int64_t to_ts = 0);
 
   // Returns the trace default clock, if one has been set.
   std::optional<ClockId> trace_default_clock() const {
@@ -259,14 +243,12 @@ class ClockTracker {
 
   // Edge registered via AddDeferredClockSync, flushed (and cleared) on the
   // first ToTraceTime call. |to| == nullopt means the trace time clock,
-  // resolved at flush time. |to_prequalified| keeps |to|'s own machine instead
-  // of re-qualifying it onto this file's machine (a cross-machine reference).
+  // resolved at flush time.
   struct DeferredSync {
     ClockId from;
     int64_t from_ts;
     std::optional<ClockId> to;
     int64_t to_ts;
-    bool to_prequalified;
   };
   std::optional<DeferredSync> deferred_clock_sync_;
 };
