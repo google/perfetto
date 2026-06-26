@@ -22,6 +22,7 @@ import type {
   SqlFunction,
   SqlTableFunction,
   SqlMacro,
+  SqlArgument,
 } from './sql_modules';
 import type {TableColumn} from '../../components/widgets/sql/table/table_column';
 import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
@@ -29,13 +30,12 @@ import {
   parsePerfettoSqlTypeFromString,
   type PerfettoSqlType,
 } from '../../trace_processor/perfetto_sql_type';
-import {unwrapResult} from '../../base/result';
 
 // SqlModules loaded from stdlib_docs.json, without a Trace object.
 
 class SimpleSqlColumn implements SqlColumn {
   readonly name: string;
-  readonly type: PerfettoSqlType;
+  readonly type?: PerfettoSqlType;
   readonly description: string;
 
   constructor(
@@ -45,13 +45,15 @@ class SimpleSqlColumn implements SqlColumn {
     tableName: string,
   ) {
     this.name = name;
-    this.type = unwrapResult(
-      parsePerfettoSqlTypeFromString({
-        type: typeStr,
-        table: tableName,
-        column: name,
-      }),
-    );
+    // One unrecognized type must not take down the whole schema load (which
+    // would silently disable autocomplete for every table) — drop the type info
+    // for that column instead.
+    const parsed = parsePerfettoSqlTypeFromString({
+      type: typeStr,
+      table: tableName,
+      column: name,
+    });
+    this.type = parsed.ok ? parsed.value : undefined;
     this.description = description;
   }
 }
@@ -93,13 +95,20 @@ class SimpleSqlModule implements SqlModule {
   readonly tableFunctions: SqlTableFunction[];
   readonly macros: SqlMacro[];
 
-  constructor(includeKey: string, tags: string[], tables: SqlTable[]) {
+  constructor(
+    includeKey: string,
+    tags: string[],
+    tables: SqlTable[],
+    functions: SqlFunction[],
+    tableFunctions: SqlTableFunction[],
+    macros: SqlMacro[],
+  ) {
     this.includeKey = includeKey;
     this.tags = tags;
     this.tables = tables;
-    this.functions = [];
-    this.tableFunctions = [];
-    this.macros = [];
+    this.functions = functions;
+    this.tableFunctions = tableFunctions;
+    this.macros = macros;
   }
 
   getTable(tableName: string): SqlTable | undefined {
@@ -135,14 +144,57 @@ interface StdlibDataObject {
   importance?: 'core' | 'high' | 'mid' | 'low';
 }
 
+interface StdlibArg {
+  name: string;
+  type: string;
+  desc: string;
+}
+
+interface StdlibFunction {
+  name: string;
+  desc: string;
+  visibility?: string;
+  args: StdlibArg[];
+  return_type: string;
+  return_desc: string;
+}
+
+interface StdlibTableFunction {
+  name: string;
+  desc: string;
+  visibility?: string;
+  args: StdlibArg[];
+  cols: StdlibColumn[];
+}
+
+interface StdlibMacro {
+  name: string;
+  desc: string;
+  visibility?: string;
+  args: StdlibArg[];
+  return_type: string;
+}
+
 interface StdlibModule {
   module_name: string;
   tags?: string[];
   data_objects: StdlibDataObject[];
+  functions?: StdlibFunction[];
+  table_functions?: StdlibTableFunction[];
+  macros?: StdlibMacro[];
 }
 
 interface StdlibPackage {
   modules: StdlibModule[];
+}
+
+function mapArgs(args: StdlibArg[]): SqlArgument[] {
+  return args.map((a) => ({name: a.name, description: a.desc, type: a.type}));
+}
+
+// Private/internal callables aren't meant to be used directly.
+function isPublic(visibility?: string): boolean {
+  return visibility === undefined || visibility === 'public';
 }
 
 class SimpleSqlModules implements SqlModules {
@@ -170,15 +222,58 @@ class SimpleSqlModules implements SqlModules {
             obj.importance ?? undefined,
           );
         });
+        const functions: SqlFunction[] = (mod.functions ?? [])
+          .filter((f) => isPublic(f.visibility))
+          .map((f) => ({
+            name: f.name,
+            description: f.desc,
+            args: mapArgs(f.args),
+            returnType: f.return_type,
+            returnDesc: f.return_desc,
+          }));
+        const tableFunctions: SqlTableFunction[] = (mod.table_functions ?? [])
+          .filter((f) => isPublic(f.visibility))
+          .map((f) => ({
+            name: f.name,
+            description: f.desc,
+            args: mapArgs(f.args),
+            returnCols: f.cols.map(
+              (col) =>
+                new SimpleSqlColumn(col.name, col.type, col.desc, f.name),
+            ),
+          }));
+        const macros: SqlMacro[] = (mod.macros ?? [])
+          .filter((mac) => isPublic(mac.visibility))
+          .map((mac) => ({
+            name: mac.name,
+            description: mac.desc,
+            args: mapArgs(mac.args),
+            returnType: mac.return_type,
+          }));
         this.modules.push(
-          new SimpleSqlModule(includeKey, mod.tags ?? [], tables),
+          new SimpleSqlModule(
+            includeKey,
+            mod.tags ?? [],
+            tables,
+            functions,
+            tableFunctions,
+            macros,
+          ),
         );
       }
     }
   }
 
+  // `modules` is immutable after construction, so flatten each list once and
+  // reuse it — completion calls these on every keystroke.
+  private _tables?: SqlTable[];
+  private _tableNames?: string[];
+  private _functions?: SqlFunction[];
+  private _tableFunctions?: SqlTableFunction[];
+  private _macros?: SqlMacro[];
+
   listTables(): SqlTable[] {
-    return this.modules.flatMap((mod) => mod.tables);
+    return (this._tables ??= this.modules.flatMap((mod) => mod.tables));
   }
 
   listModules(): SqlModule[] {
@@ -186,7 +281,21 @@ class SimpleSqlModules implements SqlModules {
   }
 
   listTablesNames(): string[] {
-    return this.listTables().map((t) => t.name);
+    return (this._tableNames ??= this.listTables().map((t) => t.name));
+  }
+
+  listFunctions(): SqlFunction[] {
+    return (this._functions ??= this.modules.flatMap((mod) => mod.functions));
+  }
+
+  listTableFunctions(): SqlTableFunction[] {
+    return (this._tableFunctions ??= this.modules.flatMap(
+      (mod) => mod.tableFunctions,
+    ));
+  }
+
+  listMacros(): SqlMacro[] {
+    return (this._macros ??= this.modules.flatMap((mod) => mod.macros));
   }
 
   getTable(tableName: string): SqlTable | undefined {

@@ -23,8 +23,15 @@ import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
-import {QueryPage, type QueryEditorTab} from './query_page';
+import {
+  QueryPage,
+  type EditorIntelligence,
+  type QueryEditorTab,
+} from './query_page';
 import {queryHistoryStorage} from '../../components/widgets/query_history';
+
+// Re-exported for the optional dev.perfetto.SqlEditorIntelligence plugin.
+export type {EditorIntelligence} from './query_page';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {shortUuid} from '../../base/uuid';
 import {debounce} from '../../base/rate_limiters';
@@ -95,6 +102,17 @@ export default class QueryPagePlugin implements PerfettoPlugin {
 
   constructor(private readonly trace: Trace) {}
 
+  // Editor intelligence (completion + diagnostics) contributed by another
+  // plugin (dev.perfetto.SqlEditorIntelligence). Undefined when that plugin
+  // isn't enabled, in which case the query editor is exactly as it was.
+  private editorIntelligence?: EditorIntelligence;
+
+  // Called by the SqlEditorIntelligence plugin on activation to wire its
+  // completion/diagnostics into the query editor.
+  setEditorIntelligence(intel: EditorIntelligence | undefined): void {
+    this.editorIntelligence = intel;
+  }
+
   addQueryResultsTab(
     config: {query: string; title: string},
     tag?: string,
@@ -132,6 +150,9 @@ export default class QueryPagePlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
+    // Captured so the nested function declarations + render closure can read the
+    // live `editorIntelligence` field (set later by the intelligence plugin).
+    const self = this;
     const persistenceSetting = QueryPagePlugin.queryTabPersistenceSetting;
 
     // Debounced save to avoid writing on every keypress
@@ -214,6 +235,12 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       tab.isLoading = true;
       tab.queryResult = await runQueryForQueryTable(text, trace.engine);
       tab.isLoading = false;
+
+      // Let editor intelligence (if enabled) learn any tables/views the query
+      // created. No-op when the SqlEditorIntelligence plugin isn't enabled.
+      if (!tab.queryResult.error) {
+        self.editorIntelligence?.recordExecutedSql?.(text);
+      }
 
       trace.tabs.showTab('dev.perfetto.QueryPage');
     }
@@ -337,6 +364,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
           onTabRename,
           onTabReorder,
           sidebarVisibleSetting: QueryPagePlugin.sidebarVisibleSetting,
+          editorIntelligence: self.editorIntelligence,
         }),
     });
 

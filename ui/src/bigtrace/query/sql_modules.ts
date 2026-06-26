@@ -21,6 +21,9 @@ export interface SqlModules {
   listTables(): SqlTable[];
   listModules(): SqlModule[];
   listTablesNames(): string[];
+  listFunctions(): SqlFunction[];
+  listTableFunctions(): SqlTableFunction[];
+  listMacros(): SqlMacro[];
   getTable(tableName: string): SqlTable | undefined;
   getModuleForTable(tableName: string): SqlModule | undefined;
   isModuleDisabled(moduleName: string): boolean;

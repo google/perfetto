@@ -57,8 +57,9 @@ function setupContentSecurityPolicy() {
   // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
   const policy = {
     'default-src': [`'self'`],
-    // wasm-unsafe-eval: the SQL formatter runs as WebAssembly; this allows
-    // Wasm compilation without enabling JS eval().
+    // 'wasm-unsafe-eval' lets the syntaqlite WASM parser (SQL completion)
+    // and the SQL formatter compile/instantiate WebAssembly.
+    // It is narrower than 'unsafe-eval' and doesn't permit arbitrary JS eval.
     'script-src': [`'self'`, `'wasm-unsafe-eval'`],
     'object-src': ['none'],
     'connect-src': [

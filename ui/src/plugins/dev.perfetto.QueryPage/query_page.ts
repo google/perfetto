@@ -24,7 +24,11 @@ import {Box} from '../../widgets/box';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
-import {Editor} from '../../widgets/editor';
+import {
+  Editor,
+  type EditorCompletionSource,
+  type EditorDiagnosticSource,
+} from '../../widgets/editor';
 import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {Spinner} from '../../widgets/spinner';
@@ -37,6 +41,17 @@ import {TableList} from './table_list';
 import {ResultsTable} from './results_table';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
+
+// Editor intelligence (schema-aware completion + diagnostics) contributed by the
+// optional dev.perfetto.SqlEditorIntelligence plugin via
+// QueryPagePlugin.setEditorIntelligence. When that plugin isn't enabled the
+// query editor receives none of this and behaves exactly as it did before.
+export interface EditorIntelligence {
+  readonly completions?: EditorCompletionSource;
+  readonly diagnostics?: EditorDiagnosticSource;
+  onDiagnosticsRefresh?(refresh: () => void): void;
+  recordExecutedSql?(sql: string): void;
+}
 
 // Represents a single query editor tab with its own state.
 export interface QueryEditorTab {
@@ -86,6 +101,10 @@ export interface QueryPageAttrs {
   onTabReorder?(draggedTabId: string, beforeTabId: string | undefined): void;
 
   readonly sidebarVisibleSetting: Setting<boolean>;
+
+  // Editor intelligence (completion + diagnostics) contributed by the optional
+  // SqlEditorIntelligence plugin. Undefined => plain editor.
+  readonly editorIntelligence?: EditorIntelligence;
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
@@ -208,6 +227,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   ): m.Children {
     const {trace} = attrs;
 
+    // Completion + diagnostics come from the optional SqlEditorIntelligence
+    // plugin; undefined (plugin disabled) => a plain editor.
+    const intel = attrs.editorIntelligence;
+
     const editorPanel = m('.pf-query-page__editor-panel', [
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
@@ -300,6 +323,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       m(Editor, {
         language: 'perfetto-sql',
         text: tab.editorText,
+        completions: intel?.completions,
+        diagnostics: intel?.diagnostics,
+        onDiagnosticsRefresh: intel?.onDiagnosticsRefresh,
         onUpdate: (content) => attrs.onEditorContentUpdate?.(tab.id, content),
         onExecute: (query) => attrs.onExecute?.(tab.id, query),
         onFormat: (text) => this.formatSql(attrs, tab.id, text),
