@@ -565,7 +565,10 @@ int PERFETTO_EXPORT_ENTRYPOINT RelayServiceMain(int argc, char** argv) {
   }
 
   if (background) {
-    base::Daemonize([] { return 0; });
+    base::Daemonize([](pid_t pid) {
+      printf("%d\n", pid);
+      return 0;
+    });
   }
 
   base::MaybeLockFreeTaskRunner task_runner;
