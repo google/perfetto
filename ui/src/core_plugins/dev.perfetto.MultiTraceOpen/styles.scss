@@ -50,8 +50,9 @@
 
   &__card {
     padding: 16px;
-    justify-content: space-between;
-    align-items: center;
+    align-items: stretch;
+    // Keep full size so the list scrolls instead of squishing cards.
+    flex-shrink: 0;
   }
 
   &__name {
@@ -114,10 +115,61 @@
     font-size: 0.9em;
     font-weight: bold;
     align-items: center;
+    flex-shrink: 0;
 
     &:hover {
       background: color_hover(var(--pf-color-background-secondary));
     }
+  }
+
+  &__reference-row {
+    align-items: center;
+    padding: 8px 0;
+    font-size: 0.9em;
+  }
+
+  &__panel-error {
+    margin: 8px 0;
+  }
+
+  &__help {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    color: var(--pf-color-text-secondary);
+    cursor: help;
+    font-size: 1.1em;
+  }
+
+  // pf-stack defaults to baseline, which drops the help icon low.
+  &__control-row {
+    align-items: center;
+  }
+
+  &__row-top {
+    align-items: flex-start;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  &__config {
+    align-items: center;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    margin-top: 8px;
+    border-top: 1px solid var(--pf-color-border);
+    font-size: 0.9em;
+    color: var(--pf-color-text-secondary);
+  }
+
+  &__note {
+    font-style: italic;
+    color: var(--pf-color-text-secondary);
+  }
+
+  &__align-panel {
+    align-items: flex-start;
+    padding: 12px 0 4px;
   }
 
   &__footer {
@@ -147,7 +199,9 @@
     margin-top: 16px;
   }
   padding: 16px;
-  overflow-y: hidden;
+  // Both axes: overflow-y:hidden alone computes overflow-x to auto, adding a
+  // spurious horizontal scrollbar when a dropdown mounts inside the modal.
+  overflow: hidden;
   max-width: none;
   max-height: none;
 }

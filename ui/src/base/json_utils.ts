@@ -46,7 +46,7 @@ export function parseJsonWithBigints(text: string): any {
       // so we try converting sources for all values to BigInt and fallback to the original value if it fails.
       try {
         return BigInt(context.source);
-      } catch (e) {
+      } catch {
         return value;
       }
     }

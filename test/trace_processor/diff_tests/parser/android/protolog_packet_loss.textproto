@@ -10,7 +10,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 3
   interned_data {
-    protolog_string_args {
+    [com.android.internal.FrameworksBaseInternedData.protolog_string_args] {
       iid: 1
       str: "MyTestString"
     }
@@ -21,7 +21,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 3
   interned_data {
-    protolog_string_args {
+    [com.android.internal.FrameworksBaseInternedData.protolog_string_args] {
       iid: 2
       str: "MyOtherTestString"
     }
@@ -77,7 +77,7 @@ packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 4
   interned_data {
-    protolog_string_args {
+    [com.android.internal.FrameworksBaseInternedData.protolog_string_args] {
       iid: 1
       str: "MyNextTestString"
     }

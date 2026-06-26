@@ -18,7 +18,7 @@ import '../base/static_initializers';
 import '../assets/typefaces.scss';
 import '../assets/common.scss';
 import z from 'zod';
-import {plugins, corePlugins} from '../virtual/plugins';
+import {plugins, corePlugins} from './plugins';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';

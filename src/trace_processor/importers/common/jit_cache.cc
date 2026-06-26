@@ -114,6 +114,9 @@ tables::JitCodeTable::Id JitCache::MoveCode(int64_t timestamp,
   auto* jit_code_table = context_->storage->mutable_jit_code_table();
 
   auto it = functions_.Find(from_code_start);
+  if (it == functions_.end()) {
+    return {};
+  }
   AddressRange old_code_range = it->first;
   JittedFunction func = std::move(it->second);
   functions_.erase(it);

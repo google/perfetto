@@ -47,7 +47,7 @@ async function runDataCheck(trace: Trace, sql: string): Promise<boolean> {
     return typeof hasDataValue === 'bigint'
       ? hasDataValue !== 0n
       : Number(hasDataValue) !== 0;
-  } catch (_e) {
+  } catch {
     // If query fails, assume no data
     return false;
   }

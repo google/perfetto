@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/jit_cache.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -85,9 +86,16 @@ FrameId VirtualMemoryMapping::InternFrame(
     base::StringView function_name,
     std::optional<base::StringView> source_file,
     std::optional<uint32_t> line_number) {
+  JitCache* jit_cache = nullptr;
+  if (is_jitted_) {
+    if (auto u = GetUpid()) {
+      jit_cache = context_->mapping_tracker->FindJitCacheForAddress(
+          *u, ToAddress(rel_pc));
+    }
+  }
   auto [frame_id, was_inserted] =
-      jit_cache_
-          ? jit_cache_->InternFrame(this, rel_pc, function_name)
+      jit_cache
+          ? jit_cache->InternFrame(this, rel_pc, function_name)
           : InternFrameImpl(rel_pc, function_name, source_file, line_number);
   if (was_inserted) {
     frames_by_rel_pc_[rel_pc].push_back(frame_id);

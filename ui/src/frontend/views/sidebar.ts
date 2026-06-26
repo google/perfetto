@@ -213,7 +213,7 @@ function getCurrentTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
     section: 'current_trace',
     sortOrder: 51,
     text: 'Download',
-    action: () => downloadTrace(trace),
+    action: async () => await downloadTrace(trace),
     icon: 'file_download',
     disabled: downloadDisabled,
   });
