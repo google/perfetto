@@ -71,7 +71,8 @@ base::Status RunParse(Subcommand* cmd,
   return ParseFlags(cmd, ctx, h.argc(), h.argv());
 }
 
-size_t CountOccurrences(const std::string& haystack, const std::string& needle) {
+size_t CountOccurrences(const std::string& haystack,
+                        const std::string& needle) {
   size_t count = 0;
   for (size_t pos = haystack.find(needle); pos != std::string::npos;
        pos = haystack.find(needle, pos + needle.size())) {
@@ -278,8 +279,8 @@ TEST(ConvertSubcommandTest, RejectsUnknownFormat) {
   base::TempFile output = base::TempFile::Create();
 
   ConvertSubcommand convert;
-  base::Status s = convert.Run(
-      CtxWithPositionals({"bogus", input.path(), output.path()}));
+  base::Status s =
+      convert.Run(CtxWithPositionals({"bogus", input.path(), output.path()}));
   EXPECT_FALSE(s.ok());
   EXPECT_THAT(s.message(), HasSubstr("unknown format"));
 }
@@ -290,10 +291,11 @@ TEST(ConvertSubcommandTest, RejectsFormatsMovedOrRemoved) {
   base::TempFile input = WriteTempFile("ignored");
   base::TempFile output = base::TempFile::Create();
 
-  for (const char* fmt : {"binary", "decompress_packets", "java_heap_profile"}) {
+  for (const char* fmt :
+       {"binary", "decompress_packets", "java_heap_profile"}) {
     ConvertSubcommand convert;
-    base::Status s = convert.Run(
-        CtxWithPositionals({fmt, input.path(), output.path()}));
+    base::Status s =
+        convert.Run(CtxWithPositionals({fmt, input.path(), output.path()}));
     EXPECT_FALSE(s.ok()) << fmt;
     EXPECT_THAT(s.message(), HasSubstr("unknown format")) << fmt;
   }
@@ -304,8 +306,9 @@ TEST(ConvertSubcommandTest, RejectsInvalidTruncate) {
   GlobalOptions global;
   SubcommandContext ctx;
   ctx.global = &global;
-  ASSERT_TRUE(RunParse(&convert, &ctx, {"prog", "--truncate", "sideways", "json"})
-                  .ok());
+  ASSERT_TRUE(
+      RunParse(&convert, &ctx, {"prog", "--truncate", "sideways", "json"})
+          .ok());
   base::Status s = convert.Run(ctx);
   EXPECT_FALSE(s.ok());
   EXPECT_THAT(s.message(), HasSubstr("truncate"));

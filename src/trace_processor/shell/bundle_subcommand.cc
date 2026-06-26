@@ -55,10 +55,11 @@ std::vector<FlagSpec> BundleSubcommand::GetFlags() {
       BoolFlag("no-auto-symbol-paths", '\0',
                "Disable automatic symbol path discovery.",
                &no_auto_symbol_paths_),
-      FlagSpec{"proguard-map", '\0', true, "[pkg=]PATH",
-               "ProGuard/R8 mapping.txt for deobfuscation (may be repeated). The "
-               "pkg= prefix scopes the map to a package.",
-               [this](const char* v) { proguard_maps_.emplace_back(v); }},
+      FlagSpec{
+          "proguard-map", '\0', true, "[pkg=]PATH",
+          "ProGuard/R8 mapping.txt for deobfuscation (may be repeated). The "
+          "pkg= prefix scopes the map to a package.",
+          [this](const char* v) { proguard_maps_.emplace_back(v); }},
       BoolFlag("no-auto-proguard-maps", '\0',
                "Disable automatic ProGuard/R8 mapping discovery.",
                &no_auto_proguard_maps_),

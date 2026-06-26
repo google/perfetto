@@ -21,9 +21,9 @@
 #include <optional>
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor::winscope {
 
