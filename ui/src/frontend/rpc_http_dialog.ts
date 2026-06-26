@@ -353,7 +353,7 @@ async function isVersionAvailable(
   let r;
   try {
     r = await fetch(url, {signal: controller.signal});
-  } catch (e) {
+  } catch {
     console.error(
       `No UI version for ${versionCode} at ${url}. ` +
         `This is an error if ${versionCode} is a released Perfetto version`,
