@@ -53,6 +53,12 @@ message ClickAction {
 
     // Right mouse click.
     RIGHT = 2;
+
+    // Automatically set by the server-side tool bridge when the model selects
+    // a standard LEFT click on a target that is occluded by an eligible panel.
+    // Only supported for target-by-ID clicks; coordinate-based clicks cannot
+    // be upgraded.
+    LEFT_ON_OCCLUDED_TARGET = 3;
   }
 
   // Represents the number of times the target was clicked, for now only
