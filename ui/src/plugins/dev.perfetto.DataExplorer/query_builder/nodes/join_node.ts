@@ -35,6 +35,14 @@ import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeTitle} from '../node_styling_widgets';
 import {JoinConditionSelector, JoinConditionDisplay} from '../join_widgets';
 import {ResizableSqlEditor} from '../widgets';
+import {RadioGroup} from '../../../../widgets/radio_group';
+import {Combobox} from '../../../../widgets/combobox';
+import {Stack} from '../../../../widgets/stack';
+import {Form, FormLabel} from '../../../../widgets/form';
+import {Checkbox} from '../../../../widgets/checkbox';
+import {TextInput} from '../../../../widgets/text_input';
+import {classNames} from '../../../../base/classnames';
+import {perfettoSqlTypeToString} from '../../../../trace_processor/perfetto_sql_type';
 
 // Serializable node configuration.
 export interface JoinNodeAttrs {
@@ -277,6 +285,93 @@ export class JoinNode implements QueryNode {
     };
   }
 
+  // Renders a compact grid listing the columns from both sources, with a
+  // checkbox to include each column, its type, and an alias input.
+  private renderColumnGrid(): m.Children {
+    const renderGroup = (
+      title: string,
+      src: string,
+      columns: ColumnInfo[],
+      joinColumn: string,
+    ): m.Children => [
+      m(
+        '.pf-join-grid__group',
+        m('span.pf-join-grid__group-name', title),
+        m('span.pf-join-grid__group-alias', src),
+      ),
+      ...columns.map((col) =>
+        m(
+          '.pf-join-grid__row',
+          {
+            className: classNames(col.checked && 'pf-join-grid__row--checked'),
+          },
+          m(
+            '.pf-join-grid__cell',
+            m(Checkbox, {
+              checked: col.checked,
+              onchange: (e: Event) => {
+                col.checked = (e.target as HTMLInputElement).checked;
+                this.context.onchange?.();
+              },
+            }),
+          ),
+          m('.pf-join-grid__cell.pf-join-grid__src', src),
+          m(
+            '.pf-join-grid__cell.pf-join-grid__col-name',
+            col.name,
+            col.name === joinColumn &&
+              m('span.pf-join-grid__key-badge', 'KEY'),
+          ),
+          m(
+            '.pf-join-grid__cell.pf-join-grid__type',
+            perfettoSqlTypeToString(col.type),
+          ),
+          m(
+            '.pf-join-grid__cell',
+            m(TextInput, {
+              value: col.alias ?? '',
+              placeholder: col.name,
+              oninput: (e: Event) => {
+                const value = (e.target as HTMLInputElement).value;
+                col.alias = value.trim() === '' ? undefined : value;
+                this.context.onchange?.();
+              },
+            }),
+          ),
+        ),
+      ),
+    ];
+
+    return m(
+      '.pf-join-grid',
+      m(
+        '.pf-join-grid__row.pf-join-grid__header',
+        m('.pf-join-grid__cell', 'INCL'),
+        m('.pf-join-grid__cell', 'SRC'),
+        m('.pf-join-grid__cell', 'COLUMN'),
+        m('.pf-join-grid__cell', 'TYPE'),
+        m('.pf-join-grid__cell', 'ALIAS'),
+      ),
+      renderGroup(
+        this.leftNode?.getTitle() ?? 'Left',
+        this.attrs.leftQueryAlias,
+        this.attrs.leftColumns ?? [],
+        this.attrs.leftColumn,
+      ),
+      renderGroup(
+        this.rightNode?.getTitle() ?? 'Right',
+        this.attrs.rightQueryAlias,
+        this.attrs.rightColumns ?? [],
+        this.attrs.rightColumn,
+      ),
+      m(
+        '.pf-join-grid__footer',
+        m('span', 'SQL PREVIEW'),
+        m('span.pf-join-grid__count', `${this.finalCols.length} cols`),
+      ),
+    );
+  }
+
   nodeSpecificModify(): NodeModifyAttrs {
     this.validate();
     const error = this.context.issues?.queryError;
@@ -290,6 +385,60 @@ export class JoinNode implements QueryNode {
         content: m(Callout, {icon: 'error'}, error.message),
       });
     }
+
+    return {
+      info: 'Test',
+      sections: [
+        {
+          title: 'Remove me',
+          content: [
+            m(
+              Form,
+              m(FormLabel, 'Join type'),
+              m(
+                RadioGroup,
+                {
+                  value: this.attrs.joinType,
+                  fillWidth: true,
+                },
+                m(RadioGroup.Button, {value: 'INNER'}, 'Inner'),
+                m(RadioGroup.Button, {value: 'LEFT'}, 'Left'),
+              ),
+              m(FormLabel, 'Join condition'),
+              m(
+                Stack,
+                {
+                  orientation: 'horizontal',
+                },
+                m(Combobox, {
+                  suggestions: this.attrs.leftColumns?.map((x) => x.name) ?? [],
+                  value: this.attrs.leftColumn,
+                  placeholder: 'Left column',
+                  onChange: (value) => {
+                    this.attrs.leftColumn = value;
+                    this.context.onchange?.();
+                  },
+                }),
+                m('span', '='),
+                m(Combobox, {
+                  suggestions:
+                    this.attrs.rightColumns?.map((x) => x.name) ?? [],
+                  value: this.attrs.rightColumn,
+                  placeholder: 'Right column',
+                  onChange: (value) => {
+                    this.attrs.rightColumn = value;
+                    this.context.onchange?.();
+                  },
+                }),
+              ),
+              m(FormLabel, 'Output columns'),
+              this.renderColumnGrid(),
+            ),
+          ],
+        },
+      ],
+      bottomRightButtons,
+    };
 
     // Join type section
     sections.push({

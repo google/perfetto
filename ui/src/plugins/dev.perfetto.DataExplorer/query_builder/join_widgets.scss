@@ -292,3 +292,124 @@
     gap: 16px;
   }
 }
+
+// Compact column-selection grid (INCL / SRC / COLUMN / TYPE / ALIAS)
+.pf-join-grid {
+  display: grid;
+  grid-template-columns: min-content min-content 1fr min-content minmax(120px, 1.4fr);
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: "Roboto Mono", monospace;
+  font-size: 13px;
+  align-items: stretch;
+
+  // Rows are subgrids: their cells participate in the parent grid so columns
+  // stay aligned across the table/group boundaries.
+  .pf-join-grid__row,
+  .pf-join-grid__header {
+    display: contents;
+  }
+
+  .pf-text-input {
+    margin: 0;
+  }
+
+  .pf-join-grid__cell {
+    padding: 4px;
+    border-bottom: 1px solid var(--pf-color-border);
+    color: var(--pf-color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  // Header row
+  .pf-join-grid__header .pf-join-grid__cell {
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--pf-color-text-muted);
+    background: var(--pf-color-background-secondary);
+  }
+
+  // Group header (table name + alias), spanning the full width
+  .pf-join-grid__group {
+    grid-column: 1 / -1;
+    padding: 6px 12px;
+    background: var(--pf-color-background-secondary);
+    border-bottom: 1px solid var(--pf-color-border);
+    font-weight: 600;
+
+    .pf-join-grid__group-name {
+      color: var(--pf-color-text);
+    }
+
+    .pf-join-grid__group-alias {
+      color: var(--pf-color-primary);
+      margin-left: 6px;
+    }
+  }
+
+  // Unchecked rows read as muted/disabled
+  .pf-join-grid__row:not(.pf-join-grid__row--checked) .pf-join-grid__cell {
+    color: var(--pf-color-text-muted);
+  }
+
+  // Checked rows get a left accent on the first cell
+  .pf-join-grid__row--checked .pf-join-grid__cell:first-child {
+    box-shadow: inset 3px 0 0 var(--pf-color-primary);
+  }
+
+  .pf-join-grid__src {
+    color: var(--pf-color-primary);
+  }
+
+  .pf-join-grid__col-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pf-join-grid__type {
+    color: var(--pf-color-text-muted);
+    text-transform: lowercase;
+  }
+
+  .pf-join-grid__key-badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--pf-color-text-muted);
+    background: var(--pf-color-background-secondary);
+    border: 1px solid var(--pf-color-border);
+  }
+
+  .pf-text-input {
+    width: 100%;
+  }
+
+  // Footer (SQL preview affordance + column count)
+  .pf-join-grid__footer {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--pf-color-background-secondary);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--pf-color-text-muted);
+
+    .pf-join-grid__count {
+      color: var(--pf-color-primary);
+    }
+  }
+}

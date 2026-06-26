@@ -55,7 +55,7 @@ export interface ComboboxSuggestion {
 }
 
 export interface ComboboxAttrs {
-  readonly suggestions: ReadonlyArray<ComboboxSuggestion | string>;
+  readonly suggestions: readonly (ComboboxSuggestion | string)[];
   readonly value: string;
   readonly onChange?: (value: string) => void;
   readonly placeholder?: string;
