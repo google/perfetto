@@ -10,9 +10,6 @@ packing), and **all** the space optimization moves into *traced*, in batches, of
 hot path. Background and the broader design live in
 [RFC-0014](https://github.com/google/perfetto/discussions/4508) (the big-picture redesign) and [RFC-0028](https://github.com/google/perfetto/discussions/6179) (routing and dedup).
 
-This document doesn't re-open that design. It answers the one question underneath it
-that everything else rides on: **is the firehose actually affordable?**
-
 So we tested it on the **heavy data source we ship: ftrace**. It's the
 highest-volume source *and* the most heavily hand-optimized (CompactSched is columnar,
 delta-coded and interned), so everything the firehose wants to *delete* is concentrated
