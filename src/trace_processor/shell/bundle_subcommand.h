@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SHELL_CONVERT_SUBCOMMAND_H_
-#define SRC_TRACE_PROCESSOR_SHELL_CONVERT_SUBCOMMAND_H_
+#ifndef SRC_TRACE_PROCESSOR_SHELL_BUNDLE_SUBCOMMAND_H_
+#define SRC_TRACE_PROCESSOR_SHELL_BUNDLE_SUBCOMMAND_H_
 
 #include <string>
 #include <vector>
@@ -25,7 +25,9 @@
 
 namespace perfetto::trace_processor::shell {
 
-class ConvertSubcommand : public Subcommand {
+// Creates a self-contained bundle from a trace, baking in symbols and
+// deobfuscation mappings (outputs a TAR). This was the traceconv "bundle" mode.
+class BundleSubcommand : public Subcommand {
  public:
   const char* name() const override;
   const char* description() const override;
@@ -35,19 +37,13 @@ class ConvertSubcommand : public Subcommand {
   base::Status Run(const SubcommandContext& ctx) override;
 
  private:
-  std::string truncate_;
-  bool full_sort_ = false;
-  std::string pid_;
-  std::string timestamps_;
-  bool alloc_ = false;
-  bool perf_ = false;
-  bool java_heap_ = false;
-  bool no_annotations_ = false;
-  std::string output_dir_;
+  std::string symbol_paths_;
+  bool no_auto_symbol_paths_ = false;
+  std::vector<std::string> proguard_maps_;
+  bool no_auto_proguard_maps_ = false;
   bool verbose_ = false;
-  bool skip_unknown_ = false;
 };
 
 }  // namespace perfetto::trace_processor::shell
 
-#endif  // SRC_TRACE_PROCESSOR_SHELL_CONVERT_SUBCOMMAND_H_
+#endif  // SRC_TRACE_PROCESSOR_SHELL_BUNDLE_SUBCOMMAND_H_

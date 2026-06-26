@@ -52,6 +52,7 @@
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
+#include "src/trace_processor/shell/bundle_subcommand.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/convert_subcommand.h"
 #include "src/trace_processor/shell/export_subcommand.h"
@@ -62,6 +63,7 @@
 #include "src/trace_processor/shell/server_subcommand.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/shell/summarize_subcommand.h"
+#include "src/trace_processor/shell/util_subcommand.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -155,11 +157,13 @@ trace_file can be a local path, an http(s):// URL, or a Perfetto UI share link
 Commands:
   query         Load a trace and run a SQL query.
   interactive   Interactive SQL shell (default if no command is given).
-  server        Start an RPC server (http or stdio).
+  convert       Convert trace format.
   summarize     Compute a trace summary from specs and/or built-in metrics.
+  bundle        Bundle a trace with symbols and deobfuscation data.
+  util          Low-level trace utilities (symbolize, deobfuscate).
+  server        Start an RPC server (http or stdio).
   export        Export a trace to a database file.
   metrics       Run v1 metrics (deprecated; use 'summarize --metrics-v2').
-  convert       Convert trace format.
 
 Common flags (apply to all commands):
   -h, --help                  Show help (per-command if after a command).
@@ -789,10 +793,12 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     shell::ExportSubcommand export_subcommand;
     shell::MetricsSubcommand metrics_subcommand;
     shell::ConvertSubcommand convert_subcommand;
+    shell::BundleSubcommand bundle_subcommand;
+    shell::UtilSubcommand util_subcommand;
     std::vector<shell::Subcommand*> subcommands = {
-        &query_subcommand,     &interactive_subcommand, &server_subcommand,
-        &summarize_subcommand, &export_subcommand,      &metrics_subcommand,
-        &convert_subcommand,
+        &query_subcommand,  &interactive_subcommand, &convert_subcommand,
+        &summarize_subcommand, &bundle_subcommand,   &util_subcommand,
+        &server_subcommand, &export_subcommand,      &metrics_subcommand,
     };
 
     // Handle "help" pseudo-subcommand: `tp help <command>` or bare `tp help`.
