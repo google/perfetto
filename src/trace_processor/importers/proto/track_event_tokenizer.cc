@@ -573,23 +573,9 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   }
 
   if (event.type() == protos::pbzero::TrackEvent::TYPE_STATE) {
-    // Consider track_uuid from the packet and TrackEventDefaults.
-    uint64_t track_uuid;
-    if (event.has_track_uuid()) {
-      track_uuid = event.track_uuid();
-    } else if (defaults && defaults->has_track_uuid()) {
-      track_uuid = defaults->track_uuid();
-    } else {
+    if (!event.has_track_uuid() && (!defaults || !defaults->has_track_uuid())) {
       RecordTokenizationError(stats::track_event_state_missing_track_uuid,
                               &data.trace_packet_data.packet);
-      return ModuleResult::Handled();
-    }
-
-    auto resolved = track_event_tracker_->ResolveDescriptorTrack(track_uuid);
-    if (!resolved || !resolved->is_state()) {
-      RecordTokenizationErrorWithTrackUuid(
-          stats::track_event_state_invalid_track_uuid, track_uuid,
-          &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
   }
