@@ -20,7 +20,7 @@ import {EvtSource, type Evt} from '../base/events';
  *
  * The frontend's `post_message_handler.ts` lives in `/frontend/*`, which
  * plugins are not allowed to import from. Instead, the handler imports this
- * module (frontend -> public is allowed) and calls `postMessageBus.notify()`.
+ * module (frontend -> public is allowed) and calls `notifyPostMessageBus()`.
  * Plugins import `postMessageBus` from `/public/*` (which is allowed) and
  * subscribe via `addListener()`.
  *
@@ -44,8 +44,11 @@ import {EvtSource, type Evt} from '../base/events';
  */
 class PostMessageBusImpl extends EvtSource<MessageEvent> {}
 
-// Re-export the listener side as `Evt<MessageEvent>` so plugins only see the
-// `addListener` API and can't accidentally call `notify()` themselves.
-export const postMessageBus: Evt<MessageEvent> & {
-  notify(ev: MessageEvent): Promise<void>;
-} = new PostMessageBusImpl();
+const postMessageBusImpl = new PostMessageBusImpl();
+
+export const postMessageBus: Evt<MessageEvent> = postMessageBusImpl;
+
+// For use by /frontend/post_message_handler.ts.
+export function notifyPostMessageBus(ev: MessageEvent): Promise<void> {
+  return postMessageBusImpl.notify(ev);
+}

@@ -21,7 +21,7 @@ import {AppImpl} from '../core/app_impl';
 import type {SerializedAppState} from '../core/state_serialization_schema';
 import {parseAppState} from '../core/state_serialization';
 import {BUCKET_NAME, isValidGcsFileName} from '../base/gcs_uploader';
-import {postMessageBus} from '../public/post_message_bus';
+import {notifyPostMessageBus} from '../public/post_message_bus';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 
@@ -216,7 +216,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     // legitimate sources, after the document is ready, and that weren't
     // gracefully ignored. We fire-and-forget; listener exceptions must not
     // affect the built-in routing below.
-    void postMessageBus.notify(messageEvent);
+    void notifyPostMessageBus(messageEvent);
     return;
   }
 

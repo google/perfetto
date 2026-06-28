@@ -75,7 +75,8 @@ export class MsgChannelStream extends ByteStream {
     if (typeof data === 'string') {
       this.msgPort.postMessage({type: 'DATA', data: data});
     } else {
-      this.msgPort.postMessage({type: 'DATA', data: data}, [data.buffer]);
+      const copy = data.slice();
+      this.msgPort.postMessage({type: 'DATA', data: copy}, [copy.buffer]);
     }
   }
 

@@ -14,6 +14,7 @@
 
 import type {Embedder} from './embedder';
 import {PerfettoUiEmbedder} from './perfetto_ui_embedder';
+import {DefaultEmbedder} from './default_embedder';
 import {RDKEmbedder} from './rdk_embedder';
 
 /**
@@ -25,6 +26,13 @@ export function createEmbedder(): Embedder {
   const origin = self.location?.origin ?? '';
   if (origin.endsWith('.perfetto.dev')) {
     return new PerfettoUiEmbedder();
+  } else if (
+    origin.endsWith('rdkcentral.github.io') ||
+    origin.startsWith('http://localhost:') ||
+    origin.startsWith('http://127.0.0.1:')
+  ) {
+    return new RDKEmbedder();
+  } else {
+    return new DefaultEmbedder();
   }
-  return new RDKEmbedder();
 }

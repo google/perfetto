@@ -47,7 +47,8 @@ function isPostedMsgChannelTarget(
 
   return (
     wrapped.perfetto.msgchannel !== undefined &&
-    wrapped.perfetto.msgchannel.session !== undefined
+    typeof wrapped.perfetto.msgchannel.session === 'string' &&
+    wrapped.perfetto.msgchannel.session.length > 0
   );
 }
 

@@ -22,7 +22,7 @@ class RDKBranding implements BrandingBadge {
   readonly text = 'RDK';
 
   /** CSS color for the text, e.g. "#e07020". */
-  readonly color?: '#00b3dc';
+  readonly color = '#00b3dc';
 
   /** The RDK 4 bars logo SVG as a data URI. */
   readonly image =
