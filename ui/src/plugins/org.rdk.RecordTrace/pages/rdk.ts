@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {RecordSubpage, RecordProbe} from '../config/config_interfaces';
-import {TraceConfigBuilder} from '../config/trace_config_builder';
+import type {RecordSubpage, RecordProbe} from '../config/config_interfaces';
+import type {TraceConfigBuilder} from '../config/trace_config_builder';
 import {TypedMultiselect} from './widgets/multiselect';
 
 export function rdkRecordSection(): RecordSubpage {

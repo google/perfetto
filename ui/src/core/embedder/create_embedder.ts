@@ -23,9 +23,7 @@ import {RDKEmbedder} from './rdk_embedder';
  */
 export function createEmbedder(): Embedder {
   const origin = self.location?.origin ?? '';
-  if (
-    origin.endsWith('.perfetto.dev')
-  ) {
+  if (origin.endsWith('.perfetto.dev')) {
     return new PerfettoUiEmbedder();
   }
   return new RDKEmbedder();

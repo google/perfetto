@@ -49,4 +49,3 @@ class PostMessageBusImpl extends EvtSource<MessageEvent> {}
 export const postMessageBus: Evt<MessageEvent> & {
   notify(ev: MessageEvent): Promise<void>;
 } = new PostMessageBusImpl();
-
