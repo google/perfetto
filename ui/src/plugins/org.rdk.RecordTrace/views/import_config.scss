@@ -12,21 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {Embedder} from './embedder';
-import {PerfettoUiEmbedder} from './perfetto_ui_embedder';
-import {RDKEmbedder} from './rdk_embedder';
+.pf-import-config {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 
-/**
- * Returns the appropriate Embedder based on the current origin.
- * Uses PerfettoUiEmbedder when running on ui.perfetto.dev or localhost,
- * and DefaultEmbedder otherwise.
- */
-export function createEmbedder(): Embedder {
-  const origin = self.location?.origin ?? '';
-  if (
-    origin.endsWith('.perfetto.dev')
-  ) {
-    return new PerfettoUiEmbedder();
+  &__textarea {
+    width: 100%;
+    height: 300px;
+    color: var(--pf-color-text);
+    background: var(--pf-color-void);
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+    font-family: var(--pf-font-monospace);
+
+    &:focus {
+      outline: none;
+      border-color: var(--pf-color-accent);
+    }
   }
-  return new RDKEmbedder();
 }

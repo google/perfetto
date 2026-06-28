@@ -1,0 +1,141 @@
+// Copyright 2026 Comcast Cable Communications Management, LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import protos from '../../../protos';
+import {errResult, okResult, type Result} from '../../../base/result';
+import type {RecordingTarget} from '../interfaces/recording_target';
+import type {PreflightCheck} from '../interfaces/connection_check';
+import {ConsumerIpcTracingSession} from '../tracing_protocol/consumer_ipc_tracing_session';
+import {TracingProtocol} from '../tracing_protocol/tracing_protocol';
+import {exists} from '../../../base/utils';
+import {AsyncLazy} from '../../../base/async_lazy';
+import {MsgChannelStream} from './msgchannel_stream';
+
+export class TracedMsgChannelTarget implements RecordingTarget {
+  readonly kind = 'LIVE_RECORDING';
+  readonly platform = 'LINUX';
+  readonly transportType = 'MessageChannel';
+
+  // This Consumer connection is only used to detect the connection state and
+  // to query service state. each new tracing session creates a new instance,
+  // because consumer connections in traced are single-use.
+  private mgmtConsumer = new AsyncLazy<TracingProtocol>();
+
+  /**
+   *
+   */
+  constructor(
+    readonly srcWindow: Window,
+    readonly srcDomain: string,
+    readonly session: string,
+  ) {}
+
+  get id(): string {
+    return this.session;
+  }
+
+  get name(): string {
+    return this.srcDomain;
+  }
+
+  get connected(): boolean {
+    return this.mgmtConsumer.value?.connected ?? false;
+  }
+
+  async *runPreflightChecks(): AsyncGenerator<PreflightCheck> {
+    const status = await this.connectIfNeeded();
+
+    yield {
+      name: 'MessageChannel connection',
+      status: ((): Result<string> => {
+        if (!status.ok) return status;
+        return okResult('Connected');
+      })(),
+    };
+
+    if (!this.connected) return;
+    const svcStatus = await this.getServiceState();
+
+    yield {
+      name: 'Traced version',
+      status: ((): Result<string> => {
+        if (!svcStatus.ok) return svcStatus;
+        return okResult(svcStatus.value.tracingServiceVersion ?? 'N/A');
+      })(),
+    };
+
+    if (svcStatus === undefined) return;
+
+    yield {
+      name: 'Traced state',
+      status: ((): Result<string> => {
+        if (!svcStatus.ok) return svcStatus;
+        const tss = svcStatus.value;
+        return okResult(
+          `#producers: ${tss.producers?.length ?? 'N/A'}, ` +
+            `#datasources: ${tss.dataSources?.length ?? 'N/A'}, ` +
+            `#sessions: ${tss.numSessionsStarted ?? 'N/A'}`,
+        );
+      })(),
+    };
+  }
+
+  private async connectIfNeeded(): Promise<Result<TracingProtocol>> {
+    return this.mgmtConsumer.getOrCreate(() => this.createConsumerIpcChannel());
+  }
+
+  disconnect(): void {
+    this.mgmtConsumer.value?.close();
+    this.mgmtConsumer.reset();
+  }
+
+  async getServiceState(): Promise<Result<protos.ITracingServiceState>> {
+    const ipcStatus = await this.connectIfNeeded();
+    if (!ipcStatus.ok) return ipcStatus;
+    const consumerIpc = ipcStatus.value;
+    const req = new protos.QueryServiceStateRequest({});
+    const rpcCall = consumerIpc.invokeStreaming('QueryServiceState', req);
+    const resp = await rpcCall.promise;
+    if (!exists(resp.serviceState)) {
+      return errResult('Failed to decode QueryServiceStateResponse');
+    }
+    return okResult(resp.serviceState);
+  }
+
+  async startTracing(
+    traceConfig: protos.ITraceConfig,
+  ): Promise<Result<ConsumerIpcTracingSession>> {
+    return ConsumerIpcTracingSession.create({
+      ipcFactory: () => this.createConsumerIpcChannel(),
+      traceConfig,
+    });
+  }
+
+  private async createConsumerIpcChannel(): Promise<Result<TracingProtocol>> {
+    const maybeStream = await MsgChannelStream.connect(
+      this.srcWindow,
+      this.srcDomain,
+      this.session,
+    );
+    if (maybeStream == undefined) {
+      return errResult(
+        `Failed to connect parent window.\n` +
+          `Make sure that the parent page at ${this.srcDomain} is still open.`,
+      );
+    }
+    // const stream = new MessageChannelStream(maybeSock.release());
+    const consumerIpc = await TracingProtocol.create(maybeStream);
+    return okResult(consumerIpc);
+  }
+}
