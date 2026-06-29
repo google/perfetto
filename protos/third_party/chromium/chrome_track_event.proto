@@ -3053,11 +3053,61 @@ message MacVoucherRelease {
   optional int32 thread_relative_priority = 7;
 }
 
+message AndroidVsyncIntervalDecision {
+  // Source of the VSync interval (aka VSync period) that
+  // `ExternalBeginFrameSourceAndroid::AChoreographerImpl` provides to
+  // `ExternalBeginFrameSourceAndroid`, together with the reason for choosing
+  // the particular source. See `VsyncIntervalSource` in
+  // //components/viz/service/frame_sinks/external_begin_frame_source_android.h
+  // for more details.
+  // LINT.IfChange(VsyncIntervalSource)
+  enum VsyncIntervalSource {
+    UNKNOWN = 0;
+    OS_PROVIDED_TIMELINE_DERIVED_NOT_SUPPORTED = 1;
+    OS_PROVIDED_ONLY_ONE_TIMELINE = 2;
+    OS_PROVIDED_ALWAYS = 3;
+    OS_PROVIDED_TIMELINE_DERIVED_TOO_SHORT = 4;
+    OS_PROVIDED_LONGER_THAN_OR_EQUAL_TO_TIMELINE_DERIVED = 5;
+    SNAPPED_TIMELINE_DERIVED_LONGER_THAN_OS_PROVIDED = 6;
+    UNSNAPPED_TIMELINE_DERIVED_LONGER_THAN_OS_PROVIDED = 7;
+    SNAPPED_TIMELINE_DERIVED_ALWAYS = 8;
+    UNSNAPPED_TIMELINE_DERIVED_ALWAYS = 9;
+  }
+  // LINT.ThenChange(
+  //   //components/viz/service/frame_sinks/external_begin_frame_source_android.h:VsyncIntervalSource)
+  // )
+  optional VsyncIntervalSource source = 1;
+
+  // The VSync interval that the OS provided to
+  // `ExternalBeginFrameSourceAndroid::AChoreographerImpl::RefreshRateCallback`
+  // (registered via `AChoreographer_registerRefreshRateCallback`) in
+  // microseconds.
+  optional int64 os_provided_interval_us = 2;
+
+  // The VSync interval that `AChoreographerImpl` derived from the frame
+  // timelines that the OS provided to
+  // `ExternalBeginFrameSourceAndroid::AChoreographerImpl::VsyncCallback`
+  // (posted via `AChoreographer_postVsyncCallback`) by taking the difference
+  // between the presentation timestamps of the first two timelines.
+  optional int64 timeline_derived_interval_us = 3;
+
+  // The supported VSync interval that the OS provided via
+  // `Display.getSupportedRefreshRates()` that was the closest to
+  // `timeline_derived_interval_us` and was within an implementation-specific
+  // threshold.
+  optional int64 snapped_supported_interval_us = 4;
+
+  // VSync intervals supported by the display, sorted by increasing duration.
+  // For example, if the display supports 60 Hz and 120 Hz, this vector will
+  // contain 8,333 and 16,666 (in that order).
+  repeated int64 supported_intervals_us = 5;
+}
+
 message ChromeTrackEvent {
   reserved 1045;
 
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1084
+  // Next ID: 1085
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -3237,5 +3287,8 @@ message ChromeTrackEvent {
     optional BeginFrameArgsV2 begin_frame_args = 1082;
 
     optional MacVoucherRelease mac_voucher_release = 1083;
+
+    optional AndroidVsyncIntervalDecision android_vsync_interval_decision =
+        1084;
   }
 }

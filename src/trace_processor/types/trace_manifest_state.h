@@ -38,32 +38,37 @@ constexpr int64_t kFirstManifestMachineId = 1ll << 32;
 // follow. Populated by the perfetto_manifest plugin's reader and consulted
 // by ForwardingTraceParser for each trace file.
 struct TraceManifestState {
-  // A file's "clocks" block, normalized: the source clock reading |file_ts_ns|
-  // corresponds to |clock_ts_ns| on the reference (|clock|; nullopt = trace
-  // time). offset_ns and the ts/is.ts anchor both set these. The source is:
-  //   - |source_clock| unset: the file's own private timeline. The file is
-  //     PINNED onto it (single-clock; the file's own ClockSnapshots are then
-  //     rejected). Used for clockless files (JSON, ...).
-  //   - |source_clock| set: an existing clock of an internally-clocked file
-  //     (e.g. a proto's BOOTTIME). This only RELATES that clock to the
+  // A file's "clocks" block ("manual" mode): relate one of this file's clocks
+  // to a clock in another trace at a fixed offset. At a common instant this
+  // file's source clock reads T when the reference (sync_to) clock reads
+  // T + |offset_ns|.
+  //
+  // The source (this file's clock):
+  //   - |source_clock| unset: the file has no usable clock of its own, so it is
+  //     PINNED onto a private TraceFile clock (single-clock; the file's own
+  //     ClockSnapshots are then rejected). Used for clockless files (JSON,
+  //     ...).
+  //   - |source_clock| set: an existing builtin clock of an internally-clocked
+  //     file (e.g. a proto's BOOTTIME). This only RELATES that clock to the
   //     reference via a cross-machine edge; it does not pin or reject
   //     snapshots.
-  // |ref_file| / |ref_machine| are the is.file/is.machine names; together they
-  // pick which machine the reference |clock| lives on (default: this file's own
-  // machine). A multi-machine file is several machines, so a reference into one
-  // needs both (the file locates the trace, the machine picks the row within
-  // it); a single-machine file needs only |ref_file|. |ref_machine| alone is
-  // ambiguous - embedded ids are scoped to their trace - and is rejected.
+  //   |source_machine| names which machine declared by THIS file owns the
+  //   source clock (required when this file is multi-machine via `machines`;
+  //   unset = the file's sole machine).
   //
-  // Invariant: both timestamps are non-negative, so the override never
-  // introduces negative timestamps into the clock graph.
+  // The reference (sync_to): |ref_file| (required) names the other trace;
+  // |ref_machine| picks the machine within it (a multi-machine file is several
+  // machines, so a reference into one needs both; |ref_machine| alone is
+  // ambiguous because embedded ids are scoped to their trace, and is rejected);
+  // |ref_clock| picks the builtin clock and may be omitted when the reference
+  // is single-clock (resolved lazily against the reference's default clock).
   struct ClockOverride {
     std::optional<uint32_t> source_clock;
-    std::optional<uint32_t> clock;
+    std::optional<std::string> source_machine;
     std::optional<std::string> ref_file;
     std::optional<std::string> ref_machine;
-    int64_t file_ts_ns = 0;
-    int64_t clock_ts_ns = 0;
+    std::optional<uint32_t> ref_clock;
+    int64_t offset_ns = 0;
   };
 
   struct FileEntry {

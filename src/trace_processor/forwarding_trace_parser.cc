@@ -252,37 +252,23 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME);
   }
   auto& clock_tracker = trace_context_->clock_tracker;
-  // A "relate" override (source_clock set) is a cross-machine edge that the
-  // manifest reader already added to the global graph. The remaining override
-  // is the "pin" form below.
+
+  // A perfetto_manifest "manual" clock override relates this file's clock to a
+  // clock in another trace; the manifest reader has already added every such
+  // edge to the global graph. A pinned (clockless) source also has no real
+  // clock of its own, so flag it: the file is now single-clock / single-machine
+  // and any ClockSnapshot or remote machine id on it is rejected. It still
+  // converts through the default clock set up below, like any clockless format.
   if (manifest_entry && manifest_entry->clock_override &&
       !manifest_entry->clock_override->source_clock) {
-    // "Pin" form: the file has no usable clock, so move its events onto a
-    // private TraceFile clock and register a single implicit edge connecting
-    // that clock to the graph as the manifest dictates. The file is now
-    // single-clock / single-machine; stray ClockSnapshots or remote machine
-    // ids on it are rejected (see has_clock_override()).
-    const TraceManifestState::ClockOverride& clock_override =
-        *manifest_entry->clock_override;
-    ClockId file_clock = ClockId::TraceFile(trace_context_->trace_id().value);
-    clock_tracker->SetTraceDefaultClock(file_clock);
     trace_context_->trace_state->has_clock_override = true;
-    if (claim_global_clock) {
-      clock_tracker->SetGlobalClock(file_clock);
-    }
-    // An omitted reference clock means trace time; a named clock means that
-    // builtin domain (which the rest of the graph is expected to reach).
-    std::optional<ClockId> target =
-        clock_override.clock
-            ? std::make_optional(ClockId::Machine(*clock_override.clock))
-            : std::nullopt;
-    clock_tracker->AddDeferredClockSync(file_clock, clock_override.file_ts_ns,
-                                        target, clock_override.clock_ts_ns);
-  } else if (trace_clock) {
-    // Proto manages its own default clock (primary_trace_clock / ClockSnapshot)
-    // so it must not be set here; every other format converts its events
-    // through the default clock via
-    // ClockTracker::ConvertDefaultClockToTraceTime.
+  }
+
+  // Set up the format's source clock. Proto manages its own default clock
+  // (primary_trace_clock / ClockSnapshot) so it must not be set here; every
+  // other format converts its events through the default clock via
+  // ClockTracker::ConvertDefaultClockToTraceTime.
+  if (trace_clock) {
     if (trace_type_ != kProtoTraceType) {
       clock_tracker->SetTraceDefaultClock(*trace_clock);
     }

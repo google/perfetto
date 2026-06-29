@@ -5384,6 +5384,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/shell/subcommand.cc",
         "src/trace_processor/shell/subcommand.h",
+        "src/trace_processor/shell/traceconv_compat.cc",
+        "src/trace_processor/shell/traceconv_compat.h",
     ],
 )
 
