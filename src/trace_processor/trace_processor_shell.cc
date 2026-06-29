@@ -63,6 +63,7 @@
 #include "src/trace_processor/shell/server_subcommand.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/shell/summarize_subcommand.h"
+#include "src/trace_processor/shell/traceconv_compat.h"
 #include "src/trace_processor/shell/util_subcommand.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
@@ -783,6 +784,25 @@ TraceProcessorShell::CreateWithDefaultPlatform() {
 }
 
 base::Status TraceProcessorShell::Run(int argc, char** argv) {
+  // traceconv compatibility shim: when invoked under the legacy "traceconv"
+  // name, the first positional is a traceconv MODE. Map it onto the new
+  // subcommands (e.g. `traceconv json a b` -> `convert json a b`,
+  // `traceconv symbolize ...` -> `util symbolize ...`, `traceconv bundle ...`
+  // stays `bundle ...`). The rewritten argv is owned by these vectors for the
+  // rest of Run and flows through the normal dispatch below.
+  std::vector<std::string> traceconv_storage;
+  std::vector<char*> traceconv_ptrs;
+  if (shell::InvokedAsTraceconv(argv[0])) {
+    traceconv_storage = shell::RewriteTraceconvArgs(argc, argv);
+    if (!traceconv_storage.empty()) {
+      for (auto& s : traceconv_storage)
+        traceconv_ptrs.push_back(s.data());
+      traceconv_ptrs.push_back(nullptr);
+      argc = static_cast<int>(traceconv_storage.size());
+      argv = traceconv_ptrs.data();
+    }
+  }
+
   // Subcommand dispatch: if a positional argument matches a known subcommand
   // name, route to it. Otherwise fall through to classic path.
   {
