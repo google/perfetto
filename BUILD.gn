@@ -60,22 +60,14 @@ if (enable_perfetto_trace_processor) {
 }
 
 if (enable_perfetto_traceconv) {
-  all_targets += [
-    "src/traceconv",
-    "src/proto_utils",
-  ]
+  # The standalone traceconv host binary has been folded into
+  # trace_processor_shell (the convert/bundle/util subcommands), so it is no
+  # longer built here. The src/traceconv:lib conversion code is pulled in
+  # directly by the shell, and the UI's traceconv WASM module is built via
+  # ui/BUILD.gn.
+  all_targets += [ "src/proto_utils" ]
   if (is_cross_compiling) {
-    # In many cross-compilation scenarios (typically Android) developers expect
-    # the host version of traceconv to be available somewhere in out/, so
-    # they can convert Android traces on their dev machine. Also
-    # tools/gen_android_bp explicitly depends on the host version for the
-    # cc_binary_host("traceconv") target in Android.bp.
-    # Note that when cross-compiling the host executable will be available in
-    # out/xxx/gcc_like_host/traceconv NOT just out/xxx/traceconv.
-    all_targets += [
-      "src/traceconv($host_toolchain)",
-      "src/proto_utils($host_toolchain)",
-    ]
+    all_targets += [ "src/proto_utils($host_toolchain)" ]
   }
 }
 

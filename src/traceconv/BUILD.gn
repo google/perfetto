@@ -18,13 +18,11 @@ import("../../gn/perfetto_host_executable.gni")
 import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
-executable("traceconv") {
-  testonly = true
-  deps = [
-    ":main",
-    "../../gn:default_deps",
-  ]
-}
+# NOTE: there is no longer a standalone "traceconv" executable. The host CLI is
+# now trace_processor_shell (the convert/bundle/util subcommands, plus
+# traceconv-name compatibility), and the conversion implementation below
+# (":lib") is linked directly by the shell. The only artifact still built from
+# this directory is the UI's "traceconv" WASM module (wasm_lib below).
 
 source_set("utils") {
   deps = [
@@ -118,28 +116,6 @@ source_set("lib") {
   ]
 }
 
-source_set("main") {
-  deps = [
-    ":traceconv_lib",
-    "../../gn:default_deps",
-  ]
-  sources = [ "main.cc" ]
-}
-
-source_set("traceconv_lib") {
-  deps = [
-    ":gen_cc_android_extension_descriptor",
-    ":gen_cc_trace_descriptor",
-    ":lib",
-    "../../gn:default_deps",
-    "../../include/perfetto/ext/base:base",
-    "../base:version",
-    "../protozero/text_to_proto",
-  ]
-  public_deps = [ "../../include/perfetto/ext/traceconv:traceconv" ]
-  sources = [ "traceconv.cc" ]
-}
-
 if (enable_perfetto_ui) {
   wasm_lib("traceconv_wasm") {
     name = "traceconv"
@@ -148,9 +124,14 @@ if (enable_perfetto_ui) {
     enable_web_environment = true
     enable_filesystem = true
     deps = [
-      ":main",
+      ":gen_cc_android_extension_descriptor",
+      ":gen_cc_trace_descriptor",
+      ":lib",
       "../../gn:default_deps",
+      "../../include/perfetto/ext/base:base",
+      "../protozero/text_to_proto",
     ]
+    sources = [ "wasm_main.cc" ]
   }
 }
 
@@ -169,7 +150,6 @@ if (enable_perfetto_integration_tests) {
     testonly = true
     deps = [
       ":lib",
-      ":traceconv_lib",
       "../../gn:default_deps",
       "../../gn:gtest_and_gmock",
       "../../include/perfetto/base",
@@ -185,7 +165,6 @@ if (enable_perfetto_integration_tests) {
       "pprof_reader.h",
       "trace_to_pprof_integrationtest.cc",
       "trace_to_text_integrationtest.cc",
-      "traceconv_bundle_integrationtest.cc",
     ]
   }
 }

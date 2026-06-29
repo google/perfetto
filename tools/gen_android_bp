@@ -101,7 +101,6 @@ protozero_descriptor_diff_target = '//src/protozero/descriptor_diff:protozero_de
     gn_utils.HOST_TOOLCHAIN)
 
 default_targets += [
-    '//src/traceconv:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
     '//src/tools:tracing_proto_extensions(%s)' % gn_utils.HOST_TOOLCHAIN,
     protozero_plugin,
     protozero_c_plugin,
@@ -199,7 +198,6 @@ transitive_proto_filegroups = {
 needs_libfts = [
     '//:perfetto_unittests',
     '//src/trace_processor:trace_processor_shell_lib',
-    '//src/traceconv:traceconv',
 ]
 
 # All module names are prefixed with this string to avoid collisions.
@@ -905,8 +903,8 @@ class Blueprint(object):
 def label_to_module_name(label: str):
   """Turn a GN label (e.g., //:perfetto_tests) into a module name."""
   # If the label is explicibly listed in the default target list, don't prefix
-  # its name and return just the target name. This is so tools like
-  # "traceconv" stay as such in the Android tree.
+  # its name and return just the target name. This is so host tools keep their
+  # bare name in the Android tree.
   label_without_toolchain = gn_utils.label_without_toolchain(label)
   if label in default_targets or label_without_toolchain in default_targets:
     return label_without_toolchain.split(':')[-1]
