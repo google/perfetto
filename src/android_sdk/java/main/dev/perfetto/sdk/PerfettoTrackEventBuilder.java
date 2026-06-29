@@ -631,6 +631,14 @@ public final class PerfettoTrackEventBuilder {
     return this;
   }
 
+  /**
+   * Adds a proto boolean field with field id {@code id}, encoded as the varint 1
+   * ({@code true}) or 0 ({@code false}).
+   */
+  public PerfettoTrackEventBuilder addField(long id, boolean val) {
+    return addField(id, val ? 1L : 0L);
+  }
+
   /** Adds a proto field with field id {@code id} and value {@code val}. */
   public PerfettoTrackEventBuilder addField(long id, double val) {
     if (!mIsCategoryEnabled) {
