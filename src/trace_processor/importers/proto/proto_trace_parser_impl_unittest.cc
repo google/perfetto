@@ -32,6 +32,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/trace/track_event/state_descriptor.pbzero.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
@@ -52,6 +53,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -291,6 +293,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.clock_tracker = std::make_unique<ClockTracker>(
         &context_, primary_sync_.get(), /*is_primary=*/true);
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+    context_.state_tracker =
+        TraceProcessorContextPtr<StateTracker>::MakeRoot(&context_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
@@ -1716,6 +1720,99 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
   auto rr_0 = storage_->slice_table()[SliceId(0u)];
   EXPECT_EQ(rr_0.thread_ts(), 1000000);
   EXPECT_EQ(rr_0.thread_dur(), 10000);
+}
+
+TEST_F(ProtoTraceParserTest, TrackEventStateOnNonStateTrack) {
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    packet->set_timestamp(1000);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(100);
+    track_desc->set_name("Process track");
+    auto* process_desc = track_desc->set_process();
+    process_desc->set_pid(10);
+  }
+  {
+    // Non-state track (regular track descriptor without set_state()).
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(1000);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(101);
+    track_desc->set_parent_uuid(100);
+    track_desc->set_name("Regular Track");
+  }
+  {
+    // State event targeting a non-state track.
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(2000);
+    auto* event = packet->set_track_event();
+    event->set_track_uuid(101);
+    event->set_name("High");
+    event->set_type(protos::pbzero::TrackEvent::TYPE_STATE);
+  }
+
+  EXPECT_CALL(*process_, GetOrCreateProcess(10)).WillRepeatedly(Return(1u));
+
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
+
+  // Parsing error stat should be incremented.
+  EXPECT_GT(context_.stats_tracker->GetStats(stats::track_event_parser_errors),
+            0u);
+}
+
+TEST_F(ProtoTraceParserTest, TrackEventWithResortedStateDescriptor) {
+  {
+    // Child state track descriptor emitted before parent descriptor.
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    packet->set_timestamp(1000);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(101);
+    track_desc->set_parent_uuid(100);
+    track_desc->set_name("Priority");
+    track_desc->set_state();
+  }
+  {
+    // Parent process track descriptor emitted after child.
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(1000);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(100);
+    track_desc->set_name("Process track");
+    auto* process_desc = track_desc->set_process();
+    process_desc->set_pid(10);
+  }
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(2000);
+    auto* event = packet->set_track_event();
+    event->set_track_uuid(101);
+    event->set_name("High");
+    event->set_type(protos::pbzero::TrackEvent::TYPE_STATE);
+  }
+
+  EXPECT_CALL(*process_, GetOrCreateProcess(10)).WillRepeatedly(Return(1u));
+
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
+
+  bool found_state_track = false;
+  for (uint32_t i = 0; i < storage_->track_table().row_count(); ++i) {
+    if (storage_->track_table()[i].name() ==
+        storage_->InternString("Priority")) {
+      found_state_track = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_state_track);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
