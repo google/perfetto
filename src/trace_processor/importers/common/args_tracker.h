@@ -78,11 +78,10 @@ class ArgsInserter {
     return AddArg(key, key, v, update_policy);
   }
 
-  ArgsInserter& AddArg(
-      StringId flat_key,
-      StringId key,
-      Variadic v,
-      UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate);
+  ArgsInserter& AddArg(StringId flat_key,
+                       StringId key,
+                       Variadic v,
+                       UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate);
 
   // IncrementArrayEntryIndex() and GetNextArrayEntryIndex() provide a way to
   // track the next array index for an array under a specific key.

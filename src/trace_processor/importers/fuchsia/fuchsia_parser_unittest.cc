@@ -425,7 +425,6 @@ TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
   row.upid = 1u;
   storage_->mutable_thread_table()->Insert(row);
 
-
   StringId unknown_cat = storage_->InternString("unknown(1)");
   ASSERT_NE(storage_, nullptr);
 

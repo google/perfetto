@@ -995,7 +995,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
   row.upid = 1u;
   storage_->mutable_thread_table()->Insert(row);
 
-
   constexpr TrackId thread_time_track{0u};
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
@@ -1069,7 +1068,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
   storage_->mutable_thread_table()->Insert(row);
-
 
   constexpr TrackId thread_time_track{0u};
 
@@ -2019,7 +2017,6 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
