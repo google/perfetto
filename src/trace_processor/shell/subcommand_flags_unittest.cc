@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/shell/common_flags.h"
 
-#include <getopt.h>
-
 #include <initializer_list>
 #include <string>
 #include <vector>
@@ -25,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/trace_processor/shell/bundle_subcommand.h"
 #include "src/trace_processor/shell/convert_subcommand.h"
