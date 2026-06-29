@@ -374,6 +374,7 @@ public final class PerfettoTrackEventBuilder {
    * (built once on first use, reused for its lifetime), so a reused {@code track}
    * -- the intended {@code static final} usage -- is allocation-free.
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingTrack(PerfettoTrack track) {
     if (!mIsCategoryEnabled) {
       return this;
@@ -388,6 +389,7 @@ public final class PerfettoTrackEventBuilder {
     return this;
   }
 
+  @Deprecated
   public PerfettoTrackEventBuilder usingNamedTrack(
           long id, @CompileTimeConstant String name, long parentUuid) {
       return usingNamedTrack(id, name, parentUuid, /* isNameStatic = */ true);
@@ -397,6 +399,7 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a named track with a dynamic name (populated in field 10 of
    * TrackDescriptor).
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingNamedTrackWithDynamicName(
       long id, String name, long parentUuid) {
     return usingNamedTrack(id, name, parentUuid, /* isNameStatic = */ false);
@@ -428,6 +431,7 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a process scoped named track instead of the thread track where the event
    * occurred.
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingProcessNamedTrack(
           long id, @CompileTimeConstant String name) {
       if (!mIsCategoryEnabled) {
@@ -440,6 +444,7 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a process scoped named track with a dynamic name instead of the thread track
    * where the event occurred.
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingProcessNamedTrackWithDynamicName(
       long id,  String name) {
     if (!mIsCategoryEnabled) {
@@ -452,6 +457,7 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a thread scoped named track instead of the thread track where the event
    * occurred.
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingThreadNamedTrack(
           long id, @CompileTimeConstant String name, long tid) {
       if (!mIsCategoryEnabled) {
@@ -464,6 +470,7 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a thread scoped named track with a dynamic name instead of the thread track
    * where the event occurred.
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingThreadNamedTrackWithDynamicName(
       long id, String name, long tid) {
     if (!mIsCategoryEnabled) {
@@ -473,6 +480,7 @@ public final class PerfettoTrackEventBuilder {
   }
 
   /** Adds the events to a counter track instead. This is required for setting counter values. */
+  @Deprecated
   public PerfettoTrackEventBuilder usingCounterTrack(
           long parentUuid, @CompileTimeConstant String name) {
       return usingCounterTrack(parentUuid, name, /* isNameStatic = */ true);
@@ -482,12 +490,13 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a counter track with a static name instead. This is required for setting
    * counter values.
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingCounterTrackWithDynamicName(
       long parentUuid,  String name) {
     return usingCounterTrack(parentUuid, name, /* isNameStatic = */ false);
   }
 
-  private PerfettoTrackEventBuilder usingCounterTrack(
+  PerfettoTrackEventBuilder usingCounterTrack(
       long parentUuid, String name, boolean isNameStatic) {
     if (!mIsCategoryEnabled) {
       return this;
@@ -509,6 +518,7 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a process scoped counter track instead. This is required for setting counter
    * values.
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingProcessCounterTrack(@CompileTimeConstant String name) {
       if (!mIsCategoryEnabled) {
           return this;
@@ -520,6 +530,7 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a process scoped counter track with a static name instead. This is required
    * for setting counter values.
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingProcessCounterTrackWithDynamicName(
        String name) {
     if (!mIsCategoryEnabled) {
@@ -532,6 +543,7 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a thread scoped counter track instead. This is required for setting counter
    * values.
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingThreadCounterTrack(
           long tid, @CompileTimeConstant String name) {
       if (!mIsCategoryEnabled) {
@@ -544,6 +556,7 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a thread scoped counter track with a static name instead. This is required for
    * setting counter values.
    */
+  @Deprecated
   public PerfettoTrackEventBuilder usingThreadCounterTrackWithDynamicName(
       long tid,  String name) {
     if (!mIsCategoryEnabled) {

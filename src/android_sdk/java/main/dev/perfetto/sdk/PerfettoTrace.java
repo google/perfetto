@@ -245,10 +245,12 @@ public final class PerfettoTrace {
    * @param value The value of the counter.
    * @param trackName The trackName for the event.
    */
+  @SuppressWarnings("deprecation")
   public static PerfettoTrackEventBuilder counter(Category category, long value, @CompileTimeConstant String trackName) {
     return counter(category, value).usingProcessCounterTrack(trackName);
   }
 
+  @SuppressWarnings("deprecation")
   public static PerfettoTrackEventBuilder counterWithDynamicName(Category category, long value, String trackName) {
     return counter(category, value).usingProcessCounterTrackWithDynamicName(trackName);
   }
@@ -271,14 +273,64 @@ public final class PerfettoTrace {
    * @param value The value of the counter.
    * @param trackName The trackName for the event.
    */
+  @SuppressWarnings("deprecation")
   public static PerfettoTrackEventBuilder counter(
       Category category, double value, @CompileTimeConstant String trackName) {
     return counter(category, value).usingProcessCounterTrack(trackName);
   }
 
+  @SuppressWarnings("deprecation")
   public static PerfettoTrackEventBuilder counterWithDynamicName(
       Category category, double value, String trackName) {
     return counter(category, value).usingProcessCounterTrackWithDynamicName(trackName);
+  }
+
+  /** An instant event on the (possibly nested) named {@code track}. */
+  @SuppressWarnings("deprecation")
+  public static PerfettoTrackEventBuilder instant(
+      Category category, String eventName, PerfettoTrack track) {
+    return instant(category, eventName).usingTrack(track);
+  }
+
+  /** An instant event on the process-scoped named track {@code trackName}. */
+  @SuppressWarnings("deprecation")
+  public static PerfettoTrackEventBuilder instant(
+      Category category, String eventName, @CompileTimeConstant String trackName) {
+    return instant(category, eventName).usingProcessNamedTrack(0, trackName);
+  }
+
+  /** A slice-begin event on the (possibly nested) named {@code track}. */
+  @SuppressWarnings("deprecation")
+  public static PerfettoTrackEventBuilder begin(
+      Category category, String eventName, PerfettoTrack track) {
+    return begin(category, eventName).usingTrack(track);
+  }
+
+  /** A slice-begin event on the process-scoped named track {@code trackName}. */
+  @SuppressWarnings("deprecation")
+  public static PerfettoTrackEventBuilder begin(
+      Category category, String eventName, @CompileTimeConstant String trackName) {
+    return begin(category, eventName).usingProcessNamedTrack(0, trackName);
+  }
+
+  /** A slice-end event on the (possibly nested) named {@code track}. */
+  @SuppressWarnings("deprecation")
+  public static PerfettoTrackEventBuilder end(Category category, PerfettoTrack track) {
+    return end(category).usingTrack(track);
+  }
+
+  /** A counter sample {@code value} on the counter {@code track}. */
+  public static PerfettoTrackEventBuilder counter(
+      Category category, long value, PerfettoCounterTrack track) {
+    return counter(category, value)
+        .usingCounterTrack(track.parentUuid(), track.mName, track.mIsNameStatic);
+  }
+
+  /** A counter sample {@code value} on the counter {@code track}. */
+  public static PerfettoTrackEventBuilder counter(
+      Category category, double value, PerfettoCounterTrack track) {
+    return counter(category, value)
+        .usingCounterTrack(track.parentUuid(), track.mName, track.mIsNameStatic);
   }
 
   /** Returns the next flow id to be used. */
