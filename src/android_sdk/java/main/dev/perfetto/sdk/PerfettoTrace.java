@@ -325,19 +325,8 @@ public final class PerfettoTrace {
    * A stack can be captured with Thread.getStackTrace() but note that it is expensive
    * and should only be used for local debugging or low-frequency diagnostic events.
    */
-  public static PerfettoTrackEventBuilder expensiveDebugCallStack(Category category,
-    String eventName, StackTraceElement[] stackTrace) {
-    return expensiveDebugCallStack(category, eventName, stackTrace, 2);
-  }
-
-  /**
-   * Writes a provided call stack to the Perfetto trace, skipping a specified number of frames from
-   * the top of the stack.
-   * A stack can be captured with Thread.getStackTrace() but note that it is expensive
-   * and should only be used for local debugging or low-frequency diagnostic events.
-   */
   public static PerfettoTrackEventBuilder expensiveDebugCallStack(
-      Category category, String eventName, StackTraceElement[] stackTrace, int skipFrames) {
+      Category category, String eventName, StackTraceElement[] stackTrace) {
     if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
         return PerfettoTrace.instant(category, eventName);
     }
@@ -351,10 +340,7 @@ public final class PerfettoTrace {
     PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
         .beginProto().beginNested(FIELD_TRACK_EVENT_CALLSTACK);
 
-    // Iterate from the bottom of the stack (main) up to the caller
-    // We start at the end and stop before reaching these internal methods
-    int limit = Math.max(0, Math.min(stackTrace.length, skipFrames));
-    for (int i = stackTrace.length - 1; i >= limit; i--) {
+    for (int i = stackTrace.length - 1; i >= 0; i--) {
         StackTraceElement element = stackTrace[i];
 
         builder =
