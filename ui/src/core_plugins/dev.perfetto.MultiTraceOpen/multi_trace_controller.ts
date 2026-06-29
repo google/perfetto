@@ -39,6 +39,16 @@ function getErrorMessage(e: unknown): string {
   return err;
 }
 
+// A trace's single real (builtin) clock, if it has exactly one; undefined for a
+// clockless trace or one exposing several clocks. Names the reference clock
+// when this trace is the baseline others sync to.
+function singleRealClock(trace: TraceFile): ClockName | undefined {
+  if (trace.status !== 'analyzed') return undefined;
+  const ids = trace.analysis.builtinClockIds ?? [];
+  if (ids.length !== 1) return undefined;
+  return BUILTIN_CLOCKS.find((c) => c.id === ids[0])?.name;
+}
+
 // The possible error states for the modal, used to show a helpful message
 // to the user and disable the "Open Traces" button.
 export type LoadingError =
@@ -290,6 +300,7 @@ export class MultiTraceController {
     return this.orderedTraces().map((t) => ({
       path: t.file.name,
       config: this.getConfig(t.uuid),
+      clock: singleRealClock(t),
     }));
   }
 
