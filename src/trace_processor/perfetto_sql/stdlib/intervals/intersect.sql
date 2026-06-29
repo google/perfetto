@@ -96,7 +96,7 @@ AS (
     -- Columns for partitions, one for each column with partition.
     __intrinsic_token_apply_prefix!(
       _ii_df_select,
-      (c17, c18, c19, c20),
+      (c17, c18, c19, c20, c21, c22, c23, c24, c25, c26),
       $agg_columns
     )
   -- Interval intersect result table.
@@ -138,7 +138,7 @@ AS (
     -- Partition columns.
     __intrinsic_token_apply_and_prefix!(
       _ii_df_bind,
-      (c17, c18, c19, c20),
+      (c17, c18, c19, c20, c21, c22, c23, c24, c25, c26),
       $agg_columns
     )
 );
@@ -308,8 +308,7 @@ CREATE PERFETTO MACRO interval_self_intersect_partitioned(
   partition_columns ColumnNameList
 )
 RETURNS TableOrSubquery
-AS
-(
+AS (
   WITH
     _all_endpoints AS (
       SELECT id AS original_id, ts, TRUE as is_start
@@ -365,4 +364,3 @@ AS
   NATURAL JOIN _atomic_segments a
   WHERE e.is_start = FALSE
 );
-
