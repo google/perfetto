@@ -1298,19 +1298,7 @@ class TrackEvent(TestSuite):
           timestamp: 0
           incremental_state_cleared: true
           track_descriptor {
-            uuid: 100
-            name: "Process track"
-            process {
-              pid: 10
-            }
-          }
-        }
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 0
-          track_descriptor {
             uuid: 101
-            parent_uuid: 100
             name: "Regular Track"
           }
         }
