@@ -32,7 +32,6 @@ ts | package | name | value | permission
 ---|---------|------|-------|-----------
 12345 | perfetto.flags | buffer_clone_preserve_read_iter | enabled | read-only
 12345 | perfetto.flags | save_all_traces_in_bugreport | enabled | read-write
-12345 | perfetto.flags | track_event_incremental_state_clear_not_destroy | enabled | read-only
 12345 | perfetto.flags | use_lockfree_taskrunner | enabled | read-write
 
 Below is an example of finding flags whose value was overridden from the default (useful for debugging why behavior diverges from a pristine build):

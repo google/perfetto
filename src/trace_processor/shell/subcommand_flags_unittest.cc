@@ -93,6 +93,17 @@ base::TempFile WriteTempFile(const std::string& content) {
   return f;
 }
 
+// A path for an output file the code under test creates. Not a TempFile: on
+// Windows an open TempFile lacks FILE_SHARE_WRITE, so reopening it for write
+// hits a sharing violation.
+struct OutputPath {
+  base::TempDir dir = base::TempDir::Create();
+  std::string path() const { return dir.path() + "/out"; }
+  ~OutputPath() {
+    base::Unlink(path().c_str());
+  }  // TempDir needs an empty dir.
+};
+
 // A subcommand with a representative mix of flags for exercising ParseFlags:
 // a boolean flag, a string flag (both with short forms), and a repeatable flag.
 class FlagTestSubcommand : public Subcommand {
@@ -275,7 +286,7 @@ TEST(ConvertSubcommandTest, RequiresFormat) {
 
 TEST(ConvertSubcommandTest, RejectsUnknownFormat) {
   base::TempFile input = WriteTempFile("ignored");
-  base::TempFile output = base::TempFile::Create();
+  OutputPath output;
 
   ConvertSubcommand convert;
   base::Status s =
@@ -288,7 +299,7 @@ TEST(ConvertSubcommandTest, RejectsUnknownFormat) {
 // in favour of `convert profile --java-heap`; `convert` must reject them all.
 TEST(ConvertSubcommandTest, RejectsFormatsMovedOrRemoved) {
   base::TempFile input = WriteTempFile("ignored");
-  base::TempFile output = base::TempFile::Create();
+  OutputPath output;
 
   for (const char* fmt :
        {"binary", "decompress_packets", "java_heap_profile"}) {
@@ -344,7 +355,7 @@ TEST(UtilSubcommandTest, RejectsUnknownUtility) {
 // must be converted to a non-empty binary trace.
 TEST(UtilSubcommandTest, TextToBinaryConvertsTextProto) {
   base::TempFile input = WriteTempFile("packet { timestamp: 42 }");
-  base::TempFile output = base::TempFile::Create();
+  OutputPath output;
 
   UtilSubcommand util;
   base::Status s = util.Run(

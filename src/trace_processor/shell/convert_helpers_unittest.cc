@@ -67,11 +67,14 @@ TEST(ConvertHelpersTest, OpenConversionInputMissingFileFails) {
 }
 
 TEST(ConvertHelpersTest, OpenConversionOutputWritesFile) {
-  base::TempFile file = base::TempFile::Create();
+  // A path rather than a TempFile: on Windows an open TempFile lacks
+  // FILE_SHARE_WRITE, so reopening it for write hits a sharing violation.
+  base::TempDir dir = base::TempDir::Create();
+  std::string path = PathIn(dir, "out.bin");
 
   std::ofstream owned;
   std::ostream* stream = nullptr;
-  base::Status s = OpenConversionOutput(file.path(), &owned, &stream);
+  base::Status s = OpenConversionOutput(path, &owned, &stream);
   ASSERT_TRUE(s.ok()) << s.c_message();
   ASSERT_NE(stream, nullptr);
 
@@ -80,8 +83,10 @@ TEST(ConvertHelpersTest, OpenConversionOutputWritesFile) {
   owned.close();
 
   std::string content;
-  ASSERT_TRUE(base::ReadFile(file.path(), &content));
+  ASSERT_TRUE(base::ReadFile(path, &content));
   EXPECT_EQ(content, "payload");
+
+  base::Unlink(path.c_str());  // TempDir's destructor needs an empty dir.
 }
 
 TEST(ConvertHelpersTest, OpenConversionOutputBadPathFails) {
