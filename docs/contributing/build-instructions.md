@@ -89,8 +89,7 @@ tools/ninja -C out/android \
   traced \                 # Tracing service.
   traced_probes \          # Ftrace interop and /proc poller.
   perfetto \               # Cmdline client.
-  trace_processor_shell \  # Trace parsing.
-  traceconv                # Trace conversion.
+  trace_processor_shell    # Trace parsing and conversion.
 ...
 ```
 
@@ -167,8 +166,8 @@ chrome://tracing). The MSVC build is maintained best-effort.
 
 The following targets are supported on Windows:
 
-- `trace_processor_shell`: the trace importer and SQL query engine.
-- `traceconv`: the trace conversion tool.
+- `trace_processor_shell`: the trace importer, SQL query engine and trace
+  conversion tool.
 - `traced` and `perfetto`: the tracing service and cmdline client. They use an
   alternative implementation of the [inter-process tracing protocol](/docs/design-docs/api-and-abi.md#tracing-protocol-abi)
   based on a TCP socket and named shared memory. This configuration is only for
@@ -362,7 +361,7 @@ cxx="${CXX}"
 In case of cross-compilation, the GN variables have the following semantic:
 `ar`, `cc`, `cxx`, `linker` refer to the _host_ toolchain (sometimes also called
 _build_ toolchain). This toolchain is used to build: (i) auxiliary tools
-(e.g. the `traceconv` conversion util) and (ii) executable artifacts that are
+(e.g. the `trace_processor` conversion util) and (ii) executable artifacts that are
 used during the rest of the build process for the target (e.g., the `protoc`
 compiler or the `protozero_plugin` protoc compiler plugin).
 

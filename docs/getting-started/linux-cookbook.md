@@ -27,12 +27,12 @@ downloads:
   curl -LO https://get.perfetto.dev/tracebox
   chmod +x tracebox
   ```
-- **`traceconv`**: a host-side toolkit for converting and, importantly here,
+- **`trace_processor`**: a host-side toolkit for converting and, importantly here,
   symbolizing traces. It is a thin Python wrapper that downloads the right native
   binary for your platform on first use.
   ```bash
-  curl -LO https://get.perfetto.dev/traceconv
-  chmod +x traceconv
+  curl -LO https://get.perfetto.dev/trace_processor
+  chmod +x trace_processor
   ```
 
 Recording from ftrace and `perf_event_open` needs elevated privileges. The
@@ -173,21 +173,21 @@ sudo ./tracebox -c cpu.cfg --txt -o /tmp/trace.pftrace
 At this point **kernel** frames are already symbolized (resolved on-device from
 kallsyms), but **userspace** frames are still raw addresses.
 
-**4. Bake in userspace symbols** with `traceconv bundle`. It auto-discovers the
+**4. Bake in userspace symbols** with `trace_processor bundle`. It auto-discovers the
 binaries that were loaded (using the absolute paths recorded in the trace, which
 works well when you profiled on the same machine), and writes a single
 self-contained trace:
 
 ```bash
 # llvm-symbolizer must be on $PATH, e.g. `sudo apt install llvm`.
-./traceconv bundle /tmp/trace.pftrace /tmp/trace.bundle
+./trace_processor bundle /tmp/trace.pftrace /tmp/trace.bundle
 ```
 
 If your symbols live elsewhere (a build host, a `.debug` directory, an embedded
 sysroot), point `bundle` at them:
 
 ```bash
-./traceconv bundle \
+./trace_processor bundle \
   --symbol-paths /path/to/sysroot/usr/lib/debug,/path/to/build/out \
   --verbose \
   /tmp/trace.pftrace /tmp/trace.bundle
@@ -202,7 +202,7 @@ troubleshooting are documented in the
 To instead produce aggregated [pprof](https://github.com/google/pprof) profiles:
 
 ```bash
-./traceconv profile --perf /tmp/trace.pftrace
+./trace_processor convert profile --perf /tmp/trace.pftrace
 ```
 
 ## Recipe: Native heap (memory) profiling {#heap-profiling}
@@ -277,7 +277,7 @@ per-thread `Funcgraph` track. See the dedicated
 requirements (`CONFIG_FUNCTION_GRAPH_TRACER`), the filtering options, and how the
 calls are visualised. Note that, unlike the [CPU profile](#cpu-profiling) recipe,
 these kernel symbols come from `symbolize_ksyms` and **cannot** be added later
-with `traceconv bundle`.
+with `trace_processor bundle`.
 
 ## Recipe: Finding why a thread is blocked {#blocked-thread}
 
@@ -329,7 +329,7 @@ data_sources {
 ```
 
 Record and symbolize exactly as in the [CPU profiling recipe](#cpu-profiling)
-(`sudo ./tracebox -c blocked.cfg --txt -o ...`, then `./traceconv bundle ...`).
+(`sudo ./tracebox -c blocked.cfg --txt -o ...`, then `./trace_processor bundle ...`).
 
 For a full worked example, including filtering on both `sched_switch` and
 `sched_waking` and how to reason about the captured callstacks, see the
