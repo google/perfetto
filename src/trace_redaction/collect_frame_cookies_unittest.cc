@@ -20,17 +20,12 @@
 #include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
 
-#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "protos/perfetto/trace/android/frame_timeline_event.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
 namespace {
-
-constexpr uint32_t kFrameTimelineEventFieldNumber = com::android::internal::
-    pbzero::FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber;
-
-using FrameTimelineEvent = com::android::internal::pbzero::FrameTimelineEvent;
 
 constexpr uint64_t kTimeStep = 1000;
 
@@ -56,81 +51,71 @@ enum class FrameCookieType {
   ActualDisplay,
 };
 
-std::string CreateExpectedSurfaceFrameStart(uint64_t ts,
-                                            int32_t pid,
-                                            int64_t cookie) {
-  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-  packet->set_timestamp(ts);
-  auto* event = packet->BeginNestedMessage<FrameTimelineEvent>(
-      kFrameTimelineEventFieldNumber);
-  auto* start =
-      event->BeginNestedMessage<FrameTimelineEvent::ExpectedSurfaceFrameStart>(
-          FrameTimelineEvent::kExpectedSurfaceFrameStartFieldNumber);
+protos::gen::TracePacket CreateExpectedSurfaceFrameStart(uint64_t ts,
+                                                         int32_t pid,
+                                                         int64_t cookie) {
+  protos::gen::TracePacket packet;
+  packet.set_timestamp(ts);
+  auto* start = packet.mutable_frame_timeline_event()
+                    ->mutable_expected_surface_frame_start();
   start->set_cookie(cookie);
   start->set_pid(pid);
-  return packet.SerializeAsString();
+  return packet;
 }
 
-std::string CreateActualSurfaceFrameStart(uint64_t ts,
-                                          int32_t pid,
-                                          int64_t cookie) {
-  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-  packet->set_timestamp(ts);
-  auto* event = packet->BeginNestedMessage<FrameTimelineEvent>(
-      kFrameTimelineEventFieldNumber);
-  auto* start =
-      event->BeginNestedMessage<FrameTimelineEvent::ActualSurfaceFrameStart>(
-          FrameTimelineEvent::kActualSurfaceFrameStartFieldNumber);
+protos::gen::TracePacket CreateActualSurfaceFrameStart(uint64_t ts,
+                                                       int32_t pid,
+                                                       int64_t cookie) {
+  protos::gen::TracePacket packet;
+  packet.set_timestamp(ts);
+  auto* start = packet.mutable_frame_timeline_event()
+                    ->mutable_actual_surface_frame_start();
   start->set_cookie(cookie);
   start->set_pid(pid);
-  return packet.SerializeAsString();
+
+  return packet;
 }
 
-std::string CreateExpectedDisplayFrameStart(uint64_t ts,
-                                            int32_t pid,
-                                            int64_t cookie) {
-  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-  packet->set_timestamp(ts);
-  auto* event = packet->BeginNestedMessage<FrameTimelineEvent>(
-      kFrameTimelineEventFieldNumber);
-  auto* start =
-      event->BeginNestedMessage<FrameTimelineEvent::ExpectedDisplayFrameStart>(
-          FrameTimelineEvent::kExpectedDisplayFrameStartFieldNumber);
+protos::gen::TracePacket CreateExpectedDisplayFrameStart(uint64_t ts,
+                                                         int32_t pid,
+                                                         int64_t cookie) {
+  protos::gen::TracePacket packet;
+  packet.set_timestamp(ts);
+  auto* start = packet.mutable_frame_timeline_event()
+                    ->mutable_expected_display_frame_start();
   start->set_cookie(cookie);
   start->set_pid(pid);
-  return packet.SerializeAsString();
+
+  return packet;
 }
 
-std::string CreateActualDisplayFrameStart(uint64_t ts,
-                                          int32_t pid,
-                                          int64_t cookie) {
-  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-  packet->set_timestamp(ts);
-  auto* event = packet->BeginNestedMessage<FrameTimelineEvent>(
-      kFrameTimelineEventFieldNumber);
-  auto* start =
-      event->BeginNestedMessage<FrameTimelineEvent::ActualDisplayFrameStart>(
-          FrameTimelineEvent::kActualDisplayFrameStartFieldNumber);
+protos::gen::TracePacket CreateActualDisplayFrameStart(uint64_t ts,
+                                                       int32_t pid,
+                                                       int64_t cookie) {
+  protos::gen::TracePacket packet;
+  packet.set_timestamp(ts);
+  auto* start = packet.mutable_frame_timeline_event()
+                    ->mutable_actual_display_frame_start();
   start->set_cookie(cookie);
   start->set_pid(pid);
-  return packet.SerializeAsString();
+
+  return packet;
 }
 
-std::string CreateFrameEnd(uint64_t ts, int64_t cookie) {
-  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-  packet->set_timestamp(ts);
-  auto* event = packet->BeginNestedMessage<FrameTimelineEvent>(
-      kFrameTimelineEventFieldNumber);
-  auto* end = event->BeginNestedMessage<FrameTimelineEvent::FrameEnd>(
-      FrameTimelineEvent::kFrameEndFieldNumber);
-  end->set_cookie(cookie);
-  return packet.SerializeAsString();
+protos::gen::TracePacket CreateFrameEnd(uint64_t ts, int64_t cookie) {
+  protos::gen::TracePacket packet;
+  packet.set_timestamp(ts);
+
+  auto* start = packet.mutable_frame_timeline_event()->mutable_frame_end();
+  start->set_cookie(cookie);
+
+  return packet;
 }
 
-std::string CreateStartPacket(FrameCookieType type,
-                              uint64_t ts,
-                              int32_t pid,
-                              int64_t cookie) {
+protos::gen::TracePacket CreateStartPacket(FrameCookieType type,
+                                           uint64_t ts,
+                                           int32_t pid,
+                                           int64_t cookie) {
   switch (type) {
     case FrameCookieType::ExpectedSurface:
       return CreateExpectedSurfaceFrameStart(ts, pid, cookie);
@@ -141,6 +126,7 @@ std::string CreateStartPacket(FrameCookieType type,
     case FrameCookieType::ActualDisplay:
       return CreateActualDisplayFrameStart(ts, pid, cookie);
   }
+
   PERFETTO_FATAL("Unhandled case. This should never happen.");
 }
 
@@ -160,7 +146,8 @@ class FrameCookieTest : public testing::Test {
 };
 
 TEST_F(FrameCookieTest, ExtractsExpectedSurfaceFrameStart) {
-  auto bytes = CreateExpectedSurfaceFrameStart(kTimestampA, kPidA, kCookieA);
+  auto packet = CreateExpectedSurfaceFrameStart(kTimestampA, kPidA, kCookieA);
+  auto bytes = packet.SerializeAsString();
   CollectCookies(bytes, &context_);
 
   ASSERT_EQ(context_.global_frame_cookies.size(), 1u);
@@ -172,7 +159,8 @@ TEST_F(FrameCookieTest, ExtractsExpectedSurfaceFrameStart) {
 }
 
 TEST_F(FrameCookieTest, ExtractsActualSurfaceFrameStart) {
-  auto bytes = CreateActualSurfaceFrameStart(kTimestampA, kPidA, kCookieA);
+  auto packet = CreateActualSurfaceFrameStart(kTimestampA, kPidA, kCookieA);
+  auto bytes = packet.SerializeAsString();
   CollectCookies(bytes, &context_);
 
   ASSERT_EQ(context_.global_frame_cookies.size(), 1u);
@@ -184,7 +172,8 @@ TEST_F(FrameCookieTest, ExtractsActualSurfaceFrameStart) {
 }
 
 TEST_F(FrameCookieTest, ExtractsExpectedDisplayFrameStart) {
-  auto bytes = CreateExpectedDisplayFrameStart(kTimestampA, kPidA, kCookieA);
+  auto packet = CreateExpectedDisplayFrameStart(kTimestampA, kPidA, kCookieA);
+  auto bytes = packet.SerializeAsString();
   CollectCookies(bytes, &context_);
 
   ASSERT_EQ(context_.global_frame_cookies.size(), 1u);
@@ -196,7 +185,8 @@ TEST_F(FrameCookieTest, ExtractsExpectedDisplayFrameStart) {
 }
 
 TEST_F(FrameCookieTest, ExtractsActualDisplayFrameStart) {
-  auto bytes = CreateActualDisplayFrameStart(kTimestampA, kPidA, kCookieA);
+  auto packet = CreateActualDisplayFrameStart(kTimestampA, kPidA, kCookieA);
+  auto bytes = packet.SerializeAsString();
   CollectCookies(bytes, &context_);
 
   ASSERT_EQ(context_.global_frame_cookies.size(), 1u);
@@ -211,7 +201,8 @@ TEST_F(FrameCookieTest, ExtractsActualDisplayFrameStart) {
 // a direct connection to a process. They're indirectly connected to a pid via a
 // start event (via a common cookie value).
 TEST_F(FrameCookieTest, IgnoresFrameEnd) {
-  auto bytes = CreateFrameEnd(kTimestampA, kCookieA);
+  auto packet = CreateFrameEnd(kTimestampA, kCookieA);
+  auto bytes = packet.SerializeAsString();
   CollectCookies(bytes, &context_);
 
   ASSERT_TRUE(context_.global_frame_cookies.empty());
@@ -244,7 +235,8 @@ class ReduceFrameCookiesTest
 };
 
 TEST_P(ReduceFrameCookiesTest, RejectBeforeStart) {
-  auto bytes = CreateStartPacket(GetParam(), kTimestampA, kPidA, kCookieA);
+  auto packet = CreateStartPacket(GetParam(), kTimestampA, kPidA, kCookieA);
+  auto bytes = packet.SerializeAsString();
   CollectCookies(bytes, &context_);
 
   ASSERT_OK(reduce_.Build(&context_));
@@ -252,7 +244,8 @@ TEST_P(ReduceFrameCookiesTest, RejectBeforeStart) {
 }
 
 TEST_P(ReduceFrameCookiesTest, AcceptAtStart) {
-  auto bytes = CreateStartPacket(GetParam(), kTimestampB, kPidA, kCookieA);
+  auto packet = CreateStartPacket(GetParam(), kTimestampB, kPidA, kCookieA);
+  auto bytes = packet.SerializeAsString();
   CollectCookies(bytes, &context_);
 
   ASSERT_OK(reduce_.Build(&context_));
@@ -260,7 +253,8 @@ TEST_P(ReduceFrameCookiesTest, AcceptAtStart) {
 }
 
 TEST_P(ReduceFrameCookiesTest, AcceptBetweenStartAndEnd) {
-  auto bytes = CreateStartPacket(GetParam(), kTimestampC, kPidA, kCookieA);
+  auto packet = CreateStartPacket(GetParam(), kTimestampC, kPidA, kCookieA);
+  auto bytes = packet.SerializeAsString();
   CollectCookies(bytes, &context_);
 
   ASSERT_OK(reduce_.Build(&context_));
@@ -268,7 +262,8 @@ TEST_P(ReduceFrameCookiesTest, AcceptBetweenStartAndEnd) {
 }
 
 TEST_P(ReduceFrameCookiesTest, AcceptAtEnd) {
-  auto bytes = CreateStartPacket(GetParam(), kTimestampD, kPidA, kCookieA);
+  auto packet = CreateStartPacket(GetParam(), kTimestampD, kPidA, kCookieA);
+  auto bytes = packet.SerializeAsString();
   CollectCookies(bytes, &context_);
 
   ASSERT_OK(reduce_.Build(&context_));
@@ -276,7 +271,8 @@ TEST_P(ReduceFrameCookiesTest, AcceptAtEnd) {
 }
 
 TEST_P(ReduceFrameCookiesTest, RejectAfterEnd) {
-  auto bytes = CreateStartPacket(GetParam(), kTimestampE, kPidA, kCookieA);
+  auto packet = CreateStartPacket(GetParam(), kTimestampE, kPidA, kCookieA);
+  auto bytes = packet.SerializeAsString();
   CollectCookies(bytes, &context_);
 
   ASSERT_OK(reduce_.Build(&context_));
@@ -301,49 +297,53 @@ class TransformStartCookiesTest
 };
 
 TEST_P(TransformStartCookiesTest, RetainStartEvent) {
-  auto bytes = CreateStartPacket(GetParam(), kTimestampE, kPidA, kCookieA);
+  auto packet = CreateStartPacket(GetParam(), kTimestampE, kPidA, kCookieA);
+  auto bytes = packet.SerializeAsString();
 
   ASSERT_OK(filter_.Transform(context_, &bytes));
 
-  protos::pbzero::TracePacket::Decoder redacted(bytes);
-  auto frame_timeline_field =
-      redacted.FindField(kFrameTimelineEventFieldNumber);
-  ASSERT_TRUE(frame_timeline_field.valid());
+  protos::gen::TracePacket redacted;
+  ASSERT_TRUE(redacted.ParseFromString(bytes));
 
-  FrameTimelineEvent::Decoder timeline(frame_timeline_field.as_bytes());
-  int64_t cookie = -1;
+  ASSERT_TRUE(redacted.has_frame_timeline_event());
+  const auto& timeline = redacted.frame_timeline_event();
 
+  int64_t cookie;
+
+  // Find the cookie from the packet.
   switch (GetParam()) {
     case FrameCookieType::ExpectedSurface: {
       ASSERT_TRUE(timeline.has_expected_surface_frame_start());
-      FrameTimelineEvent::ExpectedSurfaceFrameStart::Decoder start(
-          timeline.expected_surface_frame_start());
+      const auto& start = timeline.expected_surface_frame_start();
       ASSERT_TRUE(start.has_cookie());
       cookie = start.cookie();
+
       break;
     }
+
     case FrameCookieType::ExpectedDisplay: {
       ASSERT_TRUE(timeline.has_expected_display_frame_start());
-      FrameTimelineEvent::ExpectedDisplayFrameStart::Decoder start(
-          timeline.expected_display_frame_start());
+      const auto& start = timeline.expected_display_frame_start();
       ASSERT_TRUE(start.has_cookie());
       cookie = start.cookie();
+
       break;
     }
+
     case FrameCookieType::ActualSurface: {
       ASSERT_TRUE(timeline.has_actual_surface_frame_start());
-      FrameTimelineEvent::ActualSurfaceFrameStart::Decoder start(
-          timeline.actual_surface_frame_start());
+      const auto& start = timeline.actual_surface_frame_start();
       ASSERT_TRUE(start.has_cookie());
       cookie = start.cookie();
+
       break;
     }
     case FrameCookieType::ActualDisplay: {
       ASSERT_TRUE(timeline.has_actual_display_frame_start());
-      FrameTimelineEvent::ActualDisplayFrameStart::Decoder start(
-          timeline.actual_display_frame_start());
+      const auto& start = timeline.actual_display_frame_start();
       ASSERT_TRUE(start.has_cookie());
       cookie = start.cookie();
+
       break;
     }
   }
@@ -354,14 +354,15 @@ TEST_P(TransformStartCookiesTest, RetainStartEvent) {
 TEST_P(TransformStartCookiesTest, DropStartEvent) {
   // Even those this packet is using PidA, because CookieA is not in the package
   // coookie pool, the event should be dropped.
-  auto bytes = CreateStartPacket(GetParam(), kTimestampE, kPidA, kCookieB);
+  auto packet = CreateStartPacket(GetParam(), kTimestampE, kPidA, kCookieB);
+  auto bytes = packet.SerializeAsString();
 
   ASSERT_OK(filter_.Transform(context_, &bytes));
 
-  protos::pbzero::TracePacket::Decoder redacted(bytes);
-  auto frame_timeline_field =
-      redacted.FindField(kFrameTimelineEventFieldNumber);
-  ASSERT_FALSE(frame_timeline_field.valid());
+  protos::gen::TracePacket redacted;
+  ASSERT_TRUE(redacted.ParseFromString(bytes));
+
+  ASSERT_FALSE(redacted.has_frame_timeline_event());
 }
 
 INSTANTIATE_TEST_SUITE_P(Default,
@@ -383,30 +384,33 @@ class TransformEndFrameCookiesTest : public testing::Test {
 // cookie moved from the global pool into the package pool, then end the end
 // event should be retained.
 TEST_F(TransformStartCookiesTest, Retain) {
-  auto bytes = CreateFrameEnd(kTimestampA, kCookieA);
+  auto packet = CreateFrameEnd(kTimestampA, kCookieA);
+  auto bytes = packet.SerializeAsString();
 
   ASSERT_OK(filter_.Transform(context_, &bytes));
 
-  protos::pbzero::TracePacket::Decoder redacted(bytes);
-  auto frame_timeline_field =
-      redacted.FindField(kFrameTimelineEventFieldNumber);
-  ASSERT_TRUE(frame_timeline_field.valid());
+  protos::gen::TracePacket redacted;
+  ASSERT_TRUE(redacted.ParseFromString(bytes));
 
-  FrameTimelineEvent::Decoder timeline(frame_timeline_field.as_bytes());
+  ASSERT_TRUE(redacted.has_frame_timeline_event());
+  const auto& timeline = redacted.frame_timeline_event();
+
   ASSERT_TRUE(timeline.has_frame_end());
-  FrameTimelineEvent::FrameEnd::Decoder end(timeline.frame_end());
+  const auto& end = timeline.frame_end();
+
   ASSERT_EQ(end.cookie(), kCookieA);
 }
 
 TEST_F(TransformStartCookiesTest, Drop) {
-  auto bytes = CreateFrameEnd(kTimestampA, kCookieB);
+  auto packet = CreateFrameEnd(kTimestampA, kCookieB);
+  auto bytes = packet.SerializeAsString();
 
   ASSERT_OK(filter_.Transform(context_, &bytes));
 
-  protos::pbzero::TracePacket::Decoder redacted(bytes);
-  auto frame_timeline_field =
-      redacted.FindField(kFrameTimelineEventFieldNumber);
-  ASSERT_FALSE(frame_timeline_field.valid());
+  protos::gen::TracePacket redacted;
+  ASSERT_TRUE(redacted.ParseFromString(bytes));
+
+  ASSERT_FALSE(redacted.has_frame_timeline_event());
 }
 
 }  // namespace

@@ -74,7 +74,7 @@ schemas, function arguments and return types:
 | `ID(table.column)` | A variant of the `ID` type, which is both primary key for this table and simultaneously is a foreign key reference into another table. Useful when a given table is based on a subset of rows from another table (e.g. `slice`). |
 
 ## Defining functions
-`CREATE PEFETTO FUNCTION` allows functions to be defined in SQL, which can be
+`CREATE PERFETTO FUNCTION` allows functions to be defined in SQL, which can be
 either scalar (returning a single value) or table-value (returning a set of rows).
 The syntax is similar to the syntax in PostgreSQL or GoogleSQL:
 - Scalar: `CREATE PERFETTO FUNCTION function_name(arg_list) RETURNS return_type AS sql_select_statement;`
@@ -220,7 +220,7 @@ SELECT 1 as x, 'test' as y
 ```
 
 ## Defining macros
-`CREATE PEFETTO MACRO` allows macros to be defined in SQL. The design of macros
+`CREATE PERFETTO MACRO` allows macros to be defined in SQL. The design of macros
 is inspired by the macros in Rust.
 
 The following are recommended uses of macros:

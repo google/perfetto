@@ -1095,7 +1095,7 @@ TEST(TraceProcessorShellIntegrationTest, ClassicAddSqlPackageWithStdiod) {
 }
 
 // ---------------------------------------------------------------------------
-// Subcommand: convert (wraps traceconv)
+// Subcommand: bundle
 // ---------------------------------------------------------------------------
 
 namespace {
@@ -1148,16 +1148,16 @@ std::set<std::string> DeobfuscationPackages(const std::string& deob_bytes) {
 // The bundle must carry the input trace byte-for-byte in `trace.perfetto`
 // and a parseable `deobfuscation.pb` whose DeobfuscationMapping names our
 // class and method.
-TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithProguardMap) {
+TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
   auto mapping = WriteTempFile(
       "com.example.Foo -> a.a:\n"
       "    void bar() -> b\n");
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
 
-  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
-                          "--proguard-map", "com.example=" + mapping.path(),
-                          HeapprofdTracePath(), out_path});
+  auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
+                          "com.example=" + mapping.path(), HeapprofdTracePath(),
+                          out_path});
   ASSERT_EQ(result.exit_code, 0) << result.out;
 
   auto members = ReadTarMembers(out_path);
@@ -1186,16 +1186,16 @@ TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithProguardMap) {
 
 // Repeated --proguard-map should emit one DeobfuscationMapping per input map,
 // each tagged with the right package name.
-TEST(TraceProcessorShellIntegrationTest, ConvertBundleRepeatedProguardMap) {
+TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
   auto m1 = WriteTempFile("com.example.Foo -> a.a:\n");
   auto m2 = WriteTempFile("com.example.Bar -> b.b:\n");
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
 
-  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
-                          "--proguard-map", "com.example.one=" + m1.path(),
-                          "--proguard-map", "com.example.two=" + m2.path(),
-                          HeapprofdTracePath(), out_path});
+  auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
+                          "com.example.one=" + m1.path(), "--proguard-map",
+                          "com.example.two=" + m2.path(), HeapprofdTracePath(),
+                          out_path});
   ASSERT_EQ(result.exit_code, 0) << result.out;
 
   auto members = ReadTarMembers(out_path);
@@ -1206,19 +1206,19 @@ TEST(TraceProcessorShellIntegrationTest, ConvertBundleRepeatedProguardMap) {
   unlink(out_path.c_str());
 }
 
-TEST(TraceProcessorShellIntegrationTest, ConvertBundleMissingProguardMapFails) {
+TEST(TraceProcessorShellIntegrationTest, BundleMissingProguardMapFails) {
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
 
-  auto result = RunShell(
-      {"convert", "bundle", "--no-auto-symbol-paths", "--proguard-map",
-       "com.example=/nonexistent/mapping.txt", HeapprofdTracePath(), out_path});
+  auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
+                          "com.example=/nonexistent/mapping.txt",
+                          HeapprofdTracePath(), out_path});
   EXPECT_NE(result.exit_code, 0);
   unlink(out_path.c_str());
 }
 
-TEST(TraceProcessorShellIntegrationTest, ConvertHelpShowsProguardMap) {
-  auto result = RunShell({"help", "convert"});
+TEST(TraceProcessorShellIntegrationTest, BundleHelpShowsProguardMap) {
+  auto result = RunShell({"help", "bundle"});
   EXPECT_EQ(result.exit_code, 0);
   EXPECT_THAT(result.out, HasSubstr("proguard-map"));
   EXPECT_THAT(result.out, HasSubstr("symbol-paths"));
@@ -1227,15 +1227,15 @@ TEST(TraceProcessorShellIntegrationTest, ConvertHelpShowsProguardMap) {
 
 // --no-auto-proguard-maps must not suppress explicit --proguard-map values:
 // the packet for the explicit package still appears in the bundle.
-TEST(TraceProcessorShellIntegrationTest, ConvertBundleNoAutoProguardMaps) {
+TEST(TraceProcessorShellIntegrationTest, BundleNoAutoProguardMaps) {
   auto mapping = WriteTempFile("com.example.Foo -> a.a:\n");
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
 
-  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
-                          "--no-auto-proguard-maps", "--proguard-map",
-                          "com.example=" + mapping.path(), HeapprofdTracePath(),
-                          out_path});
+  auto result =
+      RunShell({"bundle", "--no-auto-symbol-paths", "--no-auto-proguard-maps",
+                "--proguard-map", "com.example=" + mapping.path(),
+                HeapprofdTracePath(), out_path});
   ASSERT_EQ(result.exit_code, 0) << result.out;
 
   auto members = ReadTarMembers(out_path);

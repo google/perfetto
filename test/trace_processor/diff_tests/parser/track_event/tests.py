@@ -1262,3 +1262,30 @@ class TrackEvent(TestSuite):
         "name","value"
         "track_event_parser_errors",1
         """))
+
+  def test_track_event_state_state(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_state.textproto'),
+        query="""
+        SELECT
+          state_track.name AS state_name,
+          process.name AS process,
+          thread.name AS thread,
+          thread_process.name AS thread_process,
+          state.ts,
+          state.value
+        FROM state
+        LEFT JOIN state_track ON state.track_id = state_track.id
+        LEFT JOIN process_state_track ON state.track_id = process_state_track.id
+        LEFT JOIN process ON process_state_track.upid = process.upid
+        LEFT JOIN thread_state_track ON state.track_id = thread_state_track.id
+        LEFT JOIN thread ON thread_state_track.utid = thread.utid
+        LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+        ORDER BY ts ASC;
+        """,
+        out=Csv("""
+        "state_name","process","thread","thread_process","ts","value"
+        "ProcState","Browser","[NULL]","[NULL]",1000,"Foreground"
+        "ThreadState","[NULL]","t1","Browser",2000,"Running"
+        "GlobalState","[NULL]","[NULL]","[NULL]",3000,"Active"
+        """))

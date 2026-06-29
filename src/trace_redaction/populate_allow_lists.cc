@@ -21,7 +21,6 @@
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
@@ -48,10 +47,9 @@ base::Status PopulateAllowlists::Build(Context* context) const {
 
   // Trace packet data (one-of field) - Every field here should also be modified
   // by message-focused transform.
-  packet_mask.set(com::android::internal::pbzero::FrameworksNativeTracePacket::
-                      kFrameTimelineEventFieldNumber);
   packet_mask.set(protos::pbzero::TracePacket::kClockSnapshotFieldNumber);
   packet_mask.set(protos::pbzero::TracePacket::kCpuInfoFieldNumber);
+  packet_mask.set(protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber);
   packet_mask.set(protos::pbzero::TracePacket::kFtraceEventsFieldNumber);
   packet_mask.set(protos::pbzero::TracePacket::kInitialDisplayStateFieldNumber);
   packet_mask.set(protos::pbzero::TracePacket::kPackagesListFieldNumber);

@@ -121,7 +121,7 @@ const JANK_CUJ_QUERY = `
           LEFT JOIN android_jank_cuj jc
                     ON pt.upid = jc.upid AND cuj.name = jc.cuj_slice_name AND cuj.ts = jc.ts
           LEFT JOIN android_jank_cuj_main_thread_cuj_boundary boundaries using (cuj_id)
-          LEFT JOIN _android_jank_cuj_layer_name cuj_layer USING (cuj_id)
+          LEFT JOIN android_jank_cuj_layer_name cuj_layer USING (cuj_id)
           LEFT JOIN missed_frame_counts USING (cuj_id)
     WHERE cuj.name GLOB 'J<*>'
       AND cuj.dur > 0
