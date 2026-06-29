@@ -27,7 +27,6 @@
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
-#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.pbzero.h"
 #include "protos/third_party/android/frameworks/native/tracing/winscope/protolog.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -94,7 +93,7 @@ void ProtoLogParser::ParseProtoLogMessage(
   if (protolog_message.has_str_param_iids()) {
     for (auto it = protolog_message.str_param_iids(); it; ++it) {
       std::optional<base::StringView> str = sequence_state->InternedStringView(
-          com::android::internal::pbzero::FrameworksBaseInternedData::
+          perfetto::protos::pbzero::InternedData::
               kProtologStringArgsFieldNumber,
           it.field().as_uint32());
       if (!str) {
@@ -112,7 +111,7 @@ void ProtoLogParser::ParseProtoLogMessage(
   std::optional<StringId> stacktrace = std::nullopt;
   if (protolog_message.has_stacktrace_iid()) {
     if (auto id = sequence_state->InternedStringId(
-            com::android::internal::pbzero::FrameworksBaseInternedData::
+            perfetto::protos::pbzero::InternedData::
                 kProtologStacktraceFieldNumber,
             protolog_message.stacktrace_iid())) {
       stacktrace = *id;

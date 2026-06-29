@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/string_view.h"
-#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
+#include "protos/perfetto/trace/android/frame_timeline_event.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
@@ -151,16 +151,16 @@ bool ValidatePresentType(TraceProcessorContext* context, int32_t present_type) {
 }
 
 using ExpectedDisplayFrameStartDecoder =
-    FrameTimelineEvent::ExpectedDisplayFrameStart::Decoder;
+    protos::pbzero::FrameTimelineEvent::ExpectedDisplayFrameStart::Decoder;
 using ActualDisplayFrameStartDecoder =
-    FrameTimelineEvent::ActualDisplayFrameStart::Decoder;
+    protos::pbzero::FrameTimelineEvent::ActualDisplayFrameStart::Decoder;
 
 using ExpectedSurfaceFrameStartDecoder =
-    FrameTimelineEvent::ExpectedSurfaceFrameStart::Decoder;
+    protos::pbzero::FrameTimelineEvent::ExpectedSurfaceFrameStart::Decoder;
 using ActualSurfaceFrameStartDecoder =
-    FrameTimelineEvent::ActualSurfaceFrameStart::Decoder;
+    protos::pbzero::FrameTimelineEvent::ActualSurfaceFrameStart::Decoder;
 
-using FrameEndDecoder = FrameTimelineEvent::FrameEnd::Decoder;
+using FrameEndDecoder = protos::pbzero::FrameTimelineEvent::FrameEnd::Decoder;
 
 constexpr auto kExpectedBlueprint = TrackCompressor::SliceBlueprint(
     "android_expected_frame_timeline",
@@ -698,7 +698,7 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
 
 void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
                                                        ConstBytes blob) {
-  FrameTimelineEventDecoder frame_event(blob);
+  protos::pbzero::FrameTimelineEvent_Decoder frame_event(blob);
 
   // Due to platform bugs, negative timestamps can creep into into traces.
   // Ensure that it doesn't make it into the tables.
