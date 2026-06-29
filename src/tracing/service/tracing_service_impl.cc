@@ -319,6 +319,33 @@ bool ShouldLogEvent(const TraceConfig& cfg) {
   return cfg.enable_extra_guardrails();
 }
 
+// Returns the compressor to run over the trace for `cfg`, or nullptr if none
+// was requested or is available. compression_type_v2 wins when the service can
+// honor it; otherwise we fall back to the legacy, deflate-only
+// compression_type.
+TracingServiceInitOpts::CompressorFn SelectCompressorFn(
+    const TracingServiceInitOpts& opts,
+    const TraceConfig& cfg) {
+  // An unknown value (a newer config's codec) matches no case and falls through
+  // to compression_type below, instead of crashing.
+  switch (cfg.compression_type_v2()) {
+    case TraceConfig::COMPRESSION_TYPE_V2_DEFLATE:
+      if (opts.deflate_compressor_fn)
+        return opts.deflate_compressor_fn;
+      break;  // Not built in; fall back to compression_type.
+    case TraceConfig::COMPRESSION_TYPE_V2_ZSTD:
+      if (opts.zstd_compressor_fn)
+        return opts.zstd_compressor_fn;
+      break;  // Not built in; fall back to compression_type.
+    case TraceConfig::COMPRESSION_TYPE_V2_UNSPECIFIED:
+      break;
+  }
+  // Legacy compression_type only ever selects deflate.
+  if (cfg.compression_type() == TraceConfig::COMPRESSION_TYPE_DEFLATE)
+    return opts.deflate_compressor_fn;
+  return nullptr;
+}
+
 // Appends `data` (which has `size` bytes), to `*packet`. Splits the data in
 // slices no larger than `max_slice_size`.
 void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
@@ -1166,13 +1193,15 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
         cfg.fflush_post_write() == TraceConfig::FFLUSH_ENABLED;
   }
 
-  if (cfg.compression_type() == TraceConfig::COMPRESSION_TYPE_DEFLATE) {
-    if (init_opts_.compressor_fn) {
-      tracing_session->compress_deflate = true;
-    } else {
+  bool compression_requested =
+      cfg.compression_type() != TraceConfig::COMPRESSION_TYPE_UNSPECIFIED ||
+      cfg.compression_type_v2() != TraceConfig::COMPRESSION_TYPE_V2_UNSPECIFIED;
+  if (compression_requested) {
+    tracing_session->selected_compressor = SelectCompressorFn(init_opts_, cfg);
+    if (!tracing_session->selected_compressor) {
       PERFETTO_LOG(
-          "COMPRESSION_TYPE_DEFLATE is not supported in the current build "
-          "configuration. Skipping compression");
+          "The requested compression_type is not supported in the current "
+          "build configuration. Skipping compression");
     }
   }
 
@@ -2914,11 +2943,11 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
 void TracingServiceImpl::MaybeCompressPackets(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
-  if (!tracing_session->compress_deflate) {
+  if (!tracing_session->selected_compressor) {
     return;
   }
 
-  init_opts_.compressor_fn(packets);
+  tracing_session->selected_compressor(packets);
 }
 
 bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
@@ -4850,7 +4879,7 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->flushes_requested = src->flushes_requested;
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
-  cloned_session->compress_deflate = src->compress_deflate;
+  cloned_session->selected_compressor = src->selected_compressor;
   if (src->trace_filter && !skip_trace_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(

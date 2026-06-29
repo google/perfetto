@@ -76,9 +76,22 @@ source_set("service") {
   }
 }
 
+# Shared by the zlib and zstd packet compressors below; header-only.
+if (enable_perfetto_zlib || enable_perfetto_zstd) {
+  source_set("packet_compressor_util") {
+    public_deps = [
+      "../../../gn:default_deps",
+      "../../../include/perfetto/ext/tracing/core",
+      "../../protozero",
+    ]
+    sources = [ "packet_compressor_util.h" ]
+  }
+}
+
 if (enable_perfetto_zlib) {
   source_set("zlib_compressor") {
     deps = [
+      ":packet_compressor_util",
       "../../../gn:default_deps",
       "../../../gn:zlib",
       "../../../include/perfetto/tracing",
@@ -87,6 +100,22 @@ if (enable_perfetto_zlib) {
     sources = [
       "zlib_compressor.cc",
       "zlib_compressor.h",
+    ]
+  }
+}
+
+if (enable_perfetto_zstd) {
+  source_set("zstd_compressor") {
+    deps = [
+      ":packet_compressor_util",
+      "../../../gn:default_deps",
+      "../../../gn:zstd",
+      "../../../include/perfetto/tracing",
+      "../core",
+    ]
+    sources = [
+      "zstd_compressor.cc",
+      "zstd_compressor.h",
     ]
   }
 }
@@ -118,6 +147,13 @@ perfetto_unittest_source_set("unittests") {
     ]
   }
 
+  if (enable_perfetto_zstd) {
+    deps += [
+      ":zstd_compressor",
+      "../../../gn:zstd",
+    ]
+  }
+
   sources = [
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
@@ -125,8 +161,9 @@ perfetto_unittest_source_set("unittests") {
     "trace_buffer_v2_unittest.cc",
   ]
 
-  if (enable_perfetto_zlib) {
-    sources += [ "zlib_compressor_unittest.cc" ]
+  if (enable_perfetto_zlib || enable_perfetto_zstd) {
+    deps += [ ":packet_compressor_util" ]
+    sources += [ "compressor_unittest.cc" ]
   }
 
   # These tests rely on test_task_runner.h which
@@ -145,14 +182,29 @@ if (enable_perfetto_benchmarks) {
       "../../../gn:default_deps",
       "../../../protos/perfetto/trace:zero",
       "../../../protos/perfetto/trace/ftrace:zero",
+      "../../../protos/perfetto/trace/track_event:zero",
+      "../../../protos/third_party/android/art:art_heap_graph_zero",
       "../../protozero",
       "../core",
       "../test:test_support",
     ]
     sources = [
+      "compression_benchmark.cc",
       "packet_stream_validator_benchmark.cc",
       "trace_buffer_benchmark.cc",
     ]
+    if (enable_perfetto_zlib) {
+      deps += [
+        ":zlib_compressor",
+        "../../../gn:zlib",
+      ]
+    }
+    if (enable_perfetto_zstd) {
+      deps += [
+        ":zstd_compressor",
+        "../../../gn:zstd",
+      ]
+    }
   }
 }
 

@@ -43,6 +43,10 @@
 #include "src/tracing/service/zlib_compressor.h"
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+#include "src/tracing/service/zstd_compressor.h"
+#endif
+
 namespace perfetto {
 namespace {
 void PrintUsage(const char* prog_name) {
@@ -156,7 +160,10 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
   std::unique_ptr<ServiceIPCHost> svc;
   TracingService::InitOpts init_opts = {};
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-  init_opts.compressor_fn = &ZlibCompressFn;
+  init_opts.deflate_compressor_fn = &ZlibCompressFn;
+#endif
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  init_opts.zstd_compressor_fn = &ZstdCompressFn;
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // See /rfcs/0017-out-of-tree-protos.md .

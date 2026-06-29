@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/scoped_sched_boost.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_config.h"
 
@@ -159,8 +160,9 @@ struct TracingSession {
   // Whether we emitted the ProtoVM instances.
   bool did_emit_protovm_instances_ = false;
 
-  // Whether we should compress TracePackets after reading them.
-  bool compress_deflate = false;
+  // Compressor to run over TracePackets after reading them, or nullptr to skip
+  // compression.
+  TracingServiceInitOpts::CompressorFn selected_compressor = nullptr;
 
   // The number of received triggers we've emitted into the trace output.
   size_t num_triggers_emitted_into_trace = 0;

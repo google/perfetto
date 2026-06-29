@@ -208,6 +208,9 @@ source_set("in_process_backend") {
   if (enable_perfetto_zlib) {
     deps += [ "service:zlib_compressor" ]
   }
+  if (enable_perfetto_zstd) {
+    deps += [ "service:zstd_compressor" ]
+  }
   sources = [ "internal/in_process_tracing_backend.cc" ]
 }
 

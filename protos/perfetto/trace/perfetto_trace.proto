@@ -5428,12 +5428,32 @@ message TraceConfig {
   // with this key.
   optional string unique_session_name = 22;
 
-  // Compress trace with the given method. Best effort.
+  // Legacy compression selector, superseded by |compression_type_v2|: it only
+  // selects deflate. Kept so services predating |compression_type_v2| keep
+  // compressing; to be removed once they're gone. Best effort.
   enum CompressionType {
     COMPRESSION_TYPE_UNSPECIFIED = 0;
     COMPRESSION_TYPE_DEFLATE = 1;
   }
   optional CompressionType compression_type = 24;
+
+  // Selects the trace compression algorithm. Supersedes |compression_type|.
+  // If the service cannot honor it (it is too old to know this field, doesn't
+  // recognize the value, or wasn't built with the requested codec) it falls
+  // back to |compression_type|, if present.
+  //
+  // To compress on both old and new services from a single config, set
+  // |compression_type| = DEFLATE (honored by old services) and
+  // |compression_type_v2| = ZSTD (used by new services). Best effort.
+  //
+  // Introduced in: perfetto v58.
+  // Supported on: Android 26Q3+.
+  enum CompressionTypeV2 {
+    COMPRESSION_TYPE_V2_UNSPECIFIED = 0;
+    COMPRESSION_TYPE_V2_DEFLATE = 1;
+    COMPRESSION_TYPE_V2_ZSTD = 2;
+  }
+  optional CompressionTypeV2 compression_type_v2 = 47;
 
   // DEPRECATED, was compress_from_cli.
   reserved 37;

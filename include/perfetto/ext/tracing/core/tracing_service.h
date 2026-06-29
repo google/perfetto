@@ -311,7 +311,10 @@ struct PERFETTO_EXPORT_COMPONENT TracingServiceInitOpts {
   // a vector of TracePackets and replaces the packets in the vector with
   // compressed ones.
   using CompressorFn = void (*)(std::vector<TracePacket>*);
-  CompressorFn compressor_fn = nullptr;
+  // Deflate (zlib) compressor.
+  CompressorFn deflate_compressor_fn = nullptr;
+  // Zstd compressor.
+  CompressorFn zstd_compressor_fn = nullptr;
 
   // An (optional) list of proto extension descriptors to dump into each trace
   // recorded. This is to support injecting protos that are known by the
