@@ -85,8 +85,8 @@ function newTokenizeOnlyEngine(): WasmEngineProxy {
   return engine;
 }
 
-// Best-effort clock signals; on query failure the fields stay undefined and the
-// UI degrades to showing all controls.
+// Best-effort clock/machine signals; on query failure the fields stay undefined
+// and the UI degrades to showing all controls.
 async function queryFileSignals(
   engine: WasmEngineProxy,
 ): Promise<Partial<FileAnalysis>> {
@@ -94,7 +94,25 @@ async function queryFileSignals(
     singleClock?: boolean;
     privateClockOnly?: boolean;
     builtinClockIds?: number[];
+    singleMachine?: boolean;
+    embeddedMachineIds?: number[];
   } = {};
+
+  try {
+    const res = await engine.query(`SELECT raw_id FROM machine ORDER BY raw_id`);
+    const it = res.iter({raw_id: NUM});
+    const ids: number[] = [];
+    for (; it.valid(); it.next()) {
+      ids.push(it.raw_id);
+    }
+    if (ids.length > 0) {
+      out.embeddedMachineIds = ids;
+      // A trace is single-machine if every machine seen is the host (raw_id 0).
+      out.singleMachine = ids.every((id) => id === 0);
+    }
+  } catch {
+    // machine table unavailable in tokenize-only on this build.
+  }
 
   try {
     const builtinIds = BUILTIN_CLOCKS.map((c) => c.id).join(', ');

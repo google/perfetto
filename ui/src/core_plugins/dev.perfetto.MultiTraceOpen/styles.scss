@@ -128,8 +128,15 @@
     font-size: 0.9em;
   }
 
-  &__panel-error {
-    margin: 8px 0;
+  // Invalid free-text offset: flag it instead of silently dropping the value.
+  &__offset--invalid {
+    outline: 1px solid var(--pf-color-danger);
+    border-radius: 2px;
+  }
+
+  &__hint {
+    color: var(--pf-color-danger);
+    font-size: 0.85em;
   }
 
   &__help {
@@ -146,15 +153,21 @@
     align-items: center;
   }
 
+  // The whole align sentence on one line; wrap at word boundaries if long.
+  &__align-row {
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
   &__row-top {
     align-items: flex-start;
     justify-content: space-between;
     width: 100%;
   }
 
+  // Stacked vertically: each control (Machine, Align, ...) on its own line.
   &__config {
-    align-items: center;
-    flex-wrap: wrap;
+    align-items: flex-start;
     padding-top: 8px;
     margin-top: 8px;
     border-top: 1px solid var(--pf-color-border);
@@ -167,9 +180,12 @@
     color: var(--pf-color-text-secondary);
   }
 
-  &__align-panel {
-    align-items: flex-start;
+  // Reserved status line: min-height keeps the layout stable as the state
+  // cycles through processing / verdict / ready.
+  &__status-panel {
     padding: 12px 0 4px;
+    min-height: 60px;
+    box-sizing: border-box;
   }
 
   &__footer {
