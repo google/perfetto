@@ -39,7 +39,6 @@ const MAX_TRACK_SHELL_WIDTH = 1000;
 interface TimelinePageAttrs {
   readonly trace: TraceImpl;
   readonly showMinimap: boolean;
-  readonly showHeadlessTracks: boolean;
 }
 
 export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
@@ -55,19 +54,16 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         TabPanel,
         {trace},
         attrs.showMinimap && this.renderMinimap(trace),
-        this.renderTimeline(trace, attrs.showHeadlessTracks),
+        this.renderTimeline(trace),
       ),
     );
   }
 
-  private renderTimeline(
-    trace: TraceImpl,
-    showHeadlessTracks: boolean,
-  ): m.Children {
+  private renderTimeline(trace: TraceImpl): m.Children {
     return m(
       '.pf-timeline-page__timeline',
       this.renderHeader(trace),
-      this.renderTracks(trace, showHeadlessTracks),
+      this.renderTracks(trace),
       this.renderTrackShellResizeHandle(),
     );
   }
@@ -110,23 +106,14 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
     });
   }
 
-  private renderTracks(
-    trace: TraceImpl,
-    showHeadlessTracks: boolean,
-  ): m.Children {
+  private renderTracks(trace: TraceImpl): m.Children {
     // Hide tracks while the trace is loading to prevent thrashing.
     if (AppImpl.instance.isLoadingTrace) return null;
 
-    return [
-      this.renderPinnedTracks(trace, showHeadlessTracks),
-      this.renderMainTracks(trace, showHeadlessTracks),
-    ];
+    return [this.renderPinnedTracks(trace), this.renderMainTracks(trace)];
   }
 
-  private renderPinnedTracks(
-    trace: TraceImpl,
-    showHeadlessTracks: boolean,
-  ): m.Children {
+  private renderPinnedTracks(trace: TraceImpl): m.Children {
     if (trace.currentWorkspace.pinnedTracks.length === 0) return null;
 
     return [
@@ -143,7 +130,6 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           rootNode: trace.currentWorkspace.pinnedTracksNode,
           canReorderNodes: true,
           scrollToNewTracks: true,
-          showHeadlessTracks,
         }),
       ),
       m(ResizeHandle, {
@@ -163,10 +149,7 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
     ];
   }
 
-  private renderMainTracks(
-    trace: TraceImpl,
-    showHeadlessTracks: boolean,
-  ): m.Children {
+  private renderMainTracks(trace: TraceImpl): m.Children {
     return m(TrackTreeView, {
       trace,
       className: 'pf-timeline-page__scrolling-track-tree',
@@ -174,7 +157,6 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       canReorderNodes: trace.currentWorkspace.userEditable,
       canRemoveNodes: trace.currentWorkspace.userEditable,
       trackFilter: (track) => trackMatchesFilter(trace, track),
-      showHeadlessTracks,
     });
   }
 
