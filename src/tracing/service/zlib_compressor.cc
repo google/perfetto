@@ -23,6 +23,7 @@
 
 #include <zlib.h>
 
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/tracing/service/packet_compressor_util.h"
@@ -36,10 +37,15 @@ using packet_compressor::kCompressSliceSize;
 using packet_compressor::Preamble;
 using packet_compressor::PreambleToSlice;
 
+// Used when the config doesn't request a level. This is the level the tracing
+// service has always used for deflate.
+constexpr int kZlibDefaultCompressionLevel = 6;
+
 // A compressor for `TracePacket`s that uses zlib.
 class ZlibPacketCompressor {
  public:
-  ZlibPacketCompressor();
+  // `level` is the deflate compression level (1..9), or 0 for the default.
+  explicit ZlibPacketCompressor(int level);
   ~ZlibPacketCompressor();
 
   // Can be called multiple times, before Finish() is called.
@@ -61,9 +67,10 @@ class ZlibPacketCompressor {
   std::unique_ptr<uint8_t[]> cur_slice_;
 };
 
-ZlibPacketCompressor::ZlibPacketCompressor() {
+ZlibPacketCompressor::ZlibPacketCompressor(int level) {
   memset(&stream_, 0, sizeof(stream_));
-  int status = deflateInit(&stream_, 6);
+  int status =
+      deflateInit(&stream_, level != 0 ? level : kZlibDefaultCompressionLevel);
   PERFETTO_CHECK(status == Z_OK);
 }
 
@@ -134,12 +141,13 @@ void ZlibPacketCompressor::PushCurSlice() {
 
 }  // namespace
 
-void ZlibCompressFn(std::vector<TracePacket>* packets) {
+void ZlibCompressFn(std::vector<TracePacket>* packets,
+                    const CompressionConfig& config) {
   if (packets->empty()) {
     return;
   }
 
-  ZlibPacketCompressor stream;
+  ZlibPacketCompressor stream(config.level);
 
   for (const TracePacket& packet : *packets) {
     stream.PushPacket(packet);

@@ -161,8 +161,9 @@ struct TracingSession {
   bool did_emit_protovm_instances_ = false;
 
   // Compressor to run over TracePackets after reading them, or nullptr to skip
-  // compression.
+  // compression, plus its tuning (e.g. zstd level).
   TracingServiceInitOpts::CompressorFn selected_compressor = nullptr;
+  CompressionConfig compression_config;
 
   // The number of received triggers we've emitted into the trace output.
   size_t num_triggers_emitted_into_trace = 0;

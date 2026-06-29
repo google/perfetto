@@ -24,8 +24,10 @@
 
 namespace perfetto {
 
+struct CompressionConfig;
+
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-void ZlibCompressFn(std::vector<TracePacket>*);
+void ZlibCompressFn(std::vector<TracePacket>*, const CompressionConfig&);
 #endif
 
 }  // namespace perfetto

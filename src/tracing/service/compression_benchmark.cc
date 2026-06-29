@@ -23,6 +23,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 
@@ -131,18 +132,19 @@ struct Incompressible {
   }
 };
 
-// Backend policies: each Compress() runs one compile-time-selected codec.
+// Backend policies: each Compress() runs one compile-time-selected codec at the
+// given level (0 = the codec's default).
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 struct Zlib {
-  static void Compress(std::vector<TracePacket>* packets) {
-    ZlibCompressFn(packets);
+  static void Compress(std::vector<TracePacket>* packets, int level) {
+    ZlibCompressFn(packets, {/*level=*/level});
   }
 };
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 struct Zstd {
-  static void Compress(std::vector<TracePacket>* packets) {
-    ZstdCompressFn(packets);
+  static void Compress(std::vector<TracePacket>* packets, int level) {
+    ZstdCompressFn(packets, {/*level=*/level});
   }
 };
 #endif
@@ -176,14 +178,28 @@ bool IsBenchmarkFunctionalOnly() {
   return getenv("BENCHMARK_FUNCTIONAL_TEST_ONLY") != nullptr;
 }
 
-static void CompressionArgs(benchmark::internal::Benchmark* b) {
+// Sweep the block size (packets per compress call) at the codec's default
+// level.
+static void BlockSizeArgs(benchmark::internal::Benchmark* b) {
   b->Unit(benchmark::kMicrosecond);
+  b->ArgNames({"packets", "level"});
   if (IsBenchmarkFunctionalOnly()) {
-    b->Arg(1)->Iterations(1);
+    b->Args({1, 0})->Iterations(1);
     return;
   }
-  // Sweep the block size: packets handed to the compressor per call.
-  b->RangeMultiplier(8)->Range(1, 4096);
+  b->RangeMultiplier(8)->Ranges({{1, 4096}, {0, 0}});
+}
+
+// Sweep the zstd level (fastest..max) at a fixed, representative block size.
+static void ZstdLevelArgs(benchmark::internal::Benchmark* b) {
+  b->Unit(benchmark::kMicrosecond);
+  b->ArgNames({"packets", "level"});
+  if (IsBenchmarkFunctionalOnly()) {
+    b->Args({1, 0})->Iterations(1);
+    return;
+  }
+  for (int level : {1, 3, 9, 19, 22})
+    b->Args({512, level});
 }
 
 // Compresses a batch of `state.range(0)` packets per iteration. The reported
@@ -192,6 +208,7 @@ static void CompressionArgs(benchmark::internal::Benchmark* b) {
 template <typename Backend, typename Workload>
 static void BM_Compress(benchmark::State& state) {
   const size_t num_packets = static_cast<size_t>(state.range(0));
+  const int level = static_cast<int>(state.range(1));
   std::vector<TracePacket> packets;
   size_t total_in = 0;
   for (size_t i = 0; i < num_packets; i++) {
@@ -205,7 +222,7 @@ static void BM_Compress(benchmark::State& state) {
     std::vector<TracePacket> input = CopyPackets(packets);
     state.ResumeTiming();
 
-    Backend::Compress(&input);
+    Backend::Compress(&input, level);
 
     total_out = 0;
     for (const TracePacket& packet : input)
@@ -224,17 +241,23 @@ static void BM_Compress(benchmark::State& state) {
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-BENCHMARK_TEMPLATE(BM_Compress, Zlib, FtraceSched)->Apply(CompressionArgs);
-BENCHMARK_TEMPLATE(BM_Compress, Zlib, JavaHeapDump)->Apply(CompressionArgs);
-BENCHMARK_TEMPLATE(BM_Compress, Zlib, TrackEvent)->Apply(CompressionArgs);
-BENCHMARK_TEMPLATE(BM_Compress, Zlib, Incompressible)->Apply(CompressionArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zlib, FtraceSched)->Apply(BlockSizeArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zlib, JavaHeapDump)->Apply(BlockSizeArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zlib, TrackEvent)->Apply(BlockSizeArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zlib, Incompressible)->Apply(BlockSizeArgs);
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
-BENCHMARK_TEMPLATE(BM_Compress, Zstd, FtraceSched)->Apply(CompressionArgs);
-BENCHMARK_TEMPLATE(BM_Compress, Zstd, JavaHeapDump)->Apply(CompressionArgs);
-BENCHMARK_TEMPLATE(BM_Compress, Zstd, TrackEvent)->Apply(CompressionArgs);
-BENCHMARK_TEMPLATE(BM_Compress, Zstd, Incompressible)->Apply(CompressionArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zstd, FtraceSched)->Apply(BlockSizeArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zstd, JavaHeapDump)->Apply(BlockSizeArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zstd, TrackEvent)->Apply(BlockSizeArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zstd, Incompressible)->Apply(BlockSizeArgs);
+
+// Level sweep (zstd only): how ratio and latency trade off across levels.
+BENCHMARK_TEMPLATE(BM_Compress, Zstd, FtraceSched)->Apply(ZstdLevelArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zstd, JavaHeapDump)->Apply(ZstdLevelArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zstd, TrackEvent)->Apply(ZstdLevelArgs);
+BENCHMARK_TEMPLATE(BM_Compress, Zstd, Incompressible)->Apply(ZstdLevelArgs);
 #endif
 
 }  // namespace

@@ -306,11 +306,18 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
   virtual void SaveTraceForBugreport(SaveTraceForBugreportCallback) = 0;
 };  // class ConsumerEndpoint.
 
+// Tuning passed to a TracingServiceInitOpts::CompressorFn.
+struct CompressionConfig {
+  // Codec-specific compression level; 0 means the codec's default.
+  int level = 0;
+};
+
 struct PERFETTO_EXPORT_COMPONENT TracingServiceInitOpts {
-  // Function used by tracing service to compress packets. Takes a pointer to
-  // a vector of TracePackets and replaces the packets in the vector with
-  // compressed ones.
-  using CompressorFn = void (*)(std::vector<TracePacket>*);
+  // Function used by tracing service to compress packets. Takes a pointer to a
+  // vector of TracePackets and replaces the packets in the vector with
+  // compressed ones, tuned by `config`.
+  using CompressorFn = void (*)(std::vector<TracePacket>*,
+                                const CompressionConfig& config);
   // Deflate (zlib) compressor.
   CompressorFn deflate_compressor_fn = nullptr;
   // Zstd compressor.

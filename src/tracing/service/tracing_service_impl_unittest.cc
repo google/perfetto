@@ -2582,6 +2582,60 @@ TEST_F(TracingServiceImplTest, CompressionZstdReadIpc) {
                   &protos::gen::TracePacket::for_testing,
                   Property(&protos::gen::TestEvent::str, Eq("payload-2")))));
 }
+
+// An explicit zstd compression level from the TraceConfig must be plumbed
+// through to the compressor and still produce a decodable trace.
+TEST_F(TracingServiceImplTest, CompressionZstdConfiguredLevel) {
+  TracingService::InitOpts init_opts;
+  init_opts.zstd_compressor_fn = ZstdCompressFn;
+  InitializeSvcWithOpts(init_opts);
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4096);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  trace_config.set_compression_type_v2(TraceConfig::COMPRESSION_TYPE_V2_ZSTD);
+  trace_config.mutable_compression_config()->mutable_zstd()->set_level(19);
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload-1");
+  }
+  writer->Flush();
+  writer.reset();
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  std::vector<protos::gen::TracePacket> compressed_packets =
+      consumer->ReadBuffers();
+  EXPECT_THAT(compressed_packets, Not(IsEmpty()));
+  EXPECT_THAT(compressed_packets,
+              Each(Property(&protos::gen::TracePacket::compressed_packets,
+                            Not(IsEmpty()))));
+  std::vector<protos::gen::TracePacket> decompressed_packets =
+      DecompressTraceZstd(compressed_packets);
+  EXPECT_THAT(decompressed_packets,
+              Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload-1")))));
+}
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB) && PERFETTO_BUILDFLAG(PERFETTO_ZSTD)

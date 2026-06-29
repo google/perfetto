@@ -1202,6 +1202,10 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       PERFETTO_LOG(
           "The requested compression_type is not supported in the current "
           "build configuration. Skipping compression");
+    } else if (tracing_session->selected_compressor ==
+               init_opts_.zstd_compressor_fn) {
+      tracing_session->compression_config.level =
+          cfg.compression_config().zstd().level();
     }
   }
 
@@ -2947,7 +2951,8 @@ void TracingServiceImpl::MaybeCompressPackets(
     return;
   }
 
-  tracing_session->selected_compressor(packets);
+  tracing_session->selected_compressor(packets,
+                                       tracing_session->compression_config);
 }
 
 bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
@@ -4880,6 +4885,7 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
   cloned_session->selected_compressor = src->selected_compressor;
+  cloned_session->compression_config = src->compression_config;
   if (src->trace_filter && !skip_trace_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(

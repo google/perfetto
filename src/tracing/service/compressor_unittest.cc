@@ -60,8 +60,9 @@ static_assert(packet_compressor::kCompressSliceSize ==
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 struct ZlibBackend {
   static constexpr const char* kName = "Zlib";
-  static void Compress(std::vector<TracePacket>* packets) {
-    ZlibCompressFn(packets);
+  static void Compress(std::vector<TracePacket>* packets,
+                       const CompressionConfig& config = {}) {
+    ZlibCompressFn(packets, config);
   }
   static std::string Decompress(const std::string& data) {
     uint8_t out[1024];
@@ -90,8 +91,9 @@ struct ZlibBackend {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 struct ZstdBackend {
   static constexpr const char* kName = "Zstd";
-  static void Compress(std::vector<TracePacket>* packets) {
-    ZstdCompressFn(packets);
+  static void Compress(std::vector<TracePacket>* packets,
+                       const CompressionConfig& config = {}) {
+    ZstdCompressFn(packets, config);
   }
   static std::string Decompress(const std::string& data) {
     ZSTD_DStream* stream = ZSTD_createDStream();
@@ -327,6 +329,41 @@ TYPED_TEST(CompressorTest, MultiSliceInputPacket) {
   ASSERT_THAT(subtrace.packet(), SizeIs(1));
   EXPECT_EQ(subtrace.packet()[0].for_testing().str(),
             "multi-slice-input-payload");
+}
+
+// An explicit compression level must be plumbed through to the codec: the
+// output still round-trips, and on highly compressible data a higher level is
+// never worse than a lower one. Guards against the level being dropped on the
+// floor (which would silently fall back to the codec default).
+TYPED_TEST(CompressorTest, CompressionLevelIsHonored) {
+  auto make_packets = [] {
+    std::vector<TracePacket> packets;
+    for (int i = 0; i < 200; i++) {
+      packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
+        msg->mutable_for_testing()->set_str(std::string(1024, 'a'));
+      }));
+    }
+    return packets;
+  };
+
+  auto compress_and_measure = [](std::vector<TracePacket> packets,
+                                 int level) -> size_t {
+    TypeParam::Compress(&packets, {/*level=*/level});
+    EXPECT_THAT(packets, SizeIs(1));
+    protos::gen::TracePacket compressed;
+    EXPECT_TRUE(compressed.ParseFromString(packets[0].GetRawBytesForTesting()));
+    protos::gen::Trace subtrace;
+    EXPECT_TRUE(subtrace.ParseFromString(
+        TypeParam::Decompress(compressed.compressed_packets())));
+    EXPECT_THAT(subtrace.packet(), SizeIs(200));
+    return packets[0].size();
+  };
+
+  size_t low_level_size = compress_and_measure(make_packets(), /*level=*/1);
+  size_t high_level_size = compress_and_measure(make_packets(), /*level=*/9);
+
+  EXPECT_GT(low_level_size, 0u);
+  EXPECT_LE(high_level_size, low_level_size);
 }
 
 }  // namespace

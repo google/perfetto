@@ -515,6 +515,22 @@ message TraceConfig {
   }
   optional CompressionTypeV2 compression_type_v2 = 47;
 
+  // Optional per-codec tuning for |compression_type_v2|. A sub-message applies
+  // only when its codec is the one in use; ignored otherwise.
+  //
+  // Introduced in: perfetto v58.
+  // Supported on: Android 26Q3+.
+  message CompressionConfig {
+    message Zstd {
+      // Compression level: typically 1 (fast) to 22 (smallest). Unset/0 means
+      // zstd's default (3). Negative levels are also accepted (faster,
+      // weaker); values outside zstd's supported range are clamped.
+      optional int32 level = 1;
+    }
+    optional Zstd zstd = 1;
+  }
+  optional CompressionConfig compression_config = 48;
+
   // DEPRECATED, was compress_from_cli.
   reserved 37;
 

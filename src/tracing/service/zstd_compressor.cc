@@ -26,6 +26,7 @@
 #include <zstd.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/tracing/service/packet_compressor_util.h"
@@ -39,17 +40,16 @@ using packet_compressor::kCompressSliceSize;
 using packet_compressor::Preamble;
 using packet_compressor::PreambleToSlice;
 
-// Level 3 is the zstd default and gives a good ratio at the high throughput
-// needed by the tracing service.
-constexpr int kZstdCompressionLevel = 3;
-
 // A compressor for `TracePacket`s that uses zstd's streaming API: data is fed
 // in with ZSTD_compressStream2(ZSTD_e_continue) and the frame is finalized with
 // ZSTD_e_end, emitting output in fixed-size slices (kCompressSliceSize).
 // zstd API reference: https://facebook.github.io/zstd/zstd_manual.html
 class ZstdPacketCompressor {
  public:
-  ZstdPacketCompressor();
+  // `level` is passed straight to ZSTD_c_compressionLevel. Per the zstd
+  // manual, 0 means "default" (ZSTD_CLEVEL_DEFAULT == 3); negative values are
+  // valid (faster, weaker compression).
+  explicit ZstdPacketCompressor(int level);
   ~ZstdPacketCompressor();
 
   // Owns a raw ZSTD_CStream*; copying would double-free it on destruction.
@@ -78,11 +78,12 @@ class ZstdPacketCompressor {
   std::unique_ptr<uint8_t[]> cur_slice_;
 };
 
-ZstdPacketCompressor::ZstdPacketCompressor() {
+ZstdPacketCompressor::ZstdPacketCompressor(int level) {
   cstream_ = ZSTD_createCStream();
   PERFETTO_CHECK(cstream_);
-  size_t rc = ZSTD_CCtx_setParameter(cstream_, ZSTD_c_compressionLevel,
-                                     kZstdCompressionLevel);
+  // zstd interprets the level itself: 0 selects ZSTD_CLEVEL_DEFAULT (3), and
+  // out-of-range values are clamped to the supported range.
+  size_t rc = ZSTD_CCtx_setParameter(cstream_, ZSTD_c_compressionLevel, level);
   PERFETTO_CHECK(!ZSTD_isError(rc));
 }
 
@@ -161,12 +162,13 @@ void ZstdPacketCompressor::PushCurSlice() {
 
 }  // namespace
 
-void ZstdCompressFn(std::vector<TracePacket>* packets) {
+void ZstdCompressFn(std::vector<TracePacket>* packets,
+                    const CompressionConfig& config) {
   if (packets->empty()) {
     return;
   }
 
-  ZstdPacketCompressor stream;
+  ZstdPacketCompressor stream(config.level);
 
   for (const TracePacket& packet : *packets) {
     stream.PushPacket(packet);
