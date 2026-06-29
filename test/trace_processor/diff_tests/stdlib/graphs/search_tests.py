@@ -81,6 +81,33 @@ class GraphSearchTests(TestSuite):
         11,10
         """))
 
+  # Regression test: a NULL dest_node_id (e.g. a tree root whose parent_id is
+  # NULL) must not be coerced into an edge to node 0. Here node 0 is a separate
+  # root; traversing from node 2 must stop at its NULL-parent root (node 1) and
+  # never reach node 0.
+  def test_dfs_null_dest_does_not_link_to_node_zero(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          CREATE PERFETTO TABLE foo AS
+          SELECT NULL AS source_node_id, NULL AS dest_node_id WHERE FALSE
+          UNION ALL
+          VALUES (2, 1)
+          UNION ALL
+          VALUES (1, NULL)
+          UNION ALL
+          VALUES (0, NULL);
+
+          SELECT * FROM graph_reachable_dfs!(foo, (SELECT 2 AS node_id));
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        2,"[NULL]"
+        1,2
+        """))
+
   def test_dfs_lengauer_tarjan_example(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
