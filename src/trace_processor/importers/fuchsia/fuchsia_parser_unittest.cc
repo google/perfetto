@@ -127,21 +127,6 @@ class MockProcessTracker : public ProcessTracker {
                ProcessNamePriority priority),
               (override));
 };
-class MockBoundInserter : public ArgsTracker::BoundInserter {
- public:
-  MockBoundInserter() {
-    ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
-  }
-
-  MOCK_METHOD(ArgsTracker::BoundInserter&,
-              AddArg,
-              (StringId flat_key,
-               StringId key,
-               Variadic v,
-               ArgsTracker::UpdatePolicy update_policy),
-              (override));
-};
-
 class MockEventTracker : public EventTracker {
  public:
   explicit MockEventTracker(TraceProcessorContext* context)
@@ -440,7 +425,6 @@ TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
   row.upid = 1u;
   storage_->mutable_thread_table()->Insert(row);
 
-  MockBoundInserter inserter;
 
   StringId unknown_cat = storage_->InternString("unknown(1)");
   ASSERT_NE(storage_, nullptr);
