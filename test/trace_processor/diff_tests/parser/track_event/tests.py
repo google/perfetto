@@ -1262,3 +1262,51 @@ class TrackEvent(TestSuite):
         "name","value"
         "track_event_parser_errors",1
         """))
+
+  def test_thread_state_track(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            thread {
+              pid: 1
+              tid: 2
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 20
+            parent_uuid: 10
+            name: "ThreadStatus"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 20
+            type: 5
+            categories: "cat"
+            name: "Running"
+          }
+        }
+        """),
+        query="""
+        SELECT state.id, ts, value, thread_state_track.name AS track_name, utid
+        FROM state
+        JOIN thread_state_track ON thread_state_track.id = state.track_id
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "id","ts","value","track_name","utid"
+        0,1000,"Running","ThreadStatus",2
+        """))
+
