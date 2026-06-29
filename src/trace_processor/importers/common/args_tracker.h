@@ -59,10 +59,10 @@ class ArgsInserter {
   using CompactArgSet = base::SmallVector<CompactArg, 16>;
 
   // Constructs an empty inserter that owns no buffer and commits nothing. Used
-  // for the moved-from state and as a base for test mocks.
+  // for the moved-from state and for default-constructed (empty) map entries.
   ArgsInserter() = default;
 
-  virtual ~ArgsInserter();
+  ~ArgsInserter();
 
   ArgsInserter(ArgsInserter&&) noexcept;
   ArgsInserter& operator=(ArgsInserter&&) noexcept;
@@ -78,11 +78,10 @@ class ArgsInserter {
     return AddArg(key, key, v, update_policy);
   }
 
-  virtual ArgsInserter& AddArg(
-      StringId flat_key,
-      StringId key,
-      Variadic v,
-      UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate);
+  ArgsInserter& AddArg(StringId flat_key,
+                       StringId key,
+                       Variadic v,
+                       UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate);
 
   // IncrementArrayEntryIndex() and GetNextArrayEntryIndex() provide a way to
   // track the next array index for an array under a specific key.
