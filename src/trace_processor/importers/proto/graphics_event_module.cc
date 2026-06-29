@@ -34,11 +34,9 @@
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
 
-using com::android::internal::pbzero::FrameworksNativeTracePacket;
 using perfetto::protos::pbzero::GpuCounterDescriptor;
 using perfetto::protos::pbzero::GpuCounterEvent;
 using perfetto::protos::pbzero::InternedData;
@@ -55,7 +53,7 @@ GraphicsEventModule::GraphicsEventModule(
       frame_timeline_parser_(context),
       counter_id_key_id_(context->storage->InternString("counter_id")),
       counter_name_key_id_(context->storage->InternString("counter_name")) {
-  RegisterForField(FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber);
+  RegisterForField(TracePacket::kFrameTimelineEventFieldNumber);
   RegisterForField(TracePacket::kGpuCounterEventFieldNumber);
   RegisterForField(TracePacket::kGpuRenderStageEventFieldNumber);
   RegisterForField(TracePacket::kGpuLogFieldNumber);
@@ -224,10 +222,9 @@ void GraphicsEventModule::ParseGpuCounterEvent(
 
 void GraphicsEventModule::ParseField(const ParseFieldArgs& args) {
   switch (args.field.id()) {
-    case FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber:
+    case TracePacket::kFrameTimelineEventFieldNumber:
       frame_timeline_parser_.ParseFrameTimelineEvent(
-          args.ts,
-          args.field.Cast<FrameworksNativeTracePacket::kFrameTimelineEvent>());
+          args.ts, args.field.Cast<TracePacket::kFrameTimelineEvent>());
       return;
     case TracePacket::kGpuCounterEventFieldNumber:
       ParseGpuCounterEvent(args.ts, args.data.sequence_state.get(),

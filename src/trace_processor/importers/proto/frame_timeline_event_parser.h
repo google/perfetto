@@ -23,7 +23,7 @@
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
+#include "protos/perfetto/trace/android/frame_timeline_event.pbzero.h"
 
 #include <array>
 #include <cstdint>
@@ -36,9 +36,8 @@ namespace perfetto {
 
 namespace trace_processor {
 
-using FrameTimelineEvent = com::android::internal::pbzero::FrameTimelineEvent;
-using FrameTimelineEventDecoder =
-    com::android::internal::pbzero::FrameTimelineEvent_Decoder;
+using FrameTimelineEvent = protos::pbzero::FrameTimelineEvent;
+using FrameTimelineEventDecoder = protos::pbzero::FrameTimelineEvent_Decoder;
 
 class TraceProcessorContext;
 
