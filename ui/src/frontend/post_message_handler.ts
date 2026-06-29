@@ -21,6 +21,7 @@ import {AppImpl} from '../core/app_impl';
 import type {SerializedAppState} from '../core/state_serialization_schema';
 import {parseAppState} from '../core/state_serialization';
 import {BUCKET_NAME, isValidGcsFileName} from '../base/gcs_uploader';
+import {notifyPostMessageBus} from '../public/post_message_bus';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 
@@ -209,12 +210,13 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   } else if (messageEvent.data instanceof ArrayBuffer) {
     postedTrace = {title: 'External trace', buffer: messageEvent.data};
   } else {
-    console.warn(
-      'Unknown postMessage() event received. If you are trying to open a ' +
-        'trace via postMessage(), this is a bug in your code. If not, this ' +
-        'could be due to some Chrome extension.',
-    );
-    console.log('origin:', messageEvent.origin, 'data:', messageEvent.data);
+    // Broadcast the event on the public post-message bus so plugins (which are
+    // not allowed to import from /frontend) can react to messages. We do this
+    // after the early-exit guards above so plugins only see messages from
+    // legitimate sources, after the document is ready, and that weren't
+    // gracefully ignored. We fire-and-forget; listener exceptions must not
+    // affect the built-in routing below.
+    void notifyPostMessageBus(messageEvent);
     return;
   }
 
