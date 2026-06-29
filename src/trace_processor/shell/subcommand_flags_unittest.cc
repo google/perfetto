@@ -99,7 +99,9 @@ base::TempFile WriteTempFile(const std::string& content) {
 struct OutputPath {
   base::TempDir dir = base::TempDir::Create();
   std::string path() const { return dir.path() + "/out"; }
-  ~OutputPath() { base::Unlink(path().c_str()); }  // TempDir needs an empty dir.
+  ~OutputPath() {
+    base::Unlink(path().c_str());
+  }  // TempDir needs an empty dir.
 };
 
 // A subcommand with a representative mix of flags for exercising ParseFlags:
