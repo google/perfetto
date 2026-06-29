@@ -1263,49 +1263,29 @@ class TrackEvent(TestSuite):
         "track_event_parser_errors",1
         """))
 
-  def test_thread_state_track(self):
+  def test_track_event_state_state(self):
     return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 0
-          incremental_state_cleared: true
-          track_descriptor {
-            uuid: 10
-            thread {
-              pid: 1
-              tid: 2
-            }
-          }
-        }
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 0
-          track_descriptor {
-            uuid: 20
-            parent_uuid: 10
-            name: "ThreadStatus"
-            state {}
-          }
-        }
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 1000
-          track_event {
-            track_uuid: 20
-            type: 5
-            categories: "cat"
-            name: "Running"
-          }
-        }
-        """),
+        trace=Path('track_event_state.textproto'),
         query="""
-        SELECT state.id, ts, value, thread_state_track.name AS track_name, utid
+        SELECT
+          state_track.name AS state_name,
+          process.name AS process,
+          thread.name AS thread,
+          thread_process.name AS thread_process,
+          state.ts,
+          state.value
         FROM state
-        JOIN thread_state_track ON thread_state_track.id = state.track_id
-        ORDER BY ts;
+        LEFT JOIN state_track ON state.track_id = state_track.id
+        LEFT JOIN process_state_track ON state.track_id = process_state_track.id
+        LEFT JOIN process ON process_state_track.upid = process.upid
+        LEFT JOIN thread_state_track ON state.track_id = thread_state_track.id
+        LEFT JOIN thread ON thread_state_track.utid = thread.utid
+        LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+        ORDER BY ts ASC;
         """,
         out=Csv("""
-        "id","ts","value","track_name","utid"
-        0,1000,"Running","ThreadStatus",2
+        "state_name","process","thread","thread_process","ts","value"
+        "ProcState","Browser","[NULL]","[NULL]",1000,"Foreground"
+        "ThreadState","[NULL]","t1","Browser",2000,"Running"
+        "GlobalState","[NULL]","[NULL]","[NULL]",3000,"Active"
         """))
