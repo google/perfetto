@@ -1210,9 +1210,9 @@ TEST(TraceProcessorShellIntegrationTest, BundleMissingProguardMapFails) {
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
 
-  auto result = RunShell(
-      {"bundle", "--no-auto-symbol-paths", "--proguard-map",
-       "com.example=/nonexistent/mapping.txt", HeapprofdTracePath(), out_path});
+  auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
+                          "com.example=/nonexistent/mapping.txt",
+                          HeapprofdTracePath(), out_path});
   EXPECT_NE(result.exit_code, 0);
   unlink(out_path.c_str());
 }
@@ -1232,10 +1232,10 @@ TEST(TraceProcessorShellIntegrationTest, BundleNoAutoProguardMaps) {
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
 
-  auto result = RunShell({"bundle", "--no-auto-symbol-paths",
-                          "--no-auto-proguard-maps", "--proguard-map",
-                          "com.example=" + mapping.path(), HeapprofdTracePath(),
-                          out_path});
+  auto result =
+      RunShell({"bundle", "--no-auto-symbol-paths", "--no-auto-proguard-maps",
+                "--proguard-map", "com.example=" + mapping.path(),
+                HeapprofdTracePath(), out_path});
   ASSERT_EQ(result.exit_code, 0) << result.out;
 
   auto members = ReadTarMembers(out_path);
