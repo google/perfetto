@@ -120,6 +120,23 @@ void ProtoTraceParserImpl::ParseTrackEvent(int64_t ts, TrackEventData data) {
   const TraceBlobView& blob = data.trace_packet_data.packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   module_context_->track_module->ParseTrackEventData(packet, ts, data);
+  // Also dispatch the track-event packet to any non-track modules registered
+  // for the track_event field (e.g. process_state_importer, which rebuilds
+  // its graph from process/service state-change track events). Track events are
+  // sorted and handled here, so they never reach ParseTracePacket's generic
+  // modules_by_field dispatch.
+  auto& modules = module_context_->modules_by_field;
+  uint32_t field_id = protos::pbzero::TracePacket::kTrackEventFieldNumber;
+  if (field_id < modules.size() && !modules[field_id].empty()) {
+    SelectiveTracePacketDecoder packet_fields(blob.data(), blob.length());
+    TracePacketField te_field = packet_fields.FindUnknownField(field_id);
+    for (ProtoImporterModule* module : modules[field_id]) {
+      if (module != module_context_->track_module) {
+        module->ParseField(
+            {packet_fields, ts, data.trace_packet_data, te_field});
+      }
+    }
+  }
 }
 
 void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,

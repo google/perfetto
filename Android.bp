@@ -3064,6 +3064,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_perf_counter_perf_counter",
         ":perfetto_src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":perfetto_src_trace_processor_plugins_pprof_functions_pprof_functions",
+        ":perfetto_src_trace_processor_plugins_process_state_importer_process_state_importer",
         ":perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":perfetto_src_trace_processor_plugins_sql_stats_table_sql_stats_table",
@@ -3328,6 +3329,7 @@ cc_test {
         "perfetto_src_trace_processor_plugins_experimental_flat_slice_tables",
         "perfetto_src_trace_processor_plugins_experimental_slice_layout_tables",
         "perfetto_src_trace_processor_plugins_graph_traversal_tables",
+        "perfetto_src_trace_processor_plugins_process_state_importer_tables",
         "perfetto_src_trace_processor_plugins_stdlib_docs_tables",
         "perfetto_src_trace_processor_plugins_structural_tree_partition_tables",
         "perfetto_src_trace_processor_plugins_table_info_tables",
@@ -19434,6 +19436,45 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/plugins/process_state_importer:process_state_importer
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_process_state_importer_process_state_importer",
+    srcs: [
+        "src/trace_processor/plugins/process_state_importer/process_state_importer.cc",
+        "src/trace_processor/plugins/process_state_importer/process_state_module.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/process_state_importer:tables
+genrule {
+    name: "perfetto_src_trace_processor_plugins_process_state_importer_tables",
+    srcs: [
+        "src/trace_processor/plugins/process_state_importer/tables.py",
+    ],
+    tools: [
+        "perfetto_src_trace_processor_plugins_process_state_importer_tables_binary",
+    ],
+    cmd: "$(location perfetto_src_trace_processor_plugins_process_state_importer_tables_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
+    out: [
+        "src/trace_processor/plugins/process_state_importer/all_tables_fwd.h",
+        "src/trace_processor/plugins/process_state_importer/tables_fwd.h",
+        "src/trace_processor/plugins/process_state_importer/tables_py.h",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/process_state_importer:tables
+python_binary_host {
+    name: "perfetto_src_trace_processor_plugins_process_state_importer_tables_binary",
+    srcs: [
+        "python/generators/trace_processor_table/public.py",
+        "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/util.py",
+        "src/trace_processor/plugins/process_state_importer/tables.py",
+        "tools/gen_tp_table_headers.py",
+    ],
+    main: "tools/gen_tp_table_headers.py",
+}
+
 // GN: //src/trace_processor/plugins/slice_mipmap_operator:slice_mipmap_operator
 filegroup {
     name: "perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
@@ -20427,6 +20468,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_perf_counter_perf_counter",
         ":perfetto_src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":perfetto_src_trace_processor_plugins_pprof_functions_pprof_functions",
+        ":perfetto_src_trace_processor_plugins_process_state_importer_process_state_importer",
         ":perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":perfetto_src_trace_processor_plugins_sql_stats_table_sql_stats_table",
@@ -20599,6 +20641,7 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_experimental_flat_slice_tables",
         "perfetto_src_trace_processor_plugins_experimental_slice_layout_tables",
         "perfetto_src_trace_processor_plugins_graph_traversal_tables",
+        "perfetto_src_trace_processor_plugins_process_state_importer_tables",
         "perfetto_src_trace_processor_plugins_stdlib_docs_tables",
         "perfetto_src_trace_processor_plugins_structural_tree_partition_tables",
         "perfetto_src_trace_processor_plugins_table_info_tables",
@@ -20702,6 +20745,7 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_experimental_flat_slice_tables",
         "perfetto_src_trace_processor_plugins_experimental_slice_layout_tables",
         "perfetto_src_trace_processor_plugins_graph_traversal_tables",
+        "perfetto_src_trace_processor_plugins_process_state_importer_tables",
         "perfetto_src_trace_processor_plugins_stdlib_docs_tables",
         "perfetto_src_trace_processor_plugins_structural_tree_partition_tables",
         "perfetto_src_trace_processor_plugins_table_info_tables",
@@ -23038,6 +23082,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_perf_counter_perf_counter",
         ":perfetto_src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":perfetto_src_trace_processor_plugins_pprof_functions_pprof_functions",
+        ":perfetto_src_trace_processor_plugins_process_state_importer_process_state_importer",
         ":perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_unittests",
@@ -23423,6 +23468,7 @@ cc_test {
         "perfetto_src_trace_processor_plugins_experimental_flat_slice_tables",
         "perfetto_src_trace_processor_plugins_experimental_slice_layout_tables",
         "perfetto_src_trace_processor_plugins_graph_traversal_tables",
+        "perfetto_src_trace_processor_plugins_process_state_importer_tables",
         "perfetto_src_trace_processor_plugins_stdlib_docs_tables",
         "perfetto_src_trace_processor_plugins_structural_tree_partition_tables",
         "perfetto_src_trace_processor_plugins_table_info_tables",
@@ -24068,6 +24114,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_perf_counter_perf_counter",
         ":perfetto_src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":perfetto_src_trace_processor_plugins_pprof_functions_pprof_functions",
+        ":perfetto_src_trace_processor_plugins_process_state_importer_process_state_importer",
         ":perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":perfetto_src_trace_processor_plugins_sql_stats_table_sql_stats_table",
@@ -24224,6 +24271,7 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_experimental_flat_slice_tables",
         "perfetto_src_trace_processor_plugins_experimental_slice_layout_tables",
         "perfetto_src_trace_processor_plugins_graph_traversal_tables",
+        "perfetto_src_trace_processor_plugins_process_state_importer_tables",
         "perfetto_src_trace_processor_plugins_stdlib_docs_tables",
         "perfetto_src_trace_processor_plugins_structural_tree_partition_tables",
         "perfetto_src_trace_processor_plugins_table_info_tables",
@@ -24324,6 +24372,7 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_experimental_flat_slice_tables",
         "perfetto_src_trace_processor_plugins_experimental_slice_layout_tables",
         "perfetto_src_trace_processor_plugins_graph_traversal_tables",
+        "perfetto_src_trace_processor_plugins_process_state_importer_tables",
         "perfetto_src_trace_processor_plugins_stdlib_docs_tables",
         "perfetto_src_trace_processor_plugins_structural_tree_partition_tables",
         "perfetto_src_trace_processor_plugins_table_info_tables",
@@ -24740,6 +24789,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_plugins_perf_counter_perf_counter",
         ":perfetto_src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":perfetto_src_trace_processor_plugins_pprof_functions_pprof_functions",
+        ":perfetto_src_trace_processor_plugins_process_state_importer_process_state_importer",
         ":perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":perfetto_src_trace_processor_plugins_sql_stats_table_sql_stats_table",
@@ -24906,6 +24956,7 @@ cc_binary_host {
         "perfetto_src_trace_processor_plugins_experimental_flat_slice_tables",
         "perfetto_src_trace_processor_plugins_experimental_slice_layout_tables",
         "perfetto_src_trace_processor_plugins_graph_traversal_tables",
+        "perfetto_src_trace_processor_plugins_process_state_importer_tables",
         "perfetto_src_trace_processor_plugins_stdlib_docs_tables",
         "perfetto_src_trace_processor_plugins_structural_tree_partition_tables",
         "perfetto_src_trace_processor_plugins_table_info_tables",

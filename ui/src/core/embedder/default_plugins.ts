@@ -42,6 +42,7 @@ export const defaultPlugins = [
   'com.android.HeapDumpExplorer',
   'com.android.LargeScreensPerf',
   'com.android.MemoryViz',
+  'com.android.ProcessState',
   'com.android.PinAndroidPerfMetrics',
   'com.android.PinSysUITracks',
   'com.android.SysUIWorkspace',

@@ -277,6 +277,9 @@ enum AppExitSubReasonCode {
 }
 
 enum Importance {
+  // No allow_alias: pbzero generates an enum->name switch in the header, and a
+  // duplicate value (the old IMPORTANCE_BACKGROUND == IMPORTANCE_CACHED == 400)
+  // is a duplicate-case error under -Werror once a C++ consumer includes it.
   IMPORTANCE_UNKNOWN = 0;
   IMPORTANCE_FOREGROUND = 100;
   IMPORTANCE_FOREGROUND_SERVICE = 125;
@@ -586,6 +589,14 @@ message AndroidProcessStateChangedEvent {
   optional int32 freeze_policy_flags = 13;
 }
 
+enum ServiceRestartReason {
+  SERVICE_RESTART_REASON_UNKNOWN = 0;
+  SERVICE_RESTART_REASON_START_REQUESTED = 1;
+  SERVICE_RESTART_REASON_CONNECTION = 2;
+  SERVICE_RESTART_REASON_FORCED = 3;
+  SERVICE_RESTART_REASON_PERSISTENT = 4;
+}
+
 message AndroidServiceStateChangedEvent {
   // UID of the app hosting the service.
   optional int32 uid = 1;
@@ -599,6 +610,26 @@ message AndroidServiceStateChangedEvent {
   optional int32 bind_id = 5;
   // Type of foreground service.
   optional int32 foreground_service_type = 6;
+  // UID of the app accessing the service.
+  optional int32 caller_uid = 7;
+  // PID of the app accessing the service.
+  optional int32 caller_pid = 8;
+  // Why the service was (re)started.
+  optional ServiceRestartReason reason_enum = 9;
+  // Whether the binding requested BIND_FOREGROUND_SERVICE.
+  optional bool flag_foreground_service = 10;
+
+  // Whether this event binds or unbinds the connection. Used to reconstruct
+  // the live service-binding graph from the event stream. DISCONNECT is a
+  // teardown that did not go through an explicit unbind (process death,
+  // cleanup); the importer treats it as a binding removal.
+  enum Action {
+    ACTION_UNKNOWN = 0;
+    ACTION_BIND = 1;
+    ACTION_UNBIND = 2;
+    ACTION_DISCONNECT = 3;
+  }
+  optional Action action = 11;
 }
 
 message AndroidProviderStateChangedEvent {
@@ -614,6 +645,20 @@ message AndroidProviderStateChangedEvent {
   optional int32 caller_pid = 5;
   // Whether the connection is stable.
   optional int32 is_stable = 6;
+  // Identifier for the binding.
+  optional int32 bind_id = 7;
+
+  // Whether this event binds or unbinds the connection. Used to reconstruct
+  // the live provider-binding graph from the event stream. DISCONNECT is a
+  // teardown that did not go through an explicit unbind (process death,
+  // cleanup); the importer treats it as a binding removal.
+  enum Action {
+    ACTION_UNKNOWN = 0;
+    ACTION_BIND = 1;
+    ACTION_UNBIND = 2;
+    ACTION_DISCONNECT = 3;
+  }
+  optional Action action = 8;
 }
 
 message FrameworksBaseTrackEvent {

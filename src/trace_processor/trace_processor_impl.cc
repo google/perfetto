@@ -120,6 +120,7 @@
 #include "src/trace_processor/plugins/perf_counter/perf_counter.h"
 #include "src/trace_processor/plugins/perfetto_manifest/perfetto_manifest.h"
 #include "src/trace_processor/plugins/pprof_functions/pprof_functions.h"
+#include "src/trace_processor/plugins/process_state_importer/process_state_importer.h"
 #include "src/trace_processor/plugins/slice_mipmap_operator/slice_mipmap_operator.h"
 #include "src/trace_processor/plugins/span_join_operator/span_join_operator.h"
 #include "src/trace_processor/plugins/sql_stats_table/sql_stats_table.h"
@@ -318,6 +319,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // issues, so instead each plugin exposes an explicit Register* function that
   // we call here before GetPluginSet() builds its cached set. Remove these
   // explicit calls once the static-init based registration is restored.
+  process_state_importer::RegisterPlugin();
   ancestor::RegisterPlugin();
   android_framework_track_event::RegisterPlugin();
   args::RegisterPlugin();
