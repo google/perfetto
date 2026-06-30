@@ -1,0 +1,71 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  # Root[0x1]
+  #   /    \
+  # Clock  Clock      (same class name, two distinct type_ids:
+  # [0x2]  [0x3]       i.e. the class loaded by two class loaders)
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x1
+    }
+    objects {
+      id: 0x01
+      type_id: 1
+      reference_object_id: 0x2
+      reference_object_id: 0x3
+    }
+    objects {
+      id: 0x02
+      type_id: 2
+    }
+    objects {
+      id: 0x03
+      type_id: 3
+    }
+    continued: true
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    types {
+      id: 1
+      class_name: "Root"
+      object_size: 8
+    }
+    types {
+      id: 2
+      class_name: "Clock"
+      object_size: 16
+    }
+    types {
+      id: 3
+      class_name: "Clock"
+      object_size: 16
+    }
+    continued: false
+    index: 1
+  }
+}
