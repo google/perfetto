@@ -769,11 +769,7 @@ SELECT
   -- position rather than arithmetic on id because the host does not always take
   -- the lowest id: the perfetto_manifest reader pre-allocates named machine rows
   -- before the host row is created lazily, so a named machine can precede it.
-  iif(
-    raw_id = 0,
-    0,
-    sum(iif(raw_id = 0, 0, 1)) OVER (ORDER BY id)
-  ) AS label_index
+  iif(raw_id = 0, 0, sum(iif(raw_id = 0, 0, 1)) OVER (ORDER BY id)) AS label_index
 FROM __intrinsic_machine;
 
 -- Contains information of filedescriptors collected during the trace.
