@@ -22,6 +22,11 @@ import {
   type FlamegraphState,
   type FlamegraphOptionalAction,
 } from '../../../widgets/flamegraph';
+import {AsyncLimiter} from '../../../base/async_limiter';
+import {
+  isHeapGraphIncomplete,
+  incompleteFlamegraphModal,
+} from '../../dev.perfetto.HeapProfile/incomplete_flamegraph';
 
 // Referenced by session.openFlamegraphPivotedAt.
 export const METRIC_OBJECT_SIZE = 'Object Size';
@@ -169,6 +174,15 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
   let cachedMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
   let cachedKey: string | undefined;
 
+  // Mirrors dev.perfetto.HeapProfile: if the heap graph is incomplete we gate
+  // the flamegraph behind a dismissible warning modal. The check runs (and the
+  // modal is shown) only when this view is rendered, i.e. when the flamegraph
+  // tab is active. `incomplete` is undefined until the check resolves.
+  const incompleteLimiter = new AsyncLimiter();
+  let incomplete: boolean | undefined;
+  let incompleteKey: string | undefined;
+  let modalDismissed = false;
+
   return {
     view({attrs}) {
       const key = `${attrs.upid}:${attrs.ts}`;
@@ -182,6 +196,19 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
       }
       const metrics = cachedMetrics;
 
+      // Check for an incomplete (broken) heap graph once per dump, re-arming
+      // the warning modal when the dump changes.
+      if (incompleteKey !== key) {
+        incompleteKey = key;
+        incomplete = undefined;
+        modalDismissed = false;
+        const trace = attrs.trace;
+        incompleteLimiter.schedule(async () => {
+          incomplete = await isHeapGraphIncomplete(trace);
+          m.redraw();
+        });
+      }
+
       // First render or after a dump-change reset: create a default
       // state so the panel renders meaningfully on the same frame.
 
@@ -194,6 +221,11 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
       return m(
         'div',
         {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
+        incomplete === true &&
+          !modalDismissed &&
+          incompleteFlamegraphModal(attrs.trace, () => {
+            modalDismissed = true;
+          }),
         m(FlamegraphPanel, {
           trace: attrs.trace,
           metrics,

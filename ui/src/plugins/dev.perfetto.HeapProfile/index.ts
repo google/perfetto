@@ -40,6 +40,7 @@ import {
   type AreaSelectionTab,
 } from '../../public/selection';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
+import {isHeapGraphIncomplete} from './incomplete_flamegraph';
 import {EvtSource} from '../../base/events';
 import type {App} from '../../public/app';
 import type {Flag} from '../../public/feature_flag';
@@ -294,13 +295,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private async getIncomplete(trace: Trace): Promise<boolean> {
-    const it = await trace.engine.query(`
-      SELECT value
-      FROM stats
-      WHERE name = 'heap_graph_non_finalized_graph'
-    `);
-    const incomplete = it.firstRow({value: NUM}).value > 0;
-    return incomplete;
+    return isHeapGraphIncomplete(trace);
   }
 
   private async selectHeapProfile(ctx: Trace) {
