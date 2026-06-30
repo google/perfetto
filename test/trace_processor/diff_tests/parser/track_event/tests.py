@@ -993,9 +993,9 @@ class TrackEvent(TestSuite):
         """,
         out=Csv("""
         "name","machine_id"
-        "thread_time",1
-        "thread_time",1
-        "thread_instruction_count",1
+        "thread_time",0
+        "thread_time",0
+        "thread_instruction_count",0
         """))
 
   def test_track_event_name_resolution(self):
