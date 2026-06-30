@@ -333,7 +333,10 @@ export class MultiTraceController {
       clearTimeout(this._checkTimer);
       this._checkTimer = undefined;
     }
-    if (this.getLoadingError() !== undefined || this.configError() !== undefined) {
+    if (
+      this.getLoadingError() !== undefined ||
+      this.configError() !== undefined
+    ) {
       return;
     }
     const sinceLast = Date.now() - this._lastCheckStart;
@@ -341,11 +344,16 @@ export class MultiTraceController {
       this.runCheck();
       return;
     }
-    const wait = this._checking ? CHECK_DEBOUNCE_MS : CHECK_DEBOUNCE_MS - sinceLast;
-    this._checkTimer = setTimeout(() => {
-      this._checkTimer = undefined;
-      this.runCheck();
-    }, Math.max(0, wait));
+    const wait = this._checking
+      ? CHECK_DEBOUNCE_MS
+      : CHECK_DEBOUNCE_MS - sinceLast;
+    this._checkTimer = setTimeout(
+      () => {
+        this._checkTimer = undefined;
+        this.runCheck();
+      },
+      Math.max(0, wait),
+    );
   }
 
   private runCheck() {

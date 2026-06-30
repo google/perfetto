@@ -99,7 +99,9 @@ async function queryFileSignals(
   } = {};
 
   try {
-    const res = await engine.query(`SELECT raw_id FROM machine ORDER BY raw_id`);
+    const res = await engine.query(
+      `SELECT raw_id FROM machine ORDER BY raw_id`,
+    );
     const it = res.iter({raw_id: NUM});
     const ids: number[] = [];
     for (; it.valid(); it.next()) {

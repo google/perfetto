@@ -137,12 +137,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     return m(
       Callout,
       {intent: Intent.None},
-      m(
-        Stack,
-        {orientation: 'horizontal', spacing: 'small'},
-        m(Spinner),
-        text,
-      ),
+      m(Stack, {orientation: 'horizontal', spacing: 'small'}, m(Spinner), text),
     );
   }
 
@@ -556,11 +551,15 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
       if (value === 'default') {
         controller.updateConfig(trace.uuid, {machineId: undefined});
       } else if (value === 'add') {
-        controller.updateConfig(trace.uuid, {machineId: controller.addMachine()});
+        controller.updateConfig(trace.uuid, {
+          machineId: controller.addMachine(),
+        });
         // Jump straight into naming the machine just created.
         this.editingMachine = trace.uuid;
       } else {
-        controller.updateConfig(trace.uuid, {machineId: Number(value.slice(2))});
+        controller.updateConfig(trace.uuid, {
+          machineId: Number(value.slice(2)),
+        });
       }
     };
 
