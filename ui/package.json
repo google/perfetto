@@ -31,7 +31,7 @@
     "mithril": "^2.2.2",
     "noice-json-rpc": "^1.2.0",
     "pako": "^2.1.0",
-    "protobufjs": "^7.6.2",
+    "protobufjs": "^7.6.3",
     "syntaqlite": "^0.5.9",
     "uuid": "^14.0.0",
     "zod": "^4.3.5"
@@ -65,7 +65,7 @@
     "source-map": "^0.7.6",
     "tslib": "^2.6.3",
     "typescript": "5.9.3",
-    "vite": "^6.4.2",
+    "vite": "^6.4.3",
     "vitest": "^4.1.6"
   },
   "scripts": {
