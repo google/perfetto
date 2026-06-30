@@ -35,11 +35,12 @@ function stripPathFromExecutable(path: string) {
 function getThreadDisplayName(
   threadName: string | undefined,
   tid: bigint | number,
+  machineLabel: string = '',
 ) {
   if (threadName) {
-    return `${stripPathFromExecutable(threadName)} ${tid}`;
+    return `${stripPathFromExecutable(threadName)} ${tid}${machineLabel}`;
   } else {
-    return `Thread ${tid}`;
+    return `Thread ${tid}${machineLabel}`;
   }
 }
 
@@ -289,7 +290,18 @@ export default class implements PerfettoPlugin {
           continue;
         }
 
-        const displayName = getThreadDisplayName(name ?? undefined, id);
+        // These are orphan threads (no parent process), so they appear as
+        // top-level groups: label them with their machine like processes.
+        const machineLabel = maybeMachineLabel(
+          it.machineLabelIndex ?? undefined,
+          it.machineName,
+          numMachines,
+        );
+        const displayName = getThreadDisplayName(
+          name ?? undefined,
+          id,
+          machineLabel,
+        );
         const group = new TrackNode({
           uri: `/thread_${uid}`,
           name: displayName,
