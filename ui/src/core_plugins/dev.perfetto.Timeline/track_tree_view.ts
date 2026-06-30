@@ -93,6 +93,14 @@ const WEBGL_RENDERING = featureFlags.register({
   defaultValue: true,
 });
 
+export const SHOW_HEADLESS_TRACKS = featureFlags.register({
+  id: 'showHeadlessTracks',
+  name: 'Show headless tracks',
+  description:
+    'Show tracks marked as headless, which are normally hidden and used purely for organization. Debugging only.',
+  defaultValue: false,
+});
+
 // Snap-to-boundaries feature constants
 const SNAP_THRESHOLD_PX = 15;
 const SNAP_ENABLED_DEFAULT = true;
@@ -187,6 +195,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       trackFilter,
       filtersApplied,
     } = attrs;
+    const showHeadlessTracks = SHOW_HEADLESS_TRACKS.get();
     const renderedTracks = new Array<TrackView>();
     let top = 0;
 
@@ -210,7 +219,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       // Skip nodes that don't match the filter and have no matching children.
       if (!filterMatches(node)) return {vnodes: false, isVisible: false};
 
-      if (node.headless) {
+      if (node.headless && !showHeadlessTracks) {
         // Headless nodes are invisible, just render children.
         const childNodes: m.Children = [];
         let atLeastOneChildVisible = false;
@@ -224,7 +233,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         return {vnodes: childNodes, isVisible: atLeastOneChildVisible};
       }
 
-      const trackView = new TrackView(trace, node, top);
+      const trackView = new TrackView(trace, node, top, showHeadlessTracks);
       renderedTracks.push(trackView);
 
       // Advance the global top position.

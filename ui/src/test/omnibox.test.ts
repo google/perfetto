@@ -27,7 +27,7 @@ test('command palette keyboard navigation', async ({browser}) => {
   await omnibox.fill('>');
   await pth.waitForPerfettoIdle();
 
-  const commands = page.locator('.pf-omnibox-options-container');
+  const commands = page.locator('.pf-omnibox-options-container > li');
 
   // Initially the first command should be highlighted.
   expect(commands.first()).toHaveClass('pf-highlighted');

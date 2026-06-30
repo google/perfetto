@@ -9,7 +9,7 @@ extraction and read the values back here.
 
 ## Get the data
 
-- **NVIDIA / CUDA:** [nvidia/workload_analysis.md](nvidia/workload_analysis.md).
+- **NVIDIA / CUDA:** [nvidia/workload_analysis.md]($SKILL_ROOT/workflows/gpu/compute/nvidia/workload_analysis.md).
 - Other vendors: the per-pipeline breakdown is vendor-specific; for others use
   whatever instruction-throughput / IPC that vendor exposes.
 
