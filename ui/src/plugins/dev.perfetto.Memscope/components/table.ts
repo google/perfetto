@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {maybeMachineLabel} from '../public/utils';
+import m from 'mithril';
+import type {HTMLAttrs} from '../../../widgets/common';
+import './table.scss';
 
-export class Cpu {
-  constructor(
-    readonly ucpu: number,
-    readonly cpu: number,
-    readonly machine: number,
-    readonly machineName?: string,
-    readonly labelIndex?: number,
-    readonly numMachines?: number,
-  ) {}
-
-  public maybeMachineLabel(): string {
-    return maybeMachineLabel(
-      this.labelIndex,
-      this.machineName,
-      this.numMachines,
+export class Table implements m.ClassComponent<HTMLAttrs> {
+  view({attrs, children}: m.CVnode<HTMLAttrs>): m.Children {
+    return m(
+      '.pf-memscope-table',
+      {className: attrs.className},
+      m('table', children),
     );
-  }
-
-  public toString(): string {
-    return `${this.cpu}${this.maybeMachineLabel()}`;
   }
 }

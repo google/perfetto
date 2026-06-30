@@ -25,7 +25,11 @@ import {
   CPU_SLICE_TRACK_KIND,
   THREAD_STATE_TRACK_KIND,
 } from '../../public/track_kinds';
-import {getThreadUriPrefix, getTrackName} from '../../public/utils';
+import {
+  getMachineCount,
+  getThreadUriPrefix,
+  getTrackName,
+} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import type {Engine} from '../../trace_processor/engine';
 import {
@@ -92,7 +96,8 @@ export default class SchedPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const cpus = await getSchedCpus(ctx);
+    const numMachines = await getMachineCount(ctx.engine);
+    const cpus = await getSchedCpus(ctx, numMachines);
     this._schedCpus = cpus;
 
     const hasSched = await this.hasSched(ctx.engine);
@@ -532,13 +537,14 @@ export default class SchedPlugin implements PerfettoPlugin {
 /**
  * Get the list of unique cpus in the sched table.
  */
-async function getSchedCpus(ctx: Trace): Promise<Cpu[]> {
+async function getSchedCpus(ctx: Trace, numMachines: number): Promise<Cpu[]> {
   const queryRes = await ctx.engine.query(`
     SELECT DISTINCT
       ucpu,
       cpu.machine_id AS machine_id,
       cpu.cpu AS cpu,
-      machine.name AS machine_name
+      machine.name AS machine_name,
+      machine.label_index AS machine_label_index
     FROM sched
     JOIN cpu USING (ucpu)
     LEFT JOIN machine ON machine.id = cpu.machine_id
@@ -552,12 +558,20 @@ async function getSchedCpus(ctx: Trace): Promise<Cpu[]> {
       machine_id: NUM,
       cpu: NUM,
       machine_name: STR_NULL,
+      machine_label_index: NUM_NULL,
     });
     it.valid();
     it.next()
   ) {
     ucpus.push(
-      new Cpu(it.ucpu, it.cpu, it.machine_id, it.machine_name ?? undefined),
+      new Cpu(
+        it.ucpu,
+        it.cpu,
+        it.machine_id,
+        it.machine_name ?? undefined,
+        it.machine_label_index ?? undefined,
+        numMachines,
+      ),
     );
   }
 

@@ -18,7 +18,6 @@ import {showPopupWindow} from '../../../base/popup_window';
 import {exists} from '../../../base/utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
-import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
 import {RadioGroup} from '../../../widgets/radio_group';
 import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
@@ -36,6 +35,8 @@ import {
 } from '../../dev.perfetto.RecordTraceV2/adb/webusb/adb_webusb_utils';
 import {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
 import {AsyncWebsocket} from '../../dev.perfetto.RecordTraceV2/websocket/async_websocket';
+import {Page} from '../components/page';
+import {Hero} from '../components/hero';
 
 export interface ConnectionResult {
   device?: AdbDevice;
@@ -85,44 +86,37 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
 
   view({attrs}: m.CVnode<ConnectionPageAttrs>) {
     return m(
-      '.pf-memscope-page__container',
+      Page,
+      m(Page.Title, 'Memscope'),
       m(
-        '.pf-memscope-page',
-        m('.pf-memscope-title-bar', m('h1', 'Memscope')),
+        Hero,
+        m(Hero.Icon, {icon: 'memory'}),
         m(
-          '.pf-memscope-hero',
-          m(Icon, {icon: 'memory', className: 'pf-memscope-hero__icon'}),
-          m(
-            '.pf-memscope-hero__text',
-            'Connect to an Android device or Linux host to monitor ' +
-              'per-process memory usage in real time via traced.',
-          ),
-          m(
-            RadioGroup,
-            {
-              intent: Intent.Primary,
-              selectedValue: this.connectionMethod,
-              onValueChange: (value) => {
-                this.connectionMethod = value as ConnectionMethod;
-                this.error = undefined;
-              },
-            },
-            m(RadioGroup.Button, {value: 'usb', icon: 'usb'}, 'USB'),
-            m(
-              RadioGroup.Button,
-              {value: 'websocket', icon: 'lan'},
-              'WebSocket',
-            ),
-            m(
-              RadioGroup.Button,
-              {value: 'web_proxy', icon: 'corporate_fare'},
-              'Web Proxy',
-            ),
-            m(RadioGroup.Button, {value: 'linux', icon: 'computer'}, 'Linux'),
-          ),
-          this.renderConnectBox(attrs),
-          this.error && m('.pf-memscope-error', this.error),
+          Hero.Text,
+          'Connect to an Android device or Linux host to monitor ' +
+            'per-process memory usage in real time via traced.',
         ),
+        m(
+          RadioGroup,
+          {
+            intent: Intent.Primary,
+            selectedValue: this.connectionMethod,
+            onValueChange: (value) => {
+              this.connectionMethod = value as ConnectionMethod;
+              this.error = undefined;
+            },
+          },
+          m(RadioGroup.Button, {value: 'usb', icon: 'usb'}, 'USB'),
+          m(RadioGroup.Button, {value: 'websocket', icon: 'lan'}, 'WebSocket'),
+          m(
+            RadioGroup.Button,
+            {value: 'web_proxy', icon: 'corporate_fare'},
+            'Web Proxy',
+          ),
+          m(RadioGroup.Button, {value: 'linux', icon: 'computer'}, 'Linux'),
+        ),
+        this.renderConnectBox(attrs),
+        this.error && m('.pf-memscope-error', this.error),
       ),
     );
   }

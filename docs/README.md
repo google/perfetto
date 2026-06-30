@@ -41,7 +41,7 @@ supported for collecting, analysing and visualizing:
   glitches, low memory kills, App Not Responding (ANRs) and general buggy
   behaviour.
 
-- **Java heap dumps and native heap profiles on Android** to debug and
+- **ART heap dumps and native heap profiles on Android** to debug and
   root-cause high memory use in both Java/Kotlin code and C++ code respectively,
   in the Android platform and Android apps.
 - **Callstack sampling profiles on Android** to debug and root-cause high CPU
