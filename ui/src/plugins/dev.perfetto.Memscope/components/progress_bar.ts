@@ -16,6 +16,12 @@ import './progress_bar.scss';
 import m from 'mithril';
 import {clamp} from '../../../base/math_utils';
 
+// ProgressBar — a horizontal "X of Y used" meter: an optional left label, a
+// filled track, and a right-aligned value (defaulting to "<pct>%") with an
+// optional muted suffix like " / 640 MB". Use it to show a bounded ratio at a
+// glance — memory or swap utilisation, cache fill, quota consumed. The pct is
+// clamped to 0..100 so out-of-range inputs can't overflow the track.
+
 export interface ProgressBarAttrs {
   // Percentage 0..100. Values outside the range are clamped.
   readonly pct: number;
