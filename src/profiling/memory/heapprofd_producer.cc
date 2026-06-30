@@ -753,9 +753,8 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
     bool from_startup = data_source->signaled_pids.find(pid) ==
                         data_source->signaled_pids.cend();
 
-    // The profiling window for this dump runs from the end of the previous dump
-    // (or the process profiling start, for the first dump) to the current dump
-    // timestamp.
+    // This dump covers the interval from the previous dump's end (or the
+    // process profiling start, for the first dump) to this dump's timestamp.
     uint64_t window_end = heap_info.heap_tracker.dump_timestamp();
     uint64_t window_start = heap_info.last_window_end != 0
                                 ? heap_info.last_window_end
@@ -793,7 +792,6 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
         });
     dump_state.DumpCallstacks(&callsites_);
 
-    // The next dump's window starts where this one ended.
     heap_info.last_window_end = window_end;
   }
 }
@@ -939,9 +937,8 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
                      std::forward_as_tuple(&producer_->callsites_,
                                            data_source.config.dump_at_max()))
             .first;
-    // Record when profiling of this process started. Same clock as the
-    // allocation timestamps (see client.cc) so it can be used as the start of
-    // the first dump's profiling window.
+    // Start of the first dump's window. MONOTONIC_COARSE to match the
+    // allocation timestamps (see client.cc).
     process_state_it->second.profiling_start_timestamp = static_cast<uint64_t>(
         base::GetTimeInternalNs(CLOCK_MONOTONIC_COARSE).count());
 

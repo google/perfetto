@@ -73,10 +73,9 @@ class ProfileModule : public ProtoImporterModule {
   TraceProcessorContext* context_;
   PerfSampleTracker perf_sample_tracker_;
 
-  // Tracks (upid, window end ts) pairs already inserted into the heap_profile
-  // table, so that the per-dump metadata row is only emitted once even though
-  // the dump header is repeated across continued ProfilePackets. The window end
-  // is also the allocation timestamp, i.e. the join key into this table.
+  // (upid, window end ts) pairs already inserted into the heap_profile table,
+  // so the per-dump row is emitted once despite the dump header repeating
+  // across continued ProfilePackets.
   std::set<std::pair<UniquePid, int64_t>> seen_heap_profiles_;
 };
 

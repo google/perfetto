@@ -77,9 +77,8 @@ class ProfilingHeapProfiling(TestSuite):
         1,-10,2,"unknown",3,1,90
         """))
 
-  # The dump sets both start_timestamp (interval start) and timestamp (dump
-  # time / interval end), which populate the heap_profile table. Allocations
-  # keep the dump timestamp, so they join heap_profile via (upid, ts = ts_end).
+  # A dump with start_timestamp populates heap_profile, and allocations join it
+  # via (upid, ts = ts_end).
   def test_heap_profile_window(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_window.textproto'),
@@ -94,9 +93,7 @@ class ProfilingHeapProfiling(TestSuite):
         5,20,15,20,1000
         """))
 
-  # Older producers do not emit start_timestamp; the interval collapses to a
-  # zero-length point at the dump timestamp, preserving the legacy allocation
-  # timestamp.
+  # Without start_timestamp the window collapses to a point at the dump time.
   def test_heap_profile_window_legacy(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_dump_max.textproto'),
@@ -108,8 +105,7 @@ class ProfilingHeapProfiling(TestSuite):
         -10,-10,0
         """))
 
-  # The UI draws each dump over its profiling interval. With start_timestamp
-  # present the interval comes straight from heap_profile.
+  # With start_timestamp, the interval comes straight from heap_profile.
   def test_heap_profile_intervals(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_window.textproto'),
@@ -122,9 +118,8 @@ class ProfilingHeapProfiling(TestSuite):
         "unknown",5,15
         """))
 
-  # Backwards compatibility: for old traces without start_timestamp the interval
-  # of a dump is derived from the previous dump of the same heap, so continuous
-  # dumps still render as non-zero intervals rather than points.
+  # Without start_timestamp, a dump's interval falls back to the previous dump
+  # of the same heap, so continuous dumps still render as non-zero intervals.
   def test_heap_profile_intervals_legacy(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_continuous_legacy.textproto'),

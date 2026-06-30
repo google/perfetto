@@ -13,15 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- One row per (process, heap, dump) describing the dump as a slice spanning its
--- profiling interval.
---
--- The interval end is the dump timestamp (heap_profile.ts_end, which is also
--- the heap_profile_allocation timestamp). The start is heap_profile.ts when the
--- producer recorded it. For traces from older producers (which only emit the
--- dump timestamp, so heap_profile.ts == ts_end) we fall back to the previous
--- dump for the same heap, or the trace start for the first dump - matching the
--- behaviour the UI relied on before start timestamps existed.
+-- One row per (process, heap, dump): the dump as a slice over its profiling
+-- interval. The end is heap_profile.ts_end (the dump timestamp); the start is
+-- heap_profile.ts when present. For older producers without a start (ts ==
+-- ts_end) we fall back to the previous dump, or the trace start for the first.
 CREATE PERFETTO TABLE _android_heap_profile_intervals AS
 WITH
   dumps AS (
@@ -44,8 +39,8 @@ WITH
       iif(
         start_ts < ts_end,
         start_ts,
-        -- Clamp to ts_end so the very first dump (which has no previous dump and
-        -- falls back to the trace start) never produces a negative duration.
+        -- Clamp to ts_end so the first dump (falling back to trace start)
+        -- never produces a negative duration.
         min(
           lag(ts_end, 1, trace_start()) OVER (
             PARTITION BY upid, heap_name ORDER BY ts_end

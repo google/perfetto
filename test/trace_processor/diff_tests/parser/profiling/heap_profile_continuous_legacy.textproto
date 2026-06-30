@@ -1,7 +1,6 @@
-# An "old producer" trace: two continuous dumps for the same process/heap that
-# do NOT set start_timestamp. Used to verify the profiling interval for a dump
-# is derived from the previous dump (backwards compatibility). The first dump
-# has no previous dump so it collapses to a point at the trace start.
+# Old-producer trace: two continuous dumps for one process/heap without
+# start_timestamp. Verifies a dump's interval falls back to the previous dump;
+# the first dump has none, so it collapses to a point at the trace start.
 packet {
   process_tree {
     processes {

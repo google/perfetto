@@ -394,7 +394,7 @@ void ProfileModule::ParseProfilePacket(
   for (auto it = packet.process_dumps(); it; ++it) {
     protos::pbzero::ProfilePacket::ProcessHeapSamples::Decoder entry(*it);
 
-    // The end of the profiling window (i.e. the state the dump represents).
+    // End of the window: the state this dump represents.
     std::optional<int64_t> maybe_window_end =
         context_->clock_tracker->ToTraceTime(
             ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE),
@@ -404,9 +404,8 @@ void ProfileModule::ParseProfilePacket(
 
     int64_t window_end = *maybe_window_end;
 
-    // The start of the profiling window. Older producers do not emit this, in
-    // which case we treat the window as zero-length (start == end), preserving
-    // the previous behaviour.
+    // Start of the window. Older producers don't emit it, so the window
+    // collapses to a point (start == end), preserving the previous behaviour.
     int64_t window_start = window_end;
     if (entry.has_start_timestamp()) {
       std::optional<int64_t> maybe_window_start =
@@ -421,11 +420,9 @@ void ProfileModule::ParseProfilePacket(
     context_->stats_tracker->SetIndexedStats(
         stats::heapprofd_last_profile_timestamp, pid, ts);
 
-    // Emit one row in the heap_profile table per dump (deduped across the
-    // continued packets that repeat the dump header). The dump timestamp (the
-    // window end) remains the allocation timestamp for backwards compatibility,
-    // so allocations join this via (upid, heap_profile_allocation.ts ==
-    // heap_profile.ts_end).
+    // One heap_profile row per dump, deduped across the continued packets that
+    // repeat the dump header. ts_end is the dump (allocation) timestamp, so
+    // heap_profile_allocation joins via (upid, ts == heap_profile.ts_end).
     UniquePid upid = context_->process_tracker->GetOrCreateProcess(
         static_cast<uint32_t>(entry.pid()));
     if (seen_heap_profiles_.insert({upid, window_end}).second) {

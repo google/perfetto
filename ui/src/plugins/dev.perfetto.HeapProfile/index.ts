@@ -171,9 +171,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
 
           UNION ALL
 
-          -- Each dump is drawn over its profiling interval. This uses the real
-          -- start timestamp when the producer recorded it and falls back to the
-          -- previous dump otherwise (see the module for details).
+          -- Draw each dump over its profiling interval (see the module).
           SELECT
             id,
             ts,
