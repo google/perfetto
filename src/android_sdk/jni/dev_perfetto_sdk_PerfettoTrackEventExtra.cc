@@ -488,6 +488,29 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr(
   return toJLong(track->get());
 }
 
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraStateTrack_init(
+    JNIEnv* env,
+    jclass,
+    jstring name,
+    jlong parent_uuid,
+    jboolean is_name_static) {
+  return toJLong(new sdk_for_jni::RegisteredTrack(
+      2, parent_uuid, StringBuffer::utf16_to_ascii(env, name).data(),
+      /*is_counter=*/false, is_name_static, /*is_state=*/true));
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraStateTrack_delete(
+    PERFETTO_JNI_HOST_PARAMS) {
+  return toJLong(&sdk_for_jni::RegisteredTrack::delete_track);
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraStateTrack_get_extra_ptr(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+  sdk_for_jni::RegisteredTrack* track =
+      toPointer<sdk_for_jni::RegisteredTrack>(ptr);
+  return toJLong(track->get());
+}
+
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_init(
     PERFETTO_JNI_HOST_PARAMS) {
   return toJLong(new sdk_for_jni::CorrelationId());
@@ -741,6 +764,14 @@ static const JNINativeMethod gCounterTrackMethods[] = {
      (void*)
          dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr}};
 
+static const JNINativeMethod gStateTrackMethods[] = {
+    {"native_init", "(Ljava/lang/String;JZ)J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraStateTrack_init},
+    {"native_delete", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraStateTrack_delete},
+    {"native_get_extra_ptr", "(J)J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraStateTrack_get_extra_ptr}};
+
 static const JNINativeMethod gCorrelationIdMethods[] = {
     {"native_init", "()J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_init},
@@ -834,6 +865,14 @@ int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
       gCounterTrackMethods, NELEM(gCounterTrackMethods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register counter track native methods.");
+
+  res = jniRegisterNativeMethods(
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$StateTrack"),
+      gStateTrackMethods, NELEM(gStateTrackMethods));
+  LOG_ALWAYS_FATAL_IF(res < 0,
+                      "Unable to register state track native methods.");
 
   res = jniRegisterNativeMethods(
       env,

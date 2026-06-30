@@ -1622,6 +1622,7 @@ perfetto_filegroup(
         "include/perfetto/public/protos/trace/trace_packet.pzc.h",
         "include/perfetto/public/protos/trace/track_event/counter_descriptor.pzc.h",
         "include/perfetto/public/protos/trace/track_event/debug_annotation.pzc.h",
+        "include/perfetto/public/protos/trace/track_event/state_descriptor.pzc.h",
         "include/perfetto/public/protos/trace/track_event/track_descriptor.pzc.h",
         "include/perfetto/public/protos/trace/track_event/track_event.pzc.h",
         "include/perfetto/public/protos/trace/trigger.pzc.h",

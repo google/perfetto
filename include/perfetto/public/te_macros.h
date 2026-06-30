@@ -200,6 +200,12 @@ struct PerfettoTeHlMacroNameAndType {
 #define PERFETTO_TE_COUNTER() \
   PERFETTO_I_TE_HL_MACRO_NAME_AND_TYPE(PERFETTO_NULL, PERFETTO_TE_TYPE_COUNTER)
 
+// Updates the value of a state track to `const char* VALUE`. A separate
+// parameter must describe the state track this refers to (e.g. with
+// PERFETTO_TE_STATE_TRACK()). A null or empty VALUE clears the state ("idle").
+#define PERFETTO_TE_STATE(VALUE) \
+  PERFETTO_I_TE_HL_MACRO_NAME_AND_TYPE(VALUE, PERFETTO_TE_TYPE_STATE)
+
 // -----------------------------------------------------------
 // Possible types of extra arguments for the PERFETTO_TE macro
 // -----------------------------------------------------------
@@ -368,6 +374,21 @@ struct PerfettoTeHlMacroNameAndType {
           perfetto_protos_TrackDescriptor_name_field_number, NAME),            \
       PERFETTO_TE_PROTO_FIELD_BYTES(                                           \
           perfetto_protos_TrackDescriptor_counter_field_number, PERFETTO_NULL, \
+          0))
+
+// Specifies that the current track for this event is a state track named
+// `const char *NAME`, child of a track whose uuid is `PARENT_UUID`. Use with
+// events of type PERFETTO_TE_STATE().
+#define PERFETTO_TE_STATE_TRACK(NAME, PARENT_UUID)                           \
+  PERFETTO_TE_PROTO_TRACK(                                                   \
+      PerfettoTeStateTrackUuid(NAME, PARENT_UUID),                           \
+      PERFETTO_TE_PROTO_FIELD_VARINT(                                        \
+          perfetto_protos_TrackDescriptor_parent_uuid_field_number,          \
+          PARENT_UUID),                                                      \
+      PERFETTO_TE_PROTO_FIELD_CSTR(                                          \
+          perfetto_protos_TrackDescriptor_name_field_number, NAME),          \
+      PERFETTO_TE_PROTO_FIELD_BYTES(                                         \
+          perfetto_protos_TrackDescriptor_state_field_number, PERFETTO_NULL, \
           0))
 
 // Specifies that the current event should be emitted onto a hierarchy of nested
