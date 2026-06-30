@@ -64,8 +64,8 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 4px 12px;
-    padding: 4px 8px;
-    font-size: 10px;
+    padding: 4px 0;
+    font-size: var(--pf-font-size-s);
   }
 
   &.pf-chart-svg--legend-top .pf-chart-svg__legend,
@@ -109,6 +109,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: var(--pf-color-text-muted);
   }
 
   .pf-chart-svg__legend-value {

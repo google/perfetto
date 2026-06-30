@@ -292,6 +292,11 @@ async function loadTraceIntoEngine(
   }
 
   // notify() will await that all listeners' promises have resolved.
+  //
+  // Annoyingly, since listeners are registered through an event interface we
+  // don't know which plugins we are calling so we cannot display the name of
+  // the plugin in the status bar or collect stats about a particular plugin.
+  updateStatus(app, `Notifying onTraceReady listeners`);
   await trace.onTraceReady.notify();
 
   if (serializedAppState !== undefined) {

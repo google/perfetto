@@ -39,4 +39,16 @@
   &:focus-visible {
     @include focus;
   }
+
+  &--disabled {
+    color: var(--pf-color-text-disabled);
+    text-decoration-color: var(--pf-color-text-disabled);
+    cursor: not-allowed;
+
+    &:hover {
+      // Cancel the hover affordances while disabled.
+      background: transparent;
+      text-decoration-thickness: 1px;
+    }
+  }
 }
