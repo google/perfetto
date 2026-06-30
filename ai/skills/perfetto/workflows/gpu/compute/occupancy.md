@@ -10,7 +10,7 @@ the values back here.
 
 ## Get the data
 
-- **NVIDIA / CUDA:** [nvidia/occupancy.md](nvidia/occupancy.md).
+- **NVIDIA / CUDA:** [nvidia/occupancy.md]($SKILL_ROOT/workflows/gpu/compute/nvidia/occupancy.md).
 - Other vendors: the per-resource block limits are launch args (often present
   regardless of vendor); achieved occupancy needs a vendor counter.
 
