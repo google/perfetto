@@ -15,11 +15,15 @@ FROM (
   SELECT
     id,
     ROW_NUMBER() OVER (
-      PARTITION BY upid, graph_sample_ts ORDER BY self_size DESC
+      PARTITION BY
+        upid,
+        graph_sample_ts
+      ORDER BY self_size DESC
     ) AS rn
   FROM _heap_graph_dominator_class_tree
 )
-WHERE rn = 1;
+WHERE
+  rn = 1;
 
 CREATE OR REPLACE PERFETTO TABLE _class_ancestor_ids AS
 SELECT id
