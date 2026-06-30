@@ -10,7 +10,7 @@ developers to investigate memory issues.
 
 By default, the tool records native allocations and deallocations done with
 malloc/free (or new/delete). It can be configured to record java heap memory
-allocations instead: see [Java heap sampling](#java-heap-sampling) below.
+allocations instead: see [ART allocation profiling](#art-allocation-profiling) below.
 
 On debug Android builds, you can profile all apps and most system services.
 On "user" builds, you can only use it on apps with the debuggable or
@@ -253,7 +253,7 @@ the `<application>` section of the app manifest.
 </manifest>
 ```
 
-## {#java-heap-sampling} Java Allocation Profiling (Churn Profiling)
+## {#art-allocation-profiling} ART Allocation Profiling (Churn Profiling)
 
 NOTE: **Java allocation profiling is available on Android 12 or higher**
 
@@ -266,11 +266,11 @@ Heapprofd can be configured to track Java allocations instead of native ones.
 * By adding `--heaps com.android.art` to the invocation of
   [`tools/heap_profile android`](/docs/reference/heap_profile-cli).
 
-Unlike java heap dumps (which show the retention graph of a snapshot of the live
-objects) but like native heap profiles, java heap samples show callstacks of
+Unlike ART heap dumps (which show the retention graph of a snapshot of the live
+objects) but like native heap profiles, ART allocation samples show callstacks of
 allocations over time of the entire profile.
 
-Java heap samples only show callstacks of when objects are created, not when
+ART allocation samples only show callstacks of when objects are created, not when
 they're deleted or garbage collected.
 
 ![javaheapsamples](/docs/images/java-heap-samples.png)
@@ -284,7 +284,7 @@ The resulting profile proto contains two views on the data:
   over time of the profile until this point. The objects might have been freed
   or not, the tool does not keep track of that.
 
-Java heap samples are useful to understand memory churn showing the call stack
+ART allocation samples are useful to understand memory churn showing the call stack
 of which parts of the code large allocations are attributed to as well as the
 allocation type from the ART runtime.
 

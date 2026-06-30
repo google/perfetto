@@ -20,9 +20,7 @@ INCLUDE PERFETTO MODULE graphs.scan;
 -- have distinct type_ids but the same name; hashing the name here lets the
 -- path-hash scan coalesce them while keeping the hot loop purely int64.
 CREATE PERFETTO TABLE _heap_graph_class_name_hash AS
-SELECT
-  id,
-  HASH(coalesce(deobfuscated_name, name)) AS name_hash
+SELECT id, HASH(coalesce(deobfuscated_name, name)) AS name_hash
 FROM heap_graph_class;
 
 -- Given a table containing a "tree-ified" heap graph object table (i.e.

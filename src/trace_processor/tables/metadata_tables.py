@@ -37,7 +37,11 @@ MACHINE_TABLE = Table(
     sql_name='__intrinsic_machine',
     wrapping_sql_view=WrappingSqlView('machine'),
     columns=[
-        C('raw_id', CppInt64()),
+        C(
+            'raw_id',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
         C(
             'name',
             CppOptional(CppString()),

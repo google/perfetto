@@ -756,10 +756,23 @@ CREATE PERFETTO VIEW machine(
   -- Total system RAM in bytes.
   system_ram_bytes LONG,
   -- Total system RAM in gigabytes (rounded).
-  system_ram_gb LONG
+  system_ram_gb LONG,
+  -- 1-based index of this machine among the non-host machines, used by the UI
+  -- to label tracks (e.g. "(machine 1)"). The host machine (raw_id 0) gets 0,
+  -- so it is never labelled.
+  label_index LONG
 )
 AS
-SELECT * FROM __intrinsic_machine;
+SELECT
+  *,
+  -- Machine ids are dense from 0. The host (raw_id 0), when present, takes id 0
+  -- but is unlabelled, so subtract it to keep the first labelled machine at 1.
+  iif(
+    raw_id = 0,
+    0,
+    id + 1 - (SELECT count(*) FROM __intrinsic_machine WHERE raw_id = 0)
+  ) AS label_index
+FROM __intrinsic_machine;
 
 -- Contains information of filedescriptors collected during the trace.
 CREATE PERFETTO VIEW filedescriptor(
