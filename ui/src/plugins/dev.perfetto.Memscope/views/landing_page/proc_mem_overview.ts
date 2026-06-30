@@ -21,6 +21,9 @@ import {EmptyState} from '../../../../widgets/empty_state';
 import {Icon} from '../../../../widgets/icon';
 import {Panel} from '../../components/panel';
 import {SubPage} from '../../components/page';
+import type {MemSelection} from './selection';
+import {CompositionTimeline} from './summary/composition_timeline';
+import {MemoryMap} from './summary/memory_map';
 import {TraceOverview} from './summary/trace_overview';
 import './landing_page.scss';
 
@@ -53,6 +56,9 @@ export class ProcessMemDetails
   // slot keyed by (trace, upid) so it reloads when the selected process changes.
   private readonly captureSlot = new QuerySlot<CaptureInfo>();
   private activeTab: 'summary' | 'smaps' = 'summary';
+  // The page-wide snapshot selection, driven by the composition timeline and
+  // shared with the other summary sections as they're added.
+  private selection?: MemSelection;
 
   onremove() {
     this.captureSlot.dispose();
@@ -84,7 +90,22 @@ export class ProcessMemDetails
           {open: this.activeTab === 'summary'},
           // SubPage gives its direct children the cascading fade-up entrance
           // animation (.pf-memscope-subpage > *), matching the rest of the page.
-          m(SubPage, m(TraceOverview, {trace, upid})),
+          m(
+            SubPage,
+            m(TraceOverview, {trace, upid}),
+            m(CompositionTimeline, {
+              trace,
+              upid,
+              selection: this.selection,
+              onSelect: (s: MemSelection) => (this.selection = s),
+            }),
+            m(MemoryMap, {
+              trace,
+              upid,
+              selTs: this.selection?.sel,
+              baseTs: this.selection?.base,
+            }),
+          ),
         ),
       error === undefined &&
         m(
