@@ -26,6 +26,7 @@ import {Select} from '../../../../widgets/select';
 import './landing_page.scss';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Page} from '../../components/page';
+import {ProcessMemDetails} from './proc_mem_overview';
 
 // Per-process memory-capture counts, used to populate and score the process
 // picker on the overview page.
@@ -91,7 +92,6 @@ export class MemoryOverviewPage
     const selectedUpid = subpage
       ? parseUpidFromSubpage(subpage)
       : bestProc.upid;
-    const selectedProc = procs.find((p) => p.upid === selectedUpid);
 
     return [
       m('.pf-memscope-process-select', [
@@ -112,15 +112,7 @@ export class MemoryOverviewPage
       ]),
       Number.isNaN(selectedUpid)
         ? m('', `Unable to parse upid from url '${subpage}'`)
-        : // Content placeholder — the per-process detail view is built out in a
-          // later change; for now the page is just the scaffolding + picker.
-          m(EmptyState, {
-            icon: 'memory',
-            title:
-              selectedProc !== undefined
-                ? `${selectedProc.procName}: memory detail coming soon`
-                : `Process ${selectedUpid} not found`,
-          }),
+        : m(ProcessMemDetails, {trace, upid: selectedUpid}),
     ];
   }
 }
