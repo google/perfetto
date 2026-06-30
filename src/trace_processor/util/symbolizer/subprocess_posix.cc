@@ -23,6 +23,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#include <spawn.h>
+#include <crt_externs.h>
+#endif
+
 #include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
@@ -37,6 +42,17 @@ Subprocess::Subprocess(const std::string& file, std::vector<std::string> args)
     c_str_args.push_back(&(arg[0]));
   c_str_args.push_back(nullptr);
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  posix_spawn_file_actions_t fa;
+  posix_spawn_file_actions_init(&fa);
+  posix_spawn_file_actions_adddup2(&fa, *input_pipe_.rd, STDIN_FILENO);
+  posix_spawn_file_actions_adddup2(&fa, *output_pipe_.wr, STDOUT_FILENO);
+  
+  if (posix_spawnp(&pid_, file.c_str(), &fa, nullptr, c_str_args.data(), *_NSGetEnviron()) != 0) {
+    pid_ = -1;
+  }
+  posix_spawn_file_actions_destroy(&fa);
+#else
   if ((pid_ = fork()) == 0) {
     // Child
     PERFETTO_CHECK(dup2(*input_pipe_.rd, STDIN_FILENO) != -1);
@@ -46,6 +62,7 @@ Subprocess::Subprocess(const std::string& file, std::vector<std::string> args)
     if (execvp(file.c_str(), c_str_args.data()) == -1)
       PERFETTO_FATAL("Failed to exec %s", file.c_str());
   }
+#endif
   PERFETTO_CHECK(pid_ != -1);
   input_pipe_.rd.reset();
   output_pipe_.wr.reset();
