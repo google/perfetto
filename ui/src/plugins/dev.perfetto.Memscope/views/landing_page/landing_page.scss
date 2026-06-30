@@ -85,6 +85,41 @@
   }
 }
 
+// Tab strip selecting between the Summary and Smaps Detail bodies.
+.pf-memscope-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--pf-col-border);
+}
+
+.pf-memscope-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-size: var(--pf-font-size-m);
+  color: var(--pf-color-text-muted);
+  cursor: pointer;
+
+  .pf-icon {
+    font-size: 16px;
+  }
+
+  &:hover {
+    color: var(--pf-color-text);
+  }
+
+  &--active {
+    color: var(--pf-color-accent);
+    border-bottom-color: var(--pf-color-accent);
+    font-weight: 600;
+  }
+}
+
 // Process picker at the top of the overview page.
 .pf-memscope-process-select {
   display: flex;
