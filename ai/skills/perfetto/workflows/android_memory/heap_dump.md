@@ -5,7 +5,7 @@ retention in Android Java heap dumps. It assumes the trace was recorded with the
 ART perfetto data source (`java_heap_profiler`).
 
 If the user has not yet loaded a trace into `trace_processor`, follow
-`../../infra-references/querying.md` first, then come back here.
+`$SKILL_ROOT/infra-references/querying.md` first, then come back here.
 
 ---
 
@@ -22,21 +22,28 @@ good, not working, or inconclusive.
     the query result as CSV.
 
     ```bash
-    trace_processor query --query-file scripts/triage_dominator_path.sql TRACE_FILE
+    trace_processor query --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql TRACE_FILE
     ```
 
 2.  Parse the returned string CSV to identify the columns and extract the values
-    for `process_name`, `path`, `class_name`, and `self_size`. If the response
-    is empty or contains only a header, inform the user that the query returned
-    no matching data for this trace.
+    for `process_name`, `graph_sample_ts`, `path`, `class_name`, and
+    `self_size`. If the response is empty or contains only a header, inform the
+    user that the query returned no matching data for this trace.
 
-3.  Use the extracted values to formulate the following text string. You MUST
-    use exactly this structure replacing the bracketed items with your extracted
-    values:
+    A single trace can contain **more than one heap dump** — several processes,
+    or the same process sampled at different times. The script returns **one row
+    per heap dump**, each identified by its `process_name` and `graph_sample_ts`
+    and ordered with the largest `self_size` first. Do not assume a single row;
+    handle every row the query returns. The `graph_sample_ts` column is what
+    distinguishes two dumps from the same process.
 
-    > I have a heap dump from {process_name} that with the following largest
-    > dominated class path, showing class names and object counts along the
-    > path: {path}
+3.  For **each row** returned (i.e. each heap dump), use that row's extracted
+    values to formulate the following text string. You MUST use exactly this
+    structure replacing the bracketed items with that row's values:
+
+    > I have a heap dump from {process_name} (sampled at {graph_sample_ts}) with
+    > the following largest dominated class path, showing class names and object
+    > counts along the path: {path}
     >
     > The child at the end of that path, {class_name}, consumes {self_size}
     > bytes.
@@ -52,9 +59,11 @@ good, not working, or inconclusive.
     > reference specific locations in the code showing the leak and create an
     > implementation plan for fixing the leak.
 
-4.  Present this generated string as a system prompt asking the underlying LLM
-    to generate the final analysis response for the user. Provide the model's
-    analysis cleanly.
+4.  Present each generated string as a system prompt asking the underlying LLM
+    to generate the final analysis response for the user. When the query
+    returned multiple heap dumps, analyze each one and clearly label its section
+    by `{process_name}` and `{graph_sample_ts}` so the dumps don't blur
+    together. Provide the model's analysis cleanly.
 
 ---
 

@@ -76,21 +76,44 @@ which setup variant became `setup.md`; everything else is identical.
 See [`ai/extensions/README.md`](../extensions/README.md) for how the
 assembled bundle reaches end users.
 
-## Reference other files by path *relative to the current file*
+## Reference other files by `$SKILL_ROOT`-anchored path
 
-A workflow that needs the querying reference links to it relative to
-its own location, e.g. from `workflows/android_memory/heap_dump.md`:
+Every path a file mentions — links to other skill files, and the
+helper scripts a workflow runs — is written as `$SKILL_ROOT/<path>`,
+where `<path>` is relative to the skill root (the directory holding
+`SKILL.md`) and never relative to the file doing the referencing. So
+from `workflows/android_memory/heap_dump.md`:
 
 ```markdown
-follow `../../infra-references/querying.md` first, then come back here.
+follow `$SKILL_ROOT/infra-references/querying.md` first, then come back here.
 ```
 
-Not `infra-references/querying.md` (skill-root-relative). The router
-sits at the skill root, so its links have no `../`. Helper scripts are
-referenced relative to the workflow too, e.g. `scripts/cluster_paths.py`.
+Not `../../infra-references/querying.md` (file-relative), and not a
+bare `infra-references/querying.md` either. Likewise a helper script is
+`$SKILL_ROOT/workflows/android_memory/scripts/cluster_paths.py`, and a
+`trace_processor` invocation spells the full path:
 
-This is what lets the files be relocated or repackaged without the
-links breaking, and it is verified at build time.
+```sh
+trace_processor query --query-file \
+  $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql TRACE_FILE
+```
+
+`$SKILL_ROOT` is the one anchor that makes this unambiguous. The skill
+is loaded from a plugin/install directory that is **not** the agent's
+working directory (that's the user's workspace, where the trace lives),
+so a bare relative path would resolve against the wrong place.
+`environment-references/setup.md` — the always-required first read —
+tells the agent what to set `$SKILL_ROOT` to for its install (e.g.
+`$CLAUDE_PLUGIN_ROOT/skills/perfetto` under Claude Code), exactly as it
+already does for the bare `trace_processor` binary. Once it's set,
+every `$SKILL_ROOT/...` path resolves the same way regardless of the
+working directory, whether the agent is opening a referenced markdown
+file or passing a script to the shell.
+
+The router (`SKILL-template.md`) sits at the skill root, so its
+`$SKILL_ROOT/...` links have no intermediate `../`; every other file
+speaks the same path language. A file can move between subfolders
+without rewriting its outgoing links (only references *to* it change).
 
 ## Authoring
 
@@ -104,7 +127,7 @@ links breaking, and it is verified at build time.
   to its table. Keep it short.
 - **Add a workflow** as `workflows/<domain>/<name>.md`, with any
   scripts in a sibling `scripts/`. Write the body in the imperative,
-  like a runbook. Pull in `../../infra-references/querying.md` rather
-  than re-explaining how to query.
+  like a runbook. Pull in `$SKILL_ROOT/infra-references/querying.md`
+  (anchored path, as above) rather than re-explaining how to query.
 - **Test against a real trace** before checking in. Files that have
   never been run end up with broken syntax and wrong column names.
