@@ -32,7 +32,8 @@ import {TextInput} from '../../widgets/text_input';
 import {Tooltip} from '../../widgets/tooltip';
 import {TextParagraph} from '../../widgets/text_paragraph';
 import {MultiTraceController} from './multi_trace_controller';
-import type {AlignMode, ClockName, TraceFile} from './multi_trace_types';
+import type {ClockName, TraceFile} from './multi_trace_types';
+import {parseOffsetNs} from './multi_trace_types';
 import type {AlignmentVerdict} from './trace_analyzer';
 import {WasmTraceAnalyzer} from './trace_analyzer';
 
@@ -74,14 +75,93 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
       Stack,
       {className: 'pf-multi-trace-modal', orientation: 'vertical'},
       this.renderDescription(),
-      this.currentTab === 'merge' && this.renderLoadingError(),
       this.currentTab === 'merge' &&
         m(MergeConfigurator, {controller: this.controller}),
+      this.currentTab === 'merge' && this.renderStatus(),
       m(
         Stack,
         {className: 'pf-multi-trace-modal__footer', orientation: 'horizontal'},
         this.renderActions(),
       ),
+    );
+  }
+
+  // A single, always-present status line for the whole merge: processing, a
+  // blocking error, the latest (auto-run) alignment verdict, or all-clear.
+  // Lives outside the scrollable list, with reserved height, so it is always
+  // visible and the layout doesn't jump as the state changes.
+  private renderStatus() {
+    return m('.pf-multi-trace-modal__status-panel', this.statusContent());
+  }
+
+  private statusContent() {
+    const controller = this.controller;
+    if (controller.isAnalyzing()) {
+      return this.processingCallout('Analyzing traces...');
+    }
+    switch (controller.getLoadingError()) {
+      case 'NO_TRACES':
+        return m(Callout, {icon: 'info'}, 'Add at least one trace to open.');
+      case 'DUPLICATE_NAMES':
+        return m(
+          Callout,
+          {intent: Intent.Danger, icon: 'error_outline'},
+          'Two traces share the same file name. Remove or rename one.',
+        );
+      case 'TRACE_ERROR':
+        return m(
+          Callout,
+          {intent: Intent.Danger, icon: 'error_outline'},
+          'Remove the traces that failed to load before opening.',
+        );
+      default:
+        break;
+    }
+    // A config error (bad offset, or an offset that shares a machine with the
+    // baseline) takes priority over the verdict, and blocks opening.
+    const configError = controller.configError();
+    if (configError !== undefined) {
+      return m(Callout, {intent: Intent.Warning, icon: 'warning'}, configError);
+    }
+    // A verdict means a check finished; otherwise one is running or queued.
+    const verdict = controller.alignmentVerdict;
+    if (verdict !== undefined) {
+      return this.renderVerdict(verdict);
+    }
+    return this.processingCallout(
+      'Checking if the traces line up on the timeline...',
+    );
+  }
+
+  private processingCallout(text: string) {
+    return m(
+      Callout,
+      {intent: Intent.None},
+      m(Stack, {orientation: 'horizontal', spacing: 'small'}, m(Spinner), text),
+    );
+  }
+
+  private renderVerdict(verdict: AlignmentVerdict) {
+    if (verdict.validationError !== undefined) {
+      return m(
+        Callout,
+        {intent: Intent.Danger, icon: 'error_outline'},
+        `Manifest error: ${verdict.validationError}`,
+      );
+    }
+    if (!verdict.ok) {
+      return m(
+        Callout,
+        {intent: Intent.Warning, icon: 'warning'},
+        `${verdict.droppedEvents.toLocaleString()} events would be dropped: ` +
+          'some traces share no clock with the shared timeline and will be ' +
+          'omitted. Set an explicit alignment, or check the manifest.',
+      );
+    }
+    return m(
+      Callout,
+      {intent: Intent.Success, icon: 'check_circle'},
+      'All traces line up on the shared timeline.',
     );
   }
 
@@ -168,19 +248,13 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     }
 
     const disabled = this.controller.getLoadingError() !== undefined;
-    const checking = this.controller.isCheckingAlignment;
+    // A config error (e.g. an offset sharing a machine with the baseline) is not
+    // openable, but the manifest is still copyable/downloadable for debugging.
+    const openBlocked = disabled || this.controller.configError() !== undefined;
 
+    // Alignment runs automatically (debounced) and its result shows in the
+    // status callout above; the footer is just the output actions.
     return [
-      m(Button, {
-        label: 'Check alignment',
-        icon: 'rule',
-        disabled: checking || disabled,
-        onclick: () => this.controller.checkAlignment(),
-      }),
-      renderHelp(
-        'Dry-runs the merge and reports whether every trace lines up on the ' +
-          'shared timeline, or how many events would be dropped.',
-      ),
       m('.pf-multi-trace-modal__footer-spacer'),
       m(Button, {
         label: 'Copy manifest',
@@ -198,41 +272,10 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
         label: 'Open Traces',
         intent: Intent.Primary,
         variant: ButtonVariant.Filled,
-        disabled,
+        disabled: openBlocked,
         onclick: () => this.openTraces(),
       }),
     ];
-  }
-
-  private renderLoadingError() {
-    const error = this.controller.getLoadingError();
-    if (error === undefined) {
-      return undefined;
-    }
-    return m(
-      Callout,
-      {
-        className: 'pf-multi-trace-modal__panel-error',
-        intent: Intent.Danger,
-        icon: 'error_outline',
-      },
-      this.errorMessage(error),
-    );
-  }
-
-  private errorMessage(error: string): string {
-    switch (error) {
-      case 'NO_TRACES':
-        return 'Add at least one trace to open.';
-      case 'DUPLICATE_NAMES':
-        return 'Two traces share the same file name. Remove or rename one.';
-      case 'ANALYZING':
-        return 'Wait for all traces to be analyzed.';
-      case 'TRACE_ERROR':
-        return 'Remove traces with errors before opening.';
-      default:
-        return 'An unknown error occurred.';
-    }
   }
 
   private openTraces() {
@@ -271,6 +314,10 @@ interface MergeConfiguratorAttrs {
 }
 
 class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
+  // The trace uuid whose assigned machine is currently being renamed inline,
+  // toggled by the per-row edit button. undefined => no rename in progress.
+  private editingMachine?: string;
+
   view({attrs}: m.Vnode<MergeConfiguratorAttrs>) {
     const {controller} = attrs;
     return m(
@@ -287,56 +334,6 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
         m(Icon, {icon: 'add'}),
         'Add more traces',
       ),
-      this.renderVerdictPanel(controller),
-    );
-  }
-
-  // Verdict for "Check alignment"; the button lives in the footer.
-  private renderVerdictPanel(controller: MultiTraceController) {
-    const verdict = controller.alignmentVerdict;
-    const checking = controller.isCheckingAlignment;
-    if (!checking && verdict === undefined) {
-      return undefined;
-    }
-    return m(
-      Stack,
-      {
-        className: 'pf-multi-trace-modal__align-panel',
-        orientation: 'vertical',
-        spacing: 'small',
-      },
-      checking &&
-        m(
-          Stack,
-          {orientation: 'horizontal', spacing: 'small'},
-          m(Spinner),
-          'Checking how these traces line up...',
-        ),
-      !checking && verdict !== undefined && this.renderVerdict(verdict),
-    );
-  }
-
-  private renderVerdict(verdict: AlignmentVerdict) {
-    if (verdict.validationError !== undefined) {
-      return m(
-        Callout,
-        {intent: Intent.Danger, icon: 'error_outline'},
-        `Manifest error: ${verdict.validationError}`,
-      );
-    }
-    if (!verdict.ok) {
-      return m(
-        Callout,
-        {intent: Intent.Warning, icon: 'warning'},
-        `${verdict.droppedEvents.toLocaleString()} events would be dropped: ` +
-          'some traces share no clock with the shared timeline and will be ' +
-          'omitted. Set an explicit alignment, or check the manifest.',
-      );
-    }
-    return m(
-      Callout,
-      {intent: Intent.Success, icon: 'check_circle'},
-      'All traces line up on the shared timeline.',
     );
   }
 
@@ -485,9 +482,13 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
       return undefined;
     }
     const a = trace.analysis;
+    const isMultiMachine = a.singleMachine === false;
     const children: m.Children[] = [];
 
-    if (a.singleClock === false) {
+    // Clock alignment first. Multi-machine and multi-clock files carry their own
+    // snapshots and align automatically; only single-machine single-clock files
+    // take a manual placement.
+    if (a.singleClock === false || isMultiMachine) {
       children.push(
         m(
           '.pf-multi-trace-modal__note',
@@ -504,6 +505,15 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
       }
     }
 
+    // Machine identity, independent of clock alignment. A single-machine file's
+    // assignment only matters when merging >=2 traces (it tells them apart); a
+    // multi-machine trace always offers the per-id remap.
+    if (isMultiMachine) {
+      children.push(this.renderMachineRemap(trace, controller));
+    } else if (controller.traces.length >= 2) {
+      children.push(this.renderMachineControl(trace, controller));
+    }
+
     if (children.length === 0) {
       return undefined;
     }
@@ -511,13 +521,158 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
       Stack,
       {
         className: 'pf-multi-trace-modal__config',
-        orientation: 'horizontal',
-        spacing: 'large',
+        orientation: 'vertical',
+        spacing: 'small',
       },
       children,
     );
   }
 
+  // Picks which machine this file belongs to from the shared registry; the
+  // selection serializes to files[].machine.name. Host is the default; "Add
+  // machine..." creates one (available to every file) and the inline box names
+  // it. Renaming here renames the registry entry for every file using it.
+  private renderMachineControl(
+    trace: TraceFile,
+    controller: MultiTraceController,
+  ) {
+    const config = controller.getConfig(trace.uuid);
+    const selectedId = config.machineId;
+    const machines = controller.machines;
+    const options = [
+      {value: 'default', label: 'Default'},
+      ...machines.map((mm) => ({
+        value: `m:${mm.id}`,
+        label: mm.name.trim().length > 0 ? mm.name : '(unnamed)',
+      })),
+      {value: 'add', label: '+ Add machine...'},
+    ];
+    const onSelect = (value: string) => {
+      if (value === 'default') {
+        controller.updateConfig(trace.uuid, {machineId: undefined});
+      } else if (value === 'add') {
+        controller.updateConfig(trace.uuid, {
+          machineId: controller.addMachine(),
+        });
+        // Jump straight into naming the machine just created.
+        this.editingMachine = trace.uuid;
+      } else {
+        controller.updateConfig(trace.uuid, {
+          machineId: Number(value.slice(2)),
+        });
+      }
+    };
+
+    const help = renderHelp(
+      'A machine is one device or host: a phone, a server, a VM. Keep ' +
+        '"Default" to merge this trace onto the shared timeline, or assign ' +
+        "it to its own machine so the merged trace keeps each device's CPUs, " +
+        'processes and threads grouped separately. Add a machine once and ' +
+        'pick it for several files to place them all on the same machine.',
+    );
+
+    // While renaming, the picker is replaced by an inline name field. The edit
+    // is an explicit action (the pencil button below), so the field is not a
+    // permanent box morphing next to the picker.
+    if (selectedId !== undefined && this.editingMachine === trace.uuid) {
+      return m(
+        Stack,
+        {
+          className: 'pf-multi-trace-modal__control-row',
+          orientation: 'horizontal',
+          spacing: 'small',
+        },
+        m('strong', 'Machine:'),
+        m(TextInput, {
+          autofocus: true,
+          placeholder: 'machine name',
+          value: machines.find((mm) => mm.id === selectedId)?.name ?? '',
+          onInput: (value: string) =>
+            controller.renameMachine(selectedId, value),
+          // Enter or blur finishes the edit.
+          onChange: () => {
+            this.editingMachine = undefined;
+          },
+        }),
+        m(Button, {
+          icon: 'check',
+          onclick: () => {
+            this.editingMachine = undefined;
+          },
+        }),
+        help,
+      );
+    }
+
+    return m(
+      Stack,
+      {
+        className: 'pf-multi-trace-modal__control-row',
+        orientation: 'horizontal',
+        spacing: 'small',
+      },
+      m('strong', 'Machine:'),
+      this.renderDropdown(
+        selectedId !== undefined ? `m:${selectedId}` : 'default',
+        options,
+        onSelect,
+      ),
+      // Rename the selected machine (a real machine, not the default).
+      selectedId !== undefined &&
+        m(Button, {
+          icon: 'edit',
+          onclick: () => {
+            this.editingMachine = trace.uuid;
+          },
+        }),
+      help,
+    );
+  }
+
+  // Name each embedded machine_id of a multi-machine proto. Names are emitted
+  // as files[].machines[] only once all are filled (see serializer).
+  private renderMachineRemap(
+    trace: TraceFile,
+    controller: MultiTraceController,
+  ) {
+    const machines = controller.getConfig(trace.uuid).machines ?? [];
+    return m(
+      Stack,
+      {orientation: 'vertical', spacing: 'small'},
+      m(
+        Stack,
+        {orientation: 'horizontal', spacing: 'small'},
+        m('strong', `Machines (${machines.length}):`),
+        renderHelp(
+          'A machine is one device or host (a phone, a server, a VM). This ' +
+            'trace was itself recorded across several of them, each tagged ' +
+            'with only a numeric id. Give every id a readable name to label ' +
+            'it in the merged trace. The names take effect only once all ids ' +
+            'are named.',
+        ),
+      ),
+      machines.map((mm) =>
+        m(
+          Stack,
+          {orientation: 'horizontal', spacing: 'small', key: mm.id},
+          m('span', `id ${mm.id} →`),
+          m(TextInput, {
+            placeholder: 'machine name',
+            value: mm.name,
+            onInput: (v: string) => {
+              const next = machines.map((x) =>
+                x.id === mm.id ? {id: x.id, name: v} : x,
+              );
+              controller.updateConfig(trace.uuid, {machines: next});
+            },
+          }),
+        ),
+      ),
+    );
+  }
+
+  // One sentence on a single line: "Align: [automatically] " or
+  // "Align: [by a fixed offset] [N] ns from [file] clock [name]".
   private renderAlignControl(
     trace: TraceFile,
     controller: MultiTraceController,
@@ -526,7 +681,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     return m(
       Stack,
       {
-        className: 'pf-multi-trace-modal__control-row',
+        className: 'pf-multi-trace-modal__align-row',
         orientation: 'horizontal',
         spacing: 'small',
       },
@@ -534,32 +689,52 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
       this.renderDropdown(
         config.alignMode,
         [
-          {value: 'auto', label: 'Automatic'},
-          {value: 'offset', label: 'Fixed offset'},
+          {value: 'auto', label: 'automatically'},
+          {value: 'manual', label: 'by a fixed offset'},
         ],
         (value) =>
-          controller.updateConfig(trace.uuid, {alignMode: value as AlignMode}),
+          controller.updateConfig(trace.uuid, {
+            alignMode: value === 'manual' ? 'manual' : 'auto',
+          }),
       ),
-      config.alignMode === 'offset' &&
-        m(TextInput, {
-          type: 'number',
-          placeholder: 'offset (ns)',
-          value: config.offsetNs !== undefined ? String(config.offsetNs) : '',
-          onChange: (value: string) => {
-            const n = Number(value);
-            const valid = value.trim().length > 0 && Number.isFinite(n);
-            controller.updateConfig(trace.uuid, {
-              offsetNs: valid ? n : undefined,
-            });
-          },
-        }),
+      ...(config.alignMode === 'manual'
+        ? this.manualFieldChildren(trace, controller)
+        : []),
       renderHelp(
-        'Where this trace sits on the shared timeline. Automatic lines it up ' +
-          'using its own clocks. Fixed offset shifts it by a set number of ' +
-          'nanoseconds relative to the baseline trace; a positive value moves ' +
-          'it later.',
+        'Where this trace sits on the shared timeline. Automatically lines ' +
+          'it up using its own clocks. By a fixed offset moves it by a set ' +
+          'number of nanoseconds relative to the baseline trace; a positive ' +
+          'value moves it later.',
       ),
     );
+  }
+
+  // The manual-offset inputs, as inline tokens of the Align sentence: a free-
+  // text offset (so a partial "-" survives) relative to the baseline trace.
+  // Invalid text is flagged rather than silently dropped.
+  private manualFieldChildren(
+    trace: TraceFile,
+    controller: MultiTraceController,
+  ): m.Children[] {
+    const uuid = trace.uuid;
+    const offsetText = controller.getConfig(uuid).offsetText ?? '';
+    const offsetInvalid =
+      offsetText.trim().length > 0 && parseOffsetNs(offsetText) === undefined;
+    const baseline = controller.baselineName(uuid);
+    return [
+      m(TextInput, {
+        className: offsetInvalid
+          ? 'pf-multi-trace-modal__offset--invalid'
+          : undefined,
+        placeholder: 'offset',
+        value: offsetText,
+        onInput: (v: string) => controller.updateConfig(uuid, {offsetText: v}),
+      }),
+      m('span', 'ns'),
+      offsetInvalid && m('span.pf-multi-trace-modal__hint', '(whole number)'),
+      baseline !== undefined &&
+        m('span.pf-multi-trace-modal__note', `from ${baseline}`),
+    ];
   }
 
   private renderCardActions(
