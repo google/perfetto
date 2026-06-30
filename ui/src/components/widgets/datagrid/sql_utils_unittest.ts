@@ -14,6 +14,7 @@
 
 import {
   filterToSql,
+  searchToSql,
   sqlAggregateExpr,
   sqlPathMatch,
   sqlPathNotMatch,
@@ -357,5 +358,32 @@ describe('filterToSql', () => {
     expect(
       filterToSql({field: 'x', op: 'not in', value: ['a', 'b']}, 'col'),
     ).toBe("col NOT IN ('a', 'b')");
+  });
+});
+
+describe('searchToSql', () => {
+  test('single column', () => {
+    expect(searchToSql(['col'], 'foo')).toBe(
+      "CAST(col AS TEXT) LIKE '%foo%' ESCAPE '\\'",
+    );
+  });
+
+  test('multiple columns are OR-ed', () => {
+    expect(searchToSql(['a', 'b'], 'foo')).toBe(
+      "(CAST(a AS TEXT) LIKE '%foo%' ESCAPE '\\' OR " +
+        "CAST(b AS TEXT) LIKE '%foo%' ESCAPE '\\')",
+    );
+  });
+
+  test('escapes LIKE wildcards in the term', () => {
+    expect(searchToSql(['col'], '50%_x')).toBe(
+      "CAST(col AS TEXT) LIKE '%50\\%\\_x%' ESCAPE '\\'",
+    );
+  });
+
+  test('escapes single quotes in the term', () => {
+    expect(searchToSql(['col'], "it's")).toBe(
+      "CAST(col AS TEXT) LIKE '%it''s%' ESCAPE '\\'",
+    );
   });
 });

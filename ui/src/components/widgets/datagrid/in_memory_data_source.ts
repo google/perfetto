@@ -38,6 +38,7 @@ export class InMemoryDataSource implements DataSource {
   private oldColumns?: readonly FlatColumn[];
   private oldFilters: ReadonlyArray<Filter> = [];
   private oldSort?: FlatModel['sort'];
+  private oldSearch?: string;
 
   constructor(data: ReadonlyArray<Row>) {
     this.data = data;
@@ -56,20 +57,26 @@ export class InMemoryDataSource implements DataSource {
     const columns = model.columns;
     const filters = model.filters ?? [];
     const sort = model.sort;
+    const search = model.search;
 
     if (
       !this.areColumnsEqual(columns, this.oldColumns) ||
       !this.areFiltersEqual(filters, this.oldFilters) ||
-      !this.isSortEqual(sort, this.oldSort)
+      !this.isSortEqual(sort, this.oldSort) ||
+      search !== this.oldSearch
     ) {
       this.oldColumns = columns;
       this.oldFilters = filters;
       this.oldSort = sort;
+      this.oldSearch = search;
 
       // Clear aggregate summaries cache
       this.aggregateSummariesCache = {};
 
       let result = this.applyFilters(this.data, filters);
+
+      // Apply free-text search across all visible columns
+      result = this.applySearch(result, columns, search);
 
       // Project columns to use aliases as keys (for consistency with SQL data source)
       result = this.projectColumns(result, columns);
@@ -327,6 +334,23 @@ export class InMemoryDataSource implements DataSource {
     });
   }
 
+  // Filter rows to those where any visible column contains the search term as a
+  // case-insensitive substring.
+  private applySearch(
+    data: ReadonlyArray<Row>,
+    columns: ReadonlyArray<FlatColumn>,
+    search: string | undefined,
+  ): ReadonlyArray<Row> {
+    if (!search) {
+      return data;
+    }
+
+    const needle = search.toLowerCase();
+    return data.filter((row) =>
+      columns.some((col) => searchValueMatches(row[col.field], needle)),
+    );
+  }
+
   private applySorting(
     data: ReadonlyArray<Row>,
     sortColumn: string,
@@ -395,6 +419,15 @@ function valuesEqual(a: SqlValue, b: SqlValue): boolean {
   }
 
   return false;
+}
+
+// Returns true if the string representation of `value` contains `needle`
+// (which must already be lower-cased). Nulls and blobs never match.
+function searchValueMatches(value: SqlValue, needle: string): boolean {
+  if (value === null || value === undefined || value instanceof Uint8Array) {
+    return false;
+  }
+  return String(value).toLowerCase().includes(needle);
 }
 
 function isNumeric(value: SqlValue): value is number | bigint {
