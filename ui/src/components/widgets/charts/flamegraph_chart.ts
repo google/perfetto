@@ -17,6 +17,8 @@ import {PopupPosition} from '../../../widgets/popup';
 import {CursorTooltip} from '../../../widgets/cursor_tooltip';
 import './flamegraph_chart.scss';
 
+const TOOLTIP_OFFSET_PX = 12;
+
 export interface FlamegraphChartSegment {
   readonly name: string;
   readonly value: number;
@@ -212,7 +214,11 @@ export function FlamegraphChart(): m.Component<FlamegraphChartAttrs> {
         hoveredSeg !== undefined &&
           m(
             CursorTooltip,
-            {position: PopupPosition.BottomStart, offset: 12, skidding: 12},
+            {
+              position: PopupPosition.BottomStart,
+              offset: TOOLTIP_OFFSET_PX,
+              skidOffset: TOOLTIP_OFFSET_PX,
+            },
             m(
               '.pf-flamechart-tooltip',
               hoveredSeg.seg.tooltip ??
