@@ -25,7 +25,7 @@ device (Perfetto never stores absolute kernel addresses, to avoid disclosing
 
 | Your trace contains&hellip; | Examples | What you need |
 | --- | --- | --- |
-| **Callstacks** | Native heap profiler, `traced_perf` / Linux perf CPU sampling, Java heap dumps | [Symbolization & deobfuscation](#callstacks). Userspace frames are resolved offline (`traceconv bundle`); kernel frames are symbolized on-device automatically. |
+| **Callstacks** | Native heap profiler, `traced_perf` / Linux perf CPU sampling, ART heap dumps | [Symbolization & deobfuscation](#callstacks). Userspace frames are resolved offline (`traceconv bundle`); kernel frames are symbolized on-device automatically. |
 | **Kernel ftrace events** | `function_graph` tracing, `sched_blocked_reason`, kprobes | [Record-time `symbolize_ksyms`](#ftrace). These addresses **cannot** be symbolized after the fact. |
 | **Userspace event names** | atrace slice names, ART method tracing | [Not currently supported](#userspace-event-names) for offline deobfuscation; emit readable names at instrumentation time. |
 
@@ -33,7 +33,7 @@ device (Perfetto never stores absolute kernel addresses, to avoid disclosing
 
 This applies to any data source that captures callstacks: the native heap
 profiler, the perf-based CPU profiler (`traced_perf` and imported Linux `perf`
-data), and the Java heap profiler.
+data), and the ART allocation profiler.
 
 These data sources record raw **userspace** instruction addresses (and, on
 Android, obfuscated Java/Kotlin frames), which you resolve on the host **after

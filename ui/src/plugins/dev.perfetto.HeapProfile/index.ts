@@ -121,12 +121,14 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       this.migrateHeapProfilePluginState(init),
     );
     await this.createHeapProfileTable(trace);
+    // Ordered by priority, so the tracks and the area-selection flamegraph tabs
+    // registered below come out in the right order.
     const heapTypes = await this.getHeapTypes(trace);
     await this.addProcessTracks(trace, heapTypes);
 
     // For applicable heap types, register an area selection
     for (const heapType of heapTypes) {
-      const descriptor = profileDescriptor(heapType);
+      const descriptor = profileDescriptor(heapType.type);
       if (
         descriptor.type === ProfileType.JAVA_HEAP_GRAPH ||
         descriptor.type === ProfileType.OOME_CALLSTACK
@@ -135,7 +137,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         continue;
       }
       trace.selection.registerAreaSelectionTab(
-        this.heapProfileSelectionHandler(trace, descriptor),
+        this.heapProfileSelectionHandler(trace, descriptor, heapType.priority),
       );
     }
 
@@ -166,60 +168,89 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             id,
             upid,
             heap_name,
-            LAG(ts, 1, trace_start()) OVER (PARTITION BY upid, heap_name ORDER BY ts) + 1 AS ts,
+            -- Start just after the previous dump, but never past this dump:
+            -- a dump at trace_start() has no room before it, so collapse to a
+            -- zero-duration instant (ts = ts_end) instead of inverting.
+            MIN(
+              LAG(ts, 1, trace_start()) OVER (PARTITION BY upid, heap_name ORDER BY ts) + 1,
+              ts
+            ) AS ts,
             ts AS ts_end
           FROM heap_profile_points
+        ), events AS (
+          SELECT
+            MIN(id) as id,
+            graph_sample_ts AS ts,
+            upid,
+            0 AS dur,
+            0 AS depth,
+            'java_heap_graph' AS type
+          FROM heap_graph_object
+          GROUP BY graph_sample_ts, upid
+
+          UNION ALL
+
+          SELECT
+            id,
+            ts,
+            upid,
+            ts_end - ts AS dur,
+            0 AS depth,
+            'heap_profile:' || heap_name AS type
+          FROM heap_profile_slices
+
+          UNION ALL
+
+          SELECT
+            id,
+            ts,
+            upid,
+            0 AS dur,
+            0 AS depth,
+            'oome_callstack' AS type
+          FROM heap_graph
+          WHERE dump_reason = 'OOME'
         )
 
+        -- Display/selection priority: lower comes first. This is the single
+        -- source of truth; TypeScript reads it back for track ordering.
         SELECT
-          MIN(id) as id,
-          graph_sample_ts AS ts,
-          upid,
-          0 AS dur,
-          0 AS depth,
-          'java_heap_graph' AS type
-        FROM heap_graph_object
-        GROUP BY graph_sample_ts, upid
-
-        UNION ALL
-
-        SELECT
-          id,
-          ts,
-          upid,
-          ts_end - ts AS dur,
-          0 AS depth,
-          'heap_profile:' || heap_name AS type
-        FROM heap_profile_slices
-
-        UNION ALL
-
-        SELECT
-          id,
-          ts,
-          upid,
-          0 AS dur,
-          0 AS depth,
-          'oome_callstack' AS type
-        FROM heap_graph
-        WHERE dump_reason = 'OOME'
+          *,
+          CASE type
+            WHEN 'java_heap_graph' THEN 0
+            WHEN 'heap_profile:libc.malloc' THEN 1
+            WHEN 'heap_profile:com.android.art' THEN 2
+            WHEN 'oome_callstack' THEN 4
+            ELSE 3
+          END AS priority
+        FROM events
       `,
     });
   }
 
-  private async getHeapTypes(trace: Trace): Promise<string[]> {
+  private async getHeapTypes(
+    trace: Trace,
+  ): Promise<ReadonlyArray<{type: string; priority: number}>> {
     const heapTypesResult = await trace.engine.query(`
-      SELECT DISTINCT type
+      SELECT DISTINCT type, priority
       FROM ${EVENT_TABLE_NAME}
+      ORDER BY priority
     `);
     const heapTypes = [];
-    for (const it = heapTypesResult.iter({type: STR}); it.valid(); it.next()) {
-      heapTypes.push(it.type);
+    for (
+      const it = heapTypesResult.iter({type: STR, priority: NUM});
+      it.valid();
+      it.next()
+    ) {
+      heapTypes.push({type: it.type, priority: it.priority});
     }
     return heapTypes;
   }
 
-  private async addProcessTracks(trace: Trace, heapTypes: readonly string[]) {
+  private async addProcessTracks(
+    trace: Trace,
+    heapTypes: ReadonlyArray<{type: string; priority: number}>,
+  ) {
     const trackGroupsPlugin = trace.plugins.getPlugin(
       ProcessThreadGroupsPlugin,
     );
@@ -235,7 +266,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         as: `
           SELECT *
           FROM ${EVENT_TABLE_NAME}
-          WHERE type = '${heapType}'
+          WHERE type = '${heapType.type}'
         `,
       });
       typeIdx++;
@@ -255,13 +286,13 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         if (!group) continue;
 
         const store = ensureExists(this.store);
-        const uri = trackUri(upid, heapType);
-        const descriptor = profileDescriptor(heapType);
+        const uri = trackUri(upid, heapType.type);
+        const descriptor = profileDescriptor(heapType.type);
         const track: Track = {
           uri,
           tags: {
             upid: upid,
-            kinds: [heapType],
+            kinds: [heapType.type],
           },
           renderer: createHeapProfileTrack(
             trace,
@@ -275,7 +306,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
                 draft[descriptor.type].trackFlamegraphState = state;
               });
             },
-            heapType === 'java_heap_graph'
+            heapType.type === 'java_heap_graph'
               ? (args) => this.nodeSelectedEvt.notify(args)
               : undefined,
           ),
@@ -286,7 +317,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         const trackNode = new TrackNode({
           uri,
           name: descriptor.label,
-          sortOrder: -30,
+          sortOrder: -30 + heapType.priority,
         });
         group.addChildInOrder(trackNode);
       }
@@ -311,13 +342,10 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       ? `WHERE type != 'java_heap_graph' AND type != 'oome_callstack'`
       : '';
     const result = await ctx.engine.query(`
-        SELECT
-          id,
-          upid,
-          type
+        SELECT id, upid, type
         FROM ${EVENT_TABLE_NAME}
         ${javaHeapGraphFilter}
-        ORDER BY type, ts
+        ORDER BY priority, ts
         LIMIT 1
       `);
 
@@ -335,10 +363,26 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     ) {
       ctx.selection.selectTrackEvent(track.uri, iter.id);
     } else {
+      // Select every area-selectable heap track for this process so each heap
+      // flamegraph tab has its track in the selection and actually renders.
+      const tracksResult = await ctx.engine.query(`
+        SELECT DISTINCT type
+        FROM ${EVENT_TABLE_NAME}
+        WHERE upid = ${iter.upid}
+          AND type != 'java_heap_graph'
+          AND type != 'oome_callstack'
+      `);
+      const trackUris = [];
+      for (const it = tracksResult.iter({type: STR}); it.valid(); it.next()) {
+        const trackUriForType = trackUri(iter.upid, it.type);
+        if (this.trackMap.has(trackUriForType)) {
+          trackUris.push(trackUriForType);
+        }
+      }
       ctx.selection.selectArea({
         start: ctx.traceInfo.start,
         end: ctx.traceInfo.end,
-        trackUris: [uri],
+        trackUris: trackUris.length > 0 ? trackUris : [uri],
       });
     }
   }
@@ -346,46 +390,52 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   private heapProfileSelectionHandler(
     trace: Trace,
     descriptor: ProfileDescriptor,
+    priority: number,
   ): AreaSelectionTab {
     let previousSelection: AreaSelection | undefined;
     let flamegraphPanel: HeapProfileFlamegraphDetailsPanel | undefined;
     return {
       id: `heap_profiler_flamegraph_selection_${descriptor.heapName}`,
       name: `${descriptor.label} flamegraph`,
+      // AreaSelectionTab priority is "higher first", so negate our
+      // "lower first" priority to keep the same order (native before ART).
+      priority: -priority,
       render: (selection: AreaSelection) => {
         const store = ensureExists(this.store);
         const selectionChanged =
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
         previousSelection = selection;
-        if (!selectionChanged) {
-          return {isLoading: false, content: flamegraphPanel?.render()};
+        if (selectionChanged) {
+          const upids = matchingTracks(selection, descriptor.type).map(
+            (track) => track.tags!.upid,
+          );
+          // For the time being support selecting exactly one process.
+          flamegraphPanel =
+            upids.length !== 1
+              ? undefined
+              : new HeapProfileFlamegraphDetailsPanel(
+                  trace,
+                  false,
+                  upids[0]!,
+                  descriptor,
+                  selection.start,
+                  selection.end,
+                  store.state[descriptor.type].areaSelectionFlamegraphState,
+                  (state) => {
+                    store.edit((draft) => {
+                      draft[descriptor.type].areaSelectionFlamegraphState =
+                        state;
+                    });
+                  },
+                );
         }
-        const upids = matchingTracks(selection, descriptor.type).map(
-          (track) => track.tags!.upid,
-        );
-        // For the time being support selecting exactly one process.
-        flamegraphPanel =
-          upids.length !== 1
-            ? undefined
-            : new HeapProfileFlamegraphDetailsPanel(
-                trace,
-                false,
-                upids[0]!,
-                descriptor,
-                selection.start,
-                selection.end,
-                store.state[descriptor.type].areaSelectionFlamegraphState,
-                (state) => {
-                  store.edit((draft) => {
-                    draft[descriptor.type].areaSelectionFlamegraphState = state;
-                  });
-                },
-              );
-        return {
-          isLoading: false,
-          content: flamegraphPanel?.render(),
-        };
+        // Hide the tab entirely when this selection has no flamegraph for this
+        // heap type, rather than showing a tab handle with empty content.
+        if (flamegraphPanel === undefined) {
+          return undefined;
+        }
+        return {isLoading: false, content: flamegraphPanel.render()};
       },
     };
   }
