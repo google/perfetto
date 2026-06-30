@@ -33,10 +33,16 @@ perfetto_proto_library("frameworks_base_interned_data_@TYPE@") {
   ]
 }
 
+# Depends on frameworks_base_track_event, which imports field_options.proto (a
+# custom option), so it is protozero-only and needs protobuf's src on the import
+# path (for google/protobuf/descriptor.proto).
 perfetto_proto_library("frameworks_base_trace_packet_@TYPE@") {
+  proto_generators = [ "zero" ]
   sources = [ "frameworks_base_trace_packet.proto" ]
   public_deps = [
     ":frameworks_base_interned_data_@TYPE@",
+    ":frameworks_base_track_event_@TYPE@",
     "../../../../../../perfetto/trace:non_minimal_@TYPE@",
   ]
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
 }

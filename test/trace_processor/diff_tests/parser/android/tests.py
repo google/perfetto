@@ -357,3 +357,20 @@ class AndroidParser(TestSuite):
           "trigger_type","hosting_type"
           "TRIGGER_TYPE_JOB","HOSTING_TYPE_SERVICE"
         """))
+
+  def test_android_process_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT pid, uid, ts, proc_state, oom_score, capability_flags, reason,
+               seq_id, is_initial
+        FROM __intrinsic_android_process_state_change
+        ORDER BY is_initial DESC, ts, pid, seq_id;
+        """,
+        out=Csv("""
+          "pid","uid","ts","proc_state","oom_score","capability_flags","reason","seq_id","is_initial"
+          100,10001,"[NULL]","PROCESS_STATE_CACHED_EMPTY",999,0,"[NULL]","[NULL]",1
+          200,1000,"[NULL]","PROCESS_STATE_PERSISTENT",-800,1,"[NULL]","[NULL]",1
+          100,10001,2000,"PROCESS_STATE_TOP",0,6,"OOM_ADJ_REASON_ACTIVITY",1,0
+          100,10001,4000,"PROCESS_STATE_SERVICE",700,0,"OOM_ADJ_REASON_START_SERVICE",2,0
+        """))

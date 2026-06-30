@@ -21,6 +21,7 @@ syntax = "proto2";
 
 import public "protos/perfetto/trace/trace_packet.proto";
 import "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto";
+import "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.proto";
 
 package com.android.internal;
 
@@ -106,10 +107,21 @@ message VideoFrameError {
   optional Reason reason = 2;
 }
 
+// A trace-stop dump of the current state of every running process, emitted once
+// when the android.process_state data source is stopped. Each entry reuses
+// AndroidProcessStateChangedEvent with only its cur_* fields set: the dump
+// anchors the delta stream so the importer can recover the initial state of
+// processes whose deltas never arrived (never changed, or lost to a ring-buffer
+// wrap).
+message AndroidProcessState {
+  repeated AndroidProcessStateChangedEvent process = 1;
+}
+
 message FrameworksBaseTracePacket {
   extend perfetto.protos.TracePacket {
     optional AppWakelockBundle app_wakelock_bundle = 116;
     optional VideoFrame video_frame = 1000;
     optional VideoFrameError video_frame_error = 1001;
+    optional AndroidProcessState android_process_state = 1003;
   }
 }

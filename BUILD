@@ -459,6 +459,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_process_state_android_process_state",
+        ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -760,6 +762,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_process_state_android_process_state",
+        ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -4392,6 +4396,30 @@ perfetto_cc_tp_tables(
         "src/trace_processor/plugins/android_framework_track_event/all_tables_fwd.h",
         "src/trace_processor/plugins/android_framework_track_event/tables_fwd.h",
         "src/trace_processor/plugins/android_framework_track_event/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/android_process_state:android_process_state
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_android_process_state_android_process_state",
+    srcs = [
+        "src/trace_processor/plugins/android_process_state/android_process_state.cc",
+        "src/trace_processor/plugins/android_process_state/android_process_state.h",
+        "src/trace_processor/plugins/android_process_state/android_process_state_module.cc",
+        "src/trace_processor/plugins/android_process_state/android_process_state_module.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/android_process_state:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_plugins_android_process_state_tables",
+    srcs = [
+        "src/trace_processor/plugins/android_process_state/tables.py",
+    ],
+    outs = [
+        "src/trace_processor/plugins/android_process_state/all_tables_fwd.h",
+        "src/trace_processor/plugins/android_process_state/tables_fwd.h",
+        "src/trace_processor/plugins/android_process_state/tables_py.h",
     ],
 )
 
@@ -10258,6 +10286,7 @@ perfetto_proto_library(
         ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_chrome_protos",
         ":protos_perfetto_trace_etw_protos",
+        ":protos_perfetto_trace_field_options_protos",
         ":protos_perfetto_trace_filesystem_protos",
         ":protos_perfetto_trace_ftrace_protos",
         ":protos_perfetto_trace_generic_kernel_protos",
@@ -10276,10 +10305,12 @@ perfetto_proto_library(
         ":protos_perfetto_trace_track_event_protos",
         ":protos_perfetto_trace_translation_protos",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_protos",
-    ],
+        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
     exports = [
         ":protos_perfetto_trace_non_minimal_protos",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
     ],
 )
 
@@ -10310,6 +10341,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_trace_android_zero",
         ":protos_perfetto_trace_chrome_zero",
         ":protos_perfetto_trace_etw_zero",
+        ":protos_perfetto_trace_field_options_zero",
         ":protos_perfetto_trace_filesystem_zero",
         ":protos_perfetto_trace_ftrace_zero",
         ":protos_perfetto_trace_generic_kernel_zero",
@@ -10329,6 +10361,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_trace_translation_zero",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero",
     ],
 )
 
@@ -11398,6 +11431,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_process_state_android_process_state",
+        ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -11729,6 +11764,8 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_process_state_android_process_state",
+        ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",

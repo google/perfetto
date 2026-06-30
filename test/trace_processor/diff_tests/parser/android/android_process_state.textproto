@@ -1,0 +1,82 @@
+# Exercises the android_process_state plugin: the AndroidProcessStateChangedEvent
+# (process_state_changed_event) TrackEvent deltas plus the trace-stop
+# AndroidProcessState dump populate __intrinsic_android_process_state_change. pid
+# 100 changes (delta rows only); pid 200 never emits a delta, so its state is
+# backfilled from the dump.
+packet {
+  timestamp: 1000
+  track_descriptor {
+    uuid: 2
+    thread {
+      pid: 100
+      tid: 100
+      thread_name: "main"
+    }
+  }
+}
+# pid 100 changes CACHED_EMPTY -> TOP. The previous state seeds its initial row.
+packet {
+  timestamp: 2000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "proc_state_changed"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      uid: 10001
+      pid: 100
+      prev_proc_state: PROCESS_STATE_CACHED_EMPTY
+      cur_proc_state: PROCESS_STATE_TOP
+      prev_oom_score: 999
+      cur_oom_score: 0
+      prev_capability_flags: 0
+      cur_capability_flags: 6
+      reason: OOM_ADJ_REASON_ACTIVITY
+      seq_id: 1
+    }
+  }
+}
+# pid 100 changes TOP -> SERVICE.
+packet {
+  timestamp: 4000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "proc_state_changed"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      uid: 10001
+      pid: 100
+      prev_proc_state: PROCESS_STATE_TOP
+      cur_proc_state: PROCESS_STATE_SERVICE
+      prev_oom_score: 0
+      cur_oom_score: 700
+      prev_capability_flags: 6
+      cur_capability_flags: 0
+      reason: OOM_ADJ_REASON_START_SERVICE
+      seq_id: 2
+    }
+  }
+}
+# Trace-stop dump: the final state of every process. pid 200 never emitted a
+# change event, so its initial state is recovered from here.
+packet {
+  timestamp: 9000
+  trusted_packet_sequence_id: 1
+  [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+    process {
+      pid: 100
+      uid: 10001
+      cur_proc_state: PROCESS_STATE_SERVICE
+      cur_oom_score: 700
+      cur_capability_flags: 0
+    }
+    process {
+      pid: 200
+      uid: 1000
+      cur_proc_state: PROCESS_STATE_PERSISTENT
+      cur_oom_score: -800
+      cur_capability_flags: 1
+    }
+  }
+}
