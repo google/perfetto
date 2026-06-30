@@ -136,6 +136,20 @@ void ProcessTracker::EndThread(int64_t timestamp, int64_t tid) {
   ps.set_end_ts(timestamp);
   pids_.Erase(tid);
   InvalidateProcessThreads(*opt_upid);
+  exited_upids_.erase(*opt_upid);
+}
+
+void ProcessTracker::MarkProcessExited(int64_t tid) {
+  std::optional<UniqueTid> opt_utid = GetThreadOrNull(tid);
+  if (!opt_utid)
+    return;
+  auto td = (*context_->storage->mutable_thread_table())[*opt_utid];
+  auto opt_upid = td.upid();
+  if (!opt_upid)
+    return;
+  if ((*context_->storage->mutable_process_table())[*opt_upid].pid() != tid)
+    return;
+  exited_upids_.insert(*opt_upid);
 }
 
 std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(int64_t tid) {
@@ -437,16 +451,30 @@ UniquePid ProcessTracker::UpdateProcessWithParent(UniquePid upid,
                                                   UniquePid pupid,
                                                   bool associate_main_thread) {
   auto& process_table = *context_->storage->mutable_process_table();
-
   auto prr = process_table[upid];
 
-  // If the previous and new parent pid don't match, the process must have
-  // died and the pid reused. Create a new process.
+  // A changed parent pid can mean that either the process has been reparented
+  // after the parent exited, or that this is a new process reusing the pid. If
+  // the trace is only recording periodic procfs snapshots, we cannot
+  // disambiguate the two cases.
+  // Historically, a changed parent pid was always treated as pid reuse, and
+  // therefore allocated a new process record. However if the trace contains
+  // lifecycle events, we can try to distinguish the two cases based on whether
+  // we explicitly know that the parent has exited.
   std::optional<UniquePid> prev_parent_upid = prr.parent_upid();
-  if (prev_parent_upid && *prev_parent_upid != pupid) {
+  bool parent_changed = prev_parent_upid && *prev_parent_upid != pupid;
+  bool prev_parent_dead =
+      parent_changed && (exited_upids_.count(*prev_parent_upid) ||
+                         process_table[*prev_parent_upid].end_ts());
+  if (parent_changed && !prev_parent_dead) {
     upid = StartNewProcessInternal(std::nullopt, pupid, prr.pid(),
                                    kNullStringId, ThreadNamePriority::kOther,
                                    associate_main_thread);
+  } else if (parent_changed) {
+    // Reparenting case. Keep existing info since the original parent pid is
+    // more useful.
+    context_->stats_tracker->IncrementStats(
+        stats::process_tracker_reparented_not_reused);
   } else {
     prr.set_parent_upid(pupid);
   }
@@ -771,6 +799,7 @@ void ProcessTracker::OnEventsFullyExtracted() {
   process_name_priorities_.clear();
   process_sort_indexes_.Clear();
   thread_sort_indexes_.Clear();
+  exited_upids_.clear();
   trusted_pids_.clear();
   namespaced_threads_.clear();
   namespaced_processes_.clear();
