@@ -311,7 +311,7 @@ enumerated in the output directory.
 ## Symbolization and deobfuscation
 
 If your profile shows raw addresses or obfuscated Java/Kotlin names, run
-`traceconv bundle` against the collected trace to produce an enriched
+`trace_processor bundle` against the collected trace to produce an enriched
 archive. See [Symbolization and deobfuscation](/docs/learning-more/symbolization.md)
 for the full workflow, including the legacy `PERFETTO_BINARY_PATH` /
 `PERFETTO_PROGUARD_MAP` approach.
@@ -369,7 +369,7 @@ The script:
    blocks the very first `malloc` until heapprofd has fully attached, so
    every allocation is correctly tracked.
 4. Waits for the target to exit (or `Ctrl-C` from you), then runs
-   `traceconv` to produce gzipped pprof files alongside the raw trace.
+   `trace_processor` to produce gzipped pprof files alongside the raw trace.
 
 If `-n` / `--name` is omitted, the process name defaults to the basename of
 the binary you passed after `--`.
@@ -496,11 +496,11 @@ you might be hitting some pathological fragmentation problem in the allocator.
 
 ## Convert to pprof
 
-You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap
+You can use [trace_processor](/docs/quickstart/traceconv.md) to convert the heap
 dumps in a trace into the [pprof](https://github.com/google/pprof) format:
 
 ```bash
-tools/traceconv profile /tmp/profile
+tools/trace_processor convert profile /tmp/profile
 ```
 
 This will create a directory in `/tmp/` containing the heap dumps. Run:

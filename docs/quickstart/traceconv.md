@@ -1,30 +1,26 @@
 # Converting from Perfetto to other trace formats
 
 Perfetto's native protobuf trace format can be converted to other formats using
-the `traceconv` utility. `traceconv` also doubles as a toolkit for
-symbolizing/deobfuscating traces and for a handful of smaller trace-editing
-utilities.
+the `convert` subcommand of `trace_processor`.
+
+> NOTE: This functionality used to live in a separate `traceconv` tool. That
+> tool has been folded into `trace_processor`. The `traceconv` download still
+> works as a back-compatible alias (it now fetches `trace_processor` and runs
+> it in this mode), but new scripts and docs should use `trace_processor`.
 
 ![](/docs/images/traceconv-summary.png)
+
+> To attach native symbols or ProGuard/R8 deobfuscation mappings to a trace,
+> see [Symbolization and deobfuscation](/docs/learning-more/symbolization.md)
+> instead (the `bundle` and `util` subcommands). This page covers only format
+> conversion.
 
 ## Prerequisites
 
 - A host running Linux, macOS or Windows
-- Python 3 (only required if using the `traceconv` wrapper script below; on
+- Python 3 (only required if using the `trace_processor` wrapper script below; on
   Windows this also requires `curl`, which ships with Windows 10 and later)
 - A Perfetto protobuf trace file
-
-`traceconv` has three groups of modes:
-
-- **Format conversion** — convert a Perfetto protobuf trace into another
-  trace format (Chrome JSON, systrace, pprof, Firefox profiler, etc.).
-- **Symbolization and deobfuscation** — attach native symbols and
-  ProGuard/R8 mappings to a trace. **In almost all cases you should use
-  `bundle`** (see below), which packages the trace and all its debug
-  artifacts into a single self-contained TAR — this is the recommended way
-  to share or archive a trace.
-- **Utilities** — smaller helpers (protobuf-text ↔ binary conversion,
-  packet decompression).
 
 ## Usage
 
@@ -35,31 +31,31 @@ To use the latest binaries:
 TAB: Linux / macOS
 
 ```bash
-curl -LO https://get.perfetto.dev/traceconv
-chmod +x traceconv
-./traceconv MODE [OPTIONS] [input_file] [output_file]
+curl -LO https://get.perfetto.dev/trace_processor
+chmod +x trace_processor
+./trace_processor convert <format> [OPTIONS] [input_file] [output_file]
 ```
 
 TAB: Windows
 
 ```powershell
-curl.exe -LO https://get.perfetto.dev/traceconv
-python traceconv MODE [OPTIONS] [input_file] [output_file]
+curl.exe -LO https://get.perfetto.dev/trace_processor
+python trace_processor convert <format> [OPTIONS] [input_file] [output_file]
 ```
 
 </tabs?>
 
-The `traceconv` script is a thin Python wrapper that downloads and caches
-the correct native binary for your platform (including `traceconv.exe` on
-Windows) under `~/.local/share/perfetto/prebuilts` on first use.
+The `trace_processor` script is a thin Python wrapper that downloads and caches
+the correct native binary for your platform under
+`~/.local/share/perfetto/prebuilts` on first use.
 
-`traceconv` reads from stdin and writes to stdout when the input or output
-paths are omitted (or passed as `-`). Run `./traceconv` with no arguments
-to print the full list of modes and options supported by your version.
+`convert` reads from stdin and writes to stdout when the input or output paths
+are omitted (or passed as `-`). Run `./trace_processor help convert` to print
+the full list of formats and options supported by your version.
 
 ## Format conversion
 
-| Mode       | Output                                                       |
+| Format     | Output                                                       |
 | ---------- | ------------------------------------------------------------ |
 | `text`     | protobuf text format — a text representation of the protos   |
 | `json`     | Chrome JSON format, viewable in `chrome://tracing`           |
@@ -71,9 +67,9 @@ to print the full list of modes and options supported by your version.
 Examples:
 
 ```bash
-./traceconv json     trace.perfetto-trace trace.json
-./traceconv systrace trace.perfetto-trace trace.html
-./traceconv text     trace.perfetto-trace trace.textproto
+./trace_processor convert json     trace.perfetto-trace trace.json
+./trace_processor convert systrace trace.perfetto-trace trace.html
+./trace_processor convert text     trace.perfetto-trace trace.textproto
 ```
 
 `profile` writes one or more `.pb` files into a directory (a random tmp
@@ -81,9 +77,9 @@ directory by default) rather than a single output file, so use
 `--output-dir` instead of a positional output path:
 
 ```bash
-./traceconv profile --output-dir ./profiles trace.perfetto-trace
-./traceconv profile --java-heap --pid 1234 --output-dir ./profiles trace.perfetto-trace
-./traceconv profile --perf --timestamps 1000000,2000000 --output-dir ./profiles trace.perfetto-trace
+./trace_processor convert profile --output-dir ./profiles trace.perfetto-trace
+./trace_processor convert profile --java-heap --pid 1234 --output-dir ./profiles trace.perfetto-trace
+./trace_processor convert profile --perf --timestamps 1000000,2000000 --output-dir ./profiles trace.perfetto-trace
 ```
 
 Common options:
@@ -102,77 +98,13 @@ Common options:
 - `--output-dir DIR` (for `profile`): output directory for the generated
   pprof files.
 
-## Symbolization and deobfuscation
-
-These modes enrich a trace with native symbols and/or ProGuard/R8
-deobfuscation mappings. For background on how Perfetto discovers symbol
-files and mapping files, see the
-[Symbolization](https://perfetto.dev/docs/learning-more/symbolization)
-reference.
-
-### `bundle` (recommended)
-
-**`bundle` is the recommended entry point for symbolization and
-deobfuscation.** It packages the trace together with its native symbols
-and ProGuard/R8 mappings into a single self-contained TAR, which is the
-right artifact to share with teammates, attach to bugs, or archive for
-later analysis. Prefer `bundle` over `symbolize`/`deobfuscate` unless you
-have a specific reason not to.
-
-```bash
-./traceconv bundle trace.perfetto-trace trace.bundle.tar
-
-# Provide extra symbol search paths or explicit ProGuard maps:
-./traceconv bundle \
-  --symbol-paths /path/to/symbols1,/path/to/symbols2 \
-  --proguard-map com.example.app=/path/to/mapping.txt \
-  trace.perfetto-trace trace.bundle.tar
-```
-
-`bundle`-specific options:
-
-- `--symbol-paths PATH1,PATH2,...` — additional paths to search for
-  symbols (on top of the automatic discovery).
-- `--no-auto-symbol-paths` — disable automatic symbol path discovery.
-- `--proguard-map [pkg=]PATH` — ProGuard/R8 `mapping.txt` for Java/Kotlin
-  deobfuscation. May be repeated; the `pkg=` prefix scopes the map to a
-  specific package.
-- `--no-auto-proguard-maps` — disable automatic ProGuard/R8 mapping
-  discovery (e.g. Gradle project layout).
-- `--verbose` — print more detailed output.
-
-Note: `bundle` requires real file paths for both the input and the output
-— it does not accept stdin/stdout.
-
-### `symbolize` / `deobfuscate` (advanced)
-
-Lower-level building blocks for pipelines that cannot use `bundle`. Each
-emits a stream of packets (symbols or deobfuscation mappings) to a
-separate output file:
-
-```bash
-./traceconv symbolize   trace.perfetto-trace symbols.pb
-./traceconv deobfuscate trace.perfetto-trace mappings.pb
-```
-
-Prefer `bundle` — it produces a single self-contained TAR instead of
-leaving you with loose side-car files to manage.
-
-## Utilities
-
-| Mode                 | What it does                                                |
-| -------------------- | ----------------------------------------------------------- |
-| `binary`             | Convert a protobuf text-format trace back into binary form. |
-| `decompress_packets` | Decompress compressed `TracePacket`s inside a trace.        |
-
-```bash
-./traceconv binary             trace.textproto      trace.perfetto-trace
-./traceconv decompress_packets trace.perfetto-trace trace.decompressed
-```
+For the inverse of `convert text` (turning a text-format trace back into
+binary) and other low-level trace helpers, see `trace_processor help util`.
 
 ## Opening in the legacy systrace UI
 
 If you just want to open a Perfetto trace with the legacy (Catapult) trace
 viewer, you can just navigate to [ui.perfetto.dev](https://ui.perfetto.dev), and
-use the _"Open with legacy UI"_ link. This runs `traceconv` within the browser
-using WebAssembly and passes the converted trace seamlessly to chrome://tracing.
+use the _"Open with legacy UI"_ link. This runs the trace conversion within the
+browser using WebAssembly and passes the converted trace seamlessly to
+chrome://tracing.

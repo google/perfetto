@@ -18,14 +18,14 @@ organised around that question. Two definitions used throughout:
 
 Match your trace to one of the categories below and follow the link. Picking the
 wrong workflow is the most common reason symbols "don't work". The key rule of
-thumb: **userspace** symbols are resolved offline on the host (`traceconv
+thumb: **userspace** symbols are resolved offline on the host (`trace_processor
 bundle`), while **kernel** symbols are always resolved at record time on the
 device (Perfetto never stores absolute kernel addresses, to avoid disclosing
 [KASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization)).
 
 | Your trace contains&hellip; | Examples | What you need |
 | --- | --- | --- |
-| **Callstacks** | Native heap profiler, `traced_perf` / Linux perf CPU sampling, Java heap dumps | [Symbolization & deobfuscation](#callstacks). Userspace frames are resolved offline (`traceconv bundle`); kernel frames are symbolized on-device automatically. |
+| **Callstacks** | Native heap profiler, `traced_perf` / Linux perf CPU sampling, Java heap dumps | [Symbolization & deobfuscation](#callstacks). Userspace frames are resolved offline (`trace_processor bundle`); kernel frames are symbolized on-device automatically. |
 | **Kernel ftrace events** | `function_graph` tracing, `sched_blocked_reason`, kprobes | [Record-time `symbolize_ksyms`](#ftrace). These addresses **cannot** be symbolized after the fact. |
 | **Userspace event names** | atrace slice names, ART method tracing | [Not currently supported](#userspace-event-names) for offline deobfuscation; emit readable names at instrumentation time. |
 
@@ -45,14 +45,14 @@ Callstacks can also contain **kernel** frames, which are handled differently; se
 [Kernel frames in callstacks](#callstack-kernel-frames) at the end of this
 section.
 
-### {#option-1-traceconv-bundle} Option 1: `traceconv bundle` (recommended)
+### {#option-1-traceconv-bundle} Option 1: `trace_processor bundle` (recommended)
 
-`traceconv bundle` is a one-shot command that takes a trace and produces an
-**enriched trace**: the original trace plus all the symbol and deobfuscation
+`trace_processor bundle` is a one-shot command that takes a trace and produces
+an **enriched trace**: the original trace plus all the symbol and deobfuscation
 data needed to analyse it, packaged together in a single file.
 
 ```bash
-traceconv bundle input.perfetto-trace enriched-trace
+trace_processor bundle input.perfetto-trace enriched-trace
 ```
 
 The enriched trace can be opened in the [Perfetto UI](https://ui.perfetto.dev)
@@ -94,7 +94,7 @@ configuration. It searches:
 When auto-discovery isn't enough:
 
 ```bash
-traceconv bundle \
+trace_processor bundle \
   --symbol-paths /path/to/symbols1,/path/to/symbols2 \
   --proguard-map com.example.app=/path/to/mapping.txt \
   --verbose \
@@ -116,22 +116,22 @@ The properties of the `bundle` flags are:
 - `--verbose`: print every path tried and every library looked up &mdash; useful
   when debugging "could not find" errors.
 
-### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `traceconv symbolize` / `deobfuscate`
+### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `trace_processor util symbolize` / `util deobfuscate`
 
 NOTE: This flow is kept for backwards compatibility with existing scripts and
 CI pipelines that already depend on it. For new usage, always prefer
 [Option 1](#option-1-traceconv-bundle) &mdash; it is simpler, has
 auto-discovery, and works on non-Perfetto trace formats.
 
-The older `traceconv symbolize` and `traceconv deobfuscate` subcommands
-produce standalone symbol and deobfuscation files driven entirely by
-environment variables, which must then be concatenated onto the trace by
-hand.
+The older `trace_processor util symbolize` and `trace_processor util
+deobfuscate` subcommands produce standalone symbol and deobfuscation files
+driven entirely by environment variables, which must then be concatenated onto
+the trace by hand.
 
 #### Native symbolization
 
-All tools (`traceconv`, `trace_processor_shell`, the `heap_profile` script)
-honour the `PERFETTO_BINARY_PATH` environment variable:
+All tools (`trace_processor`, the `heap_profile` script) honour the
+`PERFETTO_BINARY_PATH` environment variable:
 
 ```bash
 PERFETTO_BINARY_PATH=somedir tools/heap_profile android --name ${NAME}
@@ -140,7 +140,7 @@ PERFETTO_BINARY_PATH=somedir tools/heap_profile android --name ${NAME}
 To produce a standalone symbol file for a trace you already collected:
 
 ```bash
-PERFETTO_BINARY_PATH=somedir traceconv symbolize raw-trace > symbols
+PERFETTO_BINARY_PATH=somedir trace_processor util symbolize raw-trace > symbols
 ```
 
 Alternatively, set `PERFETTO_SYMBOLIZER_MODE=index` and the symbolizer will
@@ -161,7 +161,7 @@ To produce a standalone deobfuscation file for an existing trace:
 
 ```bash
 PERFETTO_PROGUARD_MAP=com.example.pkg=proguard_map.txt \
-  traceconv deobfuscate ${TRACE} > deobfuscation_map
+  trace_processor util deobfuscate ${TRACE} > deobfuscation_map
 ```
 
 #### Attaching the output to a trace
@@ -242,7 +242,7 @@ compare the Build ID on disk to the one reported in the message using
 `readelf -n /path/to/somelib.so`. If they do not match, the copy on disk is a
 different build than the one on device and cannot be used.
 
-Re-running `traceconv bundle` with `--verbose` prints every path tried, which
+Re-running `trace_processor bundle` with `--verbose` prints every path tried, which
 usually makes it clear whether the file was missing entirely or found with the
 wrong Build ID.
 
@@ -294,7 +294,7 @@ This reads `/proc/kallsyms` on the device and embeds the (mangled) symbol map in
 the trace. It requires that either `traced_probes` runs as root or
 `kptr_restrict` has been lowered manually.
 
-WARNING: `traceconv bundle` and the offline symbolizers above **cannot** recover
+WARNING: `trace_processor bundle` and the offline symbolizers above **cannot** recover
 kernel symbols. Perfetto deliberately does not store absolute kernel addresses
 in the trace, because doing so would defeat
 [KASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) and
