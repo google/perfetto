@@ -160,7 +160,16 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             MIN(id) as id,
             ts,
             upid,
-            heap_name
+            heap_name,
+            -- Per-dump deltas scoped to this slice only (NOT cumulative from
+            -- the start of the trace). The native profiler is delta-encoded,
+            -- so a dump's rows are the change since the previous dump: bytes
+            -- allocated in the interval, the net still held afterwards
+            -- (unreleased = allocs - frees), and the number of allocations.
+            -- ART allocation samples have no frees, so allocated == net.
+            SUM(iif(size > 0, size, 0)) AS summary_alloc_size,
+            SUM(size) AS summary_net_size,
+            SUM(iif(count > 0, count, 0)) AS summary_alloc_count
           FROM heap_profile_allocation
           GROUP BY ts, upid, heap_name
         ), heap_profile_slices AS (
@@ -168,6 +177,9 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             id,
             upid,
             heap_name,
+            summary_alloc_size,
+            summary_net_size,
+            summary_alloc_count,
             -- Start just after the previous dump, but never past this dump:
             -- a dump at trace_start() has no room before it, so collapse to a
             -- zero-duration instant (ts = ts_end) instead of inverting.
@@ -178,15 +190,20 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             ts AS ts_end
           FROM heap_profile_points
         ), events AS (
+          -- heap_graph already has exactly one row per dump (with its own id),
+          -- so read it directly rather than de-duplicating the much larger
+          -- heap_graph_object table down to one row per dump.
           SELECT
-            MIN(id) as id,
-            graph_sample_ts AS ts,
+            id,
+            ts,
             upid,
             0 AS dur,
             0 AS depth,
-            'java_heap_graph' AS type
-          FROM heap_graph_object
-          GROUP BY graph_sample_ts, upid
+            'java_heap_graph' AS type,
+            NULL AS summary_alloc_size,
+            NULL AS summary_net_size,
+            NULL AS summary_alloc_count
+          FROM heap_graph
 
           UNION ALL
 
@@ -196,7 +213,10 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             upid,
             ts_end - ts AS dur,
             0 AS depth,
-            'heap_profile:' || heap_name AS type
+            'heap_profile:' || heap_name AS type,
+            summary_alloc_size,
+            summary_net_size,
+            summary_alloc_count
           FROM heap_profile_slices
 
           UNION ALL
@@ -207,7 +227,10 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             upid,
             0 AS dur,
             0 AS depth,
-            'oome_callstack' AS type
+            'oome_callstack' AS type,
+            NULL AS summary_alloc_size,
+            NULL AS summary_net_size,
+            NULL AS summary_alloc_count
           FROM heap_graph
           WHERE dump_reason = 'OOME'
         )
