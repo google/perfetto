@@ -13,10 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Gate} from '../../../../base/mithril_utils';
 import {QuerySlot} from '../../../../base/query_slot';
 import type {Trace} from '../../../../public/trace';
 import {LONG_NULL, NUM, STR} from '../../../../trace_processor/query_result';
+import {EmptyState} from '../../../../widgets/empty_state';
+import {Icon} from '../../../../widgets/icon';
 import {Panel} from '../../components/panel';
+import {SubPage} from '../../components/page';
+import {TraceOverview} from './summary/trace_overview';
 import './landing_page.scss';
 
 // Sample count and observed time span of one capture source (smaps / heapprofd)
@@ -47,6 +52,7 @@ export class ProcessMemDetails
   // The capture-strip facts: process name + per-source sample counts. Its own
   // slot keyed by (trace, upid) so it reloads when the selected process changes.
   private readonly captureSlot = new QuerySlot<CaptureInfo>();
+  private activeTab: 'summary' | 'smaps' = 'summary';
 
   onremove() {
     this.captureSlot.dispose();
@@ -65,10 +71,55 @@ export class ProcessMemDetails
       error = String(e);
     }
 
+    // Both tab bodies stay mounted and are toggled with a Gate (display:none
+    // when hidden) rather than conditionally rendered, so switching tabs doesn't
+    // remount each tab's components and re-run their data loads.
     return [
       error !== undefined && m('p.pf-error', `Error: ${error}`),
       error === undefined && this.renderCaptureStrip(trace, capture),
+      error === undefined && this.renderTabs(),
+      error === undefined &&
+        m(
+          Gate,
+          {open: this.activeTab === 'summary'},
+          // SubPage gives its direct children the cascading fade-up entrance
+          // animation (.pf-memscope-subpage > *), matching the rest of the page.
+          m(SubPage, m(TraceOverview, {trace, upid})),
+        ),
+      error === undefined &&
+        m(
+          Gate,
+          {open: this.activeTab === 'smaps'},
+          m(
+            SubPage,
+            m(EmptyState, {
+              icon: 'table_rows',
+              title: 'Smaps detail coming soon',
+            }),
+          ),
+        ),
     ];
+  }
+
+  private renderTabs(): m.Children {
+    const tabs: {key: 'summary' | 'smaps'; label: string; icon: string}[] = [
+      {key: 'summary', label: 'Summary', icon: 'description'},
+      {key: 'smaps', label: 'Smaps Detail', icon: 'table_rows'},
+    ];
+    return m(
+      '.pf-memscope-tabs',
+      tabs.map((t) =>
+        m(
+          'button.pf-memscope-tab',
+          {
+            className:
+              this.activeTab === t.key ? 'pf-memscope-tab--active' : undefined,
+            onclick: () => (this.activeTab = t.key),
+          },
+          [m(Icon, {icon: t.icon}), t.label],
+        ),
+      ),
+    );
   }
 
   // Header capture strip: trace identity plus one colored dot + terse facts
