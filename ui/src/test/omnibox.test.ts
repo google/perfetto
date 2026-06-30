@@ -25,6 +25,7 @@ test('command palette keyboard navigation', async ({browser}) => {
   const omnibox = page.locator('input[ref=omnibox]');
   await omnibox.focus();
   await omnibox.fill('>');
+  await pth.waitForPerfettoIdle();
 
   const commands = page.locator('.pf-omnibox-options-container');
 
@@ -33,9 +34,11 @@ test('command palette keyboard navigation', async ({browser}) => {
 
   // Pressing up should highlight the last command.
   await omnibox.press('ArrowUp');
+  await pth.waitForPerfettoIdle();
   expect(commands.last()).toHaveClass('pf-highlighted');
 
   // Pressing down should highlight the first command again.
   await omnibox.press('ArrowDown');
+  await pth.waitForPerfettoIdle();
   expect(commands.first()).toHaveClass('pf-highlighted');
 });
