@@ -148,29 +148,14 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     await trace.engine.query(
       'INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;',
     );
+    await trace.engine.query(
+      'INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;',
+    );
 
     await createPerfettoTable({
       engine: trace.engine,
       name: EVENT_TABLE_NAME,
       as: `
-        WITH heap_profile_points AS (
-          SELECT
-            MIN(id) as id,
-            ts,
-            upid,
-            heap_name
-          FROM heap_profile_allocation
-          GROUP BY ts, upid, heap_name
-        ), heap_profile_slices AS (
-          SELECT
-            id,
-            upid,
-            heap_name,
-            LAG(ts, 1, trace_start()) OVER (PARTITION BY upid, heap_name ORDER BY ts) + 1 AS ts,
-            ts AS ts_end
-          FROM heap_profile_points
-        )
-
         SELECT
           MIN(id) as id,
           graph_sample_ts AS ts,
@@ -183,14 +168,17 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
 
         UNION ALL
 
+        -- Each dump is drawn over its profiling interval. This uses the real
+        -- start timestamp when the producer recorded it and falls back to the
+        -- previous dump otherwise (see the module for details).
         SELECT
           id,
           ts,
           upid,
-          ts_end - ts AS dur,
+          dur,
           0 AS depth,
           'heap_profile:' || heap_name AS type
-        FROM heap_profile_slices
+        FROM _android_heap_profile_intervals
 
         UNION ALL
 

@@ -76,3 +76,66 @@ class ProfilingHeapProfiling(TestSuite):
         0,-10,2,"unknown",2,6,1000
         1,-10,2,"unknown",3,1,90
         """))
+
+  # The dump sets both start_timestamp (interval start) and timestamp (dump
+  # time / interval end), which populate the heap_profile table. Allocations
+  # keep the dump timestamp, so they join heap_profile via (upid, ts = ts_end).
+  def test_heap_profile_window(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_window.textproto'),
+        query="""
+        SELECT hp.ts, hp.ts_end, hp.dur, a.ts AS alloc_ts, a.size
+        FROM heap_profile AS hp
+        JOIN heap_profile_allocation AS a
+          ON hp.upid = a.upid AND a.ts = hp.ts_end;
+        """,
+        out=Csv("""
+        "ts","ts_end","dur","alloc_ts","size"
+        5,20,15,20,1000
+        """))
+
+  # Older producers do not emit start_timestamp; the interval collapses to a
+  # zero-length point at the dump timestamp, preserving the legacy allocation
+  # timestamp.
+  def test_heap_profile_window_legacy(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_dump_max.textproto'),
+        query="""
+        SELECT ts, ts_end, dur FROM heap_profile;
+        """,
+        out=Csv("""
+        "ts","ts_end","dur"
+        -10,-10,0
+        """))
+
+  # The UI draws each dump over its profiling interval. With start_timestamp
+  # present the interval comes straight from heap_profile.
+  def test_heap_profile_intervals(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_window.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;
+        SELECT heap_name, ts, dur FROM _android_heap_profile_intervals;
+        """,
+        out=Csv("""
+        "heap_name","ts","dur"
+        "unknown",5,15
+        """))
+
+  # Backwards compatibility: for old traces without start_timestamp the interval
+  # of a dump is derived from the previous dump of the same heap, so continuous
+  # dumps still render as non-zero intervals rather than points.
+  def test_heap_profile_intervals_legacy(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_continuous_legacy.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;
+        SELECT heap_name, ts, dur, ts + dur AS ts_end
+        FROM _android_heap_profile_intervals
+        ORDER BY ts_end;
+        """,
+        out=Csv("""
+        "heap_name","ts","dur","ts_end"
+        "unknown",20,0,20
+        "unknown",21,19,40
+        """))

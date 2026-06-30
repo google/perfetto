@@ -814,6 +814,62 @@ SYMBOL_TABLE = Table(
                 ''''''
         }))
 
+HEAP_PROFILE_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapProfileTable',
+    sql_name='__intrinsic_heap_profile',
+    wrapping_sql_view=WrappingSqlView('heap_profile'),
+    columns=[
+        C(
+            'ts',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'ts_end',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'dur',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'upid',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          A list of heap profiles (native heap dumps from heapprofd) captured
+          during the trace. Each row describes the profiling window a single
+          dump represents.
+        ''',
+        group='Callstack profilers',
+        columns={
+            'ts':
+                '''Timestamp of the start of the profiling window in
+                nanoseconds.''',
+            'ts_end':
+                '''Timestamp of the end of the profiling window (i.e. when the
+                dump was taken) in nanoseconds. This is the timestamp the
+                allocations are recorded at, so heap_profile_allocation joins
+                this table via (upid, heap_profile_allocation.ts = ts_end).''',
+            'dur':
+                '''Duration of the profiling window in nanoseconds
+                (ts_end - ts).''',
+            'upid':
+                '''Unique ID of the process whose heap was dumped. Joinable with
+                process.upid.''',
+        }),
+)
+
 HEAP_PROFILE_ALLOCATION_TABLE = Table(
     python_module=__file__,
     class_name='HeapProfileAllocationTable',
@@ -867,7 +923,9 @@ HEAP_PROFILE_ALLOCATION_TABLE = Table(
             'ts':
                 '''The timestamp the allocations happened at. heapprofd batches
                 allocations and frees, and all data from a dump will have the
-                same timestamp.''',
+                same timestamp. This is the end of the dump's profiling window,
+                so it is joinable with heap_profile via
+                (upid, ts = heap_profile.ts_end).''',
             'upid':
                 '''The unique PID of the allocating process.''',
             'callsite_id':
@@ -1545,6 +1603,7 @@ ALL_TABLES = [
     HEAP_GRAPH_REFERENCE_TABLE,
     HEAP_GRAPH_TABLE,
     HEAP_GRAPH_THREAD_CALLSITE_TABLE,
+    HEAP_PROFILE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
     INSTRUMENTS_SAMPLE_TABLE,
     PACKAGE_LIST_TABLE,

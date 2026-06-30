@@ -18,6 +18,8 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_MODULE_H_
 
 #include <cstdint>
+#include <set>
+#include <utility>
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -70,6 +72,12 @@ class ProfileModule : public ProtoImporterModule {
 
   TraceProcessorContext* context_;
   PerfSampleTracker perf_sample_tracker_;
+
+  // Tracks (upid, window end ts) pairs already inserted into the heap_profile
+  // table, so that the per-dump metadata row is only emitted once even though
+  // the dump header is repeated across continued ProfilePackets. The window end
+  // is also the allocation timestamp, i.e. the join key into this table.
+  std::set<std::pair<UniquePid, int64_t>> seen_heap_profiles_;
 };
 
 }  // namespace perfetto::trace_processor

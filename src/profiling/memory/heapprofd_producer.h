@@ -183,9 +183,16 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
       std::string heap_name;
       uint64_t sampling_interval = 0u;
       uint64_t orig_sampling_interval = 0u;
+      // End timestamp (MONOTONIC_COARSE) of the previously emitted dump for this
+      // heap. Used as the start of the next dump's profiling window. 0 until the
+      // first dump, in which case the process profiling start is used instead.
+      uint64_t last_window_end = 0u;
     };
     ProcessState(GlobalCallstackTrie* c, bool d)
         : callsites(c), dump_at_max_mode(d) {}
+    // Timestamp (MONOTONIC_COARSE) at which profiling of this process started.
+    // Used as the start of the profiling window for the first dump.
+    uint64_t profiling_start_timestamp = 0;
     bool disconnected = false;
     SharedRingBuffer::ErrorState error_state =
         SharedRingBuffer::ErrorState::kNoError;

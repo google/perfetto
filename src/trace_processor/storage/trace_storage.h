@@ -509,6 +509,13 @@ class TraceStorage {
     return mutable_table<tables::HeapProfileAllocationTable>();
   }
 
+  const tables::HeapProfileTable& heap_profile_table() const {
+    return table<tables::HeapProfileTable>();
+  }
+  tables::HeapProfileTable* mutable_heap_profile_table() {
+    return mutable_table<tables::HeapProfileTable>();
+  }
+
   const tables::PackageListTable& package_list_table() const {
     return table<tables::PackageListTable>();
   }

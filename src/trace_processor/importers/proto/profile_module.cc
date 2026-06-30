@@ -394,18 +394,48 @@ void ProfileModule::ParseProfilePacket(
   for (auto it = packet.process_dumps(); it; ++it) {
     protos::pbzero::ProfilePacket::ProcessHeapSamples::Decoder entry(*it);
 
-    std::optional<int64_t> maybe_timestamp =
+    // The end of the profiling window (i.e. the state the dump represents).
+    std::optional<int64_t> maybe_window_end =
         context_->clock_tracker->ToTraceTime(
             ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE),
             static_cast<int64_t>(entry.timestamp()));
-    if (!maybe_timestamp)
+    if (!maybe_window_end)
       continue;
 
-    int64_t timestamp = *maybe_timestamp;
+    int64_t window_end = *maybe_window_end;
+
+    // The start of the profiling window. Older producers do not emit this, in
+    // which case we treat the window as zero-length (start == end), preserving
+    // the previous behaviour.
+    int64_t window_start = window_end;
+    if (entry.has_start_timestamp()) {
+      std::optional<int64_t> maybe_window_start =
+          context_->clock_tracker->ToTraceTime(
+              ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE),
+              static_cast<int64_t>(entry.start_timestamp()));
+      if (maybe_window_start)
+        window_start = *maybe_window_start;
+    }
 
     int pid = static_cast<int>(entry.pid());
     context_->stats_tracker->SetIndexedStats(
         stats::heapprofd_last_profile_timestamp, pid, ts);
+
+    // Emit one row in the heap_profile table per dump (deduped across the
+    // continued packets that repeat the dump header). The dump timestamp (the
+    // window end) remains the allocation timestamp for backwards compatibility,
+    // so allocations join this via (upid, heap_profile_allocation.ts ==
+    // heap_profile.ts_end).
+    UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+        static_cast<uint32_t>(entry.pid()));
+    if (seen_heap_profiles_.insert({upid, window_end}).second) {
+      tables::HeapProfileTable::Row row;
+      row.ts = window_start;
+      row.ts_end = window_end;
+      row.dur = window_end - window_start;
+      row.upid = upid;
+      context_->storage->mutable_heap_profile_table()->Insert(row);
+    }
 
     if (entry.disconnected())
       context_->stats_tracker->IncrementIndexedStats(
@@ -467,7 +497,7 @@ void ProfileModule::ParseProfilePacket(
         // in older builds, this was the native heap profiler (libc.malloc)).
         src_allocation.heap_name = context_->storage->InternString("unknown");
       }
-      src_allocation.timestamp = timestamp;
+      src_allocation.timestamp = window_end;
       src_allocation.callstack_id = sample.callstack_id();
       if (sample.has_self_max()) {
         src_allocation.self_allocated = sample.self_max();
