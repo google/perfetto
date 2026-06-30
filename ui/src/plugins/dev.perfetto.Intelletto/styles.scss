@@ -1,0 +1,212 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-intelletto {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+
+  &__header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--pf-color-border);
+
+    .pf-select {
+      flex: 1;
+    }
+  }
+
+  &__no-model {
+    flex: 1;
+    color: var(--pf-color-text-muted);
+    font-style: italic;
+  }
+
+  &__conversation {
+    flex-grow: 1;
+    overflow-y: scroll;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__msg {
+    margin-bottom: 1rem;
+    max-width: 90%;
+    padding: 0.5rem 1rem;
+    border-radius: 12px;
+    line-height: 1.5;
+
+    &-role {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    &--ai {
+      background-color: var(--pf-color-background-secondary);
+      align-self: flex-start;
+    }
+
+    &--user {
+      background-color: var(--pf-color-primary);
+      color: var(--pf-color-text-on-primary);
+      align-self: flex-end;
+      margin-left: auto;
+    }
+
+    &--error {
+      background-color: color-mix(
+        in srgb,
+        var(--pf-color-danger),
+        85% transparent
+      );
+      color: var(--pf-color-danger);
+      border: 1px solid var(--pf-color-danger);
+    }
+
+    &--toolcall {
+      align-self: flex-start;
+      font-family: var(--pf-font-monospace);
+      font-size: 0.85em;
+      color: var(--pf-color-text-muted);
+      padding: 2px 8px;
+    }
+
+    &--thought {
+      align-self: flex-start;
+      font-style: italic;
+      font-size: 0.9em;
+      color: var(--pf-color-text-muted);
+    }
+
+    &--spacer {
+      margin: 0;
+      padding: 0;
+    }
+  }
+
+  &__tool {
+    align-self: flex-start;
+    width: 100%;
+    font-size: 0.85em;
+
+    &--error .pf-intelletto__tool-badge {
+      color: var(--pf-color-danger);
+    }
+  }
+
+  &__tool-summary {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--pf-color-text-muted);
+
+    code {
+      font-family: var(--pf-font-monospace);
+    }
+  }
+
+  &__tool-badge {
+    font-weight: bold;
+  }
+
+  &__tool-section {
+    margin: 4px 0 0 16px;
+  }
+
+  &__tool-label {
+    font-size: 0.8em;
+    color: var(--pf-color-text-muted);
+    text-transform: uppercase;
+  }
+
+  &__tool-body {
+    margin: 2px 0;
+    padding: 6px 8px;
+    max-height: 240px;
+    overflow: auto;
+    background-color: var(--pf-color-background);
+    border: 1px solid var(--pf-color-border);
+    border-radius: 6px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--pf-font-monospace);
+    font-size: 0.95em;
+  }
+
+  &__context {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 0.5rem;
+    border-top: 1px solid var(--pf-color-border);
+  }
+
+  &__context-chip {
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.8em;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background-color: var(--pf-color-background-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+
+    &--off {
+      opacity: 0.5;
+    }
+  }
+
+  &__system-prompt {
+    margin: 0;
+    max-width: 70vw;
+    max-height: 60vh;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--pf-font-monospace);
+    font-size: 0.9em;
+  }
+
+  &__tokens {
+    font-size: 0.8em;
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+  }
+
+  &__input {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    border-top: 1px solid var(--pf-color-border);
+    background-color: var(--pf-color-background-secondary);
+    box-sizing: border-box;
+    gap: 4px;
+
+    .pf-text-input {
+      flex: 1;
+    }
+  }
+}

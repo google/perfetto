@@ -1,0 +1,146 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-llm-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+
+  &__empty {
+    color: var(--pf-color-text-muted);
+    font-style: italic;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__json {
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 8px;
+    background-color: var(--pf-color-background-secondary);
+    font-family: var(--pf-font-monospace, monospace);
+    font-size: 0.85em;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 480px;
+    overflow: auto;
+    user-select: text;
+  }
+
+  &__import-error {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+.pf-llm-settings__tabs {
+  max-width: 720px;
+}
+
+.pf-llm-provider {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 8px;
+  background-color: var(--pf-color-background-secondary);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .pf-text-input {
+      flex: 1;
+    }
+  }
+
+  &__warning {
+    color: var(--pf-color-danger);
+    font-size: 0.9em;
+  }
+
+  &__models-label {
+    font-weight: bold;
+    margin-top: 4px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+}
+
+.pf-llm-models-status-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: normal;
+}
+
+.pf-llm-models-status {
+  font-size: 0.85em;
+  font-style: italic;
+  color: var(--pf-color-text-muted);
+
+  &--error {
+    color: var(--pf-color-danger);
+    cursor: help;
+  }
+}
+
+.pf-llm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &__label {
+    font-size: 0.85em;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-llm-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .pf-text-input {
+    flex: 1;
+  }
+
+  // The model-name combobox wraps its input in a Popup; make the wrapper flex
+  // like the sibling text inputs so the row lays out evenly.
+  &__name {
+    flex: 1;
+  }
+
+  &__roles {
+    display: flex;
+    gap: 8px;
+  }
+
+  &__role {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.85em;
+    white-space: nowrap;
+  }
+}
