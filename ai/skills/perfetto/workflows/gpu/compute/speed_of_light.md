@@ -9,7 +9,7 @@ back here.
 
 ## Get the data
 
-- **NVIDIA / CUDA:** [nvidia/speed_of_light.md](nvidia/speed_of_light.md).
+- **NVIDIA / CUDA:** [nvidia/speed_of_light.md]($SKILL_ROOT/workflows/gpu/compute/nvidia/speed_of_light.md).
 - Other vendors: only NVIDIA has the full Speed-of-Light counter set in the
   trace today; for others use whatever throughput / duration that vendor exposes.
 
@@ -32,7 +32,7 @@ Read Compute Throughput vs Memory Throughput (both are achieved-vs-theoretical �
 
 - **Compute Throughput high, Memory Throughput lower → compute-bound.** The
   compute units are the ceiling; the lever is the math — go to
-  [workload_analysis.md](workload_analysis.md) for the saturated pipeline, and
+  [workload_analysis.md]($SKILL_ROOT/workflows/gpu/compute/workload_analysis.md) for the saturated pipeline, and
   consider a cheaper precision or doing less work.
 - **Memory Throughput high, Compute Throughput lower → memory-bound.** The
   memory system is the ceiling; locate it in the hierarchy:
@@ -42,7 +42,7 @@ Read Compute Throughput vs Memory Throughput (both are achieved-vs-theoretical �
     set is being served from cache rather than DRAM; the lever is data reuse /
     working-set size. (These are throughput vs peak, not cache hit rates.)
 - **both low → latency / occupancy-bound.** Neither ceiling is near peak, so the
-  kernel is stalling. Go to [occupancy.md](occupancy.md).
+  kernel is stalling. Go to [occupancy.md]($SKILL_ROOT/workflows/gpu/compute/occupancy.md).
 - **both high → near a real ceiling**; the kernel is well-packed and further
   gains need an algorithmic change, not tuning.
 

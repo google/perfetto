@@ -15,6 +15,30 @@ This is also the setup used by fallback-style agent installs such as
 Antigravity, because those installs consume the root `skills/` layout
 and do not receive a plugin-bundled `bin/trace_processor` wrapper.
 
+## Skill files live under `$SKILL_ROOT`
+
+Every other file this skill references — workflow markdown, the
+reference docs, and the SQL/Python helper scripts under a `scripts/`
+dir — is named by a path of the form `$SKILL_ROOT/...`, relative to the
+**skill root** (the directory holding this `SKILL.md`). The skill is
+*not* installed in your working directory, so these paths only resolve
+once `$SKILL_ROOT` points at the install location.
+
+A standalone install has no plugin-root environment variable, so set
+`SKILL_ROOT` yourself, once, to the absolute path of the directory this
+`SKILL.md` lives in — the location your agent loaded this skill from:
+
+```sh
+# Substitute the directory this skill was installed into.
+export SKILL_ROOT="/absolute/path/to/skills/perfetto"
+```
+
+After that, every `$SKILL_ROOT/...` path in this skill works verbatim,
+both as a shell argument (e.g. `--query-file
+$SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql`)
+and when you need to open a referenced file. Your working directory is
+irrelevant — the paths are absolute once `$SKILL_ROOT` is set.
+
 ## Part 1 — The `trace_processor` binary
 
 Fetch the official prebuilt binary. This is what 99% of users should
@@ -42,7 +66,7 @@ additionally supports `--build` for a from-source build.
 
 ## Part 2 — The Python client (for long-running RPC mode)
 
-`../infra-references/querying.md` recommends starting `trace_processor
+`$SKILL_ROOT/infra-references/querying.md` recommends starting `trace_processor
 server http TRACE_FILE` once and connecting from Python so iteration doesn't
 re-parse the trace on every query. That requires the `perfetto` Python
 package (and `protobuf`).
@@ -108,4 +132,4 @@ kill $SERVER_PID
 ```
 
 If this prints a non-zero count and exits cleanly, the user is ready to
-follow `../infra-references/querying.md`.
+follow `$SKILL_ROOT/infra-references/querying.md`.
