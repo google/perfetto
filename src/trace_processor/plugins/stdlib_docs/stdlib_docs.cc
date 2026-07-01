@@ -180,6 +180,31 @@ class StdlibDocsMacros : public StaticTableFunction {
   StringPool* string_pool_ = nullptr;
   const PerfettoSqlConnection* engine_ = nullptr;
 };
+// Calls callback(module_key, parsed) for each module matched by |arg|.
+// If |arg| is "*", all loaded modules are visited; otherwise exactly |arg|.
+// Returns the first parse failure encountered, if any.
+template <typename Fn>
+base::Status ForEachModule(const PerfettoSqlConnection* engine,
+                           const std::string& arg,
+                           Fn callback) {
+  if (arg == "*") {
+    for (const auto& kv : engine->GetModules()) {
+      const std::string& mod = kv.second;
+      auto parsed_or = ParseModule(engine, mod);
+      if (!parsed_or.ok()) {
+        return parsed_or.status();
+      }
+      callback(mod, *parsed_or);
+    }
+  } else {
+    auto parsed_or = ParseModule(engine, arg);
+    if (!parsed_or.ok()) {
+      return parsed_or.status();
+    }
+    callback(arg, *parsed_or);
+  }
+  return base::OkStatus();
+}
 
 // ============================================================================
 // StdlibDocsModules
@@ -239,21 +264,28 @@ bool StdlibDocsTables::Cursor::Run(const std::vector<SqlValue>& arguments) {
     return OnFailure(
         base::ErrStatus("__intrinsic_stdlib_tables: module must be a string"));
   }
-  std::string module_key = arguments[0].AsString();
-  auto parsed_or = ParseModule(engine_, module_key);
-  if (!parsed_or.ok()) {
-    return OnFailure(parsed_or.status());
-  }
-  for (const auto& tv : parsed_or->table_views) {
-    tables::StdlibDocsTablesTable::Row row;
-    row.name = string_pool_->InternString(base::StringView(tv.name));
-    row.type = string_pool_->InternString(base::StringView(tv.type));
-    row.description =
-        string_pool_->InternString(base::StringView(tv.description));
-    row.exposed = tv.exposed ? 1 : 0;
-    row.cols = string_pool_->InternString(
-        base::StringView(SerializeEntries(tv.columns)));
-    table_.Insert(row);
+  std::string arg = arguments[0].AsString();
+  auto st = ForEachModule(
+      engine_, arg,
+      [&](const std::string& module_key,
+          const stdlib_doc::ParsedModule& parsed) {
+        StringPool::Id mod_id =
+            string_pool_->InternString(base::StringView(module_key));
+        for (const auto& tv : parsed.table_views) {
+          tables::StdlibDocsTablesTable::Row row;
+          row.module = mod_id;
+          row.name = string_pool_->InternString(base::StringView(tv.name));
+          row.type = string_pool_->InternString(base::StringView(tv.type));
+          row.description =
+              string_pool_->InternString(base::StringView(tv.description));
+          row.exposed = tv.exposed ? 1 : 0;
+          row.cols = string_pool_->InternString(
+              base::StringView(SerializeEntries(tv.columns)));
+          table_.Insert(row);
+        }
+      });
+  if (!st.ok()) {
+    return OnFailure(st);
   }
   return OnSuccess(&table_.dataframe());
 }
@@ -296,27 +328,34 @@ bool StdlibDocsFunctions::Cursor::Run(const std::vector<SqlValue>& arguments) {
     return OnFailure(base::ErrStatus(
         "__intrinsic_stdlib_functions: module must be a string"));
   }
-  std::string module_key = arguments[0].AsString();
-  auto parsed_or = ParseModule(engine_, module_key);
-  if (!parsed_or.ok()) {
-    return OnFailure(parsed_or.status());
-  }
-  for (const auto& fn : parsed_or->functions) {
-    tables::StdlibDocsFunctionsTable::Row row;
-    row.name = string_pool_->InternString(base::StringView(fn.name));
-    row.description =
-        string_pool_->InternString(base::StringView(fn.description));
-    row.exposed = fn.exposed ? 1 : 0;
-    row.is_table_function = fn.is_table_function ? 1 : 0;
-    row.return_type =
-        string_pool_->InternString(base::StringView(fn.return_type));
-    row.return_description =
-        string_pool_->InternString(base::StringView(fn.return_description));
-    row.args =
-        string_pool_->InternString(base::StringView(SerializeEntries(fn.args)));
-    row.cols = string_pool_->InternString(
-        base::StringView(SerializeEntries(fn.columns)));
-    table_.Insert(row);
+  std::string arg = arguments[0].AsString();
+  auto st = ForEachModule(
+      engine_, arg,
+      [&](const std::string& module_key,
+          const stdlib_doc::ParsedModule& parsed) {
+        StringPool::Id mod_id =
+            string_pool_->InternString(base::StringView(module_key));
+        for (const auto& fn : parsed.functions) {
+          tables::StdlibDocsFunctionsTable::Row row;
+          row.module = mod_id;
+          row.name = string_pool_->InternString(base::StringView(fn.name));
+          row.description =
+              string_pool_->InternString(base::StringView(fn.description));
+          row.exposed = fn.exposed ? 1 : 0;
+          row.is_table_function = fn.is_table_function ? 1 : 0;
+          row.return_type =
+              string_pool_->InternString(base::StringView(fn.return_type));
+          row.return_description = string_pool_->InternString(
+              base::StringView(fn.return_description));
+          row.args = string_pool_->InternString(
+              base::StringView(SerializeEntries(fn.args)));
+          row.cols = string_pool_->InternString(
+              base::StringView(SerializeEntries(fn.columns)));
+          table_.Insert(row);
+        }
+      });
+  if (!st.ok()) {
+    return OnFailure(st);
   }
   return OnSuccess(&table_.dataframe());
 }
@@ -360,24 +399,31 @@ bool StdlibDocsMacros::Cursor::Run(const std::vector<SqlValue>& arguments) {
     return OnFailure(
         base::ErrStatus("__intrinsic_stdlib_macros: module must be a string"));
   }
-  std::string module_key = arguments[0].AsString();
-  auto parsed_or = ParseModule(engine_, module_key);
-  if (!parsed_or.ok()) {
-    return OnFailure(parsed_or.status());
-  }
-  for (const auto& macro : parsed_or->macros) {
-    tables::StdlibDocsMacrosTable::Row row;
-    row.name = string_pool_->InternString(base::StringView(macro.name));
-    row.description =
-        string_pool_->InternString(base::StringView(macro.description));
-    row.exposed = macro.exposed ? 1 : 0;
-    row.return_type =
-        string_pool_->InternString(base::StringView(macro.return_type));
-    row.return_description =
-        string_pool_->InternString(base::StringView(macro.return_description));
-    row.args = string_pool_->InternString(
-        base::StringView(SerializeEntries(macro.args)));
-    table_.Insert(row);
+  std::string arg = arguments[0].AsString();
+  auto st = ForEachModule(
+      engine_, arg,
+      [&](const std::string& module_key,
+          const stdlib_doc::ParsedModule& parsed) {
+        StringPool::Id mod_id =
+            string_pool_->InternString(base::StringView(module_key));
+        for (const auto& macro : parsed.macros) {
+          tables::StdlibDocsMacrosTable::Row row;
+          row.module = mod_id;
+          row.name = string_pool_->InternString(base::StringView(macro.name));
+          row.description =
+              string_pool_->InternString(base::StringView(macro.description));
+          row.exposed = macro.exposed ? 1 : 0;
+          row.return_type =
+              string_pool_->InternString(base::StringView(macro.return_type));
+          row.return_description = string_pool_->InternString(
+              base::StringView(macro.return_description));
+          row.args = string_pool_->InternString(
+              base::StringView(SerializeEntries(macro.args)));
+          table_.Insert(row);
+        }
+      });
+  if (!st.ok()) {
+    return OnFailure(st);
   }
   return OnSuccess(&table_.dataframe());
 }
