@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -69,6 +70,13 @@ constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 
 // Should be larger than FtraceController::kControllerFlushTimeoutMs.
 constexpr uint32_t kFlushTimeoutMs = 1000;
+
+// Floor for the kTraceDidntStop watchdog timeout. When the system is busy
+// (ftrace is loaded, draining takes time) the calculated timeout can be too
+// tight on short traces and trip the watchdog even though the producer can
+// recover. 5 minutes gives enough slack while still killing genuinely stuck
+// producers.
+constexpr uint32_t kMinTraceDidntStopTimeoutMs = 5 * 60 * 1000;
 
 constexpr size_t kTracingSharedMemSizeHintBytes = 2 * 1024 * 1024;
 constexpr size_t kTracingSharedMemPageSizeHintBytes = 32 * 1024;
@@ -555,9 +563,12 @@ void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
     // might be < timeout measured in in wall time. But this is fine
     // because the resulting timeout will be conservative (it will be accurate
     // if the device never suspends, and will be more lax if it does).
-    uint32_t timeout =
+    // kMinTraceDidntStopTimeoutMs floors it so short traces don't trip the
+    // watchdog when the system is busy.
+    uint32_t timeout = std::max<uint32_t>(
         2 * (kDefaultFlushTimeoutMs + config.trace_duration_ms() +
-             config.stop_timeout_ms());
+             config.stop_timeout_ms()),
+        kMinTraceDidntStopTimeoutMs);
     watchdogs_.emplace(
         instance_id, base::Watchdog::GetInstance()->CreateFatalTimer(
                          timeout, base::WatchdogCrashReason::kTraceDidntStop));

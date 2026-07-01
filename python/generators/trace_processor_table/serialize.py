@@ -19,6 +19,7 @@ from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import SqlAccess
 from python.generators.trace_processor_table.util import ParsedTable
 from python.generators.trace_processor_table.util import ParsedColumn
@@ -44,6 +45,7 @@ class ColumnSerializer:
     self.is_no_transform_id = parsed_type.is_no_transform_id()
 
     self.is_implicit_id = self.parsed_col.is_implicit_id
+    self.table_purpose = table.table.purpose
 
   def row_field(self) -> Optional[str]:
     if self.is_implicit_id:
@@ -246,6 +248,11 @@ class ColumnSerializer:
 
   def _get_nullability_tag(self) -> str:
     if self.is_optional or self.is_string:
+      # StaticTableFunction outputs are read by random access (GetCell), which
+      # the scan-only SparseNull layout does not support. Force DenseNull for
+      # all nullable columns regardless of cpp_access.
+      if self.table_purpose == Purpose.STATIC_TABLE_FUNCTION:
+        return 'dataframe::DenseNull'
       if self.col.sql_access == SqlAccess.HIGH_PERF:
         return 'dataframe::DenseNull'
       if self.col.cpp_access == CppAccess.NONE:

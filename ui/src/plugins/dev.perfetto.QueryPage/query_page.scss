@@ -84,6 +84,11 @@
     height: 100%;
   }
 
+  // Pushes trailing tab-strip controls (sidebar toggle) to the far right.
+  &__tab-spacer {
+    flex: 1;
+  }
+
   &__history {
     height: 100%;
     overflow: auto;

@@ -188,8 +188,10 @@ export default class implements PerfettoPlugin {
           upid as uid,
           pid as id,
           processName as name,
-          machine
+          processGroups.machine as machine,
+          m.name as machineName
         from processGroups
+        left join machine m on m.id = processGroups.machine
         order by
           processSortIndexHint asc,
           chromeProcessRank desc,
@@ -210,8 +212,10 @@ export default class implements PerfettoPlugin {
           utid as uid,
           tid as id,
           threadName as name,
-          machine
+          threadGroups.machine as machine,
+          m.name as machineName
         from threadGroups
+        left join machine m on m.id = threadGroups.machine
         order by
           threadSortIndexHint asc,
           perfSampleCount desc,
@@ -229,6 +233,7 @@ export default class implements PerfettoPlugin {
       id: NUM,
       name: STR_NULL,
       machine: NUM,
+      machineName: STR_NULL,
     });
     for (; it.valid(); it.next()) {
       const {kind, uid, id, name} = it;
@@ -239,7 +244,7 @@ export default class implements PerfettoPlugin {
           continue;
         }
 
-        const machineLabel = maybeMachineLabel(it.machine);
+        const machineLabel = maybeMachineLabel(it.machine, it.machineName);
         function getProcessDisplayName(
           processName: string | undefined,
           pid: number,
@@ -295,6 +300,7 @@ export default class implements PerfettoPlugin {
           upid,
           tid,
           thread.name as threadName,
+          ifnull(extract_arg(thread.arg_set_id, 'thread_sort_index_hint'), 0) as threadSortIndexHint,
           CASE
             WHEN thread.is_main_thread = 1 THEN 10
             WHEN thread.name = 'CrBrowserMain' THEN 10
@@ -321,10 +327,11 @@ export default class implements PerfettoPlugin {
           threadName
         from threadGroups
         order by
+          threadSortIndexHint asc,
           priority desc,
           tid asc
       )
-  `);
+    `);
 
     const it = result.iter({
       utid: NUM,

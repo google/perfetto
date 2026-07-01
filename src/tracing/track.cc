@@ -34,7 +34,7 @@
 namespace perfetto {
 
 // static
-uint64_t Track::process_uuid;
+uint64_t Track::process_uuid = 0;
 
 protos::gen::TrackDescriptor Track::Serialize() const {
   protos::gen::TrackDescriptor desc;
@@ -117,12 +117,7 @@ void ThreadTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
 }
 
 protos::gen::TrackDescriptor NamedTrack::Serialize() const {
-  auto desc = Track::Serialize();
-  if (static_name_) {
-    desc.set_static_name(static_name_.value);
-  } else {
-    desc.set_name(dynamic_name_.value);
-  }
+  auto desc = NamedTrackBase::Serialize();
   if (sibling_merge_behavior_ != perfetto::protos::gen::TrackDescriptor::
                                      SIBLING_MERGE_BEHAVIOR_UNSPECIFIED) {
     desc.set_sibling_merge_behavior(sibling_merge_behavior_);
@@ -135,9 +130,11 @@ protos::gen::TrackDescriptor NamedTrack::Serialize() const {
   return desc;
 }
 
-void NamedTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
-  auto bytes = Serialize().SerializeAsString();
-  desc->AppendRawProtoBytes(bytes.data(), bytes.size());
+protos::gen::TrackDescriptor StateTrack::Serialize() const {
+  auto desc = NamedTrackBase::Serialize();
+  // Initialize the state submessage to mark this track as a StateTrack.
+  desc.mutable_state();
+  return desc;
 }
 
 protos::gen::TrackDescriptor CounterTrack::Serialize() const {

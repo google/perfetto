@@ -153,6 +153,11 @@ struct alignas(8) FtraceData {
   TraceBlobView packet;
   RefPtr<PacketSequenceStateGeneration> sequence_state;
   int64_t raw_ts = kRawTsUnset;
+  // Custom tokenizers that forge a different sorter timestamp push each
+  // event twice: once at raw_ts for the ftrace_event table, and once at
+  // the forged timestamp for event-specific parsing.
+  bool insert_ftrace_event = true;
+  bool parse_event = true;
 };
 static_assert(sizeof(FtraceData) % 8 == 0);
 

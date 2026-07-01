@@ -261,6 +261,41 @@ export async function getOverview(
   const unreachableInstanceCount = countIt.unreachable;
   const classCount = countIt.classes;
 
+  // Process stats at the dump instant. Null when the trace carries no such stats.
+  const statsRes = await engine.query(`
+    INCLUDE PERFETTO MODULE android.oom_adjuster;
+    INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;
+    SELECT
+      CAST(oom_score_adj AS INT) AS score,
+      android_oom_adj_score_to_bucket_name(CAST(oom_score_adj AS INT)) AS bucket,
+      anon_rss_and_swap_size AS anonRssAndSwapSize,
+      dmabuf_rss_size AS dmabufRssSize,
+      process_uptime AS processUptime
+    FROM android_heap_graph_stats
+    WHERE upid = ${activeDump.upid}
+      AND graph_sample_ts = ${activeDump.ts}
+    LIMIT 1
+  `);
+  const statsIt = statsRes.iter({
+    score: NUM_NULL,
+    bucket: STR_NULL,
+    anonRssAndSwapSize: LONG_NULL,
+    dmabufRssSize: LONG_NULL,
+    processUptime: LONG_NULL,
+  });
+  let oomScore: number | null = null;
+  let oomBucket: string | null = null;
+  let anonRssAndSwapSize: bigint | null = null;
+  let dmabufRssSize: bigint | null = null;
+  let processUptime: bigint | null = null;
+  if (statsIt.valid()) {
+    oomScore = statsIt.score;
+    oomBucket = statsIt.bucket;
+    anonRssAndSwapSize = statsIt.anonRssAndSwapSize;
+    dmabufRssSize = statsIt.dmabufRssSize;
+    processUptime = statsIt.processUptime;
+  }
+
   const heapRes = await engine.query(`
     SELECT
       ifnull(o.heap_type, 'default') AS heap,
@@ -473,6 +508,11 @@ export async function getOverview(
       duplicateStrings.length > 0 ? duplicateStrings : undefined,
     duplicateArrays: duplicateArrays.length > 0 ? duplicateArrays : undefined,
     hasFieldValues: hasPrimitives,
+    oomScore,
+    oomBucket,
+    anonRssAndSwapSize,
+    dmabufRssSize,
+    processUptime,
   };
 }
 
@@ -1367,7 +1407,7 @@ export async function getSubclassNames(
 export async function getRawArrayBlob(
   engine: Engine,
   objectId: number,
-): Promise<Uint8Array | null> {
+): Promise<Uint8Array<ArrayBuffer> | null> {
   const res = await engine.query(`
     SELECT __intrinsic_heap_graph_array(od.array_data_id) AS data
     FROM heap_graph_object o

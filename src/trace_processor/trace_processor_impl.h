@@ -36,7 +36,6 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/core/plugin/plugin.h"
-#include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -45,6 +44,8 @@
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor {
+
+class SqliteIteratorImpl;
 
 // Coordinates the loading of traces from an arbitrary source and allows
 // execution of SQL queries on the events in these traces.
@@ -138,7 +139,13 @@ class TraceProcessorImpl : public TraceProcessor,
 
  private:
   // Needed for iterators to be able to access the context.
-  friend class IteratorImpl;
+  friend class SqliteIteratorImpl;
+
+  // By-value RegisterMetric body. External callers go through the
+  // |RegisterMetric| override (which copies its const-ref args into our
+  // parameters); the constructor's amalgamated-metrics loop calls this
+  // directly so it can move the temporaries through without extra copies.
+  base::Status RegisterMetricImpl(std::string path, std::string sql);
 
   bool IsRootMetricField(const std::string& metric_name);
 

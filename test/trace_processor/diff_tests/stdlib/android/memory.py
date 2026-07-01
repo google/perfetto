@@ -433,3 +433,73 @@ class AndroidMemory(TestSuite):
         "[NULL]","[NULL]",4,"[NULL]",4144792258492,10399744
         "[NULL]","[NULL]",4,"[NULL]",4145263509021,0
         """))
+
+  def test_android_process_memory_intervals_per_parent_zygote(self):
+    # Two PRIMARY zygotes (zygote, zygote64) with DIFFERENT baselines and a
+    # child forked from each: each child subtracts only ITS forking zygote's
+    # baseline (not a pool, not the other's). Also covers clamp-to-0
+    # (com.small.child, below its baseline) and a native daemon
+    # (surfaceflinger, no zygote parent).
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes { pid: 1 ppid: 0 cmdline: "init" }
+            processes { pid: 800 ppid: 1 cmdline: "zygote64" }
+            processes { pid: 700 ppid: 1 cmdline: "zygote" }
+            processes { pid: 900 ppid: 800 cmdline: "com.app.child" }
+            processes { pid: 600 ppid: 700 cmdline: "com.app32.child" }
+            processes { pid: 950 ppid: 800 cmdline: "com.small.child" }
+            processes { pid: 500 ppid: 1 cmdline: "surfaceflinger" }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          process_stats {
+            processes { pid: 800 rss_anon_kb: 10000 rss_file_kb: 20000 }
+            processes { pid: 700 rss_anon_kb: 50000 rss_file_kb: 5000 }
+            processes { pid: 900 rss_anon_kb: 30000 rss_file_kb: 50000 }
+            processes { pid: 600 rss_anon_kb: 60000 rss_file_kb: 10000 }
+            processes { pid: 950 rss_anon_kb: 5000 rss_file_kb: 30000 }
+            processes { pid: 500 rss_anon_kb: 40000 rss_file_kb: 60000 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          process_stats {
+            processes { pid: 800 rss_anon_kb: 10000 rss_file_kb: 20000 }
+            processes { pid: 700 rss_anon_kb: 50000 rss_file_kb: 5000 }
+            processes { pid: 900 rss_anon_kb: 30000 rss_file_kb: 50000 }
+            processes { pid: 600 rss_anon_kb: 60000 rss_file_kb: 10000 }
+            processes { pid: 950 rss_anon_kb: 5000 rss_file_kb: 30000 }
+            processes { pid: 500 rss_anon_kb: 40000 rss_file_kb: 60000 }
+          }
+        }
+      """),
+        query="""
+      INCLUDE PERFETTO MODULE android.memory.memory_breakdown;
+      SELECT
+        process_name,
+        memory_track_name,
+        cast_int!(value) AS value,
+        zygote_adjusted_value
+      FROM android_process_memory_intervals
+      ORDER BY process_name, memory_track_name;
+      """,
+        out=Csv("""
+        "process_name","memory_track_name","value","zygote_adjusted_value"
+        "com.app.child","mem.rss.anon",30720000,20480000
+        "com.app.child","mem.rss.file",51200000,30720000
+        "com.app32.child","mem.rss.anon",61440000,10240000
+        "com.app32.child","mem.rss.file",10240000,5120000
+        "com.small.child","mem.rss.anon",5120000,0
+        "com.small.child","mem.rss.file",30720000,10240000
+        "surfaceflinger","mem.rss.anon",40960000,40960000
+        "surfaceflinger","mem.rss.file",61440000,61440000
+        "zygote","mem.rss.anon",51200000,51200000
+        "zygote","mem.rss.file",5120000,5120000
+        "zygote64","mem.rss.anon",10240000,10240000
+        "zygote64","mem.rss.file",20480000,20480000
+      """))

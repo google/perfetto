@@ -125,6 +125,15 @@ SqliteConnection::SqliteConnection(std::shared_ptr<SqliteDatabase> database)
   EnsureSqliteInitialized();
   PERFETTO_CHECK(sqlite3_open_v2(database_->shared_filename().c_str(), &db,
                                  kSqliteOpenFlags, nullptr) == SQLITE_OK);
+  // Bump the per-connection lookaside slab above the SQLite default of
+  // sz=1200 bytes, cnt=40 slots (~48 KB). At startup we measured ~10K
+  // lookaside hits and ~1.4K spillovers to malloc; the spilled
+  // allocations all fit in a 1200-byte slot, so growing cnt (not sz) is
+  // what helps. sz=1200, cnt=1000 (~1.2 MB / connection) trades RAM for
+  // ~1400 fewer mallocs per CreateInstance and leaves headroom for user
+  // queries.
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_LOOKASIDE, nullptr,
+                                   /*sz=*/1200, /*cnt=*/1000) == SQLITE_OK);
   InitializeSqlite(db);
   db_.reset(db);
 }

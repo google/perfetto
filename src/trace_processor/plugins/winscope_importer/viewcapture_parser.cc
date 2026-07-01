@@ -18,7 +18,7 @@
 #include <sys/types.h>
 
 #include "perfetto/ext/base/base64.h"
-#include "protos/perfetto/trace/android/viewcapture.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/viewcapture.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/plugins/winscope_importer/viewcapture_rect_computation.h"
@@ -37,7 +37,7 @@ void ViewCaptureParser::Parse(int64_t timestamp,
                               PacketSequenceStateGeneration* seq_state) {
   auto* storage = context_->trace_processor_context_->storage.get();
 
-  protos::pbzero::ViewCapture::Decoder snapshot_decoder(blob);
+  com::android::internal::pbzero::ViewCapture::Decoder snapshot_decoder(blob);
   tables::ViewCaptureTable::Row row;
   row.ts = timestamp;
   row.base64_proto_id = storage->mutable_string_pool()
@@ -99,7 +99,7 @@ void ViewCaptureParser::ParseView(
                                  base::Base64Encode(blob.data, blob.size)))
                              .raw_id();
 
-  protos::pbzero::ViewCapture::View::Decoder view_decoder(blob);
+  com::android::internal::pbzero::ViewCapture::View::Decoder view_decoder(blob);
   auto node_id = view_decoder.id();
   view.node_id = static_cast<uint32_t>(node_id);
   view.hashcode = static_cast<uint32_t>(view_decoder.hashcode());

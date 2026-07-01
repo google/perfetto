@@ -763,9 +763,7 @@ def InstallNodeModules(force_clean=False):
     logging.info('Clearing %s', node_modules)
     subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
                           cwd=ROOT_DIR)
-  logging.info(
-      "Running `pnpm install --shamefully-hoist --frozen-lockfile` in {0}"
-      .format(UI_DIR))
+  logging.info("Running `pnpm install --frozen-lockfile` in {0}".format(UI_DIR))
 
   # Some node modules have postinstall scripts (already bad) but worse
   # sometimes they are in the form: "postinstall: 'node ./scripts/foo'"
@@ -774,12 +772,10 @@ def InstallNodeModules(force_clean=False):
   env = os.environ.copy()
   env['PATH'] = TOOLS_DIR + ':' + env['PATH']
 
-  subprocess.check_call([
-      os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--shamefully-hoist',
-      '--frozen-lockfile'
-  ],
-                        cwd=UI_DIR,
-                        env=env)
+  subprocess.check_call(
+      [os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--frozen-lockfile'],
+      cwd=UI_DIR,
+      env=env)
   # pbjs has the bad habit of installing extra packages on its first
   # run. Run it here, so we avoid fetches while building.
   pbjs = ['node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']

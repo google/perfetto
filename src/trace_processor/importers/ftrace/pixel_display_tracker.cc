@@ -40,9 +40,10 @@ PixelDisplayTracker::PixelDisplayTracker(TraceProcessorContext* context)
           context->storage->InternString("frame_start_missing")),
       frame_done_missing_name_(
           context->storage->InternString("frame_done_missing")),
-
       vblank_irq_enable_name_(
           context_->storage->InternString("disp_vblank_irq_enable")),
+      dpu_line_underrun_name_(
+          context_->storage->InternString("dpu_line_underrun")),
 
       display_id_arg_(context_->storage->InternString("display_id")),
       output_id_arg_(context_->storage->InternString("output_id")),
@@ -185,4 +186,33 @@ void PixelDisplayTracker::ParseDpuDispVblankIrqEnable(
     context_->slice_tracker->End(timestamp, track_id);
   }
 }
+
+void PixelDisplayTracker::ParseDpuDispDpuLineUnderrun(
+    int64_t timestamp,
+    protozero::ConstBytes blob) {
+  protos::pbzero::DpuDispDpuLineUnderrunFtraceEvent::Decoder ex(blob);
+  static constexpr auto kBluePrint = tracks::SliceBlueprint(
+      "disp_dpu_line_underrun",
+      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("display_id")),
+      tracks::FnNameBlueprint([](uint32_t display_id) {
+        return base::StackString<256>("line_underrun[%u]", display_id);
+      }));
+
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBluePrint, tracks::Dimensions(ex.id()));
+  StringId slice_name_id = context_->storage->InternString(
+      base::StringView("disp_line_dpu_underrun"));
+
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, slice_name_id, 0,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("vsync_count")),
+            Variadic::Integer(ex.vsync_count()));
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("frames_pending")),
+            Variadic::Integer(ex.frames_pending()));
+      });
+}
+
 }  // namespace perfetto::trace_processor

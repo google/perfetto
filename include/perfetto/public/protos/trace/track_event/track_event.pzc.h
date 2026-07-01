@@ -57,6 +57,7 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackEvent, Type){
                                   TYPE_SLICE_END) = 2,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackEvent, TYPE_INSTANT) = 3,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackEvent, TYPE_COUNTER) = 4,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackEvent, TYPE_STATE) = 5,
 };
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackEvent_LegacyEvent, FlowDirection){

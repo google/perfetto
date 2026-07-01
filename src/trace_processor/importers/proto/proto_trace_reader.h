@@ -79,14 +79,20 @@ class ProtoTraceReader : public ChunkedTraceReader {
     return CalculateClockOffsets(sync_clock_snapshots);
   }
 
-  std::optional<StringId> GetBuiltinClockNameOrNull(int64_t clock_id);
-
  private:
   struct SequenceScopedState {
     std::optional<PacketSequenceStateBuilder> sequence_state_builder;
     uint32_t previous_packet_dropped_count = 0;
     uint32_t needs_incremental_state_total = 0;
     uint32_t needs_incremental_state_skipped = 0;
+    uint32_t data_loss_read_gap_count = 0;
+    uint32_t data_loss_chunk_corrupted_count = 0;
+    uint32_t data_loss_orphan_continuation_count = 0;
+    uint32_t data_loss_reassembly_gap_count = 0;
+    uint32_t data_loss_reassembly_broken_chain_count = 0;
+    uint32_t data_loss_overwrite_count = 0;
+    uint32_t data_loss_writer_abort_count = 0;
+    uint32_t data_loss_smb_full_count = 0;
   };
 
   // Result of attempting to resolve a packet's timestamp to trace time.
@@ -114,6 +120,9 @@ class ProtoTraceReader : public ChunkedTraceReader {
   void HandleFirstPacketOnSequence(uint32_t packet_sequence_id);
   void HandlePreviousPacketDropped(const protos::pbzero::TracePacket_Decoder&,
                                    const TraceBlobView& packet);
+  // Breaks down a |previous_packet_dropped| bitmask into per-cause stats
+  // (see TracePacket::DataLossReason).
+  void RecordDataLossCauses(SequenceScopedState* seq, uint32_t reasons);
   void HandleTraceAttributes(ConstBytes);
   void ParseTracePacketDefaults(const protos::pbzero::TracePacket_Decoder&,
                                 TraceBlobView trace_packet_defaults);

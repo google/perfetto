@@ -37,17 +37,9 @@ class ProfileModule : public ProtoImporterModule {
                          TraceProcessorContext* context);
   ~ProfileModule() override;
 
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData& data,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
   void OnEventsFullyExtracted() override;
 
@@ -65,7 +57,8 @@ class ProfileModule : public ProtoImporterModule {
   // perf event profiling:
   void ParsePerfSample(int64_t ts,
                        PacketSequenceStateGeneration* sequence_state,
-                       const protos::pbzero::TracePacket::Decoder& decoder);
+                       const SelectiveTracePacketDecoder& decoder,
+                       const TracePacketField& field);
 
   // heap profiling:
   void ParseProfilePacket(int64_t ts,
@@ -73,6 +66,7 @@ class ProfileModule : public ProtoImporterModule {
                           protozero::ConstBytes);
   void ParseModuleSymbols(protozero::ConstBytes);
   void ParseSmapsPacket(int64_t ts, protozero::ConstBytes);
+  void ParsePackedSmaps(int64_t ts, UniquePid upid, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   PerfSampleTracker perf_sample_tracker_;

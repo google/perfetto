@@ -1,0 +1,5 @@
+# Build-system only; package metadata stays in setup.py. distutils was removed
+# in Python 3.12, so declare setuptools explicitly.
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
