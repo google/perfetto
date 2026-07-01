@@ -116,6 +116,12 @@
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include "src/tracing/service/zlib_compressor.h"
+#endif
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+#include "src/tracing/service/zstd_compressor.h"
+#endif
 
 #include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -1165,15 +1171,14 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
         cfg.fflush_post_write() == TraceConfig::FFLUSH_ENABLED;
   }
 
-  if (cfg.compression_type() == TraceConfig::COMPRESSION_TYPE_DEFLATE) {
-    if (init_opts_.compressor_fn) {
-      tracing_session->compress_deflate = true;
-    } else {
-      PERFETTO_LOG(
-          "COMPRESSION_TYPE_DEFLATE is not supported in the current build "
-          "configuration. Skipping compression");
-    }
+#if !PERFETTO_BUILDFLAG(PERFETTO_ZLIB) && !PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  if (cfg.compression_type() != TraceConfig::COMPRESSION_TYPE_UNSPECIFIED ||
+      cfg.has_compression()) {
+    PERFETTO_LOG(
+        "Compression was requested but this build has no compressor. "
+        "Skipping compression");
   }
+#endif
 
   // Initialize the log buffers.
   bool did_allocate_all_buffers = true;
@@ -2909,12 +2914,30 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
 
 void TracingServiceImpl::MaybeCompressPackets(
     TracingSession* tracing_session,
-    std::vector<TracePacket>* packets) {
-  if (!tracing_session->compress_deflate) {
+    [[maybe_unused]] std::vector<TracePacket>* packets) {
+  // Compress with the codec the config selects, preferring the newest (highest
+  // proto field number) this build supports. Leaves the packets uncompressed if
+  // none is available.
+  //
+  // The branches below run highest-field-number-first, so a new codec's branch
+  // goes at the top.
+  [[maybe_unused]] const auto& compression =
+      tracing_session->config.compression();
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  if (compression.has_zstd()) {
+    ZstdCompressFn(packets, compression.zstd());
     return;
   }
-
-  init_opts_.compressor_fn(packets);
+#endif
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+  // Deflate also serves the legacy compression_type = DEFLATE, so configs
+  // predating `compression` still get compressed.
+  if (compression.has_deflate() || tracing_session->config.compression_type() ==
+                                       TraceConfig::COMPRESSION_TYPE_DEFLATE) {
+    ZlibCompressFn(packets);
+    return;
+  }
+#endif
 }
 
 bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
@@ -4840,7 +4863,6 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->flushes_requested = src->flushes_requested;
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
-  cloned_session->compress_deflate = src->compress_deflate;
   if (src->trace_filter && !skip_trace_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(
