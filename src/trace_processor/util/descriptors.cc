@@ -40,6 +40,11 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+// FieldOptions extension field number for the (flags_enum) annotation: names
+// the flags enum whose bits a field's bitmask should be expanded with.
+constexpr uint32_t kFlagsEnumFieldOptionNumber = 60002;
+
 FieldDescriptor CreateFieldFromDecoder(
     const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder,
     bool is_extension) {
@@ -499,6 +504,14 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
         continue;
       }
       ResolveUninterpretedOption(descriptor, field, *field.mutable_options());
+      // Pull out the (flags_enum) annotation, now resolved to its field number.
+      protozero::ProtoDecoder opt(field.options().data(),
+                                  field.options().size());
+      for (auto f = opt.ReadField(); f.valid(); f = opt.ReadField()) {
+        if (f.id() == kFlagsEnumFieldOptionNumber) {
+          field.set_flags_enum(f.as_std_string());
+        }
+      }
     }
   }
   return base::OkStatus();
@@ -608,6 +621,38 @@ std::optional<std::string> DescriptorPool::FindEnumString(
     return std::nullopt;
   }
   return descriptors_[*cache.descriptor_idx_].FindEnumString(value);
+}
+
+int64_t DescriptorPool::FlagSetToViews(
+    CachedDescriptor& cache,
+    std::string_view enum_name,
+    int64_t mask,
+    std::vector<std::string_view>* out) const {
+  if (!cache.descriptor_idx_) {
+    cache.descriptor_idx_ = FindDescriptorIdx(std::string(enum_name));
+  }
+  if (!cache.descriptor_idx_) {
+    return mask;
+  }
+  const ProtoDescriptor& desc = descriptors_[*cache.descriptor_idx_];
+  if (desc.type() != ProtoDescriptor::Type::kEnum) {
+    return mask;
+  }
+  const auto& names_by_value = desc.enum_values_by_number();
+  uint64_t unmatched = 0;
+  for (auto bits = static_cast<uint64_t>(mask); bits != 0; bits &= bits - 1) {
+    uint64_t flag = bits & ~(bits - 1);  // lowest set bit
+    // int32 enum values: only bits 0..31 can match (bit 31 = INT32_MIN).
+    auto it = flag < (uint64_t{1} << 32)
+                  ? names_by_value.find(static_cast<int32_t>(flag))
+                  : names_by_value.end();
+    if (it != names_by_value.end()) {
+      out->push_back(it->second);
+    } else {
+      unmatched |= flag;
+    }
+  }
+  return static_cast<int64_t>(unmatched);
 }
 
 std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {
