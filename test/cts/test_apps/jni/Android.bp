@@ -35,6 +35,8 @@ cc_library_shared {
     "libandroid",
     "liblog",
     "libpcre2",
+    "libz",
+    "libzstd",
   ],
   compile_multilib: "both",
   stl: "libc++_static",
