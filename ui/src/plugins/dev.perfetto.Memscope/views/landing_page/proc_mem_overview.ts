@@ -17,11 +17,11 @@ import {Gate} from '../../../../base/mithril_utils';
 import {QuerySlot} from '../../../../base/query_slot';
 import type {Trace} from '../../../../public/trace';
 import {LONG_NULL, NUM, STR} from '../../../../trace_processor/query_result';
-import {EmptyState} from '../../../../widgets/empty_state';
 import {Icon} from '../../../../widgets/icon';
 import {Panel} from '../../components/panel';
 import {SubPage} from '../../components/page';
 import type {MemSelection} from './selection';
+import {SmapsDetail} from './smaps_detail';
 import {BitmapsSection} from './summary/bitmaps_section';
 import {CompositionTimeline} from './summary/composition_timeline';
 import {JavaSection} from './summary/java_section';
@@ -132,13 +132,7 @@ export class ProcessMemDetails
         m(
           Gate,
           {open: this.activeTab === 'smaps'},
-          m(
-            SubPage,
-            m(EmptyState, {
-              icon: 'table_rows',
-              title: 'Smaps detail coming soon',
-            }),
-          ),
+          m(SubPage, m(SmapsDetail, {trace, upid})),
         ),
     ];
   }

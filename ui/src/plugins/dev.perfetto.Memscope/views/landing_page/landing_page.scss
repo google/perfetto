@@ -283,3 +283,109 @@ a.pf-memscope-classname {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Smaps Detail tab
+// ---------------------------------------------------------------------------
+
+// Vertical stack of charts/panels in the smaps detail body.
+.pf-memscope-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+// Small colour swatch marking a smaps category/group.
+.pf-memscope-growth__swatch {
+  align-self: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+// Toolbar above the smaps table: unit toggle + path filter.
+.pf-memscope-smaps__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  .pf-memscope-tab {
+    padding: 4px 12px;
+    border: 0.5px solid var(--pf-col-border);
+    border-radius: 12px;
+
+    &--active {
+      border-color: var(--pf-color-accent);
+    }
+  }
+}
+
+.pf-memscope-smaps__filter {
+  flex: 1;
+  max-width: 320px;
+  margin-inline: 8px;
+}
+
+.pf-memscope-smaps__path {
+  font-family: var(--pf-font-family-mono, monospace);
+  font-size: var(--pf-font-size-xs);
+  word-break: break-all;
+}
+
+.pf-memscope-smaps__lvl1 {
+  padding-left: 28px !important;
+}
+
+.pf-memscope-smaps__lvl2 {
+  padding-left: 56px !important;
+}
+
+.pf-memscope-smaps__group,
+.pf-memscope-smaps__subgroup {
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+
+  td:first-child {
+    white-space: nowrap;
+  }
+
+  .pf-memscope-growth__swatch {
+    display: inline-block;
+    vertical-align: baseline;
+    margin-right: 2px;
+  }
+
+  .pf-memscope-smaps__count {
+    font-weight: 400;
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-memscope-smaps__group {
+  background: var(--pf-col-surface);
+}
+
+.pf-memscope-smaps__chevron {
+  font-size: 16px;
+  vertical-align: middle;
+  margin-right: 2px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-memscope-smaps__counttext {
+  align-self: center;
+  margin-left: 8px;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pf-memscope-smaps__more {
+  font-style: italic;
+  color: var(--pf-color-text-muted);
+  font-size: var(--pf-font-size-xs);
+}
