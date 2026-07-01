@@ -24,9 +24,11 @@ import public "protos/third_party/android/frameworks/native/tracing/frameworks_n
 
 // InternedData extensions.
 import public "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto";
+import public "protos/third_party/android/frameworks/native/tracing/frameworks_native_interned_data.proto";
 
 // TracePacket extensions.
 import public "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto";
+import public "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto";
 
 // Winscope extensions (TracePacket + WinscopeExtensions fields, split per
 // repo).
