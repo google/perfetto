@@ -13575,6 +13575,7 @@ genrule {
         "protos/third_party/android/frameworks/base/proto/tracing/winscope/view/windowlayoutparams.proto",
         "protos/third_party/android/frameworks/base/proto/tracing/winscope/viewcapture.proto",
         "protos/third_party/android/frameworks/base/proto/tracing/winscope/windowmanager.proto",
+        "protos/third_party/android/frameworks/native/tracing/frameworks_native_interned_data.proto",
         "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto",
         "protos/third_party/android/frameworks/native/tracing/frameworks_native_track_event.proto",
         "protos/third_party/android/frameworks/native/tracing/winscope/android_input_event.proto",
