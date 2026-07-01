@@ -20,7 +20,11 @@ import type {
   TraceFileAnalyzed,
   TraceTimeConfig,
 } from './multi_trace_types';
-import {BUILTIN_CLOCKS, defaultFileMergeConfig} from './multi_trace_types';
+import {
+  BUILTIN_CLOCKS,
+  defaultFileMergeConfig,
+  parseOffsetNs,
+} from './multi_trace_types';
 import {uuidv4} from '../../base/uuid';
 import {getErrorMessage as toErrorMessage} from '../../base/errors';
 import type {AlignmentVerdict, TraceAnalyzer} from './trace_analyzer';
@@ -40,13 +44,19 @@ function getErrorMessage(e: unknown): string {
 }
 
 // A trace's single real (builtin) clock, if it has exactly one; undefined for a
-// clockless trace or one exposing several clocks. Names the reference clock
-// when this trace is the baseline others sync to.
-function singleRealClock(trace: TraceFile): ClockName | undefined {
+// clockless trace or one exposing several clocks. Used as the default reference
+// clock when a manual offset targets this trace.
+function soleRealClock(trace: TraceFile): ClockName | undefined {
   if (trace.status !== 'analyzed') return undefined;
   const ids = trace.analysis.builtinClockIds ?? [];
   if (ids.length !== 1) return undefined;
   return BUILTIN_CLOCKS.find((c) => c.id === ids[0])?.name;
+}
+
+// A user-defined machine in the shared registry.
+export interface MachineEntry {
+  readonly id: number;
+  readonly name: string;
 }
 
 // The possible error states for the modal, used to show a helpful message
@@ -57,6 +67,11 @@ export type LoadingError =
   | 'ANALYZING'
   | 'TRACE_ERROR';
 
+// Minimum spacing between auto-run alignment dry-runs. The first change after a
+// quiet period checks immediately (leading edge); rapid follow-ups coalesce
+// into one trailing check this long after the last change.
+const CHECK_DEBOUNCE_MS = 1500;
+
 /**
  * The controller for the multi-trace modal.
  * This class manages the state of the traces and their analysis.
@@ -65,6 +80,11 @@ export class MultiTraceController {
   private _traces: TraceFile[] = [];
   // Per-file merge configuration, keyed by trace uuid. Absent => default.
   private _configByUuid = new Map<string, FileMergeConfig>();
+  // Shared, user-defined machines a single-machine file can be assigned to.
+  // Files reference these by id (config.machineId); the name is resolved here
+  // so renaming a machine propagates to every file using it.
+  private _machines: ReadonlyArray<MachineEntry> = [];
+  private _nextMachineId = 1;
   private _traceTime: TraceTimeConfig = {};
   // User-chosen baseline trace for all-private sets; undefined => first file.
   private _anchorUuid?: string;
@@ -73,6 +93,10 @@ export class MultiTraceController {
   private _checking = false;
   // Bumped on every config change; lets checkAlignment drop a stale result.
   private _generation = 0;
+  // Pending debounced auto-check; cancelled and rescheduled on each change.
+  private _checkTimer?: ReturnType<typeof setTimeout>;
+  // When the last auto-check started, to space out leading-edge checks.
+  private _lastCheckStart = 0;
   private traceAnalyzer: TraceAnalyzer;
   private onStateChanged: () => void;
   private onAnalysisStarted?: (traceUuid: string) => void;
@@ -166,6 +190,102 @@ export class MultiTraceController {
     this.invalidate();
   }
 
+  // The shared machine registry single-machine files pick from.
+  get machines(): ReadonlyArray<MachineEntry> {
+    return this._machines;
+  }
+
+  // Creates a machine (default-named so it never shows as blank) and returns
+  // its id for the caller to assign to a file.
+  addMachine(): number {
+    const id = this._nextMachineId++;
+    this._machines = [...this._machines, {id, name: `Machine ${id}`}];
+    this.invalidate();
+    return id;
+  }
+
+  renameMachine(id: number, name: string) {
+    this._machines = this._machines.map((mm) =>
+      mm.id === id ? {id, name} : mm,
+    );
+    this.invalidate();
+  }
+
+  // The resolved (trimmed, non-empty) machine name a file is assigned to, or
+  // undefined for the host machine / an unnamed registry entry.
+  machineNameForTrace(uuid: string): string | undefined {
+    const {machineId} = this.getConfig(uuid);
+    if (machineId === undefined) {
+      return undefined;
+    }
+    const name = this._machines.find((mm) => mm.id === machineId)?.name.trim();
+    return name !== undefined && name.length > 0 ? name : undefined;
+  }
+
+  // The baseline trace a manual offset is measured against: the first ordered
+  // trace (the trace-time master). Its name labels the offset control.
+  baselineName(uuid: string): string | undefined {
+    const baseline = this.orderedTraces()[0];
+    return baseline !== undefined && baseline.uuid !== uuid
+      ? baseline.file.name
+      : undefined;
+  }
+
+  // The {file, clock} a manual offset syncs to: the baseline's path and its sole
+  // real clock (omitted when the baseline is clockless, so the importer
+  // resolves it). Undefined when |uuid| is itself the baseline.
+  private baselineReference(
+    uuid: string,
+  ): {file: string; clock?: ClockName} | undefined {
+    const baseline = this.orderedTraces()[0];
+    if (baseline === undefined || baseline.uuid === uuid) {
+      return undefined;
+    }
+    return {file: baseline.file.name, clock: soleRealClock(baseline)};
+  }
+
+  // A message for the status line when the config has an entry the user must fix
+  // before opening. Undefined when every entry is well-formed. Covers a manual
+  // offset that isn't a whole number, and an offset between two traces that
+  // share a machine (an offset relates two distinct clocks, so the offset file
+  // must be on its own machine, else the importer rejects the self-relation).
+  configError(): string | undefined {
+    for (const trace of this._traces) {
+      const config = this.getConfig(trace.uuid);
+      const text = config.offsetText?.trim() ?? '';
+      if (
+        config.alignMode === 'manual' &&
+        text.length > 0 &&
+        parseOffsetNs(text) === undefined
+      ) {
+        return `Enter a whole number of nanoseconds for ${trace.file.name}'s offset.`;
+      }
+    }
+    const baseline = this.orderedTraces()[0];
+    if (baseline !== undefined) {
+      const baselineMachine = this.machineNameForTrace(baseline.uuid);
+      for (const trace of this._traces) {
+        const config = this.getConfig(trace.uuid);
+        if (
+          config.alignMode === 'manual' &&
+          trace.uuid !== baseline.uuid &&
+          parseOffsetNs(config.offsetText) !== undefined &&
+          // A clockless file pins a distinct private clock, so it may share a
+          // machine; a real-clock file would relate its clock to itself.
+          soleRealClock(trace) !== undefined &&
+          this.machineNameForTrace(trace.uuid) === baselineMachine
+        ) {
+          return (
+            `${trace.file.name} has an offset but shares a machine with ` +
+            `${baseline.file.name}. An offset relates two different clocks, ` +
+            `so put ${trace.file.name} on its own machine.`
+          );
+        }
+      }
+    }
+    return undefined;
+  }
+
   private analyzedAnalyses(): FileAnalysis[] {
     return this._traces
       .filter((t): t is TraceFileAnalyzed => t.status === 'analyzed')
@@ -201,7 +321,44 @@ export class MultiTraceController {
     ) {
       this._anchorUuid = undefined;
     }
+    this.scheduleCheck();
     this.onStateChanged();
+  }
+
+  // Keep the alignment status current without a manual button. The first change
+  // after a quiet period checks immediately; bursts coalesce into one trailing
+  // check. Only runs once the set is openable.
+  private scheduleCheck() {
+    if (this._checkTimer !== undefined) {
+      clearTimeout(this._checkTimer);
+      this._checkTimer = undefined;
+    }
+    if (
+      this.getLoadingError() !== undefined ||
+      this.configError() !== undefined
+    ) {
+      return;
+    }
+    const sinceLast = Date.now() - this._lastCheckStart;
+    if (!this._checking && sinceLast >= CHECK_DEBOUNCE_MS) {
+      this.runCheck();
+      return;
+    }
+    const wait = this._checking
+      ? CHECK_DEBOUNCE_MS
+      : CHECK_DEBOUNCE_MS - sinceLast;
+    this._checkTimer = setTimeout(
+      () => {
+        this._checkTimer = undefined;
+        this.runCheck();
+      },
+      Math.max(0, wait),
+    );
+  }
+
+  private runCheck() {
+    this._lastCheckStart = Date.now();
+    void this.checkAlignment();
   }
 
   // Empty unless there are >=2 real clocks to choose between; with one (or
@@ -280,6 +437,10 @@ export class MultiTraceController {
     } finally {
       this._checking = false;
       this.onStateChanged();
+      // A change landed mid-run: its result was dropped, so check again for it.
+      if (gen !== this._generation) {
+        this.scheduleCheck();
+      }
     }
   }
 
@@ -297,11 +458,23 @@ export class MultiTraceController {
   }
 
   private mergeFiles(): MergeFile[] {
-    return this.orderedTraces().map((t) => ({
-      path: t.file.name,
-      config: this.getConfig(t.uuid),
-      clock: singleRealClock(t),
-    }));
+    return this.orderedTraces().map((t) => {
+      const config = this.getConfig(t.uuid);
+      return {
+        path: t.file.name,
+        alignMode: config.alignMode,
+        offsetNs: parseOffsetNs(config.offsetText),
+        // Relate this file's own clock (if it has one) to the baseline; a
+        // clockless file leaves it undefined so its private clock is pinned.
+        sourceClock: soleRealClock(t),
+        reference:
+          config.alignMode === 'manual'
+            ? this.baselineReference(t.uuid)
+            : undefined,
+        machineName: this.machineNameForTrace(t.uuid),
+        machines: config.machines,
+      };
+    });
   }
 
   hasManifestConfig(): boolean {
@@ -362,6 +535,17 @@ export class MultiTraceController {
         analysis: result,
       };
       this._traces[index] = analyzedTrace;
+      // Autodetect gives the embedded ids, not names; seed blank names so the
+      // remap table renders one row per machine.
+      if (
+        result.singleMachine === false &&
+        result.embeddedMachineIds !== undefined
+      ) {
+        this._configByUuid.set(trace.uuid, {
+          ...this.getConfig(trace.uuid),
+          machines: result.embeddedMachineIds.map((id) => ({id, name: ''})),
+        });
+      }
       this.invalidate();
       this.onAnalysisCompleted?.(trace.uuid);
     } catch (e) {

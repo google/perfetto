@@ -116,6 +116,9 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   using ConstBytes = protozero::ConstBytes;
   base::Status ParsePacket(TraceBlobView);
+  // Cold path: on the first remote-machine packet, decides whether to adopt it
+  // onto the host context and sets adopted_machine_id_ (machine_id or 0).
+  base::Status ResolveAdoptedMachine(uint32_t machine_id);
   // Out-of-line cold path: forks the sub-reader for a remote machine.
   base::Status CreateRemoteMachineReader(
       uint32_t machine_id,
@@ -165,6 +168,11 @@ class ProtoTraceReader : public ChunkedTraceReader {
   base::FlatHashMap<uint32_t, std::unique_ptr<ProtoTraceReader>>
       machine_to_proto_readers_;
   const bool is_machine_dispatcher_;
+  // Machine adopted onto the host context (relabelled), or nullopt until the
+  // first remote-machine packet resolves it; 0 means no adoption.
+  std::optional<uint32_t> adopted_machine_id_;
+  // Whether the host machine has parsed a packet of its own (blocks adoption).
+  bool host_machine_used_ = false;
   ProtoVmIncrementalTracing protovm_;
 
   // Temporary. Currently trace packets do not have a timestamp, so the

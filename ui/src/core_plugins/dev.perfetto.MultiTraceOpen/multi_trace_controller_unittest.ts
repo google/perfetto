@@ -293,4 +293,101 @@ describe('MultiTraceController', () => {
       }
     });
   });
+
+  describe('manifest serialization', () => {
+    // A single-machine, single-clock (BOOTTIME) analyzed trace.
+    function analyzed(uuid: string, name: string): TraceFileAnalyzed {
+      return {
+        uuid,
+        file: new File([], name),
+        status: 'analyzed',
+        analysis: {
+          format: 'Perfetto',
+          singleClock: true,
+          singleMachine: true,
+          builtinClockIds: [6],
+        },
+      };
+    }
+
+    function manifest(): {files?: Array<Record<string, unknown>>} {
+      return JSON.parse(controller.getManifestJson()).perfetto_manifest;
+    }
+
+    beforeEach(() => {
+      controller.setTracesForTesting([
+        analyzed('u1', 'a.pftrace'),
+        analyzed('u2', 'b.pftrace'),
+      ]);
+    });
+
+    it('is trivial until a file carries config', () => {
+      expect(controller.hasManifestConfig()).toBe(false);
+      expect(manifest().files).toBeUndefined();
+    });
+
+    it('manual mode emits nothing until an offset is set', () => {
+      controller.updateConfig('u2', {alignMode: 'manual'});
+      expect(controller.hasManifestConfig()).toBe(false);
+    });
+
+    it('serializes a manual offset against the baseline clock', () => {
+      controller.updateConfig('u2', {alignMode: 'manual', offsetText: '500'});
+      const entry = manifest().files?.find((f) => f.path === 'b.pftrace');
+      // b's own BOOTTIME relates to a's BOOTTIME at +500ns.
+      expect(entry?.clocks).toEqual({
+        clock: 'BOOTTIME',
+        sync_to: {file: 'a.pftrace', clock: 'BOOTTIME'},
+        offset_ns: 500,
+      });
+    });
+
+    it('ignores a non-integer offset (free-text not yet valid)', () => {
+      controller.updateConfig('u2', {alignMode: 'manual', offsetText: '-'});
+      expect(controller.hasManifestConfig()).toBe(false);
+    });
+
+    it('flags an offset that shares a machine with the baseline', () => {
+      controller.updateConfig('u2', {alignMode: 'manual', offsetText: '500'});
+      // Both on the default machine: relating BOOTTIME to itself is rejected.
+      expect(controller.configError()).toContain('its own machine');
+
+      // Put u2 on its own machine: the offset is now valid.
+      const id = controller.addMachine();
+      controller.renameMachine(id, 'phone');
+      controller.updateConfig('u2', {machineId: id});
+      expect(controller.configError()).toBeUndefined();
+    });
+
+    it('assigns a file to a named machine', () => {
+      const id = controller.addMachine();
+      controller.renameMachine(id, 'phone');
+      controller.updateConfig('u2', {machineId: id});
+      const entry = manifest().files?.find((f) => f.path === 'b.pftrace');
+      expect(entry?.machine).toEqual({name: 'phone'});
+    });
+
+    it('emits machines[] only once every embedded id is named', () => {
+      controller.updateConfig('u1', {
+        machines: [
+          {id: 0, name: ''},
+          {id: 1, name: 'server'},
+        ],
+      });
+      // One id still blank: the importer rejects a partial remap, so emit none.
+      expect(controller.hasManifestConfig()).toBe(false);
+
+      controller.updateConfig('u1', {
+        machines: [
+          {id: 0, name: 'host'},
+          {id: 1, name: 'server'},
+        ],
+      });
+      const entry = manifest().files?.find((f) => f.path === 'a.pftrace');
+      expect(entry?.machines).toEqual([
+        {id: 0, name: 'host'},
+        {id: 1, name: 'server'},
+      ]);
+    });
+  });
 });

@@ -26,6 +26,7 @@ import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {Gpu} from '../../components/gpu';
+import {getMachineCount} from '../../public/utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 function getProcessDisplayName(
@@ -223,7 +224,10 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
 // (process, hw_queue_id) tuple gets one leaf track named after the global
 // hw queue track ("Channel #1", "Channel #2", ...). When a process spans
 // multiple GPUs, those leaves are nested under per-GPU sub-groups.
-async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
+async function discoverFallbackTracks(
+  ctx: Trace,
+  numMachines: number,
+): Promise<LeafTrack[]> {
   const result = await ctx.engine.query(`
     SELECT
       s.upid AS upid,
@@ -234,6 +238,7 @@ async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
       t.machine_id AS machine_id,
       g.name AS gpu_name,
       m.name AS machine_name,
+      m.label_index AS machine_label_index,
       p.pid AS pid,
       p.name AS process_name
     FROM gpu_slice s
@@ -257,6 +262,7 @@ async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
     machine_id: NUM,
     gpu_name: STR_NULL,
     machine_name: STR_NULL,
+    machine_label_index: NUM_NULL,
     pid: NUM_NULL,
     process_name: STR_NULL,
   });
@@ -281,6 +287,8 @@ async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
             it.machine_id,
             it.gpu_name ?? undefined,
             it.machine_name ?? undefined,
+            it.machine_label_index ?? undefined,
+            numMachines,
           )
         : null;
     rows.push({
@@ -360,8 +368,9 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const numMachines = await getMachineCount(ctx.engine);
     const apiTracks = await discoverApiTracks(ctx);
-    const fallbackTracks = await discoverFallbackTracks(ctx);
+    const fallbackTracks = await discoverFallbackTracks(ctx, numMachines);
     const allTracks = [...apiTracks, ...fallbackTracks];
 
     const processGroups = ctx.plugins.getPlugin(ProcessThreadGroupsPlugin);

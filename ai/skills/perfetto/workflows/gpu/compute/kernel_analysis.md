@@ -12,9 +12,9 @@ Workload Analysis, and Launch Statistics — computed directly from the trace's
 GPU counters and kernel launch args.
 
 If the user has not yet loaded a trace into `trace_processor`, follow
-`../../../infra-references/querying.md` first, then come back here.
+`$SKILL_ROOT/infra-references/querying.md` first, then come back here.
 
-> If `scripts/kernels_summary.sql` returns no rows, the trace has no compute
+> If `$SKILL_ROOT/workflows/gpu/compute/scripts/kernels_summary.sql` returns no rows, the trace has no compute
 > dispatches (no GPU slices with `render_stage_category = 2`) and this workflow
 > does not apply.
 
@@ -27,7 +27,7 @@ Run this before drilling any single kernel; it names the hotspot. The table is
 verdict needs vendor throughput counters and comes from Phase 2 (Speed of Light).
 
 ```bash
-trace_processor query --query-file scripts/kernels_summary.sql TRACE_FILE
+trace_processor query --query-file $SKILL_ROOT/workflows/gpu/compute/scripts/kernels_summary.sql TRACE_FILE
 ```
 
 Columns: `id` (launch order), `kernel`, `ugpu`, `dur_ns`, `block_size`,
@@ -38,7 +38,7 @@ Columns: `id` (launch order), `kernel`, `ugpu`, `dur_ns`, `block_size`,
     `id`, so you can line the kernel up across tables.
 
 2.  **Identify the GPU and vendor.** Read the authoritative vendor and
-    architecture for the kernel's `ugpu` from [../gpu_info.md](../gpu_info.md);
+    architecture for the kernel's `ugpu` from [gpu_info.md]($SKILL_ROOT/workflows/gpu/gpu_info.md);
     that decides which vendor deep-dive to use, and enumerates every GPU and
     machine so you scope correctly (per `ugpu`). The metrics below are described
     by their vendor-neutral display names; each section forwards to the matching
@@ -57,13 +57,13 @@ Follow the branch(es) your Phase 1 hypothesis points to. Each is its own
 workflow; read the one you need.
 
 - **Speed of Light** — compute vs memory vs latency bound, with the cache/DRAM
-  breakdown: [speed_of_light.md](speed_of_light.md).
+  breakdown: [speed_of_light.md]($SKILL_ROOT/workflows/gpu/compute/speed_of_light.md).
 - **Occupancy** — is launch config / resource pressure the limit, and which
-  resource: [occupancy.md](occupancy.md).
+  resource: [occupancy.md]($SKILL_ROOT/workflows/gpu/compute/occupancy.md).
 - **Workload Analysis** — which execution pipeline is saturated (for
-  compute-bound kernels): [workload_analysis.md](workload_analysis.md).
+  compute-bound kernels): [workload_analysis.md]($SKILL_ROOT/workflows/gpu/compute/workload_analysis.md).
 - **Launch Statistics** — the raw launch configuration and whether it is sane:
-  [launch_statistics.md](launch_statistics.md).
+  [launch_statistics.md]($SKILL_ROOT/workflows/gpu/compute/launch_statistics.md).
 
 Each section workflow is vendor-neutral in its interpretation and forwards to a
 vendor-specific extraction (e.g. `nvidia/…`) for the actual counters.

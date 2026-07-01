@@ -1,7 +1,7 @@
 # Heap Dump Explorer
 
 The Heap Dump Explorer is a page in the Perfetto UI for analyzing Android
-Java heap dumps. For every reachable object it shows the class, the
+ART heap dumps. For every reachable object it shows the class, the
 shallow and retained sizes, and the reference path from a GC root — so
 you can answer what is in the heap, what is keeping each object alive,
 and how much memory each one retains.
@@ -24,18 +24,18 @@ This guide covers:
      (docs/case-studies/memory.md or docs/getting-started/memory-profiling.md)
      and cross-link from here instead of duplicating. -->
 
-- A **Java heap profile** samples _allocations over time_ as a
+- An **ART allocation profile** samples _allocations over time_ as a
   flamegraph of call stacks. It answers which code paths are
   allocating memory while the trace is recorded. See the
-  [Java heap sampler](/docs/data-sources/native-heap-profiler.md#java-heap-sampling).
+  [ART allocation sampler](/docs/data-sources/native-heap-profiler.md#art-allocation-profiling).
 
-- A **Java heap dump** is a _snapshot of the heap at one point in time_.
+- An **ART heap dump** is a _snapshot of the heap at one point in time_.
   It captures every reachable object, the references between them, GC
   roots and — depending on the format — field values, strings,
   primitive array bytes and bitmap pixel buffers.
 
-The Heap Dump Explorer is for dumps. Use a heap profile instead for
-allocation call-path analysis.
+The Heap Dump Explorer is for dumps. Use an ART allocation profile
+instead for allocation call-path analysis.
 
 ### What heap dumps are good for
 
@@ -59,7 +59,7 @@ allocation call-path analysis.
 
 - **Allocation call paths.** A heap dump is a snapshot, not a
   recording — it doesn't tell you _which code_ allocated an object.
-  Use a [Java heap profile](/docs/data-sources/native-heap-profiler.md#java-heap-sampling)
+  Use an [ART allocation profile](/docs/data-sources/native-heap-profiler.md#art-allocation-profiling)
   for that.
 - **Native-only memory.** The dump covers the Java heap. For native
   allocations use the
@@ -105,7 +105,7 @@ Wrote profile to heap.pftrace
 
 Use `--wait-for-oom` to trigger on `OutOfMemoryError`, or
 `-c <interval_ms>` for continuous dumps. See
-[Java heap dumps](/docs/data-sources/java-heap-profiler.md) for the
+[ART heap dumps](/docs/data-sources/java-heap-profiler.md) for the
 full config and
 [OutOfMemoryError heap dumps](/docs/case-studies/android-outofmemoryerror.md)
 for the OOM-triggered variant.
@@ -640,11 +640,11 @@ dump is how you confirm each fix and catch regressions.
 
 ## See also
 
-- [Java heap dumps](/docs/data-sources/java-heap-profiler.md) —
+- [ART heap dumps](/docs/data-sources/java-heap-profiler.md) —
   recording config, troubleshooting and SQL schema reference.
 - [Memory case study](/docs/case-studies/memory.md) — end-to-end guide
   to investigating Android memory issues, covering `dumpsys meminfo`,
-  native heap profiles and Java heap dumps together.
+  native heap profiles and ART heap dumps together.
 - [OutOfMemoryError heap dumps](/docs/case-studies/android-outofmemoryerror.md)
   — capturing a heap dump automatically on OOM.
 - [Native heap profiler](/docs/data-sources/native-heap-profiler.md) —

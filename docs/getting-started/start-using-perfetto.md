@@ -238,9 +238,9 @@ Perfetto also provides specific tools to investigate and attribute memory usage:
   helping you find memory leaks or unexpectedly large objects.
 
   - **Tutorial**:
-    [Recording Memory Profiles (Java/JVM Heap Dumps)](/docs/getting-started/memory-profiling.md)
+    [Recording Memory Profiles (ART Heap Dumps)](/docs/getting-started/memory-profiling.md)
   - **Reference**:
-    [Java Heap Dumps Data Source](/docs/data-sources/java-heap-profiler.md)
+    [ART Heap Dumps Data Source](/docs/data-sources/java-heap-profiler.md)
 
 - **Where is native (C/C++) memory being allocated in my code?** For native
   code, heap profiling tracks `malloc` and `free` calls (or `new`/`delete` in

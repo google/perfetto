@@ -15,6 +15,13 @@
 import './color_chip.scss';
 import m from 'mithril';
 
+// ColorChip — a small rounded pill tinted with a caller-supplied colour, used
+// to tag a row or legend entry with the same hue as its data series (memory
+// category, process group, chart slice). The raw colour is softened against the
+// page background so the chip reads as a tint rather than a saturated block;
+// use chipColor() to compute that exact softened colour elsewhere (e.g. for a
+// matching chart series) so the chip and the thing it labels stay in sync.
+
 export interface ColorChipAttrs {
   // Hex color string - can be any valid CSS.
   readonly color?: string;

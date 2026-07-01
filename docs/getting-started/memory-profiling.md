@@ -3,7 +3,7 @@
 In this guide, you'll learn how to:
 
 - Understand the different memory profiling modes and when to use them.
-- Record native and Java heap profiles with Perfetto.
+- Record native and ART (Java/Kotlin) heap profiles with Perfetto.
 - Visualize and analyze allocation profiles in the Perfetto UI.
 
 The memory use of a process plays a key role in the performance of processes and
@@ -32,7 +32,7 @@ Tool | Language | What is instrumented | Usage
 -----|----------|----------------------|------
 [ART Heap Dumps](#art-heap-dumps) | Java/Kotlin | Reference graph of all allocated objects | Breakdown memory usage, and find leaks.
 [Native Allocation Profiling](#native-heap-profiling) | Native C/C++/Rust | `malloc` + `free` | Reduce native allocation churn, breakdown memory usage and find leaks **after profiling started**.
-[ART Allocation Profiling](/docs/data-sources/native-heap-profiler.md#java-heap-sampling) | Java/Kotlin | Object allocations | Reduce Java/Kotlin allocation churn
+[ART Allocation Profiling](/docs/data-sources/native-heap-profiler.md#art-allocation-profiling) | Java/Kotlin | Object allocations | Reduce Java/Kotlin allocation churn
 
 ## {#native-heap-profiling} Native (C/C++/Rust) Allocation Profiling (aka native heap profiling)
 
@@ -86,7 +86,7 @@ implementation.
 - Select Android as target device and use one of the available transports.
   If in doubt, WebUSB is the easiest choice.
 - Click on the `Memory` probe on the left and then toggle the
-  `Native Heap Profiling` option.
+  `Native heap profiling` option.
 - Enter the process name in the `Names` box.
 - The process name you have to enter is (the first argument of the) the process
   cmdline. That is the right-most column (NAME) of `adb shell ps -A`.
@@ -351,7 +351,7 @@ implementation.
 - Select Android as target device and use one of the available transports.
   If in doubt, WebUSB is the easiest choice.
 - Click on the `Memory` probe on the left and then toggle the
-  `Java heap dumps` option.
+  `ART heap dumps` option.
 - Enter the process name in the `Names` box.
 - The process name you have to enter is (the first argument of the) the process
   cmdline. That is the right-most column (NAME) of `adb shell ps -A`.
@@ -416,7 +416,7 @@ This can be viewed using https://ui.perfetto.dev.
 ### Visualizing your first ART heap dump
 
 Open the `/tmp/xxxx` file in the Perfetto UI and click on the chevron marker in
-the UI track labeled "Heap profile".
+the UI track labeled "ART heap dump".
 
 The UI will show a flattened version of the heap graph, in the shape of a
 flamegraph. The flamegraph aggregates together summing objects of the same type
@@ -426,8 +426,8 @@ that share the same reachability path. Two flattening strategies are possible:
   the flamegraph header. This arranges objects based on heuristics that minimize
   the distance between them.
 
-- **Dominator tree**: when selecting `Dominated Size`, it uses the dominator
-  tree algorithm to flatten the graph.
+- **Dominator tree**: when selecting `Dominated Object Size`, it uses the
+  dominator tree algorithm to flatten the graph.
 
 You can learn more about them in the
 [Debugging memory usage](/docs/case-studies/memory#java-hprof) case study

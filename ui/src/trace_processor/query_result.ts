@@ -400,6 +400,24 @@ export interface QueryResult {
   elapsedTimeMs(): number;
 }
 
+// Drains a QueryResult into an array of typed rows described by `spec`. This is
+// the array-materializing counterpart to iter(): use it when you want every row
+// up front rather than streaming through them.
+// Example: const rows = materializeRows(result, {id: NUM, name: STR});
+export function materializeRows<T extends Row>(
+  result: QueryResult,
+  spec: T,
+): T[] {
+  const rows: T[] = [];
+  const cols = Object.keys(spec);
+  for (const it = result.iter(spec); it.valid(); it.next()) {
+    const row: Record<string, SqlValue> = {};
+    for (const col of cols) row[col] = it.get(col);
+    rows.push(row as T);
+  }
+  return rows;
+}
+
 // Interface exposed to engine.ts to pump in the data as new row batches arrive.
 export interface WritableQueryResult {
   // |resBytes| is a proto-encoded trace_processor.QueryResult message.

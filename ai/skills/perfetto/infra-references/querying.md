@@ -3,7 +3,7 @@
 This reference explains how to extract data from a Perfetto trace file
 (`.pftrace`, `.perfetto-trace`, `.pb`) using `trace_processor` and
 PerfettoSQL. Read it for ad-hoc querying outside a guided workflow; the
-workflows under `../workflows/` carry their own queries.
+workflows under `$SKILL_ROOT/workflows/` carry their own queries.
 
 The `trace_processor` binary is what every other Perfetto analysis tool
 runs on top of, including the Perfetto UI. Reference docs:
@@ -11,7 +11,7 @@ runs on top of, including the Perfetto UI. Reference docs:
 
 > **Prerequisite — `trace_processor` must be invokable.** Before
 > running any of the shell commands below, read
-> `../environment-references/setup.md`. It defines the exact invocation
+> `$SKILL_ROOT/environment-references/setup.md`. It defines the exact invocation
 > form for `trace_processor` in this environment — substitute it for
 > every bare `trace_processor` reference below. It also covers
 > installing the `perfetto` Python client, which the long-running RPC
@@ -48,7 +48,7 @@ Reparsing a trace on every query is slow — for a multi-GB trace it's tens
 of seconds, every time. When you expect to run more than a couple of
 queries, start the shell once as an HTTP RPC server and drive it from
 the Python client. (If the Python client is not installed yet,
-`../environment-references/setup.md` covers it.)
+`$SKILL_ROOT/environment-references/setup.md` covers it.)
 
 ```sh
 # Terminal A: pick a random high port and start the server on it.
@@ -178,7 +178,7 @@ A few commonly used modules to know:
 - `android.startup.startups` — one row per app startup.
 - `stacks.cpu_profiling` — flat samples and call-graph helpers.
 - `android.memory.heap_graph.dominator_tree` — retained-size analysis for
-  Java heap dumps (see `../workflows/android_memory/heap_dump.md` for usage).
+  Java heap dumps (see `$SKILL_ROOT/workflows/android_memory/heap_dump.md` for usage).
 
 The module name maps directly to the file path under the stdlib root:
 `foo.bar` lives at `foo/bar.sql`. Browse the full list at the stdlib

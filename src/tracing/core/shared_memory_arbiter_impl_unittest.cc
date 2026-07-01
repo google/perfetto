@@ -59,6 +59,11 @@ class SharedMemoryArbiterImplTest : public AlignedBufferTest {
 
   bool IsArbiterFullyBound() { return arbiter_->fully_bound_; }
 
+  void CommitDataWithSplitting(std::unique_ptr<CommitDataRequest> req,
+                               std::function<void()> callback) {
+    arbiter_->CommitDataWithSplitting(std::move(req), std::move(callback));
+  }
+
   void TearDown() override {
     arbiter_.reset();
     task_runner_.reset();
@@ -321,6 +326,91 @@ TEST_P(SharedMemoryArbiterImplTest, ScrapeEmulatedSharedMemoryBuffer) {
   // Scraping must not disturb the chunk: the writer still owns it.
   ASSERT_EQ(SharedMemoryABI::kChunkBeingWritten,
             abi->GetChunkState(page_idx, chunk_idx));
+}
+
+// Regression test for https://github.com/google/perfetto/issues/6426.
+// In shmem emulation mode the chunk data is inlined into the CommitDataRequest
+// and sent over an IPC socket. Frames larger than |kIPCBufferSize| (128 KB) are
+// rejected by the receiver with "IPC Frame too large", which eventually
+// disconnects the producer. CommitDataWithSplitting is meant to split large
+// requests to stay under that limit, but it used to account only for the moved
+// chunk data and ignore the size of the appended |chunks_to_patch|. A request
+// whose moved chunks nearly fill the buffer and which also carries a realistic
+// number of patches therefore serialized larger than the limit.
+TEST_P(SharedMemoryArbiterImplTest, CommitDataSplittingHonorsIpcBufferSize) {
+  // Mirror of the anonymous-namespace kMaxCommitDataRequestChunkSize in
+  // shared_memory_arbiter_impl.cc: ipc::kIPCBufferSize (128 KB) minus 512 bytes
+  // of headroom for the IPC Frame that wraps the request. This is the budget
+  // the splitting logic must keep each emitted request under.
+  constexpr size_t kMaxCommitDataRequestChunkSize = 128 * 1024 - 512;
+
+  arbiter_.reset(new SharedMemoryArbiterImpl(
+      buf(), buf_size(), ShmemMode::kShmemEmulation, page_size(),
+      &mock_producer_endpoint_, task_runner_.get()));
+
+  auto req = std::make_unique<CommitDataRequest>();
+
+  // Fill |chunks_to_move| with enough inlined data to nearly fill a single IPC
+  // frame, while staying just under the splitting threshold so that the moved
+  // chunks alone would fit in one request. Each chunk carries a full default
+  // (4 KB) page worth of data. The moved bytes stay under
+  // kMaxCommitDataRequestChunkSize (128 KB - 512), so on their own they would
+  // be sent as a single, unsplit request.
+  constexpr size_t kChunkData = 4096;
+  constexpr size_t kNumChunks = 30;  // 120 KB of chunk payload.
+  const std::string chunk_payload(kChunkData, 'x');
+  for (size_t i = 0; i < kNumChunks; i++) {
+    auto* ctm = req->add_chunks_to_move();
+    ctm->set_page(0);
+    ctm->set_chunk(0);
+    ctm->set_target_buffer(1);
+    ctm->set_data(chunk_payload);
+  }
+
+  // Add a realistic number of patches for chunks committed in earlier requests.
+  // Each ChunkToPatch normally carries a single 4-byte patch, but a busy
+  // producer with hundreds of threads can accumulate thousands of them within a
+  // single flush period.
+  const std::string patch_data(4, 'p');
+  for (uint32_t i = 0; i < 2000; i++) {
+    auto* ctp = req->add_chunks_to_patch();
+    ctp->set_target_buffer(1);
+    ctp->set_writer_id(1);
+    ctp->set_chunk_id(i);
+    auto* patch = ctp->add_patches();
+    patch->set_offset(0);
+    patch->set_data(patch_data);
+  }
+
+  // Capture every request emitted by the splitting logic. None of them must
+  // exceed what the IPC layer is willing to receive, and together they must
+  // carry all the moves and patches from the original request.
+  std::vector<size_t> emitted_sizes;
+  size_t total_moves = 0;
+  size_t total_patches = 0;
+  size_t flush_ids = 0;
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillRepeatedly([&](const CommitDataRequest& r,
+                          MockProducerEndpoint::CommitDataCallback) {
+        emitted_sizes.push_back(r.SerializeAsString().size());
+        total_moves += r.chunks_to_move().size();
+        total_patches += r.chunks_to_patch().size();
+        flush_ids += r.has_flush_request_id() ? 1 : 0;
+      });
+
+  CommitDataWithSplitting(std::move(req), [] {});
+
+  ASSERT_FALSE(emitted_sizes.empty());
+  for (size_t size : emitted_sizes) {
+    EXPECT_LE(size, kMaxCommitDataRequestChunkSize)
+        << "emitted commit data request exceeds the IPC frame size limit";
+  }
+
+  // The splitting must be lossless: every move and patch is delivered exactly
+  // once, and the flush id is stamped on exactly one request.
+  EXPECT_EQ(total_moves, kNumChunks);
+  EXPECT_EQ(total_patches, 2000u);
+  EXPECT_EQ(flush_ids, 1u);
 }
 
 // Check that we can create up to many TraceWriter(s).
