@@ -59,10 +59,8 @@ using trace_processor::Iterator;
 constexpr const char* kQueryUnsymbolized =
     R"(
       select
-        spm.name,
-        spm.build_id,
-        spf.rel_pc,
-        spm.load_bias
+        spm.id,
+        spf.rel_pc
       from __intrinsic_stack_profile_frame spf
       join __intrinsic_stack_profile_mapping spm on spf.mapping = spm.id
       where (
@@ -87,34 +85,58 @@ constexpr const char* kQueryMappingsWithoutBuildId =
       group by spm.name
     )";
 
-struct UnsymbolizedMapping {
-  std::string name;
-  std::string build_id;
-  uint64_t load_bias;
-  bool operator<(const UnsymbolizedMapping& o) const {
-    return std::tie(name, build_id, load_bias) <
-           std::tie(o.name, o.build_id, o.load_bias);
-  }
+struct UnsymbolizedFrames {
+  UnsymbolizedMapping mapping;
+  std::vector<uint64_t> rel_pc;
 };
 
-std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
+std::optional<UnsymbolizedMapping> GetMapping(
+    trace_processor::TraceProcessor* tp,
+    int64_t id) {
+  Iterator it = tp->ExecuteQuery(R"(
+      SELECT build_id, name, exact_offset, start_offset, load_bias
+      FROM __intrinsic_stack_profile_mapping WHERE id = )" +
+                                 std::to_string(id));
+  if (!it.Next()) {
+    return std::nullopt;
+  }
+
+  trace_processor::BuildId build_id =
+      trace_processor::BuildId::FromHex(it.Get(0).AsString());
+  std::string name = it.Get(1).AsString();
+  uint64_t exact_offset = static_cast<uint64_t>(it.Get(2).AsLong());
+  uint64_t start_offset = static_cast<uint64_t>(it.Get(3).AsLong());
+  int64_t load_bias = it.Get(4).AsLong();
+  PERFETTO_CHECK(load_bias >= 0);
+
+  return UnsymbolizedMapping{build_id.raw(), name, exact_offset, start_offset,
+                             static_cast<uint64_t>(load_bias)};
+}
+
+std::vector<UnsymbolizedFrames> GetUnsymbolizedFrames(
     trace_processor::TraceProcessor* tp) {
-  std::map<UnsymbolizedMapping, std::vector<uint64_t>> res;
+  std::map<int64_t, std::vector<uint64_t>> unsymbolized;
   Iterator it = tp->ExecuteQuery(kQueryUnsymbolized);
   while (it.Next()) {
-    int64_t load_bias = it.Get(3).AsLong();
-    PERFETTO_CHECK(load_bias >= 0);
-    trace_processor::BuildId build_id =
-        trace_processor::BuildId::FromHex(it.Get(1).AsString());
-    UnsymbolizedMapping unsymbolized_mapping{
-        it.Get(0).AsString(), build_id.raw(), static_cast<uint64_t>(load_bias)};
-    int64_t rel_pc = it.Get(2).AsLong();
-    res[unsymbolized_mapping].emplace_back(rel_pc);
+    int64_t mapping_id = it.Get(0).AsLong();
+    int64_t rel_pc = it.Get(1).AsLong();
+    unsymbolized[mapping_id].emplace_back(rel_pc);
   }
   if (!it.Status().ok()) {
     PERFETTO_DFATAL_OR_ELOG("Invalid iterator: %s",
                             it.Status().message().c_str());
     return {};
+  }
+
+  std::vector<UnsymbolizedFrames> res;
+
+  for (auto it = unsymbolized.begin(); it != unsymbolized.end(); ++it) {
+    std::optional<UnsymbolizedMapping> mapping = GetMapping(tp, it->first);
+    if (!mapping) {
+      continue;
+    }
+    res.push_back(
+        UnsymbolizedFrames{std::move(*mapping), std::move(it->second)});
   }
   return res;
 }
@@ -181,9 +203,8 @@ SymbolizationOutput SymbolizeDatabaseWithSymbolizer(
   SymbolizationOutput output;
   for (const auto& [unsymbolized_mapping, rel_pcs] : unsymbolized) {
     uint32_t frame_count = static_cast<uint32_t>(rel_pcs.size());
-    SymbolizeResult res = symbolizer->Symbolize(
-        env, unsymbolized_mapping.name, unsymbolized_mapping.build_id,
-        unsymbolized_mapping.load_bias, rel_pcs);
+    SymbolizeResult res =
+        symbolizer->Symbolize(env, unsymbolized_mapping, rel_pcs);
     if (res.frames.empty()) {
       // Record the failed mapping with all attempted paths.
       if (!res.attempts.empty()) {

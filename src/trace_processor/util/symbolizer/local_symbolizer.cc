@@ -31,6 +31,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -85,24 +86,28 @@ bool InRange(const void* base,
 }
 
 template <typename E>
-std::optional<std::pair<uint64_t, uint64_t>> GetElfPVAddrPOffset(void* mem,
-                                                                 size_t size) {
+typename E::Phdr* FindFirstExecutableSegment(void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
     PERFETTO_ELOG("Corrupted ELF.");
-    return std::nullopt;
+    return nullptr;
   }
+  // Note debug-symbols-only ELF files might not have any program header at all,
+  // and we would need to do the load_bias adjustment computations using the
+  // segments instead. Luckily so far we did not run into this situation but
+  // what happens is that those ELF files have an adjusted p_offest instead
+  // (that we need to take care of in `ComputeUserSpaceAddressCorrection`).
   for (size_t i = 0; i < ehdr->e_phnum; ++i) {
     typename E::Phdr* phdr = GetPhdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, phdr, sizeof(typename E::Phdr))) {
       PERFETTO_ELOG("Corrupted ELF.");
-      return std::nullopt;
+      return nullptr;
     }
     if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
-      return std::make_pair(phdr->p_vaddr, phdr->p_offset);
+      return phdr;
     }
   }
-  return std::make_pair(0, 0);
+  return nullptr;
 }
 
 template <typename E>
@@ -211,9 +216,8 @@ struct segment_64_command {
 };
 
 struct BinaryInfo {
-  std::string build_id;
-  uint64_t p_vaddr;
-  uint64_t p_offset;
+  std::optional<std::string> build_id;
+  std::optional<LoadInfo> load_info;
   BinaryType type;
 };
 
@@ -264,9 +268,43 @@ std::optional<BinaryInfo> GetMachOBinaryInfo(char* mem, size_t size) {
     constexpr uint32_t MH_DSYM = 0xa;
     BinaryType type = header.filetype == MH_DSYM ? BinaryType::kMachODsym
                                                  : BinaryType::kMachO;
-    return BinaryInfo{*build_id, vaddr, 0, type};
+    return BinaryInfo{build_id, LoadInfo{vaddr, 0, 0}, type};
   }
   return {};
+}
+
+template <typename T>
+bool IsPowerOfTwo(T x) {
+  static_assert(std::is_unsigned_v<T> && std::is_integral_v<T>,
+                "T must be an unsigned integer");
+  return x != 0 && (x & (x - 1)) == 0;
+}
+
+template <typename E>
+std::optional<BinaryInfo> ElfToBinaryInfo(char* mem, size_t size) {
+  std::optional<std::string> build_id = GetElfBuildId<E>(mem, size);
+  typename E::Phdr* phdr = FindFirstExecutableSegment<E>(mem, size);
+
+  if (!phdr) {
+    return BinaryInfo{
+        build_id,
+        std::nullopt,
+        BinaryType::kElf,
+    };
+  }
+
+  // p_aling can only be 0, 1 (no alignment requirement) or a power of two.
+  if (phdr->p_align != 0 && !IsPowerOfTwo(phdr->p_align)) {
+    PERFETTO_DLOG("Invalid p_aling value: %" PRIu64,
+                  static_cast<uint64_t>(phdr->p_align));
+    return std::nullopt;
+  }
+
+  return BinaryInfo{
+      build_id,
+      LoadInfo{phdr->p_vaddr, phdr->p_offset, phdr->p_align},
+      BinaryType::kElf,
+  };
 }
 
 std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
@@ -280,28 +318,14 @@ std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
   }
   char* mem = static_cast<char*>(map.data());
 
-  std::optional<std::string> build_id;
-  std::optional<std::pair<uint64_t, uint64_t>> vaddr_and_offset;
   if (IsElf(mem, size)) {
     switch (mem[EI_CLASS]) {
       case ELFCLASS32:
-        build_id = GetElfBuildId<Elf32>(mem, size);
-        vaddr_and_offset = GetElfPVAddrPOffset<Elf32>(mem, size);
-        break;
+        return ElfToBinaryInfo<Elf32>(mem, size);
       case ELFCLASS64:
-        build_id = GetElfBuildId<Elf64>(mem, size);
-        vaddr_and_offset = GetElfPVAddrPOffset<Elf64>(mem, size);
-        break;
+        return ElfToBinaryInfo<Elf64>(mem, size);
       default:
         return std::nullopt;
-    }
-    if (build_id && vaddr_and_offset) {
-      return BinaryInfo{
-          *build_id,
-          vaddr_and_offset->first,
-          vaddr_and_offset->second,
-          BinaryType::kElf,
-      };
     }
   } else if (IsMachO64(mem, size)) {
     return GetMachOBinaryInfo(mem, size);
@@ -335,20 +359,27 @@ void ProcessBinaryFile(const char* fname,
   }
   std::optional<BinaryInfo> binary_info = GetBinaryInfo(fname, size);
   if (!binary_info) {
+    PERFETTO_DLOG("Failed to extract binary info from %s.", fname);
+    return;
+  }
+  if (!binary_info->build_id) {
     PERFETTO_DLOG("Failed to extract build id from %s.", fname);
     return;
   }
+  if (!binary_info->load_info) {
+    PERFETTO_DLOG("Failed to extract load info from %s.", fname);
+    return;
+  }
   auto [it, inserted] =
-      result.emplace(binary_info->build_id, FoundBinary{
-                                                fname,
-                                                binary_info->p_vaddr,
-                                                binary_info->p_offset,
-                                                binary_info->type,
-                                            });
+      result.emplace(*binary_info->build_id, FoundBinary{
+                                                 fname,
+                                                 *binary_info->load_info,
+                                                 binary_info->type,
+                                             });
 
   if (inserted) {
     PERFETTO_DLOG("Indexed: %s (%s)", fname,
-                  base::ToHex(binary_info->build_id).c_str());
+                  base::ToHex(*binary_info->build_id).c_str());
     return;
   }
 
@@ -358,12 +389,11 @@ void ProcessBinaryFile(const char* fname,
   if (it->second.type == BinaryType::kMachO &&
       binary_info->type == BinaryType::kMachODsym) {
     PERFETTO_LOG("Overwriting index entry for %s to %s.",
-                 base::ToHex(binary_info->build_id).c_str(), fname);
-    it->second = FoundBinary{fname, binary_info->p_vaddr, binary_info->p_offset,
-                             binary_info->type};
+                 base::ToHex(*binary_info->build_id).c_str(), fname);
+    it->second = FoundBinary{fname, *binary_info->load_info, binary_info->type};
   } else {
     PERFETTO_DLOG("Ignoring %s, index entry for %s already exists.", fname,
-                  base::ToHex(binary_info->build_id).c_str());
+                  base::ToHex(*binary_info->build_id).c_str());
   }
 }
 
@@ -589,11 +619,12 @@ std::optional<FoundBinary> IsCorrectFile(
       GetBinaryInfo(symbol_file.c_str(), size);
   if (!binary_info)
     return std::nullopt;
+  if (!binary_info->load_info)
+    return std::nullopt;
   if (build_id && binary_info->build_id != *build_id) {
     return std::nullopt;
   }
-  return FoundBinary{symbol_file, binary_info->p_vaddr, binary_info->p_offset,
-                     binary_info->type};
+  return FoundBinary{symbol_file, *binary_info->load_info, binary_info->type};
 }
 
 // Try a path and record the attempt.
@@ -930,15 +961,65 @@ std::vector<SymbolPathAttempt> ToSymbolPathAttempts(
   }
   return result;
 }
+
+// `llvm-symbolizer` expects us to provide vaddr values (also called in this
+// code base relative pc). These are addresses relative to the preferred load
+// address passed to the linker in the ELF program header. The `rel_pc` values
+// in the `__intrinsic_stack_profile_frame` table have been converted from
+// absolute addresses (the acutal address in the program counter address of the
+// CPU) using the `start`, `exact_offset`, `start_offset` and `load_bias` values
+// in `__intrinsic_stack_profile_mapping`. But there are multiple situations
+// were this conversion is wrong and we need to adjust it:
+//   - On Android 10, there was a bug in libunwindstack that would incorrectly
+//     calculate the load_bias, and thus the relative PC. This would end up in
+//     frames that made no sense. We can fix this up after the fact if we
+//     detect this situation (comparing the stored load_bias vs the computed one
+//     from the binary).
+//   - When reading perf (or simpleperf) files we do not get `load_bias`
+//     information so we set the value to zero in
+//     `__intrinsic_stack_profile_mapping`. This gives us an incorrect value for
+//     `rel_pc`.
+//
+uint64_t ComputeUserSpaceAddressCorrection(
+    const UnsymbolizedMapping& runtime_mapping,
+    const FoundBinary& binary) {
+  if (binary.type != BinaryType::kElf) {
+    return 0;
+  }
+
+  const LoadInfo& load_info = binary.load_info;
+
+  // We need the relative offset to the start of the ELF. For perf and
+  // simpleperf `start_offset` is 0, but libunwindstack in traced_perf might set
+  // it to non zero e.g. for shared libraries in APKs
+  uint64_t offset = runtime_mapping.exact_offset - runtime_mapping.start_offset;
+
+  // We need to redo the runtime loaders work here to figure out the load bias.
+  // Note we can not trust the p_offset value in `load_info` as
+  // debug-symbol-only binaries have "invalid" (as in not the same as binaries
+  // with the executable code) values. So we use the runtime offset instead.
+  // p_vaddr and p_offset must have congruent values, modulo `p_align`.
+  // Attention: p_align can be 0 (means no aligment required)
+  uint64_t adj_vaddr =
+      base::AlignDown(load_info.p_vaddr, std::max(load_info.p_align, 1ULL));
+  uint64_t adj_offset =
+      base::AlignDown(offset, std::max(load_info.p_align, 1ULL));
+  uint64_t real_load_bias = adj_vaddr - adj_offset;
+
+  if (real_load_bias > runtime_mapping.load_bias) {
+    return real_load_bias - runtime_mapping.load_bias;
+  }
+
+  return 0;
+}
+
 }  // namespace
 
 SymbolizeResult LocalSymbolizer::Symbolize(
     const Environment& env,
-    const std::string& mapping_name,
-    const std::string& build_id,
-    uint64_t load_bias,
+    const UnsymbolizedMapping& mapping,
     const std::vector<uint64_t>& addresses) {
-  bool is_kernel = base::StartsWith(mapping_name, "[kernel.kallsyms]");
+  bool is_kernel = base::StartsWith(mapping.name, "[kernel.kallsyms]");
   std::optional<FoundBinary> binary;
   std::vector<BinaryPathAttempt> binary_attempts;
   if (is_kernel) {
@@ -946,7 +1027,8 @@ SymbolizeResult LocalSymbolizer::Symbolize(
       binary = FindKernelBinary(*env.os_release, binary_attempts);
     }
   } else {
-    BinaryLookupResult lookup = finder_->FindBinary(mapping_name, build_id);
+    BinaryLookupResult lookup =
+        finder_->FindBinary(mapping.name, mapping.build_id);
     binary = std::move(lookup.binary);
     binary_attempts = std::move(lookup.attempts);
   }
@@ -955,30 +1037,20 @@ SymbolizeResult LocalSymbolizer::Symbolize(
   if (!binary) {
     return {{}, std::move(attempts)};
   }
-  uint64_t binary_load_bias = binary->p_vaddr - binary->p_offset;
-  uint64_t addr_correction = 0;
-  if (is_kernel) {
-    // We expect this branch to be hit when symbolizing kernel frames with Linux
-    // perf (*not* simpleperf). In that case, we need to add the vaddr
-    // because llvm-symbolizer expects that we provide absolute addresses unlike
-    // all other files where it expects relative addresses.
-    addr_correction = binary->p_vaddr;
-  } else if (binary->p_offset > 0 && binary_load_bias > load_bias) {
-    // On Android 10, there was a bug in libunwindstack that would incorrectly
-    // calculate the load_bias, and thus the relative PC. This would end up in
-    // frames that made no sense. We can fix this up after the fact if we
-    // detect this situation.
-    //
-    // Note that the `binary->p_offset > 0` check above accounts for perf.data
-    // files: in those, load_bias from the trace is always zero but we should
-    // *not* enter this codepath. Thankfully, in those cases `p_offset` is zero:
-    // symbol elfs always seem to have the text segment's `p_offset` zeroed out.
-    // Whereas with libunwindstack, `p_offset` should always be greater than
-    // zero.
-    addr_correction = (binary->p_vaddr - binary->p_offset) - load_bias;
+
+  const LoadInfo& load_info = binary->load_info;
+  uint64_t addr_correction =
+      // When symbolizing kernel frames from Linux perf (*not* simpleperf) we
+      // need to add the vaddr because llvm-symbolizer expects that we provide
+      // absolute addresses unlike all other files where it expects relative
+      // addresses.
+      is_kernel ? load_info.p_vaddr
+                : ComputeUserSpaceAddressCorrection(mapping, *binary);
+  if (addr_correction != 0) {
     PERFETTO_DLOG("Correcting load bias by %" PRIu64 " for %s", addr_correction,
-                  mapping_name.c_str());
+                  mapping.name.c_str());
   }
+
   SymbolizeResult result;
   result.frames.reserve(addresses.size());
   for (uint64_t address : addresses) {
