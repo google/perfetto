@@ -15265,9 +15265,11 @@ message InternedData {
   // protos/third_party/android/connectivity/network_trace.proto
   //   30: NetworkPacketContext packet_context
   //
-  // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto
+  // protos/third_party/android/frameworks/native/tracing/frameworks_native_interned_data.proto
   //   36: InternedString protolog_string_args
   //   37: InternedString protolog_stacktrace
+  //
+  // protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto
   //   38: InternedString viewcapture_package_name
   //   39: InternedString viewcapture_window_name
   //   40: InternedString viewcapture_view_id
