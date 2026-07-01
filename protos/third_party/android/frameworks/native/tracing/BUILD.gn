@@ -26,5 +26,8 @@ perfetto_proto_library("frameworks_native_trace_packet_@TYPE@") {
 
 perfetto_proto_library("frameworks_native_interned_data_@TYPE@") {
   sources = [ "frameworks_native_interned_data.proto" ]
-  public_deps = [ "../../../../../perfetto/trace:non_minimal_@TYPE@" ]
+  public_deps = [
+    "../../../../../perfetto/trace:non_minimal_@TYPE@",
+    "../../../../../perfetto/trace/interned_data:@TYPE@",
+  ]
 }
