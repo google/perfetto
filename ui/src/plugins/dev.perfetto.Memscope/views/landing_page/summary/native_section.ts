@@ -34,6 +34,7 @@ import {Intent} from '../../../../../widgets/common';
 import {deltaText, formatBytes, formatDelta, statCard} from '../mem_format';
 import {Ratio} from '../../../components/ratio';
 import {ShareBar} from '../../../components/share_bar';
+import {findProcessTrack, showInTimelineLink} from '../process_links';
 import {emptyPanel, loadingPanel, topTable} from '../section_widgets';
 import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
@@ -374,6 +375,12 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
       m(Panel.Header, {
         title: TITLE,
         subtitle: SUBTITLE,
+        controls: showInTimelineLink(
+          trace,
+          findProcessTrack(trace, upid, (k) => k.startsWith('heap_profile:'))
+            ?.uri,
+          data.eventId,
+        ),
       }),
       m(
         Panel.Body,

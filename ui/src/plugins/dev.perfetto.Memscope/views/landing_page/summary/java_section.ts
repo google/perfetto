@@ -35,6 +35,7 @@ import {
   statCard,
 } from '../mem_format';
 import {Ratio} from '../../../components/ratio';
+import {findProcessTrack, showInTimelineLink} from '../process_links';
 import {nearestByTs} from '../selection';
 import {
   classNameCell,
@@ -648,17 +649,24 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
       m(Panel.Header, {
         title: TITLE,
         subtitle: SUBTITLE,
-        controls: m(
-          Anchor,
-          {
-            disabled: true,
-            title:
-              'Direct linking to specific heap dumps in HDE is not yet ' +
-              'supported',
-            icon: Icons.ExternalLink,
-          },
-          'Show in Heap Dump Explorer',
-        ),
+        controls: [
+          showInTimelineLink(
+            trace,
+            findProcessTrack(trace, upid, (k) => k === 'java_heap_graph')?.uri,
+            cur.eventId,
+          ),
+          m(
+            Anchor,
+            {
+              disabled: true,
+              title:
+                'Direct linking to specific heap dumps in HDE is not yet ' +
+                'supported',
+              icon: Icons.ExternalLink,
+            },
+            'Show in Heap Dump Explorer',
+          ),
+        ],
       }),
       m(
         Panel.Body,

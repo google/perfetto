@@ -26,11 +26,13 @@ import {
   type FlamegraphChartSegment,
 } from '../../../../../components/widgets/charts/flamegraph_chart';
 import type {Trace} from '../../../../../public/trace';
+import {SMAPS_TRACK_KIND} from '../../../../../public/track_kinds';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
 import {Callout} from '../../../components/callout';
 import {Intent} from '../../../../../widgets/common';
 import {Panel} from '../../../components/panel';
 import {deltaText, formatBytes, formatDelta} from '../mem_format';
+import {findProcessTrack, showInTimelineLink} from '../process_links';
 import {nearestByTs} from '../selection';
 import {emptyPanel, loadingPanel} from '../section_widgets';
 import {
@@ -264,11 +266,18 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
       insight.push('.');
     }
 
+    const smapsTrackNode = findProcessTrack(
+      trace,
+      upid,
+      (k) => k === SMAPS_TRACK_KIND,
+    );
+
     return m(
       Panel,
       m(Panel.Header, {
         title: TITLE,
         subtitle,
+        controls: showInTimelineLink(trace, smapsTrackNode?.uri, snap.eventId),
       }),
       m(
         Panel.Body,
