@@ -93,6 +93,11 @@ inline constexpr size_t AlignUp(size_t size, size_t alignment) {
   return (size + alignment - 1) & ~(alignment - 1);
 }
 
+// Round down |size| to a multiple of |alignment| (must be a power of two).
+inline constexpr size_t AlignDown(size_t size, size_t alignment) {
+  return size & ~(alignment - 1);
+}
+
 // TODO(primiano): clean this up and move all existing usages to the constexpr
 // version above.
 template <size_t alignment>
