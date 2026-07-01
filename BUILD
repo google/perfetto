@@ -10241,6 +10241,7 @@ perfetto_proto_library(
         ":protos_perfetto_trace_translation_protos",
     ],
     exports = [
+        ":protos_perfetto_trace_interned_data_protos",
         ":protos_perfetto_trace_non_minimal_protos",
     ],
 )
