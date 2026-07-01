@@ -44,7 +44,11 @@ WITH
       sum(size) AS net_size,
       sum(max(size, 0)) AS alloc_size
     FROM heap_profile_allocation
-    GROUP BY upid, heap_name, ts, callsite_id
+    GROUP BY
+      upid,
+      heap_name,
+      ts,
+      callsite_id
   ),
   dumps AS (
     SELECT
@@ -56,7 +60,10 @@ WITH
       sum(alloc_size) AS allocated,
       sum(net_size) AS delta
     FROM per_callsite
-    GROUP BY upid, heap_name, ts
+    GROUP BY
+      upid,
+      heap_name,
+      ts
   ),
   with_start AS (
     SELECT
@@ -72,19 +79,15 @@ WITH
       -- zero-duration instant (ts = ts_end) instead of inverting.
       min(
         lag(ts_end, 1, trace_start()) OVER (
-          PARTITION BY upid, heap_name ORDER BY ts_end
-        ) + 1,
+          PARTITION BY
+            upid,
+            heap_name
+          ORDER BY ts_end
+        )
+        + 1,
         ts_end
       ) AS ts
     FROM dumps
   )
-SELECT
-  id,
-  upid,
-  heap_name,
-  ts,
-  ts_end - ts AS dur,
-  retained,
-  allocated,
-  delta
+SELECT id, upid, heap_name, ts, ts_end - ts AS dur, retained, allocated, delta
 FROM with_start;

@@ -118,31 +118,17 @@ function profileHelp(descriptor: ProfileDescriptor): m.Children {
   ]);
 }
 
-// Header title with a help affordance. Opens on hover, but is a controlled
-// Popup rather than a hover Tooltip so it stays open when the pointer moves onto
-// it and the docs link inside stays clickable. A short close delay bridges the
-// gap between the icon and the popup body.
+// Header title with a help affordance. Hovering the icon shows the help as a
+// transient preview (it disappears as soon as the pointer leaves the icon, so
+// you cannot reach the docs link). Clicking the icon pins the popup open, so it
+// persists and its link becomes clickable, until dismissed by clicking away or
+// clicking the icon again.
 function HeapProfileTitleHelp(): m.Component<{
   label: string;
   help: m.Children;
 }> {
-  let isOpen = false;
-  let closeTimer: ReturnType<typeof setTimeout> | undefined;
-  const open = () => {
-    if (closeTimer !== undefined) {
-      clearTimeout(closeTimer);
-      closeTimer = undefined;
-    }
-    isOpen = true;
-  };
-  const scheduleClose = () => {
-    if (closeTimer !== undefined) clearTimeout(closeTimer);
-    closeTimer = setTimeout(() => {
-      isOpen = false;
-      closeTimer = undefined;
-      m.redraw();
-    }, 200);
-  };
+  let pinned = false;
+  let hovering = false;
   return {
     view: ({attrs}) =>
       m(
@@ -151,17 +137,31 @@ function HeapProfileTitleHelp(): m.Component<{
         m(
           Popup,
           {
-            isOpen,
-            onChange: (shouldOpen) => (isOpen = shouldOpen),
+            isOpen: pinned || hovering,
+            onChange: (shouldOpen) => {
+              // The popup itself only ever asks to close (outside click /
+              // escape); honour it by clearing both states.
+              if (!shouldOpen) {
+                pinned = false;
+                hovering = false;
+              }
+            },
             position: PopupPosition.Bottom,
             trigger: m(Icon, {
               className: 'pf-heap-profile-title-help__icon',
               icon: 'help_outline',
-              onmouseenter: open,
-              onmouseleave: scheduleClose,
+              onmouseenter: () => {
+                hovering = true;
+              },
+              onmouseleave: () => {
+                hovering = false;
+              },
+              onclick: () => {
+                pinned = !pinned;
+              },
             }),
           },
-          m('div', {onmouseenter: open, onmouseleave: scheduleClose}, attrs.help),
+          attrs.help,
         ),
       ),
   };
