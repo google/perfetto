@@ -100,8 +100,8 @@ working directory (that's the user's workspace, where the trace lives),
 so a bare relative path would resolve against the wrong place.
 `environment-references/setup.md` — the always-required first read —
 tells the agent to set `$SKILL_ROOT` to the directory it loaded
-`SKILL.md` from, and to run the bundled `trace_processor` as
-`python3 $SKILL_ROOT/bin/trace_processor`. Once it's set,
+`SKILL.md` from, and to put the bundled `$SKILL_ROOT/bin` on the
+session's `PATH` so bare `trace_processor` commands work. Once it's set,
 every `$SKILL_ROOT/...` path resolves the same way regardless of the
 working directory, whether the agent is opening a referenced markdown
 file or passing a script to the shell.
