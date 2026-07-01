@@ -26,6 +26,7 @@ import {BitmapsSection} from './summary/bitmaps_section';
 import {CompositionTimeline} from './summary/composition_timeline';
 import {JavaSection} from './summary/java_section';
 import {MemoryMap} from './summary/memory_map';
+import {NativeSection} from './summary/native_section';
 import {TraceOverview} from './summary/trace_overview';
 import './landing_page.scss';
 
@@ -114,6 +115,12 @@ export class ProcessMemDetails
               baseTs: this.selection?.base,
             }),
             m(BitmapsSection, {
+              trace,
+              upid,
+              selTs: this.selection?.sel,
+              baseTs: this.selection?.base,
+            }),
+            m(NativeSection, {
               trace,
               upid,
               selTs: this.selection?.sel,

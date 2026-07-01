@@ -255,3 +255,31 @@ a.pf-memscope-classname {
     }
   }
 }
+
+// Native allocation call stack: frames run leaf → root, top to bottom.
+.pf-memscope-stack {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--pf-font-family-mono, monospace);
+  font-size: var(--pf-font-size-xs);
+  line-height: 1.5;
+  word-break: break-all;
+
+  // Each caller is indented and prefixed with a connector so the chain reads
+  // vertically.
+  .pf-memscope-stack__frame {
+    &:first-child {
+      font-weight: 600;
+    }
+
+    &:not(:first-child) {
+      padding-left: 12px;
+      color: var(--pf-color-text-muted);
+
+      &::before {
+        content: "↳ ";
+        color: var(--pf-color-text-hint);
+      }
+    }
+  }
+}
