@@ -574,6 +574,7 @@ pub const PerfettoTeType_PERFETTO_TE_TYPE_SLICE_BEGIN: PerfettoTeType = 1;
 pub const PerfettoTeType_PERFETTO_TE_TYPE_SLICE_END: PerfettoTeType = 2;
 pub const PerfettoTeType_PERFETTO_TE_TYPE_INSTANT: PerfettoTeType = 3;
 pub const PerfettoTeType_PERFETTO_TE_TYPE_COUNTER: PerfettoTeType = 4;
+pub const PerfettoTeType_PERFETTO_TE_TYPE_STATE: PerfettoTeType = 5;
 pub type PerfettoTeType = ::std::os::raw::c_uint;
 pub const PerfettoTeHlProtoFieldType_PERFETTO_TE_HL_PROTO_TYPE_CSTR: PerfettoTeHlProtoFieldType = 0;
 pub const PerfettoTeHlProtoFieldType_PERFETTO_TE_HL_PROTO_TYPE_BYTES: PerfettoTeHlProtoFieldType =

@@ -18410,6 +18410,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/oome.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/raw_dominator_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/callstacks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/intervals.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/summary_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/lmk.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/memory_breakdown.sql",

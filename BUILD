@@ -1626,6 +1626,7 @@ perfetto_filegroup(
         "include/perfetto/public/protos/trace/trace_packet.pzc.h",
         "include/perfetto/public/protos/trace/track_event/counter_descriptor.pzc.h",
         "include/perfetto/public/protos/trace/track_event/debug_annotation.pzc.h",
+        "include/perfetto/public/protos/trace/track_event/state_descriptor.pzc.h",
         "include/perfetto/public/protos/trace/track_event/track_descriptor.pzc.h",
         "include/perfetto/public/protos/trace/track_event/track_event.pzc.h",
         "include/perfetto/public/protos/trace/trigger.pzc.h",
@@ -3799,6 +3800,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_memory_heap_profile_heap_profile",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/callstacks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/intervals.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/summary_tree.sql",
     ],
 )
@@ -10239,6 +10241,7 @@ perfetto_proto_library(
         ":protos_perfetto_trace_translation_protos",
     ],
     exports = [
+        ":protos_perfetto_trace_interned_data_protos",
         ":protos_perfetto_trace_non_minimal_protos",
     ],
 )

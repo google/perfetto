@@ -77,6 +77,39 @@ class ProfilingHeapProfiling(TestSuite):
         1,-10,2,"unknown",3,1,90
         """))
 
+  # A single dump: retained/allocated/delta are just that dump's totals (both
+  # callsites allocate, nothing freed, so all three coincide).
+  def test_heap_profile_intervals(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_dump_max.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;
+        SELECT heap_name, retained, allocated, delta
+        FROM _android_heap_profile_intervals;
+        """,
+        out=Csv("""
+        "heap_name","retained","allocated","delta"
+        "unknown",1090,1090,1090
+        """))
+
+  # Frees across dumps make retained, allocated and delta all differ. See the
+  # trace for the per-dump breakdown.
+  def test_heap_profile_intervals_frees(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_window_frees.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;
+        SELECT heap_name, retained, allocated, delta
+        FROM _android_heap_profile_intervals
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "heap_name","retained","allocated","delta"
+        "unknown",1000,1000,1000
+        "unknown",1000,1000,0
+        "unknown",0,0,-1000
+        """))
+
   # A dump with start_timestamp populates heap_profile, and allocations join it
   # via (upid, ts = ts_end).
   def test_heap_profile_window(self):
@@ -106,7 +139,7 @@ class ProfilingHeapProfiling(TestSuite):
         """))
 
   # With start_timestamp, the interval comes straight from heap_profile.
-  def test_heap_profile_intervals(self):
+  def test_heap_profile_intervals_window(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_window.textproto'),
         query="""
