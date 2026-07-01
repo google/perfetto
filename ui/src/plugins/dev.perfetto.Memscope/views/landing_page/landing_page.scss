@@ -89,7 +89,6 @@
 .pf-memscope-tabs {
   display: flex;
   gap: 4px;
-  margin-bottom: 12px;
   border-bottom: 1px solid var(--pf-col-border);
 }
 
@@ -130,5 +129,67 @@
     font-weight: 600;
     font-size: var(--pf-font-size-m);
     color: var(--pf-color-text-muted);
+  }
+}
+
+// Empty-state caption shown inside section panels (emptyPanel helper).
+.pf-memscope-landing__empty {
+  margin-block: 48px;
+  color: var(--pf-color-text-muted);
+}
+
+// Memory-composition chart: the line chart plus its snapshot-pill selector and
+// the "compare" badge in the header.
+.pf-memscope-memmap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__badge {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-left: auto;
+    padding: 4px 10px;
+    border: 0.5px solid var(--pf-col-border);
+    border-radius: 6px;
+    background: var(--pf-col-base);
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text);
+
+    .pf-icon {
+      align-self: center;
+      font-size: 14px;
+      color: var(--pf-color-text-muted);
+    }
+  }
+
+  .pf-chip {
+    padding: 2px 6px;
+  }
+
+  // Per-snapshot header for the flamegraph (memory_map), showing the snapshot
+  // index/time, or "diffing #a → #b" in compare mode.
+  &__section-header {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    .pf-memscope-memmap__section-title {
+      font-weight: 600;
+      color: var(--pf-color-text);
+
+      &--diff {
+        color: var(--pf-color-primary);
+      }
+    }
+
+    .pf-memscope-memmap__section-hint {
+      font-size: var(--pf-font-size-s);
+      color: var(--pf-color-text-muted);
+    }
   }
 }
