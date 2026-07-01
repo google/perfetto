@@ -44,7 +44,8 @@ import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
 import {Anchor} from '../../widgets/anchor';
-import {titleWithHelp} from '../../components/distribution_panel';
+import {Icon} from '../../widgets/icon';
+import {Popup, PopupPosition} from '../../widgets/popup';
 import {type ProfileDescriptor, ProfileType} from './common';
 import {
   buildOomeCallstackMetrics,
@@ -115,6 +116,55 @@ function profileHelp(descriptor: ProfileDescriptor): m.Children {
       'Documentation',
     ),
   ]);
+}
+
+// Header title with a help affordance. Opens on hover, but is a controlled
+// Popup rather than a hover Tooltip so it stays open when the pointer moves onto
+// it and the docs link inside stays clickable. A short close delay bridges the
+// gap between the icon and the popup body.
+function HeapProfileTitleHelp(): m.Component<{
+  label: string;
+  help: m.Children;
+}> {
+  let isOpen = false;
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
+  const open = () => {
+    if (closeTimer !== undefined) {
+      clearTimeout(closeTimer);
+      closeTimer = undefined;
+    }
+    isOpen = true;
+  };
+  const scheduleClose = () => {
+    if (closeTimer !== undefined) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      isOpen = false;
+      closeTimer = undefined;
+      m.redraw();
+    }, 200);
+  };
+  return {
+    view: ({attrs}) =>
+      m(
+        'span.pf-heap-profile-title-help',
+        attrs.label,
+        m(
+          Popup,
+          {
+            isOpen,
+            onChange: (shouldOpen) => (isOpen = shouldOpen),
+            position: PopupPosition.Bottom,
+            trigger: m(Icon, {
+              className: 'pf-heap-profile-title-help__icon',
+              icon: 'help_outline',
+              onmouseenter: open,
+              onmouseleave: scheduleClose,
+            }),
+          },
+          m('div', {onmouseenter: open, onmouseleave: scheduleClose}, attrs.help),
+        ),
+      ),
+  };
 }
 
 interface Props {
@@ -206,10 +256,10 @@ export class HeapProfileFlamegraphDetailsPanel
           title: m(
             Stack,
             {orientation: 'vertical'},
-            titleWithHelp(
-              this.profileDescriptor.label,
-              profileHelp(this.profileDescriptor),
-            ),
+            m(HeapProfileTitleHelp, {
+              label: this.profileDescriptor.label,
+              help: profileHelp(this.profileDescriptor),
+            }),
             this.oomeErrorMsg &&
               m('span.pf-heap-profile-oome-error', this.oomeErrorMsg),
           ),

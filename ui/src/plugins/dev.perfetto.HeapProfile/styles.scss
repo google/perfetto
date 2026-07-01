@@ -34,6 +34,19 @@
   }
 }
 
+// Details-panel title with a click-to-open help icon beside it.
+.pf-heap-profile-title-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  &__icon {
+    color: var(--pf-color-foreground-muted);
+    cursor: pointer;
+    font-size: var(--pf-font-size-m);
+  }
+}
+
 // Help content shown by the header help icon in the details panel.
 .pf-heap-profile-help {
   display: flex;
