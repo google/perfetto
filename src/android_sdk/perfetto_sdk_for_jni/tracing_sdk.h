@@ -238,7 +238,7 @@ class RegisteredTrack {
                   const std::string& name,
                   bool is_counter,
                   bool is_name_static_,
-                  bool is_state = false);
+                  bool is_state);
 
   ~RegisteredTrack();
 
