@@ -295,6 +295,41 @@ a.pf-memscope-classname {
   gap: 12px;
 }
 
+// "Where the growth went" bar below the composition chart: label + big signed
+// delta + a per-category ProportionBar. Layout only — the recessed chrome comes
+// from the Inset this class is applied to.
+.pf-memscope-growth {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  &__label {
+    font-size: var(--pf-font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__headline {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  &__delta {
+    font-size: var(--pf-font-size-xl);
+    font-weight: 700;
+    color: var(--pf-color-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__context {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+}
+
 // Small colour swatch marking a smaps category/group.
 .pf-memscope-growth__swatch {
   align-self: center;
