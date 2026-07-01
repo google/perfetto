@@ -47,6 +47,8 @@ export default class implements PerfettoPlugin {
       commandId: MULTI_TRACE_COMMAND_ID,
       section: 'trace_files',
       icon: 'library_books',
+      // Just below "Open trace file" and above everything else.
+      sortOrder: 1.5,
     });
   }
   async onTraceLoad(): Promise<void> {}
