@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {time} from '../../base/time';
@@ -150,46 +151,15 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     await trace.engine.query(
       'INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;',
     );
+    await trace.engine.query(
+      'INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;',
+    );
 
     await createPerfettoTable({
       engine: trace.engine,
       name: EVENT_TABLE_NAME,
       as: `
-        WITH heap_profile_points AS (
-          SELECT
-            MIN(id) as id,
-            ts,
-            upid,
-            heap_name,
-            -- Per-dump deltas scoped to this slice only (NOT cumulative from
-            -- the start of the trace). The native profiler is delta-encoded,
-            -- so a dump's rows are the change since the previous dump: bytes
-            -- allocated in the interval, the net still held afterwards
-            -- (unreleased = allocs - frees), and the number of allocations.
-            -- ART allocation samples have no frees, so allocated == net.
-            SUM(iif(size > 0, size, 0)) AS summary_alloc_size,
-            SUM(size) AS summary_net_size,
-            SUM(iif(count > 0, count, 0)) AS summary_alloc_count
-          FROM heap_profile_allocation
-          GROUP BY ts, upid, heap_name
-        ), heap_profile_slices AS (
-          SELECT
-            id,
-            upid,
-            heap_name,
-            summary_alloc_size,
-            summary_net_size,
-            summary_alloc_count,
-            -- Start just after the previous dump, but never past this dump:
-            -- a dump at trace_start() has no room before it, so collapse to a
-            -- zero-duration instant (ts = ts_end) instead of inverting.
-            MIN(
-              LAG(ts, 1, trace_start()) OVER (PARTITION BY upid, heap_name ORDER BY ts) + 1,
-              ts
-            ) AS ts,
-            ts AS ts_end
-          FROM heap_profile_points
-        ), events AS (
+        WITH events AS (
           -- heap_graph already has exactly one row per dump (with its own id),
           -- so read it directly rather than de-duplicating the much larger
           -- heap_graph_object table down to one row per dump.
@@ -200,24 +170,26 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             0 AS dur,
             0 AS depth,
             'java_heap_graph' AS type,
-            NULL AS summary_alloc_size,
-            NULL AS summary_net_size,
-            NULL AS summary_alloc_count
+            NULL AS retained,
+            NULL AS allocated,
+            NULL AS delta
           FROM heap_graph
 
           UNION ALL
 
+          -- Draw each dump over its profiling interval (see the module). The
+          -- byte totals are surfaced in the slice name / tooltip.
           SELECT
             id,
             ts,
             upid,
-            ts_end - ts AS dur,
+            dur,
             0 AS depth,
             'heap_profile:' || heap_name AS type,
-            summary_alloc_size,
-            summary_net_size,
-            summary_alloc_count
-          FROM heap_profile_slices
+            retained,
+            allocated,
+            delta
+          FROM _android_heap_profile_intervals
 
           UNION ALL
 
@@ -228,9 +200,9 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             0 AS dur,
             0 AS depth,
             'oome_callstack' AS type,
-            NULL AS summary_alloc_size,
-            NULL AS summary_net_size,
-            NULL AS summary_alloc_count
+            NULL AS retained,
+            NULL AS allocated,
+            NULL AS delta
           FROM heap_graph
           WHERE dump_reason = 'OOME'
         )

@@ -43,11 +43,79 @@ import {
 import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
+import {Anchor} from '../../widgets/anchor';
+import {titleWithHelp} from '../../components/distribution_panel';
 import {type ProfileDescriptor, ProfileType} from './common';
 import {
   buildOomeCallstackMetrics,
   loadOomeErrorMsg,
 } from './oome_callstack_common';
+
+const DOCS_NATIVE_HEAP_PROFILER =
+  'https://perfetto.dev/docs/data-sources/native-heap-profiler';
+const DOCS_JAVA_HEAP_PROFILER =
+  'https://perfetto.dev/docs/data-sources/java-heap-profiler';
+
+// Short "what is this / how do I use it" help shown by the header help icon,
+// with a link to the relevant data-source documentation.
+function profileHelp(descriptor: ProfileDescriptor): m.Children {
+  let what: string;
+  let how: string;
+  let docs: string;
+  switch (descriptor.type) {
+    case ProfileType.NATIVE_HEAP_PROFILE:
+      what =
+        'Callstack-sampled native (malloc/free) allocations recorded by ' +
+        'heapprofd over this interval.';
+      how =
+        'Read the flamegraph to attribute unreleased or heavily-allocated ' +
+        'memory to call paths, and switch the metric (retained vs total, ' +
+        'size vs count) with the dropdown.';
+      docs = DOCS_NATIVE_HEAP_PROFILER;
+      break;
+    case ProfileType.JAVA_HEAP_SAMPLES:
+      what =
+        'Callstack-sampled Java/Kotlin allocations recorded by ART over ' +
+        'this interval.';
+      how =
+        'Read the flamegraph to see which call paths allocate the most on ' +
+        'the managed heap.';
+      docs = DOCS_NATIVE_HEAP_PROFILER + '#art-allocation-profiling';
+      break;
+    case ProfileType.GENERIC_HEAP_PROFILE:
+      what =
+        'Callstack-sampled allocations from a custom heapprofd-compatible ' +
+        'allocator over this interval.';
+      how = 'Read the flamegraph to attribute allocations to call paths.';
+      docs = DOCS_NATIVE_HEAP_PROFILER;
+      break;
+    case ProfileType.JAVA_HEAP_GRAPH:
+      what =
+        'A full ART heap dump: the retention graph of live Java/Kotlin ' +
+        'objects at this point in time.';
+      how =
+        'Read the flamegraph to see what retains memory; the "Dominated" ' +
+        'metrics show memory kept alive exclusively by each node.';
+      docs = DOCS_JAVA_HEAP_PROFILER;
+      break;
+    case ProfileType.OOME_CALLSTACK:
+      what = 'The allocation callstack that triggered an OutOfMemoryError.';
+      how =
+        'Read the flamegraph to see the path that pushed the heap over its ' +
+        'limit.';
+      docs = DOCS_JAVA_HEAP_PROFILER;
+      break;
+  }
+  return m('.pf-heap-profile-help', [
+    m('div', what),
+    m('div', how),
+    m(
+      Anchor,
+      {href: docs, target: '_blank', icon: 'open_in_new'},
+      'Documentation',
+    ),
+  ]);
+}
 
 interface Props {
   ts: time;
@@ -138,13 +206,12 @@ export class HeapProfileFlamegraphDetailsPanel
           title: m(
             Stack,
             {orientation: 'vertical'},
-            m('span', this.profileDescriptor.label),
+            titleWithHelp(
+              this.profileDescriptor.label,
+              profileHelp(this.profileDescriptor),
+            ),
             this.oomeErrorMsg &&
-              m(
-                'span',
-                {style: {fontSize: '12px', color: '#ff4081'}},
-                this.oomeErrorMsg,
-              ),
+              m('span.pf-heap-profile-oome-error', this.oomeErrorMsg),
           ),
           buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
             m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),

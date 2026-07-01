@@ -76,3 +76,53 @@ class ProfilingHeapProfiling(TestSuite):
         0,-10,2,"unknown",2,6,1000
         1,-10,2,"unknown",3,1,90
         """))
+
+  # A single dump: retained/allocated/delta are just that dump's totals (both
+  # callsites allocate, nothing freed, so all three coincide).
+  def test_heap_profile_intervals(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_dump_max.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;
+        SELECT heap_name, retained, allocated, delta
+        FROM _android_heap_profile_intervals;
+        """,
+        out=Csv("""
+        "heap_name","retained","allocated","delta"
+        "unknown",1090,1090,1090
+        """))
+
+  # Frees across dumps make retained, allocated and delta all differ. See the
+  # trace for the per-dump breakdown.
+  def test_heap_profile_intervals_frees(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_window_frees.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;
+        SELECT heap_name, retained, allocated, delta
+        FROM _android_heap_profile_intervals
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "heap_name","retained","allocated","delta"
+        "unknown",1000,1000,1000
+        "unknown",1000,1000,0
+        "unknown",0,0,-1000
+        """))
+
+  # A dump's interval falls back to just after the previous dump of the same
+  # heap, so continuous dumps still render as non-zero intervals.
+  def test_heap_profile_intervals_legacy(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_continuous_legacy.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;
+        SELECT heap_name, ts, dur, ts + dur AS ts_end
+        FROM _android_heap_profile_intervals
+        ORDER BY ts_end;
+        """,
+        out=Csv("""
+        "heap_name","ts","dur","ts_end"
+        "unknown",20,0,20
+        "unknown",21,19,40
+        """))
