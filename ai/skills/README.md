@@ -32,8 +32,7 @@ ai/skills/perfetto/
 ├── infra-references/
 │   └── querying.md              # how to run trace_processor + PerfettoSQL
 ├── environment-references/
-│   ├── setup-bundled.md         # setup when trace_processor is plugin-bundled
-│   └── setup-standalone.md      # setup when the agent must fetch the binary
+│   └── setup.md                 # $SKILL_ROOT + the bundled trace_processor
 └── workflows/
     └── android_memory/
         ├── heap_dump.md
@@ -51,8 +50,8 @@ Three kinds of file:
   and any helper scripts under a sibling `scripts/` dir.
 - **`infra-references/*.md`** — domain-agnostic mechanics a workflow
   (or an ad-hoc request) pulls *in*: how to query a trace, etc.
-- **`environment-references/*.md`** — environment-specific setup. The
-  one piece of per-install variance lives here (see below).
+- **`environment-references/*.md`** — environment setup: what to set
+  `$SKILL_ROOT` to and how to invoke the bundled `trace_processor`.
 
 ## The source tree is a build input, not a drop-in
 
@@ -63,17 +62,14 @@ Two source-only conventions mean it has to pass through the bundler
 1. **`SKILL-template.md`, not `SKILL.md`.** The router is named so a
    discovery layer scanning for `SKILL.md` will not pick up the
    unassembled source tree. The bundler renames it to `SKILL.md`.
-2. **Two `setup-*` variants, no `setup.md`.** The router always links
-   to `environment-references/setup.md`, but that file does not exist
-   in source — only the variants do. The bundler selects one and
-   writes it as `setup.md`: `setup-bundled.md` for plugin installs
-   (Claude Code, Codex — `trace_processor` ships in the plugin),
-   `setup-standalone.md` for fallback installs (OpenCode, Antigravity,
-   Pi — the agent fetches the binary itself).
+2. **No `bin/trace_processor` in source.** The setup doc points every
+   `trace_processor` invocation at `$SKILL_ROOT/bin/trace_processor`,
+   but that wrapper is not checked in here — the bundler copies it in
+   from `tools/trace_processor` at build time, so every install
+   (plugin or fallback) carries a working binary inside the skill.
 
-So the only per-environment difference between what each agent gets is
-which setup variant became `setup.md`; everything else is identical.
-See [`ai/extensions/README.md`](../extensions/README.md) for how the
+Every agent gets the identical assembled skill. See
+[`ai/extensions/README.md`](../extensions/README.md) for how the
 assembled bundle reaches end users.
 
 ## Reference other files by `$SKILL_ROOT`-anchored path
@@ -103,9 +99,9 @@ is loaded from a plugin/install directory that is **not** the agent's
 working directory (that's the user's workspace, where the trace lives),
 so a bare relative path would resolve against the wrong place.
 `environment-references/setup.md` — the always-required first read —
-tells the agent what to set `$SKILL_ROOT` to for its install (e.g.
-`$CLAUDE_PLUGIN_ROOT/skills/perfetto` under Claude Code), exactly as it
-already does for the bare `trace_processor` binary. Once it's set,
+tells the agent to set `$SKILL_ROOT` to the directory it loaded
+`SKILL.md` from, and to run the bundled `trace_processor` as
+`python3 $SKILL_ROOT/bin/trace_processor`. Once it's set,
 every `$SKILL_ROOT/...` path resolves the same way regardless of the
 working directory, whether the agent is opening a referenced markdown
 file or passing a script to the shell.
