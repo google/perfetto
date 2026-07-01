@@ -90,7 +90,7 @@ struct UnsymbolizedFrames {
   std::vector<uint64_t> rel_pc;
 };
 
-std::optional<UnsymbolizedMapping> GetMapping(
+std::optional<UnsymbolizedMapping> GetMappingById(
     trace_processor::TraceProcessor* tp,
     int64_t id) {
   Iterator it = tp->ExecuteQuery(R"(
@@ -113,7 +113,7 @@ std::optional<UnsymbolizedMapping> GetMapping(
                              static_cast<uint64_t>(load_bias)};
 }
 
-std::vector<UnsymbolizedFrames> GetUnsymbolizedFrames(
+std::map<int64_t, std::vector<uint64_t>> GetUnsymbolizedFrameIdsByMappingId(
     trace_processor::TraceProcessor* tp) {
   std::map<int64_t, std::vector<uint64_t>> unsymbolized;
   Iterator it = tp->ExecuteQuery(kQueryUnsymbolized);
@@ -127,16 +127,21 @@ std::vector<UnsymbolizedFrames> GetUnsymbolizedFrames(
                             it.Status().message().c_str());
     return {};
   }
+  return unsymbolized;
+}
 
+std::vector<UnsymbolizedFrames> GetUnsymbolizedFrames(
+    trace_processor::TraceProcessor* tp) {
   std::vector<UnsymbolizedFrames> res;
-
-  for (auto it = unsymbolized.begin(); it != unsymbolized.end(); ++it) {
-    std::optional<UnsymbolizedMapping> mapping = GetMapping(tp, it->first);
+  for (auto& entry : GetUnsymbolizedFrameIdsByMappingId(tp)) {
+    int64_t mapping_id = entry.first;
+    std::vector<uint64_t>& frame_ids = entry.second;
+    std::optional<UnsymbolizedMapping> mapping = GetMappingById(tp, mapping_id);
     if (!mapping) {
       continue;
     }
     res.push_back(
-        UnsymbolizedFrames{std::move(*mapping), std::move(it->second)});
+        UnsymbolizedFrames{std::move(*mapping), std::move(frame_ids)});
   }
   return res;
 }

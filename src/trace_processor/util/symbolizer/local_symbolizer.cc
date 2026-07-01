@@ -293,7 +293,7 @@ std::optional<BinaryInfo> ElfToBinaryInfo(char* mem, size_t size) {
     };
   }
 
-  // p_aling can only be 0, 1 (no alignment requirement) or a power of two.
+  // p_align can only be 0, 1 (no alignment requirement) or a power of two.
   if (phdr->p_align != 0 && !IsPowerOfTwo(phdr->p_align)) {
     PERFETTO_DLOG("Invalid p_aling value: %" PRIu64,
                   static_cast<uint64_t>(phdr->p_align));
@@ -1000,10 +1000,9 @@ uint64_t ComputeUserSpaceAddressCorrection(
   // with the executable code) values. So we use the runtime offset instead.
   // p_vaddr and p_offset must have congruent values, modulo `p_align`.
   // Attention: p_align can be 0 (means no aligment required)
-  uint64_t adj_vaddr =
-      base::AlignDown(load_info.p_vaddr, std::max(load_info.p_align, 1ULL));
-  uint64_t adj_offset =
-      base::AlignDown(offset, std::max(load_info.p_align, 1ULL));
+  uint64_t align_to = load_info.p_align == 0 ? 1 : load_info.p_align;
+  uint64_t adj_vaddr = base::AlignDown(load_info.p_vaddr, align_to);
+  uint64_t adj_offset = base::AlignDown(offset, align_to);
   uint64_t real_load_bias = adj_vaddr - adj_offset;
 
   if (real_load_bias > runtime_mapping.load_bias) {
