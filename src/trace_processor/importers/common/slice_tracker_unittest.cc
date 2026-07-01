@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
@@ -79,6 +80,8 @@ class SliceTrackerTest : public ::testing::Test {
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId{0}});
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+    context_.import_logs_tracker =
+        std::make_unique<ImportLogsTracker>(&context_);
   }
 
  protected:
@@ -503,6 +506,26 @@ TEST_F(SliceTrackerTest, OnSliceBeginCallback) {
   EXPECT_THAT(track_records,
               ElementsAre(TrackId{1u}, TrackId{2u}, TrackId{1u}));
   EXPECT_THAT(slice_records, ElementsAre(slice1, slice2, slice3));
+}
+
+TEST_F(SliceTrackerTest, MaxDepthExceeded) {
+  SliceTracker tracker(&context_);
+
+  constexpr TrackId track{1u};
+  StringId name_id = context_.storage->InternString("slice_name");
+  for (uint32_t i = 0; i < 512; ++i) {
+    tracker.Begin(100 + i, track, kNullStringId, name_id);
+  }
+
+  EXPECT_EQ(context_.storage->slice_table().row_count(), 512u);
+  EXPECT_EQ(context_.storage->stats()[stats::slice_max_depth_exceeded], 0);
+
+  // 513th slice exceeds kMaxDepth (512)
+  tracker.Begin(1000, track, kNullStringId, name_id);
+
+  // 513th slice should be dropped, row count remains 512
+  EXPECT_EQ(context_.storage->slice_table().row_count(), 512u);
+  EXPECT_EQ(context_.storage->stats()[stats::slice_max_depth_exceeded], 1);
 }
 
 }  // namespace
