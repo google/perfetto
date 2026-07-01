@@ -17,10 +17,8 @@
 // the delta cell and the single-ratio bar.
 
 import m from 'mithril';
-import {ProportionBar} from '../../../../components/widgets/charts/proportion_bar';
 import {Panel} from '../../components/panel';
 import {Table} from '../../components/table';
-import {Inset} from '../../components/inset';
 import {deltaColor, formatBytes, formatDelta} from './mem_format';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Stack} from '../../../../widgets/stack';
@@ -189,73 +187,4 @@ export function deltaCell(
       delta === undefined ? 'new' : fmt(delta),
     ),
   ];
-}
-
-// Tiny horizontal progress bar used for the "share %" table columns.
-export function shareBar(frac: number): m.Child {
-  const pct = Math.max(0, Math.min(100, frac * 100));
-  return m('.pf-memscope-sharebar', [
-    m(
-      '.pf-memscope-sharebar__track',
-      m('.pf-memscope-sharebar__fill', {style: {width: `${pct}%`}}),
-    ),
-    m('span.pf-memscope-sharebar__pct', `${Math.round(pct)}%`),
-  ]);
-}
-
-// Single-ratio bar (heap reachability, profiler coverage): an uppercase
-// label, a big percentage headline, a two-tone bar and a two-entry legend.
-export function ratioBar(opts: {
-  label: string;
-  tooltip: string;
-  pct: number;
-  headline: string;
-  color: string;
-  aLabel: string;
-  aBytes: number;
-  bLabel: string;
-  bBytes: number;
-  // When comparing, the change in each leg vs the baseline dump. Rendered as
-  // a muted "(±X)" beside the absolute value, and a "Δ … pts" on the headline.
-  aDelta?: number;
-  bDelta?: number;
-  pctDelta?: number;
-}): m.Child {
-  const pct = Math.max(0, Math.min(100, opts.pct));
-  const legDelta = (d?: number) =>
-    d !== undefined &&
-    m(
-      'span.pf-memscope-ratio__legend-change',
-      {style: {color: deltaColor(d)}},
-      ` (${formatDelta(d)})`,
-    );
-  return m(Inset, {className: 'pf-memscope-ratio'}, [
-    m('.pf-memscope-ratio__label', {title: opts.tooltip}, opts.label),
-    m('.pf-memscope-ratio__headline', [
-      m('span.pf-memscope-ratio__pct', `${Math.round(pct)}%`),
-      m('span.pf-memscope-ratio__text', opts.headline),
-      opts.pctDelta !== undefined &&
-        m(
-          'span.pf-memscope-ratio__pct-delta',
-          {style: {color: deltaColor(opts.pctDelta)}},
-          `Δ ${opts.pctDelta >= 0 ? '+' : ''}${Math.round(opts.pctDelta)} pts vs baseline`,
-        ),
-    ]),
-    m(ProportionBar, {
-      segments: [
-        {
-          label: opts.aLabel,
-          weight: pct,
-          color: opts.color,
-          value: [formatBytes(opts.aBytes), legDelta(opts.aDelta)],
-        },
-        {
-          label: opts.bLabel,
-          weight: 100 - pct,
-          color: '#c3c7cc',
-          value: [formatBytes(opts.bBytes), legDelta(opts.bDelta)],
-        },
-      ],
-    }),
-  ]);
 }

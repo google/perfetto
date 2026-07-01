@@ -193,3 +193,65 @@
     }
   }
 }
+
+// Grid of side-by-side top-N tables (the Java / bitmaps section bodies).
+.pf-memscope-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  gap: 8px 32px;
+  align-items: start;
+}
+
+.pf-memscope-toptable {
+  min-width: 0;
+
+  .pf-memscope-toptable__title {
+    margin-bottom: 4px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  .pf-memscope-toptable__subtitle {
+    font-weight: 400;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+// Monospace class-name cell + its "↳ via <owner>" retainer annotation lines.
+.pf-memscope-classname {
+  font-family: var(--pf-font-family-mono, monospace);
+  font-size: var(--pf-font-size-xs);
+}
+
+a.pf-memscope-classname {
+  color: var(--pf-color-primary);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.pf-memscope-classcell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+
+  &__via {
+    font-family: var(--pf-font-family-mono, monospace);
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+  }
+
+  // The via owner is a link too, but it stays in the muted retainer color so the
+  // annotation reads as one line; only the hover underline signals the link.
+  &__vialink {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
