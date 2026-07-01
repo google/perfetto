@@ -820,36 +820,17 @@ HEAP_PROFILE_TABLE = Table(
     sql_name='__intrinsic_heap_profile',
     wrapping_sql_view=WrappingSqlView('heap_profile'),
     columns=[
-        C(
-            'ts',
-            CppInt64(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
-            'ts_end',
-            CppInt64(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
-            'dur',
-            CppInt64(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
-            'upid',
-            CppUint32(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
+        C('ts', CppInt64()),
+        C('ts_end', CppInt64()),
+        C('dur', CppInt64()),
+        C('upid', CppUint32()),
+        C('heap_name', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
         doc='''
-          A list of heap profiles (native heap dumps from heapprofd) captured
-          during the trace. Each row describes the profiling window a single
-          dump represents.
+          A list of heap profiles (heapprofd dumps) captured during the trace.
+          Each row describes the profiling window a single dump represents for a
+          single heap (e.g. the native "libc.malloc" heap or an ART heap).
         ''',
         group='Callstack profilers',
         columns={
@@ -867,6 +848,9 @@ HEAP_PROFILE_TABLE = Table(
             'upid':
                 '''Unique ID of the process whose heap was dumped. Joinable with
                 process.upid.''',
+            'heap_name':
+                '''Name of the heap this dump is for (e.g. "libc.malloc" for the
+                native heap), or NULL if the producer did not report one.''',
         }),
 )
 

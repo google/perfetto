@@ -92,6 +92,7 @@
       "scope": "perfetto.protos.TracePacket",
       "ranges": [
         [56, 56],
+        [76, 76],
         [88, 88],
         [92, 92],
         [93, 94],
@@ -116,6 +117,7 @@
           ],
           "ranges": [
             [56, 56],
+            [76, 76],
             [88, 88],
             [92, 92],
             [93, 94],
@@ -143,8 +145,8 @@
       "scope": "perfetto.protos.InternedData",
       "ranges": [
         [30, 30],
-        [42, 42],
-        [44, 44],
+        [36, 42],
+        [44, 46],
         [1000, 9999]
       ],
       "allocations": [
@@ -159,8 +161,8 @@
           ],
           "ranges": [
             [30, 30],
-            [42, 42],
-            [44, 44],
+            [36, 42],
+            [44, 46],
             [1100, 1999]
           ],
           "registry": "/system/extras/tracing/system_tracing_protos.json",

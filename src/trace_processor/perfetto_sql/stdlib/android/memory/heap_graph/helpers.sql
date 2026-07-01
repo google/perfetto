@@ -15,6 +15,14 @@
 
 INCLUDE PERFETTO MODULE graphs.scan;
 
+-- O(1) lookup from a class type_id to an int64 hash of its display name.
+-- Distinct classes (e.g. the same class loaded by different class loaders)
+-- have distinct type_ids but the same name; hashing the name here lets the
+-- path-hash scan coalesce them while keeping the hot loop purely int64.
+CREATE PERFETTO TABLE _heap_graph_class_name_hash AS
+SELECT id, HASH(coalesce(deobfuscated_name, name)) AS name_hash
+FROM heap_graph_class;
+
 -- Given a table containing a "tree-ified" heap graph object table (i.e.
 -- by using a dominator tree or shortest path algorithm), computes a hash of
 -- the path from the root to each node in the graph based on class names.
@@ -37,36 +45,38 @@ AS (
     (
       SELECT
         t.id,
-        o.type_id as parent_type_id,
+        k.name_hash as parent_name_hash,
         HASH(
           o.upid,
           o.graph_sample_ts,
-          o.type_id,
+          k.name_hash,
           IFNULL(o.root_type, ''),
           IFNULL(o.heap_type, '')
         ) AS path_hash,
         0 AS parent_path_hash
       FROM $tab t
       JOIN heap_graph_object o USING (id)
+      JOIN _heap_graph_class_name_hash k ON o.type_id = k.id
       WHERE t.parent_id IS NULL
     ),
-    (parent_type_id, path_hash, parent_path_hash),
+    (parent_name_hash, path_hash, parent_path_hash),
     (
       SELECT
         t.id,
-        o.type_id as parent_type_id,
+        k.name_hash as parent_name_hash,
         IIF(
-          o.type_id = t.parent_type_id,
+          k.name_hash = t.parent_name_hash,
           t.path_hash,
-          HASH(t.path_hash, o.type_id, IFNULL(o.heap_type, ""))
+          HASH(t.path_hash, k.name_hash, IFNULL(o.heap_type, ""))
         ) AS path_hash,
         IIF(
-          o.type_id = t.parent_type_id,
+          k.name_hash = t.parent_name_hash,
           t.parent_path_hash,
           t.path_hash
         ) AS parent_path_hash
       FROM $table t
       JOIN heap_graph_object o USING (id)
+      JOIN _heap_graph_class_name_hash k ON o.type_id = k.id
     )
   )
   ORDER BY

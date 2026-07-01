@@ -18,8 +18,9 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_MODULE_H_
 
 #include <cstdint>
-#include <set>
+#include <optional>
 #include <utility>
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -70,13 +71,33 @@ class ProfileModule : public ProtoImporterModule {
   void ParseSmapsPacket(int64_t ts, protozero::ConstBytes);
   void ParsePackedSmaps(int64_t ts, UniquePid upid, protozero::ConstBytes);
 
+  // Identifies a heap_profile row: a (process, dump end ts, heap) triple. The
+  // heap name is absent for older producers that don't emit one.
+  struct SeenHeapProfile {
+    UniquePid upid;
+    int64_t window_end;
+    std::optional<StringPool::Id> heap_name;
+
+    bool operator==(const SeenHeapProfile& o) const {
+      return upid == o.upid && window_end == o.window_end &&
+             heap_name == o.heap_name;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H h, const SeenHeapProfile& s) {
+      return H::Combine(std::move(h), s.upid, s.window_end,
+                        s.heap_name.has_value(),
+                        s.heap_name ? s.heap_name->raw_id() : 0u);
+    }
+  };
+
   TraceProcessorContext* context_;
   PerfSampleTracker perf_sample_tracker_;
 
-  // (upid, window end ts) pairs already inserted into the heap_profile table,
-  // so the per-dump row is emitted once despite the dump header repeating
-  // across continued ProfilePackets.
-  std::set<std::pair<UniquePid, int64_t>> seen_heap_profiles_;
+  // heap_profile rows already emitted, so the per-dump row is written once per
+  // heap despite the dump header repeating across continued ProfilePackets.
+  // Used as a set: the value is unused.
+  base::FlatHashMap<SeenHeapProfile, std::nullptr_t> seen_heap_profiles_;
 };
 
 }  // namespace perfetto::trace_processor

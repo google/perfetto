@@ -420,17 +420,28 @@ void ProfileModule::ParseProfilePacket(
     context_->stats_tracker->SetIndexedStats(
         stats::heapprofd_last_profile_timestamp, pid, ts);
 
-    // One heap_profile row per dump, deduped across the continued packets that
-    // repeat the dump header. ts_end is the dump (allocation) timestamp, so
-    // heap_profile_allocation joins via (upid, ts == heap_profile.ts_end).
+    // The heap this dump is for. Older producers (pre aosp/1348782) don't emit
+    // a name; the heap_profile row leaves it null and the allocations below
+    // fall back to "unknown" (for those older traces this was always the native
+    // heap profiler (libc.malloc)).
+    std::optional<StringId> heap_name;
+    if (entry.heap_name().size != 0)
+      heap_name = context_->storage->InternString(entry.heap_name());
+
+    // One heap_profile row per (dump, heap), deduped across the continued
+    // packets that repeat the dump header. ts_end is the dump (allocation)
+    // timestamp, so heap_profile_allocation joins via
+    // (upid, ts == heap_profile.ts_end).
     UniquePid upid = context_->process_tracker->GetOrCreateProcess(
         static_cast<uint32_t>(entry.pid()));
-    if (seen_heap_profiles_.insert({upid, window_end}).second) {
+    if (seen_heap_profiles_.Insert({upid, window_end, heap_name}, nullptr)
+            .second) {
       tables::HeapProfileTable::Row row;
       row.ts = window_start;
       row.ts_end = window_end;
       row.dur = window_end - window_start;
       row.upid = upid;
+      row.heap_name = heap_name;
       context_->storage->mutable_heap_profile_table()->Insert(row);
     }
 
@@ -480,20 +491,17 @@ void ProfileModule::ParseProfilePacket(
     // whether or not we are getting this data from a fixed producer or not.
     bool trustworthy_max_count = entry.orig_sampling_interval_bytes() > 0;
 
+    // Allocations require a concrete heap name; fall back to "unknown" for the
+    // older producers described above.
+    StringId allocation_heap_name =
+        heap_name ? *heap_name : context_->storage->InternString("unknown");
+
     for (auto sample_it = entry.samples(); sample_it; ++sample_it) {
       protos::pbzero::ProfilePacket::HeapSample::Decoder sample(*sample_it);
 
       ProfilePacketSequenceState::SourceAllocation src_allocation;
       src_allocation.pid = entry.pid();
-      if (entry.heap_name().size != 0) {
-        src_allocation.heap_name =
-            context_->storage->InternString(entry.heap_name());
-      } else {
-        // After aosp/1348782 there should be a heap name associated with all
-        // allocations - absence of one is likely a bug (for traces captured
-        // in older builds, this was the native heap profiler (libc.malloc)).
-        src_allocation.heap_name = context_->storage->InternString("unknown");
-      }
+      src_allocation.heap_name = allocation_heap_name;
       src_allocation.timestamp = window_end;
       src_allocation.callstack_id = sample.callstack_id();
       if (sample.has_self_max()) {

@@ -299,9 +299,10 @@ CREATE PERFETTO VIEW heap_graph(
 AS
 SELECT id, ts, upid, dump_reason, heap_size FROM __intrinsic_heap_graph;
 
--- A list of native heap profiles (heapprofd dumps) captured during the trace.
--- Each row describes the profiling window a single dump represents. Joinable
--- with heap_profile_allocation via (upid, heap_profile_allocation.ts = ts_end).
+-- A list of heap profiles (heapprofd dumps) captured during the trace. Each row
+-- describes the profiling window a single dump represents for a single heap.
+-- Joinable with heap_profile_allocation via
+-- (upid, heap_profile_allocation.ts = ts_end).
 CREATE PERFETTO VIEW heap_profile(
   -- Unique identifier for this heap profile instance.
   id ID,
@@ -313,10 +314,13 @@ CREATE PERFETTO VIEW heap_profile(
   -- Duration of the profiling window in nanoseconds (ts_end - ts).
   dur DURATION,
   -- Unique PID of the target.
-  upid JOINID(process.upid)
+  upid JOINID(process.upid),
+  -- Name of the heap this dump is for (e.g. "libc.malloc" for the native heap),
+  -- or NULL if the producer did not report one.
+  heap_name STRING
 )
 AS
-SELECT id, ts, ts_end, dur, upid FROM __intrinsic_heap_profile;
+SELECT id, ts, ts_end, dur, upid, heap_name FROM __intrinsic_heap_profile;
 
 -- Callstack profiles of threads at the time the heap graph was collected.
 CREATE PERFETTO VIEW heap_graph_thread_callsite(

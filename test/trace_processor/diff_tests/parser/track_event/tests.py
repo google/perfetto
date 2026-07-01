@@ -1289,3 +1289,81 @@ class TrackEvent(TestSuite):
         "ThreadState","[NULL]","t1","Browser",2000,"Running"
         "GlobalState","[NULL]","[NULL]","[NULL]",3000,"Active"
         """))
+
+  def test_track_event_state_on_non_state_track(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 101
+            name: "Regular Track"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 101
+            type: 5
+            categories: "cat"
+            name: "High"
+          }
+        }
+        """),
+        query="""
+        SELECT name, value FROM stats WHERE name = 'track_event_parser_errors';
+        """,
+        out=Csv("""
+        "name","value"
+        "track_event_parser_errors",1
+        """))
+
+  def test_track_event_out_of_order_state_descriptors(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 101
+            parent_uuid: 100
+            name: "Priority"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 100
+            name: "Process track"
+            process {
+              pid: 10
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 101
+            type: 5
+            categories: "cat"
+            name: "High"
+          }
+        }
+        """),
+        query="""
+        SELECT state.id, ts, value, track.name AS track_name
+        FROM state
+        JOIN track ON track.id = state.track_id
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "id","ts","value","track_name"
+        0,1000,"High","Priority"
+        """))

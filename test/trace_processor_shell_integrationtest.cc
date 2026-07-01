@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -959,6 +960,142 @@ TEST(TraceProcessorShellIntegrationTest, ClassicBadTraceFileShowsOnlyError) {
   EXPECT_NE(result.exit_code, 0);
   EXPECT_THAT(result.out, Not(HasSubstr("Usage:")));
 }
+
+// ---------------------------------------------------------------------------
+// Subcommand: bundle
+// ---------------------------------------------------------------------------
+
+// This test requires llvm-symbolize on the PATH
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithDebugOnlyLibraries) {
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+
+  auto symbolize = [&](const std::string& in_file,
+                       const std::string& symbol_path) {
+    std::string in_path = base::GetTestDataPath(in_file);
+    std::string lib_path = base::GetTestDataPath(symbol_path);
+
+    auto result =
+        RunShell({"bundle", "--symbol-paths", lib_path, in_path, out_path});
+    if (result.exit_code == 0) {
+      return testing::AssertionSuccess();
+    }
+    return testing::AssertionFailure() << result.out;
+  };
+
+  auto get_stack_at_ts = [&](const std::string& ts) {
+    const std::string query_template = R"(
+    WITH start_callsite AS (
+      SELECT
+        0 AS i,
+        id,
+        parent_id,
+        frame_id
+      FROM
+        stack_profile_callsite
+      WHERE
+        id = (SELECT callsite_id FROM perf_sample WHERE ts = {ts})
+    ), stack AS (
+      SELECT * FROM start_callsite
+      UNION ALL
+      SELECT
+        child.i + 1 AS i,
+        parent.id AS id,
+        parent.parent_id,
+        parent.frame_id
+      FROM
+        stack AS child,
+        STACK_PROFILE_CALLSITE AS parent
+          ON child.parent_id = parent.id
+    ), call_graph AS (
+      SELECT
+        stack.i,
+        sps.id AS symbol_id,
+        COALESCE(sps.name, spf.name) AS name
+      FROM
+        stack,
+        stack_profile_frame AS spf
+          ON (stack.frame_id = spf.id)
+        LEFT JOIN stack_profile_symbol AS sps
+          USING(symbol_set_id)
+    )
+    SELECT GROUP_CONCAT(name ORDER BY i DESC, symbol_id DESC)
+    FROM call_graph;
+    )";
+
+    auto query = WriteTempFile(base::ReplaceAll(query_template, "{ts}", ts));
+    return RunShell({"query", "-f", query.path(), out_path});
+  };
+
+  // traced_perf executable
+  ASSERT_TRUE(symbolize("test/data/traced_perf_no_symbols.pb",
+                        "test/data/simpleperf/bin"));
+  auto query_result = get_stack_at_ts("344782441497");
+  EXPECT_EQ(query_result.exit_code, 0);
+  std::vector<std::string> expected_frames = {
+      "__libc_init",
+      "main",
+      "(anonymous namespace)::DrawGame()",
+      "(anonymous namespace)::DrawPlayer(int)",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // Simpleperf executable
+  ASSERT_TRUE(
+      symbolize("test/data/simpleperf/sdk_example.android.simpleperf.data",
+                "test/data/simpleperf/bin"));
+  query_result = get_stack_at_ts("621365392837983");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "_start_main",
+      "__libc_init",
+      "main",
+      "(anonymous namespace)::DrawGame()",
+      "(anonymous namespace)::DrawPlayer(int)",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // Perf executable
+  ASSERT_TRUE(symbolize("test/data/linux_perf/sdk_example.linux.perf.data",
+                        "test/data/linux_perf/bin"));
+  query_result = get_stack_at_ts("210798493518940");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "main",
+      "(anonymous namespace)::DrawGame()",
+      "(anonymous namespace)::DrawPlayer(int)",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // traced_perf dummy_app
+  ASSERT_TRUE(symbolize("test/data/simpleperf/unsymbolized_app_profile.data",
+                        "test/data/simpleperf/bin"));
+  query_result = get_stack_at_ts("238583681488");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "(anonymous namespace)::A()",
+      "(anonymous namespace)::B()",
+      "(anonymous namespace)::C()",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // Simpleperf dummy_app
+  ASSERT_TRUE(symbolize("test/data/unsymbolized_app_profile.pb",
+                        "test/data/simpleperf/bin"));
+  query_result = get_stack_at_ts("36621314142");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "(anonymous namespace)::A()",
+      "(anonymous namespace)::B()",
+      "(anonymous namespace)::C()",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  unlink(out_path.c_str());
+}
+
+#endif
 
 // ---------------------------------------------------------------------------
 // Classic: --metric-extension with --stdiod
