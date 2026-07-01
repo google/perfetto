@@ -340,8 +340,8 @@ TEST_P(SharedMemoryArbiterImplTest, ScrapeEmulatedSharedMemoryBuffer) {
 TEST_P(SharedMemoryArbiterImplTest, CommitDataSplittingHonorsIpcBufferSize) {
   // Mirror of the anonymous-namespace kMaxCommitDataRequestChunkSize in
   // shared_memory_arbiter_impl.cc: ipc::kIPCBufferSize (128 KB) minus 512 bytes
-  // of headroom for the IPC Frame that wraps the request. This is the budget the
-  // splitting logic must keep each emitted request under.
+  // of headroom for the IPC Frame that wraps the request. This is the budget
+  // the splitting logic must keep each emitted request under.
   constexpr size_t kMaxCommitDataRequestChunkSize = 128 * 1024 - 512;
 
   arbiter_.reset(new SharedMemoryArbiterImpl(
@@ -354,8 +354,8 @@ TEST_P(SharedMemoryArbiterImplTest, CommitDataSplittingHonorsIpcBufferSize) {
   // frame, while staying just under the splitting threshold so that the moved
   // chunks alone would fit in one request. Each chunk carries a full default
   // (4 KB) page worth of data. The moved bytes stay under
-  // kMaxCommitDataRequestChunkSize (128 KB - 512), so on their own they would be
-  // sent as a single, unsplit request.
+  // kMaxCommitDataRequestChunkSize (128 KB - 512), so on their own they would
+  // be sent as a single, unsplit request.
   constexpr size_t kChunkData = 4096;
   constexpr size_t kNumChunks = 30;  // 120 KB of chunk payload.
   const std::string chunk_payload(kChunkData, 'x');

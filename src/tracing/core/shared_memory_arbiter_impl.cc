@@ -706,10 +706,11 @@ void SharedMemoryArbiterImpl::CommitDataWithSplitting(
     new_ctm->set_data(ctm.data());
   }
 
-  // Split the patches too, instead of appending all of them to the last request:
-  // a flush with many patched chunks could otherwise exceed the limit (see
-  // https://github.com/google/perfetto/issues/6426). Patches are applied after
-  // moves and IPC is ordered, so trailing patch requests preserve ordering.
+  // Split the patches too, instead of appending all of them to the last
+  // request: a flush with many patched chunks could otherwise exceed the limit
+  // (see https://github.com/google/perfetto/issues/6426). Patches are applied
+  // after moves and IPC is ordered, so trailing patch requests preserve
+  // ordering.
   for (auto& ctp : *req->mutable_chunks_to_patch()) {
     uint32_t ctp_bytes = EstimateChunkToPatchSize(ctp);
     // A lone ChunkToPatch always fits, so only ever split a non-empty request.
