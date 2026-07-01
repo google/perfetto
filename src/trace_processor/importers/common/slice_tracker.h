@@ -281,7 +281,9 @@ class SliceTracker {
                                        int64_t duration,
                                        std::optional<OverlapInfo>* overlap_out);
 
-  void LogMaxDepthExceeded(const SliceInfo& parent, StringId name);
+  void LogMaxDepthExceeded(const SliceInfo& parent,
+                           StringId name,
+                           int64_t timestamp);
 
   void AddLegacyUnnestableArgs(SliceInfo& slice_info,
                                const TrackInfo& track_info);
