@@ -22,7 +22,9 @@ import {Icon} from '../../../../widgets/icon';
 import {Panel} from '../../components/panel';
 import {SubPage} from '../../components/page';
 import type {MemSelection} from './selection';
+import {BitmapsSection} from './summary/bitmaps_section';
 import {CompositionTimeline} from './summary/composition_timeline';
+import {JavaSection} from './summary/java_section';
 import {MemoryMap} from './summary/memory_map';
 import {TraceOverview} from './summary/trace_overview';
 import './landing_page.scss';
@@ -100,6 +102,18 @@ export class ProcessMemDetails
               onSelect: (s: MemSelection) => (this.selection = s),
             }),
             m(MemoryMap, {
+              trace,
+              upid,
+              selTs: this.selection?.sel,
+              baseTs: this.selection?.base,
+            }),
+            m(JavaSection, {
+              trace,
+              upid,
+              selTs: this.selection?.sel,
+              baseTs: this.selection?.base,
+            }),
+            m(BitmapsSection, {
               trace,
               upid,
               selTs: this.selection?.sel,
