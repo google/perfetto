@@ -33,9 +33,6 @@
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
-namespace {
-constexpr uint32_t kMaxDepth = 512;
-}
 
 SliceTracker::SliceTracker(TraceProcessorContext* context)
     : legacy_unnestable_begin_count_string_id_(
@@ -50,7 +47,11 @@ SliceTracker::SliceTracker(TraceProcessorContext* context)
       overlap_conflicting_ts_key_(
           context->storage->InternString("conflicting_slice_ts")),
       overlap_conflicting_dur_key_(
-          context->storage->InternString("conflicting_slice_dur")) {}
+          context->storage->InternString("conflicting_slice_dur")),
+      max_depth_parent_name_key_(
+          context->storage->InternString("parent_slice_name")),
+      max_depth_current_name_key_(
+          context->storage->InternString("current_slice_name")) {}
 
 void SliceTracker::AddOverlapArgs(const OverlapInfo& info,
                                   ArgsTracker::BoundInserter& inserter) const {
@@ -101,15 +102,14 @@ void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent,
       parent.row.ToRowReference(slices).name().value_or(kNullStringId);
   StringId current_name_id = name.is_null() ? kNullStringId : name;
 
-  StringId parent_key = context_->storage->InternString("parent_slice_name");
-  StringId current_key = context_->storage->InternString("current_slice_name");
-
   context_->import_logs_tracker->RecordParserError(
       stats::slice_max_depth_exceeded, timestamp,
-      [parent_key, parent_name_id, current_key,
+      [this, parent_name_id,
        current_name_id](ArgsTracker::BoundInserter& inserter) {
-        inserter.AddArg(parent_key, Variadic::String(parent_name_id));
-        inserter.AddArg(current_key, Variadic::String(current_name_id));
+        inserter.AddArg(max_depth_parent_name_key_,
+                        Variadic::String(parent_name_id));
+        inserter.AddArg(max_depth_current_name_key_,
+                        Variadic::String(current_name_id));
       });
 }
 

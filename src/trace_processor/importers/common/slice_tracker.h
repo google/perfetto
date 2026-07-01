@@ -40,6 +40,8 @@ class TraceProcessorContext;
 
 class SliceTracker {
  public:
+  static constexpr uint32_t kMaxDepth = 512;
+
   using OnSliceBeginCallback = std::function<void(TrackId, SliceId)>;
 
   // Sentinel default args callback; WantsArgs() compiles arg handling away.
@@ -334,6 +336,10 @@ class SliceTracker {
   const StringId overlap_conflicting_name_key_;
   const StringId overlap_conflicting_ts_key_;
   const StringId overlap_conflicting_dur_key_;
+
+  // Interned arg-name keys for max depth exceeded import logs.
+  const StringId max_depth_parent_name_key_;
+  const StringId max_depth_current_name_key_;
 
   StackMap stacks_;
   std::vector<TranslatableArgs> translatable_args_;
