@@ -26,8 +26,8 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/third_party/android/connectivity/network_trace.pbzero.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -62,7 +62,8 @@
 namespace perfetto::trace_processor {
 namespace {
 
-using ::perfetto::protos::pbzero::TrafficDirection;
+using ::android::net::connectivity::tracing::pbzero::ConnectivityTracePacket;
+using ::android::net::connectivity::tracing::pbzero::TrafficDirection;
 
 class NetworkTraceModuleTest : public testing::Test {
  public:
@@ -160,7 +161,8 @@ TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
 
-  auto* event = packet->set_network_packet();
+  auto* event =
+      static_cast<ConnectivityTracePacket*>(packet)->set_network_packet();
   event->set_direction(TrafficDirection::DIR_EGRESS);
   event->set_length(72);
   event->set_uid(1010);
@@ -204,7 +206,8 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParsePerPacketBundle) {
   lengths.Append(72);
   lengths.Append(100);
 
-  auto* event = packet->set_network_packet_bundle();
+  auto* event = static_cast<ConnectivityTracePacket*>(packet)
+                    ->set_network_packet_bundle();
   event->set_packet_timestamps(timestamps);
   event->set_packet_lengths(lengths);
 
@@ -231,7 +234,8 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParseAggregateBundle) {
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
 
-  auto* event = packet->set_network_packet_bundle();
+  auto* event = static_cast<ConnectivityTracePacket*>(packet)
+                    ->set_network_packet_bundle();
   event->set_total_packets(2);
   event->set_total_duration(10);
   event->set_total_length(172);

@@ -18,6 +18,7 @@ import {
   RECT_PATTERN_HATCHED,
   type RowLayout,
   type SliceBuffers,
+  SLICE_GAP_PX,
 } from '../renderer';
 import {createBuffer, createProgram, getUniformLocation} from './gl';
 
@@ -69,6 +70,9 @@ function createSliceProgram(gl: WebGL2RenderingContext): SliceBatchProgram {
     // Minimum width in CSS pixels to ensure visibility
     const float MIN_WIDTH = 1.0;
 
+    // Gap inset from each slice's right edge (see SLICE_GAP_PX).
+    const float SLICE_GAP = float(${SLICE_GAP_PX});
+
     // Transform a LTRB rect through a scale+translate transform.
     vec4 transformRect(vec4 t, vec4 r) {
       return vec4(r.xy * t.xy + t.zw, r.zw * t.xy + t.zw);
@@ -99,8 +103,9 @@ function createSliceProgram(gl: WebGL2RenderingContext): SliceBatchProgram {
       float leftCss = a_left * u_xTransform.x + u_xTransform.y;
       float rightCss = a_right * u_xTransform.x + u_xTransform.y;
 
-      // Apply minimum width in CSS pixels
-      rightCss = max(leftCss + MIN_WIDTH, rightCss);
+      // Inset the right edge so adjacent slices stay distinct, clamped to the
+      // minimum width.
+      rightCss = max(leftCss + MIN_WIDTH, rightCss - SLICE_GAP);
 
       // Build rect in CSS pixel space (LTRB)
       vec4 rectCss = vec4(leftCss, rowTop, rightCss, rowBottom);

@@ -545,17 +545,19 @@ TEST_F(ClockTrackerTest, CacheInvalidationAndPathReoptimization) {
   EXPECT_EQ(*Convert(MONOTONIC, 50, BOOTTIME), 50 + (200 - 100) + (4000 - 300));
   EXPECT_EQ(ct_->cache_hits_for_testing(), 1u);
 
-  // 2. Add a direct, more optimal path. This will clear the cache.
+  // 2. Add a direct, more optimal path. This will clear the cache. Recording
+  // the snapshot into the clock_snapshot table converts its clocks, which
+  // immediately re-warms the cache with the new path.
   ct_->AddSnapshot({{MONOTONIC, 500}, {BOOTTIME, 6000}});
 
-  // 3. Convert again. It should be a miss, and the new, more optimal path
-  // should be used for the conversion.
+  // 3. Convert again. The new, more optimal path should be used for the
+  // conversion (cached by the recording above).
   EXPECT_EQ(*Convert(MONOTONIC, 400, BOOTTIME), 400 + (6000 - 500));
-  EXPECT_EQ(ct_->cache_hits_for_testing(), 1u);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), 2u);
 
   // The new path should now be cached.
   EXPECT_EQ(*Convert(MONOTONIC, 400, BOOTTIME), 400 + (6000 - 500));
-  EXPECT_EQ(ct_->cache_hits_for_testing(), 2u);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), 3u);
 }
 
 TEST_F(ClockTrackerTest, ThreeHopConversion) {

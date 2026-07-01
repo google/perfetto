@@ -490,18 +490,15 @@ PerfettoSqlConnection::PrepareSqliteStatement(SqlSource sql_source) {
 void PerfettoSqlConnection::Initialize(Initializer init) {
   // Wrap the ~100 static-table CREATEs in one transaction; otherwise SQLite
   // implicitly commits after each statement.
-  auto exec_or_die = [&](const char* sql) {
-    auto s = Execute(SqlSource::FromTraceProcessorImplementation(sql));
-    PERFETTO_CHECK(s.ok());
-  };
-  exec_or_die("BEGIN TRANSACTION");
-  for (const auto& info : init.static_tables) {
-    RegisterStaticTable(info.dataframe, info.name);
+  {
+    Transaction txn(this);
+    for (const auto& info : init.static_tables) {
+      RegisterStaticTable(info.dataframe, info.name);
+    }
+    for (auto& info : init.static_table_functions) {
+      RegisterStaticTableFunction(std::move(info));
+    }
   }
-  for (auto& info : init.static_table_functions) {
-    RegisterStaticTableFunction(std::move(info));
-  }
-  exec_or_die("COMMIT");
   for (const auto& mod : init.sqlite_modules) {
     if (mod.is_state_manager) {
       virtual_module_state_managers_.push_back(
@@ -598,6 +595,48 @@ PerfettoSqlConnection::Execute(SqlSource sql) {
   }
   RETURN_IF_ERROR(res->stmt.status());
   return res->stats;
+}
+
+base::Status PerfettoSqlConnection::Execute(
+    SqlSource sql,
+    std::initializer_list<std::string_view> binds) {
+  // Bypass the PerfettoSQL frontend: this overload is for hot internal loops
+  // running plain SQLite, where the parser/frame setup would dominate.
+  sqlite3* db = connection_->db();
+  sqlite3_stmt* stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db, sql.sql().c_str(),
+                              static_cast<int>(sql.sql().size()), &stmt,
+                              /*pzTail=*/nullptr);
+  if (rc != SQLITE_OK) {
+    return base::ErrStatus("Prepare failed: %s", sqlite3_errmsg(db));
+  }
+  int idx = 1;
+  for (const auto& b : binds) {
+    // |b.data()| must outlive the step+finalize below; SQLITE_STATIC (passed
+    // as nullptr destructor) tells SQLite not to copy.
+    sqlite3_bind_text(stmt, idx++, b.data(), static_cast<int>(b.size()),
+                      /*destructor=*/nullptr);
+  }
+  while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+  }
+  sqlite3_finalize(stmt);
+  if (rc != SQLITE_DONE) {
+    return base::ErrStatus("Step failed: %s", sqlite3_errmsg(db));
+  }
+  return base::OkStatus();
+}
+
+PerfettoSqlConnection::Transaction::Transaction(PerfettoSqlConnection* conn)
+    : conn_(conn) {
+  auto s = conn_->Execute(
+      SqlSource::FromTraceProcessorImplementation("BEGIN TRANSACTION"));
+  PERFETTO_CHECK(s.ok());
+}
+
+PerfettoSqlConnection::Transaction::~Transaction() {
+  auto s =
+      conn_->Execute(SqlSource::FromTraceProcessorImplementation("COMMIT"));
+  PERFETTO_CHECK(s.ok());
 }
 
 base::StatusOr<PerfettoSqlConnection::ExecutionResult>

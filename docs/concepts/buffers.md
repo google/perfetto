@@ -221,11 +221,12 @@ blocked.
 At the trace proto level, losses in this path are recorded:
 
 * In [`TraceStats.BufferStats.trace_writer_packet_loss`][BufferStats].
-* In [`TracePacket.previous_packet_dropped`][TracePacket].
+* In [`TracePacket.previous_packet_dropped`][TracePacket]. This is a
+  `DataLossReason` bitmask: a nonzero value means the preceding packets on the
+  sequence were dropped, and (for TraceBufferV2) the bits identify the cause.
   Caveat: the very first packet emitted by every data source is also marked as
-  `previous_packet_dropped=true`. This is because the service has no way to
-  tell if that was the truly first packet or everything else before that was
-  lost.
+  dropped (value 1). This is because the service has no way to tell if that was
+  the truly first packet or everything else before that was lost.
 
 At the TraceProcessor SQL level, this data is available in the `stats` table:
 ```sql

@@ -327,7 +327,9 @@ message ChildProcessLauncherPriority {
     IMPORTANCE_NORMAL = 1;
     IMPORTANCE_MODERATE = 2;
     IMPORTANCE_IMPORTANT = 3;
-    IMPORTANCE_PERCEPTIBLE = 4;
+    IMPORTANCE_PERCEPTIBLE =
+        4;  // Deprecated. Use IMPORTANCE_NOT_PERCEPTIBLE instead.
+    IMPORTANCE_NOT_PERCEPTIBLE = 5;
   }
   optional Importance importance = 3;
 }
@@ -1860,6 +1862,9 @@ message StartUp {
     SHARE_INTENT = 17;
     NFC = 18;
     AUTH_TAB = 19;
+    RECREATION = 20;
+    HANDOFF = 21;
+    DEV_TOOLS = 22;
   }
 
   optional int64 activity_id = 1;
@@ -2322,14 +2327,17 @@ message WebViewStartup {
     STATIC_GET_SAFE_BROWSING_PRIVACY_POLICY_URL = 100;
     STATIC_IS_MULTI_PROCESS_ENABLED = 101;
     STATIC_GET_VARIATIONS_HEADER = 102;
-    reserved 103, 104;
+    reserved 103, 104, 105, 106;
     reserved "STATIC_SET_DEFAULT_TRAFFIC_STATS_TAG", "STATIC_SET_DEFAULT_TRAFFIC_STATS_UID";
-    STATIC_SET_RENDERER_LIBRARY_PREFETCH_MODE = 105;
-    STATIC_GET_RENDERER_LIBRARY_PREFETCH_MODE = 106;
+    reserved "STATIC_SET_RENDERER_LIBRARY_PREFETCH_MODE", "STATIC_GET_RENDERER_LIBRARY_PREFETCH_MODE";
     GET_DEFAULT_COOKIE_MANAGER = 107;
     GET_PROFILE_STORE = 108;
     WEBVIEW_INSTANCE_GET_SETTINGS = 109;
     WEBVIEW_INSTANCE_GET_AW_CONTENTS = 110;
+    PROFILE_STORE_GET_PROFILE = 111;
+    PROFILE_STORE_GET_OR_CREATE_PROFILE = 112;
+    PROFILE_STORE_GET_ALL_PROFILE_NAMES = 113;
+    PROFILE_STORE_DELETE_PROFILE = 114;
     // Remember to update WebViewStartupCallSite in enums.xml when adding new
     // values here.
   }
@@ -2976,11 +2984,52 @@ message ChromeAccessibilityWinNotifyWinEvent {
   optional uint32 native_event = 1;
 }
 
+// Data about the state of a thread when a Mac QoS voucher is released.
+message MacVoucherRelease {
+  enum ProcessPriority {
+    PROCESS_PRIORITY_BEST_EFFORT = 0;
+    PROCESS_PRIORITY_USER_VISIBLE = 1;
+    PROCESS_PRIORITY_USER_BLOCKING = 2;
+  };
+
+  enum ThreadType {
+    THREAD_TYPE_BACKGROUND = 0;
+    THREAD_TYPE_UTILITY = 1;
+    THREAD_TYPE_DEFAULT = 2;
+    THREAD_TYPE_PRESENTATION = 3;
+    THREAD_TYPE_AUDIO_PROCESSING = 4;
+    THREAD_TYPE_REALTIME_AUDIO = 5;
+  };
+
+  enum QoSClass {
+    QOS_CLASS_UNSPECIFIED = 0;
+    QOS_CLASS_BACKGROUND = 1;
+    QOS_CLASS_UTILITY = 2;
+    QOS_CLASS_DEFAULT = 3;
+    QOS_CLASS_USER_INITIATED = 4;
+    QOS_CLASS_USER_INTERACTIVE = 5;
+  };
+
+  // Reference count of the voucher's port before it's released.
+  optional uint32 ref_count = 1;
+  // Value of Process::Current().GetPriority().
+  optional ProcessPriority process_priority = 2;
+  // Value of Process::Current().GetOSPriority().
+  optional int32 process_os_priority = 3;
+  // Value of PlatformThread::GetCurrentThreadType().
+  optional ThreadType thread_type = 4;
+  // Value of PlatformThread::CurrentThreadHasLeases().
+  optional bool thread_has_leases = 5;
+  // Values returned from pthread_get_qos_class_np().
+  optional QoSClass thread_qos_class = 6;
+  optional int32 thread_relative_priority = 7;
+}
+
 message ChromeTrackEvent {
   reserved 1045;
 
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1083
+  // Next ID: 1084
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -3158,5 +3207,7 @@ message ChromeTrackEvent {
     optional FrameIntervalDecider frame_interval_decider = 1081;
 
     optional BeginFrameArgsV2 begin_frame_args = 1082;
+
+    optional MacVoucherRelease mac_voucher_release = 1083;
   }
 }

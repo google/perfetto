@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export function downloadBlob(name: string, data: Uint8Array): void {
+export function downloadBlob(
+  name: string,
+  data: Uint8Array<ArrayBuffer>,
+): void {
   const blob = new Blob([data], {type: 'application/octet-stream'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

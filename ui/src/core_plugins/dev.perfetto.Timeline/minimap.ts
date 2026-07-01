@@ -13,28 +13,29 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {assertExists, assertUnreachable} from '../../base/assert';
+import {findRef} from '../../base/dom_utils';
 import type {Size2D} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists, assertUnreachable} from '../../base/assert';
+import {startDragGesture} from '../../base/mithril_utils';
 import {Time, type time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {colorForCpu} from '../../components/colorizer';
 import type {TraceImpl} from '../../core/trace_impl';
-import {TimestampFormat} from '../../public/timeline';
-import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
+  COLOR_BORDER,
   COLOR_TEXT_MUTED,
   FONT_COMPACT,
-  COLOR_BORDER,
 } from '../../frontend/css_constants';
+import {TimestampFormat} from '../../public/timeline';
+import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
   generateTicks,
   getMaxMajorTicks,
   MIN_PX_PER_STEP,
   TickType,
 } from './gridline_helper';
-import {findRef} from '../../base/dom_utils';
-import {startDragGesture} from '../../base/mithril_utils';
+import './minimap.scss';
 
 const HEADER_HEIGHT_PX = 20;
 const HANDLE_SIZE_PX = 5;

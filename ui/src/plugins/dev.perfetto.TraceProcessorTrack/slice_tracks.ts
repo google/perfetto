@@ -129,6 +129,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Display',
   },
   {
+    type: 'disp_dpu_line_underrun',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
     type: 'ddic_underrun',
     topLevelGroup: 'HARDWARE',
     group: 'Display',
@@ -155,6 +160,16 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
   },
   {
     type: 'disp_frame_done_missing',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
+    type: 'panel_settings_full',
+    topLevelGroup: 'HARDWARE',
+    group: 'Display',
+  },
+  {
+    type: 'panel_settings_lite',
     topLevelGroup: 'HARDWARE',
     group: 'Display',
   },
@@ -254,9 +269,9 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Virtio Video Command Events',
   },
   {
-    type: 'android_camera_event',
-    topLevelGroup: 'HARDWARE',
-    group: undefined,
+    type: 'adreno_gpu_cmdbatch',
+    topLevelGroup: 'GPU',
+    group: 'Adreno Cmdbatch',
   },
   {
     type: 'triggers',

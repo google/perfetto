@@ -959,6 +959,34 @@ message CpuPerUidConfig {
 
 // End of protos/perfetto/config/android/cpu_per_uid_config.proto
 
+// Begin of protos/perfetto/config/android/display_video_config.proto
+
+// Config for the "android.display.video" data source. Unset/0 fields use
+// the producer's default.
+message DisplayVideoConfig {
+  enum Format {
+    // Default (H.264).
+    FORMAT_UNSPECIFIED = 0;
+    FORMAT_H264 = 1;
+    FORMAT_HEVC = 2;
+  }
+
+  // Scale applied to each display's resolution before capture (0.25 =
+  // quarter size).
+  optional float scale = 1;
+
+  optional Format format = 2;
+
+  // Keyframe interval in seconds. Smaller = snappier seeking, larger trace.
+  optional uint32 key_frame_interval_secs = 3;
+
+  // Per-display cap on emitted bytes. On reaching it the stream is torn
+  // down with a VideoFrameError (SIZE_CAP_HIT).
+  optional uint64 max_stream_size_bytes = 4;
+}
+
+// End of protos/perfetto/config/android/display_video_config.proto
+
 // Begin of protos/perfetto/config/android/inputmethod_config.proto
 
 // Custom configuration for the "android.inputmethod" data source.
@@ -1077,7 +1105,7 @@ message PixelModemConfig {
 
 // End of protos/perfetto/config/android/pixel_modem_config.proto
 
-// Begin of protos/perfetto/common/protolog_common.proto
+// Begin of protos/perfetto/config/android/protolog_config.proto
 
 enum ProtoLogLevel {
   PROTOLOG_LEVEL_UNDEFINED = 0;
@@ -1088,9 +1116,6 @@ enum ProtoLogLevel {
   PROTOLOG_LEVEL_ERROR = 5;
   PROTOLOG_LEVEL_WTF = 6;
 }
-// End of protos/perfetto/common/protolog_common.proto
-
-// Begin of protos/perfetto/config/android/protolog_config.proto
 
 // Custom configuration for the "android.protolog" data source.
 // ProtoLog is a logging mechanism that is intented to be more efficient than
@@ -1384,7 +1409,7 @@ message EtwConfig {
   // The kernel_flags determines the flags that will be used by the etw tracing
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
-  repeated KernelFlag kernel_flags = 1;
+  repeated KernelFlag kernel_flags = 1 [deprecated = true];
 
   // See the list of keywords for for individual providers.
   // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
@@ -1394,11 +1419,14 @@ message EtwConfig {
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
   // Provides events relating to file I/O.
-  repeated string file_provider_events = 4;
+  repeated string file_provider_events = 4 [deprecated = true];
   // Events for which stacks should be collected.
   repeated string stack_sampling_events = 5;
   // Provides events relating to disk I/O.
-  repeated string disk_provider_events = 6;
+  repeated string disk_provider_events = 6 [deprecated = true];
+  // Provides events relating to multiple kinds of IO including disk, cache, and
+  // network.
+  repeated string system_io_provider_events = 7;
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto
@@ -2179,13 +2207,26 @@ message HeapprofdConfig {
   // this value.
   optional uint64 adaptive_sampling_max_sampling_interval_bytes = 25;
 
-  // E.g. surfaceflinger, com.android.phone
+  // Names of process cmdlines to profile. The semantics before perfetto v57 are
+  // as the following section (A), and on newer versions are both (A) and (B):
+  //
+  // (A) E.g. surfaceflinger, com.android.phone
   // This input is normalized in the following way: if it contains slashes,
   // everything up to the last slash is discarded. If it contains "@",
   // everything after the first @ is discared.
   // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
   // This transformation is also applied to the processes' command lines when
   // matching.
+  //
+  // (B) Perfetto v57+: a pattern may also contain a wildcard ('*'), in which
+  // case it is matched against running processes' command lines using glob
+  // semantics. If the pattern starts with '/' it is matched against the full
+  // argv0 (e.g. "/system/bin/*"), otherwise it is matched against the binary
+  // name part of argv0 (e.g. "system_*"). Wildcard patterns are *not*
+  // normalized as described above.
+  // Wildcard patterns are supported only for profiling already-running
+  // processes. A config must set no_startup=true if using wildcards, or it will
+  // be rejected.
   repeated string process_cmdline = 2;
 
   // For watermark based triggering or local debugging.
@@ -2323,6 +2364,93 @@ message HeapprofdConfig {
 
 // End of protos/perfetto/config/profiling/heapprofd_config.proto
 
+// Begin of protos/perfetto/config/profiling/smaps_config.proto
+
+// Config for collecting /proc/pid/smaps.
+message SmapsConfig {
+  enum VmaField {
+    VMA_FIELD_UNKNOWN = 0;
+    VMA_FIELD_SIZE = 1;
+    VMA_FIELD_RSS = 2;
+    VMA_FIELD_ANONYMOUS = 3;
+    VMA_FIELD_SWAP = 4;
+    VMA_FIELD_SHARED_CLEAN = 5;
+    VMA_FIELD_SHARED_DIRTY = 6;
+    VMA_FIELD_PRIVATE_CLEAN = 7;
+    VMA_FIELD_PRIVATE_DIRTY = 8;
+    VMA_FIELD_LOCKED = 9;
+    VMA_FIELD_PSS = 10;
+    VMA_FIELD_PSS_DIRTY = 11;
+    VMA_FIELD_SWAP_PSS = 12;
+  }
+
+  // Set of fields to collect.
+  // If unset, defaults to: size, rss, anonymous, swap.
+  repeated VmaField vma_fields = 1;
+
+  // If false, mappings are aggregated by their path name.
+  // If true, each mapping is serialised separately.
+  optional bool unaggregated = 2;
+
+  // Optional ordered list of redaction rules for the name of the mapping.
+  // Note that all mappings will still be emitted, these rules only affect the
+  // emitted name.
+  // If unset, all names are written as is.
+  // If set, the first matching rule decides on the action.
+  // If no rules match, the name is written as is.
+  repeated RedactionRule name_redaction_rules = 3;
+}
+
+message RedactionRule {
+  // How to match |pattern| against the name of the mapping.
+  // Note for future extensions: unrecognised enums are treated as always
+  // matching.
+  enum MatchMode {
+    MATCH_MODE_UNKNOWN = 0;
+    // The pattern matches if it is a prefix of the mapping name.
+    MATCH_MODE_PREFIX = 1;
+    // The pattern is matched against the mapping name as a pathname glob
+    // (see "man 7 glob" and FNM_PATHNAME in "man 3 fnmatch").
+    // The key distinction is that path separators in the name are *not* matched
+    // against wildcards. So a pattern of the form "/usr/*/llvm" would match
+    // "/usr/lib/llvm" but not "/usr/lib/nested/llvm".
+    // Note: any "(deleted)" suffix is excluded before matching.
+    MATCH_MODE_GLOB_PATH = 2;
+    // The pattern is matched against the mapping name without special-casing
+    // path separators. So a pattern of the form "/usr/*/llvm" would match
+    // both "/usr/lib/llvm" and "/usr/lib/nested/llvm".
+    // Note: any "(deleted)" suffix is excluded before matching.
+    MATCH_MODE_GLOB_STRING = 3;
+  }
+
+  // The pattern to match against.
+  optional string pattern = 1;
+  optional MatchMode match_mode = 2;
+
+  // If the pattern matches, keep the entire name. In other words, do not
+  // redact. This option exists since the rules are evaluated in order, so a
+  // more specific allow rule with keep_full can match before a more general
+  // deny rule. This option is mutually exclusive with |keep_file_extension| and
+  // |keep_path_elements|.
+  optional bool keep_full = 3;
+
+  // If the pattern matches, replace the name with this string (defaulting to
+  // <pf_redacted> if unset). The final emitted name might be further augmented
+  // by the options below keeping parts of the original name.
+  optional string replacement_name = 4;
+
+  // If the pattern matches, keep the file extension, if any.
+  // Can be combined with |keep_path_elements|.
+  optional bool keep_file_extension = 5;
+
+  // If the pattern matches, keep the first N path elements (as separated by
+  // '/'). If the name is not a path, this option does nothing. Can be combined
+  // with |keep_file_extension|.
+  optional uint32 keep_path_elements = 6;
+}
+
+// End of protos/perfetto/config/profiling/smaps_config.proto
+
 // Begin of protos/perfetto/config/profiling/java_hprof_config.proto
 
 // Configuration for managed app heap graph snapshots.
@@ -2383,17 +2511,31 @@ message JavaHprofConfig {
   // Do not profile processes whose anon RSS + swap < given value.
   optional uint32 min_anonymous_memory_kb = 4;
 
+  // Do not profile processes whose Java heap size < given value.
+  optional uint32 min_java_heap_size_kb = 9;
+
   // Include the process' /proc/self/smaps.
   // This only shows maps that:
   // * start with /system
   // * start with /vendor
   // * start with /data/app
   // * contain "extracted in memory from Y", where Y matches any of the above
+  //
+  // Superseded by |smaps_config| in perfetto v58+.
   optional bool dump_smaps = 5;
+
+  // If set, include /proc/self/smaps memory mappings.
+  //
+  // Added in perfetto v58.
+  optional SmapsConfig smaps_config = 8;
 
   // Exclude objects of the following types from the profile. This can be
   // useful if lots of uninteresting objects, e.g. "sun.misc.Cleaner".
   repeated string ignored_types = 6;
+
+  // Dump the callsite of the thread triggering the OutOfMemoryError.
+  // Only applicable to OutOfMemoryError heap dumps
+  optional bool dump_oome_callstack = 10;
 }
 
 // End of protos/perfetto/config/profiling/java_hprof_config.proto
@@ -4545,7 +4687,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 141
+// Next id: 143
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4788,6 +4930,9 @@ message DataSourceConfig {
 
   // Data source name: linux.systemd_journald
   optional SystemdJournaldConfig journald_config = 141 [lazy = true];
+
+  // Data source name: android.display.video
+  optional DisplayVideoConfig display_video_config = 142 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

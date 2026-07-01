@@ -392,7 +392,6 @@ Env-var overrides:
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
     compileProtos();
-    genVersion();
     generateStdlibDocs();
 
     const tsProjects = ['ui', 'ui/src/service_worker'];
@@ -560,6 +559,13 @@ function copyUiTestArtifactsAssets(src, dst) {
   addTask(cp, [src, pjoin(cfg.outUiTestArtifactsDir, dst)]);
 }
 
+function postProcessProtosDts() {
+  const dstTs = pjoin(cfg.outGenDir, 'protos.d.ts');
+  let content = fs.readFileSync(dstTs, 'utf8');
+  content = content.replace(/import Long = require\("long"\);\r?\n/g, '');
+  fs.writeFileSync(dstTs, content, 'utf8');
+}
+
 function compileProtos() {
   const dstJs = pjoin(cfg.outGenDir, 'protos.js');
   const dstTs = pjoin(cfg.outGenDir, 'protos.d.ts');
@@ -594,17 +600,7 @@ function compileProtos() {
   // pinning a CPU core the whole time.
   const pbtsArgs = ['--no-comments', '-p', ROOT_DIR, '-o', dstTs, dstJs];
   addTask(execModule, ['pbts', pbtsArgs]);
-}
-
-// Generates a .ts source that defines the VERSION and SCM_REVISION constants.
-function genVersion() {
-  const cmd = 'python3';
-  const args = [
-    VERSION_SCRIPT,
-    '--ts_out',
-    pjoin(cfg.outGenDir, 'perfetto_version.ts'),
-  ];
-  addTask(exec, [cmd, args]);
+  addTask(postProcessProtosDts, []);
 }
 
 function generateStdlibDocs() {
@@ -695,8 +691,22 @@ function copySyntaqliteRuntime() {
     'syntaqlite-sqlite.wasm',
   ]) {
     addTask(cp, [pjoin(srcDir, fname), pjoin(dstDir, fname)]);
+    // The bigtrace bundle resolves assets against its own serving root.
+    if (cfg.bigtrace) {
+      addTask(cp, [
+        pjoin(srcDir, fname),
+        pjoin(cfg.outBigtraceDistDir, 'assets', fname),
+      ]);
+    }
   }
   addTask(buildSyntaqlitePerfettoDialect, []);
+  if (cfg.bigtrace) {
+    // Tasks run in queue order, so this copies the freshly-built dialect.
+    addTask(cp, [
+      pjoin(cfg.outDistDir, 'assets', 'syntaqlite-perfetto.wasm'),
+      pjoin(cfg.outBigtraceDistDir, 'assets', 'syntaqlite-perfetto.wasm'),
+    ]);
+  }
 }
 
 function getBuildToolsBinDir() {

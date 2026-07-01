@@ -43,6 +43,7 @@
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/symbol_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
@@ -55,6 +56,7 @@
 #include "src/trace_processor/importers/proto/user_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 
@@ -72,6 +74,7 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context,
   context->track_tracker = Ptr<TrackTracker>::MakeRoot(context);
   context->track_compressor = Ptr<TrackCompressor>::MakeRoot(context);
   context->slice_tracker = Ptr<SliceTracker>::MakeRoot(context);
+  context->state_tracker = Ptr<StateTracker>::MakeRoot(context);
   context->slice_translation_table =
       Ptr<SliceTranslationTable>::MakeRoot(context->storage.get());
   context->file_io_tracker = Ptr<FileIoTracker>::MakeRoot(context);
@@ -174,6 +177,7 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->clock_converter = Ptr<ClockConverter>::MakeRoot(context);
   context->trace_time_state =
       Ptr<TraceTimeState>::MakeRoot(ClockId::TraceFile(0));
+  context->trace_manifest_state = Ptr<TraceManifestState>::MakeRoot();
   context->track_group_idx_state =
       Ptr<TrackCompressorGroupIdxState>::MakeRoot();
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
@@ -203,6 +207,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->forked_context_state = source->forked_context_state.Fork();
   dest->clock_converter = source->clock_converter.Fork();
   dest->trace_time_state = source->trace_time_state.Fork();
+  dest->trace_manifest_state = source->trace_manifest_state.Fork();
   dest->track_group_idx_state = source->track_group_idx_state.Fork();
   dest->register_additional_proto_modules =
       source->register_additional_proto_modules;

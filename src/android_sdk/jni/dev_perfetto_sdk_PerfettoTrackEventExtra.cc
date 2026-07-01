@@ -23,6 +23,7 @@
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 
 #include <list>
+#include <utility>
 
 namespace perfetto {
 namespace jni {
@@ -380,6 +381,90 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_get_extra_ptr(
   return toJLong(track->get());
 }
 
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init(
+    JNIEnv* env,
+    jclass,
+    jint root_type,
+    jobjectArray names,
+    jlongArray ids,
+    jintArray sibling_order_ranks,
+    jintArray child_orderings,
+    jintArray sibling_merge_behaviors,
+    jobjectArray merge_keys_str,
+    jlongArray merge_keys_int) {
+  const jsize num_names = env->GetArrayLength(names);
+  // All the arrays are built in lockstep by PerfettoTrack, so the lengths
+  // should match. Tracing must never crash the caller, so on a mismatch just
+  // log and use the shortest length rather than over-reading.
+  jsize n = num_names;
+  const jsize lengths[] = {env->GetArrayLength(ids),
+                           env->GetArrayLength(sibling_order_ranks),
+                           env->GetArrayLength(child_orderings),
+                           env->GetArrayLength(sibling_merge_behaviors),
+                           env->GetArrayLength(merge_keys_str),
+                           env->GetArrayLength(merge_keys_int)};
+  for (jsize length : lengths) {
+    if (length != num_names) {
+      __android_log_print(ANDROID_LOG_ERROR, "PerfettoJNI",
+                          "nested track parallel array length mismatch "
+                          "(names %d vs %d)",
+                          num_names, length);
+      n = n < length ? n : length;
+    }
+  }
+  // Bulk-copy the primitive arrays, then assemble one NestedLevel per level.
+  // The name and merge key (object arrays) have no region accessor, so they are
+  // read per element.
+  std::vector<uint64_t> ids_vec(static_cast<size_t>(n));
+  env->GetLongArrayRegion(ids, 0, n, reinterpret_cast<jlong*>(ids_vec.data()));
+  std::vector<int32_t> ranks_vec(static_cast<size_t>(n));
+  env->GetIntArrayRegion(sibling_order_ranks, 0, n,
+                         reinterpret_cast<jint*>(ranks_vec.data()));
+  std::vector<uint32_t> orderings_vec(static_cast<size_t>(n));
+  env->GetIntArrayRegion(child_orderings, 0, n,
+                         reinterpret_cast<jint*>(orderings_vec.data()));
+  std::vector<uint32_t> merge_behaviors_vec(static_cast<size_t>(n));
+  env->GetIntArrayRegion(sibling_merge_behaviors, 0, n,
+                         reinterpret_cast<jint*>(merge_behaviors_vec.data()));
+  std::vector<uint64_t> merge_keys_int_vec(static_cast<size_t>(n));
+  env->GetLongArrayRegion(merge_keys_int, 0, n,
+                          reinterpret_cast<jlong*>(merge_keys_int_vec.data()));
+
+  std::vector<sdk_for_jni::NestedLevel> levels(static_cast<size_t>(n));
+  for (jsize i = 0; i < n; i++) {
+    sdk_for_jni::NestedLevel& level = levels[static_cast<size_t>(i)];
+    jstring s = static_cast<jstring>(env->GetObjectArrayElement(names, i));
+    level.name = StringBuffer::utf16_to_ascii(env, s);
+    env->DeleteLocalRef(s);
+    level.id = ids_vec[static_cast<size_t>(i)];
+    level.sibling_order_rank = ranks_vec[static_cast<size_t>(i)];
+    level.child_ordering = orderings_vec[static_cast<size_t>(i)];
+    level.sibling_merge_behavior = merge_behaviors_vec[static_cast<size_t>(i)];
+    jstring key =
+        static_cast<jstring>(env->GetObjectArrayElement(merge_keys_str, i));
+    if (key == nullptr) {
+      level.sibling_merge_key_str = std::nullopt;
+    } else {
+      level.sibling_merge_key_str = StringBuffer::utf16_to_ascii(env, key);
+      env->DeleteLocalRef(key);
+    }
+    level.sibling_merge_key_int = merge_keys_int_vec[static_cast<size_t>(i)];
+  }
+  return toJLong(new sdk_for_jni::NestedTracks(
+      static_cast<sdk_for_jni::RootType>(root_type), std::move(levels)));
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_delete(
+    PERFETTO_JNI_HOST_PARAMS) {
+  return toJLong(&sdk_for_jni::NestedTracks::delete_track);
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_get_extra_ptr(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+  sdk_for_jni::NestedTracks* track = toPointer<sdk_for_jni::NestedTracks>(ptr);
+  return toJLong(track->get());
+}
+
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_init(
     JNIEnv* env,
     jclass,
@@ -401,6 +486,48 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr(
   sdk_for_jni::RegisteredTrack* track =
       toPointer<sdk_for_jni::RegisteredTrack>(ptr);
   return toJLong(track->get());
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_init(
+    PERFETTO_JNI_HOST_PARAMS) {
+  return toJLong(new sdk_for_jni::CorrelationId());
+}
+
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_delete(
+    PERFETTO_JNI_HOST_PARAMS) {
+  return toJLong(&sdk_for_jni::CorrelationId::delete_correlation_id);
+}
+
+static jlong
+dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_get_extra_ptr(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+  sdk_for_jni::CorrelationId* correlation_id =
+      toPointer<sdk_for_jni::CorrelationId>(ptr);
+  return toJLong(correlation_id->get());
+}
+
+static void
+dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_set_value_int64(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr,
+    jlong val) {
+  sdk_for_jni::CorrelationId* correlation_id =
+      toPointer<sdk_for_jni::CorrelationId>(ptr);
+  auto& id = correlation_id->get()->correlation_id;
+  id.header.type = PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID;
+  id.id = static_cast<uint64_t>(val);
+}
+
+static void
+dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_set_value_string(
+    JNIEnv* env,
+    jclass,
+    jlong ptr,
+    jstring val) {
+  sdk_for_jni::CorrelationId* correlation_id =
+      toPointer<sdk_for_jni::CorrelationId>(ptr);
+  auto& id_str = correlation_id->get()->correlation_id_str;
+  id_str.header.type = PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR;
+  id_str.str = StringBuffer::utf16_to_ascii(env, val).data();
 }
 
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounter_init(
@@ -596,6 +723,15 @@ static const JNINativeMethod gNamedTrackMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_get_extra_ptr},
 };
 
+static const JNINativeMethod gNestedTracksMethods[] = {
+    {"native_init", "(I[Ljava/lang/String;[J[I[I[I[Ljava/lang/String;[J)J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_init},
+    {"native_delete", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_delete},
+    {"native_get_extra_ptr", "(J)J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNestedTracks_get_extra_ptr},
+};
+
 static const JNINativeMethod gCounterTrackMethods[] = {
     {"native_init", "(Ljava/lang/String;JZ)J",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_init},
@@ -604,6 +740,21 @@ static const JNINativeMethod gCounterTrackMethods[] = {
     {"native_get_extra_ptr", "(J)J",
      (void*)
          dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr}};
+
+static const JNINativeMethod gCorrelationIdMethods[] = {
+    {"native_init", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_init},
+    {"native_delete", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_delete},
+    {"native_get_extra_ptr", "(J)J",
+     (void*)
+         dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_get_extra_ptr},
+    {"native_set_value_int64", "(JJ)V",
+     (void*)
+         dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_set_value_int64},
+    {"native_set_value_string", "(JLjava/lang/String;)V",
+     (void*)
+         dev_perfetto_sdk_PerfettoTrackEventExtraCorrelationId_set_value_string}};
 
 static const JNINativeMethod gCounterMethods[] = {
     {"native_init", "()J",
@@ -671,6 +822,14 @@ int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
   res = jniRegisterNativeMethods(
       env,
       TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$NestedTracks"),
+      gNestedTracksMethods, NELEM(gNestedTracksMethods));
+  LOG_ALWAYS_FATAL_IF(res < 0,
+                      "Unable to register nested tracks native methods.");
+
+  res = jniRegisterNativeMethods(
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
           "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterTrack"),
       gCounterTrackMethods, NELEM(gCounterTrackMethods));
   LOG_ALWAYS_FATAL_IF(res < 0,
@@ -682,6 +841,14 @@ int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
           "dev/perfetto/sdk/PerfettoTrackEventExtra$Counter"),
       gCounterMethods, NELEM(gCounterMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register counter native methods.");
+
+  res = jniRegisterNativeMethods(
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$CorrelationId"),
+      gCorrelationIdMethods, NELEM(gCorrelationIdMethods));
+  LOG_ALWAYS_FATAL_IF(res < 0,
+                      "Unable to register correlation id native methods.");
 
   return 0;
 }

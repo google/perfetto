@@ -30,6 +30,7 @@ NC = '\033[0m'  # No Color
 
 # Constants for paths. Assumes the script is run from the repository root.
 SETUP_PY_PATH = os.path.join('python', 'setup.py')
+CHANGELOG_PATH = 'CHANGELOG'
 VENV_PYTHON = (
     os.path.abspath(os.path.join('.venv', 'bin', 'python')) if sys.platform
     != 'win32' else os.path.join('.venv', 'Scripts', 'python.exe'))
@@ -90,41 +91,19 @@ def write_setup_py_content(content: str) -> None:
     f.write(content)
 
 
-def get_current_version(content: str) -> str:
-  """Extracts version from setup.py using a robust regex."""
-  match = re.search(r"version\s*=\s*'([^']*)'", content)
-  if not match:
-    error(f"Could not find version in {SETUP_PY_PATH}")
-    sys.exit(1)  # Unreachable, but satisfies type checker
-  return match.group(1)
+def version_from_changelog() -> str:
+  """Returns the PyPI version, e.g. '0.56.0'.
 
-
-def bump_version() -> None:
-  """Stage 1: Creates a commit with a bumped version number."""
-  info("--- Stage 1: Bumping version ---")
-  content = get_setup_py_content()
-  current_version = get_current_version(content)
-  info(f"Current version is {current_version}")
-
-  new_version = prompt("Enter the new version (e.g., X.Y.Z): ")
-  if not re.match(r'\d+\.\d+\.\d+', new_version):
-    error("Invalid version format. Please use 'X.Y.Z'.")
-
-  branch_name = prompt("Enter a name for the new release branch: ")
-  run_cmd('git', 'checkout', '-b', branch_name)
-
-  info(f"Updating version in {SETUP_PY_PATH} to {new_version}...")
-  new_content = re.sub(r"version\s*=\s*'[^']*'", f"version='{new_version}'",
-                       content)
-  write_setup_py_content(new_content)
-
-  run_cmd('git', 'add', SETUP_PY_PATH)
-  run_cmd('git', 'commit', '-m',
-          f'perfetto(python): Bump version to {new_version}')
-
-  info(f"Version bump commit created on branch '{branch_name}'.")
-  info("Please push this branch, create a pull request, and wait for it to "
-       "be landed.")
+  The version comes from the top 'vX.Y' entry of the CHANGELOG, same as
+  python/setup.py.
+  """
+  with open(CHANGELOG_PATH) as f:
+    for line in f:
+      m = re.match(r'^v(\d+)[.](\d+)\s', line)
+      if m:
+        return '0.%s.%s' % (m.group(1), m.group(2))
+  error(f"No vX.Y entry found in {CHANGELOG_PATH}")
+  sys.exit(1)  # Unreachable, but satisfies type checker
 
 
 def publish(commit: str) -> None:
@@ -135,9 +114,9 @@ def publish(commit: str) -> None:
   info(f"Checking out commit {commit}...")
   run_cmd('git', 'checkout', commit)
 
-  # Read the original content of setup.py at the release commit.
+  # setup.py content at the release commit, used below to rewrite download_url.
   content_at_commit = get_setup_py_content()
-  new_version = get_current_version(content_at_commit)
+  new_version = version_from_changelog()
   download_url = f"'https://github.com/google/perfetto/archive/{commit}.zip'"
 
   # Temporarily update download_url just for building the package.
@@ -199,19 +178,17 @@ def publish(commit: str) -> None:
 
 def main() -> None:
   parser = argparse.ArgumentParser(
-      description="Automates the Perfetto Python library release process.")
-  parser.add_argument(
-      '--bump-version',
-      action='store_true',
-      help="Stage 1: Bump version and create a release CL.")
+      description="Publishes the Perfetto Python library to PyPI. The version "
+      "comes from the CHANGELOG, so there is nothing to bump.")
   parser.add_argument(
       '--publish',
       action='store_true',
-      help="Stage 2: Publish the release to PyPI.")
+      help="Publish the release to PyPI and create the download_url CL.")
   parser.add_argument(
       '--commit',
       metavar='HASH',
-      help="The landed commit hash of the version bump CL (for --publish).")
+      help="The release commit to publish from, e.g. the vX.Y tag commit "
+      "(for --publish).")
 
   args = parser.parse_args()
 
@@ -226,11 +203,7 @@ def main() -> None:
 
   check_git_clean()
 
-  if args.bump_version:
-    if args.publish or args.commit:
-      parser.error("--bump-version cannot be used with --publish or --commit.")
-    bump_version()
-  elif args.publish:
+  if args.publish:
     if not args.commit:
       parser.error("--publish requires --commit.")
     publish(args.commit)

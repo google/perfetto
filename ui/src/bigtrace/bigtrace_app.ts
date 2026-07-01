@@ -15,8 +15,8 @@
 import {CommandManagerImpl} from '../core/command_manager';
 import {OmniboxManagerImpl} from '../core/omnibox_manager';
 
-// Lightweight singleton for the BigTrace app. Holds only the managers needed
-// for the omnibox and command palette — no WASM, no trace processor.
+// BigTrace app singleton: only the omnibox and command-palette managers — no
+// WASM, no trace processor.
 export class BigTraceApp {
   readonly omnibox: OmniboxManagerImpl;
   readonly commands: CommandManagerImpl;

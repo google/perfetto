@@ -22,7 +22,6 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/proto/android_extensions_extension.descriptor.h"
 #include "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h"
 #include "src/trace_processor/importers/proto/gpu_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -55,55 +54,43 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
       kChromeTrackEventExtensionDescriptor.data(),
       kChromeTrackEventExtensionDescriptor.size());
   context->descriptor_pool_->AddFromFileDescriptorSet(
-      kAndroidExtensionsExtensionDescriptor.data(),
-      kAndroidExtensionsExtensionDescriptor.size());
-  context->descriptor_pool_->AddFromFileDescriptorSet(
       kGpuTrackEventDescriptor.data(), kGpuTrackEventDescriptor.size());
 }
 
 TrackEventModule::~TrackEventModule() = default;
 
-ModuleResult TrackEventModule::TokenizePacket(
-    const TracePacket::Decoder& decoder,
-    TraceBlobView* packet,
-    int64_t packet_timestamp,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) {
-  switch (field_id) {
+ModuleResult TrackEventModule::TokenizePacket(const TokenizePacketArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kTrackEventRangeOfInterestFieldNumber:
-      return tokenizer_.TokenizeRangeOfInterestPacket(std::move(state), decoder,
-                                                      packet, packet_timestamp);
+      return tokenizer_.TokenizeRangeOfInterestPacket(args);
     case TracePacket::kTrackDescriptorFieldNumber:
-      return tokenizer_.TokenizeTrackDescriptorPacket(std::move(state), decoder,
-                                                      packet, packet_timestamp);
+      return tokenizer_.TokenizeTrackDescriptorPacket(args);
     case TracePacket::kTrackEventFieldNumber:
-      return tokenizer_.TokenizeTrackEventPacket(std::move(state), decoder,
-                                                 packet, packet_timestamp);
+      return tokenizer_.TokenizeTrackEventPacket(args);
     case TracePacket::kThreadDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      return tokenizer_.TokenizeThreadDescriptorPacket(std::move(state),
-                                                       decoder, packet);
+      return tokenizer_.TokenizeThreadDescriptorPacket(args);
   }
   return ModuleResult::Ignored();
 }
 
-void TrackEventModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
-                                            int64_t ts,
-                                            const TracePacketData&,
-                                            uint32_t field_id) {
-  switch (field_id) {
+void TrackEventModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kTrackDescriptorFieldNumber:
-      parser_.ParseTrackDescriptor(ts, decoder.track_descriptor(),
-                                   decoder.trusted_packet_sequence_id());
+      parser_.ParseTrackDescriptor(
+          args.ts, args.field.Cast<TracePacket::kTrackDescriptor>(),
+          args.decoder.trusted_packet_sequence_id());
       break;
     case TracePacket::kProcessDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      parser_.ParseProcessDescriptor(ts, decoder.process_descriptor());
+      parser_.ParseProcessDescriptor(
+          args.ts, args.field.Cast<TracePacket::kProcessDescriptor>());
       break;
     case TracePacket::kThreadDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      parser_.ParseThreadDescriptor(decoder.thread_descriptor(),
-                                    /*is_sandboxed=*/false);
+      parser_.ParseThreadDescriptor(
+          args.field.Cast<TracePacket::kThreadDescriptor>(),
+          /*is_sandboxed=*/false);
       break;
     case TracePacket::kTrackEventFieldNumber:
       PERFETTO_DFATAL("Wrong TracePacket number");

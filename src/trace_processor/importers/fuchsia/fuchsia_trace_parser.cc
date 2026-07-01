@@ -492,7 +492,12 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          context_->flow_tracker->Begin(track_id, correlation_id);
+          auto opt_resolved =
+              GetGlobalFlowId(static_cast<uint32_t>(tinfo.pid), correlation_id,
+                              /* step_or_end = */ false);
+          if (opt_resolved) {
+            context_->flow_tracker->Begin(track_id, opt_resolved->global_id);
+          }
           break;
         }
         case kFlowStep: {
@@ -506,7 +511,12 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          context_->flow_tracker->Step(track_id, correlation_id);
+          auto opt_resolved =
+              GetGlobalFlowId(static_cast<uint32_t>(tinfo.pid), correlation_id,
+                              /* step_or_end = */ true);
+          if (opt_resolved) {
+            context_->flow_tracker->Step(track_id, opt_resolved->global_id);
+          }
           break;
         }
         case kFlowEnd: {
@@ -520,7 +530,17 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          context_->flow_tracker->End(track_id, correlation_id, true, true);
+          auto opt_resolved =
+              GetGlobalFlowId(static_cast<uint32_t>(tinfo.pid), correlation_id,
+                              /* step_or_end = */ true);
+          if (opt_resolved) {
+            context_->flow_tracker->End(track_id, opt_resolved->global_id,
+                                        /* bind_enclosing_slice = */ true,
+                                        /* close_flow = */ true);
+            fuchsia_active_flows_.Erase(opt_resolved->matched_scoped);
+            fuchsia_global_flows_.Erase(
+                opt_resolved->matched_scoped.correlation_id);
+          }
           break;
         }
       }
@@ -918,6 +938,54 @@ StringId FuchsiaTraceParser::IdForOutgoingThreadState(uint32_t state) {
     default:
       return kNullStringId;
   }
+}
+
+std::optional<FuchsiaTraceParser::ResolvedFlow>
+FuchsiaTraceParser::GetGlobalFlowId(uint32_t pid,
+                                    uint64_t correlation_id,
+                                    bool step_or_end) {
+  FuchsiaScopedFlowId scoped_id = {pid, correlation_id};
+
+  // First, check if there is an exact match for the process-scoped flow.
+  auto* it = fuchsia_active_flows_.Find(scoped_id);
+  if (it) {
+    return ResolvedFlow{*it, scoped_id};
+  }
+
+  // If this is a flow begin event, allocate a new globally unique flow ID.
+  if (!step_or_end) {
+    uint64_t global_id = fuchsia_global_flow_id_counter_++;
+    fuchsia_active_flows_.Insert(scoped_id, global_id);
+
+    auto* global_it = fuchsia_global_flows_.Find(correlation_id);
+    if (global_it) {
+      if (global_it->pid != pid) {
+        global_it->is_ambiguous = true;
+      }
+    } else {
+      fuchsia_global_flows_.Insert(correlation_id, GlobalFlowInfo{pid, false});
+    }
+    return ResolvedFlow{global_id, scoped_id};
+  }
+
+  // For step or end events, check if the correlation ID is registered under a
+  // different process PID, indicating a cross-process flow.
+  auto* global_it = fuchsia_global_flows_.Find(correlation_id);
+  if (global_it) {
+    if (global_it->is_ambiguous) {
+      // The correlation ID is defined in multiple processes, so we cannot
+      // disambiguate it for cross-process correlation.
+      return std::nullopt;
+    }
+    uint32_t owner_pid = global_it->pid;
+    FuchsiaScopedFlowId owner_scoped_id = {owner_pid, correlation_id};
+    auto* global_id_it = fuchsia_active_flows_.Find(owner_scoped_id);
+    if (global_id_it) {
+      return ResolvedFlow{*global_id_it, owner_scoped_id};
+    }
+  }
+
+  return std::nullopt;
 }
 
 }  // namespace perfetto::trace_processor
