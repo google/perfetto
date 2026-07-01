@@ -65,6 +65,13 @@ void SliceTracker::AddOverlapArgs(const OverlapInfo& info,
                   Variadic::Integer(info.conflicting_dur));
 }
 
+void SliceTracker::AddMaxDepthArgs(StringId parent_name,
+                                   StringId current_name,
+                                   ArgsTracker::BoundInserter& inserter) const {
+  inserter.AddArg(max_depth_parent_name_key_, Variadic::String(parent_name));
+  inserter.AddArg(max_depth_current_name_key_, Variadic::String(current_name));
+}
+
 SliceTracker::~SliceTracker() {
   FlushPendingSlices();
 }
@@ -106,10 +113,7 @@ void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent,
       stats::slice_max_depth_exceeded, timestamp,
       [this, parent_name_id,
        current_name_id](ArgsTracker::BoundInserter& inserter) {
-        inserter.AddArg(max_depth_parent_name_key_,
-                        Variadic::String(parent_name_id));
-        inserter.AddArg(max_depth_current_name_key_,
-                        Variadic::String(current_name_id));
+        AddMaxDepthArgs(parent_name_id, current_name_id, inserter);
       });
 }
 

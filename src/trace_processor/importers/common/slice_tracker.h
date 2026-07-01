@@ -73,6 +73,12 @@ class SliceTracker {
   // the same queryable context in the TraceImportLogsTable.
   void AddOverlapArgs(const OverlapInfo&, ArgsTracker::BoundInserter&) const;
 
+  // Writes args describing parent and current slice names when max depth is
+  // exceeded onto |inserter|.
+  void AddMaxDepthArgs(StringId parent_name,
+                       StringId current_name,
+                       ArgsTracker::BoundInserter&) const;
+
   explicit SliceTracker(TraceProcessorContext*);
   ~SliceTracker();
 
