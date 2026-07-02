@@ -19,6 +19,10 @@ import {showMultiTraceModal} from './multi_trace_modal';
 
 const MULTI_TRACE_COMMAND_ID = 'dev.perfetto.MultiTraceOpen#openMultipleTraces';
 
+function isFileArray(value: unknown): value is File[] {
+  return Array.isArray(value) && value.every((f) => f instanceof File);
+}
+
 function openFilePickerAndShowModal() {
   const input = document.createElement('input');
   input.setAttribute('type', 'file');
@@ -41,7 +45,17 @@ export default class implements PerfettoPlugin {
     app.commands.registerCommand({
       id: MULTI_TRACE_COMMAND_ID,
       name: 'Open multiple trace files',
-      callback: () => openFilePickerAndShowModal(),
+      // Accepts an optional list of files (e.g. from drag and drop); without
+      // one it falls back to showing a file picker.
+      callback: (filesArg?: unknown) => {
+        if (isFileArray(filesArg)) {
+          if (filesArg.length > 0) {
+            showMultiTraceModal(filesArg);
+          }
+          return;
+        }
+        openFilePickerAndShowModal();
+      },
     });
     app.sidebar.addMenuItem({
       commandId: MULTI_TRACE_COMMAND_ID,
