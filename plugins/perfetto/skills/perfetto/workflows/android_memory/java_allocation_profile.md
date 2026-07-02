@@ -2,14 +2,14 @@
 
 This workflow walks an AI agent through investigating memory allocation churn and temporary object allocation in Android Java/Kotlin code. It assumes the trace was recorded with the ART heap subscription (`heapprofd` with `art` heap enabled, or `track_event` with Java allocation tracking).
 
-If the user has not yet loaded a trace into `trace_processor`, follow `../../infra-references/querying.md` first, then come back here.
+If the user has not yet loaded a trace into `trace_processor`, follow `$SKILL_ROOT/infra-references/querying.md` first, then come back here.
 
 ---
 
 ## Mental Model
 
 It is critical to distinguish between two types of Java memory analysis:
-1.  **Java Heap Dumps (Snapshots):** Walked in [heap_dump.md](heap_dump.md). This analyzes a snapshot of all *live* objects at a single point in time, showing reference chains (who keeps what alive).
+1.  **Java Heap Dumps (Snapshots):** Walked in [heap_dump.md]($SKILL_ROOT/workflows/android_memory/heap_dump.md). This analyzes a snapshot of all *live* objects at a single point in time, showing reference chains (who keeps what alive).
 2.  **Java Allocation Profiles (Temporal):** Walked in this file. This analyzes *allocations over time*, showing the **callstacks** of methods that allocated objects, regardless of whether they are still alive.
 
 Allocation profiling is crucial for identifying **memory churn**. High memory churn (allocating many temporary objects) causes frequent Garbage Collection (GC) runs, which introduces CPU overhead, lag, and jank in the UI.
@@ -29,7 +29,7 @@ This section is the mandatory first-pass triage for analyzing a Java allocation 
 1.  Run the trace query using the provided compiled script to extract the top allocation path. For triage, we look at the top allocator by default (unreleased, but the script can be adapted or we assume it's the primary signal).
 
     ```bash
-    trace_processor query --query-file scripts/triage_java_allocation.sql TRACE_FILE
+    trace_processor query --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_java_allocation.sql TRACE_FILE
     ```
 
 2.  Parse the returned string CSV to identify the columns and extract the values for `process_name`, `path` (callstack), `class_name` (leaf method), and `self_size` (allocated bytes). If the response is empty or contains only a header, inform the user that the query returned no matching data for this trace.

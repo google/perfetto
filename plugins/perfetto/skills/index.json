@@ -4,6 +4,7 @@
       "name": "perfetto",
       "files": [
         "SKILL.md",
+        "bin/trace_processor",
         "environment-references/setup.md",
         "infra-references/querying.md",
         "infra-references/recording_android_traces.md",

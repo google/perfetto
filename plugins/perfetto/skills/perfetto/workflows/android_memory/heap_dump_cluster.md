@@ -41,21 +41,26 @@ traces. The expected CSV columns are
 `trace_uuid,process_name,path,class_name,self_size`.
 
 If the user provides raw traces, run the standard dominator tree query
-(`scripts/triage_dominator_path.sql`, also used by `heap_dump.md`) on each
+(`$SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql`, also used by `$SKILL_ROOT/workflows/android_memory/heap_dump.md`) on each
 trace and prepend a `trace_uuid` column yourself when assembling
-the CSV — that query returns `process_name, path, class_name, self_size` but
-does NOT carry the trace identifier. Use the trace file name (or any stable
-identifier you have for each trace) as the `trace_uuid` value.
+the CSV — that query returns `process_name, graph_sample_ts, path, class_name,
+self_size` but does NOT carry the trace identifier. Use the trace file name (or
+any stable identifier you have for each trace) as the `trace_uuid` value. The
+query emits **one row per heap dump** contained in the trace (a trace can hold
+several dumps — multiple processes, or one process sampled over time), so a
+single multi-dump trace already contributes several rows to the clustering
+input; keep each row's `graph_sample_ts` so dumps from the same process stay
+distinct.
 
 ## Step 2 — Execute the Clustering Script
 
 Invoke the provided standalone Python clustering script
-(`scripts/cluster_paths.py`) on the CSV data. The script performs TF-IDF
+(`$SKILL_ROOT/workflows/android_memory/scripts/cluster_paths.py`) on the CSV data. The script performs TF-IDF
 vectorization, computes Silhouette scores to find the optimal $K$, and assigns
 cluster IDs.
 
 ```bash
-python3 scripts/cluster_paths.py --process_name <process_name> --input_file <path_to_input.csv> --output_file <path_to_clustered_output.csv>
+python3 $SKILL_ROOT/workflows/android_memory/scripts/cluster_paths.py --process_name <process_name> --input_file <path_to_input.csv> --output_file <path_to_clustered_output.csv>
 ```
 
 > [!TIP] If you are running in an isolated environment, ensure `pandas` and
@@ -65,11 +70,11 @@ python3 scripts/cluster_paths.py --process_name <process_name> --input_file <pat
 ## Step 3 — Generate the Cluster Summary Report
 
 Once the paths are clustered, invoke the summarization script
-(`scripts/summarize_clusters.py`) to aggregate metrics and identify dominant
+(`$SKILL_ROOT/workflows/android_memory/scripts/summarize_clusters.py`) to aggregate metrics and identify dominant
 leak signatures per cluster.
 
 ```bash
-python3 scripts/summarize_clusters.py --process_name <process_name> --input_file <path_to_clustered_output.csv> --output_file <path_to_summary_report.txt>
+python3 $SKILL_ROOT/workflows/android_memory/scripts/summarize_clusters.py --process_name <process_name> --input_file <path_to_clustered_output.csv> --output_file <path_to_summary_report.txt>
 ```
 
 ## What to Report Back
