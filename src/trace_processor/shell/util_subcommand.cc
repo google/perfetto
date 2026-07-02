@@ -162,6 +162,9 @@ merge usage:
   tokenization pass after writing and a warning is printed if any events
   would be dropped on open (--strict turns the warning into an error).
 
+  Full guide: https://perfetto.dev/docs/analysis/merging-traces
+  Manifest format: https://perfetto.dev/docs/reference/perfetto-manifest
+
 Other utilities read from [input] (default stdin) and write to [output]
 (default stdout):
   util <utility> [input] [output]
