@@ -587,6 +587,12 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
           autofocus: true,
           placeholder: 'machine name',
           value: machines.find((mm) => mm.id === selectedId)?.name ?? '',
+          // Select the prefilled default name so typing replaces it.
+          onfocus: (e: FocusEvent) => {
+            if (e.target instanceof HTMLInputElement) {
+              e.target.select();
+            }
+          },
           onInput: (value: string) =>
             controller.renameMachine(selectedId, value),
           // Enter or blur finishes the edit.
