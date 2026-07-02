@@ -24,11 +24,11 @@ import type {Trace} from '../../public/trace';
 import {
   AndroidInputEventSource,
   type InputChainRow,
-  type NavTarget,
 } from './android_input_event_source';
 import {AndroidInputLifecycleTab} from './tab';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import type {QueryResult} from '../../base/query_slot';
+import type {InputLifecycleExtension, NavTarget} from './extensions/interface';
 
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';
@@ -42,7 +42,21 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
 
-    const source = new AndroidInputEventSource(trace);
+    const extensions: InputLifecycleExtension[] = [];
+
+    const activeExtensions: InputLifecycleExtension[] = [];
+    for (const ext of extensions) {
+      if (await ext.isEligible(trace)) {
+        if (ext.requiredModules) {
+          for (const mod of ext.requiredModules) {
+            await trace.engine.query(`INCLUDE PERFETTO MODULE ${mod};`);
+          }
+        }
+        activeExtensions.push(ext);
+      }
+    }
+
+    const source = new AndroidInputEventSource(trace, activeExtensions);
     const pinningManager = new TrackPinningManager(trace);
 
     trace.tracks.registerOverlay(
@@ -69,6 +83,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
             pinningManager,
             onToggleVisibility: (rowId) => this.toggleVisibility(rowId),
             onToggleAllVisibility: () => this.toggleAllVisibility(rows ?? []),
+            activeExtensions,
           });
         },
       },
@@ -121,13 +136,12 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
     this.visibleRowIds.clear();
 
     for (const row of rows) {
-      const ids = [
-        row.navReader?.id,
-        row.navDispatch?.id,
-        row.navReceive?.id,
-        row.navConsume?.id,
-        row.navFrame?.id,
-      ];
+      const ids: number[] = [];
+      for (const stageData of row.stagesData.values()) {
+        if (stageData.nav) {
+          ids.push(stageData.nav.id);
+        }
+      }
       if (ids.includes(eventId)) {
         this.visibleRowIds.add(row.uiRowId);
         break;
@@ -142,17 +156,19 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
     const {data: rows} = this.useRowState(trace, source);
     if (!rows) return [];
 
+    const specs = source.getStageSpecs();
+
     const connections: ArrowConnection[] = [];
     for (const row of rows) {
       if (!this.visibleRowIds.has(row.uiRowId)) continue;
 
-      const steps = [
-        row.navReader,
-        row.navDispatch,
-        row.navReceive,
-        row.navConsume,
-        row.navFrame,
-      ].filter((s): s is NavTarget => s !== undefined);
+      const steps: NavTarget[] = [];
+      for (const spec of specs) {
+        const stageData = row.stagesData.get(spec.key);
+        if (stageData?.nav) {
+          steps.push(stageData.nav);
+        }
+      }
 
       for (let i = 0; i < steps.length - 1; i++) {
         const start = steps[i];
