@@ -13,21 +13,14 @@
 // limitations under the License.
 
 import {AppImpl} from './app_impl';
-
-// Registered by the dev.perfetto.MultiTraceOpen plugin; referenced by id to
-// avoid a core -> plugin import.
-const OPEN_MULTIPLE_TRACES_COMMAND =
-  'dev.perfetto.MultiTraceOpen#openMultipleTraces';
+import {OPEN_MULTIPLE_TRACES_CMD} from '../public/exposed_commands';
 
 // Opens one or more trace files: a single file loads directly, several files
 // go through the multi-trace merge dialog.
 export function openTraceFiles(files: ReadonlyArray<File>) {
   const app = AppImpl.instance;
-  if (
-    files.length > 1 &&
-    app.commands.hasCommand(OPEN_MULTIPLE_TRACES_COMMAND)
-  ) {
-    app.commands.runCommand(OPEN_MULTIPLE_TRACES_COMMAND, files);
+  if (files.length > 1 && app.commands.hasCommand(OPEN_MULTIPLE_TRACES_CMD)) {
+    app.commands.runCommand(OPEN_MULTIPLE_TRACES_CMD, files);
   } else if (files.length > 0) {
     app.openTraceFromFile(files[0]);
   }
