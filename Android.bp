@@ -692,8 +692,10 @@ cc_library_shared {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_packet_compressor_common",
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
+        ":perfetto_src_tracing_service_zstd_compressor",
     ],
     host_supported: true,
     export_include_dirs: [
@@ -781,6 +783,7 @@ cc_library_shared {
                 "liblog",
                 "libpcre2",
                 "libz",
+                "libzstd",
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
@@ -790,6 +793,7 @@ cc_library_shared {
             static_libs: [
                 "liblog",
                 "libz",
+                "libzstd",
             ],
             whole_static_libs: [
                 "libpcre2",
@@ -962,8 +966,10 @@ cc_library {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_packet_compressor_common",
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
+        ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_src_tracing_system_backend",
     ],
     host_supported: true,
@@ -1043,6 +1049,7 @@ cc_library {
     ],
     cflags: [
         "-DPERFETTO_FORCE_DISABLE_ZLIB",
+        "-DPERFETTO_FORCE_DISABLE_ZSTD",
         "-DPERFETTO_REGEX_FORCE_STD",
         "-DPERFETTO_SHLIB_SDK_IMPLEMENTATION",
         "-DZLIB_IMPLEMENTATION",
@@ -1187,8 +1194,10 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_packet_compressor_common",
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
+        ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_src_tracing_system_backend",
     ],
     shared_libs: [
@@ -1340,6 +1349,7 @@ cc_library_static {
     ],
     cflags: [
         "-DPERFETTO_FORCE_DISABLE_ZLIB",
+        "-DPERFETTO_FORCE_DISABLE_ZSTD",
         "-DPERFETTO_REGEX_FORCE_STD",
         "-DZLIB_IMPLEMENTATION",
     ],
@@ -1981,7 +1991,10 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_packet_compressor_common",
         ":perfetto_src_tracing_service_service",
+        ":perfetto_src_tracing_service_zlib_compressor",
+        ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_test_test_helper",
         "test/cts/art_module/heapprofd_java_test_cts.cc",
         "test/cts/device_feature_test_cts.cc",
@@ -1993,6 +2006,8 @@ cc_library_static {
     shared_libs: [
         "liblog",
         "libpcre2",
+        "libz",
+        "libzstd",
     ],
     static_libs: [
         "libgmock",
@@ -2182,6 +2197,9 @@ cc_library_static {
     defaults: [
         "perfetto_defaults",
     ],
+    cflags: [
+        "-DZLIB_IMPLEMENTATION",
+    ],
     target: {
         android: {
             static_libs: [
@@ -2353,11 +2371,16 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_packet_compressor_common",
         ":perfetto_src_tracing_service_service",
+        ":perfetto_src_tracing_service_zlib_compressor",
+        ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_test_test_helper",
     ],
     shared_libs: [
         "libpcre2",
+        "libz",
+        "libzstd",
     ],
     static_libs: [
         "libgmock",
@@ -2543,6 +2566,9 @@ cc_library_static {
     ],
     defaults: [
         "perfetto_defaults",
+    ],
+    cflags: [
+        "-DZLIB_IMPLEMENTATION",
     ],
 }
 
@@ -3166,8 +3192,10 @@ cc_test {
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_producer_relay",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_packet_compressor_common",
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
+        ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_api_test_support",
         ":perfetto_src_tracing_test_client_api_integrationtests",
@@ -3188,6 +3216,7 @@ cc_test {
         "libunwindstack",
         "libutils",
         "libz",
+        "libzstd",
     ],
     static_libs: [
         "libgmock",
@@ -22140,6 +22169,11 @@ filegroup {
     ],
 }
 
+// GN: //src/tracing/service:packet_compressor_common
+filegroup {
+    name: "perfetto_src_tracing_service_packet_compressor_common",
+}
+
 // GN: //src/tracing/service:service
 filegroup {
     name: "perfetto_src_tracing_service_service",
@@ -22161,12 +22195,12 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_service_unittests",
     srcs: [
+        "src/tracing/service/compressor_unittest.cc",
         "src/tracing/service/histogram_unittest.cc",
         "src/tracing/service/packet_stream_validator_unittest.cc",
         "src/tracing/service/trace_buffer_v1_unittest.cc",
         "src/tracing/service/trace_buffer_v2_unittest.cc",
         "src/tracing/service/tracing_service_impl_unittest.cc",
-        "src/tracing/service/zlib_compressor_unittest.cc",
     ],
 }
 
@@ -22175,6 +22209,14 @@ filegroup {
     name: "perfetto_src_tracing_service_zlib_compressor",
     srcs: [
         "src/tracing/service/zlib_compressor.cc",
+    ],
+}
+
+// GN: //src/tracing/service:zstd_compressor
+filegroup {
+    name: "perfetto_src_tracing_service_zstd_compressor",
+    srcs: [
+        "src/tracing/service/zstd_compressor.cc",
     ],
 }
 
@@ -23334,9 +23376,11 @@ cc_test {
         ":perfetto_src_tracing_ipc_producer_relay",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_ipc_unittests",
+        ":perfetto_src_tracing_service_packet_compressor_common",
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_unittests",
         ":perfetto_src_tracing_service_zlib_compressor",
+        ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_unittests",
@@ -23354,6 +23398,7 @@ cc_test {
         "libunwindstack",
         "libutils",
         "libz",
+        "libzstd",
     ],
     static_libs: [
         "libgmock",
@@ -23778,11 +23823,16 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_packet_compressor_common",
         ":perfetto_src_tracing_service_service",
+        ":perfetto_src_tracing_service_zlib_compressor",
+        ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_test_test_helper",
     ],
     shared_libs: [
         "libpcre2",
+        "libz",
+        "libzstd",
     ],
     static_libs: [
         "libgmock",
@@ -23968,6 +24018,9 @@ cc_library_static {
     ],
     defaults: [
         "perfetto_defaults",
+    ],
+    cflags: [
+        "-DZLIB_IMPLEMENTATION",
     ],
 }
 
@@ -25242,7 +25295,10 @@ cc_binary {
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
+        ":perfetto_src_tracing_service_packet_compressor_common",
         ":perfetto_src_tracing_service_service",
+        ":perfetto_src_tracing_service_zlib_compressor",
+        ":perfetto_src_tracing_service_zstd_compressor",
         "src/profiling/perf/main.cc",
     ],
     shared_libs: [
@@ -25251,6 +25307,8 @@ cc_binary {
         "libpcre2",
         "libprocinfo",
         "libunwindstack",
+        "libz",
+        "libzstd",
     ],
     static_libs: [
         "perfetto_flags_c_lib",
@@ -25327,6 +25385,9 @@ cc_binary {
     ],
     defaults: [
         "perfetto_defaults",
+    ],
+    cflags: [
+        "-DZLIB_IMPLEMENTATION",
     ],
     include_dirs: [
         "bionic/libc/kernel",

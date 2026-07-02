@@ -64,9 +64,10 @@ c_sdk_header_filter = r'^include/perfetto/public/'
 # line).
 gn_args = ' '.join([
     'enable_perfetto_ipc=true',
-    # Compile zlib and re2 into the amalgamation; the consumer opts in at
+    # Compile zlib, zstd and re2 into the amalgamation; the consumer opts in at
     # use-site (see perfetto_amalgamated_sdk).
     'enable_perfetto_zlib=true',
+    'enable_perfetto_zstd=true',
     'enable_perfetto_re2=true',
     'enable_perfetto_pcre2=false',
     'is_debug=false',
