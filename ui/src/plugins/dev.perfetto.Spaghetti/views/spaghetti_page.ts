@@ -43,6 +43,7 @@ import {
 // and event callbacks). Connections are NOT stored in the graph model —
 // they are derived from node.inputs arrays on each render.
 import {Popup} from '../../../widgets/popup';
+import {Stack} from '../components/stack';
 import {SplitPanel} from '../../../widgets/split_panel';
 import {Tabs} from '../../../widgets/tabs';
 import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
@@ -640,7 +641,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               title: 'Clear workspace',
             }),
           },
-          m('.pf-qb-stack', [
+          m(Stack, [
             m('span', 'Are you sure you want to clear everything?'),
             m(
               `.${Popup.DISMISS_POPUP_GROUP_CLASS}`,
@@ -1063,7 +1064,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               fillHeight: true,
               title: 'Query error',
             },
-            m('pre.pf-node-query-builder-page__error', matError),
+            m('pre.pf-spag__error', matError),
           );
         } else if (activeNodeId) {
           return m(
@@ -1123,7 +1124,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       });
 
       return m(
-        '.pf-node-query-builder-page',
+        '.pf-spag',
         {
           style: {
             display: 'flex',
