@@ -182,9 +182,9 @@ message ProfilePacket {
     optional uint64 orig_sampling_interval_bytes = 13;
 
     // Timestamp of the state of the target process that this dump represents,
-    // i.e. the end of the interval covered by the dump (|start_timestamp| is the
-    // start). This can be different to the timestamp of the TracePackets for
-    // various reasons:
+    // i.e. the end of the interval covered by the dump (|start_timestamp| is
+    // the start). This can be different to the timestamp of the TracePackets
+    // for various reasons:
     // * If disconnected is set above, this is the timestamp of last state
     //   heapprofd had of the process before it disconnected.
     // * Otherwise, if the rate of events produced by the process is high,
