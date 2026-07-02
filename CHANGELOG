@@ -10,6 +10,12 @@ Unreleased:
   SDK:
    *
 
+v57.1 - 2026-07-02:
+  AI:
+    * Fixed the AI skill missing its bundled `trace_processor` wrapper.
+      The wrapper now ships inside the skill directory itself, for every
+      install method and agent.
+
 v57.0 - 2026-06-19:
   Tracing service and probes:
     * Scoped the RelayPort IPC service so it is only exposed on producer
