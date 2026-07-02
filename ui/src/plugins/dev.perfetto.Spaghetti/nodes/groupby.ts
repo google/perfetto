@@ -20,11 +20,12 @@ import type {
   SqlStatement,
 } from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
 import {Select} from '../../../widgets/select';
-import {TextInput} from '../../../widgets/text_input';
+import {Row} from '../components/row';
+import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
+import {AliasTag} from '../components/alias_tag';
 
 export interface Aggregation {
   readonly func: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
@@ -35,43 +36,6 @@ export interface Aggregation {
 export interface GroupByConfig {
   readonly groupColumns: string[];
   readonly aggregations: Aggregation[];
-}
-
-// A tiny tag that expands into a text input when clicked.
-// If blurred with an empty value, collapses back to the tag.
-function AliasTag(): m.Component<{
-  alias: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-}> {
-  let editing = false;
-
-  return {
-    view({attrs: {alias, placeholder, onChange}}) {
-      if (editing || alias) {
-        return m('.pf-qb-alias-tag', [
-          m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
-          m(TextInput, {
-            placeholder,
-            value: alias,
-            autofocus: editing && !alias,
-            onChange: (value: string) => onChange(value),
-            onblur: () => {
-              if (!alias) editing = false;
-            },
-          }),
-        ]);
-      }
-      return m(Button, {
-        icon: 'shoppingmode',
-        className: 'pf-qb-alias-btn',
-        title: 'Add alias',
-        onclick: () => {
-          editing = true;
-        },
-      });
-    },
-  };
 }
 
 function aggAlias(a: Aggregation): string {
@@ -87,12 +51,12 @@ function GroupByContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig, ctx}}) {
-      return m('.pf-qb-stack', {style: {minWidth: '250px'}}, [
-        m('.pf-qb-section-label', 'Group by'),
-        m('.pf-qb-filter-list', [
+      return m(Stack, {style: {minWidth: '250px'}}, [
+        m('.pf-spag-section-label', 'Group by'),
+        m(Stack, {compact: true}, [
           ...config.groupColumns.map((col, i) =>
             m(
-              '.pf-qb-filter-row',
+              Row,
               {
                 key: i,
                 draggable: true,
@@ -144,10 +108,7 @@ function GroupByContent(): m.Component<{
                 },
               },
               [
-                m(Icon, {
-                  icon: 'drag_indicator',
-                  className: 'pf-qb-drag-handle',
-                }),
+                m(Row.DragHandle),
                 m(ColumnPicker, {
                   value: col,
                   columns: ctx.availableColumns,
@@ -158,10 +119,7 @@ function GroupByContent(): m.Component<{
                     updateConfig({groupColumns: updated});
                   },
                 }),
-                m(Button, {
-                  icon: 'delete',
-                  className: 'pf-qb-row-delete-inline',
-                  title: 'Remove',
+                m(Row.DeleteButton, {
                   onclick: () => {
                     updateConfig({
                       groupColumns: config.groupColumns.filter(
@@ -183,11 +141,11 @@ function GroupByContent(): m.Component<{
           },
         }),
 
-        m('.pf-qb-section-label', 'Aggregations'),
-        m('.pf-qb-filter-list', [
+        m('.pf-spag-section-label', 'Aggregations'),
+        m(Stack, {compact: true}, [
           ...config.aggregations.map((agg, i) =>
             m(
-              '.pf-qb-filter-row',
+              Row,
               {
                 key: i,
                 draggable: true,
@@ -239,10 +197,7 @@ function GroupByContent(): m.Component<{
                 },
               },
               [
-                m(Icon, {
-                  icon: 'drag_indicator',
-                  className: 'pf-qb-drag-handle',
-                }),
+                m(Row.DragHandle),
                 m(
                   Select,
                   {
@@ -284,10 +239,7 @@ function GroupByContent(): m.Component<{
                     updateConfig({aggregations: newAggs});
                   },
                 }),
-                m(Button, {
-                  icon: 'delete',
-                  className: 'pf-qb-row-delete-inline',
-                  title: 'Remove',
+                m(Row.DeleteButton, {
                   onclick: () => {
                     updateConfig({
                       aggregations: config.aggregations.filter(

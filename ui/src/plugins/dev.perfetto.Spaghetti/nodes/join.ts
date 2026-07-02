@@ -15,10 +15,12 @@
 import m from 'mithril';
 import type {NodeManifest, RenderContext, IrContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
-import {TextInput} from '../../../widgets/text_input';
+import {Row} from '../components/row';
+import {Stack} from '../components/stack';
+import './join.scss';
 import {ColumnPicker} from '../widgets/column_picker';
 import {RadioGroup} from '../../../widgets/radio_group';
+import { AliasTag } from '../components/alias_tag';
 
 export interface JoinColumn {
   readonly column: string;
@@ -30,43 +32,6 @@ export interface JoinConfig {
   readonly rightColumn: string;
   readonly columns?: JoinColumn[];
   readonly joinType: 'LEFT' | 'INNER';
-}
-
-// A tiny tag that expands into a text input when clicked.
-// If blurred with an empty value, collapses back to the tag.
-function AliasTag(): m.Component<{
-  alias: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-}> {
-  let editing = false;
-
-  return {
-    view({attrs: {alias, placeholder, onChange}}) {
-      if (editing || alias) {
-        return m('.pf-qb-alias-tag', [
-          m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
-          m(TextInput, {
-            placeholder,
-            value: alias,
-            autofocus: editing && !alias,
-            onChange: (value: string) => onChange(value),
-            onblur: () => {
-              if (!alias) editing = false;
-            },
-          }),
-        ]);
-      }
-      return m(Button, {
-        icon: 'shoppingmode',
-        className: 'pf-qb-alias-btn',
-        title: 'Add alias',
-        onclick: () => {
-          editing = true;
-        },
-      });
-    },
-  };
 }
 
 // Compute the resolved aliases for all extend columns.
@@ -95,7 +60,7 @@ function JoinNodeContent(): m.Component<{
       const leftSet = new Set(leftColumns.map((c) => c.name));
 
       const joinType = config.joinType;
-      return m('.pf-qb-stack', {style: {minWidth: '200px'}}, [
+      return m(Stack, {style: {minWidth: '200px'}}, [
         m(
           RadioGroup,
           {
@@ -109,13 +74,13 @@ function JoinNodeContent(): m.Component<{
             m(RadioGroup.Button, {value: 'INNER'}, 'Inner'),
           ],
         ),
-        m('.pf-qb-section-label', 'Join on'),
-        m('.pf-qb-group-grid', [
+        m('.pf-spag-section-label', 'Join on'),
+        m('.pf-spag-group-grid', [
           m(ColumnPicker, {
             value: config.leftColumn,
             columns: leftColumns,
             placeholder: 'left col',
-            className: 'pf-qb-join-col',
+            className: 'pf-spag-join-col',
             onSelect: (value: string) => {
               updateConfig({leftColumn: value});
             },
@@ -125,21 +90,21 @@ function JoinNodeContent(): m.Component<{
             value: config.rightColumn,
             columns: rightColumns,
             placeholder: 'right col',
-            className: 'pf-qb-join-col',
+            className: 'pf-spag-join-col',
             onSelect: (value: string) => {
               updateConfig({rightColumn: value});
             },
           }),
         ]),
 
-        m('.pf-qb-section-label', 'Columns to add'),
-        m('.pf-qb-filter-list', [
+        m('.pf-spag-section-label', 'Columns to add'),
+        m(Stack, {compact: true}, [
           ...columns.map((entry, i) => {
             const defaultAlias = leftSet.has(entry.column)
               ? `right_${entry.column}`
               : entry.column;
             return m(
-              '.pf-qb-filter-row',
+              Row,
               {
                 key: i,
                 draggable: true,
@@ -191,10 +156,7 @@ function JoinNodeContent(): m.Component<{
                 },
               },
               [
-                m(Icon, {
-                  icon: 'drag_indicator',
-                  className: 'pf-qb-drag-handle',
-                }),
+                m(Row.DragHandle),
                 m(ColumnPicker, {
                   value: entry.column,
                   columns: rightColumns,
@@ -214,10 +176,7 @@ function JoinNodeContent(): m.Component<{
                     updateConfig({columns: updated});
                   },
                 }),
-                m(Button, {
-                  icon: 'delete',
-                  className: 'pf-qb-row-delete-inline',
-                  title: 'Remove',
+                m(Row.DeleteButton, {
                   onclick: () => {
                     updateConfig({
                       columns: columns.filter((_, j) => j !== i),

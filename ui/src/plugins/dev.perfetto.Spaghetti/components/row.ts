@@ -35,7 +35,12 @@ export namespace Row {
     },
   };
 
-  export const DeleteButton: m.Component<{readonly onclick: () => void}> = {
+  export interface DeleteButtonAttrs {
+    readonly onclick?: () => void;
+    readonly title?: string;
+  }
+
+  export const DeleteButton: m.Component<DeleteButtonAttrs> = {
     view({attrs}) {
       return m(Button, {
         icon: 'delete',

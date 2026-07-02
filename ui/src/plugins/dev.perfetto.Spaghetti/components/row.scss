@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Each filter row: a flex row with drag handle, controls, and delete button.
 .pf-spag-row {
   display: flex;
   align-items: baseline;
@@ -56,11 +55,11 @@
     }
   }
 
-  // Close button doesn't grow.
-  button,
-  .pf-button-wrapper {
-    flex: 0 0 auto;
-  }
+//   // Close button doesn't grow.
+//   button,
+//   .pf-button-wrapper {
+//     flex: 0 0 auto;
+//   }
 
   // Drag handle icon.
   .pf-spag-draghandle {

@@ -1,0 +1,66 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-spag-empty-tab {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+  font-size: 13px;
+}
+
+table.pf-spag-cols {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--pf-font-size-s);
+
+  th,
+  td {
+    padding: 3px 4px;
+    text-align: left;
+    vertical-align: baseline;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    font-size: var(--pf-font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--pf-color-text-muted);
+    background: var(--pf-color-background-secondary);
+    border-bottom: 1px solid var(--pf-color-border);
+    white-space: nowrap;
+  }
+
+  tr {
+    &:nth-child(even) {
+      background-color: color-mix(
+        in srgb,
+        var(--pf-color-background-secondary) 50%,
+        var(--pf-color-background)
+      );
+    }
+  }
+
+  td.pf-spag-col-type {
+    color: var(--pf-color-text-muted);
+    font-family: var(--pf-font-monospace);
+    display: inline-flex;
+    gap: 0.4em;
+  }
+}

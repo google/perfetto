@@ -15,7 +15,8 @@
 import m from 'mithril';
 import type {NodeManifest, RenderContext, SqlStatement} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
+import {Row} from '../components/row';
+import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import {RadioGroup} from '../../../widgets/radio_group';
 
@@ -68,11 +69,11 @@ function SortNodeContent(): m.Component<{
         });
       };
 
-      return m('.pf-qb-stack', [
-        m('.pf-qb-filter-list', [
+      return m(Stack, [
+        m(Stack, {compact: true}, [
           ...conditions.map((cond, i) =>
             m(
-              '.pf-qb-filter-row',
+              Row,
               {
                 key: i,
                 draggable: true,
@@ -124,10 +125,7 @@ function SortNodeContent(): m.Component<{
                 },
               },
               [
-                m(Icon, {
-                  icon: 'drag_indicator',
-                  className: 'pf-qb-drag-handle',
-                }),
+                m(Row.DragHandle),
                 m(ColumnPicker, {
                   value: cond.column,
                   columns: availableColumns,
@@ -151,10 +149,7 @@ function SortNodeContent(): m.Component<{
                   m(RadioGroup.Button, {value: 'ASC'}, 'ASC'),
                   m(RadioGroup.Button, {value: 'DESC'}, 'DESC'),
                 ),
-                m(Button, {
-                  icon: 'delete',
-                  className: 'pf-qb-row-delete-inline',
-                  title: 'Remove',
+                m(Row.DeleteButton, {
                   onclick: () => {
                     updateConditions(conditions.filter((_, j) => j !== i));
                   },

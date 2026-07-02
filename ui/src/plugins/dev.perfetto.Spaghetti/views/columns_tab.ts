@@ -19,14 +19,15 @@ import {
 } from '../../../trace_processor/perfetto_sql_type';
 import type {ColumnDef} from '../graph_utils';
 import {Icon} from '../../../widgets/icon';
+import './columns_tab.scss';
 
 export interface ColumnsTabAttrs {
   readonly outputColumns: ColumnDef[] | undefined;
   readonly activeNodeId: string | undefined;
 }
 
-function emptyTab() {
-  return m('.pf-spag-empty-tab', 'No node selected');
+function emptyTab(text: string) {
+  return m('.pf-spag-empty-tab', text);
 }
 
 export class ColumnsTab implements m.ClassComponent<ColumnsTabAttrs> {
@@ -34,21 +35,7 @@ export class ColumnsTab implements m.ClassComponent<ColumnsTabAttrs> {
     const {outputColumns, activeNodeId} = attrs;
 
     if (!outputColumns || outputColumns.length === 0) {
-      return emptyTab();
-      return m(
-        '',
-        {
-          style: {
-            display: 'flex',
-            flex: '1',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: '0.5',
-            fontSize: '13px',
-          },
-        },
-        activeNodeId ? 'No columns available' : 'Select a node',
-      );
+      return emptyTab(activeNodeId ? 'No columns available' : 'Select a node');
     }
 
     return m(
@@ -57,10 +44,10 @@ export class ColumnsTab implements m.ClassComponent<ColumnsTabAttrs> {
       m(
         'tbody',
         outputColumns.map((col, i) =>
-          m('tr.pf-qb-col-row', {key: i}, [
-            m('td.pf-qb-col-name', col.name),
+          m('tr.pf-spag-col-row', {key: i}, [
+            m('td.pf-spag-col-name', col.name),
             m(
-              'td.pf-qb-col-type',
+              'td.pf-spag-col-type',
               m(Icon, {icon: perfettoSqlTypeIcon(col.type)}),
               perfettoSqlTypeToString(col.type),
             ),

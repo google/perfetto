@@ -17,6 +17,9 @@ import type {NodeManifest, DetailsContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {NUM_NULL, STR_NULL} from '../../../trace_processor/query_result';
 import {ColumnPicker} from '../widgets/column_picker';
+import {Row} from '../components/row';
+import {Stack} from '../components/stack';
+import './chart.scss';
 import type {Port} from '../graph_model';
 
 export interface ChartSpec {
@@ -125,23 +128,23 @@ function BarChartPanel(): m.Component<{
         : '(no column selected)';
 
       if (error) {
-        return m('.pf-qb-chart-panel', [
-          m('.pf-qb-chart-title', title),
-          m('.pf-qb-chart-error', error),
+        return m('.pf-spag-chart-panel', [
+          m('.pf-spag-chart-title', title),
+          m('.pf-spag-chart-error', error),
         ]);
       }
 
       if (!rows) {
-        return m('.pf-qb-chart-panel', [
-          m('.pf-qb-chart-title', title),
-          m('.pf-qb-chart-loading', 'Loading…'),
+        return m('.pf-spag-chart-panel', [
+          m('.pf-spag-chart-title', title),
+          m('.pf-spag-chart-loading', 'Loading…'),
         ]);
       }
 
       if (rows.length === 0) {
-        return m('.pf-qb-chart-panel', [
-          m('.pf-qb-chart-title', title),
-          m('.pf-qb-chart-empty', 'No data'),
+        return m('.pf-spag-chart-panel', [
+          m('.pf-spag-chart-title', title),
+          m('.pf-spag-chart-empty', 'No data'),
         ]);
       }
 
@@ -191,8 +194,8 @@ function BarChartPanel(): m.Component<{
         ]);
       });
 
-      return m('.pf-qb-chart-panel', [
-        m('.pf-qb-chart-title', title),
+      return m('.pf-spag-chart-panel', [
+        m('.pf-spag-chart-title', title),
         m(
           'svg',
           {
@@ -219,7 +222,7 @@ function ChartDashboard(): m.Component<{
     view({attrs: {config, ctx}}) {
       if (!ctx.materializedTable) {
         return m(
-          '.pf-qb-chart-dashboard',
+          '.pf-spag-chart-dashboard',
           {
             style: {
               display: 'flex',
@@ -238,7 +241,7 @@ function ChartDashboard(): m.Component<{
 
       if (config.charts.length === 0) {
         return m(
-          '.pf-qb-chart-dashboard',
+          '.pf-spag-chart-dashboard',
           {
             style: {
               display: 'flex',
@@ -256,7 +259,7 @@ function ChartDashboard(): m.Component<{
       }
 
       return m(
-        '.pf-qb-chart-dashboard',
+        '.pf-spag-chart-dashboard',
         config.charts.map((spec, i) =>
           m(BarChartPanel, {
             key: i,
@@ -306,7 +309,7 @@ export const manifest: NodeManifest<ChartConfig> = {
     const canRemove = n > 1;
     const cols = ctx.availableColumns;
 
-    return m('.pf-qb-stack', [
+    return m(Stack, [
       m('div', {style: {display: 'flex', gap: '4px'}}, [
         canRemove &&
           m(Button, {
@@ -322,11 +325,12 @@ export const manifest: NodeManifest<ChartConfig> = {
           onclick: () => updateConfig({numInputs: n + 1}),
         }),
       ]),
-      m('.pf-qb-section-label', 'Charts'),
+      m('.pf-spag-section-label', 'Charts'),
       m(
-        '.pf-qb-filter-list',
+        Stack,
+        {compact: true},
         config.charts.map((spec, i) =>
-          m('.pf-qb-filter-row', {key: i}, [
+          m(Row, {key: i}, [
             m(ColumnPicker, {
               value: spec.xCol,
               columns: cols,
@@ -352,9 +356,7 @@ export const manifest: NodeManifest<ChartConfig> = {
                 updateConfig({charts: updated});
               },
             }),
-            m(Button, {
-              icon: 'delete',
-              className: 'pf-qb-row-delete-inline',
+            m(Row.DeleteButton, {
               title: 'Remove chart',
               onclick: () =>
                 updateConfig({charts: config.charts.filter((_, j) => j !== i)}),
