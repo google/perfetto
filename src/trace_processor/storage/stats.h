@@ -717,7 +717,9 @@ namespace perfetto::trace_processor::stats {
       "the presence of one is usually a sign that something went wrong while " \
       "recording a trace. Common causes of this include incorrect "            \
       "incremental timestamps, bad clock synchronization or kernel bugs in "   \
-      "drivers emitting timestamps"),                                          \
+      "drivers emitting timestamps. When merging multiple traces, a clock "    \
+      "offset which moves events before the start of the trace-time clock "    \
+      "also causes this."),                                                    \
   F(slice_drop_overlapping_complete_event,        kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,   \
       "A complete slice was dropped because it partially overlaps another "    \
       "slice on the same track. Overlapping duration events are out of spec "  \

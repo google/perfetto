@@ -203,7 +203,8 @@ export class WasmTraceAnalyzer implements TraceAnalyzer {
         FROM stats
         WHERE name IN (
           'clock_sync_unrelatable_clock_domains',
-          'clock_sync_failure_no_path'
+          'clock_sync_failure_no_path',
+          'trace_sorter_negative_timestamp_dropped'
         )
       `);
       const it = res.iter({dropped: NUM});
