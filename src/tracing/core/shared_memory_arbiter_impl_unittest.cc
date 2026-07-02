@@ -382,6 +382,8 @@ TEST_P(SharedMemoryArbiterImplTest, CommitDataSplittingHonorsIpcBufferSize) {
     patch->set_data(patch_data);
   }
 
+  req->set_flush_request_id(1);
+
   // Capture every request emitted by the splitting logic. None of them must
   // exceed what the IPC layer is willing to receive, and together they must
   // carry all the moves and patches from the original request.
@@ -411,6 +413,94 @@ TEST_P(SharedMemoryArbiterImplTest, CommitDataSplittingHonorsIpcBufferSize) {
   EXPECT_EQ(total_moves, kNumChunks);
   EXPECT_EQ(total_patches, 2000u);
   EXPECT_EQ(flush_ids, 1u);
+}
+
+// Regression test for https://github.com/google/perfetto/issues/6426.
+// The splitting logic used to count only the raw chunk data against the size
+// limit, ignoring the per-ChunkToMove proto framing (field tags, varints,
+// submessage length prefix). With many small chunks the framing alone can
+// exceed the 512-byte headroom and push the serialized request past the IPC
+// frame size limit.
+TEST_P(SharedMemoryArbiterImplTest, CommitDataSplittingAccountsForFraming) {
+  constexpr size_t kMaxCommitDataRequestChunkSize = 128 * 1024 - 512;
+
+  arbiter_.reset(new SharedMemoryArbiterImpl(
+      buf(), buf_size(), ShmemMode::kShmemEmulation, page_size(),
+      &mock_producer_endpoint_, task_runner_.get()));
+
+  // 2000 chunks of 64 bytes: the payload (125 KB) is under the splitting
+  // threshold, but the ~10 bytes of framing per chunk push the serialized
+  // request over the IPC frame size limit.
+  auto req = std::make_unique<CommitDataRequest>();
+  const std::string chunk_payload(64, 'x');
+  for (uint32_t i = 0; i < 2000; i++) {
+    auto* ctm = req->add_chunks_to_move();
+    ctm->set_page(i % 14);
+    ctm->set_chunk(i % 14);
+    ctm->set_target_buffer(1);
+    ctm->set_data(chunk_payload);
+  }
+
+  size_t total_moves = 0;
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillRepeatedly([&](const CommitDataRequest& r,
+                          MockProducerEndpoint::CommitDataCallback) {
+        EXPECT_LE(r.SerializeAsString().size(), kMaxCommitDataRequestChunkSize)
+            << "emitted commit data request exceeds the IPC frame size limit";
+        total_moves += r.chunks_to_move().size();
+      });
+
+  CommitDataWithSplitting(std::move(req), [] {});
+  EXPECT_EQ(total_moves, 2000u);
+}
+
+// Regression test for https://github.com/google/perfetto/issues/6426.
+// ScrapeEmulatedSharedMemoryBuffer used to send all scraped chunks in a
+// single CommitDataRequest, bypassing the splitting logic. Since a scrape
+// inlines the full data of every in-flight chunk, that single request could
+// far exceed the IPC frame size limit and get the producer disconnected.
+TEST_P(SharedMemoryArbiterImplTest, ScrapeEmulatedSharedMemoryBufferSplits) {
+  constexpr size_t kMaxCommitDataRequestChunkSize = 128 * 1024 - 512;
+
+  arbiter_.reset(new SharedMemoryArbiterImpl(
+      buf(), buf_size(), ShmemMode::kShmemEmulation, page_size(),
+      &mock_producer_endpoint_, task_runner_.get()));
+
+  SharedMemoryArbiterImpl::set_default_layout_for_testing(
+      SharedMemoryABI::PageLayout::kPageDiv1);
+
+  constexpr WriterID kWriterId = 7;
+  constexpr BufferID kTargetBuffer = 42;
+
+  // Acquire every chunk in the buffer and leave them all in the
+  // kChunkBeingWritten state with at least 2 packets, so that they are all
+  // scrapable. With 64 KB pages the inlined data alone (~14 * 64 KB) is far
+  // larger than a single IPC frame.
+  SharedMemoryABI::ChunkHeader header = {};
+  header.writer_id.store(kWriterId, std::memory_order_relaxed);
+  header.packets.store({}, std::memory_order_relaxed);
+  for (size_t i = 0; i < kNumPages; i++) {
+    header.chunk_id.store(static_cast<ChunkID>(i), std::memory_order_relaxed);
+    SharedMemoryABI::Chunk chunk =
+        arbiter_->GetNewChunk(header, BufferExhaustedPolicy::kStall);
+    ASSERT_TRUE(chunk.is_valid());
+    chunk.IncrementPacketCount();
+    chunk.IncrementPacketCount();
+  }
+
+  size_t total_moves = 0;
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillRepeatedly([&](const CommitDataRequest& r,
+                          MockProducerEndpoint::CommitDataCallback) {
+        EXPECT_LE(r.SerializeAsString().size(), kMaxCommitDataRequestChunkSize)
+            << "emitted commit data request exceeds the IPC frame size limit";
+        total_moves += r.chunks_to_move().size();
+      });
+
+  std::map<WriterID, BufferID> buffer_for_writers = {
+      {kWriterId, kTargetBuffer}};
+  arbiter_->ScrapeEmulatedSharedMemoryBuffer(buffer_for_writers);
+  EXPECT_EQ(total_moves, kNumPages);
 }
 
 // Check that we can create up to many TraceWriter(s).
