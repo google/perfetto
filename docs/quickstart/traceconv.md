@@ -144,6 +144,11 @@ have a specific reason not to.
 Note: `bundle` requires real file paths for both the input and the output
 — it does not accept stdin/stdout.
 
+The output TAR is a standard
+[trace archive](/docs/getting-started/other-formats.md#trace-archives): the
+UI and Trace Processor open it directly, and the same mechanism also powers
+[trace merging](/docs/analysis/merging-traces.md).
+
 ### `symbolize` / `deobfuscate` (advanced)
 
 Lower-level building blocks for pipelines that cannot use `bundle`. Each
