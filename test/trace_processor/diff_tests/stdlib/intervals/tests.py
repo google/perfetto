@@ -305,6 +305,84 @@ class StdlibIntervals(TestSuite):
         310,0,11,5,1
         """))
 
+  def test_interval_self_intersect_partitioned(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        WITH
+          data(ts, dur, id, group_name) AS (
+            VALUES
+              -- Group A: overlapping intervals
+              (10, 100, 0, 'A'),
+              (20, 40, 1, 'A'),
+              (30, 120, 2, 'A'),
+              -- Group B: separate intervals
+              (200, 10, 3, 'B'),
+              (200, 20, 4, 'B'),
+              -- Group C: single interval
+              (300, 10, 5, 'C')
+          )
+        SELECT *
+        FROM interval_self_intersect_partitioned!(data, (group_name))
+        ORDER BY group_name ASC, ts ASC, id ASC;
+        """,
+        out=Csv("""
+        "ts","dur","group_id","id","interval_ends_at_ts","group_name"
+        10,10,1,0,0,"A"
+        20,10,2,0,0,"A"
+        20,10,2,1,0,"A"
+        30,30,3,0,0,"A"
+        30,30,3,1,0,"A"
+        30,30,3,2,0,"A"
+        60,50,4,0,0,"A"
+        60,50,4,1,1,"A"
+        60,50,4,2,0,"A"
+        110,40,5,0,1,"A"
+        110,40,5,2,0,"A"
+        150,0,6,2,1,"A"
+        200,10,7,3,0,"B"
+        200,10,7,4,0,"B"
+        210,10,8,3,1,"B"
+        210,10,8,4,0,"B"
+        220,0,9,4,1,"B"
+        300,10,10,5,0,"C"
+        310,0,11,5,1,"C"
+        """))
+
+  def test_interval_self_intersect_partitioned_multiple_keys(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+        
+        WITH
+          data(ts, dur, id, partition_a, partition_b) AS (
+            VALUES
+              (0, 10, 0, 'A', 1),
+              (5, 10, 1, 'A', 1),
+              (5, 10, 2, 'B', 1),
+              (10, 5, 3, 'B', 2)
+          )
+        SELECT *
+        FROM interval_self_intersect_partitioned!(data, (partition_a, partition_b))
+        ORDER BY partition_a ASC, partition_b ASC, ts ASC, id ASC;
+        """,
+        out=Csv("""
+        "ts","dur","group_id","id","interval_ends_at_ts","partition_a","partition_b"
+        0,5,1,0,0,"A",1
+        5,5,2,0,0,"A",1
+        5,5,2,1,0,"A",1
+        10,5,3,0,1,"A",1
+        10,5,3,1,0,"A",1
+        15,0,4,1,1,"A",1
+        5,10,5,2,0,"B",1
+        15,0,6,2,1,"B",1
+        10,5,7,3,0,"B",2
+        15,0,8,3,1,"B",2
+        """))
+
   def test_interval_merge_overlapping_partitioned(self):
     return DiffTestBlueprint(
         trace=TextProto(""),

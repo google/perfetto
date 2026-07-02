@@ -262,9 +262,9 @@ struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
     }
     std::vector<std::string> partition_columns =
         base::SplitString(base::StripChars(partition_list, "()", ' '), ",");
-    if (partition_columns.size() > 4) {
+    if (partition_columns.size() > 10) {
       return sqlite::result::Error(
-          ctx, "interval intersect: Can take at most 4 partitions.");
+          ctx, "interval intersect: Can take at most 10 partitions.");
     }
     for (const auto& c : partition_columns) {
       std::string p_col_name = base::TrimWhitespace(c);

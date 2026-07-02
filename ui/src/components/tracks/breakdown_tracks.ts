@@ -361,9 +361,16 @@ export class BreakdownTracks {
 
       CREATE PERFETTO TABLE ${this.segmentsTableName} AS
       SELECT iss.ts, iss.group_id, iss.interval_ends_at_ts, ${denormCols}
-      FROM interval_self_intersect!((
-        SELECT id, ts, dur FROM ${this.intervalsTableName}
-      )) iss
+      FROM ${
+        this.aggColNames.length > 0
+          ? `interval_self_intersect_partitioned!(
+            (SELECT id, ts, dur, ${this.aggColNames.join(', ')} FROM ${this.intervalsTableName}),
+            (${this.aggColNames.join(', ')})
+          )`
+          : `interval_self_intersect!((
+            SELECT id, ts, dur FROM ${this.intervalsTableName}
+          ))`
+      } iss
       JOIN ${this.intervalsTableName} i USING(id);
 
       CREATE PERFETTO TABLE ${this.projectedTableName} AS

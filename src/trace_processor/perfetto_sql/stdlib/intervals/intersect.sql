@@ -15,6 +15,8 @@
 
 -- sqlformat file off
 
+INCLUDE PERFETTO MODULE std.metasql.unparenthesize;
+
 CREATE PERFETTO MACRO _ii_df_agg(x ColumnName, y ColumnName)
 RETURNS _ProjectionFragment
 AS __intrinsic_stringify!($x), input.$y;
@@ -94,7 +96,7 @@ AS (
     -- Columns for partitions, one for each column with partition.
     __intrinsic_token_apply_prefix!(
       _ii_df_select,
-      (c17, c18, c19, c20),
+      (c17, c18, c19, c20, c21, c22, c23, c24, c25, c26),
       $agg_columns
     )
   -- Interval intersect result table.
@@ -136,7 +138,7 @@ AS (
     -- Partition columns.
     __intrinsic_token_apply_and_prefix!(
       _ii_df_bind,
-      (c17, c18, c19, c20),
+      (c17, c18, c19, c20, c21, c22, c23, c24, c25, c26),
       $agg_columns
     )
 );
@@ -291,5 +293,74 @@ AS (
     TRUE AS interval_ends_at_ts
   FROM _all_endpoints e
   JOIN _atomic_segments a ON a.ts = e.ts
+  WHERE e.is_start = FALSE
+);
+
+-- Like interval_self_intersect but partitions by a set of columns. Intervals
+-- in different partitions do not intersect with each other.
+--
+-- Runtime is O(n log n + m) per partition, where n is the number of intervals in
+-- each partition and m is the size of the output.
+CREATE PERFETTO MACRO interval_self_intersect_partitioned(
+  -- Table or subquery containing interval data.
+  intervals TableOrSubquery,
+  -- Columns to partition by
+  partition_columns ColumnNameList
+)
+RETURNS TableOrSubquery
+AS (
+  WITH
+    _all_endpoints AS (
+      SELECT id AS original_id, ts, TRUE as is_start
+      __intrinsic_token_apply_prefix!(_ii_df_select, $partition_columns, $partition_columns)
+      FROM $intervals
+      UNION
+      SELECT id AS original_id, ts + dur AS ts, FALSE as is_start
+      __intrinsic_token_apply_prefix!(_ii_df_select, $partition_columns, $partition_columns)
+      FROM $intervals
+    ),
+    _atomic_segments AS (
+      SELECT
+        ROW_NUMBER() OVER (ORDER BY metasql_unparenthesize_exprlist!($partition_columns), ts) AS id,
+        ts,
+        IFNULL(LEAD(ts) OVER (PARTITION BY metasql_unparenthesize_exprlist!($partition_columns) ORDER BY ts) - ts, 0) AS dur
+        __intrinsic_token_apply_prefix!(_ii_df_select, $partition_columns, $partition_columns)
+      FROM _all_endpoints
+      GROUP BY ts, metasql_unparenthesize_exprlist!($partition_columns)
+    ),
+    _ii AS (
+      SELECT
+        ii.ts,
+        ii.dur,
+        ii.id_0 AS group_id,
+        ii.id_1 AS original_id
+        __intrinsic_token_apply_prefix!(_ii_df_select, $partition_columns, $partition_columns)
+      FROM _interval_intersect!((_atomic_segments, $intervals), $partition_columns) ii
+    )
+  -- Part A: Standard segments
+  SELECT
+    ts,
+    dur,
+    group_id,
+    original_id AS id,
+    FALSE AS interval_ends_at_ts
+    __intrinsic_token_apply_prefix!(_ii_df_select, $partition_columns, $partition_columns)
+  FROM _ii
+  WHERE dur > 0
+
+  UNION ALL
+
+  -- Part B: End markers.
+  -- We join back to _atomic_segments to get the 'next' duration
+  -- to match the original implementation's quirk.
+  SELECT
+    e.ts AS ts,
+    a.dur AS dur,
+    a.id AS group_id,
+    e.original_id AS id,
+    TRUE AS interval_ends_at_ts
+    __intrinsic_token_apply_prefix!(_ii_df_select, $partition_columns, $partition_columns)
+  FROM _all_endpoints e
+  NATURAL JOIN _atomic_segments a
   WHERE e.is_start = FALSE
 );
