@@ -512,14 +512,12 @@ FtraceTokenizer::HandleFtraceClockSnapshot(
     PERFETTO_DCHECK(clock_id !=
                     ClockId::Machine(BuiltinClock::BUILTIN_CLOCK_BOOTTIME));
     int64_t ftrace_timestamp = decoder.ftrace_timestamp();
-    auto x = context_->clock_tracker->AddSnapshot({
+    context_->clock_tracker->AddSnapshot({
         ClockTracker::ClockTimestamp(clock_id, ftrace_timestamp),
         ClockTracker::ClockTimestamp(
             ClockId::Machine(BuiltinClock::BUILTIN_CLOCK_BOOTTIME),
             decoder.boot_timestamp()),
     });
-    PERFETTO_ELOG("%s", x.ok() ? "Added ftrace clock snapshot"
-                               : x.status().message().c_str());
     latest_ftrace_clock_snapshot_ts_ = ftrace_timestamp;
   }
   return clock_id;
