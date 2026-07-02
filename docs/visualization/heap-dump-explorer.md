@@ -282,10 +282,14 @@ unreachable. Use _Object Size_ to follow the actual reference
 structure of the heap, and _Dominated Object Size_ to attribute
 memory to the objects responsible for keeping it alive.
 
-Sizes count the Java shallow size of each object. Memory that lives
-on the native heap on behalf of a Java object (for example bitmap
-pixel buffers on modern Android) is not included, so bitmaps can look
-deceptively small here — use the [Bitmaps](#bitmaps) tab for those.
+Sizes count the Java shallow size of each object. Native memory
+registered against a Java object (for example bitmap pixel buffers on
+modern Android) is shown as a separate child node labelled
+`[native] <ClassName>` and is counted in all cumulative totals.
+Native memory that is not registered this way does not appear in the
+dump at all; use the
+[native heap profiler](/docs/data-sources/native-heap-profiler.md)
+for that.
 
 ### Cumulative, Self and Self Count
 
