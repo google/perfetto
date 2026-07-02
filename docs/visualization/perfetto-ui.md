@@ -12,6 +12,10 @@ going.
 Drag and drop a trace from your file explorer, or click 'Open trace file' in the
 sidebar to open a local trace file.
 
+Selecting or dropping several files at once merges them onto a single shared
+timeline via a configuration dialog: see
+[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md).
+
 ## Navigating the Timeline
 
 Use the WASD cluster to zoom and pan around the timeline. W and S zoom in and

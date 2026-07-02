@@ -8,8 +8,17 @@ Unreleased:
     * Added a client-server mode to `trace_processor_shell`: start a server
       over a unix socket (`server unix`) or WebSocket (`server http`) and
       connect a thin client with `--remote`.
+    * Added trace merging: a ZIP or TAR archive containing several traces
+      imports as one merged trace on a single timeline, with per-machine
+      attribution. An optional `perfetto_manifest` JSON file in the archive
+      configures the merge (machine names, clock relations, fixed offsets).
+      See https://perfetto.dev/docs/analysis/merging-traces.
   UI:
-    *
+    * Opening multiple trace files is now supported by default: the "Open
+      multiple trace files" sidebar item (or multi-selecting / dropping
+      several files) opens a dialog to configure how the traces merge onto
+      a shared timeline, warns if any events would be dropped, and can
+      export the merged set as a self-contained .tar archive.
   SDK:
     *
 
