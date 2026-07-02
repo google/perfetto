@@ -157,7 +157,7 @@
 // Each filter row: a flex row with drag handle, controls, and delete button.
 .pf-qb-filter-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 2px;
   position: relative;
 
@@ -223,6 +223,7 @@
   flex: 0 0 auto;
   margin-left: -6px;
   font-size: 16px;
+  align-self: center;
 
   &:hover {
     opacity: 0.8;
@@ -360,31 +361,30 @@
   opacity: 0.5;
 }
 
-// Columns tab: one row per output column.
-.pf-qb-col-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 3px 6px;
-  border-radius: 4px;
-  font-size: 12px;
+// // Columns tab: one row per output column.
+// .pf-qb-col-row {
+//   display: flex;
+//   align-items: baseline;
+//   gap: 8px;
+//   padding: 3px 6px;
+//   font-size: 12px;
 
-  &:nth-child(odd) {
-    background: color-mix(in srgb, var(--pf-color-border) 20%, transparent);
-  }
-}
+//   &:nth-child(odd) {
+//     background: color-mix(in srgb, var(--pf-color-border) 20%, transparent);
+//   }
+// }
 
-.pf-qb-col-name {
-  font-family: var(--pf-font-monospace);
-  font-weight: 600;
-  flex: 1;
-}
+// .pf-qb-col-name {
+//   font-family: var(--pf-font-monospace);
+//   font-weight: 600;
+//   flex: 1;
+// }
 
-.pf-qb-col-type {
-  font-family: var(--pf-font-monospace);
-  font-size: 11px;
-  opacity: 0.6;
-}
+// .pf-qb-col-type {
+//   font-family: var(--pf-font-monospace);
+//   font-size: 11px;
+//   opacity: 0.6;
+// }
 
 // IR tab: one card per IrEntry.
 .pf-qb-ir-block {
@@ -585,4 +585,68 @@
     font-weight: 600;
     color: var(--pf-color-primary, #6a8);
   }
+}
+
+table.pf-spag-cols {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--pf-font-size-s);
+
+  th,
+  td {
+    padding: 3px 4px;
+    text-align: left;
+    vertical-align: baseline;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    font-size: var(--pf-font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--pf-color-text-muted);
+    background: var(--pf-color-background-secondary);
+    border-bottom: 1px solid var(--pf-color-border);
+    white-space: nowrap;
+  }
+
+  tr {
+    &:nth-child(even) {
+      background-color: color-mix(
+        in srgb,
+        var(--pf-color-background-secondary) 50%,
+        var(--pf-color-background)
+      );
+    }
+  }
+
+  td.pf-qb-col-name {
+  }
+
+  td.pf-qb-col-type {
+    color: var(--pf-color-text-muted);
+    font-family: var(--pf-font-monospace);
+    display: inline-flex;
+    gap: 0.4em;
+  }
+}
+
+.pf-spag-json-bar {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+
+.pf-spag-empty-tab {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+  font-size: 13px;
 }
