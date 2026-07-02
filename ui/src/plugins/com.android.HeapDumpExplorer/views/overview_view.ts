@@ -24,6 +24,12 @@ import {type NavFn, sizeRenderer} from '../components';
 import type {HeapDump} from '../queries';
 import {Callout} from '../../../widgets/callout';
 import {Button} from '../../../widgets/button';
+import {
+  Grid,
+  GridCell,
+  GridHeaderCell,
+  type GridRow,
+} from '../../../widgets/grid';
 
 const HEAP_SCHEMA: SchemaRegistry = {
   query: {
@@ -45,19 +51,6 @@ const HEAP_SCHEMA: SchemaRegistry = {
       title: 'Total Size',
       columnType: 'quantitative',
       cellRenderer: sizeRenderer,
-    },
-  },
-};
-
-const INFO_SCHEMA: SchemaRegistry = {
-  query: {
-    property: {
-      title: 'Property',
-      columnType: 'text',
-    },
-    value: {
-      title: 'Value',
-      columnType: 'text',
     },
   },
 };
@@ -290,49 +283,9 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
       const processLabel =
         (activeDump.processName ?? '<unknown>') +
         (activeDump.pid ? ` (pid ${activeDump.pid})` : '');
-      const infoRows: Row[] = [
-        {property: 'Process', value: processLabel},
-        ...(overview.processUptime !== null
-          ? [
-              {
-                property: 'Uptime',
-                value: Duration.format(overview.processUptime),
-              },
-            ]
-          : []),
-        ...(overview.oomBucket !== null
-          ? [
-              {
-                property: 'OOM score',
-                value: `${overview.oomBucket} (${overview.oomScore})`,
-              },
-            ]
-          : []),
-        {property: 'Classes', value: overview.classCount.toLocaleString()},
-        {
-          property: 'Reachable instances',
-          value: overview.reachableInstanceCount.toLocaleString(),
-        },
-        {
-          property: 'Unreachable instances',
-          value: overview.unreachableInstanceCount.toLocaleString(),
-        },
-        ...(overview.anonRssAndSwapSize !== null
-          ? [
-              {
-                property: 'Anon RSS + Swap',
-                value: fmtSize(Number(overview.anonRssAndSwapSize)),
-              },
-            ]
-          : []),
-        ...(overview.dmabufRssSize !== null
-          ? [
-              {
-                property: 'DMA Buffer RSS',
-                value: fmtSize(Number(overview.dmabufRssSize)),
-              },
-            ]
-          : []),
+      const infoRow = (property: string, value: string): GridRow => [
+        m(GridCell, property),
+        m(GridCell, value),
       ];
 
       return m('div', {class: 'pf-hde-view-scroll'}, [
@@ -364,13 +317,49 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
 
         m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
           m('h3', {class: 'pf-hde-sub-heading'}, 'General Information'),
-          m(DataGrid, {
-            schema: INFO_SCHEMA,
-            rootSchema: 'query',
-            data: infoRows,
-            initialColumns: [
-              {id: 'property', field: 'property'},
-              {id: 'value', field: 'value'},
+          m(Grid, {
+            columns: [
+              {key: 'property', header: m(GridHeaderCell, 'Property')},
+              {key: 'value', header: m(GridHeaderCell, 'Value')},
+            ],
+            rowData: [
+              infoRow('Process', processLabel),
+              ...(overview.processUptime !== null
+                ? [infoRow('Uptime', Duration.format(overview.processUptime))]
+                : []),
+              ...(overview.oomBucket !== null
+                ? [
+                    infoRow(
+                      'OOM score',
+                      `${overview.oomBucket} (${overview.oomScore})`,
+                    ),
+                  ]
+                : []),
+              infoRow('Classes', overview.classCount.toLocaleString()),
+              infoRow(
+                'Reachable instances',
+                overview.reachableInstanceCount.toLocaleString(),
+              ),
+              infoRow(
+                'Unreachable instances',
+                overview.unreachableInstanceCount.toLocaleString(),
+              ),
+              ...(overview.anonRssAndSwapSize !== null
+                ? [
+                    infoRow(
+                      'Anon RSS + Swap',
+                      fmtSize(Number(overview.anonRssAndSwapSize)),
+                    ),
+                  ]
+                : []),
+              ...(overview.dmabufRssSize !== null
+                ? [
+                    infoRow(
+                      'DMA Buffer RSS',
+                      fmtSize(Number(overview.dmabufRssSize)),
+                    ),
+                  ]
+                : []),
             ],
           }),
         ]),
