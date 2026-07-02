@@ -175,46 +175,6 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
                   perfetto_protos_InternedString,
-                  protolog_string_args,
-                  36);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_InternedString,
-                  protolog_stacktrace,
-                  37);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_InternedString,
-                  viewcapture_package_name,
-                  38);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_InternedString,
-                  viewcapture_window_name,
-                  39);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_InternedString,
-                  viewcapture_view_id,
-                  40);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_InternedString,
-                  viewcapture_class_name,
-                  41);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_InternedString,
-                  viewcapture_content_description,
-                  45);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_InternedString,
-                  viewcapture_text,
-                  46);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_InternedString,
                   correlation_id_str,
                   43);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
