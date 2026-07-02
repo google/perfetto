@@ -23,14 +23,13 @@ The branch layout produced:
 
     .claude-plugin/marketplace.json     ← Claude marketplace
     .agents/plugins/marketplace.json    ← Codex marketplace
-    bin/trace_processor                 ← bundled Python wrapper
     plugins/perfetto/
         .claude-plugin/plugin.json      ← Claude plugin manifest
         .codex-plugin/plugin.json       ← Codex plugin manifest
-        skills/perfetto/SKILL.md        ← plugin variant of the skill
-    skills/
-        index.json                      ← OpenCode discovery
-        perfetto/SKILL.md               ← fallback variant of the skill
+        skills/
+            index.json                  ← OpenCode discovery
+            perfetto/SKILL.md           ← the skill
+            perfetto/bin/trace_processor  ← bundled wrapper
     BRANCH_METADATA.json                ← main_sha, tag, built_at
 
 The fallback installer is not bundled here: get.perfetto.dev/agents-install
@@ -39,17 +38,18 @@ serves it straight from main's `tools/agents-install`.
 There is one skill, `ai/skills/perfetto/`, whose entry point is
 `SKILL-template.md` (not a loadable `SKILL.md`, so the source tree is a
 build input, never a drop-in). The bundler renames it to `SKILL.md` and
-resolves the one piece of per-environment variance: which
-`environment-references/setup-*.md` variant becomes `setup.md`.
+copies the `tools/trace_processor` wrapper into the skill's `bin/`.
 
-It is emitted twice. Plugin-style agents (Claude, Codex) consume the
-in-tree `plugins/perfetto/skills/` copy and get the `setup-bundled.md`
-variant (the plugin ships `bin/trace_processor`). Fallback-style agents
-(Pi, OpenCode, Antigravity, and generic fallback installs) consume the
-root `skills/` copy and get the `setup-standalone.md` variant (they fetch
-the binary themselves). Antigravity is intentionally treated as a
-fallback consumer, not a plugin consumer, because the release branch
-cannot currently pin `agy plugin install` to a non-default git ref.
+The skill is emitted exactly once, into `plugins/perfetto/skills/`.
+Plugin-style agents (Claude, Codex) install the `plugins/perfetto/`
+subdir; every other consumer (Pi, OpenCode, Antigravity, generic
+fallback installs via tools/agents-install) reads the same tree at its
+full `plugins/perfetto/skills/` path. The wrapper at
+`<skill root>/bin/trace_processor` is what the skill's
+`environment-references/setup.md` points `$SKILL_ROOT`-based invocations
+at. Antigravity is intentionally treated as a fallback consumer, not a
+plugin consumer, because the release branch cannot currently pin
+`agy plugin install` to a non-default git ref.
 
 This script does no stamping: the release version is written into the
 source manifests and `tools/agents-install` by tools/release/
@@ -90,36 +90,29 @@ VERSION_MANIFEST = EXTENSIONS_SRC / 'claude-code' / 'marketplace.json'
 # The router entry point is a template in source control so the source tree is
 # never mistaken for a loadable skill; the bundler renames it to SKILL.md.
 SKILL_TEMPLATE = 'SKILL-template.md'
-ENV_REF_DIR = 'environment-references'
-# Which environment-references/setup-*.md variant becomes setup.md, keyed by
-# target class. Plugin installs ship bin/trace_processor; fallback installs
-# fetch it themselves.
-SETUP_VARIANT = {
-    'plugin': 'setup-bundled.md',
-    'fallback': 'setup-standalone.md',
-}
 # Source-only files that must never ship to the release branch: the template
-# (re-emitted as SKILL.md), the unselected setup variants (re-emitted as
-# setup.md), and dev/test metadata.
-_EMIT_IGNORE = shutil.ignore_patterns(SKILL_TEMPLATE, 'setup-bundled.md',
-                                      'setup-standalone.md', 'OWNERS',
-                                      'TEST.md', 'BUILD')
+# (re-emitted as SKILL.md) and dev/test metadata.
+_EMIT_IGNORE = shutil.ignore_patterns(SKILL_TEMPLATE, 'OWNERS', 'TEST.md',
+                                      'BUILD')
 
 
-def _emit_skill(skill_src: Path, variant: str, dest_dir: Path) -> str:
-  """Emit the single `perfetto` skill into dest_dir, resolved for `variant`.
+def _emit_skill(skill_src: Path, dest_dir: Path) -> str:
+  """Emit the single `perfetto` skill into dest_dir.
 
-  Copies the skill tree verbatim except for the two source-only transforms:
-  SKILL-template.md -> SKILL.md (rename) and the chosen setup-*.md -> setup.md.
-  Returns the emitted skill name.
+  Copies the skill tree verbatim except for the source-only transform
+  SKILL-template.md -> SKILL.md (rename), and adds the trace_processor
+  wrapper at bin/trace_processor so `$SKILL_ROOT/bin/trace_processor`
+  resolves in every install. Returns the emitted skill name.
   """
   out_dir = dest_dir / SKILL_NAME
   shutil.copytree(skill_src, out_dir, ignore=_EMIT_IGNORE)
   # Router: SKILL-template.md -> SKILL.md (verbatim, no content rewrite).
   shutil.copy(skill_src / SKILL_TEMPLATE, out_dir / 'SKILL.md')
-  # Environment setup: select the variant for this target class.
-  shutil.copy(skill_src / ENV_REF_DIR / SETUP_VARIANT[variant],
-              out_dir / ENV_REF_DIR / 'setup.md')
+  # The bundled wrapper, inside the skill so it survives every install
+  # method (plugin subdir, agents-install copytree, index.json fetch).
+  (out_dir / 'bin').mkdir()
+  shutil.copy(TRACE_PROCESSOR_SRC, out_dir / 'bin' / 'trace_processor')
+  (out_dir / 'bin' / 'trace_processor').chmod(0o755)
   return SKILL_NAME
 
 
@@ -160,25 +153,23 @@ def build(output: Path, skills_src: Path) -> None:
   output.mkdir(parents=True)
 
   # Manifests → their namespace-distinct destinations.
+  plugin_dir = output / 'plugins' / 'perfetto'
   copies = [
       (EXTENSIONS_SRC / 'claude-code' / 'marketplace.json',
        output / '.claude-plugin' / 'marketplace.json'),
       (EXTENSIONS_SRC / 'claude-code' / 'plugin.json',
-       output / 'plugins' / 'perfetto' / '.claude-plugin' / 'plugin.json'),
+       plugin_dir / '.claude-plugin' / 'plugin.json'),
       (EXTENSIONS_SRC / 'codex' / 'marketplace.json',
        output / '.agents' / 'plugins' / 'marketplace.json'),
       (EXTENSIONS_SRC / 'codex' / 'plugin.json',
-       output / 'plugins' / 'perfetto' / '.codex-plugin' / 'plugin.json'),
-      (TRACE_PROCESSOR_SRC, output / 'bin' / 'trace_processor'),
+       plugin_dir / '.codex-plugin' / 'plugin.json'),
   ]
   for src, dst in copies:
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(src, dst)
-  (output / 'bin' / 'trace_processor').chmod(0o755)
 
-  _emit_skill(skill_src, 'plugin', output / 'plugins' / 'perfetto' / 'skills')
-  _emit_skill(skill_src, 'fallback', output / 'skills')
-  _write_index(output / 'skills')
+  _emit_skill(skill_src, plugin_dir / 'skills')
+  _write_index(plugin_dir / 'skills')
 
   # Branch metadata. The version is read from the source manifests, which
   # roll-prebuilts already stamped — this script does not rewrite it.
@@ -197,8 +188,8 @@ def build(output: Path, skills_src: Path) -> None:
 
   print(f'Built ai-agents tree at {output}')
   print(f'  skills src:     {skills_src}')
-  print(f'  plugin skill:   {SKILL_NAME} (setup: {SETUP_VARIANT["plugin"]})')
-  print(f'  fallback skill: {SKILL_NAME} (setup: {SETUP_VARIANT["fallback"]})')
+  print(f'  skill:     {SKILL_NAME} (emitted to skills/, wrapper at '
+        f'bin/trace_processor)')
   print(f'  main_sha:  {meta["main_sha"]}')
   print(f'  version:   {version}')
 
