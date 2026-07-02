@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -30,7 +31,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/stream_decompressor.h"
 
 #include "perfetto/ext/base/status_macros.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -181,11 +182,6 @@ class ProtoTraceTokenizer {
         continue;
       }
 
-      if (!util::IsGzipSupported()) {
-        return base::ErrStatus(
-            "Cannot decode compressed packets. Zlib not enabled");
-      }
-
       protozero::ConstBytes field = decoder.compressed_packets();
       TraceBlobView compressed_packets = packet->slice(field.data, field.size);
       TraceBlobView packets;
@@ -224,8 +220,10 @@ class ProtoTraceTokenizer {
   // Parse() boundaries.
   util::TraceBlobViewReader reader_;
 
-  // Allows support for compressed trace packets.
-  util::GzipDecompressor decompressor_;
+  // Decompressor for `compressed_packets`, reused across packets;
+  // `decompressor_type_` is the codec it was built for.
+  std::unique_ptr<util::StreamDecompressor> decompressor_;
+  util::CompressionType decompressor_type_ = util::CompressionType::kNone;
 };
 
 }  // namespace perfetto::trace_processor

@@ -27,8 +27,8 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
+#include "src/trace_processor/util/decompress.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -38,7 +38,7 @@ namespace {
 
 using perfetto::trace_processor::DescriptorPool;
 using trace_processor::TraceType;
-using trace_processor::util::GzipDecompressor;
+namespace util = trace_processor::util;
 
 template <size_t N>
 static void WriteToOutput(std::ostream* output, const char (&str)[N]) {
@@ -87,9 +87,11 @@ std::string OnlineTraceToText::TracePacketToText(protozero::ConstBytes packet,
 
 void OnlineTraceToText::PrintCompressedPackets(protozero::ConstBytes packets) {
   WriteToOutput(output_, "compressed_packets {\n");
-  if (trace_processor::util::IsGzipSupported()) {
+  util::CompressionType type =
+      util::DetectPacketCompression(packets.data, packets.size);
+  if (util::IsCompressionSupported(type)) {
     std::vector<uint8_t> whole_data =
-        GzipDecompressor::DecompressFully(packets.data, packets.size);
+        util::DecompressFully(type, packets.data, packets.size);
     protos::pbzero::Trace::Decoder decoder(whole_data.data(),
                                            whole_data.size());
     for (auto it = decoder.packet(); it; ++it) {
@@ -100,8 +102,8 @@ void OnlineTraceToText::PrintCompressedPackets(protozero::ConstBytes packets) {
     }
   } else {
     static const char kErrMsg[] =
-        "Cannot decode compressed packets. zlib not enabled in the build "
-        "config";
+        "Cannot decode compressed packets: the codec is not enabled in the "
+        "build config";
     WriteToOutput(output_, kErrMsg);
     static bool log_once = [] {
       PERFETTO_ELOG("%s", kErrMsg);
@@ -191,15 +193,21 @@ bool TraceToText(std::istream* input,
   input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize);
   TraceType type = trace_processor::GuessTraceType(buffer.get(), buffer_len);
 
-  if (type == TraceType::kGzipTraceType) {
-    GzipDecompressor decompressor;
+  if (type == TraceType::kGzipTraceType || type == TraceType::kZstdTraceType) {
+    auto codec = type == TraceType::kZstdTraceType
+                     ? util::CompressionType::kZstd
+                     : util::CompressionType::kGzip;
+    std::unique_ptr<util::StreamDecompressor> decompressor =
+        util::CreateDecompressor(codec);
+    if (!decompressor)
+      return false;  // The codec isn't enabled in this build.
     auto consumer = [&](const uint8_t* data, size_t len) {
       online_trace_to_text.Feed(data, len);
     };
-    using ResultCode = GzipDecompressor::ResultCode;
+    using ResultCode = util::StreamDecompressor::ResultCode;
     do {
       ResultCode code =
-          decompressor.FeedAndExtract(buffer.get(), buffer_len, consumer);
+          decompressor->FeedAndExtract(buffer.get(), buffer_len, consumer);
       if (code == ResultCode::kError || !online_trace_to_text.ok())
         return false;
     } while (input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize));

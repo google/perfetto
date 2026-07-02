@@ -18,6 +18,7 @@
 #include "perfetto/trace_processor/trace_blob.h"
 
 #include "perfetto/ext/base/utils.h"
+#include "src/trace_processor/util/decompress.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -26,22 +27,34 @@ ProtoTraceTokenizer::ProtoTraceTokenizer() = default;
 
 base::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
                                              TraceBlobView* output) {
-  PERFETTO_DCHECK(util::IsGzipSupported());
+  util::CompressionType type =
+      util::DetectPacketCompression(input.data(), input.length());
+
+  // Reuse the cached decompressor across packets; only rebuild it if the codec
+  // changed (rare). Reset() clears any prior frame's state.
+  if (!decompressor_ || decompressor_type_ != type) {
+    decompressor_ = util::CreateDecompressor(type);
+    decompressor_type_ = type;
+    if (!decompressor_) {
+      return base::ErrStatus(
+          "Cannot decompress compressed_packets: %s is not enabled in the "
+          "build config",
+          type == util::CompressionType::kZstd ? "zstd" : "zlib");
+    }
+  } else {
+    decompressor_->Reset();
+  }
 
   std::vector<uint8_t> data;
   data.reserve(input.length());
-
-  // Ensure that the decompressor is able to cope with a new stream of data.
-  decompressor_.Reset();
-  using ResultCode = util::GzipDecompressor::ResultCode;
-  ResultCode ret = decompressor_.FeedAndExtract(
-      input.data(), input.length(),
-      [&data](const uint8_t* buffer, size_t buffer_len) {
-        data.insert(data.end(), buffer, buffer + buffer_len);
-      });
-
-  if (ret == ResultCode::kError || ret == ResultCode::kNeedsMoreInput) {
-    return base::ErrStatus("Failed to decompress (error code: %d)",
+  auto consumer = [&data](const uint8_t* buffer, size_t buffer_len) {
+    data.insert(data.end(), buffer, buffer + buffer_len);
+  };
+  using ResultCode = util::StreamDecompressor::ResultCode;
+  ResultCode ret =
+      decompressor_->FeedAndExtract(input.data(), input.length(), consumer);
+  if (ret != ResultCode::kEof) {
+    return base::ErrStatus("Failed to decompress compressed_packets (code: %d)",
                            static_cast<int>(ret));
   }
 

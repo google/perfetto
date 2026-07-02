@@ -243,7 +243,9 @@ message TracePacket {
     // efficiently partition long traces without having to fully parse them.
     bytes synchronization_marker = 36;
 
-    // Zero or more proto encoded trace packets compressed using deflate.
+    // Zero or more proto-encoded trace packets, compressed with deflate or
+    // zstd. The bytes carry no codec tag, and only zstd has a distinctive
+    // magic, so readers detect zstd by it and treat everything else as deflate.
     // Each compressed_packets TracePacket (including the two field ids and
     // sizes) should be less than 512KB.
     bytes compressed_packets = 50;

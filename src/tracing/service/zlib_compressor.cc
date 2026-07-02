@@ -25,38 +25,18 @@
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/tracing/service/packet_compressor_common.h"
 
 namespace perfetto {
 
 namespace {
 
-struct Preamble {
-  uint32_t size;
-  std::array<uint8_t, 16> buf;
-};
+using packet_compressor::GetPreamble;
+using packet_compressor::kCompressSliceSize;
+using packet_compressor::Preamble;
+using packet_compressor::PreambleToSlice;
 
-template <uint32_t id>
-Preamble GetPreamble(size_t sz) {
-  Preamble preamble;
-  uint8_t* ptr = preamble.buf.data();
-  constexpr uint32_t tag = protozero::proto_utils::MakeTagLengthDelimited(id);
-  ptr = protozero::proto_utils::WriteVarInt(tag, ptr);
-  ptr = protozero::proto_utils::WriteVarInt(sz, ptr);
-  preamble.size =
-      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ptr) -
-                            reinterpret_cast<uintptr_t>(preamble.buf.data()));
-  PERFETTO_DCHECK(preamble.size < preamble.buf.size());
-  return preamble;
-}
-
-Slice PreambleToSlice(const Preamble& preamble) {
-  Slice slice = Slice::Allocate(preamble.size);
-  memcpy(slice.own_data(), preamble.buf.data(), preamble.size);
-  return slice;
-}
-
-// A compressor for `TracePacket`s that uses zlib. The class is exposed for
-// testing.
+// A compressor for `TracePacket`s that uses zlib.
 class ZlibPacketCompressor {
  public:
   ZlibPacketCompressor();
@@ -93,9 +73,8 @@ ZlibPacketCompressor::~ZlibPacketCompressor() {
 }
 
 void ZlibPacketCompressor::PushPacket(const TracePacket& packet) {
-  // We need to be able to tokenize packets in the compressed stream, so we
-  // prefix a proto preamble to each packet. The compressed stream looks like a
-  // valid Trace proto.
+  // Prefix each packet with its proto preamble so the compressed stream itself
+  // parses as a valid Trace proto, and its packets can be tokenized back out.
   Preamble preamble =
       GetPreamble<protos::pbzero::Trace::kPacketFieldNumber>(packet.size());
   PushData(preamble.buf.data(), preamble.size);
@@ -139,16 +118,16 @@ TracePacket ZlibPacketCompressor::Finish() {
 
 void ZlibPacketCompressor::NewOutputSlice() {
   PushCurSlice();
-  cur_slice_ = std::make_unique<uint8_t[]>(kZlibCompressSliceSize);
+  cur_slice_ = std::make_unique<uint8_t[]>(kCompressSliceSize);
   stream_.next_out = reinterpret_cast<Bytef*>(cur_slice_.get());
-  stream_.avail_out = kZlibCompressSliceSize;
+  stream_.avail_out = kCompressSliceSize;
 }
 
 void ZlibPacketCompressor::PushCurSlice() {
   if (cur_slice_) {
-    total_new_slices_size_ += kZlibCompressSliceSize - stream_.avail_out;
+    total_new_slices_size_ += kCompressSliceSize - stream_.avail_out;
     new_slices_.push_back(Slice::TakeOwnership(
-        std::move(cur_slice_), kZlibCompressSliceSize - stream_.avail_out));
+        std::move(cur_slice_), kCompressSliceSize - stream_.avail_out));
   }
 }
 

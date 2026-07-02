@@ -30,6 +30,7 @@ enum TraceType {
   kCtraceTraceType,
   kFuchsiaTraceType,
   kGzipTraceType,
+  kZstdTraceType,
   kJsonTraceType,
   kNinjaLogTraceType,
   kPerfDataTraceType,

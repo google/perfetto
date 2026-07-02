@@ -53,7 +53,7 @@
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
-#include "src/trace_processor/importers/archive/gzip_trace_parser.h"
+#include "src/trace_processor/importers/archive/decompressing_trace_reader.h"
 #include "src/trace_processor/importers/archive/tar_trace_reader.h"
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
@@ -153,12 +153,13 @@
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/gzip_decompressor.h"
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/sql_bundle.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/trace_type.h"
+#include "src/trace_processor/util/zstd_decompressor.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
@@ -448,11 +449,18 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
           kInstrumentsXmlTraceType);
 #endif
   if constexpr (util::IsGzipSupported()) {
-    context()->reader_registry->RegisterTraceReader<GzipTraceParser>(
-        kGzipTraceType);
-    context()->reader_registry->RegisterTraceReader<GzipTraceParser>(
-        kCtraceTraceType);
+    context()
+        ->reader_registry->RegisterTraceReaderWithArg<DecompressingTraceReader>(
+            kGzipTraceType, util::CompressionType::kGzip);
+    context()
+        ->reader_registry->RegisterTraceReaderWithArg<DecompressingTraceReader>(
+            kCtraceTraceType, util::CompressionType::kGzip);
     context()->reader_registry->RegisterTraceReader<ZipTraceReader>(kZipFile);
+  }
+  if constexpr (util::IsZstdSupported()) {
+    context()
+        ->reader_registry->RegisterTraceReaderWithArg<DecompressingTraceReader>(
+            kZstdTraceType, util::CompressionType::kZstd);
   }
   context()->reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
       kJsonTraceType);
