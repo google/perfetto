@@ -158,9 +158,9 @@ merge usage:
   shared timeline. Archive members are named after the inputs' base names,
   which is what the manifest's files[].path entries must match.
 
-  Unless --no-validate is given, the archive is dry-run through a
-  tokenization pass after writing and a warning is printed if any events
-  would be dropped on open (--strict turns the warning into an error).
+  Unless --no-validate is given, the tool runs sanity checks on the written
+  archive and warns if it would not merge cleanly (--strict turns warnings
+  into errors).
 
   Full guide: https://perfetto.dev/docs/analysis/merging-traces
   Manifest format: https://perfetto.dev/docs/reference/perfetto-manifest
