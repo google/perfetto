@@ -669,12 +669,12 @@ class Profiling(TestSuite):
                 line_number: 45
               }
               frames {
-                method_name: "com.example.oometest.MainActivity.oomeInducer"
+                method_name: "com.example.oometest.MainActivity.oomeInducer(double)"
                 source_file: "MainActivity.java"
                 line_number: 42
               }
               frames {
-                method_name: "com.example.oometest.MainActivity.triggerOOM"
+                method_name: "void com.example.oometest.MainActivity.triggerOOM"
                 source_file: "MainActivity.java"
                 line_number: 31
               }
