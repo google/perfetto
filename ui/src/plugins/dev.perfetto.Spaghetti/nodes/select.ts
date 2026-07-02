@@ -20,10 +20,12 @@ import type {
   SqlStatement,
 } from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
+import {Row} from '../components/row';
+import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
+import {AliasTag} from '../components/alias_tag';
 
 export interface SelectEntry {
   readonly column: string;
@@ -47,43 +49,6 @@ function exprAlias(e: SelectExpression): string {
   return '';
 }
 
-// A tiny tag that expands into a text input when clicked.
-// If blurred with an empty value, collapses back to the tag.
-function AliasTag(): m.Component<{
-  alias: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-}> {
-  let editing = false;
-
-  return {
-    view({attrs: {alias, placeholder, onChange}}) {
-      if (editing || alias) {
-        return m('.pf-qb-alias-tag', [
-          m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
-          m(TextInput, {
-            placeholder,
-            value: alias,
-            autofocus: editing && !alias,
-            onChange: (value: string) => onChange(value),
-            onblur: () => {
-              if (!alias) editing = false;
-            },
-          }),
-        ]);
-      }
-      return m(Button, {
-        icon: 'shoppingmode',
-        className: 'pf-qb-alias-btn',
-        title: 'Add alias',
-        onclick: () => {
-          editing = true;
-        },
-      });
-    },
-  };
-}
-
 function SelectNodeContent(): m.Component<{
   config: SelectConfig;
   updateConfig: (updates: Partial<SelectConfig>) => void;
@@ -95,11 +60,11 @@ function SelectNodeContent(): m.Component<{
       const entries = config.entries ?? [];
       const expressions = config.expressions ?? [];
 
-      return m('.pf-qb-stack', [
-        m('.pf-qb-section-label', 'Columns'),
+      return m(Stack, [
+        m('.pf-spag-section-label', 'Columns'),
         entries.length === 0 &&
           m(
-            '.pf-qb-passthrough-hint',
+            '.pf-spag-passthrough-hint',
             {
               style: {
                 opacity: 0.5,
@@ -110,10 +75,10 @@ function SelectNodeContent(): m.Component<{
             },
             'All columns (passthrough)',
           ),
-        m('.pf-qb-filter-list', [
+        m(Stack, {compact: true}, [
           ...entries.map((entry, i) =>
             m(
-              '.pf-qb-filter-row',
+              Row,
               {
                 key: `entry:${i}`,
                 draggable: true,
@@ -165,10 +130,7 @@ function SelectNodeContent(): m.Component<{
                 },
               },
               [
-                m(Icon, {
-                  icon: 'drag_indicator',
-                  className: 'pf-qb-drag-handle',
-                }),
+                m(Row.DragHandle),
                 m(ColumnPicker, {
                   value: entry.column,
                   columns: availableColumns,
@@ -188,10 +150,7 @@ function SelectNodeContent(): m.Component<{
                     updateConfig({entries: updated});
                   },
                 }),
-                m(Button, {
-                  icon: 'delete',
-                  className: 'pf-qb-row-delete-inline',
-                  title: 'Remove',
+                m(Row.DeleteButton, {
                   onclick: () => {
                     updateConfig({
                       entries: entries.filter((_, j) => j !== i),
@@ -213,11 +172,11 @@ function SelectNodeContent(): m.Component<{
           },
         }),
 
-        m('.pf-qb-section-label', 'Expressions'),
-        m('.pf-qb-filter-list', [
+        m('.pf-spag-section-label', 'Expressions'),
+        m(Stack, {compact: true}, [
           ...expressions.map((expr, i) =>
             m(
-              '.pf-qb-filter-row',
+              Row,
               {
                 key: `expr:${i}`,
                 draggable: true,
@@ -269,10 +228,7 @@ function SelectNodeContent(): m.Component<{
                 },
               },
               [
-                m(Icon, {
-                  icon: 'drag_indicator',
-                  className: 'pf-qb-drag-handle',
-                }),
+                m(Row.DragHandle),
                 m(TextInput, {
                   placeholder: 'expression',
                   value: expr.expression,
@@ -291,10 +247,7 @@ function SelectNodeContent(): m.Component<{
                     updateConfig({expressions: newExprs});
                   },
                 }),
-                m(Button, {
-                  icon: 'delete',
-                  className: 'pf-qb-row-delete-inline',
-                  title: 'Remove',
+                m(Row.DeleteButton, {
                   onclick: () => {
                     updateConfig({
                       expressions: expressions.filter((_, j) => j !== i),

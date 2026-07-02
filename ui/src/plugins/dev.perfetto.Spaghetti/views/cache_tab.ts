@@ -15,6 +15,8 @@
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import type {CacheEntry} from '../materialization';
+import {Card} from '../components/card';
+import './cache_tab.scss';
 
 export interface CacheTabAttrs {
   readonly cacheEntries: readonly CacheEntry[];
@@ -31,22 +33,11 @@ export class CacheTab implements m.ClassComponent<CacheTabAttrs> {
   view({attrs}: m.Vnode<CacheTabAttrs>) {
     const {cacheEntries, onClearCache} = attrs;
     return m(
-      '',
-      {
-        style: {
-          display: 'flex',
-          flexDirection: 'column',
-          flex: '1',
-          overflow: 'auto',
-          padding: '8px',
-          gap: '8px',
-        },
-      },
+      '.pf-spag-cache-tab',
       cacheEntries.length > 0
         ? [
             m(
-              '',
-              {style: {display: 'flex', justifyContent: 'flex-end'}},
+              '.pf-spag-cache-tab-toolbar',
               m(Button, {
                 variant: ButtonVariant.Filled,
                 icon: 'delete_sweep',
@@ -57,33 +48,23 @@ export class CacheTab implements m.ClassComponent<CacheTabAttrs> {
             ...[...cacheEntries]
               .sort((a, b) => b.lastHitAt - a.lastHitAt)
               .map((entry) =>
-                m('.pf-qb-ir-block', [
-                  m('.pf-qb-ir-block-header', [
-                    m('span.pf-qb-ir-hash', entry.hash),
-                    m(
-                      'span.pf-qb-ir-meta',
-                      `created ${formatTimestamp(entry.createdAt)} · last hit ${formatTimestamp(entry.lastHitAt)}`,
-                    ),
-                    m('.pf-qb-ir-badges', [
-                      m(
-                        'span.pf-qb-ir-badge.pf-qb-ir-badge--hits',
-                        `${entry.hitCount} ${entry.hitCount === 1 ? 'hit' : 'hits'}`,
-                      ),
-                      m(
-                        'span.pf-qb-ir-time',
-                        `${entry.materializeTimeMs.toFixed(1)}ms`,
-                      ),
-                    ]),
-                  ]),
-                  m('pre.pf-qb-ir-sql', entry.sql),
-                ]),
+                m(Card, {
+                  title: entry.hash,
+                  content: entry.sql,
+                  meta: `created ${formatTimestamp(entry.createdAt)} · last hit ${formatTimestamp(entry.lastHitAt)}`,
+                  badges: [
+                    m(Card.Badge, {
+                      variant: 'hits',
+                      label: `${entry.hitCount} ${entry.hitCount === 1 ? 'hit' : 'hits'}`,
+                    }),
+                    m(Card.Time, {
+                      label: `${entry.materializeTimeMs.toFixed(1)}ms`,
+                    }),
+                  ],
+                }),
               ),
           ]
-        : m(
-            'span',
-            {style: {opacity: '0.5', fontSize: '12px'}},
-            'Cache is empty',
-          ),
+        : m('span.pf-spag-cache-tab-empty', 'Cache is empty'),
     );
   }
 }

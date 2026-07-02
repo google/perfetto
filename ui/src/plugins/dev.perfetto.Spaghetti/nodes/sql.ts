@@ -16,6 +16,9 @@ import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
 import {Select} from '../../../widgets/select';
+import {Row} from '../components/row';
+import {Stack} from '../components/stack';
+import './sql.scss';
 import type {NodeManifest, RenderContext} from '../node_types';
 import type {ColumnDef} from '../graph_utils';
 import type {SimpleTypeKind} from '../../../trace_processor/perfetto_sql_type';
@@ -103,18 +106,18 @@ export const manifest: NodeManifest<SqlConfig> = {
     const {columns = [], inputPorts = []} = config;
     const canRemove = inputPorts.length > 0;
 
-    return m('.pf-qb-stack', [
+    return m(Stack, [
       // Input table aliases
       inputPorts.length > 0 &&
-        m('.pf-qb-stack', [
-          m('span.pf-qb-section-label', 'Input tables'),
+        m(Stack, [
+          m('span.pf-spag-section-label', 'Input tables'),
           m(
             'div',
             {style: {display: 'flex', flexDirection: 'column', gap: '2px'}},
             ctx.inputPorts.map((port, i) =>
-              m('.pf-qb-sql-col-row', {key: port.name}, [
+              m('.pf-spag-sql-col-row', {key: port.name}, [
                 m(
-                  'span.pf-qb-hint',
+                  'span.pf-spag-hint',
                   {style: {gridColumn: 'span 1'}},
                   `#${i + 1}`,
                 ),
@@ -154,8 +157,8 @@ export const manifest: NodeManifest<SqlConfig> = {
         }),
       ]),
       // SQL body
-      m('span.pf-qb-section-label', 'SQL'),
-      m('textarea.pf-qb-sql-textarea', {
+      m('span.pf-spag-section-label', 'SQL'),
+      m('textarea.pf-spag-sql-textarea', {
         value: config.sql,
         spellcheck: false,
         style: {
@@ -174,13 +177,13 @@ export const manifest: NodeManifest<SqlConfig> = {
         },
       }),
       // Output column declarations
-      m('span.pf-qb-section-label', 'Output columns'),
+      m('span.pf-spag-section-label', 'Output columns'),
       columns.length > 0 &&
         m(
           'div',
           {style: {display: 'flex', flexDirection: 'column', gap: '2px'}},
           columns.map((col, i) =>
-            m('.pf-qb-sql-col-row', {key: i}, [
+            m('.pf-spag-sql-col-row', {key: i}, [
               m(TextInput, {
                 placeholder: 'column name',
                 value: col.name,
@@ -207,9 +210,7 @@ export const manifest: NodeManifest<SqlConfig> = {
                   m('option', {value: opt.value}, opt.label),
                 ),
               ),
-              m(Button, {
-                icon: 'close',
-                variant: ButtonVariant.Minimal,
+              m(Row.DeleteButton, {
                 onclick: () => {
                   updateConfig({columns: columns.filter((_, j) => j !== i)});
                 },

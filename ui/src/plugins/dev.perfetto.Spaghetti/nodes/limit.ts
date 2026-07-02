@@ -15,6 +15,7 @@
 import m from 'mithril';
 import type {NodeManifest, SqlStatement} from '../node_types';
 import {TextInput} from '../../../widgets/text_input';
+import {Stack} from '../components/stack';
 
 export interface LimitConfig {
   readonly limitCount: string;
@@ -36,7 +37,7 @@ export const manifest: NodeManifest<LimitConfig> = {
   },
   render(config, updateConfig) {
     return m(
-      '.pf-qb-stack',
+      Stack,
       m(TextInput, {
         placeholder: 'Row count...',
         value: config.limitCount,

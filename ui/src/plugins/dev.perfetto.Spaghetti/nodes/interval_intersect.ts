@@ -15,11 +15,12 @@
 import m from 'mithril';
 import {Checkbox} from '../../../widgets/checkbox';
 import type {NodeManifest, RenderContext} from '../node_types';
-import {Button, ButtonVariant} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
+import {Row} from '../components/row';
+import {Stack} from '../components/stack';
 import {TextInput} from '../../../widgets/text_input';
 import type {ColumnDef} from '../graph_utils';
 import type {Port} from '../graph_model';
+import {Button, ButtonVariant} from '../../../widgets/button';
 
 export interface IntervalIntersectConfig {
   readonly numInputs: number;
@@ -35,7 +36,7 @@ function IntervalIntersectContent(): m.Component<{
   return {
     view({attrs: {config, updateConfig}}) {
       const canRemove = config.numInputs > 2;
-      return m('.pf-qb-stack', [
+      return m(Stack, [
         m(Checkbox, {
           label: 'Filter dur >= 0',
           checked: config.filterNegativeDur,
@@ -58,66 +59,23 @@ function IntervalIntersectContent(): m.Component<{
             onclick: () => updateConfig({numInputs: config.numInputs + 1}),
           }),
         ]),
-        m('.pf-qb-section-label', 'Partition by'),
-        m('.pf-qb-filter-list', [
+        m('.pf-spag-section-label', 'Partition by'),
+        m(Stack, {compact: true}, [
           ...config.partitionColumns.map((col, i) =>
             m(
-              '.pf-qb-filter-row',
+              Row,
               {
                 key: i,
                 draggable: true,
-                ondragstart: (e: DragEvent) => {
-                  e.dataTransfer!.effectAllowed = 'move';
-                  e.dataTransfer!.setData('text/plain', String(i));
-                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-                },
-                ondragend: (e: DragEvent) => {
-                  (e.currentTarget as HTMLElement).classList.remove(
-                    'pf-dragging',
-                  );
-                },
-                ondragover: (e: DragEvent) => {
-                  e.preventDefault();
-                  e.dataTransfer!.dropEffect = 'move';
-                  const el = e.currentTarget as HTMLElement;
-                  const rect = el.getBoundingClientRect();
-                  const isBottom = e.clientY > rect.top + rect.height / 2;
-                  el.classList.toggle('pf-drag-over-top', !isBottom);
-                  el.classList.toggle('pf-drag-over-bottom', isBottom);
-                },
-                ondragleave: (e: DragEvent) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                },
-                ondrop: (e: DragEvent) => {
-                  e.preventDefault();
-                  const el = e.currentTarget as HTMLElement;
-                  const isBottom = el.classList.contains('pf-drag-over-bottom');
-                  el.classList.remove(
-                    'pf-drag-over-top',
-                    'pf-drag-over-bottom',
-                  );
-                  const fromIdx = parseInt(
-                    e.dataTransfer!.getData('text/plain'),
-                  );
-                  let toIdx = isBottom ? i + 1 : i;
-                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                    const updated = [...config.partitionColumns];
-                    const [moved] = updated.splice(fromIdx, 1);
-                    if (fromIdx < toIdx) toIdx--;
-                    updated.splice(toIdx, 0, moved);
-                    updateConfig({partitionColumns: updated});
-                  }
+                onReorder: (fromIdx: number, toIdx: number) => {
+                  const updated = [...config.partitionColumns];
+                  const [moved] = updated.splice(fromIdx, 1);
+                  updated.splice(toIdx, 0, moved);
+                  updateConfig({partitionColumns: updated});
                 },
               },
               [
-                m(Icon, {
-                  icon: 'drag_indicator',
-                  className: 'pf-qb-drag-handle',
-                }),
+                m(Row.DragHandle),
                 m(TextInput, {
                   value: col,
                   placeholder: 'column',
@@ -127,9 +85,7 @@ function IntervalIntersectContent(): m.Component<{
                     updateConfig({partitionColumns: updated});
                   },
                 }),
-                m(Button, {
-                  icon: 'delete',
-                  className: 'pf-qb-row-delete-inline',
+                m(Row.DeleteButton, {
                   title: 'Remove',
                   onclick: () => {
                     updateConfig({

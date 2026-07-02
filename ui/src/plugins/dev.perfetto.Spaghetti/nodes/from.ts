@@ -15,6 +15,7 @@
 import m from 'mithril';
 import type {NodeManifest, RenderContext} from '../node_types';
 import {Combobox} from '../../../widgets/combobox';
+import './from.scss';
 
 export interface FromConfig {
   readonly table: string;

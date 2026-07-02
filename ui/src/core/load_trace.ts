@@ -276,7 +276,7 @@ async function loadTraceIntoEngine(
   // Plugins may call trace.initialPage.suggest(...) during onTraceLoad to
   // request that the app navigate somewhere other than /viewer.
   const initialRoute = trace.initialPage.getWinner() ?? '/viewer';
-  Router.navigate(`#!${initialRoute}?local_cache_key=${cacheUuid}`);
+  // Router.navigate(`#!${initialRoute}?local_cache_key=${cacheUuid}`);
 
   decideTabs(trace);
 

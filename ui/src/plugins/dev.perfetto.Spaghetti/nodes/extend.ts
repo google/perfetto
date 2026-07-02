@@ -23,6 +23,8 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
 import type {ColumnDef} from '../graph_utils';
 import {Row} from '../components/row';
+import {Stack} from '../components/stack';
+import {AliasTag} from '../components/alias_tag';
 
 export interface ExtendEntry {
   readonly expression: string;
@@ -40,43 +42,6 @@ function entryAlias(e: ExtendEntry): string {
   return '';
 }
 
-// A tiny tag that expands into a text input when clicked.
-// If blurred with an empty value, collapses back to the tag.
-function AliasTag(): m.Component<{
-  alias: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-}> {
-  let editing = false;
-
-  return {
-    view({attrs: {alias, placeholder, onChange}}) {
-      if (editing || alias) {
-        return m('.pf-qb-alias-tag', [
-          m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
-          m(TextInput, {
-            placeholder,
-            value: alias,
-            autofocus: editing && !alias,
-            onChange: (value: string) => onChange(value),
-            onblur: () => {
-              if (!alias) editing = false;
-            },
-          }),
-        ]);
-      }
-      return m(Button, {
-        icon: 'shoppingmode',
-        className: 'pf-qb-alias-btn',
-        title: 'Add alias',
-        onclick: () => {
-          editing = true;
-        },
-      });
-    },
-  };
-}
-
 function ExtendContent(): m.Component<{
   config: ExtendConfig;
   updateConfig: (updates: Partial<ExtendConfig>) => void;
@@ -84,8 +49,8 @@ function ExtendContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig}}) {
-      return m('.pf-qb-stack', {style: {minWidth: '250px'}}, [
-        m('.pf-qb-filter-list', [
+      return m(Stack, {style: {minWidth: '250px'}}, [
+        m(Stack, {compact: true}, [
           ...config.entries.map((entry, i) =>
             m(
               Row,

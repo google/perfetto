@@ -20,6 +20,8 @@ import type {
   RenderContext,
 } from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {Row} from '../components/row';
+import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
 
@@ -35,10 +37,10 @@ function DropContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig, ctx}}) {
-      return m('.pf-qb-stack', [
+      return m(Stack, [
         config.columns.length === 0 &&
           m(
-            '.pf-qb-passthrough-hint',
+            '.pf-spag-passthrough-hint',
             {
               style: {
                 opacity: 0.5,
@@ -49,9 +51,9 @@ function DropContent(): m.Component<{
             },
             'All columns (passthrough)',
           ),
-        m('.pf-qb-filter-list', [
+        m(Stack, {compact: true}, [
           ...config.columns.map((column, i) =>
-            m('.pf-qb-filter-row', {key: i}, [
+            m(Row, {key: i}, [
               m(ColumnPicker, {
                 value: column,
                 columns: ctx.availableColumns,
@@ -62,10 +64,7 @@ function DropContent(): m.Component<{
                   updateConfig({columns: updated});
                 },
               }),
-              m(Button, {
-                icon: 'delete',
-                className: 'pf-qb-row-delete-inline',
-                title: 'Remove',
+              m(Row.DeleteButton, {
                 onclick: () => {
                   updateConfig({
                     columns: config.columns.filter((_, j) => j !== i),

@@ -18,10 +18,10 @@
 @import "../../assets/theme.scss";
 
 // Scope node-content overrides to the query builder page.
-.pf-node-query-builder-page {
+.pf-spag {
   // Consistent minimum width for nodes.
   .pf-node {
-    min-width: 140px;
+    min-width: 200px;
   }
 
   // Make inputs, selects, and popup triggers inside node content fill width.
@@ -29,67 +29,14 @@
     .pf-text-input,
     .pf-select {
       display: flex;
-      width: 100%;
       min-width: 0;
     }
 
-    // Inside control groups, grids, and filter rows, let sizing take over instead of width: 100%.
-    .pf-control-group .pf-select,
-    .pf-control-group .pf-text-input,
-    .pf-qb-group-grid .pf-select,
-    .pf-qb-group-grid .pf-text-input,
-    .pf-qb-3col-grid .pf-select,
-    .pf-qb-3col-grid .pf-text-input,
-    .pf-qb-agg-grid .pf-select,
-    .pf-qb-agg-grid .pf-text-input,
-    .pf-qb-filter-row .pf-select,
-    .pf-qb-filter-row .pf-text-input {
-      field-sizing: content;
-      width: auto;
-    }
-
-    // The ColumnPicker wraps a TextInput inside a Popup; the .pf-popup
-    // trigger wrapper needs the same grid sizing as other inputs.
-    .pf-qb-agg-grid > .pf-popup,
-    .pf-qb-3col-grid > .pf-popup,
-    .pf-qb-group-grid > .pf-popup {
-      .pf-text-input {
-        field-sizing: content;
-        width: auto;
-      }
-      .pf-text-input input {
-        width: 0;
-        min-width: 50px;
-      }
-    }
-
-    .pf-control-group .pf-text-input input,
-    .pf-qb-group-grid .pf-text-input input,
-    .pf-qb-3col-grid .pf-text-input input,
-    .pf-qb-agg-grid .pf-text-input input {
+    .pf-control-group .pf-text-input input {
       width: 0;
       min-width: 50px;
     }
-
-    // PopupMultiSelect / Button triggers in stacks should fill width.
-    .pf-qb-stack > .pf-popup,
-    .pf-qb-stack > .pf-button-wrapper,
-    .pf-qb-stack > button {
-      width: 100%;
-
-      > button {
-        width: 100%;
-        justify-content: flex-start;
-      }
-    }
   }
-}
-
-// Vertical stack layout for node content (the main container).
-.pf-qb-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 // Query builder overrides for ControlGroup rows.
@@ -112,196 +59,8 @@
   }
 }
 
-// Tighter-spaced list of rows within a stack (e.g. conditions, expressions, aggregations).
-.pf-qb-tight-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-// Grid layout for group-by rows (column select, delete).
-.pf-qb-group-grid {
-  display: flex;
-  gap: 4px;
-  align-items: baseline;
-}
-
-.pf-qb-join-col {
-  flex: 1;
-  min-width: 0;
-}
-
-// Grid layout for 3-column rows (column, alias, delete).
-.pf-qb-3col-grid {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 2px;
-  align-items: center;
-}
-
-// Grid layout for 4-column rows (func, column, alias, delete).
-.pf-qb-agg-grid {
-  display: grid;
-  grid-template-columns: auto auto 1fr auto;
-  gap: 2px;
-  align-items: center;
-}
-
-// Filter condition list: vertical stack of draggable rows.
-.pf-qb-filter-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-// Each filter row: a flex row with drag handle, controls, and delete button.
-.pf-qb-filter-row {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-  position: relative;
-
-  .pf-qb-row-delete {
-    position: absolute;
-    right: -12px;
-    top: -8px;
-    opacity: 0;
-    pointer-events: none;
-    border-radius: 50%;
-    z-index: 1;
-    font-size: var(--pf-font-size-sm);
-  }
-
-  &:hover .pf-qb-row-delete {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  &.pf-dragging {
-    opacity: 0.4;
-  }
-
-  &.pf-drag-over-top {
-    box-shadow: 0 -2px 0 0 var(--pf-color-primary, #6a8);
-  }
-
-  &.pf-drag-over-bottom {
-    box-shadow: 0 2px 0 0 var(--pf-color-primary, #6a8);
-  }
-
-  // Select elements shrink to current value.
-  .pf-select {
-    flex: 0 0 auto;
-    field-sizing: content;
-    width: auto;
-  }
-
-  // Value text input grows to fill remaining space.
-  .pf-text-input {
-    flex: 1;
-    min-width: 0;
-    field-sizing: content;
-    width: auto;
-
-    input {
-      width: 0;
-      min-width: 50px;
-    }
-  }
-
-  // Close button doesn't grow.
-  button,
-  .pf-button-wrapper {
-    flex: 0 0 auto;
-  }
-}
-
-// Drag handle icon.
-.pf-qb-drag-handle {
-  cursor: grab;
-  opacity: 0.4;
-  flex: 0 0 auto;
-  margin-left: -6px;
-  font-size: 16px;
-  align-self: center;
-
-  &:hover {
-    opacity: 0.8;
-  }
-
-  &:active {
-    cursor: grabbing;
-  }
-}
-
-// Bottom bar: add button + drag-to-delete bin side by side.
-.pf-qb-bottom-bar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-// Drag-to-delete bin: appears during drag, grows on hover.
-// Wrapper: positions the bin overlay on top of the add button.
-.pf-qb-add-bin-wrapper {
-  position: relative;
-
-  > .pf-button {
-    width: 100%;
-  }
-}
-
-// Column name label in select node rows.
-.pf-qb-col-label {
-  font-size: var(--pf-font-size-sm);
-  padding: 2px 4px;
-}
-
-.pf-qb-drag-bin {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: $border-radius;
-  border: 1px dashed var(--pf-color-on-surface, #888);
-  background: var(--pf-color-surface);
-  opacity: 0.6;
-
-  &.pf-drag-bin-hover {
-    opacity: 1;
-    background: color-mix(in srgb, var(--pf-color-danger) 15%, transparent);
-    border-color: var(--pf-color-danger);
-    color: var(--pf-color-danger);
-  }
-}
-
-// Always-visible inline delete button, tucked to the right.
-.pf-qb-row-delete-inline {
-  flex: 0 0 auto;
-  margin-right: -7px;
-  opacity: 0.3;
-
-  &:hover {
-    opacity: 1;
-  }
-}
-
-// Inline alias tag: "as" label + text input.
-.pf-qb-alias-tag {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-// Compact "as" button that expands into the alias editor.
-.pf-qb-alias-btn {
-  opacity: 0.5;
-  font-size: var(--pf-font-size-sm);
-}
-
 // Section header label (e.g. "EXPRESSIONS", "AGGREGATIONS", "Aliases").
-.pf-qb-section-label {
+.pf-spag-section-label {
   font-weight: bold;
   font-size: 10px;
   opacity: 0.7;
@@ -309,20 +68,20 @@
 }
 
 // Subtle hint text below controls.
-.pf-qb-hint {
+.pf-spag-hint {
   font-size: 11px;
   opacity: 0.7;
 }
 
 // Placeholder shown when a node has no upstream connection.
-.pf-qb-placeholder {
+.pf-spag-placeholder {
   font-size: 11px;
   opacity: 0.5;
   font-style: italic;
 }
 
 // Clickable AND/OR conjunction label spanning the full grid row.
-.pf-qb-conjunction {
+.pf-spag-conjunction {
   display: flex;
   flex-direction: row;
 
@@ -332,321 +91,11 @@
 }
 
 // Query error display with preserved whitespace for SQL error formatting.
-.pf-node-query-builder-page__error {
+.pf-spag__error {
   font-family: var(--pf-font-monospace);
   font-size: 12px;
   margin: 0;
   text-align: left;
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-// Alias mapping row: label -> alias input.
-.pf-qb-alias-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.pf-qb-alias-label {
-  flex: 0 0 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0.7;
-}
-
-.pf-qb-alias-arrow {
-  flex: 0 0 auto;
-  opacity: 0.5;
-}
-
-// // Columns tab: one row per output column.
-// .pf-qb-col-row {
-//   display: flex;
-//   align-items: baseline;
-//   gap: 8px;
-//   padding: 3px 6px;
-//   font-size: 12px;
-
-//   &:nth-child(odd) {
-//     background: color-mix(in srgb, var(--pf-color-border) 20%, transparent);
-//   }
-// }
-
-// .pf-qb-col-name {
-//   font-family: var(--pf-font-monospace);
-//   font-weight: 600;
-//   flex: 1;
-// }
-
-// .pf-qb-col-type {
-//   font-family: var(--pf-font-monospace);
-//   font-size: 11px;
-//   opacity: 0.6;
-// }
-
-// IR tab: one card per IrEntry.
-.pf-qb-ir-block {
-  background: var(--pf-color-background-secondary);
-  border: 1px solid var(--pf-color-border);
-  border-radius: 6px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.pf-qb-ir-block-header {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 4px 10px;
-  border-bottom: 1px solid var(--pf-color-border);
-  background: color-mix(in srgb, var(--pf-color-border) 30%, transparent);
-}
-
-.pf-qb-ir-hash {
-  font-family: var(--pf-font-monospace);
-  font-size: 11px;
-  font-weight: 600;
-  opacity: 0.9;
-}
-
-.pf-qb-ir-meta {
-  font-size: 11px;
-  opacity: 0.55;
-  flex: 1;
-}
-
-.pf-qb-ir-badges {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.pf-qb-ir-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 3px;
-  letter-spacing: 0.04em;
-
-  &--hit {
-    background: color-mix(
-      in srgb,
-      var(--pf-color-success, #4a8) 20%,
-      transparent
-    );
-    color: var(--pf-color-success, #4a8);
-  }
-
-  &--miss {
-    background: color-mix(
-      in srgb,
-      var(--pf-color-warning, #c90) 20%,
-      transparent
-    );
-    color: var(--pf-color-warning, #c90);
-  }
-}
-
-.pf-qb-ir-time {
-  font-size: 11px;
-  font-family: var(--pf-font-monospace);
-  opacity: 0.7;
-}
-
-.pf-qb-ir-sql {
-  margin: 0;
-  padding: 8px 10px;
-  font-family: var(--pf-font-monospace);
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.5;
-}
-
-// Graph tab JSON textarea — fills available space, read-only by default.
-.pf-qb-graph-textarea {
-  width: 100%;
-  resize: none;
-  font-family: var(--pf-font-monospace);
-  font-size: 12px;
-  background: var(--pf-color-background-secondary);
-  color: var(--pf-color-text);
-  border: none;
-  border-top: 1px solid var(--pf-color-border);
-  padding: 8px;
-  box-sizing: border-box;
-  outline: none;
-  line-height: 1.5;
-
-  &:not([readonly]) {
-    background: var(--pf-color-background);
-  }
-}
-
-// SQL node textarea.
-.pf-qb-sql-textarea {
-  width: 100%;
-  min-height: 100px;
-  resize: both;
-  font-family: var(--pf-font-monospace);
-  font-size: 12px;
-  background: var(--pf-color-void);
-  color: var(--pf-color-text);
-  border: 1px solid var(--pf-color-border);
-  border-radius: 4px;
-  padding: 6px 8px;
-  box-sizing: border-box;
-  outline: none;
-
-  &:focus {
-    border-color: var(--pf-color-primary);
-  }
-}
-
-// SQL node column rows (input alias: index + name; output column: type + name + delete).
-.pf-qb-sql-col-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 2px;
-  align-items: center;
-
-  .pf-text-input {
-    min-width: 0;
-  }
-
-  .pf-select {
-    field-sizing: content;
-    width: auto;
-  }
-
-  .pf-button {
-    margin-right: -6px;
-  }
-}
-
-// Chart dashboard — fills the details panel.
-.pf-qb-chart-dashboard {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px;
-  overflow: auto;
-  height: 100%;
-  box-sizing: border-box;
-  align-content: flex-start;
-}
-
-// Individual chart panel card.
-.pf-qb-chart-panel {
-  background: var(--pf-color-background-secondary);
-  border: 1px solid var(--pf-color-border);
-  border-radius: 6px;
-  padding: 10px 12px;
-  min-width: 280px;
-  flex: 1 1 280px;
-  max-width: 480px;
-  box-sizing: border-box;
-  color: var(--pf-color-text);
-}
-
-.pf-qb-chart-title {
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  opacity: 0.85;
-}
-
-.pf-qb-chart-loading,
-.pf-qb-chart-empty,
-.pf-qb-chart-error {
-  font-size: 12px;
-  opacity: 0.5;
-  padding: 4px 0;
-}
-
-.pf-qb-chart-error {
-  color: var(--pf-error, #c00);
-  opacity: 1;
-}
-
-// From-node table picker results.
-.pf-from-node-result {
-  padding: 4px 8px;
-  cursor: pointer;
-
-  &--highlight {
-    background: var(--hover-background);
-  }
-
-  &--selected {
-    font-weight: 600;
-    color: var(--pf-color-primary, #6a8);
-  }
-}
-
-table.pf-spag-cols {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--pf-font-size-s);
-
-  th,
-  td {
-    padding: 3px 4px;
-    text-align: left;
-    vertical-align: baseline;
-  }
-
-  thead th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    font-size: var(--pf-font-size-xs);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--pf-color-text-muted);
-    background: var(--pf-color-background-secondary);
-    border-bottom: 1px solid var(--pf-color-border);
-    white-space: nowrap;
-  }
-
-  tr {
-    &:nth-child(even) {
-      background-color: color-mix(
-        in srgb,
-        var(--pf-color-background-secondary) 50%,
-        var(--pf-color-background)
-      );
-    }
-  }
-
-  td.pf-qb-col-name {
-  }
-
-  td.pf-qb-col-type {
-    color: var(--pf-color-text-muted);
-    font-family: var(--pf-font-monospace);
-    display: inline-flex;
-    gap: 0.4em;
-  }
-}
-
-.pf-spag-json-bar {
-  display: flex;
-  gap: 4px;
-  justify-content: flex-end;
-  padding: 4px 8px;
-  flex-shrink: 0;
-}
-
-.pf-spag-empty-tab {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.5;
-  font-size: 13px;
 }

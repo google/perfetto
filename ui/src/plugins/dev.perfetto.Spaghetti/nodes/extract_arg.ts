@@ -20,10 +20,12 @@ import type {
   SqlStatement,
 } from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
+import {Row} from '../components/row';
+import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
+import {AliasTag} from '../components/alias_tag';
 
 export interface ExtractArgEntry {
   readonly argName: string;
@@ -41,43 +43,6 @@ function extractArgAlias(e: ExtractArgEntry): string {
   return '';
 }
 
-// A tiny tag that expands into a text input when clicked.
-// If blurred with an empty value, collapses back to the tag.
-function AliasTag(): m.Component<{
-  alias: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-}> {
-  let editing = false;
-
-  return {
-    view({attrs: {alias, placeholder, onChange}}) {
-      if (editing || alias) {
-        return m('.pf-qb-alias-tag', [
-          m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
-          m(TextInput, {
-            placeholder,
-            value: alias,
-            autofocus: editing && !alias,
-            onChange: (value: string) => onChange(value),
-            onblur: () => {
-              if (!alias) editing = false;
-            },
-          }),
-        ]);
-      }
-      return m(Button, {
-        icon: 'shoppingmode',
-        className: 'pf-qb-alias-btn',
-        title: 'Add alias',
-        onclick: () => {
-          editing = true;
-        },
-      });
-    },
-  };
-}
-
 function ExtractArgContent(): m.Component<{
   config: ExtractArgConfig;
   updateConfig: (updates: Partial<ExtractArgConfig>) => void;
@@ -85,8 +50,8 @@ function ExtractArgContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig, ctx}}) {
-      return m('.pf-qb-stack', [
-        m('.pf-qb-section-label', 'Join Key'),
+      return m(Stack, [
+        m('.pf-spag-section-label', 'Join Key'),
         m(ColumnPicker, {
           value: config.argSetIdCol,
           columns: ctx.availableColumns,
@@ -95,11 +60,11 @@ function ExtractArgContent(): m.Component<{
             updateConfig({argSetIdCol: value});
           },
         }),
-        m('.pf-qb-section-label', 'Args'),
-        m('.pf-qb-filter-list', [
+        m('.pf-spag-section-label', 'Args'),
+        m(Stack, {compact: true}, [
           ...config.extractions.map((entry, i) =>
             m(
-              '.pf-qb-filter-row',
+              Row,
               {
                 key: i,
                 draggable: true,
@@ -151,10 +116,7 @@ function ExtractArgContent(): m.Component<{
                 },
               },
               [
-                m(Icon, {
-                  icon: 'drag_indicator',
-                  className: 'pf-qb-drag-handle',
-                }),
+                m(Row.DragHandle),
                 m(TextInput, {
                   placeholder: 'arg name',
                   value: entry.argName,
@@ -173,10 +135,7 @@ function ExtractArgContent(): m.Component<{
                     updateConfig({extractions: newExtractions});
                   },
                 }),
-                m(Button, {
-                  icon: 'delete',
-                  className: 'pf-qb-row-delete-inline',
-                  title: 'Remove',
+                m(Row.DeleteButton, {
                   onclick: () => {
                     updateConfig({
                       extractions: config.extractions.filter((_, j) => j !== i),
@@ -188,7 +147,7 @@ function ExtractArgContent(): m.Component<{
           ),
         ]),
         m(Button, {
-          label: 'Add extraction',
+          label: 'Add arg',
           variant: ButtonVariant.Filled,
           icon: 'add',
           onclick: () => {
