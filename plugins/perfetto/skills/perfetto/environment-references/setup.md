@@ -1,58 +1,44 @@
-# Bundled `trace_processor` — exact invocation
+# Getting `trace_processor` working
 
-This is the environment setup for a **plugin install** that ships
-`trace_processor` inside the plugin's own `bin/` directory.
+Two things must be set up once per session: `$SKILL_ROOT` and
+`trace_processor`.
 
-Do **not** download it again, do **not** modify `PATH`, and do **not**
-assume `trace_processor` is on `PATH` — it isn't. Instead, always
-invoke the binary through the absolute path the host agent exposes
-via its plugin-root environment variable.
+## 1. Set `$SKILL_ROOT`
 
-## The substitution rule
-
-Wherever another reference or workflow writes `trace_processor ...`,
-substitute the absolute path for your agent:
-
-| Agent           | Substitute `trace_processor` with                       |
-| --------------- | ------------------------------------------------------- |
-| Claude Code     | `"$CLAUDE_PLUGIN_ROOT/bin/trace_processor"`             |
-| Codex           | `"$PLUGIN_ROOT/bin/trace_processor"`                    |
-
-So for example, the querying reference's
+Every file this skill references — workflow markdown, reference docs,
+helper scripts, and the `trace_processor` wrapper — is named by a path
+of the form `$SKILL_ROOT/...`, relative to the **skill root** (the
+directory holding this skill's `SKILL.md`). Set it once, to the absolute
+path of the directory you loaded `SKILL.md` from:
 
 ```sh
-trace_processor query TRACE_FILE "SELECT ts, dur FROM slice LIMIT 10"
+# Substitute the directory this SKILL.md lives in.
+export SKILL_ROOT="/absolute/path/to/skills/perfetto"
 ```
 
-becomes (under Claude Code):
+## 2. Put the bundled `trace_processor` on the `PATH`
+
+The skill ships a `trace_processor` wrapper at
+`$SKILL_ROOT/bin/trace_processor`. Make it invokable for this session:
 
 ```sh
-"$CLAUDE_PLUGIN_ROOT/bin/trace_processor" query TRACE_FILE "SELECT ts, dur FROM slice LIMIT 10"
+chmod +x "$SKILL_ROOT/bin/trace_processor"  # some installs lose the exec bit
+export PATH="$SKILL_ROOT/bin:$PATH"
+trace_processor --version                   # smoke test
 ```
 
-The environment variable is always set by the host before any shell
-command in a skill runs, so the path is always valid for the current
-install.
+After this, every bare `trace_processor ...` command in this skill works
+verbatim. On Windows, skip the `PATH` setup and invoke it as
+`python "$SKILL_ROOT/bin/trace_processor" ...` instead.
 
-## First-run note
+Notes:
 
-The first invocation of `bin/trace_processor` downloads the prebuilt
-native shell binary into `~/.local/share/perfetto/prebuilts/` and
-caches it. Subsequent calls reuse the cached binary, so only the first
-call pays the download cost.
-
-## Python client (long-running RPC mode)
-
-The bundled wrapper handles the binary but not the `perfetto` Python
-client used to drive `--httpd` mode from a notebook. If the user
-wants iterative querying via the Python client, install it into a
-virtualenv:
-
-```sh
-python3 -m venv ~/.local/share/perfetto-venv
-~/.local/share/perfetto-venv/bin/pip install --upgrade perfetto
-```
-
-Then drive the server from `~/.local/share/perfetto-venv/bin/python`.
-`../infra-references/querying.md` documents the `TraceProcessor(addr=...)`
-API.
+- The first invocation downloads the prebuilt native binary (picking the
+  right one for the host platform) into
+  `~/.local/share/perfetto/prebuilts/` and caches it; only the first
+  call pays the download cost.
+- Do **not** download `trace_processor` separately — the wrapper is
+  pinned to the skill's release.
+- If the user's environment has its own mandatory `trace_processor`
+  (Google-internal, OEM build environments, CI images), prefer that
+  team-specific setup instead.

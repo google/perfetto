@@ -19,9 +19,9 @@ workload-agnostic clock pathologies:
   because of a physical limit — correlated here against temperature and power.
 
 If the user has not yet loaded a trace into `trace_processor`, follow
-`../../infra-references/querying.md` first, then come back here.
+`$SKILL_ROOT/infra-references/querying.md` first, then come back here.
 
-> If `gpu_frequency_residency.sql` returns no rows, the trace has no `gpufreq`
+> If `$SKILL_ROOT/workflows/gpu/scripts/gpu_frequency_residency.sql` returns no rows, the trace has no `gpufreq`
 > track and this workflow does not apply.
 
 ---
@@ -34,7 +34,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
     returns one row per GPU (that has a frequency track) as CSV.
 
     ```bash
-    trace_processor query --query-file scripts/gpu_frequency_residency.sql TRACE_FILE
+    trace_processor query --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_frequency_residency.sql TRACE_FILE
     ```
 
     Columns: `gpu`, `gpu_name`, `active_span_ns`, `gpu_busy_ns`,
@@ -48,7 +48,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
       the device work itself, or the idle between work, not the clock. When that
       device work is GPU **compute** kernels, decompose it — which kernel, and
       what bounds it — with
-      [compute/kernel_analysis.md](compute/kernel_analysis.md); otherwise stop here.
+      [compute/kernel_analysis.md]($SKILL_ROOT/workflows/gpu/compute/kernel_analysis.md); otherwise stop here.
     - **`eff_occupancy_pct` ≪ `busy_pct_of_active`** — the GPU is busy but
       underclocked. The clock *is* the problem. Proceed to Phase 2 (ramp) and
       Phase 3 (throttling) to find out why.
@@ -133,7 +133,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
     a healthy state:
 
     ```bash
-    trace_processor query --query-file scripts/gpu_dvfs_ramp.sql TRACE_FILE
+    trace_processor query --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_dvfs_ramp.sql TRACE_FILE
     ```
 
     Returns, worst first: `gpu`, `gpu_name`, `edge_rel_ns`, `idle_gap_ns`,
@@ -206,7 +206,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
     had already reached target in the same burst — with thermal/power context:
 
     ```bash
-    trace_processor query --query-file scripts/gpu_sustained_throttle.sql TRACE_FILE
+    trace_processor query --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_sustained_throttle.sql TRACE_FILE
     ```
 
     Returns, longest first: `gpu`, `gpu_name`, `start_rel_ns`, `dur_ns`,
