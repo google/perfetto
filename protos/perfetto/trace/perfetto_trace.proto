@@ -16021,9 +16021,10 @@ message ProfilePacket {
     optional uint64 sampling_interval_bytes = 12;
     optional uint64 orig_sampling_interval_bytes = 13;
 
-    // Timestamp of the state of the target process that this dump represents.
-    // This can be different to the timestamp of the TracePackets for various
-    // reasons:
+    // Timestamp of the state of the target process that this dump represents,
+    // i.e. the end of the interval covered by the dump (|start_timestamp| is
+    // the start). This can be different to the timestamp of the TracePackets
+    // for various reasons:
     // * If disconnected is set above, this is the timestamp of last state
     //   heapprofd had of the process before it disconnected.
     // * Otherwise, if the rate of events produced by the process is high,
@@ -16032,6 +16033,11 @@ message ProfilePacket {
     // TODO(fmayer): This is MONOTONIC_COARSE. Refactor ClockSnapshot::Clock
     //               to have a type enum that we can reuse here.
     optional uint64 timestamp = 9;
+
+    // Start of the interval this dump covers (|timestamp| is the end): the
+    // profiling start for the first dump, the previous dump's timestamp
+    // afterwards. Same clock as |timestamp|. Unset on older producers.
+    optional uint64 start_timestamp = 15;
 
     // Metadata about heapprofd.
     optional ProcessStats stats = 5;
