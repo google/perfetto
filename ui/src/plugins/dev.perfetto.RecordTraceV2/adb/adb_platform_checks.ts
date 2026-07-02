@@ -34,6 +34,16 @@ export async function* checkAndroidTarget(
       if (!status.ok) return status;
       const sdkVer = parseInt(status.value);
       const minApi = 29;
+      if (isNaN(sdkVer)) {
+        // Without this, NaN < minApi is false and the check reports a
+        // bogus pass ("API level NaN >= 29"). This happens on non-Android
+        // devices reachable over adb, where getprop is absent or empty.
+        return errResult(
+          `Could not determine the Android version: 'getprop ` +
+            `ro.build.version.sdk' returned ${JSON.stringify(status.value)}. ` +
+            `Is this an Android device?`,
+        );
+      }
       if (sdkVer < minApi) {
         return errResult(`Android API level ${minApi}+ (Q+) required`);
       }
