@@ -22,6 +22,7 @@ import {STR_NULL} from '../../../trace_processor/query_result';
 
 export class PixelInputLifecycleExtension implements InputLifecycleExtension {
   readonly id = 'com.google.PixelInputLifecycle';
+  readonly name = 'Google Pixel Touch';
   readonly requiredModules = ['pixel.input'];
 
   async isEligible(trace: Trace): Promise<boolean> {
