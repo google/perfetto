@@ -41,6 +41,7 @@ import {
 import {MenuItem, type MenuItemAttrs, PopupMenu} from './menu';
 import {type Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
+import {escapeRegex} from './flamegraph_regex';
 import type {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 
@@ -1217,6 +1218,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     };
     const addF = (kind: FlamegraphFilter['kind'], filter: string) =>
       applyState(addFilter(this.attrs.state, {kind, filter}));
+    // Names are literal, so escape regex metacharacters (e.g. `[]` in Java
+    // array types, `()` in function names).
+    const exactNameRegex = `^${escapeRegex(name)}$`;
     const ft = (v: FilterType) =>
       ensureExists(FILTER_TYPES.find((o) => o.value === v));
     const filterAction = (v: FilterType, execute: () => void): NodeAction => {
@@ -1251,17 +1255,17 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         },
       },
       filterAction('SHOW_FROM_FRAME', () =>
-        addF('SHOW_FROM_FRAME', `^${name}$`),
+        addF('SHOW_FROM_FRAME', exactNameRegex),
       ),
       filterAction('PIVOT', () =>
         applyState({
           ...this.attrs.state,
-          view: {kind: 'PIVOT', pivot: `^${name}$`},
+          view: {kind: 'PIVOT', pivot: exactNameRegex},
         }),
       ),
-      filterAction('SHOW_STACK', () => addF('SHOW_STACK', `^${name}$`)),
-      filterAction('HIDE_STACK', () => addF('HIDE_STACK', `^${name}$`)),
-      filterAction('HIDE_FRAME', () => addF('HIDE_FRAME', `^${name}$`)),
+      filterAction('SHOW_STACK', () => addF('SHOW_STACK', exactNameRegex)),
+      filterAction('HIDE_STACK', () => addF('HIDE_STACK', exactNameRegex)),
+      filterAction('HIDE_FRAME', () => addF('HIDE_FRAME', exactNameRegex)),
       {
         label: 'Copy stack',
         icon: Icons.Copy,
