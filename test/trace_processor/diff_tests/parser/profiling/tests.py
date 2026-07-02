@@ -664,7 +664,7 @@ class Profiling(TestSuite):
             oom_error_msg: "Failed to allocate 1048576 bytes"
             oom_thread_java_stack {
               frames {
-                method_name: "com.example.oometest.MainActivity.oomeInducer"
+                method_name: "void com.example.oometest.MainActivity.oomeInducer(int, java.lang.String)"
                 source_file: "MainActivity.java"
                 line_number: 45
               }
