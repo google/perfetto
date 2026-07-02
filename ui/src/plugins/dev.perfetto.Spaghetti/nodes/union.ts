@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {Checkbox} from '../../../widgets/checkbox';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {Stack} from '../components/stack';
 import type {NodeManifest} from '../node_types';
 import type {Port} from '../graph_model';
 
@@ -45,7 +46,7 @@ export const manifest: NodeManifest<UnionConfig> = {
   render(config, updateConfig) {
     const n = config.numInputs;
     const canRemove = n > 2;
-    return m('.pf-qb-stack', [
+    return m(Stack, [
       m('div', {style: {display: 'flex', gap: '4px'}}, [
         canRemove &&
           m(Button, {

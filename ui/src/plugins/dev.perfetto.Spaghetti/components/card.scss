@@ -1,0 +1,93 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-spag-card {
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+
+  .pf-spag-card-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--pf-color-border);
+    background: color-mix(in srgb, var(--pf-color-border) 30%, transparent);
+  }
+
+  .pf-spag-card-title {
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.9;
+  }
+
+  .pf-spag-card-meta {
+    font-size: 11px;
+    opacity: 0.55;
+    flex: 1;
+  }
+
+  .pf-spag-card-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .pf-spag-card-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.04em;
+
+    &--hit,
+    &--hits {
+      background: color-mix(
+        in srgb,
+        var(--pf-color-success, #4a8) 20%,
+        transparent
+      );
+      color: var(--pf-color-success, #4a8);
+    }
+
+    &--miss {
+      background: color-mix(
+        in srgb,
+        var(--pf-color-warning, #c90) 20%,
+        transparent
+      );
+      color: var(--pf-color-warning, #c90);
+    }
+  }
+
+  .pf-spag-card-time {
+    font-size: 11px;
+    font-family: var(--pf-font-monospace);
+    opacity: 0.7;
+  }
+
+  .pf-spag-card-body {
+    margin: 0;
+    padding: 8px 10px;
+    font-family: var(--pf-font-monospace);
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+  }
+}

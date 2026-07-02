@@ -15,6 +15,8 @@
 import m from 'mithril';
 import type {IrEntry} from '../ir';
 import type {EntryReport} from '../materialization';
+import {Card} from '../components/card';
+import './materialization_tab.scss';
 
 export interface IrTabAttrs {
   readonly irEntries: IrEntry[];
@@ -33,46 +35,31 @@ function renderIrBlock(
     meta.push(`includes: ${entry.includes.join(', ')}`);
   }
   const report = reportByHash.get(entry.hash);
-  return m('.pf-qb-ir-block', [
-    m('.pf-qb-ir-block-header', [
-      m('span.pf-qb-ir-hash', entry.hash),
-      meta.length > 0 && m('span.pf-qb-ir-meta', meta.join(' · ')),
-      report &&
-        m('.pf-qb-ir-badges', [
-          report.cacheHit &&
-            m(
-              'span.pf-qb-ir-badge',
-              {className: 'pf-qb-ir-badge--hit'},
-              'CACHED',
-            ),
-          !report.cacheHit &&
-            m('span.pf-qb-ir-time', `${report.timeMs.toFixed(1)}ms`),
-        ]),
-    ]),
-    m('pre.pf-qb-ir-sql', entry.sql),
-  ]);
+  const badges = report
+    ? [
+        report.cacheHit && m(Card.Badge, {variant: 'hit', label: 'CACHED'}),
+        !report.cacheHit &&
+          m(Card.Time, {label: `${report.timeMs.toFixed(1)}ms`}),
+      ]
+    : undefined;
+
+  return m(Card, {
+    title: entry.hash,
+    content: entry.sql,
+    meta: meta.length > 0 ? meta.join(' · ') : undefined,
+    badges,
+  });
 }
 
 export class IrTab implements m.ClassComponent<IrTabAttrs> {
   view({attrs}: m.Vnode<IrTabAttrs>) {
     const {irEntries, reportByHash, activeNodeId} = attrs;
     return m(
-      '',
-      {
-        style: {
-          display: 'flex',
-          flexDirection: 'column',
-          flex: '1',
-          overflow: 'auto',
-          padding: '8px',
-          gap: '8px',
-        },
-      },
+      '.pf-spag-materialization-tab',
       irEntries.length > 0
         ? irEntries.map((e) => renderIrBlock(e, reportByHash))
         : m(
-            'span',
-            {style: {opacity: '0.5', fontSize: '12px'}},
+            'span.pf-spag-materialization-tab-empty',
             activeNodeId ? 'No IR available' : 'Select a node',
           ),
     );

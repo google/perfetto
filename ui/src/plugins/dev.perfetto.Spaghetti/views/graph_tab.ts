@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
+import './graph_tab.scss';
 
 export interface GraphTabAttrs {
   // Pretty-printed JSON of the current live graph state.
@@ -40,94 +41,69 @@ export function GraphTab(): m.Component<GraphTabAttrs> {
           applyError = String(e);
         }
       };
-      return m(
-        '',
-        {
-          style: {
-            display: 'flex',
-            flexDirection: 'column',
-            flex: '1',
-            overflow: 'hidden',
-            height: '100%',
+      return m('.pf-spag-graph-tab', [
+        m(
+          '.pf-spag-json-bar',
+          editing
+            ? [
+                m(Button, {
+                  variant: ButtonVariant.Filled,
+                  label: 'Cancel',
+                  onclick: () => {
+                    editing = false;
+                    applyError = undefined;
+                  },
+                }),
+                m(Button, {
+                  variant: ButtonVariant.Filled,
+                  intent: Intent.Primary,
+                  label: 'Apply',
+                  onclick: apply,
+                }),
+              ]
+            : [
+                m(Button, {
+                  variant: ButtonVariant.Filled,
+                  icon: 'content_copy',
+                  label: 'Copy',
+                  onclick: () => navigator.clipboard.writeText(liveJson),
+                }),
+                m(Button, {
+                  variant: ButtonVariant.Filled,
+                  icon: 'edit',
+                  label: 'Edit',
+                  onclick: () => {
+                    editValue = liveJson;
+                    editing = true;
+                  },
+                }),
+              ],
+        ),
+        applyError && m('.pf-spag-graph-tab-error', applyError),
+        m('textarea.pf-spag-graph-textarea', {
+          value: displayJson,
+          readonly: !editing,
+          spellcheck: false,
+          oninput: (e: InputEvent) => {
+            editValue = (e.target as HTMLTextAreaElement).value;
           },
-        },
-        [
-          m(
-            '.pf-spag-json-bar',
-            editing
-              ? [
-                  m(Button, {
-                    variant: ButtonVariant.Filled,
-                    label: 'Cancel',
-                    onclick: () => {
-                      editing = false;
-                      applyError = undefined;
-                    },
-                  }),
-                  m(Button, {
-                    variant: ButtonVariant.Filled,
-                    intent: Intent.Primary,
-                    label: 'Apply',
-                    onclick: apply,
-                  }),
-                ]
-              : [
-                  m(Button, {
-                    variant: ButtonVariant.Filled,
-                    icon: 'content_copy',
-                    label: 'Copy',
-                    onclick: () => navigator.clipboard.writeText(liveJson),
-                  }),
-                  m(Button, {
-                    variant: ButtonVariant.Filled,
-                    icon: 'edit',
-                    label: 'Edit',
-                    onclick: () => {
-                      editValue = liveJson;
-                      editing = true;
-                    },
-                  }),
-                ],
-          ),
-          applyError &&
-            m(
-              'div',
-              {
-                style: {
-                  padding: '4px 8px',
-                  color: 'var(--pf-color-error, #c00)',
-                  fontSize: '12px',
-                  flexShrink: '0',
-                },
-              },
-              applyError,
-            ),
-          m('textarea.pf-qb-graph-textarea', {
-            value: displayJson,
-            readonly: !editing,
-            spellcheck: false,
-            style: {flex: '1', minHeight: '0'},
-            oninput: (e: InputEvent) => {
-              editValue = (e.target as HTMLTextAreaElement).value;
-            },
-            onkeydown: (e: KeyboardEvent) => {
-              if (editing && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                e.preventDefault();
-                apply();
-              }
-            },
-            onblur: () => {
-              if (editing) apply();
-            },
-            ondblclick: () => {
-              if (!editing) {
-                editValue = liveJson;
-                editing = true;
-              }
-            },
-          }),
-        ],
-      );
+          onkeydown: (e: KeyboardEvent) => {
+            if (editing && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              e.preventDefault();
+              apply();
+            }
+          },
+          onblur: () => {
+            if (editing) apply();
+          },
+          ondblclick: () => {
+            if (!editing) {
+              editValue = liveJson;
+              editing = true;
+            }
+          },
+        }),
+      ]);
     },
   };
 }
