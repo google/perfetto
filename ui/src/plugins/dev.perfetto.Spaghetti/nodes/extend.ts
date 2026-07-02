@@ -20,9 +20,9 @@ import type {
   SqlStatement,
 } from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
 import type {ColumnDef} from '../graph_utils';
+import {Row} from '../components/row';
 
 export interface ExtendEntry {
   readonly expression: string;
@@ -84,11 +84,11 @@ function ExtendContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig}}) {
-      return m('.pf-qb-stack', [
+      return m('.pf-qb-stack', {style: {minWidth: '250px'}}, [
         m('.pf-qb-filter-list', [
           ...config.entries.map((entry, i) =>
             m(
-              '.pf-qb-filter-row',
+              Row,
               {
                 key: i,
                 draggable: true,
@@ -140,10 +140,7 @@ function ExtendContent(): m.Component<{
                 },
               },
               [
-                m(Icon, {
-                  icon: 'drag_indicator',
-                  className: 'pf-qb-drag-handle',
-                }),
+                m(Row.DragHandle),
                 m(TextInput, {
                   placeholder: 'expression',
                   value: entry.expression,
@@ -162,15 +159,11 @@ function ExtendContent(): m.Component<{
                     updateConfig({entries: updated});
                   },
                 }),
-                m(Button, {
-                  icon: 'delete',
-                  className: 'pf-qb-row-delete-inline',
-                  title: 'Remove',
-                  onclick: () => {
+                m(Row.DeleteButton, {
+                  onclick: () =>
                     updateConfig({
                       entries: config.entries.filter((_, j) => j !== i),
-                    });
-                  },
+                    }),
                 }),
               ],
             ),

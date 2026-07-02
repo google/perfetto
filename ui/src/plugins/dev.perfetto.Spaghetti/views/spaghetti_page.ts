@@ -965,8 +965,8 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               }),
             },
             {
-              key: 'graph',
-              title: 'Graph',
+              key: 'json',
+              title: 'JSON',
               content: m(GraphTab, {
                 liveJson,
                 onApply: (json: string) => {
