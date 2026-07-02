@@ -13,12 +13,20 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {perfettoSqlTypeToString} from '../../../trace_processor/perfetto_sql_type';
+import {
+  perfettoSqlTypeIcon,
+  perfettoSqlTypeToString,
+} from '../../../trace_processor/perfetto_sql_type';
 import type {ColumnDef} from '../graph_utils';
+import {Icon} from '../../../widgets/icon';
 
 export interface ColumnsTabAttrs {
   readonly outputColumns: ColumnDef[] | undefined;
   readonly activeNodeId: string | undefined;
+}
+
+function emptyTab() {
+  return m('.pf-spag-empty-tab', 'No node selected');
 }
 
 export class ColumnsTab implements m.ClassComponent<ColumnsTabAttrs> {
@@ -26,6 +34,7 @@ export class ColumnsTab implements m.ClassComponent<ColumnsTabAttrs> {
     const {outputColumns, activeNodeId} = attrs;
 
     if (!outputColumns || outputColumns.length === 0) {
+      return emptyTab();
       return m(
         '',
         {
@@ -43,22 +52,20 @@ export class ColumnsTab implements m.ClassComponent<ColumnsTabAttrs> {
     }
 
     return m(
-      '',
-      {
-        style: {
-          display: 'flex',
-          flexDirection: 'column',
-          flex: '1',
-          overflow: 'auto',
-          padding: '8px',
-          gap: '4px',
-        },
-      },
-      outputColumns.map((col, i) =>
-        m('.pf-qb-col-row', {key: i}, [
-          m('span.pf-qb-col-name', col.name),
-          m('span.pf-qb-col-type', perfettoSqlTypeToString(col.type)),
-        ]),
+      'table.pf-spag-cols',
+      m('thead', m('tr', m('th', 'Name'), m('th', 'Type'))),
+      m(
+        'tbody',
+        outputColumns.map((col, i) =>
+          m('tr.pf-qb-col-row', {key: i}, [
+            m('td.pf-qb-col-name', col.name),
+            m(
+              'td.pf-qb-col-type',
+              m(Icon, {icon: perfettoSqlTypeIcon(col.type)}),
+              perfettoSqlTypeToString(col.type),
+            ),
+          ]),
+        ),
       ),
     );
   }

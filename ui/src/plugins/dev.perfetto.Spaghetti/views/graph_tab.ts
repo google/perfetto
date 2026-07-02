@@ -53,16 +53,7 @@ export function GraphTab(): m.Component<GraphTabAttrs> {
         },
         [
           m(
-            '',
-            {
-              style: {
-                display: 'flex',
-                gap: '4px',
-                justifyContent: 'flex-end',
-                padding: '4px 8px 0',
-                flexShrink: '0',
-              },
-            },
+            '.pf-spag-json-bar',
             editing
               ? [
                   m(Button, {
