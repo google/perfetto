@@ -53,7 +53,7 @@ DEFAULT_BRANCH = 'ai-agents'
 # `ai-agents` branch tip; held there for now so default installs serve the
 # rebuilt single-skill bundle until the next release re-stamps a pinned
 # version.
-DEFAULT_VERSION = '__VERSION__'
+DEFAULT_VERSION = 'v57.1'
 
 # Custom ref namespace mapping a release version to its ai-agents bundle commit,
 # e.g. refs/ai-agent-tag/v56.0 (created by the release pipeline). Kept out of
