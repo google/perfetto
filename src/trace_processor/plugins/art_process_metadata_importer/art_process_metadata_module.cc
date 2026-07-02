@@ -38,11 +38,11 @@ using protos::pbzero::TracePacket;
 
 namespace {
 
-base::StringView StripJavaSignature(base::StringView signature) {
-  size_t open_paren = signature.find('(');
+base::StringView ExtractMethodName(base::StringView frame) {
+  size_t open_paren = frame.find('(');
   base::StringView name = open_paren == base::StringView::npos
-                              ? signature
-                              : signature.substr(0, open_paren);
+                              ? frame
+                              : frame.substr(0, open_paren);
   size_t last_space = name.rfind(' ');
   if (last_space != base::StringView::npos) {
     name = name.substr(last_space + 1);
@@ -151,7 +151,7 @@ void InsertOomeHeapGraphCallsite(
     base::StringView raw_method_name(
         reinterpret_cast<const char*>(frame_decoder.method_name().data),
         frame_decoder.method_name().size);
-    base::StringView method_name = StripJavaSignature(raw_method_name);
+    base::StringView method_name = ExtractMethodName(raw_method_name);
 
     std::optional<base::StringView> source_file = std::nullopt;
     if (frame_decoder.has_source_file()) {
