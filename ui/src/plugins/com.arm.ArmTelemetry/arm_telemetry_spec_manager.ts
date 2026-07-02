@@ -14,6 +14,15 @@
 
 import type {ArmTelemetryCpuSpec} from './arm_telemetry_spec';
 
+export type ArmTelemetrySpecChange =
+  | {kind: 'ADD'; desc: ArmTelemetryCpuSpec}
+  | {kind: 'UPDATE'; desc: ArmTelemetryCpuSpec}
+  | {kind: 'CLEAR'};
+
+export type ArmTelemetrySpecChangeCallback = (
+  change: ArmTelemetrySpecChange,
+) => void;
+
 export interface ArmTelemetrySpecManager {
   add(desc: ArmTelemetryCpuSpec): void;
   update(desc: ArmTelemetryCpuSpec): void;
@@ -21,4 +30,5 @@ export interface ArmTelemetrySpecManager {
   hasSpecs(): boolean;
   registeredCpuids(): string[];
   getCpuDesc(cpuid: string): ArmTelemetryCpuSpec;
+  addOnChangeCallback(callback: ArmTelemetrySpecChangeCallback): Disposable;
 }
