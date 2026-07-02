@@ -15,5 +15,8 @@
 import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("pixel") {
-  sources = [ "camera.sql" ]
+  sources = [
+    "camera.sql",
+    "input.sql",
+  ]
 }

@@ -4023,6 +4023,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_pixel_pixel",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/pixel/camera.sql",
+        "src/trace_processor/perfetto_sql/stdlib/pixel/input.sql",
     ],
 )
 
