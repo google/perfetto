@@ -34,6 +34,10 @@
 #include <unistd.h>  // For getpagesize() and geteuid() & fork() & sysconf()
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <io.h>  // For _isatty() and _fileno().
+#endif
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #include <mach-o/dyld.h>
 #include <mach/vm_page_size.h>
@@ -240,6 +244,14 @@ void UnsetEnv(const std::string& key) {
   PERFETTO_CHECK(::_putenv_s(key.c_str(), "") == 0);
 #else
   PERFETTO_CHECK(::unsetenv(key.c_str()) == 0);
+#endif
+}
+
+bool IsTty(FILE* stream) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return ::_isatty(::_fileno(stream)) != 0;
+#else
+  return ::isatty(::fileno(stream)) != 0;
 #endif
 }
 

@@ -25,6 +25,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/traceconv/android_extension.descriptor.h"
 #include "src/traceconv/trace.descriptor.h"
@@ -32,8 +33,6 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <fcntl.h>
 #include <io.h>
-#else
-#include <unistd.h>
 #endif
 
 namespace perfetto::trace_processor::shell {
@@ -48,13 +47,11 @@ base::Status OpenConversionInput(const std::string& path,
     *out_stream = owned_file;
     return base::OkStatus();
   }
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  if (isatty(STDIN_FILENO)) {
+  if (base::IsTty(stdin)) {
     return base::ErrStatus(
         "Reading from stdin but it's connected to a TTY. Either pass a file "
         "path on the command line or pipe data into stdin.");
   }
-#endif
   *out_stream = &std::cin;
   return base::OkStatus();
 }
@@ -73,6 +70,12 @@ base::Status OpenConversionOutput(const std::string& path,
       return base::ErrStatus("Could not open %s", path.c_str());
     *out_stream = owned_file;
     return base::OkStatus();
+  }
+  if (base::IsTty(stdout)) {
+    return base::ErrStatus(
+        "Refusing to write binary output to stdout as it's connected to a TTY "
+        "(this would corrupt your terminal). Either pass an output file path "
+        "on the command line or redirect stdout to a file or pipe.");
   }
   *out_stream = &std::cout;
   return base::OkStatus();

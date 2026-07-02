@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include <atomic>
@@ -115,6 +116,11 @@ void SetEnv(const std::string& key, const std::string& value);
 
 // unsetenv(2)-equivalent. Deals with Windows vs Posix discrepancies.
 void UnsetEnv(const std::string& key);
+
+// Returns true if the given C stdio stream (e.g. stdin/stdout/stderr) is
+// connected to an interactive terminal (TTY). Deals with Windows vs Posix
+// discrepancies (isatty() vs _isatty()).
+bool IsTty(FILE* stream);
 
 // Calls mallopt(M_PURGE, 0) on Android. Does nothing on other platforms.
 // This forces the allocator to release freed memory. This is used to work

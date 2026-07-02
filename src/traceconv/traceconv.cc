@@ -31,6 +31,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/profiling/pprof_builder.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
@@ -49,8 +50,6 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <fcntl.h>
 #include <io.h>
-#else
-#include <unistd.h>
 #endif
 
 namespace perfetto::traceconv {
@@ -263,14 +262,12 @@ int Main(int argc, char** argv) {
       PERFETTO_FATAL("Could not open %s", file_path);
     input_stream = &file_istream;
   } else {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    if (isatty(STDIN_FILENO)) {
+    if (base::IsTty(stdin)) {
       PERFETTO_ELOG("Reading from stdin but it's connected to a TTY");
       PERFETTO_LOG("It is unlikely that you want to type in some binary.");
       PERFETTO_LOG("Either pass a file path to the cmdline or pipe stdin");
       return Usage(argv[0]);
     }
-#endif
     input_stream = &std::cin;
   }
 
@@ -289,6 +286,12 @@ int Main(int argc, char** argv) {
       PERFETTO_FATAL("Could not open %s", file_path);
     output_stream = &file_ostream;
   } else {
+    if (base::IsTty(stdout)) {
+      PERFETTO_ELOG("Writing to stdout but it's connected to a TTY");
+      PERFETTO_LOG("This would print binary output and corrupt your terminal.");
+      PERFETTO_LOG("Either pass an output file path or redirect stdout");
+      return Usage(argv[0]);
+    }
     output_stream = &std::cout;
   }
 
