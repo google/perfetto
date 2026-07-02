@@ -929,8 +929,8 @@ TEST_F(TraceProcessorIntegrationTest, StdlibDocsWildcardDottedPackage) {
   ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
 
   // The wildcard enumerates every registered module, including the dotted one.
-  // Before the fix this failed with "Module not found: dev.perfetto.test.common"
-  // and aborted the whole query.
+  // Before the fix this failed with "Module not found:
+  // dev.perfetto.test.common" and aborted the whole query.
   auto it = Query("SELECT COUNT(*) AS c FROM __intrinsic_stdlib_tables('*')");
   ASSERT_TRUE(it.Next());
   ASSERT_OK(it.Status());
