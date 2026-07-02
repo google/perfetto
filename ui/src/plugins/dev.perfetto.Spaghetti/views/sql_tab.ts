@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import './sql_tab.scss';
 
 export interface SqlTabAttrs {
   readonly displaySql: string | undefined;
@@ -21,62 +22,27 @@ export interface SqlTabAttrs {
 }
 
 function renderPreBlock(text: string, hasContent: boolean): m.Children {
-  return m(
-    'pre',
-    {
-      style: {
-        margin: '0',
-        padding: '8px',
-        overflow: 'auto',
-        flex: '1',
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        opacity: hasContent ? '1' : '0.5',
-      },
-    },
-    text,
-  );
+  return m('pre', {className: hasContent ? undefined : 'pf-empty'}, text);
 }
 
 export class SqlTab implements m.ClassComponent<SqlTabAttrs> {
   view({attrs}: m.Vnode<SqlTabAttrs>) {
     const {displaySql, sqlText} = attrs;
-    return m(
-      '',
-      {
-        style: {
-          display: 'flex',
-          flexDirection: 'column',
-          flex: '1',
-          overflow: 'hidden',
-        },
-      },
-      [
-        displaySql
-          ? m(
-              '',
-              {
-                style: {
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  padding: '4px 8px 0',
-                  gap: '4px',
-                },
+    return m('.pf-spag-sql-tab', [
+      displaySql
+        ? m(
+            '.pf-spag-sql-tab-toolbar',
+            m(Button, {
+              variant: ButtonVariant.Filled,
+              icon: 'content_copy',
+              label: 'Copy',
+              onclick: () => {
+                navigator.clipboard.writeText(displaySql);
               },
-              m(Button, {
-                variant: ButtonVariant.Filled,
-                icon: 'content_copy',
-                label: 'Copy',
-                onclick: () => {
-                  navigator.clipboard.writeText(displaySql);
-                },
-              }),
-            )
-          : null,
-        renderPreBlock(sqlText, !!displaySql),
-      ],
-    );
+            }),
+          )
+        : null,
+      renderPreBlock(sqlText, !!displaySql),
+    ]);
   }
 }

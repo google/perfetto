@@ -15,6 +15,7 @@
 import m from 'mithril';
 import type {NodeManifest} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {Stack} from '../components/stack';
 
 export interface TimeRangeConfig {
   readonly ts: string; // bigint as string for serialization
@@ -70,6 +71,6 @@ export const manifest: NodeManifest<TimeRangeConfig> = {
           'Click snap to capture',
         );
 
-    return m('.pf-qb-stack', [snapButton, info]);
+    return m(Stack, [snapButton, info]);
   },
 };

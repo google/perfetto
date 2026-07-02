@@ -14,10 +14,11 @@
 
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Icon} from '../../../widgets/icon';
 import {RadioGroup} from '../../../widgets/radio_group';
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
+import {Row} from '../components/row';
+import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {NodeManifest, RenderContext, SqlStatement} from '../node_types';
 
@@ -106,12 +107,12 @@ function FilterNodeContent(): m.Component<{
       const conditions = config.conditions;
       const conjunction = config.conjunction ?? 'AND';
 
-      return m('.pf-qb-stack', [
+      return m(Stack, [
         m(
           RadioGroup,
           {
             fillWidth: true,
-            className: 'pf-qb-conjunction',
+            className: 'pf-spag-conjunction',
             selectedValue: conjunction,
             onValueChange: (value: string) =>
               updateConfig({conjunction: value as 'AND' | 'OR'}),
@@ -121,10 +122,10 @@ function FilterNodeContent(): m.Component<{
             m(RadioGroup.Button, {value: 'OR'}, 'OR'),
           ],
         ),
-        m('.pf-qb-filter-list', [
+        m(Stack, [
           ...conditions.map((cond, i) =>
             m(
-              '.pf-qb-filter-row',
+              Row,
               {
                 key: i,
                 draggable: true,
@@ -176,10 +177,7 @@ function FilterNodeContent(): m.Component<{
                 },
               },
               [
-                m(Icon, {
-                  icon: 'drag_indicator',
-                  className: 'pf-qb-drag-handle',
-                }),
+                m(Row.DragHandle),
                 m(ColumnPicker, {
                   value: cond.column,
                   columns: availableColumns,
@@ -218,10 +216,7 @@ function FilterNodeContent(): m.Component<{
                       }),
                     ]
                   : []),
-                m(Button, {
-                  icon: 'delete',
-                  className: 'pf-qb-row-delete-inline',
-                  title: 'Remove',
+                m(Row.DeleteButton, {
                   onclick: () => {
                     updateConfig({
                       conditions: conditions.filter((_, j) => j !== i),
