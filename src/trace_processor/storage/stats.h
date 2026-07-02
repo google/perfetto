@@ -753,6 +753,9 @@ namespace perfetto::trace_processor::stats {
   F(slice_negative_duration,                    kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "Number of slices dropped due to negative duration. This usually "       \
       "indicates incorrect timestamps in the trace data."),                    \
+  F(slice_max_depth_exceeded,                   kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A slice was dropped because the slice nesting depth exceeded the max "  \
+      "supported limit."),                                                     \
   F(gpu_work_period_negative_duration,          kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "Number of GPU work period events with negative duration (end < start). "\
       "Check the GPU driver for timestamp bugs."),                             \

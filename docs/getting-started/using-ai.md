@@ -23,7 +23,7 @@ Pick the row for your agent and run the command:
 | ----- | ------- |
 | Claude Code | `/plugin marketplace add google/perfetto@ai-agents` |
 | Codex | `codex plugin marketplace add google/perfetto --ref ai-agents` |
-| OpenCode | Add to `opencode.json`: `"skills": { "urls": ["https://raw.githubusercontent.com/google/perfetto/ai-agents/skills/index.json"] }` |
+| OpenCode | Add to `opencode.json`: `"skills": { "urls": ["https://raw.githubusercontent.com/google/perfetto/ai-agents/plugins/perfetto/skills"] }` |
 | Antigravity | Use the fallback installer (below) |
 | Other (Cursor, Continue, ...) | Use the fallback installer (below) |
 

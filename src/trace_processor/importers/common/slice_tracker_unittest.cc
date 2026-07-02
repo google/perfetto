@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
@@ -79,6 +80,8 @@ class SliceTrackerTest : public ::testing::Test {
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId{0}});
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+    context_.import_logs_tracker = std::make_unique<ImportLogsTracker>(
+        &context_, tables::TraceFileTable::Id{0});
   }
 
  protected:
@@ -503,6 +506,53 @@ TEST_F(SliceTrackerTest, OnSliceBeginCallback) {
   EXPECT_THAT(track_records,
               ElementsAre(TrackId{1u}, TrackId{2u}, TrackId{1u}));
   EXPECT_THAT(slice_records, ElementsAre(slice1, slice2, slice3));
+}
+
+TEST_F(SliceTrackerTest, MaxDepthExceeded) {
+  SliceTracker tracker(&context_);
+
+  constexpr TrackId track{1u};
+  StringId parent_name_id = context_.storage->InternString("parent_slice");
+  StringId current_name_id = context_.storage->InternString("current_slice");
+  StringId parent_key = context_.storage->InternString("parent_slice_name");
+  StringId current_key = context_.storage->InternString("current_slice_name");
+
+  for (uint32_t i = 0; i < SliceTracker::kMaxDepth; ++i) {
+    tracker.Begin(100 + i, track, kNullStringId, parent_name_id);
+  }
+
+  EXPECT_EQ(context_.storage->slice_table().row_count(),
+            SliceTracker::kMaxDepth);
+  EXPECT_EQ(context_.stats_tracker->GetStats(stats::slice_max_depth_exceeded),
+            0);
+
+  // (kMaxDepth + 1)th slice exceeds kMaxDepth
+  tracker.Begin(1000, track, kNullStringId, current_name_id);
+
+  // Exceeded slice should be dropped, row count remains kMaxDepth
+  EXPECT_EQ(context_.storage->slice_table().row_count(),
+            SliceTracker::kMaxDepth);
+  EXPECT_EQ(context_.stats_tracker->GetStats(stats::slice_max_depth_exceeded),
+            1);
+
+  // Verify import logs and args
+  const auto& logs = context_.storage->trace_import_logs_table();
+  EXPECT_EQ(logs.row_count(), 1u);
+  EXPECT_TRUE(logs[0].arg_set_id().has_value());
+
+  bool found_parent = false;
+  bool found_current = false;
+  const auto& args = context_.storage->arg_table();
+  for (auto it = args.IterateRows(); it; ++it) {
+    if (it.key() == parent_key && it.string_value() == parent_name_id) {
+      found_parent = true;
+    }
+    if (it.key() == current_key && it.string_value() == current_name_id) {
+      found_current = true;
+    }
+  }
+  EXPECT_TRUE(found_parent);
+  EXPECT_TRUE(found_current);
 }
 
 }  // namespace
