@@ -916,6 +916,26 @@ TEST_F(TraceProcessorIntegrationTest, PackagePrefixClash_NewIsPrefix) {
   ASSERT_THAT(status.message(), HasSubstr("clashes"));
 }
 
+TEST_F(TraceProcessorIntegrationTest, StdlibDocsWildcardDottedPackage) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  // A package whose *name* itself contains dots, owning a module beneath it.
+  // The stdlib docs table functions must resolve the owning package via the
+  // (package, module) pairs from the registry, not by splitting the module key
+  // on the first '.' (which would yield "dev" and fail to find the package).
+  SqlPackage pkg;
+  pkg.name = "dev.perfetto.test";
+  pkg.modules.push_back({"dev.perfetto.test.common", "SELECT 1"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
+
+  // The wildcard enumerates every registered module, including the dotted one.
+  // Before the fix this failed with "Module not found: dev.perfetto.test.common"
+  // and aborted the whole query.
+  auto it = Query("SELECT COUNT(*) AS c FROM __intrinsic_stdlib_tables('*')");
+  ASSERT_TRUE(it.Next());
+  ASSERT_OK(it.Status());
+}
+
 TEST_F(TraceProcessorIntegrationTest, PackageSameNameOverride) {
   ASSERT_OK(NotifyEndOfFile());
 
