@@ -11,11 +11,8 @@ runs on top of, including the Perfetto UI. Reference docs:
 
 > **Prerequisite — `trace_processor` must be invokable.** Before
 > running any of the shell commands below, read
-> `$SKILL_ROOT/environment-references/setup.md`. It defines the exact invocation
-> form for `trace_processor` in this environment — substitute it for
-> every bare `trace_processor` reference below. It also covers
-> installing the `perfetto` Python client, which the long-running RPC
-> mode needs.
+> `$SKILL_ROOT/environment-references/setup.md`. It defines how to make
+> the bare `trace_processor` commands below work in this environment.
 
 ## Quickstart
 
@@ -47,8 +44,8 @@ The same `URL`/share-link form works anywhere a trace path is accepted
 Reparsing a trace on every query is slow — for a multi-GB trace it's tens
 of seconds, every time. When you expect to run more than a couple of
 queries, start the shell once as an HTTP RPC server and drive it from
-the Python client. (If the Python client is not installed yet,
-`$SKILL_ROOT/environment-references/setup.md` covers it.)
+the Python client. (If the `perfetto` Python package is not installed
+yet, `pip install perfetto protobuf` — ideally into a venv.)
 
 ```sh
 # Terminal A: pick a random high port and start the server on it.
