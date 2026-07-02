@@ -247,15 +247,7 @@ SELECT
       AND sf_frames.upid = _input_event_id_to_android_frame.upid
     LIMIT 1
   ) AS present_time,
-  (
-    SELECT app_surface_frame_token
-    FROM _app_frame_to_surface_flinger_frame AS sf_frames
-    WHERE
-      sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
-      -- App frame should belong to the process the input is delivered to.
-      AND sf_frames.upid = _input_event_id_to_android_frame.upid
-    LIMIT 1
-  ) AS frame_id,
+  _input_event_id_to_android_frame.frame_id,
   event_seq,
   event_action,
   _input_event_id_to_android_frame.is_speculative_match
