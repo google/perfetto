@@ -81,6 +81,48 @@ class StdlibDocs(TestSuite):
         "_slice_flattened","TABLE",0
         """))
 
+  def test_stdlib_tables_importance(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT name, importance
+        FROM __intrinsic_stdlib_tables('slices.with_context')
+        WHERE name = 'thread_or_process_slice';
+        """,
+        out=Csv("""
+        "name","importance"
+        "thread_or_process_slice","high"
+        """))
+
+  def test_stdlib_tables_importance_core_prelude(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT name, importance
+        FROM __intrinsic_stdlib_tables('prelude.after_eof.views')
+        WHERE name IN ('slice', 'counter', 'slices')
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","importance"
+        "counter","core"
+        "slice","core"
+        "slices","low"
+        """))
+
+  def test_stdlib_tables_importance_unannotated_is_empty(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT name, importance
+        FROM __intrinsic_stdlib_tables('slices.flat_slices')
+        WHERE name = '_slice_flattened';
+        """,
+        out=Csv("""
+        "name","importance"
+        "_slice_flattened",""
+        """))
+
   def test_stdlib_tables_columns(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),

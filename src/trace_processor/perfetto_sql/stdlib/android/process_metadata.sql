@@ -96,6 +96,7 @@ AS
 SELECT EXISTS (SELECT TRUE FROM _android_kernel_tasks WHERE upid = $upid);
 
 -- Data about packages running on the process.
+-- @importance mid
 CREATE PERFETTO TABLE android_process_metadata(
   -- Process upid.
   upid JOINID(process.id),

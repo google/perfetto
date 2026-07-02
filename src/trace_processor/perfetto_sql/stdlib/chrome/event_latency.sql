@@ -81,6 +81,7 @@ WHERE
   $id = id;
 
 -- All EventLatency slices.
+-- @importance high
 CREATE PERFETTO TABLE chrome_event_latencies (
   -- Slice Id for the EventLatency scroll event.
   id LONG,

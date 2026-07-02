@@ -26,7 +26,7 @@ from typing import List, Tuple, Optional
 
 from python.generators.sql_processing.docs_parse import DocParseOptions, ParsedModule, parse_file
 from python.generators.sql_processing.utils import is_internal
-from python.generators.sql_processing.stdlib_tags import get_tags, get_table_importance
+from python.generators.sql_processing.stdlib_tags import get_tags
 from python.perfetto.trace_data_checks import check_to_query, MODULE_DATA_CHECK_SQL, TABLE_DATA_CHECK_SQL
 
 ROOT_DIR = os.path.dirname(
@@ -270,7 +270,7 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
             'visibility':
                 'private' if is_internal(table.name) else 'public',
             'importance':
-                get_table_importance(table.name),
+                table.importance or None,
             'data_check_sql':
                 check_to_query(TABLE_DATA_CHECK_SQL[table.name])
                 if table.name in TABLE_DATA_CHECK_SQL else None,
@@ -353,7 +353,10 @@ def format_metadata(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
   complementary metadata that lives outside the SQL syntax:
     - tags and data-availability check SQL (module level)
     - includes (INCLUDE PERFETTO MODULE directives)
-    - importance and data-availability check SQL (table level)
+    - data-availability check SQL (table level)
+
+  Table importance is intentionally NOT here: it is exposed via the
+  __intrinsic_stdlib_tables `importance` column and read from TP by the UI.
 
   Output (keyed by module name so the UI can look up by key):
   {
@@ -363,7 +366,6 @@ def format_metadata(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
       "data_check_sql": "SELECT EXISTS(...) AS has_data",  // null if absent
       "tables": {                                          // omitted if empty
         "android_heap_profile_allocation": {
-          "importance": "high",                           // null if absent
           "data_check_sql": "SELECT EXISTS(...) AS has_data"  // null if absent
         }
       }
@@ -382,13 +384,15 @@ def format_metadata(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
 
     tables = {}
     for table in parsed.table_views:
-      importance = get_table_importance(table.name)
+      # Importance is exposed via trace_processor (the __intrinsic_stdlib_tables
+      # `importance` column) and read from there by the UI, so it is no longer
+      # duplicated into this metadata JSON. Only data-availability check SQL,
+      # which TP does not expose, remains here.
       table_check = (
           check_to_query(TABLE_DATA_CHECK_SQL[table.name])
           if table.name in TABLE_DATA_CHECK_SQL else None)
-      if importance is not None or table_check is not None:
+      if table_check is not None:
         tables[table.name] = {
-            'importance': importance,
             'data_check_sql': table_check,
         }
 

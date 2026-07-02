@@ -144,6 +144,7 @@ SELECT * FROM startup_with_type WHERE startup_type IS NOT NULL;
 
 -- All activity startups in the trace by startup id.
 -- Populated by different scripts depending on the platform version/contents.
+-- @importance high
 CREATE PERFETTO VIEW android_startups(
   -- Startup id.
   startup_id ID,
