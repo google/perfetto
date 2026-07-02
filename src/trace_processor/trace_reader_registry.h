@@ -57,6 +57,15 @@ class TraceReaderRegistry {
                     });
   }
 
+  // Like RegisterTraceReader, but passes a fixed extra argument to the reader's
+  // constructor (e.g. the compression codec for DecompressingTraceReader).
+  template <typename Reader, typename Arg>
+  void RegisterTraceReaderWithArg(TraceType trace_type, Arg arg) {
+    RegisterFactory(trace_type, [arg](TraceProcessorContext* ctxt, uint32_t) {
+      return std::make_unique<Reader>(ctxt, arg);
+    });
+  }
+
   // Registers a trace reader factory that captures its own state (e.g. a
   // plugin's `this` pointer). The TraceProcessorContext* passed at creation
   // time is ignored by the wrapper.

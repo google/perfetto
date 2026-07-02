@@ -3126,6 +3126,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_decompress",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
         ":perfetto_src_trace_processor_util_galloping_search",
@@ -3149,9 +3150,11 @@ cc_test {
         ":perfetto_src_trace_processor_util_sql_bundle",
         ":perfetto_src_trace_processor_util_sql_module_doc_parser",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_stream_decompressor",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_zip_reader",
+        ":perfetto_src_trace_processor_util_zstd",
         ":perfetto_src_traced_probes_android_aflags_android_aflags",
         ":perfetto_src_traced_probes_android_cpu_per_uid_android_cpu_per_uid",
         ":perfetto_src_traced_probes_android_game_intervention_list_android_game_intervention_list",
@@ -17325,7 +17328,7 @@ filegroup {
     name: "perfetto_src_trace_processor_importers_archive_archive",
     srcs: [
         "src/trace_processor/importers/archive/archive_entry.cc",
-        "src/trace_processor/importers/archive/gzip_trace_parser.cc",
+        "src/trace_processor/importers/archive/decompressing_trace_reader.cc",
         "src/trace_processor/importers/archive/tar_trace_reader.cc",
         "src/trace_processor/importers/archive/zip_trace_reader.cc",
     ],
@@ -20635,6 +20638,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_decompress",
         ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
@@ -20659,6 +20663,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_sql_bundle",
         ":perfetto_src_trace_processor_util_sql_module_doc_parser",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_stream_decompressor",
         ":perfetto_src_trace_processor_util_symbolizer_symbolize_database",
         ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
         ":perfetto_src_trace_processor_util_tar_writer",
@@ -20666,6 +20671,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_trace_enrichment_trace_enrichment",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_zip_reader",
+        ":perfetto_src_trace_processor_util_zstd",
         ":perfetto_src_traceconv_lib",
         ":perfetto_src_traceconv_pprofbuilder",
         ":perfetto_src_traceconv_utils",
@@ -20901,6 +20907,7 @@ cc_library_static {
                 "libsqlite",
                 "libutils",
                 "libz",
+                "libzstd",
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
@@ -20912,6 +20919,7 @@ cc_library_static {
                 "libprotobuf-cpp-full",
                 "libsqlite_static_noicu",
                 "libz",
+                "libzstd",
                 "sqlite_ext_percentile",
             ],
             whole_static_libs: [
@@ -21021,6 +21029,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util:decompress
+filegroup {
+    name: "perfetto_src_trace_processor_util_decompress",
+    srcs: [
+        "src/trace_processor/util/decompress.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util/deobfuscation:deobfuscator
 filegroup {
     name: "perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
@@ -21070,7 +21086,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_util_gzip",
     srcs: [
-        "src/trace_processor/util/gzip_utils.cc",
+        "src/trace_processor/util/gzip_decompressor.cc",
     ],
 }
 
@@ -21201,6 +21217,14 @@ filegroup {
     name: "perfetto_src_trace_processor_util_stdlib",
 }
 
+// GN: //src/trace_processor/util:stream_decompressor
+filegroup {
+    name: "perfetto_src_trace_processor_util_stream_decompressor",
+    srcs: [
+        "src/trace_processor/util/stream_decompressor.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util/symbolizer:symbolize_database
 filegroup {
     name: "perfetto_src_trace_processor_util_symbolizer_symbolize_database",
@@ -21274,7 +21298,7 @@ filegroup {
         "src/trace_processor/util/descriptors_unittest.cc",
         "src/trace_processor/util/galloping_search_unittest.cc",
         "src/trace_processor/util/glob_unittest.cc",
-        "src/trace_processor/util/gzip_utils_unittest.cc",
+        "src/trace_processor/util/gzip_decompressor_unittest.cc",
         "src/trace_processor/util/json_parser_unittest.cc",
         "src/trace_processor/util/json_serializer_unittest.cc",
         "src/trace_processor/util/json_value_unittest.cc",
@@ -21290,6 +21314,7 @@ filegroup {
         "src/trace_processor/util/tar_writer_unittest.cc",
         "src/trace_processor/util/trace_blob_view_reader_unittest.cc",
         "src/trace_processor/util/zip_reader_unittest.cc",
+        "src/trace_processor/util/zstd_decompressor_unittest.cc",
     ],
 }
 
@@ -21299,6 +21324,14 @@ filegroup {
     srcs: [
         "src/trace_processor/util/streaming_line_reader.cc",
         "src/trace_processor/util/zip_reader.cc",
+    ],
+}
+
+// GN: //src/trace_processor/util:zstd
+filegroup {
+    name: "perfetto_src_trace_processor_util_zstd",
+    srcs: [
+        "src/trace_processor/util/zstd_decompressor.cc",
     ],
 }
 
@@ -23273,6 +23306,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_decompress",
         ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
         ":perfetto_src_trace_processor_util_deobfuscation_unittests",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -23298,6 +23332,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_sql_bundle",
         ":perfetto_src_trace_processor_util_sql_module_doc_parser",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_stream_decompressor",
         ":perfetto_src_trace_processor_util_symbolizer_symbolize_database",
         ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
         ":perfetto_src_trace_processor_util_symbolizer_unittests",
@@ -23307,6 +23342,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_unittests",
         ":perfetto_src_trace_processor_util_zip_reader",
+        ":perfetto_src_trace_processor_util_zstd",
         ":perfetto_src_trace_redaction_trace_redaction",
         ":perfetto_src_trace_redaction_unittests",
         ":perfetto_src_traceconv_lib",
@@ -24295,6 +24331,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_decompress",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
         ":perfetto_src_trace_processor_util_galloping_search",
@@ -24318,9 +24355,11 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_sql_bundle",
         ":perfetto_src_trace_processor_util_sql_module_doc_parser",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_stream_decompressor",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_zip_reader",
+        ":perfetto_src_trace_processor_util_zstd",
     ],
     static_libs: [
         "perfetto_src_trace_processor_demangle",
@@ -24547,6 +24586,7 @@ cc_library_static {
                 "libsqlite",
                 "libutils",
                 "libz",
+                "libzstd",
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
@@ -24557,6 +24597,7 @@ cc_library_static {
             static_libs: [
                 "libsqlite_static_noicu",
                 "libz",
+                "libzstd",
                 "sqlite_ext_percentile",
             ],
             whole_static_libs: [
@@ -24593,6 +24634,7 @@ cc_binary {
                 "libsqlite",
                 "libutils",
                 "libz",
+                "libzstd",
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
@@ -24605,6 +24647,7 @@ cc_binary {
                 "libprotobuf-cpp-full",
                 "libsqlite_static_noicu",
                 "libz",
+                "libzstd",
                 "sqlite_ext_percentile",
             ],
             stl: "libc++_static",
@@ -24970,6 +25013,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_decompress",
         ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
@@ -24994,6 +25038,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_sql_bundle",
         ":perfetto_src_trace_processor_util_sql_module_doc_parser",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_stream_decompressor",
         ":perfetto_src_trace_processor_util_symbolizer_symbolize_database",
         ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
         ":perfetto_src_trace_processor_util_tar_writer",
@@ -25001,6 +25046,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_trace_enrichment_trace_enrichment",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_zip_reader",
+        ":perfetto_src_trace_processor_util_zstd",
         ":perfetto_src_traceconv_lib",
         ":perfetto_src_traceconv_main",
         ":perfetto_src_traceconv_pprofbuilder",
@@ -25011,6 +25057,7 @@ cc_binary_host {
         "libpcre2",
         "libsqlite_static_noicu",
         "libz",
+        "libzstd",
         "perfetto_src_trace_processor_demangle",
         "sqlite_ext_percentile",
     ],

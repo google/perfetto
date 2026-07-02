@@ -60,20 +60,68 @@ source_set("bump_allocator") {
   ]
 }
 
-source_set("gzip") {
+# Codec-agnostic streaming decompressor interface + codec detection. Dep-free
+# (no zlib/zstd) so low-level utils can sniff/declare without pulling a codec.
+source_set("stream_decompressor") {
   sources = [
-    "gzip_utils.cc",
-    "gzip_utils.h",
+    "stream_decompressor.cc",
+    "stream_decompressor.h",
   ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
   ]
+}
 
-  # gzip_utils optionally depends on zlib.
+source_set("gzip") {
+  sources = [
+    "gzip_decompressor.cc",
+    "gzip_decompressor.h",
+  ]
+  public_deps = [ ":stream_decompressor" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+
+  # gzip_decompressor optionally depends on zlib.
   if (enable_perfetto_zlib) {
     deps += [ "../../../gn:zlib" ]
   }
+}
+
+source_set("zstd") {
+  sources = [
+    "zstd_decompressor.cc",
+    "zstd_decompressor.h",
+  ]
+  public_deps = [ ":stream_decompressor" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+
+  # zstd_decompressor optionally depends on zstd.
+  if (enable_perfetto_zstd) {
+    deps += [ "../../../gn:zstd" ]
+  }
+}
+
+# The codec-agnostic decompression entry point: IsCompressionSupported(),
+# CreateDecompressor() and DecompressFully(). Depend on this (rather
+# than :gzip/:zstd directly) to decompress without naming a codec.
+source_set("decompress") {
+  sources = [
+    "decompress.cc",
+    "decompress.h",
+  ]
+  public_deps = [ ":stream_decompressor" ]
+  deps = [
+    ":gzip",
+    ":zstd",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
 }
 
 perfetto_component("build_id") {
@@ -503,8 +551,16 @@ source_set("unittests") {
     ]
   }
   if (enable_perfetto_zlib) {
-    sources += [ "gzip_utils_unittest.cc" ]
+    sources += [ "gzip_decompressor_unittest.cc" ]
     deps += [ "../../../gn:zlib" ]
+  }
+  if (enable_perfetto_zstd) {
+    sources += [ "zstd_decompressor_unittest.cc" ]
+    deps += [
+      ":decompress",
+      ":zstd",
+      "../../../gn:zstd",
+    ]
   }
   if (enable_perfetto_trace_processor_sqlite) {
     sources += [ "sql_module_doc_parser_unittest.cc" ]

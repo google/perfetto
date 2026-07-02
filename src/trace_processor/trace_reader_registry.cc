@@ -24,13 +24,20 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/gzip_decompressor.h"
 #include "src/trace_processor/util/trace_type.h"
+#include "src/trace_processor/util/zstd_decompressor.h"
 
 namespace perfetto::trace_processor {
 namespace {
 const char kNoZlibErr[] =
     "Cannot open compressed trace. zlib not enabled in the build config";
+const char kNoZstdErr[] =
+    "Cannot open compressed trace. zstd not enabled in the build config";
+
+bool RequiresZstdSupport(TraceType type) {
+  return type == kZstdTraceType;
+}
 
 bool RequiresZlibSupport(TraceType type) {
   switch (type) {
@@ -40,6 +47,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kZipFile:
       return true;
 
+    case kZstdTraceType:
     case kCollapsedStackTraceType:
     case kNinjaLogTraceType:
     case kSystraceTraceType:
@@ -93,6 +101,11 @@ TraceReaderRegistry::CreateTraceReader(TraceType type,
   if (RequiresZlibSupport(type) && !util::IsGzipSupported()) {
     return base::ErrStatus("%s support is disabled. %s",
                            TraceTypeToString(type), kNoZlibErr);
+  }
+
+  if (RequiresZstdSupport(type) && !util::IsZstdSupported()) {
+    return base::ErrStatus("%s support is disabled. %s",
+                           TraceTypeToString(type), kNoZstdErr);
   }
 
   return base::ErrStatus("%s support is disabled", TraceTypeToString(type));

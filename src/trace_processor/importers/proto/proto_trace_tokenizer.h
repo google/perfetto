@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -30,7 +31,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/stream_decompressor.h"
 
 #include "perfetto/ext/base/status_macros.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -176,20 +177,23 @@ class ProtoTraceTokenizer {
       PERFETTO_CHECK(reader_.PopFrontBytes(hdr_size + field_size));
       protos::pbzero::TracePacket::Decoder decoder(packet->data(),
                                                    packet->length());
-      if (!decoder.has_compressed_packets()) {
+      util::CompressionType codec;
+      protozero::ConstBytes field;
+      if (decoder.has_compressed_packets()) {
+        codec = util::CompressionType::kGzip;
+        field = decoder.compressed_packets();
+      } else if (decoder.has_zstd_compressed_packets()) {
+        codec = util::CompressionType::kZstd;
+        field = decoder.zstd_compressed_packets();
+      } else {
         RETURN_IF_ERROR(callback(std::move(*packet)));
         continue;
       }
 
-      if (!util::IsGzipSupported()) {
-        return base::ErrStatus(
-            "Cannot decode compressed packets. Zlib not enabled");
-      }
-
-      protozero::ConstBytes field = decoder.compressed_packets();
       TraceBlobView compressed_packets = packet->slice(field.data, field.size);
       TraceBlobView packets;
-      RETURN_IF_ERROR(Decompress(std::move(compressed_packets), &packets));
+      RETURN_IF_ERROR(
+          Decompress(codec, std::move(compressed_packets), &packets));
 
       const uint8_t* start = packets.data();
       const uint8_t* end = packets.data() + packets.length();
@@ -218,14 +222,18 @@ class ProtoTraceTokenizer {
       protozero::proto_utils::MakeTagLengthDelimited(
           protos::pbzero::Trace::kPacketFieldNumber);
 
-  base::Status Decompress(TraceBlobView input, TraceBlobView* output);
+  base::Status Decompress(util::CompressionType type,
+                          TraceBlobView input,
+                          TraceBlobView* output);
 
   // Used to glue together trace packets that span across two (or more)
   // Parse() boundaries.
   util::TraceBlobViewReader reader_;
 
-  // Allows support for compressed trace packets.
-  util::GzipDecompressor decompressor_;
+  // Decompressor for compressed_packets / zstd_compressed_packets, reused
+  // across packets; `decompressor_type_` is the codec it was built for.
+  std::unique_ptr<util::StreamDecompressor> decompressor_;
+  util::CompressionType decompressor_type_ = util::CompressionType::kNone;
 };
 
 }  // namespace perfetto::trace_processor

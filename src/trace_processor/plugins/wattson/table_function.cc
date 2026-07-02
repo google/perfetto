@@ -35,7 +35,7 @@
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/decompress.h"
 
 namespace perfetto::trace_processor::wattson {
 namespace {
@@ -167,8 +167,8 @@ uint32_t WattsonCurvesTableFunction::GetArgumentCount() const {
 }
 
 base::StatusOr<Dataframe> WattsonCurvesTableFunction::BuildDataframe() const {
-  std::vector<uint8_t> bytes = util::GzipDecompressor::DecompressFully(
-      compressed_blob_, compressed_blob_size_);
+  std::vector<uint8_t> bytes = util::DecompressFully(
+      util::CompressionType::kGzip, compressed_blob_, compressed_blob_size_);
   WattsonCurvesBlobReader reader(bytes);
   uint32_t row_count = reader.Read<uint32_t>();
   uint32_t string_count = reader.Read<uint32_t>();

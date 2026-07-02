@@ -16,7 +16,7 @@
 
 #include "test/gtest_and_gmock.h"
 
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/gzip_decompressor.h"
 
 #include <zconf.h>
 #include <zlib.h>
