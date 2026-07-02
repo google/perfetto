@@ -41,6 +41,9 @@ constexpr char kFuchsiaMagic[] = {'\x10', '\x00', '\x04', '\x46',
 constexpr char kPerfMagic[] = {'P', 'E', 'R', 'F', 'I', 'L', 'E', '2'};
 constexpr char kZipMagic[] = {'P', 'K', '\x03', '\x04'};
 constexpr char kGzipMagic[] = {'\x1f', '\x8b'};
+// zstd frame magic: 0xFD2FB528 in little-endian order. Ref:
+// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md
+constexpr char kZstdMagic[] = {'\x28', '\xb5', '\x2f', '\xfd'};
 constexpr char kArtMethodStreamingMagic[] = {'S', 'L', 'O', 'W'};
 constexpr char kArtHprofStreamingMagic[] = {'J', 'A', 'V', 'A', ' ', 'P',
                                             'R', 'O', 'F', 'I', 'L', 'E'};
@@ -264,6 +267,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "systrace";
     case kGzipTraceType:
       return "gzip";
+    case kZstdTraceType:
+      return "zstd";
     case kCtraceTraceType:
       return "ctrace";
     case kZipFile:
@@ -309,6 +314,7 @@ const char* TraceTypeToString(TraceType trace_type) {
 bool IsContainerTraceType(TraceType trace_type) {
   switch (trace_type) {
     case kGzipTraceType:
+    case kZstdTraceType:
     case kCtraceTraceType:
     case kZipFile:
     case kAndroidBugreportTraceType:
@@ -370,6 +376,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (MatchesMagic(data, size, kGzipMagic)) {
     return kGzipTraceType;
+  }
+
+  if (MatchesMagic(data, size, kZstdMagic)) {
+    return kZstdTraceType;
   }
 
   if (MatchesMagic(data, size, kArtMethodStreamingMagic)) {

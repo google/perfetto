@@ -60,8 +60,8 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/decompress.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/gzip_utils.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
@@ -229,8 +229,8 @@ base::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
     size = extension.size;
   } else if (decoder.has_extension_set_gzip()) {
     auto gzipped = decoder.extension_set_gzip();
-    decompressed =
-        util::GzipDecompressor::DecompressFully(gzipped.data, gzipped.size);
+    decompressed = util::DecompressFully(util::CompressionType::kGzip,
+                                         gzipped.data, gzipped.size);
     if (decompressed.empty()) {
       return base::ErrStatus(
           "Failed to decompress gzipped extension descriptor");
@@ -255,7 +255,8 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   // Any compressed packets should have been handled by the tokenizer.
-  PERFETTO_CHECK(!decoder.has_compressed_packets());
+  PERFETTO_CHECK(!decoder.has_compressed_packets() &&
+                 !decoder.has_zstd_compressed_packets());
 
   // The top-level reader dispatches packets from other machines to a
   // per-machine reader; host and adopted-machine packets are parsed here.

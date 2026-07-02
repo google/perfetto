@@ -19,7 +19,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -34,8 +33,8 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/importers/proto/android_extension.descriptor.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
+#include "src/trace_processor/util/decompress.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/proto_profiler.h"
 
 #include "protos/third_party/pprof/profile.pbzero.h"
@@ -205,23 +204,22 @@ int Main(int argc, const char** argv) {
   std::string s;
   base::ReadFileDescriptor(proto_fd.get(), &s);
 
-  // Transparently handle gzip-compressed traces. Detect them by the gzip
-  // magic bytes (0x1f 0x8b) and decompress using the existing zlib-backed
-  // GzipDecompressor utility.
-  const uint8_t kGzipMagic[] = {0x1f, 0x8b};
-  if (s.size() >= sizeof(kGzipMagic) &&
-      memcmp(s.data(), kGzipMagic, sizeof(kGzipMagic)) == 0) {
-    if (!trace_processor::util::IsGzipSupported()) {
+  // Transparently handle compressed traces (gzip or zstd): detect the codec
+  // from the file's magic bytes and decompress it whole.
+  namespace util = trace_processor::util;
+  const auto* bytes = reinterpret_cast<const uint8_t*>(s.data());
+  util::CompressionType codec = util::DetectCompression(bytes, s.size());
+  if (codec != util::CompressionType::kNone) {
+    if (!util::IsCompressionSupported(codec)) {
       PERFETTO_ELOG(
-          "Input (%s) is gzip-compressed but this build lacks zlib support",
+          "Input (%s) is compressed but this build lacks the required codec",
           input_path);
       return 1;
     }
     std::vector<uint8_t> decompressed =
-        trace_processor::util::GzipDecompressor::DecompressFully(
-            reinterpret_cast<const uint8_t*>(s.data()), s.size());
+        util::DecompressFully(codec, bytes, s.size());
     if (decompressed.empty()) {
-      PERFETTO_ELOG("Could not decompress gzip input path (%s)", input_path);
+      PERFETTO_ELOG("Could not decompress input path (%s)", input_path);
       return 1;
     }
     s.assign(reinterpret_cast<const char*>(decompressed.data()),
