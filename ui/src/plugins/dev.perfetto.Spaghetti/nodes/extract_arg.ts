@@ -26,12 +26,12 @@ import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
 
 export interface ExtractArgEntry {
-  readonly column: string;
   readonly argName: string;
   readonly alias: string;
 }
 
 export interface ExtractArgConfig {
+  readonly argSetIdCol: string;
   readonly extractions: ExtractArgEntry[];
 }
 
@@ -86,6 +86,16 @@ function ExtractArgContent(): m.Component<{
   return {
     view({attrs: {config, updateConfig, ctx}}) {
       return m('.pf-qb-stack', [
+        m('.pf-qb-section-label', 'Join Key'),
+        m(ColumnPicker, {
+          value: config.argSetIdCol,
+          columns: ctx.availableColumns,
+          placeholder: 'column',
+          onSelect: (value: string) => {
+            updateConfig({argSetIdCol: value});
+          },
+        }),
+        m('.pf-qb-section-label', 'Args'),
         m('.pf-qb-filter-list', [
           ...config.extractions.map((entry, i) =>
             m(
@@ -145,16 +155,6 @@ function ExtractArgContent(): m.Component<{
                   icon: 'drag_indicator',
                   className: 'pf-qb-drag-handle',
                 }),
-                m(ColumnPicker, {
-                  value: entry.column,
-                  columns: ctx.availableColumns,
-                  placeholder: 'column',
-                  onSelect: (value: string) => {
-                    const newExtractions = [...config.extractions];
-                    newExtractions[i] = {...entry, column: value};
-                    updateConfig({extractions: newExtractions});
-                  },
-                }),
                 m(TextInput, {
                   placeholder: 'arg name',
                   value: entry.argName,
@@ -193,10 +193,7 @@ function ExtractArgContent(): m.Component<{
           icon: 'add',
           onclick: () => {
             updateConfig({
-              extractions: [
-                ...config.extractions,
-                {column: '', argName: '', alias: ''},
-              ],
+              extractions: [...config.extractions, {argName: '', alias: ''}],
             });
           },
         }),
@@ -219,7 +216,7 @@ function getOutputColumns(
 ): ColumnDef[] | undefined {
   const columns = ctx.getInputColumns('input');
   const extractAliases: ColumnDef[] = config.extractions
-    .filter((e) => e.column && e.argName)
+    .filter((e) => e.argName)
     .map((e) => ({name: extractArgAlias(e)}));
   if (extractAliases.length > 0) {
     return [...(columns ?? []), ...extractAliases];
@@ -228,19 +225,17 @@ function getOutputColumns(
 }
 
 function isValid(config: ExtractArgConfig): boolean {
-  return config.extractions.every(
-    (e) => (!e.column && !e.argName) || (e.column && e.argName),
-  );
+  return config.extractions.every((e) => !e.argName || e.argName);
 }
 
 function tryFold(stmt: SqlStatement, config: ExtractArgConfig): boolean {
   // Can't append columns to a grouped query.
   if (stmt.groupBy) return false;
   const exprParts = config.extractions
-    .filter((e) => e.column && e.argName)
+    .filter((e) => e.argName)
     .map(
       (e) =>
-        `extract_arg(${e.column}, '${e.argName}') AS ${extractArgAlias(e)}`,
+        `extract_arg(${config.argSetIdCol}, '${e.argName}') AS ${extractArgAlias(e)}`,
     );
   if (exprParts.length > 0) {
     stmt.columns = [stmt.columns, ...exprParts].join(', ');
@@ -249,11 +244,11 @@ function tryFold(stmt: SqlStatement, config: ExtractArgConfig): boolean {
 }
 
 export const manifest: NodeManifest<ExtractArgConfig> = {
-  title: 'Extract Arg',
+  title: 'Extract Args',
   icon: 'data_object',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 95,
-  defaultConfig: () => ({extractions: []}),
+  defaultConfig: () => ({argSetIdCol: '', extractions: []}),
   render,
   getOutputColumns,
   isValid,
