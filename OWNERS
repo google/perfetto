@@ -7,11 +7,9 @@ primiano@google.com
 
 # Trace Processor, metrics, infra.
 lalitm@google.com
-mayzner@google.com
 
 # Ftrace interop, traced_probes, protozero, Android internals.
 # Callstack / memory profilers, traced_probes & Linux internals.
-ddiproietto@google.com
 rsavitski@google.com
 
 # Horizontal work
