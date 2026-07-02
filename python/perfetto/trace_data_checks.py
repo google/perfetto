@@ -15,8 +15,8 @@
 """
 Data availability checks for high and mid importance SQL modules.
 
-These are modules that create tables marked as 'high' or 'mid' importance
-in stdlib_tags.py TABLE_IMPORTANCE dict.
+These are modules that create tables annotated as 'high' or 'mid' importance
+via `-- @importance` comments in their stdlib SQL sources.
 
 Auto-generated - do not edit manually.
 """

@@ -46,6 +46,9 @@ struct TableOrView {
   std::string type;
   std::string description;
   bool exposed = true;
+  // Importance level from a `-- @importance <level>` doc annotation, one of
+  // "core", "high", "mid", "low". Empty when the table carries no annotation.
+  std::string importance;
   std::vector<Column> columns;
 };
 

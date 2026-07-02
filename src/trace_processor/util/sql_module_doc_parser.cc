@@ -63,6 +63,61 @@ std::string JoinLineComments(const char* stmt_ptr,
   return result;
 }
 
+// A statement's parsed leading documentation: the free-text description with
+// any structured annotations (e.g. `@importance`) removed, plus the values of
+// those annotations.
+struct StmtDoc {
+  std::string description;
+  std::string importance;  // "core"/"high"/"mid"/"low", empty if unannotated.
+};
+
+bool IsValidImportance(std::string_view v) {
+  return v == "core" || v == "high" || v == "mid" || v == "low";
+}
+
+// Joins the leading line comments into a description, carving out an optional
+// `-- @importance <level>` annotation line (validated and returned via
+// StmtDoc::importance rather than folded into the description). An `@importance`
+// line with an invalid level is reported in |errors| and dropped.
+StmtDoc ExtractStmtDoc(const char* stmt_ptr,
+                       const SyntaqliteComment* comments,
+                       uint32_t count,
+                       std::vector<std::string>* errors) {
+  constexpr std::string_view kImportanceTag = "@importance";
+  StmtDoc doc;
+  for (uint32_t i = 0; i < count; i++) {
+    if (comments[i].kind != 0) {
+      continue;
+    }
+    std::string_view s = StripCommentPrefix(
+        {stmt_ptr + comments[i].offset, comments[i].length});
+    // Recognise "@importance" only when followed by whitespace or end of line,
+    // so a word merely beginning with it is left as ordinary description text.
+    bool is_importance =
+        s.substr(0, kImportanceTag.size()) == kImportanceTag &&
+        (s.size() == kImportanceTag.size() ||
+         s[kImportanceTag.size()] == ' ' || s[kImportanceTag.size()] == '\t');
+    if (is_importance) {
+      std::string_view level =
+          base::TrimWhitespace(s.substr(kImportanceTag.size()));
+      if (IsValidImportance(level)) {
+        doc.importance = std::string(level);
+      } else if (errors) {
+        errors->push_back("Invalid @importance level '" + std::string(level) +
+                          "' (expected one of core|high|mid|low)");
+      }
+      continue;
+    }
+    if (!s.empty()) {
+      if (!doc.description.empty()) {
+        doc.description += ' ';
+      }
+      doc.description.append(s);
+    }
+  }
+  return doc;
+}
+
 // Returns the index of the first comment in the last contiguous block of line
 // comments. Two or more newlines between consecutive line comments (i.e. a
 // blank line) breaks the block, which is used to skip license headers.
@@ -262,21 +317,24 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
     // Statement-level description: last contiguous block of leading line
     // comments on token 0 (the CREATE keyword), skipping license headers
     // separated by a blank line.
-    auto get_stmt_desc = [&]() -> std::string {
+    auto get_stmt_doc = [&]() -> StmtDoc {
       uint32_t count = 0;
       const auto* cs = syntaqlite_token_leading_comments(p, 0, &count);
       uint32_t start = LastBlockStart(stmt_ptr, cs, count);
-      return JoinLineComments(stmt_ptr, cs + start, count - start);
+      return ExtractStmtDoc(stmt_ptr, cs + start, count - start,
+                            &result.errors);
     };
 
     switch (static_cast<int>(node->tag)) {
       case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT: {
         const auto& n = node->create_perfetto_table_stmt;
+        StmtDoc doc = get_stmt_doc();
         TableOrView tv;
         tv.name = SyntaqliteSpanText(p, n.table_name);
         tv.type = "TABLE";
         tv.exposed = !IsInternal(tv.name);
-        tv.description = get_stmt_desc();
+        tv.description = std::move(doc.description);
+        tv.importance = std::move(doc.importance);
         tv.columns = ExtractColumns(p, n.schema, stmt_ptr);
         result.table_views.push_back(std::move(tv));
         break;
@@ -284,11 +342,13 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
 
       case SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT: {
         const auto& n = node->create_perfetto_view_stmt;
+        StmtDoc doc = get_stmt_doc();
         TableOrView tv;
         tv.name = SyntaqliteSpanText(p, n.view_name);
         tv.type = "VIEW";
         tv.exposed = !IsInternal(tv.name);
-        tv.description = get_stmt_desc();
+        tv.description = std::move(doc.description);
+        tv.importance = std::move(doc.importance);
         tv.columns = ExtractColumns(p, n.schema, stmt_ptr);
         result.table_views.push_back(std::move(tv));
         break;
@@ -314,7 +374,7 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
         Function fn;
         fn.name = SyntaqliteSpanText(p, fn_name_span);
         fn.exposed = !IsInternal(fn.name);
-        fn.description = get_stmt_desc();
+        fn.description = get_stmt_doc().description;
         fn.args = ExtractArgs(p, args_list_id, stmt_ptr);
 
         if (syntaqlite_node_is_present(return_type_id)) {
@@ -340,7 +400,7 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
         Macro macro;
         macro.name = SyntaqliteSpanText(p, n.macro_name);
         macro.exposed = !IsInternal(macro.name);
-        macro.description = get_stmt_desc();
+        macro.description = get_stmt_doc().description;
         macro.return_type = SyntaqliteSpanText(p, n.return_type);
         macro.args = ExtractMacroArgs(p, n.args, stmt_ptr);
 

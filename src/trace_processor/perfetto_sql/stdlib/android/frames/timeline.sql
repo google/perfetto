@@ -245,6 +245,7 @@ WHERE
 
 -- Table based on the android_frames_layers table. It aggregates time, duration and counts
 -- information across different layers for a given frame_id in a given process.
+-- @importance high
 CREATE PERFETTO TABLE android_frames(
   -- Frame id.
   frame_id LONG,

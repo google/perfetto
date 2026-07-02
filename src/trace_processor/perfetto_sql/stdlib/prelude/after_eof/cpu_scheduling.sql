@@ -84,6 +84,7 @@ SELECT id, ucpu AS cpu, freq, ucpu FROM __intrinsic_cpu_freq;
 --
 -- The rows in this view will always have a matching row in the |thread_state|
 -- table with |thread_state.state| = 'Running'
+-- @importance core
 CREATE PERFETTO VIEW sched(
   -- Unique identifier for this scheduling slice.
   id ID,
@@ -127,6 +128,7 @@ SELECT
 FROM __intrinsic_sched_slice;
 
 -- Alias of `sched`. Prefer using `sched` instead.
+-- @importance low
 CREATE PERFETTO VIEW sched_slice(
   -- Alias of `sched.id`.
   id ID,
@@ -153,6 +155,7 @@ SELECT id, ts, dur, cpu, utid, end_state, priority, ucpu FROM sched;
 --
 -- The rows in this table which have |state| = 'Running', will have a
 -- corresponding row in the |sched_slice| table.
+-- @importance core
 CREATE PERFETTO VIEW thread_state(
   -- Unique identifier for this thread state.
   id ID,

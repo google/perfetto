@@ -40,6 +40,7 @@ STDLIB_DOCS_TABLES_TABLE = Table(
         C("type", CppString()),
         C("description", CppString()),
         C("exposed", CppInt64()),
+        C("importance", CppString()),
         C("cols", CppString()),
     ],
 )
