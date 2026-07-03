@@ -12,17 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Down-convert a zod schema (how tools author their input shape) into the tight
-// subset of JSON Schema that Gemini's `functionDeclarations[].parameters`
-// accepts.
-//
-// We get the base JSON Schema from zod 4's built-in `z.toJSONSchema()` (the
-// previous hand-rolled walker keyed off `_def.typeName`, a zod *3* internal
-// absent in zod 4, so it silently emitted property-less `string` schemas and
-// tool args came back empty). Then we strip the keys Gemini rejects -
-// `$schema`, `additionalProperties`, and `$ref`/`$defs` (Gemini wants schemas
-// inlined, no references).
-
 import {z} from 'zod';
 
 /**

@@ -12,13 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The Gemini Protocol implementation. Speaks the streaming generateContent
-// endpoint, translates the gateway's neutral request/response shapes to and
-// from Gemini's native wire format, and normalises Gemini errors into the
-// gateway's common error categories. It is a pure translation layer - the
-// multi-step tool-use loop lives in the consumer (the assistant agent), not
-// here; this just turns one neutral request into one streamed turn.
-
 import {z} from 'zod';
 import type {
   AvailableModel,
@@ -31,10 +24,8 @@ import type {
 } from '../dev.perfetto.Llm/protocol';
 import {zodToGeminiSchema} from './schema_converter';
 
-// v1beta is required for thinking config
+// Note: v1beta is required for thinking config
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta';
-
-// --- Gemini wire types (subset of generateContent) ---------------------------
 
 interface GeminiTextPart {
   readonly text: string;
@@ -80,8 +71,6 @@ interface GeminiStreamChunk {
   readonly candidates?: readonly GeminiCandidate[];
   readonly usageMetadata?: GeminiUsage;
 }
-
-// --- Translation: Normalized -> Gemini ---------------------------------------
 
 function messagesToContents(messages: readonly Message[]): GeminiContent[] {
   const contents: GeminiContent[] = [];
@@ -135,8 +124,6 @@ function toolsToDeclarations(request: Request) {
   ];
 }
 
-// --- Error normalisation -----------------------------------------------------
-
 function classifyError(status: number, body: string): StreamEvent {
   let kind: 'rate-limit' | 'auth' | 'context-length' | 'network' | 'unknown';
   if (status === 429) kind = 'rate-limit';
@@ -156,8 +143,6 @@ function classifyError(status: number, body: string): StreamEvent {
 const LIST_MODELS_RESPONSE = z.object({
   models: z.array(z.object({name: z.string().optional()})).optional(),
 });
-
-// --- The protocol ------------------------------------------------------------
 
 const CAPABILITIES: ProtocolCapabilities = {
   nativeToolCalling: true,
@@ -217,13 +202,12 @@ export class GeminiProtocol implements Protocol {
     const apiKey = credentials.apiKey ?? '';
     const base = credentials.endpoint || ENDPOINT;
     const url = `${base}/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+    const toolDeclarations = toolsToDeclarations(request);
 
     const body = {
       contents: messagesToContents(request.messages),
       systemInstruction: {parts: [{text: request.systemPrompt}]},
-      ...(toolsToDeclarations(request)
-        ? {tools: toolsToDeclarations(request)}
-        : {}),
+      ...(toolDeclarations ? {tools: toolDeclarations} : {}),
       generationConfig: {
         thinkingConfig: {includeThoughts: true, thinkingBudget: -1},
       },

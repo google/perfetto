@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// dev.perfetto.LlmProtocolGemini - registers the 'gemini' protocol with the
-// common LLM gateway. Enabling this plugin makes Gemini-backed providers usable
-// by any LLM consumer (the assistant, summarisers, ...).
-
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
 import LlmPlugin from '../dev.perfetto.Llm';
