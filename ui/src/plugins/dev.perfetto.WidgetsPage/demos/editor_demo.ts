@@ -40,6 +40,10 @@ class EditorDemo implements m.ClassComponent {
       renderWidgetShowcase({
         renderWidget: ({language, readonly, fillHeight}) =>
           m(Editor, {
+            style: {
+              width: '400px',
+              height: '250px',
+            },
             key: `${language}-${readonly}`,
             language: language == 'perfetto-sql' ? 'perfetto-sql' : undefined,
             fillHeight,

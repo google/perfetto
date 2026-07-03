@@ -34,18 +34,22 @@ export function renderCard(): m.Children {
     renderWidgetShowcase({
       renderWidget: ({interactive}) =>
         m(Card, {interactive}, [
-          m('h1', {style: {margin: 'unset'}}, 'Welcome!'),
-          m('p', 'Would you like to start your journey?'),
-          m(Stack, {orientation: 'horizontal'}, [
-            m(Button, {
-              variant: ButtonVariant.Filled,
-              label: 'No thanks...',
-            }),
-            m(Button, {
-              intent: Intent.Primary,
-              variant: ButtonVariant.Filled,
-              label: "Let's go!",
-            }),
+          m(Stack, {orientation: 'vertical', spacing: 'large'}, [
+            m('', [
+              m('h1', {style: {marginTop: 0}}, 'Welcome!'),
+              m('p', 'Would you like to start your journey?'),
+            ]),
+            m(Stack, {orientation: 'horizontal'}, [
+              m(Button, {
+                variant: ButtonVariant.Filled,
+                label: 'No thanks...',
+              }),
+              m(Button, {
+                intent: Intent.Primary,
+                variant: ButtonVariant.Filled,
+                label: "Let's go!",
+              }),
+            ]),
           ]),
         ]),
       initialOpts: {interactive: true},

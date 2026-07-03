@@ -71,7 +71,13 @@ export class Form implements m.ClassComponent<FormAttrs> {
 
     return m(
       'form.pf-form',
-      htmlAttrs,
+      {
+        ...htmlAttrs,
+        onsubmit: (e: Event) => {
+          preventDefault && e.preventDefault();
+          onSubmit(e);
+        },
+      },
       children,
       (submitLabel || cancelLabel || resetLabel) &&
         m(
@@ -84,10 +90,6 @@ export class Form implements m.ClassComponent<FormAttrs> {
               className: Popup.DISMISS_POPUP_GROUP_CLASS,
               intent: Intent.Primary,
               variant: ButtonVariant.Filled,
-              onclick: (e: Event) => {
-                preventDefault && e.preventDefault();
-                onSubmit(e);
-              },
             }),
           // This cancel button just closes the popup if we are inside one.
           cancelLabel &&

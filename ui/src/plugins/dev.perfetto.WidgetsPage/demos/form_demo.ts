@@ -16,25 +16,33 @@ import m from 'mithril';
 import {Icons} from '../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Checkbox} from '../../../widgets/checkbox';
-import {Form, FormGrid, FormLabel, FormSection} from '../../../widgets/form';
+import {
+  Form,
+  FormAttrs,
+  FormGrid,
+  FormLabel,
+  FormSection,
+} from '../../../widgets/form';
 import {Popup} from '../../../widgets/popup';
 import {Select} from '../../../widgets/select';
 import {Switch} from '../../../widgets/switch';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 
-function renderFormContent(
-  id: string,
-  options: {
-    submitButton?: boolean;
-    cancelButton?: boolean;
-    resetButton?: boolean;
-  } = {},
-): m.Children {
-  const {submitButton, cancelButton, resetButton} = options;
+interface FormOpts extends FormAttrs {
+  submitButton?: boolean;
+  cancelButton?: boolean;
+  resetButton?: boolean;
+  style?: Partial<CSSStyleProperties>;
+}
+
+function renderFormContent(id: string, options: FormOpts = {}): m.Children {
+  const {submitButton, cancelButton, resetButton, style, ...rest} = options;
   return m(
     Form,
     {
+      ...rest,
+      style: options.style,
       submitLabel: submitButton ? 'Submit' : undefined,
       submitIcon: 'send',
       cancelLabel: cancelButton ? 'Cancel' : undefined,
@@ -126,20 +134,26 @@ export function renderForm(): m.Children {
       ),
     ),
     renderWidgetShowcase({
-      renderWidget: ({submitButton, cancelButton, resetButton}) =>
+      renderWidget: ({submitButton, cancelButton, resetButton, ...rest}) =>
         renderFormContent('inline-form', {
+          ...rest,
           submitButton,
           cancelButton,
           resetButton,
+          style: {
+            height: '100%',
+            overflow: 'auto',
+          },
         }),
       initialOpts: {
         submitButton: true,
         cancelButton: true,
         resetButton: false,
+        preventDefault: true,
       },
     }),
 
-    renderDocSection('Form with a Popup', [
+    renderDocSection('Form within a Popup', [
       m('p', [
         `A form placed inside a popup menu works just fine,
          and the cancel/submit buttons also dismiss the popup. A bit more
@@ -148,7 +162,7 @@ export function renderForm(): m.Children {
     ]),
 
     renderWidgetShowcase({
-      renderWidget: () =>
+      renderWidget: ({submitButton, cancelButton, resetButton}) =>
         m(
           Popup,
           {
@@ -158,8 +172,18 @@ export function renderForm(): m.Children {
               variant: ButtonVariant.Filled,
             }),
           },
-          renderFormContent('popup-form'),
+          renderFormContent('popup-form', {
+            submitButton,
+            cancelButton,
+            resetButton,
+          }),
         ),
+      initialOpts: {
+        submitButton: true,
+        cancelButton: true,
+        resetButton: false,
+        preventDefault: true,
+      },
     }),
   ];
 }

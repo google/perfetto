@@ -213,6 +213,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     );
     return m('.pf-editor', {
       className: className,
+      style: attrs.style,
       ref: attrs.ref,
     });
   }
