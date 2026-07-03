@@ -33,7 +33,8 @@ import {NUM} from '../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {DetailsShell} from '../../widgets/details_shell';
-import {Modal, showModal} from '../../widgets/modal';
+import {showModal} from '../../widgets/modal';
+import {incompleteFlamegraphModal} from './incomplete_flamegraph';
 import {
   Flamegraph,
   type FlamegraphState,
@@ -301,26 +302,8 @@ export class HeapProfileFlamegraphDetailsPanel
     if (this.flamegraphModalDismissed) {
       return undefined;
     }
-    return m(Modal, {
-      title: 'The flamegraph is incomplete',
-      vAlign: 'TOP',
-      content: m(
-        'div',
-        'The current trace does not have a fully formed flamegraph',
-      ),
-      buttons: [
-        {
-          text: 'Show the errors',
-          primary: true,
-          action: () => trace.navigate('#!/info'),
-        },
-        {
-          text: 'Skip',
-          action: () => {
-            this.flamegraphModalDismissed = true;
-          },
-        },
-      ],
+    return incompleteFlamegraphModal(trace, () => {
+      this.flamegraphModalDismissed = true;
     });
   }
 }
