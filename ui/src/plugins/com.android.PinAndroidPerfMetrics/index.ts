@@ -1,46 +1,40 @@
-// Copyright (C) 2024 The Android Open Source Project
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import type {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
 import AndroidCujsPlugin from '../com.android.AndroidCujs';
 import Wattson from '../org.kernel.Wattson';
+import {NUM} from '../../trace_processor/query_result';
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_blocking_calls_cuj_metric.sql');
 `;
 
+function getParamFromHash(paramName: string): string | undefined {
+  const hash = location.hash;
+  const regex = new RegExp(`dev.perfetto.PinAndroidPerfMetrics:${paramName}=([^&]*)`);
+  const match = hash.match(regex);
+  if (match === null) {
+    return undefined;
+  }
+  return decodeURIComponent(match[1]);
+}
+
 function getMetricsFromHash(): string[] {
   // TODO(stevegolton): this uses `dev.perfetto.PinAndroidPerfMetrics` for
   // back-compat reasons only. Figure out a way to preserve backwards
   // compatibility of plugin arguments when plugins change id.
-  const metricVal = location.hash;
-  const regex = new RegExp(`dev.perfetto.PinAndroidPerfMetrics:metrics=(.*)`);
-  const match = metricVal.match(regex);
-  if (match === null) {
+  const capturedString = getParamFromHash('metrics');
+  if (capturedString === undefined) {
     return [];
   }
-  const capturedString = match[1];
   let metricList: string[] = [];
   if (capturedString.includes('--')) {
     metricList = capturedString.split('--');
   } else {
     metricList = [capturedString];
   }
-  return metricList.map((metric) => decodeURIComponent(metric));
+  return metricList;
 }
 
 let metrics: string[];
@@ -83,6 +77,33 @@ export default class implements PerfettoPlugin {
       await plugin.pinLatencyCujs(ctx);
       this.callHandlers(metrics, ctx);
     }
+
+    const cujName = getParamFromHash('cuj');
+    const cujId = getParamFromHash('cuj_id');
+    if (cujName !== undefined || cujId !== undefined) {
+      await this.pinAndPanToCuj(ctx, cujName, cujId);
+    }
+  }
+
+  private async pinAndPanToCuj(ctx: Trace, cujName?: string, cujId?: string) {
+    await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
+
+    let query = '';
+    if (cujId !== undefined) {
+      query = `SELECT slice_id FROM android_jank_cuj WHERE cuj_id = ${cujId} LIMIT 1`;
+    } else if (cujName !== undefined) {
+      query = `SELECT slice_id FROM android_jank_cuj WHERE cuj_name = '${cujName}' OR cuj_slice_name = '${cujName}' LIMIT 1`;
+    } else {
+      return;
+    }
+
+    const result = await ctx.engine.query(query);
+    if (result.numRows() === 0) {
+      return;
+    }
+    const sliceId = result.firstRow({slice_id: NUM}).slice_id;
+
+    ctx.selection.selectSqlEvent('slice', sliceId, {scrollToSelection: true});
   }
 
   private async callHandlers(metricsList: string[], ctx: Trace) {
