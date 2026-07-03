@@ -1008,6 +1008,21 @@ board-level information and specific service dumps like `batterystats`.
 - **Capture and read bug reports (Official Android Documentation):**
   [developer.android.com/studio/debug/bug-report](https://developer.android.com/studio/debug/bug-report)
 
+## {#trace-archives} Trace archives (.zip, .tar)
+
+**Description:** A ZIP or TAR archive containing several trace files, in any
+mix of the formats on this page.
+
+**Perfetto Support:** Both the UI and Trace Processor open archives directly
+and merge the traces inside onto a single timeline. An optional
+[trace manifest](/docs/reference/perfetto-manifest.md) file inside the
+archive controls how the traces are merged: which machine each file belongs
+to and how their clocks relate. See
+[Merging traces with Trace Processor](/docs/analysis/merging-traces.md) for
+how to build such archives and
+[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md)
+for the interactive equivalent, which can also export the archive it builds.
+
 ## Fuchsia tracing format (.fxt)
 
 **Description:** The Fuchsia trace format (typically found in `.fxt` files) is a

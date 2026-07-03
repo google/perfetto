@@ -166,6 +166,11 @@ state, Perfetto provides powerful insights.
     also be configured to include logcat directly into new traces.
     - **Tutorial**:
       [Visualizing adb logcat](/docs/getting-started/other-formats.md#logcat-format)
+  - Several related trace files (from two devices, or an app trace next to a
+    system trace) can be opened together as one merged trace on a shared
+    timeline.
+    - **Tutorial**:
+      [Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md)
 
 ### {#android-optimizing-performance} Optimizing Performance & Addressing Latency
 
