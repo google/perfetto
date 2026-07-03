@@ -12,7 +12,9 @@ const JANK_CUJ_QUERY_PRECONDITIONS = `
 
 function getParamFromHash(paramName: string): string | undefined {
   const hash = location.hash;
-  const regex = new RegExp(`dev.perfetto.PinAndroidPerfMetrics:${paramName}=([^&]*)`);
+  const regex = new RegExp(
+    `dev.perfetto.PinAndroidPerfMetrics:${paramName}=([^&]*)`,
+  );
   const match = hash.match(regex);
   if (match === null) {
     return undefined;
