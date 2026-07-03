@@ -32,7 +32,7 @@ import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
-import {type Route, Router} from '../core/router';
+import {Router} from '../core/router';
 import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
@@ -64,6 +64,7 @@ import {
 } from '../core/command_manager';
 import {type HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {sleepMs} from '../base/utils';
+import type {Route} from '../public/app';
 
 // =============================================================================
 // UI INITIALIZATION STAGES
