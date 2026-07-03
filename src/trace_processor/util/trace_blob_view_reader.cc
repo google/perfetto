@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -66,6 +67,15 @@ auto TraceBlobViewReader::SliceOffImpl(const size_t offset,
   // If the length is zero, then a zero-sized blob view is always appropriate.
   if (PERFETTO_UNLIKELY(length == 0)) {
     return visitor.OneSlice(TraceBlobView());
+  }
+
+  // Reject requests where `offset + length` would overflow. The bounds checks
+  // below compute `offset + length` in size_t arithmetic, so an overflowing
+  // (offset, length) pair -- e.g. an attacker-controlled section offset read
+  // from a perf.data file -- could wrap to a small value, spuriously pass the
+  // fast-path check and produce an out-of-bounds slice.
+  if (PERFETTO_UNLIKELY(offset > std::numeric_limits<size_t>::max() - length)) {
+    return visitor.NoData();
   }
 
   PERFETTO_DCHECK(offset >= start_offset());
