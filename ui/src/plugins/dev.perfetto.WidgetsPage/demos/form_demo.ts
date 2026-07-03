@@ -18,7 +18,7 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Checkbox} from '../../../widgets/checkbox';
 import {
   Form,
-  FormAttrs,
+  type FormAttrs,
   FormGrid,
   FormLabel,
   FormSection,

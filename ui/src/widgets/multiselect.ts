@@ -15,7 +15,7 @@
 import './multiselect.scss';
 import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
-import {Button, ButtonVariant} from './button';
+import {Button, type ButtonVariant} from './button';
 import {Checkbox} from './checkbox';
 import {EmptyState} from './empty_state';
 import {Popup, PopupPosition} from './popup';
