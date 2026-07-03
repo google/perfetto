@@ -22,7 +22,7 @@ import {
   type FlamegraphState,
   type FlamegraphOptionalAction,
 } from '../../../widgets/flamegraph';
-import {AsyncLimiter} from '../../../base/async_limiter';
+import {QuerySlot} from '../../../base/query_slot';
 import {
   isHeapGraphIncomplete,
   incompleteFlamegraphModal,
@@ -175,13 +175,13 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
   let cachedKey: string | undefined;
 
   // Mirrors dev.perfetto.HeapProfile: if the heap graph is incomplete we gate
-  // the flamegraph behind a dismissible warning modal. The check runs (and the
-  // modal is shown) only when this view is rendered, i.e. when the flamegraph
-  // tab is active. `incomplete` is undefined until the check resolves.
-  const incompleteLimiter = new AsyncLimiter();
-  let incomplete: boolean | undefined;
-  let incompleteKey: string | undefined;
-  let modalDismissed = false;
+  // the flamegraph behind a dismissible warning modal. Keyed by dump so it
+  // re-arms when the dump changes; the check runs (and the modal is shown) only
+  // when this view is rendered, i.e. when the flamegraph tab is active.
+  const incompleteSlot = new QuerySlot<{
+    isIncomplete: boolean;
+    dismissed: boolean;
+  }>();
 
   return {
     view({attrs}) {
@@ -196,18 +196,13 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
       }
       const metrics = cachedMetrics;
 
-      // Check for an incomplete (broken) heap graph once per dump, re-arming
-      // the warning modal when the dump changes.
-      if (incompleteKey !== key) {
-        incompleteKey = key;
-        incomplete = undefined;
-        modalDismissed = false;
-        const trace = attrs.trace;
-        incompleteLimiter.schedule(async () => {
-          incomplete = await isHeapGraphIncomplete(trace);
-          m.redraw();
-        });
-      }
+      const incomplete = incompleteSlot.use({
+        key: {upid: attrs.upid, ts: attrs.ts},
+        queryFn: async () => ({
+          isIncomplete: await isHeapGraphIncomplete(attrs.trace),
+          dismissed: false,
+        }),
+      }).data;
 
       // First render or after a dump-change reset: create a default
       // state so the panel renders meaningfully on the same frame.
@@ -221,10 +216,11 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
       return m(
         'div',
         {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
-        incomplete === true &&
-          !modalDismissed &&
+        incomplete !== undefined &&
+          incomplete.isIncomplete &&
+          !incomplete.dismissed &&
           incompleteFlamegraphModal(attrs.trace, () => {
-            modalDismissed = true;
+            incomplete.dismissed = true;
           }),
         m(FlamegraphPanel, {
           trace: attrs.trace,
