@@ -19,10 +19,11 @@ import type {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/t
 import {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
 
 const DUMP_INTERVAL_MS = 10_000;
+const HEAPPROFD_DUMP_INTERVAL_MS = 5_000;
 const PROC_STATS_BUFFER_SIZE_KB = 4 * 1024;
-const HEAPPROFD_BUFFER_SIZE_KB = 128 * 1024;
-const JAVA_HPROF_BUFFER_SIZE_KB = 256 * 1024;
-const STATS_POLL_INTERVAL_MS = 3000;
+const HEAPPROFD_BUFFER_SIZE_KB = 512 * 1024;
+const JAVA_HPROF_BUFFER_SIZE_KB = 512 * 1024;
+const STATS_POLL_INTERVAL_MS = 3_000;
 
 export type ProfileState = 'recording' | 'stopping' | 'finished' | 'error';
 
@@ -50,7 +51,7 @@ export class ProfileSession {
     startX: number,
   ): Promise<ProfileSession> {
     const self = new ProfileSession(pid, processName, startX);
-    const config = buildProcessProfileConfig(pid);
+    const config = buildProcessProfileConfig(pid, processName);
     const result =
       targetOrDevice instanceof TracedWebsocketTarget
         ? await targetOrDevice.startTracing(config)
@@ -125,7 +126,10 @@ export class ProfileSession {
   }
 }
 
-function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
+function buildProcessProfileConfig(
+  pid: number,
+  processName: string,
+): protos.ITraceConfig {
   return {
     compressionType:
       protos.TraceConfig.CompressionType.COMPRESSION_TYPE_DEFLATE,
@@ -145,6 +149,11 @@ function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
         sizeKb: JAVA_HPROF_BUFFER_SIZE_KB,
         fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
       },
+      {
+        name: 'ftrace',
+        sizeKb: 4 * 1024,
+        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
+      },
     ],
     dataSources: [
       {
@@ -153,6 +162,8 @@ function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
           targetBufferName: 'process_stats',
           processStatsConfig: {
             scanAllProcessesOnStart: true, // Necessary for track names.
+            procStatsPollMs: 1000,
+            recordProcessAge: true, // Necessary for process uptime.
           },
         },
       },
@@ -166,7 +177,7 @@ function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
             shmemSizeBytes: 16 * 1024 * 1024,
             blockClient: true, // Important for trace integrity.
             continuousDumpConfig: {
-              dumpIntervalMs: DUMP_INTERVAL_MS, // Important for getting regular heap snapshots to see how memory usage evolves over time.
+              dumpIntervalMs: HEAPPROFD_DUMP_INTERVAL_MS, // Important for getting regular heap snapshots to see how memory usage evolves over time.
             },
           },
         },
@@ -180,6 +191,18 @@ function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
             continuousDumpConfig: {
               dumpIntervalMs: DUMP_INTERVAL_MS, // Required for Java profiles.
             },
+            smapsConfig: {},
+          },
+        },
+      },
+      {
+        config: {
+          name: 'linux.ftrace',
+          targetBufferName: 'ftrace',
+          ftraceConfig: {
+            ftraceEvents: ['ftrace/print'],
+            atraceCategories: ['dalvik'],
+            atraceApps: [processName],
           },
         },
       },

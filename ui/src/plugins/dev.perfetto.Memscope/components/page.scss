@@ -1,0 +1,107 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-memscope-page {
+  --pf-border-width: 0.5px;
+  // Light-mode page chrome: a slightly cool-grey page so the white panels
+  // read as raised cards. Dark mode keeps the theme defaults (left unset).
+  --pf-col-base: #f6f6f6;
+  --pf-col-surface: #ffffff;
+  --pf-col-inset: #f1f1f1;
+  --pf-col-border: #e0e0e0;
+
+  .pf-theme-provider--dark & {
+    --pf-col-base: lch(4.52 0.3 272);
+    --pf-col-surface: lch(7.67 0.75 272);
+    --pf-col-inset: #242424;
+    --pf-col-border: #242424;
+  }
+
+  background: var(--pf-col-base);
+  height: 100%;
+  overflow-y: auto;
+
+  .pf-memscope-page__content {
+    max-width: 1400px;
+    margin-inline: auto; // Center the div
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .pf-memscope-page__title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--pf-color-text-muted);
+  }
+
+  // Override some compoents from the base class
+  .pf-grid__header {
+    background: var(--pf-col-inset);
+    color: var(--pf-color-text-muted);
+    user-select: none;
+    text-transform: uppercase;
+  }
+
+  // Drop the panel body padding when it wraps a grid — the grid's own
+  // header/cell padding is enough.
+  .pf-memscope-panel__body:has(> .pf-grid) {
+    padding: 0;
+  }
+}
+
+.pf-memscope-subpage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+// First-load entrance: each block fades in and rises a little into place.
+// Runs once when the element mounts (every section mounts at page open now,
+// showing its loading panel), so it plays on first load rather than on every
+// data swap. The 4-panel row cascades via nth-child.
+@keyframes pf-memscope-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+// Direct children of the page/subpage each fade up, cascading in document
+// order via nth-child.
+.pf-memscope-page__content > *,
+.pf-memscope-subpage > * {
+  animation: pf-memscope-enter 0.35s ease-out both;
+
+  @for $i from 1 through 8 {
+    &:nth-child(#{$i}) {
+      animation-delay: #{($i - 1) * 60}ms;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-memscope-page__content > *,
+  .pf-memscope-subpage > * {
+    animation: none;
+  }
+}

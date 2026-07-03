@@ -1,0 +1,133 @@
+# Three continuous dumps for one process/heap, exercising frees so that
+# retained, allocated and delta all differ. Samples are cumulative per
+# callstack; trace processor deltas them. Each dump's interval starts just
+# after the previous dump (no start_timestamp on this producer).
+#
+#   Dump 1 (ts_end 20): callstack A allocates 1000 (4 allocs).
+#     -> allocated=1000, retained=1000, delta=1000.
+#   Dump 2 (ts_end 40): callstack A frees its 1000, callstack B allocates 1000.
+#     The free is of memory allocated in a *previous* interval, so it drops out
+#     of allocated/retained but still counts against delta.
+#     -> allocated=1000, retained=1000, delta=0.
+#   Dump 3 (ts_end 60): callstack B frees its 1000, nothing new allocated.
+#     -> allocated=0, retained=0, delta=-1000.
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+
+packet {
+  clock_snapshot {
+    clocks: {
+      clock_id: 6 # BOOTTIME
+      timestamp: 0
+    }
+    clocks: {
+      clock_id: 4 # MONOTONIC_COARSE
+      timestamp: 0
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 999
+  previous_packet_dropped: 1
+  incremental_state_cleared: true
+  timestamp: 60
+  profile_packet {
+    strings {
+      iid: 1
+      str: "f1"
+    }
+    strings {
+      iid: 2
+      str: "liblib.so"
+    }
+    strings {
+      iid: 3
+      str: "build-id"
+    }
+    frames {
+      iid: 1
+      function_name_id: 1
+      mapping_id: 1
+      rel_pc: 0x1000
+    }
+    frames {
+      iid: 2
+      function_name_id: 1
+      mapping_id: 1
+      rel_pc: 0x2000
+    }
+    callstacks {
+      iid: 1
+      frame_ids: 1
+    }
+    callstacks {
+      iid: 2
+      frame_ids: 2
+    }
+    mappings {
+      iid: 1
+      path_string_ids: 2
+      build_id: 3
+    }
+    # Dump 1 (ts_end 20). A allocates 1000.
+    process_dumps {
+      pid: 2
+      timestamp: 20
+      orig_sampling_interval_bytes: 1024
+      sampling_interval_bytes: 1024
+      samples {
+        callstack_id: 1
+        self_allocated: 1000
+        alloc_count: 4
+      }
+    }
+    # Dump 2 (ts_end 40). A frees all it allocated, B allocates 1000.
+    process_dumps {
+      pid: 2
+      timestamp: 40
+      orig_sampling_interval_bytes: 1024
+      sampling_interval_bytes: 1024
+      samples {
+        callstack_id: 1
+        self_allocated: 1000
+        alloc_count: 4
+        self_freed: 1000
+        free_count: 4
+      }
+      samples {
+        callstack_id: 2
+        self_allocated: 1000
+        alloc_count: 4
+      }
+    }
+    # Dump 3 (ts_end 60). B frees all it allocated.
+    process_dumps {
+      pid: 2
+      timestamp: 60
+      orig_sampling_interval_bytes: 1024
+      sampling_interval_bytes: 1024
+      samples {
+        callstack_id: 2
+        self_allocated: 1000
+        alloc_count: 4
+        self_freed: 1000
+        free_count: 4
+      }
+    }
+  }
+}

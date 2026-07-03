@@ -33,9 +33,6 @@
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
-namespace {
-constexpr uint32_t kMaxDepth = 512;
-}
 
 SliceTracker::SliceTracker(TraceProcessorContext* context)
     : legacy_unnestable_begin_count_string_id_(
@@ -50,7 +47,11 @@ SliceTracker::SliceTracker(TraceProcessorContext* context)
       overlap_conflicting_ts_key_(
           context->storage->InternString("conflicting_slice_ts")),
       overlap_conflicting_dur_key_(
-          context->storage->InternString("conflicting_slice_dur")) {}
+          context->storage->InternString("conflicting_slice_dur")),
+      max_depth_parent_name_key_(
+          context->storage->InternString("parent_slice_name")),
+      max_depth_current_name_key_(
+          context->storage->InternString("current_slice_name")) {}
 
 void SliceTracker::AddOverlapArgs(const OverlapInfo& info,
                                   ArgsTracker::BoundInserter& inserter) const {
@@ -62,6 +63,13 @@ void SliceTracker::AddOverlapArgs(const OverlapInfo& info,
                   Variadic::Integer(info.conflicting_ts));
   inserter.AddArg(overlap_conflicting_dur_key_,
                   Variadic::Integer(info.conflicting_dur));
+}
+
+void SliceTracker::AddMaxDepthArgs(StringId parent_name,
+                                   StringId current_name,
+                                   ArgsTracker::BoundInserter& inserter) const {
+  inserter.AddArg(max_depth_parent_name_key_, Variadic::String(parent_name));
+  inserter.AddArg(max_depth_current_name_key_, Variadic::String(current_name));
 }
 
 SliceTracker::~SliceTracker() {
@@ -93,15 +101,20 @@ bool SliceTracker::PrepareStartSlice(TrackInfo& track_info,
   return MaybeCloseStack(track_info, timestamp, duration, overlap_out);
 }
 
-void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent, StringId name) {
+void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent,
+                                       StringId name,
+                                       int64_t timestamp) {
   auto* slices = context_->storage->mutable_slice_table();
-  auto parent_name = context_->storage->GetString(
-      parent.row.ToRowReference(slices).name().value_or(kNullStringId));
-  auto current_name =
-      context_->storage->GetString(name.is_null() ? kNullStringId : name);
-  PERFETTO_DLOG("Last slice: %s", parent_name.c_str());
-  PERFETTO_DLOG("Current slice: %s", current_name.c_str());
-  PERFETTO_DFATAL("Slices with too large depth found.");
+  StringId parent_name_id =
+      parent.row.ToRowReference(slices).name().value_or(kNullStringId);
+  StringId current_name_id = name.is_null() ? kNullStringId : name;
+
+  context_->import_logs_tracker->RecordParserError(
+      stats::slice_max_depth_exceeded, timestamp,
+      [this, parent_name_id,
+       current_name_id](ArgsTracker::BoundInserter& inserter) {
+        AddMaxDepthArgs(parent_name_id, current_name_id, inserter);
+      });
 }
 
 SliceTracker::StartedSlice SliceTracker::StartSlice(
@@ -123,7 +136,7 @@ SliceTracker::StartedSlice SliceTracker::StartSlice(
   auto& stack = track_info.slice_stack;
   size_t depth = stack.size();
   if (PERFETTO_UNLIKELY(depth >= kMaxDepth)) {
-    LogMaxDepthExceeded(stack.back(), name);
+    LogMaxDepthExceeded(stack.back(), name, timestamp);
     return {};
   }
 

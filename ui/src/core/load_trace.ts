@@ -53,6 +53,7 @@ import {
   StartupCommandNotAllowedError,
 } from './command_manager';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+import {GUTTER_FRACTION} from './timeline';
 import {sha1} from '../base/hash';
 import {showModal} from '../widgets/modal';
 import m from 'mithril';
@@ -247,10 +248,14 @@ async function loadTraceIntoEngine(
     engine,
   );
 
+  // Pad the initial viewport by a gutter on each side so that content at the
+  // very edges of the trace isn't flush against the screen edge.
+  const gutterPad =
+    Number(visibleTimeSpan.end - visibleTimeSpan.start) * GUTTER_FRACTION;
   const newViewport = HighPrecisionTimeSpan.fromTime(
     visibleTimeSpan.start,
     visibleTimeSpan.end,
-  );
+  ).pad(gutterPad);
   trace.timeline.setVisibleWindow(newViewport);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
@@ -292,6 +297,11 @@ async function loadTraceIntoEngine(
   }
 
   // notify() will await that all listeners' promises have resolved.
+  //
+  // Annoyingly, since listeners are registered through an event interface we
+  // don't know which plugins we are calling so we cannot display the name of
+  // the plugin in the status bar or collect stats about a particular plugin.
+  updateStatus(app, 'Notifying onTraceReady listeners');
   await trace.onTraceReady.notify();
 
   if (serializedAppState !== undefined) {

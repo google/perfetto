@@ -17,10 +17,9 @@ This skill orchestrates Perfetto trace analysis.
 **Before running any `trace_processor` command, read
 [setup.md]($SKILL_ROOT/environment-references/setup.md)** (it sits next to this
 file, in this skill's `environment-references/` directory). It defines how to
-invoke the binary in this environment, how to install the `perfetto` Python
-client, and what to set `$SKILL_ROOT` to — the anchor every other path in this
-skill (including the `$SKILL_ROOT/...` links here) is written against. It is the
-only always-required file.
+make `trace_processor` invokable and what to set `$SKILL_ROOT` to — the anchor
+every other path in this skill (including the `$SKILL_ROOT/...` links here) is
+written against. It is the only always-required file.
 
 ## 1. Are you trying to record a trace?
 

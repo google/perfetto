@@ -734,6 +734,43 @@ class TraceManifest(TestSuite):
         2
         '''))
 
+  # The named machine gets a positive 1-based label_index even though the
+  # manifest pre-allocates its row before the host row is created lazily, so the
+  # named machine has the lower machine id. Regression test: a formula keyed on
+  # the machine id assumed the host always took id 0 and produced 0 here, which
+  # made the UI treat the machine as the host and drop its track label.
+  def test_machine_label_index(self):
+    return DiffTestBlueprint(
+        trace=Tar({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'host.json'
+                    }, {
+                        'path': 'vm.json',
+                        'machine': {
+                            'name': 'vm'
+                        }
+                    }],
+                }),
+            'host.json':
+                _json_trace('host_slice', pid=100),
+            'vm.json':
+                _json_trace('vm_slice', pid=200),
+        }),
+        query='''
+          SELECT name, raw_id != 0 AS remote, label_index
+          FROM machine
+          ORDER BY label_index;
+        ''',
+        out=Csv('''
+        "name","remote","label_index"
+        "[NULL]",0,0
+        "vm",1,1
+        '''))
+
   # --- Machine override errors ---
 
   def test_error_machines_id_out_of_range(self):

@@ -18,7 +18,7 @@
   align-items: stretch;
   border-radius: 8px;
   background: var(--pf-color-background-secondary);
-  border: 1px solid var(--pf-color-danger);
+  border: 0.5px solid var(--pf-color-danger);
   overflow: hidden;
   box-shadow: 0 0 0 3px
     color-mix(in srgb, var(--pf-color-danger) 25%, transparent);
@@ -43,7 +43,7 @@
   min-width: 0;
 
   & + & {
-    border-left: 1px solid var(--pf-color-border-secondary);
+    border-left: 1px solid var(--pf-col-border);
   }
 }
 
@@ -121,7 +121,7 @@
   font-weight: 600;
   color: var(--pf-color-text);
   background: var(--pf-color-background);
-  border: 1px solid var(--pf-color-border-secondary);
+  border: 0.5px solid var(--pf-col-border);
   border-radius: 4px;
   padding: 2px 8px;
   white-space: nowrap;

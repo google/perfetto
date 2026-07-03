@@ -157,14 +157,16 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
             const dragRect = Rect2D.fromPoints(e.dragStart, e.dragCurrent);
             const timeSpan = timescale
               .pxSpanToHpTimeSpan(dragRect)
-              .toTimeSpan();
+              .toTimeSpan()
+              .clamp(this.trace.traceInfo.start, this.trace.traceInfo.end);
             this.trace.timeline.selectedSpan = timeSpan;
           },
           onDragEnd: (e) => {
             const dragRect = Rect2D.fromPoints(e.dragStart, e.dragCurrent);
             const timeSpan = timescale
               .pxSpanToHpTimeSpan(dragRect)
-              .toTimeSpan();
+              .toTimeSpan()
+              .clamp(this.trace.traceInfo.start, this.trace.traceInfo.end);
             this.trace.selection.selectArea({
               start: timeSpan.start,
               end: timeSpan.end,

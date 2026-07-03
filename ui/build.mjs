@@ -623,6 +623,7 @@ function generateStdlibDocs() {
     [
       '--json-out',
       pjoin(cfg.outDistDir, 'stdlib_docs.json'),
+      '--metadata-only',
       '--minify',
       ...stdlibFiles,
     ],

@@ -16,10 +16,13 @@ import './styles.scss';
 import m from 'mithril';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import {ConnectionPage} from './views/connection';
 import {Dashboard} from './views/dashboard';
 import {LiveSession} from './sessions/live_session';
+import {MemoryOverviewPage} from './views/landing_page/landing_page';
+import {NUM} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
@@ -60,5 +63,55 @@ export default class implements PerfettoPlugin {
         }
       },
     });
+  }
+
+  async onTraceLoad(trace: Trace): Promise<void> {
+    const pageRoot = '/memoryoverview';
+
+    trace.pages.registerPage({
+      route: pageRoot,
+      render: (subpage) =>
+        m(MemoryOverviewPage, {
+          trace,
+          subpage,
+          onSubpageChange: (subpage) => {
+            trace.navigate(`#!${pageRoot}/${subpage}`);
+          },
+        }),
+    });
+
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      sortOrder: 25,
+      text: 'Memory Overview',
+      href: `#!${pageRoot}`,
+      icon: 'memory',
+    });
+
+    // Only suggest the page as the initial view when the trace actually has
+    // some memory data — java heap dumps, smaps snapshots, or native
+    // (heapprofd) profiles. On a trace with none of these the page has nothing
+    // to show.
+    if (await this.hasMemoryInfo(trace)) {
+      // Make this page appear before the heap dump explorer page.
+      trace.initialPage.suggest(pageRoot, 500);
+    }
+  }
+
+  private async hasMemoryInfo(trace: Trace): Promise<boolean> {
+    const counts = await trace.engine.query(`
+      SELECT
+        (SELECT count(DISTINCT graph_sample_ts) FROM heap_graph_object)
+          AS heapDumps,
+        (SELECT count(DISTINCT ts) FROM profiler_smaps) AS smapsSnapshots,
+        (SELECT count(DISTINCT ts) FROM heap_profile_allocation) AS nativeDumps
+    `);
+    const {heapDumps, smapsSnapshots, nativeDumps} = counts.firstRow({
+      heapDumps: NUM,
+      smapsSnapshots: NUM,
+      nativeDumps: NUM,
+    });
+
+    return heapDumps + smapsSnapshots + nativeDumps >= 1;
   }
 }

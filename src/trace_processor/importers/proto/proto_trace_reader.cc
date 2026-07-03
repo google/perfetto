@@ -44,6 +44,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -256,23 +257,30 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // Any compressed packets should have been handled by the tokenizer.
   PERFETTO_CHECK(!decoder.has_compressed_packets());
 
-  // When the trace packet is emitted from a remote machine, parse it with a
-  // separate ProtoTraceReader bound to that machine's context.
-  if (PERFETTO_UNLIKELY(decoder.machine_id())) {
-    RETURN_IF_ERROR(CheckManifestSingleMachine());
-    if (is_machine_dispatcher_) {
-      auto [it, inserted] =
-          machine_to_proto_readers_.Insert(decoder.machine_id(), nullptr);
-      if (PERFETTO_UNLIKELY(inserted)) {
-        RETURN_IF_ERROR(CreateRemoteMachineReader(decoder.machine_id(), it));
+  // The top-level reader dispatches packets from other machines to a
+  // per-machine reader; host and adopted-machine packets are parsed here.
+  if (is_machine_dispatcher_) {
+    const uint32_t machine_id = decoder.machine_id();
+    if (PERFETTO_UNLIKELY(machine_id)) {
+      // Resolve adoption once, on the first remote-machine packet.
+      if (PERFETTO_UNLIKELY(!adopted_machine_id_.has_value())) {
+        RETURN_IF_ERROR(ResolveAdoptedMachine(machine_id));
       }
-      return it->get()->ParsePacket(std::move(packet));
+      // Route packets from a non-adopted machine to their own reader.
+      if (machine_id != *adopted_machine_id_) {
+        auto [reader, inserted] =
+            machine_to_proto_readers_.Insert(machine_id, nullptr);
+        if (PERFETTO_UNLIKELY(inserted)) {
+          RETURN_IF_ERROR(CreateRemoteMachineReader(machine_id, reader));
+        }
+        return reader->get()->ParsePacket(std::move(packet));
+      }
+    } else if (!host_machine_used_ && !decoder.has_synchronization_marker()) {
+      // The host owns this packet, so it can no longer be adopted away.
+      host_machine_used_ = true;
     }
   }
-  // Assert that the packet is parsed using the right instance of reader: the
-  // top-level dispatcher handles host packets (no machine_id), and the
-  // sub-readers it forks handle their own machine's packets (machine_id set).
-  PERFETTO_DCHECK(decoder.has_machine_id() == !is_machine_dispatcher_);
+  PERFETTO_DCHECK(is_machine_dispatcher_ || decoder.has_machine_id());
 
   // Execute ProtoVM logic right after the "machine ID fork" as detailed in
   // go/perfetto-proto-vm.
@@ -741,6 +749,39 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   if (!snapshot_id.ok()) {
     PERFETTO_ELOG("%s", snapshot_id.status().c_message());
   }
+  return base::OkStatus();
+}
+
+PERFETTO_NO_INLINE base::Status ProtoTraceReader::ResolveAdoptedMachine(
+    uint32_t machine_id) {
+  RETURN_IF_ERROR(CheckManifestSingleMachine());
+  // Adopt the embedded machine onto the host context (relabelling its row) only
+  // when the host has no data of its own, its row isn't already claimed by
+  // another machine, the file is not a multi-machine manifest, and the machine
+  // has no row/context yet. Otherwise route to the fork path, which reuses any
+  // existing row for this machine; adopting here would relabel a second row to
+  // the same raw id and surface a duplicate machine.
+  const bool host_has_data = host_machine_used_;
+  const bool host_row_claimed =
+      context_->machine_tracker->raw_machine_id() != 0;
+  const bool is_manifest_machine =
+      context_->trace_state && context_->trace_state->machine_remap;
+  const bool machine_already_materialized =
+      context_->forked_context_state->machine_to_context.Find(
+          static_cast<int64_t>(machine_id)) != nullptr;
+  if (host_has_data || host_row_claimed || is_manifest_machine ||
+      machine_already_materialized) {
+    adopted_machine_id_ = 0;
+    return base::OkStatus();
+  }
+  context_->machine_tracker->SetRawMachineId(machine_id);
+  // Register the adopted machine in the per-machine dedup map so a later fork
+  // for the same id (e.g. another co-located trace routed through
+  // CreateRemoteMachineReader) reuses this context and row instead of inserting
+  // a duplicate machine row.
+  context_->forked_context_state->machine_to_context.Insert(
+      static_cast<int64_t>(machine_id), context_);
+  adopted_machine_id_ = machine_id;
   return base::OkStatus();
 }
 
