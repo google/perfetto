@@ -30,6 +30,7 @@ import {
   GridHeaderCell,
   type GridRow,
 } from '../../../widgets/grid';
+import {removeFalsyValues} from '../../../base/array_utils';
 
 const HEAP_SCHEMA: SchemaRegistry = {
   query: {
@@ -322,19 +323,15 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
               {key: 'property', header: m(GridHeaderCell, 'Property')},
               {key: 'value', header: m(GridHeaderCell, 'Value')},
             ],
-            rowData: [
+            rowData: removeFalsyValues([
               infoRow('Process', processLabel),
-              ...(overview.processUptime !== null
-                ? [infoRow('Uptime', Duration.format(overview.processUptime))]
-                : []),
-              ...(overview.oomBucket !== null
-                ? [
-                    infoRow(
-                      'OOM score',
-                      `${overview.oomBucket} (${overview.oomScore})`,
-                    ),
-                  ]
-                : []),
+              overview.processUptime !== null &&
+                infoRow('Uptime', Duration.format(overview.processUptime)),
+              overview.oomBucket !== null &&
+                infoRow(
+                  'OOM score',
+                  `${overview.oomBucket} (${overview.oomScore})`,
+                ),
               infoRow('Classes', overview.classCount.toLocaleString()),
               infoRow(
                 'Reachable instances',
@@ -344,23 +341,17 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
                 'Unreachable instances',
                 overview.unreachableInstanceCount.toLocaleString(),
               ),
-              ...(overview.anonRssAndSwapSize !== null
-                ? [
-                    infoRow(
-                      'Anon RSS + Swap',
-                      fmtSize(Number(overview.anonRssAndSwapSize)),
-                    ),
-                  ]
-                : []),
-              ...(overview.dmabufRssSize !== null
-                ? [
-                    infoRow(
-                      'DMA Buffer RSS',
-                      fmtSize(Number(overview.dmabufRssSize)),
-                    ),
-                  ]
-                : []),
-            ],
+              overview.anonRssAndSwapSize !== null &&
+                infoRow(
+                  'Anon RSS + Swap',
+                  fmtSize(Number(overview.anonRssAndSwapSize)),
+                ),
+              overview.dmabufRssSize !== null &&
+                infoRow(
+                  'DMA Buffer RSS',
+                  fmtSize(Number(overview.dmabufRssSize)),
+                ),
+            ]),
           }),
         ]),
         m('div', {class: 'pf-hde-card'}, [
