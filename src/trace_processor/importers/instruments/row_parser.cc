@@ -50,7 +50,13 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   }
 
   Thread* thread = data_.GetThread(row.thread);
+  if (!thread) {
+    return;
+  }
   Process* process = data_.GetProcess(thread->process);
+  if (!process) {
+    return;
+  }
   uint32_t tid = static_cast<uint32_t>(thread->tid);
   uint32_t pid = static_cast<uint32_t>(process->pid);
 
@@ -67,12 +73,18 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   auto& stack_profile_tracker = *context_->stack_profile_tracker;
 
   Backtrace* backtrace = data_.GetBacktrace(row.backtrace);
+  if (!backtrace) {
+    return;
+  }
   std::optional<CallsiteId> parent;
   uint32_t depth = 0;
   auto leaf = backtrace->frames.rend() - 1;
   for (auto it = backtrace->frames.rbegin(); it != backtrace->frames.rend();
        ++it) {
     Frame* frame = data_.GetFrame(*it);
+    if (!frame) {
+      continue;
+    }
     Binary* binary = data_.GetBinary(frame->binary);
 
     uint64_t pc = static_cast<uint64_t>(frame->addr);
