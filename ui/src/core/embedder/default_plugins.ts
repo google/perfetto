@@ -100,6 +100,7 @@ export const defaultPlugins = [
   'dev.perfetto.TrackEvent',
   'dev.perfetto.TrackUtils',
   'org.Chromium.OpenTableCommands',
+  'org.chromium.MemorySnapshots',
   'org.kernel.LinuxKernelSubsystems',
   'org.kernel.SuspendResumeLatency',
   'org.kernel.Wattson',
