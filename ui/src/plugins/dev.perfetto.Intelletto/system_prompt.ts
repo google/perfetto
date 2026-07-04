@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The assistant plugin's application system prompt. Kept stable (it sits at the
-// front of the cache-stable prefix) and deliberately small - the model
-// bootstraps the rest of its knowledge via the lazy tool-loading meta-tools.
-// A per-model system prompt (from the Model config) is prepended to this by the
-// gateway.
-
+/**
+ * The assistant plugin's application system prompt. Kept stable (it sits at the
+ * front of the cache-stable prefix) and deliberately small. A per-model system
+ * prompt (from the Model config) is prepended to this by the gateway.
+ */
 export const SYSTEM_PROMPT = `
 You are Intelletto, an assistant embedded in the Perfetto UI, a trace viewer.
 Your job is to help the user understand and debug the trace they have open, and

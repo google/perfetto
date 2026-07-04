@@ -12,12 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// dev.perfetto.Intelletto - the conversational assistant. Depends on the LLM
-// gateway (dev.perfetto.Llm) for models and on a protocol plugin (e.g.
-// dev.perfetto.LlmProtocolGemini) being enabled to actually talk to a backend.
-// Renders a chat panel in the global side panel and wires up commands to open
-// it.
-
 import m from 'mithril';
 import type {ZodRawShape} from 'zod';
 import type {PerfettoPlugin} from '../../public/plugin';
@@ -37,9 +31,11 @@ import {ToolRegistry} from './tools';
 
 const SIDE_PANEL_URI = 'dev.perfetto.Intelletto#Chat';
 
-// The assistant plugin. Trace-scoped: one instance (and one tool registry) per
-// loaded trace. Implements IntellettoToolRegistrar so dependent plugins can
-// contribute tools via `ctx.plugins.getPlugin(IntellettoPlugin).registerTool`.
+/**
+ * The assistant plugin. Trace-scoped: one instance (and one tool registry) per
+ * loaded trace. Implements IntellettoToolRegistrar so dependent plugins can
+ * contribute tools via `ctx.plugins.getPlugin(IntellettoPlugin).registerTool`.
+ */
 export default class IntellettoPlugin
   implements PerfettoPlugin, IntellettoToolRegistrar
 {
@@ -72,18 +68,23 @@ export default class IntellettoPlugin
     registerCoreContextProviders(this.context, this.trace);
   }
 
-  // IntellettoToolRegistrar: contribute a tool the assistant can call. Call
-  // this from a dependent plugin's onTraceLoad.
+  /**
+   * IntellettoToolRegistrar: contribute a tool the assistant can call. Call
+   * from a dependent plugin's onTraceLoad.
+   */
   registerTool<S extends ZodRawShape>(tool: ToolRegistration<S>): void {
     this.tools.registerTool(tool);
   }
 
-  // IntellettoToolRegistrar: contribute a context provider describing what the
-  // user is currently looking at. Call from a dependent plugin's onTraceLoad.
+  /**
+   * IntellettoToolRegistrar: contribute a context provider describing what the
+   * user is looking at. Call from a dependent plugin's onTraceLoad.
+   */
   registerContextProvider(provider: ContextProviderRegistration): void {
     this.context.registerContextProvider(provider);
   }
 
+  /** Register the chat side panel and the open-assistant command for a trace. */
   async onTraceLoad(trace: Trace): Promise<void> {
     const gateway = LlmPlugin.gateway;
 

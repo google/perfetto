@@ -12,33 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Context injection: what the user is currently looking at, sampled from
-// registered context providers into items the chat folds into the prompt (and
-// shows in the context strip so the user can see and toggle exactly what's
-// sent). Providers are pluggable - the core ones (page, selection) are
-// registered below by the Intelletto plugin itself; other plugins contribute
-// theirs via registerContextProvider, the same way they contribute tools.
-
 import type {Trace} from '../../public/trace';
 import type {ContextProviderRegistration} from './api';
 
-// One sampled context item, ready for the strip and the prompt.
+/** One sampled context item, ready for the strip and the prompt. */
 export interface ContextItem {
-  // The provider's stable id, used by the strip to track which items the user
-  // toggled off.
+  /** The provider's stable id; the strip uses it to track toggled-off items. */
   readonly id: string;
-  // Human-readable label shown in the strip (the provider's summary).
+  /** Human-readable label shown in the strip (the provider's summary). */
   readonly label: string;
-  // The raw payload sent to the model (also shown on hover / expand).
+  /** The raw payload sent to the model (also shown on hover / expand). */
   readonly payload: string;
 }
 
-// The concrete registry behind the public registerContextProvider. Mirrors
-// ToolRegistry: core providers and plugin-contributed providers both land here;
-// the chat panel samples it to build the context strip and the prompt.
+/**
+ * The concrete registry behind the public registerContextProvider. Core and
+ * plugin-contributed providers both land here; the chat panel samples it to
+ * build the context strip and the prompt.
+ */
 export class ContextRegistry {
   private readonly providers = new Map<string, ContextProviderRegistration>();
 
+  /** Register a context provider. Throws if the id is already registered. */
   registerContextProvider(provider: ContextProviderRegistration): void {
     if (this.providers.has(provider.id)) {
       throw new Error(`Context provider "${provider.id}" already registered`);
@@ -46,9 +41,10 @@ export class ContextRegistry {
     this.providers.set(provider.id, provider);
   }
 
-  // Sample every provider. Providers returning undefined ("nothing relevant
-  // right now") are skipped; a provider that throws is skipped too, so one
-  // broken contributor can't take out the whole prompt.
+  /**
+   * Sample every provider into context items. Providers returning undefined or
+   * throwing are skipped, so one broken contributor can't take out the prompt.
+   */
   buildContextItems(): ContextItem[] {
     const items: ContextItem[] = [];
     for (const provider of this.providers.values()) {
@@ -71,9 +67,10 @@ export class ContextRegistry {
     return items;
   }
 
-  // The invariant payload-format explanations, for the system prompt. Sorted by
-  // provider id so the assembled prompt is byte-identical across turns and the
-  // cached prefix survives.
+  /**
+   * The invariant payload-format explanations, for the system prompt. Sorted by
+   * provider id so the assembled prompt is byte-identical across turns.
+   */
   descriptions(): string[] {
     return Array.from(this.providers.values())
       .filter((p) => p.description !== undefined && p.description !== '')
@@ -82,9 +79,11 @@ export class ContextRegistry {
   }
 }
 
-// The core context providers, registered by the Intelletto plugin itself.
-// Phase 1 covers page + selection + viewport; richer providers (per-element, Data
-// Explorer node, pinned tracks) come later, from the plugins that own them.
+/**
+ * Register the core context providers (page, viewport, selection) owned by the
+ * Intelletto plugin itself. Richer providers come from the plugins that own
+ * them.
+ */
 export function registerCoreContextProviders(
   reg: ContextRegistry,
   trace: Trace,

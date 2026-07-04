@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The core tool surface the assistant uses to inspect and drive the trace UI.
-// Read tools (run_query, get_schema, get_selection) return data; mutating tools
-// (select_event, show_timeline, show_query, navigate) just ack. All operate on
-// the already-open trace and nothing persists outside the session, so there is
-// no per-action consent gate (see the RFC's "no consent model" note).
-
 import {z} from 'zod';
 import type {Trace} from '../../public/trace';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {runQueryForModel} from './query';
 import type {ToolRegistry} from './tools';
 
+/**
+ * Register the core tools (run_query, get_schema, get_selection, show_query,
+ * navigate) the assistant always has, backed by the open trace.
+ */
 export function registerCoreTools(reg: ToolRegistry, trace: Trace): void {
   const engine = trace.engine;
 

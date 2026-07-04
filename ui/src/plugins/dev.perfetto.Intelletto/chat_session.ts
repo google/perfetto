@@ -12,12 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The chat session: the conversation state (agent, transcript, queued
-// follow-ups) for one trace. Owned by IntellettoPlugin - NOT by the chat panel
-// component - so the conversation survives the side panel being closed and
-// reopened; the panel is just a view over this. Per the RFC, the session is
-// scoped to the open trace and kept in memory only.
-
 import m from 'mithril';
 import type {LlmGateway} from '../dev.perfetto.Llm/gateway';
 import {Agent} from './agent';
@@ -25,26 +19,42 @@ import type {ContextRegistry} from './context';
 import type {ToolRegistry} from './tools';
 import {SYSTEM_PROMPT} from './system_prompt';
 
+/** A single line in the conversation transcript. */
 export interface ChatLine {
+  /** Which kind of line this is; drives how it renders. */
   role: 'ai' | 'user' | 'error' | 'thought' | 'toolcall' | 'spacer';
+  /** The line's text content (e.g. message body, or tool name for toolcalls). */
   text: string;
-  // For 'toolcall' lines: the call args and (once it arrives) the result, so
-  // the line can show a collapsible summary of what the tool did and returned.
+  /**
+   * For 'toolcall' lines: the call args and (once it arrives) the result, so
+   * the line can show a collapsible summary of what the tool did and returned.
+   */
   toolArgs?: unknown;
   toolResult?: string;
   toolError?: boolean;
 }
 
+/**
+ * The state and behaviour of one chat conversation with the agent: owns the
+ * transcript, the in-flight turn, the follow-up queue, and the Agent instance.
+ * The UI renders from this and calls its methods; there is no other state.
+ */
 export class ChatSession {
-  // The assembled system prompt in use for this conversation - kept so the
-  // "show system prompt" inspector displays exactly what the agent sends.
+  /**
+   * The assembled system prompt in use for this conversation - kept so the
+   * "show system prompt" inspector displays exactly what the agent sends.
+   */
   readonly systemPrompt: string;
 
+  /** The conversation transcript, in display order. */
   lines: ChatLine[] = [];
+  /** The current (uncommitted) text in the input box. */
   input = '';
+  /** True while a turn is in flight. */
   loading = false;
+  /** Total tokens reported by the most recent turn, if any. */
   totalTokens?: number;
-  // Context items the user has toggled off for the next prompt.
+  /** Context items the user has toggled off for the next prompt. */
   readonly excludedContext = new Set<string>();
 
   private readonly agent: Agent;
@@ -54,6 +64,13 @@ export class ChatSession {
   // fresh turn. Cancelling drops the queue.
   private pendingFollowUps: string[] = [];
 
+  /**
+   * @param gateway - The LLM gateway used to drive the agent.
+   * @param tools - The registry of tools available to the agent.
+   * @param context - The registry supplying per-turn context items and, at
+   *     construction, the payload-format descriptions folded into the system
+   *     prompt.
+   */
   constructor(
     gateway: LlmGateway,
     tools: ToolRegistry,
@@ -67,7 +84,12 @@ export class ChatSession {
     this.lines = [];
   }
 
-  send = async (): Promise<void> => {
+  /**
+   * Submit the current input. If a turn is already running the text is queued
+   * as a follow-up; otherwise it starts a new turn (and drains any follow-ups
+   * queued while it runs). No-op on empty input.
+   */
+  async send(): Promise<void> {
     const text = this.input.trim();
     if (text === '') return;
 
@@ -87,16 +109,23 @@ export class ChatSession {
       await this.runTurn(next);
       next = this.pendingFollowUps.shift();
     }
-  };
+  }
 
-  cancel = (): void => {
+  /**
+   * Abort the in-flight turn and drop any queued follow-ups - "stop" means
+   * stop. Leaves the transcript in place with a "(turn cancelled)" marker.
+   */
+  cancel(): void {
     this.abort?.abort();
-    // Cancelling drops anything queued too - "stop" means stop.
     this.pendingFollowUps = [];
     this.lines.push({role: 'error', text: '(turn cancelled)'});
-  };
+  }
 
-  newConversation = (): void => {
+  /**
+   * Reset to a fresh conversation: abort any in-flight turn, clear the agent's
+   * history and the token count, and replace the transcript with a greeting.
+   */
+  newConversation(): void {
     this.abort?.abort();
     this.pendingFollowUps = [];
     this.agent.reset();
@@ -104,7 +133,7 @@ export class ChatSession {
     this.lines = [
       {role: 'ai', text: 'New conversation. What would you like to know?'},
     ];
-  };
+  }
 
   private appendAi(text: string) {
     const last = this.lines[this.lines.length - 1];

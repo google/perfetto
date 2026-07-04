@@ -12,14 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The agent loop: the multi-step tool-use harness that sits on top of the LLM
-// gateway. The gateway stays a single request/response; the loop lives here, in
-// the consumer. One user turn drives: call the model -> if it asked for tools,
-// run them -> feed results back -> repeat, until the model answers with no tool
-// calls or the iteration cap is hit. The loop also owns lazy tool loading: it
-// starts with a bootstrap set (list_tools/more_tools) and grows the tool list
-// as the model asks, so not every tool schema sits in every request.
-
 import {z} from 'zod';
 import type {LlmGateway, ModelPath} from '../dev.perfetto.Llm/gateway';
 import type {
@@ -64,17 +56,23 @@ export class Agent {
   // endpoints are stateless and we resend it every request.
   private history: Message[] = [];
 
+  /**
+   * @param gateway - The LLM gateway used to drive the model.
+   * @param tools - The registry of tools available to the model.
+   * @param systemPrompt - The system prompt sent on every request.
+   * @param eagerTools - When true (the default), every tool definition is sent
+   *     on every request and the list_tools/more_tools meta-tools are omitted.
+   *     The lazy scheme (discover via list_tools, provision via more_tools) is
+   *     an optimisation for *large* tool sets, but the indirection reliably
+   *     trips up smaller / local models - they loop calling more_tools instead
+   *     of the real tool. We only have a handful of core tools, so eager is
+   *     both simpler and more robust. Flip this off once the tool count makes
+   *     eager loading expensive.
+   */
   constructor(
     private readonly gateway: LlmGateway,
     private readonly tools: ToolRegistry,
     private readonly systemPrompt: string,
-    // When true (the default), every tool definition is sent on every request
-    // and the list_tools/more_tools meta-tools are omitted. The lazy scheme
-    // (discover via list_tools, provision via more_tools) is an optimisation
-    // for *large* tool sets, but the indirection reliably trips up smaller /
-    // local models - they loop calling more_tools instead of the real tool. We
-    // only have a handful of core tools, so eager is both simpler and more
-    // robust. Flip this off once the tool count makes eager loading expensive.
     private readonly eagerTools: boolean = true,
   ) {}
 
@@ -82,15 +80,20 @@ export class Agent {
     this.history = [];
   }
 
-  // Run one user turn to completion, yielding events as they stream. Honours
-  // `signal` for cancellation: an aborted turn stops cleanly and what completed
-  // stays in the history (the transcript stays truthful).
-  //
-  // `dequeueFollowUp` implements queued follow-ups: it is polled once at the
-  // top of each tool-use round, and any message it returns is appended to the
-  // history as a user message, so something the user typed mid-loop ("oh wait,
-  // also check X") reaches the model at the next round without any
-  // interruption machinery.
+  /**
+   * Run one user turn to completion, yielding events as they stream.
+   *
+   * @param userText - The user's message for this turn.
+   * @param signal - Optional cancellation signal. An aborted turn stops
+   *     cleanly and what completed stays in the history (the transcript stays
+   *     truthful).
+   * @param dequeueFollowUp - Implements queued follow-ups: it is polled once at
+   *     the top of each tool-use round, and any message it returns is appended
+   *     to the history as a user message, so something the user typed mid-loop
+   *     ("oh wait, also check X") reaches the model at the next round without
+   *     any interruption machinery.
+   * @yields Events as the turn streams.
+   */
   async *sendMessage(
     userText: string,
     signal?: AbortSignal,

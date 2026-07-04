@@ -31,15 +31,19 @@ import './chat_panel.scss';
 import type {ChatLine, ChatSession} from './chat_session';
 import type {ContextItem, ContextRegistry} from './context';
 
+/** Attrs for the ChatPanel component. */
 export interface ChatPanelAttrs {
   readonly gateway: LlmGateway;
-  // The trace-scoped conversation state, owned by IntellettoPlugin.
+  /** The trace-scoped conversation state, owned by IntellettoPlugin. */
   readonly session: ChatSession;
-  // The shared, trace-scoped context-provider registry (core providers + those
-  // contributed by other plugins). Sampled live for the context strip.
+  /** The shared context-provider registry, sampled live for the strip. */
   readonly context: ContextRegistry;
 }
 
+/**
+ * The Intelletto chat panel: a pure view over a ChatSession. Renders the
+ * transcript, input box, model header, and context strip.
+ */
 export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
   private readonly md = markdownit();
   // Whether the conversation was scrolled to (near) the bottom as of the last
@@ -69,7 +73,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
       m(Button, {
         icon: 'add_comment',
         title: 'New conversation',
-        onclick: session.newConversation,
+        onclick: () => session.newConversation(),
       }),
     );
   }
@@ -230,7 +234,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
           ? m(Button, {
               icon: 'stop',
               title: 'Cancel',
-              onclick: session.cancel,
+              onclick: () => session.cancel(),
               intent: Intent.Danger,
             })
           : m(Button, {

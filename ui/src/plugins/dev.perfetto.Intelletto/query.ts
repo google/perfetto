@@ -19,12 +19,13 @@ import type {SqlValue} from '../../trace_processor/query_result';
 // `SELECT *` over a multi-million-row table would otherwise blow the context
 // window; we truncate and tell the model the result is partial so it doesn't
 // reason over it as complete (and is steered toward aggregation instead).
-const MAX_ROWS = 1000;
+const MAX_ROWS = 100;
 
-// Run a PerfettoSQL query and serialise the result to a compact JSON string the
-// model can read. bigints are narrowed to numbers (JSON can't carry bigint);
-// this loses precision above 2^53 but trace ids/timestamps the model reasons
-// over are well within range, and it keeps the payload small.
+/**
+ * Run a PerfettoSQL query and serialise the result to a compact JSON string the
+ * model can read. Row-capped at MAX_ROWS (with a truncation note), and bigints
+ * are narrowed to numbers since JSON can't carry bigint.
+ */
 export async function runQueryForModel(
   engine: Engine,
   query: string,
