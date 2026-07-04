@@ -14,6 +14,7 @@
 
 import './styles.scss';
 import m from 'mithril';
+import {z} from 'zod';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import type {Store} from '../../base/store';
@@ -22,15 +23,27 @@ import {getErrorMessage} from '../../base/errors';
 import {debounce} from '../../base/rate_limiters';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import IntellettoPlugin from '../dev.perfetto.Intelletto';
 import {
   DataExplorer,
   type DataExplorerState,
   type DataExplorerTab,
 } from './data_explorer';
 import {nodeRegistry} from './query_builder/node_registry';
-import {deserializeState, serializeState} from './json_handler';
+import {
+  deserializeState,
+  serializeState,
+  validateSerializedGraph,
+} from './json_handler';
+import {
+  collectGraphErrors,
+  formatGraphErrors,
+  type GraphNodeError,
+} from './graph_check';
 import {recentGraphsStorage} from './recent_graphs';
 import {getAllNodes} from './query_builder/graph_utils';
+import {getPrimarySelectedNode} from './selection_utils';
+import {GRAPH_FORMAT} from './graph_format';
 import {isDashboardNode} from './query_builder/nodes/dashboard_node';
 import {
   dataExplorerTabsStorage,
@@ -77,7 +90,11 @@ function isValidPersistedState(
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.DataExplorer';
-  static readonly dependencies = [QueryPagePlugin, SqlModulesPlugin];
+  static readonly dependencies = [
+    QueryPagePlugin,
+    SqlModulesPlugin,
+    IntellettoPlugin,
+  ];
 
   // Multi-tab state
   private tabs: DataExplorerTab[] = [];
@@ -483,9 +500,258 @@ export default class implements PerfettoPlugin {
     this.ensureAtLeastOneTab();
   }
 
+  // --- Public API for other plugins ---
+
+  /**
+   * Returns the active tab's graph serialized as JSON (the same format the
+   * "Export" button produces and importStateFromJson consumes), or undefined
+   * if there is no trace loaded or the active graph is empty.
+   *
+   * Used by dependent plugins (e.g. the Intelletto assistant) to read what the
+   * user is currently exploring.
+   */
+  getActiveGraphJson(): string | undefined {
+    const tab = this.getActiveTab();
+    if (tab === undefined || tab.state.rootNodes.length === 0) {
+      return undefined;
+    }
+    return serializeState(tab.state);
+  }
+
+  /**
+   * Replaces the active tab's graph with the one described by `json` (same
+   * format as getActiveGraphJson) and navigates to the Data Explorer so the
+   * user sees the result. Throws if the JSON is invalid or SQL modules are not
+   * ready yet.
+   *
+   * Used by dependent plugins (e.g. the Intelletto assistant) to build a graph
+   * on the user's behalf.
+   */
+  setActiveGraphJson(trace: Trace, json: string): void {
+    const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
+    sqlModulesPlugin.ensureInitialized();
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) {
+      throw new Error(
+        'SQL modules are not ready yet. Open the Data Explorer once and retry.',
+      );
+    }
+    // Structural pre-check: aggregate ALL problems (bad JSON, unknown node
+    // types, dangling/one-sided edges, ...) into one clear message rather than
+    // throwing on whatever deserializeState happens to trip over first.
+    const {errors} = validateSerializedGraph(json);
+    if (errors.length > 0) {
+      throw new Error(
+        `Invalid graph (${errors.length} problem` +
+          `${errors.length === 1 ? '' : 's'}):\n- ${errors.join('\n- ')}`,
+      );
+    }
+    // deserializeState can still throw on deeper per-node-state issues; let it
+    // propagate so the caller (and, for the assistant, the model) sees it.
+    const state = deserializeState(json, trace, sqlModules);
+    // Make sure tabs are hydrated and there is a tab to write into.
+    this.tryLoadState(trace);
+    this.ensureAtLeastOneTab();
+    // makeOnStateUpdate handles persistence (localStorage + permalink) and
+    // triggers a redraw.
+    this.makeOnStateUpdate(this.activeTabId)(state);
+    trace.navigate('#!/explore');
+  }
+
+  /**
+   * Runs the active graph against the trace engine and returns one error per
+   * failing node (bad SQL, missing column/table, invalid config). An empty
+   * array means the graph runs cleanly. Lets a caller (e.g. the assistant)
+   * verify a graph it built and iterate until it works.
+   */
+  async checkActiveGraph(trace: Trace): Promise<GraphNodeError[]> {
+    const tab = this.getActiveTab();
+    if (tab === undefined || tab.state.rootNodes.length === 0) {
+      return [];
+    }
+    return collectGraphErrors(trace.engine, getAllNodes(tab.state.rootNodes));
+  }
+
+  /**
+   * Checks a graph JSON for problems WITHOUT applying it: structural validation
+   * first (aggregated), then - if structurally sound - it is deserialized into
+   * a throwaway state and run against the engine to catch runtime errors. The
+   * active graph and the UI are left untouched. Returns a human-readable
+   * report. Lets the assistant verify a graph before committing it.
+   */
+  async dryRunGraph(trace: Trace, json: string): Promise<string> {
+    const {errors: structuralErrors} = validateSerializedGraph(json);
+    if (structuralErrors.length > 0) {
+      return (
+        `Invalid graph (${structuralErrors.length} problem` +
+        `${structuralErrors.length === 1 ? '' : 's'}):\n- ` +
+        structuralErrors.join('\n- ')
+      );
+    }
+
+    const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
+    sqlModulesPlugin.ensureInitialized();
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) {
+      throw new Error(
+        'SQL modules are not ready yet. Open the Data Explorer once and retry.',
+      );
+    }
+
+    let state;
+    try {
+      // Build the nodes in isolation - this is NOT assigned to any tab.
+      state = deserializeState(json, trace, sqlModules);
+    } catch (e) {
+      return `Graph could not be built: ${getErrorMessage(e)}`;
+    }
+
+    const runtimeErrors = await collectGraphErrors(
+      trace.engine,
+      getAllNodes(state.rootNodes),
+    );
+    if (runtimeErrors.length === 0) {
+      return 'OK: graph is valid and runs cleanly.';
+    }
+    return (
+      'Graph is structurally valid, but some nodes fail to run:\n' +
+      formatGraphErrors(runtimeErrors)
+    );
+  }
+
+  // --- Assistant tools ---
+
+  // Contribute get_graph / set_graph tools to the Intelletto assistant so it
+  // can read and build Data Explorer graphs on the user's behalf.
+  private registerIntellettoTools(trace: Trace): void {
+    const intelletto = trace.plugins.getPlugin(IntellettoPlugin);
+
+    intelletto.registerTool({
+      name: 'get_graph',
+      description:
+        'Read the current Data Explorer query graph as JSON. Call this to see ' +
+        'what the user is exploring before answering questions about it, and ' +
+        'ALWAYS before set_graph when editing an existing graph - copy its ' +
+        'shape rather than rebuilding from scratch. Returns the string ' +
+        '"<empty>" when there is no graph yet.',
+      shape: {},
+      callback: async () => this.getActiveGraphJson() ?? '<empty>',
+    });
+
+    intelletto.registerTool({
+      name: 'set_graph',
+      description:
+        'Replace the Data Explorer query graph with a new one and switch the ' +
+        'UI to the Data Explorer so the user sees it. Use this when the user ' +
+        'asks you to build, change, or visualise a query/pipeline in the Data ' +
+        'Explorer. The argument is the whole graph as a JSON string. A ' +
+        'structurally invalid graph (bad JSON, unknown node type, dangling or ' +
+        'one-sided edge) comes back as a tool error listing every problem - ' +
+        'fix them and retry. If the graph is structurally fine but a node ' +
+        'fails to run (bad SQL, missing column/table), it is still applied and ' +
+        'the per-node runtime errors are returned; fix the SQL and call ' +
+        'set_graph again until it reports it runs cleanly.\n\n' +
+        GRAPH_FORMAT,
+      mutating: true,
+      shape: {
+        graph: z
+          .string()
+          .describe(
+            'The complete graph, as a JSON string in the documented format ' +
+              '(an object with "nodes" and "rootNodeIds").',
+          ),
+      },
+      callback: async ({graph}) => {
+        // Throws (-> tool error) on structural problems, before any UI change.
+        this.setActiveGraphJson(trace, graph);
+        // Applied; now report any runtime errors so the model can iterate.
+        const errors = await this.checkActiveGraph(trace);
+        if (errors.length === 0) {
+          return 'OK: graph applied and runs cleanly.';
+        }
+        return (
+          'Graph applied, but some nodes fail to run. Fix these and call ' +
+          'set_graph again:\n' +
+          formatGraphErrors(errors)
+        );
+      },
+    });
+
+    intelletto.registerTool({
+      name: 'check_graph',
+      description:
+        'Run the current Data Explorer graph against the trace and report any ' +
+        'per-node errors (bad SQL, missing columns/tables, invalid config) ' +
+        'without changing it. Returns "OK: graph runs cleanly." when there are ' +
+        'none. Use this to verify the graph after editing, or to diagnose what ' +
+        'the user means by "my graph is broken".',
+      shape: {},
+      callback: async () => {
+        const errors = await this.checkActiveGraph(trace);
+        if (errors.length === 0) {
+          return 'OK: graph runs cleanly.';
+        }
+        return 'Graph has errors:\n' + formatGraphErrors(errors);
+      },
+    });
+
+    intelletto.registerTool({
+      name: 'validate_graph',
+      description:
+        'Check a candidate graph JSON for problems WITHOUT applying it - the ' +
+        'current graph and the UI are left untouched. Reports structural ' +
+        'problems (bad JSON, unknown node type, dangling or one-sided edges) ' +
+        'and, if structurally sound, runtime errors from running it (bad SQL, ' +
+        'missing columns/tables). Returns "OK: graph is valid and runs ' +
+        'cleanly." when there are none. Use this to iterate on a graph before ' +
+        'committing it with set_graph. See set_graph for the JSON format.',
+      shape: {
+        graph: z
+          .string()
+          .describe(
+            'The candidate graph as a JSON string, same format as set_graph.',
+          ),
+      },
+      callback: async ({graph}) => this.dryRunGraph(trace, graph),
+    });
+
+    // Tell the assistant which node the user currently has selected in the
+    // query builder, so it can answer "this node" / "the selected step"
+    // questions and edit the right node without asking.
+    intelletto.registerContextProvider({
+      id: 'dev.perfetto.DataExplorer#selected_node',
+      description:
+        'The node the user has selected in the Data Explorer query builder. ' +
+        '"nodeId" and "type" match the get_graph / set_graph JSON format, so ' +
+        'the selected node can be located and edited there. "state" is that ' +
+        'node\'s serialized config; "columns" are the column names it outputs.',
+      getContext: () => {
+        const tab = this.getActiveTab();
+        if (tab === undefined) return undefined;
+        const node = getPrimarySelectedNode(
+          tab.state.selectedNodes,
+          tab.state.rootNodes,
+        );
+        if (node === undefined) return undefined;
+        return {
+          summary: `Selected node: ${node.getTitle()}`,
+          data: {
+            nodeId: node.nodeId,
+            type: node.type,
+            title: node.getTitle(),
+            state: node.attrs,
+            columns: node.finalCols.map((c) => c.name),
+          },
+        };
+      },
+    });
+  }
+
   // --- Plugin lifecycle ---
 
   async onTraceLoad(trace: Trace): Promise<void> {
+    this.registerIntellettoTools(trace);
+
     // Flush pending localStorage saves on page unload
     window.addEventListener('beforeunload', this.onBeforeUnload);
     trace.trash.defer(() => {
