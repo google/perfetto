@@ -25,6 +25,5 @@ ilkos@google.com
 # Chromium-related things and tracing SDK.
 eseckler@google.com
 nuskos@google.com
-oysteine@google.com
 
 include platform/system/core:main:/janitors/OWNERS #{LAST_RESORT_SUGGESTION}
