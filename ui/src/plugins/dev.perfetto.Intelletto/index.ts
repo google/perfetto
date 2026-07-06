@@ -29,6 +29,7 @@ import {ChatSession} from './chat_session';
 import {registerDataExplorerTools} from './data_explorer_tools';
 import {ContextRegistry, registerCoreContextProviders} from './context';
 import {registerCoreTools} from './core_tools';
+import {registerTimelineTools} from './timeline_tools';
 import {ToolRegistry} from './tools';
 
 const SIDE_PANEL_URI = 'dev.perfetto.Intelletto#Chat';
@@ -71,6 +72,7 @@ export default class IntellettoPlugin
 
   constructor(private readonly trace: Trace) {
     registerCoreTools(this.tools, this.trace);
+    registerTimelineTools(this.tools, this.trace);
     registerCoreContextProviders(this.context, this.trace);
   }
 
