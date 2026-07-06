@@ -147,7 +147,6 @@ on late-init && property:ro.boot.fastboot.boottrace=enabled
 # disable on boot complete when using textual ftrace tracing without perfetto.
 on property:sys.boot_completed=1 && property:ro.boot.fastboot.boottrace=enabled && property:init.svc.perfetto_trace_on_boot=
     setprop debug.atrace.tags.enableflags 0
-    write /sys/kernel/debug/tracing/tracing_on 0
     write /sys/kernel/tracing/tracing_on 0
 
 # These must be set as soon as possible for processes guarded by
