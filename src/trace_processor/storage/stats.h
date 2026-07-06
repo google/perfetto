@@ -286,22 +286,6 @@ namespace perfetto::trace_processor::stats {
       "Sequence data losses the producer attributed to its shared memory "     \
       "buffer being full, per buffer."),                                       \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
-  F(traced_buf_v2s_packets_seen,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: total packets read."),                                    \
-  F(traced_buf_v2s_packets_in_both,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: packets found in both V1 and V2 buffers."),               \
-  F(traced_buf_v2s_packets_only_v1,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: packets found only in V1 buffer."),                       \
-  F(traced_buf_v2s_packets_only_v2,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: packets found only in V2 buffer."),                       \
-  F(traced_buf_v2s_patches_attempted,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: patch operations attempted."),                            \
-  F(traced_buf_v2s_v1_patches_succeeded,  kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: patches that succeeded on V1 buffer."),                   \
-  F(traced_buf_v2s_v2_patches_succeeded,  kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: patches that succeeded on V2 buffer."),                   \
-  F(traced_buf_v2s_stats_version,         kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: version of the comparison stats."),                       \
   F(traced_clone_started_timestamp_ns,    kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,         \
     "The timestamp when the clone snapshot operation for this trace started"), \
   F(traced_clone_trigger_timestamp_ns,    kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,         \

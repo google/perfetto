@@ -112,7 +112,6 @@
 #include "src/tracing/service/random.h"
 #include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/trace_buffer_v1.h"
-#include "src/tracing/service/trace_buffer_v1_with_v2_shadow.h"
 #include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
@@ -1214,9 +1213,6 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     switch (buffer_cfg.experimental_mode()) {
       case TraceConfig::BufferConfig::TRACE_BUFFER_V2:
         new_buffer = TraceBufferV2::Create(buf_size, policy);
-        break;
-      case TraceConfig::BufferConfig::TRACE_BUFFER_V2_SHADOW_MODE:
-        new_buffer = TraceBufferV1WithV2Shadow::Create(buf_size, policy);
         break;
       case TraceConfig::BufferConfig::MODE_UNSPECIFIED:
         new_buffer = TraceBufferV1::Create(buf_size, policy);
@@ -4556,9 +4552,6 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
       case TraceBuffer::kV2:
         buf = TraceBufferV2::Create(buf_size, buf_policy);
         break;
-      case TraceBuffer::kV1WithV2Shadow:
-        buf = TraceBufferV1WithV2Shadow::Create(buf_size, buf_policy);
-        break;
     }
     if (!buf) {
       // This is extremely rare but could happen on 32-bit. If the new buffer
@@ -4738,9 +4731,6 @@ bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
           break;
         case TraceBuffer::kV2:
           src_buf = TraceBufferV2::Create(buf_size, buf_policy);
-          break;
-        case TraceBuffer::kV1WithV2Shadow:
-          src_buf = TraceBufferV1WithV2Shadow::Create(buf_size, buf_policy);
           break;
       }
       if (!src_buf) {
