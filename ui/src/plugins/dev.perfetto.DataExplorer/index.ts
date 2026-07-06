@@ -14,7 +14,6 @@
 
 import './styles.scss';
 import m from 'mithril';
-import {z} from 'zod';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import type {Store} from '../../base/store';
@@ -23,7 +22,6 @@ import {getErrorMessage} from '../../base/errors';
 import {debounce} from '../../base/rate_limiters';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import IntellettoPlugin from '../dev.perfetto.Intelletto';
 import {
   DataExplorer,
   type DataExplorerState,
@@ -43,7 +41,6 @@ import {
 import {recentGraphsStorage} from './recent_graphs';
 import {getAllNodes} from './query_builder/graph_utils';
 import {getPrimarySelectedNode} from './selection_utils';
-import {GRAPH_FORMAT} from './graph_format';
 import {isDashboardNode} from './query_builder/nodes/dashboard_node';
 import {
   dataExplorerTabsStorage,
@@ -90,11 +87,7 @@ function isValidPersistedState(
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.DataExplorer';
-  static readonly dependencies = [
-    QueryPagePlugin,
-    SqlModulesPlugin,
-    IntellettoPlugin,
-  ];
+  static readonly dependencies = [QueryPagePlugin, SqlModulesPlugin];
 
   // Multi-tab state
   private tabs: DataExplorerTab[] = [];
@@ -619,139 +612,43 @@ export default class implements PerfettoPlugin {
     );
   }
 
-  // --- Assistant tools ---
+  // --- Assistant hook ---
 
-  // Contribute get_graph / set_graph tools to the Intelletto assistant so it
-  // can read and build Data Explorer graphs on the user's behalf.
-  private registerIntellettoTools(trace: Trace): void {
-    const intelletto = trace.plugins.getPlugin(IntellettoPlugin);
-
-    intelletto.registerTool({
-      name: 'get_graph',
-      description:
-        'Read the current Data Explorer query graph as JSON. Call this to see ' +
-        'what the user is exploring before answering questions about it, and ' +
-        'ALWAYS before set_graph when editing an existing graph - copy its ' +
-        'shape rather than rebuilding from scratch. Returns the string ' +
-        '"<empty>" when there is no graph yet.',
-      shape: {},
-      callback: async () => this.getActiveGraphJson() ?? '<empty>',
-    });
-
-    intelletto.registerTool({
-      name: 'set_graph',
-      description:
-        'Replace the Data Explorer query graph with a new one and switch the ' +
-        'UI to the Data Explorer so the user sees it. Use this when the user ' +
-        'asks you to build, change, or visualise a query/pipeline in the Data ' +
-        'Explorer. The argument is the whole graph as a JSON string. A ' +
-        'structurally invalid graph (bad JSON, unknown node type, dangling or ' +
-        'one-sided edge) comes back as a tool error listing every problem - ' +
-        'fix them and retry. If the graph is structurally fine but a node ' +
-        'fails to run (bad SQL, missing column/table), it is still applied and ' +
-        'the per-node runtime errors are returned; fix the SQL and call ' +
-        'set_graph again until it reports it runs cleanly.\n\n' +
-        GRAPH_FORMAT,
-      mutating: true,
-      shape: {
-        graph: z
-          .string()
-          .describe(
-            'The complete graph, as a JSON string in the documented format ' +
-              '(an object with "nodes" and "rootNodeIds").',
-          ),
-      },
-      callback: async ({graph}) => {
-        // Throws (-> tool error) on structural problems, before any UI change.
-        this.setActiveGraphJson(trace, graph);
-        // Applied; now report any runtime errors so the model can iterate.
-        const errors = await this.checkActiveGraph(trace);
-        if (errors.length === 0) {
-          return 'OK: graph applied and runs cleanly.';
-        }
-        return (
-          'Graph applied, but some nodes fail to run. Fix these and call ' +
-          'set_graph again:\n' +
-          formatGraphErrors(errors)
-        );
-      },
-    });
-
-    intelletto.registerTool({
-      name: 'check_graph',
-      description:
-        'Run the current Data Explorer graph against the trace and report any ' +
-        'per-node errors (bad SQL, missing columns/tables, invalid config) ' +
-        'without changing it. Returns "OK: graph runs cleanly." when there are ' +
-        'none. Use this to verify the graph after editing, or to diagnose what ' +
-        'the user means by "my graph is broken".',
-      shape: {},
-      callback: async () => {
-        const errors = await this.checkActiveGraph(trace);
-        if (errors.length === 0) {
-          return 'OK: graph runs cleanly.';
-        }
-        return 'Graph has errors:\n' + formatGraphErrors(errors);
-      },
-    });
-
-    intelletto.registerTool({
-      name: 'validate_graph',
-      description:
-        'Check a candidate graph JSON for problems WITHOUT applying it - the ' +
-        'current graph and the UI are left untouched. Reports structural ' +
-        'problems (bad JSON, unknown node type, dangling or one-sided edges) ' +
-        'and, if structurally sound, runtime errors from running it (bad SQL, ' +
-        'missing columns/tables). Returns "OK: graph is valid and runs ' +
-        'cleanly." when there are none. Use this to iterate on a graph before ' +
-        'committing it with set_graph. See set_graph for the JSON format.',
-      shape: {
-        graph: z
-          .string()
-          .describe(
-            'The candidate graph as a JSON string, same format as set_graph.',
-          ),
-      },
-      callback: async ({graph}) => this.dryRunGraph(trace, graph),
-    });
-
-    // Tell the assistant which node the user currently has selected in the
-    // query builder, so it can answer "this node" / "the selected step"
-    // questions and edit the right node without asking.
-    intelletto.registerContextProvider({
-      id: 'dev.perfetto.DataExplorer#selected_node',
-      description:
-        'The node the user has selected in the Data Explorer query builder. ' +
-        '"nodeId" and "type" match the get_graph / set_graph JSON format, so ' +
-        'the selected node can be located and edited there. "state" is that ' +
-        'node\'s serialized config; "columns" are the column names it outputs.',
-      getContext: () => {
-        const tab = this.getActiveTab();
-        if (tab === undefined) return undefined;
-        const node = getPrimarySelectedNode(
-          tab.state.selectedNodes,
-          tab.state.rootNodes,
-        );
-        if (node === undefined) return undefined;
-        return {
-          summary: `Selected node: ${node.getTitle()}`,
-          data: {
-            nodeId: node.nodeId,
-            type: node.type,
-            title: node.getTitle(),
-            state: node.attrs,
-            columns: node.finalCols.map((c) => c.name),
-          },
-        };
-      },
-    });
+  /**
+   * Snapshot of the node the user has selected in the Data Explorer query
+   * builder, for the Intelletto assistant's context strip. Returns undefined
+   * when there is no active tab or no selected node. The Intelletto plugin owns
+   * the model-facing prose and wires this into its context registry; DE itself
+   * does not depend on Intelletto.
+   */
+  getSelectedNodeContext():
+    | {
+        nodeId: string;
+        type: string;
+        title: string;
+        state: unknown;
+        columns: string[];
+      }
+    | undefined {
+    const tab = this.getActiveTab();
+    if (tab === undefined) return undefined;
+    const node = getPrimarySelectedNode(
+      tab.state.selectedNodes,
+      tab.state.rootNodes,
+    );
+    if (node === undefined) return undefined;
+    return {
+      nodeId: node.nodeId,
+      type: node.type,
+      title: node.getTitle(),
+      state: node.attrs,
+      columns: node.finalCols.map((c) => c.name),
+    };
   }
 
   // --- Plugin lifecycle ---
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.registerIntellettoTools(trace);
-
     // Flush pending localStorage saves on page unload
     window.addEventListener('beforeunload', this.onBeforeUnload);
     trace.trash.defer(() => {
