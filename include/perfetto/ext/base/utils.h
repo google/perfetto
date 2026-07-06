@@ -109,7 +109,7 @@ inline constexpr bool IsPowerOfTwo(T x) {
 // version above.
 template <size_t alignment>
 constexpr size_t AlignUp(size_t size) {
-  static_assert((alignment & (alignment - 1)) == 0, "alignment must be a pow2");
+  static_assert(IsPowerOfTwo(alignment), "alignment must be a pow2");
   return AlignUp(size, alignment);
 }
 
