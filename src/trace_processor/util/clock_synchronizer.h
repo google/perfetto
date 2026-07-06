@@ -123,40 +123,51 @@ struct ClockId {
   uint32_t clock_id = 0;
   uint32_t seq_id = 0;
   uint32_t trace_file_id = 0;
+  // Machine the clock belongs to; 0 is the host. Distinguishes machines that
+  // share one file (a multi-machine proto trace is a single trace_file_id);
+  // trace_file_id distinguishes files on the same machine.
+  uint32_t machine_id = 0;
 
   constexpr ClockId() = default;
 
-  // Factory for machine-scoped builtin clocks (e.g. BOOTTIME, MONOTONIC).
+  // Factory for the host machine's builtin clocks (e.g. BOOTTIME, MONOTONIC).
   static constexpr ClockId Machine(uint32_t builtin_clock_id) {
-    return {builtin_clock_id, 0, 0};
+    return {builtin_clock_id, 0, 0, 0};
+  }
+
+  // Factory for a specific machine's builtin clock.
+  static constexpr ClockId Machine(uint32_t machine_id,
+                                   uint32_t builtin_clock_id) {
+    return {builtin_clock_id, 0, 0, machine_id};
   }
 
   // Factory for trace-file-scoped clocks.
   static constexpr ClockId TraceFile(uint32_t tfi) {
-    return {protos::pbzero::BUILTIN_CLOCK_TRACE_FILE, 0, tfi};
+    return {protos::pbzero::BUILTIN_CLOCK_TRACE_FILE, 0, tfi, 0};
   }
 
   // Factory for sequence-scoped clocks.
   static constexpr ClockId Sequence(uint32_t tfi, uint32_t sid, uint32_t cid) {
     PERFETTO_DCHECK(IsSequenceClock(cid));
-    return {cid, sid, tfi};
+    return {cid, sid, tfi, 0};
   }
 
   bool operator==(const ClockId& o) const {
     return clock_id == o.clock_id && seq_id == o.seq_id &&
-           trace_file_id == o.trace_file_id;
+           trace_file_id == o.trace_file_id && machine_id == o.machine_id;
   }
   bool operator!=(const ClockId& o) const { return !(*this == o); }
   bool operator<(const ClockId& o) const {
-    return std::tie(clock_id, seq_id, trace_file_id) <
-           std::tie(o.clock_id, o.seq_id, o.trace_file_id);
+    return std::tie(clock_id, seq_id, trace_file_id, machine_id) <
+           std::tie(o.clock_id, o.seq_id, o.trace_file_id, o.machine_id);
   }
 
   std::string ToString() const;
 
   template <typename H>
   friend H PerfettoHashValue(H h, const ClockId& c) {
-    return H::Combine(std::move(h), c.clock_id, c.seq_id, c.trace_file_id);
+    return H::Combine(std::move(h), c.clock_id, c.seq_id, c.trace_file_id,
+                      c.machine_id);
   }
 
   static constexpr bool IsSequenceClock(uint32_t clock_id) {
@@ -165,11 +176,22 @@ struct ClockId {
 
   bool IsSequenceClock() const { return IsSequenceClock(clock_id); }
 
+  // Returns |c| scoped to |machine|; builtin clocks (tf=0,seq=0) are also
+  // tagged with |file_tag| so same-machine files stay isolated in one graph.
+  static constexpr ClockId Qualify(ClockId c,
+                                   uint32_t machine,
+                                   uint32_t file_tag) {
+    c.machine_id = machine;
+    if (c.seq_id == 0 && c.trace_file_id == 0)
+      c.trace_file_id = file_tag;
+    return c;
+  }
+
  private:
   friend class ClockSynchronizer;
 
-  constexpr ClockId(uint32_t cid, uint32_t sid, uint32_t tfi)
-      : clock_id(cid), seq_id(sid), trace_file_id(tfi) {}
+  constexpr ClockId(uint32_t cid, uint32_t sid, uint32_t tfi, uint32_t mid)
+      : clock_id(cid), seq_id(sid), trace_file_id(tfi), machine_id(mid) {}
 };
 
 // Clock description.
@@ -195,10 +217,19 @@ struct ClockTimestamp {
 
 // Error type when clock conversion fails.
 enum class ClockSyncErrorType {
-  kOk = 0,
   kUnknownSourceClock,  // Source clock never seen in any snapshot
   kUnknownTargetClock,  // Target clock never seen in any snapshot
   kNoPath,              // No snapshot path connects source to target
+};
+
+// Full context of a failed conversion. When Convert returns nullopt it stashes
+// this on the synchronizer (see last_error()) so the per-trace caller can
+// record a detailed import log without paying for it on the success path.
+struct ClockSyncError {
+  ClockSyncErrorType type;
+  ClockId source_clock;
+  ClockId target_clock;
+  int64_t source_timestamp;
 };
 
 // Shared state for the trace time clock. Owned externally (e.g. by
@@ -229,10 +260,6 @@ struct TraceTimeState {
   }
 
   std::optional<int64_t> timezone_offset;
-
-  // TODO(lalitm): remote_clock_offsets is a hack. We should have a proper
-  // definition for dealing with cross-machine clock synchronization.
-  base::FlatHashMap<ClockId, int64_t> remote_clock_offsets;
 };
 
 // Virtual interface for listening to clock synchronization events.
@@ -242,11 +269,6 @@ class ClockSynchronizerListener {
   virtual ~ClockSynchronizerListener();
   virtual base::Status OnClockSyncCacheMiss() = 0;
   virtual base::Status OnInvalidClockSnapshot() = 0;
-  virtual void RecordConversionError(ClockSyncErrorType,
-                                     ClockId,
-                                     ClockId,
-                                     int64_t,
-                                     std::optional<size_t>) = 0;
 };
 
 class ClockSynchronizer {
@@ -268,12 +290,13 @@ class ClockSynchronizer {
 
   // Converts a timestamp between two clock domains. Tries to use the cache
   // first (only for single-path resolutions), then falls back on path finding
-  // as described in the header.
+  // as described in the header. Returns the converted timestamp, or nullopt on
+  // failure; on failure last_error() holds why (until the next Convert call),
+  // so a per-trace caller can record a detailed import log without burdening
+  // the success path.
   std::optional<int64_t> Convert(ClockId src_clock_id,
                                  int64_t src_timestamp,
-                                 ClockId target_clock_id,
-                                 std::optional<size_t> byte_offset,
-                                 bool suppress_errors = false) {
+                                 ClockId target_clock_id) {
     if (PERFETTO_LIKELY(src_clock_id == target_clock_id)) {
       return src_timestamp;
     }
@@ -294,9 +317,12 @@ class ClockSynchronizer {
         }
       }
     }
-    return ConvertSlowpath(src_clock_id, src_timestamp, ns, target_clock_id,
-                           byte_offset, suppress_errors);
+    return ConvertSlowpath(src_clock_id, src_timestamp, ns, target_clock_id);
   }
+
+  // The reason the most recent Convert that returned nullopt failed. Valid
+  // only until the next Convert call. Undefined if the last Convert succeeded.
+  const ClockSyncError& last_error() const { return last_error_; }
 
   // For testing:
   void set_cache_lookups_disabled_for_testing(bool v) {
@@ -398,9 +424,7 @@ class ClockSynchronizer {
   std::optional<int64_t> ConvertSlowpath(ClockId src_clock_id,
                                          int64_t src_timestamp,
                                          std::optional<int64_t> src_ts_ns,
-                                         ClockId target_clock_id,
-                                         std::optional<size_t> byte_offset,
-                                         bool suppress_errors);
+                                         ClockId target_clock_id);
 
   // Returns whether |global_clock_id| represents a sequence-scoped clock, i.e.
   // a ClockId returned by SequenceToGlobalClock().
@@ -421,6 +445,10 @@ class ClockSynchronizer {
   std::array<CachedClockPath, 8> cache_{};
   bool cache_lookups_disabled_for_testing_ = false;
   uint32_t cache_hits_for_testing_ = 0;
+
+  // Set by ConvertSlowpath whenever it returns nullopt; read by the caller via
+  // last_error() before the next Convert call.
+  ClockSyncError last_error_{};
   std::minstd_rand rnd_;  // For cache eviction.
   uint32_t cur_snapshot_id_ = 0;
   std::unique_ptr<ClockSynchronizerListener> clock_event_listener_;

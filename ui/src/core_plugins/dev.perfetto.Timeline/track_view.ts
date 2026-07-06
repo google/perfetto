@@ -60,9 +60,14 @@ export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
 export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
 export const MINIMUM_TRACK_MIN_HEIGHT_PX = DEFAULT_TRACK_MIN_HEIGHT_PX;
 
-function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
-  // Headless tracks have an effective height of 0.
-  if (node.headless) return 0;
+function getTrackHeight(
+  node: TrackNode,
+  track?: TrackRenderer,
+  showHeadless = false,
+) {
+  // Headless tracks have an effective height of 0, unless we're explicitly
+  // showing them.
+  if (node.headless && !showHeadless) return 0;
 
   const TRACK_HEIGHT_MIN_PX =
     (AppImpl.instance.settings
@@ -114,7 +119,12 @@ export class TrackView {
   private readonly trace: TraceImpl;
   private readonly descriptor?: Track;
 
-  constructor(trace: TraceImpl, node: TrackNode, top: number) {
+  constructor(
+    trace: TraceImpl,
+    node: TrackNode,
+    top: number,
+    showHeadless = false,
+  ) {
     this.trace = trace;
     this.node = node;
 
@@ -123,7 +133,7 @@ export class TrackView {
       this.renderer = this.trace.tracks.getWrappedTrack(node.uri);
     }
 
-    const heightPx = getTrackHeight(node, this.renderer?.track);
+    const heightPx = getTrackHeight(node, this.renderer?.track, showHeadless);
     this.height = heightPx;
     this.verticalBounds = {top, bottom: top + heightPx};
   }

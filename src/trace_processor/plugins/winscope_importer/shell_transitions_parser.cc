@@ -41,7 +41,9 @@ namespace trace_processor {
 ShellTransitionsParser::ShellTransitionsParser(
     winscope::WinscopeContext* context)
     : context_(context),
-      args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
+      args_parser_{
+          *context->trace_processor_context_->descriptor_pool_,
+          *context->trace_processor_context_->storage->mutable_string_pool()} {}
 
 void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   com::android::internal::pbzero::ShellTransition::Decoder transition(blob);
@@ -63,7 +65,7 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   // Track transition args as the come in through different packets
   winscope::ShellTransitionsTracker& transition_tracker =
       context_->shell_transitions_tracker_;
-  auto inserter = transition_tracker.AddArgsTo(transition_id);
+  ArgsInserter& inserter = transition_tracker.AddArgsTo(transition_id);
   ArgsParser writer(/*packet_timestamp=*/0, inserter, *storage);
   base::Status status = args_parser_.ParseMessage(
       blob,

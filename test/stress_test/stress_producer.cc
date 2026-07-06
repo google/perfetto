@@ -27,6 +27,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/tracing.h"
 
 #include "protos/perfetto/config/stress_test_config.gen.h"
@@ -199,7 +200,7 @@ int main() {
   args.backends = perfetto::kSystemBackend;
 
   std::string config_blob;
-  if (isatty(fileno(stdin)))
+  if (perfetto::base::IsTty(stdin))
     PERFETTO_LOG("Reading StressTestConfig proto from stdin");
   perfetto::base::ReadFileStream(stdin, &config_blob);
 

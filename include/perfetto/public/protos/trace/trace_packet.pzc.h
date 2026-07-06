@@ -26,8 +26,6 @@
 #include "perfetto/public/pb_macros.h"
 
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidAflags);
-PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraFrameEvent);
-PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraSessionStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidEnergyEstimationBreakdown);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionList);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogPacket);
@@ -46,7 +44,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_DeobfuscationMapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EntityStateResidency);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwTraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ExtensionDescriptor);
-PERFETTO_PB_MSG_DECL(perfetto_protos_FrameTimelineEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericGpuFrequencyEvent);
@@ -120,6 +117,29 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TracePacket, SequenceFlags){
                                   SEQ_INCREMENTAL_STATE_CLEARED) = 1,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
                                   SEQ_NEEDS_INCREMENTAL_STATE) = 2,
+};
+
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TracePacket, DataLossReason){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_PRESENT) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_READ_GAP) = 2,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_CHUNK_CORRUPTED) = 4,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_ORPHAN_CONTINUATION) = 8,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_REASSEMBLY_GAP) = 16,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_REASSEMBLY_BROKEN_CHAIN) = 32,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_OVERWRITE) = 64,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_WRITER_ABORT) = 128,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TracePacket,
+                                  DATA_LOSS_SMB_FULL) = 256,
 };
 
 PERFETTO_PB_MSG(perfetto_protos_TracePacket);
@@ -361,11 +381,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   73);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_FrameTimelineEvent,
-                  frame_timeline_event,
-                  76);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
                   perfetto_protos_AndroidEnergyEstimationBreakdown,
                   android_energy_estimation_breakdown,
                   77);
@@ -374,16 +389,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_UiState,
                   ui_state,
                   78);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_AndroidCameraFrameEvent,
-                  android_camera_frame_event,
-                  80);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_AndroidCameraSessionStats,
-                  android_camera_session_stats,
-                  81);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TranslationTable,
@@ -587,7 +592,7 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   59);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   VARINT,
-                  bool,
+                  uint32_t,
                   previous_packet_dropped,
                   42);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,

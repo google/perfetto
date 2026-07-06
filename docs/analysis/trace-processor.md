@@ -72,6 +72,10 @@ This will open an interactive SQL shell where you can query the trace. For
 more information on how to write queries, see the
 [Getting Started with PerfettoSQL](perfetto-sql-getting-started.md) guide.
 
+TIP: the trace file can also be a ZIP or TAR archive containing several
+traces: they are merged onto a single timeline. See
+[Merging traces with Trace Processor](/docs/analysis/merging-traces.md).
+
 For example, to see all the slices in a trace, you can run the following query:
 
 ```sql

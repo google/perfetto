@@ -16,13 +16,24 @@
 
 #include "src/trace_processor/shell/convert_subcommand.h"
 
-#include <cstdlib>
+#include <cstdint>
+#include <fstream>
+#include <istream>
+#include <optional>
+#include <ostream>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/traceconv/traceconv.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/shell/convert_helpers.h"
 #include "src/trace_processor/shell/subcommand.h"
+#include "src/traceconv/trace_to_firefox.h"
+#include "src/traceconv/trace_to_json.h"
+#include "src/traceconv/trace_to_profile.h"
+#include "src/traceconv/trace_to_systrace.h"
+#include "src/traceconv/trace_to_text.h"
 
 namespace perfetto::trace_processor::shell {
 
@@ -39,7 +50,7 @@ const char* ConvertSubcommand::usage_args() const {
 }
 
 const char* ConvertSubcommand::detailed_help() const {
-  return R"(Convert a trace between formats. Wraps the traceconv tool.
+  return R"(Convert a trace between formats.
 
 Formats:
   systrace              Convert to systrace HTML format
@@ -47,17 +58,13 @@ Formats:
   ctrace                Convert to compressed systrace format
   text                  Convert to human-readable text format
   profile               Convert profile data to pprof format
-  java_heap_profile     Legacy alias for "profile --java-heap"
-  hprof                 Convert heap profile to hprof format
-  symbolize             Symbolize addresses in profiles
-  deobfuscate           Deobfuscate obfuscated profiles
   firefox               Convert to Firefox profiler format
-  decompress_packets    Decompress compressed trace packets
-  bundle                Create bundle with trace + debug data
-  binary                Convert text proto to binary format
 
 If no input file is given, reads from stdin.
-If no output file is given, writes to stdout.)";
+If no output file is given, writes to stdout.
+
+To symbolize/deobfuscate, decompress packets or convert a text proto to binary,
+see the 'util' command. To create a self-contained bundle, see 'bundle'.)";
 }
 
 std::vector<FlagSpec> ConvertSubcommand::GetFlags() {
@@ -77,17 +84,6 @@ std::vector<FlagSpec> ConvertSubcommand::GetFlags() {
                "Don't add derived annotations to frames.", &no_annotations_),
       StringFlag("output-dir", '\0', "DIR", "Output directory for profiles.",
                  &output_dir_),
-      StringFlag("symbol-paths", '\0', "PATH1,PATH2,...",
-                 "Additional paths to search for symbols.", &symbol_paths_),
-      BoolFlag("no-auto-symbol-paths", '\0',
-               "Disable automatic symbol path discovery.",
-               &no_auto_symbol_paths_),
-      FlagSpec{"proguard-map", '\0', true, "[pkg=]PATH",
-               "ProGuard/R8 mapping.txt for deobfuscation (may be repeated).",
-               [this](const char* v) { proguard_maps_.emplace_back(v); }},
-      BoolFlag("no-auto-proguard-maps", '\0',
-               "Disable automatic ProGuard/R8 mapping discovery.",
-               &no_auto_proguard_maps_),
       BoolFlag("verbose", '\0', "Print more detailed output.", &verbose_),
       BoolFlag("skip-unknown", '\0',
                "Skip unknown fields when converting to text.", &skip_unknown_),
@@ -95,85 +91,118 @@ std::vector<FlagSpec> ConvertSubcommand::GetFlags() {
 }
 
 base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
-  // TODO(lalitm): this delegates to TraceconvMain via a synthetic argv as a
-  // temporary measure. The traceconv logic should be fully inlined here and
-  // TraceconvMain should be deleted.
+  if (ctx.positional_args.empty())
+    return base::ErrStatus("convert: a format must be specified.");
 
-  // Build a synthetic argv for TraceconvMain. The first element is the
-  // program name, followed by any flags that were set, then positional args
-  // (format, input, output).
-  std::vector<std::string> args_storage;
-  args_storage.push_back("trace_processor_shell convert");
+  const std::string& format = ctx.positional_args[0];
+  const std::string input_path =
+      ctx.positional_args.size() > 1 ? ctx.positional_args[1] : "";
+  const std::string output_path =
+      ctx.positional_args.size() > 2 ? ctx.positional_args[2] : "";
 
+  trace_to_text::Keep truncate_keep = trace_to_text::Keep::kAll;
   if (!truncate_.empty()) {
-    args_storage.push_back("--truncate");
-    args_storage.push_back(truncate_);
+    if (truncate_ == "start") {
+      truncate_keep = trace_to_text::Keep::kStart;
+    } else if (truncate_ == "end") {
+      truncate_keep = trace_to_text::Keep::kEnd;
+    } else {
+      return base::ErrStatus(
+          "--truncate must specify whether to keep the 'end' or the 'start' "
+          "of the trace.");
+    }
   }
-  if (full_sort_) {
-    args_storage.push_back("--full-sort");
-  }
+
+  uint64_t pid = 0;
   if (!pid_.empty()) {
-    args_storage.push_back("--pid");
-    args_storage.push_back(pid_);
+    std::optional<uint64_t> parsed = base::StringToUInt64(pid_);
+    if (!parsed)
+      return base::ErrStatus("--pid must be a decimal integer.");
+    pid = *parsed;
   }
+
+  std::vector<uint64_t> timestamps;
   if (!timestamps_.empty()) {
-    args_storage.push_back("--timestamps");
-    args_storage.push_back(timestamps_);
-  }
-  if (alloc_) {
-    args_storage.push_back("--alloc");
-  }
-  if (perf_) {
-    args_storage.push_back("--perf");
-  }
-  if (java_heap_) {
-    args_storage.push_back("--java-heap");
-  }
-  if (no_annotations_) {
-    args_storage.push_back("--no-annotations");
-  }
-  if (!output_dir_.empty()) {
-    args_storage.push_back("--output-dir");
-    args_storage.push_back(output_dir_);
-  }
-  if (!symbol_paths_.empty()) {
-    args_storage.push_back("--symbol-paths");
-    args_storage.push_back(symbol_paths_);
-  }
-  if (no_auto_symbol_paths_) {
-    args_storage.push_back("--no-auto-symbol-paths");
-  }
-  for (const auto& map : proguard_maps_) {
-    args_storage.push_back("--proguard-map");
-    args_storage.push_back(map);
-  }
-  if (no_auto_proguard_maps_) {
-    args_storage.push_back("--no-auto-proguard-maps");
-  }
-  if (verbose_) {
-    args_storage.push_back("--verbose");
-  }
-  if (skip_unknown_) {
-    args_storage.push_back("--skip-unknown");
+    for (const std::string& ts : base::SplitString(timestamps_, ",")) {
+      std::optional<uint64_t> parsed = base::StringToUInt64(ts);
+      if (!parsed)
+        return base::ErrStatus("--timestamps must be decimal integers.");
+      timestamps.emplace_back(*parsed);
+    }
   }
 
-  // Append positional args (format, input file, output file).
-  for (const auto& arg : ctx.positional_args) {
-    args_storage.push_back(arg);
+  std::optional<trace_to_text::ConversionMode> profile_type;
+  if (alloc_)
+    profile_type = trace_to_text::ConversionMode::kHeapProfile;
+  if (perf_)
+    profile_type = trace_to_text::ConversionMode::kPerfProfile;
+  if (java_heap_)
+    profile_type = trace_to_text::ConversionMode::kJavaHeapProfile;
+
+  const bool is_profile = format == "profile";
+  if (!is_profile && (pid != 0 || !timestamps.empty())) {
+    return base::ErrStatus(
+        "--pid and --timestamps are supported only for the 'profile' format.");
+  }
+  if (!is_profile && !output_dir_.empty()) {
+    return base::ErrStatus(
+        "--output-dir is supported only for the 'profile' format.");
   }
 
-  // Build the char** argv from the string storage.
-  std::vector<char*> argv_ptrs;
-  for (auto& s : args_storage) {
-    argv_ptrs.push_back(s.data());
-  }
-  argv_ptrs.push_back(nullptr);
+  std::ifstream input_file;
+  std::istream* input = nullptr;
+  RETURN_IF_ERROR(OpenConversionInput(input_path, &input_file, &input));
 
-  int argc = static_cast<int>(args_storage.size());
-  int ret = traceconv::TraceconvMain(argc, argv_ptrs.data());
-  if (ret != 0) {
-    return base::ErrStatus("convert: traceconv returned error code %d", ret);
+  std::ofstream output_file;
+  std::ostream* output = nullptr;
+  // ctrace is the only convert format that emits binary; the rest are
+  // human-readable.
+  const bool binary_output = format == "ctrace";
+  RETURN_IF_ERROR(
+      OpenConversionOutput(output_path, binary_output, &output_file, &output));
+
+  int ret = 0;
+  if (format == "json") {
+    ret = trace_to_text::TraceToJson(input, output, /*compress=*/false,
+                                     truncate_keep, full_sort_);
+  } else if (format == "systrace") {
+    ret = trace_to_text::TraceToSystrace(input, output, /*ctrace=*/false,
+                                         truncate_keep, full_sort_);
+  } else if (format == "ctrace") {
+    ret = trace_to_text::TraceToSystrace(input, output, /*ctrace=*/true,
+                                         truncate_keep, full_sort_);
+  } else if (format == "text" || format == "profile" || format == "firefox") {
+    if (truncate_keep != trace_to_text::Keep::kAll) {
+      return base::ErrStatus("--truncate is unsupported for the '%s' format.",
+                             format.c_str());
+    }
+    if (full_sort_) {
+      return base::ErrStatus("--full-sort is unsupported for the '%s' format.",
+                             format.c_str());
+    }
+    if (format == "text") {
+      trace_to_text::TraceToTextOptions options;
+      options.skip_unknown_fields = skip_unknown_;
+      ret = trace_to_text::TraceToText(input, output, options) ? 0 : 1;
+    } else if (format == "profile") {
+      if (!output_path.empty()) {
+        return base::ErrStatus(
+            "output file is not supported for 'profile', use --output-dir "
+            "instead.");
+      }
+      ret = trace_to_text::TraceToProfile(input, pid, timestamps,
+                                          !no_annotations_, output_dir_,
+                                          profile_type, verbose_);
+    } else {  // firefox
+      ret = trace_to_text::TraceToFirefoxProfile(input, output) ? 0 : 1;
+    }
+  } else {
+    return base::ErrStatus("convert: unknown format '%s'.", format.c_str());
   }
+
+  if (ret != 0)
+    return base::ErrStatus("convert: conversion of '%s' failed.",
+                           format.c_str());
   return base::OkStatus();
 }
 

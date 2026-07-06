@@ -33,6 +33,7 @@ import dev.perfetto.sdk.PerfettoTrackEventExtra.FieldNested;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Flow;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.NamedTrack;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.PerfettoPointer;
+import dev.perfetto.sdk.PerfettoTrackEventExtra.StateTrack;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Proto;
 
 /** Builder for Perfetto track event extras. */
@@ -82,11 +83,13 @@ public final class PerfettoTrackEventBuilder {
   private static final class ObjectsCache {
     public final RingBuffer<NamedTrack> mNamedTrackCache;
     public final RingBuffer<CounterTrack> mCounterTrackCache;
+    public final RingBuffer<StateTrack> mStateTrackCache;
     public final RingBuffer<Arg> mArgCache;
 
     public ObjectsCache(int capacity) {
       mNamedTrackCache = new RingBuffer<>(capacity);
       mCounterTrackCache = new RingBuffer<>(capacity);
+      mStateTrackCache = new RingBuffer<>(capacity);
       mArgCache = new RingBuffer<>(capacity);
     }
   }
@@ -528,6 +531,52 @@ public final class PerfettoTrackEventBuilder {
     return usingCounterTrackWithDynamicName(PerfettoTrace.getProcessTrackUuid(), name);
   }
 
+  /** Adds the event to a state track instead. Required for setting state values. */
+  public PerfettoTrackEventBuilder usingStateTrack(
+      long parentUuid, @CompileTimeConstant String name) {
+    return usingStateTrack(parentUuid, name, /* isNameStatic = */ true);
+  }
+
+  /** Adds the event to a state track with a dynamic name instead. */
+  public PerfettoTrackEventBuilder usingStateTrackWithDynamicName(
+      long parentUuid, String name) {
+    return usingStateTrack(parentUuid, name, /* isNameStatic = */ false);
+  }
+
+  private PerfettoTrackEventBuilder usingStateTrack(
+      long parentUuid, String name, boolean isNameStatic) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkNotBuildingProto();
+    }
+
+    StateTrack track = mObjectsCache.mStateTrackCache.get(name.hashCode());
+    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+      track = new StateTrack(name, parentUuid, isNameStatic, mNativeMemoryCleaner);
+      mObjectsCache.mStateTrackCache.put(name.hashCode(), track);
+    }
+    addPerfettoPointerToExtra(track);
+    return this;
+  }
+
+  /** Adds the event to a process scoped state track. Required for setting state values. */
+  public PerfettoTrackEventBuilder usingProcessStateTrack(@CompileTimeConstant String name) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    return usingStateTrack(PerfettoTrace.getProcessTrackUuid(), name);
+  }
+
+  /** Adds the event to a process scoped state track with a dynamic name. */
+  public PerfettoTrackEventBuilder usingProcessStateTrackWithDynamicName(String name) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    return usingStateTrackWithDynamicName(PerfettoTrace.getProcessTrackUuid(), name);
+  }
+
   /**
    * Adds the events to a thread scoped counter track instead. This is required for setting counter
    * values.
@@ -629,6 +678,14 @@ public final class PerfettoTrackEventBuilder {
     field.setValueInt64(id, val);
     addFieldToContainer(field);
     return this;
+  }
+
+  /**
+   * Adds a proto boolean field with field id {@code id}, encoded as the varint 1
+   * ({@code true}) or 0 ({@code false}).
+   */
+  public PerfettoTrackEventBuilder addField(long id, boolean val) {
+    return addField(id, val ? 1L : 0L);
   }
 
   /** Adds a proto field with field id {@code id} and value {@code val}. */

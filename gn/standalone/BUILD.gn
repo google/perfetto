@@ -327,18 +327,6 @@ config("default") {
     cflags += [ "-fno-omit-frame-pointer" ]
   } else if (current_cpu == "x64") {
     cflags += [ "-fno-omit-frame-pointer" ]  # For perf profiling.
-    if (enable_perfetto_x64_cpu_opt) {
-      # When updating these flags, the CheckCpuOptimizations() in utils.cc must
-      # be updated accordingly.
-      cflags += [
-        "-mbmi",
-        "-mbmi2",
-        "-mavx2",
-        "-mpopcnt",
-        "-mlzcnt",
-        "-msse4.2",
-      ]
-    }
   }
 
   if (is_wasm) {
@@ -433,6 +421,21 @@ config("default") {
       "-static-libstdc++",
     ]
     lib_dirs = [ android_lib_dir ]
+  }
+}
+
+# x64 CPU optimization flags (SSE4.2, AVX2, BMI2, LZCNT). Separate config so the
+# startup CPU check can opt out of it. Keep in sync with CheckCpuOptimizations().
+config("x64_cpu_opt") {
+  if (current_cpu == "x64" && enable_perfetto_x64_cpu_opt) {
+    cflags = [
+      "-mbmi",
+      "-mbmi2",
+      "-mavx2",
+      "-mpopcnt",
+      "-mlzcnt",
+      "-msse4.2",
+    ]
   }
 }
 

@@ -26,11 +26,7 @@ import {
   addDebugSliceTrack,
   type DebugSliceTrackArgs,
 } from '../../../components/tracks/debug_tracks';
-import {
-  LONG,
-  type QueryResult,
-  type Row,
-} from '../../../trace_processor/query_result';
+import {LONG, type QueryResult} from '../../../trace_processor/query_result';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**
@@ -74,7 +70,9 @@ class BlockingCallMetricHandler implements MetricHandler {
         ctx,
         metricData,
       );
-      addDebugSliceTrack({trace: ctx, ...frameConfigArgs});
+      if (frameConfigArgs !== undefined) {
+        addDebugSliceTrack({trace: ctx, ...frameConfigArgs});
+      }
     }
   }
 
@@ -148,24 +146,22 @@ class BlockingCallMetricHandler implements MetricHandler {
     ctx: Trace,
     metricData: BlockingCallMetricData,
   ): Promise<
-    Pick<DebugSliceTrackArgs, 'data' | 'columns' | 'rawColumns' | 'title'>
+    | Pick<DebugSliceTrackArgs, 'data' | 'columns' | 'rawColumns' | 'title'>
+    | undefined
   > {
-    let row: Row = {
-      frame_id: null,
-    };
-
-    try {
-      row = (
-        await this.getFrameIdWithMaxDurationBlockingCall(ctx, metricData)
-      ).firstRow({frame_id: LONG});
-    } catch (e) {
-      throw new Error(
-        `${e.message} caused by: No frame found for:
-          process: ${metricData.process}
-          CUJ: ${metricData.cujName}
-          blocking call: ${metricData.blockingCallName}`,
+    const result = await this.getFrameIdWithMaxDurationBlockingCall(
+      ctx,
+      metricData,
+    );
+    if (result.numRows() === 0) {
+      console.warn(
+        `No frame found for: process=${metricData.process},` +
+          ` CUJ=${metricData.cujName},` +
+          ` blocking_call=${metricData.blockingCallName}`,
       );
+      return undefined;
     }
+    const row = result.firstRow({frame_id: LONG});
 
     // Fetch the ts and dur for the extended frame boundary corresponding to the above frame_id.
     const frameWithMaxDurBlockingCallQuery = `

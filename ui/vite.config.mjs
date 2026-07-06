@@ -146,91 +146,9 @@ function makeSynthModulePlugin({name, modules}) {
   };
 }
 
-// Synthesises ui/src/virtual/plugins — a single barrel that imports every
-// sub-directory under ui/src/plugins and ui/src/core_plugins and exposes them
-// as two named arrays:
-//
-//   export const plugins:     PerfettoPluginStatic<PerfettoPlugin>[];
-//   export const corePlugins: PerfettoPluginStatic<PerfettoPlugin>[];
-//
-// Types live alongside at ui/src/virtual/plugins.d.ts.
-export function pluginPerfettoPluginBarrels() {
-  const SOURCES = [
-    {exportName: 'plugins', dir: path.join(SRC, 'plugins'), prefix: ''},
-    {
-      exportName: 'corePlugins',
-      dir: path.join(SRC, 'core_plugins'),
-      prefix: 'core_',
-    },
-  ];
-  const PLUGIN_DIRS = SOURCES.map((s) => s.dir);
-  const VIRTUAL_MODULE = path.join(SRC, 'virtual', 'plugins');
-  const toCamelCase = (s) => {
-    const [first, ...rest] = s.split(/[._]/);
-    return (
-      first + rest.map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join('')
-    );
-  };
-  const listEntries = (dir) =>
-    fs
-      .readdirSync(dir)
-      .map((name) => ({name, full: path.join(dir, name)}))
-      .filter(({full}) => {
-        try {
-          return (
-            fs.statSync(full).isDirectory() &&
-            fs.existsSync(path.join(full, 'index.ts'))
-          );
-        } catch (_) {
-          return false;
-        }
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  const generate = (ctx) => {
-    const importLines = [];
-    const exportLines = [];
-    for (const {exportName, dir, prefix} of SOURCES) {
-      const entries = listEntries(dir);
-      for (const {full} of entries) {
-        ctx.addWatchFile(path.join(full, 'index.ts'));
-      }
-      for (const {name, full} of entries) {
-        importLines.push(
-          `import ${toCamelCase(prefix + name)} from '${full}';`,
-        );
-      }
-      const arr = entries
-        .map(({name}) => `  ${toCamelCase(prefix + name)},`)
-        .join('\n');
-      exportLines.push(`export const ${exportName} = [\n${arr}\n];`);
-    }
-    return `${importLines.join('\n')}\n\n${exportLines.join('\n\n')}\n`;
-  };
-  const base = makeSynthModulePlugin({
-    name: 'perfetto:plugin-barrels',
-    modules: {[VIRTUAL_MODULE]: generate},
-  });
-  let server = null;
-  return {
-    ...base,
-    configureServer(s) {
-      server = s;
-      // Watch the parent dirs so adding/removing a plugin dir invalidates
-      // the barrel even before any file inside it changes.
-      for (const dir of PLUGIN_DIRS) s.watcher.add(dir);
-    },
-    handleHotUpdate(ctx) {
-      if (!server) return;
-      for (const dir of PLUGIN_DIRS) {
-        if (!ctx.file.startsWith(dir + path.sep)) continue;
-        const id = '\0perfetto:plugin-barrels:' + VIRTUAL_MODULE;
-        const mod = server.moduleGraph.getModuleById(id);
-        if (mod) server.moduleGraph.invalidateModule(mod);
-        return;
-      }
-    },
-  };
-}
+// The plugin barrels (ui/src/virtual/plugins.ts) are no longer synthesised
+// here: that module now uses Vite's import.meta.glob directly, which discovers
+// plugin dirs and re-evaluates on add/remove without manual file-watching.
 
 // Exposes VERSION and SCM_REVISION via ui/src/virtual/version (typed by
 // version.d.ts). Replaces the on-disk ui/src/gen/perfetto_version.ts that
@@ -348,7 +266,6 @@ export default defineConfig(({command}) => {
     // magic "publicDir" handling so it doesn't try to serve it at /.
     publicDir: false,
     plugins: [
-      pluginPerfettoPluginBarrels(),
       pluginPerfettoVersion(),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.

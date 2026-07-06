@@ -61,6 +61,11 @@ base::StatusOr<std::string> SessionSocketPath(const std::string& name);
 // Returns an error if |path| does not fit within the AF_UNIX sun_path limit.
 base::Status ValidateAfUnixPathLength(const std::string& path);
 
+// Resolves |path| against the cwd if relative; returns it unchanged if already
+// absolute (or empty, or cwd is unavailable). Daemonizing chdirs to "/", so the
+// socket/pid paths must be absolute to survive the fork.
+std::string MakeAbsolutePath(const std::string& path);
+
 // Parses a human duration into milliseconds. Accepts a bare integer (seconds),
 // or a value suffixed with 's' (seconds), 'm' (minutes) or 'h' (hours). "0",
 // "never" and "off" all parse to 0 (meaning "no timeout").

@@ -1,7 +1,9 @@
 # Visualising large traces
 
 Browsers often limit the amount of memory a site can use.
-This can cause problems when visualising large traces.
+This can cause problems when visualising large traces, including
+[merged multi-trace sessions](/docs/visualization/merging-traces.md), which
+are often large by construction.
 
 ## Using TraceProcessor as a native accelerator
 

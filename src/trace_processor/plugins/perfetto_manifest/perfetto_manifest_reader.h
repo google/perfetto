@@ -49,6 +49,10 @@ class PerfettoManifestReader : public ChunkedTraceReader {
   void OnEventsFullyExtracted() override {}
 
  private:
+  // Applies the parsed manifest (machine rows, trace-time clock, clock-override
+  // edges) to the clock graph. Called by OnPushDataToSorter after parsing.
+  base::Status ApplyManifest();
+
   TraceProcessorContext* const context_;
   const uint32_t file_id_;
   std::string buffer_;

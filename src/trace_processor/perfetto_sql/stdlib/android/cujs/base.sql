@@ -258,6 +258,70 @@ WHERE
   AND (vsync >= begin_vsync OR begin_vsync IS NULL)
   AND (vsync <= end_vsync OR end_vsync IS NULL);
 
+-- Resolves the layer name for each CUJ.
+-- The layer can be identified in two ways:
+-- 1. Explicit Marker: The Android framework may log a 'layerId#<id>' instant event. If
+--    present, this is extracted into `cuj_layer_id` inside `_cuj_instant_events`.
+--    We then filter `_all_frames_in_cuj` to exactly that layer.
+-- 2. Fallback Inference: On older versions and when the proper way to report CUJs
+--    is not used (e.g. on some apps that copy the same convention to report CUJs),
+--    we try to infer the layer name. We check if the app rendered exactly one layer
+--    per frame during the CUJ (`HAVING MAX(layers_per_frame) = 1`). If so, we safely
+--    use that layer's name (extracted via `MAX(layer_name)`). If multiple layers
+--    were rendered simultaneously, we can't safely guess, and return NULL.
+CREATE PERFETTO TABLE android_jank_cuj_layer_name(
+  -- CUJ id.
+  cuj_id LONG,
+  -- Layer name of the CUJ.
+  layer_name STRING
+)
+AS
+WITH
+  -- 1. Explicit Marker
+  -- If the CUJ logged a 'layerId#<id>' marker, _all_frames_in_cuj contains
+  -- the extracted cuj_layer_id. We simply filter frames by that layer ID.
+  explicit_layer_name AS (
+    SELECT cuj_id, MAX(layer_name) AS layer_name
+    FROM _all_frames_in_cuj
+    WHERE
+      cuj_layer_id IS NOT NULL
+      AND layer_id = cuj_layer_id
+    GROUP BY
+      cuj_id
+  ),
+  -- 2. Fallback Inference
+  -- If the marker is missing (cuj_layer_id IS NULL), we look at all layers
+  -- rendered during the CUJ timeframe.
+  fallback_frames AS (
+    SELECT cuj_id, frame_id, layer_name
+    FROM _all_frames_in_cuj
+    WHERE
+      cuj_layer_id IS NULL
+    GROUP BY
+      cuj_id,
+      frame_id,
+      layer_name
+  ),
+  fallback_layer_counts AS (
+    SELECT
+      cuj_id,
+      layer_name,
+      COUNT(1) OVER (PARTITION BY cuj_id, frame_id) AS layers_per_frame
+    FROM fallback_frames
+  ),
+  fallback_layer_name AS (
+    SELECT cuj_id, MAX(layer_name) AS layer_name
+    FROM fallback_layer_counts
+    GROUP BY
+      cuj_id
+    -- Only use the fallback if every single frame in the CUJ rendered exactly 1 layer.
+    HAVING
+      MAX(layers_per_frame) = 1
+  )
+SELECT cuj_id, layer_name FROM explicit_layer_name
+UNION ALL
+SELECT cuj_id, layer_name FROM fallback_layer_name;
+
 -- Table tracking all jank CUJs information.
 CREATE PERFETTO TABLE android_jank_cuj(
   -- Unique incremental ID for each CUJ.

@@ -386,7 +386,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
 
         const hasMatch = tableWithModule.table.columns.some(
           (col) =>
-            col.description &&
+            col.description !== undefined &&
             col.description.toLowerCase().includes(lowerQuery),
         );
 

@@ -25,9 +25,12 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/cpu_info_features_allowlist.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -170,6 +173,8 @@ struct CpuInfo {
   std::optional<uint32_t> capacity;
   std::vector<uint32_t> frequencies;
   protozero::ConstChars processor;
+  // Bitmap of CPU features, indexed by base::kCpuInfoFeatures.
+  uint64_t features = 0;
   // Extend the variant to support additional identifiers
   std::variant<std::nullopt_t, ArmCpuIdentifier> identifier = std::nullopt;
 };
@@ -247,6 +252,16 @@ const char* GetSmapsKey(uint32_t field_id) {
   }
 }
 
+base::StringView MaybeTruncateKworkerName(base::StringView comm) {
+  if (comm.StartsWith("kworker/")) {
+    size_t delim_loc = std::min(comm.find('+', 8), comm.find('-', 8));
+    if (delim_loc != base::StringView::npos) {
+      return comm.substr(0, delim_loc);
+    }
+  }
+  return comm;
+}
+
 }  // namespace
 
 SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
@@ -260,10 +275,17 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       arm_cpu_variant(context->storage->InternString("arm_cpu_variant")),
       arm_cpu_part(context->storage->InternString("arm_cpu_part")),
       arm_cpu_revision(context->storage->InternString("arm_cpu_revision")),
+      cpu_features_raw_id_(
+          context->storage->InternString("cpu_features.raw_bitmap")),
       pages_per_slab_id_(context->storage->InternString("pages_per_slab")),
       num_slabs_id_(context->storage->InternString("num_slabs")),
       meminfo_strs_(BuildMeminfoCounterNames()),
-      vmstat_strs_(BuildVmstatCounterNames()) {}
+      vmstat_strs_(BuildVmstatCounterNames()) {
+  for (size_t i = 0; i < base::ArraySize(base::kCpuInfoFeatures); ++i) {
+    base::StackString<1024> key("cpu_features.%s", base::kCpuInfoFeatures[i]);
+    cpu_features_ids_[i] = context->storage->InternString(key.string_view());
+  }
+}
 
 void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::DiskStat::Decoder ds(blob);
@@ -659,6 +681,7 @@ void SystemProbesParser::ParseSlabInfo(int64_t ts, ConstBytes blob) {
 void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
   protos::pbzero::ProcessTree::Decoder ps(blob);
 
+  base::FlatSet<uint32_t> kthread_pids;
   for (auto it = ps.processes(); it; ++it) {
     protos::pbzero::ProcessTree::Process::Decoder proc(*it);
     if (!proc.has_cmdline())
@@ -695,10 +718,11 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
     //
     // https://github.com/torvalds/linux/blob/6d280f4d760e3bcb4a8df302afebf085b65ec982/kernel/workqueue.c#L5336
     uint32_t kThreaddPid = 2;
-    if (ppid == kThreaddPid && argv0.StartsWith("kworker/")) {
-      size_t delim_loc = std::min(argv0.find('+', 8), argv0.find('-', 8));
-      if (delim_loc != base::StringView::npos) {
-        argv0 = argv0.substr(0, delim_loc);
+    if (ppid == kThreaddPid) {
+      kthread_pids.insert(pid);
+      base::StringView truncated = MaybeTruncateKworkerName(argv0);
+      if (truncated.size() != argv0.size()) {
+        argv0 = truncated;
         joined_cmdline = argv0;
       }
     }
@@ -771,6 +795,10 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
     }
   }
 
+  // perfetto v58+: the procfs scraper now writes an explicit Thread message for
+  // a process' main thread. All versions of perfetto before that make the main
+  // thread implicit (described only by the process message). The importer
+  // should stay compatible with both new and old traces.
   for (auto it = ps.threads(); it; ++it) {
     protos::pbzero::ProcessTree::Thread::Decoder thd(*it);
     auto tid = static_cast<uint32_t>(thd.tid());
@@ -778,7 +806,11 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
     context_->process_tracker->UpdateThread(tid, tgid);
 
     if (thd.has_name()) {
-      StringId thread_name_id = context_->storage->InternString(thd.name());
+      base::StringView thread_name = thd.name();
+      // Remove transient suffix from kworker names (as above).
+      if (tid == tgid && kthread_pids.count(tid))
+        thread_name = MaybeTruncateKworkerName(thread_name);
+      StringId thread_name_id = context_->storage->InternString(thread_name);
       auto utid = context_->process_tracker->GetOrCreateThread(tid);
       context_->process_tracker->UpdateThreadName(
           utid, thread_name_id, ThreadNamePriority::kProcessTree);
@@ -1112,6 +1144,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     if (cpu.has_capacity()) {
       current_cpu_info.capacity = cpu.capacity();
     }
+    current_cpu_info.features = cpu.features();
 
     if (cpu.has_arm_identifier()) {
       protos::pbzero::CpuInfo::ArmCpuIdentifier::Decoder identifier(
@@ -1195,9 +1228,10 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
     }
 
+    ArgsTracker args_tracker(context_);
+    auto inserter = args_tracker.AddArgsTo(ucpu);
     if (auto* id = std::get_if<ArmCpuIdentifier>(&cpu_info.identifier)) {
-      ArgsTracker args_tracker(context_);
-      args_tracker.AddArgsTo(ucpu)
+      inserter
           .AddArg(arm_cpu_implementer,
                   Variadic::UnsignedInteger(id->implementer))
           .AddArg(arm_cpu_architecture,
@@ -1205,6 +1239,22 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
           .AddArg(arm_cpu_variant, Variadic::UnsignedInteger(id->variant))
           .AddArg(arm_cpu_part, Variadic::UnsignedInteger(id->part))
           .AddArg(arm_cpu_revision, Variadic::UnsignedInteger(id->revision));
+    }
+
+    for (size_t i = 0; i < base::ArraySize(base::kCpuInfoFeatures); ++i) {
+      if (cpu_info.features & (1ull << i)) {
+        inserter.AddArg(cpu_features_ids_[i], Variadic::Boolean(true));
+      }
+    }
+    if (cpu_info.features != 0) {
+      inserter.AddArg(cpu_features_raw_id_,
+                      Variadic::UnsignedInteger(cpu_info.features));
+    }
+    // Bits beyond the allowlist come from a recorder newer than this
+    // version of trace_processor; they stay queryable via the raw bitmap.
+    if ((cpu_info.features >> base::ArraySize(base::kCpuInfoFeatures)) != 0) {
+      context_->stats_tracker->IncrementStats(
+          stats::cpu_info_unknown_cpu_features);
     }
   }
 }

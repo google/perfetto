@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {removeFalsyValues} from '../../base/array_utils';
 import {AsyncLimiter} from '../../base/async_limiter';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Time} from '../../base/time';
 import {
   createAggregationTab,
@@ -33,7 +33,7 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {getTrackName} from '../../public/utils';
+import {getMachineCount, getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {
@@ -116,6 +116,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   }
 
   private async addCounters(ctx: Trace) {
+    const numMachines = await getMachineCount(ctx.engine);
     const result = await ctx.engine.query(`
       include perfetto module viz.threads;
 
@@ -126,12 +127,14 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ct.id,
           ct.unit,
           ct.machine_id as machine,
+          machine.label_index as machineLabelIndex,
           extract_arg(ct.dimension_arg_set_id, 'utid') as utid,
           extract_arg(ct.dimension_arg_set_id, 'upid') as upid,
           extract_arg(ct.dimension_arg_set_id, 'gpu') as gpu_id,
           extract_arg(ct.source_arg_set_id, 'description') as description
         from counter_track ct
         join _counter_track_summary using (id)
+        left join machine on machine.id = ct.machine_id
         order by ct.name
       )
       select
@@ -166,6 +169,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       isMainThread: NUM,
       isKernelThread: NUM,
       machine: NUM,
+      machineLabelIndex: NUM_NULL,
       description: STR_NULL,
     });
     for (; it.valid(); it.next()) {
@@ -182,7 +186,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         pid,
         isMainThread,
         isKernelThread,
-        machine,
+        machineLabelIndex,
         description,
       } = it;
       const schema = schemas.get(type);
@@ -200,7 +204,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         utid,
         kind: COUNTER_TRACK_KIND,
         threadTrack: utid !== undefined,
-        machine,
+        machineLabelIndex,
+        numMachines,
       });
       const uri = `/counter_${trackId}`;
 
@@ -469,19 +474,19 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   ) {
     switch (topLevelGroup) {
       case 'PROCESS': {
-        const process = assertExists(
+        const process = ensureExists(
           ctx.plugins
             .getPlugin(ProcessThreadGroupsPlugin)
-            .getGroupForProcess(assertExists(upid)),
+            .getGroupForProcess(ensureExists(upid)),
         );
         this.getGroupByName(process, group, upid).addChildInOrder(track);
         break;
       }
       case 'THREAD': {
-        const thread = assertExists(
+        const thread = ensureExists(
           ctx.plugins
             .getPlugin(ProcessThreadGroupsPlugin)
-            .getGroupForThread(assertExists(utid)),
+            .getGroupForThread(ensureExists(utid)),
         );
         this.getGroupByName(thread, group, utid).addChildInOrder(track);
         break;
@@ -581,7 +586,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         if (computed === undefined && !isLoading) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading,
           content:
@@ -706,6 +711,11 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       optionalActions: [
         {
           name: 'Find matching slices',
+          icon: 'search',
+          category: 'DRILL',
+          description:
+            'Open the duration distribution of all slices with this name in ' +
+            'the selection.',
           execute: ({node}) => {
             if (node === undefined) return;
             openDistributionTab(trace, {
@@ -723,7 +733,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Slice Name',
     });
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
@@ -802,8 +812,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         // Only process upids that have valid track groups
         const rows: MinimapRow[] = [];
         const sortedUpids = Array.from(upidOrderMap.keys()).sort((a, b) => {
-          const orderA = assertExists(upidOrderMap.get(a));
-          const orderB = assertExists(upidOrderMap.get(b));
+          const orderA = ensureExists(upidOrderMap.get(a));
+          const orderB = ensureExists(upidOrderMap.get(b));
           return orderA - orderB;
         });
 

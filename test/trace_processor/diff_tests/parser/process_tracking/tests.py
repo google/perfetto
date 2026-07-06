@@ -242,19 +242,19 @@ class ProcessTracking(TestSuite):
         """,
         out=Csv("""
         "tid","pid","pname","tname","tmachine","pmachine"
-        10,10,"process1","p1-t0",1,1
-        11,"[NULL]","[NULL]","p1-t1",1,"[NULL]"
-        12,10,"process1","p1-t2",1,1
-        20,20,"process_2","p2-t0",1,1
-        21,20,"process_2","p2-t1",1,1
-        22,20,"process_2","p2-t2",1,1
-        30,30,"process_3","p3-t0",1,1
-        31,30,"process_3","p3-t1",1,1
-        31,40,"process_4","p4-t1",1,1
-        32,30,"process_3","p3-t2",1,1
-        33,30,"process_3","p3-t3",1,1
-        34,30,"process_3","p3-t4",1,1
-        40,40,"process_4","p4-t0",1,1
+        10,10,"process1","p1-t0",0,0
+        11,"[NULL]","[NULL]","p1-t1",0,"[NULL]"
+        12,10,"process1","p1-t2",0,0
+        20,20,"process_2","p2-t0",0,0
+        21,20,"process_2","p2-t1",0,0
+        22,20,"process_2","p2-t2",0,0
+        30,30,"process_3","p3-t0",0,0
+        31,30,"process_3","p3-t1",0,0
+        31,40,"process_4","p4-t1",0,0
+        32,30,"process_3","p3-t2",0,0
+        33,30,"process_3","p3-t3",0,0
+        34,30,"process_3","p3-t4",0,0
+        40,40,"process_4","p4-t0",0,0
         """))
 
   def test_process_stats_process_runtime(self):
@@ -539,6 +539,84 @@ class ProcessTracking(TestSuite):
         out=Csv("""
         "tid","pid","thread_name","process_name"
         27,27,"ksoftirqd/1","ksoftirqd/1"
+        28,28,"kworker/1:0","kworker/1:0"
+        """))
+
+  # perfetto v58+: main threads are now explicitly serialised, so we know
+  # the main thread's comm.
+  def test_main_thread_comm_from_process_tree(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          first_packet_on_sequence: true
+          timestamp: 1
+          incremental_state_cleared: true
+          process_tree {
+            processes {
+              pid: 100
+              ppid: 1
+              cmdline: "/usr/bin/app"
+              cmdline: "--flag"
+              uid: 0
+            }
+            threads {
+              tid: 100
+              tgid: 100
+              name: "AppMainThread"
+            }
+            collection_end_timestamp: 2
+          }
+          trusted_uid: 304336
+          trusted_packet_sequence_id: 3
+          trusted_pid: 1137063
+          previous_packet_dropped: 1
+        }
+        """),
+        query="""
+        select tid, pid, t.name as thread_name, p.name as process_name
+        from thread t join process p using (upid)
+        where pid = 100;
+        """,
+        out=Csv("""
+        "tid","pid","thread_name","process_name"
+        100,100,"AppMainThread","/usr/bin/app"
+        """))
+
+  def test_kworker_main_thread_name_redacted(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          first_packet_on_sequence: true
+          timestamp: 1
+          incremental_state_cleared: true
+          process_tree {
+            processes {
+              pid: 28
+              ppid: 2
+              cmdline: "kworker/1:0-sock_diag_events"
+              uid: 0
+              cmdline_is_comm: true
+            }
+            threads {
+              tid: 28
+              tgid: 28
+              name: "kworker/1:0-sock_diag_events"
+            }
+            collection_end_timestamp: 2
+          }
+          trusted_uid: 304336
+          trusted_packet_sequence_id: 3
+          trusted_pid: 1137063
+          previous_packet_dropped: 1
+        }
+        """),
+        query="""
+        select tid, pid, t.name as thread_name, p.name as process_name
+        from thread t join process p using (upid)
+        where pid = 28;
+        """,
+        out=Csv("""
+        "tid","pid","thread_name","process_name"
         28,28,"kworker/1:0","kworker/1:0"
         """))
 

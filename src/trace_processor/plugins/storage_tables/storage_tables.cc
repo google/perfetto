@@ -184,6 +184,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_heap_graph_reference_table());
     AddDataframe(out, s->mutable_heap_graph_class_table());
     AddDataframe(out, s->mutable_heap_profile_allocation_table());
+    AddDataframe(out, s->mutable_heap_profile_table());
     AddDataframe(out, s->mutable_perf_sample_table());
     AddDataframe(out, s->mutable_heap_graph_table());
     AddDataframe(out, s->mutable_heap_graph_thread_callsite_table());
@@ -223,6 +224,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
            s.profiler_smaps_table().mutations() +
            s.thread_state_table().mutations() + s.log_table().mutations() +
            s.heap_graph_object_table().mutations() +
+           s.heap_graph_table().mutations() +
            s.perf_sample_table().mutations() +
            s.instruments_sample_table().mutations() +
            s.state_table().mutations() +
@@ -268,6 +270,10 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     for (auto it = s.heap_graph_object_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.graph_sample_ts(), start_ns);
       end_ns = std::max(it.graph_sample_ts(), end_ns);
+    }
+    for (auto it = s.heap_graph_table().IterateRows(); it; ++it) {
+      start_ns = std::min(it.ts(), start_ns);
+      end_ns = std::max(it.ts(), end_ns);
     }
     for (auto it = s.perf_sample_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);

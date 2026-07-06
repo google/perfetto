@@ -573,23 +573,9 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   }
 
   if (event.type() == protos::pbzero::TrackEvent::TYPE_STATE) {
-    // Consider track_uuid from the packet and TrackEventDefaults.
-    uint64_t track_uuid;
-    if (event.has_track_uuid()) {
-      track_uuid = event.track_uuid();
-    } else if (defaults && defaults->has_track_uuid()) {
-      track_uuid = defaults->track_uuid();
-    } else {
+    if (!event.has_track_uuid() && (!defaults || !defaults->has_track_uuid())) {
       RecordTokenizationError(stats::track_event_state_missing_track_uuid,
                               &data.trace_packet_data.packet);
-      return ModuleResult::Handled();
-    }
-
-    auto resolved = track_event_tracker_->ResolveDescriptorTrack(track_uuid);
-    if (!resolved || !resolved->is_state()) {
-      RecordTokenizationErrorWithTrackUuid(
-          stats::track_event_state_invalid_track_uuid, track_uuid,
-          &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
   }
@@ -677,11 +663,10 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
   const auto& thread = state.thread_descriptor();
   for (auto it = event.debug_annotations(); it; ++it) {
     protos::pbzero::DebugAnnotation::Decoder da(*it);
-    auto* interned_name = state.LookupInternedMessage<
+    std::optional<base::StringView> name = state.InternedStringView(
         protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber,
-        protos::pbzero::DebugAnnotationName>(da.name_iid());
-    base::StringView name(interned_name->name());
-    if (name != "data" || !da.has_legacy_json_value()) {
+        da.name_iid());
+    if (!name || *name != "data" || !da.has_legacy_json_value()) {
       continue;
     }
     auto json = da.legacy_json_value();

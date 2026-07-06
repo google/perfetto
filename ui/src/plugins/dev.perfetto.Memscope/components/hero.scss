@@ -12,11 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Barrel module synthesised at build time by pluginPerfettoSynthModules in
-// ui/vite.config.mjs. It imports every plugin sub-directory's index.ts and
-// re-exports them as an array. Don't add a real index.ts here.
+// Hero connect / idle state.
+.pf-memscope-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 24px;
+  border-radius: 8px;
+  border: 0.5px dashed var(--pf-col-border);
+  text-align: center;
+  // Subtle inset shadow for depth
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
 
-import type {PerfettoPluginStatic, PerfettoPlugin} from '../public/plugin';
+.pf-memscope-hero__icon {
+  font-size: 48px;
+  color: var(--pf-color-text-muted);
+  opacity: 0.5;
+}
 
-export const plugins: PerfettoPluginStatic<PerfettoPlugin>[];
-export const corePlugins: PerfettoPluginStatic<PerfettoPlugin>[];
+.pf-memscope-hero__text {
+  font-size: var(--pf-font-size-m);
+  color: var(--pf-color-text-muted);
+  max-width: 420px;
+  line-height: 1.5;
+}

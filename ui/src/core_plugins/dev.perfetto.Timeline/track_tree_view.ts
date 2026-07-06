@@ -36,7 +36,7 @@ import {
 } from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {
@@ -91,6 +91,14 @@ const WEBGL_RENDERING = featureFlags.register({
   description: `Use WebGL for rendering track rectangles. Falls back to
     Canvas 2D when disabled or unavailable.`,
   defaultValue: true,
+});
+
+export const SHOW_HEADLESS_TRACKS = featureFlags.register({
+  id: 'showHeadlessTracks',
+  name: 'Show headless tracks',
+  description:
+    'Show tracks marked as headless, which are normally hidden and used purely for organization. Debugging only.',
+  defaultValue: false,
 });
 
 // Snap-to-boundaries feature constants
@@ -187,6 +195,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       trackFilter,
       filtersApplied,
     } = attrs;
+    const showHeadlessTracks = SHOW_HEADLESS_TRACKS.get();
     const renderedTracks = new Array<TrackView>();
     let top = 0;
 
@@ -210,7 +219,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       // Skip nodes that don't match the filter and have no matching children.
       if (!filterMatches(node)) return {vnodes: false, isVisible: false};
 
-      if (node.headless) {
+      if (node.headless && !showHeadlessTracks) {
         // Headless nodes are invisible, just render children.
         const childNodes: m.Children = [];
         let atLeastOneChildVisible = false;
@@ -224,7 +233,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         return {vnodes: childNodes, isVisible: atLeastOneChildVisible};
       }
 
-      const trackView = new TrackView(trace, node, top);
+      const trackView = new TrackView(trace, node, top, showHeadlessTracks);
       renderedTracks.push(trackView);
 
       // Advance the global top position.
@@ -595,7 +604,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const areaSelection =
       trace.selection.selection.kind === 'area' && trace.selection.selection;
 
-    assertExists(this.interactions).update([
+    ensureExists(this.interactions).update([
       shiftDragPanInteraction(trace, timelineRect, timescale),
       areaSelection !== false && {
         id: 'start-edit',

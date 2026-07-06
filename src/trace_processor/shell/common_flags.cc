@@ -243,8 +243,10 @@ base::Status ParseFlags(Subcommand* cmd,
   }
   build_handler_map(&global_flags, global_start);
 
-  // Reset getopt state.
-  optind = 1;
+  // Reset getopt state. Use 0 (not 1) to force a full re-initialization: glibc
+  // only resets its internal scan state when optind is 0, so 1 would leak state
+  // between successive ParseFlags() calls in the same process (e.g. in tests).
+  optind = 0;
 
   for (;;) {
     int opt =
