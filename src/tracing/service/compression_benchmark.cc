@@ -25,7 +25,6 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "perfetto/tracing/core/trace_config.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -144,9 +143,7 @@ struct Zlib {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 struct Zstd {
   static void Compress(std::vector<TracePacket>* packets, int level) {
-    TraceConfig::CompressionConfig::Zstd zstd;
-    zstd.set_level(level);
-    ZstdCompressFn(packets, zstd);
+    ZstdCompressFn(packets, level);
   }
 };
 #endif
