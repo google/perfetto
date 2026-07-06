@@ -15,6 +15,8 @@
  */
 
 #include "perfetto/ext/base/utils.h"
+#include <cstdint>
+#include <limits>
 
 #include "perfetto/base/build_config.h"
 
@@ -192,6 +194,19 @@ TEST(UtilsTest, EintrWrapper) {
   sigaction(SIGUSR2, &old_sa, nullptr);
 }
 #endif  // LINUX | ANDROID | APPLE
+
+TEST(UtilsTest, IsPowerOfTwo) {
+  EXPECT_FALSE(IsPowerOfTwo(0u));
+  EXPECT_TRUE(IsPowerOfTwo(1u));
+  EXPECT_TRUE(IsPowerOfTwo(2u));
+  EXPECT_FALSE(IsPowerOfTwo(3u));
+  EXPECT_TRUE(IsPowerOfTwo(4u));
+
+  constexpr uint64_t max_pow2 = static_cast<uint64_t>(1) << 63;
+  EXPECT_FALSE(IsPowerOfTwo(max_pow2 - 1));
+  EXPECT_TRUE(IsPowerOfTwo(max_pow2));
+  EXPECT_FALSE(IsPowerOfTwo(max_pow2 + 1));
+}
 
 TEST(UtilsTest, AlignUp) {
   EXPECT_EQ(0u, AlignUp<4>(0));

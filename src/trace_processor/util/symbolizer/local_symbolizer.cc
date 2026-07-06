@@ -273,13 +273,6 @@ std::optional<BinaryInfo> GetMachOBinaryInfo(char* mem, size_t size) {
   return {};
 }
 
-template <typename T>
-bool IsPowerOfTwo(T x) {
-  static_assert(std::is_unsigned_v<T> && std::is_integral_v<T>,
-                "T must be an unsigned integer");
-  return x != 0 && (x & (x - 1)) == 0;
-}
-
 template <typename E>
 std::optional<BinaryInfo> ElfToBinaryInfo(char* mem, size_t size) {
   std::optional<std::string> build_id = GetElfBuildId<E>(mem, size);
@@ -294,7 +287,7 @@ std::optional<BinaryInfo> ElfToBinaryInfo(char* mem, size_t size) {
   }
 
   // p_align can only be 0, 1 (no alignment requirement) or a power of two.
-  if (phdr->p_align != 0 && !IsPowerOfTwo(phdr->p_align)) {
+  if (phdr->p_align != 0 && !base::IsPowerOfTwo(phdr->p_align)) {
     PERFETTO_DLOG("Invalid p_aling value: %" PRIu64,
                   static_cast<uint64_t>(phdr->p_align));
     return std::nullopt;

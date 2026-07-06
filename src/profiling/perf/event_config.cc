@@ -128,18 +128,14 @@ TargetFilter ParseTargetFilter(
   return filter;
 }
 
-constexpr bool IsPowerOfTwo(size_t v) {
-  return (v != 0 && ((v & (v - 1)) == 0));
-}
-
 // returns |std::nullopt| if the input is invalid.
 std::optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
   if (!config_value) {
-    static_assert(IsPowerOfTwo(kDefaultDataPagesPerRingBuffer));
+    static_assert(base::IsPowerOfTwo(kDefaultDataPagesPerRingBuffer));
     return std::make_optional(kDefaultDataPagesPerRingBuffer);
   }
 
-  if (!IsPowerOfTwo(config_value)) {
+  if (!base::IsPowerOfTwo(config_value)) {
     PERFETTO_ELOG("kernel buffer size must be a power of two pages");
     return std::nullopt;
   }
