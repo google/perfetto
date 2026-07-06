@@ -13,7 +13,9 @@
 # limitations under the License.
 
 # One manual step that finalizes a release. It:
-#   1. Attaches the LUCI-built binaries + SDK source zips to the draft release.
+#   1. Attaches the LUCI-built binaries + SDK source zips, plus a self-hostable
+#      UI zip (the exact ui.perfetto.dev build for this tag), to the draft
+#      release.
 #   2. Rolls the prebuilt manifests to this version (tools/release/roll-prebuilts)
 #      and opens a PR to main. roll-prebuilts also stamps the agent-skills
 #      version, so the prebuilts and the bundle move together.
@@ -113,6 +115,12 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           tools/release/package-github-release-artifacts --yes "$VERSION"
+
+      - name: Package UI artifact
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          tools/release/package-ui-github-release-artifact "$VERSION"
 
       - name: Upload assets to draft release
         env:
