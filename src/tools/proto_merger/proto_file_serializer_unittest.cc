@@ -218,6 +218,88 @@ TEST(ProtoFileSerializerTest, MergeDoesNotDuplicateDeletedComment) {
       << out;
 }
 
+TEST(ProtoFileSerializerTest, TypeTransitionDisallowedFails) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("bool", "flag", 1));
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("string", "flag", 1));
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.c_message(), HasSubstr("changed from bool to string"));
+}
+
+TEST(ProtoFileSerializerTest, TypeTransitionAllowedSucceeds) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("bool", "flag", 1));
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("uint32", "flag", 1));
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("uint32 flag = 1;"));
+  EXPECT_THAT(out, Not(HasSubstr("bool flag")));
+}
+
+TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("bool", "state", 1));
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("Container.MyEnum", "state", 1));
+
+    ProtoFile::Enum en{};
+    en.name = "MyEnum";
+    en.values.push_back(MakeEnumValue("UNKNOWN", 0));
+    en.values.push_back(MakeEnumValue("ACTIVE", 1));
+    message.enums.push_back(en);
+
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("Container.MyEnum state = 1;"));
+  EXPECT_THAT(out, Not(HasSubstr("bool state")));
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto
