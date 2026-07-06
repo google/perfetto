@@ -18,6 +18,7 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import LlmPlugin from '../dev.perfetto.Llm';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
+import DataExplorerPlugin from '../dev.perfetto.DataExplorer';
 import type {
   ContextProviderRegistration,
   IntellettoToolRegistrar,
@@ -25,6 +26,7 @@ import type {
 } from './api';
 import {ChatPanel} from './chat_panel';
 import {ChatSession} from './chat_session';
+import {registerDataExplorerTools} from './data_explorer_tools';
 import {ContextRegistry, registerCoreContextProviders} from './context';
 import {registerCoreTools} from './core_tools';
 import {ToolRegistry} from './tools';
@@ -45,7 +47,11 @@ export default class IntellettoPlugin
     'it queries the trace and drives the UI. Requires the dev.perfetto.Llm ' +
     'gateway and an LLM protocol plugin. Other plugins can register their own ' +
     'tools via getPlugin(IntellettoPlugin).registerTool().';
-  static readonly dependencies = [LlmPlugin, QueryPagePlugin];
+  static readonly dependencies = [
+    LlmPlugin,
+    QueryPagePlugin,
+    DataExplorerPlugin,
+  ];
 
   // The shared tool registry for this trace. Core tools plus any contributed by
   // other plugins land here; the chat panel hands it to the agent.
@@ -113,6 +119,9 @@ export default class IntellettoPlugin
       callback: () => trace.sidePanel.showTab(SIDE_PANEL_URI),
       defaultHotkey: 'Mod+Shift+A',
     });
+
+    // Pull in the Data Explorer graph tools and selected-node context.
+    registerDataExplorerTools(this.tools, this.context, trace);
   }
 }
 
