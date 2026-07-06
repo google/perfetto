@@ -5060,6 +5060,7 @@ perfetto_cpp_blob_header(
         "src/trace_processor/plugins/wattson/data/Tensor/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G4/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G5/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/UMS9360/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/monaco/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/neo/cpu_1d.csv",
     ],
@@ -5086,6 +5087,7 @@ perfetto_cpp_blob_header(
         "src/trace_processor/plugins/wattson/data/Tensor/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G4/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G5/cpu_2d.csv",
+        "src/trace_processor/plugins/wattson/data/UMS9360/cpu_2d.csv",
     ],
     outs = [
         "src/trace_processor/plugins/wattson/cpu_2d_curves.h",

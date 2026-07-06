@@ -19885,6 +19885,7 @@ genrule {
         "src/trace_processor/plugins/wattson/data/Tensor/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G4/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G5/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/UMS9360/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/monaco/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/neo/cpu_1d.csv",
     ],
@@ -19908,6 +19909,7 @@ genrule {
         "src/trace_processor/plugins/wattson/data/Tensor/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G4/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G5/cpu_2d.csv",
+        "src/trace_processor/plugins/wattson/data/UMS9360/cpu_2d.csv",
     ],
     cmd: "$(location src/trace_processor/plugins/wattson/gen_wattson_curves.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::wattson --curve-type cpu_2d $(in)",
     out: [
