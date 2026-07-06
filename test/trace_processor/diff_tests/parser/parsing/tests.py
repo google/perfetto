@@ -894,6 +894,41 @@ class Parsing(TestSuite):
         7,1,"AArch64 Processor rev 13 (aarch64)"
         """))
 
+  def test_cpu_features(self):
+    return DiffTestBlueprint(
+        trace=Path('cpu_info.textproto'),
+        query="""
+        SELECT
+          cpu,
+          EXTRACT_ARG(arg_set_id, 'cpu_features.mte') AS mte,
+          EXTRACT_ARG(arg_set_id, 'cpu_features.mte3') AS mte3,
+          EXTRACT_ARG(arg_set_id, 'cpu_features.raw_bitmap') AS raw_bitmap,
+          EXTRACT_ARG(arg_set_id, 'arm_cpu_part') AS arm_cpu_part
+        FROM cpu;
+        """,
+        out=Csv("""
+        "cpu","mte","mte3","raw_bitmap","arm_cpu_part"
+        0,"[NULL]","[NULL]","[NULL]","[NULL]"
+        1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        2,"[NULL]","[NULL]","[NULL]","[NULL]"
+        3,"[NULL]","[NULL]","[NULL]","[NULL]"
+        4,"[NULL]","[NULL]","[NULL]","[NULL]"
+        5,1,"[NULL]",1,"[NULL]"
+        6,1,1,3,"[NULL]"
+        7,1,1,4611686018427387907,3336
+        """))
+
+  def test_cpu_features_unknown_stat(self):
+    return DiffTestBlueprint(
+        trace=Path('cpu_info.textproto'),
+        query="""
+        SELECT value FROM stats WHERE name = 'cpu_info_unknown_cpu_features';
+        """,
+        out=Csv("""
+        "value"
+        1
+        """))
+
   def test_cpu_freq(self):
     return DiffTestBlueprint(
         trace=Path('cpu_info.textproto'),

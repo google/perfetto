@@ -167,6 +167,10 @@ namespace perfetto::trace_processor::stats {
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Interning ID not found. Should never happen."),                        \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(cpu_info_unknown_cpu_features,        kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+       "CpuInfo contained CPU feature bits not known to this version of "      \
+       "trace_processor. The full bitmap is still preserved in the cpu "       \
+       "table args as cpu_features.raw_bitmap."),                              \
   F(missing_disk_io_event_name,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "ETW Disk IO tracker encountered an event with an opcode for which it " \
         "didn't have a name."),                                                \
