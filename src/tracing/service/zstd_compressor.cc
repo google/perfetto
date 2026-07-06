@@ -25,7 +25,7 @@
 #include <zstd.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/tracing/core/trace_config.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/tracing/service/packet_compressor_common.h"
@@ -39,6 +39,18 @@ using packet_compressor::kCompressSliceSize;
 using packet_compressor::Preamble;
 using packet_compressor::PreambleToSlice;
 
+// ScopedResource's close function must return int; ZSTD_freeCStream returns
+// size_t, so wrap it. It only fails for a static-allocated stream, not the
+// heap one ZSTD_createCStream gives us, so returning 0 is safe.
+inline int ZstdFreeCStream(ZSTD_CStream* cstream) {
+  ZSTD_freeCStream(cstream);
+  return 0;
+}
+using ScopedZstdCStream = base::ScopedResource<ZSTD_CStream*,
+                                               ZstdFreeCStream,
+                                               /*InvalidValue=*/nullptr,
+                                               /*CheckClose=*/false>;
+
 // A compressor for `TracePacket`s that uses zstd's streaming API: data is fed
 // in with ZSTD_compressStream2(ZSTD_e_continue) and the frame is finalized with
 // ZSTD_e_end, emitting output in fixed-size slices (kCompressSliceSize).
@@ -46,11 +58,6 @@ using packet_compressor::PreambleToSlice;
 class ZstdPacketCompressor {
  public:
   explicit ZstdPacketCompressor(int level);
-  ~ZstdPacketCompressor();
-
-  // Owns a raw ZSTD_CStream*; copying would double-free it on destruction.
-  ZstdPacketCompressor(const ZstdPacketCompressor&) = delete;
-  ZstdPacketCompressor& operator=(const ZstdPacketCompressor&) = delete;
 
   // Can be called multiple times, before Finish() is called.
   void PushPacket(const TracePacket& packet);
@@ -65,26 +72,23 @@ class ZstdPacketCompressor {
   void NewOutputSlice();
   void PushCurSlice();
 
-  ZSTD_CStream* cstream_ = nullptr;
+  ScopedZstdCStream cstream_;
   // Points into `cur_slice_`. Zero-initialized so that the first compression
   // call observes a full output buffer and allocates the initial slice.
-  ZSTD_outBuffer out_ = {/*dst=*/nullptr, /*size=*/0, /*pos=*/0};
+  ZSTD_outBuffer out_{/*dst=*/nullptr, /*size=*/0, /*pos=*/0};
   size_t total_new_slices_size_ = 0;
   std::vector<Slice> new_slices_;
   std::unique_ptr<uint8_t[]> cur_slice_;
 };
 
 ZstdPacketCompressor::ZstdPacketCompressor(int level) {
-  cstream_ = ZSTD_createCStream();
+  cstream_.reset(ZSTD_createCStream());
   PERFETTO_CHECK(cstream_);
   // zstd maps 0 to its default level, clamps levels above its max, and treats
   // negatives as fast modes, so any int is safe to pass through here.
-  size_t rc = ZSTD_CCtx_setParameter(cstream_, ZSTD_c_compressionLevel, level);
+  size_t rc =
+      ZSTD_CCtx_setParameter(cstream_.get(), ZSTD_c_compressionLevel, level);
   PERFETTO_CHECK(!ZSTD_isError(rc));
-}
-
-ZstdPacketCompressor::~ZstdPacketCompressor() {
-  ZSTD_freeCStream(cstream_);
 }
 
 void ZstdPacketCompressor::PushPacket(const TracePacket& packet) {
@@ -108,7 +112,8 @@ void ZstdPacketCompressor::PushData(const void* data, uint32_t size) {
     if (out_.pos == out_.size) {
       NewOutputSlice();
     }
-    size_t rc = ZSTD_compressStream2(cstream_, &out_, &in, ZSTD_e_continue);
+    size_t rc =
+        ZSTD_compressStream2(cstream_.get(), &out_, &in, ZSTD_e_continue);
     PERFETTO_CHECK(!ZSTD_isError(rc));
   }
 }
@@ -123,7 +128,7 @@ TracePacket ZstdPacketCompressor::Finish() {
       NewOutputSlice();
     }
     ZSTD_inBuffer in = {/*src=*/nullptr, /*size=*/0, /*pos=*/0};
-    remaining = ZSTD_compressStream2(cstream_, &out_, &in, ZSTD_e_end);
+    remaining = ZSTD_compressStream2(cstream_.get(), &out_, &in, ZSTD_e_end);
     PERFETTO_CHECK(!ZSTD_isError(remaining));
   } while (remaining != 0);
 
@@ -158,14 +163,12 @@ void ZstdPacketCompressor::PushCurSlice() {
 
 }  // namespace
 
-void ZstdCompressFn(
-    std::vector<TracePacket>* packets,
-    const protos::gen::TraceConfig_CompressionConfig_Zstd& zstd) {
+void ZstdCompressFn(std::vector<TracePacket>* packets, int level) {
   if (packets->empty()) {
     return;
   }
 
-  ZstdPacketCompressor stream(zstd.level());
+  ZstdPacketCompressor stream(level);
 
   for (const TracePacket& packet : *packets) {
     stream.PushPacket(packet);

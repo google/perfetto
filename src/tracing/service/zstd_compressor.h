@@ -23,17 +23,10 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 
 namespace perfetto {
-namespace protos {
-namespace gen {
-class TraceConfig_CompressionConfig_Zstd;
-}  // namespace gen
-}  // namespace protos
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
-// Compresses `packets` with zstd, tuned by `zstd`.
-void ZstdCompressFn(
-    std::vector<TracePacket>*,
-    const protos::gen::TraceConfig_CompressionConfig_Zstd& zstd);
+// Compresses `packets` with zstd at the given compression `level`.
+void ZstdCompressFn(std::vector<TracePacket>*, int level);
 #endif
 
 }  // namespace perfetto

@@ -488,13 +488,13 @@ message TraceConfig {
   optional string unique_session_name = 22;
 
   // Deprecated: use |compression| (CompressionConfig) instead. Legacy selector
-  // that only ever selects deflate; kept so services predating |compression|
-  // keep compressing. Best effort.
+  // that only ever selects deflate. Kept for backwards compatibility with
+  // Perfetto <= v57, whose services predate |compression|. Best effort.
   enum CompressionType {
     COMPRESSION_TYPE_UNSPECIFIED = 0;
     COMPRESSION_TYPE_DEFLATE = 1;
   }
-  optional CompressionType compression_type = 24;
+  optional CompressionType compression_type = 24 [deprecated = true];
 
   // Selects and configures the compression codec, superseding
   // |compression_type|. The codec is chosen by which sub-message is set; when

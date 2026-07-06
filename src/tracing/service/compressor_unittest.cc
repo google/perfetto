@@ -22,7 +22,6 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/tracing/core/trace_config.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -95,9 +94,7 @@ struct ZlibBackend {
 struct ZstdBackend {
   static constexpr const char* kName = "Zstd";
   static void Compress(std::vector<TracePacket>* packets, int level = 0) {
-    TraceConfig::CompressionConfig::Zstd zstd;
-    zstd.set_level(level);
-    ZstdCompressFn(packets, zstd);
+    ZstdCompressFn(packets, level);
   }
   static std::string Decompress(const std::string& data) {
     ZSTD_DStream* stream = ZSTD_createDStream();

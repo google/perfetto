@@ -2925,7 +2925,7 @@ void TracingServiceImpl::MaybeCompressPackets(
       tracing_session->config.compression();
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
   if (compression.has_zstd()) {
-    ZstdCompressFn(packets, compression.zstd());
+    ZstdCompressFn(packets, compression.zstd().level());
     return;
   }
 #endif
