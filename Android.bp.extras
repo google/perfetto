@@ -382,3 +382,10 @@ filegroup {
     path: "src/trace_processor/plugins/wattson/data",
     visibility: ["//visibility:public"],
 }
+
+filegroup {
+    name: "perfetto_cpp_blob_emitter",
+    srcs: [
+        "python/tools/cpp_blob_emitter.py",
+    ],
+}
