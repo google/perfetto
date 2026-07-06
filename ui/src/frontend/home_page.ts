@@ -28,6 +28,7 @@ import {HotkeyGlyphs, Keycap} from '../widgets/hotkey_glyphs';
 import {Switch} from '../widgets/switch';
 import {assetSrc} from '../base/assets';
 import {Stack} from '../widgets/stack';
+import {MiddleEllipsis} from '../widgets/middle_ellipsis';
 import {Icons} from '../base/semantic_icons';
 import {Icon} from '../widgets/icon';
 import {classNames} from '../base/classnames';
@@ -188,7 +189,9 @@ class Hints implements m.ClassComponent {
               '.pf-home-page__item',
               {
                 onclick: () => {
-                  app.commands.runCommand('dev.perfetto.OpenTrace');
+                  AppImpl.instance.commands.runCommand(
+                    'dev.perfetto.OpenTrace',
+                  );
                 },
               },
               m(Icon, {icon: 'folder_open', className: 'pf-left-icon'}),
@@ -312,7 +315,11 @@ function RecentTraces(): m.Component {
                 m(Icon, {icon: 'description', className: 'pf-left-icon'}),
                 m(
                   '.pf-home-page__item-info',
-                  m('.pf-home-page__item-title', trace.title),
+                  m(MiddleEllipsis, {
+                    text: trace.title,
+                    endChars: 16,
+                    className: 'pf-home-page__item-title',
+                  }),
                   m(
                     '.pf-home-page__item-details',
                     trace.sizeBytes !== undefined &&
