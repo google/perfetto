@@ -24253,6 +24253,59 @@ cc_library_static {
     ],
 }
 
+// GN: //src/protovm/compiler:protovm_compiler
+cc_binary_host {
+    name: "protovm_compiler",
+    srcs: [
+        ":perfetto_base_default_platform",
+        ":perfetto_include_perfetto_base_base",
+        ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_protozero_protozero",
+        ":perfetto_include_perfetto_public_abi_base",
+        ":perfetto_include_perfetto_public_base",
+        ":perfetto_include_perfetto_public_protozero",
+        ":perfetto_protos_perfetto_common_cpp_gen",
+        ":perfetto_protos_perfetto_common_zero_gen",
+        ":perfetto_protos_perfetto_perfetto_sql_zero_gen",
+        ":perfetto_protos_perfetto_protovm_compile_config_zero_gen",
+        ":perfetto_protos_perfetto_protovm_cpp_gen",
+        ":perfetto_protos_perfetto_protovm_zero_gen",
+        ":perfetto_protos_perfetto_trace_processor_zero_gen",
+        ":perfetto_protos_perfetto_trace_summary_zero_gen",
+        ":perfetto_src_base_base",
+        ":perfetto_src_base_check_cpu_optimizations",
+        ":perfetto_src_protovm_compiler_compiler",
+        ":perfetto_src_protozero_multifile_error_collector",
+        ":perfetto_src_protozero_protozero",
+        ":perfetto_src_protozero_text_to_proto_text_to_proto",
+        ":perfetto_src_trace_processor_util_descriptors",
+        "src/protovm/compiler/main.cc",
+    ],
+    static_libs: [
+        "libprotobuf-cpp-full",
+        "libprotoc",
+    ],
+    generated_headers: [
+        "perfetto_protos_perfetto_common_cpp_gen_headers",
+        "perfetto_protos_perfetto_common_zero_gen_headers",
+        "perfetto_protos_perfetto_perfetto_sql_zero_gen_headers",
+        "perfetto_protos_perfetto_protovm_compile_config_zero_gen_headers",
+        "perfetto_protos_perfetto_protovm_cpp_gen_headers",
+        "perfetto_protos_perfetto_protovm_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_summary_zero_gen_headers",
+        "perfetto_src_protovm_compiler_gen_cc_compile_config_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+    ],
+    defaults: [
+        "perfetto_defaults",
+    ],
+    cflags: [
+        "-DGOOGLE_PROTOBUF_NO_RTTI",
+        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+    ],
+}
+
 // GN: //src/protozero/protoc_plugin:protozero_c_plugin
 cc_binary_host {
     name: "protozero_c_plugin",
@@ -26437,4 +26490,11 @@ filegroup {
     ],
     path: "src/trace_processor/plugins/wattson/data",
     visibility: ["//visibility:public"],
+}
+
+filegroup {
+    name: "perfetto_cpp_blob_emitter",
+    srcs: [
+        "python/tools/cpp_blob_emitter.py",
+    ],
 }

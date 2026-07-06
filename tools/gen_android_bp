@@ -103,6 +103,7 @@ protozero_descriptor_diff_target = '//src/protozero/descriptor_diff:protozero_de
 default_targets += [
     '//src/traceconv:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
     '//src/tools:tracing_proto_extensions(%s)' % gn_utils.HOST_TOOLCHAIN,
+    '//src/protovm/compiler:protovm_compiler(%s)' % gn_utils.HOST_TOOLCHAIN,
     protozero_plugin,
     protozero_c_plugin,
     ipc_plugin,
