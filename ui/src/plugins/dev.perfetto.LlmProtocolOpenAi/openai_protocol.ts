@@ -22,6 +22,7 @@ import type {
   StreamEvent,
   ToolCall,
 } from '../dev.perfetto.Llm/protocol';
+import {parseSse} from '../../base/sse';
 import {zodToJsonSchema} from './json_schema';
 
 // Sensible default openai-compatible placeholder URL for local llama.cpp.
@@ -311,7 +312,8 @@ export class OpenAiProtocol implements Protocol {
 
     const assembler = new ToolCallAssembler();
     let finishReason: string | null = null;
-    for await (const chunk of parseSse(resp.body, signal)) {
+    for await (const rawChunk of parseSse(resp.body, signal)) {
+      const chunk = rawChunk as StreamChunk;
       const choice = chunk.choices?.[0];
       // Prefer incremental `delta`, but accept `message` for servers that
       // return the whole turn in one chunk.
@@ -351,40 +353,6 @@ export class OpenAiProtocol implements Protocol {
       yield {type: 'stop', reason: 'length'};
     } else {
       yield {type: 'stop', reason: 'end'};
-    }
-  }
-}
-
-// SSE: blank-line-separated events, each a `data: <json>` line. The terminal
-// event is the literal `data: [DONE]`.
-async function* parseSse(
-  body: ReadableStream<Uint8Array>,
-  signal?: AbortSignal,
-): AsyncGenerator<StreamChunk, void, void> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buf = '';
-  for (;;) {
-    if (signal?.aborted) return;
-    const {value, done} = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, {stream: true});
-    buf = buf.replace(/\r\n/g, '\n');
-    let sep: number;
-    while ((sep = buf.indexOf('\n\n')) !== -1) {
-      const event = buf.slice(0, sep);
-      buf = buf.slice(sep + 2);
-      const payload = event
-        .split('\n')
-        .filter((l) => l.startsWith('data:'))
-        .map((l) => l.slice(5).trimStart())
-        .join('');
-      if (!payload || payload === '[DONE]') continue;
-      try {
-        yield JSON.parse(payload) as StreamChunk;
-      } catch {
-        // Ignore unparseable events (keepalives, partial buffers).
-      }
     }
   }
 }

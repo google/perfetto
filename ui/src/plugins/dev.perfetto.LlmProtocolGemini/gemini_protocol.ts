@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {parseSse} from '../../base/sse';
 import {z} from 'zod';
 import type {
   AvailableModel,
@@ -241,7 +242,8 @@ export class GeminiProtocol implements Protocol {
 
     let sawToolCall = false;
     let stopReason: 'end' | 'length' = 'end';
-    for await (const chunk of parseSse(resp.body, signal)) {
+    for await (const rawChunk of parseSse(resp.body, signal)) {
+      const chunk = rawChunk as GeminiStreamChunk;
       const candidate = chunk.candidates?.[0];
       for (const part of candidate?.content?.parts ?? []) {
         if ('text' in part) {
@@ -282,39 +284,5 @@ export class GeminiProtocol implements Protocol {
       type: 'stop',
       reason: sawToolCall ? 'tool-calls' : stopReason,
     };
-  }
-}
-
-// POSTed body comes back as SSE: blank-line-separated events, each one or more
-// `data: <json>` lines carrying a GenerateContentResponse fragment.
-async function* parseSse(
-  body: ReadableStream<Uint8Array>,
-  signal?: AbortSignal,
-): AsyncGenerator<GeminiStreamChunk, void, void> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buf = '';
-  for (;;) {
-    if (signal?.aborted) return;
-    const {value, done} = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, {stream: true});
-    buf = buf.replace(/\r\n/g, '\n');
-    let sep: number;
-    while ((sep = buf.indexOf('\n\n')) !== -1) {
-      const event = buf.slice(0, sep);
-      buf = buf.slice(sep + 2);
-      const payload = event
-        .split('\n')
-        .filter((l) => l.startsWith('data:'))
-        .map((l) => l.slice(5).trimStart())
-        .join('');
-      if (!payload || payload === '[DONE]') continue;
-      try {
-        yield JSON.parse(payload) as GeminiStreamChunk;
-      } catch {
-        // Ignore unparseable events (keepalives, partial buffers).
-      }
-    }
   }
 }
