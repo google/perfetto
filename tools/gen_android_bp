@@ -151,7 +151,9 @@ target_product_available = [
 # Proto target groups which will be made public.
 proto_groups = {
     'trace': {
-        'types': ['lite'],
+        # 'python' emits perfetto_trace_python_protos: per-file trace protos
+        # that OOT extension libs depend on to `extend TracePacket`.
+        'types': ['lite', 'python'],
         'targets': [
             '//protos/perfetto/trace:non_minimal_source_set',
             '//protos/perfetto/trace:minimal_source_set',
