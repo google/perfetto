@@ -19,6 +19,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.pbzero.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
@@ -99,29 +100,35 @@ bool ViewCaptureArgsParser::TryAddDeinternedString(const Key& key,
 std::optional<ConstChars> ViewCaptureArgsParser::TryDeinternString(
     const Key& key,
     uint64_t iid) {
-  using perfetto::protos::pbzero::InternedData;
+  using com::android::internal::pbzero::FrameworksBaseInternedData;
   if (base::EndsWith(key.key, "class_name_iid")) {
-    return DeinternString<InternedData::kViewcaptureClassNameFieldNumber>(
+    return DeinternString<
+        FrameworksBaseInternedData::kViewcaptureClassNameFieldNumber>(
         iid, view_row_, &ViewRow::set_class_name);
   }
   if (base::EndsWith(key.key, "package_name_iid")) {
-    return DeinternString<InternedData::kViewcapturePackageNameFieldNumber>(
+    return DeinternString<
+        FrameworksBaseInternedData::kViewcapturePackageNameFieldNumber>(
         iid, snapshot_row_, &ViewCaptureRow::set_package_name);
   }
   if (base::EndsWith(key.key, "view_id_iid")) {
-    return DeinternString<InternedData::kViewcaptureViewIdFieldNumber>(
+    return DeinternString<
+        FrameworksBaseInternedData::kViewcaptureViewIdFieldNumber>(
         iid, view_row_, &ViewRow::set_view_id);
   }
   if (base::EndsWith(key.key, "window_name_iid")) {
-    return DeinternString<InternedData::kViewcaptureWindowNameFieldNumber>(
+    return DeinternString<
+        FrameworksBaseInternedData::kViewcaptureWindowNameFieldNumber>(
         iid, snapshot_row_, &ViewCaptureRow::set_window_name);
   }
   if (base::EndsWith(key.key, "content_description_iid")) {
     return DeinternString<
-        InternedData::kViewcaptureContentDescriptionFieldNumber>(iid);
+        FrameworksBaseInternedData::kViewcaptureContentDescriptionFieldNumber>(
+        iid);
   }
   if (base::EndsWith(key.key, "text_iid")) {
-    return DeinternString<InternedData::kViewcaptureTextFieldNumber>(iid);
+    return DeinternString<
+        FrameworksBaseInternedData::kViewcaptureTextFieldNumber>(iid);
   }
   return std::nullopt;
 }

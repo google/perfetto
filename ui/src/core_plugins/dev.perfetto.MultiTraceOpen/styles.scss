@@ -181,10 +181,12 @@
   }
 
   // Reserved status line: min-height keeps the layout stable as the state
-  // cycles through processing / verdict / ready.
+  // cycles through processing / verdict / ready. Same width as the list
+  // panel so a long verdict wraps instead of stretching the modal.
   &__status-panel {
     padding: 12px 0 4px;
     min-height: 60px;
+    width: 550px;
     box-sizing: border-box;
   }
 

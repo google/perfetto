@@ -74,7 +74,8 @@ TEST(ConvertHelpersTest, OpenConversionOutputWritesFile) {
 
   std::ofstream owned;
   std::ostream* stream = nullptr;
-  base::Status s = OpenConversionOutput(path, &owned, &stream);
+  base::Status s =
+      OpenConversionOutput(path, /*binary_output=*/true, &owned, &stream);
   ASSERT_TRUE(s.ok()) << s.c_message();
   ASSERT_NE(stream, nullptr);
 
@@ -95,7 +96,8 @@ TEST(ConvertHelpersTest, OpenConversionOutputBadPathFails) {
   std::ostream* stream = nullptr;
   // The intermediate directory does not exist, so the open must fail.
   base::Status s =
-      OpenConversionOutput(PathIn(dir, "no_such_dir/out.bin"), &owned, &stream);
+      OpenConversionOutput(PathIn(dir, "no_such_dir/out.bin"),
+                           /*binary_output=*/true, &owned, &stream);
   EXPECT_FALSE(s.ok());
 }
 

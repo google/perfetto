@@ -319,6 +319,10 @@ class PerfettoSqlConnection {
   sql_modules::RegisteredPackage* FindPackageForModule(const std::string& key) {
     return database_->FindPackageForModule(key);
   }
+  const sql_modules::RegisteredPackage* FindPackageForModule(
+      const std::string& key) const {
+    return database_->FindPackageForModule(key);
+  }
 
   // Returns the number of objects (tables, views, functions etc) registered
   // with SQLite.

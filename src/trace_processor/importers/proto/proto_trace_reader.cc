@@ -755,24 +755,32 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
 PERFETTO_NO_INLINE base::Status ProtoTraceReader::ResolveAdoptedMachine(
     uint32_t machine_id) {
   RETURN_IF_ERROR(CheckManifestSingleMachine());
-  // Adopt onto the host context only when the host has no data of its own, its
-  // row is still unclaimed (files in one session share it), the machine has no
-  // context yet, and the file is not a multi-machine manifest.
+  // Adopt the embedded machine onto the host context (relabelling its row) only
+  // when the host has no data of its own, its row isn't already claimed by
+  // another machine, the file is not a multi-machine manifest, and the machine
+  // has no row/context yet. Otherwise route to the fork path, which reuses any
+  // existing row for this machine; adopting here would relabel a second row to
+  // the same raw id and surface a duplicate machine.
   const bool host_has_data = host_machine_used_;
   const bool host_row_claimed =
       context_->machine_tracker->raw_machine_id() != 0;
   const bool is_manifest_machine =
       context_->trace_state && context_->trace_state->machine_remap;
-  const bool already_has_context =
-      context_->forked_context_state->trace_and_machine_to_context.Find(
-          std::make_pair(context_->trace_id().value,
-                         static_cast<int64_t>(machine_id))) != nullptr;
+  const bool machine_already_materialized =
+      context_->forked_context_state->machine_to_context.Find(
+          static_cast<int64_t>(machine_id)) != nullptr;
   if (host_has_data || host_row_claimed || is_manifest_machine ||
-      already_has_context) {
+      machine_already_materialized) {
     adopted_machine_id_ = 0;
     return base::OkStatus();
   }
   context_->machine_tracker->SetRawMachineId(machine_id);
+  // Register the adopted machine in the per-machine dedup map so a later fork
+  // for the same id (e.g. another co-located trace routed through
+  // CreateRemoteMachineReader) reuses this context and row instead of inserting
+  // a duplicate machine row.
+  context_->forked_context_state->machine_to_context.Insert(
+      static_cast<int64_t>(machine_id), context_);
   adopted_machine_id_ = machine_id;
   return base::OkStatus();
 }
@@ -1153,34 +1161,6 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
-    if (buf.has_shadow_buffer_stats()) {
-      protos::pbzero::TraceStats::BufferStats::ShadowBufferStats::Decoder sbs(
-          buf.shadow_buffer_stats());
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_seen, buf_num,
-          static_cast<int64_t>(sbs.packets_seen()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_in_both, buf_num,
-          static_cast<int64_t>(sbs.packets_in_both()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_only_v1, buf_num,
-          static_cast<int64_t>(sbs.packets_only_v1()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_only_v2, buf_num,
-          static_cast<int64_t>(sbs.packets_only_v2()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_patches_attempted, buf_num,
-          static_cast<int64_t>(sbs.patches_attempted()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_v1_patches_succeeded, buf_num,
-          static_cast<int64_t>(sbs.v1_patches_succeeded()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_v2_patches_succeeded, buf_num,
-          static_cast<int64_t>(sbs.v2_patches_succeeded()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_stats_version, buf_num,
-          static_cast<uint32_t>(sbs.stats_version()));
-    }
   }
 
   struct BufStats {

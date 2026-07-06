@@ -40,6 +40,7 @@ public final class PerfettoTrace {
   private static final int PERFETTO_TE_TYPE_SLICE_END = 2;
   private static final int PERFETTO_TE_TYPE_INSTANT = 3;
   private static final int PERFETTO_TE_TYPE_COUNTER = 4;
+  private static final int PERFETTO_TE_TYPE_STATE = 5;
 
   private static boolean sIsDebug = false;
   private static final PerfettoNativeMemoryCleaner sNativeMemoryCleaner =
@@ -279,6 +280,29 @@ public final class PerfettoTrace {
   public static PerfettoTrackEventBuilder counterWithDynamicName(
       Category category, double value, String trackName) {
     return counter(category, value).usingProcessCounterTrackWithDynamicName(trackName);
+  }
+
+  /**
+   * Updates a state track to a new value. A state track is like a counter whose value is a label
+   * rather than a number; the value persists until the next update and an empty value is "idle".
+   *
+   * @param category The perfetto category.
+   * @param value The state value (carried as the event name); empty/null is idle.
+   * @param trackName The process-scoped state track to update.
+   */
+  public static PerfettoTrackEventBuilder state(
+      Category category, String value, @CompileTimeConstant String trackName) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_STATE, category, sIsDebug)
+        .setEventName(value)
+        .usingProcessStateTrack(trackName);
+  }
+
+  /** Like {@link #state} but with a dynamically computed track name. */
+  public static PerfettoTrackEventBuilder stateWithDynamicName(
+      Category category, String value, String trackName) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_STATE, category, sIsDebug)
+        .setEventName(value)
+        .usingProcessStateTrackWithDynamicName(trackName);
   }
 
   /** Returns the next flow id to be used. */

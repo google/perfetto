@@ -22,6 +22,11 @@ import {
   type FlamegraphState,
   type FlamegraphOptionalAction,
 } from '../../../widgets/flamegraph';
+import {QuerySlot} from '../../../base/query_slot';
+import {
+  isHeapGraphIncomplete,
+  incompleteFlamegraphModal,
+} from '../../dev.perfetto.HeapProfile/incomplete_flamegraph';
 
 // Referenced by session.openFlamegraphPivotedAt.
 export const METRIC_OBJECT_SIZE = 'Object Size';
@@ -169,6 +174,15 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
   let cachedMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
   let cachedKey: string | undefined;
 
+  // Mirrors dev.perfetto.HeapProfile: if the heap graph is incomplete we gate
+  // the flamegraph behind a dismissible warning modal. Keyed by dump so it
+  // re-arms when the dump changes; the check runs (and the modal is shown) only
+  // when this view is rendered, i.e. when the flamegraph tab is active.
+  const incompleteSlot = new QuerySlot<{
+    isIncomplete: boolean;
+    dismissed: boolean;
+  }>();
+
   return {
     view({attrs}) {
       const key = `${attrs.upid}:${attrs.ts}`;
@@ -182,6 +196,14 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
       }
       const metrics = cachedMetrics;
 
+      const incomplete = incompleteSlot.use({
+        key: {upid: attrs.upid, ts: attrs.ts},
+        queryFn: async () => ({
+          isIncomplete: await isHeapGraphIncomplete(attrs.trace),
+          dismissed: false,
+        }),
+      }).data;
+
       // First render or after a dump-change reset: create a default
       // state so the panel renders meaningfully on the same frame.
 
@@ -194,6 +216,12 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
       return m(
         'div',
         {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
+        incomplete !== undefined &&
+          incomplete.isIncomplete &&
+          !incomplete.dismissed &&
+          incompleteFlamegraphModal(attrs.trace, () => {
+            incomplete.dismissed = true;
+          }),
         m(FlamegraphPanel, {
           trace: attrs.trace,
           metrics,

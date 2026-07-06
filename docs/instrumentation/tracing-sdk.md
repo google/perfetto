@@ -316,6 +316,13 @@ tracing sessions.
 
 This mode is supported on Android, Linux, MacOS and Windows.
 
+TIP: when several in-process traces (e.g. from different machines in a
+distributed system) will later be
+[merged into one trace](/docs/analysis/merging-traces.md), set a unique
+`TracingInitArgs.machine_id` per machine when initializing the SDK: every
+packet is then tagged with its origin and the merged trace keeps each
+machine's data separate, with no further configuration.
+
 ### System mode
 
 In this mode the app-defined data sources will connect to the external `traced`

@@ -17,6 +17,7 @@ import("../../../../../../../gn/perfetto_sql.gni")
 perfetto_sql_source_set("heap_profile") {
   sources = [
     "callstacks.sql",
+    "intervals.sql",
     "summary_tree.sql",
   ]
 }

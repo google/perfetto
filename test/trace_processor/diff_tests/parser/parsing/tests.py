@@ -495,56 +495,6 @@ class Parsing(TestSuite):
         """,
         out=Path('android_sched_and_ps_stats.out'))
 
-  def test_shadow_buf_stats(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-          packet {
-            trusted_uid: 158158
-            trusted_packet_sequence_id: 1
-            trace_stats {
-              buffer_stats {
-                buffer_size: 131072
-                bytes_written: 55459840
-                bytes_overwritten: 55328768
-                bytes_read: 131072
-                padding_bytes_cleared: 0
-                chunks_written: 13540
-                chunks_overwritten: 13508
-                chunks_read: 32
-                write_wrap_count: 423
-                patches_succeeded: 1861
-                patches_failed: 12349
-                readaheads_succeeded: 11
-                shadow_buffer_stats {
-                  packets_seen: 57
-                  packets_in_both: 55
-                  packets_only_v1: 0
-                  packets_only_v2: 0
-                  patches_attempted: 13499
-                  v1_patches_succeeded: 1150
-                  v2_patches_succeeded: 1150
-                  stats_version: 2
-                }
-              }
-            }
-          }
-        """),
-        query="""
-        SELECT name, source, value
-        FROM stats WHERE name GLOB 'traced_buf_v2s*';
-        """,
-        out=Csv("""
-        "name","source","value"
-        "traced_buf_v2s_packets_seen","trace",57
-        "traced_buf_v2s_packets_in_both","trace",55
-        "traced_buf_v2s_packets_only_v1","trace",0
-        "traced_buf_v2s_packets_only_v2","trace",0
-        "traced_buf_v2s_patches_attempted","trace",13499
-        "traced_buf_v2s_v1_patches_succeeded","trace",1150
-        "traced_buf_v2s_v2_patches_succeeded","trace",1150
-        "traced_buf_v2s_stats_version","trace",2
-        """))
-
   # Syscalls
   def test_sys_syscall(self):
     return DiffTestBlueprint(
@@ -942,6 +892,41 @@ class Parsing(TestSuite):
         5,0,"AArch64 Processor rev 13 (aarch64)"
         6,1,"AArch64 Processor rev 13 (aarch64)"
         7,1,"AArch64 Processor rev 13 (aarch64)"
+        """))
+
+  def test_cpu_features(self):
+    return DiffTestBlueprint(
+        trace=Path('cpu_info.textproto'),
+        query="""
+        SELECT
+          cpu,
+          EXTRACT_ARG(arg_set_id, 'cpu_features.mte') AS mte,
+          EXTRACT_ARG(arg_set_id, 'cpu_features.mte3') AS mte3,
+          EXTRACT_ARG(arg_set_id, 'cpu_features.raw_bitmap') AS raw_bitmap,
+          EXTRACT_ARG(arg_set_id, 'arm_cpu_part') AS arm_cpu_part
+        FROM cpu;
+        """,
+        out=Csv("""
+        "cpu","mte","mte3","raw_bitmap","arm_cpu_part"
+        0,"[NULL]","[NULL]","[NULL]","[NULL]"
+        1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        2,"[NULL]","[NULL]","[NULL]","[NULL]"
+        3,"[NULL]","[NULL]","[NULL]","[NULL]"
+        4,"[NULL]","[NULL]","[NULL]","[NULL]"
+        5,1,"[NULL]",1,"[NULL]"
+        6,1,1,3,"[NULL]"
+        7,1,1,4611686018427387907,3336
+        """))
+
+  def test_cpu_features_unknown_stat(self):
+    return DiffTestBlueprint(
+        trace=Path('cpu_info.textproto'),
+        query="""
+        SELECT value FROM stats WHERE name = 'cpu_info_unknown_cpu_features';
+        """,
+        out=Csv("""
+        "value"
+        1
         """))
 
   def test_cpu_freq(self):

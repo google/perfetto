@@ -42,6 +42,24 @@ constexpr size_t kMaxCommitDataRequestChunkSize =
     128 * 1024 - 512;  // This is ipc::kIPCBufferSize - 512, see
                        // |kMaxTracePacketSliceSize| in tracing_service_impl.h
 
+// Conservative upper bound of a ChunkToPatch's serialized size, used to bound
+// how many patches are packed into one request. Over-estimating only causes an
+// extra split, never an oversized frame.
+uint32_t EstimateChunkToPatchSize(const CommitDataRequest::ChunkToPatch& ctp) {
+  uint32_t size = 32;  // Fixed fields + repeated-field tag/length.
+  for (const auto& patch : ctp.patches()) {
+    size += static_cast<uint32_t>(patch.data().size()) + 16;  // data + framing.
+  }
+  return size;
+}
+
+// Conservative upper bound of a ChunkToMove's serialized size: the inlined
+// chunk data plus field tags, varints and the submessage length prefix. As
+// above, over-estimating only causes an extra split.
+uint32_t EstimateChunkToMoveSize(const CommitDataRequest::ChunksToMove& ctm) {
+  return static_cast<uint32_t>(ctm.data().size()) + 32;
+}
+
 MaybeUnboundBufferID MakeTargetBufferIdForReservation(uint16_t reservation_id) {
   // Reservation IDs are stored in the upper bits.
   PERFETTO_CHECK(reservation_id > 0);
@@ -654,13 +672,17 @@ void SharedMemoryArbiterImpl::CommitDataWithSplitting(
     std::function<void()> callback) {
   PERFETTO_DCHECK(use_shmem_emulation_);
 
-  // If the request is small enough to be sent in a single IPC
-  // avoid the request splitting.
-  uint32_t total_bytes = 0;
+  // If the request is small enough to be sent in a single IPC avoid the request
+  // splitting. |estimated_bytes| includes a conservative bound for the patches,
+  // which are serialized into the request too.
+  uint32_t estimated_bytes = 0;
   for (const auto& ctm : req->chunks_to_move()) {
-    total_bytes += static_cast<uint32_t>(ctm.data().size());
+    estimated_bytes += EstimateChunkToMoveSize(ctm);
   }
-  if (total_bytes < kMaxCommitDataRequestChunkSize) {
+  for (const auto& ctp : req->chunks_to_patch()) {
+    estimated_bytes += EstimateChunkToPatchSize(ctp);
+  }
+  if (estimated_bytes < kMaxCommitDataRequestChunkSize) {
     producer_endpoint_->CommitData(*req, std::move(callback));
     return;
   }
@@ -675,14 +697,15 @@ void SharedMemoryArbiterImpl::CommitDataWithSplitting(
     // cannot be greater than |kMaxPageSize| in size, which is less than
     // |kIPCBufferSize|. We provide 512-bytes of headroom for message
     // overhead.
-    if (current_req_bytes + ctm.data().size() >=
-        kMaxCommitDataRequestChunkSize) {
+    uint32_t ctm_bytes = EstimateChunkToMoveSize(ctm);
+    if (current_req_bytes != 0 &&
+        current_req_bytes + ctm_bytes >= kMaxCommitDataRequestChunkSize) {
       producer_endpoint_->CommitData(*split_req);
       split_req.reset(new CommitDataRequest());
       current_req_bytes = 0;
     }
 
-    current_req_bytes += ctm.data().size();
+    current_req_bytes += ctm_bytes;
     auto* new_ctm = split_req->add_chunks_to_move();
     new_ctm->set_page(ctm.page());
     new_ctm->set_chunk(ctm.chunk());
@@ -691,15 +714,26 @@ void SharedMemoryArbiterImpl::CommitDataWithSplitting(
     new_ctm->set_data(ctm.data());
   }
 
-  // In shmem emulation mode, the pending commit data requests splitting
-  // is done on a best effort basis, meaning that although rare it is
-  // possible for the last commit data request to exceed the
-  // |kIPCBufferSize| since, we aren't checking the size of the chunk
-  // patches.
-  *split_req->mutable_chunks_to_patch() =
-      std::move(*req->mutable_chunks_to_patch());
-  split_req->set_flush_request_id(req->flush_request_id());
+  // Split the patches too, instead of appending all of them to the last
+  // request: a flush with many patched chunks could otherwise exceed the limit
+  // (see https://github.com/google/perfetto/issues/6426). Patches are applied
+  // after moves and IPC is ordered, so trailing patch requests preserve
+  // ordering.
+  for (auto& ctp : *req->mutable_chunks_to_patch()) {
+    uint32_t ctp_bytes = EstimateChunkToPatchSize(ctp);
+    // A lone ChunkToPatch always fits, so only ever split a non-empty request.
+    if (current_req_bytes != 0 &&
+        current_req_bytes + ctp_bytes >= kMaxCommitDataRequestChunkSize) {
+      producer_endpoint_->CommitData(*split_req);
+      split_req.reset(new CommitDataRequest());
+      current_req_bytes = 0;
+    }
+    current_req_bytes += ctp_bytes;
+    *split_req->add_chunks_to_patch() = std::move(ctp);
+  }
 
+  if (req->has_flush_request_id())
+    split_req->set_flush_request_id(req->flush_request_id());
   producer_endpoint_->CommitData(*split_req, std::move(callback));
 }
 
@@ -967,14 +1001,14 @@ void SharedMemoryArbiterImpl::ScrapeEmulatedSharedMemoryBuffer(
   // This function must be called on the IPC thread.
   PERFETTO_CHECK(task_runner_->RunsTasksOnCurrentThread());
 
-  CommitDataRequest commit_req;
+  auto commit_req = std::make_unique<CommitDataRequest>();
   ForEachScrapableChunk(&shmem_abi_, [&](SharedMemoryABI::Chunk* chunk,
                                          bool chunk_complete, auto, auto) {
     const auto writer = buffer_for_writers.find(chunk->writer_id());
     if (writer == buffer_for_writers.end())
       return;
     BufferID target_buffer_id = writer->second;
-    auto* ctm = commit_req.add_chunks_to_move();
+    auto* ctm = commit_req->add_chunks_to_move();
     auto page_and_chunk = shmem_abi_.GetPageAndChunkIndex(*chunk);
     ctm->set_page(static_cast<uint32_t>(page_and_chunk.first));
     ctm->set_chunk(static_cast<uint32_t>(page_and_chunk.second));
@@ -982,9 +1016,12 @@ void SharedMemoryArbiterImpl::ScrapeEmulatedSharedMemoryBuffer(
     ctm->set_data(chunk->begin(), chunk->size());
     ctm->set_chunk_incomplete(!chunk_complete);
   });
-  if (commit_req.chunks_to_move_size() == 0)
+  if (commit_req->chunks_to_move_size() == 0)
     return;
-  producer_endpoint_->CommitData(commit_req);
+  // A scrape can pick up every in-flight chunk in the emulated SMB at once,
+  // which can easily exceed the IPC frame size limit, so it must go through
+  // the same splitting as regular commits.
+  CommitDataWithSplitting(std::move(commit_req), nullptr);
 }
 
 std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(

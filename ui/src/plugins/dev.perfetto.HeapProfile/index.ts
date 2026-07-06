@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {time} from '../../base/time';
@@ -40,6 +41,7 @@ import {
   type AreaSelectionTab,
 } from '../../public/selection';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
+import {isHeapGraphIncomplete} from './incomplete_flamegraph';
 import {EvtSource} from '../../base/events';
 import type {App} from '../../public/app';
 import type {Flag} from '../../public/feature_flag';
@@ -150,54 +152,45 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     await trace.engine.query(
       'INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;',
     );
+    await trace.engine.query(
+      'INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;',
+    );
 
     await createPerfettoTable({
       engine: trace.engine,
       name: EVENT_TABLE_NAME,
       as: `
-        WITH heap_profile_points AS (
-          SELECT
-            MIN(id) as id,
-            ts,
-            upid,
-            heap_name
-          FROM heap_profile_allocation
-          GROUP BY ts, upid, heap_name
-        ), heap_profile_slices AS (
+        WITH events AS (
+          -- heap_graph already has exactly one row per dump (with its own id),
+          -- so read it directly rather than de-duplicating the much larger
+          -- heap_graph_object table down to one row per dump.
           SELECT
             id,
-            upid,
-            heap_name,
-            -- Start just after the previous dump, but never past this dump:
-            -- a dump at trace_start() has no room before it, so collapse to a
-            -- zero-duration instant (ts = ts_end) instead of inverting.
-            MIN(
-              LAG(ts, 1, trace_start()) OVER (PARTITION BY upid, heap_name ORDER BY ts) + 1,
-              ts
-            ) AS ts,
-            ts AS ts_end
-          FROM heap_profile_points
-        ), events AS (
-          SELECT
-            MIN(id) as id,
-            graph_sample_ts AS ts,
+            ts,
             upid,
             0 AS dur,
             0 AS depth,
-            'java_heap_graph' AS type
-          FROM heap_graph_object
-          GROUP BY graph_sample_ts, upid
+            'java_heap_graph' AS type,
+            NULL AS retained,
+            NULL AS allocated,
+            NULL AS delta
+          FROM heap_graph
 
           UNION ALL
 
+          -- Draw each dump over its profiling interval (see the module). The
+          -- byte totals are surfaced in the slice name / tooltip.
           SELECT
             id,
             ts,
             upid,
-            ts_end - ts AS dur,
+            dur,
             0 AS depth,
-            'heap_profile:' || heap_name AS type
-          FROM heap_profile_slices
+            'heap_profile:' || heap_name AS type,
+            retained,
+            allocated,
+            delta
+          FROM _android_heap_profile_intervals
 
           UNION ALL
 
@@ -207,7 +200,10 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             upid,
             0 AS dur,
             0 AS depth,
-            'oome_callstack' AS type
+            'oome_callstack' AS type,
+            NULL AS retained,
+            NULL AS allocated,
+            NULL AS delta
           FROM heap_graph
           WHERE dump_reason = 'OOME'
         )
@@ -325,13 +321,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private async getIncomplete(trace: Trace): Promise<boolean> {
-    const it = await trace.engine.query(`
-      SELECT value
-      FROM stats
-      WHERE name = 'heap_graph_non_finalized_graph'
-    `);
-    const incomplete = it.firstRow({value: NUM}).value > 0;
-    return incomplete;
+    return isHeapGraphIncomplete(trace);
   }
 
   private async selectHeapProfile(ctx: Trace) {

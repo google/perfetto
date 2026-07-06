@@ -16,6 +16,7 @@ import {Time} from '../../base/time';
 import {materialColorScheme} from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {PerfettoPlugin} from '../../public/plugin';
+import {SMAPS_TRACK_KIND} from '../../public/track_kinds';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -86,7 +87,11 @@ export default class implements PerfettoPlugin {
             getInitialColumns,
           ),
       });
-      trace.tracks.registerTrack({uri, renderer, tags: {upid}});
+      trace.tracks.registerTrack({
+        uri,
+        renderer,
+        tags: {kinds: [SMAPS_TRACK_KIND], upid},
+      });
 
       group.addChildInOrder(
         new TrackNode({

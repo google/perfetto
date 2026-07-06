@@ -27,7 +27,6 @@ import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/android_system_property.proto";
 import "protos/perfetto/trace/android/cpu_per_uid_data.proto";
-import "protos/perfetto/trace/android/frame_timeline_event.proto";
 import "protos/perfetto/trace/gpu/gpu_mem_event.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
 import "protos/perfetto/trace/android/initial_display_state.proto";
@@ -211,7 +210,6 @@ message TracePacket {
     InitialDisplayState initial_display_state = 70;
     GpuMemTotalEvent gpu_mem_total_event = 71;
     MemoryTrackerSnapshot memory_tracker_snapshot = 73;
-    FrameTimelineEvent frame_timeline_event = 76;
     AndroidEnergyEstimationBreakdown android_energy_estimation_breakdown = 77;
     UiState ui_state = 78;
     TranslationTable translation_table = 82;
@@ -311,6 +309,7 @@ message TracePacket {
   //   88: NetworkPacketEvent network_packet
   //   92: NetworkPacketBundle network_packet_bundle
   //
+  // Winscope payloads, now defined out-of-tree as extensions. Schema:
   // protos/third_party/android/frameworks/native/tracing/winscope/frameworks_native_winscope.proto
   //   93: LayersSnapshotProto surfaceflinger_layers_snapshot
   //   94: TransactionTraceEntry surfaceflinger_transactions
@@ -329,8 +328,9 @@ message TracePacket {
   //   116: AppWakelockBundle app_wakelock_bundle
   //
   // protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto
+  //   76: FrameTimelineEvent frame_timeline_event
   //   121: EvdevEvent evdev_event
-  extensions 56, 88, 92, 93, 94, 96, 97, 104, 105, 112, 114, 116, 121;
+  extensions 56, 76, 88, 92, 93, 94, 96, 97, 104, 105, 112, 114, 116, 121;
 
   // Reserved for future OOT extensions. New allocations are carved out of this
   // range and registered in protos/perfetto/trace/extensions.json.
