@@ -970,6 +970,9 @@ TEST(TraceProcessorShellIntegrationTest, ClassicBadTraceFileShowsOnlyError) {
 TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithDebugOnlyLibraries) {
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
+  // Clean up on every exit path (an early ASSERT included): TempDir's
+  // destructor aborts the binary if the dir isn't empty.
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
 
   auto symbolize = [&](const std::string& in_file,
                        const std::string& symbol_path) {
@@ -1091,8 +1094,6 @@ TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithDebugOnlyLibraries) {
       "(anonymous namespace)::C()",
   };
   EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
-
-  unlink(out_path.c_str());
 }
 
 #endif
@@ -1291,6 +1292,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
       "    void bar() -> b\n");
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
                           "com.example=" + mapping.path(), HeapprofdTracePath(),
@@ -1318,7 +1320,6 @@ TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
   EXPECT_EQ(
       dm.obfuscated_classes()[0].obfuscated_methods()[0].obfuscated_name(),
       "b");
-  unlink(out_path.c_str());
 }
 
 // Repeated --proguard-map should emit one DeobfuscationMapping per input map,
@@ -1328,6 +1329,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
   auto m2 = WriteTempFile("com.example.Bar -> b.b:\n");
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
                           "com.example.one=" + m1.path(), "--proguard-map",
@@ -1340,18 +1342,17 @@ TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
   EXPECT_THAT(
       DeobfuscationPackages(members["deobfuscation.pb"]),
       testing::UnorderedElementsAre("com.example.one", "com.example.two"));
-  unlink(out_path.c_str());
 }
 
 TEST(TraceProcessorShellIntegrationTest, BundleMissingProguardMapFails) {
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
                           "com.example=/nonexistent/mapping.txt",
                           HeapprofdTracePath(), out_path});
   EXPECT_NE(result.exit_code, 0);
-  unlink(out_path.c_str());
 }
 
 TEST(TraceProcessorShellIntegrationTest, BundleHelpShowsProguardMap) {
@@ -1368,6 +1369,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleNoAutoProguardMaps) {
   auto mapping = WriteTempFile("com.example.Foo -> a.a:\n");
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
 
   auto result =
       RunShell({"bundle", "--no-auto-symbol-paths", "--no-auto-proguard-maps",
@@ -1379,7 +1381,6 @@ TEST(TraceProcessorShellIntegrationTest, BundleNoAutoProguardMaps) {
   ASSERT_TRUE(members.count("deobfuscation.pb"));
   EXPECT_THAT(DeobfuscationPackages(members["deobfuscation.pb"]),
               testing::UnorderedElementsAre("com.example"));
-  unlink(out_path.c_str());
 }
 
 // ---------------------------------------------------------------------------
