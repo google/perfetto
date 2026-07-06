@@ -1887,6 +1887,7 @@ perfetto_cc_library(
 perfetto_cc_library(
     name = "src_base_base",
     srcs = [
+        ":src_base_check_cpu_optimizations",
         "src/base/android_utils.cc",
         "src/base/base64.cc",
         "src/base/cpu_info.cc",
@@ -1938,6 +1939,14 @@ perfetto_cc_library(
     deps = [
     ] + PERFETTO_CONFIG.deps.base_platform,
     linkstatic = True,
+)
+
+# GN target: //src/base:check_cpu_optimizations
+perfetto_filegroup(
+    name = "src_base_check_cpu_optimizations",
+    srcs = [
+        "src/base/check_cpu_optimizations.cc",
+    ],
 )
 
 # GN target: //src/base:clock_snapshots
