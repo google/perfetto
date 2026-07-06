@@ -1295,8 +1295,9 @@ your `trace_converter_template.py` script.
 Unlike the other examples on this page, there's no track or slice to look at
 in the timeline view. Instead, after running the script and opening
 `my_custom_trace.pftrace` in the [Perfetto UI](https://ui.perfetto.dev), these
-attributes show up on the "Info and stats" page, reachable from the left
-sidebar, alongside the rest of the trace's metadata.
+attributes show up on the "Overview" page, reachable from the left sidebar,
+under the "Info and Stats (advanced)" tab, alongside the rest of the trace's
+metadata.
 
 In Trace Processor, each attribute becomes a row in the `metadata` table, with
 its key prefixed by `trace_attribute.` to keep custom attributes separate from
