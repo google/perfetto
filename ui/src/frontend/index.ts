@@ -167,6 +167,7 @@ function setupContentSecurityPolicy() {
     'connect-src': [
       `'self'`,
       'ws://127.0.0.1:8037', // For the adb websocket server.
+      'http://localhost:8080', // For local llama-server.
       'https:', // Allow any HTTPS; service worker firewall adds granular filtering.
       'blob:',
       'data:',

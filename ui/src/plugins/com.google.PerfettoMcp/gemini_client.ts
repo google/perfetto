@@ -16,6 +16,7 @@
 // generateContent endpoint, drives a function-calling loop against a local
 // ToolRegistry, and emits incremental events the chat UI consumes.
 
+import {parseSse} from '../../base/sse';
 import {type ToolRegistry, zodToGeminiSchema} from './tool_registry';
 
 // --- Gemini wire types (subset of what generateContent returns) ---
@@ -215,33 +216,8 @@ export class GeminiChat {
       throw new Error(`Gemini API error ${resp.status}: ${text}`);
     }
 
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    for (;;) {
-      const {value, done} = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, {stream: true});
-      // Normalize CRLF so both \n\n and \r\n\r\n separators work.
-      buf = buf.replace(/\r\n/g, '\n');
-      // SSE messages are separated by blank lines. Each message is one or more
-      // "data: <payload>" lines; payload is a JSON GenerateContentResponse.
-      let sep: number;
-      while ((sep = buf.indexOf('\n\n')) !== -1) {
-        const event = buf.slice(0, sep);
-        buf = buf.slice(sep + 2);
-        const payload = event
-          .split('\n')
-          .filter((l) => l.startsWith('data:'))
-          .map((l) => l.slice(5).trimStart())
-          .join('');
-        if (!payload || payload === '[DONE]') continue;
-        try {
-          yield JSON.parse(payload) as GeminiStreamChunk;
-        } catch {
-          // Ignore unparseable events (keepalives, partial buffers).
-        }
-      }
+    for await (const chunk of parseSse(resp.body, signal)) {
+      yield chunk as GeminiStreamChunk;
     }
   }
 }
