@@ -1299,6 +1299,8 @@ attributes show up on the "Overview" page, reachable from the left sidebar,
 under the "Info and Stats (advanced)" tab, alongside the rest of the trace's
 metadata.
 
+![Trace attributes in the Info and Stats page](/docs/images/converting-trace-attributes.png)
+
 In Trace Processor, each attribute becomes a row in the `metadata` table, with
 its key prefixed by `trace_attribute.` to keep custom attributes separate from
 the built-in metadata. You can query trace-level metadata using SQL in the
