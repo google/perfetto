@@ -73,46 +73,6 @@ export function registerCoreTools(reg: ToolRegistry, trace: Trace): void {
   });
 
   reg.registerTool({
-    name: 'get_selection',
-    description:
-      'Read what the user currently has selected in the UI (a track event, a ' +
-      'time-range area selection, a track, or nothing). Use this to resolve ' +
-      'what the user means by "this" / "the selected slice".',
-    shape: {},
-    callback: async () => {
-      const sel = trace.selection.selection;
-      switch (sel.kind) {
-        case 'track_event':
-          return JSON.stringify({
-            kind: 'track_event',
-            trackUri: sel.trackUri,
-            eventId: sel.eventId,
-            ts: Number(sel.ts),
-            dur: sel.dur === undefined ? undefined : Number(sel.dur),
-          });
-        case 'area':
-          return JSON.stringify({
-            kind: 'area',
-            start: Number(sel.start),
-            end: Number(sel.end),
-            trackUris: sel.trackUris,
-          });
-        case 'track':
-          return JSON.stringify({kind: 'track', trackUri: sel.trackUri});
-        case 'note':
-          return JSON.stringify({kind: 'note', id: sel.id});
-        case 'empty':
-          return JSON.stringify({kind: 'empty'});
-      }
-    },
-  });
-
-  // Note: select_event / show_timeline / select_area / get_viewport are
-  // timeline-specific and live in the dev.perfetto.IntellettoTimelineTools
-  // plugin, which registers them against this same registry when both the
-  // Timeline and Intelletto plugins are enabled.
-
-  reg.registerTool({
     name: 'show_query',
     description:
       'Open a PerfettoSQL query in the Query page results view so the user ' +
