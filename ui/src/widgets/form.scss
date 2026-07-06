@@ -17,6 +17,7 @@
 .pf-form {
   display: flex;
   flex-direction: column;
+  gap: 8px;
 
   &__button-bar {
     display: flex;
@@ -27,20 +28,15 @@
   }
 
   &__label {
-    margin-bottom: 6px;
     font-size: smaller;
     font-weight: 500;
-  }
-
-  &__row {
-    display: grid;
-    gap: 8px 16px;
+    margin-bottom: -4px;
   }
 
   &__grid {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 0 8px;
+    gap: 8px;
     align-items: baseline;
   }
 
@@ -51,7 +47,7 @@
     border-radius: 4px;
     padding: 8px;
     margin: 0; // Reset default fieldset margin
-    margin-bottom: 8px;
+    gap: 8px;
 
     &-label {
       font-weight: 500;
@@ -60,18 +56,6 @@
       color: var(--pf-color-text-muted);
       padding: 0 2px;
     }
-  }
-
-  // Styles for common input elements
-  .pf-checkbox,
-  .pf-switch,
-  .pf-radio-group {
-    margin-bottom: 10px;
-  }
-
-  .pf-select,
-  .pf-text-input {
-    margin-bottom: 8px;
   }
 
   .pf-select:invalid {
@@ -87,14 +71,5 @@
     &:has(input:focus) {
       border-color: var(--pf-color-danger);
     }
-  }
-}
-
-// Add some spacing around forms when placed inside a menu
-.pf-menu {
-  .pf-form {
-    // Compensate for the uneven |4px 0| padding in pf-menu, resulting in an
-    // even 4px padding all around the form.
-    margin: 0 4px;
   }
 }
