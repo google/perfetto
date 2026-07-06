@@ -155,7 +155,11 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
 
   std::ofstream output_file;
   std::ostream* output = nullptr;
-  RETURN_IF_ERROR(OpenConversionOutput(output_path, &output_file, &output));
+  // ctrace is the only convert format that emits binary; the rest are
+  // human-readable.
+  const bool binary_output = format == "ctrace";
+  RETURN_IF_ERROR(
+      OpenConversionOutput(output_path, binary_output, &output_file, &output));
 
   int ret = 0;
   if (format == "json") {

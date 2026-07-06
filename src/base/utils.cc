@@ -31,7 +31,11 @@
     PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 #include <limits.h>
 #include <stdlib.h>  // For _exit()
-#include <unistd.h>  // For getpagesize() and geteuid() & fork() & sysconf()
+#endif
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// For isatty(), getpagesize(), geteuid(), fork() & sysconf().
+#include <unistd.h>
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
@@ -240,6 +244,22 @@ void UnsetEnv(const std::string& key) {
   PERFETTO_CHECK(::_putenv_s(key.c_str(), "") == 0);
 #else
   PERFETTO_CHECK(::unsetenv(key.c_str()) == 0);
+#endif
+}
+
+bool IsTty(int fd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return ::_isatty(fd) != 0;
+#else
+  return ::isatty(fd) != 0;
+#endif
+}
+
+bool IsTty(FILE* stream) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return IsTty(::_fileno(stream));
+#else
+  return IsTty(::fileno(stream));
 #endif
 }
 

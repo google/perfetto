@@ -218,7 +218,9 @@ base::Status UtilSubcommand::Run(const SubcommandContext& ctx) {
 
   std::ofstream output_file;
   std::ostream* output = nullptr;
-  RETURN_IF_ERROR(OpenConversionOutput(output_path, &output_file, &output));
+  // All the utilities emit binary protobuf output.
+  RETURN_IF_ERROR(OpenConversionOutput(output_path, /*binary_output=*/true,
+                                       &output_file, &output));
 
   int ret;
   if (util == "symbolize") {
