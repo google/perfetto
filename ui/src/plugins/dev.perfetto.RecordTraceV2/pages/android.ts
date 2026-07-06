@@ -32,6 +32,7 @@ export function androidRecordSection(): RecordSubpage {
       atrace(),
       logcat(),
       frameTimeline(),
+      displayVideo(),
       gameInterventions(),
       netTracing(),
       statsdAtoms(),
@@ -139,6 +140,18 @@ function frameTimeline(): RecordProbe {
     docsLink: 'https://perfetto.dev/docs/data-sources/frametimeline',
     genConfig: function (tc: TraceConfigBuilder) {
       tc.addDataSource('android.surfaceflinger.frametimeline');
+    },
+  };
+}
+
+function displayVideo(): RecordProbe {
+  return {
+    id: 'android_display_video',
+    title: 'Display video frames',
+    description: 'Captures what each display showed during the trace.',
+    supportedPlatforms: ['ANDROID'],
+    genConfig: function (tc: TraceConfigBuilder) {
+      tc.addDataSource('android.display.video');
     },
   };
 }
