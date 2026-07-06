@@ -102,8 +102,10 @@ source_set("check_cpu_optimizations") {
     "../../include/perfetto/base",
   ]
 
-  # Absolute path required: it must match the label added to default_configs.
-  configs -= [ "//gn/standalone:x64_cpu_opt" ]  # nogncheck
+  # x64_cpu_opt only exists in standalone builds, not chromium/embedder.
+  if (perfetto_build_standalone) {
+    configs -= [ "//gn/standalone:x64_cpu_opt" ]  # nogncheck
+  }
 }
 
 perfetto_component("clock_snapshots") {
