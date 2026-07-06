@@ -28,6 +28,7 @@ import {HotkeyGlyphs, Keycap} from '../widgets/hotkey_glyphs';
 import {Switch} from '../widgets/switch';
 import {assetSrc} from '../base/assets';
 import {Stack} from '../widgets/stack';
+import {MiddleEllipsis} from '../widgets/middle_ellipsis';
 import {Icons} from '../base/semantic_icons';
 import {Icon} from '../widgets/icon';
 import {classNames} from '../base/classnames';
@@ -39,6 +40,12 @@ import {
 } from '../base/keyboard_layout_map';
 import {Spinner} from '../widgets/spinner';
 import {KeyMapping} from '../base/wasd_key_mapping';
+import {
+  deleteCachedTrace,
+  getRecentCachedTraces,
+  type CachedTraceEntry,
+} from '../core/cache_manager';
+import {formatBytesSi} from '../base/bytes_format';
 
 export class HomePage implements m.ClassComponent {
   view() {
@@ -177,9 +184,9 @@ class Hints implements m.ClassComponent {
         m(
           '.pf-home-page__section-content',
           m(
-            '.pf-home-page__getting-started-buttons',
+            Stack,
             m(
-              '.pf-home-page__button',
+              '.pf-home-page__item',
               {
                 onclick: () => {
                   AppImpl.instance.commands.runCommand(
@@ -188,21 +195,28 @@ class Hints implements m.ClassComponent {
                 },
               },
               m(Icon, {icon: 'folder_open', className: 'pf-left-icon'}),
-              m('span.pf-button__label', 'Open trace'),
+              m(
+                '.pf-home-page__item-info',
+                m('.pf-home-page__item-title', 'Open trace'),
+              ),
             ),
             m(
-              '.pf-home-page__button',
+              '.pf-home-page__item',
               {
                 onclick: () => {
                   Router.navigate('#!/record');
                 },
               },
               m(Icon, {icon: 'fiber_smart_record', className: 'pf-left-icon'}),
-              m('span.pf-button__label', 'Record new trace'),
+              m(
+                '.pf-home-page__item-info',
+                m('.pf-home-page__item-title', 'Record new trace'),
+              ),
             ),
           ),
         ),
       ),
+      m(RecentTraces),
       // Keyboard shortcuts section
       m(
         '.pf-home-page__section',
@@ -260,4 +274,80 @@ class Hints implements m.ClassComponent {
       ),
     );
   }
+}
+
+function RecentTraces(): m.Component {
+  let recentTraces: ReadonlyArray<CachedTraceEntry> = [];
+  let loading = true;
+  const MAX_RECENT_TRACES = 5;
+
+  function reloadTraces() {
+    getRecentCachedTraces().then((traces) => {
+      recentTraces = traces.slice(0, MAX_RECENT_TRACES);
+      loading = false;
+      m.redraw();
+    });
+  }
+
+  reloadTraces();
+
+  return {
+    view() {
+      if (loading || recentTraces.length === 0) {
+        return null;
+      }
+
+      return m(
+        '.pf-home-page__section',
+        m('.pf-home-page__section-title', 'Recently opened traces'),
+        m(
+          '.pf-home-page__section-content',
+          m(
+            Stack,
+            recentTraces.map((trace) => {
+              return m(
+                '.pf-home-page__item',
+                {
+                  onclick: () => {
+                    Router.navigate(`#!/?local_cache_key=${trace.uuid}`);
+                  },
+                },
+                m(Icon, {icon: 'description', className: 'pf-left-icon'}),
+                m(
+                  '.pf-home-page__item-info',
+                  m(MiddleEllipsis, {
+                    text: trace.title,
+                    endChars: 16,
+                    className: 'pf-home-page__item-title',
+                  }),
+                  m(
+                    '.pf-home-page__item-details',
+                    trace.sizeBytes !== undefined &&
+                      formatBytesSi(trace.sizeBytes),
+                  ),
+                ),
+                m(Button, {
+                  className: 'pf-visible-on-hover',
+                  icon: 'close',
+                  variant: ButtonVariant.Minimal,
+                  title: 'Remove from cache',
+                  onclick: async (e: Event) => {
+                    e.stopPropagation();
+                    if (
+                      window.confirm(
+                        'Are you sure you want to remove this trace?',
+                      )
+                    ) {
+                      await deleteCachedTrace(trace.uuid);
+                      reloadTraces();
+                    }
+                  },
+                }),
+              );
+            }),
+          ),
+        ),
+      );
+    },
+  };
 }

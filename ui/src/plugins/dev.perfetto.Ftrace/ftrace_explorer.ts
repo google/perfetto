@@ -39,15 +39,12 @@ import {
 import type {FtraceFilter, FtraceStat} from './common';
 import {Icons} from '../../base/semantic_icons';
 import type {Cpu} from '../../components/cpu';
-import {
-  DataGridExportButton,
-  type ExportFormat,
-} from '../../components/widgets/datagrid/export_button';
+import {ExportButton, type ExportFormat} from '../../widgets/export_button';
 import {
   formatAsTSV,
   formatAsJSON,
   formatAsMarkdown,
-} from '../../components/widgets/datagrid/export_utils';
+} from '../../base/export_formatters';
 import {MenuItem} from '../../widgets/menu';
 
 const ROW_H = 24;
@@ -357,7 +354,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     return [
       cpuFilterButton,
       eventFilterButton,
-      m(DataGridExportButton, {onExportData}),
+      m(ExportButton, {onExportData}),
     ];
   }
 }
