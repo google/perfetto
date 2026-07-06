@@ -85,6 +85,7 @@
       flex: 1;
       display: flex;
       flex-direction: column;
+      max-width: 400px;
 
       &-title {
         font-size: 12px;
@@ -136,6 +137,57 @@
 
       &:active {
         background: color_active(transparent);
+      }
+    }
+
+    .pf-home-page__item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-radius: $border-radius;
+      padding: 5px 8px;
+      margin: 0 -8px;
+      cursor: pointer;
+      user-select: none;
+      gap: 12px;
+
+      .pf-visible-on-hover {
+        visibility: hidden;
+      }
+
+      &:hover {
+        background: color_hover(transparent);
+
+        .pf-visible-on-hover {
+          visibility: visible;
+        }
+      }
+
+      &:active {
+        background: color_active(transparent);
+      }
+
+      & > .pf-left-icon {
+        color: var(--pf-color-text-muted);
+      }
+
+      &-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      &-title {
+        color: var(--pf-color-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      &-details {
+        font-size: 0.85em;
+        color: var(--pf-color-text-muted);
       }
     }
 

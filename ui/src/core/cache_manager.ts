@@ -38,7 +38,7 @@ async function getCache(): Promise<Cache | undefined> {
   return LAZY_CACHE;
 }
 
-async function cacheDelete(key: Request): Promise<boolean> {
+async function cacheDelete(key: Request | string): Promise<boolean> {
   try {
     const cache = await getCache();
     if (cache === undefined) return false; // Cache storage not supported.
@@ -205,4 +205,53 @@ async function deleteStaleEntries() {
   // TODO(hjd): Wrong Promise.all here, should use the one that
   // ignores failures but need to upgrade TypeScript for that.
   await Promise.all(deletions);
+}
+
+export interface CachedTraceEntry {
+  readonly uuid: string;
+  readonly title: string;
+  readonly fileName?: string;
+  readonly url?: string;
+  readonly sizeBytes?: number;
+  readonly expires?: string;
+}
+
+export async function getRecentCachedTraces(): Promise<
+  ReadonlyArray<CachedTraceEntry>
+> {
+  await deleteStaleEntries();
+  const keys = await cacheKeys();
+  const entries: CachedTraceEntry[] = [];
+
+  for (const key of keys) {
+    const response = await cacheMatch(key);
+    if (!response) continue;
+
+    // Key URL format: /_cached_traces/${uuid}
+    const uuid = key.url.split('/').pop() ?? '';
+    const rawTitle = response.headers.get('x-trace-title');
+    const title = rawTitle ? decodeURI(rawTitle) : 'Untitled trace';
+    const fileName = response.headers.get('x-trace-filename') ?? undefined;
+    const url = response.headers.get('x-trace-url') ?? undefined;
+    const contentLength = response.headers.get('content-length');
+    const sizeBytes = contentLength ? parseInt(contentLength, 10) : undefined;
+    const expires = response.headers.get('expires') ?? undefined;
+
+    entries.push({
+      uuid,
+      title,
+      fileName,
+      url,
+      sizeBytes,
+      expires,
+    });
+  }
+
+  // Sort descending by expires string
+  entries.sort((a, b) => (b.expires ?? '').localeCompare(a.expires ?? ''));
+  return entries;
+}
+
+export async function deleteCachedTrace(uuid: string): Promise<boolean> {
+  return await cacheDelete(`/_${TRACE_CACHE_NAME}/${uuid}`);
 }
