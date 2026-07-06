@@ -14,7 +14,7 @@
 
 import './flamegraph.scss';
 import m from 'mithril';
-import {ensureExists, assertTrue} from '../base/assert';
+import {ensureExists, assertTrue, assertUnreachable} from '../base/assert';
 import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
 import {Chip} from './chip';
@@ -22,6 +22,12 @@ import {Intent} from './common';
 import {copyToClipboard} from '../base/clipboard';
 import {CopyToClipboardButton} from './copy_to_clipboard_button';
 import {EmptyState} from './empty_state';
+import {ExportButton, type ExportFormat} from './export_button';
+import {
+  formatAsTSV,
+  formatAsJSON,
+  formatAsMarkdown,
+} from '../base/export_formatters';
 import {Form, FormLabel} from './form';
 import {Icon} from './icon';
 import {MiddleEllipsis} from './middle_ellipsis';
@@ -1015,6 +1021,14 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           m(RadioGroup.Button, {value: 'bottom-up'}, 'Bottom Up'),
         ],
       ),
+      attrs.data !== undefined &&
+        attrs.data.nodes.length > 0 && [
+          m('.pf-flamegraph-filter-bar-separator'),
+          m(ExportButton, {
+            fileBaseName: 'flamegraph',
+            onExportData: async (format) => this.buildExportString(format),
+          }),
+        ],
     );
   }
 
@@ -1476,6 +1490,74 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       lines.push('| ' + cols.join(' | ') + ' |');
     }
     return lines.join('\n');
+  }
+
+  // Builds a table of all currently displayed nodes (i.e. with filters
+  // applied) in the given format. Metric values are raw numbers in the
+  // metric's unit so they can be aggregated in spreadsheets; the tree
+  // structure is preserved via the id/parentId columns.
+  private buildExportString(format: ExportFormat): string {
+    const {nodes} = ensureExists(this.attrs.data);
+    const metric = ensureExists(this.selectedMetric);
+    const unitDisplay = getUnitDisplayName(metric.unit);
+
+    const unaggKeys: string[] = [];
+    const aggKeys: string[] = [];
+    const propDisplayNames = new Map<string, string>();
+    for (const node of nodes) {
+      for (const [key, prop] of node.properties) {
+        const keys = prop.isAggregatable ? aggKeys : unaggKeys;
+        if (!keys.includes(key)) {
+          keys.push(key);
+          propDisplayNames.set(key, prop.displayName);
+        }
+      }
+    }
+
+    const columns = [
+      'id',
+      'parentId',
+      'depth',
+      'name',
+      ...unaggKeys,
+      'cumulativeValue',
+      'selfValue',
+      ...aggKeys,
+    ];
+    const columnNames: Record<string, string> = {
+      ...Object.fromEntries(propDisplayNames),
+      id: 'Id',
+      parentId: 'Parent Id',
+      depth: 'Depth',
+      name: metric.nameColumnLabel ?? 'Name',
+      cumulativeValue: `Cumulative ${metric.name} (${unitDisplay})`,
+      selfValue: `Self ${metric.name} (${unitDisplay})`,
+    };
+    const rows = nodes.map((n) => {
+      const row: Record<string, string> = {
+        id: n.id.toString(),
+        parentId: n.parentId.toString(),
+        depth: n.depth.toString(),
+        name: n.name,
+        cumulativeValue: n.cumulativeValue.toString(),
+        selfValue: n.selfValue.toString(),
+      };
+      for (const key of [...unaggKeys, ...aggKeys]) {
+        row[key] = n.properties.get(key)?.value ?? '';
+      }
+      return row;
+    });
+
+    switch (format) {
+      case 'tsv':
+        return formatAsTSV(columns, columnNames, rows);
+      case 'json':
+        return formatAsJSON(columns, columnNames, rows);
+      case 'markdown':
+        return formatAsMarkdown(columns, columnNames, rows);
+      default:
+        assertUnreachable(format);
+    }
   }
 
   private createReducedProperties(

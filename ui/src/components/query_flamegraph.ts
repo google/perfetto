@@ -539,7 +539,8 @@ async function computeFlamegraphTree(
     for (const a of agg) {
       const r = it.get(a.name);
       if (r !== null) {
-        const value = r as string;
+        // UNKNOWN-typed aggregations (e.g. SUM) can yield number/bigint.
+        const value = String(r);
         properties.set(a.name, {
           displayName: a.displayName,
           value,
