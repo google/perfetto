@@ -221,8 +221,7 @@ using ScopedParser = std::unique_ptr<SyntaqliteParser, SyntaqliteParserDeleter>;
 ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
   ParsedModule result;
 
-  ScopedParser owned(syntaqlite_parser_create_with_dialect(
-      nullptr, syntaqlite_perfetto_dialect()));
+  ScopedParser owned(syntaqlite_parser_create_perfetto(nullptr));
   PERFETTO_CHECK(owned != nullptr);
   SyntaqliteParser* p = owned.get();
 

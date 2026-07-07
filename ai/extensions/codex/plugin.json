@@ -1,6 +1,6 @@
 {
   "name": "perfetto",
-  "version": "v57.1",
+  "version": "v57.2",
   "description": "Perfetto skills for trace analysis: query traces, install trace_processor, and run guided investigation workflows.",
   "author": {
     "name": "Perfetto",
