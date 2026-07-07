@@ -21,6 +21,8 @@ Unreleased:
       several files) opens a dialog to configure how the traces merge onto
       a shared timeline, warns if any events would be dropped, and can
       export the merged set as a self-contained .tar archive.
+    * Ftrace plugin: now handles area selections. The existing cpu scope filter
+      in the ftrace tab is removed in favour of track area selections.
   SDK:
     *
 

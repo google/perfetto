@@ -38,7 +38,6 @@ import {
 } from '../../widgets/grid';
 import type {FtraceFilter, FtraceStat} from './common';
 import {Icons} from '../../base/semantic_icons';
-import type {Cpu} from '../../components/cpu';
 import {ExportButton, type ExportFormat} from '../../widgets/export_button';
 import {
   formatAsTSV,
@@ -53,6 +52,9 @@ interface FtraceExplorerAttrs {
   readonly cache: FtraceExplorerCache;
   readonly filterStore: Store<FtraceFilter>;
   readonly trace: Trace;
+  // Optional time bounds, if unset, the current viewport is used.
+  readonly bounds?: {readonly start: time; readonly end: time};
+  readonly restrictToCpus?: ReadonlyArray<number>;
 }
 
 interface FtraceEvent {
@@ -78,7 +80,6 @@ interface Pagination {
 export interface FtraceExplorerCache {
   state: 'blank' | 'loading' | 'valid';
   counters: FtraceStat[];
-  cpus: Cpu[];
 }
 
 async function getFtraceCounters(engine: Engine): Promise<FtraceStat[]> {
@@ -136,22 +137,29 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   }
 
   view({attrs}: m.CVnode<FtraceExplorerAttrs>) {
-    const {start, end} = attrs.trace.timeline.visibleWindow.toTimeSpan();
-    const {excludeList, cpuFilter} = attrs.filterStore.state;
+    const {start, end} =
+      attrs.bounds ?? attrs.trace.timeline.visibleWindow.toTimeSpan();
+    const {excludeList} = attrs.filterStore.state;
+    const restrictToCpus = attrs.restrictToCpus ?? [];
     const pagination = this.pagination;
     const engine = attrs.trace.engine;
 
     // Count query - always fresh (no staleOn)
     const {data: numEvents} = this.countSlot.use({
-      key: {viewport: {start, end}, excludeList, cpuFilter},
+      key: {viewport: {start, end}, excludeList, restrictToCpus},
       retainOn: ['viewport'],
       queryFn: () =>
-        fetchFtraceEventCount(engine, start, end, excludeList, cpuFilter),
+        fetchFtraceEventCount(engine, start, end, excludeList, restrictToCpus),
     });
 
     // Events query - stale on pagination for smooth scrolling
     const {data} = this.eventsSlot.use({
-      key: {viewport: {start, end}, excludeList, cpuFilter, pagination},
+      key: {
+        viewport: {start, end},
+        excludeList,
+        restrictToCpus,
+        pagination,
+      },
       retainOn: ['pagination', 'viewport'],
       queryFn: () =>
         fetchFtraceEvents(
@@ -161,7 +169,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
           start,
           end,
           excludeList,
-          cpuFilter,
+          restrictToCpus,
         ),
     });
 
@@ -171,7 +179,11 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
       {key: 'name', header: m(GridHeaderCell, 'Name')},
       {key: 'cpu', header: m(GridHeaderCell, 'CPU')},
       {key: 'process', header: m(GridHeaderCell, 'Process')},
-      {key: 'args', header: m(GridHeaderCell, 'Args')},
+      {
+        key: 'args',
+        header: m(GridHeaderCell, 'Args'),
+        maxInitialWidthPx: Infinity,
+      },
     ];
 
     return m(
@@ -256,40 +268,10 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   }
 
   private renderFilterPanel(attrs: FtraceExplorerAttrs) {
-    const {excludeList, cpuFilter} = attrs.filterStore.state;
-
-    const cpuOptions: MultiSelectOption[] = attrs.cache.cpus.map((cpu) => ({
-      id: String(cpu.cpu),
-      name: cpu.toString(),
-      checked: !cpuFilter.includes(cpu.cpu),
-    }));
-
-    const cpuFilterButton = m(PopupMultiSelect, {
-      label: 'CPU',
-      icon: 'memory',
-      position: PopupPosition.Top,
-      options: cpuOptions,
-      onChange: (diffs: MultiSelectDiff[]) => {
-        const newSet = new Set<number>(cpuFilter);
-        diffs.forEach(({checked, id}) => {
-          const cpu = Number(id);
-          if (checked) {
-            newSet.delete(cpu);
-          } else {
-            newSet.add(cpu);
-          }
-        });
-        attrs.filterStore.edit((draft) => {
-          draft.cpuFilter = Array.from(newSet);
-        });
-      },
-    });
+    const {excludeList} = attrs.filterStore.state;
 
     if (attrs.cache.state !== 'valid') {
-      return [
-        cpuFilterButton,
-        m(Button, {label: 'Events', disabled: true, loading: true}),
-      ];
+      return [m(Button, {label: 'Events', disabled: true, loading: true})];
     }
 
     const eventOptions: MultiSelectOption[] = attrs.cache.counters.map(
@@ -321,13 +303,14 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     });
 
     const onExportData = async (format: ExportFormat): Promise<string> => {
-      const {start, end} = attrs.trace.timeline.visibleWindow.toTimeSpan();
+      const {start, end} =
+        attrs.bounds ?? attrs.trace.timeline.visibleWindow.toTimeSpan();
       const events = await fetchAllFtraceEvents(
         attrs.trace.engine,
         start,
         end,
         excludeList,
-        cpuFilter,
+        attrs.restrictToCpus ?? [],
       );
       const columns = ['id', 'ts', 'name', 'cpu', 'process', 'args'];
       const columnNames: Record<string, string> = {
@@ -351,11 +334,8 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
       return formatAsMarkdown(columns, columnNames, rows);
     };
 
-    return [
-      cpuFilterButton,
-      eventFilterButton,
-      m(ExportButton, {onExportData}),
-    ];
+    return [eventFilterButton, m(ExportButton, {onExportData})];
+    return [eventFilterButton, m(ExportButton, {onExportData})];
   }
 }
 
@@ -364,17 +344,17 @@ async function fetchFtraceEventCount(
   start: time,
   end: time,
   excludeList: ReadonlyArray<string>,
-  cpuFilter: ReadonlyArray<number>,
+  restrictToCpus: ReadonlyArray<number>,
 ): Promise<number> {
   const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
-  const cpuFilterSql = cpuFilter.join(',');
+  const restrictSql = restrictToCpus.join(',');
 
   const queryRes = await engine.query(`
     select count(id) as numEvents
     from ftrace_event
     where
       ftrace_event.name not in (${excludeListSql}) and
-      ${cpuFilterSql.length > 0 ? `ftrace_event.cpu not in (${cpuFilterSql}) and` : ''}
+      ${restrictSql.length > 0 ? `ftrace_event.cpu in (${restrictSql}) and` : ''}
       ts >= ${start} and ts <= ${end}
     `);
   return queryRes.firstRow({numEvents: NUM}).numEvents;
@@ -385,11 +365,11 @@ async function queryFtraceEvents(
   start: time,
   end: time,
   excludeList: ReadonlyArray<string>,
-  cpuFilter: ReadonlyArray<number>,
+  restrictToCpus: ReadonlyArray<number>,
   pagination?: {offset: number; count: number},
 ): Promise<FtraceEvent[]> {
   const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
-  const cpuFilterSql = cpuFilter.join(',');
+  const restrictSql = restrictToCpus.join(',');
   const limitClause = pagination
     ? `limit ${pagination.count} offset ${pagination.offset}`
     : '';
@@ -408,7 +388,7 @@ async function queryFtraceEvents(
     left join process on thread.upid = process.upid
     where
       ftrace_event.name not in (${excludeListSql}) and
-      ${cpuFilterSql.length > 0 ? `ftrace_event.cpu not in (${cpuFilterSql}) and` : ''}
+      ${restrictSql.length > 0 ? `ftrace_event.cpu in (${restrictSql}) and` : ''}
       ts >= ${start} and ts <= ${end}
     order by id
     ${limitClause};`);
@@ -443,14 +423,14 @@ async function fetchFtraceEvents(
   start: time,
   end: time,
   excludeList: ReadonlyArray<string>,
-  cpuFilter: ReadonlyArray<number>,
+  restrictToCpus: ReadonlyArray<number>,
 ): Promise<FtracePanelData> {
   const events = await queryFtraceEvents(
     engine,
     start,
     end,
     excludeList,
-    cpuFilter,
+    restrictToCpus,
     {offset, count},
   );
   return {events, offset};
@@ -461,7 +441,7 @@ async function fetchAllFtraceEvents(
   start: time,
   end: time,
   excludeList: ReadonlyArray<string>,
-  cpuFilter: ReadonlyArray<number>,
+  restrictToCpus: ReadonlyArray<number>,
 ): Promise<FtraceEvent[]> {
-  return queryFtraceEvents(engine, start, end, excludeList, cpuFilter);
+  return queryFtraceEvents(engine, start, end, excludeList, restrictToCpus);
 }

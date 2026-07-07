@@ -21,7 +21,11 @@ import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Cpu} from '../../components/cpu';
 import {getMachineCount} from '../../public/utils';
-import type {FtraceFilter, FtracePluginState as FtraceFilters} from './common';
+import {
+  type FtraceFilter,
+  type FtracePluginState as FtraceFilters,
+  FTRACE_RAW_TRACK_KIND,
+} from './common';
 import {FtraceExplorer, type FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
 
@@ -31,7 +35,6 @@ const DEFAULT_STATE: FtraceFilters = {
   version: VERSION,
   filter: {
     excludeList: [],
-    cpuFilter: [],
   },
 };
 
@@ -86,6 +89,7 @@ export default class implements PerfettoPlugin {
         description: `Ftrace events for CPU ${cpu.toString()}`,
         tags: {
           cpu: cpu.cpu,
+          kinds: [FTRACE_RAW_TRACK_KIND],
         },
         renderer: createFtraceTrack(ctx, uri, cpu.ucpu, filterStore),
       });
@@ -104,7 +108,6 @@ export default class implements PerfettoPlugin {
     const cache: FtraceExplorerCache = {
       state: 'blank',
       counters: [],
-      cpus,
     };
 
     ctx.tabs.registerTab({
@@ -126,6 +129,33 @@ export default class implements PerfettoPlugin {
       name: 'Show ftrace tab',
       callback: () => {
         ctx.tabs.showTab(ftraceTabUri);
+      },
+    });
+
+    // Also use the ftrace tab for area selections, as a separate child of the
+    // selection tab, but using the same stored state (currently event filters)
+    // as the standalone tab.
+    ctx.selection.registerAreaSelectionTab({
+      id: 'ftrace_area_selection',
+      name: 'Ftrace Events',
+      priority: 100,
+      render(selection) {
+        const cpus = selection.tracks
+          .filter((t) => t.tags?.kinds?.includes(FTRACE_RAW_TRACK_KIND))
+          .map((t) => t.tags?.cpu)
+          .filter((cpu): cpu is number => cpu !== undefined);
+        if (cpus.length === 0) return undefined;
+
+        return {
+          isLoading: false,
+          content: m(FtraceExplorer, {
+            filterStore,
+            cache,
+            trace: ctx,
+            bounds: {start: selection.start, end: selection.end},
+            restrictToCpus: cpus,
+          }),
+        };
       },
     });
   }
