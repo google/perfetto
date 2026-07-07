@@ -261,8 +261,10 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         );
         this.popupElement = popupElement;
         this.createOrUpdatePopper(attrs);
-        document.addEventListener('mousedown', this.handleDocMouseDown);
-        document.addEventListener('keydown', this.handleDocKeyPress);
+        // Capture phase so we can consume a dismissing event before global
+        // bubble-phase listeners (hotkeys, timeline deselect) see it.
+        document.addEventListener('mousedown', this.handleDocMouseDown, true);
+        document.addEventListener('keydown', this.handleDocKeyPress, true);
         dom.addEventListener('click', this.handleContentClick);
         onPopupMount(popupElement);
       },
@@ -276,8 +278,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
           onPopupUnMount(this.popupElement);
         }
         dom.removeEventListener('click', this.handleContentClick);
-        document.removeEventListener('keydown', this.handleDocKeyPress);
-        document.removeEventListener('mousedown', this.handleDocMouseDown);
+        document.removeEventListener('keydown', this.handleDocKeyPress, true);
+        document.removeEventListener('mousedown', this.handleDocMouseDown, true);
         this.popper && this.popper.destroy();
         this.popper = undefined;
         this.popupElement = undefined;
@@ -484,6 +486,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
 
   private handleDocMouseDown = (e: Event) => {
     if (this.closeOnOutsideClick && !this.eventInPopupOrTrigger(e)) {
+      // Consume so dismissing doesn't also deselect on the timeline.
+      e.preventDefault();
+      e.stopPropagation();
       this.closePopup();
     }
   };
@@ -495,6 +500,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     );
     if (!nextGroupElement) {
       if (this.closeOnEscape && e.key === 'Escape') {
+        // Consume so Escape doesn't also deselect on the timeline.
+        e.preventDefault();
+        e.stopPropagation();
         this.closePopup();
       }
     }
