@@ -218,6 +218,56 @@ std::vector<uint8_t> BuildReDeclDescriptorSet(bool second_is_scalar_mismatch) {
   return fds.SerializeAsArray();
 }
 
+// Two scalar extensions at the same tag with the given types, re-declaring a
+// field with a possibly-widened scalar type (e.g. bool -> uint32).
+std::vector<uint8_t> BuildScalarReDeclDescriptorSet(
+    protos::pbzero::FieldDescriptorProto::Type type_a,
+    protos::pbzero::FieldDescriptorProto::Type type_b) {
+  protozero::HeapBuffered<FileDescriptorSet> fds;
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+
+  auto* base_msg = file->add_message_type();
+  base_msg->set_name("BaseMessage");
+
+  auto* ext1 = file->add_extension();
+  ext1->set_name("ext_field");
+  ext1->set_number(10);
+  ext1->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext1->set_type(type_a);
+  ext1->set_extendee(".test.BaseMessage");
+
+  auto* ext2 = file->add_extension();
+  ext2->set_name("ext_field");
+  ext2->set_number(10);
+  ext2->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext2->set_type(type_b);
+  ext2->set_extendee(".test.BaseMessage");
+
+  return fds.SerializeAsArray();
+}
+
+// A message with one message-typed field pointing at `type_name` that is never
+// defined, leaving a dangling reference for the resolution pass to handle.
+std::vector<uint8_t> BuildDanglingTypeDescriptorSet(const char* type_name) {
+  protozero::HeapBuffered<FileDescriptorSet> fds;
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+
+  auto* base_msg = file->add_message_type();
+  base_msg->set_name("BaseMessage");
+  auto* field = base_msg->add_field();
+  field->set_name("removed_field");
+  field->set_number(81);
+  field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  field->set_type(FieldDescriptorProto::TYPE_MESSAGE);
+  field->set_type_name(type_name);
+
+  return fds.SerializeAsArray();
+}
+
 // Builds a descriptor set with two enum-typed extensions registered at the
 // same tag, pointing at two differently-named enums. When `enums_equal` is
 // true the two enums have identical values (a pure rename); otherwise one
@@ -504,6 +554,51 @@ TEST(DescriptorsTest, ExtensionReDeclaredWithDifferentFundamentalTypeRejected) {
   EXPECT_FALSE(status.ok());
   EXPECT_THAT(status.c_message(),
               testing::HasSubstr("re-introduced with different type"));
+}
+
+// A field naming an intentionally-removed type is tolerated and left
+// unresolved rather than failing the trace.
+TEST(DescriptorsTest, RemovedTypeReferenceTolerated) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes = BuildDanglingTypeDescriptorSet(
+      ".perfetto.protos.AndroidCameraSessionStats");
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_TRUE(status.ok()) << status.message();
+  auto base_idx = pool.FindDescriptorIdx(".test.BaseMessage");
+  ASSERT_TRUE(base_idx.has_value());
+  const auto* field = pool.descriptors()[base_idx.value()].FindFieldByTag(81);
+  ASSERT_NE(field, nullptr);
+  // The removed type could not be resolved, so it stays empty.
+  EXPECT_TRUE(field->resolved_type_name().empty());
+}
+
+// A field naming an unresolvable type not on the allowlist still fails, so
+// genuine missing types are not masked.
+TEST(DescriptorsTest, UnknownTypeReferenceRejected) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes =
+      BuildDanglingTypeDescriptorSet(".perfetto.protos.SomeTypoedType");
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.c_message(),
+              testing::HasSubstr("Unable to find short type"));
+}
+
+// Same wire type (bool -> uint32, both kVarInt) is accepted: the
+// previous_packet_dropped case where an old trace still declares the field as
+// bool.
+TEST(DescriptorsTest, ScalarReDeclaredWithSameWireTypeAllowed) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes = BuildScalarReDeclDescriptorSet(
+      FieldDescriptorProto::TYPE_BOOL, FieldDescriptorProto::TYPE_UINT32);
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_TRUE(status.ok()) << status.message();
+  auto base_idx = pool.FindDescriptorIdx(".test.BaseMessage");
+  ASSERT_TRUE(base_idx.has_value());
+  EXPECT_NE(pool.descriptors()[base_idx.value()].FindFieldByTag(10), nullptr);
 }
 
 // CheckExtensionField: re-declaring an extension at the same tag with an
