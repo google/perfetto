@@ -39,6 +39,17 @@ function tracedPerf(): RecordProbe {
       values: [1, 10, 50, 100, 250, 500, 1000],
       unit: 'Hz',
     }),
+    ringBufSize: new Slider({
+      title: 'Kernel ring buffer size',
+      description:
+        'Size of each per-cpu ring buffer filled by the kernel. ' +
+        'Increase this if samples are being dropped. ' +
+        '0 = use the default (1 MiB).',
+      cssClass: '.thin',
+      values: [0, 512, 1024, 2048, 4096, 8192, 16384, 32768],
+      unit: 'KiB',
+      zeroIsDefault: true,
+    }),
     procs: new Textarea({
       placeholder:
         'Filters for processes to profile, one per line e.g.' +
@@ -58,6 +69,7 @@ function tracedPerf(): RecordProbe {
       const s = settings;
       const pkgs = splitLinesNonEmpty(s.procs.text);
       tc.addDataSource('linux.perf').perfEventConfig = {
+        ringBufferPages: ringBufferPagesFromKib(s.ringBufSize.value),
         timebase: {
           frequency: s.samplingFreq.value,
           timestampClock: protos.PerfEvents.PerfClock.PERF_CLOCK_MONOTONIC,
@@ -73,4 +85,12 @@ function tracedPerf(): RecordProbe {
       };
     },
   };
+}
+
+// The kernel requires the ring buffer size to be a power of two of the page
+// size (4 KiB), so round up whatever the user typed in.
+function ringBufferPagesFromKib(sizeKib: number): number | undefined {
+  if (sizeKib <= 0 || !Number.isFinite(sizeKib)) return undefined;
+  const pages = Math.max(1, Math.ceil(sizeKib / 4));
+  return Math.pow(2, Math.ceil(Math.log2(pages)));
 }
