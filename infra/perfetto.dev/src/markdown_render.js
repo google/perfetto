@@ -18,6 +18,7 @@ const argv = require("yargs").argv;
 const fs = require("fs-extra");
 const path = require("path");
 const hljs = require("highlight.js");
+const {headingAnchor} = require("./md_anchors");
 
 const CS_BASE_URL =
   "https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/";
@@ -61,21 +62,15 @@ function assertNoDeadLink(relPathFromRoot) {
 }
 
 function renderHeading(text, level) {
-  // If the heading has an explicit ${#anchor}, use that. Otherwise infer the
-  // anchor from the text but only for h2 and h3. Note the right-hand-side TOC
-  // is dynamically generated from anchors (explicit or implicit).
+  // The anchor id is derived by headingAnchor() (shared with gen_search_index.js
+  // so search deep-links stay in sync). Note the right-hand-side TOC is
+  // dynamically generated from these anchors (explicit or implicit).
   if (level === 1 && !title) {
     title = text;
   }
-  let anchorId = "";
-  const explicitAnchor = /{#([\w-_.]+)}/.exec(text);
-  if (explicitAnchor) {
-    text = text.replace(explicitAnchor[0], "");
-    anchorId = explicitAnchor[1];
-  } else if (level >= 2 && level <= 3) {
-    anchorId = text.toLowerCase().replace(/[^\w]+/g, "-");
-    anchorId = anchorId.replace(/[-]+/g, "-"); // Drop consecutive '-'s.
-  }
+  const anchorId = headingAnchor(text, level);
+  // Strip an explicit {#anchor} marker from the visible heading text.
+  text = text.replace(/{#[\w-_.]+}/, "");
   let anchor = "";
   if (anchorId) {
     anchor = `<a name="${anchorId}" class="anchor" href="#${anchorId}"></a>`;

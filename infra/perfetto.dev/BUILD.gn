@@ -31,6 +31,7 @@ group("site") {
     ":all_mdfiles",
     ":assets",
     ":gen_index",
+    ":gen_search_index",
     ":gen_sql_stats_html",
     ":gen_sql_tables_html",
     ":gen_stdlib_docs_html",
@@ -386,6 +387,73 @@ foreach(source, removed_renamed_moved_files) {
 
 group("all_mdfiles") {
   deps = mdtargets
+}
+
+# Builds assets/search_index.json, the client-side full-text search index
+# consumed by setupSearch() in src/assets/script.js. Hand-written docs are
+# indexed in full; the huge auto-generated reference pages (SQL tables, stdlib,
+# protos) are indexed by title + headings only to keep the shipped index small.
+gen_search_index_out = "${perfetto_website_out_dir}/assets/search_index.json"
+
+nodejs_script("gen_search_index") {
+  script = "src/gen_search_index.js"
+  inputs = [ "src/md_anchors.js" ]  # require()d by the script for anchor ids.
+  outputs = [ gen_search_index_out ]
+  deps = [
+    ":gen_sql_stats_md",
+    ":gen_sql_tables_md",
+    ":gen_stdlib_docs_md",
+    ":gen_trace_config_proto_md",
+    ":gen_trace_packet_proto_md",
+  ]
+  args = [
+    "--out",
+    rebase_path(gen_search_index_out, root_build_dir),
+    "--doc-root",
+    rebase_path(src_doc_dir, root_build_dir),
+    "--toc",
+    rebase_path("${src_doc_dir}/toc.md", root_build_dir),
+  ]
+  inputs += [ "${src_doc_dir}/toc.md" ]  # Nav labels indexed at title weight.
+
+  # Full-text: every hand-written doc (same set globbed for md_to_html), plus
+  # the docs landing page (README.md -> /docs/).
+  full_mdfiles = mdfiles
+  full_mdfiles += [ rebase_path("../../docs/README.md", root_build_dir) ]
+  foreach(source, full_mdfiles) {
+    inputs += [ rebase_path(source, ".", root_build_dir) ]
+    args += [
+      "--full",
+      source,
+    ]
+  }
+
+  # Title + headings only: auto-generated reference pages. Each entry is
+  # "<url>=<markdown path>", where <url> mirrors the out_html mapping above.
+  gen_pages = [
+    "/docs/analysis/sql-stats=" + rebase_path(sql_stats_md, root_build_dir),
+    "/docs/analysis/sql-tables=" + rebase_path(sql_tables_md, root_build_dir),
+    "/docs/analysis/stdlib-docs=" + rebase_path(stdlib_docs_md, root_build_dir),
+    "/docs/reference/trace-config-proto=" +
+        rebase_path("${target_gen_dir}/gen_trace_config_proto.md",
+                    root_build_dir),
+    "/docs/reference/trace-packet-proto=" +
+        rebase_path("${target_gen_dir}/gen_trace_packet_proto.md",
+                    root_build_dir),
+  ]
+  inputs += [
+    sql_stats_md,
+    sql_tables_md,
+    stdlib_docs_md,
+    "${target_gen_dir}/gen_trace_config_proto.md",
+    "${target_gen_dir}/gen_trace_packet_proto.md",
+  ]
+  foreach(spec, gen_pages) {
+    args += [
+      "--gen",
+      spec,
+    ]
+  }
 }
 
 copy("node_assets") {
