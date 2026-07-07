@@ -75,8 +75,9 @@ class ProtoTraceTokenizer {
       if (PERFETTO_UNLIKELY(tag_end == tag_start)) {
         return header->size() < kMaxHeaderBytes
                    ? base::OkStatus()
-                   : base::ErrStatus("Failed to parse tag @ 0x%zx",
-                                     start_offset);
+                   : base::ErrStatus(
+                         "Failed to parse tag @ 0x%zx (ERR:tp-corrupt)",
+                         start_offset);
       }
 
       if (PERFETTO_UNLIKELY(tag != kTracePacketTag)) {
@@ -92,8 +93,9 @@ class ProtoTraceTokenizer {
             if (PERFETTO_UNLIKELY(varint_end == varint_start)) {
               return header->size() < kMaxHeaderBytes
                          ? base::OkStatus()
-                         : base::ErrStatus("Failed to skip varint @ 0x%zx",
-                                           start_offset);
+                         : base::ErrStatus(
+                               "Failed to skip varint @ 0x%zx (ERR:tp-corrupt)",
+                               start_offset);
             }
             PERFETTO_CHECK(reader_.PopFrontBytes(
                 static_cast<size_t>(varint_end - tag_start)));
@@ -108,8 +110,10 @@ class ProtoTraceTokenizer {
             if (PERFETTO_UNLIKELY(varint_end == varint_start)) {
               return header->size() < kMaxHeaderBytes
                          ? base::OkStatus()
-                         : base::ErrStatus("Failed to skip delimited @ 0x%zx",
-                                           start_offset);
+                         : base::ErrStatus(
+                               "Failed to skip delimited @ 0x%zx "
+                               "(ERR:tp-corrupt)",
+                               start_offset);
             }
 
             size_t size_incl_header =
@@ -141,7 +145,8 @@ class ProtoTraceTokenizer {
             continue;
           }
           default:
-            return base::ErrStatus("Unknown field type @ 0x%zx", start_offset);
+            return base::ErrStatus(
+                "Unknown field type @ 0x%zx (ERR:tp-corrupt)", start_offset);
         }
       }
 
@@ -155,7 +160,8 @@ class ProtoTraceTokenizer {
       if (PERFETTO_UNLIKELY(size_start == size_end)) {
         return header->size() < kMaxHeaderBytes
                    ? base::OkStatus()
-                   : base::ErrStatus("Failed to parse TracePacket size");
+                   : base::ErrStatus(
+                         "Failed to parse TracePacket size (ERR:tp-corrupt)");
       }
 
       // Empty packets can legitimately happen if the producer ends up emitting
@@ -197,14 +203,14 @@ class ProtoTraceTokenizer {
       while ((end - ptr) > 2) {
         const uint8_t* packet_outer = ptr;
         if (PERFETTO_UNLIKELY(*ptr != kTracePacketTag)) {
-          return base::ErrStatus("Expected TracePacket tag");
+          return base::ErrStatus("Expected TracePacket tag (ERR:tp-corrupt)");
         }
         uint64_t packet_size = 0;
         ptr = protozero::proto_utils::ParseVarInt(++ptr, end, &packet_size);
         const uint8_t* packet_start = ptr;
         ptr += packet_size;
         if (PERFETTO_UNLIKELY((ptr - packet_outer) < 2 || ptr > end)) {
-          return base::ErrStatus("Invalid packet size");
+          return base::ErrStatus("Invalid packet size (ERR:tp-corrupt)");
         }
         TraceBlobView sliced =
             packets.slice(packet_start, static_cast<size_t>(packet_size));

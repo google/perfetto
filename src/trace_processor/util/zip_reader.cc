@@ -359,9 +359,10 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
   out_data->resize(hdr_.uncompressed_size);
   auto dec_res = dec.ExtractOutput(out_data->data(), out_data->size());
   if (dec_res.ret != GzipDecompressor::ResultCode::kEof) {
-    return base::ErrStatus("Zip decompression error (%d) on %s (c=%u, u=%u)",
-                           static_cast<int>(dec_res.ret), hdr_.fname.c_str(),
-                           hdr_.compressed_size, hdr_.uncompressed_size);
+    return base::ErrStatus(
+        "Zip decompression error (%d) on %s (c=%u, u=%u) (ERR:tp-corrupt)",
+        static_cast<int>(dec_res.ret), hdr_.fname.c_str(),
+        hdr_.compressed_size, hdr_.uncompressed_size);
   }
   out_data->resize(dec_res.bytes_written);
 
@@ -370,8 +371,9 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
   auto crc_len = static_cast<::uInt>(out_data->size());
   auto actual_crc32 = static_cast<uint32_t>(::crc32(0u, crc_data, crc_len));
   if (actual_crc32 != hdr_.checksum) {
-    return base::ErrStatus("Zip CRC32 failure on %s (actual: %x, expected: %x)",
-                           hdr_.fname.c_str(), actual_crc32, hdr_.checksum);
+    return base::ErrStatus(
+        "Zip CRC32 failure on %s (actual: %x, expected: %x) (ERR:tp-corrupt)",
+        hdr_.fname.c_str(), actual_crc32, hdr_.checksum);
   }
 #endif
 
