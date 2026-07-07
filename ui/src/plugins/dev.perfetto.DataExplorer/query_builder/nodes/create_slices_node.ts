@@ -14,22 +14,25 @@
 
 import m from 'mithril';
 import {
-  QueryNode,
+  type QueryNode,
   nextNodeId,
   NodeType,
-  SecondaryInputSpec,
-  NodeContext,
+  type SecondaryInputSpec,
+  type NodeContext,
 } from '../../query_node';
 import {getSecondaryInput} from '../graph_utils';
 import protos from '../../../../protos';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
+import {type ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
 import {loadNodeDoc} from '../node_doc_loader';
 import {OutlinedField, FormListItem} from '../widgets';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeTitle, ColumnName} from '../node_styling_widgets';
-import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
+import {
+  StructuredQueryBuilder,
+  type ColumnSpec,
+} from '../structured_query_builder';
 import {
   PerfettoSqlTypes,
   typesEqual,

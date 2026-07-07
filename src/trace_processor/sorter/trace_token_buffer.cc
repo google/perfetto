@@ -82,6 +82,8 @@ struct alignas(8) FtraceDataDescriptor {
   uint16_t intern_seq_index;
   uint32_t intern_blob_offset : kMaxOffsetFromInternedBlobBits;
   uint32_t has_raw_ts : 1;
+  uint32_t insert_ftrace_event : 1;
+  uint32_t parse_event : 1;
 };
 static_assert(sizeof(FtraceDataDescriptor) == 8,
               "FtraceDataDescriptor must be small");
@@ -221,6 +223,8 @@ TraceTokenBuffer::Id TraceTokenBuffer::Append(TracePacketData data) {
 TraceTokenBuffer::Id TraceTokenBuffer::Append(FtraceData data) {
   FtraceDataDescriptor desc;
   desc.has_raw_ts = data.raw_ts != FtraceData::kRawTsUnset;
+  desc.insert_ftrace_event = data.insert_ftrace_event;
+  desc.parse_event = data.parse_event;
 
   auto [alloc_id, ptr] =
       AppendCommon(desc, data.packet, std::move(data.sequence_state));
@@ -249,6 +253,8 @@ FtraceData TraceTokenBuffer::Extract<FtraceData>(Id id) {
   if (desc.has_raw_ts) {
     data.raw_ts = ExtractFromPtr<int64_t>(&ptr);
   }
+  data.insert_ftrace_event = desc.insert_ftrace_event;
+  data.parse_event = desc.parse_event;
   allocator_.Free(id.alloc_id);
   return data;
 }

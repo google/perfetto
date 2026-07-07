@@ -29,8 +29,6 @@ const char* Node::GetTypeName() const {
           return "Empty";
         } else if constexpr (std::is_same_v<T, Node::IndexedRepeatedField>) {
           return "IndexedRepeatedField";
-        } else if constexpr (std::is_same_v<T, Node::MapNode>) {
-          return "MapEntry";
         } else if constexpr (std::is_same_v<T, Node::MappedRepeatedField>) {
           return "MappedRepeatedField";
         } else if constexpr (std::is_same_v<T, Node::Message>) {
@@ -42,20 +40,6 @@ const char* Node::GetTypeName() const {
         }
       },
       value);
-}
-
-Node& GetOuterNode(Node::MapNode& map_node) {
-  // Hackish solution to obtain offsetof(Node, MapNode). Alas, there isn't
-  // anything like the standard offsetof that works with std::variant. Note that
-  // the calculation can't be constexpr, however the compiler optimizes it out.
-  const Node tmp{Node::MapNode{0, nullptr}};
-  const auto* tmp_map_node = std::get_if<Node::MapNode>(&tmp.value);
-  const auto kOffset = reinterpret_cast<const char*>(tmp_map_node) -
-                       reinterpret_cast<const char*>(&tmp);
-
-  auto* node = reinterpret_cast<char*>(&map_node);
-  node -= kOffset;
-  return *reinterpret_cast<Node*>(node);
 }
 
 }  // namespace protovm

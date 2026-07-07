@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {QuerySlot, type QueryResult} from '../../../base/query_slot';
-import {Engine} from '../../../trace_processor/engine';
+import type {Engine} from '../../../trace_processor/engine';
 import {NUM, STR} from '../../../trace_processor/query_result';
-import {BoxplotData} from './boxplot';
+import type {BoxplotData} from './boxplot';
 import {validateColumnName} from './chart_utils';
 
 /**

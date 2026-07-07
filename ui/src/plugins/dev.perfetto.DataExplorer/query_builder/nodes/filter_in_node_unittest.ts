@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FilterInNode, FilterInNodeAttrs} from './filter_in_node';
+import {FilterInNode, type FilterInNodeAttrs} from './filter_in_node';
 import {NodeType} from '../../query_node';
 import {
   createMockNode,

@@ -15,28 +15,29 @@
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {Duration} from '../../base/time';
-import {BarChartData} from '../../components/aggregation';
+import type {BarChartData} from '../../components/aggregation';
 import {
-  AggregatePivotModel,
-  Aggregation,
-  Aggregator,
+  type AggregatePivotModel,
+  type Aggregation,
+  type Aggregator,
   createIITable,
 } from '../../components/aggregation_adapter';
-import {AreaSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
-import {Track} from '../../public/track';
+import type {AreaSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
+import type {Track} from '../../public/track';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {
-  Dataset,
-  DatasetSchema,
+  type Dataset,
+  type DatasetSchema,
   SourceDataset,
   UnionDatasetWithLineage,
 } from '../../trace_processor/dataset';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM,
   NUM_NULL,
+  type SqlValue,
   STR,
   STR_NULL,
   UNKNOWN,
@@ -148,7 +149,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         });
 
         const states: BarChartData[] = [];
-        for (let i = 0; it.valid(); ++i, it.next()) {
+        for (; it.valid(); it.next()) {
           const name = it.state ?? 'Unknown';
           states.push({
             title: `${name}: ${Duration.humanise(it.totalDur)}`,
@@ -199,7 +200,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             const parsed = JSON.parse(value) as {
               id: number;
               groupid: number;
-              partition: unknown;
+              partition: SqlValue;
             };
             const {id, groupid, partition} = parsed;
 
@@ -280,7 +281,10 @@ export class ThreadStateSelectionAggregator implements Aggregator {
   /**
    * Resolve a track from lineage information.
    */
-  private resolveTrack(groupId: number, partition: unknown): Track | undefined {
+  private resolveTrack(
+    groupId: number,
+    partition: SqlValue,
+  ): Track | undefined {
     if (!this.trackDatasetMap || !this.unionDataset) return undefined;
 
     // Ensure partition is a valid SqlValue

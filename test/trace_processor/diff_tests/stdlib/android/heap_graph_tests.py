@@ -103,6 +103,43 @@ class HeapGraph(TestSuite):
           "java.lang.String",1,666,1,666
         """))
 
+  # The same class loaded by two class loaders has the same name but distinct
+  # type_ids. The class tree keys on class name, so the two instances must
+  # coalesce into a single node (self_count = 2) rather than splitting.
+  def test_heap_graph_class_tree_dedups_class_loaders(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_class_loader_dedup.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
+
+          SELECT p.name AS parent_name, c.name, c.self_count, c.self_size
+          FROM _heap_graph_class_tree c
+          LEFT JOIN _heap_graph_class_tree p ON c.parent_id = p.id
+          ORDER BY c.name, parent_name;
+        """,
+        out=Csv("""
+          "parent_name","name","self_count","self_size"
+          "Root","Clock",2,32
+          "[NULL]","Root",1,8
+        """))
+
+  def test_heap_graph_dominator_class_tree_dedups_class_loaders(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_class_loader_dedup.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_class_tree;
+
+          SELECT p.name AS parent_name, c.name, c.self_count, c.self_size
+          FROM _heap_graph_dominator_class_tree c
+          LEFT JOIN _heap_graph_dominator_class_tree p ON c.parent_id = p.id
+          ORDER BY c.name, parent_name;
+        """,
+        out=Csv("""
+          "parent_name","name","self_count","self_size"
+          "Root","Clock",2,32
+          "[NULL]","Root",1,8
+        """))
+
   def test_heap_graph_stats(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_for_aggregation.textproto'),

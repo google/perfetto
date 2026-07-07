@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
 
 declare global {
   interface Window {

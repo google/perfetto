@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {parseJsonWithBigints} from '../../base/json_utils';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {STR_NULL} from '../../trace_processor/query_result';
-import {ArgSetId} from './core_types';
+import type {ArgSetId} from './core_types';
 
 export type ArgValue = string | number | boolean | bigint | null;
 export type Args = ArgValue | Args[] | ArgsDict;

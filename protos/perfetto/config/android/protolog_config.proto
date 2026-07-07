@@ -16,9 +16,17 @@
 
 syntax = "proto2";
 
-import "protos/perfetto/common/protolog_common.proto";
-
 package perfetto.protos;
+
+enum ProtoLogLevel {
+  PROTOLOG_LEVEL_UNDEFINED = 0;
+  PROTOLOG_LEVEL_DEBUG = 1;
+  PROTOLOG_LEVEL_VERBOSE = 2;
+  PROTOLOG_LEVEL_INFO = 3;
+  PROTOLOG_LEVEL_WARN = 4;
+  PROTOLOG_LEVEL_ERROR = 5;
+  PROTOLOG_LEVEL_WTF = 6;
+}
 
 // Custom configuration for the "android.protolog" data source.
 // ProtoLog is a logging mechanism that is intented to be more efficient than

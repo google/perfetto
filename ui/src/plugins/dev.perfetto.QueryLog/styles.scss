@@ -12,15 +12,118 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+.pf-query-log {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.pf-query-log-show-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+}
+
+.pf-query-log-toolbar {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
 .pf-query-log-table {
+  width: 100%;
+  max-width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 4px 8px;
+    text-align: left;
+    vertical-align: top;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
   tr:nth-child(even) {
-    border-collapse: collapse;
     background-color: var(--pf-color-background-secondary);
   }
 
-  td:first-child {
-    word-break: break-word;
-    overflow-wrap: break-word;
+  // Toggle column: tight.
+  th:nth-child(1),
+  td:nth-child(1) {
+    width: 32px;
+    padding: 2px 4px;
+  }
+
+  // Metadata columns (2-5): shrink to fit. With table-layout: auto and
+  // white-space: nowrap on td, width:1px collapses to the content width.
+  th:nth-child(2),
+  td:nth-child(2),
+  th:nth-child(3),
+  td:nth-child(3),
+  th:nth-child(4),
+  td:nth-child(4),
+  th:nth-child(5),
+  td:nth-child(5) {
+    width: 1px;
+  }
+
+  // Query column (col 6) absorbs all remaining space, snippet handles overflow.
+  th:nth-child(6),
+  td:nth-child(6) {
+    width: 100%;
+    min-width: 0;
+    max-width: 0; // forces snippet's overflow:hidden to win
     white-space: normal;
+  }
+
+  .pf-query-log-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pf-query-log-query {
+    cursor: pointer;
+  }
+
+  .pf-query-log-snippet {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    font-family: var(--pf-font-mono, monospace);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pf-query-log-expanded > td {
+    padding: 0 8px 8px 40px;
+    background-color: var(--pf-color-background-secondary);
+  }
+
+  .pf-query-log-expanded-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .pf-query-log-expanded-toolbar {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .pf-query-log-full {
+    display: block;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--pf-font-mono, monospace);
+    font-size: 12px;
   }
 }

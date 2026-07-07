@@ -37,20 +37,6 @@ instead, Perfetto's native trace format. See
 events can be represented using
 TrackEvent.
 
-## {#why-are-overlapping-events-in-json-traces-not-displayed-correctly} Why are overlapping events in JSON traces not displayed correctly?
-
-The Perfetto UI and trace processor do not support overlapping B/E/X events, in
-compliance with the
-[JSON spec](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview#heading=h.nso4gcezn7n1).
-As stated in the spec, events are only allowed to perfectly nest.
-
-Users are recommended to emit
-[TrackEvent](/docs/instrumentation/track-events.md)
-instead, Perfetto's native trace format. See
-[this guide](/docs/reference/synthetic-track-event.md) for how common JSON
-events can be represented using
-TrackEvent.
-
 ## How can I use Perfetto tooling without instrumenting my program?
 
 A common problem is that users want to use Perfetto analysis and visualization
@@ -68,3 +54,12 @@ format. A reference guide for this is available
 Use the [Tracing SDK](/docs/instrumentation/tracing-sdk.md#system-mode) in
 "system mode". All processes will connect to `traced` over a socket and traced
 will emit one trace with all processes.
+
+## Can I open several traces together, on one timeline?
+
+Yes. In the UI, use "Open multiple trace files" (or select/drop several
+files): a dialog lets you configure how they merge onto a shared timeline.
+From the command line, pass a ZIP or TAR archive of the traces to
+`trace_processor`. See
+[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md)
+and [Merging traces with Trace Processor](/docs/analysis/merging-traces.md).

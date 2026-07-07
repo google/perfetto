@@ -174,8 +174,12 @@ class PerfettoCmd : public Consumer {
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
       consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
-  std::optional<PacketWriter> packet_writer_;
+  // |trace_out_stream_| must be declared before |packet_writer_|: the
+  // PacketWriter holds the FILE* owned by |trace_out_stream_| and flushes it in
+  // its destructor. Members are destroyed in reverse declaration order, so the
+  // PacketWriter must be torn down (fflush) before the FILE* is fclose()d.
   base::ScopedFstream trace_out_stream_;
+  std::optional<PacketWriter> packet_writer_;
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;
   base::EventFd ctrl_c_evt_;

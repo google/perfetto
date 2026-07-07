@@ -15,6 +15,8 @@
  */
 
 #include "perfetto/ext/base/utils.h"
+#include <cstdint>
+#include <limits>
 
 #include "perfetto/base/build_config.h"
 
@@ -193,7 +195,20 @@ TEST(UtilsTest, EintrWrapper) {
 }
 #endif  // LINUX | ANDROID | APPLE
 
-TEST(UtilsTest, Align) {
+TEST(UtilsTest, IsPowerOfTwo) {
+  EXPECT_FALSE(IsPowerOfTwo(0u));
+  EXPECT_TRUE(IsPowerOfTwo(1u));
+  EXPECT_TRUE(IsPowerOfTwo(2u));
+  EXPECT_FALSE(IsPowerOfTwo(3u));
+  EXPECT_TRUE(IsPowerOfTwo(4u));
+
+  constexpr uint64_t max_pow2 = static_cast<uint64_t>(1) << 63;
+  EXPECT_FALSE(IsPowerOfTwo(max_pow2 - 1));
+  EXPECT_TRUE(IsPowerOfTwo(max_pow2));
+  EXPECT_FALSE(IsPowerOfTwo(max_pow2 + 1));
+}
+
+TEST(UtilsTest, AlignUp) {
   EXPECT_EQ(0u, AlignUp<4>(0));
   EXPECT_EQ(4u, AlignUp<4>(1));
   EXPECT_EQ(4u, AlignUp<4>(3));
@@ -205,6 +220,16 @@ TEST(UtilsTest, Align) {
   EXPECT_EQ(16u, AlignUp<16>(16));
   EXPECT_EQ(32u, AlignUp<16>(17));
   EXPECT_EQ(0xffffff00u, AlignUp<16>(0xffffff00 - 1));
+}
+
+TEST(UtilsTest, AlignDown) {
+  EXPECT_EQ(0u, AlignDown(0, 4));
+  EXPECT_EQ(0u, AlignDown(1, 4));
+  EXPECT_EQ(0u, AlignDown(3, 4));
+  EXPECT_EQ(4u, AlignDown(4, 4));
+  EXPECT_EQ(4u, AlignDown(5, 4));
+
+  EXPECT_EQ(12345u, AlignDown(12345, 1));
 }
 
 TEST(UtilsTest, HexDump) {

@@ -1,0 +1,61 @@
+# Exercises the android_framework_track_event plugin: the frameworks/base
+# AndroidProcessStartEvent (process_start_event) and AndroidBinderDiedEvent
+# (binder_died_event) TrackEvent extensions populate
+# __intrinsic_android_track_event_process.
+packet {
+  timestamp: 1000
+  track_descriptor {
+    uuid: 2
+    thread {
+      pid: 100
+      tid: 100
+      thread_name: "main"
+    }
+  }
+}
+# Process start: sets the process name + uid and records fw_start_ts.
+packet {
+  timestamp: 2000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      uid: 10001
+      pid: 100
+      process_name: "com.example.app"
+    }
+  }
+}
+# A later process start for the same pid must NOT overwrite the earlier
+# fw_start_ts.
+packet {
+  timestamp: 3000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "process_start_again"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      uid: 10001
+      pid: 100
+      process_name: "com.example.app"
+    }
+  }
+}
+# Binder died: records fw_end_ts for the process.
+packet {
+  timestamp: 5000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      uid: 10001
+      pid: 100
+      process_name: "com.example.app"
+    }
+  }
+}

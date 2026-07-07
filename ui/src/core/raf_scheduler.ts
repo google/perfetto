@@ -14,7 +14,7 @@
 
 import {PerfStats} from './perf_stats';
 import m from 'mithril';
-import {Raf, RedrawCallback} from '../public/raf';
+import type {Raf, RedrawCallback} from '../public/raf';
 
 export type AnimationCallback = (lastFrameMs: number) => void;
 

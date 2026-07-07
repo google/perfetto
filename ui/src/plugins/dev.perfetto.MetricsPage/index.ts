@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {MetricsPage} from './metrics_page';
 
 export default class implements PerfettoPlugin {

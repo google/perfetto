@@ -170,8 +170,7 @@ void PerfTracker::AddMapping(int64_t trace_ts,
     if (auto id =
             context_->registered_file_tracker->FindBuildId(*mapping.build_id());
         id) {
-      row.file_id =
-          context_->storage->elf_file_table().FindById(*id)->file_id();
+      row.file_id = context_->storage->elf_file_table()[*id].file_id();
     }
   }
   context_->storage->mutable_mmap_record_table()->Insert(row);

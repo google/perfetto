@@ -12,13 +12,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Engine} from '../../../trace_processor/engine';
+import type {Engine} from '../../../trace_processor/engine';
 import {NUM_NULL, UNKNOWN} from '../../../trace_processor/query_result';
 import {Button} from '../../../widgets/button';
 import {Section} from '../../../widgets/section';
 import {Icon} from '../../../widgets/icon';
 import {Tooltip} from '../../../widgets/tooltip';
-import {statsSpec, StatsSectionRow} from '../utils';
+import {statsSpec, type StatsSectionRow} from '../utils';
 
 // Trace metadata row spec and type
 const traceMetadataRowSpec = {

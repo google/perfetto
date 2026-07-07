@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {
@@ -25,27 +25,28 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
-import {assertExists, assertTrue} from '../../base/assert';
+import {ensureExists, assertTrue} from '../../base/assert';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
+import {createTraceProcessorStateTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_state_track';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
-import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraphMetric,
+  type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {CallstackDetailsSection} from '../dev.perfetto.TraceProcessorTrack/callstack_details_section';
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import ProcessSummaryPlugin from '../dev.perfetto.ProcessSummary';
 import {
-  Config as SliceTrackSummaryConfig,
+  type Config as SliceTrackSummaryConfig,
   SLICE_TRACK_SUMMARY_KIND,
   GroupSummaryTrack,
 } from '../dev.perfetto.ProcessSummary/group_summary_track';
@@ -99,6 +100,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           g.utid,
           g.parent_id as parentId,
           g.is_counter AS isCounter,
+          g.is_state AS isState,
           g.name,
           g.description,
           g.unit,
@@ -130,7 +132,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         select id, t.minTrackId, layout_depth as depth
         from __track_event_tracks t
         join experimental_slice_layout(t.trackIds) s
-        where isCounter = 0 and trackCount > 1
+        where isCounter = 0 and isState = 0 and trackCount > 1
         order by s.id
       `,
     });
@@ -141,6 +143,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       utid: NUM_NULL,
       parentId: NUM_NULL,
       isCounter: NUM,
+      isState: NUM,
       name: STR_NULL,
       description: STR_NULL,
       unit: STR_NULL,
@@ -174,6 +177,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         utid,
         parentId,
         isCounter,
+        isState,
         name,
         description,
         unit,
@@ -241,6 +245,25 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             trackName,
           }),
         });
+      } else if (hasData && isState === 1) {
+        ctx.tracks.registerTrack({
+          uri,
+          description: description ?? undefined,
+          tags: {
+            kinds: [kind],
+            trackIds: trackIds,
+            upid: upid ?? undefined,
+            utid: utid ?? undefined,
+            trackEvent: true,
+            hasCallstacks: hasCallstacks === 1,
+          },
+          renderer: await createTraceProcessorStateTrack({
+            trace: ctx,
+            uri,
+            trackId: trackIds[0],
+            trackName,
+          }),
+        });
       } else if (hasData) {
         ctx.tracks.registerTrack({
           uri,
@@ -301,9 +324,10 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         utid ?? undefined,
         hasChildren,
       );
+      const isGlobalRoot = parentId === null && upid === null && utid === null;
       const node = new TrackNode({
         name: trackName,
-        sortOrder: orderId,
+        sortOrder: isGlobalRoot ? 0 : orderId,
         isSummary: hasData === 0,
         uri,
       });
@@ -335,7 +359,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(FlamegraphPanel, {
@@ -434,7 +458,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Symbol',
     });
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
@@ -454,13 +478,13 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     hasChildren: number,
   ): TrackNode {
     if (parentId !== undefined) {
-      return assertExists(trackIdToTrackNode.get(parentId));
+      return ensureExists(trackIdToTrackNode.get(parentId));
     }
     if (utid !== undefined) {
-      return assertExists(processGroupsPlugin.getGroupForThread(utid));
+      return ensureExists(processGroupsPlugin.getGroupForThread(utid));
     }
     if (upid !== undefined) {
-      return assertExists(processGroupsPlugin.getGroupForProcess(upid));
+      return ensureExists(processGroupsPlugin.getGroupForProcess(upid));
     }
     if (hasChildren) {
       return ctx.defaultWorkspace.tracks;

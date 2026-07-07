@@ -54,6 +54,9 @@ namespace protos {
 namespace gen {
 enum TraceStats_FinalFlushOutcome : int;
 }
+namespace pbzero {
+class TracePacket;
+}
 }  // namespace protos
 
 class Consumer;
@@ -266,6 +269,10 @@ class TracingServiceImpl : public TracingService {
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void EmitSystemInfo(std::vector<TracePacket>*);
   void EmitTraceProvenance(TracingSession*, std::vector<TracePacket>*);
+  // Sets the common header fields on a service-emitted packet (trusted uid +
+  // service sequence id), and, for a single-machine in-process session, stamps
+  // the local machine id so the trace has no separate host machine.
+  void SetServiceTracePacketHeader(protos::pbzero::TracePacket*);
   void MaybeEmitRemoteSystemInfo(std::vector<TracePacket>*);
   void MaybeEmitCloneTrigger(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
@@ -372,6 +379,12 @@ class TracingServiceImpl : public TracingService {
   std::multimap<std::string /*name*/, RegisteredDataSource> data_sources_;
   std::map<ProducerID, ProducerEndpointImpl*> producers_;
   std::map<RelayClientID, RelayEndpointImpl*> relay_clients_;
+
+  // Machine to attribute the service's own packets to. Adopted from an
+  // in-process producer (see ConnectProducer) so a single-machine in-process
+  // trace carries no separate host machine. Stays kDefaultMachineID for regular
+  // host/relay sessions, where service packets remain on the host machine.
+  MachineID local_machine_id_ = kDefaultMachineID;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
   std::map<BufferID, std::unique_ptr<TraceBuffer>> buffers_;
   std::map<std::string, int64_t> session_to_last_trace_s_;

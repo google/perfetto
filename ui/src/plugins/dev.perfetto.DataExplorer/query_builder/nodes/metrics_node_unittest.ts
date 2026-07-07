@@ -14,9 +14,9 @@
 
 import {
   MetricsNode,
-  MetricsNodeAttrs,
-  MetricsNodeState,
-  ValueColumnConfig,
+  type MetricsNodeAttrs,
+  type MetricsNodeState,
+  type ValueColumnConfig,
 } from './metrics_node';
 import {parseMetricBundleForValue} from './metrics_export_modal';
 import {NodeType} from '../../query_node';
@@ -994,7 +994,7 @@ describe('MetricsNode', () => {
     });
 
     it('should preserve onchange callback', () => {
-      const onchange = jest.fn();
+      const onchange = vi.fn();
       const node = new MetricsNode(makeState(), {onchange});
 
       const cloned = node.clone() as MetricsNode;

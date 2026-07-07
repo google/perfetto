@@ -21,11 +21,11 @@ import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Intent} from '../../widgets/common';
-import {SchedSqlId} from '../../components/sql_utils/core_types';
+import type {SchedSqlId} from '../../components/sql_utils/core_types';
 import {
   getThreadState,
   getThreadStateFromConstraints,
-  ThreadState,
+  type ThreadState,
 } from '../../components/sql_utils/thread_state';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
@@ -37,8 +37,8 @@ import {
 import {ThreadStateRef} from '../../components/widgets/thread_state';
 import {CRITICAL_PATH_LITE_CMD} from '../../public/exposed_commands';
 import {goToSchedSlice} from '../../components/widgets/sched';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
 import {formatDuration} from '../../components/time_utils';
 import {Stack} from '../../widgets/stack';
 

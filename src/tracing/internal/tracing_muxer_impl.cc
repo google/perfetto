@@ -1015,6 +1015,7 @@ void TracingMuxerImpl::AddProducerBackend(TracingProducerBackend* backend,
   rb.producer_conn_args.shmem_page_size_hint_bytes =
       args.shmem_page_size_hint_kb * 1024;
   rb.producer_conn_args.create_socket_async = args.create_socket_async;
+  rb.producer_conn_args.machine_id = args.machine_id;
   rb.producer->Initialize(rb.backend->ConnectProducer(rb.producer_conn_args));
 }
 
@@ -2295,6 +2296,9 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::FindDataSource(
     TracingBackendId backend_id,
     DataSourceInstanceID instance_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  // 0 is the sentinel id for unadopted startup data sources; never match it.
+  if (instance_id == 0)
+    return FindDataSourceRes();
   RegisteredProducerBackend& backend = *FindProducerBackendById(backend_id);
   for (const auto& rds : data_sources_) {
     DataSourceStaticState* static_state = rds.static_state;

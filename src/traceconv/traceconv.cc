@@ -31,9 +31,11 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/profiling/pprof_builder.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
+#include "src/traceconv/android_extension.descriptor.h"
 #include "src/traceconv/deobfuscate_profile.h"
 #include "src/traceconv/symbolize_profile.h"
 #include "src/traceconv/trace.descriptor.h"
@@ -48,8 +50,6 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <fcntl.h>
 #include <io.h>
-#else
-#include <unistd.h>
 #endif
 
 namespace perfetto::traceconv {
@@ -139,8 +139,15 @@ uint64_t StringToUint64OrDie(const char* str) {
 int TextToTrace(std::istream* input, std::ostream* output) {
   std::string trace_text(std::istreambuf_iterator<char>{*input},
                          std::istreambuf_iterator<char>{});
+  std::vector<uint8_t> descriptors;
+  descriptors.reserve(kTraceDescriptor.size() +
+                      kAndroidExtensionDescriptor.size());
+  descriptors.insert(descriptors.end(), kTraceDescriptor.begin(),
+                     kTraceDescriptor.end());
+  descriptors.insert(descriptors.end(), kAndroidExtensionDescriptor.begin(),
+                     kAndroidExtensionDescriptor.end());
   auto proto_status =
-      protozero::TextToProto(kTraceDescriptor.data(), kTraceDescriptor.size(),
+      protozero::TextToProto(descriptors.data(), descriptors.size(),
                              ".perfetto.protos.Trace", "trace", trace_text);
   if (!proto_status.ok()) {
     PERFETTO_ELOG("Failed to parse trace: %s",
@@ -255,14 +262,12 @@ int Main(int argc, char** argv) {
       PERFETTO_FATAL("Could not open %s", file_path);
     input_stream = &file_istream;
   } else {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    if (isatty(STDIN_FILENO)) {
+    if (base::IsTty(stdin)) {
       PERFETTO_ELOG("Reading from stdin but it's connected to a TTY");
       PERFETTO_LOG("It is unlikely that you want to type in some binary.");
       PERFETTO_LOG("Either pass a file path to the cmdline or pipe stdin");
       return Usage(argv[0]);
     }
-#endif
     input_stream = &std::cin;
   }
 
@@ -270,6 +275,8 @@ int Main(int argc, char** argv) {
   // We don't want the runtime to replace "\n" with "\r\n" on `std::cout`.
   _setmode(_fileno(stdout), _O_BINARY);
 #endif
+
+  std::string format(positional_args[0]);
 
   std::ostream* output_stream;
   std::ofstream file_ostream;
@@ -281,10 +288,18 @@ int Main(int argc, char** argv) {
       PERFETTO_FATAL("Could not open %s", file_path);
     output_stream = &file_ostream;
   } else {
+    // Binary formats would corrupt an interactive terminal if printed on it.
+    if ((format == "binary" || format == "ctrace" ||
+         format == "decompress_packets" || format == "symbolize" ||
+         format == "deobfuscate") &&
+        base::IsTty(stdout)) {
+      PERFETTO_ELOG(
+          "Refusing to write binary output to a terminal. Pass an output "
+          "file path or redirect stdout.");
+      return 1;
+    }
     output_stream = &std::cout;
   }
-
-  std::string format(positional_args[0]);
 
   if ((format != "profile" && format != "java_heap_profile") &&
       (pid != 0 || !timestamps.empty())) {

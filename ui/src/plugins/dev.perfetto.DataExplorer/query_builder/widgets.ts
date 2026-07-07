@@ -13,21 +13,21 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
+import {Button, type ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
 import {Icon} from '../../../widgets/icon';
 import {TextParagraph} from '../../../widgets/text_paragraph';
-import {SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
+import type {SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
 import {perfettoSqlTypeToString} from '../../../trace_processor/perfetto_sql_type';
 import {Callout} from '../../../widgets/callout';
 import {Intent} from '../../../widgets/common';
 import {EmptyState} from '../../../widgets/empty_state';
-import {QueryNode} from '../query_node';
-import {NodeModifySection} from '../node_types';
+import type {QueryNode} from '../query_node';
+import type {NodeModifySection} from '../node_types';
 import {
   PopupMultiSelect,
-  MultiSelectOption,
-  MultiSelectDiff,
+  type MultiSelectOption,
+  type MultiSelectDiff,
 } from '../../../widgets/multiselect';
 import {classNames} from '../../../base/classnames';
 import {Tooltip} from '../../../widgets/tooltip';
@@ -35,7 +35,7 @@ import {showModal} from '../../../widgets/modal';
 import {Editor} from '../../../widgets/editor';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {findRef, toHTMLElement} from '../../../base/dom_utils';
-import {assertExists} from '../../../base/assert';
+import {ensureExists} from '../../../base/assert';
 
 /**
  * Round action button with consistent styling for Data Explorer.
@@ -815,7 +815,7 @@ export class ResizableSqlEditor
   private editorElement?: HTMLElement;
 
   oncreate({dom}: m.VnodeDOM<ResizableSqlEditorAttrs>) {
-    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
+    this.editorElement = toHTMLElement(ensureExists(findRef(dom, 'editor')));
     this.editorElement.style.height = '400px';
   }
 

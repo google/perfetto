@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "target": "es2022",
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "target": "es2024",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     // Lints and checks.
     "allowJs": true,
     "declaration": false,                  // Generates corresponding '.d.ts' file.

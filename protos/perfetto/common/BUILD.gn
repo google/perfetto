@@ -30,7 +30,6 @@ perfetto_proto_library("@TYPE@") {
     "interceptor_descriptor.proto",
     "observable_events.proto",
     "perf_events.proto",
-    "protolog_common.proto",
     "sys_stats_counters.proto",
     "system_info.proto",
     "trace_attributes.proto",

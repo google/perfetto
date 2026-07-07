@@ -62,10 +62,10 @@ struct TreeValueFetcher : core::ValueFetcher {
   static const Type kString = static_cast<Type>(SqlValue::Type::kString);
   static const Type kNull = static_cast<Type>(SqlValue::Type::kNull);
 
-  explicit TreeValueFetcher(const SqlValue* v) : values(v) {}
+  explicit TreeValueFetcher(const OwnedSqlValue* v) : values(v) {}
 
   Type GetValueType(uint32_t i) const {
-    return static_cast<Type>(values[i].type);
+    return static_cast<Type>(values[i].type());
   }
   int64_t GetInt64Value(uint32_t i) const { return values[i].AsLong(); }
   double GetDoubleValue(uint32_t i) const { return values[i].AsDouble(); }
@@ -73,7 +73,7 @@ struct TreeValueFetcher : core::ValueFetcher {
   static bool IteratorInit(uint32_t) { return false; }
   static bool IteratorNext(uint32_t) { return false; }
 
-  const SqlValue* values = nullptr;
+  const OwnedSqlValue* values = nullptr;
 };
 
 // Pushes one value from raw column data to the builder.
@@ -193,7 +193,7 @@ std::optional<uint32_t> TreeTransformer::ResolveColumn(
 
 base::Status TreeTransformer::FilterTree(
     std::vector<dataframe::FilterSpec> specs,
-    std::vector<SqlValue> values) {
+    std::vector<OwnedSqlValue> values) {
   if (cols_.row_count == 0 || specs.empty()) {
     return base::OkStatus();
   }

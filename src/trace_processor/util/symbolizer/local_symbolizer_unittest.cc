@@ -64,6 +64,7 @@ std::string CreateElfWithBuildId(const std::string& build_id) {
   struct SimpleElf {
     Elf64::Ehdr ehdr;
     Elf64::Shdr shdr;
+    Elf64::Phdr phdr;
     Elf64::Nhdr nhdr;
     char note_name[4];
     char note_desc[20];
@@ -82,9 +83,15 @@ std::string CreateElfWithBuildId(const std::string& build_id) {
   e.ehdr.e_shnum = 1;
   e.ehdr.e_ehsize = sizeof e.ehdr;
   e.ehdr.e_shoff = offsetof(SimpleElf, shdr);
+  e.ehdr.e_phnum = 2;
+  e.ehdr.e_phoff = offsetof(SimpleElf, phdr);
+  e.ehdr.e_phentsize = sizeof(Elf64::Phdr);
 
   e.shdr.sh_type = SHT_NOTE;
   e.shdr.sh_offset = offsetof(SimpleElf, nhdr);
+
+  e.phdr.p_type = PT_LOAD;
+  e.phdr.p_flags = PF_X;
 
   e.nhdr.n_type = NT_GNU_BUILD_ID;
   e.nhdr.n_namesz = sizeof e.note_name;

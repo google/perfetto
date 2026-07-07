@@ -7,7 +7,7 @@
   "author": "Perfetto Team",
   "license": "Apache-2.0",
   "dependencies": {
-    "mermaid": "^11.12.1",
+    "mermaid": "^11.15.0",
     "sass": "^1.94.0",
     "yargs": "^17.7.2"
   },
@@ -18,6 +18,6 @@
     "highlight.js": "^10.7.3",
     "marked": "^4.3.0",
     "node-watch": "^0.7.4",
-    "protobufjs": "^7.5.5"
+    "protobufjs": "^7.5.8"
   }
 }

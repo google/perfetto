@@ -18,7 +18,7 @@
 //
 // New graphs use SerializedNode.secondaryInputIds and never reach this code.
 
-import {NodeType, QueryNode} from '../query_node';
+import {NodeType, type QueryNode} from '../query_node';
 
 // Describes how secondary input IDs were stored in old node state.
 type LegacyConnectionSpec =

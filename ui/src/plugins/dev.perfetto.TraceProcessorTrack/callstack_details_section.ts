@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../../public/trace';
-import {TrackEventSelection} from '../../public/selection';
-import {TrackEventDetailsPanelSection} from '../../components/details/thread_slice_details_tab';
+import type {Trace} from '../../public/trace';
+import type {TrackEventSelection} from '../../public/selection';
+import type {TrackEventDetailsPanelSection} from '../../components/details/thread_slice_details_tab';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {STR_NULL, NUM_NULL} from '../../trace_processor/query_result';

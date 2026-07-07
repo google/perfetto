@@ -40,12 +40,7 @@ class EtwModuleImpl : public EtwModule {
   explicit EtwModuleImpl(ProtoImporterModuleContext* module_context,
                          TraceProcessorContext* context);
 
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
   void ParseEtwEventData(uint32_t cpu,
                          int64_t ts,

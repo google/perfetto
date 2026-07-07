@@ -14,9 +14,9 @@
 
 import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
-import {ColorScheme} from '../../base/color_scheme';
+import type {ColorScheme} from '../../base/color_scheme';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';

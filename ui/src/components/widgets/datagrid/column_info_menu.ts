@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../../widgets/menu';
-import {ColumnInfo, isParameterizedColumnDef} from './datagrid_schema';
+import {type ColumnInfo, isParameterizedColumnDef} from './datagrid_schema';
 
 interface ColumnInfoMenuAttrs {
   readonly id: string;

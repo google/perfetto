@@ -12,11 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
-import {maybeMachineLabel} from '../../public/utils';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {getMachineCount, maybeMachineLabel} from '../../public/utils';
 
 function stripPathFromExecutable(path: string) {
   if (path[0] === '/') {
@@ -29,11 +35,12 @@ function stripPathFromExecutable(path: string) {
 function getThreadDisplayName(
   threadName: string | undefined,
   tid: bigint | number,
+  machineLabel: string = '',
 ) {
   if (threadName) {
-    return `${stripPathFromExecutable(threadName)} ${tid}`;
+    return `${stripPathFromExecutable(threadName)} ${tid}${machineLabel}`;
   } else {
-    return `Thread ${tid}`;
+    return `Thread ${tid}${machineLabel}`;
   }
 }
 
@@ -135,6 +142,7 @@ export default class implements PerfettoPlugin {
   // Adds top level groups for processes and thread that don't belong to a
   // process.
   private async addProcessGroups(): Promise<void> {
+    const numMachines = await getMachineCount(this.ctx.engine);
     const result = await this.ctx.engine.query(`
       with processGroups as (
         select
@@ -188,8 +196,11 @@ export default class implements PerfettoPlugin {
           upid as uid,
           pid as id,
           processName as name,
-          machine
+          processGroups.machine as machine,
+          m.name as machineName,
+          m.label_index as machineLabelIndex
         from processGroups
+        left join machine m on m.id = processGroups.machine
         order by
           processSortIndexHint asc,
           chromeProcessRank desc,
@@ -210,8 +221,11 @@ export default class implements PerfettoPlugin {
           utid as uid,
           tid as id,
           threadName as name,
-          machine
+          threadGroups.machine as machine,
+          m.name as machineName,
+          m.label_index as machineLabelIndex
         from threadGroups
+        left join machine m on m.id = threadGroups.machine
         order by
           threadSortIndexHint asc,
           perfSampleCount desc,
@@ -229,6 +243,8 @@ export default class implements PerfettoPlugin {
       id: NUM,
       name: STR_NULL,
       machine: NUM,
+      machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const {kind, uid, id, name} = it;
@@ -239,7 +255,11 @@ export default class implements PerfettoPlugin {
           continue;
         }
 
-        const machineLabel = maybeMachineLabel(it.machine);
+        const machineLabel = maybeMachineLabel(
+          it.machineLabelIndex ?? undefined,
+          it.machineName,
+          numMachines,
+        );
         function getProcessDisplayName(
           processName: string | undefined,
           pid: number,
@@ -270,7 +290,18 @@ export default class implements PerfettoPlugin {
           continue;
         }
 
-        const displayName = getThreadDisplayName(name ?? undefined, id);
+        // These are orphan threads (no parent process), so they appear as
+        // top-level groups: label them with their machine like processes.
+        const machineLabel = maybeMachineLabel(
+          it.machineLabelIndex ?? undefined,
+          it.machineName,
+          numMachines,
+        );
+        const displayName = getThreadDisplayName(
+          name ?? undefined,
+          id,
+          machineLabel,
+        );
         const group = new TrackNode({
           uri: `/thread_${uid}`,
           name: displayName,
@@ -295,6 +326,7 @@ export default class implements PerfettoPlugin {
           upid,
           tid,
           thread.name as threadName,
+          ifnull(extract_arg(thread.arg_set_id, 'thread_sort_index_hint'), 0) as threadSortIndexHint,
           CASE
             WHEN thread.is_main_thread = 1 THEN 10
             WHEN thread.name = 'CrBrowserMain' THEN 10
@@ -321,10 +353,11 @@ export default class implements PerfettoPlugin {
           threadName
         from threadGroups
         order by
+          threadSortIndexHint asc,
           priority desc,
           tid asc
       )
-  `);
+    `);
 
     const it = result.iter({
       utid: NUM,

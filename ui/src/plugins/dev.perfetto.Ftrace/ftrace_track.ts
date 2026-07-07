@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {materialColorScheme} from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {FtraceFilter} from './common';
+import type {FtraceFilter} from './common';
 import {FtraceEventDetailsPanel} from './ftrace_details_panel';
 
 const FTRACE_INSTANT_WIDTH_PX = 8;

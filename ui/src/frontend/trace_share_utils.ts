@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TraceUrlSource} from '../core/trace_source';
+import type {TraceUrlSource} from '../core/trace_source';
 import {createPermalink, uploadTraceBlob} from './permalink';
 import {showModal} from '../widgets/modal';
-import {Trace} from '../public/trace';
-import {TraceImpl} from '../core/trace_impl';
+import type {Trace} from '../public/trace';
+import type {TraceImpl} from '../core/trace_impl';
 import {CopyableLink} from '../widgets/copyable_link';
 import {AppImpl} from '../core/app_impl';
 

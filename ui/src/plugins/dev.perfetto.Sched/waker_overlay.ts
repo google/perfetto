@@ -13,21 +13,21 @@
 // limitations under the License.
 
 import {canvasSave, drawDoubleHeadedArrow} from '../../base/canvas_utils';
-import {Size2D} from '../../base/geom';
+import type {Size2D} from '../../base/geom';
 import {QuerySlot} from '../../base/query_slot';
-import {Duration, time} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
+import {Duration, type time} from '../../base/time';
+import type {TimeScale} from '../../base/time_scale';
 import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
 import {asSchedSqlId} from '../../components/sql_utils/core_types';
 import {
   getSched,
   getSchedWakeupInfo,
-  SchedWakeupInfo,
+  type SchedWakeupInfo,
 } from '../../components/sql_utils/sched';
-import {CanvasColors} from '../../public/canvas_colors';
-import {Selection, TrackEventSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
-import {Overlay, TrackBounds} from '../../public/track';
+import type {CanvasColors} from '../../public/canvas_colors';
+import type {Selection, TrackEventSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
+import type {Overlay, TrackBounds} from '../../public/track';
 import {CPU_SLICE_URI_PREFIX, uriForSchedTrack} from './common';
 
 const MARGIN = 3;

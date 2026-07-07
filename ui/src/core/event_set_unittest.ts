@@ -19,33 +19,33 @@ import {
   ConcreteEventSet,
   Direction,
   EmptyEventSet,
-  EmptyKeySet,
+  type EmptyKeySet,
   eq,
-  Event,
-  EventSet,
+  type Event,
+  type EventSet,
   isConcreteEventSet,
   isEmptyEventSet,
-  KeySet,
+  type KeySet,
   Num,
   Str,
-  UntypedEvent,
+  type UntypedEvent,
   v,
 } from './event_set';
 
 describe('EventSet', () => {
   test('Event', () => {
     {
-      const keyset: EmptyKeySet = {};
-      const event: Event<typeof keyset> = {
+      const _keyset: EmptyKeySet = {};
+      const event: Event<typeof _keyset> = {
         id: 'foo',
       };
       void event;
     }
     {
-      const keyset = {
+      const _keyset = {
         bar: Num,
       };
-      const event: Event<typeof keyset> = {
+      const event: Event<typeof _keyset> = {
         id: 'foo',
         bar: 42,
       };

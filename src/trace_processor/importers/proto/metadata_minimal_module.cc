@@ -49,18 +49,16 @@ MetadataMinimalModule::MetadataMinimalModule(
 }
 
 ModuleResult MetadataMinimalModule::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView*,
-    int64_t,
-    RefPtr<PacketSequenceStateGeneration>,
-    uint32_t field_id) {
-  switch (field_id) {
+    const TokenizePacketArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kChromeMetadataFieldNumber: {
-      ParseChromeMetadataPacket(decoder.chrome_metadata());
+      ParseChromeMetadataPacket(
+          args.field.Cast<TracePacket::kChromeMetadata>());
       return ModuleResult::Handled();
     }
     case TracePacket::kChromeBenchmarkMetadataFieldNumber: {
-      ParseChromeBenchmarkMetadata(decoder.chrome_benchmark_metadata());
+      ParseChromeBenchmarkMetadata(
+          args.field.Cast<TracePacket::kChromeBenchmarkMetadata>());
       return ModuleResult::Handled();
     }
   }

@@ -18,19 +18,19 @@ import {assertUnreachable} from '../../base/assert';
 import {searchSegment} from '../../base/binary_search';
 import {deferChunkedTask} from '../../base/chunked_task';
 import {HSLColor} from '../../base/color';
-import {Point2D} from '../../base/geom';
+import type {Point2D} from '../../base/geom';
 import {formatNumber} from '../../base/number_format';
 import {
-  CancellationSignal,
+  type CancellationSignal,
   QUERY_CANCELLED,
   QuerySlot,
   SerialTaskQueue,
 } from '../../base/query_slot';
 import {Icons} from '../../base/semantic_icons';
-import {duration, time} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
-import {Trace} from '../../public/trace';
-import {
+import type {duration, time} from '../../base/time';
+import type {TimeScale} from '../../base/time_scale';
+import type {Trace} from '../../public/trace';
+import type {
   TrackMouseEvent,
   TrackRenderContext,
   TrackRenderer,

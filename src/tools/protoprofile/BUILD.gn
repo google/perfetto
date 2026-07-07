@@ -31,8 +31,12 @@ source_set("common") {
     "../../protozero",
     "../../trace_processor:lib",
     "../../trace_processor/util:descriptors",
+    "../../trace_processor/util:gzip",
     "../../trace_processor/util:proto_profiler",
   ]
   sources = [ "main.cc" ]
-  deps = [ "../../trace_processor/importers/proto:gen_cc_trace_descriptor" ]
+  deps = [
+    "../../trace_processor/importers/proto:gen_cc_android_extension_descriptor",
+    "../../trace_processor/importers/proto:gen_cc_trace_descriptor",
+  ]
 }

@@ -71,7 +71,7 @@ WHERE
 CREATE PERFETTO TABLE _kill_one_process_events AS
 WITH
   kills AS (
-    SELECT c.ts, c.value AS pid
+    SELECT c.ts, cast_int!(c.value) AS pid
     FROM counter AS c
     JOIN counter_track AS ct
       ON c.track_id = ct.id
@@ -121,7 +121,7 @@ CREATE PERFETTO TABLE android_lmk_events(
   -- timestamp of the kill being requested by lmkd
   ts TIMESTAMP,
   -- upid of the process being killed
-  upid JOINID(process.id),
+  upid JOINID(process.upid),
   -- pid of the process being killed
   pid LONG,
   -- process name of the process being killed
@@ -136,8 +136,8 @@ CREATE PERFETTO TABLE android_lmk_events(
 AS
 SELECT
   ts,
-  process.pid,
   process.upid,
+  evt.pid,
   process.name AS process_name,
   oom_score_adj,
   _android_lmk_kill_reason_string(kill_reason_raw) AS kill_reason,

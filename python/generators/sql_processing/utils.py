@@ -128,7 +128,7 @@ CREATE_FUNCTION_PATTERN = update_pattern(
     fr" \( ({ARGS}) \)"
     # Type: word after RETURNS.
     fr"({COMMENTS})"
-    fr" RETURNS ({TYPE}) AS ")
+    fr" RETURNS ({TYPE}) (?:AS|DELEGATES TO) ")
 
 CREATE_TABLE_FUNCTION_PATTERN = update_pattern(
     fr"CREATE (OR REPLACE)? PERFETTO FUNCTION ({NAME}) "

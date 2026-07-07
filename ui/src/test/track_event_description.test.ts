@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {expect, Locator, Page, test} from '@playwright/test';
+import {expect, type Locator, type Page, test} from '@playwright/test';
 
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 

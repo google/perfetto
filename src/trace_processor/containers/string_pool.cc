@@ -31,7 +31,11 @@ namespace perfetto::trace_processor {
 StringPool::StringPool() {
   // Reserve a slot for the null string.
   MaybeLockGuard guard{mutex_, should_acquire_mutex_};
-  blocks_[block_index_] = std::make_unique<uint8_t[]>(kBlockSizeBytes);
+  // Default-init (not std::make_unique, which value-inits): every byte that
+  // gets read is written by InsertInCurrentBlock, so the 4 MB zero-fill is
+  // pure overhead on construction.
+  blocks_[block_index_] =
+      std::unique_ptr<uint8_t[]>(new uint8_t[kBlockSizeBytes]);
   block_end_ptrs_[block_index_] = blocks_[block_index_].get();
   InsertInCurrentBlock({});
 }
@@ -63,7 +67,8 @@ StringPool::Id StringPool::InsertString(base::StringView str) {
           "ingest_ftrace_in_raw flag to false in TraceProcessorConfig.",
           (kMaxBlockCount * kBlockSizeBytes) / (1024 * 1024));
     }
-    blocks_[new_index] = std::make_unique<uint8_t[]>(kBlockSizeBytes);
+    blocks_[new_index] =
+        std::unique_ptr<uint8_t[]>(new uint8_t[kBlockSizeBytes]);
     block_end_ptrs_[new_index] = blocks_[new_index].get();
   }
 

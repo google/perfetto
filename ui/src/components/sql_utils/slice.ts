@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {duration, Time, time} from '../../base/time';
+import {type duration, Time, type time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   LONG_NULL,
@@ -24,20 +24,20 @@ import {
 } from '../../trace_processor/query_result';
 import {
   constraintsToQuerySuffix,
-  SQLConstraints,
+  type SQLConstraints,
 } from '../../trace_processor/sql_utils';
 import {
   asArgSetId,
   asSliceSqlId,
   asUpid,
   asUtid,
-  SliceSqlId,
-  Upid,
-  Utid,
+  type SliceSqlId,
+  type Upid,
+  type Utid,
 } from './core_types';
-import {ArgsDict, getArgs} from './args';
-import {getThreadInfo, ThreadInfo} from './thread';
-import {getProcessInfo, ProcessInfo} from './process';
+import {type ArgsDict, getArgs} from './args';
+import {getThreadInfo, type ThreadInfo} from './thread';
+import {getProcessInfo, type ProcessInfo} from './process';
 
 // Basic information about a slice.
 export interface SliceDetails {

@@ -19,16 +19,16 @@ import {CodeSnippet} from '../../../../widgets/code_snippet';
 import {traceSummarySpecToText} from '../../../../base/proto_utils_wasm';
 import {Spinner} from '../../../../widgets/spinner';
 import {DataGrid} from '../../../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../../../components/widgets/datagrid/datagrid_schema';
-import {Row} from '../../../../trace_processor/query_result';
+import type {SchemaRegistry} from '../../../../components/widgets/datagrid/datagrid_schema';
+import type {Row} from '../../../../trace_processor/query_result';
 import {Tabs} from '../../../../widgets/tabs';
-import {Engine} from '../../../../trace_processor/engine';
+import type {Engine} from '../../../../trace_processor/engine';
 import {
   getStructuredQueries,
   buildEmbeddedQueryTree,
 } from '../query_builder_utils';
-import {ValueColumnConfig} from './metrics_node';
-import {QueryNode} from '../../query_node';
+import type {ValueColumnConfig} from './metrics_node';
+import type {QueryNode} from '../../query_node';
 
 // Helper to extract dimension value as string.
 function getDimensionValue(

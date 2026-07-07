@@ -17,6 +17,16 @@
     ts: 0
     dur: 115000000
     blocking_calls {
+      name: "DrawFrames"
+      cnt: 7
+      total_dur_ms: 48
+      max_dur_ms: 19
+      min_dur_ms: 1
+      total_dur_ns: 48000000
+      max_dur_ns: 19000000
+      min_dur_ns: 1000000
+    }
+    blocking_calls {
       name: "binder transaction"
       cnt: 11
       total_dur_ms: 10
@@ -25,6 +35,16 @@
       total_dur_ns: 10950000
       max_dur_ns: 10000000
       min_dur_ns: 50000
+    }
+    blocking_calls {
+      name: "flush layers"
+      cnt: 3
+      total_dur_ms: 13
+      max_dur_ms: 12
+      min_dur_ms: 0
+      total_dur_ns: 13300000
+      max_dur_ns: 12000000
+      min_dur_ns: 300000
     }
   }
   cuj {
@@ -45,6 +65,16 @@
     ts: 0
     dur: 702000000
     blocking_calls {
+      name: "DrawFrames"
+      cnt: 15
+      total_dur_ms: 84
+      max_dur_ms: 19
+      min_dur_ms: 0
+      total_dur_ns: 84800000
+      max_dur_ns: 19000000
+      min_dur_ns: 800000
+    }
+    blocking_calls {
       name: "binder transaction"
       cnt: 13
       total_dur_ms: 68
@@ -53,6 +83,16 @@
       total_dur_ns: 68499000
       max_dur_ns: 49500000
       min_dur_ns: 50000
+    }
+    blocking_calls {
+      name: "flush layers"
+      cnt: 3
+      total_dur_ms: 13
+      max_dur_ms: 12
+      min_dur_ms: 0
+      total_dur_ns: 13300000
+      max_dur_ns: 12000000
+      min_dur_ns: 300000
     }
   }
 }

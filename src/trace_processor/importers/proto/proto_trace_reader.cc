@@ -44,6 +44,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -170,9 +171,11 @@ std::optional<uint32_t> ParseTracingServiceMajorVersion(
 
 }  // namespace
 
-ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
+ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
+                                   bool is_machine_dispatcher)
     : context_(ctx),
       parser_(std::make_unique<ProtoTraceParserImpl>(ctx, &module_context_)),
+      is_machine_dispatcher_(is_machine_dispatcher),
       protovm_(ctx),
       skipped_packet_key_id_(ctx->storage->InternString("skipped_packet")),
       invalid_incremental_state_key_id_(
@@ -254,34 +257,30 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // Any compressed packets should have been handled by the tokenizer.
   PERFETTO_CHECK(!decoder.has_compressed_packets());
 
-  // When the trace packet is emitted from a remote machine: parse the packet
-  // using a different ProtoTraceReader instance. The packet will be parsed
-  // in the context of the remote machine.
-  if (PERFETTO_UNLIKELY(decoder.machine_id())) {
-    if (context_->machine_id() == MachineId(kDefaultMachineId)) {
-      auto [it, inserted] =
-          machine_to_proto_readers_.Insert(decoder.machine_id(), nullptr);
-      if (PERFETTO_UNLIKELY(inserted)) {
-        auto* machine_context =
-            context_->ForkContextForMachineInCurrentTrace(decoder.machine_id());
-        *it = std::make_unique<ProtoTraceReader>(machine_context);
-        auto parent_default = context_->clock_tracker->trace_default_clock();
-        if (parent_default) {
-          machine_context->clock_tracker->SetTraceDefaultClock(*parent_default);
-        }
-        machine_context->clock_tracker->AddDeferredIdentitySync(
-            ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
-        // TODO(lalitm): this doesn't seem the right place for this but I cannot
-        // think of a much better place either.
-        machine_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  // The top-level reader dispatches packets from other machines to a
+  // per-machine reader; host and adopted-machine packets are parsed here.
+  if (is_machine_dispatcher_) {
+    const uint32_t machine_id = decoder.machine_id();
+    if (PERFETTO_UNLIKELY(machine_id)) {
+      // Resolve adoption once, on the first remote-machine packet.
+      if (PERFETTO_UNLIKELY(!adopted_machine_id_.has_value())) {
+        RETURN_IF_ERROR(ResolveAdoptedMachine(machine_id));
       }
-      return it->get()->ParsePacket(std::move(packet));
+      // Route packets from a non-adopted machine to their own reader.
+      if (machine_id != *adopted_machine_id_) {
+        auto [reader, inserted] =
+            machine_to_proto_readers_.Insert(machine_id, nullptr);
+        if (PERFETTO_UNLIKELY(inserted)) {
+          RETURN_IF_ERROR(CreateRemoteMachineReader(machine_id, reader));
+        }
+        return reader->get()->ParsePacket(std::move(packet));
+      }
+    } else if (!host_machine_used_ && !decoder.has_synchronization_marker()) {
+      // The host owns this packet, so it can no longer be adopted away.
+      host_machine_used_ = true;
     }
   }
-  // Assert that the packet is parsed using the right instance of reader.
-  // machine_id is set only for remote machines.
-  PERFETTO_DCHECK(decoder.has_machine_id() ==
-                  (context_->machine_id() != MachineId(kDefaultMachineId)));
+  PERFETTO_DCHECK(is_machine_dispatcher_ || decoder.has_machine_id());
 
   // Execute ProtoVM logic right after the "machine ID fork" as detailed in
   // go/perfetto-proto-vm.
@@ -299,8 +298,11 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto [scoped_state, inserted] = sequence_state_.Insert(seq_id, {});
   if (decoder.has_trusted_packet_sequence_id()) {
-    if (!inserted && decoder.previous_packet_dropped()) {
-      ++scoped_state->previous_packet_dropped_count;
+    if (!inserted) {
+      if (uint32_t reasons = decoder.previous_packet_dropped(); reasons) {
+        ++scoped_state->previous_packet_dropped_count;
+        RecordDataLossCauses(scoped_state, reasons);
+      }
     }
   }
 
@@ -342,7 +344,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   if (decoder.has_remote_clock_sync()) {
-    PERFETTO_DCHECK(context_->machine_id() != MachineId(kDefaultMachineId));
+    PERFETTO_DCHECK(!is_machine_dispatcher_);
     return ParseRemoteClockSync(decoder.remote_clock_sync());
   }
 
@@ -449,8 +451,9 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
     if (PERFETTO_UNLIKELY(!timestamp_clock_id && defaults)) {
       timestamp_clock_id = defaults->timestamp_clock_id();
     }
+    std::optional<ClockTracker::ClockId> default_clock;
     if (PERFETTO_UNLIKELY(!timestamp_clock_id)) {
-      auto default_clock = context_->clock_tracker->trace_default_clock();
+      default_clock = context_->clock_tracker->trace_default_clock();
       if (default_clock) {
         timestamp_clock_id = default_clock->clock_id;
       }
@@ -473,7 +476,12 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       // If the TracePacket specifies a non-zero clock-id, translate the
       // timestamp into the trace-time clock domain.
       ClockTracker::ClockId converted_clock_id;
-      if (ClockId::IsSequenceClock(timestamp_clock_id)) {
+      if (default_clock) {
+        // The clock came from the trace default: use it as-is, as it may be
+        // scoped beyond the raw clock id (e.g. a perfetto_manifest override
+        // moved this file onto its private TraceFile clock).
+        converted_clock_id = *default_clock;
+      } else if (ClockId::IsSequenceClock(timestamp_clock_id)) {
         if (!seq_id) {
           return base::ErrStatus(
               "TracePacket specified a sequence-local clock id (%" PRIu32
@@ -499,14 +507,20 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
 
   auto& modules = module_context_.modules_by_field;
-  for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
-    if (!modules[field_id].empty() && decoder.Get(field_id).valid()) {
-      for (ProtoImporterModule* module : modules[field_id]) {
-        ModuleResult res = module->TokenizePacket(
-            decoder, &packet, timestamp, state->current_generation(), field_id);
-        if (!res.ignored())
-          return res.ToStatus();
-      }
+  // One pass over the packet, dispatching registered fields as they are
+  // found. This also covers fields in the out-of-tree `extensions 1000 to
+  // 1999` range, which the typed |decoder| does not store.
+  SelectiveTracePacketDecoder packet_fields(
+      decoder.begin(), static_cast<size_t>(decoder.end() - decoder.begin()));
+  for (const protozero::Field& f : packet_fields.unknown_fields()) {
+    if (f.id() >= modules.size() || modules[f.id()].empty())
+      continue;
+    for (ProtoImporterModule* module : modules[f.id()]) {
+      ModuleResult res = module->TokenizePacket(
+          {packet_fields, &packet, timestamp, state->current_generation(),
+           TracePacketField(f)});
+      if (!res.ignored())
+        return res.ToStatus();
     }
   }
 
@@ -593,6 +607,29 @@ void ProtoTraceReader::HandlePreviousPacketDropped(
       ->OnPacketLoss();
 }
 
+void ProtoTraceReader::RecordDataLossCauses(SequenceScopedState* seq,
+                                            uint32_t reasons) {
+  using TracePacket = protos::pbzero::TracePacket;
+  auto record = [&](uint32_t mask, uint32_t& count) {
+    if (reasons & mask) {
+      ++count;
+    }
+  };
+  record(TracePacket::DATA_LOSS_READ_GAP, seq->data_loss_read_gap_count);
+  record(TracePacket::DATA_LOSS_CHUNK_CORRUPTED,
+         seq->data_loss_chunk_corrupted_count);
+  record(TracePacket::DATA_LOSS_ORPHAN_CONTINUATION,
+         seq->data_loss_orphan_continuation_count);
+  record(TracePacket::DATA_LOSS_REASSEMBLY_GAP,
+         seq->data_loss_reassembly_gap_count);
+  record(TracePacket::DATA_LOSS_REASSEMBLY_BROKEN_CHAIN,
+         seq->data_loss_reassembly_broken_chain_count);
+  record(TracePacket::DATA_LOSS_OVERWRITE, seq->data_loss_overwrite_count);
+  record(TracePacket::DATA_LOSS_WRITER_ABORT,
+         seq->data_loss_writer_abort_count);
+  record(TracePacket::DATA_LOSS_SMB_FULL, seq->data_loss_smb_full_count);
+}
+
 void ProtoTraceReader::ParseTracePacketDefaults(
     const protos::pbzero::TracePacket_Decoder& packet_decoder,
     TraceBlobView trace_packet_defaults) {
@@ -645,6 +682,16 @@ void ProtoTraceReader::ParseInternedData(
 
 base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
                                                   uint32_t seq_id) {
+  // A ClockSnapshot correlates two or more clock domains, which proves this
+  // trace is not single-clock; perfetto_manifest clock pins are only valid
+  // for single-clock traces. ClockTracker::AddSnapshot also rejects this,
+  // but its error is logged and swallowed below; check here to fail the
+  // load on what is a configuration error.
+  if (context_->has_clock_override()) {
+    return base::ErrStatus(
+        "perfetto_manifest: clock overrides require the trace to use a "
+        "single clock");
+  }
   std::vector<ClockTracker::ClockTimestamp> clock_timestamps;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
   for (auto it = evt.clocks(); it; ++it) {
@@ -701,59 +748,104 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
       context_->clock_tracker->AddSnapshot(clock_timestamps);
   if (!snapshot_id.ok()) {
     PERFETTO_ELOG("%s", snapshot_id.status().c_message());
+  }
+  return base::OkStatus();
+}
+
+PERFETTO_NO_INLINE base::Status ProtoTraceReader::ResolveAdoptedMachine(
+    uint32_t machine_id) {
+  RETURN_IF_ERROR(CheckManifestSingleMachine());
+  // Adopt the embedded machine onto the host context (relabelling its row) only
+  // when the host has no data of its own, its row isn't already claimed by
+  // another machine, the file is not a multi-machine manifest, and the machine
+  // has no row/context yet. Otherwise route to the fork path, which reuses any
+  // existing row for this machine; adopting here would relabel a second row to
+  // the same raw id and surface a duplicate machine.
+  const bool host_has_data = host_machine_used_;
+  const bool host_row_claimed =
+      context_->machine_tracker->raw_machine_id() != 0;
+  const bool is_manifest_machine =
+      context_->trace_state && context_->trace_state->machine_remap;
+  const bool machine_already_materialized =
+      context_->forked_context_state->machine_to_context.Find(
+          static_cast<int64_t>(machine_id)) != nullptr;
+  if (host_has_data || host_row_claimed || is_manifest_machine ||
+      machine_already_materialized) {
+    adopted_machine_id_ = 0;
     return base::OkStatus();
   }
+  context_->machine_tracker->SetRawMachineId(machine_id);
+  // Register the adopted machine in the per-machine dedup map so a later fork
+  // for the same id (e.g. another co-located trace routed through
+  // CreateRemoteMachineReader) reuses this context and row instead of inserting
+  // a duplicate machine row.
+  context_->forked_context_state->machine_to_context.Insert(
+      static_cast<int64_t>(machine_id), context_);
+  adopted_machine_id_ = machine_id;
+  return base::OkStatus();
+}
 
-  std::optional<int64_t> trace_time_from_snapshot =
-      context_->clock_tracker->ToTraceTimeFromSnapshot(clock_timestamps);
-
-  // Add the all the clock snapshots to the clock snapshot table.
-  std::optional<int64_t> trace_ts_for_check;
-  for (const auto& clock_timestamp : clock_timestamps) {
-    // If the clock is incremental, we need to use 0 to map correctly to
-    // |absolute_timestamp|.
-    int64_t ts_to_convert =
-        clock_timestamp.clock.is_incremental ? 0 : clock_timestamp.timestamp;
-    // Even if we have trace time from snapshot, we still run ToTraceTime to
-    // optimise future conversions. Don't pass byte_offset since we expect
-    // failures here (e.g., non-monotonic clocks).
-    auto opt_trace_ts = context_->clock_tracker->ToTraceTime(
-        clock_timestamp.clock.id, ts_to_convert);
-
-    int64_t trace_ts_value;
-    if (!opt_trace_ts) {
-      // This can happen if |AddSnapshot| failed to resolve this clock, e.g. if
-      // clock is not monotonic. Try to fetch trace time from snapshot.
-      if (!trace_time_from_snapshot) {
-        continue;
-      }
-      trace_ts_value = *trace_time_from_snapshot;
-    } else {
-      trace_ts_value = *opt_trace_ts;
+PERFETTO_NO_INLINE base::Status ProtoTraceReader::CreateRemoteMachineReader(
+    uint32_t machine_id,
+    std::unique_ptr<ProtoTraceReader>* out) {
+  // Embedded ids are uint32, always below kFirstManifestMachineId (1<<32), so
+  // they never collide with the manifest's synthetic raw ids; no check needed.
+  int64_t raw_machine_id = machine_id;
+  const auto* remap =
+      context_->trace_state ? context_->trace_state->machine_remap : nullptr;
+  if (remap) {
+    int64_t* mapped = remap->Find(machine_id);
+    if (!mapped) {
+      return base::ErrStatus(
+          "perfetto_manifest: machines: trace has a packet from undeclared "
+          "machine id %u",
+          machine_id);
     }
+    raw_machine_id = *mapped;
+  }
+  auto* machine_context =
+      context_->ForkContextForMachineInCurrentTrace(raw_machine_id);
+  *out = std::make_unique<ProtoTraceReader>(machine_context,
+                                            /*is_machine_dispatcher=*/false);
+  auto parent_default = context_->clock_tracker->trace_default_clock();
+  if (parent_default) {
+    machine_context->clock_tracker->SetTraceDefaultClock(*parent_default);
+  }
+  machine_context->clock_tracker->AddDeferredClockSync(
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+  // TODO(lalitm): this doesn't seem the right place for this but I cannot think
+  // of a much better place either.
+  machine_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  return base::OkStatus();
+}
 
-    // Double check that all the clocks in this snapshot resolve to the same
-    // trace timestamp value.
-    PERFETTO_DCHECK(!trace_ts_for_check ||
-                    trace_ts_value == trace_ts_for_check.value());
-    trace_ts_for_check = trace_ts_value;
-
-    tables::ClockSnapshotTable::Row row;
-    row.ts = trace_ts_value;
-    row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id.clock_id);
-    row.clock_value =
-        clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
-    row.clock_name =
-        GetBuiltinClockNameOrNull(clock_timestamp.clock.id.clock_id);
-    row.snapshot_id = *snapshot_id;
-    row.machine_id = context_->machine_id();
-
-    context_->storage->mutable_clock_snapshot_table()->Insert(row);
+base::Status ProtoTraceReader::CheckManifestSingleMachine() {
+  if (context_->has_machine_override()) {
+    return base::ErrStatus(
+        "perfetto_manifest: a `machine` override attributes the file to one "
+        "machine, but the file contains packets from multiple machines. "
+        "Replace `machine` with a `machines` block that maps each embedded "
+        "machine_id to a named machine, e.g. "
+        R"("machines": [{"id": 0, "name": "phone"}, {"id": 7, "name": "vm"}].)");
+  }
+  if (context_->has_clock_override()) {
+    return base::ErrStatus(
+        "perfetto_manifest: a `clocks` override applies only to a "
+        "single-machine file, but the file contains packets from multiple "
+        "machines. Remove the `clocks` override and let the trace's own "
+        "remote clock snapshots align the machines; if you need to anchor a "
+        "specific embedded machine, split it into its own file and override "
+        "that.");
   }
   return base::OkStatus();
 }
 
 base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
+  // Remote clock syncs prove the trace is multi-machine/multi-clock. The
+  // machine_id branch in ParsePacket normally rejects overridden traces
+  // first, but a packet carrying remote_clock_sync without a machine_id
+  // would bypass it (the DCHECK above is a no-op in release builds).
+  RETURN_IF_ERROR(CheckManifestSingleMachine());
   protos::pbzero::RemoteClockSync::Decoder evt(blob);
 
   std::vector<SyncClockSnapshots> sync_clock_snapshots;
@@ -790,10 +882,32 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
     context_->clock_tracker->AddSnapshot(clock_timestamps);
   }
 
-  // Calculate clock offsets and report to the ClockTracker.
+  // Express each per-clock offset as a cross-machine edge in the single clock
+  // graph: at a synced instant the host clock reads |host_anchor| and this
+  // (client) machine's clock reads |host_anchor + offset|, so the two are
+  // linked directly. The anchor is a real host reading (the last sync round
+  // that observed this clock) rather than a literal 0: that keeps the snapshot
+  // rows we materialise to the clock_snapshot table at meaningful, in-bounds
+  // timestamps instead of converting the epoch (e.g. REALTIME 0) into a wildly
+  // negative trace time.
+  uint32_t client_machine = context_->machine_id().value;
+  uint32_t host_machine = context_->trace_time_state->clock_id.machine_id;
   auto clock_offsets = CalculateClockOffsets(sync_clock_snapshots);
   for (auto it = clock_offsets.GetIterator(); it; ++it) {
-    context_->clock_tracker->SetRemoteClockOffset(it.key(), it.value());
+    uint32_t builtin = it.key().clock_id;
+    int64_t offset = it.value();
+
+    // CalculateClockOffsets only emits an offset for a clock that was observed
+    // on both sides, so at least one round carries a non-zero host reading.
+    int64_t host_anchor = 0;
+    for (const auto& round : sync_clock_snapshots) {
+      if (auto* clocks = round.Find(builtin); clocks && clocks->first)
+        host_anchor = static_cast<int64_t>(clocks->first);
+    }
+
+    context_->clock_tracker->AddQualifiedSnapshot(
+        {{ClockId::Machine(host_machine, builtin), host_anchor},
+         {ClockId::Machine(client_machine, builtin), host_anchor + offset}});
   }
   return base::OkStatus();
 }
@@ -870,26 +984,6 @@ ProtoTraceReader::CalculateClockOffsets(
   }
 
   return clock_offsets;
-}
-
-std::optional<StringId> ProtoTraceReader::GetBuiltinClockNameOrNull(
-    int64_t clock_id) {
-  switch (clock_id) {
-    case protos::pbzero::ClockSnapshot::Clock::REALTIME:
-      return context_->storage->InternString("REALTIME");
-    case protos::pbzero::ClockSnapshot::Clock::REALTIME_COARSE:
-      return context_->storage->InternString("REALTIME_COARSE");
-    case protos::pbzero::ClockSnapshot::Clock::MONOTONIC:
-      return context_->storage->InternString("MONOTONIC");
-    case protos::pbzero::ClockSnapshot::Clock::MONOTONIC_COARSE:
-      return context_->storage->InternString("MONOTONIC_COARSE");
-    case protos::pbzero::ClockSnapshot::Clock::MONOTONIC_RAW:
-      return context_->storage->InternString("MONOTONIC_RAW");
-    case protos::pbzero::ClockSnapshot::Clock::BOOTTIME:
-      return context_->storage->InternString("BOOTTIME");
-    default:
-      return std::nullopt;
-  }
 }
 
 base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
@@ -1067,39 +1161,19 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
-    if (buf.has_shadow_buffer_stats()) {
-      protos::pbzero::TraceStats::BufferStats::ShadowBufferStats::Decoder sbs(
-          buf.shadow_buffer_stats());
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_seen, buf_num,
-          static_cast<int64_t>(sbs.packets_seen()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_in_both, buf_num,
-          static_cast<int64_t>(sbs.packets_in_both()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_only_v1, buf_num,
-          static_cast<int64_t>(sbs.packets_only_v1()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_only_v2, buf_num,
-          static_cast<int64_t>(sbs.packets_only_v2()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_patches_attempted, buf_num,
-          static_cast<int64_t>(sbs.patches_attempted()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_v1_patches_succeeded, buf_num,
-          static_cast<int64_t>(sbs.v1_patches_succeeded()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_v2_patches_succeeded, buf_num,
-          static_cast<int64_t>(sbs.v2_patches_succeeded()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_stats_version, buf_num,
-          static_cast<uint32_t>(sbs.stats_version()));
-    }
   }
 
   struct BufStats {
     uint32_t packet_loss = 0;
     uint32_t incremental_sequences_dropped = 0;
+    uint32_t data_loss_read_gap = 0;
+    uint32_t data_loss_chunk_corrupted = 0;
+    uint32_t data_loss_orphan_continuation = 0;
+    uint32_t data_loss_reassembly_gap = 0;
+    uint32_t data_loss_reassembly_broken_chain = 0;
+    uint32_t data_loss_overwrite = 0;
+    uint32_t data_loss_writer_abort = 0;
+    uint32_t data_loss_smb_full = 0;
   };
   base::FlatHashMap<int32_t, BufStats> stats_per_buffer;
   for (auto it = evt.writer_stats(); it; ++it) {
@@ -1112,16 +1186,48 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
           s->needs_incremental_state_skipped > 0 &&
           s->needs_incremental_state_skipped ==
               s->needs_incremental_state_total;
+      stats.data_loss_read_gap += s->data_loss_read_gap_count;
+      stats.data_loss_chunk_corrupted += s->data_loss_chunk_corrupted_count;
+      stats.data_loss_orphan_continuation +=
+          s->data_loss_orphan_continuation_count;
+      stats.data_loss_reassembly_gap += s->data_loss_reassembly_gap_count;
+      stats.data_loss_reassembly_broken_chain +=
+          s->data_loss_reassembly_broken_chain_count;
+      stats.data_loss_overwrite += s->data_loss_overwrite_count;
+      stats.data_loss_writer_abort += s->data_loss_writer_abort_count;
+      stats.data_loss_smb_full += s->data_loss_smb_full_count;
     }
   }
 
   for (auto it = stats_per_buffer.GetIterator(); it; ++it) {
     auto& v = it.value();
+    auto buf = it.key();
     context_->stats_tracker->SetIndexedStats(
-        stats::traced_buf_sequence_packet_loss, it.key(), v.packet_loss);
+        stats::traced_buf_sequence_packet_loss, buf, v.packet_loss);
     context_->stats_tracker->SetIndexedStats(
-        stats::traced_buf_incremental_sequences_dropped, it.key(),
+        stats::traced_buf_incremental_sequences_dropped, buf,
         v.incremental_sequences_dropped);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_read_gap, buf, v.data_loss_read_gap);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_chunk_corrupted, buf,
+        v.data_loss_chunk_corrupted);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_orphan_continuation, buf,
+        v.data_loss_orphan_continuation);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_reassembly_gap, buf,
+        v.data_loss_reassembly_gap);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_reassembly_broken_chain, buf,
+        v.data_loss_reassembly_broken_chain);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_overwrite, buf, v.data_loss_overwrite);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_writer_abort, buf,
+        v.data_loss_writer_abort);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_data_loss_smb_full, buf, v.data_loss_smb_full);
   }
 }
 

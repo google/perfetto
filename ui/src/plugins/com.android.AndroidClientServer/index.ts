@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {NUM, STR} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 
 export default class implements PerfettoPlugin {

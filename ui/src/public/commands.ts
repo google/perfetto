@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Hotkey} from '../base/hotkeys';
+import type {Hotkey} from '../base/hotkeys';
 
 export interface Command {
   // A unique id for this command.

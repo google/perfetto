@@ -63,15 +63,12 @@ std::vector<FlagSpec> InteractiveSubcommand::GetFlags() {
 }
 
 base::Status InteractiveSubcommand::Run(const SubcommandContext& ctx) {
-  if (ctx.positional_args.empty()) {
-    return base::ErrStatus("interactive: trace file is required");
-  }
-  std::string trace_file = ctx.positional_args[0];
+  std::string trace_file;
+  RETURN_IF_ERROR(
+      ResolveTraceFileArg(ctx, "interactive", &trace_file, nullptr));
 
-  auto config = BuildConfig(*ctx.global, ctx.platform);
-  ASSIGN_OR_RETURN(auto tp,
-                   SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file).status());
+  ASSIGN_OR_RETURN(auto tp, CreateTraceProcessor(*ctx.global, ctx.platform,
+                                                 trace_file, nullptr));
 
 #if PERFETTO_HAS_SIGNAL_H()
   static TraceProcessor* g_tp_for_signal_handler = tp.get();

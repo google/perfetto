@@ -451,6 +451,97 @@ TEST_F(TracingServiceImplTest, QueryServiceStateReportsMachine) {
   EXPECT_EQ(guest.machine_name(), "guest_machine");
 }
 
+// When an in-process producer connects with a non-default machine id, the
+// service attributes its own packets (clock snapshot, trace config, service
+// events) to that machine (see ConnectProducer / SetServiceTracePacketHeader),
+// so the trace has no separate empty host machine.
+TEST_F(TracingServiceImplTest, InProcessMachineIdStampsServicePackets) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
+                    /*machine_id=*/1234);
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
+  // The producer is on a non-default machine; without this its data source
+  // wouldn't match (a config with no machine filter targets the host only).
+  trace_config.set_trace_all_machines(true);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+
+  bool saw_clock_snapshot = false;
+  bool saw_trace_config = false;
+  for (const auto& packet : packets) {
+    if (packet.has_clock_snapshot()) {
+      saw_clock_snapshot = true;
+      EXPECT_EQ(packet.machine_id(), 1234u);
+    }
+    if (packet.has_trace_config()) {
+      saw_trace_config = true;
+      EXPECT_EQ(packet.machine_id(), 1234u);
+    }
+    if (packet.has_service_event())
+      EXPECT_EQ(packet.machine_id(), 1234u);
+  }
+  EXPECT_TRUE(saw_clock_snapshot);
+  EXPECT_TRUE(saw_trace_config);
+}
+
+// A default (host) in-process producer is the common case: the service's own
+// packets stay on the host machine (no machine_id), unaffected by the
+// in-process machine-id adoption above.
+TEST_F(TracingServiceImplTest, HostProducerKeepsServicePacketsOnHost) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");  // kDefaultMachineID
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+
+  bool saw_clock_snapshot = false;
+  bool saw_trace_config = false;
+  for (const auto& packet : packets) {
+    if (packet.has_clock_snapshot()) {
+      saw_clock_snapshot = true;
+      EXPECT_FALSE(packet.has_machine_id());
+    }
+    if (packet.has_trace_config()) {
+      saw_trace_config = true;
+      EXPECT_FALSE(packet.has_machine_id());
+    }
+  }
+  EXPECT_TRUE(saw_clock_snapshot);
+  EXPECT_TRUE(saw_trace_config);
+}
+
 TEST_F(TracingServiceImplTest, EnableAndDisableTracing) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());

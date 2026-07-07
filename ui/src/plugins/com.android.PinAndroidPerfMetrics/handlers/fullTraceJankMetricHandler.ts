@@ -14,11 +14,11 @@
 
 import {
   expandProcessName,
-  FullTraceMetricData,
-  JankType,
-  MetricHandler,
+  type FullTraceMetricData,
+  type JankType,
+  type MetricHandler,
 } from './metricUtils';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 class FullTraceJankMetricHandler implements MetricHandler {

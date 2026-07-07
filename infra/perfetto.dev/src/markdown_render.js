@@ -122,7 +122,15 @@ function renderCode(text, lang) {
   } else {
     hlHtml = hljs.highlightAuto(text).value;
   }
-  return `<code class="hljs code-block">${hlHtml}</code>`;
+  // Wrap in a positioned container so a "copy" button can be overlaid in the
+  // top-right corner (see setupCodeCopy() in script.js).
+  return (
+    `<div class="code-block-wrapper">` +
+    `<button class="code-copy-button" type="button" aria-label="Copy code" ` +
+    `title="Copy to clipboard"></button>` +
+    `<code class="hljs code-block">${hlHtml}</code>` +
+    `</div>`
+  );
 }
 
 function renderImage(originalImgFn, href, title, text) {

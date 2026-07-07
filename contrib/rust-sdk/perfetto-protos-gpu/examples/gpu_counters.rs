@@ -124,6 +124,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             };
             ctx.add_packet(|packet: &mut TracePacket| {
+                packet.set_timestamp(start_time.elapsed().as_nanos() as u64);
                 packet.set_gpu_counter_event(|event: &mut GpuCounterEvent| {
                     for i in COUNTER_IDS.iter() {
                         event.set_counters(|counter: &mut GpuCounterEventGpuCounter| {

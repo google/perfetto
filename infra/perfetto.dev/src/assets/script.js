@@ -463,6 +463,24 @@ function setupTabs() {
   }
 }
 
+// Wires up the "copy" button overlaid on each code block (see renderCode() in
+// markdown_render.js).
+function setupCodeCopy() {
+  for (const btn of document.querySelectorAll(".code-copy-button")) {
+    const code = btn.parentElement.querySelector("code");
+    if (!code) continue;
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(code.textContent);
+      } catch (e) {
+        return;
+      }
+      btn.classList.add("copied");
+      setTimeout(() => btn.classList.remove("copied"), 1500);
+    });
+  }
+}
+
 function setupChineseDocsBanner() {
   if (!location.pathname.startsWith('/docs/')) return;
   const langs = navigator.languages || [navigator.language || ''];
@@ -522,6 +540,7 @@ window.addEventListener("load", () => {
   updateTOC();
   setupSearch();
   setupTabs();
+  setupCodeCopy();
 
   // Enable animations only after the load event. This is to prevent glitches
   // when switching pages.

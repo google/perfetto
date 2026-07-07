@@ -13,15 +13,15 @@
 // limitations under the License.
 
 import {QuerySlot, type QueryResult} from '../../../base/query_slot';
-import {Engine} from '../../../trace_processor/engine';
+import type {Engine} from '../../../trace_processor/engine';
 import {
   NUM,
   STR,
-  QueryResult as TPQueryResult,
+  type QueryResult as TPQueryResult,
 } from '../../../trace_processor/query_result';
-import {AggregateFunction} from '../datagrid/model';
+import type {AggregateFunction} from '../datagrid/model';
 import {sqlAggregateExpr} from '../datagrid/sql_utils';
-import {HeatmapData} from './heatmap';
+import type {HeatmapData} from './heatmap';
 import {validateColumnName} from './chart_utils';
 
 /**

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {AppImpl} from '../../core/app_impl';
+import type {AppImpl} from '../../core/app_impl';
 import {featureFlags} from '../../core/feature_flags';
 
 const HIRING_BANNER_FLAG = featureFlags.register({

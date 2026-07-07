@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PerfettoPlugin} from '../../public/plugin';
-import {TraceImpl} from '../../core/trace_impl';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {TraceImpl} from '../../core/trace_impl';
 import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
 
 /**

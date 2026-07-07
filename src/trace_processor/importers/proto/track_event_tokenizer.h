@@ -29,6 +29,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/selective_trace_packet_decoder.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -56,25 +57,10 @@ class TrackEventTokenizer {
                                TraceProcessorContext*,
                                TrackEventTracker*);
 
-  ModuleResult TokenizeRangeOfInterestPacket(
-      RefPtr<PacketSequenceStateGeneration> state,
-      const protos::pbzero::TracePacket_Decoder&,
-      TraceBlobView* packet,
-      int64_t packet_timestamp);
-  ModuleResult TokenizeTrackDescriptorPacket(
-      RefPtr<PacketSequenceStateGeneration> state,
-      const protos::pbzero::TracePacket_Decoder&,
-      TraceBlobView* packet,
-      int64_t packet_timestamp);
-  ModuleResult TokenizeThreadDescriptorPacket(
-      RefPtr<PacketSequenceStateGeneration> state,
-      const protos::pbzero::TracePacket_Decoder&,
-      TraceBlobView* packet);
-  ModuleResult TokenizeTrackEventPacket(
-      RefPtr<PacketSequenceStateGeneration> state,
-      const protos::pbzero::TracePacket_Decoder&,
-      TraceBlobView* packet,
-      int64_t packet_timestamp);
+  ModuleResult TokenizeRangeOfInterestPacket(const TokenizePacketArgs& args);
+  ModuleResult TokenizeTrackDescriptorPacket(const TokenizePacketArgs& args);
+  ModuleResult TokenizeThreadDescriptorPacket(const TokenizePacketArgs& args);
+  ModuleResult TokenizeTrackEventPacket(const TokenizePacketArgs& args);
 
  private:
   void TokenizeThreadDescriptor(PacketSequenceStateGeneration& state,

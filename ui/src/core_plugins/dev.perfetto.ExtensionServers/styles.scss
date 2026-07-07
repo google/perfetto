@@ -99,6 +99,32 @@
     }
   }
 
+  &__confirm {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+    text-align: center;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__confirm-icon {
+    font-size: 4em;
+  }
+
+  &__confirm-title {
+    font-weight: 500;
+    color: var(--pf-color-text);
+  }
+
+  &__confirm-body {
+    max-width: 420px;
+    line-height: 1.4;
+  }
+
   .pf-multiselect-panel {
     flex: 1;
     min-height: 0;

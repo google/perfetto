@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
+import type {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
 import {
-  DashboardDataSource,
-  DashboardItem,
+  type DashboardDataSource,
+  type DashboardItem,
   DEFAULT_COL_SPAN,
   DEFAULT_ROW_SPAN,
   GRID_COLUMNS,

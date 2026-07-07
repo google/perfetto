@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
-import {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
+import type {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
 import AndroidCujsPlugin from '../com.android.AndroidCujs';
 import Wattson from '../org.kernel.Wattson';
 

@@ -12,19 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RouteArgs} from './route_schema';
-import {CommandManager} from './commands';
-import {OmniboxManager} from './omnibox';
-import {SidebarManager} from './sidebar';
-import {Analytics} from './analytics';
-import {PluginManager} from './plugin';
-import {Trace} from './trace';
-import {PageManager} from './page';
-import {FeatureFlagManager} from './feature_flag';
-import {Raf} from './raf';
-import {SettingsManager} from './settings';
-import {TraceStream} from './stream';
-import {TaskTracker} from './task_tracker';
+import type {Analytics} from './analytics';
+import type {CommandManager} from './commands';
+import type {FeatureFlagManager} from './feature_flag';
+import type {OmniboxManager} from './omnibox';
+import type {PageManager} from './page';
+import type {PluginManager} from './plugin';
+import type {Raf} from './raf';
+import type {RouteArgs} from './route_schema';
+import type {SettingsManager} from './settings';
+import type {SidePanelManager} from './side_panel';
+import type {SidebarManager} from './sidebar';
+import type {TraceStream} from './stream';
+import type {TaskTracker} from './task_tracker';
+import type {Trace} from './trace';
+
+// A broken down representation of a route.
+// For instance: #!/record/gpu?local_cache_key=a0b1
+// becomes: {page: '/record', subpage: '/gpu', args: {local_cache_key: 'a0b1'}}
+export interface Route {
+  page: string;
+  subpage: string;
+  fragment: string;
+  args: RouteArgs;
+}
 
 /**
  * The API endpoint to interact programmatically with the UI before a trace has
@@ -62,6 +73,15 @@ export interface App {
    */
   readonly taskTracker: TaskTracker;
 
+  /**
+   * Manage the side panel tabs - a global side panel that appears on the right
+   * of all pages, adding tabs and switching between them.
+   *
+   * @experimental - This is a new API and may change or be removed in the
+   * future. Use with caution and be prepared for breaking changes.
+   */
+  readonly sidePanel: SidePanelManager;
+
   // True if the current user is an 'internal' user. E.g. a Googler on
   // ui.perfetto.dev. Plugins might use this to determine whether to show
   // certain internal links or expose certain experimental features by default.
@@ -71,6 +91,11 @@ export interface App {
    * Navigate to a new page.
    */
   navigate(newHash: string): void;
+
+  /**
+   * Returns the route/page we're on.
+   */
+  getCurrentRoute(): Route;
 
   openTraceFromFile(file: File): Promise<Trace>;
   openTraceFromUrl(url: string): Promise<Trace>;

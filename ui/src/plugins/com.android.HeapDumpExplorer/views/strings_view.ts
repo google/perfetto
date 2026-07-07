@@ -78,7 +78,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
           return m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {
                   id,
@@ -90,7 +90,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
             m(
               'span',
               {
-                class: 'ah-mono ah-break-all ah-str-color',
+                class: 'pf-hde-mono pf-hde-break-all pf-hde-str-color',
               },
               str
                 ? '"' +
@@ -214,7 +214,7 @@ function StringsView(): m.Component<StringsViewAttrs> {
       const {navigate} = vnode.attrs;
 
       if (!allRows) {
-        return m('div', {class: 'ah-loading'}, m(Spinner, {easing: true}));
+        return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
       }
 
       if (allRows.length === 0) {
@@ -241,10 +241,10 @@ function StringsView(): m.Component<StringsViewAttrs> {
         {property: 'Total retained', value: fmtSize(totalRetained)},
       ];
 
-      return m('div', {class: 'ah-view-content'}, [
-        m('h2', {class: 'ah-view-heading'}, counter.heading('Strings')),
+      return m('div', {class: 'pf-hde-view-content'}, [
+        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Strings')),
 
-        m('div', {class: 'ah-card ah-mb-4 ah-flex-none'}, [
+        m('div', {class: 'pf-hde-card pf-hde-mb-4 pf-hde-flex-none'}, [
           m(DataGrid, {
             schema: SUMMARY_SCHEMA,
             rootSchema: 'query',

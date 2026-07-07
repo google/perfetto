@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Utid} from '../../components/sql_utils/core_types';
+import type {Utid} from '../../components/sql_utils/core_types';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {ChromeTasksDetailsPanel} from './details';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';

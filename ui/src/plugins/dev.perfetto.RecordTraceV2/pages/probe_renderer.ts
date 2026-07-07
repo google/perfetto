@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {assetSrc} from '../../../base/assets';
-import {ConfigManager} from '../config/config_manager';
-import {RecordProbe} from '../config/config_interfaces';
+import type {ConfigManager} from '../config/config_manager';
+import type {RecordProbe} from '../config/config_interfaces';
 import {exists} from '../../../base/utils';
 import {classNames} from '../../../base/classnames';
 import {Anchor} from '../../../widgets/anchor';

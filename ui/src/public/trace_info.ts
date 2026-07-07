@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time} from '../base/time';
+import type {time} from '../base/time';
 
 export interface TraceInfo {
   readonly traceTitle: string; // File name and size of the current trace.

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
-import {TableColumn} from './table_column';
+import type {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
+import type {TableColumn} from './table_column';
 
 // Describes a column derived from another table via a join.
 export interface DerivedColumn {

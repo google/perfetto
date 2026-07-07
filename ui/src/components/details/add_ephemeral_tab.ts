@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import {uuidv4} from '../../base/uuid';
-import {Tab} from '../../public/tab';
-import {Trace} from '../../public/trace';
+import type {Tab} from '../../public/tab';
+import type {Trace} from '../../public/trace';
 
 // TODO(primiano): this method probably shouldn't exist at all in favour
 // of some helper in the Trace object).

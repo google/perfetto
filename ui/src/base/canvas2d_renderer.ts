@@ -16,19 +16,20 @@
 // All transforms are applied via the canvas context's transform matrix
 // (translate/scale), so draw methods use coordinates directly.
 
-import {Color} from './color';
-import {Transform1D, Transform2D} from './geom';
+import type {Color} from './color';
+import {type Transform1D, Transform2D} from './geom';
 import {
-  Renderer,
+  type Renderer,
   RECT_PATTERN_HATCHED,
   RECT_PATTERN_FADE_RIGHT,
-  MarkerRenderFunc,
-  MarkerBuffers,
-  StepAreaBuffers,
-  SliceBuffers,
+  type MarkerRenderFunc,
+  type MarkerBuffers,
+  type StepAreaBuffers,
+  type SliceBuffers,
   rowTopFromLayout,
   rowHeightFromLayout,
-  RowLayout,
+  type RowLayout,
+  SLICE_GAP_PX,
 } from './renderer';
 
 // Clip bounds stored in physical screen coordinates (post-transform).
@@ -142,7 +143,9 @@ export class Canvas2DRenderer implements Renderer {
 
       // Transform X from data coordinates to screen coordinates
       const startPx = starts[i] * scale + offset;
-      const endPx = ends[i] * scale + offset;
+      const rawEndPx = ends[i] * scale + offset;
+      // Inset the right edge so adjacent slices stay visually distinct.
+      const endPx = Math.max(startPx + 1, rawEndPx - SLICE_GAP_PX);
       const w = Math.max(endPx - startPx, 1);
 
       // CPU-side culling and clamping to clip bounds

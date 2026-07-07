@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Engine} from '../../../trace_processor/engine';
+import type {Engine} from '../../../trace_processor/engine';
 import {
   LONG_NULL,
   NUM_NULL,
@@ -23,10 +23,10 @@ import {
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 import {GridLayout} from '../../../widgets/grid_layout';
-import {time, Time} from '../../../base/time';
+import {type time, Time} from '../../../base/time';
 import {renderTimecode} from '../../../components/time_utils';
 import {
-  StatsSectionRow,
+  type StatsSectionRow,
   loadStatsWithFilter,
   groupByCategory,
   renderErrorCategoryCard,

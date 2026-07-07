@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../../base/assert';
-import {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import {ensureExists} from '../../base/assert';
+import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
-import {PerfettoPlugin} from '../../public/plugin';
-import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import type {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
@@ -32,12 +32,12 @@ import {
 import {
   Flamegraph,
   FLAMEGRAPH_STATE_SCHEMA,
-  FlamegraphState,
+  type FlamegraphState,
 } from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
 import CpuProfilePlugin from '../dev.perfetto.CpuProfile';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -77,7 +77,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     this.store = trace.mountStore(LinuxPerfPlugin.id, (init) =>
       this.migrateLinuxPerfPluginState(init),
     );
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     await this.cacheCounterTypesPerSession(trace);
     await this.addProcessPerfSamplesTracks(trace, store);
     await this.addThreadPerfSamplesTracks(trace, store);
@@ -439,7 +439,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
         if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(FlamegraphPanel, {
@@ -563,7 +563,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
       aggregatableProperties,
     });
 
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
@@ -598,7 +598,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
 }
 
 async function selectPerfTracksIfSingleProcess(trace: Trace) {
-  const profile = await assertExists(trace.engine).query(`
+  const profile = await ensureExists(trace.engine).query(`
     select distinct upid
     from perf_sample
     join thread using (utid)
@@ -621,7 +621,7 @@ function getSelectedProcessTrackTags(currentSelection: AreaSelection) {
       trackInfo.tags?.utid === undefined
     ) {
       ret.push([
-        assertExists(trackInfo.tags?.upid),
+        ensureExists(trackInfo.tags?.upid),
         Number(trackInfo.tags.perfSessionId),
       ]);
     }

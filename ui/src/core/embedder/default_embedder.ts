@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Embedder} from './embedder';
+import type {Embedder} from './embedder';
 import {defaultPlugins} from './default_plugins';
 
 /** Default embedder implementation for third-party embeddings. */

@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import {
-  QueryNode,
+  type QueryNode,
   NodeType,
-  SecondaryInputSpec,
+  type SecondaryInputSpec,
   singleNodeOperation,
 } from '../query_node';
-import {GroupNode, ExternalGroupConnection} from './nodes/group_node';
-import {Result, errResult, okResult} from '../../../base/result';
+import {GroupNode, type ExternalGroupConnection} from './nodes/group_node';
+import {type Result, errResult, okResult} from '../../../base/result';
 
 /**
  * Graph traversal and connection utilities for the Data Explorer query builder.

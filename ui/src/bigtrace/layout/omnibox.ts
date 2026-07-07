@@ -15,24 +15,24 @@
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {findRef} from '../../base/dom_utils';
-import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
-import {assertExists, assertUnreachable} from '../../base/assert';
+import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
+import {ensureExists, assertUnreachable} from '../../base/assert';
 import {isString} from '../../base/object_utils';
 import {exists} from '../../base/utils';
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {Chip} from '../../widgets/chip';
-import {HTMLAttrs, Intent} from '../../widgets/common';
+import {type HTMLAttrs, Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs, KeycapGlyph} from '../../widgets/hotkey_glyphs';
 import {Popup} from '../../widgets/popup';
 import {BigTraceApp} from '../bigtrace_app';
-import {Command} from '../../public/commands';
+import type {Command} from '../../public/commands';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;
 
-// Smart omnibox component for BigTrace. Mirrors ui/src/frontend/omnibox.ts but
-// uses BigTraceApp instead of AppImpl and omits trace-search step-through.
+// BigTrace omnibox. Like ui/src/frontend/omnibox.ts but uses BigTraceApp and
+// omits trace-search step-through.
 export class Omnibox implements m.ClassComponent {
   private omniboxInputEl?: HTMLInputElement;
   private recentCommands: ReadonlyArray<string> = [];
@@ -64,7 +64,7 @@ export class Omnibox implements m.ClassComponent {
 
   private renderPromptOmnibox(): m.Children {
     const omnibox = BigTraceApp.instance.omnibox;
-    const prompt = assertExists(omnibox.pendingPrompt);
+    const prompt = ensureExists(omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
 
@@ -108,7 +108,10 @@ export class Omnibox implements m.ClassComponent {
 
   private renderCommandOmnibox(): m.Children {
     const {commands, omnibox} = BigTraceApp.instance;
-    const allCmds = commands.getCommands();
+    // OpenCommandPalette is a no-op when invoked from inside itself.
+    const allCmds = commands
+      .getCommands()
+      .filter((c) => c.id !== 'bigtrace.OpenCommandPalette');
     const filteredCmds = fuzzyFilterCommands(allCmds, omnibox.text);
 
     const commandsWithHeuristics = filteredCmds.map((cmd) => {
@@ -118,13 +121,10 @@ export class Omnibox implements m.ClassComponent {
       };
     });
 
-    const sorted = commandsWithHeuristics.sort((a, b) => {
-      if (b.recentsIndex === a.recentsIndex) {
-        return 0;
-      } else {
-        return b.recentsIndex - a.recentsIndex;
-      }
-    });
+    // Recently-used commands (recentsIndex >= 0) sort above never-used (-1).
+    const sorted = commandsWithHeuristics.sort(
+      (a, b) => b.recentsIndex - a.recentsIndex,
+    );
 
     const options = sorted.map(({recentsIndex, cmd}): OmniboxOption => {
       const {segments, id, defaultHotkey, source} = cmd;
@@ -178,7 +178,7 @@ export class Omnibox implements m.ClassComponent {
 
   private renderRegisteredMode(): m.Children {
     const omnibox = BigTraceApp.instance.omnibox;
-    const desc = assertExists(omnibox.activeRegisteredMode);
+    const desc = ensureExists(omnibox.activeRegisteredMode);
     return m(OmniboxWidget, {
       value: omnibox.text,
       placeholder: desc.placeholder,
@@ -223,13 +223,15 @@ export class Omnibox implements m.ClassComponent {
     }
     return m(OmniboxWidget, {
       value: omnibox.text,
-      placeholder: `Search or type ${hints.join(', ')}`,
+      // Avoid "Search": search submit is a no-op in BigTrace.
+      placeholder: `Type ${hints.join(', ')}`,
       inputRef: OMNIBOX_INPUT_REF,
       onInput: (value, _prev) => {
         if (value === '>') {
           omnibox.setMode(OmniboxMode.Command);
           return;
         }
+        // Check registered mode triggers.
         if (value.length === 1 && omnibox.registeredModes.has(value)) {
           omnibox.activateRegisteredMode(value);
           return;
@@ -242,6 +244,7 @@ export class Omnibox implements m.ClassComponent {
         }
       },
       onSubmit: (_value, _mod, _shift) => {
+        // No trace-level search in BigTrace; submit just blurs the input.
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
@@ -286,7 +289,7 @@ export class Omnibox implements m.ClassComponent {
 }
 
 // ---------------------------------------------------------------------------
-// Presentational widget layer (mirrors ui/src/frontend/omnibox.ts)
+// Presentational widget layer (like ui/src/frontend/omnibox.ts)
 // ---------------------------------------------------------------------------
 
 interface OmniboxOptionRowAttrs extends HTMLAttrs {
@@ -433,9 +436,8 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
                   e.preventDefault();
 
                   const option = options[selectedOptionIndex];
-                  // Return values from indexing arrays can be undefined.
-                  // We should enable noUncheckedIndexedAccess in
-                  // tsconfig.json.
+                  // Array indexing can return undefined; enable
+                  // noUncheckedIndexedAccess in tsconfig.json.
                   /* eslint-disable
                       @typescript-eslint/strict-boolean-expressions */
                   if (option) {
@@ -554,8 +556,7 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
     document.removeEventListener('mousedown', this.onMouseDown);
   }
 
-  // Defined as an arrow function to keep `this` bound when used as an event
-  // listener that is added/removed manually.
+  // Arrow function so `this` stays bound across manual add/removeEventListener.
   private onMouseDown = (e: Event) => {
     m.redraw();
 
@@ -591,7 +592,11 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
   }
 }
 
-function fuzzyFilterCommands(commands: readonly Command[], searchTerm: string) {
+// Returns Commands annotated with `segments` for highlighted rendering.
+function fuzzyFilterCommands(
+  commands: readonly Command[],
+  searchTerm: string,
+): Array<Command & {segments: FuzzySegment[]}> {
   const finder = new FuzzyFinder(commands, ({name}) => name);
   return finder.find(searchTerm).map((result) => {
     return {segments: result.segments, ...result.item};

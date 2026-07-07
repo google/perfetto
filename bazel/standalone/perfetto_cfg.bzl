@@ -159,6 +159,9 @@ PERFETTO_CONFIG = struct(
         android_library = None,
         android_jni_library = None,
         android_instrumentation_test = None,
+
+        agent_skill = None,
+        validate_skill_test = None,
     ),
 
     # The default opts which we use to compile C/C++ code.

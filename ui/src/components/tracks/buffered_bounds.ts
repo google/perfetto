@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
-import {duration, time, Time} from '../../base/time';
-import {TimeSpan} from '../../base/time';
+import {type duration, type time, Time} from '../../base/time';
+import type {TimeSpan} from '../../base/time';
 
 /**
  * Manages buffered/skirt bounds for track data fetching.

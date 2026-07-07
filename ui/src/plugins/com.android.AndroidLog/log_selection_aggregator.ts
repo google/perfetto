@@ -14,15 +14,15 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import {
+import type {
   AggregatePivotModel,
   Aggregation,
   Aggregator,
 } from '../../components/aggregation_adapter';
-import {AreaSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
+import type {AreaSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
 import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {Anchor} from '../../widgets/anchor';
 
 export class AndroidLogSelectionAggregator implements Aggregator {

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Duration} from '../../../base/time';
 import type {SqlValue, Row} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
@@ -23,6 +24,13 @@ import {type NavFn, sizeRenderer} from '../components';
 import type {HeapDump} from '../queries';
 import {Callout} from '../../../widgets/callout';
 import {Button} from '../../../widgets/button';
+import {
+  Grid,
+  GridCell,
+  GridHeaderCell,
+  type GridRow,
+} from '../../../widgets/grid';
+import {removeFalsyValues} from '../../../base/array_utils';
 
 const HEAP_SCHEMA: SchemaRegistry = {
   query: {
@@ -48,19 +56,6 @@ const HEAP_SCHEMA: SchemaRegistry = {
   },
 };
 
-const INFO_SCHEMA: SchemaRegistry = {
-  query: {
-    property: {
-      title: 'Property',
-      columnType: 'text',
-    },
-    value: {
-      title: 'Value',
-      columnType: 'text',
-    },
-  },
-};
-
 function makeDuplicateBitmapSchema(navigate: NavFn): SchemaRegistry {
   return {
     query: {
@@ -75,7 +70,7 @@ function makeDuplicateBitmapSchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () =>
                 navigate('bitmaps', {
                   filterKey: String(row.groupKey ?? ''),
@@ -108,7 +103,7 @@ function makeDuplicateArraySchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () => navigate('objects', {cls: String(value ?? '')}),
             },
             String(value ?? ''),
@@ -125,7 +120,7 @@ function makeDuplicateArraySchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () =>
                 navigate('arrays', {
                   arrayHash: String(row.arrayHash ?? ''),
@@ -158,7 +153,8 @@ function makeDuplicateStringSchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link ah-mono ah-break-all ah-str-color',
+              class:
+                'pf-hde-link pf-hde-mono pf-hde-break-all pf-hde-str-color',
               onclick: () =>
                 navigate('strings', {
                   q: String(value ?? ''),
@@ -178,7 +174,7 @@ function makeDuplicateStringSchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () => navigate('strings', {q: String(row.value ?? '')}),
             },
             String(value),
@@ -209,25 +205,25 @@ function renderDuplicateSection(
   data: Row[],
   columns: Array<{id: string; field: string}>,
 ): m.Children {
-  return m('div', {class: 'ah-card ah-mt-4'}, [
-    m('h3', {class: 'ah-sub-heading'}, title),
-    m('p', {class: 'ah-desc'}, [
+  return m('div', {class: 'pf-hde-card pf-hde-mt-4'}, [
+    m('h3', {class: 'pf-hde-sub-heading'}, title),
+    m('p', {class: 'pf-hde-desc'}, [
       groupCount +
         ' group' +
         (groupCount > 1 ? 's' : '') +
         ' detected, wasting ',
-      m('span', {class: 'ah-mono ah-semibold'}, fmtSize(totalWasted)),
+      m('span', {class: 'pf-hde-mono pf-hde-semibold'}, fmtSize(totalWasted)),
       '. ',
       m(
         'button',
         {
-          class: 'ah-link--alt',
+          class: 'pf-hde-link--alt',
           onclick: () => navigate(targetView as NavState['view']),
         },
         linkLabel,
       ),
     ]),
-    m('div', {class: 'ah-dup-grid-container'}, [
+    m('div', {class: 'pf-hde-dup-grid-container'}, [
       m(DataGrid, {
         schema,
         rootSchema: 'query',
@@ -288,26 +284,18 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
       const processLabel =
         (activeDump.processName ?? '<unknown>') +
         (activeDump.pid ? ` (pid ${activeDump.pid})` : '');
-      const infoRows: Row[] = [
-        {property: 'Process', value: processLabel},
-        {property: 'Classes', value: overview.classCount.toLocaleString()},
-        {
-          property: 'Reachable instances',
-          value: overview.reachableInstanceCount.toLocaleString(),
-        },
-        {
-          property: 'Unreachable instances',
-          value: overview.unreachableInstanceCount.toLocaleString(),
-        },
+      const infoRow = (property: string, value: string): GridRow => [
+        m(GridCell, property),
+        m(GridCell, value),
       ];
 
-      return m('div', {class: 'ah-view-scroll'}, [
-        m('h2', {class: 'ah-view-heading'}, 'Overview'),
+      return m('div', {class: 'pf-hde-view-scroll'}, [
+        m('h2', {class: 'pf-hde-view-heading'}, 'Overview'),
         showHint
           ? m(
               Callout,
               {
-                className: 'ah-default-changed-callout',
+                className: 'pf-hde-default-changed-callout',
                 icon: 'info',
                 dismissible: true,
                 onDismiss: onDismissDefaultChangedHint,
@@ -328,20 +316,46 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
             )
           : null,
 
-        m('div', {class: 'ah-card ah-mb-4'}, [
-          m('h3', {class: 'ah-sub-heading'}, 'General Information'),
-          m(DataGrid, {
-            schema: INFO_SCHEMA,
-            rootSchema: 'query',
-            data: infoRows,
-            initialColumns: [
-              {id: 'property', field: 'property'},
-              {id: 'value', field: 'value'},
+        m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
+          m('h3', {class: 'pf-hde-sub-heading'}, 'General Information'),
+          m(Grid, {
+            columns: [
+              {key: 'property', header: m(GridHeaderCell, 'Property')},
+              {key: 'value', header: m(GridHeaderCell, 'Value')},
             ],
+            rowData: removeFalsyValues([
+              infoRow('Process', processLabel),
+              overview.processUptime !== null &&
+                infoRow('Uptime', Duration.format(overview.processUptime)),
+              overview.oomBucket !== null &&
+                infoRow(
+                  'OOM score',
+                  `${overview.oomBucket} (${overview.oomScore})`,
+                ),
+              infoRow('Classes', overview.classCount.toLocaleString()),
+              infoRow(
+                'Reachable instances',
+                overview.reachableInstanceCount.toLocaleString(),
+              ),
+              infoRow(
+                'Unreachable instances',
+                overview.unreachableInstanceCount.toLocaleString(),
+              ),
+              overview.anonRssAndSwapSize !== null &&
+                infoRow(
+                  'Anon RSS + Swap',
+                  fmtSize(Number(overview.anonRssAndSwapSize)),
+                ),
+              overview.dmabufRssSize !== null &&
+                infoRow(
+                  'DMA Buffer RSS',
+                  fmtSize(Number(overview.dmabufRssSize)),
+                ),
+            ]),
           }),
         ]),
-        m('div', {class: 'ah-card'}, [
-          m('h3', {class: 'ah-sub-heading'}, 'Bytes Retained by Heap'),
+        m('div', {class: 'pf-hde-card'}, [
+          m('h3', {class: 'pf-hde-sub-heading'}, 'Bytes Retained by Heap'),
           m(DataGrid, {
             schema: HEAP_SCHEMA,
             rootSchema: 'query',
@@ -381,8 +395,8 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
           : overview.hasFieldValues
             ? m(
                 'div',
-                {class: 'ah-card ah-mt-4 ah-mb-4'},
-                m('p', {class: 'ah-muted'}, 'No duplicate bitmaps found.'),
+                {class: 'pf-hde-card pf-hde-mt-4 pf-hde-mb-4'},
+                m('p', {class: 'pf-hde-muted'}, 'No duplicate bitmaps found.'),
               )
             : null,
         overview.duplicateStrings && overview.duplicateStrings.length > 0
@@ -410,8 +424,8 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
           : overview.hasFieldValues
             ? m(
                 'div',
-                {class: 'ah-card ah-mb-4'},
-                m('p', {class: 'ah-muted'}, 'No duplicate strings found.'),
+                {class: 'pf-hde-card pf-hde-mb-4'},
+                m('p', {class: 'pf-hde-muted'}, 'No duplicate strings found.'),
               )
             : null,
         overview.duplicateArrays && overview.duplicateArrays.length > 0

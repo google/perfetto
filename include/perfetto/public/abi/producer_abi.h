@@ -43,6 +43,14 @@ PERFETTO_SDK_EXPORT void PerfettoProducerBackendInitArgsSetShmemSizeHintKb(
     struct PerfettoProducerBackendInitArgs*,
     uint32_t size);
 
+// Sets the machine id this process's trace data is attributed to. Only honored
+// by the in-process backend (PerfettoProducerInProcessInit); ignored by the
+// system backend. Lets separate in-process traces be recorded under distinct
+// machine ids. 0 means the default (host) machine.
+PERFETTO_SDK_EXPORT void PerfettoProducerBackendInitArgsSetMachineId(
+    struct PerfettoProducerBackendInitArgs*,
+    uint32_t machine_id);
+
 PERFETTO_SDK_EXPORT void PerfettoProducerBackendInitArgsDestroy(
     struct PerfettoProducerBackendInitArgs*);
 

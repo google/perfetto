@@ -85,7 +85,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
             m(
               'button',
               {
-                class: 'ah-link',
+                class: 'pf-hde-link',
                 onclick: () =>
                   navigate('object', {id, label: str ? `"${str}"` : display}),
               },
@@ -94,7 +94,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
             str
               ? m(
                   'span',
-                  {class: 'ah-str-badge'},
+                  {class: 'pf-hde-str-badge'},
                   ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
                 )
               : null,
@@ -201,8 +201,8 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'ah-view-content'}, [
-        m('h2', {class: 'ah-view-heading'}, counter.heading('Objects')),
+      return m('div', {class: 'pf-hde-view-content'}, [
+        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Objects')),
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           rootSchema: 'query',

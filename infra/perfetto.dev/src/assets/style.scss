@@ -892,6 +892,54 @@ h3 {
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
       border-top: 3px solid #8bc34a;
     }
+    .code-block-wrapper {
+      position: relative;
+      &:hover .code-copy-button,
+      .code-copy-button:focus-visible {
+        opacity: 1;
+      }
+    }
+    .code-copy-button {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid #e8eaed;
+      border-radius: 6px;
+      background: #fff;
+      color: #5f6368;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity var(--anim-ease) var(--anim-time);
+      &::before {
+        content: "content_copy";
+        font-family: "Material Icons Round";
+        font-size: 18px;
+        line-height: 1;
+        vertical-align: middle;
+      }
+      &:hover {
+        background: #f1f5f9;
+      }
+      &.copied {
+        color: #4caf50;
+        &::before {
+          content: "check";
+        }
+      }
+    }
+    // Collapsible <details> blocks (e.g. the "Click to expand/collapse" code
+    // sections in the docs). Make the <summary> look and behave clickable.
+    details > summary {
+      cursor: pointer;
+      user-select: none;
+      width: fit-content;
+      &:hover {
+        color: var(--color-link);
+      }
+    }
     // Hide mermaid graphs until they are rendered, this is to avoid showing
     // the mermaid source while the renderer generates the SVG.
     .mermaid {

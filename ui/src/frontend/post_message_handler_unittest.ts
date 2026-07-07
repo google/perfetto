@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {isTrustedOrigin} from './post_message_handler';
+import {isTrustedOrigin, parsePostedTrace} from './post_message_handler';
 
 describe('postMessageHandler', () => {
   test('baked-in trusted origins are trusted', () => {
@@ -55,5 +55,69 @@ describe('postMessageHandler', () => {
     // IPv6 localhost
     expect(isTrustedOrigin('https://[::1]')).toBeTruthy();
     expect(isTrustedOrigin('http://[::1]')).toBeTruthy();
+  });
+});
+
+describe('parsePostedTrace', () => {
+  describe('flat buffer', () => {
+    test('arraybuffer returned verbatim', () => {
+      const buffer = new ArrayBuffer();
+      const result = parsePostedTrace(buffer);
+      expect(result?.buffer).toBe(buffer);
+    });
+
+    test('view converted to arraybuffer', () => {
+      const result = parsePostedTrace(new Uint8Array());
+      expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
+    });
+
+    test('view is snipped to the view, not the underlying buffer', () => {
+      // A 10-byte view starting at offset 2 of a 16-byte buffer.
+      const underlying = new Uint8Array(16);
+      underlying.forEach((_, i) => (underlying[i] = i));
+      const view = new Uint8Array(underlying.buffer, 2, 10);
+
+      const result = parsePostedTrace(view);
+
+      expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
+      // Spans exactly the view's bytes, not the full 16-byte buffer.
+      expect(result?.buffer.byteLength).toBe(10);
+      expect(new Uint8Array(result!.buffer)).toEqual(
+        new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+      );
+    });
+  });
+
+  describe('wrapped trace', () => {
+    test('arraybuffer returned verbatim', () => {
+      const buffer = new ArrayBuffer();
+      const result = parsePostedTrace({perfetto: {buffer, title: 'foo'}});
+      expect(result?.buffer).toBe(buffer);
+    });
+
+    test('view converted to arraybuffer', () => {
+      const result = parsePostedTrace({
+        perfetto: {buffer: new Uint8Array(), title: 'foo'},
+      });
+      expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
+    });
+
+    test('view is snipped to the view, not the underlying buffer', () => {
+      // A 10-byte view starting at offset 2 of a 16-byte buffer.
+      const underlying = new Uint8Array(16);
+      underlying.forEach((_, i) => (underlying[i] = i));
+      const view = new Uint8Array(underlying.buffer, 2, 10);
+
+      const result = parsePostedTrace({
+        perfetto: {buffer: view, title: 'foo'},
+      });
+
+      expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
+      // Spans exactly the view's bytes, not the full 16-byte buffer.
+      expect(result?.buffer.byteLength).toBe(10);
+      expect(new Uint8Array(result!.buffer)).toEqual(
+        new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+      );
+    });
   });
 });

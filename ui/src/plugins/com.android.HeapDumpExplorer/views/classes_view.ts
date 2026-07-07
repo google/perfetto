@@ -67,7 +67,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
           m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () => navigate('objects', {cls: String(value)}),
             },
             String(value),
@@ -167,8 +167,8 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'ah-view-content'}, [
-        m('h2', {class: 'ah-view-heading'}, counter.heading('Classes')),
+      return m('div', {class: 'pf-hde-view-content'}, [
+        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Classes')),
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           rootSchema: 'query',

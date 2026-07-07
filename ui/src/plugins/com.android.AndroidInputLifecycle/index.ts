@@ -15,20 +15,20 @@
 import m from 'mithril';
 
 import {RelatedEventsOverlay} from '../../components/related_events/related_events_overlay';
-import {ArrowConnection} from '../../components/related_events/arrow_visualiser';
+import type {ArrowConnection} from '../../components/related_events/arrow_visualiser';
 import {TrackPinningManager} from '../../components/related_events/utils';
 import {Time} from '../../base/time';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 
 import {
   AndroidInputEventSource,
-  InputChainRow,
-  NavTarget,
+  type InputChainRow,
+  type NavTarget,
 } from './android_input_event_source';
 import {AndroidInputLifecycleTab} from './tab';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {QueryResult} from '../../base/query_slot';
+import type {QueryResult} from '../../base/query_slot';
 
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';

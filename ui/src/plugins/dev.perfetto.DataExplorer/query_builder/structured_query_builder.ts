@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {nextNodeId, QueryNode} from '../query_node';
+import {nextNodeId, type QueryNode} from '../query_node';
 
 /**
  * ARCHITECTURE: Query Building Strategy - Reference vs. Embedding

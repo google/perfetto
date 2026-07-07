@@ -13,21 +13,17 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Stores the min and max vsync IDs for each of the CUJs which are extracted
--- from the CUJ markers. For backward compatibility (In case the markers don't
--- exist), We calculate that by extracting the vsync ID from the
--- `Choreographer#doFrame` slices that are within the CUJ markers.
+INCLUDE PERFETTO MODULE android.cujs.boundaries;
+
+-- NOTE: We preserve the legacy table names in this file because external
+-- consumers and analytical pipelines outside the Perfetto project rely on them.
+-- Tables that could be fully migrated to stdlib are re-exported from
+-- android.cujs.boundaries. Tables that depend on metrics-only tables
+-- (from relevant_slices.sql) remain defined here.
+
 DROP TABLE IF EXISTS android_jank_cuj_vsync_boundary;
 CREATE PERFETTO TABLE android_jank_cuj_vsync_boundary AS
-SELECT
-  cuj.cuj_id,
-  cuj.upid, -- also store upid to simplify further queries
-  cuj.layer_id,  -- also store layer_id to simplify further queries
-  IFNULL(cuj.begin_vsync, MIN(vsync)) AS vsync_min,
-  IFNULL(cuj.end_vsync, MAX(vsync)) AS vsync_max
-FROM android_jank_cuj cuj
-JOIN _android_jank_cuj_do_frames USING (cuj_id)
-GROUP BY cuj.cuj_id, cuj.upid, cuj.layer_id;
+SELECT * FROM _android_jank_cuj_vsync_boundary;
 
 -- Similarly, extract the min/max vsync for the SF from
 -- commit/compose/onMessageInvalidate slices on its main thread.
@@ -40,109 +36,13 @@ SELECT
 FROM android_jank_cuj_sf_root_slice
 GROUP BY cuj_id;
 
--- Calculates the frame boundaries based on when we *expected* the work on
--- a given frame to start and when the previous frame finished - not when
--- Choreographer#doFrame actually started.
--- We use MAX(expected time, previous frame ended) as the expected start time.
--- Shifting the start time based on the previous frame is done to avoid having
--- overlapping frame boundaries which would make further analysis more
--- complicated.
--- We also separately store the previous frame ts_end.
--- This will allow us to look into cases where frame start was delayed due to
--- some other work occupying the main thread (e.g. non-drawing callbacks or
--- the previous frame taking much longer than expected).
 DROP TABLE IF EXISTS android_jank_cuj_main_thread_frame_boundary;
 CREATE PERFETTO TABLE android_jank_cuj_main_thread_frame_boundary AS
--- intermediate table that discards unfinished slices and parses vsync as int.
-WITH expected_timeline AS (
-  SELECT *, CAST(name AS INTEGER) AS vsync
-  FROM expected_frame_timeline_slice
-  WHERE dur > 0
-),
--- Matches vsyncs in CUJ to expected frame timeline data.
--- We also store the actual timeline data to handle a few edge cases where due to clock drift the frame timeline is shifted
-cuj_frame_timeline AS (
-  SELECT
-    cuj_id,
-    vsync,
-    e.ts AS ts_expected,
-    -- In cases where we are drawing multiple layers, there will be  one
-    -- expected frame timeline slice, but multiple actual frame timeline slices.
-    -- As a simplification we just take here the min(ts) and max(ts_end) of
-    -- the actual frame timeline slices.
-    MIN(a.ts) AS ts_actual_min,
-    MAX(a.ts + a.dur) AS ts_end_actual_max
-  FROM android_jank_cuj_vsync_boundary vsync_boundary
-  JOIN expected_timeline e
-    ON e.upid = vsync_boundary.upid
-      AND e.vsync >= vsync_min
-      AND e.vsync <= vsync_max
-  JOIN actual_frame_timeline_slice a
-    ON e.upid = a.upid
-      AND e.name = a.name
-  GROUP BY cuj_id, e.vsync, e.ts
-),
--- Orders do_frame slices by vsync to calculate the ts_end of the previous frame
--- _android_jank_cuj_do_frames only contains frames within the CUJ so
--- the ts_prev_do_frame_end is always missing for the very first frame
--- For now this is acceptable as it keeps the query simpler.
-do_frame_ordered AS (
-  SELECT
-    *,
-    -- ts_end of the previous do_frame, or -1 if no previous do_frame found
-    COALESCE(LAG(ts_end) OVER (PARTITION BY cuj_id ORDER BY vsync ASC), -1) AS ts_prev_do_frame_end
-  FROM _android_jank_cuj_do_frames
-),
--- introducing an intermediate table since we want to calculate dur = ts_end - ts
-frame_boundary_base AS (
-  SELECT
-    do_frame.cuj_id,
-    do_frame.utid,
-    do_frame.vsync,
-    do_frame.ts AS ts_do_frame_start,
-    do_frame.ts_end,
-    do_frame.ts_prev_do_frame_end,
-    timeline.ts_expected,
-    CASE
-      WHEN timeline.ts_expected IS NULL
-        THEN do_frame.ts
-      ELSE MAX(do_frame.ts_prev_do_frame_end, timeline.ts_expected)
-    END AS ts
-  FROM do_frame_ordered do_frame
-  LEFT JOIN cuj_frame_timeline timeline
-    ON timeline.cuj_id = do_frame.cuj_id
-      AND do_frame.vsync = timeline.vsync
-      -- There are a few special cases we have to handle:
-      -- *) In rare cases there is a clock drift after device suspends
-      -- This may cause the actual/expected timeline to be misaligned with the rest
-      -- of the trace for a short period.
-      -- Do not use the timelines if it seems that this happened.
-      -- *) Actual timeline start time might also be reported slightly after doFrame
-      -- starts. We allow it to start up to 1ms later.
-      -- *) If the frame is significantly (~100s of ms) over the deadline,
-      -- expected timeline data will be dropped in SF and never recorded. In that case
-      -- the actual timeline will only report the end ts correctly. If this happens
-      -- fall back to calculating the boundaries based on doFrame slices. Ideally we
-      -- would prefer to infer the intended start time of the frame instead.
-      AND do_frame.ts >= timeline.ts_actual_min - 1e6 AND do_frame.ts <= timeline.ts_end_actual_max
-)
-SELECT
-  *,
-  ts_end - ts AS dur
-FROM frame_boundary_base;
+SELECT * FROM _android_jank_cuj_main_thread_frame_boundary;
 
-
--- Compute the CUJ boundary on the main thread from the frame boundaries.
 DROP TABLE IF EXISTS android_jank_cuj_main_thread_cuj_boundary;
 CREATE PERFETTO TABLE android_jank_cuj_main_thread_cuj_boundary AS
-SELECT
-  cuj_id,
-  utid,
-  MIN(ts) AS ts,
-  MAX(ts_end) AS ts_end,
-  MAX(ts_end) - MIN(ts) AS dur
-FROM android_jank_cuj_main_thread_frame_boundary
-GROUP BY cuj_id, utid;
+SELECT * FROM _android_jank_cuj_main_thread_cuj_boundary;
 
 -- Similar to `android_jank_cuj_main_thread_frame_boundary` but for the render
 -- thread the expected start time is the time of the first `postAndWait` slice
@@ -201,40 +101,9 @@ SELECT
 FROM android_jank_cuj_render_thread_frame_boundary
 GROUP BY cuj_id, utid;
 
--- Compute the overall CUJ boundary (in the app process) based on the main
--- thread CUJ boundaries and the actual timeline.
 DROP TABLE IF EXISTS android_jank_cuj_boundary;
 CREATE PERFETTO TABLE android_jank_cuj_boundary AS
--- introducing an intermediate table since we want to calculate dur = ts_end - ts
-WITH boundary_base AS (
-  SELECT
-    cuj_id,
-    cuj.upid,
-    main_thread_boundary.ts,
-    CASE
-      WHEN timeline_slice.ts IS NOT NULL
-        THEN MAX(timeline_slice.ts + timeline_slice.dur)
-      ELSE (
-        SELECT MAX(MAX(ts_end), cuj.ts_end)
-        FROM _android_jank_cuj_do_frames do_frame
-        WHERE do_frame.cuj_id = cuj.cuj_id)
-    END AS ts_end
-  FROM android_jank_cuj_main_thread_cuj_boundary main_thread_boundary
-  JOIN android_jank_cuj cuj USING (cuj_id)
-  JOIN android_jank_cuj_vsync_boundary USING (cuj_id)
-  LEFT JOIN actual_frame_timeline_slice timeline_slice
-    ON cuj.upid = timeline_slice.upid
-      -- Timeline slices for this exact VSYNC might be missing (e.g. if the last
-      -- doFrame did not actually produce anything to draw).
-      -- In that case we compute the boundary based on the last doFrame and the
-      -- CUJ markers.
-      AND vsync_max = CAST(timeline_slice.name AS INTEGER)
-  GROUP BY cuj_id, cuj.upid, main_thread_boundary.ts
-)
-SELECT
-  *,
-  ts_end - ts AS dur
-FROM boundary_base;
+SELECT * FROM _android_jank_cuj_boundary;
 
 -- Similar to `android_jank_cuj_main_thread_frame_boundary`, calculates the frame boundaries
 -- based on when we *expected* the work to start and we use the end of the `composite` slice

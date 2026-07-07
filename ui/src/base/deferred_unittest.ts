@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer, Deferred} from './deferred';
+import {defer, type Deferred} from './deferred';
 
 test('deferred can resolve', async () => {
   const deferred: Deferred<void> = defer<void>();

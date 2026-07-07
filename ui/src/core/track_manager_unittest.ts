@@ -12,51 +12,52 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../base/assert';
+import type {Mock} from 'vitest';
+import {ensureExists} from '../base/assert';
 import {Duration} from '../base/time';
 import {TimeScale} from '../base/time_scale';
-import {Track, TrackRenderContext} from '../public/track';
+import type {Track, TrackRenderContext} from '../public/track';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {TrackManagerImpl} from '../core/track_manager';
 import {TrackNode} from '../public/workspace';
-import {Renderer} from '../base/renderer';
+import type {Renderer} from '../base/renderer';
 
 interface MockTrack {
-  render: jest.Mock;
-  getSliceVerticalBounds: jest.Mock;
-  getHeight: jest.Mock;
-  getTrackShellButtons: jest.Mock;
-  onMouseMove: jest.Mock;
-  onMouseClick: jest.Mock;
-  onMouseOut: jest.Mock;
+  render: Mock;
+  getSliceVerticalBounds: Mock;
+  getHeight: Mock;
+  getTrackShellButtons: Mock;
+  onMouseMove: Mock;
+  onMouseClick: Mock;
+  onMouseOut: Mock;
 }
 
 function makeMockTrack(): MockTrack {
   return {
-    render: jest.fn(),
-    getSliceVerticalBounds: jest.fn(),
-    getHeight: jest.fn(),
-    getTrackShellButtons: jest.fn(),
-    onMouseMove: jest.fn(),
-    onMouseClick: jest.fn(),
-    onMouseOut: jest.fn(),
+    render: vi.fn(),
+    getSliceVerticalBounds: vi.fn(),
+    getHeight: vi.fn(),
+    getTrackShellButtons: vi.fn(),
+    onMouseMove: vi.fn(),
+    onMouseClick: vi.fn(),
+    onMouseOut: vi.fn(),
   };
 }
 
 function makeMockRenderer(): Renderer {
   return {
-    pushTransform: jest.fn().mockReturnValue({
-      dispose: jest.fn(),
+    pushTransform: vi.fn().mockReturnValue({
+      dispose: vi.fn(),
     }),
-    clip: jest.fn().mockReturnValue({
-      dispose: jest.fn(),
+    clip: vi.fn().mockReturnValue({
+      dispose: vi.fn(),
     }),
-    drawMarkers: jest.fn(),
-    drawSlices: jest.fn(),
-    drawStepArea: jest.fn(),
-    resetTransform: jest.fn(),
-    clear: jest.fn(),
+    drawMarkers: vi.fn(),
+    drawSlices: vi.fn(),
+    drawStepArea: vi.fn(),
+    resetTransform: vi.fn(),
+    clear: vi.fn(),
   };
 }
 
@@ -68,7 +69,7 @@ const dummyTrackNode = new TrackNode({name: 'test', uri: 'foo'});
 const dummyCtx: TrackRenderContext = {
   trackUri: 'foo',
   trackNode: dummyTrackNode,
-  ctx: new CanvasRenderingContext2D(),
+  ctx: {} as unknown as CanvasRenderingContext2D,
   size: {width: 123, height: 123},
   visibleWindow,
   resolution: Duration.ZERO,
@@ -99,7 +100,7 @@ beforeEach(() => {
 
 describe('TrackManager', () => {
   it('calls render on the track', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = ensureExists(trackManager.getWrappedTrack(td.uri));
 
     entry.render(dummyCtx);
     expect(mockTrack.render).toHaveBeenCalledTimes(1);
@@ -107,10 +108,10 @@ describe('TrackManager', () => {
   });
 
   it('reuses tracks across render cycles', () => {
-    const first = assertExists(trackManager.getWrappedTrack(td.uri));
+    const first = ensureExists(trackManager.getWrappedTrack(td.uri));
     first.render(dummyCtx);
 
-    const second = assertExists(trackManager.getWrappedTrack(td.uri));
+    const second = ensureExists(trackManager.getWrappedTrack(td.uri));
     second.render(dummyCtx);
 
     expect(first).toBe(second);
@@ -118,7 +119,7 @@ describe('TrackManager', () => {
   });
 
   it('contains crash inside render()', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = ensureExists(trackManager.getWrappedTrack(td.uri));
     const e = new Error('test error');
 
     // Mock crash inside render
@@ -133,7 +134,7 @@ describe('TrackManager', () => {
   });
 
   it('does not call render after crash', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = ensureExists(trackManager.getWrappedTrack(td.uri));
     const e = new Error('test error');
 
     // Mock crash inside render
@@ -150,12 +151,12 @@ describe('TrackManager', () => {
   });
 
   it('exposes the track renderer', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = ensureExists(trackManager.getWrappedTrack(td.uri));
     expect(entry.track).toBe(mockTrack);
   });
 
   it('exposes the track descriptor', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = ensureExists(trackManager.getWrappedTrack(td.uri));
     expect(entry.desc).toBe(td);
   });
 });

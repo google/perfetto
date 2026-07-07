@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../protos';
-import {assertExists, assertFalse, assertTrue} from '../../../base/assert';
+import type protos from '../../../protos';
+import {ensureExists, assertFalse, assertTrue} from '../../../base/assert';
 import {getOrCreate} from '../../../base/utils';
-import {ProbesSchema} from '../serialization_schema';
-import {TargetPlatformId} from '../interfaces/target_platform';
-import {RecordProbe, supportsPlatform} from './config_interfaces';
+import type {ProbesSchema} from '../serialization_schema';
+import type {TargetPlatformId} from '../interfaces/target_platform';
+import {type RecordProbe, supportsPlatform} from './config_interfaces';
 import {DEFAULT_BUFFER_ID, TraceConfigBuilder} from './trace_config_builder';
 
 /**
@@ -59,7 +59,7 @@ export class ConfigManager {
   }
 
   setProbeEnabled(probeId: string, enabled: boolean) {
-    const probe = assertExists(this.probesById.get(probeId));
+    const probe = ensureExists(this.probesById.get(probeId));
     this.enabledProbes.set(probeId, enabled);
     for (const depProbeId of probe.dependencies ?? []) {
       assertTrue(this.probesById.has(depProbeId));
@@ -102,7 +102,7 @@ export class ConfigManager {
    */
   getProbeEnableDependants(probeId: string): string[] {
     return Array.from(this.indirectlyEnabledProbes.get(probeId) ?? []).map(
-      (id) => assertExists(this.probesById.get(id)).title,
+      (id) => ensureExists(this.probesById.get(id)).title,
     );
   }
 
@@ -179,7 +179,7 @@ export class ConfigManager {
     const seenIds = new Set<string>();
     const queueProbe = (probeId: string) => {
       if (enabledOnly && !this.isProbeEnabled(probeId)) return;
-      const probe = assertExists(this.probesById.get(probeId));
+      const probe = ensureExists(this.probesById.get(probeId));
       if (orderedProbes.includes(probe)) return; // Already added.
       if (seenIds.has(probeId)) {
         throw new Error('Cycle detected in probe ' + probeId);

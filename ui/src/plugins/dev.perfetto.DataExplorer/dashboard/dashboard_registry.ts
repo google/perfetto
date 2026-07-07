@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
-import {SqlValue} from '../../../trace_processor/query_result';
-import {ChartConfig} from '../query_builder/nodes/visualisation_node';
+import type {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
+import type {SqlValue} from '../../../trace_processor/query_result';
+import type {ChartConfig} from '../query_builder/nodes/visualisation_node';
 
 /**
  * A data source exported by a DashboardNode in the graph builder.

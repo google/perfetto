@@ -16,8 +16,8 @@
 
 #include <signal.h>
 
+#include "perfetto/ext/base/dynamic_string_writer.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/fixed_string_writer.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -75,10 +75,10 @@ void DumpAllCpuStats() {
     if (text.empty())
       continue;
 
-    char buffer[1024];
     base::StringSplitter splitter(std::move(text), '\n');
+    base::DynamicStringWriter writer;
     while (splitter.Next()) {
-      base::FixedStringWriter writer(buffer, base::ArraySize(buffer));
+      writer.Clear();
       writer.AppendLiteral("C|");
       writer.AppendInt(getpid());
       writer.AppendLiteral("|");

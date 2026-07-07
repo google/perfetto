@@ -93,6 +93,7 @@ class AndroidProbesParser {
   const StringId aflags_boolean_id_;
   const StringId aflags_integer_id_;
   const StringId aflags_unspecified_id_;
+  const StringId android_logcat_;
 };
 }  // namespace perfetto::trace_processor
 

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SerializedAppState} from './state_serialization_schema';
-import {TraceStream} from '../public/stream';
+import type {SerializedAppState} from './state_serialization_schema';
+import type {TraceStream} from '../public/stream';
 
 interface CommonTraceProps {
   serializedAppState?: SerializedAppState;

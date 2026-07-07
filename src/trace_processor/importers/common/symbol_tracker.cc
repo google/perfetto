@@ -47,7 +47,7 @@ void SymbolTracker::OnEventsFullyExtracted() {
 
 void SymbolTracker::SymbolizeKernelFrame(
     tables::StackProfileFrameTable::RowReference frame) {
-  const auto mapping = *mapping_table_.FindById(frame.mapping());
+  const auto mapping = mapping_table_[frame.mapping()];
   uint64_t address = static_cast<uint64_t>(frame.rel_pc()) +
                      static_cast<uint64_t>(mapping.start());
   auto symbol = kernel_symbols_.Find(address);
@@ -60,7 +60,7 @@ void SymbolTracker::SymbolizeKernelFrame(
 
 bool SymbolTracker::TrySymbolizeFrame(
     tables::StackProfileFrameTable::RowReference frame) {
-  const auto mapping = *mapping_table_.FindById(frame.mapping());
+  const auto mapping = mapping_table_[frame.mapping()];
   auto* file = dsos_.Find(mapping.name());
   if (!file) {
     return false;

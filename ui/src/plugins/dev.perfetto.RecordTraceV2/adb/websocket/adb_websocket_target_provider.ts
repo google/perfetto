@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {errResult, okResult, Result} from '../../../../base/result';
+import {errResult, okResult, type Result} from '../../../../base/result';
 import {exists} from '../../../../base/utils';
-import {PreflightCheck} from '../../interfaces/connection_check';
+import type {PreflightCheck} from '../../interfaces/connection_check';
 import {AsyncWebsocket} from '../../websocket/async_websocket';
-import {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
+import type {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
 import {AdbWebsocketTarget} from './adb_websocket_target';
 import {adbCmdAndWait} from './adb_websocket_utils';
 import {EvtSource} from '../../../../base/events';

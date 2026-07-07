@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -59,6 +60,8 @@
 #include "src/traced/probes/system_info/system_info_data_source.h"
 #include "src/traced/probes/user_list/user_list_data_source.h"
 
+#include "src/traced/probes/journald/journald_data_source.h"
+
 namespace perfetto {
 namespace {
 
@@ -67,6 +70,13 @@ constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 
 // Should be larger than FtraceController::kControllerFlushTimeoutMs.
 constexpr uint32_t kFlushTimeoutMs = 1000;
+
+// Floor for the kTraceDidntStop watchdog timeout. When the system is busy
+// (ftrace is loaded, draining takes time) the calculated timeout can be too
+// tight on short traces and trip the watchdog even though the producer can
+// recover. 5 minutes gives enough slack while still killing genuinely stuck
+// producers.
+constexpr uint32_t kMinTraceDidntStopTimeoutMs = 5 * 60 * 1000;
 
 constexpr size_t kTracingSharedMemSizeHintBytes = 2 * 1024 * 1024;
 constexpr size_t kTracingSharedMemPageSizeHintBytes = 32 * 1024;
@@ -361,6 +371,17 @@ ProbesProducer::CreateDSInstance<FrozenFtraceDataSource>(
       endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
 }
 
+template <>
+std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<JournaldDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::make_unique<JournaldDataSource>(
+      config, task_runner_, session_id,
+      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
+}
+
 // Another anonymous namespace. This cannot be moved into the anonymous
 // namespace on top (it would fail to compile), because the CreateDSInstance
 // methods need to be fully declared before.
@@ -391,6 +412,7 @@ constexpr const DataSourceTraits kAllDataSources[] = {
     Ds<FtraceDataSource>(),
     Ds<InitialDisplayStateDataSource>(),
     Ds<InodeFileDataSource>(),
+    Ds<JournaldDataSource>(),
     Ds<LinuxPowerSysfsDataSource>(),
     Ds<MetatraceDataSource>(),
     Ds<PackagesListDataSource>(),
@@ -541,9 +563,12 @@ void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
     // might be < timeout measured in in wall time. But this is fine
     // because the resulting timeout will be conservative (it will be accurate
     // if the device never suspends, and will be more lax if it does).
-    uint32_t timeout =
+    // kMinTraceDidntStopTimeoutMs floors it so short traces don't trip the
+    // watchdog when the system is busy.
+    uint32_t timeout = std::max<uint32_t>(
         2 * (kDefaultFlushTimeoutMs + config.trace_duration_ms() +
-             config.stop_timeout_ms());
+             config.stop_timeout_ms()),
+        kMinTraceDidntStopTimeoutMs);
     watchdogs_.emplace(
         instance_id, base::Watchdog::GetInstance()->CreateFatalTimer(
                          timeout, base::WatchdogCrashReason::kTraceDidntStop));

@@ -55,21 +55,17 @@ AndroidKernelWakelocksModule::AndroidKernelWakelocksModule(
 
 AndroidKernelWakelocksModule::~AndroidKernelWakelocksModule() = default;
 
-void AndroidKernelWakelocksModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData& packet,
-    uint32_t field_id) {
-  if (field_id != TracePacket::kKernelWakelockDataFieldNumber) {
+void AndroidKernelWakelocksModule::ParseField(const ParseFieldArgs& args) {
+  if (args.field.id() != TracePacket::kKernelWakelockDataFieldNumber) {
     return;
   }
 
   std::unordered_set<std::string> names_with_value_this_packet;
 
   auto* state =
-      packet.sequence_state->GetCustomState<AndroidKernelWakelockState>();
+      args.data.sequence_state->GetCustomState<AndroidKernelWakelockState>();
   protos::pbzero::KernelWakelockData::Decoder evt(
-      decoder.kernel_wakelock_data());
+      args.field.Cast<TracePacket::kKernelWakelockData>());
   for (auto it = evt.wakelock(); it; ++it) {
     protos::pbzero::KernelWakelockData::Wakelock::Decoder wakelock(*it);
     std::string name = wakelock.wakelock_name().ToStdString();
@@ -104,7 +100,7 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
         name, AndroidKernelWakelockState::LastValue{});
     last_value->value += delta;
     last_value->type = data->type;
-    UpdateCounter(ts, name, data->type, last_value->value);
+    UpdateCounter(args.ts, name, data->type, last_value->value);
   }
 
   uint64_t traced_errors = evt.error_flags();
@@ -127,7 +123,7 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
     if (names_with_value_this_packet.count(it.key())) {
       continue;
     }
-    UpdateCounter(ts, it.key(), it.value().type, it.value().value);
+    UpdateCounter(args.ts, it.key(), it.value().type, it.value().value);
   }
 }
 

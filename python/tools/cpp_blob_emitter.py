@@ -36,6 +36,7 @@ from __future__ import print_function
 
 import argparse
 import os
+import re
 import sys
 import textwrap
 import zlib
@@ -106,8 +107,7 @@ def derive_include_guard(output_path, gen_dir=''):
   """
   rel = os.path.relpath(output_path,
                         gen_dir) if gen_dir else os.path.basename(output_path)
-  return rel.replace('\\', '_').replace('/', '_').replace('.',
-                                                          '_').upper() + '_'
+  return re.sub(r'[^A-Z0-9_]', '_', rel.upper()) + '_'
 
 
 def emit_array(data, output_path, *, symbol, namespace, include_guard):

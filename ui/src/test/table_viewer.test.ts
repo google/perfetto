@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, Page, Locator} from '@playwright/test';
+import {test, type Page, type Locator} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
 test.describe.configure({mode: 'serial'});
@@ -228,7 +228,7 @@ test('Go to thread_state', async () => {
 
 test('Go to sched', async () => {
   // This test can take a little longer
-  test.setTimeout(60_000);
+  test.slow();
 
   // Open Android trace with kernel scheduling data.
   await pth.openTraceFile('api34_startup_cold.perfetto-trace');

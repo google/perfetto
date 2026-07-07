@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SortDirection} from '../base/comparison_utils';
+import type {SortDirection} from '../base/comparison_utils';
 import {isString} from '../base/object_utils';
 import {sqliteString} from '../base/string_utils';
-import {Engine} from './engine';
-import {SqlValue} from './query_result';
+import type {Engine} from './engine';
+import type {SqlValue} from './query_result';
 
 export interface OrderClause {
   fieldName: string;
@@ -153,9 +153,42 @@ async function createDisposableSqlEntity(
 
 type CreateTableArgs = {
   readonly engine: Engine;
-  readonly as: string;
+  readonly as: string | readonly Record<string, SqlValue>[];
   readonly name?: string;
 };
+
+/**
+ * Builds a SELECT statement that materializes the given rows inline, e.g. for
+ * use as a subquery or to define a table without a source trace.
+ *
+ * Each row becomes `SELECT <value> AS <col>, ...` and the rows are combined
+ * with `UNION ALL`, so the result is a self-contained query yielding exactly
+ * those rows. Column names are taken from the first row; every row is expected
+ * to have the same keys. Values are rendered via sqlValueToSqliteString().
+ *
+ * Example: [{id: 1, name: 'a'}, {id: 2, name: 'b'}] produces
+ *   SELECT 1 AS id, 'a' AS name UNION ALL SELECT 2 AS id, 'b' AS name
+ *
+ * @param rows The rows to materialize; must be non-empty.
+ * @returns The combined SELECT ... UNION ALL ... query string.
+ */
+export function rowsToSelectStatement(
+  rows: readonly Record<string, SqlValue>[],
+) {
+  const firstRow = rows[0];
+  const columnNames = Object.keys(firstRow);
+  const queryRows: string[] = [];
+  for (const row of rows) {
+    const queryCols: string[] = [];
+    for (const key of columnNames) {
+      const value = row[key] ?? null;
+      queryCols.push(`${sqlValueToSqliteString(value)} AS ${key}`);
+    }
+    queryRows.push(`SELECT ${queryCols.join(', ')}`);
+  }
+
+  return queryRows.join(' UNION ALL ');
+}
 
 /**
  * Asynchronously creates a "perfetto" SQL table using the given engine and
@@ -163,7 +196,7 @@ type CreateTableArgs = {
  *
  * @param args The arguments for creating the table.
  * @param args.engine The database engine to execute the query.
- * @param args.as The SQL expression to define the table.
+ * @param args.as The SQL expression to define the table or an array of row-like objects.
  * @param args.name The name of the table to be created.
  * @returns An AsyncDisposable which drops the created table when disposed.
  */
@@ -171,7 +204,13 @@ export async function createPerfettoTable(
   args: CreateTableArgs,
 ): Promise<DisposableSqlEntity> {
   const {engine, as, name = makeTempName()} = args;
-  await engine.query(`CREATE PERFETTO TABLE ${name} AS ${as}`);
+  let asQuery: string;
+  if (typeof as === 'string') {
+    asQuery = as;
+  } else {
+    asQuery = rowsToSelectStatement(as);
+  }
+  await engine.query(`CREATE PERFETTO TABLE ${name} AS ${asQuery}`);
   return createDisposableSqlEntity(engine, name, 'TABLE');
 }
 

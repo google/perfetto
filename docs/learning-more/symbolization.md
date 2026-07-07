@@ -2,20 +2,10 @@
 
 This document describes how to turn raw instruction addresses and obfuscated
 Java/Kotlin names in a collected trace into human-readable function names,
-source locations, and class/method names. This applies to any data source that
-captures callstacks: the native heap profiler, the perf-based CPU profiler, the
-Java heap profiler, ART method tracing, etc.
+source locations, and class/method names.
 
-In this guide, you'll learn how to:
-
-- Enrich a trace in one shot with `traceconv bundle` (recommended).
-- Produce and attach symbol/deobfuscation data using the legacy
-  `traceconv symbolize` / `traceconv deobfuscate` commands.
-- Understand how symbol files are located on disk (Build ID lookup order).
-- Diagnose the most common "could not find library" / "only one frame shown"
-  errors.
-
-Two definitions used throughout:
+The right approach depends on **what kind of trace you have**, so this page is
+organised around that question. Two definitions used throughout:
 
 - **Symbolization**: mapping native instruction addresses back to function
   names, source files, and line numbers, using the unstripped ELF binaries (or
@@ -24,10 +14,38 @@ Two definitions used throughout:
   R8/ProGuard (e.g. `fsd.a`) back to the original identifiers, using the
   `mapping.txt` produced at build time.
 
-You do **not** need to re-record to get symbols or deobfuscated names, as long
-as you still have the matching binaries and mapping files.
+## Which workflow do you need? {#which-workflow}
 
-## {#option-1-traceconv-bundle} Option 1: `traceconv bundle` (recommended)
+Match your trace to one of the categories below and follow the link. Picking the
+wrong workflow is the most common reason symbols "don't work". The key rule of
+thumb: **userspace** symbols are resolved offline on the host (`traceconv
+bundle`), while **kernel** symbols are always resolved at record time on the
+device (Perfetto never stores absolute kernel addresses, to avoid disclosing
+[KASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization)).
+
+| Your trace contains&hellip; | Examples | What you need |
+| --- | --- | --- |
+| **Callstacks** | Native heap profiler, `traced_perf` / Linux perf CPU sampling, ART heap dumps | [Symbolization & deobfuscation](#callstacks). Userspace frames are resolved offline (`traceconv bundle`); kernel frames are symbolized on-device automatically. |
+| **Kernel ftrace events** | `function_graph` tracing, `sched_blocked_reason`, kprobes | [Record-time `symbolize_ksyms`](#ftrace). These addresses **cannot** be symbolized after the fact. |
+| **Userspace event names** | atrace slice names, ART method tracing | [Not currently supported](#userspace-event-names) for offline deobfuscation; emit readable names at instrumentation time. |
+
+## Callstacks: symbolization and deobfuscation {#callstacks}
+
+This applies to any data source that captures callstacks: the native heap
+profiler, the perf-based CPU profiler (`traced_perf` and imported Linux `perf`
+data), and the ART allocation profiler.
+
+These data sources record raw **userspace** instruction addresses (and, on
+Android, obfuscated Java/Kotlin frames), which you resolve on the host **after
+recording** with the steps below. You do **not** need to re-record to get
+userspace symbols or deobfuscated names, as long as you still have the matching
+binaries and mapping files.
+
+Callstacks can also contain **kernel** frames, which are handled differently; see
+[Kernel frames in callstacks](#callstack-kernel-frames) at the end of this
+section.
+
+### {#option-1-traceconv-bundle} Option 1: `traceconv bundle` (recommended)
 
 `traceconv bundle` is a one-shot command that takes a trace and produces an
 **enriched trace**: the original trace plus all the symbol and deobfuscation
@@ -56,7 +74,7 @@ format transparently, so you normally don't need to unpack it yourself.
 - For Java/Kotlin: the `mapping.txt` produced by the build that ran on the
   device.
 
-### Automatic path discovery
+#### Automatic path discovery
 
 The main advantage over
 [Option 2](#option-2-legacy-traceconv-symbolize-deobfuscate) is that `bundle`
@@ -71,7 +89,7 @@ configuration. It searches:
 - The standard Android Gradle project layout for ProGuard/R8 mapping files
   (`./app/build/outputs/mapping/<variant>/mapping.txt`).
 
-### Supplementing discovery with flags
+#### Supplementing discovery with flags
 
 When auto-discovery isn't enough:
 
@@ -98,7 +116,7 @@ The properties of the `bundle` flags are:
 - `--verbose`: print every path tried and every library looked up &mdash; useful
   when debugging "could not find" errors.
 
-## {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `traceconv symbolize` / `deobfuscate`
+### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `traceconv symbolize` / `deobfuscate`
 
 NOTE: This flow is kept for backwards compatibility with existing scripts and
 CI pipelines that already depend on it. For new usage, always prefer
@@ -110,7 +128,7 @@ produce standalone symbol and deobfuscation files driven entirely by
 environment variables, which must then be concatenated onto the trace by
 hand.
 
-### Native symbolization
+#### Native symbolization
 
 All tools (`traceconv`, `trace_processor_shell`, the `heap_profile` script)
 honour the `PERFETTO_BINARY_PATH` environment variable:
@@ -129,7 +147,7 @@ Alternatively, set `PERFETTO_SYMBOLIZER_MODE=index` and the symbolizer will
 recursively index the directory for ELF files by Build ID, so filenames do not
 need to match.
 
-### Java/Kotlin deobfuscation
+#### Java/Kotlin deobfuscation
 
 Provide ProGuard/R8 maps via `PERFETTO_PROGUARD_MAP`, using the format
 `packagename=map_filename[:packagename=map_filename...]`:
@@ -146,7 +164,7 @@ PERFETTO_PROGUARD_MAP=com.example.pkg=proguard_map.txt \
   traceconv deobfuscate ${TRACE} > deobfuscation_map
 ```
 
-### Attaching the output to a trace
+#### Attaching the output to a trace
 
 Both `symbols` and `deobfuscation_map` above are serialized `TracePacket`
 protos, so for a **Perfetto protobuf trace** you can simply concatenate them:
@@ -171,7 +189,7 @@ when `PERFETTO_BINARY_PATH` is set.
 - You must manage `PERFETTO_BINARY_PATH` / `PERFETTO_PROGUARD_MAP` by hand; none
   of the auto-discovery from Option 1 applies.
 
-## Symbol lookup order
+### Symbol lookup order
 
 For each native mapping in the trace, the symbolizer looks for a file with
 matching Build ID. For each search path `P`, it tries (in order):
@@ -195,7 +213,7 @@ up under a symbol path `P` at:
 The first file with a matching Build ID wins. If the Build ID on disk differs
 from the one recorded in the trace, the file is skipped.
 
-## Using symbolization/deobfuscation from a C++ library
+### Using symbolization/deobfuscation from a C++ library
 
 There is currently **no stable public C++ API** for performing symbolization or
 deobfuscation in-process. The underlying implementation exists (`TraceToBundle`
@@ -207,9 +225,9 @@ If you need this, please +1 on
 [GitHub issue #5534](https://github.com/google/perfetto/issues/5534) so we can
 gauge demand and prioritise.
 
-## Troubleshooting
+### Troubleshooting
 
-### Could not find library
+#### Could not find library
 
 When symbolizing a profile you may see messages like:
 
@@ -227,3 +245,87 @@ different build than the one on device and cannot be used.
 Re-running `traceconv bundle` with `--verbose` prints every path tried, which
 usually makes it clear whether the file was missing entirely or found with the
 wrong Build ID.
+
+### Kernel frames in callstacks {#callstack-kernel-frames}
+
+A sampled callstack can include **kernel** frames (e.g. perf sampling with
+`callstack_sampling { kernel_frames: true }`). Unlike the userspace frames above,
+these are symbolized **automatically on the device at record time** from
+`/proc/kallsyms` &mdash; the offline tools in this section do not touch them.
+
+For kernel frames to be named, the recording must be able to read
+`/proc/kallsyms`, which requires running as root or lowering `kptr_restrict`:
+
+```bash
+echo 0 | sudo tee /proc/sys/kernel/kptr_restrict
+```
+
+If kernel frames show as hex addresses, this is a record-time permissions issue
+and you have to re-record. This is the same KASLR constraint as for
+[kernel ftrace events](#ftrace) below, but note the two use different
+mechanisms: callstack kernel frames do **not** use the `symbolize_ksyms` ftrace
+option &mdash; that flag only affects ftrace events.
+
+## Kernel ftrace events: `symbolize_ksyms` {#ftrace}
+
+If you are doing **system tracing** and seeing raw hexadecimal addresses where
+you expected kernel function names &mdash; for example in
+[function graph tracing](/docs/data-sources/funcgraph.md), in the
+`blocked_function` field of an uninterruptible-sleep
+[scheduling blockage](/docs/case-studies/scheduling-blockages.md), or in kprobe
+events &mdash; the fix is **not** offline symbolization.
+
+These kernel addresses are resolved **at record time** by enabling
+`symbolize_ksyms` in the ftrace config:
+
+```protobuf
+data_sources: {
+    config {
+        name: "linux.ftrace"
+        ftrace_config {
+            symbolize_ksyms: true
+            # ... your ftrace_events / function_graph config ...
+        }
+    }
+}
+```
+
+This reads `/proc/kallsyms` on the device and embeds the (mangled) symbol map in
+the trace. It requires that either `traced_probes` runs as root or
+`kptr_restrict` has been lowered manually.
+
+WARNING: `traceconv bundle` and the offline symbolizers above **cannot** recover
+kernel symbols. Perfetto deliberately does not store absolute kernel addresses
+in the trace, because doing so would defeat
+[KASLR](https://en.wikipedia.org/wiki/Address_space_layout_randomization) and
+disclose the kernel memory layout. The symbol names are mangled on device so
+this works without leaking absolute addresses. If you forgot to set
+`symbolize_ksyms`, you have to re-record.
+
+This flag applies only to ftrace **events**. Kernel frames captured inside
+sampled callstacks are handled separately; see
+[Kernel frames in callstacks](#callstack-kernel-frames).
+
+## Userspace event names: atrace and ART method tracing {#userspace-event-names}
+
+Some data sources record human-readable **name strings** rather than addresses
+or stack frames. When those strings are obfuscated (e.g. an R8-obfuscated class
+name), there is **no offline mechanism to deobfuscate them** &mdash; the name
+must be emitted in a readable form at instrumentation time. This is distinct from
+the Java/Kotlin **stack-frame** deobfuscation in
+[the callstacks section](#callstacks), which applies only to heap dumps and
+sampled callstacks.
+
+This affects two cases today:
+
+- **atrace / userspace slice names**: [atrace](/docs/data-sources/atrace.md)
+  slice names (and other strings that ended up in a `TRACE_EVENT` literal) are
+  recorded verbatim. There is no post-hoc mapping step.
+- **ART method tracing**: the method names captured by ART method tracing are not
+  run through the ProGuard/R8 deobfuscation path, so obfuscated builds will show
+  obfuscated method names.
+
+A `mapping.txt`-based deobfuscation path for these is in principle possible but
+not currently implemented. Support is under discussion; see
+[GitHub issue #6391](https://github.com/google/perfetto/issues/6391) for context
+and to register interest.

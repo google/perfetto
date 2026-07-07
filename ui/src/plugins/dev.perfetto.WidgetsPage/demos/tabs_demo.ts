@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Icons} from '../../../base/semantic_icons';
-import {Tabs, TabsTab} from '../../../widgets/tabs';
+import {Tabs, type TabsTab} from '../../../widgets/tabs';
 import {Button} from '../../../widgets/button';
 import {MenuItem} from '../../../widgets/menu';
 import {renderWidgetShowcase} from '../widgets_page_utils';

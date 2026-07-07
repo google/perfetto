@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import {exists} from '../../../../base/utils';
-import {PreflightCheck} from '../../interfaces/connection_check';
+import type {PreflightCheck} from '../../interfaces/connection_check';
 import {AdbKeyManager} from './adb_key_manager';
 import {
   ADB_DEVICE_FILTER,
-  AdbUsbInterface,
+  type AdbUsbInterface,
   getAdbWebUsbInterface,
   usbDeviceToStr,
 } from './adb_webusb_utils';
 import {errResult} from '../../../../base/result';
-import {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
+import type {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
 import {AdbWebusbTarget} from './adb_webusb_target';
 import {EvtSource} from '../../../../base/events';
 

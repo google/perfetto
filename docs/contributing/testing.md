@@ -35,7 +35,7 @@ sudo chown  -R $USER /sys/kernel/debug/tracing
 ### On Android
 
 1.  Connect a device through `adb`
-2.  Start the build-in emulator (supported on Linux and MacOS):
+2.  Start the built-in emulator (supported on Linux and MacOS):
 
 ```bash
 tools/install-build-deps --android
@@ -138,17 +138,31 @@ Methods cannot take arguments and have to return a `DiffTestBlueprint`:
 
 ```python
 class DiffTestBlueprint:
-  trace: Union[Path, Json, Systrace, TextProto]
+  trace: Union[Path, Json, Systrace, TextProto, Zip, Tar]
   query: Union[str, Path, Metric]
-  out: Union[Path, Json, Csv, TextProto]
+  out: Union[Path, Json, Csv, TextProto, ExpectedError]
 ```
 
 _Trace_ and _Out_: For every type apart from `Path`, contents of the object
 will be treated as file contents so it has to follow the same rules.
 
+_Zip_ and _Tar_: traces can also be archives assembled inline from a dict of
+members, keyed by the path within the archive. Each member is either a `str`
+(written verbatim, e.g. a JSON trace or systrace), a `TextProto` (serialized
+as a binary proto trace) or a `Path`/`DataPath` (raw bytes of an external
+file). This is how [trace merging](/docs/analysis/merging-traces.md) and
+[perfetto_manifest](/docs/reference/perfetto-manifest.md) handling are
+tested; see `diff_tests/parser/trace_manifest/` for examples.
+
 _Query_: For metric tests it is enough to provide the metric name. For query
 tests there can be a raw SQL statement, for example `"SELECT * FROM SLICE"`,
 or a path to an `.sql` file.
+
+_ExpectedError_: Setting `out=ExpectedError('error substring')` inverts the
+test: it passes if and only if loading the trace fails and the error message
+printed by `trace_processor_shell` contains the given substring. Use this to
+test strict parsing/import errors where the whole trace load is expected to
+fail. The query is still required but is never executed.
 
 NOTE: `trace_processor_shell` and the associated proto descriptors need to
 be built before running `tools/diff_test_trace_processor.py`. The easiest
@@ -206,7 +220,7 @@ googlers have access to, googlers can install gcloud
 [here](https://g3doc.corp.google.com/cloud/sdk/g3doc/index.md#installing-and-using-the-cloud-sdk)).
 
 The tests are run in a docker container by default, unless -`-no-docker` is
-passed. It's recommended to use the container for a stable and reproducable
+passed. It's recommended to use the container for a stable and reproducible
 testing environment, especially for rebaselining, otherwise it's very likely the
 screenshots will not match when run on the CI.
 

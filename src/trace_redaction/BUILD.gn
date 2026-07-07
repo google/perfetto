@@ -90,6 +90,8 @@ source_set("trace_redaction") {
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/profiling:zero",
     "../../protos/perfetto/trace/ps:zero",
+    "../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
+    "../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../base",
     "../trace_processor/util:blob",
     "../trace_processor/util:clock",
@@ -125,6 +127,7 @@ if (enable_perfetto_integration_tests) {
       "../../protos/perfetto/trace/android:zero",
       "../../protos/perfetto/trace/ftrace:zero",
       "../../protos/perfetto/trace/ps:zero",
+      "../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
       "../base",
       "../base:test_support",
     ]
@@ -166,6 +169,7 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:cpp",
     "../../protos/perfetto/trace/ps:zero",
+    "../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../base",
     "../base:test_support",
   ]

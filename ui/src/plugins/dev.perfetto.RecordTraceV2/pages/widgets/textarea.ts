@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ProbeSetting} from '../../config/config_interfaces';
+import type {ProbeSetting} from '../../config/config_interfaces';
 import {Anchor} from '../../../../widgets/anchor';
 import {Icons} from '../../../../base/semantic_icons';
 

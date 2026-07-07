@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Storage} from './storage';
+import type {Storage} from './storage';
 
 export class InMemoryStorage implements Storage {
   private storage: Record<string, unknown> = {};

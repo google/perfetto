@@ -12,14 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createPopper, Instance, OptionsGeneric} from '@popperjs/core';
+import './tooltip.scss';
+import {
+  createPopper,
+  type Modifier,
+  type Instance,
+  type OptionsGeneric,
+} from '@popperjs/core';
 import m from 'mithril';
-import {MountOptions, Portal, PortalAttrs} from './portal';
+import {type MountOptions, Portal, type PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, toHTMLElement} from '../base/dom_utils';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {PopupPosition} from './popup';
-import {ExtendedModifiers} from './popper_utils';
+import type {ExtendedModifiers} from './popper_utils';
 
 export interface TooltipAttrs {
   // Which side of the trigger to place to tooltip.
@@ -127,7 +133,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
       },
       onContentMount: (dom: HTMLElement) => {
         const popupElement = toHTMLElement(
-          assertExists(findRef(dom, Tooltip.TOOLTIP_REF)),
+          ensureExists(findRef(dom, Tooltip.TOOLTIP_REF)),
         );
         this.tooltipElement = popupElement;
         this.createOrUpdatePopper(attrs);
@@ -162,7 +168,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
   }
 
   oncreate({dom}: m.VnodeDOM<TooltipAttrs, this>) {
-    this.triggerElement = assertExists(findRef(dom, Tooltip.TRIGGER_REF));
+    this.triggerElement = ensureExists(findRef(dom, Tooltip.TRIGGER_REF));
   }
 
   onupdate({attrs}: m.VnodeDOM<TooltipAttrs, this>) {
@@ -180,6 +186,48 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
       offset = 0,
       edgeOffset = 0,
     } = attrs;
+
+    // Custom modifier to hide popup when trigger is not visible. This can be
+    // due to the trigger or one of its ancestors having display:none.
+    const hideOnInvisible: Modifier<'hideOnInvisible', {}> = {
+      name: 'hideOnInvisible',
+      enabled: true,
+      phase: 'main',
+      fn({state}) {
+        const reference = state.elements.reference;
+        if (!(reference instanceof HTMLElement)) {
+          return;
+        }
+
+        // Check if checkVisibility is supported
+        if (typeof reference.checkVisibility === 'function') {
+          const isVisible = reference.checkVisibility();
+
+          if (!isVisible) {
+            // Hide the popper by setting display to none
+            state.elements.popper.style.display = 'none';
+          } else {
+            // Show the popper
+            state.elements.popper.style.display = '';
+          }
+        } else {
+          // Fallback for browsers that don't support checkVisibility()
+          // Use intersection observer or other visibility checks
+          const rect = reference.getBoundingClientRect();
+          const isVisible =
+            rect.top >= 0 &&
+            rect.left >= 0 &&
+            rect.bottom <=
+              (window.innerHeight || document.documentElement.clientHeight) &&
+            rect.right <=
+              (window.innerWidth || document.documentElement.clientWidth) &&
+            window.getComputedStyle(reference).visibility !== 'hidden' &&
+            window.getComputedStyle(reference).display !== 'none';
+
+          state.elements.popper.style.display = isVisible ? '' : 'none';
+        }
+      },
+    };
 
     const options: Partial<OptionsGeneric<ExtendedModifiers>> = {
       placement: position,
@@ -200,6 +248,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
         },
         {name: 'preventOverflow', options: {padding: 8}},
         {name: 'arrow', options: {padding: 2}},
+        hideOnInvisible,
       ],
     };
 

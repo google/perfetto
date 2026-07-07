@@ -12,14 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../../../trace_processor/engine';
-import {NUM, STR, QueryResult} from '../../../trace_processor/query_result';
-import {LineChartData} from './line_chart';
+import type {Engine} from '../../../trace_processor/engine';
+import {
+  NUM,
+  STR,
+  type QueryResult,
+} from '../../../trace_processor/query_result';
+import type {LineChartData} from './line_chart';
 import {
   ChartSource,
   SQLChartLoader,
-  QueryConfig,
-  ChartLoaderResult,
+  type QueryConfig,
+  type ChartLoaderResult,
   rangeFilters,
 } from './chart_sql_source';
 

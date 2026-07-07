@@ -31,8 +31,8 @@ source_set("bindings") {
   ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../gn:sqlite",
     "../../../base",
   ]
+  public_deps = [ "../../../../gn:sqlite" ]
   visibility = [ "..:sqlite" ]
 }

@@ -29,7 +29,6 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/art_method/art_method_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -446,9 +445,8 @@ void ArtMethodV2Tokenizer::PushRecord(uint32_t tid,
       break;
   }
 
-  std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-      ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-      ts_ + ts);
+  std::optional<int64_t> trace_ts =
+      context_->clock_tracker->ConvertDefaultClockToTraceTime(ts_ + ts);
   if (trace_ts) {
     stream_->Push(*trace_ts, evt);
   }

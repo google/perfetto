@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
+import {isSqlColumnEqual, type SqlColumn, sqlColumnId} from './sql_column';
 import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
-import {SqlValue} from '../../../../trace_processor/query_result';
+import type {SqlValue} from '../../../../trace_processor/query_result';
 import {GridFilterChip, GridFilterBar} from '../../datagrid/datagrid_toolbar';
 
 // A filter which can be applied to the table.

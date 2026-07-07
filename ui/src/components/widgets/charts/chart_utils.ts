@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AggregateFunction} from '../datagrid/model';
+import type {AggregateFunction} from '../datagrid/model';
 
 /**
  * Aggregation functions available for charts.

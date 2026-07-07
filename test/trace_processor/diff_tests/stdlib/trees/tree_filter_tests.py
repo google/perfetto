@@ -372,3 +372,41 @@ class TreeFilter(TestSuite):
         2,0,7,"deep",60,4
         3,"[NULL]",8,"deep",70,4
         """))
+
+  def test_filter_constraint_value_outlives_sqlite_register(self):
+    """Constraint values built from expressions (e.g. printf) must be
+    deep-copied: SQLite is free to reuse the register backing them once
+    __intrinsic_tree_constraint returns, so the FilterConstraint cannot keep a
+    borrowed pointer. Regression test for a heap-use-after-free where the
+    constraint borrowed SQLite-owned string memory."""
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE std.trees.table_conversion;
+          INCLUDE PERFETTO MODULE std.trees.filter;
+
+          CREATE PERFETTO TABLE input_tree AS
+          SELECT 1 AS id, NULL AS parent_id, 'keep_1' AS name
+          UNION ALL SELECT 2, 1, 'remove_2'
+          UNION ALL SELECT 3, 1, 'keep_1'
+          UNION ALL SELECT 4, 2, 'keep_1';
+
+          SELECT _tree_id, _tree_parent_id, id, name
+          FROM _tree_to_table!(
+            _tree_filter(
+              _tree_from_table!((SELECT * FROM input_tree), (name)),
+              _tree_where(
+                _tree_constraint('name', '!=', printf('remove_%d', 2)),
+                _tree_constraint('name', '=', printf('keep_%d', 1))
+              )
+            ),
+            (name)
+          )
+          ORDER BY id;
+        """,
+        out=Csv("""
+        "_tree_id","_tree_parent_id","id","name"
+        0,"[NULL]",1,"keep_1"
+        1,0,3,"keep_1"
+        2,0,4,"keep_1"
+        """))

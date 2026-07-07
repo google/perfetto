@@ -71,5 +71,5 @@ class AndroidAflags(TestSuite):
         """,
         out=Csv("""
         "ts","name","severity","display_value"
-        2000,"android_aflags_errors","error","Failed to read aflags"
+        2000,"android_aflags_errors","info","Failed to read aflags"
         """))

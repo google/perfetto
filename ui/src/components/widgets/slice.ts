@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {asSliceSqlId} from '../sql_utils/core_types';
-import {Trace} from '../../public/trace';
-import {getSlice, SliceDetails} from '../sql_utils/slice';
+import type {Trace} from '../../public/trace';
+import {getSlice, type SliceDetails} from '../sql_utils/slice';
 import {
   createSqlIdRefRenderer,
   sqlIdRegistry,

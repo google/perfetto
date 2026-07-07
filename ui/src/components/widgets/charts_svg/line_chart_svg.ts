@@ -24,10 +24,7 @@ import type {
   LineChartSeries,
 } from '../charts/line_chart';
 import {
-  AXIS_LABEL_FONT_SIZE,
-  AxisRange,
-  BORDER_COLOR,
-  TEXT_COLOR,
+  type AxisRange,
   TICK_LABEL_GAP,
   TICK_LENGTH,
   chartColorVar,
@@ -98,16 +95,24 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
   }
 
   view({attrs}: m.Vnode<LineChartAttrs>) {
-    const {data} = attrs;
+    const {
+      data,
+      legendPosition = 'bottom',
+      showLegend = data !== undefined && data.series.length > 1,
+      formatYValue = defaultFmt,
+      formatXValue = defaultFmt,
+      stacked,
+      height = 200,
+      fillParent,
+      className,
+    } = attrs;
+
     const isLoading = data === undefined;
     const isEmpty =
       data !== undefined &&
       (data.series.length === 0 ||
         data.series.every((s) => s.points.length === 0));
-    const showLegend =
-      attrs.showLegend ?? (data !== undefined && data.series.length > 1);
 
-    const fmtYLegend = attrs.formatYValue ?? defaultFmt;
     const legend =
       showLegend &&
       data !== undefined &&
@@ -116,12 +121,15 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
         data.series.map((s, i) => {
           const last =
             s.points.length > 0 ? s.points[s.points.length - 1].y : undefined;
+          const hidden = this.hiddenSeries.has(s.name);
           return m(ChartLegend.Entry, {
             name: s.name,
-            value: last !== undefined ? fmtYLegend(last) : undefined,
+            value: last !== undefined ? formatYValue(last) : undefined,
             swatch: s.color ?? chartColorVar(i),
-            hidden: this.hiddenSeries.has(s.name),
+            hidden,
             onToggle: () => this.toggleSeries(s.name),
+            onMouseEnter: hidden ? undefined : () => this.setHoveredSeries(i),
+            onMouseLeave: hidden ? undefined : () => this.clearHoveredSeries(i),
           });
         }),
       );
@@ -139,9 +147,7 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
 
     const tooltip = (() => {
       if (this.hover === undefined || seriesHover === undefined) return false;
-      const ordered = attrs.stacked ? [...seriesHover].reverse() : seriesHover;
-      const fmtX = attrs.formatXValue ?? defaultFmt;
-      const fmtY = attrs.formatYValue ?? defaultFmt;
+      const ordered = stacked ? [...seriesHover].reverse() : seriesHover;
       const idx = this.hover.index;
       // X value comes from the first series with a point at `idx`.
       let xValue: number | undefined;
@@ -152,13 +158,13 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
         }
       }
       return m(ChartTooltip, [
-        exists(xValue) && m(ChartTooltip.Header, fmtX(xValue)),
+        exists(xValue) && m(ChartTooltip.Header, formatXValue(xValue)),
         ordered.map((s, i) => {
           const p = s.series.points[idx];
           if (p === undefined) return undefined;
           return m(ChartTooltip.Row, {
             name: s.series.name,
-            value: fmtY(p.y),
+            value: formatYValue(p.y),
             swatch: s.series.color ?? chartColorVar(i),
             tweak:
               s.style === 'emphasis' || s.style === 'muted'
@@ -169,19 +175,15 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
       ]);
     })();
 
-    const legendPosition = attrs.legendPosition ?? 'top';
-
     return m(
       '.pf-chart-svg',
       {
         className: classNames(
-          attrs.fillParent && 'pf-chart-svg--fill-parent',
+          fillParent && 'pf-chart-svg--fill-parent',
           `pf-chart-svg--legend-${legendPosition}`,
-          attrs.className,
+          className,
         ),
-        style: attrs.fillParent
-          ? undefined
-          : {height: `${attrs.height ?? 200}px`},
+        style: fillParent ? undefined : {height: `${height}px`},
       },
       m(SvgChartFrame, {
         isLoading,
@@ -295,7 +297,7 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
         width: width,
         height: height,
         viewBox: `0 0 ${width} ${height}`,
-        style: attrs.onBrush && {cursor: 'crosshair'},
+        style: (attrs.onBrush || attrs.onPointClick) && {cursor: 'crosshair'},
         oncontextmenu: (e: Event) => {
           // Chrome has a bug where right click to bring up the context menu
           // breaks pointer capture - simply disable context menus for the
@@ -303,14 +305,15 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
           e.preventDefault();
         },
         onpointerdown:
-          attrs.onBrush &&
+          (attrs.onBrush || attrs.onPointClick) &&
           ((e: PointerEvent) =>
             this.handleBrushDown(e, padLeft, plotW, xRange)),
         onpointermove: (e: PointerEvent) =>
           this.handlePointerMove(e, seriesPlots, padLeft, plotW, xRange),
         onpointerup:
-          attrs.onBrush &&
-          ((e: PointerEvent) => this.handleBrushUp(e, attrs.onBrush!)),
+          (attrs.onBrush || attrs.onPointClick) &&
+          ((e: PointerEvent) =>
+            this.handleBrushUp(e, attrs.onBrush, attrs.onPointClick)),
         onpointerleave: () => {
           if (this.brushing) return; // capture keeps the drag alive.
           if (this.hover !== undefined) {
@@ -343,28 +346,29 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
       showHGrid &&
         yRange.ticks.map((t) =>
           m('line', {
-            'x1': padLeft,
-            'y1': yToPx(t),
-            'x2': padLeft + plotW,
-            'y2': yToPx(t),
-            'stroke': BORDER_COLOR,
-            'stroke-opacity': 0.3,
+            className: 'pf-chart-svg__gridline',
+            x1: padLeft,
+            y1: yToPx(t),
+            x2: padLeft + plotW,
+            y2: yToPx(t),
+            stroke: 'currentColor',
           }),
         ),
       showVGrid &&
         xRange.ticks.map((t) =>
           m('line', {
-            'x1': xToPx(t),
-            'y1': padTop,
-            'x2': xToPx(t),
-            'y2': padTop + plotH,
-            'stroke': BORDER_COLOR,
-            'stroke-opacity': 0.3,
+            className: 'pf-chart-svg__gridline',
+            x1: xToPx(t),
+            y1: padTop,
+            x2: xToPx(t),
+            y2: padTop + plotH,
+            stroke: 'currentColor',
           }),
         ),
       // Static selection overlay (driven by attrs.selection).
       attrs.selection !== undefined &&
         m('rect', {
+          'className': 'pf-chart-svg__selection',
           'x': xToPx(clamp(attrs.selection.start, xRange.min, xRange.max)),
           'y': padTop,
           'width': Math.max(
@@ -373,8 +377,8 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
               xToPx(clamp(attrs.selection.start, xRange.min, xRange.max)),
           ),
           'height': plotH,
-          'fill': 'rgba(0, 120, 212, 0.08)',
-          'stroke': 'rgba(0, 120, 212, 0.3)',
+          'fill': 'currentColor',
+          'stroke': 'currentColor',
           'stroke-width': 1,
           'pointer-events': 'none',
         }),
@@ -382,19 +386,20 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
       xRange.ticks.map((t) =>
         m('g', [
           m('line', {
+            className: 'pf-chart-svg__line',
             x1: xToPx(t),
             y1: padTop + plotH,
             x2: xToPx(t),
             y2: padTop + plotH + TICK_LENGTH,
-            stroke: BORDER_COLOR,
+            stroke: 'currentColor',
           }),
           m(
             'text',
             {
+              'className': 'pf-chart-svg__tick-label',
               'x': xToPx(t),
               'y': padTop + plotH + TICK_LENGTH + TICK_LABEL_GAP,
-              'fill': TEXT_COLOR,
-              'font-size': AXIS_LABEL_FONT_SIZE,
+              'fill': 'currentColor',
               'text-anchor': 'middle',
               'dominant-baseline': 'hanging',
             },
@@ -471,6 +476,29 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
               ),
             );
           }),
+        // Event markers: vertical line + dot at the top.
+        attrs.markers?.map((mk) => {
+          if (mk.x < xRange.min || mk.x > xRange.max) return undefined;
+          const x = xToPx(mk.x);
+          const color = mk.color ?? 'var(--pf-color-danger)';
+          return m('g', {'pointer-events': 'none'}, [
+            m('line', {
+              'x1': x,
+              'y1': padTop,
+              'x2': x,
+              'y2': padTop + plotH,
+              'stroke': color,
+              'stroke-width': 1,
+              'opacity': 0.8,
+            }),
+            m('circle', {
+              cx: x,
+              cy: padTop + 3,
+              r: 3,
+              fill: color,
+            }),
+          ]);
+        }),
         // Hover guide line + dots. pointer-events: none so they don't
         // steal mouseenter/leave from the per-series hit targets
         // underneath.
@@ -478,11 +506,12 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
           seriesPlots[0]?.points[hoverIdx] !== undefined &&
           m('g', {'pointer-events': 'none'}, [
             m('line', {
+              'className': 'pf-chart-svg__hover-guide',
               'x1': xToPx(seriesPlots[0].points[hoverIdx].x),
               'y1': padTop,
               'x2': xToPx(seriesPlots[0].points[hoverIdx].x),
               'y2': padTop + plotH,
-              'stroke': TEXT_COLOR,
+              'stroke': 'currentColor',
               'stroke-dasharray': '3 3',
             }),
             ...seriesPlots.flatMap((s) => {
@@ -500,12 +529,13 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
           const lo = Math.min(a, b);
           const hi = Math.max(a, b);
           return m('rect', {
+            'className': 'pf-chart-svg__brush',
             'x': xToPx(lo),
             'y': padTop,
             'width': Math.max(0, xToPx(hi) - xToPx(lo)),
             'height': plotH,
-            'fill': 'rgba(0, 120, 212, 0.15)',
-            'stroke': 'rgba(0, 120, 212, 0.5)',
+            'fill': 'currentColor',
+            'stroke': 'currentColor',
             'stroke-width': 1,
             'pointer-events': 'none',
           });
@@ -536,14 +566,21 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
 
   private handleBrushUp(
     e: PointerEvent,
-    onBrush: (range: {start: number; end: number}) => void,
+    onBrush?: (range: {start: number; end: number}) => void,
+    onPointClick?: (x: number) => void,
   ) {
     if (!this.brushing || this.brushing.pointerId !== e.pointerId) return;
     const {start, current} = this.brushing;
     const lo = Math.min(start, current);
     const hi = Math.max(start, current);
     this.brushing = undefined;
-    if (hi > lo) onBrush({start: lo, end: hi});
+    // A drag (the cursor moved more than a tiny threshold) is a range select;
+    // movement within the dead-zone is treated as a click on a single point.
+    if (hi - lo > 1e-9) {
+      onBrush?.({start: lo, end: hi});
+    } else {
+      onPointClick?.(start);
+    }
   }
 
   private handlePointerMove(

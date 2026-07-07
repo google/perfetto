@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/assert';
-import {Workspace, WorkspaceManager} from '../public/workspace';
+import {Workspace, type WorkspaceManager} from '../public/workspace';
 import {featureFlags} from './feature_flags';
 
 const DEFAULT_WORKSPACE_NAME = 'Default Workspace';

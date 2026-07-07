@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {RecordingManager} from '../recording_manager';
+import type {RecordingManager} from '../recording_manager';
 import {traceConfigToTxt} from '../../../base/proto_utils_wasm';
 import protos from '../../../protos';
-import {RecordSubpage} from '../config/config_interfaces';
+import type {RecordSubpage} from '../config/config_interfaces';
 import {Anchor} from '../../../widgets/anchor';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 

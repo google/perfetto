@@ -166,6 +166,11 @@ state, Perfetto provides powerful insights.
     also be configured to include logcat directly into new traces.
     - **Tutorial**:
       [Visualizing adb logcat](/docs/getting-started/other-formats.md#logcat-format)
+  - Several related trace files (from two devices, or an app trace next to a
+    system trace) can be opened together as one merged trace on a shared
+    timeline.
+    - **Tutorial**:
+      [Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md)
 
 ### {#android-optimizing-performance} Optimizing Performance & Addressing Latency
 
@@ -238,9 +243,9 @@ Perfetto also provides specific tools to investigate and attribute memory usage:
   helping you find memory leaks or unexpectedly large objects.
 
   - **Tutorial**:
-    [Recording Memory Profiles (Java/JVM Heap Dumps)](/docs/getting-started/memory-profiling.md)
+    [Recording Memory Profiles (ART Heap Dumps)](/docs/getting-started/memory-profiling.md)
   - **Reference**:
-    [Java Heap Dumps Data Source](/docs/data-sources/java-heap-profiler.md)
+    [ART Heap Dumps Data Source](/docs/data-sources/java-heap-profiler.md)
 
 - **Where is native (C/C++) memory being allocated in my code?** For native
   code, heap profiling tracks `malloc` and `free` calls (or `new`/`delete` in

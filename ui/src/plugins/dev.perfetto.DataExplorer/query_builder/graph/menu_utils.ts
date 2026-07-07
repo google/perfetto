@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../../../widgets/menu';
-import {NodeDescriptor, nodeRegistry} from '../node_registry';
+import {type NodeDescriptor, nodeRegistry} from '../node_registry';
 import {Keycap} from '../../../../widgets/hotkey_glyphs';
 
 /**

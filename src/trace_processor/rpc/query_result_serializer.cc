@@ -21,7 +21,8 @@
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/trace_processor/iterator_impl.h"
+#include "perfetto/trace_processor/iterator.h"
+#include "src/trace_processor/sqlite_iterator_impl.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
@@ -48,7 +49,7 @@ uint8_t MakeLenDelimTag(uint32_t field_num) {
 QueryResultSerializer::QueryResultSerializer(
     Iterator iter,
     std::optional<base::TimeNanos> t_start)
-    : iter_(iter.take_impl()),
+    : iter_(iter.take_impl<SqliteIteratorImpl>()),
       num_cols_(iter_->ColumnCount()),
       t_start_(t_start) {}
 

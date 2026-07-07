@@ -14,11 +14,12 @@
 
 import m from 'mithril';
 import {Engine} from 'syntaqlite';
+import {assetSrc} from '../../base/assets';
 import {Icons} from '../../base/semantic_icons';
-import {QueryResponse} from '../../components/query_table/queries';
-import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
+import type {QueryResponse} from '../../components/query_table/queries';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
-import {Trace} from '../../public/trace';
+import type {Setting} from '../../public/settings';
+import type {Trace} from '../../public/trace';
 import {Box} from '../../widgets/box';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
@@ -28,10 +29,9 @@ import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
-import {Tabs, TabsTab} from '../../widgets/tabs';
+import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {Anchor} from '../../widgets/anchor';
-import {DataSource} from '../../components/widgets/datagrid/data_source';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {TableList} from './table_list';
 import {ResultsTable} from './results_table';
@@ -42,6 +42,7 @@ const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 export interface QueryEditorTab {
   readonly id: string;
   editorText: string;
+  queryId?: number; // Unique ID associated with the current query result (session unique only, not universally unique).
   queryResult?: QueryResponse;
   isLoading: boolean;
   title: string;
@@ -83,28 +84,24 @@ export interface QueryPageAttrs {
   // draggedTabId is the tab being moved, beforeTabId is the tab it should be
   // placed before (or undefined if moved to the end).
   onTabReorder?(draggedTabId: string, beforeTabId: string | undefined): void;
+
+  readonly sidebarVisibleSetting: Setting<boolean>;
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
-  // Map of tab ID to DataSource for each tab's query results
-  private dataSources = new Map<string, DataSource>();
-
-  // Track previous query results to detect changes
-  private prevQueryResults = new Map<string, QueryResponse | undefined>();
-
   // Lazily-initialized SQL formatter engine, scoped to this component instance.
   private formatterEnginePromise?: Promise<Engine>;
 
   private getFormatterEngine(): Promise<Engine> {
     if (this.formatterEnginePromise === undefined) {
       const engine = new Engine({
-        runtimeJsPath: 'assets/syntaqlite-runtime.js',
-        runtimeWasmPath: 'assets/syntaqlite-runtime.wasm',
+        runtimeJsPath: assetSrc('assets/syntaqlite-runtime.js'),
+        runtimeWasmPath: assetSrc('assets/syntaqlite-runtime.wasm'),
       });
       this.formatterEnginePromise = (async () => {
         await engine.load();
         const binding = await engine.loadDialectFromUrl(
-          'assets/syntaqlite-perfetto.wasm',
+          assetSrc('assets/syntaqlite-perfetto.wasm'),
           'syntaqlite_perfetto_dialect_template',
         );
         engine.setDialectPointer(binding.ptr);
@@ -116,31 +113,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     const {editorTabs, activeTabId} = attrs;
-
-    // Update data sources for tabs whose results have changed
-    for (const tab of editorTabs) {
-      const prevResult = this.prevQueryResults.get(tab.id);
-      if (tab.queryResult !== prevResult) {
-        if (tab.queryResult) {
-          this.dataSources.set(
-            tab.id,
-            new InMemoryDataSource(tab.queryResult.rows),
-          );
-        } else {
-          this.dataSources.delete(tab.id);
-        }
-        this.prevQueryResults.set(tab.id, tab.queryResult);
-      }
-    }
-
-    // Clean up data sources for removed tabs
-    const tabIds = new Set(editorTabs.map((t) => t.id));
-    for (const id of this.dataSources.keys()) {
-      if (!tabIds.has(id)) {
-        this.dataSources.delete(id);
-        this.prevQueryResults.delete(id);
-      }
-    }
+    const sidebarVisible = attrs.sidebarVisibleSetting.get();
 
     // Build editor tabs for the left panel
     const leftTabs: TabsTab[] = editorTabs.map((tab) => ({
@@ -163,7 +136,20 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       onTabClose: (key) => attrs.onTabClose?.(key),
       onTabReorder: (draggedKey, beforeKey) =>
         attrs.onTabReorder?.(draggedKey, beforeKey),
-      onNewTab: () => attrs.onTabAdd?.(),
+      newTabContent: [
+        m(Button, {
+          icon: 'add',
+          className: 'pf-tabs__new-tab-btn',
+          onclick: () => attrs.onTabAdd?.(),
+        }),
+        m('.pf-query-page__tab-spacer'),
+        m(Button, {
+          icon: sidebarVisible ? 'right_panel_close' : 'right_panel_open',
+          title: sidebarVisible ? 'Hide sidebar' : 'Show sidebar',
+          onclick: () => attrs.sidebarVisibleSetting.set(!sidebarVisible),
+          active: sidebarVisible,
+        }),
+      ],
     });
 
     const activeTab = editorTabs.find((t) => t.id === activeTabId);
@@ -199,6 +185,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       ],
     });
 
+    if (!sidebarVisible) {
+      return m('.pf-query-page', leftPanel);
+    }
+
     return m(
       '.pf-query-page',
       m(SplitPanel, {
@@ -217,7 +207,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     tab: QueryEditorTab,
   ): m.Children {
     const {trace} = attrs;
-    const dataSource = this.dataSources.get(tab.id);
 
     const editorPanel = m('.pf-query-page__editor-panel', [
       m(Box, {className: 'pf-query-page__toolbar'}, [
@@ -320,13 +309,13 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     const resp = tab.queryResult;
     const resultsPanel = resp
       ? m(ResultsTable, {
+          key: tab.queryId, // Force remount when query changes to reset internal state
           data: resp.error
             ? {kind: 'error', errorMessage: resp.error}
             : {
                 kind: 'success',
                 columns: resp.columns,
                 rows: resp.rows,
-                dataSource: dataSource!,
                 rowCount: resp.totalRowCount,
                 queryTimeMs: resp.durationMs,
                 query: resp.query,

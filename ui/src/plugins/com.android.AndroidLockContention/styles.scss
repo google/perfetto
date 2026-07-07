@@ -1,0 +1,97 @@
+.pf-lock-owner-panel {
+  &__note {
+    padding: 10px;
+    color: var(--pf-color-foreground-muted, #666);
+    font-style: italic;
+  }
+
+  &__toolbar {
+    padding: 10px;
+    display: flex;
+    gap: 20px;
+    background-color: var(--pf-color-background-alt, rgba(0, 0, 0, 0.05));
+    border-bottom: 1px solid var(--pf-color-border, #ddd);
+  }
+
+  &__checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  &__section {
+    padding: 15px 10px;
+  }
+
+  &__title {
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: var(--pf-color-foreground);
+  }
+
+  &__selected-row {
+    background-color: var(--pf-color-selection, rgba(0, 0, 255, 0.1));
+  }
+
+  &__unknown-text {
+    color: var(--pf-color-foreground-muted, #888);
+    border-bottom: 1px dotted var(--pf-color-foreground-muted, #888);
+    cursor: help;
+  }
+
+  &__card-stack {
+    gap: 10px;
+  }
+
+  &__card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: 12px;
+  }
+
+  &__card-header-left {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+  }
+
+  &__bold {
+    font-weight: bold;
+  }
+
+  &__muted {
+    color: var(--pf-color-foreground-muted, #666);
+  }
+
+  &__action-text {
+    color: var(--pf-color-primary, #007acc);
+    font-weight: bold;
+  }
+
+  &__card-content {
+    margin-top: 15px;
+    border-top: 1px solid var(--pf-color-border, #eee);
+    padding: 12px;
+  }
+
+  &__callout {
+    margin-bottom: 12px;
+  }
+
+  &__details-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__monospace {
+    font-family: monospace;
+  }
+
+  &__margin-top {
+    margin-top: 15px;
+  }
+}

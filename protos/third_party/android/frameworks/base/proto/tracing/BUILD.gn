@@ -18,3 +18,19 @@ perfetto_proto_library("frameworks_base_track_event_@TYPE@") {
   sources = [ "frameworks_base_track_event.proto" ]
   public_deps = [ "../../../../../../perfetto/trace/track_event:@TYPE@" ]
 }
+
+perfetto_proto_library("frameworks_base_interned_data_@TYPE@") {
+  sources = [ "frameworks_base_interned_data.proto" ]
+  public_deps = [
+    "../../../../../../perfetto/trace:non_minimal_@TYPE@",
+    "../../../../../../perfetto/trace/interned_data:@TYPE@",
+  ]
+}
+
+perfetto_proto_library("frameworks_base_trace_packet_@TYPE@") {
+  sources = [ "frameworks_base_trace_packet.proto" ]
+  public_deps = [
+    ":frameworks_base_interned_data_@TYPE@",
+    "../../../../../../perfetto/trace:non_minimal_@TYPE@",
+  ]
+}

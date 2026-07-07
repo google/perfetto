@@ -1,0 +1,21 @@
+{
+  "name": "perfetto",
+  "version": "v57.1",
+  "description": "Perfetto skills for trace analysis: query traces, install trace_processor, and run guided investigation workflows.",
+  "author": {
+    "name": "Perfetto",
+    "email": "perfetto-dev@googlegroups.com",
+    "url": "https://perfetto.dev"
+  },
+  "homepage": "https://perfetto.dev",
+  "repository": "https://github.com/google/perfetto",
+  "license": "Apache-2.0",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Perfetto",
+    "shortDescription": "Trace analysis skills for PerfettoSQL and trace_processor.",
+    "developerName": "Perfetto",
+    "category": "development",
+    "websiteURL": "https://perfetto.dev"
+  }
+}

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {exists} from '../../base/utils';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {STR} from '../../trace_processor/query_result';
 
 export enum CauseProcess {

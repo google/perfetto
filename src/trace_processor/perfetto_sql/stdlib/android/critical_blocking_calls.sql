@@ -47,6 +47,12 @@ SELECT
   OR $name GLOB 'Compose:*'
   OR $name GLOB 'draw-VRI*'
   OR $name = 'CreateGraphicsPipeline'
+  OR $name GLOB 'drawLayer *'
+  OR $name GLOB 'DrawFrames*'
+  OR $name = 'flush layers'
+  OR $name = 'flush commands'
+  OR $name = 'queueBuffer'
+  OR $name GLOB 'Texture upload*'
   OR (NOT ($name GLOB '*Choreographer*')
   AND NOT ($name GLOB '*Input*')
   AND NOT ($name GLOB '*input*')
@@ -72,6 +78,21 @@ FROM thread_slice AS s
 JOIN thread USING (utid)
 WHERE
   _is_relevant_blocking_call(s.name, s.depth)
+UNION ALL
+-- Add a summation of all drawLayer slices without the individual layer name
+SELECT
+  'drawLayer' AS name,
+  s.ts,
+  s.dur,
+  s.id,
+  s.process_name,
+  thread.utid,
+  s.upid,
+  s.ts + s.dur AS ts_end
+FROM thread_slice AS s
+JOIN thread USING (utid)
+WHERE
+  s.name GLOB 'drawLayer *'
 UNION ALL
 -- As binder names are not included in slice table, extract these directly from the
 -- android_binder_txns table.

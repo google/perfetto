@@ -16,37 +16,37 @@ import m from 'mithril';
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchEq, searchRange} from '../../base/binary_search';
 import {deferChunkedTask} from '../../base/chunked_task';
-import {Color} from '../../base/color';
-import {ColorScheme} from '../../base/color_scheme';
+import type {Color} from '../../base/color';
+import type {ColorScheme} from '../../base/color_scheme';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
-import {Point2D} from '../../base/geom';
+import type {Point2D} from '../../base/geom';
 import {assertExists, assertTrue} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
-  CancellationSignal,
+  type CancellationSignal,
   QUERY_CANCELLED,
   QuerySlot,
   SerialTaskQueue,
 } from '../../base/query_slot';
-import {RowLayout} from '../../base/renderer';
-import {duration, time, Time} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
+import type {RowLayout} from '../../base/renderer';
+import {type duration, type time, Time} from '../../base/time';
+import type {TimeScale} from '../../base/time_scale';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {colorForThread, colorForTid} from '../../components/colorizer';
-import {Trace} from '../../public/trace';
-import {
+import type {Trace} from '../../public/trace';
+import type {
   TrackMouseEvent,
   TrackRenderContext,
   TrackRenderer,
 } from '../../public/track';
-import {TrackNode} from '../../public/workspace';
-import {Dataset} from '../../trace_processor/dataset';
+import type {TrackNode} from '../../public/workspace';
+import type {Dataset} from '../../trace_processor/dataset';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
   createVirtualTable,
 } from '../../trace_processor/sql_utils';
-import {ThreadMap} from '../dev.perfetto.Thread/threads';
+import type {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {CHUNKED_TASK_BACKGROUND_PRIORITY} from '../../components/tracks/feature_flags';
 import {BufferedBounds} from '../../components/tracks/buffered_bounds';
 

@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RecordSubpage, RecordProbe} from '../config/config_interfaces';
-import {FTRACE_DS, TraceConfigBuilder} from '../config/trace_config_builder';
+import type {RecordSubpage, RecordProbe} from '../config/config_interfaces';
+import {
+  FTRACE_DS,
+  type TraceConfigBuilder,
+} from '../config/trace_config_builder';
 import {TypedMultiselect} from './widgets/multiselect';
 import {Slider} from './widgets/slider';
 import {Toggle} from './widgets/toggle';

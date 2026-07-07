@@ -15,10 +15,10 @@
 import m from 'mithril';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
-import {Trace} from '../../public/trace';
-import {QueryResult, Row} from '../../trace_processor/query_result';
+import type {Trace} from '../../public/trace';
+import type {QueryResult, Row} from '../../trace_processor/query_result';
 import {SqlRef} from '../../widgets/sql_ref';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
+import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {MenuItem} from '../../widgets/menu';
 import {extensions} from '../../components/extensions';
 import {TreeNode} from '../../widgets/tree';

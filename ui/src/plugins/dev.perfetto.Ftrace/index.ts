@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {NUM} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Cpu} from '../../components/cpu';
-import {FtraceFilter, FtracePluginState as FtraceFilters} from './common';
-import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
+import {getMachineCount} from '../../public/utils';
+import type {FtraceFilter, FtracePluginState as FtraceFilters} from './common';
+import {FtraceExplorer, type FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
 
 const VERSION = 1;
@@ -62,7 +64,8 @@ export default class implements PerfettoPlugin {
 
     let hasExpandedOnce = false;
 
-    const cpus = await getFtraceCpus(ctx);
+    const numMachines = await getMachineCount(ctx.engine);
+    const cpus = await getFtraceCpus(ctx, numMachines);
     const group = new TrackNode({
       name: 'Ftrace Events',
       sortOrder: -5,
@@ -131,24 +134,42 @@ export default class implements PerfettoPlugin {
 /**
  * Get the list of unique cpus in the ftrace_event table.
  */
-async function getFtraceCpus(ctx: Trace): Promise<Cpu[]> {
+async function getFtraceCpus(ctx: Trace, numMachines: number): Promise<Cpu[]> {
   const queryRes = await ctx.engine.query(`
     SELECT DISTINCT
       ucpu,
       cpu.machine_id AS machine_id,
-      cpu.cpu AS cpu
+      cpu.cpu AS cpu,
+      machine.name AS machine_name,
+      machine.label_index AS machine_label_index
     FROM ftrace_event
     JOIN cpu USING (ucpu)
+    LEFT JOIN machine ON machine.id = cpu.machine_id
     ORDER BY ucpu
   `);
 
   const ucpus: Cpu[] = [];
   for (
-    const it = queryRes.iter({ucpu: NUM, machine_id: NUM, cpu: NUM});
+    const it = queryRes.iter({
+      ucpu: NUM,
+      machine_id: NUM,
+      cpu: NUM,
+      machine_name: STR_NULL,
+      machine_label_index: NUM_NULL,
+    });
     it.valid();
     it.next()
   ) {
-    ucpus.push(new Cpu(it.ucpu, it.cpu, it.machine_id));
+    ucpus.push(
+      new Cpu(
+        it.ucpu,
+        it.cpu,
+        it.machine_id,
+        it.machine_name ?? undefined,
+        it.machine_label_index ?? undefined,
+        numMachines,
+      ),
+    );
   }
 
   return ucpus;

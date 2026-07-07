@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './empty_state.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {Icons} from '../base/semantic_icons';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 import {Icon} from './icon';
 
 export interface EmptyStateAttrs extends HTMLAttrs {

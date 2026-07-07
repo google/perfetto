@@ -53,7 +53,7 @@ jobs:
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-${{ matrix.config.name }}
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-${{ matrix.config.name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup artifacts
         shell: bash

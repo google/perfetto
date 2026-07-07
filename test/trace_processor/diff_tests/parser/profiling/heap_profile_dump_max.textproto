@@ -30,7 +30,7 @@ packet {
 
 packet {
   trusted_packet_sequence_id: 999
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   incremental_state_cleared: true
   timestamp: 10
   profile_packet {

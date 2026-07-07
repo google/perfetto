@@ -27,7 +27,7 @@ namespace perfetto::trace_processor {
 // Tracks information in the machine table.
 class MachineTracker {
  public:
-  MachineTracker(TraceProcessorContext* context, uint32_t raw_machine_id);
+  MachineTracker(TraceProcessorContext* context, int64_t raw_machine_id);
   ~MachineTracker();
 
   // Converts bytes to GB using power of 10.
@@ -37,16 +37,23 @@ class MachineTracker {
                       StringId release,
                       StringId version,
                       StringId arch);
+  void SetMachineName(StringId name);
   void SetNumCpus(uint32_t cpus);
   void SetAndroidBuildFingerprint(StringId build_fingerprint);
   void SetAndroidDeviceManufacturer(StringId device_manufacturer);
   void SetAndroidSdkVersion(int64_t sdk_version);
   void SetSystemRamBytes(int64_t system_ram_bytes);
 
+  // Relabels this machine's raw (embedded) machine id (used for adoption).
+  void SetRawMachineId(int64_t raw_machine_id);
+
+  // The raw (embedded) machine id of this machine's row.
+  int64_t raw_machine_id() const;
+
   MachineId machine_id() const { return machine_id_; }
 
  private:
-  std::optional<tables::MachineTable::RowReference> getRow();
+  tables::MachineTable::RowReference getRow();
 
   MachineId machine_id_;
   TraceProcessorContext* const context_;

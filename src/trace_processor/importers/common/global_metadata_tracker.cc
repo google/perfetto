@@ -63,7 +63,7 @@ MetadataId GlobalMetadataTracker::SetMetadata(
 
   MetadataEntry entry{name_id, ctx_ids.machine_id, ctx_ids.trace_id};
   if (auto* id_ptr = id_by_entry_.Find(entry)) {
-    WriteValue(*metadata_table.FindById(*id_ptr), value);
+    WriteValue(metadata_table[*id_ptr], value);
     return *id_ptr;
   }
 
@@ -79,7 +79,7 @@ MetadataId GlobalMetadataTracker::SetMetadata(
       id_by_entry_.Erase(global_entry);
       id_by_entry_.Insert(entry, id);
 
-      auto rr = *metadata_table.FindById(id);
+      auto rr = metadata_table[id];
       rr.set_trace_id(ctx_ids.trace_id);
       WriteValue(rr, value);
       return id;
@@ -111,7 +111,7 @@ std::optional<SqlValue> GlobalMetadataTracker::GetMetadata(
 
   MetadataEntry entry{name_id, ctx_ids.machine_id, ctx_ids.trace_id};
   if (auto* id_ptr = id_by_entry_.Find(entry)) {
-    auto rr = *metadata_table.FindById(*id_ptr);
+    auto rr = metadata_table[*id_ptr];
     auto value_type = metadata::kValueTypes[key];
     switch (value_type) {
       case Variadic::kInt:

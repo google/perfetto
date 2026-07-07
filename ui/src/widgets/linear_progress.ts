@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './linear_progress.scss';
 import m from 'mithril';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
 
 export interface LinearProgressAttrs extends HTMLAttrs {

@@ -23,8 +23,8 @@ import {
   OutlinedFieldReadOnly,
 } from '../widgets';
 import {JoinSourceCard} from '../join_widgets';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
-import {
+import {type ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
+import type {
   SqlTable,
   SqlColumn,
 } from '../../../dev.perfetto.SqlModules/sql_modules';

@@ -36,13 +36,6 @@ flag {
   is_fixed_read_only: true
 }
 flag {
-  name: "track_event_incremental_state_clear_not_destroy"
-  namespace: "perfetto"
-  description: "Instead of creating/destroying intern maps for TrackEvent's ClearIncrementalState callback, instead just clear the maps, preventing unnecessary memory allocs/frees."
-  bug: "473625429"
-  is_fixed_read_only: true
-}
-flag {
   name: "trigger_perfetto_on_traced_probes_disconnect"
   namespace: "perfetto"
   description: "When enabled, traced fires a trigger when traced_probes disconnects, allowing pre-configured trace sessions to capture crash diagnostics."

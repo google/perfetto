@@ -14,12 +14,16 @@
 
 import {Time} from '../base/time';
 import {featureFlags} from './feature_flags';
-import {FlowDirection, Flow} from './flow_types';
+import type {FlowDirection, Flow} from './flow_types';
 import {asSliceSqlId} from '../components/sql_utils/core_types';
 import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
-import {Track, TrackManager} from '../public/track';
-import {AreaSelection, Selection, SelectionManager} from '../public/selection';
-import {Engine} from '../trace_processor/engine';
+import type {Track, TrackManager} from '../public/track';
+import type {
+  AreaSelection,
+  Selection,
+  SelectionManager,
+} from '../public/selection';
+import type {Engine} from '../trace_processor/engine';
 
 const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
   id: 'showIndirectPrecedingFlows',

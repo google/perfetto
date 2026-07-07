@@ -313,9 +313,6 @@ struct PERFETTO_EXPORT_COMPONENT TracingServiceInitOpts {
   using CompressorFn = void (*)(std::vector<TracePacket>*);
   CompressorFn compressor_fn = nullptr;
 
-  // Whether the relay endpoint is enabled on producer transport(s).
-  bool enable_relay_endpoint = false;
-
   // An (optional) list of proto extension descriptors to dump into each trace
   // recorded. This is to support injecting protos that are known by the
   // embedder (e.g. the Android vendor image) but not by the upstream perfetto.

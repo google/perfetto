@@ -15,14 +15,14 @@
 import m from 'mithril';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   SIMPLE_TYPE_KINDS,
   isIdType,
   perfettoSqlTypeToString,
   typesEqual,
 } from '../../../../trace_processor/perfetto_sql_type';
-import {ColumnInfo} from '../column_info';
-import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
+import type {ColumnInfo} from '../column_info';
+import type {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
 
 /**
  * Gets list of tables with columns that have a pure ID type

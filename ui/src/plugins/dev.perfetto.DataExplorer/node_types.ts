@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {ButtonVariant} from '../../widgets/button';
+import type m from 'mithril';
+import type {ButtonVariant} from '../../widgets/button';
 
 interface CommonButtonAttrs {
   onclick: () => void;

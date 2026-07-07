@@ -19,14 +19,17 @@
 
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 
 namespace perfetto {
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 // Matches TracingServiceImpl::kMaxTracePacketSliceSize. Exposed for testing.
 static constexpr size_t kZlibCompressSliceSize = 128 * 1024 - 512;
 
 void ZlibCompressFn(std::vector<TracePacket>*);
+#endif
 
 }  // namespace perfetto
 

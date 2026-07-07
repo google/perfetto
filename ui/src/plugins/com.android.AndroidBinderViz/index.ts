@@ -16,37 +16,56 @@ import {
   BreakdownTrackAggType,
   BreakdownTracks,
 } from '../../components/tracks/breakdown_tracks';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import {TrackNode} from '../../public/workspace';
 import {BinderSliceDetailsPanel} from './details_panel';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidBinderViz';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await this.createBinderTransactionTrack(
-      ctx,
-      'server',
-      'client',
-      'binder_txn_id',
-    );
-    await this.createBinderTransactionTrack(
-      ctx,
-      'client',
-      'server',
-      'binder_reply_id',
-    );
+    // Build the server and client trees concurrently so the trace engine isn't
+    // left idle between the two sides' query streams. Attach after both finish,
+    // server first: the root tracks carry no sortOrder, so addChildInOrder falls
+    // back to insertion order and a bare Promise.all would race the ordering.
+    const [serverRoot, clientRoot] = await Promise.all([
+      this.createBinderTransactionTrack(
+        ctx,
+        'server',
+        'client',
+        'binder_txn_id',
+        'Server perspective: for each server process and AIDL interface and ' +
+          'method name, which client process/thread is calling it.',
+      ),
+      this.createBinderTransactionTrack(
+        ctx,
+        'client',
+        'server',
+        'binder_reply_id',
+        'Client perspective: for each client process and AIDL interface and ' +
+          'method name, which server process/thread is replying.',
+      ),
+    ]);
+    const binderGroup = new TrackNode({name: 'Binder', isSummary: true});
+    binderGroup.addChildInOrder(serverRoot);
+    binderGroup.addChildInOrder(clientRoot);
+    ctx.defaultWorkspace.addChildInOrder(binderGroup);
   }
 
   async createBinderTransactionTrack(
     ctx: Trace,
     perspective: string,
     oppositePerspective: string,
-    sliceIdColumn?: string,
-  ) {
+    sliceIdColumn: string,
+    description: string,
+  ): Promise<TrackNode> {
+    // The titles live under a "Binder" group, so drop the redundant prefix.
+    const sideName = perspective[0].toUpperCase() + perspective.slice(1);
     const binderCounterBreakdowns = new BreakdownTracks({
       trace: ctx,
-      trackTitle: `Binder ${perspective} Transaction Counts`,
+      trackTitle: `${sideName} Transaction Counts`,
+      description,
       modules: ['android.binder'],
       aggregationType: BreakdownTrackAggType.COUNT,
       aggregation: {
@@ -72,8 +91,6 @@ export default class implements PerfettoPlugin {
       detailsPanel: (trace: Trace) => new BinderSliceDetailsPanel(trace),
     });
 
-    ctx.defaultWorkspace.addChildInOrder(
-      await binderCounterBreakdowns.createTracks(),
-    );
+    return await binderCounterBreakdowns.createTracks();
   }
 }

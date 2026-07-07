@@ -762,5 +762,10 @@ message FtraceEvent {
     MmVmscanMemcgReclaimEndFtraceEvent mm_vmscan_memcg_reclaim_end = 608;
     DpuDispFrameDoneMissingFtraceEvent dpu_disp_frame_done_missing = 609;
     DpuDispFrameStartMissingFtraceEvent dpu_disp_frame_start_missing = 610;
+    PanelSettingsFullFtraceEvent panel_settings_full = 611;
+    PanelSettingsLiteFtraceEvent panel_settings_lite = 612;
+    DpuDispDpuLineUnderrunFtraceEvent dpu_disp_dpu_line_underrun = 613;
+    PsciDomainIdleExitFtraceEvent psci_domain_idle_exit = 614;
+    PsciDomainIdleEnterFtraceEvent psci_domain_idle_enter = 615;
   }
 }

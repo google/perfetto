@@ -20,8 +20,6 @@
 -- including heap graphs for Android Runtime (ART) and memory snapshots
 -- for detailed memory profiling.
 
-INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
-
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Stores class information within ART heap graphs. It represents Java/Kotlin
@@ -284,3 +282,57 @@ CREATE PERFETTO VIEW memory_snapshot_edge(
 AS
 SELECT id, source_node_id, target_node_id, importance
 FROM __intrinsic_memory_snapshot_edge;
+
+-- A list of heap graphs (heap dumps) captured during the trace.
+CREATE PERFETTO VIEW heap_graph(
+  -- Unique identifier for this heap graph instance.
+  id ID,
+  -- Timestamp of the heap dump in nanoseconds.
+  ts TIMESTAMP,
+  -- Unique PID of the target.
+  upid JOINID(process.upid),
+  -- Reason why the heap graph was dumped (e.g. OOME, periodic, manual).
+  dump_reason STRING,
+  -- Total bytes allocated in the heap as reported by the VM.
+  heap_size LONG
+)
+AS
+SELECT id, ts, upid, dump_reason, heap_size FROM __intrinsic_heap_graph;
+
+-- A list of heap profiles (heapprofd dumps) captured during the trace. Each row
+-- describes the profiling window a single dump represents for a single heap.
+-- Joinable with heap_profile_allocation via
+-- (upid, heap_profile_allocation.ts = ts_end).
+CREATE PERFETTO VIEW heap_profile(
+  -- Unique identifier for this heap profile instance.
+  id ID,
+  -- Timestamp of the start of the profiling window in nanoseconds.
+  ts TIMESTAMP,
+  -- Timestamp of the end of the profiling window (i.e. when the dump was taken)
+  -- in nanoseconds.
+  ts_end TIMESTAMP,
+  -- Duration of the profiling window in nanoseconds (ts_end - ts).
+  dur DURATION,
+  -- Unique PID of the target.
+  upid JOINID(process.upid),
+  -- Name of the heap this dump is for (e.g. "libc.malloc" for the native heap),
+  -- or NULL if the producer did not report one.
+  heap_name STRING
+)
+AS
+SELECT id, ts, ts_end, dur, upid, heap_name FROM __intrinsic_heap_profile;
+
+-- Callstack profiles of threads at the time the heap graph was collected.
+CREATE PERFETTO VIEW heap_graph_thread_callsite(
+  -- Unique identifier for this mapping row.
+  id ID,
+  -- The heap graph instance.
+  heap_graph_id JOINID(heap_graph.id),
+  -- The thread ID.
+  utid JOINID(thread.id),
+  -- The callsite of the leaf frame of the stacktrace.
+  callsite_id JOINID(stack_profile_callsite.id)
+)
+AS
+SELECT id, heap_graph_id, utid, callsite_id
+FROM __intrinsic_heap_graph_thread_callsite;

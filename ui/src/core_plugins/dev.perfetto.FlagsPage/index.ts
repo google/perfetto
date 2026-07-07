@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
-import {AppImpl} from '../../core/app_impl';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {AppImpl} from '../../core/app_impl';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {FlagsPage} from './flags_page';
 import {PluginsPage} from './plugins_page';
 

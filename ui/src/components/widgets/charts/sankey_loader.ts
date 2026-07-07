@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../../../trace_processor/engine';
+import type {Engine} from '../../../trace_processor/engine';
 import {
   NUM,
   STR_NULL,
-  QueryResult,
+  type QueryResult,
 } from '../../../trace_processor/query_result';
 import {
   ChartSource,
   SQLChartLoader,
-  QueryConfig,
-  ChartLoaderResult,
+  type QueryConfig,
+  type ChartLoaderResult,
   inFilter,
 } from './chart_sql_source';
-import {ChartAggregation} from './chart_utils';
-import {SankeyData, SankeyNode, SankeyLink} from './sankey';
+import type {ChartAggregation} from './chart_utils';
+import type {SankeyData, SankeyNode, SankeyLink} from './sankey';
 
 /**
  * Configuration for SQLSankeyLoader.

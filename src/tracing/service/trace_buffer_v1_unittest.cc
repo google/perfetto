@@ -91,11 +91,11 @@ class TraceBufferTest : public testing::Test {
   static std::vector<FakePacketFragment> ReadPacket(
       const std::unique_ptr<TraceBuffer>& buf,
       TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr,
-      bool* previous_packet_dropped = nullptr) {
+      uint32_t* previous_packet_dropped = nullptr) {
     std::vector<FakePacketFragment> fragments;
     TracePacket packet;
     TraceBuffer::PacketSequenceProperties ignored_sequence_properties{};
-    bool ignored_previous_packet_dropped;
+    uint32_t ignored_previous_packet_dropped;
     if (!buf->ReadNextTracePacket(
             &packet,
             sequence_properties ? sequence_properties
@@ -111,7 +111,7 @@ class TraceBufferTest : public testing::Test {
 
   std::vector<FakePacketFragment> ReadPacket(
       TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr,
-      bool* previous_packet_dropped = nullptr) {
+      uint32_t* previous_packet_dropped = nullptr) {
     return ReadPacket(trace_buffer_, sequence_properties,
                       previous_packet_dropped);
   }
@@ -1813,7 +1813,7 @@ TEST_F(TraceBufferTest, MissingPacketsOnSequence) {
       .ClearBytes(10, 1)  // Clears the varint header of packet "v".
       .CopyIntoTraceBuffer();
 
-  bool previous_packet_dropped = false;
+  uint32_t previous_packet_dropped = 0;
 
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),

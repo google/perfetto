@@ -1051,12 +1051,6 @@ TEST_F(SharedLibDataSourceTest, IncrementalState) {
 }
 
 TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
-  if constexpr (
-      !PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
-    GTEST_SKIP()
-        << "Test requires flag to be set:"
-           "PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY";
-  }
   bool ignored = false;
   void* const kIncrPtr = &ignored;
   WaitableEvent clear_notification;
@@ -1122,12 +1116,6 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
 }
 
 TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
-  if constexpr (
-      !PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
-    GTEST_SKIP()
-        << "Test requires flag to be set:"
-           "PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY";
-  }
   bool ignored1 = false;
   bool ignored2 = false;
   void* const kIncrPtr1 = &ignored1;
@@ -2057,6 +2045,63 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredCounter) {
                           ElementsAre(VarIntField(kExpectedUuid))))))))));
 }
 
+TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredState) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  PerfettoTeRegisteredTrack my_state_track;
+  PerfettoTeStateTrackRegister(&my_state_track, "MyState",
+                               PerfettoTeProcessTrackUuid(), true);
+
+  PERFETTO_TE(cat1, PERFETTO_TE_STATE("RUNNING"),
+              PERFETTO_TE_REGISTERED_TRACK(&my_state_track),
+              PERFETTO_TE_NO_INTERN());
+
+  PerfettoTeRegisteredTrackUnregister(&my_state_track);
+
+  uint64_t kExpectedUuid =
+      PerfettoTeStateTrackUuid("MyState", PerfettoTeProcessTrackUuid());
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      AllOf(
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_descriptor_field_number,
+                  ElementsAre(MsgField(UnorderedElementsAre(
+                      PbField(perfetto_protos_TrackDescriptor_uuid_field_number,
+                              VarIntField(kExpectedUuid)),
+                      PbField(
+                          perfetto_protos_TrackDescriptor_static_name_field_number,
+                          StringField("MyState")),
+                      PbField(
+                          perfetto_protos_TrackDescriptor_parent_uuid_field_number,
+                          VarIntField(PerfettoTeProcessTrackUuid())),
+                      PbField(
+                          perfetto_protos_TrackDescriptor_state_field_number,
+                          MsgField(_)))))))),
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  ElementsAre(AllOf(
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_type_field_number,
+                          ElementsAre(VarIntField(
+                              perfetto_protos_TrackEvent_TYPE_STATE))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_name_field_number,
+                          ElementsAre(StringField("RUNNING"))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_track_uuid_field_number,
+                          ElementsAre(VarIntField(kExpectedUuid))))))))));
+}
+
 TEST_F(SharedLibTrackEventTest, Scoped) {
   TracingSession tracing_session = TracingSession::Builder()
                                        .set_data_source_name("track_event")
@@ -2562,6 +2607,151 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlNestedTrack) {
   EXPECT_EQ(track_name1_parent_uuid, process_uuid);
   EXPECT_EQ(counter_track_uuid, counter_uuid);
   EXPECT_EQ(counter_parent_uuid, registered_track_uuid);
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlNestedTrackOrdered) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"),
+              PERFETTO_TE_NESTED_TRACKS(
+                  PERFETTO_TE_NESTED_TRACK_PROCESS(),
+                  PERFETTO_TE_NESTED_TRACK_NAMED_ORDERED(
+                      "parent", 0, 0, PERFETTO_TE_HL_CHILD_ORDERING_EXPLICIT),
+                  PERFETTO_TE_NESTED_TRACK_NAMED_ORDERED("child", 0, 7, 0)));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+
+  // The parent track descriptor declares explicit child ordering.
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_descriptor_field_number,
+              ElementsAre(MsgField(AllOf(
+                  Contains(
+                      PbField(perfetto_protos_TrackDescriptor_name_field_number,
+                              StringField("parent"))),
+                  Contains(PbField(
+                      perfetto_protos_TrackDescriptor_child_ordering_field_number,
+                      VarIntField(
+                          perfetto_protos_TrackDescriptor_EXPLICIT))))))))));
+  // The child track descriptor carries its sibling order rank.
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_descriptor_field_number,
+              ElementsAre(MsgField(AllOf(
+                  Contains(
+                      PbField(perfetto_protos_TrackDescriptor_name_field_number,
+                              StringField("child"))),
+                  Contains(PbField(
+                      perfetto_protos_TrackDescriptor_sibling_order_rank_field_number,
+                      VarIntField(7))))))))));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlNestedTrackMerged) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  PERFETTO_TE(
+      cat1, PERFETTO_TE_INSTANT("event1"),
+      PERFETTO_TE_NESTED_TRACKS(
+          PERFETTO_TE_NESTED_TRACK_PROCESS(),
+          PERFETTO_TE_NESTED_TRACK_NAMED_MERGED(
+              "str_keyed", 0,
+              PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+              "merge_group_a", 0)));
+  PERFETTO_TE(
+      cat1, PERFETTO_TE_INSTANT("event2"),
+      PERFETTO_TE_NESTED_TRACKS(
+          PERFETTO_TE_NESTED_TRACK_PROCESS(),
+          PERFETTO_TE_NESTED_TRACK_NAMED_MERGED(
+              "int_keyed", 1,
+              PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+              PERFETTO_NULL, 42)));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+
+  // The string-keyed track carries the behavior and the string key.
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_descriptor_field_number,
+              ElementsAre(MsgField(AllOf(
+                  Contains(
+                      PbField(perfetto_protos_TrackDescriptor_name_field_number,
+                              StringField("str_keyed"))),
+                  Contains(PbField(
+                      perfetto_protos_TrackDescriptor_sibling_merge_behavior_field_number,
+                      VarIntField(
+                          perfetto_protos_TrackDescriptor_SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY))),
+                  Contains(PbField(
+                      perfetto_protos_TrackDescriptor_sibling_merge_key_field_number,
+                      StringField("merge_group_a"))))))))));
+  // The integer-keyed track carries the behavior and the integer key.
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_descriptor_field_number,
+              ElementsAre(MsgField(AllOf(
+                  Contains(
+                      PbField(perfetto_protos_TrackDescriptor_name_field_number,
+                              StringField("int_keyed"))),
+                  Contains(PbField(
+                      perfetto_protos_TrackDescriptor_sibling_merge_behavior_field_number,
+                      VarIntField(
+                          perfetto_protos_TrackDescriptor_SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY))),
+                  Contains(PbField(
+                      perfetto_protos_TrackDescriptor_sibling_merge_key_int_field_number,
+                      VarIntField(42))))))))));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlCorrelationId) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event1"),
+              PERFETTO_TE_CORRELATION_ID(1234));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event2"),
+              PERFETTO_TE_CORRELATION_ID_STR("req-5678"));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_event_field_number,
+              ElementsAre(AllFieldsWithId(
+                  perfetto_protos_TrackEvent_correlation_id_field_number,
+                  ElementsAre(VarIntField(1234))))))));
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_event_field_number,
+              ElementsAre(AllFieldsWithId(
+                  perfetto_protos_TrackEvent_correlation_id_str_field_number,
+                  ElementsAre(StringField("req-5678"))))))));
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventIsCategoryEnabled) {

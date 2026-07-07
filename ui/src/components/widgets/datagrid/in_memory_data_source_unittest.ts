@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Row} from '../../../trace_processor/query_result';
-import {FlatModel} from './data_source';
+import type {Row} from '../../../trace_processor/query_result';
+import type {FlatModel} from './data_source';
 import {InMemoryDataSource} from './in_memory_data_source';
-import {Filter} from './model';
+import type {Filter} from './model';
 
 describe('InMemoryDataSource', () => {
   const sampleData: ReadonlyArray<Row> = [

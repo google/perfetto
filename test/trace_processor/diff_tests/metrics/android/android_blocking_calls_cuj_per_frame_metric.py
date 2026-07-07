@@ -23,6 +23,7 @@ LAUNCHER_UI_TID = 6020
 
 # RenderThread
 SYSUI_RTID = 1555
+HWUI_TID = 1556
 LAUNCHER_RTID = 1655
 
 SYSUI_PACKAGE = "com.android.systemui"
@@ -237,6 +238,41 @@ def add_blocking_calls_per_frame_multiple_cuj_instance(trace, cuj_name):
       tid=SYSUI_RTID,
       pid=SYSUI_PID)
   trace.add_atrace_end(ts=27_900_000, tid=SYSUI_RTID, pid=SYSUI_PID)
+
+  trace.add_atrace_begin(
+      ts=27_100_000,
+      buf="drawLayer [TestLayer] 100.0 x 100.0",
+      tid=SYSUI_RTID,
+      pid=SYSUI_PID)
+  trace.add_atrace_end(ts=27_200_000, tid=SYSUI_RTID, pid=SYSUI_PID)
+
+  trace.add_atrace_begin(
+      ts=27_200_000,
+      buf="Texture upload(1234) 64x64",
+      tid=SYSUI_RTID,
+      pid=SYSUI_PID)
+  trace.add_atrace_end(ts=27_300_000, tid=SYSUI_RTID, pid=SYSUI_PID)
+
+  trace.add_atrace_begin(
+      ts=27_300_000, buf="flush layers", tid=SYSUI_RTID, pid=SYSUI_PID)
+  trace.add_atrace_end(ts=27_400_000, tid=SYSUI_RTID, pid=SYSUI_PID)
+
+  trace.add_atrace_begin(
+      ts=27_400_000, buf="flush commands", tid=SYSUI_RTID, pid=SYSUI_PID)
+  trace.add_atrace_end(ts=27_500_000, tid=SYSUI_RTID, pid=SYSUI_PID)
+
+  trace.add_atrace_begin(
+      ts=27_500_000, buf="queueBuffer", tid=SYSUI_RTID, pid=SYSUI_PID)
+  trace.add_atrace_end(ts=27_600_000, tid=SYSUI_RTID, pid=SYSUI_PID)
+
+  trace.add_sched(
+      ts=27_400_000, prev_pid=0, next_pid=HWUI_TID, next_comm="hwuiTask1")
+  trace.add_sched(
+      ts=27_600_000,
+      prev_pid=HWUI_TID,
+      next_pid=0,
+      prev_comm="hwuiTask1",
+      prev_state='S')
 
   # Add expected and actual frames.
   add_expected_surface_frame_events(
@@ -456,6 +492,8 @@ def setup_trace():
       tgid=SYSUI_PID,
       cmdline="RenderThread",
       name="RenderThread")
+  trace.add_thread(
+      tid=HWUI_TID, tgid=SYSUI_PID, cmdline="hwuiTask1", name="hwuiTask1")
   trace.add_thread(
       tid=LAUNCHER_RTID,
       tgid=LAUNCHER_PID,

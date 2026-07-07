@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Color} from './color';
+import type {Color} from './color';
 
 // |ColorScheme| defines a collection of colors which can be used for various UI
 // elements. In the future we would expand this interface to include light and

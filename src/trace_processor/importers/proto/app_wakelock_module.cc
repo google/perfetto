@@ -21,13 +21,12 @@
 #include <memory>
 #include <utility>
 
-#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "protos/perfetto/trace/android/app_wakelock_data.pbzero.h"
-#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -43,8 +42,10 @@
 
 namespace perfetto::trace_processor {
 
-using ::perfetto::protos::pbzero::AppWakelockBundle;
-using ::perfetto::protos::pbzero::AppWakelockInfo;
+using ::com::android::internal::pbzero::AppWakelockBundle;
+using ::com::android::internal::pbzero::AppWakelockInfo;
+using ::com::android::internal::pbzero::FrameworksBaseInternedData;
+using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
 using ::perfetto::protos::pbzero::TracePacket;
 using ::protozero::ConstBytes;
 
@@ -56,20 +57,17 @@ AppWakelockModule::AppWakelockModule(ProtoImporterModuleContext* module_context,
       arg_owner_pid_(context->storage->InternString("owner_pid")),
       arg_owner_uid_(context->storage->InternString("owner_uid")),
       arg_work_uid_(context->storage->InternString("work_uid")) {
-  RegisterForField(TracePacket::kAppWakelockBundleFieldNumber);
+  RegisterForField(FrameworksBaseTracePacket::kAppWakelockBundleFieldNumber);
 }
 
-ModuleResult AppWakelockModule::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView*,
-    int64_t ts,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) {
-  if (field_id != TracePacket::kAppWakelockBundleFieldNumber) {
+ModuleResult AppWakelockModule::TokenizePacket(const TokenizePacketArgs& args) {
+  if (args.field.id() !=
+      FrameworksBaseTracePacket::kAppWakelockBundleFieldNumber) {
     return ModuleResult::Ignored();
   }
 
-  AppWakelockBundle::Decoder evt(decoder.app_wakelock_bundle());
+  AppWakelockBundle::Decoder evt(
+      args.field.Cast<FrameworksBaseTracePacket::kAppWakelockBundle>());
 
   bool parse_error = false;
   auto iid_iter = evt.intern_id(&parse_error);
@@ -83,40 +81,39 @@ ModuleResult AppWakelockModule::TokenizePacket(
     uint64_t encoded_ts = *timestamp_iter;
     uint32_t intern_id = *iid_iter;
 
-    int64_t real_ts = ts + static_cast<int64_t>(encoded_ts >> 1);
+    int64_t real_ts = args.ts + static_cast<int64_t>(encoded_ts >> 1);
     bool acquired = encoded_ts & 0x1;
 
-    auto* interned = state->LookupInternedMessage<
-        protos::pbzero::InternedData::kAppWakelockInfoFieldNumber,
-        protos::pbzero::AppWakelockInfo>(intern_id);
+    auto* interned = args.state->LookupInternedMessage<
+        FrameworksBaseInternedData::kAppWakelockInfoFieldNumber,
+        AppWakelockInfo>(intern_id);
     if (interned == nullptr) {
       context_->stats_tracker->IncrementStats(stats::app_wakelock_unknown_id);
       continue;
     }
 
-    TraceBlobView tbv =
-        context_->blob_packet_writer->WritePacket([&](auto* pkt) {
+    TraceBlobView tbv = context_->blob_packet_writer->WritePacket(
+        [&](protos::pbzero::TracePacket* pkt) {
           pkt->set_timestamp(static_cast<uint64_t>(real_ts));
-          auto* event = pkt->set_app_wakelock_bundle();
+          auto* event = pkt->BeginNestedMessage<AppWakelockBundle>(
+              FrameworksBaseTracePacket::kAppWakelockBundleFieldNumber);
           auto length =
               static_cast<size_t>(interned->end() - interned->begin());
           event->set_info()->AppendRawProtoBytes(interned->begin(), length);
           event->set_acquired(acquired);
         });
-    PushPacketBufferForSort(real_ts, std::move(tbv), state);
+    PushPacketBufferForSort(real_ts, std::move(tbv), args.state);
   }
 
   return ModuleResult::Handled();
 }
 
-void AppWakelockModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
-    case TracePacket::kAppWakelockBundleFieldNumber:
-      ParseWakelockBundle(ts, decoder.app_wakelock_bundle());
+void AppWakelockModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
+    case FrameworksBaseTracePacket::kAppWakelockBundleFieldNumber:
+      ParseWakelockBundle(
+          args.ts,
+          args.field.Cast<FrameworksBaseTracePacket::kAppWakelockBundle>());
       return;
   }
 }

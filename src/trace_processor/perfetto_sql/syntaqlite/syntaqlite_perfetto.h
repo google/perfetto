@@ -29,6 +29,7 @@
 #pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 #endif
 #ifdef __clang__
+#pragma clang diagnostic ignored "-Wunknown-warning-option"
 #pragma clang diagnostic ignored "-Wextra-semi-stmt"
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wmissing-variable-declarations"

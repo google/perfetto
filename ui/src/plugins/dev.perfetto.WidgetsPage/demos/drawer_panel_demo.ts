@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Button} from '../../../widgets/button';
-import {DrawerPanel, DrawerTab} from '../../../widgets/drawer_panel';
+import {DrawerPanel, type DrawerTab} from '../../../widgets/drawer_panel';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
 export function renderDrawerPanel(): m.Children {

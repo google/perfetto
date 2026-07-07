@@ -1,105 +1,129 @@
 # Perfetto Skills
 
-This directory holds **skills**: self-contained, model-agnostic
-instructions that teach an AI agent how to do something useful with
-Perfetto. Skills are how Perfetto and the teams that use it encode
-the knowledge an expert would share when sitting next to a colleague
-— what to look at, which tables to query, what good queries look
-like, and how to interpret the results.
+This directory holds a single **skill**: model-agnostic instructions
+that teach an AI agent how to do something useful with Perfetto. A
+skill is how Perfetto and the teams that use it encode the knowledge
+an expert would share when sitting next to a colleague — what to look
+at, which tables to query, what good queries look like, and how to
+interpret the results.
 
 The format follows the [Agent Skills](https://agentskills.io)
-convention: each skill is a directory containing a `SKILL.md` with
-YAML frontmatter (`name`, `description`) and a markdown body. Any
-tool that implements the
-convention — Claude Code, Gemini CLI, OpenAI Codex — can load them.
+convention: a skill is a directory containing a `SKILL.md` with YAML
+frontmatter (`name`, `description`) and a markdown body. Any tool that
+implements the convention — Claude Code, Gemini CLI, OpenAI Codex —
+can load it.
 
-This is the **seed** of a much larger skill ecosystem described in
-[RFC-0025: AI in Perfetto](https://github.com/google/perfetto/discussions/5763).
-External teams will eventually contribute their own skills, either
-checked in here or served from extension servers.
+This is part of the ecosystem described in
+[RFC-0025: AI in Perfetto](https://github.com/google/perfetto/discussions/5763)
+and [RFC-0026](https://github.com/google/perfetto/discussions/5892).
 
-## Skills are designed to be copied
+## One skill, a router, and reusable files
 
-A skill is portable. It will be vendored into agent contexts (e.g.
-`~/.claude/skills/`), pasted into other repos, and read by tools
-running without access to the Perfetto source tree. So:
-
-- **Never use repo-relative paths** like `src/trace_processor/...`
-  or `docs/analysis/...` — they don't resolve outside this checkout.
-  Link to [perfetto.dev](https://perfetto.dev/docs) instead.
-- **Don't refer to "this repo" or `tools/...` scripts** — assume
-  the reader only has a Perfetto build (`trace_processor`) and the
-  trace.
-- **Keep the skill self-sufficient.** If a skill needs a SQL helper
-  or example, ship it inside the skill directory next to `SKILL.md`.
-
-## Layout
-
-The directory is **flat**: every skill is a direct child of
-`ai/skills/`. This matches the discovery rules of every supported
-agent (`<root>/<slug>/SKILL.md`), so the same tree drops into
-`~/.claude/skills/`, `~/.gemini/skills/`, or `~/.agents/skills/`
-without any flattening step.
+Everything Perfetto ships is consolidated into **one** skill,
+`ai/skills/perfetto/`. Its entry point is a lean router; the actual
+knowledge lives in reference and workflow files the router dispatches
+to and loads on demand. This keeps a single, broad `description` in
+the agent's context budget instead of many sibling skills competing to
+match, and lets each piece be loaded only when the task needs it.
 
 ```
-ai/skills/
-├── README.md
-├── perfetto-infra-querying-traces/
-│   └── SKILL.md
-├── perfetto-infra-getting-trace-processor/
-│   └── SKILL.md
-└── perfetto-workflow-android-heap-dump/
-    └── SKILL.md
+ai/skills/perfetto/
+├── SKILL-template.md            # the router (see below — NOT named SKILL.md)
+├── infra-references/
+│   └── querying.md              # how to run trace_processor + PerfettoSQL
+├── environment-references/
+│   └── setup.md                 # $SKILL_ROOT + the bundled trace_processor
+└── workflows/
+    └── android_memory/
+        ├── heap_dump.md
+        ├── heap_dump_cluster.md
+        ├── heap_dump_caching_optimizer.md
+        └── scripts/             # SQL/Python shipped with these workflows
 ```
 
-The slug doubles as the taxonomy: `perfetto-` is the vendor prefix
-(so Perfetto skills don't collide with anything else the user has
-installed), then a category, then any sub-categories, then the
-skill name. Two categories today:
+Three kinds of file:
 
-- **`perfetto-infra-*`** — domain-agnostic mechanics of working with
-  Perfetto: how to query a trace, how to install the binary, etc.
-- **`perfetto-workflow-<domain>-*`** — domain-specific
-  investigation workflows: how to investigate a heap dump on
-  Android, jank on Chrome, etc.
+- **`workflows/<domain>/*.md`** — entry points the router dispatches
+  *to*: domain-specific guided investigations (a heap dump on Android,
+  jank on Chrome, …). Group related workflows in a `<domain>/`
+  subfolder. A workflow is self-contained — it carries its own queries
+  and any helper scripts under a sibling `scripts/` dir.
+- **`infra-references/*.md`** — domain-agnostic mechanics a workflow
+  (or an ad-hoc request) pulls *in*: how to query a trace, etc.
+- **`environment-references/*.md`** — environment setup: what to set
+  `$SKILL_ROOT` to and how to invoke the bundled `trace_processor`.
 
-A workflow skill *uses* infra skills — it tells the agent "you'll
-need to query the trace; here's the bit specific to this problem."
+## The source tree is a build input, not a drop-in
 
-## Authoring a skill
+Unlike a normal Agent Skill, this tree is **not** directly loadable.
+Two source-only conventions mean it has to pass through the bundler
+(`tools/release/build_ai_agents.py`) before any agent can load it:
 
-Create a directory under `ai/skills/` whose name follows the
-`perfetto-<category>-<name>` pattern, with a `SKILL.md` inside:
+1. **`SKILL-template.md`, not `SKILL.md`.** The router is named so a
+   discovery layer scanning for `SKILL.md` will not pick up the
+   unassembled source tree. The bundler renames it to `SKILL.md`.
+2. **No `bin/trace_processor` in source.** The setup doc points every
+   `trace_processor` invocation at `$SKILL_ROOT/bin/trace_processor`,
+   but that wrapper is not checked in here — the bundler copies it in
+   from `tools/trace_processor` at build time, so every install
+   (plugin or fallback) carries a working binary inside the skill.
+
+Every agent gets the identical assembled skill. See
+[`ai/extensions/README.md`](../extensions/README.md) for how the
+assembled bundle reaches end users.
+
+## Reference other files by `$SKILL_ROOT`-anchored path
+
+Every path a file mentions — links to other skill files, and the
+helper scripts a workflow runs — is written as `$SKILL_ROOT/<path>`,
+where `<path>` is relative to the skill root (the directory holding
+`SKILL.md`) and never relative to the file doing the referencing. So
+from `workflows/android_memory/heap_dump.md`:
 
 ```markdown
----
-name: perfetto-infra-querying-traces
-description: Use when the user wants to load a Perfetto trace, run
-  a SQL query against it, or discover which tables and columns are
-  available. Covers trace_processor invocation and the PerfettoSQL
-  standard library.
----
-
-# Body of the skill, written for an AI agent to follow.
+follow `$SKILL_ROOT/infra-references/querying.md` first, then come back here.
 ```
 
-Guidelines:
+Not `../../infra-references/querying.md` (file-relative), and not a
+bare `infra-references/querying.md` either. Likewise a helper script is
+`$SKILL_ROOT/workflows/android_memory/scripts/cluster_paths.py`, and a
+`trace_processor` invocation spells the full path:
 
-- **`name`** must equal the directory slug. Agents key off the
-  frontmatter name and discovery is a single level deep.
-- **`description`** must clearly state *when* the skill should be
-  invoked. The agent uses this line to decide whether the skill is
-  relevant, so be specific about the trigger conditions, not just
-  the topic.
-- The body is regular markdown. Write it in the imperative ("run X",
-  "check Y"), the same way you would write a runbook.
-- **Always link to absolute URLs on
-  [perfetto.dev/docs](https://perfetto.dev/docs)**, not
-  repo-relative paths.
-- **Test your skill against a real trace** before checking it in.
-  Skills that have never been run end up with broken syntax and
-  wrong column names.
-- A skill directory can contain additional files (example scripts,
-  reference SQL). Reference them from `SKILL.md` by relative path.
-- Keep the body focused. If a skill grows past a couple of pages,
-  split it.
+```sh
+trace_processor query --query-file \
+  $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql TRACE_FILE
+```
+
+`$SKILL_ROOT` is the one anchor that makes this unambiguous. The skill
+is loaded from a plugin/install directory that is **not** the agent's
+working directory (that's the user's workspace, where the trace lives),
+so a bare relative path would resolve against the wrong place.
+`environment-references/setup.md` — the always-required first read —
+tells the agent to set `$SKILL_ROOT` to the directory it loaded
+`SKILL.md` from, and to put the bundled `$SKILL_ROOT/bin` on the
+session's `PATH` so bare `trace_processor` commands work. Once it's set,
+every `$SKILL_ROOT/...` path resolves the same way regardless of the
+working directory, whether the agent is opening a referenced markdown
+file or passing a script to the shell.
+
+The router (`SKILL-template.md`) sits at the skill root, so its
+`$SKILL_ROOT/...` links have no intermediate `../`; every other file
+speaks the same path language. A file can move between subfolders
+without rewriting its outgoing links (only references *to* it change).
+
+## Authoring
+
+- **Portability.** A file will be read by tools without access to this
+  checkout. Never use repo-relative paths like `src/trace_processor/...`
+  or refer to `tools/...` scripts; assume the reader only has
+  `trace_processor` and a trace. Link to absolute URLs on
+  [perfetto.dev/docs](https://perfetto.dev/docs).
+- **The router (`SKILL-template.md`)** stays minimal: match broad in
+  its `description`, then route. When you add a workflow, add one row
+  to its table. Keep it short.
+- **Add a workflow** as `workflows/<domain>/<name>.md`, with any
+  scripts in a sibling `scripts/`. Write the body in the imperative,
+  like a runbook. Pull in `$SKILL_ROOT/infra-references/querying.md`
+  (anchored path, as above) rather than re-explaining how to query.
+- **Test against a real trace** before checking in. Files that have
+  never been run end up with broken syntax and wrong column names.

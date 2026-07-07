@@ -50,15 +50,26 @@ message TestEvent {
   }
   optional TestPayload payload = 5;
 
-  // Simple ProtoVm patch and incremental state formats used for integration
-  // testing
+  // Simple ProtoVm patch and incremental state formats used for testing
+  message ProtoVmMessage {
+    message ProtoVmSubmessage {
+      optional uint32 single_int = 1;
+    }
+    optional uint32 id = 1;
+    optional ProtoVmSubmessage submessage = 2;
+  }
   message ProtoVmPatch {
     optional string string_to_merge = 1;
     optional int32 int_to_merge = 2;
+    optional ProtoVmMessage single_message = 3;
+    repeated ProtoVmMessage messages = 4;
+    repeated uint32 delete_message_ids = 5;
   }
   message ProtoVmIncrementalState {
     optional string string_merged = 1;
     optional int32 int_merged = 2;
+    optional ProtoVmMessage single_message = 3;
+    repeated ProtoVmMessage messages = 4;
   }
   optional ProtoVmPatch protovm_patch = 6;
   optional ProtoVmIncrementalState protovm_incremental_state = 7;

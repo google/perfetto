@@ -12,23 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {z} from 'zod';
+import type {z} from 'zod';
 import {fetchWithTimeout} from '../../base/http_utils';
 import {
-  ExtensionServer,
+  type ExtensionServer,
   macrosSchema,
-  Manifest,
+  type Manifest,
   manifestSchema,
   protoDescriptorsSchema,
-  UserInput,
+  type UserInput,
   sqlModulesSchema,
 } from './types';
 import m from 'mithril';
 import {showModal} from '../../widgets/modal';
 import {Anchor} from '../../widgets/anchor';
 import {CodeSnippet} from '../../widgets/code_snippet';
-import {errResult, okResult, Result} from '../../base/result';
-import {AppImpl} from '../../core/app_impl';
+import {errResult, okResult, type Result} from '../../base/result';
+import type {AppImpl} from '../../core/app_impl';
 import {base64Encode, utf8Encode} from '../../base/string_utils';
 import {joinPath} from './url_utils';
 

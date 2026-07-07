@@ -36,6 +36,7 @@ class PixelDisplayTracker {
   void ParseDpuDispFrameStartMissing(int64_t timestamp, protozero::ConstBytes);
   void ParseDpuDispFrameDoneMissing(int64_t timestamp, protozero::ConstBytes);
   void ParseDpuDispVblankIrqEnable(int64_t timestamp, protozero::ConstBytes);
+  void ParseDpuDispDpuLineUnderrun(int64_t timestamp, protozero::ConstBytes);
 
  private:
   TraceProcessorContext* context_;
@@ -45,6 +46,7 @@ class PixelDisplayTracker {
   const StringId frame_start_missing_name_;
   const StringId frame_done_missing_name_;
   const StringId vblank_irq_enable_name_;
+  const StringId dpu_line_underrun_name_;
 
   // event arguments
   const StringId display_id_arg_;

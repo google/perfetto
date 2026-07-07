@@ -15,7 +15,7 @@
 import {createFakeTraceImpl} from '../../../../core/fake_trace_impl';
 import {tableColumnId} from './table_column';
 import {SqlTableState} from './state';
-import {SqlTableDescription} from './table_description';
+import type {SqlTableDescription} from './table_description';
 import {createTableColumn} from './columns';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 

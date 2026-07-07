@@ -33,7 +33,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -187,10 +186,13 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
         SystraceLine line;
         base::Status status = line_tokenizer_.Tokenize(buffer, &line);
         if (status.ok()) {
-          auto trace_ts = ctx_->clock_tracker->ToTraceTime(
-              ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-              line.ts);
+          auto trace_ts =
+              ctx_->clock_tracker->ConvertDefaultClockToTraceTime(line.ts);
           if (trace_ts) {
+            // The converted timestamp is both the sorting key and the value
+            // the parser stage reads: SystraceLineParser populates tables
+            // from line.ts, so the conversion must be written back.
+            line.ts = *trace_ts;
             stream_->Push(*trace_ts, std::move(line));
           }
         } else {

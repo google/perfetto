@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../../base/assert';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import {ensureExists} from '../../base/assert';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {
@@ -109,7 +109,7 @@ export default class implements PerfettoPlugin {
       const {trackId, name, utid, upid, cpu, isCounter, scope, tid, pid} = it;
 
       const displayTrackName = this.getTrackName(
-        assertExists(name),
+        ensureExists(name),
         pid ?? undefined,
         tid ?? undefined,
         cpu ?? undefined,
@@ -203,21 +203,21 @@ export default class implements PerfettoPlugin {
     cpu: number | undefined,
   ): TrackNode {
     if (upid !== undefined) {
-      return assertExists(
+      return ensureExists(
         ctx.plugins
           .getPlugin(ProcessThreadGroupsPlugin)
-          .getGroupForProcess(assertExists(upid)),
+          .getGroupForProcess(ensureExists(upid)),
       );
     }
     if (utid !== undefined) {
-      return assertExists(
+      return ensureExists(
         ctx.plugins
           .getPlugin(ProcessThreadGroupsPlugin)
-          .getGroupForThread(assertExists(utid)),
+          .getGroupForThread(ensureExists(utid)),
       );
     }
     if (cpu !== undefined) {
-      return assertExists(
+      return ensureExists(
         ctx.plugins
           .getPlugin(StandardGroupsPlugin)
           .getOrCreateStandardGroup(ctx.defaultWorkspace, 'CPU'),
@@ -225,7 +225,7 @@ export default class implements PerfettoPlugin {
     }
     // custom-scoped event: "Kernel -> Kernel track events".
     if (this.kernelTrackEventsNode === undefined) {
-      const kernelGroup = assertExists(
+      const kernelGroup = ensureExists(
         ctx.plugins
           .getPlugin(StandardGroupsPlugin)
           .getOrCreateStandardGroup(ctx.defaultWorkspace, 'KERNEL'),

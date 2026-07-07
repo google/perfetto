@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {STR, LONG, LONG_NULL} from '../../trace_processor/query_result';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 

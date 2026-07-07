@@ -60,10 +60,6 @@ namespace {
 
 constexpr size_t kChunkSize = 42;
 
-protozero::ConstChars ToChars(const char* str) {
-  return protozero::ConstChars{str, strlen(str)};
-}
-
 class ProtoToArgsParserTest : public ::testing::Test,
                               public ProtoToArgsParser::Delegate {
  protected:
@@ -85,70 +81,79 @@ class ProtoToArgsParserTest : public ::testing::Test,
     }
   }
 
+ protected:
+  StringPool string_pool_;
+
  private:
   using Key = ProtoToArgsParser::Key;
+  using Id = StringPool::Id;
 
-  void AddInteger(const Key& key, int64_t value) override {
+  // Resolves an interned key id back to its string for the assertion args.
+  std::string K(Id id) { return string_pool_.Get(id).ToStdString(); }
+
+  Id InternString(base::StringView s) override {
+    return string_pool_.InternString(s);
+  }
+
+  void AddInteger(Id fk, Id k, int64_t value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << value;
+    ss << K(fk) << " " << K(k) << " " << value;
     args_.push_back(ss.str());
   }
 
-  void AddUnsignedInteger(const Key& key, uint64_t value) override {
+  void AddUnsignedInteger(Id fk, Id k, uint64_t value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << value;
+    ss << K(fk) << " " << K(k) << " " << value;
     args_.push_back(ss.str());
   }
 
-  void AddString(const Key& key, const protozero::ConstChars& value) override {
+  void AddString(Id fk, Id k, const protozero::ConstChars& value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << value.ToStdString();
+    ss << K(fk) << " " << K(k) << " " << value.ToStdString();
     args_.push_back(ss.str());
   }
 
-  void AddString(const Key& key, const std::string& value) override {
+  void AddString(Id fk, Id k, const std::string& value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << value;
+    ss << K(fk) << " " << K(k) << " " << value;
     args_.push_back(ss.str());
   }
 
-  void AddBytes(const Key& key, const protozero::ConstBytes& value) override {
+  void AddBytes(Id fk, Id k, const protozero::ConstBytes& value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " <bytes size=" << value.size
-       << ">";
+    ss << K(fk) << " " << K(k) << " <bytes size=" << value.size << ">";
     args_.push_back(ss.str());
   }
 
-  void AddDouble(const Key& key, double value) override {
+  void AddDouble(Id fk, Id k, double value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << value;
+    ss << K(fk) << " " << K(k) << " " << value;
     args_.push_back(ss.str());
   }
 
-  void AddPointer(const Key& key, uint64_t value) override {
+  void AddPointer(Id fk, Id k, uint64_t value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << std::hex << value
+    ss << K(fk) << " " << K(k) << " " << std::hex << value << std::dec;
+    args_.push_back(ss.str());
+  }
+
+  void AddBoolean(Id fk, Id k, bool value) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " " << (value ? "true" : "false");
+    args_.push_back(ss.str());
+  }
+
+  bool AddJson(Id fk, Id k, const protozero::ConstChars& value) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " " << std::hex << value.ToStdString()
        << std::dec;
-    args_.push_back(ss.str());
-  }
-
-  void AddBoolean(const Key& key, bool value) override {
-    std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << (value ? "true" : "false");
-    args_.push_back(ss.str());
-  }
-
-  bool AddJson(const Key& key, const protozero::ConstChars& value) override {
-    std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << std::hex
-       << value.ToStdString() << std::dec;
     args_.push_back(ss.str());
     return true;
   }
 
-  void AddNull(const Key& key) override {
+  void AddNull(Id fk, Id k) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " [NULL]";
+    ss << K(fk) << " " << K(k) << " [NULL]";
     args_.push_back(ss.str());
   }
 
@@ -174,7 +179,7 @@ TEST_F(ProtoToArgsParserTest, EnsureTestMessageProtoParses) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 }
@@ -211,7 +216,7 @@ TEST_F(ProtoToArgsParserTest, BasicSingleLayerProto) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -259,7 +264,7 @@ TEST_F(ProtoToArgsParserTest, PackedEncodingWithoutDescriptorPackedFlag) {
   ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                           kTestMessagesDescriptor.size()));
 
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_OK(parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.EveryField", nullptr, *this));
@@ -278,7 +283,7 @@ TEST_F(ProtoToArgsParserTest, NestedProto) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -304,7 +309,7 @@ TEST_F(ProtoToArgsParserTest, CamelCaseFieldsProto) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -329,7 +334,7 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideHandled) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -338,7 +343,8 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideHandled) {
       [](const protozero::Field& field, ProtoToArgsParser::Delegate& writer) {
         EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
         std::string key = "super_nested.value_b.replaced";
-        writer.AddInteger({key, key}, field.as_int32());
+        auto id = writer.InternString(base::StringView(key));
+        writer.AddInteger(id, id, field.as_int32());
         // We've handled this field by adding the desired args.
         return base::OkStatus();
       });
@@ -365,7 +371,7 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -418,7 +424,7 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   // Now we override the behaviour of |value_c| so we can expand the iid into
   // multiple args rows.
   parser.AddParsingOverrideForField(
@@ -431,9 +437,10 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
           // Lookup failed fall back on default behaviour.
           return std::nullopt;
         }
-        delegate.AddString(ProtoToArgsParser::Key("file_name"),
-                           protozero::ConstChars{"file", 4});
-        delegate.AddInteger(ProtoToArgsParser::Key("line_number"), 2);
+        auto fn = delegate.InternString(base::StringView("file_name"));
+        delegate.AddString(fn, fn, protozero::ConstChars{"file", 4});
+        auto ln = delegate.InternString(base::StringView("line_number"));
+        delegate.AddInteger(ln, ln, 2);
         return base::OkStatus();
       });
 
@@ -445,79 +452,6 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
       << status.message();
   EXPECT_THAT(args(), testing::ElementsAre("file_name file_name file",
                                            "line_number line_number 2"));
-}
-
-TEST_F(ProtoToArgsParserTest, OverrideForType) {
-  using namespace protozero::test::protos::pbzero;
-  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
-  msg->set_super_nested()->set_value_c(3);
-
-  auto binary_proto = msg.SerializeAsArray();
-
-  DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
-  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
-                           << status.message();
-
-  ProtoToArgsParser parser(pool);
-
-  parser.AddParsingOverrideForType(
-      ".protozero.test.protos.NestedA.NestedB.NestedC",
-      [](ProtoToArgsParser::ScopedNestedKeyContext&,
-         const protozero::ConstBytes&, Delegate& delegate) {
-        delegate.AddInteger(ProtoToArgsParser::Key("arg"), 42);
-        return base::OkStatus();
-      });
-
-  status = parser.ParseMessage(
-      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", nullptr, *this);
-  EXPECT_TRUE(status.ok())
-      << "InternProtoFieldsIntoArgsTable failed with error: "
-      << status.message();
-  EXPECT_THAT(args(), testing::ElementsAre("arg arg 42"));
-}
-
-TEST_F(ProtoToArgsParserTest, FieldOverrideTakesPrecedence) {
-  using namespace protozero::test::protos::pbzero;
-  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
-  msg->set_super_nested()->set_value_c(3);
-
-  auto binary_proto = msg.SerializeAsArray();
-
-  DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
-  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
-                           << status.message();
-
-  ProtoToArgsParser parser(pool);
-
-  parser.AddParsingOverrideForField(
-      "super_nested",
-      [](const protozero::Field&, ProtoToArgsParser::Delegate& writer) {
-        writer.AddString(ProtoToArgsParser::Key("arg"),
-                         ToChars("override-for-field"));
-        return base::OkStatus();
-      });
-
-  parser.AddParsingOverrideForType(
-      ".protozero.test.protos.NestedA.NestedB.NestedC",
-      [](ProtoToArgsParser::ScopedNestedKeyContext&,
-         const protozero::ConstBytes&, Delegate& delegate) {
-        delegate.AddString(ProtoToArgsParser::Key("arg"),
-                           ToChars("override-for-type"));
-        return base::OkStatus();
-      });
-
-  status = parser.ParseMessage(
-      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", nullptr, *this);
-  EXPECT_TRUE(status.ok())
-      << "InternProtoFieldsIntoArgsTable failed with error: "
-      << status.message();
-  EXPECT_THAT(args(), testing::ElementsAre("arg arg override-for-field"));
 }
 
 TEST_F(ProtoToArgsParserTest, EmptyMessage) {
@@ -533,7 +467,7 @@ TEST_F(ProtoToArgsParserTest, EmptyMessage) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   status = parser.ParseMessage(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.NestedA", nullptr, *this);
@@ -568,7 +502,7 @@ TEST_F(ProtoToArgsParserTest, WidthAndSignednessOfScalars) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -660,7 +594,7 @@ TEST_F(ProtoToArgsParserTest, PackedFields) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -716,7 +650,7 @@ TEST_F(ProtoToArgsParserTest, AllowedFieldsOnlyTopLevel) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -745,7 +679,7 @@ TEST_F(ProtoToArgsParserTest, AddsDefaultsNested) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -777,7 +711,7 @@ TEST_F(ProtoToArgsParserTest, AddsDefaults) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
-  ProtoToArgsParser parser(pool);
+  ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -841,63 +775,72 @@ class DebugAnnotationParserTest : public ::testing::Test,
     state_builder_.InternMessage(field_id, std::move(message));
   }
 
+ protected:
+  StringPool string_pool_;
+
  private:
   using Key = ProtoToArgsParser::Key;
+  using Id = StringPool::Id;
 
-  void AddInteger(const Key& key, int64_t value) override {
+  std::string K(Id id) { return string_pool_.Get(id).ToStdString(); }
+
+  Id InternString(base::StringView s) override {
+    return string_pool_.InternString(s);
+  }
+
+  void AddInteger(Id fk, Id k, int64_t value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << value;
+    ss << K(fk) << " " << K(k) << " " << value;
     args_.push_back(ss.str());
   }
 
-  void AddUnsignedInteger(const Key& key, uint64_t value) override {
+  void AddUnsignedInteger(Id fk, Id k, uint64_t value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << value;
+    ss << K(fk) << " " << K(k) << " " << value;
     args_.push_back(ss.str());
   }
 
-  void AddString(const Key& key, const protozero::ConstChars& value) override {
+  void AddString(Id fk, Id k, const protozero::ConstChars& value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << value.ToStdString();
+    ss << K(fk) << " " << K(k) << " " << value.ToStdString();
     args_.push_back(ss.str());
   }
 
-  void AddString(const Key& key, const std::string& value) override {
+  void AddString(Id fk, Id k, const std::string& value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << value;
+    ss << K(fk) << " " << K(k) << " " << value;
     args_.push_back(ss.str());
   }
 
-  void AddDouble(const Key& key, double value) override {
+  void AddDouble(Id fk, Id k, double value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << value;
+    ss << K(fk) << " " << K(k) << " " << value;
     args_.push_back(ss.str());
   }
 
-  void AddPointer(const Key& key, uint64_t value) override {
+  void AddPointer(Id fk, Id k, uint64_t value) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << std::hex << value
+    ss << K(fk) << " " << K(k) << " " << std::hex << value << std::dec;
+    args_.push_back(ss.str());
+  }
+
+  void AddBoolean(Id fk, Id k, bool value) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " " << (value ? "true" : "false");
+    args_.push_back(ss.str());
+  }
+
+  bool AddJson(Id fk, Id k, const protozero::ConstChars& value) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " " << std::hex << value.ToStdString()
        << std::dec;
-    args_.push_back(ss.str());
-  }
-
-  void AddBoolean(const Key& key, bool value) override {
-    std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << (value ? "true" : "false");
-    args_.push_back(ss.str());
-  }
-
-  bool AddJson(const Key& key, const protozero::ConstChars& value) override {
-    std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " " << std::hex
-       << value.ToStdString() << std::dec;
     args_.push_back(ss.str());
     return true;
   }
 
-  void AddNull(const Key& key) override {
+  void AddNull(Id fk, Id k) override {
     std::stringstream ss;
-    ss << key.flat_key << " " << key.key << " [NULL]";
+    ss << K(fk) << " " << K(k) << " [NULL]";
     args_.push_back(ss.str());
   }
 
@@ -947,7 +890,7 @@ TEST_F(DebugAnnotationParserTest, DeeplyNestedDictsAndArrays) {
   EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  ProtoToArgsParser args_parser(pool);
+  ProtoToArgsParser args_parser(pool, string_pool_);
 
   status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
@@ -969,7 +912,7 @@ TEST_F(DebugAnnotationParserTest, MergeArrays) {
   item2->set_int_value(2);
 
   DescriptorPool pool;
-  ProtoToArgsParser args_parser(pool);
+  ProtoToArgsParser args_parser(pool, string_pool_);
 
   base::Status status = ParseDebugAnnotation(args_parser, msg1, *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
@@ -1005,7 +948,7 @@ TEST_F(DebugAnnotationParserTest, EmptyArrayIndexIsSkipped) {
   msg->add_array_values()->set_int_value(5);
 
   DescriptorPool pool;
-  ProtoToArgsParser args_parser(pool);
+  ProtoToArgsParser args_parser(pool, string_pool_);
 
   base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
@@ -1027,7 +970,7 @@ TEST_F(DebugAnnotationParserTest, NestedArrays) {
   item2->add_array_values()->set_int_value(4);
 
   DescriptorPool pool;
-  ProtoToArgsParser args_parser(pool);
+  ProtoToArgsParser args_parser(pool, string_pool_);
 
   base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
@@ -1054,7 +997,7 @@ TEST_F(DebugAnnotationParserTest, TypedMessageInsideUntyped) {
   EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  ProtoToArgsParser args_parser(pool);
+  ProtoToArgsParser args_parser(pool, string_pool_);
 
   status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
@@ -1100,7 +1043,7 @@ TEST_F(DebugAnnotationParserTest, DeeplyNestedProtoValueCycle) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  ProtoToArgsParser args_parser(pool);
+  ProtoToArgsParser args_parser(pool, string_pool_);
 
   const std::vector<uint8_t>& outermost = serialized.back();
   status = args_parser.ParseDebugAnnotation(
@@ -1121,7 +1064,7 @@ TEST_F(DebugAnnotationParserTest, NestedValueDictMismatchedKeysAndValues) {
   v1->set_int_value(1);
 
   DescriptorPool pool;
-  ProtoToArgsParser args_parser(pool);
+  ProtoToArgsParser args_parser(pool, string_pool_);
 
   base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_FALSE(status.ok());
@@ -1139,7 +1082,7 @@ TEST_F(DebugAnnotationParserTest, NestedValueDictMoreValuesThanKeys) {
   v2->set_int_value(2);
 
   DescriptorPool pool;
-  ProtoToArgsParser args_parser(pool);
+  ProtoToArgsParser args_parser(pool, string_pool_);
 
   base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_FALSE(status.ok());
@@ -1158,12 +1101,39 @@ TEST_F(DebugAnnotationParserTest, NestedValueDictMatchedKeysAndValues) {
   v2->set_int_value(2);
 
   DescriptorPool pool;
-  ProtoToArgsParser args_parser(pool);
+  ProtoToArgsParser args_parser(pool, string_pool_);
 
   base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_TRUE(status.ok()) << status.message();
   EXPECT_THAT(args(),
               testing::ElementsAre("root.k1 root.k1 1", "root.k2 root.k2 2"));
+}
+
+// A failed parse must not leave stale work items behind for the next call to
+// resume (which would dereference dangling pointers).
+TEST_F(DebugAnnotationParserTest, ErrorClearsPersistentWorkState) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> bad_msg;
+  bad_msg->set_name("bad_root");
+  auto* nested = bad_msg->set_nested_value();
+  nested->set_nested_type(protos::pbzero::DebugAnnotation::NestedValue::DICT);
+  nested->add_dict_keys("k1");
+  nested->add_dict_keys("k2");
+  auto* v1 = nested->add_dict_values();
+  v1->set_int_value(1);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool, string_pool_);
+
+  base::Status status = ParseDebugAnnotation(args_parser, bad_msg, *this);
+  EXPECT_FALSE(status.ok());
+
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> good_msg;
+  good_msg->set_name("good_root");
+  good_msg->set_int_value(42);
+
+  status = ParseDebugAnnotation(args_parser, good_msg, *this);
+  EXPECT_TRUE(status.ok()) << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre("good_root good_root 42"));
 }
 
 TEST_F(DebugAnnotationParserTest, InternedString) {
@@ -1183,7 +1153,7 @@ TEST_F(DebugAnnotationParserTest, InternedString) {
   msg->set_string_value_iid(1);
 
   DescriptorPool pool;
-  ProtoToArgsParser args_parser(pool);
+  ProtoToArgsParser args_parser(pool, string_pool_);
 
   auto status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"

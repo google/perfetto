@@ -20,14 +20,14 @@ import {EmptyState} from '../../../widgets/empty_state';
 import {Icon} from '../../../widgets/icon';
 import {MenuItem} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
-import {DataSource} from './data_source';
+import type {DataSource} from './data_source';
 import {
-  SchemaRegistry,
+  type SchemaRegistry,
   isColumnDef,
   isParameterizedColumnDef,
   isSchemaRef,
 } from './datagrid_schema';
-import {AggregateColumn, AggregateFunction} from './model';
+import type {AggregateColumn, AggregateFunction} from './model';
 
 interface AddColumnMenuContext {
   readonly dataSource: DataSource;

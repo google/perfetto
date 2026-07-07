@@ -112,7 +112,7 @@ You might want to contribute to the UI, Trace Processor, SDK or various data imp
 - If you want to add a new functionality to the UI, most likely the next step is the [UI getting started](ui-getting-started).
 - If you want to edit the core functionality of the UI: it's a much bigger change which would require in depth understanding of Perfetto UI. Most requests/bugs now are related to various plugins, not the core.
 - If you want to add a new ftrace event take a look at [common tasks page](common-tasks).
-- If you want to add a new table/view/function to Perfetto SQL standard library you need to first undestand [the Perfetto SQL syntax](/docs/analysis/perfetto-sql-syntax.md), and then read the details of updating the standard library at [common tasks page](common-tasks).
+- If you want to add a new table/view/function to Perfetto SQL standard library you need to first understand [the Perfetto SQL syntax](/docs/analysis/perfetto-sql-syntax.md), and then read the details of updating the standard library at [common tasks page](common-tasks).
 - If you want to add a support of a new file type into Perfetto, you need to add a new `importer` to Trace Processor C++ code.
 
 ## {#community} Communication

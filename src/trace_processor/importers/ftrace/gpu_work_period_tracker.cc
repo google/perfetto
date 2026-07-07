@@ -87,9 +87,9 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
   auto slice_id = context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, entry_name_id, duration);
   if (slice_id) {
-    auto rr = context_->storage->mutable_slice_table()->FindById(*slice_id);
-    rr->set_thread_ts(timestamp);
-    rr->set_thread_dur(active_duration);
+    auto rr = (*context_->storage->mutable_slice_table())[*slice_id];
+    rr.set_thread_ts(timestamp);
+    rr.set_thread_dur(active_duration);
   }
 }
 

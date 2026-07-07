@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {EngineMode} from '../../trace_processor/engine';
-import {AppImpl} from '../../core/app_impl';
+import type {EngineMode} from '../../trace_processor/engine';
+import type {AppImpl} from '../../core/app_impl';
 
 export interface EngineStatusBadgeAttrs {
   readonly app: AppImpl;

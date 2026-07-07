@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {HSLColor} from '../../base/color';
-import {ColorScheme} from '../../base/color_scheme';
+import type {ColorScheme} from '../../base/color_scheme';
 import {GRAY, makeColorScheme, WHITE_COLOR} from '../../components/colorizer';
 
 export const CPU_SLICE_URI_PREFIX = '/sched_cpu';

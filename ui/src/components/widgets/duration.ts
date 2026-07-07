@@ -15,10 +15,10 @@
 import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
-import {duration} from '../../base/time';
+import type {duration} from '../../base/time';
 import {Anchor} from '../../widgets/anchor';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {formatDuration} from '../time_utils';
 import {DurationPrecisionMenuItem} from './duration_precision_menu_items';
 import {TimestampFormatMenuItem} from './timestamp_format_menu';

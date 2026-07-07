@@ -27,7 +27,7 @@ INCLUDE PERFETTO MODULE android.cujs.base;
 -- doFrame blocks are running without any visible changes on the screen - leading to
 -- no actual frames being drawn. When this happens there might be gaps in actual frame timeline,
 -- so then the next doFrame would be resolved as an earlier boundary for an extended frame.
-CREATE PERFETTO VIEW _extended_frame_boundary AS
+CREATE PERFETTO TABLE _extended_frame_boundary AS
 -- Get the start time of the NEXT frame in the sequence
 WITH
   _frames_with_next AS (
@@ -79,7 +79,7 @@ ORDER BY
   frame_id;
 
 -- Capture blocking call duration within frames within a CUJ.
-CREATE PERFETTO VIEW _blocking_calls_frame_cuj AS
+CREATE PERFETTO TABLE _blocking_calls_frame_cuj AS
 SELECT
   min(bc.dur, frame.ts_end - bc.ts, bc.ts_end - frame.ts) AS dur,
   max(frame.ts, bc.ts) AS ts,

@@ -12,21 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
 import {removeFalsyValues} from '../../base/array_utils';
 import {Icons} from '../../base/semantic_icons';
-import {duration, time, Time} from '../../base/time';
+import {type duration, type time, Time} from '../../base/time';
 import {createAggregationTab} from '../../components/aggregation_adapter';
-import {MinimapRow} from '../../public/minimap';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {MinimapRow} from '../../public/minimap';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {
   CPU_SLICE_TRACK_KIND,
   THREAD_STATE_TRACK_KIND,
 } from '../../public/track_kinds';
-import {getThreadUriPrefix, getTrackName} from '../../public/utils';
+import {
+  getMachineCount,
+  getThreadUriPrefix,
+  getTrackName,
+} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   LONG_NULL,
@@ -53,8 +58,8 @@ import {createThreadStateTrack} from './thread_state_track';
 import {WakerOverlay} from './waker_overlay';
 import {Cpu} from '../../components/cpu';
 import {ThreadStateByCpuAggregator} from './thread_state_by_cpu_aggregator';
-import {App} from '../../public/app';
-import {Flag} from '../../public/feature_flag';
+import type {App} from '../../public/app';
+import type {Flag} from '../../public/feature_flag';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -91,7 +96,8 @@ export default class SchedPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const cpus = await getSchedCpus(ctx);
+    const numMachines = await getMachineCount(ctx.engine);
+    const cpus = await getSchedCpus(ctx, numMachines);
     this._schedCpus = cpus;
 
     const hasSched = await this.hasSched(ctx.engine);
@@ -531,24 +537,42 @@ export default class SchedPlugin implements PerfettoPlugin {
 /**
  * Get the list of unique cpus in the sched table.
  */
-async function getSchedCpus(ctx: Trace): Promise<Cpu[]> {
+async function getSchedCpus(ctx: Trace, numMachines: number): Promise<Cpu[]> {
   const queryRes = await ctx.engine.query(`
     SELECT DISTINCT
       ucpu,
       cpu.machine_id AS machine_id,
-      cpu.cpu AS cpu
+      cpu.cpu AS cpu,
+      machine.name AS machine_name,
+      machine.label_index AS machine_label_index
     FROM sched
     JOIN cpu USING (ucpu)
+    LEFT JOIN machine ON machine.id = cpu.machine_id
     ORDER BY ucpu
   `);
 
   const ucpus: Cpu[] = [];
   for (
-    const it = queryRes.iter({ucpu: NUM, machine_id: NUM, cpu: NUM});
+    const it = queryRes.iter({
+      ucpu: NUM,
+      machine_id: NUM,
+      cpu: NUM,
+      machine_name: STR_NULL,
+      machine_label_index: NUM_NULL,
+    });
     it.valid();
     it.next()
   ) {
-    ucpus.push(new Cpu(it.ucpu, it.cpu, it.machine_id));
+    ucpus.push(
+      new Cpu(
+        it.ucpu,
+        it.cpu,
+        it.machine_id,
+        it.machine_name ?? undefined,
+        it.machine_label_index ?? undefined,
+        numMachines,
+      ),
+    );
   }
 
   return ucpus;

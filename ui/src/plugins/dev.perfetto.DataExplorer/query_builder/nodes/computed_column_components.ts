@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ColumnInfo} from '../column_info';
+import type {ColumnInfo} from '../column_info';
 import {Switch} from '../../../../widgets/switch';
 import {OutlinedField, FormListItem, AddItemPlaceholder} from '../widgets';
-import {NewColumn} from './add_columns_types';
+import type {NewColumn} from './add_columns_types';
 
 /**
  * Attrs for the SwitchComponent.

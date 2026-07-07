@@ -91,7 +91,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
             m(
               'button',
               {
-                class: 'ah-link',
+                class: 'pf-hde-link',
                 onclick: () =>
                   navigate('object', {id, label: str ? `"${str}"` : display}),
               },
@@ -100,7 +100,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
             str
               ? m(
                   'span',
-                  {class: 'ah-str-badge'},
+                  {class: 'pf-hde-str-badge'},
                   ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
                 )
               : null,
@@ -218,14 +218,14 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
           nodeName
             ? m(
                 'h2',
-                {class: 'ah-view-heading'},
+                {class: 'pf-hde-view-heading'},
                 'Flamegraph: ',
-                m('span', {class: 'ah-mono'}, nodeName),
+                m('span', {class: 'pf-hde-mono'}, nodeName),
               )
             : null,
           m(
             'div',
-            {class: 'ah-card ah-mb-3'},
+            {class: 'pf-hde-card pf-hde-mb-3'},
             m(
               'p',
               'No flamegraph selection found. Select a node in the ',
@@ -235,11 +235,11 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
         ]);
       }
 
-      return m('div', {class: 'ah-view-content'}, [
-        m('div', {class: 'ah-heading-row'}, [
+      return m('div', {class: 'pf-hde-view-content'}, [
+        m('div', {class: 'pf-hde-heading-row'}, [
           m(
             'h2',
-            {class: 'ah-view-heading'},
+            {class: 'pf-hde-view-heading'},
             counter.heading(
               nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
             ),
@@ -247,7 +247,7 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
           onBackToTimeline
             ? m(
                 'button',
-                {class: 'ah-download-link', onclick: onBackToTimeline},
+                {class: 'pf-hde-download-link', onclick: onBackToTimeline},
                 'Back to Timeline',
               )
             : null,

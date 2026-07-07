@@ -13,18 +13,18 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Icons} from '../../base/semantic_icons';
 import {PivotTable} from '../../components/widgets/sql/pivot_table/pivot_table';
 import {PivotTableState} from '../../components/widgets/sql/pivot_table/pivot_table_state';
 import {
-  AreaSelection,
+  type AreaSelection,
   areaSelectionsEqual,
-  AreaSelectionTab,
+  type AreaSelectionTab,
 } from '../../public/selection';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Button} from '../../widgets/button';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {extensions} from '../../components/extensions';
 import {SLICE_TABLE} from '../../components/widgets/sql/table_definitions';
 import {resolveTableDefinition} from '../../components/widgets/sql/table/columns';
@@ -88,10 +88,10 @@ export class PivotTableTab implements AreaSelectionTab {
   private getOrCreateState(): PivotTableState {
     if (this.state !== undefined) return this.state;
     const sliceTable = resolveTableDefinition(this.trace, SLICE_TABLE);
-    const name = assertExists(
+    const name = ensureExists(
       sliceTable.columns.find((c) => c.column === 'name'),
     );
-    const dur = assertExists(
+    const dur = ensureExists(
       sliceTable.columns.find((c) => c.column === 'dur'),
     );
     this.state = new PivotTableState({

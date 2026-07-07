@@ -14,7 +14,7 @@
 
 import {FilterNode} from './filter_node';
 import {ModifyColumnsNode} from './modify_columns_node';
-import {UIFilter} from '../operations/filter';
+import type {UIFilter} from '../operations/filter';
 import {
   createMockSourceNode,
   createColumnInfo,

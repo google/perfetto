@@ -10,7 +10,7 @@ developers to investigate memory issues.
 
 By default, the tool records native allocations and deallocations done with
 malloc/free (or new/delete). It can be configured to record java heap memory
-allocations instead: see [Java heap sampling](#java-heap-sampling) below.
+allocations instead: see [ART allocation profiling](#art-allocation-profiling) below.
 
 On debug Android builds, you can profile all apps and most system services.
 On "user" builds, you can only use it on apps with the debuggable or
@@ -24,10 +24,10 @@ started with heapprofd.
 ## UI
 
 Dumps from heapprofd are shown as flamegraphs in the UI after clicking on the
-diamond. Each diamond corresponds to a snapshot of the allocations and
-callstacks collected at that point in time.
+corresponding slice. Each slice represents a summary of the allocations and
+callstacks collected during the lifetime of that slice.
 
-![heapprofd snapshots in the UI tracks](/docs/images/profile-diamond.png)
+![heapprofd snapshots in the UI tracks](/docs/images/profile-slice-malloc.png)
 
 ![heapprofd flamegraph](/docs/images/native-heap-prof.png)
 
@@ -82,7 +82,7 @@ For the full arguments list see the
 
 You can use the [Perfetto UI](https://ui.perfetto.dev) to visualize heap dumps.
 Upload the `raw-trace` file in your output directory. You will see all heap
-dumps as diamonds on the timeline, click any of them to get a flamegraph.
+dumps as slices on the timeline, click any of them to get a flamegraph.
 
 #### Using the Recording page of Perfetto UI
 
@@ -94,22 +94,18 @@ Windows.
 
 ## Viewing the data
 
-![Profile Diamond](/docs/images/profile-diamond.png)
+![Profile slice](/docs/images/profile-slice-malloc.png)
 
-The resulting profile proto contains four views on the data, for each diamond.
+The resulting profile proto contains four views on the data, for each slice.
 
 * **Unreleased malloc size**: how many bytes were allocated but not freed at
-  this callstack, from the moment the recording was started until the timestamp
-  of the diamond.
-* **Total malloc size**: how many bytes were allocated (including ones freed at
-  the moment of the dump) at this callstack, from the moment the recording was
-  started until the timestamp of the diamond.
+  this callstack, throughout the duration of the slice.
+* **Total malloc size**: how many bytes were allocated (including ones with matching
+  frees) at this callstack, throughout the duration of the slice.
 * **Unreleased malloc count**: how many allocations without matching frees were
-  done at this callstack, from the moment the recording was started until the
-  timestamp of the diamond.
+  done at this callstack, throughout the duration of the slice.
 * **Total malloc count**: how many allocations (including ones with matching
-  frees) were done at this callstack, from the moment the recording was started
-  started until the timestamp of the diamond.
+  frees) were done at this callstack, throughout the duration of the slice.
 
 TIP: you might want to put `libart.so` as a "Hide regex" when profiling apps.
 
@@ -118,7 +114,7 @@ TIP: Click Left Heavy on the top left for a good visualization.
 ## Continuous dumps
 
 By default, the heap profiler captures all the allocations from the beginning of
-the recording and stores a single snapshot, shown as a single diamond in the UI,
+the recording and stores a single snapshot, shown as a single slice in the UI,
 which summarizes all allocations/frees.
 
 It is possible to configure the heap profiler to periodically (not just at the
@@ -139,9 +135,8 @@ end of the trace) store snapshots (continuous dumps), for example every 5000ms
 
 ![Continuous dump flamegraph](/docs/images/heap_prof_continuous.png)
 
-The resulting visualization shows multiple diamonds. Clicking on each diamond
-shows a summary of the allocations/frees from the beginning of the trace until
-that point (i.e. the summary is cumulative).
+The resulting visualization shows multiple slices. Clicking on each slice
+shows a summary of the allocations/frees during that slice. You can drag & select multiple consecutive slices to summarize allocations during that window of time.
 
 ## Sampling interval
 
@@ -258,7 +253,7 @@ the `<application>` section of the app manifest.
 </manifest>
 ```
 
-## {#java-heap-sampling} Java Allocation Profiling (Churn Profiling)
+## {#art-allocation-profiling} ART Allocation Profiling (Churn Profiling)
 
 NOTE: **Java allocation profiling is available on Android 12 or higher**
 
@@ -271,11 +266,11 @@ Heapprofd can be configured to track Java allocations instead of native ones.
 * By adding `--heaps com.android.art` to the invocation of
   [`tools/heap_profile android`](/docs/reference/heap_profile-cli).
 
-Unlike java heap dumps (which show the retention graph of a snapshot of the live
-objects) but like native heap profiles, java heap samples show callstacks of
+Unlike ART heap dumps (which show the retention graph of a snapshot of the live
+objects) but like native heap profiles, ART allocation samples show callstacks of
 allocations over time of the entire profile.
 
-Java heap samples only show callstacks of when objects are created, not when
+ART allocation samples only show callstacks of when objects are created, not when
 they're deleted or garbage collected.
 
 ![javaheapsamples](/docs/images/java-heap-samples.png)
@@ -289,7 +284,7 @@ The resulting profile proto contains two views on the data:
   over time of the profile until this point. The objects might have been freed
   or not, the tool does not keep track of that.
 
-Java heap samples are useful to understand memory churn showing the call stack
+ART allocation samples are useful to understand memory churn showing the call stack
 of which parts of the code large allocations are attributed to as well as the
 allocation type from the ART runtime.
 

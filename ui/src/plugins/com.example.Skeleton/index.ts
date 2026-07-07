@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
-import {RouteArgs} from '../../public/route_schema';
+import type {Trace} from '../../public/trace';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {RouteArgs} from '../../public/route_schema';
 
 // SKELETON: Rename this class to match your plugin.
 export default class SkeletonPlugin implements PerfettoPlugin {

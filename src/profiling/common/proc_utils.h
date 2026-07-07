@@ -22,6 +22,7 @@
 #include <cinttypes>
 #include <optional>
 #include <set>
+#include <string>
 #include <vector>
 
 #include "perfetto/ext/base/scoped_file.h"
@@ -63,20 +64,27 @@ std::optional<Uids> GetUids(const std::string&);
 
 void FindAllProfilablePids(std::set<pid_t>* pids);
 
-// TODO(rsavitski): we're changing how the profilers treat proc cmdlines, the
-// newer semantics are implemented in proc_cmdline.h. Wrappers around those
-// implementations are placed in the "glob_aware" namespace here, until we
-// migrate to one implementation for all profilers.
+// Heapprofd requires tracking two types of cmdline patterns. The newer glob
+// matching is incompatible with startup-triggered profiling, so the patterns
+// are split based on whether they have a wildcard in them.
+struct CmdlinePatterns {
+  std::vector<std::string> exact_patterns;
+  std::vector<std::string> glob_patterns;
+};
+
 ssize_t NormalizeCmdLine(char** cmdline_ptr, size_t size);
-std::optional<std::vector<std::string>> NormalizeCmdlines(
+std::optional<CmdlinePatterns> NormalizeCmdlines(
     const std::vector<std::string>& cmdlines);
 void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
                          std::set<pid_t>* pids);
 bool GetCmdlineForPID(pid_t pid, std::string* name);
 
 namespace glob_aware {
-void FindPidsForCmdlinePatterns(const std::vector<std::string>& cmdlines,
+void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
                                 std::set<pid_t>* pids);
+
+bool MatchCmdlineGlobPatterns(const std::string& cmdline,
+                              const std::vector<std::string>& patterns);
 }  // namespace glob_aware
 
 }  // namespace profiling

@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Evt} from '../../../base/events';
-import {PreflightCheck, WithPreflightChecks} from './connection_check';
-import {RecordingTarget} from './recording_target';
-import {TargetPlatformId} from './target_platform';
+import type {Evt} from '../../../base/events';
+import type {PreflightCheck, WithPreflightChecks} from './connection_check';
+import type {RecordingTarget} from './recording_target';
+import type {TargetPlatformId} from './target_platform';
 
 /**
  * The interface to describe target providers. A target provider uses a specific

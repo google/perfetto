@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {maybeUndefined} from '../../../base/utils';
-import {Row, SqlValue} from '../../../trace_processor/query_result';
+import type {Row, SqlValue} from '../../../trace_processor/query_result';
 
 /**
  * Rich return type for cell renderers that need to control alignment/styling.

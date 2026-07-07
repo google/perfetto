@@ -40,7 +40,6 @@ static_assert(sql_token::kStar == SYNTAQLITE_TK_STAR);
 static_assert(sql_token::kSpace == SYNTAQLITE_TK_SPACE);
 static_assert(sql_token::kComment == SYNTAQLITE_TK_COMMENT);
 static_assert(sql_token::kIllegal == SYNTAQLITE_TK_ILLEGAL);
-static_assert(sql_token::kBang == SYNTAQLITE_TK_BANG);
 
 SqliteTokenizer::SqliteTokenizer(SqlSource sql) : source_(std::move(sql)) {
   tok_ = syntaqlite_tokenizer_create_with_dialect(

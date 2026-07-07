@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {HotkeyGlyphs} from '../../../widgets/hotkey_glyphs';
-import {Hotkey} from '../../../base/hotkeys';
+import type {Hotkey} from '../../../base/hotkeys';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 
 export function renderHotkey(): m.Children {

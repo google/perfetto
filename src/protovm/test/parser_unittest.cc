@@ -66,12 +66,16 @@ TEST_F(ParserTest, RegLoad) {
 }
 
 TEST_F(ParserTest, Del) {
+  Allocator allocator_{10 * 1024 * 1024};
+  RwProto rw_proto{&allocator_};
+  auto rw_cursor = rw_proto.GetRoot();
+
   EXPECT_CALL(executor_, Delete(testing::_))
       .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
   auto program = SamplePrograms::Delete().SerializeAsString();
   Parser parser(AsConstBytes(program), &executor_);
-  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsOk());
+  ASSERT_TRUE(parser.Run(RoCursor{}, rw_cursor).IsOk());
 }
 
 TEST_F(ParserTest, Merge) {

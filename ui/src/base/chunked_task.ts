@@ -23,7 +23,6 @@ declare global {
       options?: {priority?: Priority},
     ): Promise<void>;
   }
-  // eslint-disable-next-line no-var
   var scheduler: Scheduler | undefined;
 }
 

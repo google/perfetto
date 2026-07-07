@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Checkbox, CheckboxAttrs} from './checkbox';
+import {Checkbox, type CheckboxAttrs} from './checkbox';
 
 // A switch is a variant of a Checkbox with different styling. This component is
 // simply a convenience wrapper around Checkbox that sets the variant to

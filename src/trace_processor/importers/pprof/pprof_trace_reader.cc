@@ -274,7 +274,7 @@ base::Status PprofTraceReader::ParseProfile() {
     // Link the frame to the symbol set if we created any symbols
     if (has_symbols) {
       auto* frames = storage->mutable_stack_profile_frame_table();
-      auto frame_row = *frames->FindById(frame_id);
+      auto frame_row = (*frames)[frame_id];
       frame_row.set_symbol_set_id(symbol_set_id);
     }
   }

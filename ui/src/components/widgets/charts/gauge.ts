@@ -15,7 +15,7 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {type ThemeColors, EChartView} from './echart_view';
-import {type SingleValueData} from './single_value_loader';
+import type {SingleValueData} from './single_value_loader';
 
 export interface GaugeAttrs {
   /** The aggregated data to display, or undefined if loading. */

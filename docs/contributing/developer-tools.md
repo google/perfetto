@@ -1,8 +1,8 @@
 # Perfetto Developer Tools
 
 The Perfetto team have created several scripts/tools which navigating and
-working with the Perfetto codebase. This page is mainly targetted towards
-frequent contributors to Perfetto (e.g. team members or external contribtors
+working with the Perfetto codebase. This page is mainly targeted towards
+frequent contributors to Perfetto (e.g. team members or external contributors
 sending a lot of PRs).
 
 These tools have a bit of a learning curve to them but can significantly
@@ -90,7 +90,7 @@ All of these tools work by adding an entry to the repo's gitconfig called
 `branch.{branch_name}.parent` which keeps track of the parent branch. This is
 then used to figure out what a "stack" is and then perform operations on it.
 
-A normal workflow using these tools might look like ths:
+A normal workflow using these tools might look like this:
 
 ```
 # Create a branch for the feature.

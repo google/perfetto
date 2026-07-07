@@ -143,6 +143,7 @@ enum PerfettoTeType {
   PERFETTO_TE_TYPE_SLICE_END = 2,
   PERFETTO_TE_TYPE_INSTANT = 3,
   PERFETTO_TE_TYPE_COUNTER = 4,
+  PERFETTO_TE_TYPE_STATE = 5,
 };
 
 #ifdef __cplusplus

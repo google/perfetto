@@ -15,7 +15,7 @@ recorded in a heap dump is of the form: _Object X retains
 object Y, which is N bytes large, through its class member named Z_.
 
 Heap dumps are not to be confused with profiles taken by the
-[Java Allocation Profiling](native-heap-profiler.md#java-heap-sampling), which
+[ART Allocation Profiling](native-heap-profiler.md#art-allocation-profiling), which
 records allocation events / call stacks.
 
 ## UI
@@ -24,9 +24,9 @@ Heap dumps are shown as flamegraphs in the UI after clicking on the
 diamond in the _"Heap Profile"_ track of a process. Each diamond corresponds to
 a heap dump.
 
-![Java heap dumps in the process tracks](/docs/images/profile-diamond.png)
+![ART heap dumps in the process tracks](/docs/images/profile-diamond.png)
 
-![Flamegraph of a Java heap dump](/docs/images/java-heap-graph.png)
+![Flamegraph of an ART heap dump](/docs/images/java-heap-graph.png)
 
 The native size of certain objects is represented as an extra child node in the
 flamegraph, prefixed with "[native]". The extra node counts as an extra object.
@@ -89,7 +89,7 @@ FROM android_heap_graph_class_summary_tree;
 
 ## TraceConfig
 
-The Java heap dump data source is configured through the
+The ART heap dump data source is configured through the
 [JavaHprofConfig](/docs/reference/trace-config-proto.autogen#JavaHprofConfig)
 section of the trace config.
 

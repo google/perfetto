@@ -14,16 +14,16 @@
 
 import m from 'mithril';
 import protos from '../../../../protos';
-import {TraceSummaryNode} from './trace_summary_node';
-import {Trace} from '../../../../public/trace';
+import type {TraceSummaryNode} from './trace_summary_node';
+import type {Trace} from '../../../../public/trace';
 import {DetailsShell} from '../../../../widgets/details_shell';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Spinner} from '../../../../widgets/spinner';
 import {Switch} from '../../../../widgets/switch';
 import {Intent} from '../../../../widgets/common';
 import {DataGrid} from '../../../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../../../components/widgets/datagrid/datagrid_schema';
-import {Row} from '../../../../trace_processor/query_result';
+import type {SchemaRegistry} from '../../../../components/widgets/datagrid/datagrid_schema';
+import type {Row} from '../../../../trace_processor/query_result';
 import {Tabs} from '../../../../widgets/tabs';
 import {
   getStructuredQueries,

@@ -16,6 +16,8 @@
 
 #include "src/tools/proto_merger/proto_file.h"
 
+#include <algorithm>
+
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/descriptor.pb.h>
 #include <google/protobuf/dynamic_message.h>
@@ -199,8 +201,12 @@ ProtoFile::Field FieldFromDescriptor(
   field.number = desc.number();
   field.options = OptionsFromMessage(*desc.file()->pool(), desc.options());
 
-  // Protobuf editions: packed fields are no longer an option, but have the same
-  // syntax as far as writing the merged .proto file is concerned.
+  // Protobuf editions: replace legacy "packed" option.
+  field.options.erase(std::remove_if(field.options.begin(), field.options.end(),
+                                     [](const ProtoFile::Option& opt) {
+                                       return opt.key == "packed";
+                                     }),
+                      field.options.end());
   if (desc.is_packed()) {
     field.options.push_back(
         ProtoFile::Option{"features.repeated_field_encoding", "PACKED"});

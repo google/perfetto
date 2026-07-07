@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import {addDebugCounterTrack} from '../../components/tracks/debug_tracks';
 import * as cameraConstants from './googleCameraConstants';
 
 export default class implements PerfettoPlugin {
@@ -41,6 +42,14 @@ export default class implements PerfettoPlugin {
         this.pinTracks(ctx, trackNameList);
       },
     });
+
+    ctx.commands.registerCommand({
+      id: 'com.google.android.AddGoogleCameraMemoryTracks',
+      name: 'Add GoogleCamera memory tracks',
+      callback: () => {
+        this.addGoogleCameraMemoryTracks(ctx);
+      },
+    });
   }
 
   private loadGCAStartupView(ctx: Trace) {
@@ -56,5 +65,43 @@ export default class implements PerfettoPlugin {
         }
       });
     });
+  }
+
+  private async addGoogleCameraMemoryTracks(ctx: Trace) {
+    await ctx.engine.query('INCLUDE PERFETTO MODULE pixel.camera;');
+
+    const memoryTracks = [
+      {
+        col: 'gca_rss',
+        name: 'GoogleCamera RSS',
+      },
+      {
+        col: 'hal_rss',
+        name: 'Camera HAL RSS',
+      },
+      {
+        col: 'cameraserver_rss',
+        name: 'CameraServer RSS',
+      },
+      {
+        col: 'dma',
+        name: 'DMABUF',
+      },
+      {
+        col: 'rss_and_dma',
+        name: 'Total Camera RSS + DMABUF',
+      },
+    ] as const;
+
+    for (const t of memoryTracks) {
+      await addDebugCounterTrack({
+        trace: ctx,
+        data: {
+          sqlSource: `SELECT ts, ${t.col} AS value FROM pixel_camera_memory_span`,
+          columns: ['ts', 'value'],
+        },
+        title: t.name,
+      });
+    }
   }
 }

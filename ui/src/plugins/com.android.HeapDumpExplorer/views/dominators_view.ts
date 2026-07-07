@@ -75,7 +75,7 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
           return m(
             'button',
             {
-              class: 'ah-link',
+              class: 'pf-hde-link',
               onclick: () => navigate('object', {id, label: display}),
             },
             display,
@@ -167,8 +167,8 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'ah-view-content'}, [
-        m('h2', {class: 'ah-view-heading'}, counter.heading('Dominators')),
+      return m('div', {class: 'pf-hde-view-content'}, [
+        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Dominators')),
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           rootSchema: 'query',

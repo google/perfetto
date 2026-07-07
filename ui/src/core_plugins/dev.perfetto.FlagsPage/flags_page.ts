@@ -16,7 +16,7 @@ import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {channelChanged, getNextChannel, setChannel} from '../../core/channels';
 import {featureFlags} from '../../core/feature_flags';
-import {Flag, OverrideState} from '../../public/feature_flag';
+import {type Flag, OverrideState} from '../../public/feature_flag';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {CardStack} from '../../widgets/card';
 import {EmptyState} from '../../widgets/empty_state';

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, Page} from '@playwright/test';
+import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
 test.describe.configure({mode: 'serial'});
@@ -22,7 +22,7 @@ let page: Page;
 
 test.beforeAll(async ({browser}, _testInfo) => {
   // This trace is quite large, bump the timeout up a little
-  test.setTimeout(120_000);
+  test.slow();
   page = await browser.newPage();
   pth = new PerfettoTestHelper(page);
   await pth.openTraceFile('ui-funcgraph.pftrace');

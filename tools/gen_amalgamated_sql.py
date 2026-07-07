@@ -59,10 +59,16 @@ def expand_inputs(inputs):
 
 
 def pack_bundle(file_to_sql):
-  """Pack {relpath: sql_bytes} into the SqlBundle wire format."""
+  """Pack {relpath: sql_bytes} into the SqlBundle wire format.
+
+  Entries are sorted by path so that files belonging to the same top-level
+  directory (= PerfettoSQL package) end up contiguous in the bundle. The
+  consumer relies on this to detect package boundaries by a simple linear
+  scan rather than maintaining a hashmap.
+  """
   buf = bytearray()
   buf += struct.pack('<I', len(file_to_sql))
-  for path, sql in file_to_sql.items():
+  for path, sql in sorted(file_to_sql.items()):
     path_bytes = path.encode('utf-8')
     buf += struct.pack('<I', len(path_bytes))
     buf += path_bytes

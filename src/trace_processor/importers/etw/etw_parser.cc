@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/etw/disk_io_tracker.h"
 #include "src/trace_processor/importers/etw/file_io_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -67,12 +68,12 @@ bool IsIoWait(uint8_t reason) {
 EtwParser::EtwParser(TraceProcessorContext* context)
     : context_(context),
       anonymized_process_string_id_(
-          context->storage->InternString("Anonymized Process")) {}
+          context->storage->InternString("Anonymized Process")),
+      disk_io_tracker_(context) {}
 
 base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
                                       int64_t ts,
                                       const TracePacketData& data) {
-  using protos::pbzero::EtwTraceEvent;
   const TraceBlobView& event = data.packet;
   protos::pbzero::EtwTraceEvent::Decoder decoder(event.data(), event.length());
 
@@ -109,6 +110,14 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
   }
   if (decoder.has_file_io_op_end()) {
     file_io_tracker->ParseFileIoOpEnd(ts, utid, decoder.file_io_op_end());
+  }
+  if (decoder.has_file_io_path_operation()) {
+    file_io_tracker->ParseFileIoPathOperation(ts, utid,
+                                              decoder.file_io_path_operation());
+  }
+
+  if (decoder.has_disk_io()) {
+    disk_io_tracker_.ParseDiskIo(ts, utid, decoder.disk_io());
   }
 
   return base::OkStatus();

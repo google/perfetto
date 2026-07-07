@@ -14,9 +14,9 @@
 
 import {defer} from '../../../base/deferred';
 import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
-import {okResult, Result} from '../../../base/result';
+import {okResult, type Result} from '../../../base/result';
 import {utf8Decode} from '../../../base/string_utils';
-import {ByteStream} from '../interfaces/byte_stream';
+import type {ByteStream} from '../interfaces/byte_stream';
 
 /**
  * A base abstraction that represents an Android ADB device, allowing to shell

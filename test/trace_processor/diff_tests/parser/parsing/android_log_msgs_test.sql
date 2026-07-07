@@ -20,7 +20,7 @@ CREATE VIEW v2 AS SELECT tag, count(*) FROM android_logs GROUP BY tag ORDER BY 2
 CREATE VIEW v3 AS
 SELECT tag, count(*)
 FROM android_logs
-WHERE msg GLOB '*wakelock*' OR msg GLOB '*Wakelock*' OR msg GLOB '*WakeLock*' OR msg GLOB '*wakeLock*'
+WHERE (msg GLOB '*wakelock*' OR msg GLOB '*Wakelock*' OR msg GLOB '*WakeLock*' OR msg GLOB '*wakeLock*')
 GROUP BY tag;
 
 CREATE VIEW v4 AS SELECT msg, 1 FROM android_logs LIMIT 10;

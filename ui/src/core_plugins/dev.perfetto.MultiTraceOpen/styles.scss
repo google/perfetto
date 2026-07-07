@@ -50,8 +50,9 @@
 
   &__card {
     padding: 16px;
-    justify-content: space-between;
-    align-items: center;
+    align-items: stretch;
+    // Keep full size so the list scrolls instead of squishing cards.
+    flex-shrink: 0;
   }
 
   &__name {
@@ -114,10 +115,79 @@
     font-size: 0.9em;
     font-weight: bold;
     align-items: center;
+    flex-shrink: 0;
 
     &:hover {
       background: color_hover(var(--pf-color-background-secondary));
     }
+  }
+
+  &__reference-row {
+    align-items: center;
+    padding: 8px 0;
+    font-size: 0.9em;
+  }
+
+  // Invalid free-text offset: flag it instead of silently dropping the value.
+  &__offset--invalid {
+    outline: 1px solid var(--pf-color-danger);
+    border-radius: 2px;
+  }
+
+  &__hint {
+    color: var(--pf-color-danger);
+    font-size: 0.85em;
+  }
+
+  &__help {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    color: var(--pf-color-text-secondary);
+    cursor: help;
+    font-size: 1.1em;
+  }
+
+  // pf-stack defaults to baseline, which drops the help icon low.
+  &__control-row {
+    align-items: center;
+  }
+
+  // The whole align sentence on one line; wrap at word boundaries if long.
+  &__align-row {
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  &__row-top {
+    align-items: flex-start;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  // Stacked vertically: each control (Machine, Align, ...) on its own line.
+  &__config {
+    align-items: flex-start;
+    padding-top: 8px;
+    margin-top: 8px;
+    border-top: 1px solid var(--pf-color-border);
+    font-size: 0.9em;
+    color: var(--pf-color-text-secondary);
+  }
+
+  &__note {
+    font-style: italic;
+    color: var(--pf-color-text-secondary);
+  }
+
+  // Reserved status line: min-height keeps the layout stable as the state
+  // cycles through processing / verdict / ready. Same width as the list
+  // panel so a long verdict wraps instead of stretching the modal.
+  &__status-panel {
+    padding: 12px 0 4px;
+    min-height: 60px;
+    width: 550px;
+    box-sizing: border-box;
   }
 
   &__footer {
@@ -147,7 +217,9 @@
     margin-top: 16px;
   }
   padding: 16px;
-  overflow-y: hidden;
+  // Both axes: overflow-y:hidden alone computes overflow-x to auto, adding a
+  // spurious horizontal scrollbar when a dropdown mounts inside the modal.
+  overflow: hidden;
   max-width: none;
   max-height: none;
 }

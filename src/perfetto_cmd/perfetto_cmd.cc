@@ -888,7 +888,8 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     }
 
     PERFETTO_CHECK(snapshot_threads_.empty());  // No threads before Daemonize.
-    base::Daemonize([this]() -> int {
+    base::Daemonize([this](pid_t pid) -> int {
+      printf("%d\n", pid);
       background_wait_pipe_.wr.reset();
 
       if (background_wait_) {
@@ -1037,8 +1038,8 @@ int PerfettoCmd::ConnectToServiceAndRun() {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (!background_ && !is_detach() && !upload_flag_ &&
-      triggers_to_activate_.empty() && !isatty(STDIN_FILENO) &&
-      !isatty(STDERR_FILENO) && getenv("TERM")) {
+      triggers_to_activate_.empty() && !base::IsTty(STDIN_FILENO) &&
+      !base::IsTty(STDERR_FILENO) && getenv("TERM")) {
     fprintf(stderr,
             "Warning: No PTY. CTRL+C won't gracefully stop the trace. If you "
             "are running perfetto via adb shell, use the -tt arg (adb shell "

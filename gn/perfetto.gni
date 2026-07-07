@@ -219,6 +219,14 @@ declare_args() {
   enable_perfetto_android_java_sdk =
       perfetto_build_with_android || (is_android && perfetto_build_standalone)
 
+  # Path to a host JDK include directory that contains jni.h. When set,
+  # the host-supported targets that build libperfetto_jni and its Java
+  # proto codegen use this and its platform-specific subdirectory as
+  # additional include paths. Empty (default) on Android / AOSP builds,
+  # where jni.h comes from the NDK / jni_headers; populated by
+  # tools/run_android_sdk_host_test from $JAVA_HOME.
+  jdk_include_path = ""
+
   enable_perfetto_benchmarks = perfetto_build_standalone && !is_win && !is_qnx
 
   enable_perfetto_fuzzers =
@@ -422,6 +430,9 @@ declare_args() {
 }
 
 declare_args() {
+  # Enables the protovm_compiler tool.
+  enable_perfetto_protovm_compiler = enable_perfetto_tools
+
   # Enables the traceconv tool.
   enable_perfetto_traceconv =
       enable_perfetto_tools && enable_perfetto_trace_processor_sqlite
@@ -461,6 +472,10 @@ declare_args() {
   perfetto_use_system_sqlite = false
 
   perfetto_use_system_zlib = false
+
+  # Set by the amalgamated SDK build. Defaults the optional zlib/re2 features
+  # to off; the consumer opts in via perfetto_sdk_config.h (see build_config.h).
+  perfetto_amalgamated_sdk = false
 }
 
 if (is_win) {

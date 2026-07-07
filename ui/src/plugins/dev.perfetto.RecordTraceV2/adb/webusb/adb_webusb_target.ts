@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../../protos';
-import {RecordingTarget} from '../../interfaces/recording_target';
-import {PreflightCheck} from '../../interfaces/connection_check';
-import {AdbKeyManager} from './adb_key_manager';
+import type protos from '../../../../protos';
+import type {RecordingTarget} from '../../interfaces/recording_target';
+import type {PreflightCheck} from '../../interfaces/connection_check';
+import type {AdbKeyManager} from './adb_key_manager';
 import {
   createAdbTracingSession,
   getAdbTracingServiceState,
 } from '../adb_tracing_session';
 import {AdbWebusbDevice} from './adb_webusb_device';
-import {AdbUsbInterface, usbDeviceToStr} from './adb_webusb_utils';
-import {errResult, okResult, Result} from '../../../../base/result';
+import {type AdbUsbInterface, usbDeviceToStr} from './adb_webusb_utils';
+import {errResult, okResult, type Result} from '../../../../base/result';
 import {checkAndroidTarget} from '../adb_platform_checks';
-import {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
+import type {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
 import {AsyncLazy} from '../../../../base/async_lazy';
 
 export class AdbWebusbTarget implements RecordingTarget {

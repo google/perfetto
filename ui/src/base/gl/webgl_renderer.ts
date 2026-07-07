@@ -17,7 +17,7 @@
 // 1. Rects pipeline - plain/hatched rectangles
 // 2. Markers pipeline - SDF-based shapes like chevrons
 
-import {
+import type {
   Renderer,
   MarkerRenderFunc,
   MarkerBuffers,
@@ -29,8 +29,8 @@ import {DisposableStack} from './../disposable_stack';
 import {SliceBatch} from './slices';
 import {ChevronBatch} from './chevrons';
 import {StepAreaBatch} from './step_area';
-import {Color} from './../color';
-import {Transform1D, Transform2D} from '../geom';
+import type {Color} from './../color';
+import {type Transform1D, Transform2D} from '../geom';
 
 export class WebGLRenderer implements Renderer {
   private readonly c2d: CanvasRenderingContext2D;

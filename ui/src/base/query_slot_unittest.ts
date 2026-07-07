@@ -20,7 +20,7 @@ const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 test('basic query execution', async () => {
   const slot = new QuerySlot<number>();
 
-  const queryFn = jest.fn().mockImplementation(async () => 42);
+  const queryFn = vi.fn().mockImplementation(async () => 42);
 
   const result1 = slot.use({
     key: {id: 1},
@@ -45,7 +45,7 @@ test('basic query execution', async () => {
 test('cached result is returned without re-query', async () => {
   const slot = new QuerySlot<number>();
 
-  const queryFn = jest.fn().mockResolvedValue(42);
+  const queryFn = vi.fn().mockResolvedValue(42);
 
   slot.use({key: {id: 1}, queryFn});
   await flushPromises();
@@ -64,7 +64,7 @@ test('dispose cancels queued work across render cycles', async () => {
   // Simulate first component mounting and starting a long query
   const slot1 = new QuerySlot<number>(executor);
   let query1Resolved = false;
-  const queryFn1 = jest.fn().mockImplementation(async () => {
+  const queryFn1 = vi.fn().mockImplementation(async () => {
     await flushPromises(); // Simulate some async work
     query1Resolved = true;
     return 1;
@@ -73,7 +73,7 @@ test('dispose cancels queued work across render cycles', async () => {
 
   // Simulate second component mounting while first query is in-flight
   const slot2 = new QuerySlot<number>(executor);
-  const queryFn2 = jest.fn().mockResolvedValue(2);
+  const queryFn2 = vi.fn().mockResolvedValue(2);
   slot2.use({key: {id: 2}, queryFn: queryFn2});
 
   // Second component unmounts before its query runs (it's queued behind first)
@@ -96,12 +96,12 @@ test('multiple slots same executor run serially', async () => {
 
   const order: number[] = [];
 
-  const queryFn1 = jest.fn().mockImplementation(async () => {
+  const queryFn1 = vi.fn().mockImplementation(async () => {
     order.push(1);
     return 1;
   });
 
-  const queryFn2 = jest.fn().mockImplementation(async () => {
+  const queryFn2 = vi.fn().mockImplementation(async () => {
     order.push(2);
     return 2;
   });
@@ -120,9 +120,9 @@ test('multiple slots same executor run serially', async () => {
 test('rapid key changes on same slot only runs first and last', async () => {
   const slot = new QuerySlot<number>();
 
-  const queryFn1 = jest.fn().mockResolvedValue(1);
-  const queryFn2 = jest.fn().mockResolvedValue(2);
-  const queryFn3 = jest.fn().mockResolvedValue(3);
+  const queryFn1 = vi.fn().mockResolvedValue(1);
+  const queryFn2 = vi.fn().mockResolvedValue(2);
+  const queryFn3 = vi.fn().mockResolvedValue(3);
 
   // Schedule three different queries rapidly on the same slot
   // First one starts immediately, subsequent ones replace in pending queue
@@ -142,7 +142,7 @@ test('rapid key changes on same slot only runs first and last', async () => {
 test('retainOn allows showing previous data during compatible changes', async () => {
   const slot = new QuerySlot<number>();
 
-  const queryFn1 = jest.fn().mockResolvedValue(100);
+  const queryFn1 = vi.fn().mockResolvedValue(100);
 
   // First query
   slot.use({
@@ -163,7 +163,7 @@ test('retainOn allows showing previous data during compatible changes', async ()
   expect(result1.isFresh).toBe(true);
 
   // Change only page (in retainOn) - should show stale data
-  const queryFn2 = jest.fn().mockResolvedValue(200);
+  const queryFn2 = vi.fn().mockResolvedValue(200);
   const result2 = slot.use({
     key: {filter: 'a', page: 2},
     queryFn: queryFn2,
@@ -175,7 +175,7 @@ test('retainOn allows showing previous data during compatible changes', async ()
   expect(result2.isPending).toBe(true);
 
   // Change filter (not in retainOn) - should NOT show stale data
-  const queryFn3 = jest.fn().mockResolvedValue(300);
+  const queryFn3 = vi.fn().mockResolvedValue(300);
   const result3 = slot.use({
     key: {filter: 'b', page: 2},
     queryFn: queryFn3,
@@ -189,7 +189,7 @@ test('retainOn allows showing previous data during compatible changes', async ()
 test('enabled prevents query from running', async () => {
   const slot = new QuerySlot<number>();
 
-  const queryFn = jest.fn().mockResolvedValue(42);
+  const queryFn = vi.fn().mockResolvedValue(42);
 
   // Query with enabled=false
   slot.use({
@@ -224,7 +224,7 @@ test('enabled prevents query from running', async () => {
 test('use after dispose throws', async () => {
   const slot = new QuerySlot<number>();
 
-  const queryFn = jest.fn().mockResolvedValue(42);
+  const queryFn = vi.fn().mockResolvedValue(42);
 
   slot.use({key: {id: 1}, queryFn});
   await flushPromises();
@@ -242,14 +242,14 @@ test('queued work is cancelled when slot is disposed', async () => {
   const slot2 = new QuerySlot<number>(executor);
 
   // Start a slow query on slot1
-  const queryFn1 = jest.fn().mockImplementation(async () => {
+  const queryFn1 = vi.fn().mockImplementation(async () => {
     await flushPromises();
     return 1;
   });
   slot1.use({key: {id: 1}, queryFn: queryFn1});
 
   // Queue work on slot2
-  const queryFn2 = jest.fn().mockResolvedValue(2);
+  const queryFn2 = vi.fn().mockResolvedValue(2);
   slot2.use({key: {id: 2}, queryFn: queryFn2});
 
   // Dispose slot2 while its work is still queued
@@ -269,23 +269,23 @@ test('AsyncDisposable is disposed before running next queryFn', async () => {
   const events: string[] = [];
 
   const disposable1: AsyncDisposable = {
-    [Symbol.asyncDispose]: jest.fn().mockImplementation(async () => {
+    [Symbol.asyncDispose]: vi.fn().mockImplementation(async () => {
       events.push('dispose1');
     }),
   };
 
   const disposable2: AsyncDisposable = {
-    [Symbol.asyncDispose]: jest.fn().mockImplementation(async () => {
+    [Symbol.asyncDispose]: vi.fn().mockImplementation(async () => {
       events.push('dispose2');
     }),
   };
 
-  const queryFn1 = jest.fn().mockImplementation(async () => {
+  const queryFn1 = vi.fn().mockImplementation(async () => {
     events.push('query1');
     return disposable1;
   });
 
-  const queryFn2 = jest.fn().mockImplementation(async () => {
+  const queryFn2 = vi.fn().mockImplementation(async () => {
     events.push('query2');
     return disposable2;
   });
@@ -314,12 +314,12 @@ test('slot dispose calls AsyncDisposable dispose after in-flight task completes'
   });
 
   const disposable: AsyncDisposable = {
-    [Symbol.asyncDispose]: jest.fn().mockImplementation(async () => {
+    [Symbol.asyncDispose]: vi.fn().mockImplementation(async () => {
       events.push('disposed');
     }),
   };
 
-  const queryFn = jest.fn().mockImplementation(async () => {
+  const queryFn = vi.fn().mockImplementation(async () => {
     events.push('query-start');
     await queryPromise;
     events.push('query-end');
@@ -360,7 +360,7 @@ test('cancellation signal is set when new query is scheduled', async () => {
     resolveQuery1 = resolve;
   });
 
-  const queryFn1 = jest.fn().mockImplementation(async (signal) => {
+  const queryFn1 = vi.fn().mockImplementation(async (signal) => {
     query1Signal = signal;
     events.push('query1-start');
     await query1Promise;
@@ -371,7 +371,7 @@ test('cancellation signal is set when new query is scheduled', async () => {
     return 1;
   });
 
-  const queryFn2 = jest.fn().mockImplementation(async (signal) => {
+  const queryFn2 = vi.fn().mockImplementation(async (signal) => {
     events.push(`query2 (cancelled=${signal.isCancelled})`);
     return 2;
   });
@@ -411,7 +411,7 @@ test('QUERY_CANCELLED result is not cached', async () => {
   const slot = new QuerySlot<number>();
 
   // Query that always returns QUERY_CANCELLED
-  const queryFn = jest.fn().mockImplementation(async () => QUERY_CANCELLED);
+  const queryFn = vi.fn().mockImplementation(async () => QUERY_CANCELLED);
 
   slot.use({key: {id: 1}, queryFn});
   await flushPromises();

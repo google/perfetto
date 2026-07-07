@@ -22,7 +22,7 @@ syntax = "proto2";
 
 import public "protos/perfetto/trace/track_event/track_event.proto";
 
-package perfetto.protos;
+package com.android.internal;
 
 // Information about a compositing workload submitted by SurfaceFlinger.
 message AndroidSurfaceFlingerWorkload {

@@ -936,7 +936,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_NonNullInt) {
 
   std::vector<uint32_t> p_vec(100);
   std::iota(p_vec.begin(), p_vec.end(), 0);
-  df.AddIndex(
+  df = df.AddIndex(
       Index({0}, std::make_shared<std::vector<uint32_t>>(std::move(p_vec))));
 
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
@@ -962,7 +962,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_InFilter_NonNullInt) {
 
   std::vector<uint32_t> p_vec(100);
   std::iota(p_vec.begin(), p_vec.end(), 0);
-  df.AddIndex(
+  df = df.AddIndex(
       Index({0}, std::make_shared<std::vector<uint32_t>>(std::move(p_vec))));
 
   std::vector<FilterSpec> filters = {{0, 0, In{}, std::nullopt}};
@@ -992,8 +992,8 @@ TEST_F(DataframeBytecodeTest,
   df.InsertUnchecked(kSpec,
                      std::make_optional(string_pool_.InternString("apple")));
   df.Finalize();
-  df.AddIndex(Index({0}, std::make_shared<std::vector<uint32_t>>(
-                             std::vector<uint32_t>{1, 0, 3, 2})));
+  df = df.AddIndex(Index({0}, std::make_shared<std::vector<uint32_t>>(
+                                  std::vector<uint32_t>{1, 0, 3, 2})));
 
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   std::string expected_bytecode = R"(
@@ -1021,8 +1021,8 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_DenseNullInt) {
   df.InsertUnchecked(kSpec, std::make_optional(20u));
   df.InsertUnchecked(kSpec, std::make_optional(10u));
   df.Finalize();
-  df.AddIndex(Index({0}, std::make_shared<std::vector<uint32_t>>(
-                             std::vector<uint32_t>{1, 0, 3, 2})));
+  df = df.AddIndex(Index({0}, std::make_shared<std::vector<uint32_t>>(
+                                  std::vector<uint32_t>{1, 0, 3, 2})));
 
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   std::string expected_bytecode = R"(
@@ -1053,7 +1053,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
 
   std::vector<uint32_t> p_vec(4);
   std::iota(p_vec.begin(), p_vec.end(), 0);
-  df.AddIndex(
+  df = df.AddIndex(
       Index({0, 1}, std::make_shared<std::vector<uint32_t>>(std::move(p_vec))));
 
   std::vector<FilterSpec> filters = {
@@ -1714,8 +1714,8 @@ TEST(DataframeTest, TypedCursorInFilterWithIndex) {
 
   // Build an index on track_id (column 1). Sorted order: 1,1,1,2,2,3
   // Permutation: {0, 2, 5, 1, 4, 3}
-  df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
-                             std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
+  df = df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
+                                  std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
 
   // IN (1, 3) should return rows 0, 2, 5 (track_id=1) and 3 (track_id=3).
   using FV = TypedCursor::FilterValue;
@@ -1749,8 +1749,8 @@ TEST(DataframeTest, TypedCursorInFilterWithIndexReverseOrder) {
   df.InsertUnchecked(kSpec, std::monostate(), 1u);
   df.Finalize();
 
-  df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
-                             std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
+  df = df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
+                                  std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
 
   // IN (3, 1) — reverse order relative to index sort.
   using FV = TypedCursor::FilterValue;
@@ -1785,8 +1785,8 @@ TEST(DataframeTest, TypedCursorInFilterWithIndexDoesNotCorruptIndex) {
   df.InsertUnchecked(kSpec, std::monostate(), 1u);
   df.Finalize();
 
-  df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
-                             std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
+  df = df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
+                                  std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
 
   // First: execute an IN filter that uses the index.
   {

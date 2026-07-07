@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode, NodeType} from '../query_node';
-import {SqlModules} from '../../../plugins/dev.perfetto.SqlModules/sql_modules';
-import {Trace} from '../../../public/trace';
+import type {QueryNode, NodeType, NodeContext} from '../query_node';
+import type {SqlModules} from '../../../plugins/dev.perfetto.SqlModules/sql_modules';
+import type {Trace} from '../../../public/trace';
 
 // The context provided to the preCreate hook.
 export interface PreCreateContext {
@@ -25,7 +25,7 @@ export interface PreCreateContext {
 export interface NodeFactoryContext {
   allNodes: QueryNode[];
   // Runtime context (trace, sqlModules, actions) provided by the caller.
-  context?: import('../query_node').NodeContext;
+  context?: NodeContext;
 }
 
 // The initial state returned by preCreate, which will be merged with

@@ -12,16 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {TrackNode} from '../../public/workspace';
 import {optimizationsTrack} from './optimizations';
 import {Time} from '../../base/time';
-import {App} from '../../public/app';
-import {RouteArgs} from '../../public/route_schema';
+import type {App} from '../../public/app';
+import type {RouteArgs} from '../../public/route_schema';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
+import {StartupDetailsPanel} from './details_panel';
+import {findMainThreadTrackUri, scrollToTrackAndSelect} from './navigate';
 
 const STARTUP_TRACK_URI = '/android_startups';
 const BREAKDOWN_TRACK_URI = '/android_startups_breakdown';
@@ -65,6 +75,7 @@ let startupArgs: StartupArgs;
 
 export default class AndroidStartup implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidStartup';
+  static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   static onActivate(app: App): void {
     const args: RouteArgs = app.initialRouteArgs;
@@ -97,16 +108,26 @@ export default class AndroidStartup implements PerfettoPlugin {
             ts: LONG,
             dur: LONG_NULL,
             name: STR,
+            startup_type: STR_NULL,
+            upid: NUM_NULL,
           },
           src: `
             SELECT
-              startup_id AS id,
-              ts,
-              dur,
-              package AS name
-            FROM android_startups
+              s.startup_id AS id,
+              s.ts,
+              s.dur,
+              s.package AS name,
+              s.startup_type,
+              (
+                SELECT p.upid
+                FROM android_startup_processes p
+                WHERE p.startup_id = s.startup_id
+                LIMIT 1
+              ) AS upid
+            FROM android_startups s
           `,
         }),
+        detailsPanel: () => new StartupDetailsPanel(ctx),
       }),
     });
 
@@ -184,6 +205,7 @@ export default class AndroidStartup implements PerfettoPlugin {
       SELECT
         s.ts,
         s.dur,
+        p.upid,
         tt.id AS main_thread_track_id
       FROM
         android_startups s
@@ -202,6 +224,7 @@ export default class AndroidStartup implements PerfettoPlugin {
     const it = result.iter({
       ts: LONG,
       dur: LONG_NULL,
+      upid: NUM,
       main_thread_track_id: NUM,
     });
     if (!it.valid()) {
@@ -210,67 +233,44 @@ export default class AndroidStartup implements PerfettoPlugin {
 
     const startupInfo = {
       ts: it.ts,
-      dur: it.dur ?? 0n, // Default duration to 0 if null
+      dur: it.dur ?? 0n,
+      upid: it.upid,
       mainThreadTrackId: it.main_thread_track_id,
     };
 
-    // 1. Pin the Android Startups track first.
+    // Pin the Android Startups track first.
     const trackNode = ctx.currentWorkspace.getTrackByUri(STARTUP_TRACK_URI);
     if (trackNode) {
       trackNode.pin();
     }
 
     const startTime = Time.fromRaw(BigInt(startupInfo.ts));
-    const endTime = Time.fromRaw(BigInt(startupInfo.ts + startupInfo.dur));
 
     ctx.onTraceReady.addListener(async () => {
-      // Find the main thread track by its track ID via the track tags.
-      const mainThreadTrackNode = ctx.currentWorkspace.flatTracks.find(
-        (track) => {
-          if (!track.uri) {
-            return false;
-          }
-          const trackDesc = ctx.tracks.getTrack(track.uri);
-          return trackDesc?.tags?.trackIds?.includes(
-            startupInfo.mainThreadTrackId,
-          );
-        },
+      const group = (
+        ctx.plugins.getPlugin(
+          ProcessThreadGroupsPlugin,
+        ) as ProcessThreadGroupsPlugin
+      ).getGroupForProcess(startupInfo.upid);
+
+      if (!group?.uri) return;
+      group.expand();
+
+      const tracksToSelect: string[] = [];
+      const mainThreadTrackUri = findMainThreadTrackUri(
+        ctx,
+        startupInfo.mainThreadTrackId,
       );
-
-      if (!mainThreadTrackNode?.uri) {
-        return;
+      if (mainThreadTrackUri) {
+        tracksToSelect.push(mainThreadTrackUri);
       }
-      const mainThreadTrackUri = mainThreadTrackNode.uri;
 
-      // 2. Scroll to the main thread track and focus into view
-      ctx.scrollTo({
-        track: {
-          uri: mainThreadTrackUri,
-          expandGroup: true,
-        },
-        time:
-          startupInfo.dur > 0n
-            ? {
-                start: startTime,
-                end: endTime,
-                behavior: {viewPercentage: 0.8},
-              }
-            : {
-                start: startTime,
-                behavior: 'focus',
-              },
-      });
-
-      // 3. Select the area on the main thread track
-      ctx.selection.selectArea(
-        {
-          start: startTime,
-          end: endTime,
-          trackUris: [mainThreadTrackUri],
-        },
-        {
-          switchToCurrentSelectionTab: true,
-        },
+      scrollToTrackAndSelect(
+        ctx,
+        group.uri,
+        tracksToSelect,
+        startTime,
+        startupInfo.dur,
       );
     });
   }

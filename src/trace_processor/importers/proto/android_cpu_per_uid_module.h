@@ -36,10 +36,7 @@ class AndroidCpuPerUidModule : public ProtoImporterModule {
 
   ~AndroidCpuPerUidModule() override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData&,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
   void OnEventsFullyExtracted() override;
 

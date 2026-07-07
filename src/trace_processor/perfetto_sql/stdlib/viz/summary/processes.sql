@@ -94,4 +94,6 @@ WHERE
   AND process_slice_count IS NULL
   AND allocation_count IS NULL
   AND graph_object_count IS NULL)
-  OR upid IN (SELECT upid FROM process_counter_track);
+  OR upid IN (SELECT upid FROM process_counter_track)
+  OR upid IN (SELECT upid FROM process_state_track)
+  OR upid IN (SELECT DISTINCT upid FROM profiler_smaps);

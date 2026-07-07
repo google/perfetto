@@ -83,7 +83,7 @@ running both prettier and eslint on the changed files:
 
 ```bash
 # By default it formats only files that changed from the upstream Git branch
-# (typicaly origin/main).
+# (typically origin/main).
 # Pass --all for formatting all files under ui/src
 ui/format-sources
 ```
@@ -112,7 +112,7 @@ is stored in the `State` class definition, and should be modified via
 implementing a new action in `src/common/actions.ts`. A new field added to
 `State` should be initialized in `src/common/empty_state.ts`.
 
-There are restrictions on whan can be used in the global state: plain JS objects
+There are restrictions on what can be used in the global state: plain JS objects
 are OK, but class instances are not (this limitation is due to state
 serialization: the state should be a valid JSON object). If storing class
 instances (like `Map` and `Set` data structures) is necessary, these can be

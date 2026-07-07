@@ -12,28 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import type m from 'mithril';
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchSegment} from '../../base/binary_search';
 import {deferChunkedTask} from '../../base/chunked_task';
-import {Color} from '../../base/color';
+import type {Color} from '../../base/color';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
-import {Point2D} from '../../base/geom';
+import type {Point2D} from '../../base/geom';
 import {assertTrue} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
-  CancellationSignal,
+  type CancellationSignal,
   QUERY_CANCELLED,
   QuerySlot,
   SerialTaskQueue,
 } from '../../base/query_slot';
-import {StepAreaBuffers} from '../../base/renderer';
-import {duration, time, Time} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
+import type {StepAreaBuffers} from '../../base/renderer';
+import {type duration, type time, Time} from '../../base/time';
+import type {TimeScale} from '../../base/time_scale';
 import {checkerboardExcept} from '../../components/checkerboard';
 import {colorForCpu} from '../../components/colorizer';
-import {Trace} from '../../public/trace';
-import {
+import type {Trace} from '../../public/trace';
+import type {
   TrackMouseEvent,
   TrackRenderContext,
   TrackRenderer,

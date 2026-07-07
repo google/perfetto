@@ -19,10 +19,10 @@ import {
   isAQuery,
   hashNodeQuery,
 } from './query_builder_utils';
-import {Query, QueryNode, NodeType} from '../query_node';
-import {QueryResponse} from '../../../components/query_table/queries';
+import {type Query, type QueryNode, NodeType} from '../query_node';
+import type {QueryResponse} from '../../../components/query_table/queries';
 import {SqlSourceNode} from './nodes/sources/sql_source';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 import protos from '../../../protos';
 
 describe('query_builder_utils', () => {

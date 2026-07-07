@@ -71,6 +71,9 @@ class CircularQueue {
       ignore_result(generation);
     }
 
+    // Needed so std::reverse_iterator<Iterator> is default constructible, which
+    // some libstdc++ versions require. Never used default-constructed.
+    Iterator() noexcept = default;
     Iterator(const Iterator&) noexcept = default;
     Iterator& operator=(const Iterator&) noexcept = default;
     Iterator(Iterator&&) noexcept = default;
@@ -168,11 +171,11 @@ class CircularQueue {
       PERFETTO_DCHECK(pos_ <= queue_->end_);
     }
 
-    CircularQueue* queue_;
-    uint64_t pos_;
+    CircularQueue* queue_ = nullptr;
+    uint64_t pos_ = 0;
 
 #if PERFETTO_DCHECK_IS_ON()
-    uint32_t generation_;
+    uint32_t generation_ = 0;
 #endif
   };
 

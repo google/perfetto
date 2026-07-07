@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {Selection, TrackEventSelection} from './selection';
-import {z} from 'zod';
+import type m from 'mithril';
+import type {Selection, TrackEventSelection} from './selection';
+import type {z} from 'zod';
 
 export interface DetailsPanel {
   render(selection: Selection): m.Children;

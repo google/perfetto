@@ -50,17 +50,9 @@ class V8Module : public ProtoImporterModule {
 
   ~V8Module() override;
 
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket_Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder&,
-                            int64_t ts,
-                            const TracePacketData& packet_data,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
  private:
   void ParseV8JsCode(protozero::ConstBytes bytes,

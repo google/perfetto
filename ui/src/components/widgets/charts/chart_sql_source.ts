@@ -16,9 +16,9 @@ import {assertUnreachable} from '../../../base/assert';
 import {QuerySlot} from '../../../base/query_slot';
 import type {Engine} from '../../../trace_processor/engine';
 import type {QueryResult as TPQueryResult} from '../../../trace_processor/query_result';
-import {Filter} from '../datagrid/model';
+import type {Filter} from '../datagrid/model';
 import {filterToSql, sqlAggregateExpr} from '../datagrid/sql_utils';
-import {ChartAggregation, validateColumnName} from './chart_utils';
+import {type ChartAggregation, validateColumnName} from './chart_utils';
 
 /** Default column alias for the first measure in aggregated queries. */
 export const DEFAULT_MEASURE_ALIAS = '_value';

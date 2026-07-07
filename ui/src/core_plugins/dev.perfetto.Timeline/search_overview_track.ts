@@ -14,10 +14,16 @@
 
 import {AsyncLimiter} from '../../base/async_limiter';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
-import {Size2D} from '../../base/geom';
-import {Duration, Time, TimeSpan, duration, time} from '../../base/time';
+import type {Size2D} from '../../base/geom';
+import {
+  Duration,
+  Time,
+  TimeSpan,
+  type duration,
+  type time,
+} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
 import {createVirtualTable} from '../../trace_processor/sql_utils';

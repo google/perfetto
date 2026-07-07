@@ -16,6 +16,9 @@
 from python.generators.diff_tests.testing import Csv, Path, DataPath
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import TextProto
+from python.generators.diff_tests.testing import Tar
+from python.generators.diff_tests.testing import Zip as ZipTrace
 
 
 class Zip(TestSuite):
@@ -114,6 +117,96 @@ class Zip(TestSuite):
         out=Csv('''
         "count"
         58
+        '''))
+
+  # A zip assembled inline from blueprint members: a textproto-defined proto
+  # trace and a raw-text systrace. Proto members are processed first.
+  def test_zip_blueprint_inline_members(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a.systrace':
+                '''# tracer: nop
+#
+  app-100 (  100) [001] ...1  1.000000: tracing_mark_write: B|100|zip_slice
+  app-100 (  100) [001] ...1  1.500000: tracing_mark_write: E|100
+''',
+            'b.pb':
+                TextProto('''
+              packet {
+                timestamp: 1
+                process_tree {
+                  processes { pid: 5 ppid: 0 cmdline: "proc_in_zip" }
+                }
+              }
+            '''),
+        }),
+        query='''
+          SELECT name, trace_type, processing_order
+          FROM __intrinsic_trace_file
+          ORDER BY processing_order;
+        ''',
+        out=Csv('''
+        "name","trace_type","processing_order"
+        "[NULL]","zip",0
+        "b.pb","proto",1
+        "a.systrace","systrace",2
+        '''))
+
+  # Systrace timestamps must be written back after clock conversion: inside a
+  # zip with a proto trace providing a MONOTONIC<->BOOTTIME snapshot the
+  # conversion is not the identity, and the value written to tables must be
+  # the converted one (which is also the sorting key). The 1.0s MONOTONIC
+  # slice lands at BOOTTIME 1_000_000_000 + 500_000_000.
+  def test_zip_systrace_converted_timestamps(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'sys.systrace':
+                '''# tracer: nop
+#
+  app-100 (  100) [001] ...1  1.000000: tracing_mark_write: B|100|sys_slice
+  app-100 (  100) [001] ...1  1.500000: tracing_mark_write: E|100
+''',
+            'spine.pb':
+                TextProto('''
+              packet {
+                clock_snapshot {
+                  clocks { clock_id: 6 timestamp: 1000000000 }
+                  clocks { clock_id: 3 timestamp: 500000000 }
+                }
+              }
+            '''),
+        }),
+        query='''
+          SELECT name, ts, dur FROM slice WHERE name = 'sys_slice';
+        ''',
+        out=Csv('''
+        "name","ts","dur"
+        "sys_slice",1500000000,500000000
+        '''))
+
+  # A tar archive with an external file (DataPath) as a member: the raw bytes
+  # of the checked-in trace are included verbatim.
+  def test_tar_blueprint_external_member(self):
+    return DiffTestBlueprint(
+        trace=Tar({
+            'sched.pb':
+                DataPath('synth_1.pb'),
+            'log.systrace':
+                '''# tracer: nop
+#
+  app-100 (  100) [001] ...1  1.000000: tracing_mark_write: B|100|tar_slice
+  app-100 (  100) [001] ...1  1.500000: tracing_mark_write: E|100
+''',
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT count(*) FROM __intrinsic_trace_file
+             WHERE name = 'sched.pb') AS named_member;
+        ''',
+        out=Csv('''
+        "sched_count","named_member"
+        8,1
         '''))
 
   def test_multi_trace_single_machine_clock(self):

@@ -36,7 +36,6 @@ proto_sources_non_minimal = [
   "extension_descriptor.proto",
   "memory_graph.proto",
   "ui_state.proto",
-  "evdev.proto",
 ]
 
 proto_sources_minimal = [
@@ -91,6 +90,7 @@ perfetto_proto_library("non_minimal_@TYPE@") {
     "generic_kernel:@TYPE@",
     "gpu:@TYPE@",
     "interned_data:@TYPE@",
+    "linux:@TYPE@",
     "perfetto:@TYPE@",
     "power:@TYPE@",
     "profiling:@TYPE@",

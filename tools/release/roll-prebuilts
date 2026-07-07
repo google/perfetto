@@ -26,8 +26,10 @@ after the LUCI jobs have completed.
 
 import argparse
 import hashlib
+import json
 import logging
 import os
+import re
 import subprocess
 import sys
 
@@ -38,6 +40,18 @@ GCS_URL = 'https://commondatastorage.googleapis.com/perfetto-luci-artifacts'
 ROOT_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MANIFESTS_DIR = os.path.join(ROOT_DIR, 'python/perfetto/prebuilts/manifests')
+
+# The agent-skills bundle (RFC-0026) ships the rolled trace_processor wrapper,
+# so its version is stamped here, in lockstep with the prebuilts. These files
+# are the source the ai-agents branch is assembled from.
+AI_EXTENSIONS_DIR = os.path.join(ROOT_DIR, 'ai', 'extensions')
+AGENTS_INSTALL = os.path.join(ROOT_DIR, 'tools', 'agents-install')
+AI_MANIFESTS = [
+    'claude-code/plugin.json',
+    'claude-code/marketplace.json',
+    'codex/plugin.json',
+    'codex/marketplace.json',
+]
 
 UNIX_ARCHS = [
     'mac-amd64',
@@ -162,6 +176,39 @@ def update_manifest(git_revision, spec):
   os.chmod(out_file, 0o755)
 
 
+def update_ai_agents(version):
+  """Stamps the rolled release version into the agent-skills source.
+
+  Writes `version` into the extension manifests and the installer's
+  DEFAULT_VERSION so the ai-agents bundle versions in lockstep with the
+  prebuilt roll. Only runs for release revisions (vX.Y); ad-hoc SHA rolls
+  leave the agent files untouched.
+  """
+  if not re.match(r'^v[0-9]+\.[0-9]+$', version):
+    logging.info('Skipping ai-agents stamp for non-release revision %s',
+                 version)
+    return
+  for rel in AI_MANIFESTS:
+    path = os.path.join(AI_EXTENSIONS_DIR, rel)
+    with open(path) as f:
+      data = json.load(f)
+    if 'version' not in data:
+      continue
+    data['version'] = version
+    with open(path, 'w') as f:
+      json.dump(data, f, indent=2)
+      f.write('\n')
+  with open(AGENTS_INSTALL) as f:
+    src = f.read()
+  src = re.sub(
+      r"^DEFAULT_VERSION = '.*'$",
+      f"DEFAULT_VERSION = '{version}'",
+      src,
+      flags=re.M)
+  with open(AGENTS_INSTALL, 'w') as f:
+    f.write(src)
+
+
 def run_cmd(cmd):
   print('Running ', cmd)
   cmd_path = os.path.join(ROOT_DIR, cmd)
@@ -181,6 +228,9 @@ def main():
   for spec in MANIFESTS_TO_UPDATE:
     logging.info('Updating %s', spec['tool'])
     update_manifest(git_revision, spec)
+
+  logging.info('Updating ai-agents bundle source')
+  update_ai_agents(git_revision)
 
   run_cmd('tools/gen_amalgamated_python_tools')
   run_cmd('tools/format-sources')

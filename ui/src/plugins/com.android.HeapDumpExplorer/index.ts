@@ -12,17 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
 import {z} from 'zod';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
-import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
+import HeapProfilePlugin, {
+  traceHasTimelineData,
+} from '../dev.perfetto.HeapProfile';
 import {HeapDumpPage} from './heap_dump_page';
 import {HeapDumpExplorerSession} from './session';
+import {migrateHdeState} from './persisted_state';
+
+const PLUGIN_ID = 'com.android.HeapDumpExplorer';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'com.android.HeapDumpExplorer';
+  static readonly id = PLUGIN_ID;
   static readonly dependencies = [HeapProfilePlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -40,17 +46,35 @@ export default class implements PerfettoPlugin {
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
+    // The core restores this store (phase 1) before plugins run, so the session
+    // reads any shared-link state straight from it.
+    const store = ctx.mountStore(PLUGIN_ID, migrateHdeState);
+
     const session = new HeapDumpExplorerSession(
       ctx,
       ctx.engine,
       hideDefaultChangedHint,
+      store,
     );
-    await session.loadDumps();
+    const restored = await session.loadDumps();
 
     ctx.pages.registerPage({
       route: '/heapdump',
       render: (subpage) => m(HeapDumpPage, {session, subpage}),
     });
+
+    if (restored) {
+      // Restored from a shared link: land on the saved tab (beats the
+      // default-open hint below).
+      const sub = session.navPath;
+      ctx.initialPage.suggest(sub ? `/heapdump/${sub}` : '/heapdump', 200);
+    } else if (
+      HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
+      !(await traceHasTimelineData(ctx))
+    ) {
+      session.autoNavigated = true;
+      ctx.initialPage.suggest('/heapdump', 100);
+    }
 
     ctx.plugins
       .getPlugin(HeapProfilePlugin)
@@ -65,17 +89,5 @@ export default class implements PerfettoPlugin {
       href: '#!/heapdump',
       icon: 'memory',
     });
-
-    if (!(await traceHasTimelineData(ctx))) {
-      session.autoNavigated = true;
-      ctx.onTraceReady.addListener(() => ctx.navigate('#!/heapdump'));
-    }
   }
-}
-
-async function traceHasTimelineData(ctx: Trace): Promise<boolean> {
-  const res = await ctx.engine.query(
-    `SELECT EXISTS(SELECT 1 FROM slice) OR EXISTS(SELECT 1 FROM sched) AS res`,
-  );
-  return res.firstRow({res: NUM}).res > 0;
 }

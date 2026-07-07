@@ -36,6 +36,10 @@ struct Cursors {
   RwProto::Cursor dst;
   CursorEnum selected{CursorEnum::VM_CURSOR_UNSPECIFIED};
   bool create_if_not_exist{false};
+
+  // Used internally by Parser to detect illegal "del" operations.
+  // See detailed explanation in the Parser implementation.
+  const RwProto::Cursor* innermost_saved_dst{nullptr};
 };
 
 // Executor's methods are virtual to be overridden in tests

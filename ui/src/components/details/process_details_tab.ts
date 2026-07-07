@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Tab} from '../../public/tab';
-import {Upid} from '../sql_utils/core_types';
+import type {Tab} from '../../public/tab';
+import type {Upid} from '../sql_utils/core_types';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Details, DetailsSchema as d} from '../widgets/sql/details/details';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 
 export class ProcessDetailsTab implements Tab {
   private data: Details;

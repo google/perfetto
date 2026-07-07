@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {TARGET_PLATFORMS, TargetPlatformId} from './interfaces/target_platform';
+import {
+  TARGET_PLATFORMS,
+  type TargetPlatformId,
+} from './interfaces/target_platform';
 
 // Overall view
 // RECORD_PLUGIN_SCHEMA:

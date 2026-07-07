@@ -13,15 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {SqlValue} from '../../trace_processor/query_result';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {SqlValue} from '../../trace_processor/query_result';
 import {sqlValueToReadableString} from '../../trace_processor/sql_utils';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 
 export interface ColumnConfig {
   readonly displayName?: string;

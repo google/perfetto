@@ -12,6 +12,10 @@ going.
 Drag and drop a trace from your file explorer, or click 'Open trace file' in the
 sidebar to open a local trace file.
 
+Selecting or dropping several files at once merges them onto a single shared
+timeline via a configuration dialog: see
+[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md).
+
 ## Navigating the Timeline
 
 Use the WASD cluster to zoom and pan around the timeline. W and S zoom in and
@@ -101,6 +105,19 @@ typing to fuzzy find tracks.
 
 <video width="800" controls>
   <source src="https://storage.googleapis.com/perfetto-misc/finding-tracks.webm" type="video/webm">
+</video>
+
+## Filtering Tracks
+
+Click the filter icon in the timeline toolbar to filter which tracks are shown
+on the timeline. Type comma separated terms to filter tracks by name, or use
+the dropdowns to only show tracks belonging to specific processes or threads.
+
+Filters are non-destructive: press 'Clear All Filters' to show all tracks
+again. While filters are active, the filter icon appears filled.
+
+<video width="800" controls>
+  <source src="https://storage.googleapis.com/perfetto-misc/filtering-tracks.webm" type="video/webm">
 </video>
 
 ## Pinning Tracks

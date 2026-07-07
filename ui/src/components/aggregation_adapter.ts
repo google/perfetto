@@ -12,33 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './aggregation_adapter.scss';
 import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
-import {time, Time} from '../base/time';
+import {type time, Time} from '../base/time';
 import {exists} from '../base/utils';
 import {
-  AreaSelection,
+  type AreaSelection,
   areaSelectionsEqual,
-  AreaSelectionTab,
+  type AreaSelectionTab,
 } from '../public/selection';
-import {Trace} from '../public/trace';
-import {Track} from '../public/track';
-import {UnionDataset, Dataset, DatasetSchema} from '../trace_processor/dataset';
-import {Engine} from '../trace_processor/engine';
+import type {Trace} from '../public/trace';
+import type {Track} from '../public/track';
+import {
+  UnionDataset,
+  type Dataset,
+  type DatasetSchema,
+} from '../trace_processor/dataset';
+import type {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {shortUuid} from '../base/uuid';
 import {AggregationPanel} from './aggregation_panel';
-import {Column, Filter, Pivot} from './widgets/datagrid/model';
+import type {Column, Filter, Pivot} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from './widgets/datagrid/sql_schema';
-import {BarChartData, ColumnDef} from './aggregation';
+import type {BarChartData, ColumnDef} from './aggregation';
 import {
   createPerfettoTable,
-  DisposableSqlEntity,
+  type DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
-import {DataGridApi} from './widgets/datagrid/datagrid';
-import {DataGridExportButton} from './widgets/datagrid/export_button';
+import type {DataGridApi} from './widgets/datagrid/datagrid';
+import {ExportButton} from '../widgets/export_button';
 import {SerialTaskQueue} from '../base/query_slot';
 
 export interface AggregationData {
@@ -332,7 +337,7 @@ export function createAggregationTab(
         }),
         buttons:
           dataGridApi &&
-          m(DataGridExportButton, {onExportData: dataGridApi.exportData}),
+          m(ExportButton, {onExportData: dataGridApi.exportData}),
       };
     },
   };

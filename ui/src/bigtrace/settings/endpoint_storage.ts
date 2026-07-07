@@ -31,3 +31,10 @@ endpointStorage.register({
   defaultValue: 'https://brush-googleapis.corp.google.com/v1',
   requiresReload: true,
 });
+
+// The configured BigTrace endpoint URL, or '' if unset. Centralizes the
+// null/empty handling call sites would otherwise re-inline.
+export function getBigtraceEndpoint(): string {
+  const setting = endpointStorage.get('bigtraceEndpoint');
+  return setting ? (setting.get() as string) ?? '' : '';
+}

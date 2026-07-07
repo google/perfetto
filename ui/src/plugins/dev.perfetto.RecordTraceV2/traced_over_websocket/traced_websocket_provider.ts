@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {EvtSource} from '../../../base/events';
-import {PreflightCheck} from '../interfaces/connection_check';
-import {RecordingTarget} from '../interfaces/recording_target';
-import {RecordingTargetProvider} from '../interfaces/recording_target_provider';
+import type {PreflightCheck} from '../interfaces/connection_check';
+import type {RecordingTarget} from '../interfaces/recording_target';
+import type {RecordingTargetProvider} from '../interfaces/recording_target_provider';
 import {showTracedConnectionManagementDialog} from './target_connection_management_dialog';
 import {TracedWebsocketTarget} from './traced_websocket_target';
 

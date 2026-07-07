@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Size2D, Point2D} from './geom';
+import type {Size2D, Point2D} from './geom';
 
 export function drawDoubleHeadedArrow(
   ctx: CanvasRenderingContext2D,

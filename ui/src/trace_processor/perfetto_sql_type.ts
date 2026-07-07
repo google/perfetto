@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {errResult, okResult, Result} from '../base/result';
+import {errResult, okResult, type Result} from '../base/result';
 
 // Representation of a PerfettoSQL type:
 // https://perfetto.dev/docs/analysis/perfetto-sql-syntax#types

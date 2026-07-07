@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {checkHotkey, formatHotkey, Hotkey, parseHotkey} from './hotkeys';
+import {checkHotkey, formatHotkey, type Hotkey, parseHotkey} from './hotkeys';
 
 test('parseHotkey', () => {
   expect(parseHotkey('A')).toEqual({

@@ -17,7 +17,6 @@
 #include "perfetto/test/traced_value_test_support.h"
 
 #include "protos/perfetto/trace/track_event/debug_annotation.gen.h"
-#include "protos/perfetto/trace/track_event/debug_annotation.pb.h"
 
 #include <sstream>
 
@@ -27,7 +26,8 @@ namespace internal {
 
 namespace {
 
-void WriteAsJSON(const protos::DebugAnnotation& value, std::stringstream& ss) {
+void WriteAsJSON(const protos::gen::DebugAnnotation& value,
+                 std::stringstream& ss) {
   if (value.has_bool_value()) {
     if (value.bool_value()) {
       ss << "true";
@@ -51,7 +51,7 @@ void WriteAsJSON(const protos::DebugAnnotation& value, std::stringstream& ss) {
     for (int i = 0; i < value.dict_entries_size(); ++i) {
       if (i > 0)
         ss << ",";
-      auto item = value.dict_entries(i);
+      auto item = value.dict_entries()[static_cast<size_t>(i)];
       ss << item.name();
       ss << ":";
       WriteAsJSON(item, ss);
@@ -60,7 +60,7 @@ void WriteAsJSON(const protos::DebugAnnotation& value, std::stringstream& ss) {
   } else if (value.array_values_size() > 0) {
     ss << "[";
     for (int i = 0; i < value.array_values_size(); ++i) {
-      auto item = value.array_values(i);
+      auto item = value.array_values()[static_cast<size_t>(i)];
       if (i > 0)
         ss << ",";
       WriteAsJSON(item, ss);
@@ -75,7 +75,7 @@ void WriteAsJSON(const protos::DebugAnnotation& value, std::stringstream& ss) {
 
 std::string DebugAnnotationToString(const std::string& data) {
   std::stringstream ss;
-  protos::DebugAnnotation result;
+  protos::gen::DebugAnnotation result;
   result.ParseFromString(data);
   WriteAsJSON(result, ss);
   return ss.str();

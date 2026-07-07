@@ -14,24 +14,24 @@
 
 import m from 'mithril';
 import {uuidv4} from '../../base/uuid';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {TrackNode} from '../../public/workspace';
 import {STR, LONG, LONG_NULL} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraphMetric,
+  type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
-import {Store} from '../../base/store';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 
 const DAY_EXPLORER_TRACK_KIND = 'day_explorer_counter_track';
 
@@ -156,7 +156,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
         if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(FlamegraphPanel, {
@@ -228,7 +228,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Component',
     });
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,

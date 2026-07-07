@@ -154,6 +154,7 @@ class Field {
   }
 
   uint64_t raw_int_value() const { return int_value_; }
+  uint32_t raw_size() const { return size_; }
 
   void initialize(uint32_t id,
                   uint8_t type,

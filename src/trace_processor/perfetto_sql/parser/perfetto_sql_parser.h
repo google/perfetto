@@ -28,7 +28,6 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -46,17 +45,13 @@ namespace perfetto::trace_processor {
 // RETURN_IF_ERROR(r.status());
 class PerfettoSqlParser {
  public:
-  // True if this parser delegates macro expansion + statement splitting to
-  // syntaqlite, false if it uses the handwritten PerfettoSqlPreprocessor.
-  // Exposed so tests can gate path-specific assertions; will be removed
-  // along with the legacy implementation when the cutover completes.
-  static constexpr bool kUsesSyntaqliteMacros = false;
-
-  // A CREATE PERFETTO MACRO definition. Aliased to the preprocessor type so
-  // engine code can spell `PerfettoSqlParser::Macro` instead of reaching into
-  // the preprocessor; the alias also reserves the name for future
-  // implementations that own the macro struct directly.
-  using Macro = PerfettoSqlPreprocessor::Macro;
+  // A CREATE PERFETTO MACRO definition.
+  struct Macro {
+    bool replace;
+    std::string name;
+    std::vector<std::string> args;
+    SqlSource sql;
+  };
 
   // Indicates that the specified SQLite SQL was extracted directly from a
   // PerfettoSQL statement and should be directly executed with SQLite.
@@ -138,10 +133,13 @@ class PerfettoSqlParser {
                                  Include,
                                  SqliteSql>;
 
-  // Creates a new SQL parser with the a block of PerfettoSQL statements.
-  // Concretely, the passed string can contain >1 statement.
-  explicit PerfettoSqlParser(SqlSource,
-                             const base::FlatHashMap<std::string, Macro>&);
+  // Reset(SqlSource) must be called before iterating. The underlying
+  // syntaqlite parser is created once and reused across Reset() calls.
+  explicit PerfettoSqlParser(
+      const base::FlatHashMap<std::string, Macro>& macros);
+
+  // Rebinds to a fresh source; keeps the syntaqlite parser instance.
+  void Reset(SqlSource);
 
   ~PerfettoSqlParser();
 
@@ -169,6 +167,16 @@ class PerfettoSqlParser {
   const SqlSource& statement_sql() const {
     PERFETTO_CHECK(statement_sql_);
     return *statement_sql_;
+  }
+
+  // Like |statement_sql()| but moves the SqlSource out, leaving the parser
+  // with no current statement_sql. Callers must not call statement_sql()
+  // after this until the next successful Next() call.
+  SqlSource TakeStatementSql() {
+    PERFETTO_CHECK(statement_sql_);
+    SqlSource result = std::move(*statement_sql_);
+    statement_sql_.reset();
+    return result;
   }
 
   // Returns the error status for the parser. This will be |base::OkStatus()|

@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';

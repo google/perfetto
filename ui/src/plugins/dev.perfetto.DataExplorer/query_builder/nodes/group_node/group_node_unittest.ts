@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {GroupNode, ExternalGroupConnection} from '.';
+import {GroupNode, type ExternalGroupConnection} from '.';
 import {NodeType} from '../../../query_node';
 import {
   createMockNode,

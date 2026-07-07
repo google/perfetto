@@ -12,30 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './sql_table.scss';
 import m from 'mithril';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
-import {Row} from '../../../../trace_processor/query_result';
+import type {Row} from '../../../../trace_processor/query_result';
 import {Spinner} from '../../../../widgets/spinner';
 import {
   Grid,
   GridCell,
-  GridColumn,
+  type GridColumn,
   GridHeaderCell,
   renderSortMenuItems,
-  SortDirection,
+  type SortDirection,
 } from '../../../../widgets/grid';
 
-import {SqlTableState} from './state';
-import {SqlTableDescription} from './table_description';
+import type {SqlTableState} from './state';
+import type {SqlTableDescription} from './table_description';
 import {
-  RenderedCell,
-  TableColumn,
-  RenderCellContext,
+  type RenderedCell,
+  type TableColumn,
+  type RenderCellContext,
   tableColumnId,
 } from './table_column';
-import {SqlColumn, sqlColumnId} from './sql_column';
+import {type SqlColumn, sqlColumnId} from './sql_column';
 import {SelectColumnMenu} from './menus/select_column_menu';
 import {renderColumnFilterOptions} from './menus/add_column_filter_menu';
 import {renderCastColumnMenu} from './menus/cast_column_menu';

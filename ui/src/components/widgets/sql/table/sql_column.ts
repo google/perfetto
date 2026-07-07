@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {arrayEquals} from '../../../../base/array_utils';
-import {SortDirection} from '../../../../base/comparison_utils';
+import type {SortDirection} from '../../../../base/comparison_utils';
 
 // A column in the SQL query. It can be either be:
 // - A column in the table (represented by a string).

@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {download, FilePickerOptions} from '../base/download_utils';
+import {download, type FilePickerOptions} from '../base/download_utils';
 import {Icons} from '../base/semantic_icons';
 import {ActionButtonHelper} from './action_button_helper';
-import {Button, ButtonVariant} from './button';
+import {Button, type ButtonVariant} from './button';
 
 export interface DownloadToFileButtonAttrs {
   readonly content: string | (() => string | Promise<string>);

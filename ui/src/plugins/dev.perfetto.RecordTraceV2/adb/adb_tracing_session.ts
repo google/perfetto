@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {AdbDevice} from './adb_device';
+import type {AdbDevice} from './adb_device';
 import {TracingProtocol} from '../tracing_protocol/tracing_protocol';
-import {errResult, okResult, Result} from '../../../base/result';
+import {errResult, okResult, type Result} from '../../../base/result';
 import {exists} from '../../../base/utils';
 import {ConsumerIpcTracingSession} from '../tracing_protocol/consumer_ipc_tracing_session';
 

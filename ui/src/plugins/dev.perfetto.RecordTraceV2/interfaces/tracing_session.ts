@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Evt} from '../../../base/events';
-import {Result} from '../../../base/result';
-import {RecordingTarget} from './recording_target';
+import type {Evt} from '../../../base/events';
+import type {Result} from '../../../base/result';
+import type {RecordingTarget} from './recording_target';
 
 /**
  * The contract for the object returned by {@link RecordingTarget.startTracing}.
@@ -34,7 +34,7 @@ export interface TracingSession {
   getBufferUsagePct(): Promise<number | undefined>;
 
   /** Returns the trace file captured once state === 'FINISHED'. */
-  getTraceData(): Uint8Array | undefined;
+  getTraceData(): ArrayBuffer | undefined;
 
   /**
    * Take a snapshot of this in-progress session and return its trace bytes.

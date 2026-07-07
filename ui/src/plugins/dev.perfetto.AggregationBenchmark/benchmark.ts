@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Track} from '../../public/track';
+import type {Track} from '../../public/track';
 import {SourceDataset, UnionDataset} from '../../trace_processor/dataset';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 
 export type ApproachType =

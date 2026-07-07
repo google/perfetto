@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {
   BLOB_NULL,
   LONG,
@@ -25,6 +25,7 @@ import {
 } from '../../trace_processor/query_result';
 import type {
   OverviewData,
+  OomeData,
   HeapInfo,
   InstanceRow,
   InstanceDetail,
@@ -261,6 +262,41 @@ export async function getOverview(
   const unreachableInstanceCount = countIt.unreachable;
   const classCount = countIt.classes;
 
+  // Process stats at the dump instant. Null when the trace carries no such stats.
+  const statsRes = await engine.query(`
+    INCLUDE PERFETTO MODULE android.oom_adjuster;
+    INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;
+    SELECT
+      CAST(oom_score_adj AS INT) AS score,
+      android_oom_adj_score_to_bucket_name(CAST(oom_score_adj AS INT)) AS bucket,
+      anon_rss_and_swap_size AS anonRssAndSwapSize,
+      dmabuf_rss_size AS dmabufRssSize,
+      process_uptime AS processUptime
+    FROM android_heap_graph_stats
+    WHERE upid = ${activeDump.upid}
+      AND graph_sample_ts = ${activeDump.ts}
+    LIMIT 1
+  `);
+  const statsIt = statsRes.iter({
+    score: NUM_NULL,
+    bucket: STR_NULL,
+    anonRssAndSwapSize: LONG_NULL,
+    dmabufRssSize: LONG_NULL,
+    processUptime: LONG_NULL,
+  });
+  let oomScore: number | null = null;
+  let oomBucket: string | null = null;
+  let anonRssAndSwapSize: bigint | null = null;
+  let dmabufRssSize: bigint | null = null;
+  let processUptime: bigint | null = null;
+  if (statsIt.valid()) {
+    oomScore = statsIt.score;
+    oomBucket = statsIt.bucket;
+    anonRssAndSwapSize = statsIt.anonRssAndSwapSize;
+    dmabufRssSize = statsIt.dmabufRssSize;
+    processUptime = statsIt.processUptime;
+  }
+
   const heapRes = await engine.query(`
     SELECT
       ifnull(o.heap_type, 'default') AS heap,
@@ -473,7 +509,29 @@ export async function getOverview(
       duplicateStrings.length > 0 ? duplicateStrings : undefined,
     duplicateArrays: duplicateArrays.length > 0 ? duplicateArrays : undefined,
     hasFieldValues: hasPrimitives,
+    oomScore,
+    oomBucket,
+    anonRssAndSwapSize,
+    dmabufRssSize,
+    processUptime,
   };
+}
+
+export async function getOome(
+  engine: Engine,
+  activeDump: HeapDump,
+): Promise<OomeData | undefined> {
+  const oomeRes = await engine.query(`
+    SELECT upid, ts
+    FROM heap_graph
+    WHERE upid = ${activeDump.upid} AND dump_reason = 'OOME'
+    LIMIT 1
+  `);
+  if (oomeRes.numRows() > 0) {
+    const row = oomeRes.firstRow({upid: NUM, ts: LONG});
+    return {upid: row.upid, ts: row.ts};
+  }
+  return undefined;
 }
 
 export async function getAllocations(
@@ -1367,7 +1425,7 @@ export async function getSubclassNames(
 export async function getRawArrayBlob(
   engine: Engine,
   objectId: number,
-): Promise<Uint8Array | null> {
+): Promise<Uint8Array<ArrayBuffer> | null> {
   const res = await engine.query(`
     SELECT __intrinsic_heap_graph_array(od.array_data_id) AS data
     FROM heap_graph_object o
@@ -1793,6 +1851,10 @@ export async function getBitmapList(
 ): Promise<BitmapListRow[]> {
   await requireDominatorTree(engine);
   const dumpData = await loadBitmapDumpData(engine, activeDump);
+
+  await engine.query(
+    `INCLUDE PERFETTO MODULE android.memory.heap_graph.bitmap;`,
+  );
   const res = await engine.query(`
     SELECT
       o.id,
@@ -1807,15 +1869,22 @@ export async function getBitmapList(
       d.dominated_obj_count,
       od.value_string,
       c.kind AS class_kind,
-      MAX(CASE WHEN f.field_name GLOB '*mWidth' THEN f.int_value END) AS width,
-      MAX(CASE WHEN f.field_name GLOB '*mHeight' THEN f.int_value END) AS height,
-      MAX(CASE WHEN f.field_name GLOB '*mDensity' THEN f.int_value END) AS density,
-      MAX(CASE WHEN f.field_name GLOB '*mNativePtr' THEN f.long_value END) AS native_ptr
+      cast_int!(b.width) AS width,
+      cast_int!(b.height) AS height,
+      cast_int!(b.density) AS density,
+      MAX(CASE WHEN f.field_name GLOB '*mNativePtr' THEN f.long_value END) AS native_ptr,
+      b.bitmap_id,
+      b.bitmap_storage_type,
+      b.source_id,
+      cast_int!(b.source_pid) AS source_pid,
+      b.source_storage_type,
+      b.source_process_name
     FROM heap_graph_object o
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_primitive f ON f.field_set_id = od.field_set_id
+    LEFT JOIN heap_graph_bitmaps b ON b.object_id = o.id
     WHERE o.reachable != 0
       AND ${dumpFilterSql(activeDump, 'o')}
       AND (c.name = 'android.graphics.Bitmap'
@@ -1833,6 +1902,12 @@ export async function getBitmapList(
     hasPixelData: boolean;
     density: number;
     nativePtr: bigint | null;
+    bitmapId: bigint | null;
+    storageType: string | null;
+    sourceId: bigint | null;
+    sourcePid: number | null;
+    sourceStorageType: string | null;
+    sourceProcessName: string | null;
   }> = [];
   const hashInputs: Array<{objectId: number; nativePtr: bigint}> = [];
   for (
@@ -1853,6 +1928,12 @@ export async function getBitmapList(
       height: NUM_NULL,
       density: NUM_NULL,
       native_ptr: LONG_NULL,
+      bitmap_id: LONG_NULL,
+      bitmap_storage_type: STR_NULL,
+      source_id: LONG_NULL,
+      source_pid: NUM_NULL,
+      source_storage_type: STR_NULL,
+      source_process_name: STR_NULL,
     });
     it.valid();
     it.next()
@@ -1873,6 +1954,12 @@ export async function getBitmapList(
       hasPixelData,
       density: it.density ?? 0,
       nativePtr: it.native_ptr,
+      bitmapId: it.bitmap_id,
+      storageType: it.bitmap_storage_type,
+      sourceId: it.source_id,
+      sourcePid: it.source_pid,
+      sourceStorageType: it.source_storage_type,
+      sourceProcessName: it.source_process_name,
     });
   }
 
@@ -1890,6 +1977,12 @@ export async function getBitmapList(
     hasPixelData: r.hasPixelData,
     density: r.density,
     bufferHash: hashes.get(r.row.id) ?? null,
+    storageType: r.storageType,
+    bitmapId: r.bitmapId,
+    sourceId: r.sourceId,
+    sourcePid: r.sourcePid,
+    sourceStorageType: r.sourceStorageType,
+    sourceProcessName: r.sourceProcessName,
   }));
   return rows;
 }

@@ -13,11 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
-import {ColumnInfo} from '../column_info';
+import {
+  type QueryNode,
+  nextNodeId,
+  NodeType,
+  type NodeContext,
+} from '../../query_node';
+import type {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {
-  UIFilter,
+  type UIFilter,
   createExperimentalFiltersProto,
   formatFilterDetails,
   isFilterDefinitionValid,
@@ -31,12 +36,12 @@ import {showModal} from '../../../../widgets/modal';
 import {Editor} from '../../../../widgets/editor';
 import {ListItem, OutlinedField, InlineEditList} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {NodeDetailsMessage} from '../node_styling_widgets';
 import {Icons} from '../../../../base/semantic_icons';
 import {loadNodeDoc} from '../node_doc_loader';
-import {SqlValue} from '../../../../trace_processor/query_result';
+import type {SqlValue} from '../../../../trace_processor/query_result';
 
 // Maximum length for truncated SQL display
 const SQL_TRUNCATE_LENGTH = 50;

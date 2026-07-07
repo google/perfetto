@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {duration, Time, time} from '../../base/time';
+import {type duration, Time, type time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {getSlice, SliceDetails} from '../../components/sql_utils/slice';
+import {getSlice, type SliceDetails} from '../../components/sql_utils/slice';
 import {asSliceSqlId} from '../../components/sql_utils/core_types';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
@@ -28,8 +28,8 @@ import {SqlRef} from '../../widgets/sql_ref';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {EVENT_LATENCY_TRACK_URI, renderSliceRef} from './utils';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
 
 interface Data {
   name: string;

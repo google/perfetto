@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertUnreachable} from './assert';
-import {Time, time} from './time';
+import {Time, type time} from './time';
 
 export type RoundMode = 'round' | 'floor' | 'ceil';
 

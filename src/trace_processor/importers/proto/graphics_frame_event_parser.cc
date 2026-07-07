@@ -357,7 +357,7 @@ GraphicsFrameEventParser::InsertPhaseSlice(
         inserter->AddArg(layer_name_key_id_, Variadic::String(layer_name_id));
       });
   if (slice_id) {
-    return context_->storage->slice_table().FindById(*slice_id)->ToRowNumber();
+    return context_->storage->slice_table()[*slice_id].ToRowNumber();
   }
   return std::nullopt;
 }

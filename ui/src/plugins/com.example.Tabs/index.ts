@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.Tabs';

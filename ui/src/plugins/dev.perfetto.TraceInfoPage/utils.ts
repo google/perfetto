@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {NUM_NULL, STR} from '../../trace_processor/query_result';
 import {Icon} from '../../widgets/icon';
 import {Tooltip} from '../../widgets/tooltip';

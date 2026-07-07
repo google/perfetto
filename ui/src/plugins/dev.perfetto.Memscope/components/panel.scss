@@ -1,0 +1,90 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-memscope-panel {
+  border-radius: 8px;
+  background: var(--pf-col-surface);
+  border: 0.5px solid var(--pf-col-border);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.pf-memscope-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pf-memscope-panel__header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--pf-col-border);
+
+  h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  p {
+    margin: 4px 0 0 0;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
+  }
+}
+
+.pf-memscope-panel__controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.pf-memscope-panel__body {
+  padding: 12px;
+}
+
+// Content fades in when it mounts. The body keeps its DOM node across the
+// loading→loaded swap, but its single child is replaced, so this animation
+// fires once at that moment (and once for the initial placeholder). The
+// panel's height still snaps to the new content; the fade is what masks it.
+@keyframes pf-memscope-body-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.pf-memscope-panel__body > * {
+  animation: pf-memscope-body-fade 0.3s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-memscope-panel__body > * {
+    animation: none;
+  }
+}
+
+.pf-memscope-placeholder {
+  color: var(--pf-color-text-muted);
+  font-size: var(--pf-font-size-s);
+  padding: 32px 0;
+  text-align: center;
+}

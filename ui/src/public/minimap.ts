@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {duration, time} from '../base/time';
+import type {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+import type {duration, time} from '../base/time';
 
 export interface MinimapCell {
   readonly ts: time;

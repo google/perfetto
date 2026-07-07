@@ -53,6 +53,12 @@ message ClickAction {
 
     // Right mouse click.
     RIGHT = 2;
+
+    // Automatically set by the server-side tool bridge when the model selects
+    // a standard LEFT click on a target that is occluded by an eligible panel.
+    // Only supported for target-by-ID clicks; coordinate-based clicks cannot
+    // be upgraded.
+    LEFT_ON_OCCLUDED_TARGET = 3;
   }
 
   // Represents the number of times the target was clicked, for now only
@@ -292,7 +298,7 @@ message AttemptLoginAction {
 // This FormFillingRequest in development and future changes are possible once
 // the model constraings/performance are understood.
 //
-// Next ID: 3
+// Next ID: 4
 message FormFillingRequest {
   // Specifies a field that is part of the form. Autofill will be triggered from
   // this field, but will fill other fields of the same autofill section with
@@ -307,9 +313,14 @@ message FormFillingRequest {
   // "shipping address").
   RequestedData requested_data = 2 [features = { field_presence: EXPLICIT }];
 
+  // Specifies the section label that this form is part of. The section will be
+  // presented in the UI over the form selector in the UI to the user (e.g.
+  // "Emergency Contact Info" above an email-and-phone selector.)
+  string section_label = 3 [features = { field_presence: EXPLICIT }];
+
   // Enumerates the purposes for forms. Note that although the type of data
   // (address or credit card) is encoded that autofill already detects the type,
-  // but does not detect the purpose (e.g. shipping v.s. billing address)
+  // but does not detect the purpose (e.g. shipping vs. billing address)
   // provide here.
   enum RequestedData {
     // The requested data is not specified.
@@ -587,7 +598,7 @@ message WindowObservation {
 }
 
 // Information about a chrome tab.
-// Next ID: 9
+// Next ID: 10
 message TabObservation {
   // Unique id
   int32 id = 1 [features = { field_presence: EXPLICIT }];
@@ -619,6 +630,11 @@ message TabObservation {
   AnnotatedPageContentResult annotated_page_content_result = 7 [features = { field_presence: EXPLICIT }];
 
   ScreenshotResult screenshot_result = 8 [features = { field_presence: EXPLICIT }];
+
+  // Metadata about the screenshot.
+  // This field is only populated if skip_async_observation_collection is false
+  // in the Actions message.
+  ScreenshotInfo screenshot_info = 9 [features = { field_presence: EXPLICIT }];
 
   // Result codes of a tab observation as a whole. It may be possible to retry
   // an observation given specific error codes.

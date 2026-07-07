@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
-import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import type SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 import {Builder} from './query_builder/builder';
-import {QueryNode} from './query_node';
+import type {QueryNode} from './query_node';
 import {ensureAllNodeActions} from './node_actions';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {getOrCreate} from '../../base/utils';
 import {shortUuid} from '../../base/uuid';
 import {MenuItem} from '../../widgets/menu';
-import {Tabs, TabsTab} from '../../widgets/tabs';
+import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {Button, ButtonBar} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {showModal} from '../../widgets/modal';
@@ -37,7 +37,7 @@ import {
   loadGraphFromJson,
   loadGraphFromPath,
   createDataExplorerGraph,
-  GraphIODeps,
+  type GraphIODeps,
 } from './graph_io';
 import {registerCoreNodes} from './query_builder/core_nodes';
 import {nodeRegistry} from './query_builder/node_registry';
@@ -68,8 +68,8 @@ import {Dashboard} from './dashboard/dashboard';
 import {isDashboardNode} from './query_builder/nodes/dashboard_node';
 import {
   dashboardRegistry,
-  DashboardBrushFilter,
-  DashboardItem,
+  type DashboardBrushFilter,
+  type DashboardItem,
 } from './dashboard/dashboard_registry';
 import type {NodeCrudDeps} from './node_crud_operations';
 import {addFilter, addColumnFromJoinid} from './datagrid_node_creation';

@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {Trace} from '../public/trace';
-import {QueryFlamegraph, QueryFlamegraphMetric} from './query_flamegraph';
-import {FlamegraphState} from '../widgets/flamegraph';
+import type m from 'mithril';
+import type {Trace} from '../public/trace';
+import {QueryFlamegraph, type QueryFlamegraphMetric} from './query_flamegraph';
+import type {FlamegraphState} from '../widgets/flamegraph';
 
 export interface FlamegraphPanelAttrs {
   readonly trace: Trace;

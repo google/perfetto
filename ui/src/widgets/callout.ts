@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './callout.scss';
 import m from 'mithril';
-import {classForIntent, HTMLAttrs, Intent} from './common';
+import {classForIntent, type HTMLAttrs, Intent} from './common';
 import {Button} from './button';
 import {Icon} from './icon';
 import {classNames} from '../base/classnames';

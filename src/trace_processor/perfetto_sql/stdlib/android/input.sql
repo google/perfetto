@@ -127,6 +127,7 @@ SELECT
   s.ts,
   s.dur,
   cast_int!(t.utid) AS utid,
+  cast_int!(t.upid) AS upid,
   t.process_name,
   str_split(s.name, '=', 3) AS extracted_input_event_id,
   str_split(str_split(parent.name, '_', 1), ' ', 0) AS event_action,
@@ -203,6 +204,7 @@ SELECT
   dev.consume_time,
   dev.finish_time,
   dev.utid,
+  dev.upid,
   dev.process_name,
   af.frame_id,
   af.ts AS frame_ts,
@@ -241,6 +243,8 @@ SELECT
     FROM _app_frame_to_surface_flinger_frame AS sf_frames
     WHERE
       sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
+      -- App frame should belong to the process the input is delivered to.
+      AND sf_frames.upid = _input_event_id_to_android_frame.upid
     LIMIT 1
   ) AS present_time,
   (
@@ -248,6 +252,8 @@ SELECT
     FROM _app_frame_to_surface_flinger_frame AS sf_frames
     WHERE
       sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
+      -- App frame should belong to the process the input is delivered to.
+      AND sf_frames.upid = _input_event_id_to_android_frame.upid
     LIMIT 1
   ) AS frame_id,
   event_seq,

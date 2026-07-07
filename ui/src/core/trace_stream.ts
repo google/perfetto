@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer, Deferred} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/assert';
+import {defer, type Deferred} from '../base/deferred';
+import {ensureExists, assertTrue} from '../base/assert';
 import {exists} from '../base/utils';
-import {TraceChunk, TraceStream} from '../public/stream';
+import type {TraceChunk, TraceStream} from '../public/stream';
 
 export const TRACE_SLICE_SIZE = 32 * 1024 * 1024;
 
@@ -44,13 +44,13 @@ export class TraceFileStream implements TraceStream {
   }
 
   private onLoad() {
-    const pendingRead = assertExists(this.pendingRead);
+    const pendingRead = ensureExists(this.pendingRead);
     this.pendingRead = undefined;
     if (this.reader.error) {
       pendingRead.reject(this.reader.error);
       return;
     }
-    const res = assertExists(this.reader.result) as ArrayBuffer;
+    const res = ensureExists(this.reader.result) as ArrayBuffer;
     this.bytesRead += res.byteLength;
     pendingRead.resolve({
       data: new Uint8Array(res),
@@ -307,4 +307,20 @@ export class TraceMultipleFilesStream implements TraceStream {
         };
     }
   }
+}
+
+// Materializes the on-the-fly TAR (manifest + traces) of a multi-file set into a
+// single in-memory blob, for the "download the merged trace" sinks. Reopening
+// this blob reproduces the merge. Revisit for very large sets.
+export async function tarFileListToBlob(
+  files: ReadonlyArray<File>,
+): Promise<Blob> {
+  const stream = new TraceMultipleFilesStream(files);
+  const chunks: Uint8Array[] = [];
+  for (;;) {
+    const chunk = await stream.readChunk();
+    chunks.push(chunk.data);
+    if (chunk.eof) break;
+  }
+  return new Blob(chunks as BlobPart[], {type: 'application/x-tar'});
 }

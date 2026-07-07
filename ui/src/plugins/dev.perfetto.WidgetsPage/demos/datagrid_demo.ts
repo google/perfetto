@@ -14,16 +14,71 @@
 
 import m from 'mithril';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
-import {Row} from '../../../trace_processor/query_result';
+import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {Row, SqlValue} from '../../../trace_processor/query_result';
+import {InMemoryDataSource} from '../../../components/widgets/datagrid/in_memory_data_source';
+import type {
+  DataSource,
+  DataSourceModel,
+  DataSourceRows,
+} from '../../../components/widgets/datagrid/data_source';
+import type {QueryResult} from '../../../base/query_slot';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
+import type {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
-import {App} from '../../../public/app';
+import type {App} from '../../../public/app';
 import {Anchor} from '../../../widgets/anchor';
+
+// Data source wrapper that can be flipped into an error state, for
+// demoing how the DataGrid surfaces datasource failures.
+class ErrorEmulatingDataSource implements DataSource {
+  failing = false;
+  private readonly inner: DataSource;
+  private readonly errorMessage: string;
+
+  constructor(inner: DataSource, errorMessage: string) {
+    this.inner = inner;
+    this.errorMessage = errorMessage;
+  }
+
+  useRows(model: DataSourceModel): DataSourceRows {
+    if (this.failing) {
+      return {isPending: false, error: this.errorMessage};
+    }
+    return this.inner.useRows(model);
+  }
+
+  useAggregateSummaries(model: DataSourceModel): QueryResult<Row> {
+    if (this.failing) {
+      return {data: undefined, isPending: false, isFresh: true};
+    }
+    return this.inner.useAggregateSummaries(model);
+  }
+
+  useDistinctValues(
+    column: string | undefined,
+  ): QueryResult<readonly SqlValue[]> {
+    return this.inner.useDistinctValues(column);
+  }
+
+  useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]> {
+    return this.inner.useParameterKeys(prefix);
+  }
+
+  async exportData(model: DataSourceModel): Promise<readonly Row[]> {
+    if (this.failing) {
+      throw new Error(this.errorMessage);
+    }
+    return this.inner.exportData(model);
+  }
+}
 
 // Cache for the SQL data source - created once when page is first opened with a trace
 let cachedSliceDataSource: SQLDataSource | undefined;
+
+// Cached error-emulating wrapper around the in-memory employee data source so
+// the "emulateError" toggle persists across renders.
+let employeeErrorDataSource: ErrorEmulatingDataSource | undefined;
 
 // SQL schema for slice table with track join
 const SLICE_SQL_SCHEMA: SQLSchemaRegistry = {
@@ -182,19 +237,29 @@ export function renderDataGrid(app: App): m.Children {
     ),
 
     renderWidgetShowcase({
-      renderWidget: ({...rest}) => {
+      renderWidget: ({emulateError, ...rest}) => {
+        if (!employeeErrorDataSource) {
+          employeeErrorDataSource = new ErrorEmulatingDataSource(
+            new InMemoryDataSource(EMPLOYEE_DATA),
+            'Emulated datasource error: failed to fetch rows',
+          );
+        }
+        employeeErrorDataSource.failing = emulateError;
         return m(DataGrid, {
           ...rest,
           fillHeight: true,
           schema: EMPLOYEE_SCHEMA,
           rootSchema: 'employee',
-          data: EMPLOYEE_DATA,
+          data: employeeErrorDataSource,
         });
       },
       initialOpts: {
         showExportButton: false,
         structuredQueryCompatMode: false,
-        enablePivotControls: true,
+        disablePivotControls: false,
+        disableColumnControls: false,
+        disableFilterControls: false,
+        emulateError: false,
       },
       noPadding: true,
     }),
@@ -253,12 +318,7 @@ export function renderDataGrid(app: App): m.Children {
                 ],
               });
             },
-            initialOpts: {
-              enableSortControls: true,
-              enableFilterControls: true,
-              enablePivotControls: false,
-              showRowCount: true,
-            },
+            initialOpts: {},
             noPadding: true,
           })
         : m('.pf-empty-state', 'Load a trace to see the SQL DataGrid example'),

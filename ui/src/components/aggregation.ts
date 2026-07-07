@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {ColorScheme} from '../base/color_scheme';
-import {Row, SqlValue} from '../trace_processor/query_result';
-import {CellRenderResult} from './widgets/datagrid/datagrid_schema';
+import type m from 'mithril';
+import type {ColorScheme} from '../base/color_scheme';
+import type {Row, SqlValue} from '../trace_processor/query_result';
+import type {CellRenderResult} from './widgets/datagrid/datagrid_schema';
 
 export interface ColumnDef {
   readonly columnId: string;

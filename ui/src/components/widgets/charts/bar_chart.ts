@@ -15,12 +15,12 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {
-  ChartAggregation,
+  type ChartAggregation,
   extractBrushRange,
   formatNumber,
   percentile,
 } from './chart_utils';
-import {EChartView, EChartEventHandler} from './echart_view';
+import {EChartView, type EChartEventHandler} from './echart_view';
 import type {LegendPosition} from './common';
 import {
   buildAxisOption,

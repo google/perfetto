@@ -19,12 +19,16 @@
  * columns, and assertions used across all node unit tests.
  */
 
-import {QueryNode, NodeType, SecondaryInputSpec} from '../../query_node';
-import {ColumnInfo} from '../column_info';
-import {NodeDetailsAttrs} from '../../node_types';
+import {
+  type QueryNode,
+  NodeType,
+  type SecondaryInputSpec,
+} from '../../query_node';
+import type {ColumnInfo} from '../column_info';
+import type {NodeDetailsAttrs} from '../../node_types';
 import {NodeIssues} from '../node_issues';
 import protos from '../../../../protos';
-import {
+import type {
   PerfettoSqlType,
   SimpleTypeKind,
 } from '../../../../trace_processor/perfetto_sql_type';

@@ -51,7 +51,9 @@ class PackageLookup(TestSuite):
         }
         """),
         query="""
-        SELECT uid, package_lookup(uid) AS package_name
+        INCLUDE PERFETTO MODULE android.package_lookup;
+
+        SELECT uid, android_package_lookup(uid) AS package_name
         FROM (
           SELECT 1000 AS uid UNION ALL    -- System package
           SELECT 10001 AS uid UNION ALL   -- GMS preferred

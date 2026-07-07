@@ -20,6 +20,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 # Per (device, curve_type) CSVs. Each curve_type's compressed blob is the
 # union of the rows in every device folder for that curve type.
 _cpu_1d_csvs = [
+  "data/MT6858/cpu_1d.csv",
   "data/MT6897/cpu_1d.csv",
   "data/SM8750/cpu_1d.csv",
   "data/SXR2230P/cpu_1d.csv",
@@ -31,6 +32,7 @@ _cpu_1d_csvs = [
 ]
 
 _cpu_2d_csvs = [
+  "data/MT6858/cpu_2d.csv",
   "data/MT6897/cpu_2d.csv",
   "data/SXR2230P/cpu_2d.csv",
   "data/Tensor/cpu_2d.csv",
@@ -96,9 +98,9 @@ _wattson_curve_blob("gen_tpu_curves") {
 source_set("wattson") {
   sources = [
     "plugin.cc",
-    "register.h",
     "table_function.cc",
     "table_function.h",
+    "wattson.h",
   ]
   deps = [
     ":gen_cpu_1d_curves",
@@ -112,7 +114,6 @@ source_set("wattson") {
     "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
-    "../../perfetto_sql/intrinsics/table_functions",
     "../../storage",
     "../../types",
     "../../util:gzip",

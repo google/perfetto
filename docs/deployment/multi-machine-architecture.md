@@ -21,12 +21,16 @@ the same `CLOCK_BOOTTIME`.
 That assumption breaks as soon as a producer lives on a different kernel.
 There is no shared filesystem socket. PID namespaces are independent. Boot
 clocks start at different points and drift independently of each other.
-Running a separate `traced` on every machine and stitching the resulting
-traces together after the fact is possible but fragile, especially for
-anything timing-sensitive (e.g. cross-machine scheduling or RPC latency).
+Running a separate `traced` on every machine and
+[merging the resulting traces](/docs/analysis/merging-traces.md) after the
+fact works, but the cross-machine clock alignment is then only as good as
+the machines' wall-clock sync (or a manually supplied offset), which can
+matter for anything timing-sensitive (e.g. cross-machine scheduling or RPC
+latency).
 
-Multi-machine tracing solves this without duplicating buffers or consumer
-machinery on every machine.
+Live multi-machine tracing instead measures the clock offsets while
+recording, without duplicating buffers or consumer machinery on every
+machine.
 
 ## Architecture
 
@@ -104,7 +108,11 @@ described in [Clock Synchronization](/docs/concepts/clock-sync.md): Trace
 Processor folds the cross-machine offsets into the same clock graph it
 already builds for `CLOCK_REALTIME`, `CLOCK_MONOTONIC`, etc., and resolves
 every event to a single global trace clock at import. There is nothing
-extra a data source has to do.
+extra a data source has to do. The same clock graph also powers
+[post-hoc trace merging](/docs/concepts/merging-traces.md), where the
+cross-machine edges come from wall-clock rendezvous or a
+[manifest](/docs/reference/perfetto-manifest.md) instead of the ping
+protocol.
 
 ## {#data-source-dispatch} Data source dispatch
 
@@ -149,6 +157,9 @@ namespaces, etc.).
 * [Multi-machine recording](/docs/learning-more/multi-machine-tracing.md) —
   step-by-step walk-through of recording a multi-machine trace between two
   Linux hosts.
+* [How trace merging works](/docs/concepts/merging-traces.md) — combining
+  independently recorded traces into the same multi-machine model after
+  the fact.
 * [Clock Synchronization](/docs/concepts/clock-sync.md) — the single-machine
   clock-sync graph that the cross-machine offsets fold into at import.
 * [`machine` table reference](/docs/analysis/sql-tables.autogen#machine) —

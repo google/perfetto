@@ -14,8 +14,8 @@
 
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';

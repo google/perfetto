@@ -22,6 +22,41 @@ producers feed into the same trace via `traced_relay`. Substitute
 `<host-ip>` with the IP address (or hostname) of `host` as reachable from
 `guest`.
 
+## {#approaches} Choosing an approach
+
+Live relaying, which this guide covers, is one of three ways to get a
+single trace spanning several machines. Which one fits depends on whether
+the machines can reach each other at recording time and how much control
+you have over the producers:
+
+1. **Record it as one trace (this guide).** `traced_relay` on each guest
+   forwards producers to a single `traced` on the host, which owns the
+   buffers and clock-syncs the guests while recording. Best fidelity
+   (cross-machine clock sync is measured, not assumed), but needs a live
+   network path between the machines during the recording.
+
+2. **Record independently with pre-assigned machine ids.** Each machine
+   records its own trace, but SDK producers are initialized with a unique
+   `machine_id` (`TracingInitArgs::machine_id` in the C++ SDK,
+   `PerfettoProducerBackendInitArgsSetMachineId()` in the C SDK). Merging
+   the files later needs no configuration: every packet already says which
+   machine it came from, and the traces align through their wall clocks.
+   See [Merging traces with Trace Processor](/docs/analysis/merging-traces.md#no-config).
+
+3. **Record independently, merge afterwards.** Each machine records a
+   normal trace; nothing is coordinated at recording time. Machine
+   attribution and any clock relations the traces do not carry are supplied
+   when merging, either interactively in
+   [the Perfetto UI](/docs/visualization/merging-traces.md) or with a
+   [perfetto_manifest](/docs/reference/perfetto-manifest.md) file. The most
+   flexible option, and the only one available for traces that already
+   exist.
+
+All three produce the same result in the trace model: one trace, one
+timeline, one [`machine` table][machine-table] row per machine. They can
+also be combined, for example by merging two relay-recorded traces from
+different sites.
+
 ## Prerequisites
 
 * `tracebox` available on both machines. See
@@ -55,6 +90,25 @@ UNIX path to a TCP listener that remote machines can reach.
 `--enable-relay-endpoint` makes that socket accept `traced_relay`
 connections in addition to ordinary local producers.
 
+For deployments that need to keep a local AF_UNIX producer socket
+listening alongside the TCP relay socket — so host-side unprivileged
+producers and remote `traced_relay` clients use separate sockets —
+list both in `PERFETTO_PRODUCER_SOCK_NAME` and use the narrower
+`--enable-relay-endpoint-on` form, which names the socket that should
+carry `RelayPort`:
+
+```bash
+PERFETTO_PRODUCER_SOCK_NAME=/tmp/perfetto-producer,0.0.0.0:20001 \
+  tracebox traced --enable-relay-endpoint-on=0.0.0.0:20001
+```
+
+In this form the local UNIX socket continues to serve unprivileged
+producers and never accepts relay calls, which keeps the `RelayPort`
+service unreachable from local apps. The flag selects from the producer
+sockets already listed in `PERFETTO_PRODUCER_SOCK_NAME` — it does not
+introduce a new endpoint, so the named socket must appear in the env
+var.
+
 Leave this process running.
 
 ### Step 2: Start `traced_probes` on the host
@@ -69,7 +123,10 @@ PERFETTO_PRODUCER_SOCK_NAME=127.0.0.1:20001 \
 The same env var that rebound `traced`'s listener also tells local
 producers where to connect — without it, `traced_probes` would still try
 the default UNIX socket and fail. `sudo -E` preserves the env var across
-the privilege escalation needed for ftrace.
+the privilege escalation needed for ftrace. (If you used the
+`--enable-relay-endpoint-on` form in Step 1 instead, omit the env var:
+the default UNIX producer socket is still up, and `traced_probes` will
+connect to it without any extra configuration.)
 
 ### Step 3: Start `traced_relay` on the guest
 
@@ -190,6 +247,9 @@ machine through different dimensions.
 * [Multi-machine architecture](/docs/deployment/multi-machine-architecture.md) —
   the why: how `traced_relay`, machine identity, and cross-kernel clock
   sync fit together.
+* [Merging traces with Trace Processor](/docs/analysis/merging-traces.md) —
+  the post-hoc alternative: combine independently recorded traces onto one
+  timeline when a live network path is not an option.
 * [PerfettoSQL: Getting Started](/docs/analysis/perfetto-sql-getting-started.md) —
   for slicing the resulting trace by `machine_id` across `cpu`, `thread`,
   and `process`.

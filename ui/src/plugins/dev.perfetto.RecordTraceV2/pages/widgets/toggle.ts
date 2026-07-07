@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ProbeSetting} from '../../config/config_interfaces';
+import type {ProbeSetting} from '../../config/config_interfaces';
 import {Switch} from '../../../../widgets/switch';
 
 export interface ToggleAttrs {

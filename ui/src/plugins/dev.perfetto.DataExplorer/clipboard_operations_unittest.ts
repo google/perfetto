@@ -16,13 +16,13 @@ import {NodeType} from './query_node';
 import {
   copySelectedNodes,
   pasteClipboardNodes,
-  ClipboardEntry,
-  ClipboardConnection,
+  type ClipboardEntry,
+  type ClipboardConnection,
 } from './clipboard_operations';
 import {createMockNode, connectNodes} from './query_builder/testing/test_utils';
 import {TableSourceNode} from './query_builder/nodes/sources/table_source';
-import {Trace} from '../../public/trace';
-import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import type {Trace} from '../../public/trace';
+import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
 describe('clipboard_operations', () => {
   describe('copySelectedNodes', () => {

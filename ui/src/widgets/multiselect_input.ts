@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './multiselect_input.scss';
 /**
  * MultiselectInput - A widget for selecting multiple items from a list with
  * auto-complete.
@@ -51,7 +52,7 @@
  */
 
 import m from 'mithril';
-import {HTMLAttrs, Intent} from './common';
+import {type HTMLAttrs, Intent} from './common';
 import {Icon} from './icon';
 import {Popup, PopupPosition} from './popup';
 import {EmptyState} from './empty_state';

@@ -469,7 +469,7 @@ class InstrumentsXmlTokenizer::Impl {
 
   std::optional<int64_t> ToTraceTimestamp(int64_t time) {
     std::optional<int64_t> trace_ts =
-        context_->clock_tracker->ToTraceTime(clock_, time);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(time);
     if (PERFETTO_LIKELY(trace_ts.has_value())) {
       latest_timestamp_ = std::max(latest_timestamp_, *trace_ts);
     }

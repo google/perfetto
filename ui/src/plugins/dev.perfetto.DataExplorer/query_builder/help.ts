@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {TableList} from './table_list';
 import {Card, CardStack} from '../../../widgets/card';
 
@@ -22,7 +22,9 @@ export interface DataExplorerHelpAttrs {
   onTableClick: (tableName: string, event: MouseEvent) => void;
 }
 
-export class DataExplorerHelp implements m.ClassComponent<DataExplorerHelpAttrs> {
+export class DataExplorerHelp
+  implements m.ClassComponent<DataExplorerHelpAttrs>
+{
   private searchQuery = '';
 
   view({attrs}: m.CVnode<DataExplorerHelpAttrs>) {

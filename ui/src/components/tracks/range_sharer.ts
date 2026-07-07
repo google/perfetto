@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {ChartHeightSize, YMode} from './counter_track';
+import type {Trace} from '../../public/trace';
+import type {ChartHeightSize, YMode} from './counter_track';
 
 interface RangeSharingParams {
   yRangeSharingKey?: string;

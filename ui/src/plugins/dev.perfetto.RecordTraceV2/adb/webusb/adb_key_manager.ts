@@ -14,7 +14,7 @@
 
 import {assetSrc} from '../../../../base/assets';
 import {AsyncLazy} from '../../../../base/async_lazy';
-import {errResult, okResult, Result} from '../../../../base/result';
+import {errResult, okResult, type Result} from '../../../../base/result';
 import {exists} from '../../../../base/utils';
 import {AdbKey} from './adb_key';
 

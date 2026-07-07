@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ChartSource, ColumnSchema, QueryConfig} from './chart_sql_source';
+import {
+  ChartSource,
+  type ColumnSchema,
+  type QueryConfig,
+} from './chart_sql_source';
 
 const QUERY = 'SELECT name, dur, ts, cpu, size, category FROM slice';
 const SCHEMA: ColumnSchema = {

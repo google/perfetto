@@ -28,8 +28,10 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -67,9 +69,6 @@ bool IsFieldAllowed(const FieldDescriptor& field,
 }  // namespace
 
 struct ProtoToArgsParser::WorkItem {
-  // The serialized data for the current message.
-  protozero::ConstBytes data;
-
   // The decoder for the current message. Its internal state marks our
   // progress through this message's fields.
   protozero::ProtoDecoder decoder;
@@ -89,6 +88,10 @@ struct ProtoToArgsParser::WorkItem {
 
   // Set to false as soon as any field is parsed for this message.
   bool empty_message = true;
+
+  // Node index in |path_nodes_|, or kNoPath for a dynamic DebugAnnotation
+  // proto_value subtree.
+  uint32_t path = kNoPath;
 };
 
 struct ProtoToArgsParser::DebugAnnotationWorkItem {
@@ -178,10 +181,65 @@ ProtoToArgsParser::Delegate::~Delegate() = default;
 // std::vector<std::variant<...>> members' constructors and destructors (which
 // need all variant alternatives to be complete types) are instantiated in
 // this translation unit.
-ProtoToArgsParser::ProtoToArgsParser(const DescriptorPool& pool) : pool_(pool) {
+ProtoToArgsParser::ProtoToArgsParser(const DescriptorPool& pool,
+                                     StringPool& string_pool)
+    : pool_(pool), string_pool_(string_pool) {
   constexpr int kDefaultSize = 64;
   key_prefix_.key.reserve(kDefaultSize);
   key_prefix_.flat_key.reserve(kDefaultSize);
+}
+
+uint32_t ProtoToArgsParser::GetOrCreatePathChild(uint32_t parent,
+                                                 uint32_t field_id,
+                                                 bool is_repeated) {
+  uint64_t key = PathEdgeKey(parent, field_id);
+  uint32_t* idx = path_index_.Find(key);
+  return idx ? *idx : CreatePathChild(key, parent, is_repeated);
+}
+
+uint32_t ProtoToArgsParser::CreatePathChild(uint64_t key,
+                                            uint32_t parent,
+                                            bool is_repeated) {
+  // Read the parent before AppendPathNode, which may reallocate the arena.
+  bool has_array = path_nodes_[parent].has_array || is_repeated;
+  // key_prefix_.flat_key already has this field's name appended by the caller.
+  StringPool::Id flat_key_id =
+      string_pool_.InternString(base::StringView(key_prefix_.flat_key));
+  return AppendPathNode(key, flat_key_id, has_array);
+}
+
+uint32_t ProtoToArgsParser::AppendPathNode(uint64_t key,
+                                           StringPool::Id flat_key_id,
+                                           bool has_array) {
+  auto idx = static_cast<uint32_t>(path_nodes_.size());
+  PathNode node;
+  node.flat_key_id = flat_key_id;
+  node.has_array = has_array;
+  path_nodes_.push_back(node);
+  path_index_.Insert(key, idx);
+  return idx;
+}
+
+std::optional<uint32_t> ProtoToArgsParser::ResolveTypeDescriptorIdx(
+    const FieldDescriptor& descriptor,
+    uint32_t node) {
+  if (node != kNoPath && path_nodes_[node].resolved_done) {
+    return path_nodes_[node].resolved_idx;
+  }
+  std::optional<uint32_t> idx =
+      pool_.FindDescriptorIdx(descriptor.resolved_type_name());
+  if (node != kNoPath) {
+    path_nodes_[node].resolved_idx = idx;
+    path_nodes_[node].resolved_done = true;
+  }
+  return idx;
+}
+
+void ProtoToArgsParser::InternCurrentKey() {
+  key_prefix_.flat_key_id =
+      string_pool_.InternString(base::StringView(key_prefix_.flat_key));
+  key_prefix_.key_id =
+      string_pool_.InternString(base::StringView(key_prefix_.key));
 }
 
 ProtoToArgsParser::~ProtoToArgsParser() = default;
@@ -207,17 +265,33 @@ base::Status ProtoToArgsParser::ParseMessage(
   allowed_fields_ = allowed_fields;
   unknown_extensions_ = unknown_extensions;
   add_defaults_ = add_defaults;
-  work_stack_.emplace_back(WorkItem{cb,
-                                    protozero::ProtoDecoder(cb),
-                                    &pool_.descriptors()[*idx],
+  const ProtoDescriptor* root_descriptor = &pool_.descriptors()[*idx];
+  uint64_t root_key = PathEdgeKey(kNoPath, *idx);
+  uint32_t* slot = path_index_.Find(root_key);
+  uint32_t root_path = slot ? *slot
+                            : AppendPathNode(root_key, StringPool::Id::Null(),
+                                             /*has_array=*/false);
+  work_stack_.emplace_back(WorkItem{protozero::ProtoDecoder(cb),
+                                    root_descriptor,
                                     {},
                                     {},
                                     ScopedNestedKeyContext(key_prefix_),
-                                    true});
+                                    true,
+                                    root_path});
   return RunWorkLoop(delegate);
 }
 
 base::Status ProtoToArgsParser::RunWorkLoop(Delegate& delegate) {
+  // Drain scratch state on every exit path: work items hold raw pointers into
+  // descriptors and packet bytes that don't outlive this call. Pop in LIFO
+  // order so ScopedNestedKeyContext restores key_prefix_ correctly.
+  auto cleanup = base::OnScopeExit([this] {
+    while (!work_stack_.empty()) {
+      work_stack_.pop_back();
+    }
+    da_nested_storage_.clear();
+    nv_nested_storage_.clear();
+  });
   while (!work_stack_.empty()) {
     bool done = false;
     auto& top = work_stack_.back();
@@ -240,13 +314,6 @@ base::Status ProtoToArgsParser::RunWorkLoop(Delegate& delegate) {
 base::Status ProtoToArgsParser::StepProtoMessage(WorkItem& item,
                                                  Delegate& delegate,
                                                  bool& done) {
-  if (auto override_result =
-          MaybeApplyOverrideForType(item.descriptor->full_name(),
-                                    item.key_context, item.data, delegate)) {
-    done = true;
-    return override_result.value();
-  }
-
   protozero::Field field = item.decoder.ReadField();
   if (field.valid()) {
     item.empty_message = false;
@@ -283,7 +350,7 @@ base::Status ProtoToArgsParser::StepProtoMessage(WorkItem& item,
         descriptor_type != FieldDescriptorProto::TYPE_BYTES;
     if (looks_packed) {
       return ParsePackedField(*field_descriptor, item.repeated_field_index,
-                              field, delegate);
+                              field, item.path, delegate);
     }
 
     ScopedNestedKeyContext field_key_context(key_prefix_);
@@ -302,6 +369,13 @@ base::Status ProtoToArgsParser::StepProtoMessage(WorkItem& item,
       AppendProtoType(key_prefix_.key, field_descriptor->name());
     }
 
+    // kNoPath for dynamic DebugAnnotation subtrees, which intern keys directly.
+    uint32_t node =
+        item.path != kNoPath
+            ? GetOrCreatePathChild(item.path, field_descriptor->number(),
+                                   field_descriptor->is_repeated())
+            : kNoPath;
+
     if (std::optional<base::Status> status =
             MaybeApplyOverrideForField(field, delegate)) {
       return *status;
@@ -318,47 +392,68 @@ base::Status ProtoToArgsParser::StepProtoMessage(WorkItem& item,
         field_key_context.RemoveFieldSuffix();
         return PushDebugAnnotation(field.as_bytes(), delegate);
       }
-      auto desc_idx = pool_.FindDescriptorIdx(resolved);
+      std::optional<uint32_t> desc_idx =
+          ResolveTypeDescriptorIdx(*field_descriptor, node);
       if (!desc_idx) {
         return base::ErrStatus("Failed to find proto descriptor for %s",
                                resolved.c_str());
       }
       work_stack_.emplace_back(
-          WorkItem{field.as_bytes(),
-                   protozero::ProtoDecoder(field.as_bytes()),
+          WorkItem{protozero::ProtoDecoder(field.as_bytes()),
                    &pool_.descriptors()[*desc_idx],
                    {},
                    {},
                    std::move(field_key_context),
-                   true});
+                   true,
+                   node});
       return base::OkStatus();
     }
-    return ParseSimpleField(*field_descriptor, field, delegate);
+    // Leaf scalar: reuse the cached flat_key id; only the per-occurrence key
+    // (with an array on the path) needs interning. No node => intern directly.
+    if (node != kNoPath) {
+      const PathNode& n = path_nodes_[node];
+      key_prefix_.flat_key_id = n.flat_key_id;
+      key_prefix_.key_id =
+          n.has_array
+              ? string_pool_.InternString(base::StringView(key_prefix_.key))
+              : n.flat_key_id;
+    } else {
+      InternCurrentKey();
+    }
+    return ParseSimpleField(*field_descriptor, field, node, delegate);
   }
 
-  if (add_defaults_) {
-    for (const auto& [id, field_desc] : item.descriptor->fields()) {
-      if (work_stack_.size() == 1 &&
-          !IsFieldAllowed(field_desc, allowed_fields_)) {
-        continue;
-      }
-      bool field_exists = item.existing_fields.find(field_desc.number()) !=
-                          item.existing_fields.cend();
-      if (field_exists) {
-        continue;
-      }
-      const std::string& field_name = field_desc.name();
-      ScopedNestedKeyContext key_context_default(key_prefix_);
-      AppendProtoType(key_prefix_.flat_key, field_name);
-      AppendProtoType(key_prefix_.key, field_name);
-      RETURN_IF_ERROR(AddDefault(field_desc, delegate));
-      item.empty_message = false;
-    }
-  }
-  if (item.empty_message) {
-    delegate.AddNull(item.key_context.key());
-  }
   done = true;
+  if (PERFETTO_UNLIKELY(add_defaults_)) {
+    RETURN_IF_ERROR(AddMessageDefaults(item, delegate));
+  }
+  if (PERFETTO_UNLIKELY(item.empty_message)) {
+    InternCurrentKey();
+    delegate.AddNull(key_prefix_.flat_key_id, key_prefix_.key_id);
+  }
+  return base::OkStatus();
+}
+
+base::Status ProtoToArgsParser::AddMessageDefaults(WorkItem& item,
+                                                   Delegate& delegate) {
+  for (const auto& [id, field_desc] : item.descriptor->fields()) {
+    if (work_stack_.size() == 1 &&
+        !IsFieldAllowed(field_desc, allowed_fields_)) {
+      continue;
+    }
+    bool field_exists = item.existing_fields.find(field_desc.number()) !=
+                        item.existing_fields.cend();
+    if (field_exists) {
+      continue;
+    }
+    const std::string& field_name = field_desc.name();
+    ScopedNestedKeyContext key_context_default(key_prefix_);
+    AppendProtoType(key_prefix_.flat_key, field_name);
+    AppendProtoType(key_prefix_.key, field_name);
+    InternCurrentKey();
+    RETURN_IF_ERROR(AddDefault(field_desc, delegate));
+    item.empty_message = false;
+  }
   return base::OkStatus();
 }
 
@@ -366,6 +461,7 @@ base::Status ProtoToArgsParser::ParsePackedField(
     const FieldDescriptor& field_descriptor,
     std::unordered_map<size_t, int>& repeated_field_index,
     protozero::Field field,
+    uint32_t parent_path,
     Delegate& delegate) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   using PWT = protozero::proto_utils::ProtoWireType;
@@ -380,6 +476,8 @@ base::Status ProtoToArgsParser::ParsePackedField(
         field_descriptor.name().c_str());
   }
 
+  // All elements share the same flat_key, so the node is resolved at most once.
+  uint32_t node = kNoPath;
   auto parse = [&](uint64_t new_value, PWT wire_type) {
     protozero::Field f;
     f.initialize(field.id(), static_cast<uint8_t>(wire_type), new_value, 0);
@@ -397,11 +495,23 @@ base::Status ProtoToArgsParser::ParsePackedField(
     AppendProtoType(key_prefix_.flat_key, field_descriptor.name());
     AppendProtoType(key_prefix_.key, prefix_part);
 
+    if (parent_path != kNoPath) {
+      if (node == kNoPath) {
+        node = GetOrCreatePathChild(parent_path, field_descriptor.number(),
+                                    /*is_repeated=*/true);
+      }
+      key_prefix_.flat_key_id = path_nodes_[node].flat_key_id;
+      key_prefix_.key_id =
+          string_pool_.InternString(base::StringView(key_prefix_.key));
+    } else {
+      InternCurrentKey();
+    }
+
     if (std::optional<base::Status> status =
             MaybeApplyOverrideForField(f, delegate)) {
       return *status;
     }
-    return ParseSimpleField(field_descriptor, f, delegate);
+    return ParseSimpleField(field_descriptor, f, node, delegate);
   };
 
   const uint8_t* data = field.as_bytes().data;
@@ -443,76 +553,67 @@ void ProtoToArgsParser::AddParsingOverrideForField(
   field_overrides_[field] = std::move(func);
 }
 
-void ProtoToArgsParser::AddParsingOverrideForType(const std::string& type,
-                                                  ParsingOverrideForType func) {
-  type_overrides_[type] = std::move(func);
-}
-
 std::optional<base::Status> ProtoToArgsParser::MaybeApplyOverrideForField(
     const protozero::Field& field,
     Delegate& delegate) {
-  auto it = field_overrides_.find(key_prefix_.flat_key);
-  if (it == field_overrides_.end())
+  // Avoid hashing the flat_key on the per-field hot path when no field
+  // overrides are registered.
+  if (field_overrides_.size() == 0)
     return std::nullopt;
-  return it->second(field, delegate);
-}
-
-std::optional<base::Status> ProtoToArgsParser::MaybeApplyOverrideForType(
-    const std::string& message_type,
-    ScopedNestedKeyContext& key,
-    const protozero::ConstBytes& data,
-    Delegate& delegate) {
-  auto it = type_overrides_.find(message_type);
-  if (it == type_overrides_.end())
+  ParsingOverrideForField* func = field_overrides_.Find(key_prefix_.flat_key);
+  if (!func)
     return std::nullopt;
-  return it->second(key, data, delegate);
+  return (*func)(field, delegate);
 }
 
 base::Status ProtoToArgsParser::ParseSimpleField(
     const FieldDescriptor& descriptor,
     const protozero::Field& field,
+    uint32_t node,
     Delegate& delegate) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+  const StringPool::Id fk = key_prefix_.flat_key_id;
+  const StringPool::Id k = key_prefix_.key_id;
   switch (descriptor.type()) {
     case FieldDescriptorProto::TYPE_INT32:
     case FieldDescriptorProto::TYPE_SFIXED32:
-      delegate.AddInteger(key_prefix_, field.as_int32());
+      delegate.AddInteger(fk, k, field.as_int32());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT32:
-      delegate.AddInteger(key_prefix_, field.as_sint32());
+      delegate.AddInteger(fk, k, field.as_sint32());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_SFIXED64:
-      delegate.AddInteger(key_prefix_, field.as_int64());
+      delegate.AddInteger(fk, k, field.as_int64());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT64:
-      delegate.AddInteger(key_prefix_, field.as_sint64());
+      delegate.AddInteger(fk, k, field.as_sint64());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_UINT32:
     case FieldDescriptorProto::TYPE_FIXED32:
-      delegate.AddUnsignedInteger(key_prefix_, field.as_uint32());
+      delegate.AddUnsignedInteger(fk, k, field.as_uint32());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_UINT64:
     case FieldDescriptorProto::TYPE_FIXED64:
-      delegate.AddUnsignedInteger(key_prefix_, field.as_uint64());
+      delegate.AddUnsignedInteger(fk, k, field.as_uint64());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_BOOL:
-      delegate.AddBoolean(key_prefix_, field.as_bool());
+      delegate.AddBoolean(fk, k, field.as_bool());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_DOUBLE:
-      delegate.AddDouble(key_prefix_, field.as_double());
+      delegate.AddDouble(fk, k, field.as_double());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_FLOAT:
-      delegate.AddDouble(key_prefix_, static_cast<double>(field.as_float()));
+      delegate.AddDouble(fk, k, static_cast<double>(field.as_float()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_BYTES:
-      delegate.AddBytes(key_prefix_, field.as_bytes());
+      delegate.AddBytes(fk, k, field.as_bytes());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_STRING:
-      delegate.AddString(key_prefix_, field.as_string());
+      delegate.AddString(fk, k, field.as_string());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_ENUM:
-      return AddEnum(descriptor, field.as_int32(), delegate);
+      return AddEnum(descriptor, field.as_int32(), node, delegate);
     default:
       return base::ErrStatus(
           "Tried to write value of type field %s (in proto type "
@@ -543,8 +644,10 @@ base::Status ProtoToArgsParser::AddDefault(const FieldDescriptor& descriptor,
   if (!delegate.ShouldAddDefaultArg(key_prefix_)) {
     return base::OkStatus();
   }
+  const StringPool::Id fk = key_prefix_.flat_key_id;
+  const StringPool::Id k = key_prefix_.key_id;
   if (descriptor.is_repeated()) {
-    delegate.AddNull(key_prefix_);
+    delegate.AddNull(fk, k);
     return base::OkStatus();
   }
   const auto& default_value = descriptor.default_value();
@@ -553,61 +656,62 @@ base::Status ProtoToArgsParser::AddDefault(const FieldDescriptor& descriptor,
   switch (descriptor.type()) {
     case FieldDescriptorProto::TYPE_INT32:
     case FieldDescriptorProto::TYPE_SFIXED32:
-      delegate.AddInteger(key_prefix_,
+      delegate.AddInteger(fk, k,
                           base::StringToInt32(default_value_if_number).value());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT32:
       delegate.AddInteger(
-          key_prefix_,
+          fk, k,
           protozero::proto_utils::ZigZagDecode(
               base::StringToInt64(default_value_if_number).value()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_SFIXED64:
-      delegate.AddInteger(key_prefix_,
+      delegate.AddInteger(fk, k,
                           base::StringToInt64(default_value_if_number).value());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT64:
       delegate.AddInteger(
-          key_prefix_,
+          fk, k,
           protozero::proto_utils::ZigZagDecode(
               base::StringToInt64(default_value_if_number).value()));
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_UINT32:
     case FieldDescriptorProto::TYPE_FIXED32:
       delegate.AddUnsignedInteger(
-          key_prefix_, base::StringToUInt32(default_value_if_number).value());
+          fk, k, base::StringToUInt32(default_value_if_number).value());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_UINT64:
     case FieldDescriptorProto::TYPE_FIXED64:
       delegate.AddUnsignedInteger(
-          key_prefix_, base::StringToUInt64(default_value_if_number).value());
+          fk, k, base::StringToUInt64(default_value_if_number).value());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_BOOL:
-      delegate.AddBoolean(key_prefix_, default_value == "true");
+      delegate.AddBoolean(fk, k, default_value == "true");
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_DOUBLE:
     case FieldDescriptorProto::TYPE_FLOAT:
-      delegate.AddDouble(key_prefix_,
+      delegate.AddDouble(fk, k,
                          base::StringToDouble(default_value_if_number).value());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_BYTES:
-      delegate.AddBytes(key_prefix_, protozero::ConstBytes{});
+      delegate.AddBytes(fk, k, protozero::ConstBytes{});
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_STRING:
       if (default_value) {
-        delegate.AddString(key_prefix_, default_value.value());
+        delegate.AddString(fk, k, default_value.value());
       } else {
-        delegate.AddNull(key_prefix_);
+        delegate.AddNull(fk, k);
       }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_MESSAGE:
-      delegate.AddNull(key_prefix_);
+      delegate.AddNull(fk, k);
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_ENUM:
+      // Defaults have a dynamic key, hence no node to cache into.
       return AddEnum(descriptor,
                      base::StringToInt32(default_value_if_number).value(),
-                     delegate);
+                     /*node=*/kNoPath, delegate);
     default:
       return base::ErrStatus(
           "Tried to write default value of type field %s (in proto type "
@@ -619,16 +723,19 @@ base::Status ProtoToArgsParser::AddDefault(const FieldDescriptor& descriptor,
 
 base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
                                         int32_t value,
+                                        uint32_t node,
                                         Delegate& delegate) {
-  auto opt_enum_descriptor_idx =
-      pool_.FindDescriptorIdx(descriptor.resolved_type_name());
+  const StringPool::Id fk = key_prefix_.flat_key_id;
+  const StringPool::Id k = key_prefix_.key_id;
+  std::optional<uint32_t> opt_enum_descriptor_idx =
+      ResolveTypeDescriptorIdx(descriptor, node);
   if (!opt_enum_descriptor_idx) {
     // Fall back to the integer representation of the field.
     // We add the string representation of the int value here in order that
     // EXTRACT_ARG() should return consistent types under error conditions and
     // that CREATE PERFETTO TABLE AS EXTRACT_ARG(...) should be generally safe
     // to use.
-    delegate.AddString(key_prefix_, std::to_string(value));
+    delegate.AddString(fk, k, std::to_string(value));
     return base::OkStatus();
   }
   auto opt_enum_string =
@@ -636,11 +743,11 @@ base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
   if (!opt_enum_string) {
     // Fall back to the integer representation of the field. See above for
     // motivation.
-    delegate.AddString(key_prefix_, std::to_string(value));
+    delegate.AddString(fk, k, std::to_string(value));
     return base::OkStatus();
   }
   delegate.AddString(
-      key_prefix_,
+      fk, k,
       protozero::ConstChars{opt_enum_string->data(), opt_enum_string->size()});
   return base::OkStatus();
 }
@@ -707,6 +814,12 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
     DebugAnnotationWorkItem& item,
     Delegate& delegate,
     bool& done) {
+  // DebugAnnotation keys are always dynamic (built from runtime names), so
+  // intern this node's key directly rather than via the traversal tree. The
+  // key is stable for the duration of this call.
+  InternCurrentKey();
+  const StringPool::Id fk = key_prefix_.flat_key_id;
+  const StringPool::Id k = key_prefix_.key_id;
   if (item.decoder.has_dict_entries()) {
     if (!item.first_pass_done) {
       item.nested_current = static_cast<uint32_t>(da_nested_storage_.size());
@@ -752,19 +865,19 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
       da_nested_storage_.pop_back();
     }
   } else if (item.decoder.has_bool_value()) {
-    delegate.AddBoolean(item.key.key(), item.decoder.bool_value());
+    delegate.AddBoolean(fk, k, item.decoder.bool_value());
     item.added_entry = true;
   } else if (item.decoder.has_uint_value()) {
-    delegate.AddUnsignedInteger(item.key.key(), item.decoder.uint_value());
+    delegate.AddUnsignedInteger(fk, k, item.decoder.uint_value());
     item.added_entry = true;
   } else if (item.decoder.has_int_value()) {
-    delegate.AddInteger(item.key.key(), item.decoder.int_value());
+    delegate.AddInteger(fk, k, item.decoder.int_value());
     item.added_entry = true;
   } else if (item.decoder.has_double_value()) {
-    delegate.AddDouble(item.key.key(), item.decoder.double_value());
+    delegate.AddDouble(fk, k, item.decoder.double_value());
     item.added_entry = true;
   } else if (item.decoder.has_string_value()) {
-    delegate.AddString(item.key.key(), item.decoder.string_value());
+    delegate.AddString(fk, k, item.decoder.string_value());
     item.added_entry = true;
   } else if (item.decoder.has_string_value_iid()) {
     auto* str_decoder = delegate.GetInternedMessage(
@@ -773,13 +886,13 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
     if (!str_decoder) {
       return base::ErrStatus("Debug annotation with invalid string_value_iid");
     }
-    delegate.AddString(item.key.key(), str_decoder->str().ToStdString());
+    delegate.AddString(fk, k, str_decoder->str().ToStdString());
     item.added_entry = true;
   } else if (item.decoder.has_pointer_value()) {
-    delegate.AddPointer(item.key.key(), item.decoder.pointer_value());
+    delegate.AddPointer(fk, k, item.decoder.pointer_value());
     item.added_entry = true;
   } else if (item.decoder.has_legacy_json_value()) {
-    delegate.AddJson(item.key.key(), item.decoder.legacy_json_value());
+    delegate.AddJson(fk, k, item.decoder.legacy_json_value());
     item.added_entry = true;
   } else if (item.decoder.has_proto_value() && !item.subtree_pushed) {
     std::string type_name;
@@ -811,8 +924,7 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
     if (!desc_idx) {
       return base::Status("Failed to find proto descriptor for " + type_name);
     }
-    work_stack_.emplace_back(WorkItem{proto_bytes,
-                                      protozero::ProtoDecoder(proto_bytes),
+    work_stack_.emplace_back(WorkItem{protozero::ProtoDecoder(proto_bytes),
                                       &pool_.descriptors()[*desc_idx],
                                       {},
                                       {},
@@ -888,20 +1000,24 @@ base::Status ProtoToArgsParser::StepNestedValue(NestedValueWorkItem& item,
                                                 bool& done) {
   using NV = protos::pbzero::DebugAnnotation::NestedValue;
   const Key& key = EffectiveNestedValueKey(self_index);
+  // NestedValue keys are dynamic; intern the effective key directly.
+  InternCurrentKey();
+  const StringPool::Id fk_id = key_prefix_.flat_key_id;
+  const StringPool::Id k_id = key_prefix_.key_id;
 
   switch (item.decoder.nested_type()) {
     case NV::UNSPECIFIED: {
       if (item.decoder.has_bool_value()) {
-        delegate.AddBoolean(key, item.decoder.bool_value());
+        delegate.AddBoolean(fk_id, k_id, item.decoder.bool_value());
         item.added_entry = true;
       } else if (item.decoder.has_int_value()) {
-        delegate.AddInteger(key, item.decoder.int_value());
+        delegate.AddInteger(fk_id, k_id, item.decoder.int_value());
         item.added_entry = true;
       } else if (item.decoder.has_double_value()) {
-        delegate.AddDouble(key, item.decoder.double_value());
+        delegate.AddDouble(fk_id, k_id, item.decoder.double_value());
         item.added_entry = true;
       } else if (item.decoder.has_string_value()) {
-        delegate.AddString(key, item.decoder.string_value());
+        delegate.AddString(fk_id, k_id, item.decoder.string_value());
         item.added_entry = true;
       }
       break;

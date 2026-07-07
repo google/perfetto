@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ErrorDetails} from '../base/logging';
+import type {ErrorDetails} from '../base/logging';
 
 export type TraceCategories = 'Trace Actions' | 'Record Trace' | 'User Actions';
 

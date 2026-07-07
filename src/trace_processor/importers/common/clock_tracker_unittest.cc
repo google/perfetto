@@ -65,14 +65,21 @@ class ClockTrackerTest : public ::testing::Test {
     primary_sync_ = std::make_unique<ClockSynchronizer>(
         context_.trace_time_state.get(),
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
-    ct_ = std::make_unique<ClockTracker>(
-        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
-        primary_sync_.get(), true);
+    ct_ = std::make_unique<ClockTracker>(&context_, primary_sync_.get(),
+                                         /*is_primary=*/true);
   }
   std::optional<int64_t> Convert(ClockTracker::ClockId src_clock_id,
                                  int64_t src_timestamp,
                                  ClockTracker::ClockId target_clock_id) {
     return ct_->Convert(src_clock_id, src_timestamp, target_clock_id, {});
+  }
+
+  // Builds a ClockTracker for a remote machine sharing the global graph.
+  std::unique_ptr<ClockTracker> MakeRemoteTracker(uint32_t raw_machine_id) {
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, raw_machine_id);
+    return std::make_unique<ClockTracker>(&context_, primary_sync_.get(),
+                                          /*is_primary=*/true);
   }
 
   TraceProcessorContext context_;
@@ -121,15 +128,6 @@ TEST_F(ClockTrackerTest, ClockDomainConversions) {
   EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1000), 100000);
   EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1e6),
             static_cast<int64_t>(100000 - 1000 + 1e6));
-}
-
-TEST_F(ClockTrackerTest, ToTraceTimeFromSnapshot) {
-  EXPECT_FALSE(ct_->ToTraceTime(REALTIME, 0).has_value());
-
-  EXPECT_EQ(*ct_->ToTraceTimeFromSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}}),
-            10010);
-  EXPECT_EQ(ct_->ToTraceTimeFromSnapshot({{MONOTONIC, 10}, {REALTIME, 10010}}),
-            std::nullopt);
 }
 
 // When a clock moves backwards conversions *from* that clock are forbidden
@@ -369,118 +367,83 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResultsTwoStep) {
   }
 }
 
-// Test clock conversion with offset to the host.
+// A cross-machine clock offset is a real edge in the shared graph: at the same
+// instant the host BOOTTIME reads 10000 and the remote's reads 0 (so remote +
+// 10000 == host), exactly what a remote_clock_sync would establish.
 TEST_F(ClockTrackerTest, ClockOffset) {
-  EXPECT_FALSE(ct_->ToTraceTime(REALTIME, 0).has_value());
+  auto rt = MakeRemoteTracker(0x1001);
+  uint32_t m = context_.machine_id().value;  // rt's (table) machine id.
+  rt->AddQualifiedSnapshot(
+      {{ClockId::Machine(0, protos::pbzero::BUILTIN_CLOCK_BOOTTIME), 10000},
+       {ClockId::Machine(m, protos::pbzero::BUILTIN_CLOCK_BOOTTIME), 0}});
 
-  context_.machine_tracker =
-      std::make_unique<MachineTracker>(&context_, 0x1001);
-
-  // Client-to-host BOOTTIME offset is -10000 ns.
-  ct_->SetRemoteClockOffset(BOOTTIME, -10000);
-
-  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
-  ct_->AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
-  ct_->AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
-  ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+  rt->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  rt->AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
+  rt->AddSnapshot({{REALTIME, 30}, {BOOTTIME, 30030}});
+  rt->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
   auto seq_clock_1 = ClockId::Sequence(0, 1, 64);
   auto seq_clock_2 = ClockId::Sequence(0, 2, 64);
-  ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
-  ct_->AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
+  rt->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
+  rt->AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 0), 20000);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 1), 20001);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 9), 20009);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 20010);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 11), 20011);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 19), 20019);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 20), 30220);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 21), 30221);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 29), 30229);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 30), 40030);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 40), 40040);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 0), 20000);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 1), 20001);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 9), 20009);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 10), 20010);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 11), 20011);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 19), 20019);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 20), 30220);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 21), 30221);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 29), 30229);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 30), 40030);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 40), 40040);
 
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 0), 100000 - 1000 + 10000);
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 999), 100000 - 1 + 10000);
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1000), 100000 + 10000);
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1e6),
+  EXPECT_EQ(*rt->ToTraceTime(MONOTONIC, 0), 100000 - 1000 + 10000);
+  EXPECT_EQ(*rt->ToTraceTime(MONOTONIC, 999), 100000 - 1 + 10000);
+  EXPECT_EQ(*rt->ToTraceTime(MONOTONIC, 1000), 100000 + 10000);
+  EXPECT_EQ(*rt->ToTraceTime(MONOTONIC, 1e6),
             static_cast<int64_t>(100000 - 1000 + 1e6 + 10000));
 
-  // seq_clock_1 -> MONOTONIC -> BOOTTIME -> apply offset.
-  EXPECT_EQ(*ct_->ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000 + 10000);
-  // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME -> apply offset.
-  EXPECT_EQ(*ct_->ToTraceTime(seq_clock_2, 2100),
+  // seq_clock_1 -> MONOTONIC -> BOOTTIME -> cross-machine edge.
+  EXPECT_EQ(*rt->ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000 + 10000);
+  // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME -> cross-machine edge.
+  EXPECT_EQ(*rt->ToTraceTime(seq_clock_2, 2100),
             (100 * 10) + 100 + 1000 + 100000 + 10000);
 }
 
-// Test conversion of remote machine timestamps without offset. This can happen
-// if timestamp conversion for remote machines is done by trace data
-// post-processing.
+// A remote machine with no cross-machine sync: the deferred identity edge makes
+// it assume-aligned with the global clock (offset 0).
 TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
-  context_.machine_tracker =
-      std::make_unique<MachineTracker>(&context_, 0x1001);
+  auto rt = MakeRemoteTracker(0x1001);
+  rt->AddDeferredClockSync(BOOTTIME);
 
-  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
-  ct_->AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
-  ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+  rt->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  rt->AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
+  rt->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
   auto seq_clock_1 = ClockId::Sequence(0, 1, 64);
   auto seq_clock_2 = ClockId::Sequence(0, 2, 64);
-  ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
-  ct_->AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
+  rt->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
+  rt->AddSnapshot({{seq_clock_1, 1300}, {seq_clock_2, 2000, 10, false}});
 
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 0), 10000);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 9), 10009);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 11), 10011);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 19), 10019);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 20), 20220);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 21), 20221);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 0), 10000);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 9), 10009);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 11), 10011);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 19), 10019);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 20), 20220);
+  EXPECT_EQ(*rt->ToTraceTime(REALTIME, 21), 20221);
 
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 0), 100000 - 1000);
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 999), 100000 - 1);
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1000), 100000);
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1e6),
+  EXPECT_EQ(*rt->ToTraceTime(MONOTONIC, 0), 100000 - 1000);
+  EXPECT_EQ(*rt->ToTraceTime(MONOTONIC, 999), 100000 - 1);
+  EXPECT_EQ(*rt->ToTraceTime(MONOTONIC, 1000), 100000);
+  EXPECT_EQ(*rt->ToTraceTime(MONOTONIC, 1e6),
             static_cast<int64_t>(100000 - 1000 + 1e6));
 
-  // seq_clock_1 -> MONOTONIC -> BOOTTIME.
-  EXPECT_EQ(*ct_->ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000);
-  // seq_clock_2 -> seq_clock_1 -> MONOTONIC -> BOOTTIME.
-  EXPECT_EQ(*ct_->ToTraceTime(seq_clock_2, 2100),
+  EXPECT_EQ(*rt->ToTraceTime(seq_clock_1, 1100), -100 + 1000 + 100000);
+  EXPECT_EQ(*rt->ToTraceTime(seq_clock_2, 2100),
             (100 * 10) + 100 + 1000 + 100000);
-}
-
-// Test clock offset of non-defualt trace time clock domain.
-TEST_F(ClockTrackerTest, NonDefaultTraceTimeClock) {
-  context_.machine_tracker =
-      std::make_unique<MachineTracker>(&context_, 0x1001);
-
-  ct_->SetGlobalClock(MONOTONIC);
-  ct_->SetRemoteClockOffset(MONOTONIC, -2000);
-  ct_->SetRemoteClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
-
-  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
-  ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
-
-  auto seq_clock_1 = ClockId::Sequence(0, 1, 64);
-  ct_->AddSnapshot({{MONOTONIC, 2000}, {seq_clock_1, 1200}});
-
-  int64_t realtime_to_trace_time_delta = -10 + 10010 - 100000 + 1000 - (-2000);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 9), 9 + realtime_to_trace_time_delta);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10 + realtime_to_trace_time_delta);
-  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 20), 20 + realtime_to_trace_time_delta);
-
-  int64_t mono_to_trace_time_delta = -2000;
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 0), 0 - mono_to_trace_time_delta);
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 999), 999 - mono_to_trace_time_delta);
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1000),
-            1000 - mono_to_trace_time_delta);
-  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1e6),
-            static_cast<int64_t>(1e6) - mono_to_trace_time_delta);
-
-  // seq_clock_1 -> MONOTONIC.
-  EXPECT_EQ(*ct_->ToTraceTime(seq_clock_1, 1100), 1100 - 1200 + 2000 - (-2000));
 }
 
 TEST_F(ClockTrackerTest, MultiHopCacheIsHit) {
@@ -545,17 +508,19 @@ TEST_F(ClockTrackerTest, CacheInvalidationAndPathReoptimization) {
   EXPECT_EQ(*Convert(MONOTONIC, 50, BOOTTIME), 50 + (200 - 100) + (4000 - 300));
   EXPECT_EQ(ct_->cache_hits_for_testing(), 1u);
 
-  // 2. Add a direct, more optimal path. This will clear the cache.
+  // 2. Add a direct, more optimal path. This will clear the cache. Recording
+  // the snapshot into the clock_snapshot table converts its clocks, which
+  // immediately re-warms the cache with the new path.
   ct_->AddSnapshot({{MONOTONIC, 500}, {BOOTTIME, 6000}});
 
-  // 3. Convert again. It should be a miss, and the new, more optimal path
-  // should be used for the conversion.
+  // 3. Convert again. The new, more optimal path should be used for the
+  // conversion (cached by the recording above).
   EXPECT_EQ(*Convert(MONOTONIC, 400, BOOTTIME), 400 + (6000 - 500));
-  EXPECT_EQ(ct_->cache_hits_for_testing(), 1u);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), 2u);
 
   // The new path should now be cached.
   EXPECT_EQ(*Convert(MONOTONIC, 400, BOOTTIME), 400 + (6000 - 500));
-  EXPECT_EQ(ct_->cache_hits_for_testing(), 2u);
+  EXPECT_EQ(ct_->cache_hits_for_testing(), 3u);
 }
 
 TEST_F(ClockTrackerTest, ThreeHopConversion) {
@@ -590,9 +555,8 @@ TEST_F(ClockTrackerTest, NonPrimaryUsesSharedSnapshots) {
   shared_sync.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
   // Create a non-primary ClockTracker that falls back to shared_sync.
-  auto non_primary = std::make_unique<ClockTracker>(
-      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
-      &shared_sync, /*is_primary=*/false);
+  auto non_primary = std::make_unique<ClockTracker>(&context_, &shared_sync,
+                                                    /*is_primary=*/false);
 
   // Non-primary should be able to convert using the shared snapshots.
   EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
@@ -606,9 +570,8 @@ TEST_F(ClockTrackerTest, NonPrimarySwitchesToOwnOnAddSnapshot) {
       std::make_unique<ClockSynchronizerListenerImpl>(&context_));
   shared_sync.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
 
-  auto non_primary = std::make_unique<ClockTracker>(
-      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
-      &shared_sync, /*is_primary=*/false);
+  auto non_primary = std::make_unique<ClockTracker>(&context_, &shared_sync,
+                                                    /*is_primary=*/false);
 
   // Before own snapshot: uses shared snapshots.
   EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
@@ -627,9 +590,8 @@ TEST_F(ClockTrackerTest, PrimaryTraceAlwaysUsesSharedSync) {
       std::make_unique<ClockSynchronizerListenerImpl>(&context_));
 
   // Create primary trace ClockTracker pointing to shared_sync.
-  auto primary = std::make_unique<ClockTracker>(
-      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
-      &shared_sync, /*is_primary=*/true);
+  auto primary = std::make_unique<ClockTracker>(&context_, &shared_sync,
+                                                /*is_primary=*/true);
 
   // Primary adds snapshots — they should go to shared_sync.
   primary->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
@@ -638,9 +600,8 @@ TEST_F(ClockTrackerTest, PrimaryTraceAlwaysUsesSharedSync) {
   EXPECT_EQ(*primary->ToTraceTime(REALTIME, 10), 10010);
 
   // A non-primary trace should also see the primary's snapshots.
-  auto non_primary = std::make_unique<ClockTracker>(
-      &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
-      &shared_sync, /*is_primary=*/false);
+  auto non_primary = std::make_unique<ClockTracker>(&context_, &shared_sync,
+                                                    /*is_primary=*/false);
   EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
 }
 
@@ -652,11 +613,11 @@ TEST_F(ClockTrackerTest, SetTraceTimeClockBehavior) {
   EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
 }
 
-TEST_F(ClockTrackerTest, AddDeferredIdentitySync_InjectsEdge) {
-  // AddDeferredIdentitySync injects a zero-offset edge between the given clock
+TEST_F(ClockTrackerTest, AddDeferredClockSync_InjectsEdge) {
+  // AddDeferredClockSync injects a zero-offset edge between the given clock
   // and the trace time clock (BOOTTIME in test fixture).
   constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
-  ct_->AddDeferredIdentitySync(TRACE_FILE);
+  ct_->AddDeferredClockSync(TRACE_FILE);
 
   // The identity edge allows conversion: TRACE_FILE timestamps pass through.
   EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 42), 42);
@@ -671,20 +632,20 @@ TEST_F(ClockTrackerTest, SetTraceDefaultClock_SetsDefaultClock) {
   EXPECT_EQ(*ct_->trace_default_clock(), TRACE_FILE);
 }
 
-TEST_F(ClockTrackerTest, AddDeferredIdentitySync_MatchesTraceTimeClock) {
+TEST_F(ClockTrackerTest, AddDeferredClockSync_MatchesTraceTimeClock) {
   // If the identity clock IS the trace time clock, no edge needed.
-  ct_->AddDeferredIdentitySync(BOOTTIME);
+  ct_->AddDeferredClockSync(BOOTTIME);
 
   ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 10), 10010);
   EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 42), 42);
 }
 
-TEST_F(ClockTrackerTest, AddDeferredIdentitySync_WithExplicitSnapshot) {
-  // AddDeferredIdentitySync creates a zero-offset edge TRACE_FILE ↔ BOOTTIME
+TEST_F(ClockTrackerTest, AddDeferredClockSync_WithExplicitSnapshot) {
+  // AddDeferredClockSync creates a zero-offset edge TRACE_FILE ↔ BOOTTIME
   // (since BOOTTIME is the global trace time clock in the test fixture).
   constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
-  ct_->AddDeferredIdentitySync(TRACE_FILE);
+  ct_->AddDeferredClockSync(TRACE_FILE);
 
   // Without any other snapshot, TRACE_FILE converts to BOOTTIME at offset 0.
   EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 42), 42);
@@ -695,13 +656,37 @@ TEST_F(ClockTrackerTest, AddDeferredIdentitySync_WithExplicitSnapshot) {
   EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 1100), 1100);
 }
 
-TEST_F(ClockTrackerTest,
-       AddDeferredIdentitySync_DoesNotChangeGlobalTraceClock) {
+TEST_F(ClockTrackerTest, AddDeferredClockSync_WithOffset) {
+  // A non-zero offset pins from_ts on |from| to to_ts on trace time, so the
+  // file's events are shifted (a perfetto_manifest bare offset).
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(7);
+  ct_->AddDeferredClockSync(TRACE_FILE, /*from_ts=*/0, /*to=*/std::nullopt,
+                            /*to_ts=*/500);
+
+  // TRACE_FILE 0 == BOOTTIME 500, so a TRACE_FILE event is shifted by +500.
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 100), 600);
+}
+
+TEST_F(ClockTrackerTest, AddDeferredClockSync_NamedTargetComposesWithGraph) {
+  // A named target (not trace time) is bridged to trace time by a real
+  // snapshot already in the graph (a perfetto_manifest anchor to REALTIME with
+  // trace time BOOTTIME, as a proto spine would provide REALTIME<->BOOTTIME).
+  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(7);
+  ct_->AddSnapshot({{REALTIME, 1000}, {BOOTTIME, 5000}});  // REALTIME = BT+4000
+  ct_->AddDeferredClockSync(TRACE_FILE, /*from_ts=*/0, /*to=*/REALTIME,
+                            /*to_ts=*/1000);
+
+  // TRACE_FILE 0 == REALTIME 1000 == BOOTTIME 5000, so a TRACE_FILE event
+  // routes TRACE_FILE -> REALTIME -> BOOTTIME.
+  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 10), 5010);
+}
+
+TEST_F(ClockTrackerTest, AddDeferredClockSync_DoesNotChangeGlobalTraceClock) {
   // Trace time starts as BOOTTIME (test fixture default).
   constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(0);
-  ct_->AddDeferredIdentitySync(TRACE_FILE);
+  ct_->AddDeferredClockSync(TRACE_FILE);
 
-  // AddDeferredIdentitySync does NOT change the global trace time clock.
+  // AddDeferredClockSync does NOT change the global trace time clock.
   EXPECT_EQ(context_.trace_time_state->clock_id, BOOTTIME);
 }
 

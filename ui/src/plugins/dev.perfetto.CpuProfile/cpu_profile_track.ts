@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {LONG, NUM} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {FlamegraphState} from '../../widgets/flamegraph';
+import type {FlamegraphState} from '../../widgets/flamegraph';
 import {createProfilingTrack} from './profiling_track';
 
 export function createCpuProfileTrack(

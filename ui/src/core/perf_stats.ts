@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import type m from 'mithril';
 
 // The interface that every container (e.g. Track Panels) that exposes granular
 // per-container masurements implements to be perf-stats-aware.

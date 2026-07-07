@@ -42,6 +42,50 @@ WITH blocking_calls_aggregate_values AS (
   FROM _blocking_calls_frame_cuj
   GROUP BY cuj_name, name, frame_id
 ),
+draw_frames_in_cuj AS (
+  SELECT
+    frame.frame_id,
+    frame.cuj_name,
+    t.upid,
+    p.name AS process_name,
+    s.ts,
+    s.ts + s.dur AS ts_end
+  FROM _extended_frame_boundary frame
+  JOIN thread t ON t.utid = frame.render_thread_utid
+  JOIN process p ON p.upid = t.upid
+  JOIN thread_slice s ON s.utid = frame.render_thread_utid
+                      AND s.name GLOB 'DrawFrames*'
+                      AND CAST(STR_SPLIT(s.name, ' ', 1) AS INT) = frame.frame_id
+),
+hwui_tasks_in_cuj AS (
+  SELECT
+    df.frame_id,
+    df.cuj_name,
+    df.upid,
+    df.process_name,
+    'hwuiTask' AS name,
+    MIN(ts.ts + ts.dur, df.ts_end) - MAX(ts.ts, df.ts) AS dur
+  FROM draw_frames_in_cuj df
+  JOIN thread t ON t.upid = df.upid AND t.name GLOB 'hwuiTask*'
+  JOIN thread_state ts ON ts.utid = t.utid AND ts.state = 'Running'
+  WHERE ts.ts < df.ts_end AND ts.ts + ts.dur > df.ts
+),
+hwui_tasks_aggregate_values AS (
+  SELECT
+    1 AS cnt,
+    SUM(dur) AS total_dur_per_frame_ns,
+    cuj_name,
+    upid,
+    process_name,
+    name
+  FROM hwui_tasks_in_cuj
+  GROUP BY cuj_name, name, frame_id
+),
+all_blocking_calls_aggregate_values AS (
+  SELECT * FROM blocking_calls_aggregate_values
+  UNION ALL
+  SELECT * FROM hwui_tasks_aggregate_values
+),
 frame_cnt_per_cuj AS (
   -- Calculate the total number of frames for all CUJs across all instances(eg. multiple
   -- instances for the same CUJ).
@@ -60,7 +104,7 @@ SELECT
     upid,
     bc.cuj_name,
     process_name
-FROM blocking_calls_aggregate_values bc
+FROM all_blocking_calls_aggregate_values bc
 JOIN frame_cnt_per_cuj fc
 USING(cuj_name)
 GROUP BY bc.cuj_name, name;

@@ -43,11 +43,6 @@
 namespace perfetto {
 namespace trace_processor {
 namespace {
-base::StringView ToStringView(protozero::ConstBytes bytes) {
-  return base::StringView(reinterpret_cast<const char*>(bytes.data),
-                          bytes.size);
-}
-
 // Determine wether this is the magical kernel mapping created in
 // `perfetto::::profiling::Unwinder::SymbolizeKernelCallchain`
 bool IsMagicalKernelMapping(const CreateMappingParams& params) {
@@ -153,32 +148,28 @@ StackProfileSequenceState::LookupInternedBuildId(
   if (iid == 0) {
     return "";
   }
-  auto* decoder = state->LookupInternedMessage<
-      protos::pbzero::InternedData::kBuildIdsFieldNumber,
-      protos::pbzero::InternedString>(iid);
-  if (!decoder) {
+  std::optional<base::StringView> str = state->InternedStringView(
+      protos::pbzero::InternedData::kBuildIdsFieldNumber, iid);
+  if (!str) {
     context_->stats_tracker->IncrementStats(
         stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
-
-  return ToStringView(decoder->str());
+  return *str;
 }
 
 std::optional<base::StringView>
 StackProfileSequenceState::LookupInternedMappingPath(
     PacketSequenceStateGeneration* state,
     uint64_t iid) {
-  auto* decoder = state->LookupInternedMessage<
-      protos::pbzero::InternedData::kMappingPathsFieldNumber,
-      protos::pbzero::InternedString>(iid);
-  if (!decoder) {
+  std::optional<base::StringView> str = state->InternedStringView(
+      protos::pbzero::InternedData::kMappingPathsFieldNumber, iid);
+  if (!str) {
     context_->stats_tracker->IncrementStats(
         stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
-
-  return ToStringView(decoder->str());
+  return *str;
 }
 
 std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
@@ -304,16 +295,14 @@ StackProfileSequenceState::LookupInternedFunctionName(
   if (iid == 0) {
     return "";
   }
-  auto* decoder = state->LookupInternedMessage<
-      protos::pbzero::InternedData::kFunctionNamesFieldNumber,
-      protos::pbzero::InternedString>(iid);
-  if (!decoder) {
+  std::optional<base::StringView> str = state->InternedStringView(
+      protos::pbzero::InternedData::kFunctionNamesFieldNumber, iid);
+  if (!str) {
     context_->stats_tracker->IncrementStats(
         stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
-
-  return ToStringView(decoder->str());
+  return *str;
 }
 
 std::optional<base::StringView>
@@ -323,16 +312,14 @@ StackProfileSequenceState::LookupInternedSourcePath(
   if (iid == 0) {
     return std::nullopt;
   }
-  auto* decoder = state->LookupInternedMessage<
-      protos::pbzero::InternedData::kSourcePathsFieldNumber,
-      protos::pbzero::InternedString>(iid);
-  if (!decoder) {
+  std::optional<base::StringView> str = state->InternedStringView(
+      protos::pbzero::InternedData::kSourcePathsFieldNumber, iid);
+  if (!str) {
     context_->stats_tracker->IncrementStats(
         stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
-
-  return ToStringView(decoder->str());
+  return *str;
 }
 
 }  // namespace trace_processor

@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../protos';
-import {errResult, okResult, Result} from '../../../base/result';
-import {PreflightCheck} from '../interfaces/connection_check';
-import {AdbDevice} from './adb_device';
+import type protos from '../../../protos';
+import {errResult, okResult, type Result} from '../../../base/result';
+import type {PreflightCheck} from '../interfaces/connection_check';
+import type {AdbDevice} from './adb_device';
 import {getAdbTracingServiceState} from './adb_tracing_session';
 
 /**

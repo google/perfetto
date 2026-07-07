@@ -271,10 +271,35 @@ message FileIoOpEndEtwEvent {
   optional uint32 nt_status = 3;
 }
 
+// Proto definition based on the `FileIo_PathOperation` class definition.
+message FileIoPathOperationEtwEvent {
+  optional uint64 irp_ptr = 1;
+  optional uint64 file_object = 2;
+  optional uint64 file_key = 3;
+  optional uint64 extra_info = 4;
+  optional uint32 ttid = 5;
+  optional uint32 info_class = 6;
+  optional string file_name = 7;
+  optional uint32 opcode = 8;
+}
+
 // Proto definition based on the `StackWalk_Event` class definition. See
 // `Callstack` in `perfetto/protos/perfetto/trace/track_event/track_event.proto`
 // for context on what is contained in it.
 message StackWalkEtwEvent {
   optional string trigger = 1;
   optional uint64 callstack_iid = 2;
+}
+
+// Proto definition based on the `DiskIo_TypeGroup1/2/3` class definitions.
+message DiskIoEtwEvent {
+  optional uint32 disk_number = 1;
+  optional uint32 irp_flags = 2;
+  optional uint32 transfer_size = 3;
+  optional int64 byte_offset = 4;
+  optional uint64 file_object = 5;
+  optional uint64 irp_ptr = 6;
+  optional int64 response_time = 7;
+  optional uint32 issuing_thread_id = 8;
+  optional uint32 opcode = 9;
 }

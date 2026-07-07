@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {CounterTrack} from '../../components/tracks/counter_track';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 
 async function threadLevelParallelismInit(trace: Trace): Promise<void> {
   await trace.engine.query(

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {SqlValue} from '../../../../trace_processor/query_result';
-import {Trace} from '../../../../public/trace';
-import {SqlColumn, sqlColumnId} from './sql_column';
-import {Filters} from './filters';
-import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
+import type m from 'mithril';
+import type {SqlValue} from '../../../../trace_processor/query_result';
+import type {Trace} from '../../../../public/trace';
+import {type SqlColumn, sqlColumnId} from './sql_column';
+import type {Filters} from './filters';
+import type {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 
 // Interface which allows TableColumn to interact with the table (e.g. add filters, or run the query).
 export interface TableManager {

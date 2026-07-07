@@ -39,14 +39,11 @@ DeobfuscationModule::DeobfuscationModule(
 
 DeobfuscationModule::~DeobfuscationModule() = default;
 
-void DeobfuscationModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void DeobfuscationModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kDeobfuscationMappingFieldNumber:
-      StoreDeobfuscationMapping(decoder.deobfuscation_mapping());
+      StoreDeobfuscationMapping(
+          args.field.Cast<TracePacket::kDeobfuscationMapping>());
       return;
     default:
       break;

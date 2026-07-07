@@ -32,8 +32,6 @@
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
-#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"

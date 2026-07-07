@@ -43,6 +43,7 @@
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/symbol_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
@@ -55,6 +56,7 @@
 #include "src/trace_processor/importers/proto/user_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 
@@ -67,11 +69,11 @@ using Ptr = TraceProcessorContextPtr<T>;
 void InitPerTraceAndMachineState(TraceProcessorContext* context,
                                  bool is_primary_trace_for_machine) {
   context->clock_tracker = Ptr<ClockTracker>::MakeRoot(
-      context, std::make_unique<ClockSynchronizerListenerImpl>(context),
-      context->primary_clock_sync.get(), is_primary_trace_for_machine);
+      context, context->clock_sync.get(), is_primary_trace_for_machine);
   context->track_tracker = Ptr<TrackTracker>::MakeRoot(context);
   context->track_compressor = Ptr<TrackCompressor>::MakeRoot(context);
   context->slice_tracker = Ptr<SliceTracker>::MakeRoot(context);
+  context->state_tracker = Ptr<StateTracker>::MakeRoot(context);
   context->slice_translation_table =
       Ptr<SliceTranslationTable>::MakeRoot(context->storage.get());
   context->file_io_tracker = Ptr<FileIoTracker>::MakeRoot(context);
@@ -91,13 +93,10 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context,
       });
 }
 
-void InitPerMachineState(TraceProcessorContext* context, uint32_t machine_id) {
+void InitPerMachineState(TraceProcessorContext* context, int64_t machine_id) {
   context->symbol_tracker = Ptr<SymbolTracker>::MakeRoot(context);
   context->machine_tracker = Ptr<MachineTracker>::MakeRoot(context, machine_id);
   context->process_tracker = Ptr<ProcessTracker>::MakeRoot(context);
-  context->primary_clock_sync = Ptr<ClockSynchronizer>::MakeRoot(
-      context->trace_time_state.get(),
-      std::make_unique<ClockSynchronizerListenerImpl>(context));
   context->mapping_tracker = Ptr<MappingTracker>::MakeRoot(context);
   context->cpu_tracker = Ptr<CpuTracker>::MakeRoot(context);
   context->gpu_tracker = Ptr<GpuTracker>::MakeRoot(context);
@@ -109,7 +108,6 @@ void CopyPerMachineState(const TraceProcessorContext* source,
   dest->symbol_tracker = source->symbol_tracker.Fork();
   dest->machine_tracker = source->machine_tracker.Fork();
   dest->process_tracker = source->process_tracker.Fork();
-  dest->primary_clock_sync = source->primary_clock_sync.Fork();
   dest->mapping_tracker = source->mapping_tracker.Fork();
   dest->cpu_tracker = source->cpu_tracker.Fork();
   dest->gpu_tracker = source->gpu_tracker.Fork();
@@ -150,6 +148,10 @@ Ptr<TraceSorter> CreateSorter(TraceProcessorContext* context,
     if (it != config.dev_flags.end() && it->second == "true") {
       event_handling = TraceSorter::EventHandling::kSortAndDrop;
     }
+    auto tok = config.dev_flags.find("tokenize-only");
+    if (tok != config.dev_flags.end() && tok->second == "true") {
+      event_handling = TraceSorter::EventHandling::kDrop;
+    }
   }
   return Ptr<TraceSorter>::MakeRoot(context, TraceSorter::SortingMode::kDefault,
                                     event_handling);
@@ -174,12 +176,16 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->clock_converter = Ptr<ClockConverter>::MakeRoot(context);
   context->trace_time_state =
       Ptr<TraceTimeState>::MakeRoot(ClockId::TraceFile(0));
+  context->clock_sync = Ptr<ClockSynchronizer>::MakeRoot(
+      context->trace_time_state.get(),
+      std::make_unique<ClockSynchronizerListenerImpl>(context));
+  context->trace_manifest_state = Ptr<TraceManifestState>::MakeRoot();
   context->track_group_idx_state =
       Ptr<TrackCompressorGroupIdxState>::MakeRoot();
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
   context->deobfuscation_tracker = nullptr;
   context->blob_packet_writer = Ptr<BlobPacketWriter>::MakeRoot();
-  context->register_additional_proto_modules = nullptr;
+  context->register_additional_proto_modules = {};
 
   // Per-Trace State (Miscategorized).
   context->registered_file_tracker =
@@ -203,6 +209,8 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->forked_context_state = source->forked_context_state.Fork();
   dest->clock_converter = source->clock_converter.Fork();
   dest->trace_time_state = source->trace_time_state.Fork();
+  dest->clock_sync = source->clock_sync.Fork();
+  dest->trace_manifest_state = source->trace_manifest_state.Fork();
   dest->track_group_idx_state = source->track_group_idx_state.Fork();
   dest->register_additional_proto_modules =
       source->register_additional_proto_modules;
@@ -228,7 +236,7 @@ TraceProcessorContext::~TraceProcessorContext() = default;
 
 TraceProcessorContext* TraceProcessorContext::ForkContextForTrace(
     TraceId trace_id,
-    uint32_t default_raw_machine_id) const {
+    int64_t default_raw_machine_id) const {
   auto [it, inserted] =
       forked_context_state->trace_and_machine_to_context.Insert(
           std::pair(trace_id.value, default_raw_machine_id), nullptr);
@@ -266,7 +274,7 @@ TraceProcessorContext* TraceProcessorContext::ForkContextForTrace(
 
 TraceProcessorContext*
 TraceProcessorContext::ForkContextForMachineInCurrentTrace(
-    uint32_t raw_machine_id) const {
+    int64_t raw_machine_id) const {
   PERFETTO_CHECK(trace_state);
   return ForkContextForTrace(trace_id(), raw_machine_id);
 }

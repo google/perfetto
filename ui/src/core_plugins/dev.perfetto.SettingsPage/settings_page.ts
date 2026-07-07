@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Setting} from '../../public/settings';
-import {SettingImpl, SettingsManagerImpl} from '../../core/settings_manager';
+import type {Setting} from '../../public/settings';
+import type {
+  SettingImpl,
+  SettingsManagerImpl,
+} from '../../core/settings_manager';
 import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -27,7 +30,7 @@ import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
+import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
 import {Icons} from '../../base/semantic_icons';
@@ -180,6 +183,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     >();
     for (const result of settings) {
       const setting = result.item;
+      if (setting.headless) continue; // Don't display headless settings
       const isCore =
         setting.pluginId === undefined ||
         app.plugins.isCorePlugin(setting.pluginId);

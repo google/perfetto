@@ -14,19 +14,24 @@
 
 import m from 'mithril';
 
-import {GridColumn, GridHeaderCell, Grid, GridCell} from '../../widgets/grid';
-import {TrackPinningManager} from '../../components/related_events/utils';
+import {
+  type GridColumn,
+  GridHeaderCell,
+  Grid,
+  GridCell,
+} from '../../widgets/grid';
+import type {TrackPinningManager} from '../../components/related_events/utils';
 import {Icons} from '../../base/semantic_icons';
-import {duration} from '../../base/time';
+import type {duration} from '../../base/time';
 import {DurationWidget} from '../../components/widgets/duration';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {Checkbox} from '../../widgets/checkbox';
 import {EmptyState} from '../../widgets/empty_state';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Spinner} from '../../widgets/spinner';
 
-import {InputChainRow, NavTarget} from './android_input_event_source';
+import type {InputChainRow, NavTarget} from './android_input_event_source';
 
 export interface AndroidInputLifecycleTabAttrs {
   trace: Trace;

@@ -18,7 +18,9 @@
 
 #include <array>
 #include <cctype>
+#include <cstdint>
 #include <cstring>
+#include <string>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
@@ -139,12 +141,58 @@ base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
 
   const uint8_t* ptr = bytes.data + sizeof(uint32_t);
 
+  // Reads one zigzag-encoded varint from the payload (all Pigweed integers,
+  // including unsigned, are zigzag encoded). Returns false if truncated.
+  auto read_varint = [&](int64_t* out) -> bool {
+    uint64_t raw;
+    const uint8_t* old_ptr = ptr;
+    ptr =
+        protozero::proto_utils::ParseVarInt(ptr, bytes.data + bytes.size, &raw);
+    if (old_ptr == ptr) {
+      return false;
+    }
+    *out = ::protozero::proto_utils::ZigZagDecode(raw);
+    return true;
+  };
+
   std::vector<std::variant<int64_t, uint64_t, double>> args;
   std::vector<std::string> args_formatted;
-  for (Arg arg : format->args()) {
+  for (const Arg& arg : format->args()) {
     char buffer[kFormatBufferSize];
-    const char* fmt = arg.format.c_str();
     size_t formatted_size;
+
+    // Resolve any '*' field width / precision wildcards. Each consumes an extra
+    // integer argument from the payload, which we substitute into the format
+    // string so that exactly one variadic value remains for SprintfTrunc. Not
+    // doing so would let vsnprintf read uninitialized memory. Wildcards are
+    // rare, so only materialize a resolved copy of the format when present.
+    const char* fmt = arg.format.c_str();
+    std::string resolved_fmt;
+    if (arg.width_star || arg.precision_star) {
+      resolved_fmt = arg.format;
+      if (arg.width_star) {
+        int64_t width;
+        if (!read_varint(&width)) {
+          return base::ErrStatus("Truncated Pigweed varint");
+        }
+        size_t star = resolved_fmt.find('*');
+        resolved_fmt.replace(star, 1, std::to_string(width));
+      }
+      if (arg.precision_star) {
+        int64_t precision;
+        if (!read_varint(&precision)) {
+          return base::ErrStatus("Truncated Pigweed varint");
+        }
+        size_t dot = resolved_fmt.find(".*");
+        if (precision < 0) {
+          // printf treats a negative precision as if precision were omitted.
+          resolved_fmt.erase(dot, 2);
+        } else {
+          resolved_fmt.replace(dot + 1, 1, std::to_string(precision));
+        }
+      }
+      fmt = resolved_fmt.c_str();
+    }
 
     if (arg.type == kFloat) {
       if (ptr + sizeof(float) > bytes.data + bytes.size) {
@@ -159,19 +207,21 @@ base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
       formatted_size =
           perfetto::base::SprintfTrunc(buffer, kFormatBufferSize, fmt, value);
     } else {
-      uint64_t raw;
-      auto old_ptr = ptr;
-      ptr = protozero::proto_utils::ParseVarInt(ptr, bytes.data + bytes.size,
-                                                &raw);
-      if (old_ptr == ptr) {
+      int64_t value;
+      if (!read_varint(&value)) {
         return base::ErrStatus("Truncated Pigweed varint");
       }
-      // All Pigweed integers (including unsigned) are zigzag encoded.
-      int64_t value = ::protozero::proto_utils::ZigZagDecode(raw);
-      if (arg.type == kSignedInt) {
+      // Pass each value to vsnprintf with the exact type its (rewritten)
+      // conversion expects. Mismatching the width is undefined behaviour and
+      // misbehaves on some ABIs (e.g. arm64 prints 0).
+      if (arg.type == kChar) {
         args.push_back(value);
-        formatted_size =
-            perfetto::base::SprintfTrunc(buffer, kFormatBufferSize, fmt, value);
+        formatted_size = perfetto::base::SprintfTrunc(
+            buffer, kFormatBufferSize, fmt, static_cast<int>(value));
+      } else if (arg.type == kSignedInt) {
+        args.push_back(value);
+        formatted_size = perfetto::base::SprintfTrunc(
+            buffer, kFormatBufferSize, fmt, static_cast<long long>(value));
       } else {
         uint64_t value_unsigned;
         memcpy(&value_unsigned, &value, sizeof(value_unsigned));
@@ -179,8 +229,15 @@ base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
           value_unsigned &= 0xFFFFFFFFu;
         }
         args.push_back(value_unsigned);
-        formatted_size = perfetto::base::SprintfTrunc(buffer, kFormatBufferSize,
-                                                      fmt, value_unsigned);
+        if (arg.type == kPointer) {
+          formatted_size = perfetto::base::SprintfTrunc(
+              buffer, kFormatBufferSize, fmt,
+              reinterpret_cast<void*>(static_cast<uintptr_t>(value_unsigned)));
+        } else {
+          formatted_size = perfetto::base::SprintfTrunc(
+              buffer, kFormatBufferSize, fmt,
+              static_cast<unsigned long long>(value_unsigned));
+        }
       }
     }
     if (formatted_size == kFormatBufferSize - 1) {
@@ -216,16 +273,21 @@ DetokenizedString::DetokenizedString(
 std::string DetokenizedString::Format() const {
   const auto args = format_string_.args();
   const auto fmt = format_string_.template_str();
-  if (args.size() == 0) {
+  if (args.empty()) {
     return fmt;
   }
 
   std::string result;
-
   result.append(fmt.substr(0, args[0].begin));
 
   for (size_t i = 0; i < args.size(); i++) {
-    result.append(args_formatted_[i]);
+    // args_formatted_ can be shorter than args if the payload was truncated
+    // before all expected arguments could be parsed.
+    if (i < args_formatted_.size()) {
+      result.append(args_formatted_[i]);
+    } else {
+      result.append("<ERROR>");
+    }
     if (i < args.size() - 1) {
       result.append(fmt.substr(args[i].end, args[i + 1].begin - args[i].end));
     } else {
@@ -244,8 +306,14 @@ static size_t SkipFlags(const std::string& fmt, size_t ix) {
   return ix;
 }
 
-static size_t SkipAsteriskOrInteger(const std::string& fmt, size_t ix) {
+// Skips over a field width or precision specifier. If the specifier is the '*'
+// wildcard, sets `*is_star` to true: such specifiers consume an extra integer
+// argument from the payload that must be resolved at detokenization time.
+static size_t SkipAsteriskOrInteger(const std::string& fmt,
+                                    size_t ix,
+                                    bool* is_star) {
   if (fmt[ix] == '*') {
+    *is_star = true;
     return ix + 1;
   }
 
@@ -277,13 +345,16 @@ FormatString::FormatString(std::string format) : template_str_(format) {
 
       i = SkipFlags(format, i);
 
+      bool width_star = false;
+      bool precision_star = false;
+
       // Field width.
-      i = SkipAsteriskOrInteger(format, i);
+      i = SkipAsteriskOrInteger(format, i, &width_star);
 
       // Precision.
       if (format[i] == '.') {
         i += 1;
-        i = SkipAsteriskOrInteger(format, i);
+        i = SkipAsteriskOrInteger(format, i, &precision_star);
       }
 
       // Length modifier
@@ -291,19 +362,41 @@ FormatString::FormatString(std::string format) : template_str_(format) {
       i += (length[0] == '\0' ? 0 : 1) + (length[1] == '\0' ? 0 : 1);
 
       const char spec = format[i];
-      const std::string arg_format =
-          format.substr(fmt_start, i - fmt_start + 1);
-      if (spec == 'c' || spec == 'd' || spec == 'i') {
-        args_.push_back(Arg{kSignedInt, arg_format, fmt_start, i + 1});
-      } else if (strchr("oxXup", spec) != nullptr) {
-        // Size matters for unsigned integers.
-        if (length[0] == 'j' || length[1] == 'l') {
-          args_.push_back(Arg{kUnsigned64, arg_format, fmt_start, i + 1});
-        } else {
-          args_.push_back(Arg{kUnsigned32, arg_format, fmt_start, i + 1});
-        }
+      const size_t length_count =
+          (length[0] == '\0' ? 0u : 1u) + (length[1] == '\0' ? 0u : 1u);
+      // The conversion with its flags / width / precision but without the
+      // original length modifier (which sits just before the conversion char).
+      const std::string prefix =
+          format.substr(fmt_start, (i - length_count) - fmt_start);
+
+      // We promote every integer argument to 64 bits before formatting (see
+      // Detokenize), so the conversion handed to vsnprintf must request a
+      // 64-bit type: passing an int64_t to a bare "%d" is undefined and, on
+      // some ABIs (notably arm64), silently prints 0. We therefore rewrite the
+      // length modifier to "ll". 'c' and 'p' are exceptions: they consume an
+      // 'int' / 'void*' and keep no length modifier, with the matching cast
+      // applied at format time.
+      if (spec == 'd' || spec == 'i') {
+        args_.push_back(Arg{kSignedInt, prefix + "ll" + spec, fmt_start, i + 1,
+                            width_star, precision_star});
+      } else if (spec == 'c') {
+        args_.push_back(Arg{kChar, prefix + spec, fmt_start, i + 1, width_star,
+                            precision_star});
+      } else if (spec == 'p') {
+        args_.push_back(Arg{kPointer, prefix + spec, fmt_start, i + 1,
+                            width_star, precision_star});
+      } else if (strchr("oxXu", spec) != nullptr) {
+        // Size matters for unsigned integers: the value must be masked to the
+        // right width before formatting (see Detokenize).
+        const ArgType type =
+            (length[0] == 'j' || length[1] == 'l') ? kUnsigned64 : kUnsigned32;
+        args_.push_back(Arg{type, prefix + "ll" + spec, fmt_start, i + 1,
+                            width_star, precision_star});
       } else if (strchr("fFeEaAgG", spec) != nullptr) {
-        args_.push_back(Arg{kFloat, arg_format, fmt_start, i + 1});
+        const std::string arg_format =
+            format.substr(fmt_start, i - fmt_start + 1);
+        args_.push_back(Arg{kFloat, arg_format, fmt_start, i + 1, width_star,
+                            precision_star});
       } else {
         // Parsing failed.
         // We ignore this silently for now.

@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryResult} from '../../../base/query_slot';
+import type {QueryResult} from '../../../base/query_slot';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/assert';
-import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {
+import type {Row, SqlValue} from '../../../trace_processor/query_result';
+import type {
   DataSource,
   DataSourceModel,
   DataSourceRows,
   FlatModel,
 } from './data_source';
-import {Filter} from './model';
+import type {Filter} from './model';
 
 // Column shape from FlatModel
 type FlatColumn = FlatModel['columns'][number];

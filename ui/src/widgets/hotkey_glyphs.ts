@@ -12,10 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './hotkey.scss';
 import m from 'mithril';
-import {getPlatform, Hotkey, Key, parseHotkey, Platform} from '../base/hotkeys';
+import {
+  getPlatform,
+  type Hotkey,
+  type Key,
+  parseHotkey,
+  type Platform,
+} from '../base/hotkeys';
 import {Icon} from './icon';
-import {classForSpacing, HTMLAttrs} from './common';
+import {classForSpacing, type HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
 
 export interface HotkeyGlyphsAttrs {

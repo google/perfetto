@@ -15,9 +15,9 @@
 import m from 'mithril';
 import {Icons} from '../../../base/semantic_icons';
 import {isNumeric} from '../../../base/utils';
-import {SqlValue} from '../../../trace_processor/query_result';
+import type {SqlValue} from '../../../trace_processor/query_result';
 import {MenuItem} from '../../../widgets/menu';
-import {FilterOpAndValue} from './model';
+import type {FilterOpAndValue} from './model';
 
 interface CellFilterMenuAttrs {
   readonly value: SqlValue;

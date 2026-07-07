@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {ByteStream} from '../../interfaces/byte_stream';
-import {AdbWebusbDevice} from './adb_webusb_device';
+import type {AdbWebusbDevice} from './adb_webusb_device';
 
 export class AdbWebusbStream extends ByteStream {
   private state: 'CONNECTED' | 'CLOSING' | 'CLOSED' = 'CONNECTED';
@@ -30,7 +30,7 @@ export class AdbWebusbStream extends ByteStream {
     return this.state === 'CONNECTED';
   }
 
-  write(data: string | Uint8Array): Promise<void> {
+  write(data: string | Uint8Array<ArrayBuffer>): Promise<void> {
     if (this.state !== 'CONNECTED') {
       // Ignore writes queued once the stream is being closed.
       return Promise.resolve();

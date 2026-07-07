@@ -21,51 +21,88 @@ export type NavState =
   | {view: 'bitmaps'; params: {id?: number; filterKey?: string}}
   | {view: 'strings'; params: {q?: string}}
   | {view: 'arrays'; params: {arrayHash?: string}}
-  | {view: 'flamegraph-objects'; params: {name?: string}}
-  | {view: 'flamegraph'; params: Record<string, never>};
+  | {
+      view: 'flamegraph-objects';
+      params: {pathHashes?: string; isDominator?: boolean};
+    }
+  | {view: 'flamegraph'; params: Record<string, never>}
+  | {view: 'callstack'; params: Record<string, never>};
 
 export type NavView = NavState['view'];
 
-export function stateToSubpage(state: NavState): string {
+// A `key=value` query fragment (URI-encoded), or '' when the value is absent.
+function queryParam(key: string, value?: string): string {
+  return value ? `${key}=${encodeURIComponent(value)}` : '';
+}
+
+// `base`, optionally suffixed with `_<value>` (URI-encoded; a no-op for hex ids).
+function pathSegment(base: string, value?: string): string {
+  return value ? `${base}_${encodeURIComponent(value)}` : base;
+}
+
+// The path and query (no leading '?') for a nav state. Some views encode a param
+// in the path (object id, bitmap id, flamegraph tab identity); others carry it
+// in the query. stateToSubpage composes the two; stateToPath exposes just the
+// path.
+function stateToParts(state: NavState): {path: string; query: string} {
   switch (state.view) {
     case 'overview':
-      return '';
-    case 'classes': {
-      const root = state.params.rootClass;
-      return root ? `classes?root=${encodeURIComponent(root)}` : 'classes';
-    }
+      return {path: '', query: ''};
+    case 'classes':
+      return {
+        path: 'classes',
+        query: queryParam('root', state.params.rootClass),
+      };
     case 'dominators':
-      return 'dominators';
-    case 'objects': {
-      const cls = state.params.cls;
-      return cls ? `objects?cls=${encodeURIComponent(cls)}` : 'objects';
-    }
+      return {path: 'dominators', query: ''};
+    case 'objects':
+      return {path: 'objects', query: queryParam('cls', state.params.cls)};
     case 'object':
-      return `object_0x${state.params.id.toString(16)}`;
-    case 'bitmaps': {
-      const id = state.params.id;
-      const fk = state.params.filterKey;
-      const base =
-        id !== undefined ? `bitmaps_0x${id.toString(16)}` : 'bitmaps';
-      return fk ? `${base}?fk=${encodeURIComponent(fk)}` : base;
-    }
-    case 'strings': {
-      const q = state.params.q;
-      return q ? `strings?q=${encodeURIComponent(q)}` : 'strings';
-    }
-    case 'arrays': {
-      const ah = state.params.arrayHash;
-      return ah ? `arrays?ah=${encodeURIComponent(ah)}` : 'arrays';
-    }
+      return {
+        path: pathSegment('object', `0x${state.params.id.toString(16)}`),
+        query: '',
+      };
+    case 'bitmaps':
+      return {
+        path: pathSegment(
+          'bitmaps',
+          state.params.id !== undefined
+            ? `0x${state.params.id.toString(16)}`
+            : undefined,
+        ),
+        query: queryParam('fk', state.params.filterKey),
+      };
+    case 'strings':
+      return {path: 'strings', query: queryParam('q', state.params.q)};
+    case 'arrays':
+      return {path: 'arrays', query: queryParam('ah', state.params.arrayHash)};
     case 'flamegraph-objects': {
-      const n = state.params.name;
-      return n
-        ? `flamegraph_objects_${encodeURIComponent(n)}`
-        : 'flamegraph_objects';
+      // The router strips query params from the live route; the tab identity
+      // goes in the path.
+      const {pathHashes, isDominator} = state.params;
+      if (pathHashes === undefined) {
+        return {path: 'flamegraph_objects', query: ''};
+      }
+      const flag = isDominator ? '1' : '0';
+      return {
+        path: `flamegraph_objects_${flag}_${encodeURIComponent(pathHashes)}`,
+        query: '',
+      };
     }
     case 'flamegraph':
-      return 'flamegraph';
+      return {path: 'flamegraph', query: ''};
+    case 'callstack':
+      return {path: 'callstack', query: ''};
   }
+}
+
+export function stateToPath(state: NavState): string {
+  return stateToParts(state).path;
+}
+
+export function stateToSubpage(state: NavState): string {
+  const {path, query} = stateToParts(state);
+  return query ? `${path}?${query}` : path;
 }
 
 export function subpageToState(subpage: string | undefined): NavState {
@@ -74,7 +111,7 @@ export function subpageToState(subpage: string | undefined): NavState {
   const [path, queryStr] = subpage.split('?', 2);
   const sp = new URLSearchParams(queryStr ?? '');
 
-  // Parse view_param format (e.g. "object_0x123", "flamegraph_objects_name").
+  // Parse view_param format (e.g. "object_0x123", "flamegraph_objects_1_a,b").
   // Views with underscores: "flamegraph_objects" is the only multi-word view.
   let view: string;
   let param: string;
@@ -129,11 +166,21 @@ export function subpageToState(subpage: string | undefined): NavState {
       return {view: 'arrays', params: ah ? {arrayHash: ah} : {}};
     }
     case 'flamegraph-objects': {
-      const n = param ? decodeURIComponent(param) : undefined;
-      return {view: 'flamegraph-objects', params: n ? {name: n} : {}};
+      // param is "<dom>_<encoded pathHashes>" (see stateToParts), or empty when
+      // no tab is selected.
+      if (param === '') return {view: 'flamegraph-objects', params: {}};
+      const us = param.indexOf('_');
+      const isDominator = us > 0 && param.slice(0, us) === '1';
+      const rest = us === -1 ? param : param.slice(us + 1);
+      return {
+        view: 'flamegraph-objects',
+        params: {pathHashes: decodeURIComponent(rest), isDominator},
+      };
     }
     case 'flamegraph':
       return {view: 'flamegraph', params: {}};
+    case 'callstack':
+      return {view: 'callstack', params: {}};
     default:
       return {view: 'overview', params: {}};
   }

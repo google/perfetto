@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from './trace';
-import {App} from './app';
-import {RouteArgs} from './route_schema';
+import type {Trace} from './trace';
+import type {App} from './app';
+import type {RouteArgs} from './route_schema';
 
 /**
  * This interface defines the shape of the plugins's class constructor (i.e. the

@@ -15,7 +15,7 @@
 import {produce} from 'immer';
 import m from 'mithril';
 import {raf} from '../core/raf_scheduler';
-import {App} from '../public/app';
+import type {App} from '../public/app';
 import {AppImpl} from '../core/app_impl';
 import z from 'zod';
 

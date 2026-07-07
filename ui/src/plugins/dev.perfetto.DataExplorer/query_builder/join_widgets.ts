@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ColumnInfo} from './column_info';
+import type {ColumnInfo} from './column_info';
 import {OutlinedField, ResultsPanelEmptyState} from './widgets';
 import {ColumnSelector} from './column_selector';
 import {classNames} from '../../../base/classnames';

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {TrackNode, Workspace} from '../../public/workspace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import {TrackNode, type Workspace} from '../../public/workspace';
 
 // Type indicating the standard groups supported by this plugin.
 export type StandardGroup =

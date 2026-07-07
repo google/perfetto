@@ -68,6 +68,8 @@ source_set("common") {
     "slice_translation_table.h",
     "stack_profile_tracker.cc",
     "stack_profile_tracker.h",
+    "state_tracker.cc",
+    "state_tracker.h",
     "symbol_tracker.cc",
     "symbol_tracker.h",
     "system_info_tracker.cc",
@@ -162,6 +164,27 @@ source_set("v8_profile_parser") {
   ]
 }
 
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [
+      "args_tracker_benchmark.cc",
+      "clock_tracker_benchmark.cc",
+      "slice_tracker_benchmark.cc",
+    ]
+    deps = [
+      ":common",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../../protos/perfetto/common:zero",
+      "../../storage",
+      "../../tables",
+      "../../types",
+      "../../util:clock",
+    ]
+  }
+}
+
 source_set("unittests") {
   sources = [
     "address_range_unittest.cc",
@@ -176,6 +199,7 @@ source_set("unittests") {
     "process_tracker_unittest.cc",
     "slice_tracker_unittest.cc",
     "slice_translation_table_unittest.cc",
+    "state_tracker_unittest.cc",
     "thread_state_tracker_unittest.cc",
     "track_compressor_unittest.cc",
   ]

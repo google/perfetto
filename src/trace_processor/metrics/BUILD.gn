@@ -50,7 +50,6 @@ source_set("metrics") {
     "../../base/regex",
     "../../protozero:protozero",
     "../perfetto_sql/engine",
-    "../perfetto_sql/intrinsics/functions",
     "../sqlite",
   ]
   public_deps = [
