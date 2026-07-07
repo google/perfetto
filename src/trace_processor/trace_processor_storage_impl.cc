@@ -66,10 +66,10 @@ base::Status WrapParseError(const base::Status& status) {
     return status;
   }
   bool corrupt = strstr(status.c_message(), "(ERR:tp-corrupt)") != nullptr;
-  return base::ErrStatus(
-      "Trace parse failure (%s) (ERR:tp-parse). %s", status.c_message(),
-      corrupt ? "The trace file is corrupt."
-              : "The trace file could not be parsed.");
+  return base::ErrStatus("Trace parse failure (%s) (ERR:tp-parse). %s",
+                         status.c_message(),
+                         corrupt ? "The trace file is corrupt."
+                                 : "The trace file could not be parsed.");
 }
 
 }  // namespace

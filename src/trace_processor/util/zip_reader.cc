@@ -361,8 +361,8 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
   if (dec_res.ret != GzipDecompressor::ResultCode::kEof) {
     return base::ErrStatus(
         "Zip decompression error (%d) on %s (c=%u, u=%u) (ERR:tp-corrupt)",
-        static_cast<int>(dec_res.ret), hdr_.fname.c_str(),
-        hdr_.compressed_size, hdr_.uncompressed_size);
+        static_cast<int>(dec_res.ret), hdr_.fname.c_str(), hdr_.compressed_size,
+        hdr_.uncompressed_size);
   }
   out_data->resize(dec_res.bytes_written);
 
