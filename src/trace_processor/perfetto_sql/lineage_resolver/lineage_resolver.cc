@@ -185,8 +185,7 @@ std::string SpanString(SyntaqliteParser* p, SyntaqliteTextSpan span) {
 }
 
 ScopedParser MakeParser(MacroRegistry* registry_for_lookup) {
-  ScopedParser p(syntaqlite_parser_create_with_dialect(
-      nullptr, syntaqlite_perfetto_dialect()));
+  ScopedParser p(syntaqlite_parser_create_perfetto(nullptr));
   PERFETTO_CHECK(p != nullptr);
   syntaqlite_parser_set_macro_fallback(p.get(), 1);
   if (registry_for_lookup) {
