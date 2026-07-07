@@ -24,6 +24,13 @@ Unreleased:
   SDK:
     *
 
+v57.2 - 2026-07-07:
+  Trace Processor:
+    * Fixed trace_processor failing to parse traces that embed their own
+      proto descriptors after wire-compatible schema changes (widened
+      previous_packet_dropped bool->uint32, and removed AndroidCamera*
+      fields).
+
 v57.1 - 2026-07-02:
   AI:
     * Fixed the AI skill missing its bundled `trace_processor` wrapper.
