@@ -24,6 +24,7 @@ static_library("perfetto_cts_deps") {
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../include/perfetto/ext/tracing/core",
+    "../../protos/perfetto/common:cpp",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/process_stats:cpp",
     "../../protos/perfetto/config/profiling:cpp",
@@ -34,11 +35,13 @@ static_library("perfetto_cts_deps") {
     "../../protos/third_party/android/art:art_heap_graph_zero",
     "../../src/base:test_support",
     "../../src/protozero/filtering:bytecode_generator",
+    "../../src/trace_processor/util:gzip",
     "../../test:test_helper",
   ]
   sources = [
     "art_module/heapprofd_java_test_cts.cc",
     "device_feature_test_cts.cc",
+    "extension_descriptor_test_cts.cc",
     "heapprofd_test_cts.cc",
     "heapprofd_test_helper.cc",
     "producer_to_consumer_integrationtest_cts.cc",
