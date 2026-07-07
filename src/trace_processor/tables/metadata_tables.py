@@ -861,6 +861,65 @@ STATS_TABLE = Table(
             'trace_id': 'Trace that produced this stat (NULL for kGlobal).',
         }))
 
+TRACE_DIAGNOSTICS_TABLE = Table(
+    python_module=__file__,
+    class_name='TraceDiagnosticsTable',
+    sql_name='__intrinsic_trace_diagnostics',
+    columns=[
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'description',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'remediation',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'confidence',
+            CppDouble(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'machine_id',
+            CppOptional(CppTableId(MACHINE_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'trace_id',
+            CppOptional(CppTableId(TRACE_FILE_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Diagnostics detecting poorly-written trace configs and other
+            problems that can affect trace quality, one row per detected issue.
+            Written by TraceDiagnosticsTracker;
+            exposed via the `trace_diagnostics` SQL view.
+        ''',
+        group='Misc',
+        columns={
+            'name': 'Stable diagnostic key (e.g. tiny_ftrace_buffer).',
+            'description': 'Human-readable explanation of the problem.',
+            'remediation': 'Suggested fix for the problem.',
+            'confidence': '[0.0, 1.0] Confidence about the severity.',
+            'machine_id': 'Machine this diagnostic applies to.',
+            'trace_id': 'Trace this diagnostic applies to.',
+        }))
+
 METADATA_TABLE = Table(
     python_module=__file__,
     class_name='MetadataTable',
@@ -1108,5 +1167,6 @@ ALL_TABLES = [
     MODULES_TABLE,
     PROCESS_TABLE,
     THREAD_TABLE,
+    TRACE_DIAGNOSTICS_TABLE,
     TRACE_FILE_TABLE,
 ]

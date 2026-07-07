@@ -46,6 +46,7 @@
 #include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/symbol_tracker.h"
+#include "src/trace_processor/importers/common/trace_diagnostics_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -86,6 +87,8 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context,
       Ptr<ArgsTranslationTable>::MakeRoot(context->storage.get());
   context->metadata_tracker = Ptr<MetadataTracker>::MakeRoot(context);
   context->stats_tracker = Ptr<StatsTracker>::MakeRoot(context);
+  context->trace_diagnostics_tracker =
+      Ptr<TraceDiagnosticsTracker>::MakeRoot(context);
 
   context->slice_tracker->SetOnSliceBeginCallback(
       [context](TrackId track_id, SliceId slice_id) {
