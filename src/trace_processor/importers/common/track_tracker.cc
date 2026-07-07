@@ -78,7 +78,6 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
     if (args) {
       args(inserter);
     }
-    args_tracker_.Flush();
   }
   return id;
 }

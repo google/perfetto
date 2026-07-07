@@ -21,9 +21,9 @@
 #include <optional>
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor::winscope {
 
@@ -32,7 +32,9 @@ class ShellTransitionsTracker {
  public:
   explicit ShellTransitionsTracker(TraceProcessorContext*);
 
-  ArgsTracker::BoundInserter AddArgsTo(int32_t transition_id);
+  // Returns the transition's inserter (same one across packets, so args merge);
+  // committed when Flush() clears the transition.
+  ArgsInserter& AddArgsTo(int32_t transition_id);
 
   void SetTimestamp(int32_t transition_id, int64_t timestamp_ns);
   void SetTimestampIfEmpty(int32_t transition_id, int64_t timestamp_ns);
@@ -54,7 +56,7 @@ class ShellTransitionsTracker {
  private:
   struct TransitionInfo {
     tables::WindowManagerShellTransitionsTable::Id row_id;
-    ArgsTracker args_tracker;
+    std::optional<ArgsInserter> args_inserter;
   };
 
   TransitionInfo* GetOrInsertTransition(int32_t transition_id);

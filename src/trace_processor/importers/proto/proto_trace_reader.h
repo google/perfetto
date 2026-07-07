@@ -62,7 +62,12 @@ class ProtoTraceReader : public ChunkedTraceReader {
  public:
   // |reader| is the abstract method of getting chunks of size |chunk_size_b|
   // from a trace file with these chunks parsed into |trace|.
-  explicit ProtoTraceReader(TraceProcessorContext*);
+  // |is_machine_dispatcher| is true for the top-level reader of a trace, which
+  // owns dispatching remote-machine packets to per-machine sub-readers. The
+  // sub-readers it forks are created with false: they only parse their own
+  // machine's packets and never re-dispatch.
+  explicit ProtoTraceReader(TraceProcessorContext*,
+                            bool is_machine_dispatcher = true);
   ~ProtoTraceReader() override;
 
   // ChunkedTraceReader implementation.
@@ -111,10 +116,22 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   using ConstBytes = protozero::ConstBytes;
   base::Status ParsePacket(TraceBlobView);
+  // Cold path: on the first remote-machine packet, decides whether to adopt it
+  // onto the host context and sets adopted_machine_id_ (machine_id or 0).
+  base::Status ResolveAdoptedMachine(uint32_t machine_id);
+  // Out-of-line cold path: forks the sub-reader for a remote machine.
+  base::Status CreateRemoteMachineReader(
+      uint32_t machine_id,
+      std::unique_ptr<ProtoTraceReader>* out);
   base::Status TimestampTokenizeAndPushToSorter(TraceBlobView);
   base::Status ParseServiceEvent(int64_t ts, ConstBytes);
   base::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   base::Status ParseRemoteClockSync(ConstBytes blob);
+
+  // Returns an error if a perfetto_manifest clock or machine override (both
+  // single-machine by construction) pinned this trace, given evidence that it
+  // is actually multi-machine (a remote machine_id or a remote_clock_sync).
+  base::Status CheckManifestSingleMachine();
   void HandleIncrementalStateCleared(const protos::pbzero::TracePacket_Decoder&,
                                      const TraceBlobView& packet);
   void HandleFirstPacketOnSequence(uint32_t packet_sequence_id);
@@ -150,6 +167,12 @@ class ProtoTraceReader : public ChunkedTraceReader {
   std::unique_ptr<ProtoTraceParserImpl> parser_;
   base::FlatHashMap<uint32_t, std::unique_ptr<ProtoTraceReader>>
       machine_to_proto_readers_;
+  const bool is_machine_dispatcher_;
+  // Machine adopted onto the host context (relabelled), or nullopt until the
+  // first remote-machine packet resolves it; 0 means no adoption.
+  std::optional<uint32_t> adopted_machine_id_;
+  // Whether the host machine has parsed a packet of its own (blocks adoption).
+  bool host_machine_used_ = false;
   ProtoVmIncrementalTracing protovm_;
 
   // Temporary. Currently trace packets do not have a timestamp, so the

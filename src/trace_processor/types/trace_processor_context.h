@@ -101,6 +101,22 @@ class TraceProcessorContext {
 
   struct TraceState {
     TraceId trace_id;
+
+    // True when a perfetto_manifest override pinned this trace onto a single
+    // private clock. The trace must then stay single-clock and single-machine,
+    // so ClockSnapshots and remote machine ids are rejected on it.
+    bool has_clock_override = false;
+
+    // Set when a perfetto_manifest entry attributed this file to a single
+    // machine; lets readers reject it later if it proves to be multi-machine.
+    bool has_machine_override = false;
+
+    // For a multi-machine proto file described by a manifest `machines` block:
+    // points at that entry's embedded machine_id -> raw machine id map (owned
+    // by the manifest state, which outlives parsing). The proto dispatcher
+    // forks remote machines onto these instead of rejecting. Null for other
+    // files.
+    const base::FlatHashMap<uint32_t, int64_t>* machine_remap = nullptr;
   };
 
   struct UuidState {
@@ -132,12 +148,12 @@ class TraceProcessorContext {
   // id.
   TraceProcessorContext* ForkContextForTrace(
       TraceId trace_id,
-      uint32_t default_raw_machine_id) const;
+      int64_t default_raw_machine_id) const;
 
   // Forks the current TraceProcessorContext into a context for parsing a new
   // machine on the same as the current trace.
   TraceProcessorContext* ForkContextForMachineInCurrentTrace(
-      uint32_t raw_machine_id) const;
+      int64_t raw_machine_id) const;
 
   // Global State
   // ============
@@ -158,6 +174,9 @@ class TraceProcessorContext {
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
   GlobalPtr<TraceTimeState> trace_time_state;
+  // One clock graph for the whole import. Clocks are isolated per-(machine,
+  // file) via ClockId, so cross-machine/cross-file syncs are ordinary edges.
+  GlobalPtr<ClockSynchronizer> clock_sync;
   GlobalPtr<TraceManifestState> trace_manifest_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
@@ -209,7 +228,6 @@ class TraceProcessorContext {
 
   PerMachinePtr<SymbolTracker> symbol_tracker;
   PerMachinePtr<ProcessTracker> process_tracker;
-  PerMachinePtr<ClockSynchronizer> primary_clock_sync;
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
@@ -254,6 +272,19 @@ class TraceProcessorContext {
   MachineId machine_id() const;
   TraceId trace_id() const;
 
+  // True when a perfetto_manifest clock override constrains this trace to a
+  // single clock and machine. False for root/container contexts that have no
+  // per-trace state.
+  bool has_clock_override() const {
+    return trace_state && trace_state->has_clock_override;
+  }
+
+  // True when a perfetto_manifest entry attributed this trace to a single
+  // machine. False for root/container contexts that have no per-trace state.
+  bool has_machine_override() const {
+    return trace_state && trace_state->has_machine_override;
+  }
+
  private:
   explicit TraceProcessorContext(const Config& config);
 
@@ -263,13 +294,13 @@ class TraceProcessorContext {
 
 class TraceProcessorContext::ForkedContextState {
  public:
-  using TraceIdAndMachineId = std::pair<uint32_t, uint32_t>;
+  using TraceIdAndMachineId = std::pair<uint32_t, int64_t>;
   base::FlatHashMap<TraceIdAndMachineId,
                     std::unique_ptr<TraceProcessorContext>,
                     base::MurmurHash<TraceIdAndMachineId>>
       trace_and_machine_to_context;
   base::FlatHashMap<uint32_t, TraceProcessorContext*> trace_to_context;
-  base::FlatHashMap<uint32_t, TraceProcessorContext*> machine_to_context;
+  base::FlatHashMap<int64_t, TraceProcessorContext*> machine_to_context;
 };
 
 }  // namespace perfetto::trace_processor

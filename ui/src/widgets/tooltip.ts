@@ -23,7 +23,7 @@ import m from 'mithril';
 import {type MountOptions, Portal, type PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, toHTMLElement} from '../base/dom_utils';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {PopupPosition} from './popup';
 import type {ExtendedModifiers} from './popper_utils';
 
@@ -133,7 +133,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
       },
       onContentMount: (dom: HTMLElement) => {
         const popupElement = toHTMLElement(
-          assertExists(findRef(dom, Tooltip.TOOLTIP_REF)),
+          ensureExists(findRef(dom, Tooltip.TOOLTIP_REF)),
         );
         this.tooltipElement = popupElement;
         this.createOrUpdatePopper(attrs);
@@ -168,7 +168,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
   }
 
   oncreate({dom}: m.VnodeDOM<TooltipAttrs, this>) {
-    this.triggerElement = assertExists(findRef(dom, Tooltip.TRIGGER_REF));
+    this.triggerElement = ensureExists(findRef(dom, Tooltip.TRIGGER_REF));
   }
 
   onupdate({attrs}: m.VnodeDOM<TooltipAttrs, this>) {

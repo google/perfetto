@@ -464,8 +464,7 @@ base::StatusOr<GeckoProfile> ParseGeckoProfile(std::string_view json) {
 GeckoTraceTokenizer::GeckoTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       stream_(
-          ctx->sorter->CreateStream(std::make_unique<GeckoTraceParser>(ctx))),
-      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)) {}
+          ctx->sorter->CreateStream(std::make_unique<GeckoTraceParser>(ctx))) {}
 GeckoTraceTokenizer::~GeckoTraceTokenizer() = default;
 
 base::Status GeckoTraceTokenizer::Parse(TraceBlobView blob) {
@@ -638,7 +637,7 @@ void GeckoTraceTokenizer::ProcessLegacySamples(
 
     auto ts = static_cast<int64_t>(time_val * 1000 * 1000);
     std::optional<int64_t> converted =
-        context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(ts);
     if (!converted) {
       continue;
     }
@@ -717,7 +716,7 @@ void GeckoTraceTokenizer::ProcessSamples(
 
     auto ts = static_cast<int64_t>(t.sample_times[i] * 1000 * 1000);
     std::optional<int64_t> converted =
-        context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(ts);
     if (!converted) {
       continue;
     }
@@ -783,7 +782,7 @@ void GeckoTraceTokenizer::ProcessMarkers(
     double end_ms = t.marker_end_times[i];
     int64_t ts = MarkerEventTimeNs(phase, start_ms, end_ms);
     std::optional<int64_t> converted =
-        context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(ts);
     if (!converted) {
       continue;
     }

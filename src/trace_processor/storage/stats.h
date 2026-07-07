@@ -141,21 +141,21 @@ namespace perfetto::trace_processor::stats {
   F(graphics_frame_event_parser_errors,   kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(guess_trace_type_duration_ns,         kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(interned_data_tokenizer_errors,       kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
-  F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, Scope::kGlobal, ""), \
   F(invalid_cpu_times,                    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(kernel_wakelock_reused_id,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Duplicated interning ID seen. Should never happen."),                  \
   F(kernel_wakelock_unknown_id,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Interning ID not found. Should never happen."),                        \
-  F(kernel_wakelock_zero_value_reported,  kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+  F(kernel_wakelock_zero_value_reported,  kSingle,  kInfo, kTrace, Scope::kMachineAndTrace,             \
        "Zero value received from SuspendControlService. Indicates a transient "\
        "error in SuspendControlService."),                                     \
   F(kernel_wakelock_non_monotonic_value_reported,                              \
-                                          kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+                                          kSingle,  kInfo, kTrace, Scope::kMachineAndTrace,             \
        "Decreased value received from SuspendControlService. Indicates a "     \
        "transient error in SuspendControlService."),                           \
   F(kernel_wakelock_implausibly_large_value_reported,                          \
-                                          kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+                                          kSingle,  kInfo, kTrace, Scope::kMachineAndTrace,             \
        "Implausibly large increment to value received from "                   \
        "SuspendControlService. Indicates a transient error in "                \
        "SuspendControlService."),                                              \
@@ -167,6 +167,10 @@ namespace perfetto::trace_processor::stats {
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Interning ID not found. Should never happen."),                        \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(cpu_info_unknown_cpu_features,        kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+       "CpuInfo contained CPU feature bits not known to this version of "      \
+       "trace_processor. The full bitmap is still preserved in the cpu "       \
+       "table args as cpu_features.raw_bitmap."),                              \
   F(missing_disk_io_event_name,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "ETW Disk IO tracker encountered an event with an opcode for which it " \
         "didn't have a name."),                                                \
@@ -286,22 +290,6 @@ namespace perfetto::trace_processor::stats {
       "Sequence data losses the producer attributed to its shared memory "     \
       "buffer being full, per buffer."),                                       \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
-  F(traced_buf_v2s_packets_seen,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: total packets read."),                                    \
-  F(traced_buf_v2s_packets_in_both,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: packets found in both V1 and V2 buffers."),               \
-  F(traced_buf_v2s_packets_only_v1,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: packets found only in V1 buffer."),                       \
-  F(traced_buf_v2s_packets_only_v2,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: packets found only in V2 buffer."),                       \
-  F(traced_buf_v2s_patches_attempted,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: patch operations attempted."),                            \
-  F(traced_buf_v2s_v1_patches_succeeded,  kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: patches that succeeded on V1 buffer."),                   \
-  F(traced_buf_v2s_v2_patches_succeeded,  kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: patches that succeeded on V2 buffer."),                   \
-  F(traced_buf_v2s_stats_version,         kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
-       "Shadow mode: version of the comparison stats."),                       \
   F(traced_clone_started_timestamp_ns,    kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,         \
     "The timestamp when the clone snapshot operation for this trace started"), \
   F(traced_clone_trigger_timestamp_ns,    kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,         \
@@ -365,6 +353,15 @@ namespace perfetto::trace_processor::stats {
       "time clock. Both clocks exist in snapshots, but never together or "     \
       "via a common intermediate clock. Ensure ClockSnapshots link all used "  \
       "clocks to the trace time clock."),                                      \
+  F(clock_sync_unrelatable_clock_domains, kSingle, kError, kAnalysis, Scope::kMachineAndTrace,         \
+      "A file's clock domain could not be related to the trace time clock, so "\
+      "its events were dropped. The two are different real clock domains (the "\
+      "args record the source and trace-time clock ids, e.g. BOOTTIME=6 "      \
+      "against a REALTIME=1 trace time) with nothing connecting them, and "    \
+      "trace_processor does not assume different real clocks are aligned. "    \
+      "Provide a relationship - a ClockSnapshot, a remote_clock_sync, or a "   \
+      "perfetto_manifest clock anchor - or attribute the file to a machine "   \
+      "that shares a clock with the rest of the trace."),                      \
   F(clock_sync_mixed_clock_sources,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A non-primary trace file used both the primary trace's clock "          \
       "snapshots and its own for timestamp conversion. Timestamps "            \
@@ -379,7 +376,7 @@ namespace perfetto::trace_processor::stats {
       "results. This can happen when a sequence-scoped clock (64-127) is "    \
       "used before the ClockSnapshot defining it arrives, and the sorter "     \
       "has already started flushing."),                                        \
-  F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A namespaced thread association was received but the corresponding "    \
@@ -708,7 +705,9 @@ namespace perfetto::trace_processor::stats {
       "the presence of one is usually a sign that something went wrong while " \
       "recording a trace. Common causes of this include incorrect "            \
       "incremental timestamps, bad clock synchronization or kernel bugs in "   \
-      "drivers emitting timestamps"),                                          \
+      "drivers emitting timestamps. When merging multiple traces, a clock "    \
+      "offset which moves events before the start of the trace-time clock "    \
+      "also causes this."),                                                    \
   F(slice_drop_overlapping_complete_event,        kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,   \
       "A complete slice was dropped because it partially overlaps another "    \
       "slice on the same track. Overlapping duration events are out of spec "  \
@@ -744,6 +743,9 @@ namespace perfetto::trace_processor::stats {
   F(slice_negative_duration,                    kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "Number of slices dropped due to negative duration. This usually "       \
       "indicates incorrect timestamps in the trace data."),                    \
+  F(slice_max_depth_exceeded,                   kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A slice was dropped because the slice nesting depth exceeded the max "  \
+      "supported limit."),                                                     \
   F(gpu_work_period_negative_duration,          kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "Number of GPU work period events with negative duration (end < start). "\
       "Check the GPU driver for timestamp bugs."),                             \
@@ -873,10 +875,6 @@ namespace perfetto::trace_processor::stats {
       "A TrackEvent with TYPE_STATE was received without a track_uuid. "       \
       "State events require a track_uuid to identify which state track to "     \
       "use. The event is dropped. This is a bug in the trace producer."),       \
-  F(track_event_state_invalid_track_uuid,     kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace, \
-      "A TrackEvent with TYPE_STATE specified a track_uuid that was not "      \
-      "declared as a state track. The event is dropped. This is a bug in the " \
-      "trace producer."),  \
   F(track_event_extra_counter_track_uuid_mismatch, kSingle, kError, kAnalysis, Scope::kMachineAndTrace, \
       "A TrackEvent provided more extra counter values than "                  \
       "extra_counter_track_uuids. Arrays must have matching lengths. The "     \

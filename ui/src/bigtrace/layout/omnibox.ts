@@ -16,7 +16,7 @@ import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {findRef} from '../../base/dom_utils';
 import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
-import {assertExists, assertUnreachable} from '../../base/assert';
+import {ensureExists, assertUnreachable} from '../../base/assert';
 import {isString} from '../../base/object_utils';
 import {exists} from '../../base/utils';
 import {OmniboxMode} from '../../core/omnibox_manager';
@@ -64,7 +64,7 @@ export class Omnibox implements m.ClassComponent {
 
   private renderPromptOmnibox(): m.Children {
     const omnibox = BigTraceApp.instance.omnibox;
-    const prompt = assertExists(omnibox.pendingPrompt);
+    const prompt = ensureExists(omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
 
@@ -178,7 +178,7 @@ export class Omnibox implements m.ClassComponent {
 
   private renderRegisteredMode(): m.Children {
     const omnibox = BigTraceApp.instance.omnibox;
-    const desc = assertExists(omnibox.activeRegisteredMode);
+    const desc = ensureExists(omnibox.activeRegisteredMode);
     return m(OmniboxWidget, {
       value: omnibox.text,
       placeholder: desc.placeholder,

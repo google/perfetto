@@ -13,37 +13,39 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {download} from '../../../base/download_utils';
-import {Icons} from '../../../base/semantic_icons';
-import {Button} from '../../../widgets/button';
-import {ActionButtonHelper} from '../../../widgets/action_button_helper';
-import {copyToClipboard} from '../../../base/clipboard';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {download} from '../base/download_utils';
+import {Icons} from '../base/semantic_icons';
+import {Button} from './button';
+import {ActionButtonHelper} from './action_button_helper';
+import {copyToClipboard} from '../base/clipboard';
+import {MenuItem, PopupMenu} from './menu';
 
 export type ExportFormat = 'tsv' | 'json' | 'markdown';
 
-export interface DataGridExportButtonAttrs {
+export interface ExportButtonAttrs {
   readonly onExportData: (format: ExportFormat) => Promise<string>;
+
+  // Base name used for downloaded files. Defaults to 'data_export'.
+  readonly fileBaseName?: string;
 }
 
 /**
- * DataGrid copy button component with dropdown menu for copying data to clipboard
- * in different formats (TSV, Markdown, JSON).
+ * Export button component with dropdown menu for copying data to clipboard
+ * or downloading it in different formats (TSV, Markdown, JSON).
  * Maintains its own ActionButtonHelper state to show "Copied" feedback.
  */
-export class DataGridExportButton
-  implements m.ClassComponent<DataGridExportButtonAttrs>
-{
+export class ExportButton implements m.ClassComponent<ExportButtonAttrs> {
   private helper = new ActionButtonHelper();
 
   private async copyToClipboardWithHelper(content: Promise<string>) {
     await this.helper.execute(async () => await copyToClipboard(await content));
   }
 
-  view({attrs}: m.CVnode<DataGridExportButtonAttrs>) {
-    const {onExportData} = attrs;
+  view({attrs}: m.CVnode<ExportButtonAttrs>) {
+    const {onExportData, fileBaseName} = attrs;
     const loading = this.helper.state === 'working';
     const icon = this.helper.state === 'done' ? Icons.Check : Icons.Download;
+    const baseName = fileBaseName ?? 'data_export';
 
     return m(
       PopupMenu,
@@ -52,7 +54,7 @@ export class DataGridExportButton
           icon,
           loading,
           label: 'Export',
-          title: 'Export table data',
+          title: 'Export data',
         }),
       },
       [
@@ -93,7 +95,7 @@ export class DataGridExportButton
               download({
                 content,
                 mimeType: 'text/tab-separated-values',
-                fileName: 'data_export.tsv',
+                fileName: `${baseName}.tsv`,
               });
             },
           }),
@@ -106,7 +108,7 @@ export class DataGridExportButton
               download({
                 content,
                 mimeType: 'text/markdown',
-                fileName: 'data_export.md',
+                fileName: `${baseName}.md`,
               });
             },
           }),
@@ -119,7 +121,7 @@ export class DataGridExportButton
               download({
                 content,
                 mimeType: 'application/json',
-                fileName: 'data_export.json',
+                fileName: `${baseName}.json`,
               });
             },
           }),

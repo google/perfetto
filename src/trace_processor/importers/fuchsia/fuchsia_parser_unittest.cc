@@ -127,26 +127,6 @@ class MockProcessTracker : public ProcessTracker {
                ProcessNamePriority priority),
               (override));
 };
-class MockBoundInserter : public ArgsTracker::BoundInserter {
- public:
-  MockBoundInserter()
-      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u, 0u),
-        tracker_(nullptr) {
-    ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
-  }
-
-  MOCK_METHOD(ArgsTracker::BoundInserter&,
-              AddArg,
-              (StringId flat_key,
-               StringId key,
-               Variadic v,
-               ArgsTracker::UpdatePolicy update_policy),
-              (override));
-
- private:
-  ArgsTracker tracker_;
-};
-
 class MockEventTracker : public EventTracker {
  public:
   explicit MockEventTracker(TraceProcessorContext* context)
@@ -211,9 +191,13 @@ class FuchsiaTraceParserTest : public ::testing::Test {
         context_.trace_time_state.get(),
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.clock_tracker = std::make_unique<ClockTracker>(
-        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
-        primary_sync_.get(), true);
+        &context_, primary_sync_.get(), /*is_primary=*/true);
     clock_ = context_.clock_tracker.get();
+    // ForwardingTraceParser normally sets the file's default clock; the
+    // tokenizer converts its events through it
+    // (ConvertDefaultClockToTraceTime).
+    clock_->SetTraceDefaultClock(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(
@@ -440,8 +424,6 @@ TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
   storage_->mutable_thread_table()->Insert(row);
-
-  MockBoundInserter inserter;
 
   StringId unknown_cat = storage_->InternString("unknown(1)");
   ASSERT_NE(storage_, nullptr);

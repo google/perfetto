@@ -18,6 +18,7 @@ import {getAllNodes as getAllNodesUtil} from './query_builder/graph_utils';
 import type {Trace} from '../../public/trace';
 import type {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {nodeRegistry} from './query_builder/node_registry';
+import {getErrorMessage} from '../../base/errors';
 import {restoreLegacySecondaryInputs} from './query_builder/legacy_connections';
 import {
   type PerfettoSqlType,
@@ -57,6 +58,156 @@ export interface SerializedGraph {
   }>;
   isExplorerCollapsed?: boolean;
   sidebarWidth?: number;
+}
+
+/**
+ * Validates the *structure* of a serialized graph JSON string without touching
+ * the trace engine: valid JSON, the right envelope, unique node ids, known node
+ * types, and internally-consistent connections (no dangling references, edges
+ * set on both sides). Returns the parsed graph plus a list of human-readable
+ * problems - empty `errors` means the structure is sound (deeper, per-node-state
+ * issues are caught later by deserialize/execution).
+ *
+ * This exists so a tool (or the assistant) can report ALL the structural
+ * problems at once, with actionable messages, instead of throwing on the first
+ * one the way deserializeState does.
+ */
+export function validateSerializedGraph(json: string): {
+  graph?: SerializedGraph;
+  errors: string[];
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch (e) {
+    return {errors: [`Not valid JSON: ${getErrorMessage(e)}`]};
+  }
+
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {
+      errors: [
+        'Top-level value must be a JSON object with "nodes" and "rootNodeIds".',
+      ],
+    };
+  }
+
+  const g = parsed as Partial<SerializedGraph>;
+  const errors: string[] = [];
+
+  if (!Array.isArray(g.nodes)) {
+    errors.push('"nodes" must be an array of node objects.');
+  }
+  if (!Array.isArray(g.rootNodeIds)) {
+    errors.push('"rootNodeIds" must be an array of node id strings.');
+  }
+  if (errors.length > 0) {
+    return {errors};
+  }
+
+  const nodes = g.nodes as SerializedNode[];
+  const rootNodeIds = g.rootNodeIds as string[];
+
+  // The set of node-type strings the registry knows about, for error messages.
+  const validTypes = [
+    ...new Set(nodeRegistry.list().map(([, d]) => d.nodeType as string)),
+  ].sort();
+
+  // First pass: per-node shape + collect ids (for reference checks).
+  const ids = new Set<string>();
+  nodes.forEach((node, i) => {
+    if (node === null || typeof node !== 'object') {
+      errors.push(`nodes[${i}] is not an object.`);
+      return;
+    }
+    if (typeof node.nodeId !== 'string' || node.nodeId === '') {
+      errors.push(`nodes[${i}] is missing a string "nodeId".`);
+      return;
+    }
+    if (ids.has(node.nodeId)) {
+      errors.push(`Duplicate nodeId "${node.nodeId}".`);
+    }
+    ids.add(node.nodeId);
+
+    if (
+      typeof node.type !== 'string' ||
+      nodeRegistry.getByNodeType(node.type as NodeType) === undefined
+    ) {
+      errors.push(
+        `Node "${node.nodeId}" has unknown type ${JSON.stringify(node.type)}. ` +
+          `Valid types: ${validTypes.join(', ')}.`,
+      );
+    }
+    if (node.state === null || typeof node.state !== 'object') {
+      errors.push(`Node "${node.nodeId}" is missing a "state" object.`);
+    }
+    if (node.nextNodes !== undefined && !Array.isArray(node.nextNodes)) {
+      errors.push(`Node "${node.nodeId}" "nextNodes" must be an array of ids.`);
+    }
+  });
+
+  const has = (id: string) => ids.has(id);
+  const byId = new Map(
+    nodes
+      .filter((n) => typeof n?.nodeId === 'string')
+      .map((n) => [n.nodeId, n] as const),
+  );
+
+  // Second pass: reference + edge-consistency checks.
+  for (const node of nodes) {
+    if (typeof node?.nodeId !== 'string') continue;
+
+    for (const next of node.nextNodes ?? []) {
+      if (!has(next)) {
+        errors.push(
+          `Node "${node.nodeId}" nextNodes references missing node "${next}".`,
+        );
+      }
+    }
+    if (node.primaryInputId !== undefined && !has(node.primaryInputId)) {
+      errors.push(
+        `Node "${node.nodeId}" primaryInputId references missing node ` +
+          `"${node.primaryInputId}".`,
+      );
+    }
+    for (const [port, id] of Object.entries(node.secondaryInputIds ?? {})) {
+      if (!has(id)) {
+        errors.push(
+          `Node "${node.nodeId}" secondaryInputIds["${port}"] references ` +
+            `missing node "${id}".`,
+        );
+      }
+    }
+
+    // Every input edge must be mirrored by the upstream node's nextNodes, or
+    // the downstream node is unreachable from the roots and is dropped on load.
+    const inputIds = [
+      ...(node.primaryInputId !== undefined ? [node.primaryInputId] : []),
+      ...Object.values(node.secondaryInputIds ?? {}),
+    ];
+    for (const upId of inputIds) {
+      const up = byId.get(upId);
+      if (up !== undefined && !(up.nextNodes ?? []).includes(node.nodeId)) {
+        errors.push(
+          `Edge is one-sided: node "${node.nodeId}" lists "${upId}" as an ` +
+            `input, but "${upId}".nextNodes does not include "${node.nodeId}". ` +
+            `Set the edge on both nodes.`,
+        );
+      }
+    }
+  }
+
+  for (const id of rootNodeIds) {
+    if (!has(id)) {
+      errors.push(`rootNodeIds references missing node "${id}".`);
+    }
+  }
+  if (nodes.length > 0 && rootNodeIds.length === 0) {
+    errors.push(
+      'rootNodeIds is empty; list every input-less (source) node id there.',
+    );
+  }
+
+  return {graph: g as SerializedGraph, errors};
 }
 
 function serializeNode(node: QueryNode): SerializedNode {

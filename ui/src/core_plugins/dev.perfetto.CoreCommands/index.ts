@@ -25,6 +25,7 @@ import {exists} from '../../base/utils';
 import {JsonSettingsEditor} from '../../components/json_settings_editor';
 import QueryPagePlugin from '../../plugins/dev.perfetto.QueryPage';
 import {AppImpl} from '../../core/app_impl';
+import {openTraceFiles} from '../../core/open_trace_files';
 import {macroSchema} from '../../core/command_manager';
 import {featureFlags} from '../../core/feature_flags';
 import {OmniboxMode} from '../../core/omnibox_manager';
@@ -43,7 +44,7 @@ import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import type {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import type {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
 import {legacyMacrosConfigSchema} from './legacy_macros_schema';
@@ -237,6 +238,7 @@ export default class CoreCommands implements PerfettoPlugin {
     const input = document.createElement('input');
     input.classList.add('trace_file');
     input.setAttribute('type', 'file');
+    input.setAttribute('multiple', 'multiple');
     input.style.display = 'none';
     input.addEventListener('change', onInputElementFileSelectionChanged);
     document.body.appendChild(input);
@@ -270,7 +272,7 @@ export default class CoreCommands implements PerfettoPlugin {
     const app = AppImpl.instance;
 
     // Rgister macros from settings first.
-    const settingMacros = assertExists(CoreCommands.macrosSetting).get();
+    const settingMacros = ensureExists(CoreCommands.macrosSetting).get();
     for (const macro of settingMacros) {
       ctx.commands.registerMacro(macro);
     }
@@ -882,10 +884,10 @@ function onInputElementFileSelectionChanged(e: Event) {
     throw new Error('Not an input element');
   }
   if (!e.target.files) return;
-  const file = e.target.files[0];
+  const files = Array.from(e.target.files);
   // Reset the value so onchange will be fired with the same file.
   e.target.value = '';
 
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Open trace from file');
-  AppImpl.instance.openTraceFromFile(file);
+  openTraceFiles(files);
 }

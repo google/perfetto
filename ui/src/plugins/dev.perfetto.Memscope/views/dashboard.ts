@@ -12,30 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import './dashboard.scss';
 import m from 'mithril';
-import type {App} from '../../../public/app';
-import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
-import {Intent} from '../../../widgets/common';
-import {RadioGroup} from '../../../widgets/radio_group';
+import {GateDetector} from '../../../base/mithril_utils';
 import type {
   LineChartData,
   LineChartSeries,
 } from '../../../components/widgets/charts/line_chart';
-import {GateDetector} from '../../../base/mithril_utils';
+import type {App} from '../../../public/app';
+import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
+import {Chip} from '../../../widgets/chip';
+import {Intent} from '../../../widgets/common';
+import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
+import {PopupPosition} from '../../../widgets/popup';
+import {RadioGroup} from '../../../widgets/radio_group';
+import {Page} from '../components/page';
 import type {
   LiveSession,
   ProfileView,
   SnapshotData,
 } from '../sessions/live_session';
+import './dashboard.scss';
 import {ProfilePage} from './profile_page';
-import {ProcessesTab} from './tabs/processes';
-import {renderSystemTab} from './tabs/system';
 import {renderPageCacheTab} from './tabs/page_cache';
 import {renderPressureSwapTab} from './tabs/pressure_swap';
-import {Chip} from '../../../widgets/chip';
-import {PopupPosition} from '../../../widgets/popup';
-import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
+import {ProcessesTab} from './tabs/processes';
+import {renderSystemTab} from './tabs/system';
 
 type Tab = 'processes' | 'system' | 'file_cache' | 'pressure_swap';
 
@@ -120,18 +121,15 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           visible ? session.resume() : session.pause(),
       },
       m(
-        '.pf-memscope-page__container',
-        m(
-          '.pf-memscope-page',
+        Page,
 
-          // Title bar with status and actions (always shown).
-          this.renderTitleBar(attrs),
+        // Title bar with status and actions (always shown).
+        this.renderTitleBar(attrs),
 
-          // Profile page or dashboard content.
-          session.profile !== undefined
-            ? this.renderProfilePage(attrs, session.profile)
-            : this.renderDashboard(attrs),
-        ),
+        // Profile page or dashboard content.
+        session.profile !== undefined
+          ? this.renderProfilePage(attrs, session.profile)
+          : this.renderDashboard(attrs),
       ),
     );
   }
@@ -359,6 +357,12 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       baseline: this.profileBaseline,
       onStop: () => {
         session.stopAndOpenProfile().then(() => {
+          this.profileBaseline = undefined;
+          m.redraw();
+        });
+      },
+      onStopAndDownload: () => {
+        session.stopAndDownloadProfile().then(() => {
           this.profileBaseline = undefined;
           m.redraw();
         });

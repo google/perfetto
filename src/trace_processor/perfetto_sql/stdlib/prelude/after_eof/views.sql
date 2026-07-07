@@ -734,7 +734,8 @@ CREATE PERFETTO VIEW machine(
   id ID,
   -- Raw machine identifier in the trace packet.
   raw_id LONG,
-  -- Human-readable name of the machine, used as its label in the UI.
+  -- Human-readable name of the machine (e.g. from a perfetto_manifest
+  -- override), used as its label in the UI.
   name STRING,
   -- The name of the operating system.
   sysname STRING,
@@ -755,10 +756,21 @@ CREATE PERFETTO VIEW machine(
   -- Total system RAM in bytes.
   system_ram_bytes LONG,
   -- Total system RAM in gigabytes (rounded).
-  system_ram_gb LONG
+  system_ram_gb LONG,
+  -- 1-based index of this machine among the non-host machines, used by the UI
+  -- to label tracks (e.g. "(machine 1)"). The host machine (raw_id 0) gets 0,
+  -- so it is never labelled.
+  label_index LONG
 )
 AS
-SELECT * FROM __intrinsic_machine;
+SELECT
+  *,
+  -- A dense 1-based rank among the non-host machines, ordered by id. We rank by
+  -- position rather than arithmetic on id because the host does not always take
+  -- the lowest id: the perfetto_manifest reader pre-allocates named machine rows
+  -- before the host row is created lazily, so a named machine can precede it.
+  iif(raw_id = 0, 0, sum(iif(raw_id = 0, 0, 1)) OVER (ORDER BY id)) AS label_index
+FROM __intrinsic_machine;
 
 -- Contains information of filedescriptors collected during the trace.
 CREATE PERFETTO VIEW filedescriptor(

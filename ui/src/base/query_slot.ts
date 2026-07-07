@@ -350,6 +350,32 @@ export class QuerySlot<T> {
   }
 
   /**
+   * Clear the cached result and any stored error, forcing the next use()
+   * with any key to re-run its queryFn. Unlike dispose(), the slot remains
+   * usable. Cancels any in-flight query and disposes cached AsyncDisposable
+   * data through the queue to stay synchronized with pending work.
+   */
+  invalidate(): void {
+    if (this.disposed) return;
+
+    // Cancel any in-flight query and clear pending state so the next use()
+    // reschedules from scratch.
+    if (this.currentSignal) {
+      this.currentSignal.cancelled = true;
+      this.currentSignal = undefined;
+    }
+    this.pendingKey = undefined;
+    this.error = undefined;
+
+    // Schedule cache disposal/clearing through the queue so it runs after any
+    // in-flight query settles.
+    this.queue.schedule(this, async () => {
+      await this.disposeCache();
+      this.cache = undefined;
+    });
+  }
+
+  /**
    * Dispose this slot. Cancels pending work and disposes any cached
    * AsyncDisposable through the queue to maintain synchronization.
    * Call this in component's onremove() to prevent orphaned queries.

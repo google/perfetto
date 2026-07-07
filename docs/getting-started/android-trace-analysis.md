@@ -3,6 +3,62 @@
 This page will take you through some real world examples on how you can analyse
 issues with SQL and more advanced features of the Perfetto UI.
 
+## Using AI for trace analysis {#using-ai}
+
+NOTE: **Googlers**: use [go/perfetto-ai-skills](http://go/perfetto-ai-skills)
+and
+[go/perfetto-ai-skills-android-memory](http://go/perfetto-ai-skills-android-memory)
+instead of the public setup instructions.
+
+An AI coding agent with the Perfetto skill installed
+([setup](using-ai.md)) can go well beyond the recipes on this page: it can
+record traces from a connected device, answer ad-hoc questions about CPU,
+scheduling, and startup in plain English, and follow dedicated workflows for
+memory debugging.
+
+### Ad-hoc questions
+
+```
+> Find the top causes of uninterruptible sleep for com.example.myapp in
+  trace.pftrace.
+
+> Which process had the highest peak memory usage in this trace?
+```
+
+### Memory debugging
+
+Guided workflows for memory leaks, OOMs, churn, and allocation hot paths.
+
+```
+> Investigate object retention and potential leaks in /tmp/heap_dump.pftrace.
+
+> Analyze native heap allocations and identify memory growth hot paths in
+  /tmp/native_heap.pftrace.
+
+> Record a Java heap dump of com.example.app from my connected device and
+  find what is keeping memory alive.
+```
+
+The agent records the trace if needed, runs tested SQL to extract dominator
+paths, native callstacks, or allocation summaries, then searches your
+workspace for the suspect classes and points at the exact files and lines to
+fix.
+
+### Fleet clustering (many traces)
+
+For OOM spikes across a device population, a clustering workflow finds the
+common leak signatures across a batch of heap dumps.
+
+```
+> Here are 40 heap dumps of com.example.app in ~/dumps/. Cluster the memory
+  attribution paths and determine the common root causes.
+```
+
+The agent extracts dominator paths from every trace, normalizes them into
+canonical class chains, clusters them (TF-IDF + K-Means), and collapses
+wrapper chains so you get a short list of root causes instead of per-dump
+noise.
+
 ## Finding slices
 
 Demonstrates:

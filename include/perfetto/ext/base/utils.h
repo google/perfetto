@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include <atomic>
@@ -93,6 +94,11 @@ inline constexpr size_t AlignUp(size_t size, size_t alignment) {
   return (size + alignment - 1) & ~(alignment - 1);
 }
 
+// Round down |size| to a multiple of |alignment| (must be a power of two).
+inline constexpr size_t AlignDown(size_t size, size_t alignment) {
+  return size & ~(alignment - 1);
+}
+
 // TODO(primiano): clean this up and move all existing usages to the constexpr
 // version above.
 template <size_t alignment>
@@ -111,6 +117,13 @@ void SetEnv(const std::string& key, const std::string& value);
 // unsetenv(2)-equivalent. Deals with Windows vs Posix discrepancies.
 void UnsetEnv(const std::string& key);
 
+// Returns true if |fd| is connected to an interactive terminal (TTY). Deals
+// with Windows vs Posix discrepancies (isatty() vs _isatty()).
+bool IsTty(int fd);
+
+// Convenience overload for C stdio streams (e.g. stdin/stdout/stderr).
+bool IsTty(FILE* stream);
+
 // Calls mallopt(M_PURGE, 0) on Android. Does nothing on other platforms.
 // This forces the allocator to release freed memory. This is used to work
 // around various Scudo inefficiencies. See b/170217718.
@@ -120,10 +133,10 @@ void MaybeReleaseAllocatorMemToOS();
 uid_t GetCurrentUserId();
 
 // Forks the process.
-// Parent: prints the PID of the child, calls |parent_cb| and exits from the
-//         process with its return value.
+// Parent: calls |parent_cb| with the child's PID and exits with its return
+//         value. The callback owns any startup output (e.g. printing the PID).
 // Child: redirects stdio onto /dev/null, chdirs into / and returns.
-void Daemonize(std::function<int()> parent_cb);
+void Daemonize(std::function<int(pid_t)> parent_cb);
 
 // Returns the path of the current executable, e.g. /foo/bar/exe.
 std::string GetCurExecutablePath();

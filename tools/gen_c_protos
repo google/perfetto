@@ -52,6 +52,7 @@ PROD_FILES = [
     'protos/perfetto/trace/trace_packet.proto',
     'protos/perfetto/trace/track_event/counter_descriptor.proto',
     'protos/perfetto/trace/track_event/debug_annotation.proto',
+    'protos/perfetto/trace/track_event/state_descriptor.proto',
     'protos/perfetto/trace/track_event/track_descriptor.proto',
     'protos/perfetto/trace/track_event/track_event.proto',
 ]

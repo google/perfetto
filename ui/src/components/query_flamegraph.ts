@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {uuidv4Sql} from '../base/uuid';
 import type {Engine} from '../trace_processor/engine';
 import {
@@ -40,6 +40,7 @@ import {
 } from '../widgets/flamegraph';
 import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
+import {escapeRegexEmptyBrackets} from '../widgets/flamegraph_regex';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
 import {Monitor} from '../base/monitor';
 
@@ -228,7 +229,7 @@ export class QueryFlamegraph implements AsyncDisposable {
     metrics: ReadonlyArray<QueryFlamegraphMetric>,
     state: FlamegraphState,
   ) {
-    const metric = assertExists(
+    const metric = ensureExists(
       metrics.find((x) => state.selectedMetricName === x.name),
     );
     const engine = this.trace.engine;
@@ -291,10 +292,12 @@ async function computeFlamegraphTree(
   const unaggCols = unagg.map((x) => x.name);
 
   const matchingColumns = ['name', ...unaggCols];
+  // Frame names commonly contain literal `[]` (e.g. Java arrays), which is
+  // not valid regex syntax; rewrite it so such filters match literally.
   const matchExpr = (x: string) =>
     matchingColumns.map(
       (c) =>
-        `(IFNULL(${c}, '') like ${sqliteString(makeSqlFilter(x))} escape '\\')`,
+        `(IFNULL(${c}, '') REGEXP ${sqliteString(escapeRegexEmptyBrackets(x))})`,
     );
 
   const showStackFilter =
@@ -536,7 +539,8 @@ async function computeFlamegraphTree(
     for (const a of agg) {
       const r = it.get(a.name);
       if (r !== null) {
-        const value = r as string;
+        // UNKNOWN-typed aggregations (e.g. SUM) can yield number/bigint.
+        const value = String(r);
         properties.set(a.name, {
           displayName: a.displayName,
           value,
@@ -592,22 +596,6 @@ async function computeFlamegraphTree(
     nodeActions,
     rootActions,
   };
-}
-
-function makeSqlFilter(x: string) {
-  const hasStart = x.startsWith('^');
-  const hasEnd = x.endsWith('$');
-  const pattern = x.slice(hasStart ? 1 : 0, hasEnd ? -1 : undefined);
-
-  if (hasStart && hasEnd) {
-    return pattern; // Exact match
-  } else if (hasStart) {
-    return `${pattern}%`; // Starts with
-  } else if (hasEnd) {
-    return `%${pattern}`; // Ends with
-  } else {
-    return `%${pattern}%`; // Contains
-  }
 }
 
 function getPivotFilter(

@@ -59,20 +59,19 @@ BreakpadSymbolizer::BreakpadSymbolizer(const std::string& symbol_dir_path)
 
 SymbolizeResult BreakpadSymbolizer::Symbolize(
     const Environment&,
-    const std::string&,
-    const std::string& build_id,
-    uint64_t,
+    const UnsymbolizedMapping& mapping,
     const std::vector<uint64_t>& address) {
   SymbolizeResult result;
   result.frames.reserve(address.size());
 
   // Skip lookup if build_id is empty (e.g., kernel symbols).
-  if (build_id.empty()) {
+  if (mapping.build_id.empty()) {
     return result;
   }
 
   std::string file_path;
-  std::string raw_build_id = base::ToHex(build_id.c_str(), build_id.length());
+  std::string raw_build_id =
+      base::ToHex(mapping.build_id.c_str(), mapping.build_id.length());
 
   // Check to see if the |file_path_for_testing_| member is populated. If it is,
   // this file must be used.

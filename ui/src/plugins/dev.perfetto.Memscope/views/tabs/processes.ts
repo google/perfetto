@@ -42,9 +42,10 @@ import {
   CATEGORIES,
   type CategoryId,
 } from '../../process_categories';
-import {Billboard} from '../../components/billboard';
+import {Billboard, BillboardStrip} from '../../components/billboard';
 import {ColorChip, chipColor} from '../../components/color_chip';
-import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
+import {billboardBytes, maxSeriesKb, niceKbInterval} from '../../utils';
+import {formatBytesIec} from '../../../../base/bytes_format';
 import {
   type ProcessGrouping,
   type ProcessMetric,
@@ -52,7 +53,6 @@ import {
   PROCESS_METRIC_OPTIONS,
   OOM_SCORE_BUCKETS,
 } from '../../process_data';
-import {Stack} from '../../../../widgets/stack';
 
 export type {ProcessGrouping, ProcessMetric, ProcessMemoryRow};
 export {PROCESS_METRIC_OPTIONS, OOM_SCORE_BUCKETS};
@@ -511,23 +511,22 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
     const totalFileKb = latestProcesses.reduce((s, p) => s + p.fileKb, 0);
     const totalDmabufKb = latestProcesses.reduce((s, p) => s + p.dmabufKb, 0);
 
-    return m(Stack, {spacing: 'large'}, [
+    return m.fragment({}, [
       latestProcesses.length > 0 &&
         m(
-          Stack,
-          {orientation: 'horizontal', spacing: 'large'},
+          BillboardStrip,
           m(Billboard, {
-            ...billboardKb(totalAnonSwapKb),
+            ...billboardBytes(totalAnonSwapKb * 1024),
             label: 'RSS Anon + Swap',
             desc: 'Sum of anonymous RSS + swap across all processes',
           }),
           m(Billboard, {
-            ...billboardKb(totalFileKb),
+            ...billboardBytes(totalFileKb * 1024),
             label: 'File',
             desc: 'Sum of file-backed RSS across all processes',
           }),
           m(Billboard, {
-            ...billboardKb(totalDmabufKb),
+            ...billboardBytes(totalDmabufKb * 1024),
             label: 'DMA-BUF',
             desc: 'Sum of DMA-BUF heap RSS across all processes',
           }),
@@ -607,7 +606,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                 xAxisMin: chartXMin,
                 xAxisMax: chartXMax,
                 formatXValue: (v: number) => `${v.toFixed(0)}s`,
-                formatYValue: (v: number) => formatKb(v),
+                formatYValue: (v: number) => formatBytesIec(v * 1024),
                 yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
                 onSeriesClick: isDrilledDown
                   ? undefined
@@ -818,22 +817,28 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
             : oomLabel,
         ),
         m(GridCell, {align: 'right', style: mutedStyle}, ageStr),
-        m(GridCell, {align: 'right', style: mutedStyle}, formatKb(p.rssKb)),
+        m(
+          GridCell,
+          {align: 'right', style: mutedStyle},
+          formatBytesIec(p.rssKb * 1024),
+        ),
         m(GridCell, {style: mutedStyle}, sparkline(p.rssTrendKb)),
         m(
           GridCell,
           {align: 'right', style: mutedStyle},
-          p.anonKb + p.swapKb > 0 ? formatKb(p.anonKb + p.swapKb) : '-',
+          p.anonKb + p.swapKb > 0
+            ? formatBytesIec((p.anonKb + p.swapKb) * 1024)
+            : '-',
         ),
         m(
           GridCell,
           {align: 'right', style: mutedStyle},
-          p.fileKb > 0 ? formatKb(p.fileKb) : '-',
+          p.fileKb > 0 ? formatBytesIec(p.fileKb * 1024) : '-',
         ),
         m(
           GridCell,
           {align: 'right', style: mutedStyle},
-          p.shmemKb > 0 ? formatKb(p.shmemKb) : '-',
+          p.shmemKb > 0 ? formatBytesIec(p.shmemKb * 1024) : '-',
         ),
       ];
     });
@@ -850,6 +855,14 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
             ? `Stopping and reading trace for ${profile.processName}\u2026`
             : `Recording heap profile for ${profile.processName} (PID ${profile.pid})`,
           !isStopping && [
+            m(Button, {
+              label: 'Stop & Download',
+              icon: 'download',
+              minimal: true,
+              intent: Intent.Danger,
+              onclick: () =>
+                session.stopAndDownloadProfile().then(() => m.redraw()),
+            }),
             m(Button, {
               label: 'Stop & Open',
               icon: 'stop',

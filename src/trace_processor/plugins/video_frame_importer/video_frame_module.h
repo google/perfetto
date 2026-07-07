@@ -46,6 +46,10 @@ class VideoFrameModule : public ProtoImporterModule {
                    std::vector<TraceBlobView>* au_data);
   ~VideoFrameModule() override;
 
+  // Re-stamps an access-unit packet with its presentation time during
+  // tokenization so the table timestamp goes through the sorter (see the .cc).
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
+
   void ParseField(const ParseFieldArgs& args) override;
 
   // Parse-time per-stream byte cap, a backstop against traces recorded

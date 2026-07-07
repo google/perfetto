@@ -93,7 +93,7 @@ class TraceProcessorConfig:
 
   # The timeout in seconds for the trace processor binary starting up. If the
   # binary does not start within this time, an exception will be raised.
-  load_timeout: int = 2
+  load_timeout: int = 30
 
   # Any extra flags to pass to the trace processor binary.
   # Warning: this is a low-level option and should be used with caution.
@@ -114,7 +114,7 @@ class TraceProcessorConfig:
       ingest_ftrace_in_raw: bool = False,
       enable_dev_features=False,
       resolver_registry: Optional[ResolverRegistry] = None,
-      load_timeout: int = 2,
+      load_timeout: int = 30,
       extra_flags: Optional[List[str]] = None,
       add_sql_packages: Optional[List[Union[str, SqlPackage]]] = None,
       fetch_latest_trace_processor: bool = False,

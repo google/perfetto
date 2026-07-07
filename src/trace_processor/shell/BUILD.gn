@@ -16,8 +16,12 @@ import("../../../gn/perfetto.gni")
 
 source_set("shell") {
   sources = [
+    "bundle_subcommand.cc",
+    "bundle_subcommand.h",
     "common_flags.cc",
     "common_flags.h",
+    "convert_helpers.cc",
+    "convert_helpers.h",
     "convert_subcommand.cc",
     "convert_subcommand.h",
     "export_subcommand.cc",
@@ -44,6 +48,8 @@ source_set("shell") {
     "sql_packages.h",
     "summarize_subcommand.cc",
     "summarize_subcommand.h",
+    "util_subcommand.cc",
+    "util_subcommand.h",
   ]
   deps = [
     ":subcommands",
@@ -54,7 +60,9 @@ source_set("shell") {
     "../../base",
     "../../base:version",
     "../../protozero/text_to_proto:text_to_proto",
-    "../../traceconv:traceconv_lib",
+    "../../traceconv:gen_cc_android_extension_descriptor",
+    "../../traceconv:gen_cc_trace_descriptor",
+    "../../traceconv:lib",
     "../metrics",
     "../rpc",
     "../rpc:lifecycle",
@@ -62,7 +70,9 @@ source_set("shell") {
     "../rpc:stdiod",
     "../trace_summary",
     "../trace_summary:gen_cc_trace_summary_descriptor",
+    "../util:json_value",
     "../util:stdlib",
+    "../util:tar_writer",
     "../util/deobfuscation:deobfuscator",
     "../util/symbolizer",
     "../util/symbolizer:symbolize_database",
@@ -86,6 +96,8 @@ source_set("subcommands") {
   sources = [
     "subcommand.cc",
     "subcommand.h",
+    "traceconv_compat.cc",
+    "traceconv_compat.h",
   ]
   deps = [
     "../../../gn:default_deps",
@@ -95,11 +107,17 @@ source_set("subcommands") {
 
 source_set("unittests") {
   testonly = true
-  sources = [ "find_subcommand_unittest.cc" ]
+  sources = [
+    "convert_helpers_unittest.cc",
+    "find_subcommand_unittest.cc",
+    "subcommand_flags_unittest.cc",
+  ]
   deps = [
+    ":shell",
     ":subcommands",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../gn:protobuf_full",
     "../../base",
   ]
 }

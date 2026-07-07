@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertIsInstance} from './assert';
+import {ensureIsInstance} from './assert';
 
 // Check if a mithril component vnode has children
 export function hasChildren<T>({children}: m.Vnode<T>): boolean {
@@ -369,7 +369,7 @@ export function startDragGesture(options: DragOptions): void {
     onDrag,
     onDragEnd,
   } = options;
-  const el = assertIsInstance(e.currentTarget, HTMLElement);
+  const el = ensureIsInstance(e.currentTarget, HTMLElement);
   const startX = e.clientX;
   const startY = e.clientY;
   el.setPointerCapture(e.pointerId);

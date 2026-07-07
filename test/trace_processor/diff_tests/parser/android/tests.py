@@ -290,3 +290,70 @@ class AndroidParser(TestSuite):
           "ScreenState",0,1000,2.000000
           "ScreenState",1,2000,1.000000
         """))
+
+  def test_android_framework_track_event_process(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_track_event.textproto'),
+        query="""
+        SELECT p.pid, p.name, p.uid, t.fw_start_ts, t.fw_end_ts
+        FROM __intrinsic_android_track_event_process t
+        JOIN process p USING (upid);
+        """,
+        out=Csv("""
+          "pid","name","uid","fw_start_ts","fw_end_ts"
+          100,"com.example.app",10001,2000,5000
+        """))
+
+  def test_android_framework_track_event_enum(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor { uuid: 2 thread { pid: 100 tid: 100 } }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 100
+          extension_descriptor {
+            extension_set {
+              file {
+                package: "com.android.internal"
+                name: "fbte_enums.proto"
+                enum_type {
+                  name: "TriggerType"
+                  value { name: "TRIGGER_TYPE_UNKNOWN" number: 0 }
+                  value { name: "TRIGGER_TYPE_JOB" number: 4 }
+                }
+                enum_type {
+                  name: "HostingTypeId"
+                  value { name: "HOSTING_TYPE_UNKNOWN" number: 0 }
+                  value { name: "HOSTING_TYPE_SERVICE" number: 11 }
+                }
+              }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          track_event {
+            track_uuid: 2
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 100
+              trigger_type: TRIGGER_TYPE_JOB
+              hosting_type: HOSTING_TYPE_SERVICE
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT trigger_type, hosting_type
+        FROM __intrinsic_android_track_event_process;
+        """,
+        out=Csv("""
+          "trigger_type","hosting_type"
+          "TRIGGER_TYPE_JOB","HOSTING_TYPE_SERVICE"
+        """))

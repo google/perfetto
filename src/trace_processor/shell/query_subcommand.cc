@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
@@ -40,14 +41,11 @@
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <io.h>
-#else
-#include <unistd.h>
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <unistd.h>  // For STDIN_FILENO.
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && !defined(STDIN_FILENO)
 #define STDIN_FILENO 0
-#define STDOUT_FILENO 1
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -186,7 +184,7 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   //   4. Stdin pipe:  query trace.pb < file.sql
   std::string sql;
   bool read_stdin =
-      query_file_ == "-" || (query_file_.empty() && !isatty(STDIN_FILENO));
+      query_file_ == "-" || (query_file_.empty() && !base::IsTty(STDIN_FILENO));
   if (ctx.positional_args.size() > sql_pos) {
     sql = ctx.positional_args[sql_pos];
   } else if (read_stdin) {

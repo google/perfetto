@@ -35,6 +35,7 @@ STDLIB_DOCS_TABLES_TABLE = Table(
     purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="not_exposed_to_sql",
     columns=[
+        C("module", CppString()),
         C("name", CppString()),
         C("type", CppString()),
         C("description", CppString()),
@@ -49,6 +50,7 @@ STDLIB_DOCS_FUNCTIONS_TABLE = Table(
     purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="not_exposed_to_sql",
     columns=[
+        C("module", CppString()),
         C("name", CppString()),
         C("description", CppString()),
         C("exposed", CppInt64()),
@@ -66,6 +68,7 @@ STDLIB_DOCS_MACROS_TABLE = Table(
     purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="not_exposed_to_sql",
     columns=[
+        C("module", CppString()),
         C("name", CppString()),
         C("description", CppString()),
         C("exposed", CppInt64()),

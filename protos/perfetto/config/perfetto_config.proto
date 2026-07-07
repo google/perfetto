@@ -2156,6 +2156,12 @@ message ProcessStatsConfig {
   // recognized.
   optional bool resolve_process_fds = 9;
 
+  // If true, do *not* write a ProcessTree::Thread message for the main thread
+  // of a process. This was the default behaviour before perfetto v58.
+  //
+  // Added in perfetto v58.
+  optional bool skip_main_thread_message = 14;
+
   // record_thread_time_in_state
   reserved 7;
   // thread_time_in_state_cache_size
@@ -5021,10 +5027,9 @@ message TraceConfig {
       // Use TraceBufferV2.
       TRACE_BUFFER_V2 = 1;
 
-      // Use both V1 and V2 in shadow mode. Data is written to both buffers,
-      // but only V1 data is returned. Comparison stats are reported to
-      // validate V2 returns equivalent data.
-      TRACE_BUFFER_V2_SHADOW_MODE = 2;
+      // Was TRACE_BUFFER_V2_SHADOW_MODE, a testing-only mode used to validate
+      // V2 against V1.
+      reserved 2;
     }
     optional ExperimentalMode experimental_mode = 8;
   }
