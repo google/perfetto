@@ -335,7 +335,6 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     };
 
     return [eventFilterButton, m(ExportButton, {onExportData})];
-    return [eventFilterButton, m(ExportButton, {onExportData})];
   }
 }
 
