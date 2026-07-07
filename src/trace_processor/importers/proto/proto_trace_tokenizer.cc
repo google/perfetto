@@ -17,36 +17,50 @@
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 
+#include <optional>
+
 #include "perfetto/ext/base/utils.h"
+#include "src/trace_processor/util/decompressor.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 ProtoTraceTokenizer::ProtoTraceTokenizer() = default;
 
-base::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
+base::Status ProtoTraceTokenizer::Decompress(util::CompressionType type,
+                                             TraceBlobView input,
                                              TraceBlobView* output) {
-  PERFETTO_DCHECK(util::IsGzipSupported());
-
-  std::vector<uint8_t> data;
-  data.reserve(input.length());
-
-  // Ensure that the decompressor is able to cope with a new stream of data.
-  decompressor_.Reset();
-  using ResultCode = util::GzipDecompressor::ResultCode;
-  ResultCode ret = decompressor_.FeedAndExtract(
-      input.data(), input.length(),
-      [&data](const uint8_t* buffer, size_t buffer_len) {
-        data.insert(data.end(), buffer, buffer + buffer_len);
-      });
-
-  if (ret == ResultCode::kError || ret == ResultCode::kNeedsMoreInput) {
-    return base::ErrStatus("Failed to decompress (error code: %d)",
-                           static_cast<int>(ret));
+  // A trace holds many compressed bundles, all one codec (it's fixed per
+  // tracing session). Build the decompressor once and Reset() it between
+  // bundles rather than reallocating each time.
+  if (!decompressor_) {
+    decompressor_ = util::CreateDecompressor(type);
+    decompressor_type_ = type;
+    if (!decompressor_) {
+      return base::ErrStatus(
+          "Cannot decompress compressed_packets: %s is not enabled in the "
+          "build config",
+          type == util::CompressionType::kZstd ? "zstd" : "zlib");
+    }
+  } else if (decompressor_type_ != type) {
+    // Malformed (or adversarial) input: a well-formed trace never mixes codecs.
+    return base::ErrStatus(
+        "A trace must not mix compressed_packets and zstd_compressed_packets");
+  } else {
+    decompressor_->Reset();
   }
 
-  TraceBlob out_blob = TraceBlob::CopyFrom(data.data(), data.size());
-  *output = TraceBlobView(std::move(out_blob));
+  // A bundle holds exactly one compressed frame, so any trailing input is
+  // malformed. Hand the owned buffer straight to the TraceBlobView so the
+  // packets sliced out of it cost no second copy.
+  std::optional<util::DecompressedBuffer> buffer =
+      util::DecompressToBuffer(*decompressor_, input.data(), input.length(),
+                               util::FrameMode::kSingleFrame);
+  if (!buffer) {
+    return base::ErrStatus("Failed to decompress compressed_packets");
+  }
+  *output = TraceBlobView(
+      TraceBlob::TakeOwnership(std::move(buffer->data), buffer->size));
   return base::OkStatus();
 }
 

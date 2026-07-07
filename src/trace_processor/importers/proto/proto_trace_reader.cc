@@ -60,8 +60,8 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/gzip_utils.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
@@ -222,21 +222,21 @@ base::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
 
   const uint8_t* data = nullptr;
   size_t size = 0;
-  std::vector<uint8_t> decompressed;
+  std::optional<util::DecompressedBuffer> decompressed;
   if (decoder.has_extension_set()) {
     auto extension = decoder.extension_set();
     data = extension.data;
     size = extension.size;
   } else if (decoder.has_extension_set_gzip()) {
     auto gzipped = decoder.extension_set_gzip();
-    decompressed =
-        util::GzipDecompressor::DecompressFully(gzipped.data, gzipped.size);
-    if (decompressed.empty()) {
+    decompressed = util::DecompressToBuffer(util::CompressionType::kGzip,
+                                            gzipped.data, gzipped.size);
+    if (!decompressed || decompressed->size == 0) {
       return base::ErrStatus(
           "Failed to decompress gzipped extension descriptor");
     }
-    data = decompressed.data();
-    size = decompressed.size();
+    data = decompressed->data.get();
+    size = decompressed->size;
   } else {
     return base::OkStatus();
   }
@@ -255,8 +255,12 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         "(ERR:tp-corrupt)");
   }
 
-  // Any compressed packets should have been handled by the tokenizer.
-  PERFETTO_CHECK(!decoder.has_compressed_packets());
+  // Top-level compressed bundles are expanded by the tokenizer, so one here
+  // can only be nested inside another bundle, which the format doesn't allow.
+  if (PERFETTO_UNLIKELY(decoder.has_compressed_packets() ||
+                        decoder.has_zstd_compressed_packets())) {
+    return base::ErrStatus("Nested compressed packets are not supported");
+  }
 
   // The top-level reader dispatches packets from other machines to a
   // per-machine reader; host and adopted-machine packets are parsed here.

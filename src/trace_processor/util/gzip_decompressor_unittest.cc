@@ -16,7 +16,7 @@
 
 #include "test/gtest_and_gmock.h"
 
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/gzip_decompressor.h"
 
 #include <zconf.h>
 #include <zlib.h>
@@ -53,16 +53,28 @@ static std::string TrivialGzipCompress(const std::string& input) {
   return {output, buffer_len - defstream.avail_out};
 }
 
-// Trivially decompress using ZlibOnlineDecompress.
-// It's called 'trivial' because we are feeding the entire input in one shot.
+// Drains all output currently available from `decompressor` into `output`.
+static void DrainInto(GzipDecompressor& decompressor, std::string& output) {
+  uint8_t buffer[4096];
+  for (;;) {
+    GzipDecompressor::Result result =
+        decompressor.ExtractOutput(buffer, sizeof(buffer));
+    if (result.ret != GzipDecompressor::ResultCode::kError) {
+      output.append(reinterpret_cast<const char*>(buffer),
+                    result.bytes_written);
+    }
+    if (result.ret != GzipDecompressor::ResultCode::kOk)
+      break;
+  }
+}
+
+// Trivially decompress by feeding the entire input in one shot.
 static std::string TrivialDecompress(const std::string& input) {
-  string output;
   GzipDecompressor decompressor;
-  decompressor.FeedAndExtract(
-      reinterpret_cast<const uint8_t*>(input.data()), uint32_t(input.size()),
-      [&](const uint8_t* data, size_t len) {
-        output.append(reinterpret_cast<const char*>(data), len);
-      });
+  decompressor.Feed(reinterpret_cast<const uint8_t*>(input.data()),
+                    input.size());
+  string output;
+  DrainInto(decompressor, output);
   return output;
 }
 
@@ -77,12 +89,11 @@ static void DecompressGzipFileInFileOut(const std::string& input_file,
   char buffer[buffer_sizeof];
   while (!input.eof()) {
     input.read(buffer, buffer_sizeof);
-    decompressor.FeedAndExtract(
-        reinterpret_cast<const uint8_t*>(buffer), size_t(input.gcount()),
-        [&](const uint8_t* data, size_t len) {
-          output.write(reinterpret_cast<const char*>(data),
-                       std::streamsize(len));
-        });
+    decompressor.Feed(reinterpret_cast<const uint8_t*>(buffer),
+                      size_t(input.gcount()));
+    std::string chunk;
+    DrainInto(decompressor, chunk);
+    output.write(chunk.data(), std::streamsize(chunk.size()));
   }
   EXPECT_FALSE(input.bad());
 }
@@ -99,17 +110,16 @@ TEST(GzipDecompressor, Streaming) {
   string input = "Abc..Def..Ghi";
   string compressed = TrivialGzipCompress(input);
   string decompressed;
-  auto consumer = [&](const uint8_t* data, size_t len) {
-    decompressed.append(reinterpret_cast<const char*>(data), len);
-  };
   GzipDecompressor decompressor;
   const auto* compressed_u8 =
       reinterpret_cast<const uint8_t*>(compressed.data());
   ASSERT_GT(compressed.size(), 17u);
-  decompressor.FeedAndExtract(compressed_u8, 7, consumer);
-  decompressor.FeedAndExtract(compressed_u8 + 7, 10, consumer);
-  decompressor.FeedAndExtract(compressed_u8 + 17, compressed.size() - 17,
-                              consumer);
+  decompressor.Feed(compressed_u8, 7);
+  DrainInto(decompressor, decompressed);
+  decompressor.Feed(compressed_u8 + 7, 10);
+  DrainInto(decompressor, decompressed);
+  decompressor.Feed(compressed_u8 + 17, compressed.size() - 17);
+  DrainInto(decompressor, decompressed);
 
   EXPECT_EQ(input, decompressed);
 }

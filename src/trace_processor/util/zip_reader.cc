@@ -34,7 +34,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/gzip_decompressor.h"
 #include "src/trace_processor/util/streaming_line_reader.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
@@ -294,16 +294,16 @@ ZipReader::TryParseUnsizedCompressedData() {
   auto end = reader_.end_offset();
   auto slice = reader_.SliceOff(start, end - start);
   PERFETTO_CHECK(slice);
-  auto res_code = cur_.decompressor.FeedAndExtract(slice->data(), slice->size(),
-                                                   [](const uint8_t*, size_t) {
-                                                     // Intentionally do
-                                                     // nothing: we are only
-                                                     // looking for the bounds
-                                                     // of the deflate stream,
-                                                     // we are not actually
-                                                     // interested in the
-                                                     // output.
-                                                   });
+  // We only want the bounds of the deflate stream, not its output, so decode
+  // into a throwaway buffer and discard it. Drain until the frame ends or the
+  // input runs out.
+  cur_.decompressor->Feed(slice->data(), slice->size());
+  GzipDecompressor::Result result;
+  uint8_t scratch[4096];
+  do {
+    result = cur_.decompressor->ExtractOutput(scratch, sizeof(scratch));
+  } while (result.ret == GzipDecompressor::ResultCode::kOk);
+  auto res_code = result.ret;
   switch (res_code) {
     case GzipDecompressor::ResultCode::kNeedsMoreInput:
       cur_.decompressor_bytes_fed += slice->size();
@@ -317,7 +317,7 @@ ZipReader::TryParseUnsizedCompressedData() {
     case GzipDecompressor::ResultCode::kEof:
       break;
   }
-  cur_.decompressor_bytes_fed += slice->size() - cur_.decompressor.AvailIn();
+  cur_.decompressor_bytes_fed += slice->size() - cur_.decompressor->AvailIn();
   auto raw_compressed =
       reader_.SliceOff(reader_.start_offset(), cur_.decompressor_bytes_fed);
   PERFETTO_CHECK(raw_compressed);

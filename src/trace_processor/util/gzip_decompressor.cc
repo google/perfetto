@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/gzip_decompressor.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <vector>
 
 #include "perfetto/base/build_config.h"
 
@@ -50,20 +49,18 @@ void GzipDecompressor::Reset() {
 }
 
 void GzipDecompressor::Feed(const uint8_t* data, size_t size) {
-  // This const_cast is not harmfull as zlib will not modify the data in this
-  // pointer. This is only necessary because of the build flags we use to be
-  // compatible with other embedders.
+  // zlib won't modify the input, so casting away const on next_in is safe.
   z_stream_->next_in = const_cast<uint8_t*>(data);
   z_stream_->avail_in = static_cast<uInt>(size);
 }
 
 GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
-                                                         size_t out_size) {
+                                                         size_t out_capacity) {
   if (z_stream_->avail_in == 0)
     return Result{ResultCode::kNeedsMoreInput, 0};
 
   z_stream_->next_out = out;
-  z_stream_->avail_out = static_cast<uInt>(out_size);
+  z_stream_->avail_out = static_cast<uInt>(out_capacity);
 
   int ret = inflate(z_stream_.get(), Z_NO_FLUSH);
   switch (ret) {
@@ -74,11 +71,11 @@ GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
       inflateEnd(z_stream_.get());
       return Result{ResultCode::kError, 0};
     case Z_STREAM_END:
-      return Result{ResultCode::kEof, out_size - z_stream_->avail_out};
+      return Result{ResultCode::kEof, out_capacity - z_stream_->avail_out};
     case Z_BUF_ERROR:
       return Result{ResultCode::kNeedsMoreInput, 0};
     default:
-      return Result{ResultCode::kOk, out_size - z_stream_->avail_out};
+      return Result{ResultCode::kOk, out_capacity - z_stream_->avail_out};
   }
 }
 
@@ -105,17 +102,5 @@ size_t GzipDecompressor::AvailIn() const {
 void GzipDecompressor::Deleter::operator()(z_stream_s*) const {}
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-
-// static
-std::vector<uint8_t> GzipDecompressor::DecompressFully(const uint8_t* data,
-                                                       size_t len) {
-  std::vector<uint8_t> whole_data;
-  GzipDecompressor decompressor;
-  auto decom_output_consumer = [&](const uint8_t* buf, size_t buf_len) {
-    whole_data.insert(whole_data.end(), buf, buf + buf_len);
-  };
-  decompressor.FeedAndExtract(data, len, decom_output_consumer);
-  return whole_data;
-}
 
 }  // namespace perfetto::trace_processor::util

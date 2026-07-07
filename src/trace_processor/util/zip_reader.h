@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -29,7 +30,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/gzip_decompressor.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 // ZipReader allows to read Zip files in a streaming fashion.
@@ -175,7 +176,12 @@ class ZipReader {
     // Used to track the number of bytes fed into the decompressor when we don't
     // know the compressed size upfront.
     size_t decompressor_bytes_fed = 0;
-    GzipDecompressor decompressor{GzipDecompressor::InputMode::kRawDeflate};
+    // Held by unique_ptr, not value, as Decompressor isn't movable but
+    // FileParseState needs to be in order to reset to a fresh instance for the
+    // next file.
+    std::unique_ptr<GzipDecompressor> decompressor =
+        std::make_unique<GzipDecompressor>(
+            GzipDecompressor::InputMode::kRawDeflate);
     std::optional<TraceBlobView> compressed;
     ZipFile::Header hdr{};
   };
