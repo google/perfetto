@@ -251,7 +251,8 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   protos::pbzero::TracePacket::Decoder decoder(packet.data(), packet.length());
   if (PERFETTO_UNLIKELY(decoder.bytes_left())) {
     return base::ErrStatus(
-        "Failed to parse proto packet fully; the trace is probably corrupt.");
+        "Failed to parse proto packet fully; the trace is probably corrupt. "
+        "(ERR:tp-corrupt)");
   }
 
   // Any compressed packets should have been handled by the tokenizer.

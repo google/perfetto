@@ -197,7 +197,7 @@ base::Status TarTraceReader::OnPushDataToSorter() {
   }
 
   if (state_ != State::kDone) {
-    return base::ErrStatus("Premature end of TAR file");
+    return base::ErrStatus("Premature end of TAR file (ERR:tp-corrupt)");
   }
 
   for (auto& file : ordered_files_) {

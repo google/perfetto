@@ -2790,6 +2790,7 @@ void TracingMuxerImpl::Shutdown() {
 
   std::unique_ptr<base::TaskRunner> owned_task_runner(
       muxer->task_runner_.get());
+  Platform* platform = muxer->platform_;
   base::WaitableEvent shutdown_done;
   owned_task_runner->PostTask([muxer, &shutdown_done] {
     // Check that no consumer session is currently active on any backend.
@@ -2807,13 +2808,17 @@ void TracingMuxerImpl::Shutdown() {
     // The task runner must be deleted outside the muxer thread. This is done by
     // `owned_task_runner` above.
     muxer->task_runner_.release();
-    auto* platform = muxer->platform_;
     delete muxer;
     instance_ = TracingMuxerFake::Get();
-    platform->Shutdown();
     shutdown_done.Notify();
   });
   shutdown_done.Wait();
+
+  // Join the muxer thread before the platform (and its TLS key) is destroyed.
+  owned_task_runner.reset();
+
+  // On the calling thread, so the platform can free this thread's TLS object.
+  platform->Shutdown();
 }
 
 void TracingMuxerImpl::AppendResetForTestingCallback(std::function<void()> cb) {

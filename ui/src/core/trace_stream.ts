@@ -115,9 +115,15 @@ export class TraceHttpStream implements TraceStream {
   async readChunk(): Promise<TraceChunk> {
     // Initialize the fetch() job on the first read request.
     if (this.httpStream === undefined) {
-      const response = await fetch(this.uri);
+      const response = await fetch(this.uri).catch((e) => {
+        throw new Error(this.fetchErrorMessage(`${e}`));
+      });
       if (response.status !== 200) {
-        throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+        throw new Error(
+          this.fetchErrorMessage(
+            `HTTP ${response.status} ${response.statusText}`,
+          ),
+        );
       }
       const len = response.headers.get('Content-Length');
       this.bytesTotal = exists(len) ? Number.parseInt(len, 10) : 0;
@@ -132,7 +138,9 @@ export class TraceHttpStream implements TraceStream {
     // TraceProcessor. Here we accumulate chunks until we get at least 32mb
     // or hit EOF.
     while (!eof && bytesRead < 32 * 1024 * 1024) {
-      const res = await this.httpStream.read();
+      const res = await this.httpStream.read().catch((e) => {
+        throw new Error(this.fetchErrorMessage(`${e}`));
+      });
       if (res.value) {
         chunks.push(res.value);
         bytesRead += res.value.length;
@@ -161,6 +169,15 @@ export class TraceHttpStream implements TraceStream {
       bytesRead: this.bytesRead,
       bytesTotal: this.bytesTotal,
     };
+  }
+
+  // The (ERR:trace_fetch) marker makes the UI show a friendly dialog instead
+  // of a crash report dialog (see ui/src/frontend/error_dialog.ts).
+  private fetchErrorMessage(cause: string): string {
+    return (
+      `Could not fetch the trace at ${this.uri}: ` +
+      `${cause} (ERR:trace_fetch)`
+    );
   }
 }
 
