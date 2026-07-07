@@ -40,6 +40,24 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+// Types deleted from the schema that an old trace's embedded descriptor may
+// still reference (e.g. https://github.com/google/perfetto/pull/6308). Such
+// fields are skipped rather than failing the trace.
+// TODO(b/524094370): harden this once traces predating the removals age out.
+bool IsIntentionallyRemovedType(const std::string& raw_type_name) {
+  static const char* const kRemovedTypes[] = {
+      ".perfetto.protos.AndroidCameraFrameEvent",
+      ".perfetto.protos.AndroidCameraSessionStats",
+  };
+  for (const char* removed : kRemovedTypes) {
+    if (raw_type_name == removed) {
+      return true;
+    }
+  }
+  return false;
+}
+
 FieldDescriptor CreateFieldFromDecoder(
     const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder,
     bool is_extension) {
@@ -83,7 +101,15 @@ base::Status CheckExtensionField(
     return base::OkStatus();
   }
 
-  if (field.type() != existing_field->type()) {
+  // A re-declared scalar is fine as long as its wire type is unchanged (e.g.
+  // bool -> uint32, https://github.com/google/perfetto/pull/6082): the bytes
+  // stay decodable. Reject only wire-type changes.
+  // TODO(b/524094370): harden this once traces predating the widening age out.
+  using protozero::proto_utils::ProtoSchemaToWireType;
+  using protozero::proto_utils::ProtoSchemaType;
+  if (ProtoSchemaToWireType(static_cast<ProtoSchemaType>(field.type())) !=
+      ProtoSchemaToWireType(
+          static_cast<ProtoSchemaType>(existing_field->type()))) {
     return base::ErrStatus("Field %s is re-introduced with different type",
                            field.name().c_str());
   }
@@ -444,6 +470,9 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
         auto opt_desc =
             ResolveShortType(descriptor.full_name(), field.raw_type_name());
         if (!opt_desc.has_value()) {
+          if (IsIntentionallyRemovedType(field.raw_type_name())) {
+            continue;
+          }
           return base::ErrStatus(
               "Unable to find short type %s in field inside message %s",
               field.raw_type_name().c_str(), descriptor.full_name().c_str());
