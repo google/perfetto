@@ -105,6 +105,27 @@ TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
   ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "SELECT * FROM slice"));
 }
 
+TEST_F(PerfettoSqlParserTest, ExplainKeepsPrefix) {
+  SqlSource res =
+      SqlSource::FromExecuteQuery("EXPLAIN QUERY PLAN SELECT * FROM slice;");
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
+  ASSERT_EQ(parser.statement_sql().sql(),
+            FindSubstr(res, "EXPLAIN QUERY PLAN SELECT * FROM slice").sql());
+
+  SqlSource bytecode = SqlSource::FromExecuteQuery("EXPLAIN SELECT 1");
+  ASSERT_EQ(ParseOne(bytecode).sql(),
+            FindSubstr(bytecode, "EXPLAIN SELECT 1").sql());
+}
+
+TEST_F(PerfettoSqlParserTest, ExplainWithMacro) {
+  RegisterMacro("foo", {}, "SELECT 1");
+  SqlSource res = SqlSource::FromExecuteQuery("EXPLAIN QUERY PLAN foo!();");
+  ASSERT_EQ(ParseOne(res).sql(), "EXPLAIN QUERY PLAN SELECT 1");
+}
+
 TEST_F(PerfettoSqlParserTest, MultipleStmts) {
   auto res =
       SqlSource::FromExecuteQuery("SELECT * FROM slice; SELECT * FROM s");

@@ -543,8 +543,7 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
 struct PerfettoSqlParser::Impl {
   explicit Impl(const base::FlatHashMap<std::string, Macro>& m)
       : source(SqlSource::FromTraceProcessorImplementation("")), macros(m) {
-    synq = syntaqlite_parser_create_with_dialect(nullptr,
-                                                 syntaqlite_perfetto_dialect());
+    synq = syntaqlite_parser_create_perfetto(nullptr);
     PERFETTO_CHECK(synq != nullptr);
     PERFETTO_CHECK(syntaqlite_parser_set_collect_node_extents(synq, 1) == 0);
     syntaqlite_parser_set_macro_lookup(synq, &Impl::LookupMacro, this);
