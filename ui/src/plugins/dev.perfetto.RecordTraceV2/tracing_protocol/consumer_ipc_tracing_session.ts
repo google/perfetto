@@ -51,6 +51,7 @@ export class ConsumerIpcTracingSession implements TracingSession {
    * Starts a fresh tracing session: opens a consumer connection, sends
    * EnableTracing, and drives the lifecycle through to FINISHED.
    *
+   * @param args Arguments for creating the tracing session.
    * @param args.ipcFactory Opens a consumer-side TracingProtocol channel.
    *   Called once here for the recording itself, and again later by snapshot()
    *   if invoked, since CloneSession requires a separate consumer connection.
@@ -58,12 +59,10 @@ export class ConsumerIpcTracingSession implements TracingSession {
    *   `uniqueSessionName` (if any) is captured so a later snapshot() call
    *   knows which session to snapshot.
    */
-  static async create({
-    ipcFactory,
-    traceConfig,
-  }: ConsumerIpcTracingSessionArgs): Promise<
-    Result<ConsumerIpcTracingSession>
-  > {
+  static async create(
+    args: ConsumerIpcTracingSessionArgs,
+  ): Promise<Result<ConsumerIpcTracingSession>> {
+    const {ipcFactory, traceConfig} = args;
     const ipcStatus = await ipcFactory();
     if (!ipcStatus.ok) return ipcStatus;
     const session = new ConsumerIpcTracingSession(
