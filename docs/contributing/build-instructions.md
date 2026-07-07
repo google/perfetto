@@ -34,6 +34,17 @@ git clone https://github.com/google/perfetto
 tools/install-build-deps [--android] [--ui] [--linux-arm] [--rust]
 ```
 
+On a fresh Debian/Ubuntu install (including WSL 2), install these system
+packages first. `install-build-deps` uses `curl` and `python3 -m venv`, and the
+hermetic clang toolchain compiles against the system libc headers provided by
+`build-essential` (without them the build fails with
+`fatal error: 'features.h' file not found`, see
+[#405](https://github.com/google/perfetto/issues/405)):
+
+```bash
+sudo apt install curl python3-venv build-essential
+```
+
 `--android` will pull the Android NDK, emulator and other deps required
 to build for `target_os = "android"`.
 
@@ -177,7 +188,9 @@ The following targets are supported on Windows:
 - `perfetto_unittests` / `perfetto_integrationtests`: although they support only
   the subset of code that is supported on Windows (e.g. no ftrace).
 
-It is NOT possible to build the Perfetto UI from Windows.
+It is NOT possible to build the Perfetto UI natively from Windows. You can,
+however, build it from Windows using [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/about)
+by following the Linux instructions inside the WSL environment.
 
 #### Prerequisites
 
