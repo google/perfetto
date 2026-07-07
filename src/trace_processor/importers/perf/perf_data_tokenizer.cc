@@ -576,7 +576,7 @@ base::Status PerfDataTokenizer::ProcessItraceStartRecord(Record record) {
 base::Status PerfDataTokenizer::OnPushDataToSorter() {
   // Phase 1: Validate parsing is complete
   if (parsing_state_ != ParsingState::kDone) {
-    return base::ErrStatus("Premature end of perf file.");
+    return base::ErrStatus("Premature end of perf file. (ERR:tp-corrupt)");
   }
 
   // Flush all buffered COMM records in file order
