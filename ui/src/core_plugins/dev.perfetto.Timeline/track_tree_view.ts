@@ -28,25 +28,25 @@ import {classNames} from '../../base/classnames';
 import {DisposableStack} from '../../base/disposable_stack';
 import {findRef, toHTMLElement} from '../../base/dom_utils';
 import {
-  HorizontalBounds,
+  type HorizontalBounds,
   Rect2D,
-  Size2D,
+  type Size2D,
   Transform1D,
-  VerticalBounds,
+  type VerticalBounds,
 } from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {
-  DragEvent,
+  type DragEvent,
   ZonedInteractionHandler,
 } from '../../base/zoned_interaction_handler';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
-import {TraceImpl} from '../../core/trace_impl';
-import {TrackNode} from '../../public/workspace';
-import {SnapPoint} from '../../public/track';
+import type {TraceImpl} from '../../core/trace_impl';
+import type {TrackNode} from '../../public/workspace';
+import type {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
   COLOR_ACCENT,
@@ -73,9 +73,9 @@ import {EmptyState} from '../../widgets/empty_state';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
-import {CanvasColors} from '../../public/canvas_colors';
+import type {CanvasColors} from '../../public/canvas_colors';
 import {Icons} from '../../base/semantic_icons';
-import {Renderer} from '../../base/renderer';
+import type {Renderer} from '../../base/renderer';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   id: 'virtualTrackScrolling',
@@ -91,6 +91,14 @@ const WEBGL_RENDERING = featureFlags.register({
   description: `Use WebGL for rendering track rectangles. Falls back to
     Canvas 2D when disabled or unavailable.`,
   defaultValue: true,
+});
+
+export const SHOW_HEADLESS_TRACKS = featureFlags.register({
+  id: 'showHeadlessTracks',
+  name: 'Show headless tracks',
+  description:
+    'Show tracks marked as headless, which are normally hidden and used purely for organization. Debugging only.',
+  defaultValue: false,
 });
 
 // Snap-to-boundaries feature constants
@@ -187,6 +195,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       trackFilter,
       filtersApplied,
     } = attrs;
+    const showHeadlessTracks = SHOW_HEADLESS_TRACKS.get();
     const renderedTracks = new Array<TrackView>();
     let top = 0;
 
@@ -210,7 +219,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       // Skip nodes that don't match the filter and have no matching children.
       if (!filterMatches(node)) return {vnodes: false, isVisible: false};
 
-      if (node.headless) {
+      if (node.headless && !showHeadlessTracks) {
         // Headless nodes are invisible, just render children.
         const childNodes: m.Children = [];
         let atLeastOneChildVisible = false;
@@ -224,7 +233,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         return {vnodes: childNodes, isVisible: atLeastOneChildVisible};
       }
 
-      const trackView = new TrackView(trace, node, top);
+      const trackView = new TrackView(trace, node, top, showHeadlessTracks);
       renderedTracks.push(trackView);
 
       // Advance the global top position.
@@ -319,7 +328,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     return m(
       VirtualOverlayCanvas,
       {
-        onMount: (redrawCanvas) =>
+        onMount: ({redrawCanvas}) =>
           attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
         disableCanvasRedrawOnMithrilUpdates: true,
         className: classNames(className, 'pf-track-tree'),
@@ -595,7 +604,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const areaSelection =
       trace.selection.selection.kind === 'area' && trace.selection.selection;
 
-    assertExists(this.interactions).update([
+    ensureExists(this.interactions).update([
       shiftDragPanInteraction(trace, timelineRect, timescale),
       areaSelection !== false && {
         id: 'start-edit',

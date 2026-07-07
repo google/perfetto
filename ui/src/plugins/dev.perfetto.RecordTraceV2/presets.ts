@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import protos from '../../protos';
-import {RecordSessionSchema} from './serialization_schema';
+import type {RecordSessionSchema} from './serialization_schema';
 
 export interface Preset {
   readonly id: string;

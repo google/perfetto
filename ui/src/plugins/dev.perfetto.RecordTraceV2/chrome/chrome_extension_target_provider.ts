@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../protos';
+import type protos from '../../../protos';
 import {EvtSource} from '../../../base/events';
-import {Result} from '../../../base/result';
-import {PreflightCheck} from '../interfaces/connection_check';
-import {RecordingTargetProvider} from '../interfaces/recording_target_provider';
-import {TargetPlatformId} from '../interfaces/target_platform';
+import type {Result} from '../../../base/result';
+import type {PreflightCheck} from '../interfaces/connection_check';
+import type {RecordingTargetProvider} from '../interfaces/recording_target_provider';
+import type {TargetPlatformId} from '../interfaces/target_platform';
 import {ChromeExtensionTarget} from './chrome_extension_target';
 
 export class ChromeExtensionTargetProvider implements RecordingTargetProvider {

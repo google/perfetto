@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './modal.scss';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {Icon} from './icon';

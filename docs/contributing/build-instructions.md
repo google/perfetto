@@ -188,7 +188,7 @@ You need all of these both for MSVC and clang-cl:
 - [Python 3](https://www.python.org/downloads/windows/)
 
 The [`win_find_msvc.py`](/gn/standalone/toolchain/win_find_msvc.py) script will
-locate the higest version numbers available from
+locate the highest version numbers available from
 `C:\Program Files (x86)\Windows Kits\10` and
 `C:\Program Files (x86)\Microsoft Visual Studio\2019`.
 
@@ -251,7 +251,7 @@ target_sysroot = "/path/to/sysroot"
 target_triplet = "aarch64-linux-gnu"  # Or any other supported triplet.
 ```
 
-For more details see the [Using cutom toolchains](#custom-toolchain) section
+For more details see the [Using custom toolchains](#custom-toolchain) section
 below.
 
 ## Build configurations

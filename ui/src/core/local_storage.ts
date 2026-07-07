@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Storage} from './storage';
+import type {Storage} from './storage';
 
 export class LocalStorage implements Storage {
   constructor(private readonly key: string) {}
@@ -22,7 +22,7 @@ export class LocalStorage implements Storage {
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(s ?? '{}');
-    } catch (e) {
+    } catch {
       return {};
     }
     if (typeof parsed !== 'object' || parsed === null) {

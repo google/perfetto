@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Transform1D, Transform2D} from '../geom';
+import type {Transform1D, Transform2D} from '../geom';
 import {
   RECT_PATTERN_FADE_RIGHT,
   RECT_PATTERN_HATCHED,
-  RowLayout,
-  SliceBuffers,
+  type RowLayout,
+  type SliceBuffers,
+  SLICE_GAP_PX,
 } from '../renderer';
-import {createBuffer, createProgram, getUniformLocation} from './gl';
+import {createProgram, getUniformLocation} from './gl';
 
 // Static quad geometry shared by all slice batches
 const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
@@ -69,6 +70,9 @@ function createSliceProgram(gl: WebGL2RenderingContext): SliceBatchProgram {
     // Minimum width in CSS pixels to ensure visibility
     const float MIN_WIDTH = 1.0;
 
+    // Gap inset from each slice's right edge (see SLICE_GAP_PX).
+    const float SLICE_GAP = float(${SLICE_GAP_PX});
+
     // Transform a LTRB rect through a scale+translate transform.
     vec4 transformRect(vec4 t, vec4 r) {
       return vec4(r.xy * t.xy + t.zw, r.zw * t.xy + t.zw);
@@ -99,8 +103,9 @@ function createSliceProgram(gl: WebGL2RenderingContext): SliceBatchProgram {
       float leftCss = a_left * u_xTransform.x + u_xTransform.y;
       float rightCss = a_right * u_xTransform.x + u_xTransform.y;
 
-      // Apply minimum width in CSS pixels
-      rightCss = max(leftCss + MIN_WIDTH, rightCss);
+      // Inset the right edge so adjacent slices stay distinct, clamped to the
+      // minimum width.
+      rightCss = max(leftCss + MIN_WIDTH, rightCss - SLICE_GAP);
 
       // Build rect in CSS pixel space (LTRB)
       vec4 rectCss = vec4(leftCss, rowTop, rightCss, rowBottom);
@@ -210,20 +215,20 @@ export class SliceBatch {
     this.prog = createSliceProgram(gl);
 
     // Create static quad buffers
-    this.quadCornerBuffer = createBuffer(gl);
+    this.quadCornerBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, QUAD_CORNERS, gl.STATIC_DRAW);
 
-    this.quadIndexBuffer = createBuffer(gl);
+    this.quadIndexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, QUAD_INDICES, gl.STATIC_DRAW);
 
     // Create dynamic instance buffers
-    this.leftBuffer = createBuffer(gl);
-    this.rightBuffer = createBuffer(gl);
-    this.depthBuffer = createBuffer(gl);
-    this.colorBuffer = createBuffer(gl);
-    this.flagsBuffer = createBuffer(gl);
+    this.leftBuffer = gl.createBuffer();
+    this.rightBuffer = gl.createBuffer();
+    this.depthBuffer = gl.createBuffer();
+    this.colorBuffer = gl.createBuffer();
+    this.flagsBuffer = gl.createBuffer();
   }
 
   /**
@@ -270,6 +275,10 @@ export class SliceBatch {
    *   pixels (accounts for DPR and any scroll/pan offset).
    * @param clipRect Axis-aligned clip rectangle in device pixels (LTRB).
    *   Slices are clamped to this region.
+   * @param clipRect.left Left boundary of clip rectangle.
+   * @param clipRect.top Top boundary of clip rectangle.
+   * @param clipRect.right Right boundary of clip rectangle.
+   * @param clipRect.bottom Bottom boundary of clip rectangle.
    */
   draw(
     buffers: SliceBuffers,

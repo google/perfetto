@@ -23,12 +23,16 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -42,6 +46,12 @@
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <unistd.h>
 #include <climits>
+#endif
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/stat.h>
 #endif
 
 namespace perfetto::trace_processor {
@@ -355,6 +365,302 @@ TEST(TraceProcessorShellIntegrationTest, ClassicStdiod) {
   ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// Polls until |path| exists (or absence, if |want_exists| is false), up to
+// ~5s. Returns whether the desired state was reached.
+bool WaitForFileState(const std::string& path, bool want_exists) {
+  for (int i = 0; i < 500; ++i) {
+    if (base::FileExists(path) == want_exists)
+      return true;
+    base::SleepMicroseconds(10 * 1000);
+  }
+  return base::FileExists(path) == want_exists;
+}
+
+// Polls until |path| exists and is a socket (i.e. the server has bound it), up
+// to ~5s. Distinguishes a freshly-bound socket from a leftover regular file.
+bool WaitForSocketBound(const std::string& path) {
+  for (int i = 0; i < 500; ++i) {
+    struct stat st{};
+    if (stat(path.c_str(), &st) == 0 && S_ISSOCK(st.st_mode))
+      return true;
+    base::SleepMicroseconds(10 * 1000);
+  }
+  return false;
+}
+
+// Binds an ephemeral TCP port on 127.0.0.1 and returns it (the socket is closed
+// on return, so there is a small TOCTOU window before the server rebinds it).
+int GetFreeInetPort() {
+  auto sock = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kInet,
+                                                 base::SockType::kStream);
+  PERFETTO_CHECK(sock && sock.Bind("127.0.0.1:0"));
+  std::string addr = sock.GetSockAddr();  // "127.0.0.1:PORT"
+  return base::StringToInt32(addr.substr(addr.rfind(':') + 1)).value_or(0);
+}
+
+// Polls until a TCP connect to 127.0.0.1:|port| succeeds, up to ~5s.
+bool WaitForTcpPort(int port) {
+  std::string addr = "127.0.0.1:" + std::to_string(port);
+  for (int i = 0; i < 500; ++i) {
+    auto sock = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kInet,
+                                                   base::SockType::kStream);
+    sock.SetBlocking(true);
+    if (sock && sock.Connect(addr))
+      return true;
+    base::SleepMicroseconds(10 * 1000);
+  }
+  return false;
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerUnixBindAndCleanup) {
+  // `server unix` binds the socket, then unlinks it on SIGTERM.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server(
+      {ShellPath(), "server", "unix", "--path", sock, trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+
+  EXPECT_TRUE(WaitForSocketBound(sock));
+
+  server.KillAndWaitForTermination(SIGTERM);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerUnixNoTraceFile) {
+  // Like http mode, `server unix` may start without a trace file (a client can
+  // load one later over the wire).
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server({ShellPath(), "server", "unix", "--path", sock,
+                           "--idle-timeout", "never"});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+
+  EXPECT_TRUE(WaitForSocketBound(sock));
+  EXPECT_EQ(server.status(), base::Subprocess::kRunning);
+
+  server.KillAndWaitForTermination(SIGTERM);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerUnixStaleSocketCleanup) {
+  // A leftover socket file from a dead server is cleaned up and rebound.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+  // Pre-create a stale file at the socket path (nothing is listening on it).
+  base::WriteAll(base::OpenFile(sock, O_WRONLY | O_CREAT, 0600).get(), "x", 1);
+  ASSERT_TRUE(base::FileExists(sock));
+
+  base::Subprocess server(
+      {ShellPath(), "server", "unix", "--path", sock, trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+
+  // It should start successfully (stale file removed and rebound).
+  EXPECT_TRUE(WaitForSocketBound(sock));
+  EXPECT_EQ(server.status(), base::Subprocess::kRunning);
+
+  server.KillAndWaitForTermination(SIGTERM);
+  // Wait for the socket to be unlinked before the TempDir is torn down.
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerUnixIdleReap) {
+  // With --idle-start last-query the idle clock is always armed, so an idle
+  // server reaps itself (and unlinks its socket) after the timeout.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server({ShellPath(), "server", "unix", "--path", sock,
+                           "--idle-start", "last-query", "--idle-timeout", "1s",
+                           trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  // No queries: it should self-reap well within this window.
+  EXPECT_TRUE(server.Wait(/*timeout_ms=*/15000));
+  EXPECT_EQ(server.status(), base::Subprocess::kTerminated);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, RemoteQueryRoundTrip) {
+  // A `query --remote <sock>` runs against a warm `server unix` and returns the
+  // same result the local path would, exercising the full RemoteTraceProcessor
+  // round-trip (request marshalling + CellsBatch decode).
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server(
+      {ShellPath(), "server", "unix", "--path", sock, trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  // Two queries on two independent connections: validates that the shared
+  // server tolerates a fresh client (seq reset) each time.
+  auto r1 = RunShell({"query", "--remote", sock, "SELECT 200 + 61 AS v"});
+  EXPECT_EQ(r1.exit_code, 0) << r1.out;
+  EXPECT_THAT(r1.out, HasSubstr("261"));
+
+  auto r2 = RunShell({"query", "--remote", sock,
+                      "SELECT 'hello' AS s, count(*) AS n FROM slice"});
+  EXPECT_EQ(r2.exit_code, 0) << r2.out;
+  EXPECT_THAT(r2.out, HasSubstr("hello"));
+
+  // A SQL error is surfaced with a non-zero exit code.
+  auto r3 =
+      RunShell({"query", "--remote", sock, "SELECT * FROM no_such_table"});
+  EXPECT_NE(r3.exit_code, 0);
+
+  server.KillAndWaitForTermination(SIGTERM);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerKill) {
+  // `server kill` shuts down a running session and unlinks its socket.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server({ShellPath(), "server", "unix", "--path", sock,
+                           "--idle-timeout", "never", trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  auto kill = RunShell({"server", "kill", sock});
+  EXPECT_EQ(kill.exit_code, 0) << kill.out;
+
+  EXPECT_TRUE(server.Wait(/*timeout_ms=*/5000));
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerKillNoSession) {
+  auto result = RunShell({"server", "kill", "no-such-session"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("No live session"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerKillHttpDeferred) {
+  auto result = RunShell({"server", "kill", "localhost:9001"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("not supported"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, RemoteWebSocketRoundTrip) {
+  // `query --remote host:port` connects to the http server's /websocket
+  // endpoint and runs over the same RPC byte-pipe as the unix transport.
+  auto trace = WriteSimpleSystrace();
+  int port = GetFreeInetPort();
+  std::string addr = "127.0.0.1:" + std::to_string(port);
+
+  base::Subprocess server({ShellPath(), "server", "http", "--ip-address",
+                           "127.0.0.1", "--port", std::to_string(port),
+                           trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForTcpPort(port));
+
+  auto r = RunShell({"query", "--remote", addr, "SELECT 200 + 61 AS v"});
+  EXPECT_EQ(r.exit_code, 0) << r.out;
+  EXPECT_THAT(r.out, HasSubstr("261"));
+
+  server.KillAndWaitForTermination(SIGTERM);
+}
+
+TEST(TraceProcessorShellIntegrationTest, RemoteNoSession) {
+  // Querying a session that isn't running fails with a clear, actionable error.
+  auto result = RunShell({"query", "--remote", "no-such-session", "SELECT 1"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("No live session"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, RemoteHttpNoServer) {
+  // --remote to an HTTP address with nothing listening fails to connect.
+  int port = GetFreeInetPort();  // Free now; nothing is listening.
+  auto result = RunShell(
+      {"query", "--remote", "127.0.0.1:" + std::to_string(port), "SELECT 1"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Could not connect"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, RemoteRejectsIncompatibleFlags) {
+  // Global flags that configure local parsing or register local engine state
+  // cannot be honored over --remote (the trace is already loaded server-side),
+  // so they are rejected explicitly rather than silently ignored. The check
+  // runs before connecting, so no server is needed.
+  auto r1 = RunShell({"query", "--remote", "some-session", "--add-sql-package",
+                      "/tmp/p@x", "SELECT 1"});
+  EXPECT_NE(r1.exit_code, 0);
+  EXPECT_THAT(r1.out, HasSubstr("--add-sql-package"));
+  EXPECT_THAT(r1.out, HasSubstr("cannot be combined with --remote"));
+
+  auto r2 = RunShell({"query", "--remote", "some-session", "--metatrace",
+                      "/tmp/m.pb", "SELECT 1"});
+  EXPECT_NE(r2.exit_code, 0);
+  EXPECT_THAT(r2.out, HasSubstr("--metatrace"));
+  EXPECT_THAT(r2.out, HasSubstr("cannot be combined with --remote"));
+}
+
+TEST(TraceProcessorShellIntegrationTest,
+     RemoteInteractiveAbandonedQueryNoDesync) {
+  // Regression test: abandoning a multi-message streaming result mid-iteration
+  // must not corrupt the shared socket for the next query. The first query
+  // returns >50000 rows, which the server splits into multiple batches (one
+  // socket message each); typing 'q' at the interactive pager after the first
+  // 32-row page abandons the iterator with later messages still queued.
+  // RemoteIteratorImpl drains them on destruction, so the second query reads
+  // its own response (123) rather than leftover batches from the first.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server(
+      {ShellPath(), "server", "unix", "--path", sock, trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  base::Subprocess p;
+  p.args.exec_cmd = {ShellPath(), "interactive", "--remote", sock};
+  p.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.input =
+      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x "
+      "< "
+      "60000) SELECT x FROM c;\n"
+      "q\n"
+      "SELECT 100 + 23 AS computed;\n";
+  p.Start();
+  ASSERT_TRUE(p.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(p.returncode(), 0) << p.output();
+  // "123" only appears in the second query's result, not in any input SQL, so
+  // its presence proves the second query round-tripped on a clean socket.
+  EXPECT_THAT(p.output(), HasSubstr("123"));
+
+  server.KillAndWaitForTermination(SIGTERM);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+#endif  // !PERFETTO_OS_WIN
+
 TEST(TraceProcessorShellIntegrationTest, ClassicStdiodWithTrace) {
   // --stdiod trace -> server stdio trace
   // Verify the translation works: process starts and exits cleanly.
@@ -656,6 +962,143 @@ TEST(TraceProcessorShellIntegrationTest, ClassicBadTraceFileShowsOnlyError) {
 }
 
 // ---------------------------------------------------------------------------
+// Subcommand: bundle
+// ---------------------------------------------------------------------------
+
+// This test requires llvm-symbolize on the PATH
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithDebugOnlyLibraries) {
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+  // Clean up on every exit path (an early ASSERT included): TempDir's
+  // destructor aborts the binary if the dir isn't empty.
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+
+  auto symbolize = [&](const std::string& in_file,
+                       const std::string& symbol_path) {
+    std::string in_path = base::GetTestDataPath(in_file);
+    std::string lib_path = base::GetTestDataPath(symbol_path);
+
+    auto result =
+        RunShell({"bundle", "--symbol-paths", lib_path, in_path, out_path});
+    if (result.exit_code == 0) {
+      return testing::AssertionSuccess();
+    }
+    return testing::AssertionFailure() << result.out;
+  };
+
+  auto get_stack_at_ts = [&](const std::string& ts) {
+    const std::string query_template = R"(
+    WITH start_callsite AS (
+      SELECT
+        0 AS i,
+        id,
+        parent_id,
+        frame_id
+      FROM
+        stack_profile_callsite
+      WHERE
+        id = (SELECT callsite_id FROM perf_sample WHERE ts = {ts})
+    ), stack AS (
+      SELECT * FROM start_callsite
+      UNION ALL
+      SELECT
+        child.i + 1 AS i,
+        parent.id AS id,
+        parent.parent_id,
+        parent.frame_id
+      FROM
+        stack AS child,
+        STACK_PROFILE_CALLSITE AS parent
+          ON child.parent_id = parent.id
+    ), call_graph AS (
+      SELECT
+        stack.i,
+        sps.id AS symbol_id,
+        COALESCE(sps.name, spf.name) AS name
+      FROM
+        stack,
+        stack_profile_frame AS spf
+          ON (stack.frame_id = spf.id)
+        LEFT JOIN stack_profile_symbol AS sps
+          USING(symbol_set_id)
+    )
+    SELECT GROUP_CONCAT(name ORDER BY i DESC, symbol_id DESC)
+    FROM call_graph;
+    )";
+
+    auto query = WriteTempFile(base::ReplaceAll(query_template, "{ts}", ts));
+    return RunShell({"query", "-f", query.path(), out_path});
+  };
+
+  // traced_perf executable
+  ASSERT_TRUE(symbolize("test/data/traced_perf_no_symbols.pb",
+                        "test/data/simpleperf/bin"));
+  auto query_result = get_stack_at_ts("344782441497");
+  EXPECT_EQ(query_result.exit_code, 0);
+  std::vector<std::string> expected_frames = {
+      "__libc_init",
+      "main",
+      "(anonymous namespace)::DrawGame()",
+      "(anonymous namespace)::DrawPlayer(int)",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // Simpleperf executable
+  ASSERT_TRUE(
+      symbolize("test/data/simpleperf/sdk_example.android.simpleperf.data",
+                "test/data/simpleperf/bin"));
+  query_result = get_stack_at_ts("621365392837983");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "_start_main",
+      "__libc_init",
+      "main",
+      "(anonymous namespace)::DrawGame()",
+      "(anonymous namespace)::DrawPlayer(int)",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // Perf executable
+  ASSERT_TRUE(symbolize("test/data/linux_perf/sdk_example.linux.perf.data",
+                        "test/data/linux_perf/bin"));
+  query_result = get_stack_at_ts("210798493518940");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "main",
+      "(anonymous namespace)::DrawGame()",
+      "(anonymous namespace)::DrawPlayer(int)",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // traced_perf dummy_app
+  ASSERT_TRUE(symbolize("test/data/simpleperf/unsymbolized_app_profile.data",
+                        "test/data/simpleperf/bin"));
+  query_result = get_stack_at_ts("238583681488");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "(anonymous namespace)::A()",
+      "(anonymous namespace)::B()",
+      "(anonymous namespace)::C()",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // Simpleperf dummy_app
+  ASSERT_TRUE(symbolize("test/data/unsymbolized_app_profile.pb",
+                        "test/data/simpleperf/bin"));
+  query_result = get_stack_at_ts("36621314142");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "(anonymous namespace)::A()",
+      "(anonymous namespace)::B()",
+      "(anonymous namespace)::C()",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+}
+
+#endif
+
+// ---------------------------------------------------------------------------
 // Classic: --metric-extension with --stdiod
 // ---------------------------------------------------------------------------
 
@@ -790,7 +1233,7 @@ TEST(TraceProcessorShellIntegrationTest, ClassicAddSqlPackageWithStdiod) {
 }
 
 // ---------------------------------------------------------------------------
-// Subcommand: convert (wraps traceconv)
+// Subcommand: bundle
 // ---------------------------------------------------------------------------
 
 namespace {
@@ -843,16 +1286,17 @@ std::set<std::string> DeobfuscationPackages(const std::string& deob_bytes) {
 // The bundle must carry the input trace byte-for-byte in `trace.perfetto`
 // and a parseable `deobfuscation.pb` whose DeobfuscationMapping names our
 // class and method.
-TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithProguardMap) {
+TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
   auto mapping = WriteTempFile(
       "com.example.Foo -> a.a:\n"
       "    void bar() -> b\n");
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
 
-  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
-                          "--proguard-map", "com.example=" + mapping.path(),
-                          HeapprofdTracePath(), out_path});
+  auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
+                          "com.example=" + mapping.path(), HeapprofdTracePath(),
+                          out_path});
   ASSERT_EQ(result.exit_code, 0) << result.out;
 
   auto members = ReadTarMembers(out_path);
@@ -876,21 +1320,21 @@ TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithProguardMap) {
   EXPECT_EQ(
       dm.obfuscated_classes()[0].obfuscated_methods()[0].obfuscated_name(),
       "b");
-  unlink(out_path.c_str());
 }
 
 // Repeated --proguard-map should emit one DeobfuscationMapping per input map,
 // each tagged with the right package name.
-TEST(TraceProcessorShellIntegrationTest, ConvertBundleRepeatedProguardMap) {
+TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
   auto m1 = WriteTempFile("com.example.Foo -> a.a:\n");
   auto m2 = WriteTempFile("com.example.Bar -> b.b:\n");
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
 
-  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
-                          "--proguard-map", "com.example.one=" + m1.path(),
-                          "--proguard-map", "com.example.two=" + m2.path(),
-                          HeapprofdTracePath(), out_path});
+  auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
+                          "com.example.one=" + m1.path(), "--proguard-map",
+                          "com.example.two=" + m2.path(), HeapprofdTracePath(),
+                          out_path});
   ASSERT_EQ(result.exit_code, 0) << result.out;
 
   auto members = ReadTarMembers(out_path);
@@ -898,22 +1342,21 @@ TEST(TraceProcessorShellIntegrationTest, ConvertBundleRepeatedProguardMap) {
   EXPECT_THAT(
       DeobfuscationPackages(members["deobfuscation.pb"]),
       testing::UnorderedElementsAre("com.example.one", "com.example.two"));
-  unlink(out_path.c_str());
 }
 
-TEST(TraceProcessorShellIntegrationTest, ConvertBundleMissingProguardMapFails) {
+TEST(TraceProcessorShellIntegrationTest, BundleMissingProguardMapFails) {
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
 
-  auto result = RunShell(
-      {"convert", "bundle", "--no-auto-symbol-paths", "--proguard-map",
-       "com.example=/nonexistent/mapping.txt", HeapprofdTracePath(), out_path});
+  auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
+                          "com.example=/nonexistent/mapping.txt",
+                          HeapprofdTracePath(), out_path});
   EXPECT_NE(result.exit_code, 0);
-  unlink(out_path.c_str());
 }
 
-TEST(TraceProcessorShellIntegrationTest, ConvertHelpShowsProguardMap) {
-  auto result = RunShell({"help", "convert"});
+TEST(TraceProcessorShellIntegrationTest, BundleHelpShowsProguardMap) {
+  auto result = RunShell({"help", "bundle"});
   EXPECT_EQ(result.exit_code, 0);
   EXPECT_THAT(result.out, HasSubstr("proguard-map"));
   EXPECT_THAT(result.out, HasSubstr("symbol-paths"));
@@ -922,22 +1365,22 @@ TEST(TraceProcessorShellIntegrationTest, ConvertHelpShowsProguardMap) {
 
 // --no-auto-proguard-maps must not suppress explicit --proguard-map values:
 // the packet for the explicit package still appears in the bundle.
-TEST(TraceProcessorShellIntegrationTest, ConvertBundleNoAutoProguardMaps) {
+TEST(TraceProcessorShellIntegrationTest, BundleNoAutoProguardMaps) {
   auto mapping = WriteTempFile("com.example.Foo -> a.a:\n");
   auto out_dir = base::TempDir::Create();
   std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
 
-  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
-                          "--no-auto-proguard-maps", "--proguard-map",
-                          "com.example=" + mapping.path(), HeapprofdTracePath(),
-                          out_path});
+  auto result =
+      RunShell({"bundle", "--no-auto-symbol-paths", "--no-auto-proguard-maps",
+                "--proguard-map", "com.example=" + mapping.path(),
+                HeapprofdTracePath(), out_path});
   ASSERT_EQ(result.exit_code, 0) << result.out;
 
   auto members = ReadTarMembers(out_path);
   ASSERT_TRUE(members.count("deobfuscation.pb"));
   EXPECT_THAT(DeobfuscationPackages(members["deobfuscation.pb"]),
               testing::UnorderedElementsAre("com.example"));
-  unlink(out_path.c_str());
 }
 
 // ---------------------------------------------------------------------------

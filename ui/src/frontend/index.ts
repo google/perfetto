@@ -13,16 +13,17 @@
 // limitations under the License.
 
 // Keep this import first.
-import z from 'zod';
 import '../base/disposable_polyfill';
 import '../base/static_initializers';
-import NON_CORE_PLUGINS from '../gen/all_plugins';
-import CORE_PLUGINS from '../gen/all_core_plugins';
+import '../assets/typefaces.scss';
+import '../assets/common.scss';
+import z from 'zod';
+import {plugins, corePlugins} from './plugins';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
 import {featureFlags} from '../core/feature_flags';
-import {initLiveReload} from '../core/live_reload';
+import {initViteLiveReload} from '../core/vite_live_reload';
 import {raf} from '../core/raf_scheduler';
 import {warmupWasmWorker} from '../trace_processor/wasm_engine_proxy';
 import {UiMain} from './ui_main';
@@ -31,13 +32,13 @@ import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
-import {Route, Router} from '../core/router';
+import {Router} from '../core/router';
 import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
-import {IdleDetectorWindow} from './idle_detector_interface';
+import type {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
 import {addLegacyTableTab} from '../components/details/sql_table_tab';
 import {configureExtensions} from '../components/extensions';
@@ -58,11 +59,12 @@ import {ThemeProvider} from './theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
 import {JsonSettingsEditor} from '../components/json_settings_editor';
 import {
-  CommandInvocation,
+  type CommandInvocation,
   commandInvocationArraySchema,
 } from '../core/command_manager';
-import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
+import {type HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {sleepMs} from '../base/utils';
+import type {Route} from '../public/app';
 
 // =============================================================================
 // UI INITIALIZATION STAGES
@@ -165,6 +167,7 @@ function setupContentSecurityPolicy() {
     'connect-src': [
       `'self'`,
       'ws://127.0.0.1:8037', // For the adb websocket server.
+      'http://localhost:8080', // For local llama-server.
       'https:', // Allow any HTTPS; service worker firewall adds granular filtering.
       'blob:',
       'data:',
@@ -302,7 +305,7 @@ function main() {
   const cssLoadPromise = defer<void>();
   const css = document.createElement('link');
   css.rel = 'stylesheet';
-  css.href = assetSrc('perfetto.css');
+  css.href = assetSrc('frontend.css');
   css.onload = () => cssLoadPromise.resolve();
   css.onerror = (err) => cssLoadPromise.reject(err);
   const favicon = document.head.querySelector('#favicon');
@@ -438,7 +441,7 @@ function onCssLoaded(app: AppImpl) {
     !app.embeddedMode &&
     !app.testingMode
   ) {
-    initLiveReload();
+    initViteLiveReload();
   }
 
   // Will update the chip on the sidebar footer that notifies that the RPC is
@@ -471,8 +474,8 @@ function onCssLoaded(app: AppImpl) {
 
   // Initialize plugins, now that we are ready to go.
   const pluginManager = app.plugins;
-  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, true));
-  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
+  corePlugins.forEach((p) => pluginManager.registerPlugin(p, true));
+  plugins.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(app, overrides);

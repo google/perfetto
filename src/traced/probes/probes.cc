@@ -89,7 +89,10 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
   }
 
   if (background) {
-    base::Daemonize([] { return 0; });
+    base::Daemonize([](pid_t pid) {
+      printf("%d\n", pid);
+      return 0;
+    });
   }
 
   PERFETTO_LOG("Starting %s service", argv[0]);

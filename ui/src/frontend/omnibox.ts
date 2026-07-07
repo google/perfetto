@@ -17,24 +17,24 @@ import {classNames} from '../base/classnames';
 import {findRef} from '../base/dom_utils';
 import {
   FuzzyFinder,
-  FuzzySegment,
+  type FuzzySegment,
   computeHighlightSegments,
 } from '../base/fuzzy';
-import {assertExists, assertUnreachable} from '../base/assert';
+import {ensureExists, assertUnreachable} from '../base/assert';
 import {isString} from '../base/object_utils';
 import {exists} from '../base/utils';
 import {AppImpl} from '../core/app_impl';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {raf} from '../core/raf_scheduler';
-import {TraceImpl} from '../core/trace_impl';
+import type {TraceImpl} from '../core/trace_impl';
 import {Button} from '../widgets/button';
 import {Chip} from '../widgets/chip';
-import {HTMLAttrs, Intent} from '../widgets/common';
+import {type HTMLAttrs, Intent} from '../widgets/common';
 import {EmptyState} from '../widgets/empty_state';
 import {HotkeyGlyphs, KeycapGlyph} from '../widgets/hotkey_glyphs';
 import {Popup} from '../widgets/popup';
 import {Spinner} from '../widgets/spinner';
-import {Command} from '../public/commands';
+import type {Command} from '../public/commands';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;
@@ -83,7 +83,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
 
   private renderPromptOmnibox(): m.Children {
     const omnibox = AppImpl.instance.omnibox;
-    const prompt = assertExists(omnibox.pendingPrompt);
+    const prompt = ensureExists(omnibox.pendingPrompt);
 
     let options: OmniboxOption[] | undefined = undefined;
 
@@ -221,7 +221,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
 
   private renderRegisteredMode(): m.Children {
     const omnibox = AppImpl.instance.omnibox;
-    const desc = assertExists(omnibox.activeRegisteredMode);
+    const desc = ensureExists(omnibox.activeRegisteredMode);
     return m(OmniboxWidget, {
       value: omnibox.text,
       placeholder: desc.placeholder,
@@ -719,9 +719,17 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
   }
 
   private highlightPreviousOption(attrs: OmniboxWidgetAttrs) {
-    const {selectedOptionIndex = 0, onSelectedOptionChanged = () => {}} = attrs;
+    const {
+      selectedOptionIndex = 0,
+      onSelectedOptionChanged = () => {},
+      options = [],
+    } = attrs;
 
-    onSelectedOptionChanged(Math.max(0, selectedOptionIndex - 1));
+    if (options.length === 0) return;
+
+    onSelectedOptionChanged(
+      (selectedOptionIndex - 1 + options.length) % options.length,
+    );
   }
 
   private highlightNextOption(attrs: OmniboxWidgetAttrs) {
@@ -731,7 +739,8 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
       options = [],
     } = attrs;
 
-    const max = options.length - 1;
-    onSelectedOptionChanged(Math.min(max, selectedOptionIndex + 1));
+    if (options.length === 0) return;
+
+    onSelectedOptionChanged((selectedOptionIndex + 1) % options.length);
   }
 }

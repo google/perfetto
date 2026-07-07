@@ -43,6 +43,11 @@ export interface DuplicateArrayGroup {
   wastedBytes: number;
 }
 
+export interface OomeData {
+  upid: number;
+  ts: bigint;
+}
+
 export interface OverviewData {
   reachableInstanceCount: number;
   unreachableInstanceCount: number;
@@ -53,6 +58,16 @@ export interface OverviewData {
   duplicateArrays?: DuplicateArrayGroup[];
   /** True when HPROF field values are available (heap_graph_primitive). */
   hasFieldValues: boolean;
+  /** Process oom_score_adj at the dump instant; null if the trace has none. */
+  oomScore: number | null;
+  /** oom_adj bucket name from the stdlib (e.g. "cached"); null if unavailable. */
+  oomBucket: string | null;
+  /** The anon RSS + swap size of the process (in bytes) at the time of the heap dump. */
+  anonRssAndSwapSize: bigint | null;
+  /** The dmabuf size of the process (in bytes) at the time of the heap dump. */
+  dmabufRssSize: bigint | null;
+  /** The process uptime at the time of the heap dump. */
+  processUptime: bigint | null;
 }
 
 export type PrimOrRef =
@@ -116,7 +131,7 @@ export interface InstanceDetail {
     width: number;
     height: number;
     format: string;
-    data: Uint8Array;
+    data: Uint8Array<ArrayBuffer>;
   } | null;
   reverseRefs: InstanceRow[];
   dominated: InstanceRow[];
@@ -147,6 +162,32 @@ export interface BitmapListRow {
   density: number;
   /** Content hash of the compressed pixel buffer, null when unavailable. */
   bufferHash: string | null;
+  /**
+   * Pixel-storage backing decoded from `Bitmap.mId` via the
+   * `android.memory.heap_graph.bitmap` stdlib module. One of
+   * 'heap' | 'ashmem' | 'hardware' | 'wrapped_pixel_ref'.
+   * 'heap' = malloc'd in this process (real RAM cost per copy);
+   * 'ashmem' = shared kernel memory (PSS-shared across processes);
+   * 'hardware' = AHardwareBuffer (GPU memory).
+   */
+  storageType: string | null;
+  /** Encoded `Bitmap.mId`. */
+  bitmapId: bigint | null;
+  /**
+   * Encoded `Bitmap.mSourceId` for parcel-received Bitmaps; null when the
+   * Bitmap was locally allocated (raw -1 sentinel canonicalised).
+   */
+  sourceId: bigint | null;
+  /** Sender pid decoded from sourceId. Null when sourceId is null. */
+  sourcePid: number | null;
+  /** Sender's pixel storage type at writeToParcel time. */
+  sourceStorageType: string | null;
+  /**
+   * Sender's process name resolved against `process` at the heap dump's
+   * timestamp. Requires the trace to include process info (e.g. captured
+   * via `linux.process_stats` alongside the HPROF dump). Null otherwise.
+   */
+  sourceProcessName: string | null;
 }
 
 export interface StringListRow {

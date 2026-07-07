@@ -17,9 +17,10 @@ import {tryGetTrace} from '../core/cache_manager';
 import {showModal} from '../widgets/modal';
 import {loadPermalink} from './permalink';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
-import {Route, Router} from '../core/router';
+import {Router} from '../core/router';
 import {taskTracker} from './task_tracker';
 import {AppImpl} from '../core/app_impl';
+import type {Route} from '../public/app';
 
 function getCurrentTraceUrl(): undefined | string {
   const source = AppImpl.instance.trace?.traceInfo.source;

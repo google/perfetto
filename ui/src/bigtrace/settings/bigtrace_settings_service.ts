@@ -13,12 +13,8 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {
-  SettingDescriptor,
-  SettingCategory,
-  SettingFilter,
-} from './settings_types';
-import {endpointStorage} from './endpoint_storage';
+import type {SettingDescriptor, SettingCategory} from './settings_types';
+import {getBigtraceEndpoint} from './endpoint_storage';
 
 interface BackendSettingOption {
   value?: string;
@@ -115,24 +111,30 @@ function toSettingDescriptor(
   };
 }
 
+// Resolves the current BigTrace endpoint or throws a user-facing message.
+function getEndpoint(): string {
+  const endpoint = getBigtraceEndpoint();
+  if (endpoint.trim() === '') {
+    throw new Error(
+      'Set the BigTrace Endpoint above to load backend settings.',
+    );
+  }
+  return endpoint;
+}
+
 class BigTraceSettingsService {
   private execConfigAbortController: AbortController | null = null;
-  private metadataAbortController: AbortController | null = null;
-
-  abortAll(): void {
-    this.execConfigAbortController?.abort();
-    this.metadataAbortController?.abort();
-  }
 
   async getExecutionSettings(): Promise<SettingDescriptor<unknown>[]> {
-    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
-    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
-
+    const endpoint = getEndpoint();
     this.execConfigAbortController?.abort();
     this.execConfigAbortController = new AbortController();
+    const settings = await this.fetchSettings(endpoint);
+    return settings.map(toSettingDescriptor);
+  }
 
-    let options: BackendSetting[] = [];
-
+  // Fetch + parse the backend execution-settings response.
+  private async fetchSettings(endpoint: string): Promise<BackendSetting[]> {
     try {
       const response = await fetch(`${endpoint}/bigtrace_execution_config`, {
         method: 'POST',
@@ -140,98 +142,34 @@ class BigTraceSettingsService {
         body: '{}',
         credentials: 'include',
         mode: 'cors',
-        signal: this.execConfigAbortController.signal,
+        signal: this.execConfigAbortController?.signal,
       });
 
-      if (response.ok) {
-        const text = await response.text();
-        try {
-          const data = JSON.parse(text);
-          options = Array.isArray(data.setting) ? data.setting : [];
-        } catch (e) {
-          console.error(
-            'Failed to parse bigtrace_execution_config response:',
-            text.substring(0, 100),
-          );
-          throw new Error('Failed to parse bigtrace_execution_config response');
-        }
-      } else {
-        console.error(
-          `bigtrace_execution_config failed with status ${response.status}`,
+      if (!response.ok) {
+        throw new Error(
+          `Backend returned HTTP ${response.status} for settings request.`,
         );
-        throw new Error(`Execution config failed: HTTP ${response.status}`);
+      }
+
+      const text = await response.text();
+      try {
+        const data = JSON.parse(text);
+        return Array.isArray(data.setting) ? data.setting : [];
+      } catch {
+        throw new Error('Backend returned an invalid settings response.');
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return [];
       }
-      console.error('Error fetching bigtrace_execution_config:', err);
       if (err instanceof TypeError) {
         throw new Error(
-          'Cannot connect to the BigTrace backend. Please check your endpoint address and network connection.',
+          'Cannot connect to the BigTrace backend. ' +
+            'Please check your endpoint address and network connection.',
         );
       }
       throw err;
     }
-
-    return options.map(toSettingDescriptor);
-  }
-
-  async getMetadataSettings(
-    filters: SettingFilter[],
-  ): Promise<SettingDescriptor<unknown>[]> {
-    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
-    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
-
-    this.metadataAbortController?.abort();
-    this.metadataAbortController = new AbortController();
-
-    let options: BackendSetting[] = [];
-
-    try {
-      const response = await fetch(`${endpoint}/trace_metadata_settings`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({settings: filters}),
-        credentials: 'include',
-        mode: 'cors',
-        signal: this.metadataAbortController.signal,
-      });
-
-      if (response.ok) {
-        const text = await response.text();
-        try {
-          const data = JSON.parse(text);
-          options = Array.isArray(data.setting) ? data.setting : [];
-        } catch (e) {
-          console.error(
-            'Failed to parse trace_metadata_settings response:',
-            text.substring(0, 100),
-          );
-          throw new Error('Failed to parse trace_metadata_settings response');
-        }
-      } else {
-        console.error(
-          `trace_metadata_settings failed with status ${response.status}`,
-        );
-        throw new Error(
-          `Trace metadata config failed: HTTP ${response.status}`,
-        );
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        return [];
-      }
-      console.error('Error fetching trace_metadata_settings:', err);
-      if (err instanceof TypeError) {
-        throw new Error(
-          'Cannot connect to the BigTrace backend. Please check your endpoint address and network connection.',
-        );
-      }
-      throw err;
-    }
-
-    return options.map(toSettingDescriptor);
   }
 }
 

@@ -38,10 +38,15 @@ enum BinaryType : uint8_t {
   kMachODsym,
 };
 
-struct FoundBinary {
-  std::string file_name;
+struct LoadInfo {
   uint64_t p_vaddr;
   uint64_t p_offset;
+  uint64_t p_align;
+};
+
+struct FoundBinary {
+  std::string file_name;
+  LoadInfo load_info;
   BinaryType type;
 };
 
@@ -130,9 +135,7 @@ class LocalSymbolizer : public Symbolizer {
   explicit LocalSymbolizer(std::unique_ptr<BinaryFinder> finder);
 
   SymbolizeResult Symbolize(const Environment& env,
-                            const std::string& mapping_name,
-                            const std::string& build_id,
-                            uint64_t load_bias,
+                            const UnsymbolizedMapping& mapping,
                             const std::vector<uint64_t>& address) override;
 
   ~LocalSymbolizer() override;

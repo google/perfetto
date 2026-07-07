@@ -19,17 +19,17 @@ import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../core/metatracing';
-import {Engine} from '../trace_processor/engine';
+import type {Engine} from '../trace_processor/engine';
 import {AppImpl} from '../core/app_impl';
-import {Trace} from '../public/trace';
-import {TraceImpl} from '../core/trace_impl';
+import type {Trace} from '../public/trace';
+import type {TraceImpl} from '../core/trace_impl';
 import {download, downloadUrl} from '../base/download_utils';
 import {
   convertTraceToJsonAndDownload,
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
 import {showModal} from '../widgets/modal';
-import {assertExists} from '../base/assert';
+import {ensureExists, assertIsArrayBufferView} from '../base/assert';
 
 const TRACE_SUFFIX = '.perfetto-trace';
 
@@ -45,7 +45,7 @@ export async function convertTraceToJson(trace: Trace): Promise<void> {
   await convertTraceToJsonAndDownload(file);
 }
 
-export function downloadTrace(trace: TraceImpl) {
+export async function downloadTrace(trace: TraceImpl) {
   if (!trace.traceInfo.downloadable) return;
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
 
@@ -56,7 +56,22 @@ export function downloadTrace(trace: TraceImpl) {
       accept: {'*/*': ['.pftrace', '.gz']},
     },
   ];
-  if (src.type === 'URL') {
+  if (src.type === 'MULTIPLE_FILES') {
+    // A merged set is downloaded as the same on-the-fly TAR (manifest + traces)
+    // that was opened; reopening it reproduces the merge.
+    download({
+      content: await trace.getTraceFile(),
+      fileName: 'merged-trace.tar',
+      filePicker: {
+        types: [
+          {
+            description: 'Merged Perfetto trace',
+            accept: {'application/x-tar': ['.tar']},
+          },
+        ],
+      },
+    });
+  } else if (src.type === 'URL') {
     const fileName = src.url.split('/').slice(-1)[0];
     downloadUrl({url: src.url, fileName});
   } else if (src.type === 'ARRAY_BUFFER') {
@@ -109,7 +124,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
           action: () => {
             enableMetatracing();
             engine.enableMetatrace(
-              assertExists(getEnabledMetatracingCategories()),
+              ensureExists(getEnabledMetatracingCategories()),
             );
           },
         },
@@ -120,7 +135,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
     });
   } else {
     enableMetatracing();
-    engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
+    engine.enableMetatrace(ensureExists(getEnabledMetatracingCategories()));
   }
 }
 
@@ -137,6 +152,32 @@ async function finaliseMetatrace(engine: Engine) {
   if (result.error.length !== 0) {
     throw new Error(`Failed to read metatrace: ${result.error}`);
   }
+
+  // There are a few confounding problems here:
+  // 1. In TS 5.7, the TypedArrays and other array view and wrapper types were
+  //    made to be generic, in order to distinguish those backed by ArrayBuffers
+  //    vs those backed by SharedArrayBuffers.
+  // 2. Protobufjs's .finish() method returns a Uint8Array which doesn't specify
+  //    whether it's a Uint8Array or not. In reality it's always going to be an
+  //    ArrayBuffer (not shared) unless the library is monkey-patched to
+  //    override Writer.alloc(), but the type system won't know that anyway. The
+  //    acutal fix is that the protobufjs library should update the return type
+  //    of finish() to be Uint8Array<ArrayBuffer> specifically. Another solution
+  //    could be to update to the latest protobufjs which has
+  //    Writer.finishInto() which takes an array to copy the bypes into, leaving
+  //    us in control of the types, however the latest protobuf version has
+  //    other type issues. See https://github.com/protobufjs/protobuf.js/pull/2196/changes.
+  // 3. The other problem is that Blob() actually doesn't care whether the
+  //    underlying buffer is shared or not, it'll take it at runtime in the
+  //    browser and node.js no problem. The types are the problem.
+  //
+  // So, we could just cast away the types here, but that might be unsafe in the
+  // future if anything changes, so we use this assert to ensure that these
+  // types are definitely not shared and throw if they are. This means we can
+  // fail fast if the landscape changes, and we avoid having to do any
+  // hand-wavey type assertions.
+  assertIsArrayBufferView(result.metatrace);
+  assertIsArrayBufferView(jsEvents);
 
   download({
     fileName: 'metatrace',

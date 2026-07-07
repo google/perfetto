@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import z from 'zod';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {AppImpl} from '../../core/app_impl';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
-import {exists, RequiredField} from '../../base/utils';
+import {exists, type RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
-import {TrackNode, Workspace} from '../../public/workspace';
-import {App} from '../../public/app';
-import {Setting} from '../../public/settings';
+import type {TrackNode, Workspace} from '../../public/workspace';
+import type {App} from '../../public/app';
+import type {Setting} from '../../public/settings';
 import {Time} from '../../base/time';
 
 export default class TrackUtilsPlugin implements PerfettoPlugin {
@@ -568,10 +568,10 @@ async function getQueryFromArgOrPrompt(
 }
 
 // DFS the workspace, returning all tracks matching the regex against `name` or
-// full `path`. When a headless node matches, its subtree is skipped: a
-// headless node has no header in the rendered tree, so its `fullPath` is
-// identical to its children's, and a deep clone of the headless node already
-// covers them — recursing further would yield duplicate matches.
+// full `path`. Headless nodes are never returned as matches: they have no
+// header in the rendered tree and no `uri`, so operating on one directly (e.g.
+// pinning it) does nothing useful. We still recurse into their children so the
+// real tracks nested inside a matching headless container get picked up.
 function findTracksMatchingRegex(
   workspace: Workspace,
   regex: RegExp,
@@ -581,9 +581,8 @@ function findTracksMatchingRegex(
   const visit = (node: TrackNode): void => {
     const target =
       nameOrPath === 'path' ? node.fullPath.join(' > ') : node.name;
-    if (regex.test(target)) {
+    if (!node.headless && regex.test(target)) {
       matches.push(node);
-      if (node.headless) return;
     }
     node.children.forEach(visit);
   };

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertDefined, assertTrue} from '../../../../base/assert';
-import {Row, SqlValue} from '../../../../trace_processor/query_result';
-import {Filter, StandardFilters} from '../table/filters';
-import {TableColumn} from '../table/table_column';
+import {ensureExists, ensureDefined, assertTrue} from '../../../../base/assert';
+import type {Row, SqlValue} from '../../../../trace_processor/query_result';
+import {type Filter, StandardFilters} from '../table/filters';
+import type {TableColumn} from '../table/table_column';
 import {
-  Aggregation,
-  BasicAggregation,
+  type Aggregation,
+  type BasicAggregation,
   basicAggregations,
   expandAggregations,
   getAggregationValue as getAggregationValueImpl,
@@ -127,7 +127,7 @@ export class PivotTreeNode {
   getPivotValue(index: number): SqlValue | undefined {
     if (index > this.getPivotIndex()) return undefined;
     if (index === this.getPivotIndex()) return this.pivotValue;
-    return assertExists(this.parent).getPivotValue(index);
+    return ensureExists(this.parent).getPivotValue(index);
   }
 
   /**
@@ -168,7 +168,7 @@ export class PivotTreeNode {
     let valueNode: PivotTreeNode = this;
     let autoExpanded = true;
     for (let i = pivotIndex; i < this.getPivotIndex(); i++) {
-      valueNode = assertExists(valueNode.parent);
+      valueNode = ensureExists(valueNode.parent);
       autoExpanded = autoExpanded && valueNode.children.size === 1;
     }
     return autoExpanded ? 'auto_expanded' : 'pivoted_value';
@@ -207,7 +207,7 @@ export class PivotTreeNode {
     );
     this.children.clear();
     for (const child of sorted) {
-      this.children.set(assertDefined(child.pivotValue), child);
+      this.children.set(ensureDefined(child.pivotValue), child);
     }
   }
 
@@ -241,7 +241,7 @@ export class PivotTreeNode {
   private getFilter(): Filter {
     return StandardFilters.valueEquals(
       this.config.pivots[this.getPivotIndex()].column,
-      assertDefined(this.pivotValue),
+      ensureDefined(this.pivotValue),
     );
   }
 
@@ -263,7 +263,7 @@ export class PivotTreeNode {
         }),
       );
     }
-    return assertExists(this.children.get(value));
+    return ensureExists(this.children.get(value));
   }
 
   private update() {
@@ -326,8 +326,8 @@ export class PivotTreeNode {
         // For pivot sorting, we only compare the pivot values at the given depth.
         if (index + 1 === lhs.depth) {
           const cmp = compareSqlValues(
-            assertDefined(lhs.pivotValue),
-            assertDefined(rhs.pivotValue),
+            ensureDefined(lhs.pivotValue),
+            ensureDefined(rhs.pivotValue),
           );
           if (cmp !== 0) return direction === 'ASC' ? cmp : -cmp;
         }

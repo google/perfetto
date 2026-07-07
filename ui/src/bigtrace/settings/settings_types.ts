@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {z} from 'zod';
+import type {z} from 'zod';
 
 export type SettingCategory =
   | 'SETTING_CATEGORY_UNSPECIFIED'
@@ -26,17 +26,14 @@ export interface EnumOption {
 }
 
 export interface SettingDescriptor<T> {
-  // A unique identifier for the setting.
   readonly id: string;
 
-  // A human-readable name for the setting.
   readonly name: string;
 
-  // A detailed description of what the setting does.
   readonly description: string;
 
-  // The type of the setting.
-  readonly type:
+  // Defaults to 'string' if omitted.
+  readonly type?:
     | 'string'
     | 'number'
     | 'boolean'
@@ -44,29 +41,25 @@ export interface SettingDescriptor<T> {
     | 'multi-select'
     | 'string-array';
 
-  // The Zod schema for validating the setting's value.
+  // Zod schema validating the value.
   readonly schema: z.ZodType<T>;
 
-  // The default value of the setting.
   readonly defaultValue: T;
 
-  // The category for grouping the setting in the UI.
+  // Groups the setting in the UI.
   readonly category?: string;
 
-  // If true, the user will be prompted to reload when this setting is changed.
+  // If true, prompt the user to reload on change.
   readonly requiresReload?: boolean;
 
-  // Optional list of choices for enum and multi-select settings.
+  // Choices for enum and multi-select settings.
   readonly options?: readonly (string | EnumOption)[];
 
-  // Optional placeholder for text inputs.
   readonly placeholder?: string;
 
-  // Optional format for string inputs.
   readonly format?: 'sql';
 
-  // If true, this setting will be disabled by default.
-  // This is designed to be set by the server.
+  // Disabled by default; set by the server.
   readonly disabled?: boolean;
 }
 

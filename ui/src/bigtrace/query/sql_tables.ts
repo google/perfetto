@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
-import {
+import type {
   SqlModules,
   SqlModule,
   SqlTable,
@@ -23,16 +23,15 @@ import {
   SqlTableFunction,
   SqlMacro,
 } from './sql_modules';
-import {TableColumn} from '../../components/widgets/sql/table/table_column';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
+import type {TableColumn} from '../../components/widgets/sql/table/table_column';
+import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {
   parsePerfettoSqlTypeFromString,
-  PerfettoSqlType,
+  type PerfettoSqlType,
 } from '../../trace_processor/perfetto_sql_type';
 import {unwrapResult} from '../../base/result';
 
-// Lightweight SqlModules implementation for BigTrace that loads stdlib_docs.json
-// without requiring a Trace object.
+// SqlModules loaded from stdlib_docs.json, without a Trace object.
 
 class SimpleSqlColumn implements SqlColumn {
   readonly name: string;
@@ -121,7 +120,7 @@ class SimpleSqlModule implements SqlModule {
   }
 }
 
-// Shape of the stdlib_docs.json entries (parsed without Zod to avoid CSP).
+// Shape of stdlib_docs.json entries (parsed manually; see load()).
 interface StdlibColumn {
   name: string;
   type: string;
@@ -243,13 +242,13 @@ class SqlTablesLoader {
     this.loading = true;
     this.error = undefined;
     try {
-      // stdlib_docs.json lives in the parent Perfetto dist directory.
+      // stdlib_docs.json lives in the parent dist directory.
       const resp = await fetch(assetSrc('../stdlib_docs.json'));
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
       }
       const json = await resp.json();
-      // Avoid Zod .parse() here — it uses new Function() which violates CSP.
+      // Parse manually: Zod's .parse() uses new Function(), which CSP forbids.
       this.sqlModules = new SimpleSqlModules(json);
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);

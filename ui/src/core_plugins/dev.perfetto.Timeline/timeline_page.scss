@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "../../assets/theme";
+
 .pf-timeline-header {
   position: relative;
 }
@@ -91,26 +93,16 @@
   min-width: 350px;
 }
 
-.pf-track-filter {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-
-  &__row {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  label {
-    font-family: var(--pf-font-compact);
-    text-transform: uppercase;
-    font-size: 11px;
-  }
-}
-
 .pf-track__tooltip {
   font-size: 11px; // Slightly smaller font - to match previous tooltip size
   opacity: 0.9;
   font-weight: 300;
+}
+
+.pf-track-filter {
+  min-width: 200px;
+}
+
+.pf-form *:last-child {
+  margin-bottom: 0;
 }

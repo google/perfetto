@@ -14,23 +14,23 @@
 
 import m from 'mithril';
 import {
-  QueryNode,
+  type QueryNode,
   NodeType,
   nextNodeId,
-  NodeContext,
+  type NodeContext,
 } from '../../../query_node';
-import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
-import {time, TimeSpan, Time} from '../../../../../base/time';
+import {type ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
+import {type time, TimeSpan, Time} from '../../../../../base/time';
 import {PerfettoSqlTypes} from '../../../../../trace_processor/perfetto_sql_type';
 import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {Switch} from '../../../../../widgets/switch';
 import {Anchor} from '../../../../../widgets/anchor';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
-import protos from '../../../../../protos';
+import type protos from '../../../../../protos';
 import {InlineField} from '../../widgets';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../../node_types';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 
@@ -312,7 +312,7 @@ export class TimeRangeSourceNode implements QueryNode {
               const parsed = BigInt(value.trim());
               this.start = Time.fromRaw(parsed);
               this.attrs.start = value.trim();
-            } catch (e) {
+            } catch {
               // Keep current value if invalid
             }
             this.context.onchange?.();
@@ -340,7 +340,7 @@ export class TimeRangeSourceNode implements QueryNode {
               const parsed = BigInt(value.trim());
               this.end = Time.fromRaw(parsed);
               this.attrs.end = value.trim();
-            } catch (e) {
+            } catch {
               // Keep current value if invalid
             }
             this.context.onchange?.();
@@ -371,7 +371,7 @@ export class TimeRangeSourceNode implements QueryNode {
                   this.end = Time.fromRaw(this.start + parsed);
                   this.attrs.end = this.end.toString();
                 }
-              } catch (e) {
+              } catch {
                 // Keep current value if invalid
               }
               this.context.onchange?.();

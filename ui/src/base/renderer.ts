@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Color} from './color';
-import {Transform1D, Transform2D} from './geom';
+import type {Color} from './color';
+import type {Transform1D, Transform2D} from './geom';
 
 // Flag bits for drawRect options
 export const RECT_PATTERN_HATCHED = 1; // Draw diagonal crosshatch pattern
 export const RECT_PATTERN_FADE_RIGHT = 2; // Fade alpha from full left to 0 right across width
+
+// Horizontal gap in CSS pixels inset from each slice's right edge, so adjacent
+// same-coloured slices stay visually distinct instead of merging into one bar.
+export const SLICE_GAP_PX = 1;
 
 // Describes the vertical layout of rows in a slice track using a two-tier
 // formula. Row 0 can have a different height from the rest (e.g. for collapsed

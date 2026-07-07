@@ -50,20 +50,25 @@
 // Ensure protobuf is initialized.
 import '../base/static_initializers';
 import protobuf from 'protobufjs/minimal';
-import {defer, Deferred} from '../base/deferred';
-import {assertExists, assertFalse, assertTrue} from '../base/assert';
+import {defer, type Deferred} from '../base/deferred';
+import {ensureExists, assertFalse, assertTrue} from '../base/assert';
 import {utf8Decode} from '../base/string_utils';
-import {Duration, duration, Time, time} from '../base/time';
+import {Duration, type duration, Time, type time} from '../base/time';
 
-export type SqlValue = string | number | bigint | null | Uint8Array;
+export type SqlValue =
+  | string
+  | number
+  | bigint
+  | null
+  | Uint8Array<ArrayBuffer>;
 
 export const UNKNOWN: SqlValue = null;
 export const NUM = 0;
 export const STR = 'str';
 export const NUM_NULL: number | null = 1;
 export const STR_NULL: string | null = 'str_null';
-export const BLOB: Uint8Array = new Uint8Array();
-export const BLOB_NULL: Uint8Array | null = new Uint8Array();
+export const BLOB: Uint8Array<ArrayBuffer> = new Uint8Array();
+export const BLOB_NULL: Uint8Array<ArrayBuffer> | null = new Uint8Array();
 export const LONG: bigint = 0n;
 export const LONG_NULL: bigint | null = 1n;
 
@@ -395,6 +400,24 @@ export interface QueryResult {
   elapsedTimeMs(): number;
 }
 
+// Drains a QueryResult into an array of typed rows described by `spec`. This is
+// the array-materializing counterpart to iter(): use it when you want every row
+// up front rather than streaming through them.
+// Example: const rows = materializeRows(result, {id: NUM, name: STR});
+export function materializeRows<T extends Row>(
+  result: QueryResult,
+  spec: T,
+): T[] {
+  const rows: T[] = [];
+  const cols = Object.keys(spec);
+  for (const it = result.iter(spec); it.valid(); it.next()) {
+    const row: Record<string, SqlValue> = {};
+    for (const col of cols) row[col] = it.get(col);
+    rows.push(row as T);
+  }
+  return rows;
+}
+
 // Interface exposed to engine.ts to pump in the data as new row batches arrive.
 export interface WritableQueryResult {
   // |resBytes| is a proto-encoded trace_processor.QueryResult message.
@@ -530,7 +553,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   // It is fine to retain the resBytes without slicing a copy, because
   // ProtoRingBuffer does the slice() for us (or passes through the buffer
   // coming from postMessage() (Wasm case) of fetch() (HTTP+RPC case).
-  appendResultBatch(resBytes: Uint8Array) {
+  appendResultBatch(resBytes: Uint8Array<ArrayBuffer>) {
     const reader = protobuf.Reader.create(resBytes);
     assertTrue(reader.pos === 0);
     const columnNamesEmptyAtStartOfBatch = this.columnNames.length === 0;
@@ -624,7 +647,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     if (this.allRowsPromise === undefined) {
       this.waitAllRows(); // Will populate |this.allRowsPromise|.
     }
-    return assertExists(this.allRowsPromise);
+    return ensureExists(this.allRowsPromise);
   }
 
   get errorInfo(): QueryErrorInfo {
@@ -653,17 +676,17 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
 // referencing the same batch. The batch must be immutable.
 class ResultBatch {
   readonly isLastBatch: boolean = false;
-  readonly batchBytes: Uint8Array;
+  readonly batchBytes: Uint8Array<ArrayBuffer>;
   readonly cellTypesOff: number = 0;
   readonly cellTypesLen: number = 0;
   readonly varintOff: number = 0;
   readonly varintLen: number = 0;
   readonly float64Cells = new Float64Array();
-  readonly blobCells: Uint8Array[] = [];
+  readonly blobCells: Uint8Array<ArrayBuffer>[] = [];
   readonly stringCells: string[] = [];
 
   // batchBytes is a trace_processor.QueryResult.CellsBatch proto.
-  constructor(batchBytes: Uint8Array) {
+  constructor(batchBytes: Uint8Array<ArrayBuffer>) {
     this.batchBytes = batchBytes;
     const reader = protobuf.Reader.create(batchBytes);
     assertTrue(reader.pos === 0);
@@ -791,7 +814,7 @@ class RowIteratorImpl implements RowIteratorBase {
   private cellTypesEnd = -1; // -1 so the 1st next() hits tryMoveToNextBatch().
   private float64Cells = new Float64Array();
   private varIntReader = protobuf.Reader.create(this.batchBytes);
-  private blobCells: Uint8Array[] = [];
+  private blobCells: Uint8Array<ArrayBuffer>[] = [];
   private stringCells: string[] = [];
 
   // These members instead are incremented as we read cells from next(). They
@@ -916,7 +939,7 @@ class RowIteratorImpl implements RowIteratorBase {
     this.numColumns = this.columnNames.length;
 
     this.batchIdx = nextBatchIdx;
-    const batch = assertExists(this.resultObj.batches[nextBatchIdx]);
+    const batch = ensureExists(this.resultObj.batches[nextBatchIdx]);
     this.batchBytes = batch.batchBytes;
     this.nextCellTypeOff = batch.cellTypesOff;
     this.cellTypesEnd = batch.cellTypesOff + batch.cellTypesLen;
@@ -1067,7 +1090,7 @@ class WaitableQueryResultImpl
   }
 
   // WritableQueryResult implementation.
-  appendResultBatch(resBytes: Uint8Array) {
+  appendResultBatch(resBytes: Uint8Array<ArrayBuffer>) {
     return this.impl.appendResultBatch(resBytes);
   }
 

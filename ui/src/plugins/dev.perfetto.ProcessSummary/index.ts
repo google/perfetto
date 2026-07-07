@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {getThreadOrProcUri} from '../../public/utils';
 import {
   LONG_NULL,
@@ -22,10 +22,8 @@ import {
   STR,
 } from '../../trace_processor/query_result';
 import ThreadPlugin from '../dev.perfetto.Thread';
-import {createPerfettoIndex} from '../../trace_processor/sql_utils';
-import {uuidv4Sql} from '../../base/uuid';
 import {
-  Config,
+  type Config,
   SLICE_TRACK_SUMMARY_KIND,
   GroupSummaryTrack,
 } from './group_summary_track';
@@ -41,25 +39,6 @@ export default class implements PerfettoPlugin {
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
-    // Makes the queries in `SliceTrackSummary` significantly faster when using
-    // scheduling data.
-    // TODO(lalitm): figure out a better way to do this without hardcoding this
-    // here.
-    await createPerfettoIndex({
-      engine: ctx.engine,
-      name: `__process_scheduling_${uuidv4Sql()}`,
-      on: `__intrinsic_sched_slice(utid)`,
-    });
-    // Makes the queries in `SliceTrackSummary` significantly faster when using
-    // slice data.
-    // TODO(lalitm): figure out a better way to do this without hardcoding this
-    // here.
-    await createPerfettoIndex({
-      engine: ctx.engine,
-      name: `__slice_track_summary_${uuidv4Sql()}`,
-      on: `__intrinsic_slice(track_id)`,
-    });
-
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_metadata;

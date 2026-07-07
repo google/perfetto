@@ -27,6 +27,7 @@ from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppUint32 as CppBool
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import SqlAccess
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
@@ -53,6 +54,9 @@ PROFILER_SMAPS_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('path', CppString()),
+        C('path_trimmed', CppString()),
+        C('aggregate_count', CppUint32()),
+        C('is_deleted', CppBool()),
         C(
             'size_kb',
             CppInt64(),
@@ -132,6 +136,10 @@ PROFILER_SMAPS_TABLE = Table(
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C('rss_kb', CppInt64()),
+        C('anonymous_kb', CppInt64()),
+        C('pss_dirty_kb', CppInt64()),
+        C('swap_pss_kb', CppInt64()),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -147,7 +155,14 @@ PROFILER_SMAPS_TABLE = Table(
                 '''Timestamp of the snapshot. Multiple rows will have the same
                 timestamp.''',
             'path':
-                '''The mmaped file, as per /proc/pid/smaps.''',
+                '''The name of the mapping, as per /proc/pid/smaps.''',
+            'path_trimmed':
+                '''Same as `path` but with any trailing " (deleted)" suffix
+                removed.''',
+            'aggregate_count':
+                '''''',
+            'is_deleted':
+                '''''',
             'size_kb':
                 '''Total size of the mapping.''',
             'private_dirty_kb':
@@ -175,7 +190,15 @@ PROFILER_SMAPS_TABLE = Table(
             'locked_kb':
                 '''''',
             'proportional_resident_kb':
-                ''''''
+                '''''',
+            'rss_kb':
+                '''''',
+            'anonymous_kb':
+                '''''',
+            'pss_dirty_kb':
+                '''''',
+            'swap_pss_kb':
+                '''''',
         }))
 
 PACKAGE_LIST_TABLE = Table(
@@ -569,6 +592,119 @@ PERF_SAMPLE_TABLE = Table(
                    sample in __intrinsic_perf_counter_set.'''
         }))
 
+HEAP_GRAPH_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphTable',
+    sql_name='__intrinsic_heap_graph',
+    wrapping_sql_view=WrappingSqlView('heap_graph'),
+    columns=[
+        C(
+            'ts',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'upid',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'dump_reason',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'heap_size',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='A list of heap graphs (heap dumps) captured during the trace.',
+        group='Callstack profilers',
+        columns={
+            'ts':
+                'Timestamp of the heap dump in nanoseconds.',
+            'upid':
+                'Unique ID of the process whose heap was dumped. Joinable with process.upid.',
+            'dump_reason':
+                'Reason why the heap graph was dumped (e.g. OOME, periodic, manual).',
+            'heap_size':
+                'Total bytes allocated in the heap as reported by the VM.',
+        }),
+)
+
+HEAP_GRAPH_THREAD_CALLSITE_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphThreadCallsiteTable',
+    sql_name='__intrinsic_heap_graph_thread_callsite',
+    wrapping_sql_view=WrappingSqlView('heap_graph_thread_callsite'),
+    columns=[
+        C(
+            'heap_graph_id',
+            CppTableId(HEAP_GRAPH_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'utid',
+            CppUint32(),
+        ),
+        C(
+            'callsite_id',
+            CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='Callstack profiles of threads at the time the heap graph was collected.',
+        group='Callstack profilers',
+        columns={
+            'heap_graph_id':
+                'The heap graph instance. Joinable with heap_graph.id.',
+            'utid':
+                'The thread ID. Joinable with thread.utid.',
+            'callsite_id':
+                '''The callsite of the leaf frame of the stacktrace.
+                              Joinable with stack_profile_callsite.id''',
+        }),
+)
+
+HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphJavaOomeDetailsTable',
+    sql_name='__intrinsic_heap_graph_java_oome_details',
+    wrapping_sql_view=WrappingSqlView('android_heap_graph_java_oome_details'),
+    columns=[
+        C(
+            'heap_graph_id',
+            CppTableId(HEAP_GRAPH_TABLE),
+        ),
+        C('allocation_size_bytes', CppInt64()),
+        C('total_bytes_free', CppInt64()),
+        C('free_bytes_until_oom', CppInt64()),
+        C('error_msg', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='Details of Java OutOfMemoryError exceptions that triggered heap dumps.',
+        group='Callstack profilers',
+        columns={
+            'heap_graph_id':
+                'The heap graph instance this OOM trigger details belongs to. Joinable with heap_graph.id.',
+            'allocation_size_bytes':
+                'Number of bytes that triggered the OOME.',
+            'total_bytes_free':
+                'Total free bytes in the Java heap at OOME time.',
+            'free_bytes_until_oom':
+                'Free bytes remaining until OOME.',
+            'error_msg':
+                'Error message associated with the OOME exception.',
+        }),
+)
+
 INSTRUMENTS_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='InstrumentsSampleTable',
@@ -678,6 +814,46 @@ SYMBOL_TABLE = Table(
                 ''''''
         }))
 
+HEAP_PROFILE_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapProfileTable',
+    sql_name='__intrinsic_heap_profile',
+    wrapping_sql_view=WrappingSqlView('heap_profile'),
+    columns=[
+        C('ts', CppInt64()),
+        C('ts_end', CppInt64()),
+        C('dur', CppInt64()),
+        C('upid', CppUint32()),
+        C('heap_name', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          A list of heap profiles (heapprofd dumps) captured during the trace.
+          Each row describes the profiling window a single dump represents for a
+          single heap (e.g. the native "libc.malloc" heap or an ART heap).
+        ''',
+        group='Callstack profilers',
+        columns={
+            'ts':
+                '''Timestamp of the start of the profiling window in
+                nanoseconds.''',
+            'ts_end':
+                '''Timestamp of the end of the profiling window (i.e. when the
+                dump was taken) in nanoseconds. This is the timestamp the
+                allocations are recorded at, so heap_profile_allocation joins
+                this table via (upid, heap_profile_allocation.ts = ts_end).''',
+            'dur':
+                '''Duration of the profiling window in nanoseconds
+                (ts_end - ts).''',
+            'upid':
+                '''Unique ID of the process whose heap was dumped. Joinable with
+                process.upid.''',
+            'heap_name':
+                '''Name of the heap this dump is for (e.g. "libc.malloc" for the
+                native heap), or NULL if the producer did not report one.''',
+        }),
+)
+
 HEAP_PROFILE_ALLOCATION_TABLE = Table(
     python_module=__file__,
     class_name='HeapProfileAllocationTable',
@@ -731,7 +907,9 @@ HEAP_PROFILE_ALLOCATION_TABLE = Table(
             'ts':
                 '''The timestamp the allocations happened at. heapprofd batches
                 allocations and frees, and all data from a dump will have the
-                same timestamp.''',
+                same timestamp. This is the end of the dump's profiling window,
+                so it is joinable with heap_profile via
+                (upid, ts = heap_profile.ts_end).''',
             'upid':
                 '''The unique PID of the allocating process.''',
             'callsite_id':
@@ -1279,6 +1457,7 @@ GpuRenderStageEvent packets.''',
 EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
     python_module=__file__,
     class_name='ExperimentalFlamegraphTable',
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name='experimental_flamegraph',
     columns=[
         C(
@@ -1401,10 +1580,14 @@ ALL_TABLES = [
     GPU_CONTEXT_TABLE,
     GPU_COUNTER_GROUP_TABLE,
     HEAP_GRAPH_CLASS_TABLE,
+    HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE,
     HEAP_GRAPH_OBJECT_DATA_TABLE,
     HEAP_GRAPH_PRIMITIVE_TABLE,
     HEAP_GRAPH_OBJECT_TABLE,
     HEAP_GRAPH_REFERENCE_TABLE,
+    HEAP_GRAPH_TABLE,
+    HEAP_GRAPH_THREAD_CALLSITE_TABLE,
+    HEAP_PROFILE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
     INSTRUMENTS_SAMPLE_TABLE,
     PACKAGE_LIST_TABLE,

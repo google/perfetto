@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Vector2D, Rect2D, Bounds2D, Transform2D} from './geom';
+import {Vector2D, Rect2D, type Bounds2D, Transform2D} from './geom';
 
 describe('Vector2D', () => {
   test('add', () => {

@@ -100,6 +100,40 @@ class BinaryProto:
 
 
 @dataclass
+class Zip:
+  """A zip archive trace assembled from the given members.
+
+  Keys are the paths of the members within the archive. Values define the
+  member contents:
+    - str: written verbatim (text members, e.g. JSON traces or systrace)
+    - bytes: written verbatim (binary members, e.g. gzip or nested archives)
+    - TextProto: serialized as a binary perfetto.protos.Trace
+    - Path/DataPath: the raw bytes of an external file
+  """
+  members: Dict[str, Union[str, bytes, 'TextProto', Path, DataPath]]
+
+
+@dataclass
+class Tar:
+  """A tar archive trace assembled from the given members.
+
+  Member semantics are identical to Zip.
+  """
+  members: Dict[str, Union[str, bytes, 'TextProto', Path, DataPath]]
+
+
+@dataclass
+class ExpectedError:
+  """Represents an expectation that loading the trace fails.
+
+  The test passes iff trace_processor exits with a non-zero exit code AND
+  its stderr contains the |contains| substring. Use this to test strict
+  parsing/import errors where the whole trace load is expected to fail.
+  """
+  contains: str
+
+
+@dataclass
 class SimpleperfProto:
   """Represents a simpleperf_proto binary file with inline generation."""
   records: List[str]  # List of textproto strings for Record messages
@@ -162,10 +196,10 @@ class DiffTestBlueprint:
   a DiffTestBlueprint.
   """
 
-  trace: Union[Path, DataPath, Json, Systrace, TextProto, RawText]
+  trace: Union[Path, DataPath, Json, Systrace, TextProto, RawText, Zip, Tar]
   query: Union[str, Path, DataPath, Metric, MetricV2SpecTextproto,
                StructuredQuery]
-  out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
+  out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto, ExpectedError]
   trace_modifier: Union[TraceInjector, None] = None
   register_files_dir: Optional[DataPath] = None
   # If set, this test will only be run if all of these module_dependencies are enabled.
@@ -190,6 +224,12 @@ class DiffTestBlueprint:
 
   def is_trace_simpleperf_proto(self):
     return isinstance(self.trace, SimpleperfProto)
+
+  def is_trace_zip(self):
+    return isinstance(self.trace, Zip)
+
+  def is_trace_tar(self):
+    return isinstance(self.trace, Tar)
 
   def is_query_file(self):
     return isinstance(self.query, Path)
@@ -217,6 +257,9 @@ class DiffTestBlueprint:
 
   def is_out_csv(self):
     return isinstance(self.out, Csv)
+
+  def is_out_expected_error(self):
+    return isinstance(self.out, ExpectedError)
 
 
 def removeprefix(s: str, prefix: str):

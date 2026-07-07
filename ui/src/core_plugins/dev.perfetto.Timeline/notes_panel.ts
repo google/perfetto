@@ -15,13 +15,13 @@
 import m from 'mithril';
 import {canvasClip} from '../../base/canvas_utils';
 import {currentTargetOffset} from '../../base/dom_utils';
-import {Size2D} from '../../base/geom';
+import type {Size2D} from '../../base/geom';
 import {assertUnreachable} from '../../base/assert';
 import {TimeScale} from '../../base/time_scale';
 import {randomColor} from '../../components/colorizer';
 import {raf} from '../../core/raf_scheduler';
-import {TraceImpl} from '../../core/trace_impl';
-import {Note, SpanNote} from '../../public/note';
+import type {TraceImpl} from '../../core/trace_impl';
+import type {Note, SpanNote} from '../../public/note';
 import {COLOR_BORDER, TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {TimelineToolbar} from './timeline_toolbar';

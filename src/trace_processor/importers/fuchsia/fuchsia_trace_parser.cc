@@ -492,7 +492,12 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          context_->flow_tracker->Begin(track_id, correlation_id);
+          auto opt_resolved =
+              GetGlobalFlowId(static_cast<uint32_t>(tinfo.pid), correlation_id,
+                              /* step_or_end = */ false);
+          if (opt_resolved) {
+            context_->flow_tracker->Begin(track_id, opt_resolved->global_id);
+          }
           break;
         }
         case kFlowStep: {
@@ -506,7 +511,12 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          context_->flow_tracker->Step(track_id, correlation_id);
+          auto opt_resolved =
+              GetGlobalFlowId(static_cast<uint32_t>(tinfo.pid), correlation_id,
+                              /* step_or_end = */ true);
+          if (opt_resolved) {
+            context_->flow_tracker->Step(track_id, opt_resolved->global_id);
+          }
           break;
         }
         case kFlowEnd: {
@@ -520,7 +530,17 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          context_->flow_tracker->End(track_id, correlation_id, true, true);
+          auto opt_resolved =
+              GetGlobalFlowId(static_cast<uint32_t>(tinfo.pid), correlation_id,
+                              /* step_or_end = */ true);
+          if (opt_resolved) {
+            context_->flow_tracker->End(track_id, opt_resolved->global_id,
+                                        /* bind_enclosing_slice = */ true,
+                                        /* close_flow = */ true);
+            fuchsia_active_flows_.Erase(opt_resolved->matched_scoped);
+            fuchsia_global_flows_.Erase(
+                opt_resolved->matched_scoped.correlation_id);
+          }
           break;
         }
       }
@@ -713,6 +733,7 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
 
           int32_t waking_weight = 0;
           std::optional<UniqueTid> waker_utid = std::nullopt;
+          std::optional<uint64_t> waker_tid = std::nullopt;
 
           for (const auto& arg : *maybe_args) {
             if (arg.name == weight_id_) {
@@ -730,15 +751,15 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
                     stats::fuchsia_invalid_event_arg_type);
                 return;
               }
-              uint64_t waker_tid = arg.value.Koid();
+              waker_tid = arg.value.Koid();
               waker_utid = context_->process_tracker->GetOrCreateThread(
-                  static_cast<uint32_t>(waker_tid));
+                  static_cast<uint32_t>(*waker_tid));
             }
           }
 
           const bool waking_is_idle = waking_weight == kIdleWeight;
           if (!waking_is_idle) {
-            Wake(&waking_thread, ts, cpu, waker_utid);
+            Wake(&waking_thread, ts, cpu, waker_utid, waker_tid);
           }
           break;
         }
@@ -848,7 +869,8 @@ void FuchsiaTraceParser::SwitchTo(Thread* thread,
 void FuchsiaTraceParser::Wake(Thread* thread,
                               int64_t ts,
                               uint32_t cpu,
-                              std::optional<UniqueTid> waker_utid) {
+                              std::optional<UniqueTid> waker_utid,
+                              std::optional<uint64_t> waker_tid) {
   TraceStorage* storage = context_->storage.get();
   ProcessTracker* procs = context_->process_tracker.get();
 
@@ -857,6 +879,22 @@ void FuchsiaTraceParser::Wake(Thread* thread,
 
   const auto duration = ts - thread->last_ts;
   thread->last_ts = ts;
+
+  // Capture waker_id before resetting last_state_row
+  std::optional<tables::ThreadStateTable::Id> waker_id = std::nullopt;
+  if (waker_tid.has_value()) {
+    auto waker_it = threads_.find(*waker_tid);
+    if (waker_it != threads_.end() &&
+        waker_it->second.last_state_row.has_value()) {
+      waker_id = waker_it->second.last_state_row
+                     ->ToRowReference(storage->mutable_thread_state_table())
+                     .id();
+    }
+  } else if (thread->last_state_row.has_value()) {
+    waker_id = thread->last_state_row
+                   ->ToRowReference(storage->mutable_thread_state_table())
+                   .id();
+  }
 
   // Close the state record if one is open for this thread.
   if (thread->last_state_row.has_value()) {
@@ -876,19 +914,7 @@ void FuchsiaTraceParser::Wake(Thread* thread,
 
   // Identify the waker for this thread's wakeup event. If Zircon doesn't
   // report a waker, we infer that the thread woke itself w/ timer/timeout/etc.
-  UniqueTid final_waker_utid = waker_utid.value_or(utid);
-  state_row.waker_utid = final_waker_utid;
-
-  // Find the waker's last state row in the thread state table to find the
-  // non-unique waker id.
-  const auto& table = storage->thread_state_table();
-  std::optional<tables::ThreadStateTable::Id> waker_id = std::nullopt;
-  for (auto it = table.IterateRows(); it; ++it) {
-    if (it.utid() == final_waker_utid) {
-      // We want the *last* one we see since we iterate from beginning to end
-      waker_id = it.id();
-    }
-  }
+  state_row.waker_utid = waker_utid.value_or(utid);
   state_row.waker_id = waker_id;
 
   auto state_row_number =
@@ -912,6 +938,54 @@ StringId FuchsiaTraceParser::IdForOutgoingThreadState(uint32_t state) {
     default:
       return kNullStringId;
   }
+}
+
+std::optional<FuchsiaTraceParser::ResolvedFlow>
+FuchsiaTraceParser::GetGlobalFlowId(uint32_t pid,
+                                    uint64_t correlation_id,
+                                    bool step_or_end) {
+  FuchsiaScopedFlowId scoped_id = {pid, correlation_id};
+
+  // First, check if there is an exact match for the process-scoped flow.
+  auto* it = fuchsia_active_flows_.Find(scoped_id);
+  if (it) {
+    return ResolvedFlow{*it, scoped_id};
+  }
+
+  // If this is a flow begin event, allocate a new globally unique flow ID.
+  if (!step_or_end) {
+    uint64_t global_id = fuchsia_global_flow_id_counter_++;
+    fuchsia_active_flows_.Insert(scoped_id, global_id);
+
+    auto* global_it = fuchsia_global_flows_.Find(correlation_id);
+    if (global_it) {
+      if (global_it->pid != pid) {
+        global_it->is_ambiguous = true;
+      }
+    } else {
+      fuchsia_global_flows_.Insert(correlation_id, GlobalFlowInfo{pid, false});
+    }
+    return ResolvedFlow{global_id, scoped_id};
+  }
+
+  // For step or end events, check if the correlation ID is registered under a
+  // different process PID, indicating a cross-process flow.
+  auto* global_it = fuchsia_global_flows_.Find(correlation_id);
+  if (global_it) {
+    if (global_it->is_ambiguous) {
+      // The correlation ID is defined in multiple processes, so we cannot
+      // disambiguate it for cross-process correlation.
+      return std::nullopt;
+    }
+    uint32_t owner_pid = global_it->pid;
+    FuchsiaScopedFlowId owner_scoped_id = {owner_pid, correlation_id};
+    auto* global_id_it = fuchsia_active_flows_.Find(owner_scoped_id);
+    if (global_id_it) {
+      return ResolvedFlow{*global_id_it, owner_scoped_id};
+    }
+  }
+
+  return std::nullopt;
 }
 
 }  // namespace perfetto::trace_processor

@@ -993,9 +993,9 @@ class TrackEvent(TestSuite):
         """,
         out=Csv("""
         "name","machine_id"
-        "thread_time",1
-        "thread_time",1
-        "thread_instruction_count",1
+        "thread_time",0
+        "thread_time",0
+        "thread_instruction_count",0
         """))
 
   def test_track_event_name_resolution(self):
@@ -1084,4 +1084,286 @@ class TrackEvent(TestSuite):
         out=Csv("""
         "name"
         "First Name"
+        """))
+
+  def test_track_descriptor_process_thread_sort_index(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 0
+            process_ordering: PROCESS_ORDERING_EXPLICIT
+            thread_ordering: THREAD_ORDERING_EXPLICIT
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 1
+            process {
+              pid: 100
+              process_name: "ProcessA"
+            }
+            sibling_order_rank: 5
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 2
+            thread {
+              pid: 100
+              tid: 101
+              thread_name: "ThreadA"
+            }
+            sibling_order_rank: 42
+          }
+        }
+        """),
+        query="""
+        SELECT pid, name, extract_arg(arg_set_id, 'process_sort_index_hint') AS sort_index FROM process WHERE pid = 100
+        UNION ALL
+        SELECT tid, name, extract_arg(arg_set_id, 'thread_sort_index_hint') AS sort_index FROM thread WHERE tid = 101;
+        """,
+        out=Csv("""
+        "pid","name","sort_index"
+        100,"ProcessA",5
+        101,"ThreadA",42
+        """))
+
+  def test_track_descriptor_process_thread_sort_index_default_ignored(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            process {
+              pid: 100
+              process_name: "ProcessA"
+            }
+            sibling_order_rank: 5
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 2
+            thread {
+              pid: 100
+              tid: 101
+              thread_name: "ThreadA"
+            }
+            sibling_order_rank: 42
+          }
+        }
+        """),
+        query="""
+        SELECT pid, name, extract_arg(arg_set_id, 'process_sort_index_hint') AS sort_index FROM process WHERE pid = 100
+        UNION ALL
+        SELECT tid, name, extract_arg(arg_set_id, 'thread_sort_index_hint') AS sort_index FROM thread WHERE tid = 101;
+        """,
+        out=Csv("""
+        "pid","name","sort_index"
+        100,"ProcessA","[NULL]"
+        101,"ThreadA","[NULL]"
+        """))
+
+  def test_track_event_simple_state(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            name: "MyStateTrack"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 10
+            type: 5
+            categories: "state_cat"
+            name: "state_active"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            track_uuid: 10
+            type: 5
+            categories: "state_cat"
+            name: "state_idle"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000
+          track_event {
+            track_uuid: 10
+            type: 5
+          }
+        }
+        """),
+        query="""
+        SELECT state.id, ts, dur, category, value, track.name AS track_name
+        FROM state
+        JOIN track ON track.id = state.track_id
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "id","ts","dur","category","value","track_name"
+        0,1000,2000,"state_cat","state_active","MyStateTrack"
+        1,3000,1000,"state_cat","state_idle","MyStateTrack"
+        """))
+
+  def test_state_track_legacy_fallback_error(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 0
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 0
+            type: 5
+            legacy_event {
+              pid_override: 10
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT name, value FROM stats WHERE name = 'track_event_parser_errors';
+        """,
+        out=Csv("""
+        "name","value"
+        "track_event_parser_errors",1
+        """))
+
+  def test_track_event_state_state(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_state.textproto'),
+        query="""
+        SELECT
+          state_track.name AS state_name,
+          process.name AS process,
+          thread.name AS thread,
+          thread_process.name AS thread_process,
+          state.ts,
+          state.value
+        FROM state
+        LEFT JOIN state_track ON state.track_id = state_track.id
+        LEFT JOIN process_state_track ON state.track_id = process_state_track.id
+        LEFT JOIN process ON process_state_track.upid = process.upid
+        LEFT JOIN thread_state_track ON state.track_id = thread_state_track.id
+        LEFT JOIN thread ON thread_state_track.utid = thread.utid
+        LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+        ORDER BY ts ASC;
+        """,
+        out=Csv("""
+        "state_name","process","thread","thread_process","ts","value"
+        "ProcState","Browser","[NULL]","[NULL]",1000,"Foreground"
+        "ThreadState","[NULL]","t1","Browser",2000,"Running"
+        "GlobalState","[NULL]","[NULL]","[NULL]",3000,"Active"
+        """))
+
+  def test_track_event_state_on_non_state_track(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 101
+            name: "Regular Track"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 101
+            type: 5
+            categories: "cat"
+            name: "High"
+          }
+        }
+        """),
+        query="""
+        SELECT name, value FROM stats WHERE name = 'track_event_parser_errors';
+        """,
+        out=Csv("""
+        "name","value"
+        "track_event_parser_errors",1
+        """))
+
+  def test_track_event_out_of_order_state_descriptors(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 101
+            parent_uuid: 100
+            name: "Priority"
+            state {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 100
+            name: "Process track"
+            process {
+              pid: 10
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 101
+            type: 5
+            categories: "cat"
+            name: "High"
+          }
+        }
+        """),
+        query="""
+        SELECT state.id, ts, value, track.name AS track_name
+        FROM state
+        JOIN track ON track.id = state.track_id
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "id","ts","value","track_name"
+        0,1000,"High","Priority"
         """))

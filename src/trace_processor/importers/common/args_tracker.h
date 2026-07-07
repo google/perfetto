@@ -19,10 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <tuple>
 
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
@@ -30,10 +27,12 @@
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/log_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/state_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -42,75 +41,109 @@
 
 namespace perfetto::trace_processor {
 
-// Tracks and stores args for rows until the end of the packet. This allows
-// allows args to pushed as a group into storage.
-class ArgsTracker {
+class ArgsTranslationTable;
+
+// Accumulates the args for a single target cell (the dataframe column+row that
+// holds an arg_set_id) and commits them as one arg set when it goes out of
+// scope. Obtain one from ArgsTracker::AddArgsTo*; callers needing several cells
+// acquire one inserter per cell. Same-key duplicates are collapsed in place
+// (kSkipIfExists keeps the first value, kAddOrUpdate the last).
+//
+// Move-only; a moved-from inserter owns nothing and commits nothing. Its buffer
+// is borrowed from a pool in GlobalArgsTracker to avoid per-inserter
+// allocation.
+class ArgsInserter {
  public:
   using UpdatePolicy = GlobalArgsTracker::UpdatePolicy;
   using CompactArg = GlobalArgsTracker::CompactArg;
   using CompactArgSet = base::SmallVector<CompactArg, 16>;
 
-  // Stores the table and row at creation time which args are associated with.
-  // This allows callers to directly add args without repeating the row the
-  // args should be associated with.
-  class BoundInserter {
-   public:
-    virtual ~BoundInserter();
+  // Constructs an empty inserter that owns no buffer and commits nothing. Used
+  // for the moved-from state and for default-constructed (empty) map entries.
+  ArgsInserter() = default;
 
-    BoundInserter(BoundInserter&&) noexcept = default;
-    BoundInserter& operator=(BoundInserter&&) noexcept = default;
+  ~ArgsInserter();
 
-    BoundInserter(const BoundInserter&) = delete;
-    BoundInserter& operator=(const BoundInserter&) = delete;
+  ArgsInserter(ArgsInserter&&) noexcept;
+  ArgsInserter& operator=(ArgsInserter&&) noexcept;
 
-    // Adds an arg with the same key and flat_key.
-    BoundInserter& AddArg(
-        StringId key,
-        Variadic v,
-        UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate) {
-      return AddArg(key, key, v, update_policy);
-    }
+  ArgsInserter(const ArgsInserter&) = delete;
+  ArgsInserter& operator=(const ArgsInserter&) = delete;
 
-    virtual BoundInserter& AddArg(
-        StringId flat_key,
-        StringId key,
-        Variadic v,
-        UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate) {
-      args_tracker_->AddArg(ptr_, col_, row_, flat_key, key, v, update_policy);
-      return *this;
-    }
+  // Adds an arg with the same key and flat_key.
+  ArgsInserter& AddArg(
+      StringId key,
+      Variadic v,
+      UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate) {
+    return AddArg(key, key, v, update_policy);
+  }
 
-    // IncrementArrayEntryIndex() and GetNextArrayEntryIndex() provide a way to
-    // track the next array index for an array under a specific key.
-    size_t GetNextArrayEntryIndex(StringId key) {
-      // Zero-initializes |key| in the map if it doesn't exist yet.
-      return args_tracker_->array_indexes_[std::make_tuple(
-          reinterpret_cast<uintptr_t>(ptr_), col_, row_, key)];
-    }
+  ArgsInserter& AddArg(StringId flat_key,
+                       StringId key,
+                       Variadic v,
+                       UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate);
 
-    // Returns the next available array index after increment.
-    size_t IncrementArrayEntryIndex(StringId key) {
-      // Zero-initializes |key| in the map if it doesn't exist yet.
-      return ++args_tracker_->array_indexes_[std::make_tuple(
-          reinterpret_cast<uintptr_t>(ptr_), col_, row_, key)];
-    }
+  // IncrementArrayEntryIndex() and GetNextArrayEntryIndex() provide a way to
+  // track the next array index for an array under a specific key.
+  size_t GetNextArrayEntryIndex(StringId key) {
+    // Zero-initializes |key| in the map if it doesn't exist yet.
+    return buffer_->array_indexes[key];
+  }
 
-   protected:
-    BoundInserter(ArgsTracker* args_tracker,
-                  dataframe::Dataframe* dataframe,
-                  uint32_t col,
-                  uint32_t row);
+  // Returns the next available array index after increment.
+  size_t IncrementArrayEntryIndex(StringId key) {
+    // Zero-initializes |key| in the map if it doesn't exist yet.
+    return ++buffer_->array_indexes[key];
+  }
 
-   private:
-    friend class ArgsTracker;
+  // The id of the row these args are being added to (the value of the typed
+  // Id passed to ArgsTracker::AddArgsTo).
+  uint32_t id() const { return id_; }
 
-    ArgsTracker* args_tracker_ = nullptr;
-    void* ptr_ = nullptr;
-    uint32_t col_ = 0;
-    uint32_t row_ = 0;
-  };
+  // Returns whether this inserter holds any arg which requires translation
+  // according to the provided |table|.
+  bool NeedsTranslation(const ArgsTranslationTable& table) const;
 
-  explicit ArgsTracker(TraceProcessorContext*);
+  // Moves the accumulated args out into a CompactArgSet, leaving this inserter
+  // empty so it commits nothing when destroyed. Used by callers that must
+  // post-process the args (e.g. translation) before they reach storage.
+  CompactArgSet ToCompactArgSet() &&;
+
+ private:
+  friend class ArgsTracker;
+
+  ArgsInserter(GlobalArgsTracker* global,
+               dataframe::Dataframe* dataframe,
+               uint32_t col,
+               uint32_t row,
+               uint32_t id);
+
+  // Commits the accumulated args (if any) as a single arg set and writes the
+  // resulting arg_set_id into the target cell.
+  void Commit();
+
+  // Non-null iff this inserter owns a pooled buffer; both are nulled on move.
+  GlobalArgsTracker* global_ = nullptr;
+  GlobalArgsTracker::ArgsBuffer* buffer_ = nullptr;
+  dataframe::Dataframe* df_ = nullptr;
+  uint32_t col_ = 0;
+  uint32_t row_ = 0;
+  uint32_t id_ = 0;
+};
+
+// Factory that resolves a table row id to the dataframe cell holding its
+// arg_set_id and hands back an ArgsInserter bound to that cell. Stateless
+// beyond the context pointer, so constructing one is free.
+class ArgsTracker {
+ public:
+  using UpdatePolicy = GlobalArgsTracker::UpdatePolicy;
+  using CompactArg = GlobalArgsTracker::CompactArg;
+  using CompactArgSet = ArgsInserter::CompactArgSet;
+  // The bound inserter is now a standalone ArgsInserter; this alias keeps
+  // existing references compiling.
+  using BoundInserter = ArgsInserter;
+
+  explicit ArgsTracker(TraceProcessorContext* context) : context_(context) {}
 
   ArgsTracker(const ArgsTracker&) = delete;
   ArgsTracker& operator=(const ArgsTracker&) = delete;
@@ -118,7 +151,7 @@ class ArgsTracker {
   ArgsTracker(ArgsTracker&&) = default;
   ArgsTracker& operator=(ArgsTracker&&) = default;
 
-  virtual ~ArgsTracker();
+  ~ArgsTracker() = default;
 
   BoundInserter AddArgsTo(tables::ChromeRawTable::Id id) {
     return AddArgsTo(context_->storage->mutable_chrome_raw_table(), id);
@@ -134,6 +167,10 @@ class ArgsTracker {
 
   BoundInserter AddArgsTo(SliceId id) {
     return AddArgsTo(context_->storage->mutable_slice_table(), id);
+  }
+
+  BoundInserter AddArgsTo(tables::StateTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_state_table(), id);
   }
 
   BoundInserter AddArgsTo(tables::FlowTable::Id id) {
@@ -219,17 +256,17 @@ class ArgsTracker {
 
   BoundInserter AddArgsTo(MetadataId id) {
     auto* table = context_->storage->mutable_metadata_table();
-    uint32_t row = table->FindById(id)->ToRowNumber().row_number();
-    return BoundInserter(this, &table->dataframe(),
-                         tables::MetadataTable::ColumnIndex::int_value, row);
+    uint32_t row = (*table)[id].ToRowNumber().row_number();
+    return Bind(&table->dataframe(),
+                tables::MetadataTable::ColumnIndex::int_value, row, id.value);
   }
 
   BoundInserter AddArgsTo(TrackId id) {
     auto* table = context_->storage->mutable_track_table();
-    uint32_t row = table->FindById(id)->ToRowNumber().row_number();
-    return BoundInserter(this, &table->dataframe(),
-                         tables::TrackTable::ColumnIndex::source_arg_set_id,
-                         row);
+    uint32_t row = (*table)[id].ToRowNumber().row_number();
+    return Bind(&table->dataframe(),
+                tables::TrackTable::ColumnIndex::source_arg_set_id, row,
+                id.value);
   }
 
   BoundInserter AddArgsTo(VulkanAllocId id) {
@@ -239,14 +276,14 @@ class ArgsTracker {
 
   BoundInserter AddArgsToProcess(UniquePid id) {
     auto* table = context_->storage->mutable_process_table();
-    return BoundInserter(this, &table->dataframe(),
-                         tables::ProcessTable::ColumnIndex::arg_set_id, id);
+    return Bind(&table->dataframe(),
+                tables::ProcessTable::ColumnIndex::arg_set_id, id, id);
   }
 
   BoundInserter AddArgsToThread(UniqueTid id) {
     auto* table = context_->storage->mutable_thread_table();
-    return BoundInserter(this, &table->dataframe(),
-                         tables::ThreadTable::ColumnIndex::arg_set_id, id);
+    return Bind(&table->dataframe(),
+                tables::ThreadTable::ColumnIndex::arg_set_id, id, id);
   }
 
   BoundInserter AddArgsTo(tables::ExperimentalProtoPathTable::Id id) {
@@ -266,52 +303,25 @@ class ArgsTracker {
     return AddArgsTo(context_->storage->mutable_trace_import_logs_table(), id);
   }
 
-  // Returns a CompactArgSet which contains the args inserted into this
-  // ArgsTracker. Requires that every arg in this tracker was inserted for the
-  // "arg_set_id" column given by |column| at the given |row_number|.
-  //
-  // Note that this means the args stored in this tracker will *not* be flushed
-  // into the tables: it is the callers responsibility to ensure this happens if
-  // necessary.
-  CompactArgSet ToCompactArgSet(const dataframe::Dataframe&,
-                                uint32_t column,
-                                uint32_t row_number) &&;
-
-  // Returns whether this ArgsTracker contains any arg which require translation
-  // according to the provided |table|.
-  bool NeedsTranslation(const ArgsTranslationTable& table) const;
-
-  // Commits the added args to storage.
-  // Virtual for testing.
-  virtual void Flush();
+  BoundInserter AddArgsTo(tables::LogTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_log_table(), id);
+  }
 
  private:
   template <typename T>
   BoundInserter AddArgsTo(T* table, typename T::Id id) {
-    uint32_t row = table->FindById(id)->ToRowNumber().row_number();
-    return BoundInserter(this, &table->dataframe(), T::ColumnIndex::arg_set_id,
-                         row);
+    uint32_t row = (*table)[id].ToRowNumber().row_number();
+    return Bind(&table->dataframe(), T::ColumnIndex::arg_set_id, row, id.value);
   }
 
-  void AddArg(void* ptr,
-              uint32_t col,
-              uint32_t row,
-              StringId flat_key,
-              StringId key,
-              Variadic,
-              UpdatePolicy);
+  ArgsInserter Bind(dataframe::Dataframe* df,
+                    uint32_t col,
+                    uint32_t row,
+                    uint32_t id) {
+    return ArgsInserter(context_->global_args_tracker.get(), df, col, row, id);
+  }
 
-  base::SmallVector<GlobalArgsTracker::Arg, 16> args_;
   TraceProcessorContext* context_ = nullptr;
-
-  using ArrayKeyTuple = std::tuple<uintptr_t /*ptr*/,
-                                   uint32_t /*col*/,
-                                   uint32_t /*row*/,
-                                   StringId /*key*/>;
-  base::FlatHashMap<ArrayKeyTuple,
-                    size_t /*next_index*/,
-                    base::MurmurHash<ArrayKeyTuple>>
-      array_indexes_;
 };
 
 }  // namespace perfetto::trace_processor

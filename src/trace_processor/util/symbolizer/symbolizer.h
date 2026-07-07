@@ -67,6 +67,14 @@ struct SymbolizeResult {
   bool ok() const { return !frames.empty(); }
 };
 
+struct UnsymbolizedMapping {
+  std::string build_id;
+  std::string name;
+  uint64_t exact_offset;
+  uint64_t start_offset;
+  uint64_t load_bias;
+};
+
 class Symbolizer {
  public:
   struct Environment {
@@ -81,9 +89,7 @@ class Symbolizer {
   //
   // On failure, returns empty frames with an error code.
   virtual SymbolizeResult Symbolize(const Environment& env,
-                                    const std::string& mapping_name,
-                                    const std::string& build_id,
-                                    uint64_t load_bias,
+                                    const UnsymbolizedMapping& mapping,
                                     const std::vector<uint64_t>& address) = 0;
   virtual ~Symbolizer();
 };

@@ -14,9 +14,9 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {Button} from '../../widgets/button';
 
 export default class implements PerfettoPlugin {
@@ -90,6 +90,21 @@ export default class implements PerfettoPlugin {
         );
       },
     });
+
+    // Set the headless flag to true to register a setting that does not appear
+    // on the settings page. This is useful for persisting internal state that
+    // the user shouldn't configure directly (e.g. remembering the last used
+    // value of some control), while still benefiting from the settings
+    // persistence machinery.
+    const headlessSetting = app.settings.register({
+      id: 'com.example.Settings#headlessSetting',
+      name: 'Headless Setting',
+      description: 'A setting that is not shown on the settings page.',
+      schema: z.boolean(),
+      defaultValue: false,
+      headless: true,
+    });
+    console.log(`Headless setting value: ${headlessSetting.get()}`);
 
     // Set the requiresReload flag to true to indicate that the user should be
     // prompted to reload the app after changing this setting.

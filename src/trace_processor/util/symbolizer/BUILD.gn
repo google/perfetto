@@ -99,7 +99,6 @@ if (enable_perfetto_llvm_symbolizer) {
     visibility = [
       "../../../../buildtools/*",
       "../../../trace_processor/*",
-      "../../perfetto_sql/intrinsics/functions",
       "./*",
     ]
   }

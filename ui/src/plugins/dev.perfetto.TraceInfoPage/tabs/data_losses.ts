@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Engine} from '../../../trace_processor/engine';
+import type {Engine} from '../../../trace_processor/engine';
 import {Section} from '../../../widgets/section';
 import {GridLayout} from '../../../widgets/grid_layout';
 import {
-  StatsSectionRow,
+  type StatsSectionRow,
   loadStatsWithFilter,
   groupByCategory,
   renderErrorCategoryCard,

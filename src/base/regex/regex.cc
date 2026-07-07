@@ -26,6 +26,11 @@
 #include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/status_macros.h"
 
+// Unconditional: each header self-guards, so the amalgamator can see through.
+#include "src/base/regex/regex_pcre2.h"
+#include "src/base/regex/regex_re2.h"
+#include "src/base/regex/regex_std.h"
+
 // Picks the regex backend and exposes it as PERFETTO_REGEX_BACKEND.
 // Preference order:
 //   1. PERFETTO_REGEX_FORCE_STD -> std::regex
@@ -33,16 +38,12 @@
 //   3. RE2   (when enabled)
 //   4. std::regex (fallback)
 #if defined(PERFETTO_REGEX_FORCE_STD)
-#include "src/base/regex/regex_std.h"
 #define PERFETTO_REGEX_BACKEND ::perfetto::base::RegexStd
 #elif PERFETTO_BUILDFLAG(PERFETTO_PCRE2) && PERFETTO_FLAGS_USE_PCRE2
-#include "src/base/regex/regex_pcre2.h"
 #define PERFETTO_REGEX_BACKEND ::perfetto::base::RegexPcre2
 #elif PERFETTO_BUILDFLAG(PERFETTO_RE2)
-#include "src/base/regex/regex_re2.h"
 #define PERFETTO_REGEX_BACKEND ::perfetto::base::RegexRe2
 #else
-#include "src/base/regex/regex_std.h"
 #define PERFETTO_REGEX_BACKEND ::perfetto::base::RegexStd
 #endif
 

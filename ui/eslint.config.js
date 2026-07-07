@@ -116,6 +116,12 @@ module.exports = [
       'jsdoc/require-returns': 'off',
       'jsdoc/require-returns-type': 'off',
       'jsdoc/tag-lines': 'off',
+      'jsdoc/check-tag-names': [
+        'error',
+        {
+          definedTags: ['experimental'],
+        },
+      ],
 
       '@typescript-eslint/no-explicit-any': 'error',
 
@@ -127,6 +133,13 @@ module.exports = [
           allowNullableString: true,
         },
       ],
+
+      '@typescript-eslint/consistent-type-imports': ['error', {
+        prefer: 'type-imports',
+        fixStyle: 'inline-type-imports',
+        disallowTypeAnnotations: true,
+      }],
+      '@typescript-eslint/no-import-type-side-effects': 'error',
     },
   },
 ];

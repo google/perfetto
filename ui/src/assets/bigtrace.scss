@@ -14,27 +14,12 @@
 
 @import "typefaces";
 @import "common";
-@import "home_page";
-@import "sidebar";
-@import "topbar";
-@import "help_modal";
-@import "theme_provider";
 
-// Components - keep these sorted alphabetically
-@import "components/datagrid";
-@import "components/query_history";
+// Plugin styles are imported by each plugin's index.ts via Vite's CSS pipeline.
 
-// Widgets
-@import "widgets.scss";
+// BigTrace-specific styles; `.pf-bt-` prefix avoids collisions.
 
-// Auto generated imports
-@import "../gen/all_plugins";
-@import "../gen/all_core_plugins";
-
-// BigTrace-specific styles. Classes use the .pf-bt- prefix to avoid
-// collisions with existing Perfetto UI classes.
-
-// ---------- Settings page ----------
+// ---------- Settings & endpoint ----------
 
 .pf-bt-settings-card-wrapper--disabled {
   opacity: 0.6;
@@ -42,6 +27,17 @@
 
 .pf-bt-settings-controls--disabled {
   pointer-events: none;
+}
+
+// Settings-card title row (bigtrace): Switch + title left, optional per-setting
+// reset pushed right. pf-bt classes — not the shared pf-settings-card BEM.
+.pf-bt-settings-card-title {
+  display: flex;
+  align-items: center;
+}
+
+.pf-bt-settings-card-reset {
+  margin-left: auto;
 }
 
 .pf-bt-settings-category-header {
@@ -70,5 +66,1008 @@
   &:focus {
     outline: none;
     border-color: var(--pf-color-primary);
+  }
+}
+
+.pf-bt-settings-toggle {
+  margin-right: 8px;
+}
+
+.pf-bt-settings-warning {
+  color: var(--pf-color-danger);
+  margin-top: 4px;
+}
+
+.pf-bt-settings-warning-icon {
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.pf-bt-settings-hint {
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.pf-bt-endpoint-row {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pf-bt-endpoint-input {
+  width: min(300px, 30vw);
+}
+
+// ---------- Layout ----------
+
+// Bounds the page + SplitPanel/Tabs chain so DataGrid fillHeight scrolls.
+.pf-bt-query-page {
+  height: 100%;
+  min-height: 0;
+
+  > .pf-split-panel {
+    height: 100%;
+  }
+}
+
+.pf-bt-query-page__editor-tabs {
+  height: 100%;
+
+  // Tab strip is 32px; give the content (the editor/results split) the rest.
+  .pf-tabs__content {
+    height: calc(100% - 32px);
+  }
+
+  .pf-split-panel {
+    height: 100%;
+  }
+}
+
+.pf-bt-query-page__sidebar,
+.pf-bt-query-page__results {
+  height: 100%;
+}
+
+// Bound the nested Tabs too, else the whole history scrolls and the tab strip isn't sticky.
+.pf-bt-query-page__history,
+.pf-bt-query-page__history > .pf-tabs {
+  height: 100%;
+  min-height: 0;
+}
+
+.pf-bt-sidebar-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pf-bt-sidebar-logo {
+  height: 1em;
+}
+
+// Outrank the shared `.pf-home-page__center` centering so the column sits at
+// the top and stretches full-width — justify-self: stretch beats the grid's
+// justify-items: center, which would otherwise shrink it to content width.
+.pf-home-page .pf-home-page__center.pf-bt-home-center {
+  justify-self: stretch;
+  justify-content: flex-start;
+  padding-top: 48px;
+  gap: 20px;
+}
+
+// One block holding the intro, presets, and link. It shrinks to its widest
+// row (the grid) and the parent centers it, so a full 3-up grid reads as a
+// left-aligned column while a 1–2 card grid centers as a tight cluster.
+.pf-bt-home-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: fit-content;
+  max-width: min(960px, 92%);
+}
+
+.pf-bt-home-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+
+  &__title {
+    font-size: 36px;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    color: var(--pf-color-text);
+  }
+
+  &__subtitle {
+    font-size: 16px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-bt-home-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// Flat segmented control selecting the active CUJ. Deliberately not the
+// document-tab widget (no panel chrome) — mirrors the record page's flat look.
+.pf-bt-cuj-selector {
+  display: flex;
+  gap: 4px;
+
+  &__item {
+    font: inherit;
+    padding: 4px 12px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    color: var(--pf-color-text-muted);
+    cursor: pointer;
+
+    &:hover {
+      background: color_hover(transparent);
+      color: var(--pf-color-text);
+    }
+
+    &--active {
+      background: var(--pf-color-background-secondary);
+      border-color: var(--pf-color-border);
+      color: var(--pf-color-text);
+      font-weight: 600;
+    }
+  }
+}
+
+// ---------- Analysis preset cards (home page) ----------
+
+// One column per card (capped at 3) via the --cols-N modifier, so a sparse
+// category leaves no empty tracks and the content block can center it.
+.pf-bt-preset-list {
+  display: grid;
+  gap: 16px;
+
+  &--cols-1 {
+    grid-template-columns: minmax(240px, 309px);
+  }
+  &--cols-2 {
+    grid-template-columns: repeat(2, minmax(240px, 309px));
+  }
+  &--cols-3 {
+    grid-template-columns: repeat(3, minmax(240px, 309px));
+  }
+}
+
+// Intentionally richer than the minimal house style — this is the landing
+// surface, so the cards carry color (icon tint) and hover depth.
+.pf-bt-preset-card {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    border-color: var(--pf-color-primary);
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 4px;
+    background: rgba(var(--pf-color-primary-rgb), 0.12);
+    color: var(--pf-color-primary);
+
+    .pf-icon {
+      font-size: 24px;
+    }
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  &__desc {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
+  }
+}
+
+.pf-bt-home-empty__detail {
+  color: var(--pf-color-text-muted);
+  margin-bottom: 12px;
+}
+
+// ---------- Analysis preset chips (settings page / modal) ----------
+// Apply-only tags: clicking applies the preset's trace-selection + option
+// settings (no SQL). `--active` marks the last-applied chip.
+
+.pf-bt-preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+// In the settings picker the selector follows the description; give it room.
+.pf-bt-preset-picker .pf-bt-cuj-selector {
+  margin-top: 8px;
+}
+
+.pf-bt-preset-chip {
+  font: inherit;
+  padding: 3px 10px;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  background: none;
+  color: var(--pf-color-text);
+  cursor: pointer;
+
+  &:hover {
+    background: color_hover(transparent);
+  }
+
+  &:active {
+    background: color_active(transparent);
+  }
+
+  // The preset last applied on the settings surface.
+  &--active {
+    border-color: var(--pf-color-primary);
+    background: rgba(var(--pf-color-primary-rgb), 0.1);
+    color: var(--pf-color-primary);
+
+    &:hover {
+      background: rgba(var(--pf-color-primary-rgb), 0.16);
+    }
+  }
+}
+
+// ---------- Editor tabs & toolbar ----------
+
+// Must fill the SplitPanel pane or .cm-editor (height:100%) collapses to one line.
+.pf-bt-query-page__editor-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  .pf-editor {
+    flex: 1;
+    min-height: 3rem;
+  }
+}
+
+.pf-bt-query-page__editor-tabs > .pf-tabs__tabs {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--pf-color-border-secondary) transparent;
+
+  > .pf-tabs__tab {
+    max-width: 220px;
+  }
+}
+
+.pf-bt-tab-spacer {
+  flex: 1;
+}
+
+.pf-bt-query-page__toolbar {
+  container-type: inline-size;
+
+  // Without nowrap, "Persistent" wraps under its toggle when squeezed.
+  .pf-checkbox {
+    white-space: nowrap;
+  }
+}
+
+@container (max-width: 520px) {
+  .pf-bt-query-page__hotkeys {
+    display: none;
+  }
+}
+
+.pf-bt-toolbar-divider {
+  display: inline-block;
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 4px;
+  background-color: var(--pf-color-border-secondary);
+}
+
+// ---------- Async status bar ----------
+
+.pf-bt-status-bar {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.pf-bt-status-bar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pf-bt-status-bar-stat--rows {
+  margin-right: 16px;
+}
+
+.pf-bt-status-bar--running {
+  .pf-bt-status-bar-stat--traces,
+  .pf-bt-status-bar-stat-label,
+  .pf-bt-status-bar-stat-value {
+    display: none;
+  }
+}
+
+.pf-bt-status-bar-refresh {
+  position: relative;
+  display: inline-block;
+}
+
+.pf-bt-status-bar-notif {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--pf-color-success);
+  z-index: 10;
+}
+
+.pf-bt-status-bar-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-bt-status-bar-stat--empty {
+  opacity: 0.55;
+}
+
+.pf-bt-status-bar-duration {
+  display: inline-flex;
+  // Baseline aligns with the SUCCESS pill; center would sit ~2px high.
+  align-items: baseline;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+// Wide: during a run it's the only progress signal (numbers are hover-only).
+.pf-bt-inline-progress {
+  display: inline-block;
+  width: 140px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 2px;
+  border: 1px solid var(--pf-color-border);
+  // Theme-aware track; hardcoded white rgba vanished on the light theme.
+  background-color: var(--pf-color-background-secondary);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.pf-bt-inline-progress-fill {
+  display: block;
+  height: 100%;
+  background-color: var(--pf-color-accent);
+  transition: width 0.3s ease-out;
+  will-change: width;
+}
+
+// ---------- Query history ----------
+
+// Anchors the abs-positioned buttons; the shared float made a BFC that
+// squeezed the meta card.
+.pf-query-history__item {
+  // Real gap between entries so each reads as a distinct unit. Safe to set now
+  // that the buttons are position:absolute / float:none — the old float BFC
+  // that squeezed the meta card (and forced this margin off) is gone.
+  margin-bottom: 12px;
+  max-height: none;
+  overflow-y: visible;
+  position: relative;
+}
+
+// Whole-entry hover highlight. The shared widgets/query_history.scss provides
+// this via color_hover(), but the bigtrace bundle re-implements the history
+// styles and dropped it — restate it here. The entry's surfaces (meta /
+// details / pre) are opaque and layered, so overlay the translucent tint via
+// background-image (which paints over each surface's background-color) instead
+// of replacing the background.
+.pf-query-history__item:hover {
+  .pf-bt-history-item-meta,
+  .pf-bt-history-item-details,
+  pre {
+    background-image: linear-gradient(
+      color_hover(transparent),
+      color_hover(transparent)
+    );
+  }
+}
+
+.pf-query-history__item-buttons {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  float: none;
+  z-index: 1;
+}
+
+// Status-colored left bar, meta card only (clashes with the pre's border).
+.pf-bt-history-item-meta {
+  border-left: 3px solid transparent;
+  // The band opens the query on click (same as the Open button).
+  cursor: pointer;
+}
+
+.pf-query-history__item:has(.pf-bt-status-success) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-success);
+}
+
+.pf-query-history__item:has(.pf-bt-status-failed) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-danger);
+}
+
+.pf-query-history__item:has(.pf-bt-status-cancelled) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-warning);
+}
+
+.pf-query-history__item:has(.pf-bt-status-in-progress)
+  .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-primary);
+}
+
+.pf-query-history__item:has(.pf-bt-status-queued) .pf-bt-history-item-meta,
+.pf-query-history__item:has(.pf-bt-status-unknown) .pf-bt-history-item-meta {
+  border-left-color: var(--pf-color-text-muted);
+}
+
+// padding-right reserves space for the abs-positioned Open/Delete buttons.
+.pf-bt-history-item-meta {
+  position: relative;
+  background: var(--pf-color-background-tertiary);
+  padding: 6px 8px;
+  padding-right: 56px;
+  // Top + right only; the border-left status rule owns the left edge
+  // (shorthand would shrink it to 1px).
+  border-top: 1px solid var(--pf-color-border-secondary);
+  border-right: 1px solid var(--pf-color-border-secondary);
+  border-radius: 4px 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--pf-color-text);
+}
+
+.pf-bt-status-success {
+  color: var(--pf-color-success);
+}
+
+.pf-bt-status-failed {
+  color: var(--pf-color-danger);
+}
+
+.pf-bt-status-cancelled {
+  color: var(--pf-color-warning);
+}
+
+.pf-bt-status-in-progress {
+  color: var(--pf-color-primary);
+}
+
+.pf-bt-status-queued,
+.pf-bt-status-unknown {
+  color: var(--pf-color-text-muted);
+  font-style: italic;
+}
+
+.pf-bt-history-item-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+
+  > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+}
+
+.pf-bt-history-item-status {
+  flex-shrink: 0;
+}
+
+.pf-bt-history-item-date {
+  text-align: right;
+}
+
+// Materialized-only band between the meta header and the SQL pre.
+.pf-bt-history-item-details {
+  background: var(--pf-color-background-secondary);
+  padding: 4px 8px;
+  border-left: 1px solid var(--pf-color-border-secondary);
+  border-right: 1px solid var(--pf-color-border-secondary);
+  border-top: 1px solid var(--pf-color-border-secondary);
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--pf-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-bt-history-item-details--empty {
+  opacity: 0.55;
+}
+
+.pf-bt-history-item-rows-value {
+  flex-shrink: 0;
+}
+
+.pf-bt-history-item-table-link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.pf-bt-history-item-table-link--disabled {
+  color: var(--pf-color-text-muted);
+  pointer-events: none;
+  text-decoration: none;
+}
+
+.pf-bt-history-item-table-link--active {
+  color: var(--pf-color-primary);
+  pointer-events: auto;
+  text-decoration: underline;
+}
+
+.pf-query-history__item pre {
+  background: var(--pf-color-void);
+  padding: 8px;
+  border: solid 1px var(--pf-color-border-secondary);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  margin: 0;
+  font-family: var(--pf-font-monospace, monospace);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.pf-query-history__item pre:hover::after {
+  content: none;
+}
+
+// Clamped ~4 lines with a fade mask; click to expand. The `pre.` prefix
+// keeps specificity == `.pf-query-history__item pre`.
+pre.pf-bt-history-item-query,
+pre.pf-bt-history-item-query--standalone {
+  cursor: pointer;
+  position: relative;
+  max-height: 4.5em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+pre.pf-bt-history-item-query.pf-bt-history-item-query--expanded,
+pre.pf-bt-history-item-query--standalone.pf-bt-history-item-query--expanded {
+  max-height: 50vh;
+  overflow: auto;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+// Standalone (delete-confirm modal) has no .pf-query-history__item parent, so
+// it declares the frame the sidebar variant inherits from
+// `.pf-query-history__item pre`.
+pre.pf-bt-history-item-query--standalone {
+  font-family: var(--pf-font-monospace, monospace);
+  background: var(--pf-color-void);
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.pf-bt-history-item-query--empty {
+  font-style: italic;
+  opacity: 0.5;
+}
+
+.pf-bt-history-empty-hint {
+  margin-top: 8px;
+  opacity: 0.7;
+}
+
+.pf-bt-history-delete-date {
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+
+// ---------- Results panel ----------
+
+.pf-bt-error-tab-title {
+  color: var(--pf-color-danger);
+}
+
+.pf-bt-error-content {
+  overflow: auto;
+  max-height: 100%;
+  padding: 12px;
+  margin: 0;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
+// A fetch_results failure shown in place of the results grid: a short heading
+// plus the selectable, scrollable error body (reusing .pf-bt-error-content).
+.pf-bt-results-error {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  &__title {
+    padding: 12px 12px 0;
+    font-weight: 500;
+    color: var(--pf-color-danger);
+  }
+
+  .pf-bt-error-content {
+    flex: 1;
+  }
+}
+
+// min-height:0 chain lets DataGrid fillHeight work; only the body scrolls.
+.pf-bt-results-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.pf-bt-results-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.pf-bt-results-container > .pf-data-grid {
+  flex: 1;
+  min-height: 0;
+}
+
+// ---------- Stdlib table list ----------
+
+.pf-bt-simple-table-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  &__search {
+    margin: 8px;
+  }
+
+  &__items {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  &__item-name {
+    font-family: var(--pf-font-monospace);
+    font-size: 12px;
+  }
+
+  &__highlight {
+    background-color: var(--pf-color-accent);
+    color: var(--pf-color-text-on-accent);
+    border-radius: 2px;
+  }
+
+  &__description {
+    font-size: 12px;
+    color: var(--pf-color-text-muted);
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
+  &__detail-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+
+    .pf-show-on-hover {
+      visibility: hidden;
+    }
+
+    &:hover .pf-show-on-hover {
+      visibility: visible;
+    }
+  }
+
+  &__detail-label {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    text-transform: uppercase;
+    min-width: 50px;
+  }
+
+  &__detail-value {
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__columns {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__column-list {
+    display: flex;
+    flex-direction: column;
+    margin-top: 4px;
+    border: 1px solid var(--pf-color-border-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  &__column {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--pf-color-border-secondary);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
+  }
+
+  &__column-icon {
+    font-size: 14px;
+    color: var(--pf-color-text-muted);
+    width: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  &__column-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__column-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__column-name {
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__column-copy {
+    visibility: hidden;
+  }
+
+  &__column:hover &__column-copy {
+    visibility: visible;
+  }
+
+  &__column-type {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  &__column-desc {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
+  }
+}
+
+// ---------- Settings page ----------
+
+.pf-bt-settings-page {
+  &__plugin-section {
+    margin-bottom: 32px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &__plugin-title {
+    font-size: var(--pf-font-size-xl);
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    padding: 8px 12px;
+    background: var(--pf-minimal-background);
+    border-radius: 4px;
+  }
+
+  // The settings cards live in a CardStack, but BigTraceSettingsCard wraps
+  // each Card in a <div> for its disabled-state class — that wrapper hides the
+  // cards from CardStack's unified-seam styling, so they render flush with no
+  // gap. Render every settings card as a distinct, spaced, bordered card
+  // instead (clearer for the mix of simple key/value settings and the compound
+  // Traces / Query Result Columns cards).
+  .pf-card-stack {
+    border: none;
+    box-shadow: none;
+    overflow: visible;
+    gap: 12px;
+  }
+
+  .pf-card-stack > .pf-card,
+  .pf-card-stack > div > .pf-card {
+    border: solid 1px var(--pf-color-border);
+    border-radius: 4px;
+  }
+}
+
+// ---------- Query-page settings bar + per-chip modals ----------
+
+.pf-bt-editor-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.pf-bt-editor-tab > .pf-split-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pf-bt-settings-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--pf-color-background-secondary);
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+  flex: 0 0 auto;
+
+  &__chips {
+    flex: 1 1 auto;
+    min-width: 0;
+
+    // A chip with a long value (e.g. a trace-path filter) must ellipsize, not
+    // grow the editor panel past the split and scroll the whole page. The
+    // shared chip pins min-width: max-content, so cap and let it shrink here;
+    // its label already has text-overflow: ellipsis.
+    .pf-chip {
+      min-width: 0;
+      max-width: 100%;
+    }
+  }
+
+  // Only the "Edit settings" chip is clickable — give it the pointer cursor.
+  // The other chips are read-only display (× still removes), so they keep the
+  // default cursor.
+  &__add {
+    cursor: pointer;
+  }
+}
+
+// "Traces" card header — title with the refresh icon directly to its
+// right. Used by both /settings and the embedded SettingsPage (+Add modal).
+.pf-bt-trace-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  .pf-settings-card__title {
+    margin: 0;
+  }
+
+  // The "Query" CTA sits at the far right of the Traces header.
+  .pf-bt-trace-card__query {
+    margin-left: auto;
+  }
+}
+
+// Per-chip edit modal — narrow, content stacked vertically. The +Add modal
+// hosts the full SettingsPage embedded view (.pf-bt-settings-embedded below).
+.pf-bt-settings-chip-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 320px;
+  padding: 4px 0;
+}
+
+.pf-bt-settings-chip-modal__description {
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+  line-height: 1.4;
+}
+
+.pf-bt-settings-chip-modal__control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+// Vertical column of checkboxes for the "Show with results" picker.
+.pf-bt-settings-chip-modal__checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+// Settings sub-tab embedded SettingsPage — scrollable container, no
+// SettingsShell chrome.
+.pf-bt-settings-embedded {
+  overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 16px 20px 24px;
+
+  .pf-bt-settings-page {
+    margin: 0;
   }
 }

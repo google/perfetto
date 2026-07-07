@@ -1,0 +1,74 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-memscope-table {
+  border: solid 1px var(--pf-col-border);
+  border-radius: 8px;
+  overflow-x: auto;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--pf-font-size-s);
+  }
+
+  th,
+  td {
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: baseline;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    font-size: var(--pf-font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--pf-color-text-muted);
+    background: var(--pf-col-base);
+    border-bottom: 1px solid var(--pf-col-border);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--pf-col-border);
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
+  }
+
+  .pf-memscope-table__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pf-memscope-table__size {
+    font-weight: 600;
+  }
+
+  .pf-memscope-table__delta {
+    margin-top: 2px;
+    font-weight: 400;
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-memscope-table--flush {
+  margin-top: 0;
+}

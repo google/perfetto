@@ -75,9 +75,11 @@ from diff_tests.parser.cros.tests import Cros
 from diff_tests.parser.etm.tests import Etm
 from diff_tests.parser.etw.tests import Etw
 from diff_tests.parser.fs.tests import Fs
+from diff_tests.parser.ftrace.adreno_cmdbatch_tests import AdrenoCmdbatch
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
+from diff_tests.parser.ftrace.thermal_exynos_tests import ThermalExynos
 from diff_tests.parser.ftrace.generic_ftrace_tests import GenericFtrace
 from diff_tests.parser.ftrace.kernel_trackevent_tests import KernelTrackevent
 from diff_tests.parser.fuchsia.tests import Fuchsia
@@ -89,6 +91,7 @@ from diff_tests.parser.graphics.tests_gpu_trace import GraphicsGpuTrace
 from diff_tests.parser.gzip.tests import Gzip
 from diff_tests.parser.instruments.tests import Instruments
 from diff_tests.parser.json.tests import JsonParser
+from diff_tests.parser.linux.tests import Linux
 from diff_tests.parser.memory.tests import MemoryParser
 from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
@@ -116,10 +119,12 @@ from diff_tests.parser.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbo
 from diff_tests.parser.sched.tests import SchedParser
 from diff_tests.parser.simpleperf.tests import Simpleperf
 from diff_tests.parser.simpleperf_proto.tests import SimpleperfProtoParser
+from diff_tests.parser.smaps.tests import SmapsParser
 from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
 from diff_tests.parser.smoke.tests_sched_events import SmokeSchedEvents
+from diff_tests.parser.trace_manifest.tests import TraceManifest
 from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
@@ -147,6 +152,7 @@ from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
 from diff_tests.stdlib.graphs.scan_tests import GraphScanTests
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
 from diff_tests.stdlib.intervals.create_intervals_tests import CreateIntervals
+from diff_tests.stdlib.intervals.fill_gaps_tests import IntervalsFillGaps
 from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
@@ -226,6 +232,7 @@ def fetch_all_diff_tests(
       GraphicsParser,
       JsonParser,
       KernelTrackevent,
+      Linux,
       MemoryParser,
       NetworkParser,
       BatteryStats,
@@ -242,6 +249,7 @@ def fetch_all_diff_tests(
       SchedParser,
       Simpleperf,
       SimpleperfProtoParser,
+      SmapsParser,
       StdlibSched,
       Smoke,
       SmokeComputeMetrics,
@@ -266,10 +274,13 @@ def fetch_all_diff_tests(
       ParsingRssStats,
       ParsingSysStats,
       ParsingMemoryCounters,
+      AdrenoCmdbatch,
       BlockIo,
       FtraceCrop,
       Kprobes,
+      ThermalExynos,
       ParsingTracedStats,
+      TraceManifest,
       Zip,
       AndroidInputEvent,
       Instruments,
@@ -349,10 +360,11 @@ def fetch_all_diff_tests(
       SpanJoinSmoke,
       Stacks,
       CreateIntervals,
+      IntervalsFillGaps,
+      IntervalsIntersect,
       StdlibIntervals,
       StdlibMetasql,
       SystemUICujs,
-      IntervalsIntersect,
       Startups,
       Timestamps,
       TracedStats,

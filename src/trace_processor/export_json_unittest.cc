@@ -426,6 +426,60 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   EXPECT_EQ(stats["ftrace_cpu_bytes_begin"][0].AsInt(), kFtraceBegin);
 }
 
+TEST_F(ExportJsonTest, StorageWithStatsFromGzipWrappedProto) {
+  // Simulate the layout produced when a proto trace is wrapped in a gzip
+  // container (which is the on-the-wire shape of Chrome/Edge traces):
+  // trace_file row 0 is the gzip wrapper, row 1 is the inner proto. Stats
+  // from the proto importer land under TraceId(1); they must still be
+  // exported.
+  context_.storage->mutable_trace_file_table()->Insert(
+      {/*parent_id=*/std::nullopt, /*name=*/std::nullopt, /*size=*/0,
+       context_.storage->InternString("gzip"),
+       /*processing_order=*/std::nullopt, /*is_container=*/1});
+  auto inner_id =
+      context_.storage->mutable_trace_file_table()
+          ->Insert({/*parent_id=*/std::nullopt, /*name=*/std::nullopt,
+                    /*size=*/0, context_.storage->InternString("proto"),
+                    /*processing_order=*/std::nullopt, /*is_container=*/0})
+          .id;
+
+  const int64_t kProducers = 7;
+  context_.global_stats_tracker->SetStats(
+      MachineId(kDefaultMachineId), inner_id, stats::traced_producers_connected,
+      kProducers);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+e");
+  base::Status status = ExportJson(context_.storage.get(), output);
+  EXPECT_TRUE(status.ok()) << status.message();
+
+  Dom result = ToJsonValue(ReadFile(output));
+  ASSERT_TRUE(result["metadata"]["trace_processor_stats"].HasMember(
+      "traced_producers_connected"));
+  EXPECT_EQ(
+      result["metadata"]["trace_processor_stats"]["traced_producers_connected"]
+          .AsInt(),
+      kProducers);
+}
+
+TEST_F(ExportJsonTest, StorageWithStatsFromMultipleNonContainerTracesFails) {
+  // Two genuine (non-container) trace files cannot be merged into one JSON
+  // stats block — export must reject rather than silently pick one.
+  context_.storage->mutable_trace_file_table()->Insert(
+      {/*parent_id=*/std::nullopt, /*name=*/std::nullopt, /*size=*/0,
+       context_.storage->InternString("proto"),
+       /*processing_order=*/std::nullopt, /*is_container=*/0});
+  context_.storage->mutable_trace_file_table()->Insert(
+      {/*parent_id=*/std::nullopt, /*name=*/std::nullopt, /*size=*/0,
+       context_.storage->InternString("proto"),
+       /*processing_order=*/std::nullopt, /*is_container=*/0});
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+e");
+  base::Status status = ExportJson(context_.storage.get(), output);
+  EXPECT_FALSE(status.ok());
+}
+
 TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
   const char* kName1 = "name1";
   const char* kName2 = "name2";
@@ -1615,9 +1669,9 @@ TEST_F(ExportJsonTest, ArgumentFilter) {
   StringId val_id = context_.storage->InternString(base::StringView("val"));
 
   auto* slices = context_.storage->mutable_slice_table();
-  std::vector<ArgsTracker::BoundInserter> slice_inserters;
   {
     ArgsTracker args_tracker(&context_);
+    std::vector<ArgsTracker::BoundInserter> slice_inserters;
     for (auto& name_id : name_ids) {
       auto id = slices->Insert({0, 0, track, cat_id, name_id, 0}).id;
       slice_inserters.emplace_back(args_tracker.AddArgsTo(id));
@@ -1805,12 +1859,30 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   }
 
   context_.storage->mutable_profiler_smaps_table()->Insert(
-      {upid, kTimestamp, kNullStringId, kSizeKb, kPrivateDirtyKb, kSwapKb,
-       context_.storage->InternString(kFileName), kStartAddress,
-       kModuleTimestamp, context_.storage->InternString(kModuleDebugid),
-       context_.storage->InternString(kModuleDebugPath), kProtectionFlags,
-       kPrivateCleanResidentKb, kSharedDirtyResidentKb, kSharedCleanResidentKb,
-       0, kProportionalResidentKb});
+      {upid,
+       kTimestamp,
+       kNullStringId,
+       /*path_trimmed=*/kNullStringId,
+       /*aggregate_count=*/0u,
+       /*is_deleted=*/0u,
+       kSizeKb,
+       kPrivateDirtyKb,
+       kSwapKb,
+       context_.storage->InternString(kFileName),
+       kStartAddress,
+       kModuleTimestamp,
+       context_.storage->InternString(kModuleDebugid),
+       context_.storage->InternString(kModuleDebugPath),
+       kProtectionFlags,
+       kPrivateCleanResidentKb,
+       kSharedDirtyResidentKb,
+       kSharedCleanResidentKb,
+       0,
+       kProportionalResidentKb,
+       /*rss_kb=*/0,
+       /*anonymous_kb=*/0,
+       /*pss_dirty_kb=*/0,
+       /*swap_pss_kb=*/0});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
@@ -1928,15 +2000,15 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
 
   {
     ArgsTracker args_tracker(&context_);
-    args_tracker.AddArgsTo(node1_id).AddArg(
-        context_.storage->InternString(
-            base::StringView(kScalarAttrName + ".value")),
-        Variadic::Integer(kScalarAttrValue));
-    args_tracker.AddArgsTo(node1_id).AddArg(
+    auto inserter = args_tracker.AddArgsTo(node1_id);
+    inserter.AddArg(context_.storage->InternString(
+                        base::StringView(kScalarAttrName + ".value")),
+                    Variadic::Integer(kScalarAttrValue));
+    inserter.AddArg(
         context_.storage->InternString(
             base::StringView(kScalarAttrName + ".unit")),
         Variadic::String(context_.storage->InternString(kScalarAttrUnits)));
-    args_tracker.AddArgsTo(node1_id).AddArg(
+    inserter.AddArg(
         context_.storage->InternString(
             base::StringView(kStringAttrName + ".value")),
         Variadic::String(context_.storage->InternString(kStringAttrValue)));

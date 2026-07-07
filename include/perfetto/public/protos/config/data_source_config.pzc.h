@@ -39,6 +39,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumHistogramSamplesConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumSystemMetricsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CpuPerUidConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_DisplayVideoConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FrozenFtraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceConfig);
@@ -64,6 +65,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_SurfaceFlingerLayersConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SurfaceFlingerTransactionsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SysStatsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SystemInfoConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_SystemdJournaldConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TestConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_V8Config);
@@ -350,6 +352,16 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_AndroidAflagsConfig,
                   android_aflags_config,
                   140);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_SystemdJournaldConfig,
+                  journald_config,
+                  141);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_DisplayVideoConfig,
+                  display_video_config,
+                  142);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_QnxConfig,

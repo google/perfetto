@@ -14,12 +14,12 @@
 
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {CounterTrack} from '../../components/tracks/counter_track';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
-import {getTrackName} from '../../public/utils';
+import {getMachineCount, getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {NUM, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PowerCounterSelectionAggregator} from './power_counter_selection_aggregator';
 
@@ -39,6 +39,7 @@ export default class implements PerfettoPlugin {
   }
 
   private async addPowerRailCounterTracks(ctx: Trace): Promise<void> {
+    const numMachines = await getMachineCount(ctx.engine);
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.power_rails;
 
@@ -46,8 +47,10 @@ export default class implements PerfettoPlugin {
         track_id as trackId,
         COALESCE(friendly_name, raw_power_rail_name) as name,
         subsystem_name as subsystem,
-        machine_id as machine
+        machine_id as machine,
+        machine.label_index as machineLabelIndex
       FROM android_power_rails_metadata
+      LEFT JOIN machine ON machine.id = machine_id
       ORDER BY machine_id, subsystem_name, name
     `);
 
@@ -60,6 +63,7 @@ export default class implements PerfettoPlugin {
       name: STR_NULL,
       subsystem: STR_NULL,
       machine: NUM,
+      machineLabelIndex: NUM_NULL,
     });
 
     const powerRailsGroup = new TrackNode({
@@ -74,11 +78,12 @@ export default class implements PerfettoPlugin {
     const subsystemGroups = new Map<string, TrackNode>();
 
     for (; it.valid(); it.next()) {
-      const {trackId, name, subsystem, machine} = it;
+      const {trackId, name, subsystem, machineLabelIndex} = it;
       const trackName = getTrackName({
         name,
         kind: COUNTER_TRACK_KIND,
-        machine,
+        machineLabelIndex,
+        numMachines,
       });
       const uri = `/counter_${trackId}`;
       const track = await CounterTrack.createMaterialized({

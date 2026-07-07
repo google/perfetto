@@ -15,10 +15,10 @@
 import {Time} from '../../base/time';
 import {
   CounterTrack,
-  CounterTrackAttrs,
+  type CounterTrackAttrs,
 } from '../../components/tracks/counter_track';
-import {TrackEventDetails} from '../../public/selection';
-import {TrackMouseEvent} from '../../public/track';
+import type {TrackEventDetails} from '../../public/selection';
+import type {TrackMouseEvent} from '../../public/track';
 import {LONG, LONG_NULL, NUM} from '../../trace_processor/query_result';
 import {CounterDetailsPanel} from './counter_details_panel';
 
@@ -130,7 +130,6 @@ export class TraceProcessorCounterTrack extends CounterTrack {
     return new CounterDetailsPanel(
       this.trace,
       this.trackName,
-      () => this.yMode,
       this.unit,
       this.rateUnit,
       this.sqlSource,

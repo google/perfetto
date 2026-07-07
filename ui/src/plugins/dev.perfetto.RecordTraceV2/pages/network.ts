@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RecordProbe, RecordSubpage} from '../config/config_interfaces';
-import {TraceConfigBuilder} from '../config/trace_config_builder';
+import type {RecordProbe, RecordSubpage} from '../config/config_interfaces';
+import type {TraceConfigBuilder} from '../config/trace_config_builder';
 import {Toggle} from './widgets/toggle';
 import {Textarea} from './widgets/textarea';
 import {splitLinesNonEmpty} from '../../../base/string_utils';

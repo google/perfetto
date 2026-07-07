@@ -14,7 +14,17 @@
 
 import {TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
-import {Trace} from './trace';
+import type {Engine} from '../trace_processor/engine';
+import {NUM} from '../trace_processor/query_result';
+import type {Trace} from './trace';
+
+// Number of machines in the trace. Used to decide whether tracks should be
+// disambiguated with a "(machine N)" label: with a single machine there's no
+// ambiguity, so no label is shown.
+export async function getMachineCount(engine: Engine): Promise<number> {
+  const res = await engine.query(`select count(*) as cnt from machine`);
+  return res.firstRow({cnt: NUM}).cnt;
+}
 
 export function getTrackName(
   args: Partial<{
@@ -30,7 +40,9 @@ export function getTrackName(
     kind: string;
     threadTrack: boolean;
     uidTrack: boolean;
-    machine: number | null;
+    machineLabelIndex: number | null;
+    machineName: string | null;
+    numMachines: number | null;
   }>,
 ) {
   const {
@@ -46,7 +58,9 @@ export function getTrackName(
     kind,
     threadTrack,
     uidTrack,
-    machine,
+    machineLabelIndex,
+    machineName,
+    numMachines,
   } = args;
 
   const hasName = name !== undefined && name !== null && name !== '[NULL]';
@@ -66,7 +80,11 @@ export function getTrackName(
   // upid/utid) we show the track kind to help with tracking
   // down where this is coming from.
   const kindSuffix = hasKind ? ` (${kind})` : '';
-  const machineLabel = maybeMachineLabel(machine ?? undefined);
+  const machineLabel = maybeMachineLabel(
+    machineLabelIndex ?? undefined,
+    machineName,
+    numMachines ?? undefined,
+  );
 
   if (isThreadTrack && hasName && hasTid) {
     return `${name} (${tid})`;
@@ -132,7 +150,22 @@ export async function getTimeSpanOfSelectionOrVisibleWindow(
   }
 }
 
-export function maybeMachineLabel(machine?: number): string {
-  const m = machine ?? 0;
-  return m > 0 ? ` (machine ${m})` : '';
+export function maybeMachineLabel(
+  labelIndex?: number,
+  machineName?: string | null,
+  numMachines?: number,
+): string {
+  // No label for: a single machine, or the host (index 0/null). With more than
+  // one machine, every non-host machine is labelled. `label_index` is the
+  // machine's 1-based index among non-host machines (see the `machine` table
+  // view).
+  if (numMachines === undefined || numMachines <= 1 || (labelIndex ?? 0) <= 0) {
+    return '';
+  }
+  // Prefer the human-readable machine name (machine.name) when the trace
+  // provides one; otherwise use the 1-based machine index.
+  if (machineName !== undefined && machineName !== null && machineName !== '') {
+    return ` (${machineName})`;
+  }
+  return ` (machine ${labelIndex})`;
 }

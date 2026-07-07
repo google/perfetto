@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
+import type {
   SqlModules,
   SqlModule,
   SqlFunction,
@@ -179,7 +179,7 @@ describe('FunctionList search logic', () => {
       const query = 'nanoseconds';
       const results = allFunctions.filter(
         (f) =>
-          f.fn.description &&
+          f.fn.description !== undefined &&
           f.fn.description.toLowerCase().includes(query.toLowerCase()),
       );
 

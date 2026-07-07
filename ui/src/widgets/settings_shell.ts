@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './settings_shell.scss';
 import m from 'mithril';
-import {classForIntent, HTMLAttrs, Intent} from './common';
-import {assertExists} from '../base/assert';
+import {classForIntent, type HTMLAttrs, type Intent} from './common';
+import {ensureExists} from '../base/assert';
 import {Card} from './card';
 import {classNames} from '../base/classnames';
 import {Anchor} from './anchor';
@@ -53,10 +54,10 @@ export class SettingsShell implements m.ClassComponent<SettingsShellAttrs> {
   }
 
   oncreate(vnode: m.VnodeDOM<SettingsShellAttrs, this>) {
-    const canary = assertExists(
+    const canary = ensureExists(
       vnode.dom.querySelector('.pf-settings-shell__title'),
     );
-    const header = assertExists(
+    const header = ensureExists(
       vnode.dom.querySelector('.pf-settings-shell__header'),
     );
 

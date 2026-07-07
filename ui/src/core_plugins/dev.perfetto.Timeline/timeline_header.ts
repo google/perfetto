@@ -16,14 +16,14 @@ import m from 'mithril';
 import {canvasSave} from '../../base/canvas_utils';
 import {DisposableStack} from '../../base/disposable_stack';
 import {toHTMLElement} from '../../base/dom_utils';
-import {Rect2D, Size2D} from '../../base/geom';
-import {assertExists} from '../../base/assert';
+import {Rect2D, type Size2D} from '../../base/geom';
+import {ensureExists} from '../../base/assert';
 import {TimeScale} from '../../base/time_scale';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 import {
   VirtualOverlayCanvas,
-  VirtualOverlayCanvasDrawContext,
+  type VirtualOverlayCanvasDrawContext,
 } from '../../widgets/virtual_overlay_canvas';
 import {TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
 import {NotesPanel} from './notes_panel';
@@ -88,7 +88,7 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
       m(
         VirtualOverlayCanvas,
         {
-          onMount: (redrawCanvas) =>
+          onMount: ({redrawCanvas}) =>
             attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
           disableCanvasRedrawOnMithrilUpdates: true,
           onCanvasRedraw: (ctx) => {
@@ -141,7 +141,7 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
     const visibleWindow = this.trace.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, timelineRect);
 
-    assertExists(this.interactions).update([
+    ensureExists(this.interactions).update([
       shiftDragPanInteraction(this.trace, timelineRect, timescale),
       wheelNavigationInteraction(this.trace, timelineRect, timescale),
       {
@@ -157,14 +157,16 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
             const dragRect = Rect2D.fromPoints(e.dragStart, e.dragCurrent);
             const timeSpan = timescale
               .pxSpanToHpTimeSpan(dragRect)
-              .toTimeSpan();
+              .toTimeSpan()
+              .clamp(this.trace.traceInfo.start, this.trace.traceInfo.end);
             this.trace.timeline.selectedSpan = timeSpan;
           },
           onDragEnd: (e) => {
             const dragRect = Rect2D.fromPoints(e.dragStart, e.dragCurrent);
             const timeSpan = timescale
               .pxSpanToHpTimeSpan(dragRect)
-              .toTimeSpan();
+              .toTimeSpan()
+              .clamp(this.trace.traceInfo.start, this.trace.traceInfo.end);
             this.trace.selection.selectArea({
               start: timeSpan.start,
               end: timeSpan.end,

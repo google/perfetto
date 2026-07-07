@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "perfetto/base/compiler.h"
@@ -55,6 +56,7 @@ class InternedMessageView {
     this->decoder_ = nullptr;
     this->decoder_type_ = nullptr;
     this->submessages_.Clear();
+    this->cached_value_.reset();
     return *this;
   }
 
@@ -110,6 +112,17 @@ class InternedMessageView {
 
   const TraceBlobView& message() const { return message_; }
 
+  // A value previously memoized on this interned entry via set_cached_value(),
+  // if any. Callers that repeatedly derive the same value from an interned
+  // entry - e.g. the StringId obtained by interning an interned name - can
+  // cache it here to avoid re-decoding and re-interning on every lookup. The
+  // interpretation of the value (here, a StringId's raw id) is up to the
+  // caller. The cache lives exactly as long as the interned entry, i.e. the
+  // sequence-state generation, so it is implicitly invalidated on incremental
+  // state reset.
+  std::optional<uint32_t> cached_value() const { return cached_value_; }
+  void set_cached_value(uint32_t value) { cached_value_ = value; }
+
  private:
   using SubMessageViewMap =
       base::FlatHashMap<uint32_t /*field_id*/,
@@ -135,6 +148,9 @@ class InternedMessageView {
   // decoders, we avoid having to decode submessages multiple times if they
   // looked up often.
   SubMessageViewMap submessages_;
+
+  // Optional caller-memoized value for this entry. See cached_value().
+  std::optional<uint32_t> cached_value_;
 };
 
 }  // namespace perfetto::trace_processor

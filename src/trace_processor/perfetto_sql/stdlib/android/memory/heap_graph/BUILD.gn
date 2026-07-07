@@ -16,6 +16,7 @@ import("../../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("heap_graph") {
   sources = [
+    "bitmap.sql",
     "class_relationship.sql",
     "class_summary_tree.sql",
     "class_tree.sql",
@@ -26,6 +27,7 @@ perfetto_sql_source_set("heap_graph") {
     "heap_graph_stats.sql",
     "helpers.sql",
     "object_tree.sql",
+    "oome.sql",
     "raw_dominator_tree.sql",
   ]
 }

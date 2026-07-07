@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {Time, TimeSpan} from '../../base/time';
 import {redrawModal, showModal} from '../../widgets/modal';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
@@ -174,7 +175,7 @@ export default class implements PerfettoPlugin {
       // Disable any prior session.
       this.disableTimelineSync(this._sessionId);
       const selectedClients = new Array<ClientId>();
-      const sel = assertExists(clientsSelect).selectedOptions;
+      const sel = ensureExists(clientsSelect).selectedOptions;
       for (let i = 0; i < sel.length; i++) {
         const clientId = parseInt(sel[i].value);
         if (!isNaN(clientId)) selectedClients.push(clientId);

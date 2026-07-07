@@ -2,6 +2,18 @@
 
 This document provides essential instructions and best practices for developing in the Perfetto codebase. Adhere to these guidelines to ensure consistency and quality.
 
+## Where to Land Changes
+
+All Perfetto changes must be landed in the upstream repository at
+https://github.com/google/perfetto.
+
+**Note for Google folks:** Pull requests or changelists raised against
+`third_party/perfetto/` in google3, or against `external/perfetto` in the
+internal Android repository, will NOT be accepted. To upstream your changes,
+follow the instructions at
+[go/perfetto-github-instructions](http://go/perfetto-github-instructions), or contact
+perfetto-team@google.com for help.
+
 ## Overview
 
 The perfetto repo contains several projects. These are the major ones
@@ -238,6 +250,9 @@ MSAN_SYMBOLIZER_PATH="$(pwd)/buildtools/linux64/clang/bin/llvm-symbolizer" \
 out/linux_msan/perfetto_unittests --gtest_brief=1 --gtest_filter="<TestSuiteName.*>"
 
 ## Creating Pull Requests
+
+**Note:** This is the default PR workflow. If the user has their own way of
+creating and managing pull requests, follow that and skip this section.
 
 When creating a pull request, follow these steps:
 

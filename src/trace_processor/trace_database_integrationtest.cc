@@ -102,6 +102,56 @@ TEST(TraceProcessorCustomConfigTest, HandlesMalformedMountPath) {
   ASSERT_EQ(it.Get(0).long_value, 1);
 }
 
+namespace {
+base::Status ParseTraceString(TraceProcessor* processor, const std::string& s) {
+  std::unique_ptr<uint8_t[]> buf(new uint8_t[s.size()]);
+  memcpy(buf.get(), s.data(), s.size());
+  auto status = processor->Parse(std::move(buf), s.size());
+  if (!status.ok()) {
+    return status;
+  }
+  return processor->NotifyEndOfFile();
+}
+
+// 'A' [3, 6.776] and 'B' [5, 7] partially overlap; 'B' cannot nest under 'A'.
+constexpr char kOverlappingCompleteEventsJson[] =
+    R"({"traceEvents":[
+      {"ph":"X","cat":"k","name":"A","pid":0,"tid":7,"ts":3,"dur":3.776},
+      {"ph":"X","cat":"k","name":"B","pid":0,"tid":7,"ts":5,"dur":2}
+    ]})";
+
+int64_t QueryLong(TraceProcessor* processor, const std::string& query) {
+  auto it = processor->ExecuteQuery(query);
+  PERFETTO_CHECK(it.Next());
+  return it.Get(0).AsLong();
+}
+}  // namespace
+
+TEST(TraceProcessorCustomConfigTest,
+     OverlappingJsonEventsSpilledToOverflowTrack) {
+  auto processor = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(ParseTraceString(processor.get(), kOverlappingCompleteEventsJson));
+
+  // Both events are kept: 'B' spills onto a separate overflow track instead of
+  // being dropped.
+  EXPECT_EQ(QueryLong(processor.get(), "select count(*) from slice"), 2);
+  EXPECT_EQ(QueryLong(processor.get(),
+                      "select count(*) from slice join track "
+                      "on slice.track_id = track.id "
+                      "where track.type = 'thread_overlapping_slice'"),
+            1);
+
+  // The spill is flagged to the user, but nothing is dropped.
+  EXPECT_EQ(QueryLong(processor.get(),
+                      "select value from stats where name = "
+                      "'slice_spill_overlapping_complete_event'"),
+            1);
+  EXPECT_EQ(QueryLong(processor.get(),
+                      "select value from stats where name = "
+                      "'slice_drop_overlapping_complete_event'"),
+            0);
+}
+
 class TraceProcessorIntegrationTest : public ::testing::Test {
  public:
   TraceProcessorIntegrationTest()
@@ -864,6 +914,26 @@ TEST_F(TraceProcessorIntegrationTest, PackagePrefixClash_NewIsPrefix) {
   auto status = Processor()->RegisterSqlPackage(pkg2);
   ASSERT_FALSE(status.ok());
   ASSERT_THAT(status.message(), HasSubstr("clashes"));
+}
+
+TEST_F(TraceProcessorIntegrationTest, StdlibDocsWildcardDottedPackage) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  // A package whose *name* itself contains dots, owning a module beneath it.
+  // The stdlib docs table functions must resolve the owning package via the
+  // (package, module) pairs from the registry, not by splitting the module key
+  // on the first '.' (which would yield "dev" and fail to find the package).
+  SqlPackage pkg;
+  pkg.name = "dev.perfetto.test";
+  pkg.modules.push_back({"dev.perfetto.test.common", "SELECT 1"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
+
+  // The wildcard enumerates every registered module, including the dotted one.
+  // Before the fix this failed with "Module not found:
+  // dev.perfetto.test.common" and aborted the whole query.
+  auto it = Query("SELECT COUNT(*) AS c FROM __intrinsic_stdlib_tables('*')");
+  ASSERT_TRUE(it.Next());
+  ASSERT_OK(it.Status());
 }
 
 TEST_F(TraceProcessorIntegrationTest, PackageSameNameOverride) {

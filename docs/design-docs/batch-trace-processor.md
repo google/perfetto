@@ -119,7 +119,7 @@ machines is explored further in the "Future plans" section.
 The naive way to return the result of querying n traces is a list
 of n elements, with each element being result for a single trace. However,
 after performing several case-study performance investigations using BTP, it
-became obvious that this obvious answer was not the most convienent for the end
+became obvious that this obvious answer was not the most convenient for the end
 user.
 
 Instead, a pattern which proved very useful was to "flatten" the results into
@@ -146,7 +146,7 @@ default, open source ones.
 The first point is the formalization of the idea "platform" code. Even since the
 beginning of the Python API, there was always a need for code internally to be
 run slightly different to open source code. For example, Google internal Python
-distrubution does not use Pip, instead packaging dependencies into a single
+distribution does not use Pip, instead packaging dependencies into a single
 binary. The notion of a "platform" loosely existed to abstract this sort of
 differences but this was very ad-hoc. As part of batch trace processor
 implementation, this has been retroactively formalized.
@@ -171,7 +171,7 @@ A way around this would be to build a "no trace limit" mode. The idea here
 is that you would develop queries like usual with batch trace processor
 operating on a O(1000) traces with O(s) performance. Once the queries are
 relatively finalized, we could then "switch" the mode of batch trace processor
-to opeate closer to a "MapReduce" style pipeline which operates over O(10000)+
+to operate closer to a "MapReduce" style pipeline which operates over O(10000)+
 traces loading O(n cpus) traces at any one time.
 
 This allows us to retain both the quick iteration speed while developing queries
@@ -181,7 +181,7 @@ cause of the problem which is that we are restricted to a single machine.
 
 The "ideal" solution here is to, as mentioned above, shard batch trace processor
 across >1 machine. When querying traces, each trace is entirely independent of
-any other so paralleising across multiple machines yields very close to perfect
+any other so parallelising across multiple machines yields very close to perfect
 gains in performance at little cost.
 
 This is would be however quite a complex undertaking. We would need to design

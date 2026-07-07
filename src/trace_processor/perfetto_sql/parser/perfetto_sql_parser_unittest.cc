@@ -50,7 +50,8 @@ class PerfettoSqlParserTest : public ::testing::Test {
  protected:
   base::StatusOr<std::vector<PerfettoSqlParser::Statement>> Parse(
       SqlSource sql) {
-    PerfettoSqlParser parser(std::move(sql), macros_);
+    PerfettoSqlParser parser(macros_);
+    parser.Reset(std::move(sql));
     std::vector<PerfettoSqlParser::Statement> results;
     while (parser.Next()) {
       results.push_back(parser.statement());
@@ -79,7 +80,8 @@ class PerfettoSqlParserTest : public ::testing::Test {
   // The caller is responsible for asserting `sql` is syntactically well-formed
   // and produces exactly one statement; failures abort the test.
   SqlSource ParseOne(SqlSource sql) {
-    PerfettoSqlParser parser(std::move(sql), macros_);
+    PerfettoSqlParser parser(macros_);
+    parser.Reset(std::move(sql));
     PERFETTO_CHECK(parser.Next());
     PERFETTO_CHECK(parser.status().ok());
     SqlSource out = parser.statement_sql();
@@ -96,7 +98,8 @@ TEST_F(PerfettoSqlParserTest, Empty) {
 
 TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
   SqlSource res = SqlSource::FromExecuteQuery("SELECT * FROM slice;");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "SELECT * FROM slice"));
@@ -105,7 +108,8 @@ TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
 TEST_F(PerfettoSqlParserTest, MultipleStmts) {
   auto res =
       SqlSource::FromExecuteQuery("SELECT * FROM slice; SELECT * FROM s");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql().sql(),
@@ -118,7 +122,8 @@ TEST_F(PerfettoSqlParserTest, MultipleStmts) {
 
 TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
   auto res = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql().sql(),
@@ -220,7 +225,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1; select foo()");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   CreateFn fn{
       false,
@@ -369,7 +375,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacro) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto macro foo(a1 Expr, b1 TableOrSubquery,c3_d "
       "TableOrSubquery2 ) returns TableOrSubquery3 as random sql snippet");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
       parser.statement(),
@@ -389,7 +396,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacro) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoMacro) {
   auto res = SqlSource::FromExecuteQuery(
       "create or replace perfetto macro foo() returns Expr as 1");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateMacro{true,
                                                       FindSubstr(res, "foo"),
@@ -403,7 +411,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto macro foo() returns sql1 as random sql snippet; "
       "select 1");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateMacro{
                                     false,
@@ -421,7 +430,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTable) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
                                     false,
@@ -435,7 +445,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTable) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoTable) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO TABLE foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
                                     true,
@@ -449,7 +460,8 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoTable) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithSchema) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(bar INT) AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
                                     false,
@@ -463,7 +475,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithSchema) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar; select 1");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
             Statement(CreateTable{
@@ -477,7 +490,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAndOther) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithDataframe) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo USING DATAFRAME AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
             Statement(CreateTable{
@@ -488,7 +502,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithDataframe) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
       parser.statement(),
@@ -505,7 +520,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoView) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO VIEW foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
       parser.statement(),
@@ -522,7 +538,8 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoView) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoViewAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar; select 1");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
       parser.statement(),
@@ -543,7 +560,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoViewWithSchema) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo(foo STRING, bar INT) AS SELECT 'a' as foo, 42 "
       "AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
             Statement(CreateView{
@@ -565,7 +583,8 @@ TEST_F(PerfettoSqlParserTest, ParseComplexArgumentType) {
       "CREATE PERFETTO VIEW foo(foo JOINID(foo.bar), bar LONG) AS SELECT "
       "'a' as foo, 42 "
       "AS bar");
-  PerfettoSqlParser parser(res, macros_);
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
             Statement(CreateView{
@@ -660,13 +679,6 @@ TEST_F(PerfettoSqlParserTest, ExpandsStringifyIntrinsic) {
 }
 
 TEST_F(PerfettoSqlParserTest, ExpandsTokenApplyIntrinsic) {
-  // The legacy preprocessor emits `WRAP(1) , WRAP(2) , WRAP(3)` here -
-  // logically equivalent but with extra whitespace around the commas.
-  // Skip on the legacy path; the assertion below pins the syntaqlite-path
-  // formatting once the cutover lands.
-  if constexpr (!PerfettoSqlParser::kUsesSyntaqliteMacros) {
-    GTEST_SKIP() << "Legacy preprocessor formats this intrinsic differently.";
-  }
   // token_apply!(m, (a, b, c)) -> m!(a), m!(b), m!(c)
   RegisterMacro("wrap", {"x"}, "WRAP($x)");
   SqlSource out = ParseOne(SqlSource::FromExecuteQuery(

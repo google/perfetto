@@ -47,14 +47,14 @@
  */
 
 import {
-  QueryNode,
+  type QueryNode,
   nextNodeId,
   NodeType,
-  SecondaryInputSpec,
-  NodeContext,
+  type SecondaryInputSpec,
+  type NodeContext,
 } from '../../query_node';
-import {ColumnInfo} from '../column_info';
-import protos from '../../../../protos';
+import type {ColumnInfo} from '../column_info';
+import type protos from '../../../../protos';
 import m from 'mithril';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
@@ -62,7 +62,7 @@ import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
 import {loadNodeDoc} from '../node_doc_loader';
 import {ListItem, OutlinedField} from '../widgets';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {notifyNextNodes} from '../graph_utils';
 import {getCommonColumns} from '../utils';

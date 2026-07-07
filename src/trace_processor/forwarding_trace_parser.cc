@@ -16,24 +16,28 @@
 
 #include "src/trace_processor/forwarding_trace_parser.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
-#include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/trace_reader_registry.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_type.h"
@@ -74,6 +78,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kNinjaLogTraceType:
     case kPerfDataTraceType:
     case kPerfTextTraceType:
+    case kPerfettoManifestTraceType:
     case kPprofTraceType:
     case kPrimesTraceType:
     case kSimpleperfProtoTraceType:
@@ -126,6 +131,16 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
         "you.");
   }
 
+  // A perfetto_manifest file configures the parsing of the files which
+  // follow it, so it is only valid before any non-container trace. Archive
+  // sorting guarantees this for direct members; this rejects e.g. a
+  // gzip-wrapped metadata file sorted after a proto trace.
+  if (trace_type_ == kPerfettoManifestTraceType &&
+      input_context_->forked_context_state->trace_to_context.size() != 0) {
+    return base::ErrStatus(
+        "perfetto_manifest file must be the first trace file in the input");
+  }
+
   std::optional<TraceSorter::SortingMode> minimum_sorting_mode =
       GetMinimumSortingMode(trace_type_, *input_context_);
   if (minimum_sorting_mode) {
@@ -133,50 +148,150 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   }
   input_context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
 
-  if (IsContainerTraceType(trace_type_)) {
+  // If the perfetto_manifest file has an entry for this file (matched by
+  // exact path), it overrides clock/machine handling below.
+  TraceManifestState::FileEntry* manifest_entry = FindManifestEntry();
+  if (manifest_entry &&
+      (manifest_entry->clock_override || manifest_entry->machine_id) &&
+      (IsContainerTraceType(trace_type_) ||
+       trace_type_ == kPerfettoManifestTraceType)) {
+    return base::ErrStatus(
+        "perfetto_manifest: overrides are not supported for trace files "
+        "which are themselves archives or perfetto_manifest files: %s",
+        manifest_entry->path.c_str());
+  }
+
+  if (IsContainerTraceType(trace_type_) ||
+      trace_type_ == kPerfettoManifestTraceType) {
+    // perfetto_manifest files produce no events: like containers they must
+    // not fork a per-trace context, as that would make this file the
+    // "primary" trace for its machine and demote the real traces.
     PERFETTO_DCHECK(!input_context_->trace_state);
     trace_context_ = input_context_;
   } else {
+    int64_t raw_machine_id = manifest_entry && manifest_entry->machine_id
+                                 ? *manifest_entry->machine_id
+                                 : 0;
     // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
     // parsed first so that we do not get issues with
     // SetPidZeroIsUpidZeroIdleProcess()
-    trace_context_ = input_context_->ForkContextForTrace(file_id_, 0);
+    // The machine row was pre-allocated by the manifest reader (which also
+    // named it); this fork reuses it via MachineTracker.
+    trace_context_ =
+        input_context_->ForkContextForTrace(file_id_, raw_machine_id);
     if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
       trace_context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
     }
+    if (manifest_entry) {
+      // A `machines` block declares the file IS multi-machine, so it is not a
+      // single-machine override; instead the proto dispatcher remaps embedded
+      // ids through it.
+      bool is_multi = !manifest_entry->machine_mappings.empty();
+      trace_context_->trace_state->has_machine_override =
+          manifest_entry->machine_id.has_value() && !is_multi;
+      if (is_multi) {
+        trace_context_->trace_state->machine_remap =
+            &manifest_entry->machine_remap;
+      }
+    }
   }
   ASSIGN_OR_RETURN(reader_, input_context_->reader_registry->CreateTraceReader(
-                                trace_type_, trace_context_));
+                                trace_type_, trace_context_, file_id_.value));
 
-  // Centralize clock setup for all trace formats. Proto traces add an identity
-  // sync so BOOTTIME is reachable in the clock graph; the trace default clock
-  // is set later by ParseClockSnapshot. All other formats know their clock
-  // statically and set the global clock directly.
+  // Centralize clock setup for all trace formats. Every format declares the
+  // clock domain its native timestamps are expressed in (its "trace clock"),
+  // and we do three things with it:
+  //
+  //   1. Record it as the file's default clock, which tokenizers convert their
+  //      events through via ClockTracker::ConvertDefaultClockToTraceTime. Proto
+  //      is the exception (see below).
+  //
+  //   2. Claim it as the global trace-time clock. The first trace to claim
+  //      wins; later claims are silently ignored, so the global clock is
+  //      stable regardless of how many traces an archive (e.g. a ZIP) holds.
+  //
+  //   3. Register a deferred clock sync for the same clock (an implicit edge).
+  //      If this trace does NOT win the global clock (e.g. a proto trace in the
+  //      same archive claimed BOOTTIME first) and the trace clock is not
+  //      otherwise linked into the clock graph via a ClockSnapshot, a
+  //      zero-offset identity edge is injected on the first conversion. This
+  //      keeps the trace's timestamps convertible instead of silently dropping
+  //      every event. When a real ClockSnapshot does link the clock (e.g. proto
+  //      provides BOOTTIME<->MONOTONIC), that real relationship is used
+  //      instead.
+  //
+  // Proto traces are special: their clock is whatever ParseClockSnapshot reads
+  // from primary_trace_clock, set later, so here we only register BOOTTIME as
+  // the deferred fallback, do not set the default clock, and do not claim the
+  // global clock now.
+  //
+  // A perfetto_manifest clock override for this file replaces the format's
+  // best-effort source clock (below) with the file's own private clock and
+  // customizes its implicit edge into the graph (see the manifest branch).
   using ClockId = ClockTracker::ClockId;
+  std::optional<ClockId> trace_clock;
+  bool claim_global_clock = true;
   if (trace_type_ == kProtoTraceType) {
-    trace_context_->clock_tracker->AddDeferredIdentitySync(
-        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+    claim_global_clock = false;
   } else if (trace_type_ == kSystraceTraceType ||
              trace_type_ == kSimpleperfProtoTraceType ||
              trace_type_ == kPerfTextTraceType ||
              trace_type_ == kPerfDataTraceType ||
              trace_type_ == kArtMethodTraceType ||
              trace_type_ == kArtMethodV2TraceType) {
-    trace_context_->clock_tracker->SetGlobalClock(
-        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
+    trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
   } else if (trace_type_ == kFuchsiaTraceType) {
-    trace_context_->clock_tracker->SetGlobalClock(
-        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
   } else if (trace_type_ == kGeckoTraceType || trace_type_ == kJsonTraceType ||
-             trace_type_ == kInstrumentsXmlTraceType) {
-    trace_context_->clock_tracker->SetGlobalClock(
-        ClockId::TraceFile(trace_context_->trace_id().value));
+             trace_type_ == kInstrumentsXmlTraceType ||
+             trace_type_ == kPrimesTraceType) {
+    trace_clock = ClockId::TraceFile(trace_context_->trace_id().value);
   } else if (trace_type_ == kAndroidDumpstateTraceType ||
              trace_type_ == kAndroidLogcatTraceType) {
-    trace_context_->clock_tracker->SetGlobalClock(
-        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME));
+    trace_clock = ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME);
+  }
+  auto& clock_tracker = trace_context_->clock_tracker;
+
+  // A perfetto_manifest "manual" clock override relates this file's clock to a
+  // clock in another trace; the manifest reader has already added every such
+  // edge to the global graph. A pinned (clockless) source also has no real
+  // clock of its own, so flag it: the file is now single-clock / single-machine
+  // and any ClockSnapshot or remote machine id on it is rejected. It still
+  // converts through the default clock set up below, like any clockless format.
+  if (manifest_entry && manifest_entry->clock_override &&
+      !manifest_entry->clock_override->source_clock) {
+    trace_context_->trace_state->has_clock_override = true;
+  }
+
+  // Set up the format's source clock. Proto manages its own default clock
+  // (primary_trace_clock / ClockSnapshot) so it must not be set here; every
+  // other format converts its events through the default clock via
+  // ClockTracker::ConvertDefaultClockToTraceTime.
+  if (trace_clock) {
+    if (trace_type_ != kProtoTraceType) {
+      clock_tracker->SetTraceDefaultClock(*trace_clock);
+    }
+    if (claim_global_clock) {
+      clock_tracker->SetGlobalClock(*trace_clock);
+    }
+    clock_tracker->AddDeferredClockSync(*trace_clock);
   }
   return base::OkStatus();
+}
+
+TraceManifestState::FileEntry* ForwardingTraceParser::FindManifestEntry()
+    const {
+  auto* state = input_context_->trace_manifest_state.get();
+  if (state->files.empty()) {
+    return nullptr;
+  }
+  auto row = input_context_->storage->trace_file_table()[file_id_];
+  if (!row.name()) {
+    return nullptr;
+  }
+  return state->FindEntry(
+      input_context_->storage->GetString(*row.name()).ToStdString());
 }
 
 base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {

@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {App} from '../../public/app';
+import './styles.scss';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {App} from '../../public/app';
+import {OPEN_MULTIPLE_TRACES_CMD} from '../../public/exposed_commands';
 import {showMultiTraceModal} from './multi_trace_modal';
 
-const MULTI_TRACE_COMMAND_ID = 'dev.perfetto.MultiTraceOpen#openMultipleTraces';
+function isFileArray(value: unknown): value is File[] {
+  return Array.isArray(value) && value.every((f) => f instanceof File);
+}
 
 function openFilePickerAndShowModal() {
   const input = document.createElement('input');
@@ -25,7 +29,7 @@ function openFilePickerAndShowModal() {
   input.style.display = 'none';
   input.addEventListener('change', async () => {
     if (!input.files) return;
-    const files = [...input.files];
+    const files = Array.from(input.files);
     if (files.length > 0) {
       showMultiTraceModal(files);
     }
@@ -37,15 +41,31 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.MultiTraceOpen';
 
   static onActivate(app: App): void {
+    // This command is used in two contexts:
+    // 1. From the sidebar or the command palette. In this case the files
+    //    argument is undefined and we show a file picker.
+    // 2. Invoked via runCommand(...) by openTraceFiles() when the user drags
+    //    several files onto the UI or multi-selects in the "Open trace file"
+    //    picker. In this case the caller passes the files explicitly.
     app.commands.registerCommand({
-      id: MULTI_TRACE_COMMAND_ID,
+      id: OPEN_MULTIPLE_TRACES_CMD,
       name: 'Open multiple trace files',
-      callback: () => openFilePickerAndShowModal(),
+      callback: (filesArg?: unknown) => {
+        if (isFileArray(filesArg)) {
+          if (filesArg.length > 0) {
+            showMultiTraceModal(filesArg);
+          }
+          return;
+        }
+        openFilePickerAndShowModal();
+      },
     });
     app.sidebar.addMenuItem({
-      commandId: MULTI_TRACE_COMMAND_ID,
+      commandId: OPEN_MULTIPLE_TRACES_CMD,
       section: 'trace_files',
       icon: 'library_books',
+      // Just below "Open trace file" and above everything else.
+      sortOrder: 1.5,
     });
   }
   async onTraceLoad(): Promise<void> {}

@@ -13,23 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {createCpuProfileTrack} from './cpu_profile_track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {
   metricsFromTableOrSubquery,
-  QueryFlamegraphMetric,
+  type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
-import {assertExists} from '../../base/assert';
-import {Store} from '../../base/store';
+import {ensureExists} from '../../base/assert';
+import type {Store} from '../../base/store';
 import {z} from 'zod';
 
 const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
@@ -73,7 +73,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
       where not is_idle
     `);
 
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     const it = result.iter({
       utid: NUM,
       upid: NUM_NULL,
@@ -139,7 +139,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
         if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(FlamegraphPanel, {
@@ -208,7 +208,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Symbol',
     });
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(
         draft.areaSelectionFlamegraphState,
@@ -220,7 +220,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
 }
 
 async function selectCpuProfileCallsite(trace: Trace) {
-  const profile = await assertExists(trace.engine).query(`
+  const profile = await ensureExists(trace.engine).query(`
     select utid, upid
     from cpu_profile_stack_sample
     join thread using(utid)

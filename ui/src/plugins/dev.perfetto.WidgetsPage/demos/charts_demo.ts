@@ -15,89 +15,100 @@
 import m from 'mithril';
 import {
   BarChart,
-  BarChartData,
+  type BarChartData,
   aggregateBarChartData,
 } from '../../../components/widgets/charts/bar_chart';
 import {
-  ChartAggregation,
+  type ChartAggregation,
   isIntegerAggregation,
 } from '../../../components/widgets/charts/chart_utils';
 import {
   SQLBarChartLoader,
-  BarChartLoaderConfig,
+  type BarChartLoaderConfig,
 } from '../../../components/widgets/charts/bar_chart_loader';
 import {Histogram} from '../../../components/widgets/charts/histogram';
 import type {LegendPosition} from '../../../components/widgets/charts/common';
 import {
   InMemoryHistogramLoader,
   SQLHistogramLoader,
-  HistogramLoaderConfig,
+  type HistogramLoaderConfig,
 } from '../../../components/widgets/charts/histogram_loader';
 import {
   LineChart,
-  LineChartData,
+  type LineChartData,
 } from '../../../components/widgets/charts/line_chart';
 import {
   SQLLineChartLoader,
-  LineChartLoaderConfig,
+  type LineChartLoaderConfig,
 } from '../../../components/widgets/charts/line_chart_loader';
 import {
   PieChart,
-  PieChartData,
+  type PieChartData,
 } from '../../../components/widgets/charts/pie_chart';
 import {
   SQLPieChartLoader,
-  PieChartLoaderConfig,
+  type PieChartLoaderConfig,
 } from '../../../components/widgets/charts/pie_chart_loader';
 import {
   Scatterplot,
-  ScatterChartData,
+  type ScatterChartData,
 } from '../../../components/widgets/charts/scatterplot';
 import {
   SQLScatterChartLoader,
-  ScatterChartLoaderConfig,
+  type ScatterChartLoaderConfig,
 } from '../../../components/widgets/charts/scatterplot_loader';
-import {Treemap, TreemapData} from '../../../components/widgets/charts/treemap';
+import {
+  Treemap,
+  type TreemapData,
+} from '../../../components/widgets/charts/treemap';
 import {
   SQLTreemapLoader,
-  TreemapLoaderConfig,
+  type TreemapLoaderConfig,
 } from '../../../components/widgets/charts/treemap_loader';
 import {
   SQLCdfLoader,
-  CdfLoaderConfig,
+  type CdfLoaderConfig,
 } from '../../../components/widgets/charts/cdf_loader';
 import {
   BoxplotChart,
-  BoxplotData,
+  type BoxplotData,
 } from '../../../components/widgets/charts/boxplot';
 import {
   SQLBoxplotLoader,
-  BoxplotLoaderConfig,
+  type BoxplotLoaderConfig,
 } from '../../../components/widgets/charts/boxplot_loader';
 import {
   HeatmapChart,
-  HeatmapData,
+  type HeatmapData,
 } from '../../../components/widgets/charts/heatmap';
-import {Sankey, SankeyData} from '../../../components/widgets/charts/sankey';
+import {
+  Sankey,
+  type SankeyData,
+} from '../../../components/widgets/charts/sankey';
 import {
   SQLSankeyLoader,
-  SankeyLoaderConfig,
+  type SankeyLoaderConfig,
 } from '../../../components/widgets/charts/sankey_loader';
 import {
   SQLHeatmapLoader,
-  HeatmapLoaderConfig,
+  type HeatmapLoaderConfig,
 } from '../../../components/widgets/charts/heatmap_loader';
 import {Gauge} from '../../../components/widgets/charts/gauge';
 import {Scorecard} from '../../../components/widgets/charts/scorecard';
 import {
   SQLSingleValueLoader,
-  SingleValueLoaderConfig,
+  type SingleValueLoaderConfig,
 } from '../../../components/widgets/charts/single_value_loader';
-import {App} from '../../../public/app';
+import type {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 import {LineChartSvg} from '../../../components/widgets/charts_svg/line_chart_svg';
 import {HistogramSvg} from '../../../components/widgets/charts_svg/histogram_svg';
+import {ProportionBar} from '../../../components/widgets/charts/proportion_bar';
+import {
+  FlamegraphChart,
+  type FlamegraphChartSegment,
+} from '../../../components/widgets/charts/flamegraph_chart';
 
 // Generate sample data with normal distribution
 function generateNormalData(
@@ -211,6 +222,7 @@ export function renderCharts(app: App): m.Children {
           stacked: opts.stacked,
           gridLines: opts.gridLines,
           legendPosition: opts.legendPosition,
+          markers: opts.markers,
           useSvg: true,
         });
       },
@@ -236,6 +248,7 @@ export function renderCharts(app: App): m.Children {
           'right',
           'bottom',
         ] as const),
+        markers: false,
       },
     }),
 
@@ -501,6 +514,41 @@ export function renderCharts(app: App): m.Children {
         value: 1234,
         label: 'Total Events',
         fillParent: false,
+      },
+    }),
+
+    // FlamegraphChart section
+    m('h2', {style: {marginTop: '32px'}}, 'FlamegraphChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(FlamegraphChart, {
+          data: FLAMECHART_SAMPLE_DATA,
+          formatValue: (v: number) => `${v} ms`,
+          rowHeight: opts.rowHeight,
+        });
+      },
+      initialOpts: {
+        rowHeight: 26,
+      },
+    }),
+
+    // ProportionBar section
+    m('h2', {style: {marginTop: '32px'}}, 'ProportionBar'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(ProportionBar, {
+          showLegend: opts.showLegend,
+          segments: [
+            {label: 'Native heap', weight: 53.39, value: '53.39 MiB'},
+            {label: 'Java heap', weight: 42.14, value: '42.14 MiB'},
+            {label: 'Other', weight: 0, value: '0 B'}, // 0 weight segment test
+            {label: 'Graphics', weight: 12.7, value: '12.70 MiB'},
+            {label: 'File-backed', weight: 8.0, value: '8.00 MiB'},
+          ],
+        });
+      },
+      initialOpts: {
+        showLegend: true,
       },
     }),
 
@@ -1494,6 +1542,7 @@ function LineChartDemo(): m.Component<{
   stacked: boolean;
   gridLines: string;
   legendPosition: LegendPosition;
+  markers?: boolean;
   useSvg?: boolean;
 }> {
   let brushRange: {start: number; end: number} | undefined;
@@ -1528,6 +1577,9 @@ function LineChartDemo(): m.Component<{
               }
             : undefined,
         selection: attrs.brushMode === 'select' ? brushRange : undefined,
+        markers: attrs.markers
+          ? [{x: 4}, {x: 9, color: 'var(--pf-color-warning)'}, {x: 14}]
+          : undefined,
       };
 
       return m('div', [
@@ -1632,6 +1684,200 @@ function PieChartDemo(): m.Component<{
     },
   };
 }
+
+// Static sample data for the FlamegraphChart demo: a synthetic CPU profile.
+const FLAMECHART_SAMPLE_DATA: FlamegraphChartSegment = {
+  name: 'Total',
+  value: 1000,
+  cssColor: '#5f6368',
+  children: [
+    {
+      name: 'JavaScript',
+      value: 650,
+      cssColor: '#f7b853',
+      children: [
+        {
+          name: 'GC',
+          value: 120,
+          cssColor: '#e07a5f',
+          children: [
+            {name: 'Scavenge', value: 70, cssColor: '#e07a5f', children: []},
+            {name: 'Full GC', value: 50, cssColor: '#d6644d', children: []},
+          ],
+        },
+        {
+          name: 'Eval',
+          value: 80,
+          cssColor: '#f2cc6f',
+          children: [
+            {
+              name: 'Function.apply',
+              value: 50,
+              cssColor: '#f2cc6f',
+              children: [],
+            },
+            {name: 'JSON.parse', value: 30, cssColor: '#f5d98f', children: []},
+          ],
+        },
+        {
+          name: 'Rendering',
+          value: 280,
+          cssColor: '#3daee9',
+          children: [
+            {
+              name: 'Layout',
+              value: 140,
+              cssColor: '#2d9bd8',
+              children: [
+                {
+                  name: 'Reflow',
+                  value: 90,
+                  cssColor: '#2d9bd8',
+                  children: [
+                    {
+                      name: 'updateDOM',
+                      value: 55,
+                      cssColor: '#2d9bd8',
+                      children: [],
+                    },
+                    {
+                      name: 'recalcStyle',
+                      value: 35,
+                      cssColor: '#3daee9',
+                      children: [],
+                    },
+                  ],
+                },
+                {
+                  name: 'ResizeObserver',
+                  value: 50,
+                  cssColor: '#5bc4f5',
+                  children: [],
+                },
+              ],
+            },
+            {
+              name: 'Paint',
+              value: 90,
+              cssColor: '#2d9bd8',
+              children: [
+                {
+                  name: 'CompositeLayers',
+                  value: 55,
+                  cssColor: '#2d9bd8',
+                  children: [],
+                },
+                {
+                  name: 'Rasterize',
+                  value: 35,
+                  cssColor: '#5bc4f5',
+                  children: [],
+                },
+              ],
+            },
+            {
+              name: 'Style',
+              value: 50,
+              cssColor: '#7dcaf0',
+              children: [
+                {
+                  name: 'MatchCSSRules',
+                  value: 30,
+                  cssColor: '#7dcaf0',
+                  children: [],
+                },
+                {
+                  name: 'UpdateStyle',
+                  value: 20,
+                  cssColor: '#a8dff5',
+                  children: [],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          name: 'Parsing',
+          value: 80,
+          cssColor: '#95d5b5',
+          children: [
+            {name: 'HTML.parse', value: 50, cssColor: '#95d5b5', children: []},
+            {name: 'CSS.parse', value: 30, cssColor: '#74c69d', children: []},
+          ],
+        },
+      ],
+    },
+    {
+      name: 'Native',
+      value: 200,
+      cssColor: '#7c4dff',
+      children: [
+        {
+          name: 'IO',
+          value: 110,
+          cssColor: '#6a3bdb',
+          children: [
+            {
+              name: 'Network',
+              value: 70,
+              cssColor: '#6a3bdb',
+              children: [
+                {
+                  name: 'DNS.resolve',
+                  value: 25,
+                  cssColor: '#6a3bdb',
+                  children: [],
+                },
+                {
+                  name: 'TCP.connect',
+                  value: 30,
+                  cssColor: '#7c4dff',
+                  children: [],
+                },
+                {
+                  name: 'HTTP.parse',
+                  value: 15,
+                  cssColor: '#9b72ff',
+                  children: [],
+                },
+              ],
+            },
+            {name: 'Disk.read', value: 40, cssColor: '#8a5fff', children: []},
+          ],
+        },
+        {
+          name: 'Crypto',
+          value: 50,
+          cssColor: '#b388ff',
+          children: [
+            {name: 'AES.encrypt', value: 30, cssColor: '#b388ff', children: []},
+            {name: 'SHA256.hash', value: 20, cssColor: '#d0a8ff', children: []},
+          ],
+        },
+        {
+          name: 'ThreadMgr',
+          value: 40,
+          cssColor: '#e0b0ff',
+          children: [
+            {name: 'Mutex.lock', value: 25, cssColor: '#e0b0ff', children: []},
+            {
+              name: 'CondVar.wait',
+              value: 15,
+              cssColor: '#f0d0ff',
+              children: [],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'Idle',
+      value: 150,
+      cssColor: '#c0c0c0',
+      children: [],
+    },
+  ],
+};
 
 // Simple seeded pseudo-random number generator for reproducible demo data.
 function seededRandom(seed: number): () => number {

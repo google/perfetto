@@ -129,7 +129,7 @@ native `trace_processor` instance to be used with the UI.
 A common case is when the UI is more recent than `trace_processor`
 and depends on a new table definition. With older versions of
 `trace_processor` in HTTP RPC mode the UI crashes attempting to query
-a non-existant table. To avoid this we use a version number. If the
+a non-existent table. To avoid this we use a version number. If the
 version number `trace_processor` reports is older than the one the UI
 was built with we prompt the user to update.
 

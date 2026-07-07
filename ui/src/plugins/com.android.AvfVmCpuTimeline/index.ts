@@ -13,12 +13,13 @@
 // limitations under the License.
 
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
+import {ensureExists} from '../../base/assert';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AvfVmCpuTimeline';
@@ -29,10 +30,10 @@ export default class implements PerfettoPlugin {
     this.validTargets.clear();
     await this.findValidTargets(ctx.engine);
 
-    if (this.validTargets.size === 0) {
+    const defaultTargetId = this.validTargets.keys().next().value;
+    if (defaultTargetId === undefined) {
       alert('The loaded trace does not contain any valid Avf VM targets!');
     } else {
-      const defaultTargetId = this.validTargets.keys().next().value;
       await this.createTargetVmTrack(ctx, defaultTargetId);
 
       ctx.commands.registerCommand({
@@ -141,7 +142,7 @@ export default class implements PerfettoPlugin {
       }
     }
 
-    const defaultTarget = this.validTargets.keys().next().value;
+    const defaultTarget = ensureExists(this.validTargets.keys().next().value);
     alert(`Invalid Target selected! Using default value: ${defaultTarget}`);
     return defaultTarget;
   }

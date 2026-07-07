@@ -200,6 +200,7 @@ source_set("proto_to_args_parser") {
     ":descriptors",
     ":interned_message_view",
     "../../base",
+    "../containers",
   ]
 }
 
@@ -249,6 +250,16 @@ source_set("sql_argument") {
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
     "../containers",
+  ]
+}
+
+source_set("owned_sql_value") {
+  sources = [ "owned_sql_value.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/trace_processor:basic_types",
   ]
 }
 
@@ -425,21 +436,10 @@ source_set("tar_writer") {
   ]
 }
 
-source_set("winscope_proto_mapping") {
-  sources = [ "winscope_proto_mapping.h" ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
-    "../containers",
-    "../core/dataframe",
-    "../storage:storage",
-    "../tables",
-  ]
-}
-
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
+    "descriptors_unittest.cc",
     "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
@@ -516,12 +516,21 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     deps = [
+      ":descriptors",
       ":glob",
+      ":proto_to_args_parser",
+      "..:gen_cc_test_messages_descriptor",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
       "../../../gn:sqlite",
       "../../base",
+      "../../protozero",
+      "../../protozero:testing_messages_zero",
+      "../containers",
     ]
-    sources = [ "glob_benchmark.cc" ]
+    sources = [
+      "glob_benchmark.cc",
+      "proto_to_args_parser_benchmark.cc",
+    ]
   }
 }

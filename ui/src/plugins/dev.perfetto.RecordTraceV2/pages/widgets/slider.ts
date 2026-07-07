@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ProbeSetting} from '../../config/config_interfaces';
+import type {ProbeSetting} from '../../config/config_interfaces';
 import {assertTrue} from '../../../../base/assert';
 import {exists} from '../../../../base/utils';
 import {Icon} from '../../../../widgets/icon';

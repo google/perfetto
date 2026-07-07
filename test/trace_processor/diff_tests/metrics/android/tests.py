@@ -33,7 +33,7 @@ class AndroidMetrics(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 0
-          network_packet_bundle {
+          [android.net.connectivity.tracing.ConnectivityTracePacket.network_packet_bundle] {
             ctx {
               direction: DIR_EGRESS
               network_interface: "wlan"
@@ -51,7 +51,7 @@ class AndroidMetrics(TestSuite):
         }
         packet {
           timestamp: 1005
-          network_packet_bundle {
+          [android.net.connectivity.tracing.ConnectivityTracePacket.network_packet_bundle] {
             ctx {
               direction: DIR_EGRESS
               network_interface: "wlan"
@@ -64,7 +64,7 @@ class AndroidMetrics(TestSuite):
         }
         packet {
           timestamp: 2015
-          network_packet_bundle {
+          [android.net.connectivity.tracing.ConnectivityTracePacket.network_packet_bundle] {
             ctx {
               direction: DIR_EGRESS
               network_interface: "wlan"
@@ -77,7 +77,7 @@ class AndroidMetrics(TestSuite):
         }
         packet {
           timestamp: 0
-          network_packet_bundle {
+          [android.net.connectivity.tracing.ConnectivityTracePacket.network_packet_bundle] {
             ctx {
               direction: DIR_INGRESS
               network_interface: "loopback"
@@ -506,8 +506,8 @@ class AndroidMetrics(TestSuite):
             period_id: 1
             period_dur: 16532191699
             cpu_subsystem {
-              estimated_mw: 94.580833
-              estimated_mws: 1563.628418
+              estimated_mw: 138.959335
+              estimated_mws: 2297.302246
               policy0 {
                 estimated_mw: 48.416279
                 estimated_mws: 800.427185
@@ -553,8 +553,8 @@ class AndroidMetrics(TestSuite):
                 }
               }
               dsu_scu {
-                estimated_mw: 3.509021
-                estimated_mws: 58.011806
+                estimated_mw: 47.887524
+                estimated_mws: 791.685730
               }
             }
           }

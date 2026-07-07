@@ -52,11 +52,10 @@ std::pair<FrameId, bool> JitCache::JittedFunction::InternFrame(
 
   FrameId frame_id =
       context->storage->mutable_stack_profile_frame_table()
-          ->Insert({context->storage->jit_code_table()
-                        .FindById(jit_code_id_)
-                        ->function_name(),
-                    frame_key.mapping_id,
-                    static_cast<int64_t>(frame_key.rel_pc), symbol_set_id_})
+          ->Insert(
+              {context->storage->jit_code_table()[jit_code_id_].function_name(),
+               frame_key.mapping_id, static_cast<int64_t>(frame_key.rel_pc),
+               symbol_set_id_})
           .id;
   interned_frames_.Insert(frame_key, frame_id);
 
@@ -73,9 +72,9 @@ tables::JitCodeTable::Id JitCache::LoadCode(
     std::optional<SourceLocation> source_location,
     TraceBlobView native_code) {
   PERFETTO_CHECK(range_.Contains(code_range));
-  PERFETTO_CHECK(context_->storage->thread_table()
-                     .FindById(tables::ThreadTable::Id(utid))
-                     ->upid() == upid_);
+  PERFETTO_CHECK(
+      context_->storage->thread_table()[tables::ThreadTable::Id(utid)].upid() ==
+      upid_);
 
   PERFETTO_CHECK(native_code.size() == 0 ||
                  native_code.size() == code_range.size());
@@ -100,8 +99,8 @@ tables::JitCodeTable::Id JitCache::LoadCode(
 
   functions_.DeleteOverlapsAndEmplace(
       [&](std::pair<const AddressRange, JittedFunction>& entry) {
-        jit_code_table->FindById(entry.second.jit_code_id())
-            ->set_estimated_delete_ts(timestamp);
+        (*jit_code_table)[entry.second.jit_code_id()].set_estimated_delete_ts(
+            timestamp);
       },
       code_range, jit_code_id, symbol_set_id);
 
@@ -115,17 +114,21 @@ tables::JitCodeTable::Id JitCache::MoveCode(int64_t timestamp,
   auto* jit_code_table = context_->storage->mutable_jit_code_table();
 
   auto it = functions_.Find(from_code_start);
+  if (it == functions_.end()) {
+    return {};
+  }
   AddressRange old_code_range = it->first;
   JittedFunction func = std::move(it->second);
   functions_.erase(it);
 
   auto code_id = func.jit_code_id();
-  AddressRange new_code_range(to_code_start, old_code_range.size());
+  AddressRange new_code_range =
+      AddressRange::FromStartAndSize(to_code_start, old_code_range.size());
 
   functions_.DeleteOverlapsAndEmplace(
       [&](std::pair<const AddressRange, JittedFunction>& entry) {
-        jit_code_table->FindById(entry.second.jit_code_id())
-            ->set_estimated_delete_ts(timestamp);
+        (*jit_code_table)[entry.second.jit_code_id()].set_estimated_delete_ts(
+            timestamp);
       },
       new_code_range, std::move(func));
 

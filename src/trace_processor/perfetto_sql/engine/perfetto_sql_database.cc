@@ -54,7 +54,20 @@ base::Status PerfettoSqlDatabase::RegisterPackage(
       }
     }
   }
+  // Same-name re-registrations replace silently; the caller decides whether
+  // to allow that. Prefix overlaps with *different* package names are always
+  // rejected because |FindPackageForModule| assumes at most one package can
+  // match any given key.
   packages_.Erase(name);
+  for (auto pkg = packages_.GetIterator(); pkg; ++pkg) {
+    if (sql_modules::IsPackagePrefixOf(name, pkg.key()) ||
+        sql_modules::IsPackagePrefixOf(pkg.key(), name)) {
+      return base::ErrStatus(
+          "Package '%s' clashes with existing package '%s'. Package names "
+          "cannot be prefixes of each other.",
+          name.c_str(), pkg.key().c_str());
+    }
+  }
   packages_.Insert(name, std::move(package));
   return base::OkStatus();
 }
@@ -75,6 +88,18 @@ const sql_modules::RegisteredPackage* PerfettoSqlDatabase::FindPackage(
 
 sql_modules::RegisteredPackage* PerfettoSqlDatabase::FindPackageForModule(
     const std::string& key) {
+  // Find the package whose name is a prefix of the key. Due to prefix clash
+  // checking during registration, at most one package can match any given key.
+  for (auto pkg = packages_.GetIterator(); pkg; ++pkg) {
+    if (sql_modules::IsPackagePrefixOf(pkg.key(), key)) {
+      return &pkg.value();
+    }
+  }
+  return nullptr;
+}
+
+const sql_modules::RegisteredPackage* PerfettoSqlDatabase::FindPackageForModule(
+    const std::string& key) const {
   // Find the package whose name is a prefix of the key. Due to prefix clash
   // checking during registration, at most one package can match any given key.
   for (auto pkg = packages_.GetIterator(); pkg; ++pkg) {

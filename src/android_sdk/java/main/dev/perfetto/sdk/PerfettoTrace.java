@@ -17,7 +17,6 @@
 package dev.perfetto.sdk;
 
 import com.google.errorprone.annotations.CompileTimeConstant;
-
 import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
 import java.util.List;
@@ -41,6 +40,7 @@ public final class PerfettoTrace {
   private static final int PERFETTO_TE_TYPE_SLICE_END = 2;
   private static final int PERFETTO_TE_TYPE_INSTANT = 3;
   private static final int PERFETTO_TE_TYPE_COUNTER = 4;
+  private static final int PERFETTO_TE_TYPE_STATE = 5;
 
   private static boolean sIsDebug = false;
   private static final PerfettoNativeMemoryCleaner sNativeMemoryCleaner =
@@ -282,6 +282,29 @@ public final class PerfettoTrace {
     return counter(category, value).usingProcessCounterTrackWithDynamicName(trackName);
   }
 
+  /**
+   * Updates a state track to a new value. A state track is like a counter whose value is a label
+   * rather than a number; the value persists until the next update and an empty value is "idle".
+   *
+   * @param category The perfetto category.
+   * @param value The state value (carried as the event name); empty/null is idle.
+   * @param trackName The process-scoped state track to update.
+   */
+  public static PerfettoTrackEventBuilder state(
+      Category category, String value, @CompileTimeConstant String trackName) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_STATE, category, sIsDebug)
+        .setEventName(value)
+        .usingProcessStateTrack(trackName);
+  }
+
+  /** Like {@link #state} but with a dynamically computed track name. */
+  public static PerfettoTrackEventBuilder stateWithDynamicName(
+      Category category, String value, String trackName) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_STATE, category, sIsDebug)
+        .setEventName(value)
+        .usingProcessStateTrackWithDynamicName(trackName);
+  }
+
   /** Returns the next flow id to be used. */
   public static int getFlowId() {
     return sFlowEventId.incrementAndGet();
@@ -326,8 +349,8 @@ public final class PerfettoTrace {
    * A stack can be captured with Thread.getStackTrace() but note that it is expensive
    * and should only be used for local debugging or low-frequency diagnostic events.
    */
-  public static PerfettoTrackEventBuilder expensiveDebugCallStack(Category category,
-    String eventName, StackTraceElement[] stackTrace) {
+  public static PerfettoTrackEventBuilder expensiveDebugCallStack(
+      Category category, String eventName, StackTraceElement[] stackTrace) {
     if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
         return PerfettoTrace.instant(category, eventName);
     }
@@ -341,15 +364,15 @@ public final class PerfettoTrace {
     PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
         .beginProto().beginNested(FIELD_TRACK_EVENT_CALLSTACK);
 
-    // Iterate from the bottom of the stack (main) up to the caller
-    // stackTrace[0] is getStackTrace()
-    // stackTrace[1] is emitStackInPerfetto()
-    // We start at the end and stop before reaching these internal methods
-    for (int i = stackTrace.length - 1; i >= 2; i--) {
+    for (int i = stackTrace.length - 1; i >= 0; i--) {
         StackTraceElement element = stackTrace[i];
 
-        builder = builder.beginNested(FIELD_CALLSTACK_FRAMES)
-            .addField(FIELD_FRAME_FUNCTION_NAME, element.getClassName() + "." + element.getMethodName());
+        builder =
+            builder
+                .beginNested(FIELD_CALLSTACK_FRAMES)
+                .addField(
+                    FIELD_FRAME_FUNCTION_NAME,
+                    element.getClassName() + "." + element.getMethodName());
 
         if (element.getFileName() != null) {
             builder = builder.addField(FIELD_FRAME_SOURCE_FILE, element.getFileName());

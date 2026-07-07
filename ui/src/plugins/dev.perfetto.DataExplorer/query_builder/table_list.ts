@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder, FuzzySegment} from '../../../base/fuzzy';
+import {FuzzyFinder, type FuzzySegment} from '../../../base/fuzzy';
 import {
-  SqlModules,
-  SqlTable,
+  type SqlModules,
+  type SqlTable,
   isTableEffectivelyDisabled,
 } from '../../dev.perfetto.SqlModules/sql_modules';
 import {Card, CardStack} from '../../../widgets/card';
@@ -386,7 +386,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
 
         const hasMatch = tableWithModule.table.columns.some(
           (col) =>
-            col.description &&
+            col.description !== undefined &&
             col.description.toLowerCase().includes(lowerQuery),
         );
 

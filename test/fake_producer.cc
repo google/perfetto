@@ -98,7 +98,7 @@ void FakeProducer::StartDataSource(DataSourceInstanceID,
     // Common case: Start tracing now.
     trace_writer_ = endpoint_->CreateTraceWriter(
         static_cast<BufferID>(source_config.target_buffer()),
-        BufferExhaustedPolicy::kStall);
+        buffer_exhausted_policy_);
     SetupFromConfig(source_config.for_testing());
   }
   if (source_config.for_testing().send_batch_on_register()) {

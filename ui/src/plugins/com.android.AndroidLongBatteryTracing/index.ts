@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {
   STR,
   LONG,
   UNKNOWN,
-  SqlValue,
+  type SqlValue,
   LONG_NULL,
 } from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';

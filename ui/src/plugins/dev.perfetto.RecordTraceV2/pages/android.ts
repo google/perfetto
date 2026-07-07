@@ -14,8 +14,8 @@
 
 import {splitLinesNonEmpty} from '../../../base/string_utils';
 import protos from '../../../protos';
-import {RecordSubpage, RecordProbe} from '../config/config_interfaces';
-import {TraceConfigBuilder} from '../config/trace_config_builder';
+import type {RecordSubpage, RecordProbe} from '../config/config_interfaces';
+import type {TraceConfigBuilder} from '../config/trace_config_builder';
 import {TypedMultiselect} from './widgets/multiselect';
 import {POLL_INTERVAL_SLIDER, Slider} from './widgets/slider';
 import {Textarea} from './widgets/textarea';
@@ -32,6 +32,7 @@ export function androidRecordSection(): RecordSubpage {
       atrace(),
       logcat(),
       frameTimeline(),
+      displayVideo(),
       gameInterventions(),
       netTracing(),
       statsdAtoms(),
@@ -139,6 +140,18 @@ function frameTimeline(): RecordProbe {
     docsLink: 'https://perfetto.dev/docs/data-sources/frametimeline',
     genConfig: function (tc: TraceConfigBuilder) {
       tc.addDataSource('android.surfaceflinger.frametimeline');
+    },
+  };
+}
+
+function displayVideo(): RecordProbe {
+  return {
+    id: 'android_display_video',
+    title: 'Display video frames',
+    description: 'Captures what each display showed during the trace.',
+    supportedPlatforms: ['ANDROID'],
+    genConfig: function (tc: TraceConfigBuilder) {
+      tc.addDataSource('android.display.video');
     },
   };
 }

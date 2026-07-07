@@ -62,6 +62,13 @@ enum class ProcessNamePriority : uint8_t {
   kSystem = 4,
 };
 
+// Sort index priorities for process and thread tracks. Higher values overwrite
+// lower values.
+enum class SortIndexPriority : uint8_t {
+  kOther = 0,
+  kTrackDescriptor = 1,
+};
+
 class ProcessTracker {
  public:
   explicit ProcessTracker(TraceProcessorContext*);
@@ -176,6 +183,16 @@ class ProcessTracker {
   // Sets the process user id.
   void SetProcessUid(UniquePid upid, uint32_t uid);
 
+  // Sets the sort index of a process with priority semantics.
+  void SetProcessSortIndex(UniquePid upid,
+                           int32_t sort_index,
+                           SortIndexPriority priority);
+
+  // Sets the sort index of a thread with priority semantics.
+  void SetThreadSortIndex(UniqueTid utid,
+                          int32_t sort_index,
+                          SortIndexPriority priority);
+
   // Assigns the given name to the process if the new name has a higher or
   // equal priority than the existing one.
   virtual void UpdateProcessName(UniquePid upid,
@@ -227,15 +244,13 @@ class ProcessTracker {
   // traces, we always have the "swapper" (idle) process having tid/pid 0.
   void SetPidZeroIsUpidZeroIdleProcess();
 
-  // Returns a BoundInserter to add arguments to the arg set of a process.
-  // Arguments are flushed into trace storage only after the trace was loaded in
-  // its entirety.
-  ArgsTracker::BoundInserter AddArgsToProcess(UniquePid upid);
+  // Returns the inserter accumulating args for a process; args from all callers
+  // merge into one arg set, committed in OnEventsFullyExtracted. The reference
+  // is valid until the next AddArgsToProcess call.
+  ArgsTracker::BoundInserter& AddArgsToProcess(UniquePid upid);
 
-  // Returns a BoundInserter to add arguments to the arg set of a thread.
-  // Arguments are flushed into trace storage only after the trace was loaded in
-  // its entirety.
-  ArgsTracker::BoundInserter AddArgsToThread(UniqueTid utid);
+  // As AddArgsToProcess, for a thread.
+  ArgsTracker::BoundInserter& AddArgsToThread(UniqueTid utid);
 
   // Called when the trace was fully loaded.
   void OnEventsFullyExtracted();
@@ -260,6 +275,14 @@ class ProcessTracker {
   // Returns std::nullopt if such a thread doesn't exist.
   std::optional<uint32_t> GetThreadOrNull(int64_t tid,
                                           std::optional<int64_t> pid);
+
+  // Repoints live_tid_[tid] at the newest alive incarnation in |tids_| (or
+  // erases it). Cold path: lifecycle transitions only.
+  void RefreshLiveTid(int64_t tid);
+
+  // Refreshes live_tid_ for every thread of |upid|, when it ends or is
+  // recycled.
+  void InvalidateProcessThreads(UniquePid upid);
 
   // Returns the utid of a thread whos parent matches the provided pid
   // or creates a new thread if not present. If a new thread is created,
@@ -293,7 +316,15 @@ class ProcessTracker {
 
   TraceProcessorContext* const context_;
 
+  // Factory used to bind the inserters below to process/thread rows.
   ArgsTracker args_tracker_;
+
+  // One inserter per process/thread that received args, so args from all
+  // callers merge into one set; committed in OnEventsFullyExtracted. The
+  // reference returned by AddArgsTo{Process,Thread} is only valid until the
+  // next such call (the map may rehash); every caller uses it before then.
+  base::FlatHashMap<UniquePid, ArgsTracker::BoundInserter> process_args_;
+  base::FlatHashMap<UniqueTid, ArgsTracker::BoundInserter> thread_args_;
 
   // Mapping for tid to the vector of possible UniqueTids.
   // TODO(lalitm): this is a one-many mapping because this code was written
@@ -302,6 +333,14 @@ class ProcessTracker {
   // (though it seems like there are subtle things which break in Chrome if this
   // changes).
   base::FlatHashMap<int64_t /* tid */, std::vector<UniqueTid>> tids_;
+
+  // Cache of the newest alive incarnation of each tid: the answer to a bare
+  // (no parent pid) lookup. Kept in sync via tids_ on lifecycle transitions.
+  base::FlatHashMap<int64_t /* tid */, UniqueTid> live_tid_;
+
+  // upid -> its utids, used to refresh live_tid_ when a process ends or its pid
+  // is recycled.
+  base::FlatHashMap<UniquePid, std::vector<UniqueTid>> process_threads_;
 
   // Mapping of the most recently seen pid to the associated upid.
   base::FlatHashMap<int64_t /* pid (aka tgid) */, UniquePid> pids_;
@@ -345,6 +384,13 @@ class ProcessTracker {
 
   UniquePid swapper_upid_ = 0;
   UniqueTid swapper_utid_ = 0;
+
+  struct SortIndex {
+    int32_t value;
+    SortIndexPriority priority;
+  };
+  base::FlatHashMap<UniquePid, SortIndex> process_sort_indexes_;
+  base::FlatHashMap<UniqueTid, SortIndex> thread_sort_indexes_;
 };
 
 }  // namespace perfetto::trace_processor

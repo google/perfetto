@@ -33,6 +33,7 @@ import "protos/perfetto/config/android/network_trace_config.proto";
 import "protos/perfetto/config/android/packages_list_config.proto";
 import "protos/perfetto/config/android/pixel_modem_config.proto";
 import "protos/perfetto/config/android/protolog_config.proto";
+import "protos/perfetto/config/android/display_video_config.proto";
 import "protos/perfetto/config/android/surfaceflinger_layers_config.proto";
 import "protos/perfetto/config/android/surfaceflinger_transactions_config.proto";
 import "protos/perfetto/config/android/user_list_config.proto";
@@ -61,10 +62,11 @@ import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
 import "protos/perfetto/config/system_info/system_info_config.proto";
 import "protos/perfetto/config/chrome/histogram_samples.proto";
+import "protos/perfetto/config/linux/journald_config.proto";
 import "protos/perfetto/config/qnx/qnx_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 141
+// Next id: 143
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -304,6 +306,12 @@ message DataSourceConfig {
 
   // Data source name: android.aflags
   optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
+
+  // Data source name: linux.systemd_journald
+  optional SystemdJournaldConfig journald_config = 141 [lazy = true];
+
+  // Data source name: android.display.video
+  optional DisplayVideoConfig display_video_config = 142 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

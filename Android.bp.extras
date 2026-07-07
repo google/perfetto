@@ -4,6 +4,7 @@ java_library_host {
     name: "perfetto_config-full",
     proto: {
         type: "full",
+        local_include_dirs: ["."],
     },
     srcs: [
         "protos/perfetto/config/perfetto_config.proto",
@@ -14,6 +15,7 @@ java_library {
     name: "perfetto_config-lite",
     proto: {
         type: "lite",
+        local_include_dirs: ["."],
     },
     srcs: [
         "protos/perfetto/config/perfetto_config.proto",
@@ -25,6 +27,7 @@ java_library_host {
     proto: {
         type: "full",
         canonical_path_from_root: false,
+        local_include_dirs: ["."],
     },
     static_libs: [
         "libprotobuf-java-full",
@@ -40,6 +43,7 @@ java_library_host {
     name: "perfetto_trace-full",
     proto: {
         type: "full",
+        local_include_dirs: ["."],
     },
     srcs: [
         "protos/perfetto/trace/perfetto_trace.proto",
@@ -52,6 +56,7 @@ java_library_host {
     name: "perfetto_metrics-full",
     proto: {
         type: "full",
+        local_include_dirs: ["."],
     },
     srcs: [
         "protos/perfetto/metrics/perfetto_merged_metrics.proto",
@@ -148,6 +153,8 @@ filegroup {
     name: "perfetto-trace-processor-python-srcs",
     srcs: [
         "python/perfetto/common/*.py",
+        "python/perfetto/prebuilts/*.py",
+        "python/perfetto/prebuilts/manifests/*.py",
         "python/perfetto/trace_processor/*.py",
     ],
     path: "python",
@@ -219,16 +226,13 @@ gensrcs {
         "&& $(location aprotoc) " +
         "--plugin=$(location protoc-gen-javastream) " +
 
-        "--javastream_opt=include_filter:perfetto.protos.TracePacket,perfetto.protos.ShellTransition,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogMessage,perfetto.protos.ProtoLogViewerConfig,perfetto.protos.ShellHandlerMapping,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogGroup,perfetto.protos.ProtoLogConfig,perfetto.protos.DataSourceConfig,perfetto.protos.InternedString,perfetto.protos.InternedData,perfetto.protos.ProtoLogLevel,perfetto.protos.TestEvent,perfetto.protos.TestEvent.TestPayload,perfetto.protos.TestConfig,perfetto.protos.TestConfig.DummyFields,perfetto.protos.WinscopeExtensionsImpl,perfetto.protos.ViewCapture,perfetto.protos.AppWakelocksConfig,perfetto.protos.AppWakelockInfo,perfetto.protos.AppWakelockBundle," +
+        "--javastream_opt=include_filter:perfetto.protos.TracePacket,perfetto.protos.ShellTransition,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogMessage,perfetto.protos.ProtoLogViewerConfig,perfetto.protos.ShellHandlerMapping,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogGroup,perfetto.protos.ProtoLogConfig,perfetto.protos.DataSourceConfig,perfetto.protos.InternedString,perfetto.protos.InternedData,perfetto.protos.ProtoLogLevel,perfetto.protos.TestEvent,perfetto.protos.TestEvent.TestPayload,perfetto.protos.TestConfig,perfetto.protos.TestConfig.DummyFields,perfetto.protos.WinscopeExtensionsImpl,perfetto.protos.ViewCapture,perfetto.protos.AppWakelocksConfig,perfetto.protos.AppWakelockInfo,perfetto.protos.AppWakelockBundle,perfetto.protos.DisplayVideoConfig," +
 
         // IME protos
         "perfetto.protos.ClientSideProto,perfetto.protos.DisplayCutoutProto,perfetto.protos.EditorInfoProto,perfetto.protos.ImeFocusControllerProto,perfetto.protos.InputConnectionCallProto,perfetto.protos.InputConnectionProto,perfetto.protos.InputMethodClientsTraceProto,perfetto.protos.InputMethodClientsTraceFileProto,perfetto.protos.InputMethodConfig,perfetto.protos.InputMethodManagerProto,perfetto.protos.InputMethodManagerServiceProto,perfetto.protos.InputMethodManagerServiceTraceProto,perfetto.protos.InputMethodManagerServiceTraceFileProto,perfetto.protos.InputMethodServiceProto,perfetto.protos.InputMethodServiceTraceProto,perfetto.protos.InputMethodServiceTraceFileProto,perfetto.protos.InsetsAnimationControlImplProto,perfetto.protos.InsetsControllerProto,perfetto.protos.InsetsProto,perfetto.protos.InsetsFrameProviderProto,perfetto.protos.InsetsSizeOverrideProto,perfetto.protos.InsetsSourceConsumerProto,perfetto.protos.InsetsSourceControlProto,perfetto.protos.InsetsSourceProto,perfetto.protos.InsetsStateProto,perfetto.protos.RectProto,perfetto.protos.SoftInputWindowProto,perfetto.protos.SurfaceControlProto,perfetto.protos.ViewRootImplProto,perfetto.protos.WindowLayoutParamsProto," +
 
         // WindowManager protos
-        "perfetto.protos.ActivityInfoProto,perfetto.protos.ActivityRecordProto,perfetto.protos.AlphaAnimationSpecProto,perfetto.protos.AnimationAdapterProto,perfetto.protos.AnimationSpecProto,perfetto.protos.AppTransitionProto,perfetto.protos.BackNavigationProto,perfetto.protos.ConfigurationContainerProto,perfetto.protos.ConfigurationProto,perfetto.protos.DeviceConfigurationProto,perfetto.protos.DisplayAreaProto,perfetto.protos.DisplayContentProto,perfetto.protos.DisplayInfoProto,perfetto.protos.DisplayRotationProto,perfetto.protos.GlobalConfigurationProto,perfetto.protos.IdentifierProto,perfetto.protos.ImeInsetsSourceProviderProto,perfetto.protos.InsetsSourceProviderProto,perfetto.protos.KeyguardControllerProto,perfetto.protos.KeyguardPerDisplayProto,perfetto.protos.KeyguardServiceDelegateProto,perfetto.protos.LocalAnimationAdapterProto,perfetto.protos.LocaleProto,perfetto.protos.MoveAnimationSpecProto,perfetto.protos.PointProto,perfetto.protos.RemoteAnimationTargetProto,perfetto.protos.RemoteInsetsControlTargetProto,perfetto.protos.ResourcesConfigurationProto,perfetto.protos.RootWindowContainerProto,perfetto.protos.SurfaceAnimatorProto,perfetto.protos.TaskFragmentProto,perfetto.protos.TaskProto,perfetto.protos.WindowAnimationSpecProto,perfetto.protos.WindowConfigurationProto,perfetto.protos.WindowContainerChildProto,perfetto.protos.WindowContainerProto,perfetto.protos.WindowFramesProto,perfetto.protos.WindowManagerConfig,perfetto.protos.WindowManagerServicePatchProto,perfetto.protos.WindowManagerPolicyProto,perfetto.protos.WindowManagerServiceDumpProto,perfetto.protos.WindowManagerTraceEntry,perfetto.protos.WindowManagerTraceFileProto,perfetto.protos.WindowOrientationListenerProto,perfetto.protos.WindowStateAnimatorProto,perfetto.protos.WindowStateProto,perfetto.protos.WindowSurfaceControllerProto,perfetto.protos.WindowTokenProto,perfetto.protos.InsetsStateControllerProto,perfetto.protos.DisplayPolicyProto,perfetto.protos.DecorInsetsProto,perfetto.protos.DecorInsetsInfoProto,perfetto.protos.AppearanceRegionProto,perfetto.protos.SystemBarVisibilityOverrideProto,perfetto.protos.InsetsPolicyProto,perfetto.protos.InsetsControlTargetProto,perfetto.protos.DisplayFramesProto," +
-
-        // AndroidTrackEvent protos
-        "perfetto.protos.AndroidMessageQueue,perfetto.protos.AndroidJobSchedulerJob,perfetto.protos.AndroidBitmap,perfetto.protos.AndroidSurfaceFlingerWorkload,perfetto.protos.AndroidSurfaceFlingerWorkload.Source,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.SfCpu,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.Hwc,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.Re,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Timings.Skia,perfetto.protos.AndroidSurfaceFlingerWorkload.Summary.Stats,perfetto.protos.AndroidBroadcastEvent,perfetto.protos.AndroidFreezerEvent,perfetto.protos.AndroidProcessStartEvent,perfetto.protos.AndroidProcessDiedEvent,perfetto.protos.AndroidProcessStateChangedEvent,perfetto.protos.AndroidBinderDiedEvent,perfetto.protos.AndroidServiceStateChangedEvent,perfetto.protos.AndroidProviderStateChangedEvent,perfetto.protos.AndroidTrackEvent " +
+        "perfetto.protos.ActivityInfoProto,perfetto.protos.ActivityRecordProto,perfetto.protos.AlphaAnimationSpecProto,perfetto.protos.AnimationAdapterProto,perfetto.protos.AnimationSpecProto,perfetto.protos.AppTransitionProto,perfetto.protos.BackNavigationProto,perfetto.protos.ConfigurationContainerProto,perfetto.protos.ConfigurationProto,perfetto.protos.DeviceConfigurationProto,perfetto.protos.DisplayAreaProto,perfetto.protos.DisplayContentProto,perfetto.protos.DisplayInfoProto,perfetto.protos.DisplayRotationProto,perfetto.protos.GlobalConfigurationProto,perfetto.protos.IdentifierProto,perfetto.protos.ImeInsetsSourceProviderProto,perfetto.protos.InsetsSourceProviderProto,perfetto.protos.KeyguardControllerProto,perfetto.protos.KeyguardPerDisplayProto,perfetto.protos.KeyguardServiceDelegateProto,perfetto.protos.LocalAnimationAdapterProto,perfetto.protos.LocaleProto,perfetto.protos.MoveAnimationSpecProto,perfetto.protos.PointProto,perfetto.protos.RemoteAnimationTargetProto,perfetto.protos.RemoteInsetsControlTargetProto,perfetto.protos.ResourcesConfigurationProto,perfetto.protos.RootWindowContainerProto,perfetto.protos.SurfaceAnimatorProto,perfetto.protos.TaskFragmentProto,perfetto.protos.TaskProto,perfetto.protos.WindowAnimationSpecProto,perfetto.protos.WindowConfigurationProto,perfetto.protos.WindowContainerChildProto,perfetto.protos.WindowContainerProto,perfetto.protos.WindowFramesProto,perfetto.protos.WindowManagerConfig,perfetto.protos.WindowManagerServicePatchProto,perfetto.protos.WindowManagerPolicyProto,perfetto.protos.WindowManagerServiceDumpProto,perfetto.protos.WindowManagerTraceEntry,perfetto.protos.WindowManagerTraceFileProto,perfetto.protos.WindowOrientationListenerProto,perfetto.protos.WindowStateAnimatorProto,perfetto.protos.WindowStateProto,perfetto.protos.WindowSurfaceControllerProto,perfetto.protos.WindowTokenProto,perfetto.protos.InsetsStateControllerProto,perfetto.protos.DisplayPolicyProto,perfetto.protos.DecorInsetsProto,perfetto.protos.DecorInsetsInfoProto,perfetto.protos.AppearanceRegionProto,perfetto.protos.SystemBarVisibilityOverrideProto,perfetto.protos.InsetsPolicyProto,perfetto.protos.InsetsControlTargetProto,perfetto.protos.DisplayFramesProto " +
 
         "--javastream_out=$(genDir)/$(in) " +
         "-Iexternal/protobuf/src " +
@@ -248,6 +252,7 @@ java_library {
         type: "lite",
         include_dirs: ["external/protobuf/src"],
         canonical_path_from_root: false,
+        local_include_dirs: ["."],
     },
     srcs: [
         ":libprotobuf-internal-descriptor-proto",
@@ -271,6 +276,7 @@ java_library {
     proto: {
         type: "lite",
         canonical_path_from_root: false,
+        local_include_dirs: ["."],
     },
     sdk_version: "system_server_current",
     min_sdk_version: "35",
@@ -330,16 +336,56 @@ phony {
     target: {
         android: {
             required: [
-                // TODO(primiano): uncomment after ag/38422283 lands.
-                // "system_tracing_protos_descriptor",
+                "system_tracing_protos_descriptor",
             ],
-        }
-    }
+        },
+    },
 }
 
 filegroup {
     name: "ravenwood-perfetto-policies",
     srcs: [
         "src/android_sdk/jni/ravenwood-perfetto-policies.txt",
+    ],
+}
+
+// Host-only stubs for the small set of Android classes the perfetto Java
+// SDK references that are missing from Soong's host module_current
+// classpath (dalvik.annotation.optimization.{Critical,Fast}Native and
+// android.system.SystemCleaner; plus android.util.{ArraySet,Log} and
+// android.os.Process). Linked into the host variant of
+// perfetto_trace_lib_java_defaults as a libs: dep so the stubs are visible
+// to javac but not bundled into the jar; the Android variant continues
+// to use the real platform classes from module_current.
+java_library_host {
+    name: "perfetto_trace_lib_host_stubs",
+    srcs: [
+        "src/android_sdk/java/host_stubs/**/*.java",
+    ],
+    // androidx/** is a test-only shim (AndroidJUnit4) for the standalone host
+    // JUnit runner (tools/run_android_sdk_host_test), which compiles host_stubs
+    // with JUnit on the classpath. It is not one of the SDK host shims this
+    // library is meant to provide (see the comment above) and pulling it in here
+    // drags in org.junit, which this library does not depend on -- breaking the
+    // Soong host build. The Soong host/ravenwood build uses the real
+    // androidx.test, so exclude it.
+    exclude_srcs: [
+        "src/android_sdk/java/host_stubs/androidx/**/*.java",
+    ],
+}
+
+filegroup {
+    name: "wattson_power_curves",
+    srcs: [
+        "src/trace_processor/plugins/wattson/data/**/*.csv",
+    ],
+    path: "src/trace_processor/plugins/wattson/data",
+    visibility: ["//visibility:public"],
+}
+
+filegroup {
+    name: "perfetto_cpp_blob_emitter",
+    srcs: [
+        "python/tools/cpp_blob_emitter.py",
     ],
 }

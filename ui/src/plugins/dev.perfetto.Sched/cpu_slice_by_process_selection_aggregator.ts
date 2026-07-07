@@ -15,23 +15,28 @@
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {
-  AggregatePivotModel,
-  Aggregation,
-  Aggregator,
+  type AggregatePivotModel,
+  type Aggregation,
+  type Aggregator,
   createIITable,
 } from '../../components/aggregation_adapter';
-import {AreaSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
-import {Track} from '../../public/track';
+import type {AreaSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
+import type {Track} from '../../public/track';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {
-  Dataset,
-  DatasetSchema,
+  type Dataset,
+  type DatasetSchema,
   SourceDataset,
   UnionDatasetWithLineage,
 } from '../../trace_processor/dataset';
-import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, UNKNOWN} from '../../trace_processor/query_result';
+import type {Engine} from '../../trace_processor/engine';
+import {
+  LONG,
+  NUM,
+  type SqlValue,
+  UNKNOWN,
+} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 
 const CPU_SLICE_SPEC = {
@@ -149,7 +154,7 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
             const parsed = JSON.parse(value) as {
               id: number;
               groupid: number;
-              partition: unknown;
+              partition: SqlValue;
             };
             const {id, groupid, partition} = parsed;
 
@@ -205,7 +210,10 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
   /**
    * Resolve a track from lineage information.
    */
-  private resolveTrack(groupId: number, partition: unknown): Track | undefined {
+  private resolveTrack(
+    groupId: number,
+    partition: SqlValue,
+  ): Track | undefined {
     if (!this.trackDatasetMap || !this.unionDataset) return undefined;
 
     // Ensure partition is a valid SqlValue

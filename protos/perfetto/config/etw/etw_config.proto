@@ -32,7 +32,7 @@ message EtwConfig {
   // The kernel_flags determines the flags that will be used by the etw tracing
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
-  repeated KernelFlag kernel_flags = 1;
+  repeated KernelFlag kernel_flags = 1 [deprecated = true];
 
   // See the list of keywords for for individual providers.
   // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
@@ -42,7 +42,12 @@ message EtwConfig {
   // Provides events relating to the memory manager.
   repeated string memory_provider_events = 3;
   // Provides events relating to file I/O.
-  repeated string file_provider_events = 4;
+  repeated string file_provider_events = 4 [deprecated = true];
   // Events for which stacks should be collected.
   repeated string stack_sampling_events = 5;
+  // Provides events relating to disk I/O.
+  repeated string disk_provider_events = 6 [deprecated = true];
+  // Provides events relating to multiple kinds of IO including disk, cache, and
+  // network.
+  repeated string system_io_provider_events = 7;
 }
