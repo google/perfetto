@@ -54,8 +54,8 @@ DuckDbIteratorImpl::~DuckDbIteratorImpl() {
 
 bool DuckDbIteratorImpl::Next() {
   // Mirror SqliteIteratorImpl::Next(): the FIRST Next() positions on the first
-  // row (it must not advance past it - Get is valid right after the first Next()
-  // returns true); subsequent Next()s advance one row, crossing chunk
+  // row (it must not advance past it - Get is valid right after the first
+  // Next() returns true); subsequent Next()s advance one row, crossing chunk
   // boundaries as needed.
   if (!called_next_) {
     called_next_ = true;
@@ -140,8 +140,7 @@ SqlValue DuckDbIteratorImpl::ReadCell(duckdb_vector vec,
     duckdb_vector tag_vec = duckdb_struct_vector_get_child(vec, 0);
     auto* tag_data = static_cast<uint8_t*>(duckdb_vector_get_data(tag_vec));
     auto member = static_cast<idx_t>(tag_data[row]);
-    duckdb_vector member_vec =
-        duckdb_struct_vector_get_child(vec, member + 1);
+    duckdb_vector member_vec = duckdb_struct_vector_get_child(vec, member + 1);
     return ReadCell(member_vec, row, col);
   }
 
@@ -152,7 +151,8 @@ SqlValue DuckDbIteratorImpl::ReadCell(duckdb_vector vec,
   // type, so the legacy path surfaces these as a DOUBLE (e.g. a `5.5` literal,
   // typed DECIMAL by DuckDB, passed through `trunc`/`round`/etc.). Convert to
   // double to match. Handled before the int-widening switch since its
-  // DUCKDB_TYPE_DECIMAL needs the width/scale from the (still-live) logical type.
+  // DUCKDB_TYPE_DECIMAL needs the width/scale from the (still-live) logical
+  // type.
   if (type_id == DUCKDB_TYPE_DECIMAL) {
     uint8_t width = duckdb_decimal_width(logical);
     uint8_t scale = duckdb_decimal_scale(logical);

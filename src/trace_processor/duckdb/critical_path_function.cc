@@ -300,7 +300,8 @@ void CombineWalk(duckdb_function_info info,
   }
 
   if (duckdb_list_vector_reserve(output, total) == DuckDBError) {
-    duckdb_scalar_function_set_error(info, "critical_path_walk: reserve failed");
+    duckdb_scalar_function_set_error(info,
+                                     "critical_path_walk: reserve failed");
     return;
   }
   duckdb_list_vector_set_size(output, total);
@@ -361,14 +362,14 @@ base::Status RegisterAgg(duckdb_connection conn,
 }  // namespace
 
 base::Status RegisterCriticalPath(duckdb_connection conn) {
-  RETURN_IF_ERROR(RegisterAgg(
-      conn, "__intrinsic_wakeup_graph_agg", 7, GraphUpdate, GraphCombine,
-      BufStateSize<WakeupGraph>, BufInit<WakeupGraph>, BufFinalize<WakeupGraph>,
-      BufDestroy<WakeupGraph>));
-  RETURN_IF_ERROR(RegisterAgg(
-      conn, "__intrinsic_cp_roots_agg", 1, RootsUpdate, RootsCombine,
-      BufStateSize<RootArray>, BufInit<RootArray>, BufFinalize<RootArray>,
-      BufDestroy<RootArray>));
+  RETURN_IF_ERROR(
+      RegisterAgg(conn, "__intrinsic_wakeup_graph_agg", 7, GraphUpdate,
+                  GraphCombine, BufStateSize<WakeupGraph>, BufInit<WakeupGraph>,
+                  BufFinalize<WakeupGraph>, BufDestroy<WakeupGraph>));
+  RETURN_IF_ERROR(RegisterAgg(conn, "__intrinsic_cp_roots_agg", 1, RootsUpdate,
+                              RootsCombine, BufStateSize<RootArray>,
+                              BufInit<RootArray>, BufFinalize<RootArray>,
+                              BufDestroy<RootArray>));
 
   duckdb_scalar_function f = duckdb_create_scalar_function();
   duckdb_scalar_function_set_name(f, "__intrinsic_critical_path_walk");
@@ -377,8 +378,8 @@ base::Status RegisterCriticalPath(duckdb_connection conn) {
   duckdb_scalar_function_add_parameter(f, bigint);  // roots handle
   duckdb_logical_type members[7] = {bigint, bigint, bigint, bigint,
                                     bigint, bigint, bigint};
-  const char* names[7] = {"root_id",      "depth",        "ts", "dur",
-                          "blocker_id",   "blocker_utid", "parent_id"};
+  const char* names[7] = {"root_id",    "depth",        "ts",       "dur",
+                          "blocker_id", "blocker_utid", "parent_id"};
   duckdb_logical_type struct_type =
       duckdb_create_struct_type(members, names, 7);
   duckdb_logical_type list_of_struct = duckdb_create_list_type(struct_type);

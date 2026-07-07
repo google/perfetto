@@ -67,10 +67,9 @@ std::string ApplyEdits(const std::string& src, std::vector<SpanEdit> edits) {
   if (edits.empty()) {
     return src;
   }
-  std::stable_sort(edits.begin(), edits.end(),
-                   [](const SpanEdit& a, const SpanEdit& b) {
-                     return a.offset < b.offset;
-                   });
+  std::stable_sort(
+      edits.begin(), edits.end(),
+      [](const SpanEdit& a, const SpanEdit& b) { return a.offset < b.offset; });
   std::string out;
   out.reserve(src.size() + 16);
   uint32_t cursor = 0;
@@ -89,8 +88,8 @@ std::string ApplyEdits(const std::string& src, std::vector<SpanEdit> edits) {
 }
 
 std::string LowerSqlForDuckDb(const std::string& sql) {
-  SyntaqliteParser* p =
-      syntaqlite_parser_create_with_dialect(nullptr, syntaqlite_perfetto_dialect());
+  SyntaqliteParser* p = syntaqlite_parser_create_with_dialect(
+      nullptr, syntaqlite_perfetto_dialect());
   if (!p) {
     return sql;
   }

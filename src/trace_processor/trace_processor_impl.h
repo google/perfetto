@@ -208,10 +208,10 @@ class TraceProcessorImpl : public TraceProcessor,
   // database/connection + table provider.
   std::unique_ptr<duckdb_integration::DuckDbEngine> duckdb_engine_;
   // Cache for the DuckDB table-function mirror: maps a stdlib RETURNS TABLE
-  // function name to {raw authored body, pipelined body}. The pipeline (interval
-  // /graph rewrites + macro expansion) is run once per (name, raw-body); a
-  // CREATE OR REPLACE with a changed body re-pipelines. Avoids re-parsing every
-  // function body on every query.
+  // function name to {raw authored body, pipelined body}. The pipeline
+  // (interval /graph rewrites + macro expansion) is run once per (name,
+  // raw-body); a CREATE OR REPLACE with a changed body re-pipelines. Avoids
+  // re-parsing every function body on every query.
   std::unordered_map<std::string, std::pair<std::string, std::string>>
       duckdb_mirror_body_cache_;
   // Backs the DuckDB-lane __intrinsic_arg_set_to_json UDF: the args plugin's

@@ -216,20 +216,21 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // protobuf messages that are not compiled into Perfetto
   std::vector<std::string> extra_parsing_descriptors;
 
-  // EXPERIMENTAL (SQLite -> DuckDB migration). When true, queries that are fully
-  // supported by the experimental DuckDB query engine are executed inside DuckDB
-  // instead of SQLite; everything else transparently falls back to SQLite. Has
-  // no effect unless trace processor is built with the DuckDB engine
-  // (PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)); the field is always present so this
-  // struct's layout is stable across build configurations.
+  // EXPERIMENTAL (SQLite -> DuckDB migration). When true, queries that are
+  // fully supported by the experimental DuckDB query engine are executed inside
+  // DuckDB instead of SQLite; everything else transparently falls back to
+  // SQLite. Has no effect unless trace processor is built with the DuckDB
+  // engine (PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)); the field is always
+  // present so this struct's layout is stable across build configurations.
   bool enable_duckdb_query_engine = false;
 
   // EXPERIMENTAL (SQLite -> DuckDB migration). Fallback-honesty switch. Only
   // meaningful when |enable_duckdb_query_engine| is true. When true, a query
   // that the router would target DuckDB but which is INELIGIBLE (so it would
-  // normally silently fall back to SQLite) instead returns an error. This lets a
-  // measurement lane distinguish "really ran in DuckDB" from "fell back", so a
-  // diff-test pass-count is a true DuckDB count rather than masked by fallback.
+  // normally silently fall back to SQLite) instead returns an error. This lets
+  // a measurement lane distinguish "really ran in DuckDB" from "fell back", so
+  // a diff-test pass-count is a true DuckDB count rather than masked by
+  // fallback.
   bool duckdb_disable_fallback = false;
 };
 

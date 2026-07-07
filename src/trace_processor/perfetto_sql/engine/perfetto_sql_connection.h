@@ -165,16 +165,18 @@ class PerfettoSqlConnection {
   // statement (e.g. it is a CREATE PERFETTO ..., contains multiple statements,
   // or fails to parse) - the caller should then use the original SQL. Used by
   // the experimental DuckDB engine to strip `name!(...)` macros (which DuckDB
-  // cannot parse) from a statement before handing it to DuckDB; the macro bodies
-  // are the SAME ones the SQLite path expands, so the result is identical.
+  // cannot parse) from a statement before handing it to DuckDB; the macro
+  // bodies are the SAME ones the SQLite path expands, so the result is
+  // identical.
   std::optional<std::string> ExpandMacrosToSqlite(SqlSource sql);
 
-  // Installs a set of macro definitions that SHADOW the registry's own (by name)
-  // when expanding via ExpandMacrosToSqliteDuckDb. Used by the experimental
-  // DuckDB engine to provide native definitions of the table-valued intrinsic
-  // macros (interval_intersect / graphs / dominator) that expand to DuckDB
-  // functions instead of the SQLite-vtable table-pointer form, WITHOUT affecting
-  // the SQLite path (which keeps using the originals via ExpandMacrosToSqlite).
+  // Installs a set of macro definitions that SHADOW the registry's own (by
+  // name) when expanding via ExpandMacrosToSqliteDuckDb. Used by the
+  // experimental DuckDB engine to provide native definitions of the
+  // table-valued intrinsic macros (interval_intersect / graphs / dominator)
+  // that expand to DuckDB functions instead of the SQLite-vtable table-pointer
+  // form, WITHOUT affecting the SQLite path (which keeps using the originals
+  // via ExpandMacrosToSqlite).
   void SetDuckDbMacroOverrides(std::vector<PerfettoSqlParser::Macro> overrides);
 
   // Like ExpandMacrosToSqlite, but expands against the registry merged with the
@@ -375,22 +377,24 @@ class PerfettoSqlConnection {
   // creation order, as (name, `CREATE VIEW <name> AS <body>` text) pairs. Used
   // by the experimental DuckDB query engine to mirror the view layer into its
   // own catalog so that `FROM <view>` references resolve there. The body is the
-  // plain SQLite-dialect `CREATE VIEW ... AS SELECT ...` (the PerfettoSQL schema
-  // column list is NOT included; see `ParseCreateView`).
-  const std::vector<std::pair<std::string, std::string>>& created_views() const {
+  // plain SQLite-dialect `CREATE VIEW ... AS SELECT ...` (the PerfettoSQL
+  // schema column list is NOT included; see `ParseCreateView`).
+  const std::vector<std::pair<std::string, std::string>>& created_views()
+      const {
     return created_views_;
   }
 
-  // A stdlib `CREATE PERFETTO FUNCTION name(args) RETURNS TABLE(...) AS <select>`
-  // captured for the experimental DuckDB engine to mirror as a DuckDB *table
-  // macro* (`CREATE MACRO name(args) AS TABLE <body>`). `arg_names` are the
-  // parameter names in prototype order (without the `$` prefix); `body_sql` is
-  // the post-macro-expansion SELECT body (still SQLite/PerfettoSQL dialect, with
+  // A stdlib `CREATE PERFETTO FUNCTION name(args) RETURNS TABLE(...) AS
+  // <select>` captured for the experimental DuckDB engine to mirror as a DuckDB
+  // *table macro* (`CREATE MACRO name(args) AS TABLE <body>`). `arg_names` are
+  // the parameter names in prototype order (without the `$` prefix); `body_sql`
+  // is the post-macro-expansion SELECT body (still SQLite/PerfettoSQL dialect,
+  // with
   // `$arg` bind placeholders). The DuckDB engine rewrites `$arg` -> `arg` and
   // wraps it in a `CREATE MACRO`; if the body uses dialect/intrinsics DuckDB
   // cannot bind (e.g. the `__intrinsic_interval_intersect` table-pointer ABI),
-  // the macro fails to create and that function simply stays unmirrored (a query
-  // calling it then errors in DuckDB and falls back).
+  // the macro fails to create and that function simply stays unmirrored (a
+  // query calling it then errors in DuckDB and falls back).
   struct CreatedTableFunction {
     std::string name;
     std::vector<std::string> arg_names;
@@ -411,9 +415,9 @@ class PerfettoSqlConnection {
 
   // A scalar `CREATE PERFETTO FUNCTION name(args) RETURNS <type> AS <select>`
   // captured for the experimental DuckDB engine to mirror as a DuckDB scalar
-  // MACRO (`CREATE MACRO name(args) AS (<body>)`). `arg_names` are the parameter
-  // names in prototype order (no `$`); `body_sql` is the SELECT body (with `$arg`
-  // placeholders the engine rewrites to bare names). A body using
+  // MACRO (`CREATE MACRO name(args) AS (<body>)`). `arg_names` are the
+  // parameter names in prototype order (no `$`); `body_sql` is the SELECT body
+  // (with `$arg` placeholders the engine rewrites to bare names). A body using
   // dialect/intrinsics DuckDB cannot bind (or a recursive/memoized function)
   // simply fails to create as a macro and stays unmirrored.
   struct CreatedScalarFunction {
@@ -618,9 +622,10 @@ class PerfettoSqlConnection {
   uint64_t aggregate_function_count_ = 0;
   uint64_t window_function_count_ = 0;
 
-  // PerfettoSQL views created on this connection, in creation order, recorded as
-  // (name, `CREATE VIEW <name> AS <body>` text). Populated by ExecuteCreateView.
-  // Consumed by the experimental DuckDB engine to mirror the view layer.
+  // PerfettoSQL views created on this connection, in creation order, recorded
+  // as (name, `CREATE VIEW <name> AS <body>` text). Populated by
+  // ExecuteCreateView. Consumed by the experimental DuckDB engine to mirror the
+  // view layer.
   std::vector<std::pair<std::string, std::string>> created_views_;
 
   // Stdlib RETURNS TABLE functions, in creation order, recorded for the
@@ -633,12 +638,13 @@ class PerfettoSqlConnection {
   // RegisterLegacyRuntimeFunction (the scalar create path).
   std::vector<CreatedScalarFunction> created_scalar_functions_;
 
-  // DuckDB-lane macro overrides (see SetDuckDbMacroOverrides) + the lazily-built
-  // registry-merged-with-overrides used by ExpandMacrosToSqliteDuckDb.
-  // `duckdb_merged_macros_base_count_` is the macro_count() the merge was built
-  // at; a change triggers a rebuild.
+  // DuckDB-lane macro overrides (see SetDuckDbMacroOverrides) + the
+  // lazily-built registry-merged-with-overrides used by
+  // ExpandMacrosToSqliteDuckDb. `duckdb_merged_macros_base_count_` is the
+  // macro_count() the merge was built at; a change triggers a rebuild.
   std::vector<PerfettoSqlParser::Macro> duckdb_macro_overrides_;
-  base::FlatHashMap<std::string, PerfettoSqlParser::Macro> duckdb_merged_macros_;
+  base::FlatHashMap<std::string, PerfettoSqlParser::Macro>
+      duckdb_merged_macros_;
   uint64_t duckdb_merged_macros_base_count_ = UINT64_MAX;
 
   // Contains the pointers for all registered virtual table modules where the

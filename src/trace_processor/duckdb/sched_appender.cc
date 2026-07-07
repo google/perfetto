@@ -123,8 +123,8 @@ base::Status AppendSchedDataframe(duckdb_connection connection,
                    "utid UINTEGER, end_state VARCHAR, priority INTEGER, "
                    "ucpu UINTEGER)",
                    &create_res) == DuckDBError) {
-    base::Status s = MakeError("CREATE TABLE failed",
-                               duckdb_result_error(&create_res));
+    base::Status s =
+        MakeError("CREATE TABLE failed", duckdb_result_error(&create_res));
     duckdb_destroy_result(&create_res);
     return s;
   }
@@ -166,23 +166,23 @@ base::Status AppendSchedDataframe(duckdb_connection connection,
       chunk_rows = row_count - row;
     }
 
-    duckdb_data_chunk chunk =
-        duckdb_create_data_chunk(logical_types, kNumCols);
+    duckdb_data_chunk chunk = duckdb_create_data_chunk(logical_types, kNumCols);
 
     // Grab the per-column vector data pointers once for this chunk.
-    auto* id_data = static_cast<uint32_t*>(duckdb_vector_get_data(
-        duckdb_data_chunk_get_vector(chunk, kId)));
-    auto* ts_data = static_cast<int64_t*>(duckdb_vector_get_data(
-        duckdb_data_chunk_get_vector(chunk, kTs)));
-    auto* dur_data = static_cast<int64_t*>(duckdb_vector_get_data(
-        duckdb_data_chunk_get_vector(chunk, kDur)));
-    auto* utid_data = static_cast<uint32_t*>(duckdb_vector_get_data(
-        duckdb_data_chunk_get_vector(chunk, kUtid)));
-    duckdb_vector end_state_vec = duckdb_data_chunk_get_vector(chunk, kEndState);
-    auto* priority_data = static_cast<int32_t*>(duckdb_vector_get_data(
-        duckdb_data_chunk_get_vector(chunk, kPriority)));
-    auto* ucpu_data = static_cast<uint32_t*>(duckdb_vector_get_data(
-        duckdb_data_chunk_get_vector(chunk, kUcpu)));
+    auto* id_data = static_cast<uint32_t*>(
+        duckdb_vector_get_data(duckdb_data_chunk_get_vector(chunk, kId)));
+    auto* ts_data = static_cast<int64_t*>(
+        duckdb_vector_get_data(duckdb_data_chunk_get_vector(chunk, kTs)));
+    auto* dur_data = static_cast<int64_t*>(
+        duckdb_vector_get_data(duckdb_data_chunk_get_vector(chunk, kDur)));
+    auto* utid_data = static_cast<uint32_t*>(
+        duckdb_vector_get_data(duckdb_data_chunk_get_vector(chunk, kUtid)));
+    duckdb_vector end_state_vec =
+        duckdb_data_chunk_get_vector(chunk, kEndState);
+    auto* priority_data = static_cast<int32_t*>(
+        duckdb_vector_get_data(duckdb_data_chunk_get_vector(chunk, kPriority)));
+    auto* ucpu_data = static_cast<uint32_t*>(
+        duckdb_vector_get_data(duckdb_data_chunk_get_vector(chunk, kUcpu)));
 
     // Make the end_state validity mask writable so we can mark nulls. The mask
     // starts all-valid; we clear bits only for null cells.
@@ -220,9 +220,9 @@ base::Status AppendSchedDataframe(duckdb_connection connection,
       if (cell.is_null) {
         duckdb_validity_set_row_invalid(end_state_validity, i);
       } else {
-        duckdb_vector_assign_string_element_len(
-            end_state_vec, i, cell.string_value.data(),
-            cell.string_value.size());
+        duckdb_vector_assign_string_element_len(end_state_vec, i,
+                                                cell.string_value.data(),
+                                                cell.string_value.size());
       }
     }
 
@@ -236,7 +236,8 @@ base::Status AppendSchedDataframe(duckdb_connection connection,
   }
 
   if (status.ok() && duckdb_appender_flush(appender) == DuckDBError) {
-    status = MakeError("appender_flush failed", duckdb_appender_error(appender));
+    status =
+        MakeError("appender_flush failed", duckdb_appender_error(appender));
   }
 
   duckdb_appender_destroy(&appender);

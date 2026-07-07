@@ -122,8 +122,8 @@ TEST_F(SchedTableFunctionLiveTest, MatchesLegacyEngine) {
 
   // Each pair is (the aggregate expression, run against `sched` legacy and
   // `sched_df()` in DuckDB). They must match exactly. Both engines see the same
-  // underlying dataframe, so every value - including the post-scan WHERE filters
-  // (the C table-function API has no filter pushdown) - must agree.
+  // underlying dataframe, so every value - including the post-scan WHERE
+  // filters (the C table-function API has no filter pushdown) - must agree.
   struct Q {
     const char* legacy;  // SELECT ... FROM sched ...
     const char* duck;    // SELECT ... FROM sched_df() ...
@@ -166,22 +166,24 @@ TEST_F(SchedTableFunctionLiveTest, MatchesLegacyEngine) {
   for (const Q& q : queries) {
     int64_t legacy = LegacyInt64(tp_.get(), q.legacy);
     int64_t duck = DuckInt64(con_, q.duck);
-    EXPECT_EQ(legacy, duck) << "mismatch between legacy and DuckDB:\n  legacy: "
-                            << q.legacy << "\n  duck:   " << q.duck;
+    EXPECT_EQ(legacy, duck)
+        << "mismatch between legacy and DuckDB:\n  legacy: " << q.legacy
+        << "\n  duck:   " << q.duck;
   }
 
   // Projection pushdown over real data: select only `dur`; the sum must still
   // match the legacy whole-column sum.
-  EXPECT_EQ(LegacyInt64(tp_.get(), "SELECT sum(dur) FROM sched"),
-            DuckInt64(con_, "SELECT sum(dur) FROM (SELECT dur FROM sched_df())"))
+  EXPECT_EQ(
+      LegacyInt64(tp_.get(), "SELECT sum(dur) FROM sched"),
+      DuckInt64(con_, "SELECT sum(dur) FROM (SELECT dur FROM sched_df())"))
       << "projection-pushdown sum(dur) mismatch";
 
   // GROUP BY round-trip: for each ucpu, the per-cpu row count must match. Build
   // the expected map from the legacy engine, then probe DuckDB per group.
   std::vector<int64_t> ucpus;
   {
-    auto it = tp_->ExecuteQuery(
-        "SELECT DISTINCT ucpu FROM sched ORDER BY ucpu");
+    auto it =
+        tp_->ExecuteQuery("SELECT DISTINCT ucpu FROM sched ORDER BY ucpu");
     while (it.Next()) {
       ucpus.push_back(it.Get(0).AsLong());
     }

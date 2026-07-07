@@ -192,10 +192,9 @@ struct MultiIndexInterval {
 // Sorts a buffer's intervals by start and reports whether they are
 // non-overlapping (so the intersector can use binary search safely).
 bool SortAndCheckNonOverlapping(std::vector<Interval>& intervals) {
-  std::sort(intervals.begin(), intervals.end(),
-            [](const Interval& a, const Interval& b) {
-              return a.start < b.start;
-            });
+  std::sort(
+      intervals.begin(), intervals.end(),
+      [](const Interval& a, const Interval& b) { return a.start < b.start; });
   bool non_overlapping = true;
   for (size_t i = 1; i < intervals.size(); ++i) {
     if (intervals[i].start < intervals[i - 1].end) {
@@ -350,8 +349,7 @@ void Combine(duckdb_function_info info,
       for (uint32_t j = 0; j < kMaxTables; ++j) {
         uint64_t* validity = duckdb_vector_get_validity(id_child[j]);
         if (j < n_tables) {
-          id_out[j][cursor] =
-              per_row_bufs[r][j]->real_ids[m.idx_in_table[j]];
+          id_out[j][cursor] = per_row_bufs[r][j]->real_ids[m.idx_in_table[j]];
           duckdb_validity_set_row_valid(validity, cursor);
         } else {
           duckdb_validity_set_row_invalid(validity, cursor);
@@ -377,7 +375,8 @@ base::Status RegisterAgg(duckdb_connection conn) {
   duckdb_state st = duckdb_register_aggregate_function(conn, f);
   duckdb_destroy_aggregate_function(&f);
   if (st == DuckDBError) {
-    return base::ErrStatus("RegisterIntervalIntersect: agg registration failed");
+    return base::ErrStatus(
+        "RegisterIntervalIntersect: agg registration failed");
   }
   return base::OkStatus();
 }
@@ -403,8 +402,8 @@ base::Status RegisterCombine(duckdb_connection conn) {
     members[2 + j] = bigint;
     names[2 + j] = id_names[j].c_str();
   }
-  duckdb_logical_type struct_type = duckdb_create_struct_type(
-      members.data(), names.data(), members.size());
+  duckdb_logical_type struct_type =
+      duckdb_create_struct_type(members.data(), names.data(), members.size());
   duckdb_logical_type list_of_struct = duckdb_create_list_type(struct_type);
   duckdb_scalar_function_set_return_type(f, list_of_struct);
 

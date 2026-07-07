@@ -33,19 +33,20 @@ namespace perfetto::trace_processor::duckdb_integration {
 // wires a vectorized trampoline + per-arg logical types + return type.
 //
 // The functions registered here mirror the EXACT semantics of the corresponding
-// Perfetto `__intrinsic_*` C++ implementations (in src/trace_processor/plugins),
-// NOT DuckDB's native builtins (whose semantics diverge: e.g. DuckDB `unhex`
-// returns BLOB not an integer, DuckDB `regexp_extract` returns the whole match
-// and "" on no-match rather than group 1 / NULL).
+// Perfetto `__intrinsic_*` C++ implementations (in
+// src/trace_processor/plugins), NOT DuckDB's native builtins (whose semantics
+// diverge: e.g. DuckDB `unhex` returns BLOB not an integer, DuckDB
+// `regexp_extract` returns the whole match and "" on no-match rather than group
+// 1 / NULL).
 //
 // Each function is registered under BOTH its public PerfettoSQL surface name
 // (e.g. `ln`, `regexp_extract`, `unhex`) AND its underlying `__intrinsic_*`
-// name. The surface name is what binds when a user query reaches DuckDB (the raw
-// user SQL uses surface names; the `DELEGATES TO __intrinsic_*` rewrite happens
-// inside the SQLite-backed engine, not before DuckDB sees the query). Both names
-// are returned in `out_registered` so the support predicate can allowlist them.
-// DuckDB registers user overloads with ALTER_ON_CONFLICT, so overriding a native
-// builtin overload of the same signature is allowed.
+// name. The surface name is what binds when a user query reaches DuckDB (the
+// raw user SQL uses surface names; the `DELEGATES TO __intrinsic_*` rewrite
+// happens inside the SQLite-backed engine, not before DuckDB sees the query).
+// Both names are returned in `out_registered` so the support predicate can
+// allowlist them. DuckDB registers user overloads with ALTER_ON_CONFLICT, so
+// overriding a native builtin overload of the same signature is allowed.
 //
 // C API ONLY: no `duckdb::` type and no C++ exception crosses the boundary.
 //

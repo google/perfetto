@@ -96,9 +96,9 @@ dataframe::Dataframe BuildSchedDataframe(StringPool* pool,
   // AppendSchedDataframe reads cells via random-access GetCell, which requires
   // the column to support random access. Plain kSparseNull drops its popcount
   // index at Finalize() and then FATALs on random GetCell, so use the
-  // popcount-retaining variant here. (A real finalized sched column may be plain
-  // SparseNull; the appender will switch to sequential Cursor reads in M3b to
-  // handle that without per-row random access.)
+  // popcount-retaining variant here. (A real finalized sched column may be
+  // plain SparseNull; the appender will switch to sequential Cursor reads in
+  // M3b to handle that without per-row random access.)
   opts.nullability_type = dataframe::NullabilityType::kSparseNullWithPopcount;
   opts.emit_auto_id = false;
   AdhocDataframeBuilder builder(
@@ -108,8 +108,8 @@ dataframe::Dataframe BuildSchedDataframe(StringPool* pool,
     builder.PushNonNull(1, r.dur);
     builder.PushNonNull(2, static_cast<int64_t>(r.utid));
     if (r.end_state) {
-      builder.PushNonNull(3, pool->InternString(base::StringView(
-                                 *r.end_state)));
+      builder.PushNonNull(3,
+                          pool->InternString(base::StringView(*r.end_state)));
     } else {
       builder.PushNull(3);
     }

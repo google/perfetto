@@ -35,7 +35,8 @@ namespace {
 // Verbatim port of the structural_tree_partition plugin's Step/Final (the
 // algorithm is plain index arithmetic over the tree). Collects (id, parent_id,
 // group) rows; at finalize, counting-sorts by parent to build a children map,
-// then a two-pass DFS associates each node with its nearest same-group ancestor.
+// then a two-pass DFS associates each node with its nearest same-group
+// ancestor.
 constexpr uint32_t kNullParentId = std::numeric_limits<uint32_t>::max();
 
 struct Row {
@@ -82,7 +83,8 @@ std::vector<ResultRow> RunPartition(Buffer& buf) {
     uint32_t index = --buf.child_count_by_id[it->parent_id];
     sorted[index] = *it;
   }
-  // child_count_by_id is now the start offset of each id's children in `sorted`.
+  // child_count_by_id is now the start offset of each id's children in
+  // `sorted`.
   auto children_begin = [&](uint32_t id) {
     return sorted.data() + buf.child_count_by_id[id];
   };
@@ -108,8 +110,8 @@ std::vector<ResultRow> RunPartition(Buffer& buf) {
       continue;
     }
     std::optional<uint32_t> anc = ancestor_id_for_group[ss.row.group];
-    out.push_back(ResultRow{ss.row.id, anc ? *anc : 0, anc.has_value(),
-                            ss.row.group});
+    out.push_back(
+        ResultRow{ss.row.id, anc ? *anc : 0, anc.has_value(), ss.row.group});
     ss.first_pass_done = true;
     ss.prev_ancestor_id_for_group = anc;
     ancestor_id_for_group[ss.row.group] = ss.row.id;
@@ -263,7 +265,8 @@ void Destroy(duckdb_aggregate_state* states, idx_t count) {
 
 base::Status RegisterStructuralTreePartition(duckdb_connection conn) {
   duckdb_aggregate_function f = duckdb_create_aggregate_function();
-  duckdb_aggregate_function_set_name(f, "__intrinsic_structural_tree_partition");
+  duckdb_aggregate_function_set_name(f,
+                                     "__intrinsic_structural_tree_partition");
   duckdb_logical_type bigint = duckdb_create_logical_type(DUCKDB_TYPE_BIGINT);
   duckdb_aggregate_function_add_parameter(f, bigint);  // id
   duckdb_aggregate_function_add_parameter(f, bigint);  // parent_id

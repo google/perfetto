@@ -80,8 +80,9 @@ void ExtractArgTrampoline(duckdb_function_info info,
   uint64_t* vs = duckdb_vector_get_validity(m_s);
 
   for (idx_t row = 0; row < n; ++row) {
-    // Default: the row's non-active members are NULL (so a downstream flatten of
-    // an inactive member never reads garbage, especially the VARCHAR member).
+    // Default: the row's non-active members are NULL (so a downstream flatten
+    // of an inactive member never reads garbage, especially the VARCHAR
+    // member).
     duckdb_validity_set_row_invalid(vi, row);
     duckdb_validity_set_row_invalid(vr, row);
     duckdb_validity_set_row_invalid(vs, row);
@@ -168,8 +169,7 @@ base::StatusOr<std::unique_ptr<ExtractArgState>> RegisterExtractArg(
     duckdb_destroy_logical_type(&m);
   }
 
-  base::Status s1 =
-      RegisterOne(conn, "extract_arg", union_type, state.get());
+  base::Status s1 = RegisterOne(conn, "extract_arg", union_type, state.get());
   base::Status s2 =
       RegisterOne(conn, "__intrinsic_extract_arg", union_type, state.get());
   duckdb_destroy_logical_type(&union_type);

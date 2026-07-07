@@ -237,17 +237,17 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
   // _critical_path_with_depth_by_roots: native wakeup-graph walk (the SQLite
   // form uses __intrinsic_table_ptr). Output columns root_id, depth, ts, dur,
   // id (=blocker_id), parent_id (blocker_utid is computed but unused upstream).
-  v.push_back(mk(
-      "_critical_path_with_depth_by_roots", {"_roots_table", "_node_table"},
-      "(SELECT cp.u.root_id AS root_id, cp.u.depth AS depth, cp.u.ts AS ts, "
-      "cp.u.dur AS dur, cp.u.blocker_id AS id, cp.u.parent_id AS parent_id "
-      "FROM (SELECT unnest(__intrinsic_critical_path_walk("
-      "(SELECT __intrinsic_wakeup_graph_agg(CAST(id AS BIGINT), "
-      "CAST(utid AS BIGINT), CAST(ts AS BIGINT), CAST(dur AS BIGINT), "
-      "CAST(idle_dur AS BIGINT), CAST(waker_id AS BIGINT), "
-      "CAST(prev_id AS BIGINT)) FROM $_node_table), "
-      "(SELECT __intrinsic_cp_roots_agg(CAST(root_node_id AS BIGINT)) "
-      "FROM $_roots_table))) AS u) cp)"));
+  v.push_back(
+      mk("_critical_path_with_depth_by_roots", {"_roots_table", "_node_table"},
+         "(SELECT cp.u.root_id AS root_id, cp.u.depth AS depth, cp.u.ts AS ts, "
+         "cp.u.dur AS dur, cp.u.blocker_id AS id, cp.u.parent_id AS parent_id "
+         "FROM (SELECT unnest(__intrinsic_critical_path_walk("
+         "(SELECT __intrinsic_wakeup_graph_agg(CAST(id AS BIGINT), "
+         "CAST(utid AS BIGINT), CAST(ts AS BIGINT), CAST(dur AS BIGINT), "
+         "CAST(idle_dur AS BIGINT), CAST(waker_id AS BIGINT), "
+         "CAST(prev_id AS BIGINT)) FROM $_node_table), "
+         "(SELECT __intrinsic_cp_roots_agg(CAST(root_node_id AS BIGINT)) "
+         "FROM $_roots_table))) AS u) cp)"));
   // _critical_path_by_roots: the stdlib final SELECT groups by (root_id, ts)
   // but selects bare flat.id/flat.dur (lax GROUP BY) -> any_value (unique per
   // (root_id, ts) after _intervals_flatten, so deterministic).
@@ -334,19 +334,19 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
       "root_id, id, ts, dur FROM _only_start UNION ALL SELECT root_id, id, "
       "ts, dur FROM _only_end UNION ALL SELECT root_id, id, ts, dur FROM "
       "_only_singleton)"));
-  v.push_back(mk(
-      "tree_structural_partition_by_group", {"tree_table"},
-      "(SELECT s.u.node_id AS id, s.u.parent_node_id AS parent_id, "
-      "s.u.group_key AS group_key FROM (SELECT "
-      "unnest(__intrinsic_structural_tree_partition(CAST(g.id AS BIGINT), "
-      "CAST(g.parent_id AS BIGINT), CAST(g.group_key AS BIGINT))) AS u "
-      "FROM $tree_table AS g) s)"));
-  v.push_back(mk(
-      "graph_dominator_tree", {"graph_table", "root_node_id"},
-      "(SELECT dt.u.node_id AS node_id, dt.u.dominator_node_id AS "
-      "dominator_node_id FROM (SELECT "
-      "unnest(__intrinsic_dominator_tree(source_node_id, dest_node_id, "
-      "($root_node_id))) AS u FROM $graph_table) dt)"));
+  v.push_back(
+      mk("tree_structural_partition_by_group", {"tree_table"},
+         "(SELECT s.u.node_id AS id, s.u.parent_node_id AS parent_id, "
+         "s.u.group_key AS group_key FROM (SELECT "
+         "unnest(__intrinsic_structural_tree_partition(CAST(g.id AS BIGINT), "
+         "CAST(g.parent_id AS BIGINT), CAST(g.group_key AS BIGINT))) AS u "
+         "FROM $tree_table AS g) s)"));
+  v.push_back(
+      mk("graph_dominator_tree", {"graph_table", "root_node_id"},
+         "(SELECT dt.u.node_id AS node_id, dt.u.dominator_node_id AS "
+         "dominator_node_id FROM (SELECT "
+         "unnest(__intrinsic_dominator_tree(source_node_id, dest_node_id, "
+         "($root_node_id))) AS u FROM $graph_table) dt)"));
   v.push_back(mk(
       "_interval_intersect_single", {"ts", "dur", "t"},
       "(SELECT s.u.id_0 AS id, s.u.ts AS ts, s.u.dur AS dur FROM (SELECT "
@@ -355,19 +355,19 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
       "BIGINT)) FROM $t), (SELECT __intrinsic_ii_agg(0, CAST($ts AS BIGINT), "
       "CAST($dur AS BIGINT)))))) AS u) s)"));
   // cast_int/cast_double: SQLite's INT is 64-bit and REAL is 64-bit double, but
-  // DuckDB's INT is 32-bit (overflow) and REAL is 32-bit float (precision loss).
-  // Override to BIGINT/DOUBLE so the cast matches SQLite. (cast_string -> TEXT
-  // is fine: DuckDB TEXT is an alias for VARCHAR.)
+  // DuckDB's INT is 32-bit (overflow) and REAL is 32-bit float (precision
+  // loss). Override to BIGINT/DOUBLE so the cast matches SQLite. (cast_string
+  // -> TEXT is fine: DuckDB TEXT is an alias for VARCHAR.)
   v.push_back(mk("cast_int", {"value"}, "CAST($value AS BIGINT)"));
   v.push_back(mk("cast_double", {"value"}, "CAST($value AS DOUBLE)"));
 
   // std.trees pipeline. The stdlib _tree_from_table/_tree_to_table macros build
   // on the SQLite `__intrinsic_table_ptr` ABI and a VARIADIC aggregate, neither
   // of which DuckDB supports. These overrides target the native tree functions
-  // (RegisterTreeFunctions): from_table packs the (variable) passthrough columns
-  // into a typed STRUCT for the fixed-arity aggregate; to_table UNNESTs the
-  // combiner's LIST<STRUCT> (passthrough type-erased into UNION columns c4..c9,
-  // selected by name). The _tree_constraint/_tree_where/_tree_filter/
+  // (RegisterTreeFunctions): from_table packs the (variable) passthrough
+  // columns into a typed STRUCT for the fixed-arity aggregate; to_table UNNESTs
+  // the combiner's LIST<STRUCT> (passthrough type-erased into UNION columns
+  // c4..c9, selected by name). The _tree_constraint/_tree_where/_tree_filter/
   // _tree_propagate_down DELEGATES-TO functions reach their __intrinsic_*
   // targets via the normal scalar-macro mirroring, so they need no override.
   //
@@ -378,13 +378,13 @@ std::vector<PerfettoSqlParser::Macro> BuildDuckDbMacroOverrides() {
   // zips them back into named, typed columns.
   v.push_back(mk("_tree_name_str", {"col"}, "__intrinsic_stringify!($col)"));
   v.push_back(mk("_tree_row_val", {"col"}, "t.$col"));
-  v.push_back(mk(
-      "_tree_from_table", {"source_table", "columns"},
-      "(SELECT __intrinsic_tree_from_table("
-      "CAST(t.id AS BIGINT), CAST(t.parent_id AS BIGINT), "
-      "list_value(__intrinsic_token_apply!(_tree_name_str, $columns)), "
-      "row(__intrinsic_token_apply!(_tree_row_val, $columns))) "
-      "FROM $source_table AS t)"));
+  v.push_back(
+      mk("_tree_from_table", {"source_table", "columns"},
+         "(SELECT __intrinsic_tree_from_table("
+         "CAST(t.id AS BIGINT), CAST(t.parent_id AS BIGINT), "
+         "list_value(__intrinsic_token_apply!(_tree_name_str, $columns)), "
+         "row(__intrinsic_token_apply!(_tree_row_val, $columns))) "
+         "FROM $source_table AS t)"));
   // Helper: stringify a passthrough column name for the to_table name args.
   v.push_back(
       mk("_tree_stringify_col", {"col"}, "__intrinsic_stringify!($col)"));
@@ -489,8 +489,8 @@ bool AppendQueryRowsAsValues(PerfettoSqlConnection* engine,
 }
 
 // Materializes one of the static stdlib-docs introspection tables
-// (__duckdb_stdlib_{modules,tables,functions,macros}) into DuckDB by running the
-// SQLite-side __intrinsic_stdlib_* table functions across every module and
+// (__duckdb_stdlib_{modules,tables,functions,macros}) into DuckDB by running
+// the SQLite-side __intrinsic_stdlib_* table functions across every module and
 // snapshotting the result (faithful by construction). The parameterized tables
 // gain a leading `module` column so the RewriteStdlibDocs rewrite can filter by
 // module. Per-module parse failures are skipped (a module that fails to parse
@@ -508,11 +508,11 @@ bool MaterializeStdlibDocsTable(PerfettoSqlConnection* engine,
       return false;
     }
   } else {
-    const char* fn = name == "__duckdb_stdlib_tables" ? "__intrinsic_stdlib_tables"
-                     : name == "__duckdb_stdlib_functions"
-                         ? "__intrinsic_stdlib_functions"
-                     : name == "__duckdb_stdlib_macros" ? "__intrinsic_stdlib_macros"
-                                                        : nullptr;
+    const char* fn =
+        name == "__duckdb_stdlib_tables"      ? "__intrinsic_stdlib_tables"
+        : name == "__duckdb_stdlib_functions" ? "__intrinsic_stdlib_functions"
+        : name == "__duckdb_stdlib_macros"    ? "__intrinsic_stdlib_macros"
+                                              : nullptr;
     if (!fn) {
       return false;
     }
@@ -549,7 +549,8 @@ bool MaterializeStdlibDocsTable(PerfettoSqlConnection* engine,
       mlit += "'";
       std::string sel = std::string("SELECT * FROM ") + fn + "(" + mlit + ")";
       // Skip a module whose docs fail to parse (non-fatal): it would error on
-      // the SQLite side too, so any test of it falls back rather than diverging.
+      // the SQLite side too, so any test of it falls back rather than
+      // diverging.
       AppendQueryRowsAsValues(engine, sel, "module", mlit, &col_names, &values,
                               &nrows);
     }
@@ -577,9 +578,9 @@ bool MaterializeStdlibDocsTable(PerfettoSqlConnection* engine,
 // `table_name` (CREATE OR REPLACE ... AS VALUES). Faithful: rows are copied.
 // Returns false on error / empty / FLOAT / BLOB.
 bool MaterializeSelectAsTable(PerfettoSqlConnection* engine,
-                             duckdb_connection conn,
-                             const std::string& table_name,
-                             const std::string& select_sql) {
+                              duckdb_connection conn,
+                              const std::string& table_name,
+                              const std::string& select_sql) {
   std::vector<std::string> col_names;
   std::string values;
   size_t nrows = 0;
@@ -708,8 +709,8 @@ bool MaterializeTableInfoTable(PerfettoSqlConnection* engine,
 }
 
 // Rewrites `perfetto_table_info('X')` (X a simple identifier) to the
-// materialized `__duckdb_table_info__X` table (built lazily on first reference).
-// Non-identifier args are left untouched (fall back).
+// materialized `__duckdb_table_info__X` table (built lazily on first
+// reference). Non-identifier args are left untouched (fall back).
 std::string RewritePerfettoTableInfo(const std::string& sql) {
   const std::string call = "perfetto_table_info(";
   if (sql.find(call) == std::string::npos) {
@@ -750,8 +751,8 @@ std::string RewritePerfettoTableInfo(const std::string& sql) {
 // against the materialized __duckdb_stdlib_* tables (DuckDB has no equivalent
 // of the SQLite StaticTableFunction surface). `__intrinsic_stdlib_modules()` ->
 // `__duckdb_stdlib_modules`; the parameterized forms ->
-// `(SELECT * FROM __duckdb_stdlib_X WHERE module = <arg>)`. The tables are built
-// lazily by the table materializer on first reference.
+// `(SELECT * FROM __duckdb_stdlib_X WHERE module = <arg>)`. The tables are
+// built lazily by the table materializer on first reference.
 std::string RewriteStdlibDocs(const std::string& sql) {
   if (sql.find("__intrinsic_stdlib_") == std::string::npos) {
     return sql;
@@ -767,8 +768,8 @@ std::string RewriteStdlibDocs(const std::string& sql) {
     std::string tbl = std::string("__duckdb_stdlib_") + fn;
     for (size_t p = out.find(call); p != std::string::npos;
          p = out.find(call, p)) {
-      // Find the matching ')', tracking single-quoted string literals so a paren
-      // inside a module name does not throw off the depth counter.
+      // Find the matching ')', tracking single-quoted string literals so a
+      // paren inside a module name does not throw off the depth counter.
       size_t argstart = p + call.size();
       int depth = 1;
       bool in_str = false;
@@ -804,8 +805,8 @@ std::string RewriteStdlibDocs(const std::string& sql) {
 // DuckDB dataframe replacement scan) into DuckDB's catalog by reading its rows
 // from the real engine and rebuilding it as a DuckDB table from a VALUES list.
 // Returns false (no materialization) if `name` is not a simple identifier, the
-// table is empty (cannot infer column types), or any column is FLOAT/BLOB (exact
-// re-serialization is unsafe). See DuckDbEngine::TableMaterializer.
+// table is empty (cannot infer column types), or any column is FLOAT/BLOB
+// (exact re-serialization is unsafe). See DuckDbEngine::TableMaterializer.
 bool MaterializeSqliteTableIntoDuckDb(PerfettoSqlConnection* engine,
                                       const std::string& name,
                                       duckdb_connection conn) {
@@ -824,11 +825,11 @@ bool MaterializeSqliteTableIntoDuckDb(PerfettoSqlConnection* engine,
     }
   }
   // Only materialize PLAIN SQLite-native tables. A name that resolves to a
-  // dataframe (every storage/runtime table, incl. `__intrinsic_*`) is reached by
-  // the replacement scan; snapshotting it here would create a STALE copy that
-  // shadows the live data - e.g. an `__intrinsic_*` table still being populated
-  // during trace load. `_trace_bounds` (a real `CREATE TABLE`) is not a
-  // dataframe, so it is materialized; intrinsics are skipped.
+  // dataframe (every storage/runtime table, incl. `__intrinsic_*`) is reached
+  // by the replacement scan; snapshotting it here would create a STALE copy
+  // that shadows the live data - e.g. an `__intrinsic_*` table still being
+  // populated during trace load. `_trace_bounds` (a real `CREATE TABLE`) is not
+  // a dataframe, so it is materialized; intrinsics are skipped.
   if (engine->GetDataframeOrNull(name) != nullptr) {
     return false;
   }
@@ -1360,13 +1361,12 @@ void TraceProcessorImpl::CacheBoundsAndBuildTable() {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
 std::string TraceProcessorImpl::PipelineDuckDbMirrorBody(
     const std::string& raw_body) {
-  std::string pre =
-      duckdb_integration::RewriteIntervalIntersectMacro(raw_body);
+  std::string pre = duckdb_integration::RewriteIntervalIntersectMacro(raw_body);
   pre = duckdb_integration::RewriteIntervalCreateMacro(pre);
   pre = duckdb_integration::RewriteIntervalIntersectWithColNamesMacro(pre);
   pre = duckdb_integration::RewriteAutoId(pre);
-  if (std::optional<std::string> expanded =
-          engine_->ExpandMacrosToSqliteDuckDb(SqlSource::FromExecuteQuery(pre))) {
+  if (std::optional<std::string> expanded = engine_->ExpandMacrosToSqliteDuckDb(
+          SqlSource::FromExecuteQuery(pre))) {
     return *expanded;
   }
   return pre;
@@ -1393,16 +1393,17 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
       duckdb_engine_ = std::make_unique<duckdb_integration::DuckDbEngine>(
           context()->storage->mutable_string_pool(),
           [this](const std::string& name) -> const dataframe::Dataframe* {
-            // BEACHHEAD literal rule (D2 design §2.3 step 4): the public `sched`
-            // relation is a PerfettoSQL VIEW over the `__intrinsic_sched_slice`
-            // dataframe; `GetDataframeOrNull` only knows dataframes, not views.
-            // Map the one supported view name to its backing dataframe so a real
-            // `FROM sched` resolves. The dataframe exposes the same id/ts/dur/
+            // BEACHHEAD literal rule (D2 design §2.3 step 4): the public
+            // `sched` relation is a PerfettoSQL VIEW over the
+            // `__intrinsic_sched_slice` dataframe; `GetDataframeOrNull` only
+            // knows dataframes, not views. Map the one supported view name to
+            // its backing dataframe so a real `FROM sched` resolves. The
+            // dataframe exposes the same id/ts/dur/
             // utid/end_state/priority/ucpu columns the view passes through; the
             // view-only derived columns (`cpu`, `ts_end`) are out of scope for
             // the beachhead and a query using them would error in DuckDB (the
-            // support predicate is column-agnostic by design). Generalising this
-            // name->relation mapping is a later wave's job.
+            // support predicate is column-agnostic by design). Generalising
+            // this name->relation mapping is a later wave's job.
             if (name == "sched") {
               if (const dataframe::Dataframe* df =
                       engine_->GetDataframeOrNull("__intrinsic_sched_slice")) {
@@ -1413,13 +1414,11 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
           },
           // View provider: mirror the PerfettoSQL views into DuckDB so a bare
           // `FROM <view>` (sched/thread/thread_state/cpu/process/...) resolves
-          // through DuckDB's own catalog. All prelude views already exist by the
-          // time the first query runs (the after_eof prelude is loaded in
-          // NotifyEndOfFile / connection init, both before any ExecuteQuery), so
-          // a one-shot mirror at lazy connection-creation captures them.
-          [this]() {
-            return engine_->created_views();
-          },
+          // through DuckDB's own catalog. All prelude views already exist by
+          // the time the first query runs (the after_eof prelude is loaded in
+          // NotifyEndOfFile / connection init, both before any ExecuteQuery),
+          // so a one-shot mirror at lazy connection-creation captures them.
+          [this]() { return engine_->created_views(); },
           // Function provider: mirror the stdlib RETURNS TABLE functions into
           // DuckDB as table macros so a `FROM name(args)` reference resolves
           // through DuckDB's own macro -> the body's mirrored tables/views.
@@ -1447,7 +1446,8 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
             return out;
           },
           // Scalar function provider: mirror runtime scalar CREATE PERFETTO
-          // FUNCTIONs into DuckDB as scalar macros so a call `f(args)` resolves.
+          // FUNCTIONs into DuckDB as scalar macros so a call `f(args)`
+          // resolves.
           [this]() {
             std::vector<duckdb_integration::DuckDbEngine::TableFunction> out;
             for (const auto& fn : engine_->created_scalar_functions()) {
@@ -1462,9 +1462,10 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
           // table. Bails (false) on an empty table or any FLOAT/BLOB column
           // (exact re-serialization is unsafe) - those simply fall back.
           [this](const std::string& name, duckdb_connection conn) -> bool {
-            // A numbered __duckdb_tvf_<N> table is the snapshot of a non-constant
-            // table-valued intrinsic call recorded by RewriteTableValuedFunctions
-            // in `duckdb_tvf_calls_` for THIS query.
+            // A numbered __duckdb_tvf_<N> table is the snapshot of a
+            // non-constant table-valued intrinsic call recorded by
+            // RewriteTableValuedFunctions in `duckdb_tvf_calls_` for THIS
+            // query.
             constexpr char kTvf[] = "__duckdb_tvf_";
             if (name.rfind(kTvf, 0) == 0) {
               char* end = nullptr;
@@ -1478,8 +1479,9 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
             }
             return MaterializeSqliteTableIntoDuckDb(engine_.get(), name, conn);
           });
-      // Install the DuckDB-native macro definitions so ExpandMacrosToSqliteDuckDb
-      // expands the table-valued intrinsic macros to native functions.
+      // Install the DuckDB-native macro definitions so
+      // ExpandMacrosToSqliteDuckDb expands the table-valued intrinsic macros to
+      // native functions.
       engine_->SetDuckDbMacroOverrides(BuildDuckDbMacroOverrides());
       // Bridge the clock-conversion UDFs to this trace's ClockConverter.
       duckdb_engine_->SetClockConverter(context()->clock_converter.get());
@@ -1496,8 +1498,7 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
           });
       // Bridge to_ftrace to the to_ftrace plugin's SystraceSerializer (reused
       // verbatim - byte-exact). Mutex-serialized (mutable scratch).
-      duckdb_to_ftrace_ud_ =
-          std::make_unique<ToFtrace::UserData>(context());
+      duckdb_to_ftrace_ud_ = std::make_unique<ToFtrace::UserData>(context());
       duckdb_engine_->SetToFtraceConverter(
           [this](int64_t row) -> std::optional<std::string> {
             if (row < 0) {
@@ -1516,43 +1517,43 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
 
     // Wave-2 multi-statement split: the stdlib surface is reached via
     // `INCLUDE PERFETTO MODULE ...; <SELECT>` and `CREATE PERFETTO TABLE` etc.,
-    // which DuckDB cannot run. Execute the LEADING PerfettoSQL statements in the
-    // real engine (these are side-effecting setup: INCLUDE/CREATE), then try
-    // ONLY the final statement inside DuckDB. After the INCLUDE runs, stdlib
-    // `CREATE PERFETTO TABLE` relations (e.g. sched_runnable_thread_count) are
-    // live dataframes that the final `SELECT ... FROM <table>` can resolve in
-    // DuckDB. The leading-in-engine + final-in-DuckDB combination still counts
-    // as "ran in DuckDB" for the honesty meter (the output-producing statement
-    // ran in DuckDB).
+    // which DuckDB cannot run. Execute the LEADING PerfettoSQL statements in
+    // the real engine (these are side-effecting setup: INCLUDE/CREATE), then
+    // try ONLY the final statement inside DuckDB. After the INCLUDE runs,
+    // stdlib `CREATE PERFETTO TABLE` relations (e.g.
+    // sched_runnable_thread_count) are live dataframes that the final `SELECT
+    // ... FROM <table>` can resolve in DuckDB. The leading-in-engine +
+    // final-in-DuckDB combination still counts as "ran in DuckDB" for the
+    // honesty meter (the output-producing statement ran in DuckDB).
     duckdb_integration::DuckDbEngine::SplitStatements split =
         duckdb_integration::DuckDbEngine::SplitTrailingStatement(
             non_breaking_sql);
     if (!split.leading.empty()) {
       base::Status leading_status =
-          engine_
-              ->Execute(SqlSource::FromExecuteQuery(split.leading))
-              .status();
+          engine_->Execute(SqlSource::FromExecuteQuery(split.leading)).status();
       if (!leading_status.ok()) {
         return Iterator(std::make_unique<SqliteIteratorImpl>(
-            this, base::StatusOr<PerfettoSqlConnection::ExecutionResult>(
-                      leading_status),
+            this,
+            base::StatusOr<PerfettoSqlConnection::ExecutionResult>(
+                leading_status),
             sql_stats_row));
       }
     }
 
     // Expand any PerfettoSQL `name!(...)` MACROs in the final statement before
     // handing it to DuckDB (DuckDB cannot parse `!`). The macro bodies are the
-    // SAME ones the SQLite path expands (the leading statements that define them
-    // already ran in the engine above), so the expanded SQL is identical. If the
-    // statement is not a single plain SQL statement, keep it verbatim (DuckDB
-    // will then reject it and fall back, as before).
-    // Macros whose DuckDB-native form is COMPLETE (graph bfs/dfs, dominator,
+    // SAME ones the SQLite path expands (the leading statements that define
+    // them already ran in the engine above), so the expanded SQL is identical.
+    // If the statement is not a single plain SQL statement, keep it verbatim
+    // (DuckDB will then reject it and fall back, as before). Macros whose
+    // DuckDB-native form is COMPLETE (graph bfs/dfs, dominator,
     // interval_intersect_single) are handled by DuckDB-native macro overrides
     // via ExpandMacrosToSqliteDuckDb below. The partition-bearing variants
-    // (_interval_intersect, _interval_create, _interval_intersect_with_col_names)
-    // are still rewritten to plain SQL here, BEFORE expansion, because their
-    // native form is not yet partition-complete (a macro always expands, so a
-    // partial native macro would silently diverge).
+    // (_interval_intersect, _interval_create,
+    // _interval_intersect_with_col_names) are still rewritten to plain SQL
+    // here, BEFORE expansion, because their native form is not yet
+    // partition-complete (a macro always expands, so a partial native macro
+    // would silently diverge).
     std::string pre =
         duckdb_integration::RewriteIntervalIntersectMacro(split.last);
     // `""` is an empty STRING in SQLite but a PARSE error in DuckDB; rewrite to
@@ -1566,8 +1567,9 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
     pre = RewriteStdlibDocs(pre);
     // Map perfetto_table_info('X') to its materialized __duckdb_table_info__X.
     pre = RewritePerfettoTableInfo(pre);
-    // Snapshot non-constant-arg table-valued intrinsics (experimental_flamegraph
-    // etc.) into per-query __duckdb_tvf_<N> tables built by the materializer.
+    // Snapshot non-constant-arg table-valued intrinsics
+    // (experimental_flamegraph etc.) into per-query __duckdb_tvf_<N> tables
+    // built by the materializer.
     duckdb_tvf_calls_.clear();
     pre = RewriteTableValuedFunctions(pre, &duckdb_tvf_calls_);
     std::string duckdb_sql = pre;
@@ -1578,15 +1580,16 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
     }
 
     bool ran_in_duckdb = false;
-    base::StatusOr<std::optional<duckdb_integration::DuckDbExecutionResult>> dd =
-        duckdb_engine_->TryExecuteWholeQuery(
+    base::StatusOr<std::optional<duckdb_integration::DuckDbExecutionResult>>
+        dd = duckdb_engine_->TryExecuteWholeQuery(
             duckdb_sql, config_.duckdb_disable_fallback, &ran_in_duckdb);
     if (!dd.ok()) {
       // Either a genuine DuckDB execution error on an eligible query, or (with
-      // fallback disabled) an ineligible query. Surface it through the iterator.
+      // fallback disabled) an ineligible query. Surface it through the
+      // iterator.
       return Iterator(std::make_unique<SqliteIteratorImpl>(
-          this, base::StatusOr<PerfettoSqlConnection::ExecutionResult>(
-                    dd.status()),
+          this,
+          base::StatusOr<PerfettoSqlConnection::ExecutionResult>(dd.status()),
           sql_stats_row));
     }
     if (dd->has_value()) {

@@ -26,10 +26,10 @@ namespace perfetto::trace_processor::duckdb_integration {
 
 // M3b (experimental DuckDB query engine): registers a DuckDB *table function*
 // named `sched_df` that lets DuckDB scan a live `sched`-schema
-// `dataframe::Dataframe` directly. Unlike M3a's appender (which COPIES the whole
-// dataframe into a native DuckDB table), DuckDB *owns the scan* here: it pulls
-// chunks lazily from the dataframe through the table-function callbacks. This is
-// the "real target" of M3 - no second materialised table.
+// `dataframe::Dataframe` directly. Unlike M3a's appender (which COPIES the
+// whole dataframe into a native DuckDB table), DuckDB *owns the scan* here: it
+// pulls chunks lazily from the dataframe through the table-function callbacks.
+// This is the "real target" of M3 - no second materialised table.
 //
 // Usage from SQL once registered:
 //   SELECT count(*), sum(dur) FROM sched_df() WHERE ucpu = 3;
@@ -42,11 +42,11 @@ namespace perfetto::trace_processor::duckdb_integration {
 //
 // Lifetime: a `CopyFinalized()` snapshot of `sched` is taken at registration
 // time and stored as the table function's extra-info. DuckDB pulls chunks
-// lazily (and, in principle, across threads), so the snapshot must outlive every
-// query that scans `sched_df`. The snapshot is a shallow shared-ptr copy of the
-// column buffers, so it is cheap and keeps the underlying storage alive. It is
-// released by the extra-info destructor when the table function is destroyed
-// (i.e. when its owning connection/database is torn down).
+// lazily (and, in principle, across threads), so the snapshot must outlive
+// every query that scans `sched_df`. The snapshot is a shallow shared-ptr copy
+// of the column buffers, so it is cheap and keeps the underlying storage alive.
+// It is released by the extra-info destructor when the table function is
+// destroyed (i.e. when its owning connection/database is torn down).
 //
 // Capabilities / limitations (DuckDB C table-function API):
 //   - Projection pushdown IS supported (only requested columns are filled).

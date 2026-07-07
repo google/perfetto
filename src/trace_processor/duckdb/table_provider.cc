@@ -72,8 +72,8 @@ duckdb_logical_type LogicalTypeFor(const dataframe::StorageType& type) {
 }
 
 // Writes a single cell into a DuckDB output vector at row `row`. Numeric cells
-// widen to int64 into the BIGINT buffer, doubles into the DOUBLE buffer, strings
-// are copied into the vector, nulls set validity-invalid. Matches the
+// widen to int64 into the BIGINT buffer, doubles into the DOUBLE buffer,
+// strings are copied into the vector, nulls set validity-invalid. Matches the
 // `dataframe::CellCallback` overload set so the cursor can drive it directly.
 struct VectorWriter : dataframe::CellCallback {
   void OnCell(int64_t v) {
@@ -122,14 +122,15 @@ void DestroyInitData(void* p) {
 }
 
 void Bind(duckdb_bind_info info) {
-  auto* provider = static_cast<DuckDbTableProvider*>(
-      duckdb_bind_get_extra_info(info));
+  auto* provider =
+      static_cast<DuckDbTableProvider*>(duckdb_bind_get_extra_info(info));
   if (!provider) {
     duckdb_bind_set_error(info, "__perfetto_df: missing provider");
     return;
   }
   if (duckdb_bind_get_parameter_count(info) != 1) {
-    duckdb_bind_set_error(info, "__perfetto_df: expected one VARCHAR parameter");
+    duckdb_bind_set_error(info,
+                          "__perfetto_df: expected one VARCHAR parameter");
     return;
   }
   duckdb_value name_val = duckdb_bind_get_parameter(info, 0);
@@ -165,8 +166,7 @@ void Init(duckdb_init_info info) {
   // Single-threaded scan: one cursor + non-thread-safe StringPool reads.
   duckdb_init_set_max_threads(info, 1);
 
-  auto* bind_data =
-      static_cast<BindData*>(duckdb_init_get_bind_data(info));
+  auto* bind_data = static_cast<BindData*>(duckdb_init_get_bind_data(info));
   const DuckDbTableProvider::Entry* entry = bind_data->entry;
   const dataframe::Dataframe& df = entry->df;
 
@@ -189,8 +189,8 @@ void Init(duckdb_init_info info) {
     init->projected_cols.push_back(df_col);
     // `PlanQuery`'s cols_used_bitmap is a 64-bit mask, so a dataframe column
     // index >= 64 cannot be projected. Rather than CHECK-crash on a wide table
-    // (>64 columns), set an init error so DuckDB fails this query and the router
-    // falls back to SQLite cleanly.
+    // (>64 columns), set an init error so DuckDB fails this query and the
+    // router falls back to SQLite cleanly.
     if (df_col >= 64) {
       duckdb_init_set_error(
           info, "__perfetto_df: table has more than 64 columns (unsupported)");
@@ -341,9 +341,9 @@ const DuckDbTableProvider::Entry* DuckDbTableProvider::Resolve(
   if (!live || !live->finalized()) {
     // The live table is gone, or is a not-yet-finalized dataframe that cannot
     // be snapshotted (`CopyFinalized()` CHECK-fails on an unfinalized
-    // dataframe). Either way treat it as unavailable: drop any stale snapshot so
-    // a future query errors cleanly rather than reading a freed dataframe, and
-    // return nullptr so the reference is deemed ineligible (-> fallback).
+    // dataframe). Either way treat it as unavailable: drop any stale snapshot
+    // so a future query errors cleanly rather than reading a freed dataframe,
+    // and return nullptr so the reference is deemed ineligible (-> fallback).
     if (cached) {
       entries_.erase(name);
     }

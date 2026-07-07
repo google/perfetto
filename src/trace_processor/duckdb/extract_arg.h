@@ -58,10 +58,11 @@ base::StatusOr<std::unique_ptr<ExtractArgState>> RegisterExtractArg(
     duckdb_connection conn,
     std::unordered_set<std::string>* out_registered);
 
-// Ensures `state`'s (arg_set_id, key) index is built, querying `__intrinsic_args`
-// via `conn` on first call. Idempotent. Must be called (outside the UDF
-// trampoline) before a query that invokes `extract_arg` runs, because building
-// the index issues its own DuckDB query and must not re-enter execution.
+// Ensures `state`'s (arg_set_id, key) index is built, querying
+// `__intrinsic_args` via `conn` on first call. Idempotent. Must be called
+// (outside the UDF trampoline) before a query that invokes `extract_arg` runs,
+// because building the index issues its own DuckDB query and must not re-enter
+// execution.
 base::Status EnsureExtractArgIndexBuilt(duckdb_connection conn,
                                         ExtractArgState* state);
 

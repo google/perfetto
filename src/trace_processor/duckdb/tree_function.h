@@ -37,19 +37,19 @@ namespace perfetto::trace_processor::duckdb_integration {
 // lane can run them natively (cf. the dominator_tree port).
 namespace tree {
 
-// A column's element type. Strings are owned std::string (the DuckDB lane has no
-// StringPool dependency here); id/parent_id values and propagate outputs are
+// A column's element type. Strings are owned std::string (the DuckDB lane has
+// no StringPool dependency here); id/parent_id values and propagate outputs are
 // Int64; durations etc. may be Double.
 enum class ColType { kInt64, kDouble, kString };
 
-// One column of the tree (uniform type, with a per-row null bitmap). column 0 is
-// the original `id`, column 1 the original `parent_id`, the rest are passthrough
-// (and propagate appends more).
+// One column of the tree (uniform type, with a per-row null bitmap). column 0
+// is the original `id`, column 1 the original `parent_id`, the rest are
+// passthrough (and propagate appends more).
 struct Column {
   ColType type = ColType::kInt64;
   std::string name;
-  std::vector<int64_t> i64;   // valid when type==kInt64
-  std::vector<double> f64;    // valid when type==kDouble
+  std::vector<int64_t> i64;      // valid when type==kInt64
+  std::vector<double> f64;       // valid when type==kDouble
   std::vector<std::string> str;  // valid when type==kString
   std::vector<bool> is_null;
 };
@@ -78,7 +78,8 @@ enum class Op {
 };
 
 // A filter constraint: column `name` `op` `value`. For kIsNull/kIsNotNull the
-// value is ignored. The value carries its own type (matched against the column).
+// value is ignored. The value carries its own type (matched against the
+// column).
 struct Constraint {
   std::string column;
   Op op;
@@ -97,9 +98,9 @@ struct PropagateSpec {
 };
 
 // Returns a new tree keeping only rows matching ALL constraints; a dropped
-// node's children re-parent to the nearest surviving ancestor (or become roots).
-// Unknown constraint columns are treated as "no rows match" only for that
-// constraint via an error status.
+// node's children re-parent to the nearest surviving ancestor (or become
+// roots). Unknown constraint columns are treated as "no rows match" only for
+// that constraint via an error status.
 base::StatusOr<Tree> FilterTree(const Tree& in,
                                 const std::vector<Constraint>& constraints);
 

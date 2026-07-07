@@ -324,9 +324,9 @@ Config BuildConfig(const GlobalOptions& opts,
   }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
-  // EXPERIMENTAL (SQLite -> DuckDB migration). Enable via the CLI flags above or
-  // the PERFETTO_ENABLE_DUCKDB / PERFETTO_DUCKDB_DISABLE_FALLBACK env vars. The
-  // env vars are the least invasive way to flip the engine on under the
+  // EXPERIMENTAL (SQLite -> DuckDB migration). Enable via the CLI flags above
+  // or the PERFETTO_ENABLE_DUCKDB / PERFETTO_DUCKDB_DISABLE_FALLBACK env vars.
+  // The env vars are the least invasive way to flip the engine on under the
   // diff-test runner (which spawns the shell as a subprocess) without per-test
   // command-line plumbing. A var counts as set when it is present and not "0".
   auto env_truthy = [](const char* name) {
@@ -335,8 +335,9 @@ Config BuildConfig(const GlobalOptions& opts,
   };
   config.enable_duckdb_query_engine =
       opts.enable_duckdb_query_engine || env_truthy("PERFETTO_ENABLE_DUCKDB");
-  config.duckdb_disable_fallback = opts.duckdb_disable_fallback ||
-                                   env_truthy("PERFETTO_DUCKDB_DISABLE_FALLBACK");
+  config.duckdb_disable_fallback =
+      opts.duckdb_disable_fallback ||
+      env_truthy("PERFETTO_DUCKDB_DISABLE_FALLBACK");
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_DUCKDB)
 
   return config;

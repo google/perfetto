@@ -120,8 +120,8 @@ bool MatchRow(const Column& col, uint32_t r, const Constraint& c) {
   if (col_num && val_num) {
     double lhs = col.type == ColType::kInt64 ? static_cast<double>(col.i64[r])
                                              : col.f64[r];
-    double rhs = c.value_type == ColType::kInt64 ? static_cast<double>(c.i64)
-                                                 : c.f64;
+    double rhs =
+        c.value_type == ColType::kInt64 ? static_cast<double>(c.i64) : c.f64;
     return CmpOp<double>(c.op, lhs, rhs);
   }
   if (!col_num && !val_num) {
@@ -258,12 +258,12 @@ base::StatusOr<Tree> PropagateDown(const Tree& in,
       }
       if (is_int) {
         int64_t a = dst.i64[p], b = dst.i64[v];
-        dst.i64[v] = spec.op == AggOp::kSum  ? a + b
+        dst.i64[v] = spec.op == AggOp::kSum   ? a + b
                      : spec.op == AggOp::kMin ? std::min(a, b)
                                               : std::max(a, b);
       } else {
         double a = dst.f64[p], b = dst.f64[v];
-        dst.f64[v] = spec.op == AggOp::kSum  ? a + b
+        dst.f64[v] = spec.op == AggOp::kSum   ? a + b
                      : spec.op == AggOp::kMin ? std::min(a, b)
                                               : std::max(a, b);
       }
@@ -280,8 +280,7 @@ std::optional<PropagateSpec> ParsePropagateSpec(const std::string& spec) {
     return std::nullopt;
   }
   std::string agg = base::ToLower(base::TrimWhitespace(spec.substr(0, lp)));
-  std::string src =
-      base::TrimWhitespace(spec.substr(lp + 1, rp - lp - 1));
+  std::string src = base::TrimWhitespace(spec.substr(lp + 1, rp - lp - 1));
   // After ')', expect (case-insensitive) ` AS <name>`.
   std::string rest = base::TrimWhitespace(spec.substr(rp + 1));
   std::string rest_low = base::ToLower(rest);
@@ -336,8 +335,8 @@ std::optional<PropagateSpec> ParsePropagateSpec(const std::string& spec) {
 // ===========================================================================
 namespace {
 
-using tree::Column;
 using tree::ColType;
+using tree::Column;
 using tree::Constraint;
 using tree::Tree;
 
@@ -440,8 +439,8 @@ void AppendCell(Column& col, duckdb_vector vec, duckdb_type tid, idx_t row) {
 // ---------------------------------------------------------------------------
 
 // Collected rows (scan order) before the structural parent[] is resolved at
-// Finalize. `cols` is [id, parent_id, passthrough...]; the passthrough schema is
-// captured lazily from the first chunk's STRUCT vector.
+// Finalize. `cols` is [id, parent_id, passthrough...]; the passthrough schema
+// is captured lazily from the first chunk's STRUCT vector.
 struct FromBuffer {
   bool schema_init = false;
   std::vector<duckdb_type> pt_types;  // passthrough child duckdb types.
@@ -469,10 +468,10 @@ void FromUpdate(duckdb_function_info,
   duckdb_vector pt_vec = duckdb_data_chunk_get_vector(input, 3);
 
   // The passthrough columns arrive as a parallel pair: a VARCHAR[] of names and
-  // a positional STRUCT of values (DuckDB named-struct syntax can't pass through
-  // the SQLite-grammar macro tokenizer). Introspect the struct's child types and
-  // read the names from the (constant) list. Same across rows; cached on first
-  // sight.
+  // a positional STRUCT of values (DuckDB named-struct syntax can't pass
+  // through the SQLite-grammar macro tokenizer). Introspect the struct's child
+  // types and read the names from the (constant) list. Same across rows; cached
+  // on first sight.
   duckdb_logical_type pt_type = duckdb_vector_get_column_type(pt_vec);
   idx_t pt_n = duckdb_struct_type_child_count(pt_type);
   std::vector<duckdb_vector> pt_children(pt_n);
@@ -484,8 +483,8 @@ void FromUpdate(duckdb_function_info,
     duckdb_destroy_logical_type(&ct);
   }
   duckdb_destroy_logical_type(&pt_type);
-  // Names from the list vector (constant per call; read element 0..pt_n-1 of the
-  // first row's list).
+  // Names from the list vector (constant per call; read element 0..pt_n-1 of
+  // the first row's list).
   std::vector<std::string> pt_names(pt_n);
   if (rows > 0) {
     auto* list_entries =
@@ -519,8 +518,8 @@ void FromUpdate(duckdb_function_info,
     // id (column 0); rows with a NULL id cannot be addressed as a parent, but
     // are still kept as nodes (id stored as 0/null).
     AppendCell(buf.cols[0], id_vec, DUCKDB_TYPE_BIGINT, row);
-    // parent_id retained both as a data column (col 1) and as the raw value used
-    // to resolve parent[] at Finalize.
+    // parent_id retained both as a data column (col 1) and as the raw value
+    // used to resolve parent[] at Finalize.
     AppendCell(buf.cols[1], pid_vec, DUCKDB_TYPE_BIGINT, row);
     if (IsRowNull(pid_vec, row)) {
       buf.parent_id_null.push_back(true);
@@ -576,9 +575,8 @@ void FromCombine(duckdb_function_info,
 // registers the tree, returning its handle.
 int64_t FinalizeBuffer(FromBuffer& buf) {
   auto t = std::make_unique<Tree>();
-  uint32_t n = buf.cols.empty()
-                   ? 0
-                   : static_cast<uint32_t>(buf.cols[0].is_null.size());
+  uint32_t n =
+      buf.cols.empty() ? 0 : static_cast<uint32_t>(buf.cols[0].is_null.size());
   t->row_count = n;
   t->columns = std::move(buf.cols);
   // Map id value -> row index (last writer wins on duplicate ids, matching a
@@ -864,7 +862,8 @@ void SetUnionValue(const UnionParts& p,
                    idx_t e,
                    const Column& col,
                    uint32_t r) {
-  // Non-active members default NULL so a downstream flatten never reads garbage.
+  // Non-active members default NULL so a downstream flatten never reads
+  // garbage.
   duckdb_validity_set_row_invalid(p.vi, e);
   duckdb_validity_set_row_invalid(p.vd, e);
   duckdb_validity_set_row_invalid(p.vs, e);
@@ -892,7 +891,9 @@ void SetUnionValue(const UnionParts& p,
   }
 }
 
-void ToTableExec(duckdb_function_info, duckdb_data_chunk in, duckdb_vector out) {
+void ToTableExec(duckdb_function_info,
+                 duckdb_data_chunk in,
+                 duckdb_vector out) {
   idx_t n = duckdb_data_chunk_get_size(in);
   idx_t argc = duckdb_data_chunk_get_column_count(in);
   duckdb_vector handle_vec = duckdb_data_chunk_get_vector(in, 0);
@@ -1036,21 +1037,19 @@ base::Status RegisterTreeFunctions(duckdb_connection conn) {
     duckdb_aggregate_function_add_parameter(f, varchar_list);
     duckdb_aggregate_function_add_parameter(f, any);
     duckdb_aggregate_function_set_return_type(f, bigint);
-    duckdb_aggregate_function_set_functions(f, FromStateSize, FromInit,
-                                            FromUpdate, FromCombine,
-                                            FromFinalize);
+    duckdb_aggregate_function_set_functions(
+        f, FromStateSize, FromInit, FromUpdate, FromCombine, FromFinalize);
     duckdb_aggregate_function_set_destructor(f, FromDestroy);
     if (duckdb_register_aggregate_function(conn, f) == DuckDBError) {
-      agg_status =
-          base::ErrStatus("RegisterTreeFunctions: from_table registration failed");
+      agg_status = base::ErrStatus(
+          "RegisterTreeFunctions: from_table registration failed");
     }
     duckdb_destroy_aggregate_function(&f);
   }
 
   // The UNION(i BIGINT, d DOUBLE, s VARCHAR) passthrough element type.
-  duckdb_logical_type u_members[3] = {bigint, duckdb_create_logical_type(
-                                                  DUCKDB_TYPE_DOUBLE),
-                                      varchar};
+  duckdb_logical_type u_members[3] = {
+      bigint, duckdb_create_logical_type(DUCKDB_TYPE_DOUBLE), varchar};
   const char* u_names[3] = {"i", "d", "s"};
   duckdb_logical_type union_type =
       duckdb_create_union_type(u_members, u_names, 3);

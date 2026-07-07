@@ -100,9 +100,9 @@ class DuckDbIteratorImpl final : public IteratorImpl {
  private:
   // Converts the cell at `row` of `vec` to a SqlValue. `buffer_col` selects the
   // owned string-buffer slot to use for VARCHAR/BLOB results. Handles the
-  // integer/double/string/blob/decimal types and recurses for UNION (reading the
-  // tag and unwrapping the active member), so a polymorphic UDF result (e.g.
-  // extract_arg) surfaces in its natural SqlValue type per row.
+  // integer/double/string/blob/decimal types and recurses for UNION (reading
+  // the tag and unwrapping the active member), so a polymorphic UDF result
+  // (e.g. extract_arg) surfaces in its natural SqlValue type per row.
   SqlValue ReadCell(duckdb_vector vec, idx_t row, uint32_t buffer_col) const;
 
   DuckDbExecutionResult result_;
@@ -124,8 +124,9 @@ class DuckDbIteratorImpl final : public IteratorImpl {
   // cells. Indexed by column; lazily grown to the column count. Each `Get(col)`
   // of a VARCHAR/BLOB overwrites slot `col` and returns a pointer into it, so
   // the returned `string_value`/`bytes_value` stays valid until the next
-  // `Get(col)` for that column (i.e. at least until the next `Next()`), matching
-  // the public `SqlValue` lifetime contract. `mutable` because `Get` is const.
+  // `Get(col)` for that column (i.e. at least until the next `Next()`),
+  // matching the public `SqlValue` lifetime contract. `mutable` because `Get`
+  // is const.
   mutable std::vector<std::string> string_buffers_;
 };
 

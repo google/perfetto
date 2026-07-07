@@ -99,8 +99,8 @@ dataframe::Dataframe BuildSchedDataframe(StringPool* pool,
     builder.PushNonNull(1, r.dur);
     builder.PushNonNull(2, static_cast<int64_t>(r.utid));
     if (r.end_state) {
-      builder.PushNonNull(
-          3, pool->InternString(base::StringView(*r.end_state)));
+      builder.PushNonNull(3,
+                          pool->InternString(base::StringView(*r.end_state)));
     } else {
       builder.PushNull(3);
     }
@@ -184,13 +184,12 @@ TEST_F(SchedTableFunctionTest, ScanAndQuery) {
   // String column + NULL handling.
   EXPECT_EQ(QueryInt64(con_, "SELECT count(end_state) FROM sched_df()"),
             expected_non_null_end_state);
-  EXPECT_EQ(QueryInt64(
-                con_,
-                "SELECT count(*) FROM sched_df() WHERE end_state IS NULL"),
-            expected_count - expected_non_null_end_state);
   EXPECT_EQ(
       QueryInt64(con_,
-                 "SELECT count(*) FROM sched_df() WHERE end_state = 'R'"),
+                 "SELECT count(*) FROM sched_df() WHERE end_state IS NULL"),
+      expected_count - expected_non_null_end_state);
+  EXPECT_EQ(
+      QueryInt64(con_, "SELECT count(*) FROM sched_df() WHERE end_state = 'R'"),
       expected_count_state_R);
 
   // Filtered scans (DuckDB filters post-scan; C API has no filter pushdown).
@@ -201,8 +200,9 @@ TEST_F(SchedTableFunctionTest, ScanAndQuery) {
 
   // Projection pushdown: select only one column. DuckDB asks the table function
   // for just `dur`; the sum must still be correct.
-  EXPECT_EQ(QueryInt64(con_, "SELECT sum(dur) FROM (SELECT dur FROM sched_df())"),
-            expected_sum_dur);
+  EXPECT_EQ(
+      QueryInt64(con_, "SELECT sum(dur) FROM (SELECT dur FROM sched_df())"),
+      expected_sum_dur);
 
   // Per-row round-trip via the synthesised id.
   const SchedRow& probe = rows[1234];

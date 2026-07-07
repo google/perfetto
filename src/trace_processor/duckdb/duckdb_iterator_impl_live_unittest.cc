@@ -53,10 +53,10 @@
 namespace perfetto::trace_processor::duckdb_integration {
 namespace {
 
-// Wraps a freshly-executed duckdb_result into a DuckDbExecutionResult (capturing
-// column names + counts), exactly as the future router will. The returned
-// struct owns `res`; the caller must NOT call duckdb_destroy_result on it (the
-// iterator's destructor does).
+// Wraps a freshly-executed duckdb_result into a DuckDbExecutionResult
+// (capturing column names + counts), exactly as the future router will. The
+// returned struct owns `res`; the caller must NOT call duckdb_destroy_result on
+// it (the iterator's destructor does).
 DuckDbExecutionResult MakeResult(duckdb_result res, const std::string& sql) {
   DuckDbExecutionResult out;
   out.result = res;
@@ -102,8 +102,8 @@ std::vector<std::vector<std::string>> DrainLegacy(TraceProcessor* tp,
     }
     rows.push_back(std::move(row));
   }
-  EXPECT_TRUE(it.Status().ok()) << "legacy query failed: " << sql << ": "
-                                << it.Status().message();
+  EXPECT_TRUE(it.Status().ok())
+      << "legacy query failed: " << sql << ": " << it.Status().message();
   return rows;
 }
 
@@ -266,16 +266,17 @@ TEST_F(DuckDbIteratorLiveTest, MultiChunkBoundary) {
 }
 
 // A NaN floating-point value must surface as NULL, matching SQLite (whose
-// sqlite3_result_double(NaN) stores NULL - NaN is not representable). Without the
-// normalization DuckDB would return a real NaN that renders as "nan", diverging
-// from the SQLite goldens (e.g. args.display_value for a NaN real_value).
+// sqlite3_result_double(NaN) stores NULL - NaN is not representable). Without
+// the normalization DuckDB would return a real NaN that renders as "nan",
+// diverging from the SQLite goldens (e.g. args.display_value for a NaN
+// real_value).
 TEST_F(DuckDbIteratorLiveTest, NanDoubleSurfacesAsNull) {
   // 'nan'::DOUBLE and 'nan'::FLOAT both exercise the DOUBLE and FLOAT cases.
-  auto rows = DrainDuck(
-      con_,
-      "SELECT CAST('nan' AS DOUBLE) AS d, CAST('nan' AS FLOAT) AS f, "
-      "CAST(1.5 AS DOUBLE) AS ok",
-      3);
+  auto rows =
+      DrainDuck(con_,
+                "SELECT CAST('nan' AS DOUBLE) AS d, CAST('nan' AS FLOAT) AS f, "
+                "CAST(1.5 AS DOUBLE) AS ok",
+                3);
   ASSERT_EQ(rows.size(), 1u);
   EXPECT_EQ(rows[0][0], "NULL") << "NaN DOUBLE should be NULL";
   EXPECT_EQ(rows[0][1], "NULL") << "NaN FLOAT should be NULL";

@@ -298,8 +298,7 @@ std::vector<ResultRow> RunDominator(const DomBuffer& buf) {
   Forest forest(graph.node_id_range());
   graph.ComputeSemiDominatorAndPartialDominator(forest);
   graph.ComputeDominators();
-  graph.ForEachTreeNode(root, [&](int64_t node_id,
-                                  std::optional<int64_t> dom) {
+  graph.ForEachTreeNode(root, [&](int64_t node_id, std::optional<int64_t> dom) {
     out.push_back(ResultRow{node_id, dom ? *dom : 0, dom.has_value()});
   });
   return out;

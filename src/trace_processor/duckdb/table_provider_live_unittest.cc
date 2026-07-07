@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-// D1 (first subtask): validates the generic, data-driven `__perfetto_df(VARCHAR)`
-// DuckDB table function. It scans a `dataframe::Dataframe` by name through the
-// dataframe `Cursor` (NOT `Dataframe::GetCell`), so it handles every nullability
-// kind - including plain `SparseNull`, which `GetCell` FATALs on
-// (dataframe.h:357-359).
+// D1 (first subtask): validates the generic, data-driven
+// `__perfetto_df(VARCHAR)` DuckDB table function. It scans a
+// `dataframe::Dataframe` by name through the dataframe `Cursor` (NOT
+// `Dataframe::GetCell`), so it handles every nullability kind - including plain
+// `SparseNull`, which `GetCell` FATALs on (dataframe.h:357-359).
 //
 // Two cases:
 //   1. MatchesLegacyEngine: real sched data, row-for-row vs the legacy engine.
-//   2. PlainSparseNull: a synthetic dataframe with a plain `kSparseNull` nullable
+//   2. PlainSparseNull: a synthetic dataframe with a plain `kSparseNull`
+//   nullable
 //      column carrying KNOWN values with nulls. This is THE load-bearing case:
 //      the previous `sched_df` path used `GetCell`, which FATALs on plain
 //      SparseNull; the cursor path must read it correctly. The synthetic data
@@ -112,8 +113,9 @@ TEST_F(DuckDbTableProviderLiveTest, MatchesLegacyEngine) {
   const dataframe::Dataframe& sched = SchedDataframe();
   ASSERT_GT(sched.row_count(), 0u) << "trace produced no sched rows";
 
-  // The provider needs the StringPool that backs the dataframe so it can resolve
-  // String cells (end_state). It is the TraceProcessor's storage StringPool.
+  // The provider needs the StringPool that backs the dataframe so it can
+  // resolve String cells (end_state). It is the TraceProcessor's storage
+  // StringPool.
   StringPool* pool = tp_->context()->storage->mutable_string_pool();
   dataframe::Dataframe second = BuildSecondTable(pool);
   DuckDbTableProvider provider(pool);
@@ -137,7 +139,7 @@ TEST_F(DuckDbTableProviderLiveTest, MatchesLegacyEngine) {
   std::vector<std::vector<Cell>> legacy_rows;
   {
     auto it = tp_->ExecuteQuery(std::string("SELECT ") + kCols +
-                               " FROM sched ORDER BY id");
+                                " FROM sched ORDER BY id");
     while (it.Next()) {
       std::vector<Cell> row;
       for (uint32_t c = 0; c < 7; ++c) {
@@ -195,12 +197,12 @@ TEST_F(DuckDbTableProviderLiveTest, MatchesLegacyEngine) {
   // BARE `FROM sched` via the replacement scan must return rows identical to
   // both `__perfetto_df('sched')` and the legacy engine.
   duckdb_result bare;
-  ASSERT_EQ(duckdb_query(
-                con_,
-                (std::string("SELECT ") + kCols + " FROM sched ORDER BY id")
-                    .c_str(),
-                &bare),
-            DuckDBSuccess)
+  ASSERT_EQ(
+      duckdb_query(
+          con_,
+          (std::string("SELECT ") + kCols + " FROM sched ORDER BY id").c_str(),
+          &bare),
+      DuckDBSuccess)
       << duckdb_result_error(&bare);
   ASSERT_EQ(duckdb_row_count(&bare), legacy_rows.size());
   ASSERT_EQ(duckdb_column_count(&bare), 7u);
@@ -228,9 +230,9 @@ TEST_F(DuckDbTableProviderLiveTest, MatchesLegacyEngine) {
   // The SECOND registered table also resolves bare, proving the replacement
   // scan is generic (not sched-specific).
   duckdb_result second_res;
-  ASSERT_EQ(
-      duckdb_query(con_, "SELECT count(*), sum(v) FROM second_tbl", &second_res),
-      DuckDBSuccess)
+  ASSERT_EQ(duckdb_query(con_, "SELECT count(*), sum(v) FROM second_tbl",
+                         &second_res),
+            DuckDBSuccess)
       << duckdb_result_error(&second_res);
   EXPECT_EQ(duckdb_value_int64(&second_res, 0, 0), 10);
   EXPECT_EQ(duckdb_value_int64(&second_res, 1, 0), 4500);  // sum 0,100..900
@@ -240,9 +242,8 @@ TEST_F(DuckDbTableProviderLiveTest, MatchesLegacyEngine) {
   // error (DuckDBError), NOT a crash. The replacement scan leaves the function
   // name unset so DuckDB raises its normal catalog error.
   duckdb_result miss;
-  EXPECT_EQ(
-      duckdb_query(con_, "SELECT * FROM definitely_not_a_table", &miss),
-      DuckDBError);
+  EXPECT_EQ(duckdb_query(con_, "SELECT * FROM definitely_not_a_table", &miss),
+            DuckDBError);
   duckdb_destroy_result(&miss);
 }
 
@@ -290,7 +291,8 @@ TEST(DuckDbTableProviderResolverTest, LazySnapshotOnMiss) {
 
   // A name the resolver does NOT know still errors cleanly.
   duckdb_result miss;
-  EXPECT_EQ(duckdb_query(con, "SELECT * FROM unknown_name", &miss), DuckDBError);
+  EXPECT_EQ(duckdb_query(con, "SELECT * FROM unknown_name", &miss),
+            DuckDBError);
   duckdb_destroy_result(&miss);
 
   duckdb_disconnect(&con);
@@ -317,9 +319,9 @@ std::vector<SparseRow> MakeSparseRows() {
     SparseRow r;
     r.key = static_cast<int64_t>(i);
     // Null out roughly every 3rd int value and every 5th string.
-    r.opt_val =
-        (i % 3 == 0) ? std::nullopt
-                     : std::make_optional<int64_t>(static_cast<int64_t>(i) * 7);
+    r.opt_val = (i % 3 == 0)
+                    ? std::nullopt
+                    : std::make_optional<int64_t>(static_cast<int64_t>(i) * 7);
     r.name = (i % 5 == 0)
                  ? std::nullopt
                  : std::make_optional<std::string>("n" + std::to_string(i % 4));
@@ -436,8 +438,8 @@ TEST(DuckDbTableProviderSparseTest, PlainSparseNull) {
   }
   {
     duckdb_result agg;
-    ASSERT_EQ(duckdb_query(
-                  con, "SELECT count(opt_val) FROM __perfetto_df('t')", &agg),
+    ASSERT_EQ(duckdb_query(con, "SELECT count(opt_val) FROM __perfetto_df('t')",
+                           &agg),
               DuckDBSuccess)
         << duckdb_result_error(&agg);
     EXPECT_EQ(duckdb_value_int64(&agg, 0, 0), expected_non_null);

@@ -36,14 +36,14 @@
 #include "src/trace_processor/duckdb/clock_function.h"
 #include "src/trace_processor/duckdb/critical_path_function.h"
 #include "src/trace_processor/duckdb/dominator_tree_function.h"
-#include "src/trace_processor/duckdb/structural_tree_partition_function.h"
 #include "src/trace_processor/duckdb/duckdb_iterator_impl.h"
 #include "src/trace_processor/duckdb/graph_function.h"
 #include "src/trace_processor/duckdb/interval_intersect_function.h"
-#include "src/trace_processor/duckdb/tree_function.h"
 #include "src/trace_processor/duckdb/scalar_functions.h"
 #include "src/trace_processor/duckdb/sql_lowering.h"
+#include "src/trace_processor/duckdb/structural_tree_partition_function.h"
 #include "src/trace_processor/duckdb/table_provider.h"
+#include "src/trace_processor/duckdb/tree_function.h"
 #include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
@@ -56,162 +56,206 @@ namespace {
 // be a runtime PerfettoSQL function, a custom intrinsic, or a builtin whose
 // semantics diverge. Grown by later waves as functions are validated.
 const std::unordered_set<std::string>& BuiltinFunctionAllowlist() {
-  static const std::unordered_set<std::string>* kAllow =
-      new std::unordered_set<std::string>{
-          // Aggregates (beachhead).
-          "count", "sum", "min", "max", "avg",
-          // Scalar math builtins that are 1:1 DuckDB-native AND reach DuckDB
-          // under their own name (they are NOT rewritten by PerfettoSQL's
-          // `DELEGATES TO __intrinsic_*`, so the surface name is what binds),
-          // AND whose result TYPE matches SQLite for the tested inputs. The
-          // delegated math surface (`sqrt`/`ln`/`exp`/`regexp_extract`/`unhex`)
-          // is handled by registered scalar UDFs (RegisterScalarFunctions), not
-          // here.
-          //
-          // `ceil`/`floor` are deliberately EXCLUDED: DuckDB's `ceil(INTEGER)`
-          // returns a DOUBLE (e.g. `ceil(5)` -> 5.000000) whereas SQLite returns
-          // an INTEGER (`5`), a type divergence that fails the byte-exact diff.
-          // (`trunc(INTEGER)` happens to stay INTEGER in DuckDB, so trunc is OK.)
-          "abs", "round", "trunc", "pow", "power",
-          // Null-handling conditionals. These are SQL-standard and resolve to the
-          // SAME semantics in DuckDB as in SQLite: `coalesce`/`ifnull` are
-          // parsed into a COALESCE operator (first non-NULL argument); `nullif`
-          // into `CASE WHEN a=b THEN NULL ELSE a END`. DuckDB transforms them at
-          // parse time (transform_function.cpp / transform_operator.cpp), so they
-          // bind identically regardless of argument types. 1:1 with SQLite.
-          //
-          // `iif`/`format`/`hex` are deliberately EXCLUDED: `iif` is not a DuckDB
-          // builtin (DuckDB has no `iif`; it uses `CASE WHEN`), so it would error
-          // into the fallback; `format` uses Python `{}`-style formatting in
-          // DuckDB (not SQLite's `%`-style printf), so `format('%.5f', x)`
-          // diverges; `hex(INTEGER)` hexes the integer VALUE in DuckDB whereas
-          // SQLite hexes the integer's TEXT rendering - a value divergence.
-          "coalesce", "ifnull", "nullif",
-          // `format` is SQLite's C-style printf. It is rewritten to DuckDB's
-          // C-style `printf` before execution (RewriteFormatToPrintf); DuckDB's
-          // own `format` is Python `{}`-style and would diverge, so it is the
-          // rewrite - not a direct bind - that makes this eligible.
-          "format",
-          // `printf` is SQLite's C-style printf, and DuckDB's `printf` is also
-          // C-style (the same target `format` is rewritten to). Standard
-          // specifiers (%d/%s/%f/%x/...) match SQLite exactly; SQLite-only
-          // extensions (%q/%w/%z) make DuckDB printf ERROR -> safe fallback (no
-          // silent divergence). So a direct `printf(...)` binds with matching
-          // semantics, same trust as the format->printf rewrite.
-          "printf",
-          // `group_concat(X)` is a DuckDB-native aggregate (alias of `string_agg`)
-          // whose default separator is `,`, matching SQLite. Concatenation ORDER
-          // within a group is engine-defined in both, so an unordered
-          // `group_concat` over a tie can diverge - those land in the known-bad
-          // ledger (TIE_BREAK), not here. `string_agg(X, sep)` is the same
-          // DuckDB-native aggregate group_concat aliases - identical semantics,
-          // same tie-break caveat. Safe, monotonic add.
-          "group_concat", "string_agg",
-          // Window functions. These are SQL-standard and DuckDB-native with the
-          // same frame/ordering semantics as SQLite, so a windowed call binds
-          // and evaluates identically (the divergences that remain are tie-break
-          // ordering of equal-key rows, which land in the known-bad ledger, not
-          // here). Adding them to the allowlist is monotonic for the honest lane.
-          "row_number", "rank", "dense_rank", "ntile", "lag", "lead",
-          "first_value", "last_value", "nth_value", "cume_dist",
-          "percent_rank",
-          // String builtins that are 1:1 with SQLite for ASCII inputs (the test
-          // corpus): `length` (char count), `substr`/`substring` (1-based, with
-          // negative-from-end support in both), `instr` (1-based, 0 on miss),
-          // `replace`, `trim`/`ltrim`/`rtrim` (default whitespace), `lower`/
-          // `upper` (ASCII-fold; non-ASCII unicode-folding divergences land in
-          // known-bad), `reverse`. Non-matching cases are cataloged, not guarded.
-          "length", "substr", "substring", "instr", "replace", "trim",
-          "ltrim", "rtrim", "lower", "upper", "reverse",
-          // `unicode(s)` (codepoint of the first char) is DuckDB-native with
-          // identical semantics. `char(x)` is SQLite-only: its single-argument
-          // form is rewritten to DuckDB's `chr(x)` (RewriteCharToChr); the
-          // variadic form is left to fall back. Allowlisted here so the
-          // predicate accepts char/unicode-using queries (e.g. the graph
-          // lengauer examples). `chr` is allowed for the rewritten output.
-          "unicode", "char", "chr",
-          // Clock-conversion UDFs bridged to the trace's ClockConverter
-          // (RegisterClockFunctions); registered directly under their public
-          // names, so a call binds in DuckDB with identical semantics.
-          "to_monotonic", "to_realtime", "abs_time_str",
-          // `__intrinsic_arg_set_to_json(arg_set_id)` bridged to the args
-          // plugin's nested-JSON serializer (RegisterArgSetJsonFunction);
-          // byte-identical to the SQLite intrinsic (same C++ converter).
-          "__intrinsic_arg_set_to_json",
-          // `to_ftrace(id)` bridged to the to_ftrace plugin's SystraceSerializer
-          // (RegisterInt64ToVarcharFunction); byte-identical to the SQLite fn.
-          "to_ftrace",
-          // Aggregates beyond the beachhead that are SQL-standard and match
-          // SQLite: min/max/sum/avg/count already above; total (SUM-as-double),
-          // and the statistical aggregates DuckDB shares.
-          "total",
-          // `any_value(x)` returns an arbitrary value from the group - the same
-          // semantics as SQLite's lax GROUP BY (a bare column under GROUP BY).
-          // It is the target of the ungrouped-column repair and the
-          // _intervals_to_roots override (where the wrapped columns are constant
-          // within the group, so the choice is deterministic).
-          "any_value",
-          // `arg_max(arg, val)` returns `arg` from the row with the largest
-          // `val` - the DuckDB equivalent of SQLite's "bare column follows
-          // max()" GROUP BY idiom (used by the _intervals_flatten override).
-          "arg_max",
-          // `iif(c,a,b)` is registered as a DuckDB MACRO (CASE WHEN c THEN a ELSE
-          // b END) in RegisterScalarFunctions, so it binds with exact SQLite
-          // semantics. Listed here so the support predicate treats it as eligible
-          // (it is also in registered_scalar_functions_ via the macro path).
-          "iif",
-          // `greatest`/`least` are DuckDB-native variadic max/min. They appear
-          // only in engine-GENERATED SQL (the _interval_intersect! rewrite), so
-          // their (DuckDB-exact) semantics are controlled by us, not user input.
-          "greatest", "least",
-          // The native interval_intersect aggregate + combiner and `unnest`,
-          // emitted only by the engine-GENERATED _interval_intersect! rewrite
-          // (RewriteIntervalIntersectMacro). User input cannot reach these.
-          "__intrinsic_ii_agg", "__intrinsic_ii_combine", "unnest",
-          // `list_value` builds the LIST<BIGINT> of handles in the native
-          // interval/graph macro expansions (the `[...]` list literal breaks
-          // syntaqlite's macro $param substitution, so the macros use
-          // list_value instead). Engine-generated only.
-          "list_value",
-          // The native graph BFS/DFS aggregates + combiners, emitted only by
-          // the engine-GENERATED graph_reachable_bfs!/_dfs! rewrite
-          // (RewriteGraphReachableMacro). User input cannot reach these.
-          "__intrinsic_graph_agg", "__intrinsic_int_array_agg",
-          "__intrinsic_graph_bfs", "__intrinsic_graph_dfs",
-          // Native weight-bounded DFS (graph_reachable_weight_bounded_dfs!
-          // override): weighted-edge + root aggregates + combiner.
-          "__intrinsic_wgraph_agg", "__intrinsic_root_weight_agg",
-          "__intrinsic_dfs_weight_bounded",
-          // Native dominator-tree aggregate, emitted only by the engine-
-          // GENERATED graph_dominator_tree! rewrite (RewriteGraphDominatorMacro).
-          "__intrinsic_dominator_tree",
-          // Native structural tree partition (tree_structural_partition_by_group!
-          // override): single aggregate -> LIST<STRUCT>.
-          "__intrinsic_structural_tree_partition",
-          // Native critical-path walk (_critical_path_with_depth_by_roots! override).
-          "__intrinsic_wakeup_graph_agg", "__intrinsic_cp_roots_agg",
-          "__intrinsic_critical_path_walk",
-          // Native tree pipeline (std.trees.*). The from_table aggregate and
-          // to_table combiner (__intrinsic_*) are emitted only by the DuckDb
-          // _tree_from_table!/_tree_to_table! macro overrides. The
-          // constraint/where/filter/propagate_down functions are DELEGATES-TO
-          // PerfettoSQL functions: they are NOT macro-expanded, so they reach
-          // DuckDB under their SURFACE names, registered directly as scalars by
-          // RegisterTreeFunctions. `struct_pack` builds the typed passthrough
-          // struct fed to the from_table aggregate. All engine-controlled
-          // (reachable only after `INCLUDE PERFETTO MODULE std.trees.*`).
-          "__intrinsic_tree_from_table", "__intrinsic_tree_to_table",
-          "_tree_constraint", "_tree_where", "_tree_filter",
-          "_tree_propagate_down", "struct_pack",
-      };
+  static const std::unordered_set<std::string>* kAllow = new std::unordered_set<
+      std::string>{
+      // Aggregates (beachhead).
+      "count",
+      "sum",
+      "min",
+      "max",
+      "avg",
+      // Scalar math builtins that are 1:1 DuckDB-native AND reach DuckDB
+      // under their own name (they are NOT rewritten by PerfettoSQL's
+      // `DELEGATES TO __intrinsic_*`, so the surface name is what binds),
+      // AND whose result TYPE matches SQLite for the tested inputs. The
+      // delegated math surface (`sqrt`/`ln`/`exp`/`regexp_extract`/`unhex`)
+      // is handled by registered scalar UDFs (RegisterScalarFunctions), not
+      // here.
+      //
+      // `ceil`/`floor` are deliberately EXCLUDED: DuckDB's `ceil(INTEGER)`
+      // returns a DOUBLE (e.g. `ceil(5)` -> 5.000000) whereas SQLite returns
+      // an INTEGER (`5`), a type divergence that fails the byte-exact diff.
+      // (`trunc(INTEGER)` happens to stay INTEGER in DuckDB, so trunc is OK.)
+      "abs",
+      "round",
+      "trunc",
+      "pow",
+      "power",
+      // Null-handling conditionals. These are SQL-standard and resolve to the
+      // SAME semantics in DuckDB as in SQLite: `coalesce`/`ifnull` are
+      // parsed into a COALESCE operator (first non-NULL argument); `nullif`
+      // into `CASE WHEN a=b THEN NULL ELSE a END`. DuckDB transforms them at
+      // parse time (transform_function.cpp / transform_operator.cpp), so they
+      // bind identically regardless of argument types. 1:1 with SQLite.
+      //
+      // `iif`/`format`/`hex` are deliberately EXCLUDED: `iif` is not a DuckDB
+      // builtin (DuckDB has no `iif`; it uses `CASE WHEN`), so it would error
+      // into the fallback; `format` uses Python `{}`-style formatting in
+      // DuckDB (not SQLite's `%`-style printf), so `format('%.5f', x)`
+      // diverges; `hex(INTEGER)` hexes the integer VALUE in DuckDB whereas
+      // SQLite hexes the integer's TEXT rendering - a value divergence.
+      "coalesce",
+      "ifnull",
+      "nullif",
+      // `format` is SQLite's C-style printf. It is rewritten to DuckDB's
+      // C-style `printf` before execution (RewriteFormatToPrintf); DuckDB's
+      // own `format` is Python `{}`-style and would diverge, so it is the
+      // rewrite - not a direct bind - that makes this eligible.
+      "format",
+      // `printf` is SQLite's C-style printf, and DuckDB's `printf` is also
+      // C-style (the same target `format` is rewritten to). Standard
+      // specifiers (%d/%s/%f/%x/...) match SQLite exactly; SQLite-only
+      // extensions (%q/%w/%z) make DuckDB printf ERROR -> safe fallback (no
+      // silent divergence). So a direct `printf(...)` binds with matching
+      // semantics, same trust as the format->printf rewrite.
+      "printf",
+      // `group_concat(X)` is a DuckDB-native aggregate (alias of `string_agg`)
+      // whose default separator is `,`, matching SQLite. Concatenation ORDER
+      // within a group is engine-defined in both, so an unordered
+      // `group_concat` over a tie can diverge - those land in the known-bad
+      // ledger (TIE_BREAK), not here. `string_agg(X, sep)` is the same
+      // DuckDB-native aggregate group_concat aliases - identical semantics,
+      // same tie-break caveat. Safe, monotonic add.
+      "group_concat",
+      "string_agg",
+      // Window functions. These are SQL-standard and DuckDB-native with the
+      // same frame/ordering semantics as SQLite, so a windowed call binds
+      // and evaluates identically (the divergences that remain are tie-break
+      // ordering of equal-key rows, which land in the known-bad ledger, not
+      // here). Adding them to the allowlist is monotonic for the honest lane.
+      "row_number",
+      "rank",
+      "dense_rank",
+      "ntile",
+      "lag",
+      "lead",
+      "first_value",
+      "last_value",
+      "nth_value",
+      "cume_dist",
+      "percent_rank",
+      // String builtins that are 1:1 with SQLite for ASCII inputs (the test
+      // corpus): `length` (char count), `substr`/`substring` (1-based, with
+      // negative-from-end support in both), `instr` (1-based, 0 on miss),
+      // `replace`, `trim`/`ltrim`/`rtrim` (default whitespace), `lower`/
+      // `upper` (ASCII-fold; non-ASCII unicode-folding divergences land in
+      // known-bad), `reverse`. Non-matching cases are cataloged, not guarded.
+      "length",
+      "substr",
+      "substring",
+      "instr",
+      "replace",
+      "trim",
+      "ltrim",
+      "rtrim",
+      "lower",
+      "upper",
+      "reverse",
+      // `unicode(s)` (codepoint of the first char) is DuckDB-native with
+      // identical semantics. `char(x)` is SQLite-only: its single-argument
+      // form is rewritten to DuckDB's `chr(x)` (RewriteCharToChr); the
+      // variadic form is left to fall back. Allowlisted here so the
+      // predicate accepts char/unicode-using queries (e.g. the graph
+      // lengauer examples). `chr` is allowed for the rewritten output.
+      "unicode",
+      "char",
+      "chr",
+      // Clock-conversion UDFs bridged to the trace's ClockConverter
+      // (RegisterClockFunctions); registered directly under their public
+      // names, so a call binds in DuckDB with identical semantics.
+      "to_monotonic",
+      "to_realtime",
+      "abs_time_str",
+      // `__intrinsic_arg_set_to_json(arg_set_id)` bridged to the args
+      // plugin's nested-JSON serializer (RegisterArgSetJsonFunction);
+      // byte-identical to the SQLite intrinsic (same C++ converter).
+      "__intrinsic_arg_set_to_json",
+      // `to_ftrace(id)` bridged to the to_ftrace plugin's SystraceSerializer
+      // (RegisterInt64ToVarcharFunction); byte-identical to the SQLite fn.
+      "to_ftrace",
+      // Aggregates beyond the beachhead that are SQL-standard and match
+      // SQLite: min/max/sum/avg/count already above; total (SUM-as-double),
+      // and the statistical aggregates DuckDB shares.
+      "total",
+      // `any_value(x)` returns an arbitrary value from the group - the same
+      // semantics as SQLite's lax GROUP BY (a bare column under GROUP BY).
+      // It is the target of the ungrouped-column repair and the
+      // _intervals_to_roots override (where the wrapped columns are constant
+      // within the group, so the choice is deterministic).
+      "any_value",
+      // `arg_max(arg, val)` returns `arg` from the row with the largest
+      // `val` - the DuckDB equivalent of SQLite's "bare column follows
+      // max()" GROUP BY idiom (used by the _intervals_flatten override).
+      "arg_max",
+      // `iif(c,a,b)` is registered as a DuckDB MACRO (CASE WHEN c THEN a ELSE
+      // b END) in RegisterScalarFunctions, so it binds with exact SQLite
+      // semantics. Listed here so the support predicate treats it as eligible
+      // (it is also in registered_scalar_functions_ via the macro path).
+      "iif",
+      // `greatest`/`least` are DuckDB-native variadic max/min. They appear
+      // only in engine-GENERATED SQL (the _interval_intersect! rewrite), so
+      // their (DuckDB-exact) semantics are controlled by us, not user input.
+      "greatest",
+      "least",
+      // The native interval_intersect aggregate + combiner and `unnest`,
+      // emitted only by the engine-GENERATED _interval_intersect! rewrite
+      // (RewriteIntervalIntersectMacro). User input cannot reach these.
+      "__intrinsic_ii_agg",
+      "__intrinsic_ii_combine",
+      "unnest",
+      // `list_value` builds the LIST<BIGINT> of handles in the native
+      // interval/graph macro expansions (the `[...]` list literal breaks
+      // syntaqlite's macro $param substitution, so the macros use
+      // list_value instead). Engine-generated only.
+      "list_value",
+      // The native graph BFS/DFS aggregates + combiners, emitted only by
+      // the engine-GENERATED graph_reachable_bfs!/_dfs! rewrite
+      // (RewriteGraphReachableMacro). User input cannot reach these.
+      "__intrinsic_graph_agg",
+      "__intrinsic_int_array_agg",
+      "__intrinsic_graph_bfs",
+      "__intrinsic_graph_dfs",
+      // Native weight-bounded DFS (graph_reachable_weight_bounded_dfs!
+      // override): weighted-edge + root aggregates + combiner.
+      "__intrinsic_wgraph_agg",
+      "__intrinsic_root_weight_agg",
+      "__intrinsic_dfs_weight_bounded",
+      // Native dominator-tree aggregate, emitted only by the engine-
+      // GENERATED graph_dominator_tree! rewrite (RewriteGraphDominatorMacro).
+      "__intrinsic_dominator_tree",
+      // Native structural tree partition (tree_structural_partition_by_group!
+      // override): single aggregate -> LIST<STRUCT>.
+      "__intrinsic_structural_tree_partition",
+      // Native critical-path walk (_critical_path_with_depth_by_roots!
+      // override).
+      "__intrinsic_wakeup_graph_agg",
+      "__intrinsic_cp_roots_agg",
+      "__intrinsic_critical_path_walk",
+      // Native tree pipeline (std.trees.*). The from_table aggregate and
+      // to_table combiner (__intrinsic_*) are emitted only by the DuckDb
+      // _tree_from_table!/_tree_to_table! macro overrides. The
+      // constraint/where/filter/propagate_down functions are DELEGATES-TO
+      // PerfettoSQL functions: they are NOT macro-expanded, so they reach
+      // DuckDB under their SURFACE names, registered directly as scalars by
+      // RegisterTreeFunctions. `struct_pack` builds the typed passthrough
+      // struct fed to the from_table aggregate. All engine-controlled
+      // (reachable only after `INCLUDE PERFETTO MODULE std.trees.*`).
+      "__intrinsic_tree_from_table",
+      "__intrinsic_tree_to_table",
+      "_tree_constraint",
+      "_tree_where",
+      "_tree_filter",
+      "_tree_propagate_down",
+      "struct_pack",
+  };
   return *kAllow;
 }
 
 // A significant SQL token (whitespace and comments dropped) carrying its
-// syntaqlite token TYPE and original text. The whole support predicate is driven
-// off this real token stream: keywords (CAST/USING/AS/VALUES/WITH/...) get their
-// OWN token types from the SQLite grammar, so they are never confused with an
-// identifier the way the old hand-rolled character scanner did.
+// syntaqlite token TYPE and original text. The whole support predicate is
+// driven off this real token stream: keywords (CAST/USING/AS/VALUES/WITH/...)
+// get their OWN token types from the SQLite grammar, so they are never confused
+// with an identifier the way the old hand-rolled character scanner did.
 struct SigToken {
   int type;               // sql_token::k* constant.
   std::string str;        // original (case-preserving) token text (OWNED: the
@@ -226,8 +270,8 @@ struct SigToken {
 // significant tokens (whitespace and comments removed). `adjacent_to_prev`
 // records byte-adjacency so a macro call `name!` (an identifier immediately
 // followed by a `!` token) can be detected without re-scanning characters. The
-// token text is COPIED into each SigToken because the tokenizer (and its backing
-// SqlSource) is destroyed when this function returns.
+// token text is COPIED into each SigToken because the tokenizer (and its
+// backing SqlSource) is destroyed when this function returns.
 std::vector<SigToken> TokenizeSql(const std::string& sql) {
   std::vector<SigToken> out;
   SqliteTokenizer tokenizer(SqlSource::FromTraceProcessorImplementation(sql));
@@ -242,8 +286,8 @@ std::vector<SigToken> TokenizeSql(const std::string& sql) {
     std::string str(t.str);
     std::string lower =
         t.token_type == sql_token::kId ? base::ToLower(str) : std::string();
-    out.push_back(SigToken{t.token_type, std::move(str), std::move(lower),
-                           adjacent});
+    out.push_back(
+        SigToken{t.token_type, std::move(str), std::move(lower), adjacent});
     prev_end = t.str.data() + t.str.size();
   }
   return out;
@@ -258,19 +302,19 @@ bool IsBareName(const SigToken& t) {
          t.str.front() != '`';
 }
 
-// The outcome of the (cheap, conservative, default-deny) support predicate. When
-// `ineligible_reason` is set the query must fall back to SQLite (or, in honest
-// mode, error). When it is empty the query is eligible to be handed to DuckDB
-// (DuckDB's binder remains the final oracle - any DuckDB error still falls
-// back).
+// The outcome of the (cheap, conservative, default-deny) support predicate.
+// When `ineligible_reason` is set the query must fall back to SQLite (or, in
+// honest mode, error). When it is empty the query is eligible to be handed to
+// DuckDB (DuckDB's binder remains the final oracle - any DuckDB error still
+// falls back).
 struct SupportDecision {
   std::optional<std::string> ineligible_reason;
 };
 
-// Drives the whole support predicate off the real syntaqlite token stream. It is
-// intentionally testable in isolation (no live DuckDB): given the SQL plus the
-// two function-eligibility sets, it returns the same eligibility outcome the
-// engine previously computed with the hand-rolled scanner, just from real
+// Drives the whole support predicate off the real syntaqlite token stream. It
+// is intentionally testable in isolation (no live DuckDB): given the SQL plus
+// the two function-eligibility sets, it returns the same eligibility outcome
+// the engine previously computed with the hand-rolled scanner, just from real
 // tokens.
 //
 // `builtin_allowlist` and `registered_udfs` are the function-name sets a call
@@ -301,8 +345,9 @@ SupportDecision AnalyzeSupport(
   }
 
   // POLICY SHIFT ("list, don't guard"): the double-quote and USING guards were
-  // RELAXED. Both were preemptive dialect rejections; in practice DuckDB handles
-  // the overwhelming majority of these constructs identically to SQLite:
+  // RELAXED. Both were preemptive dialect rejections; in practice DuckDB
+  // handles the overwhelming majority of these constructs identically to
+  // SQLite:
   //   - A `"..."` double-quoted token that names a real column binds as that
   //     column in DuckDB exactly as in SQLite. Only the (rare in this corpus)
   //     "double-quote as STRING LITERAL" case diverges; when it does, DuckDB
@@ -318,11 +363,12 @@ SupportDecision AnalyzeSupport(
   // Letting these run converts a large block of needlessly-suppressed queries
   // into genuine DuckDB passes.
 
-  // NOTE: the PerfettoSQL MACRO `name!(...)` pre-check was DROPPED. DuckDB cannot
-  // parse `!`, so such a query raises a Parser error in `duckdb_query` and the
-  // ANY-DuckDB-error-falls-back rule already routes it correctly. A dedicated
-  // token pre-check was therefore redundant (it only avoided a noisy parse
-  // attempt) - per the "list, don't guard" policy we let DuckDB reject it.
+  // NOTE: the PerfettoSQL MACRO `name!(...)` pre-check was DROPPED. DuckDB
+  // cannot parse `!`, so such a query raises a Parser error in `duckdb_query`
+  // and the ANY-DuckDB-error-falls-back rule already routes it correctly. A
+  // dedicated token pre-check was therefore redundant (it only avoided a noisy
+  // parse attempt) - per the "list, don't guard" policy we let DuckDB reject
+  // it.
 
   // Collect CTE-defined names so a later `FROM <cte>` is recognized as a local
   // relation (not an external one). A CTE is introduced after `WITH` and after
@@ -346,8 +392,8 @@ SupportDecision AnalyzeSupport(
       }
       if (!in_with) {
         // `WITH` introduces the CTE list. (kId named "with" never happens: WITH
-        // is a keyword token, but we match defensively on the lowercase text via
-        // the keyword token's str just in case.)
+        // is a keyword token, but we match defensively on the lowercase text
+        // via the keyword token's str just in case.)
         if (base::CaseInsensitiveEqual(std::string(t.str), "with")) {
           in_with = true;
           name_expected = true;
@@ -374,8 +420,8 @@ SupportDecision AnalyzeSupport(
   // Function-call + relation pass. A function call is a BARE identifier
   // immediately followed by `(` and NOT preceded by `.` (a dotted member like
   // `t.count` is a column, not a call). Because keywords (CAST/VALUES/...) and
-  // quoted identifiers are NOT bare kId tokens, they never reach this test - the
-  // old keyword/quote/CTE-column-list special cases fall out naturally.
+  // quoted identifiers are NOT bare kId tokens, they never reach this test -
+  // the old keyword/quote/CTE-column-list special cases fall out naturally.
   bool saw_relation = false;
   bool saw_supported_function = false;
   bool saw_aggregate = false;
@@ -388,9 +434,10 @@ SupportDecision AnalyzeSupport(
     bool followed_by_paren =
         k + 1 < toks.size() && toks[k + 1].type == sql_token::kLp;
 
-    // CTE-with-column-list: `WITH name(cols) AS (...)`. Here `name` is a bare id
-    // followed by `(`, but the parens hold COLUMN NAMES, not function args - the
-    // matching `)` is followed by `AS`. Recognize and skip (not a function).
+    // CTE-with-column-list: `WITH name(cols) AS (...)`. Here `name` is a bare
+    // id followed by `(`, but the parens hold COLUMN NAMES, not function args -
+    // the matching `)` is followed by `AS`. Recognize and skip (not a
+    // function).
     if (followed_by_paren && cte_names.find(t.lower) != cte_names.end()) {
       // Walk to the matching ')' and check the next token is AS.
       int depth = 0;
@@ -452,30 +499,31 @@ SupportDecision AnalyzeSupport(
   }
 
   // POLICY SHIFT ("list, don't guard"): the bare-SELECT gate was RELAXED. It
-  // used to reject a no-FROM statement that called no allowlisted function (e.g.
-  // `SELECT 1`, or a macro-expanded `SELECT (SELECT 123 - 100)`), to minimize
-  // drift. But such constant/expression SELECTs evaluate identically in DuckDB
-  // and SQLite (integer division included - DuckDB does integer division for
-  // integer operands), so routing them is safe; any genuinely-divergent case
-  // surfaces as a DuckDB error (fall back) or a value divergence (cataloged).
-  // This is what lets a PerfettoSQL MACRO that expands to a bare SELECT run in
-  // DuckDB. A bare SELECT calling an UNALLOWLISTED function is still rejected
-  // above by the function allowlist, so this only admits literal/operator/
-  // allowlisted-function expressions.
+  // used to reject a no-FROM statement that called no allowlisted function
+  // (e.g. `SELECT 1`, or a macro-expanded `SELECT (SELECT 123 - 100)`), to
+  // minimize drift. But such constant/expression SELECTs evaluate identically
+  // in DuckDB and SQLite (integer division included - DuckDB does integer
+  // division for integer operands), so routing them is safe; any
+  // genuinely-divergent case surfaces as a DuckDB error (fall back) or a value
+  // divergence (cataloged). This is what lets a PerfettoSQL MACRO that expands
+  // to a bare SELECT run in DuckDB. A bare SELECT calling an UNALLOWLISTED
+  // function is still rejected above by the function allowlist, so this only
+  // admits literal/operator/ allowlisted-function expressions.
   (void)saw_relation;
   (void)saw_supported_function;
 
-  // POLICY SHIFT ("list, don't guard"): the ROW-ORDER guard was RELAXED. It used
-  // to force a fallback whenever a query scanned a relation with no top-level
-  // ORDER BY (and on LIMIT-without-ORDER-BY), on the theory that SQLite and
-  // DuckDB order an under-specified scan differently. In practice DuckDB's scan
-  // over the dataframe cursor is STABLE and, for many such queries, byte-matches
-  // the SQLite golden - those are genuine DuckDB passes the guard was needlessly
-  // suppressing. We now LET these queries run in DuckDB: the deterministically
-  // matching ones PASS, and the few that genuinely diverge on tie-break /
-  // arbitrary row order are recorded in duckdb_known_bad_tests.txt rather than
-  // guarded. (`saw_aggregate` is consequently unused; kept the relation/CTE
-  // bookkeeping for the bare-SELECT gate above.)
+  // POLICY SHIFT ("list, don't guard"): the ROW-ORDER guard was RELAXED. It
+  // used to force a fallback whenever a query scanned a relation with no
+  // top-level ORDER BY (and on LIMIT-without-ORDER-BY), on the theory that
+  // SQLite and DuckDB order an under-specified scan differently. In practice
+  // DuckDB's scan over the dataframe cursor is STABLE and, for many such
+  // queries, byte-matches the SQLite golden - those are genuine DuckDB passes
+  // the guard was needlessly suppressing. We now LET these queries run in
+  // DuckDB: the deterministically matching ones PASS, and the few that
+  // genuinely diverge on tie-break / arbitrary row order are recorded in
+  // duckdb_known_bad_tests.txt rather than guarded. (`saw_aggregate` is
+  // consequently unused; kept the relation/CTE bookkeeping for the bare-SELECT
+  // gate above.)
   (void)saw_aggregate;
 
   // POLICY SHIFT ("list, don't guard"): the COLUMN-NAME divergence guard was
@@ -617,17 +665,18 @@ std::vector<std::optional<std::string>> ComputeColumnNameOverrides(
       }
     }
     if (m != e - 1) {
-      continue;  // Matching ')' is not the last token -> alias/trailing/complex.
+      continue;  // Matching ')' is not the last token ->
+                 // alias/trailing/complex.
     }
     overrides[i] = ReconstructText(toks, b, e);
   }
   return overrides;
 }
 
-// Extracts the column name X from a DuckDB `Referenced column "X" not found ...`
-// binder error, or nullopt if the error is not of that shape. DuckDB raises this
-// when a double-quoted token is treated as an identifier that does not exist -
-// which, in SQLite, would instead be a STRING LITERAL.
+// Extracts the column name X from a DuckDB `Referenced column "X" not found
+// ...` binder error, or nullopt if the error is not of that shape. DuckDB
+// raises this when a double-quoted token is treated as an identifier that does
+// not exist - which, in SQLite, would instead be a STRING LITERAL.
 std::optional<std::string> ParseReferencedColumnNotFound(
     const std::string& err) {
   static constexpr char kPrefix[] = "Referenced column \"";
@@ -689,8 +738,8 @@ std::string RewriteDoubleQuotedToString(const std::string& sql,
   return out;
 }
 
-// Extracts the table name X from a DuckDB `Catalog Error: Table with name X does
-// not exist!` error, or nullopt otherwise.
+// Extracts the table name X from a DuckDB `Catalog Error: Table with name X
+// does not exist!` error, or nullopt otherwise.
 std::optional<std::string> ParseTableNotExist(const std::string& err) {
   static constexpr char kPrefix[] = "Table with name ";
   size_t p = err.find(kPrefix);
@@ -742,10 +791,11 @@ std::vector<AllToken> TokenizeAll(const std::string& sql) {
 }
 
 // Rewrites SQLite's table-valued-function join `JOIN name(args) [AS a]` (no ON)
-// into DuckDB's `JOIN name(args) [AS a] ON true`. SQLite allows a table function
-// in a JOIN with no ON (an implicit correlated/lateral join); DuckDB requires an
-// ON, and treats `ON true` over a correlated table macro as a lateral join
-// (preserving LEFT-join semantics). Only a JOIN onto a known table macro
+// into DuckDB's `JOIN name(args) [AS a] ON true`. SQLite allows a table
+// function in a JOIN with no ON (an implicit correlated/lateral join); DuckDB
+// requires an ON, and treats `ON true` over a correlated table macro as a
+// lateral join (preserving LEFT-join semantics). Only a JOIN onto a known table
+// macro
 // (`macros`) not already followed by ON/USING is rewritten.
 std::string RewriteTableFunctionJoins(
     const std::string& sql,
@@ -819,13 +869,14 @@ std::string RewriteTableFunctionJoins(
 }
 
 // True if `name` (lowercased) is an aggregate whose argument is ALREADY a valid
-// grouped context - a bare column inside it must NOT be wrapped (that would nest
-// aggregates). Covers the SQL standard aggregates plus any_value/group_concat.
+// grouped context - a bare column inside it must NOT be wrapped (that would
+// nest aggregates). Covers the SQL standard aggregates plus
+// any_value/group_concat.
 bool IsAggregateName(const std::string& lower) {
   static const std::unordered_set<std::string>* kAgg =
       new std::unordered_set<std::string>{
-          "count", "sum", "min", "max", "avg", "total",
-          "group_concat", "any_value", "string_agg"};
+          "count", "sum",          "min",       "max",       "avg",
+          "total", "group_concat", "any_value", "string_agg"};
   return kAgg->find(lower) != kAgg->end();
 }
 
@@ -833,11 +884,11 @@ bool IsAggregateName(const std::string& lower) {
 // occurrence of the bare column reference `[alias.]col` in the top-level
 // projection with `ANY_VALUE(...)` - exactly what DuckDB's error suggests, and
 // semantically identical to SQLite's "arbitrary row" when the GROUP BY key is
-// unique. Works at the EXPRESSION level (so `coalesce(r.x, max(p.x))` wraps only
-// the bare `r.x`, never the `max(p.x)` argument), skipping any reference that is
-// inside an aggregate call or is a function name / dotted-member prefix. The
-// caller retries; DuckDB reports one column at a time. Returns the input
-// unchanged if no safe rewrite applies.
+// unique. Works at the EXPRESSION level (so `coalesce(r.x, max(p.x))` wraps
+// only the bare `r.x`, never the `max(p.x)` argument), skipping any reference
+// that is inside an aggregate call or is a function name / dotted-member
+// prefix. The caller retries; DuckDB reports one column at a time. Returns the
+// input unchanged if no safe rewrite applies.
 std::string RewriteUngroupedColumn(const std::string& sql,
                                    const std::string& col) {
   std::vector<AllToken> toks = TokenizeAll(sql);
@@ -923,7 +974,8 @@ std::string RewriteUngroupedColumn(const std::string& sql,
     }
     // Determine the reference span: a preceding `alias .` makes it `alias.col`.
     size_t ref_first_sig = k;
-    if (k >= 2 && toks[sig[k - 1]].type == sql_token::kDot && is_bare_id(k - 2)) {
+    if (k >= 2 && toks[sig[k - 1]].type == sql_token::kDot &&
+        is_bare_id(k - 2)) {
       ref_first_sig = k - 2;
     }
     size_t r_first = sig[ref_first_sig], r_last = sig[k];
@@ -931,11 +983,11 @@ std::string RewriteUngroupedColumn(const std::string& sql,
     for (size_t i = r_first; i <= r_last; ++i) {
       ref_text += toks[i].str;
     }
-    // If the reference is a STANDALONE top-level projection item (not inside any
-    // paren/expression, preceded by SELECT or a comma and followed by a comma /
-    // FROM), wrapping it would rename the output column (`any_value(r.ts)` vs
-    // `ts`); add `AS col` to preserve the name. Inside an expression the
-    // enclosing alias/name is kept, so no alias is added.
+    // If the reference is a STANDALONE top-level projection item (not inside
+    // any paren/expression, preceded by SELECT or a comma and followed by a
+    // comma / FROM), wrapping it would rename the output column
+    // (`any_value(r.ts)` vs `ts`); add `AS col` to preserve the name. Inside an
+    // expression the enclosing alias/name is kept, so no alias is added.
     bool prev_ok = ref_first_sig > 0 &&
                    (toks[sig[ref_first_sig - 1]].type == sql_token::kSelect ||
                     toks[sig[ref_first_sig - 1]].type == sql_token::kComma);
@@ -964,9 +1016,9 @@ std::string RewriteUngroupedColumn(const std::string& sql,
 
 // Rewrites an UNQUALIFIED `_auto_id` reference to `(row_number() OVER () - 1)`,
 // the 0-based dataframe row index. The table_provider hides the synthetic
-// `_auto_id` column (to keep SELECT * matching SQLite, and DuckDB's C API has no
-// hidden columns), so a body using `_auto_id` otherwise fails to bind. This is
-// valid ONLY for a 1:1 projection of a single base relation: row_number() is
+// `_auto_id` column (to keep SELECT * matching SQLite, and DuckDB's C API has
+// no hidden columns), so a body using `_auto_id` otherwise fails to bind. This
+// is valid ONLY for a 1:1 projection of a single base relation: row_number() is
 // computed over the operator's input, so any clause that filters, reorders,
 // joins or groups rows would desync it from the dataframe row index. We
 // therefore bail (leave `_auto_id` untouched -> falls back) on any such clause,
@@ -1071,11 +1123,11 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
     }
     // Collect the comma-separated ELEMENTS of the first (tables) and second
     // (partitions) top-level paren groups. A table element is either a bare id
-    // (`A`) or a parenthesized subquery (`(SELECT ...)`); a partition element is
-    // a bare column name. Each element's text is the space-joined significant
-    // tokens (SQL is whitespace-insensitive). `group_idx` counts groups opened:
-    // 1 = tables, 2 = partitions; `d` is the paren depth inside the current
-    // group (the group's own parens are not part of any element).
+    // (`A`) or a parenthesized subquery (`(SELECT ...)`); a partition element
+    // is a bare column name. Each element's text is the space-joined
+    // significant tokens (SQL is whitespace-insensitive). `group_idx` counts
+    // groups opened: 1 = tables, 2 = partitions; `d` is the paren depth inside
+    // the current group (the group's own parens are not part of any element).
     std::vector<std::string> tables, partitions;
     int group_idx = 0;
     int d = 0;
@@ -1142,10 +1194,10 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
       }
       sub += " FROM (SELECT unnest(__intrinsic_ii_combine([";
       for (size_t i = 0; i < tables.size(); ++i) {
-        // CAST to BIGINT: the aggregate is typed BIGINT, but a table's id/ts/dur
-        // may be INTEGER/DOUBLE (e.g. a span_join-built table), which DuckDB
-        // won't implicitly narrow. Durations are integers, matching the SQLite
-        // int64 aggregate.
+        // CAST to BIGINT: the aggregate is typed BIGINT, but a table's
+        // id/ts/dur may be INTEGER/DOUBLE (e.g. a span_join-built table), which
+        // DuckDB won't implicitly narrow. Durations are integers, matching the
+        // SQLite int64 aggregate.
         sub += (i ? ", " : "") +
                std::string(
                    "(SELECT __intrinsic_ii_agg(CAST(id AS BIGINT), CAST(ts AS "
@@ -1184,14 +1236,13 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql) {
       }
       return s;
     };
-    std::string ts_expr = tables.size() == 1
-                              ? alias(0) + ".ts"
-                              : "greatest(" + starts() + ")";
+    std::string ts_expr =
+        tables.size() == 1 ? alias(0) + ".ts" : "greatest(" + starts() + ")";
     std::string end_expr = tables.size() == 1
                                ? alias(0) + ".ts + " + alias(0) + ".dur"
                                : "least(" + ends() + ")";
-    sub = "(SELECT " + ts_expr + " AS ts, (" + end_expr + ") - (" +
-          ts_expr + ") AS dur";
+    sub = "(SELECT " + ts_expr + " AS ts, (" + end_expr + ") - (" + ts_expr +
+          ") AS dur";
     for (size_t i = 0; i < tables.size(); ++i) {
       sub += ", " + alias(i) + ".id AS id_" + std::to_string(i);
     }
@@ -1378,7 +1429,8 @@ std::string RewriteIntervalCreateMacro(const std::string& sql) {
     // Find `_interval_create ! (`.
     size_t k = sig.size();
     for (size_t j = 0; j + 2 < sig.size(); ++j) {
-      if (is_bare_id(j) && base::ToLower(toks[sig[j]].str) == "_interval_create" &&
+      if (is_bare_id(j) &&
+          base::ToLower(toks[sig[j]].str) == "_interval_create" &&
           toks[sig[j + 1]].type == sql_token::kBang &&
           toks[sig[j + 2]].type == sql_token::kLp) {
         k = j;
@@ -1420,7 +1472,8 @@ std::string RewriteIntervalCreateMacro(const std::string& sql) {
       return s;
     };
     std::string starts = base::TrimWhitespace(text_between(ko, comma_at[0]));
-    std::string ends = base::TrimWhitespace(text_between(comma_at[0], outer_close));
+    std::string ends =
+        base::TrimWhitespace(text_between(comma_at[0], outer_close));
     if (starts.empty() || ends.empty()) {
       break;
     }
@@ -1503,12 +1556,12 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // value, so an unqualified `ORDER BY x` (ASC) sorts NULLs FIRST and `ORDER BY
   // x DESC` sorts NULLs LAST. DuckDB defaults to NULLS_LAST regardless of
   // direction, which diverges from the SQLite goldens. DuckDB exposes exactly
-  // the SQLite-matching policy as `NULLS_FIRST_ON_ASC_LAST_ON_DESC` (verified in
-  // buildtools/duckdb DefaultOrderByNullType enum). Setting it makes
+  // the SQLite-matching policy as `NULLS_FIRST_ON_ASC_LAST_ON_DESC` (verified
+  // in buildtools/duckdb DefaultOrderByNullType enum). Setting it makes
   // under-specified NULL tie ordering byte-identical to the goldens.
-  duckdb_query(
-      conn_, "SET default_null_order='nulls_first_on_asc_last_on_desc';",
-      nullptr);
+  duckdb_query(conn_,
+               "SET default_null_order='nulls_first_on_asc_last_on_desc';",
+               nullptr);
 
   provider_ = std::make_unique<DuckDbTableProvider>(string_pool_, resolver_);
   RETURN_IF_ERROR(provider_->RegisterTableFunction(conn_));
@@ -1547,9 +1600,9 @@ base::Status DuckDbEngine::EnsureInitialized() {
   // filter/propagate/to_table scalars).
   RETURN_IF_ERROR(RegisterTreeFunctions(conn_));
 
-  // Register __intrinsic_arg_set_to_json bridged to the args plugin's converter.
-  RETURN_IF_ERROR(
-      RegisterArgSetJsonFunction(conn_, &arg_set_json_converter_));
+  // Register __intrinsic_arg_set_to_json bridged to the args plugin's
+  // converter.
+  RETURN_IF_ERROR(RegisterArgSetJsonFunction(conn_, &arg_set_json_converter_));
 
   // Register to_ftrace bridged to the to_ftrace plugin's SystraceSerializer.
   RETURN_IF_ERROR(RegisterInt64ToVarcharFunction(conn_, "to_ftrace",
@@ -1563,16 +1616,16 @@ void DuckDbEngine::SyncViews() {
   if (!view_provider_) {
     return;
   }
-  // Mirror EVERY PerfettoSQL view into DuckDB's catalog, in creation order, so a
-  // bare `FROM <view>` resolves through DuckDB's own view -> the view body's
+  // Mirror EVERY PerfettoSQL view into DuckDB's catalog, in creation order, so
+  // a bare `FROM <view>` resolves through DuckDB's own view -> the view body's
   // `FROM __intrinsic_*` -> the replacement scan -> `__perfetto_df`. The stored
   // body is plain SQLite-dialect `CREATE VIEW <name> AS SELECT ...` (the
   // PerfettoSQL schema column list is not part of it). DuckDB binds the body
   // EAGERLY at CREATE VIEW time, so a view whose body uses SQLite-only dialect
-  // (a D6 follow-up) or references a relation not yet wired into DuckDB fails to
-  // create; we skip it (it stays unmirrored -> a query referencing it errors in
-  // DuckDB and falls back / errors under disable_fallback), never faking it. It
-  // is retried on the next call once its dependencies may exist.
+  // (a D6 follow-up) or references a relation not yet wired into DuckDB fails
+  // to create; we skip it (it stays unmirrored -> a query referencing it errors
+  // in DuckDB and falls back / errors under disable_fallback), never faking it.
+  // It is retried on the next call once its dependencies may exist.
   //
   // HISTORICAL NOTE: this used to be restricted to a hardcoded `IsSafeToMirror`
   // allowlist because mirroring the `stats` view appeared to "corrupt the
@@ -1580,8 +1633,8 @@ void DuckDbEngine::SyncViews() {
   // MISDIAGNOSIS: the real bug was the DuckDB iterator returning a
   // non-NUL-terminated `duckdb_string_t` pointer as a C string, so consumers
   // (PrintStats `%s`) read past the end. Fixed in `duckdb_iterator_impl.cc`
-  // (the iterator now copies into an owned NUL-terminated buffer); the allowlist
-  // is therefore gone and every view mirrors safely.
+  // (the iterator now copies into an owned NUL-terminated buffer); the
+  // allowlist is therefore gone and every view mirrors safely.
   for (const auto& [name, create_view_sql] : view_provider_()) {
     std::string lower = base::ToLower(name);
     if (mirrored_views_.find(lower) != mirrored_views_.end()) {
@@ -1615,7 +1668,8 @@ void DuckDbEngine::SyncViews() {
       continue;  // Left unmirrored; a query referencing it falls back.
     }
     mirrored_views_.insert(lower);
-    if (base::ToLower(create_view_sql).find("extract_arg") != std::string::npos) {
+    if (base::ToLower(create_view_sql).find("extract_arg") !=
+        std::string::npos) {
       mirrored_uses_extract_arg_ = true;
     }
   }
@@ -1628,7 +1682,8 @@ namespace {
 // `arg` we replace every occurrence of the token `$arg` (the `$` immediately
 // followed by the exact name, and NOT followed by another identifier char so
 // `$ts` does not match inside `$tsx`) with `arg`. Done longest-name-first so a
-// parameter that is a prefix of another (`$ts` vs `$ts_end`) cannot mis-rewrite.
+// parameter that is a prefix of another (`$ts` vs `$ts_end`) cannot
+// mis-rewrite.
 std::string RewriteDollarParams(const std::string& body,
                                 std::vector<std::string> arg_names) {
   auto is_ident_char = [](char c) {
@@ -1681,12 +1736,13 @@ void DuckDbEngine::SyncTableFunctions() {
   }
   // Mirror each stdlib RETURNS TABLE function as a DuckDB table macro so a bare
   // `FROM name(args)` resolves through DuckDB's own macro -> the body's
-  // `FROM <table/view>` -> the replacement scan. The body is post-macro-expansion
-  // SQLite/PerfettoSQL dialect; DuckDB binds it EAGERLY at CREATE MACRO time, so
-  // a body using SQLite-only dialect or an `__intrinsic_*` table-pointer ABI
-  // (e.g. interval_intersect) fails to create and stays unmirrored. We never
-  // fake it: a query calling an unmirrored function errors in DuckDB and falls
-  // back (or errors under disable_fallback).
+  // `FROM <table/view>` -> the replacement scan. The body is
+  // post-macro-expansion SQLite/PerfettoSQL dialect; DuckDB binds it EAGERLY at
+  // CREATE MACRO time, so a body using SQLite-only dialect or an
+  // `__intrinsic_*` table-pointer ABI (e.g. interval_intersect) fails to create
+  // and stays unmirrored. We never fake it: a query calling an unmirrored
+  // function errors in DuckDB and falls back (or errors under
+  // disable_fallback).
   for (const TableFunction& fn : function_provider_()) {
     std::string lower = base::ToLower(fn.name);
     if (mirrored_table_macros_.find(lower) != mirrored_table_macros_.end()) {
@@ -1700,8 +1756,8 @@ void DuckDbEngine::SyncTableFunctions() {
       params += "__pmacro_" + fn.arg_names[i];
     }
     std::string body = RewriteDollarParams(fn.body_sql, fn.arg_names);
-    std::string create = "CREATE MACRO " + fn.name + "(" + params +
-                         ") AS TABLE (" + body + ")";
+    std::string create =
+        "CREATE MACRO " + fn.name + "(" + params + ") AS TABLE (" + body + ")";
     duckdb_result res;
     if (duckdb_query(conn_, create.c_str(), &res) == DuckDBError) {
       duckdb_destroy_result(&res);
@@ -1724,9 +1780,10 @@ void DuckDbEngine::SyncScalarFunctions() {
   // (with `$arg` placeholders); wrapped as a scalar subquery `AS (<body>)`.
   // DuckDB binds it EAGERLY at CREATE MACRO time, so a body using SQLite-only
   // dialect, an intrinsic, or a recursive self-reference (DuckDB macros cannot
-  // recurse) fails to create and stays unmirrored - a call then errors in DuckDB
-  // and falls back. On success the name is added to registered_scalar_functions_
-  // so the support predicate treats a call to it as eligible.
+  // recurse) fails to create and stays unmirrored - a call then errors in
+  // DuckDB and falls back. On success the name is added to
+  // registered_scalar_functions_ so the support predicate treats a call to it
+  // as eligible.
   for (const TableFunction& fn : scalar_function_provider_()) {
     std::string lower = base::ToLower(fn.name);
     if (mirrored_scalar_macros_.find(lower) != mirrored_scalar_macros_.end()) {
@@ -1758,7 +1815,8 @@ void DuckDbEngine::SyncScalarFunctions() {
       duckdb_destroy_result(&res);
       std::optional<std::string> tbl =
           table_materializer_ ? ParseTableNotExist(err) : std::nullopt;
-      if (!tbl || materialized_tables_.find(*tbl) != materialized_tables_.end() ||
+      if (!tbl ||
+          materialized_tables_.find(*tbl) != materialized_tables_.end() ||
           mirrored_views_.find(base::ToLower(*tbl)) != mirrored_views_.end()) {
         break;
       }
@@ -1795,32 +1853,44 @@ void DuckDbEngine::SyncIntrinsicMacros() {
   std::string cols = kCols;
   std::string pcols;  // same columns, prefixed with `p.`.
   {
-    pcols = "p.id, p.ts, p.dur, p.track_id, p.category, p.name, p.depth, "
-            "p.parent_id, p.arg_set_id, p.thread_ts, p.thread_dur, "
-            "p.thread_instruction_count, p.thread_instruction_delta";
+    pcols =
+        "p.id, p.ts, p.dur, p.track_id, p.category, p.name, p.depth, "
+        "p.parent_id, p.arg_set_id, p.thread_ts, p.thread_dur, "
+        "p.thread_instruction_count, p.thread_instruction_delta";
   }
   std::string scols;  // same columns, prefixed with `sl.`.
   {
-    scols = "sl.id, sl.ts, sl.dur, sl.track_id, sl.category, sl.name, sl.depth, "
-            "sl.parent_id, sl.arg_set_id, sl.thread_ts, sl.thread_dur, "
-            "sl.thread_instruction_count, sl.thread_instruction_delta";
+    scols =
+        "sl.id, sl.ts, sl.dur, sl.track_id, sl.category, sl.name, sl.depth, "
+        "sl.parent_id, sl.arg_set_id, sl.thread_ts, sl.thread_dur, "
+        "sl.thread_instruction_count, sl.thread_instruction_delta";
   }
 
   // ancestor_slice(start_id): walk slice.parent_id upward from start's parent
   // (mirrors plugins/ancestor GetAncestors). _and_self starts at start itself.
   std::string ancestor =
       "WITH RECURSIVE a AS ("
-      "  SELECT " + cols + " FROM __intrinsic_slice WHERE id = "
+      "  SELECT " +
+      cols +
+      " FROM __intrinsic_slice WHERE id = "
       "      (SELECT parent_id FROM __intrinsic_slice WHERE id = start_id)"
       "  UNION ALL"
-      "  SELECT " + pcols + " FROM __intrinsic_slice p JOIN a ON p.id = a.parent_id) "
-      "SELECT " + cols + " FROM a";
+      "  SELECT " +
+      pcols +
+      " FROM __intrinsic_slice p JOIN a ON p.id = a.parent_id) "
+      "SELECT " +
+      cols + " FROM a";
   std::string ancestor_self =
       "WITH RECURSIVE a AS ("
-      "  SELECT " + cols + " FROM __intrinsic_slice WHERE id = start_id"
+      "  SELECT " +
+      cols +
+      " FROM __intrinsic_slice WHERE id = start_id"
       "  UNION ALL"
-      "  SELECT " + pcols + " FROM __intrinsic_slice p JOIN a ON p.id = a.parent_id) "
-      "SELECT " + cols + " FROM a";
+      "  SELECT " +
+      pcols +
+      " FROM __intrinsic_slice p JOIN a ON p.id = a.parent_id) "
+      "SELECT " +
+      cols + " FROM a";
 
   // descendant_slice(start_id): same-track, deeper slices whose ts is within
   // [start.ts, ts_end] (ts_end = start.ts + start.dur, or +inf for an open
@@ -1841,11 +1911,12 @@ void DuckDbEngine::SyncIntrinsicMacros() {
       " pclose AS ("
       "  SELECT id FROM __intrinsic_slice WHERE parent_id = start_id"
       "  UNION ALL"
-      "  SELECT sl.id FROM __intrinsic_slice sl JOIN pclose ON sl.parent_id = pclose.id)";
+      "  SELECT sl.id FROM __intrinsic_slice sl JOIN pclose ON sl.parent_id = "
+      "pclose.id)";
   std::string descendant = desc_ctes + " SELECT " + scols + desc_filter;
-  std::string descendant_self =
-      desc_ctes + " SELECT " + cols + " FROM __intrinsic_slice WHERE id = start_id" +
-      " UNION ALL SELECT " + scols + desc_filter;
+  std::string descendant_self = desc_ctes + " SELECT " + cols +
+                                " FROM __intrinsic_slice WHERE id = start_id" +
+                                " UNION ALL SELECT " + scols + desc_filter;
 
   struct Macro {
     const char* name;
@@ -1898,13 +1969,13 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
 
   RETURN_IF_ERROR(EnsureInitialized());
 
-  // Re-materialize SQLite-native tables FRESH per query: a materialized table is
-  // a SNAPSHOT, and such tables (e.g. a span_join output, or one populated
+  // Re-materialize SQLite-native tables FRESH per query: a materialized table
+  // is a SNAPSHOT, and such tables (e.g. a span_join output, or one populated
   // during trace load) may change between queries. DROP the snapshots from the
-  // last query and clear the set, so (a) the next reference re-snapshots current
-  // data, and (b) a snapshot taken during load - when a real VIEW of the same
-  // name had not yet mirrored - no longer SHADOWS that view (DuckDB resolves a
-  // catalog table before firing the replacement scan).
+  // last query and clear the set, so (a) the next reference re-snapshots
+  // current data, and (b) a snapshot taken during load - when a real VIEW of
+  // the same name had not yet mirrored - no longer SHADOWS that view (DuckDB
+  // resolves a catalog table before firing the replacement scan).
   for (const std::string& t : materialized_tables_) {
     duckdb_result drop_res;
     duckdb_query(conn_, ("DROP TABLE IF EXISTS \"" + t + "\"").c_str(),
@@ -1948,14 +2019,15 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
 
   // If extract_arg may be called - either the user's query mentions it, or a
   // mirrored view/macro BODY does (the common case: extract_arg lives inside
-  // view bodies like counter_track/journald, not the user's SQL) - make sure its
-  // (arg_set_id, key) index is built BEFORE execution. The build issues its own
-  // DuckDB query, so it must not happen re-entrantly inside the UDF trampoline.
-  // Idempotent (built once per engine).
+  // view bodies like counter_track/journald, not the user's SQL) - make sure
+  // its (arg_set_id, key) index is built BEFORE execution. The build issues its
+  // own DuckDB query, so it must not happen re-entrantly inside the UDF
+  // trampoline. Idempotent (built once per engine).
   if (extract_arg_state_ && !extract_arg_state_->built &&
       (mirrored_uses_extract_arg_ ||
        base::ToLower(sql).find("extract_arg") != std::string::npos)) {
-    RETURN_IF_ERROR(EnsureExtractArgIndexBuilt(conn_, extract_arg_state_.get()));
+    RETURN_IF_ERROR(
+        EnsureExtractArgIndexBuilt(conn_, extract_arg_state_.get()));
   }
 
   // --- Eligible: execute the whole query inside DuckDB. ---
@@ -1968,9 +2040,9 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
   DuckDbExecutionResult exec;
   exec.last_statement_sql = sql;
   // Rename any SQLite C-style format() call to DuckDB's C-style printf() up
-  // front (DuckDB's own `format` is Python-style). Done once, proactively, since
-  // `format` is allowlisted on that basis; the column-name override still uses
-  // the ORIGINAL sql so an unaliased `format(...)` header matches SQLite.
+  // front (DuckDB's own `format` is Python-style). Done once, proactively,
+  // since `format` is allowlisted on that basis; the column-name override still
+  // uses the ORIGINAL sql so an unaliased `format(...)` header matches SQLite.
   // Lower the SQLite dialect to DuckDB in one syntaqlite-AST pass: format()->
   // printf(), single-arg char()->chr(CAST(.. AS INTEGER)), and unqualified
   // _auto_id->(row_number() OVER ()-1). Replaces the former per-rewrite token
@@ -2013,8 +2085,8 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
       // DuckDB's catalog, then retry. Each table is materialized at most once.
       if (table_materializer_) {
         std::optional<std::string> tbl = ParseTableNotExist(err);
-        // Never materialize a name that is (or will be) a mirrored VIEW or table
-        // MACRO: a snapshot table would shadow it. Those resolve via the
+        // Never materialize a name that is (or will be) a mirrored VIEW or
+        // table MACRO: a snapshot table would shadow it. Those resolve via the
         // replacement scan / catalog once their dependencies exist; a transient
         // "does not exist" for them must NOT be turned into a stale snapshot.
         std::string lower = tbl ? base::ToLower(*tbl) : std::string();
@@ -2046,8 +2118,7 @@ DuckDbEngine::TryExecuteWholeQuery(const std::string& sql,
     return ineligible("DuckDB could not execute the query: " + err);
   }
 
-  uint32_t col_count =
-      static_cast<uint32_t>(duckdb_column_count(&exec.result));
+  uint32_t col_count = static_cast<uint32_t>(duckdb_column_count(&exec.result));
   exec.column_count = col_count;
   exec.column_names.reserve(col_count);
   for (uint32_t c = 0; c < col_count; ++c) {

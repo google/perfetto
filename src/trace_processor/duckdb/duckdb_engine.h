@@ -46,9 +46,9 @@ namespace perfetto::trace_processor::duckdb_integration {
 // SQLite -> DuckDB migration). Owns a lazily-created DuckDB database/connection
 // and the `DuckDbTableProvider` that exposes the engine's dataframes to DuckDB.
 //
-// This object is owned by the trace processor (one per `TraceProcessorImpl`) and
-// is consulted from `TraceProcessorImpl::ExecuteQuery` before falling back to
-// SQLite. It does NOT depend on the rest of the trace_processor `lib`; it
+// This object is owned by the trace processor (one per `TraceProcessorImpl`)
+// and is consulted from `TraceProcessorImpl::ExecuteQuery` before falling back
+// to SQLite. It does NOT depend on the rest of the trace_processor `lib`; it
 // reaches the live dataframes only through the `Resolver` callback supplied at
 // construction (which wraps `PerfettoSqlConnection::GetDataframeOrNull`).
 //
@@ -78,21 +78,22 @@ class DuckDbEngine {
   // `PerfettoSqlConnection::created_table_functions()`. May be empty.
   using FunctionProvider = std::function<std::vector<TableFunction>()>;
 
-  // Supplies the runtime scalar `CREATE PERFETTO FUNCTION`s to mirror into DuckDB
-  // as scalar macros (`CREATE MACRO name(args) AS (body)`), in creation order.
-  // Reuses the `TableFunction` shape (name, arg_names, body_sql). Typically wraps
-  // `PerfettoSqlConnection::created_scalar_functions()`. May be empty.
+  // Supplies the runtime scalar `CREATE PERFETTO FUNCTION`s to mirror into
+  // DuckDB as scalar macros (`CREATE MACRO name(args) AS (body)`), in creation
+  // order. Reuses the `TableFunction` shape (name, arg_names, body_sql).
+  // Typically wraps `PerfettoSqlConnection::created_scalar_functions()`. May be
+  // empty.
   using ScalarFunctionProvider = std::function<std::vector<TableFunction>()>;
 
   // Materializes a plain SQLite-native table (one created with `CREATE TABLE`,
   // e.g. the prelude's `_trace_bounds`) into DuckDB's catalog so a reference to
   // it resolves. Such tables are NOT dataframes/views, so the replacement scan
-  // cannot reach them; the engine is deliberately decoupled from SQLite. Given a
-  // table name and the DuckDB connection, the callback (which DOES have the
+  // cannot reach them; the engine is deliberately decoupled from SQLite. Given
+  // a table name and the DuckDB connection, the callback (which DOES have the
   // SQLite engine) should `CREATE OR REPLACE TABLE <name>` in DuckDB with the
   // table's current rows and return true, or return false if `name` is not a
-  // materializable SQLite-native table. Invoked on a DuckDB catalog miss. May be
-  // empty (no materialization).
+  // materializable SQLite-native table. Invoked on a DuckDB catalog miss. May
+  // be empty (no materialization).
   using TableMaterializer =
       std::function<bool(const std::string& name, duckdb_connection conn)>;
 
@@ -158,9 +159,9 @@ class DuckDbEngine {
   // last statement). If `sql` is a single statement, the leading part is empty
   // and the whole `sql` is the last statement. Comments and string/quoted
   // literals are respected so a `;` inside them does not split. This lets the
-  // router run the leading PerfettoSQL statements (e.g. INCLUDE PERFETTO MODULE,
-  // CREATE PERFETTO TABLE) in the real engine and then try ONLY the final
-  // statement inside DuckDB.
+  // router run the leading PerfettoSQL statements (e.g. INCLUDE PERFETTO
+  // MODULE, CREATE PERFETTO TABLE) in the real engine and then try ONLY the
+  // final statement inside DuckDB.
   struct SplitStatements {
     std::string leading;  // May be empty (single-statement input).
     std::string last;     // The trailing statement (trimmed of a trailing ';').
@@ -173,12 +174,12 @@ class DuckDbEngine {
   base::Status EnsureInitialized();
 
   // Mirrors any PerfettoSQL views from `view_provider_()` that are not yet in
-  // DuckDB's catalog. Called before each query so views created after the engine
-  // was first initialized (the after_eof prelude, user `INCLUDE`s, runtime
-  // CREATE PERFETTO VIEW) become resolvable. Idempotent: already-mirrored views
-  // are skipped; a view whose body still cannot bind in DuckDB is left
-  // unmirrored (it will be retried on the next query once its dependencies
-  // exist).
+  // DuckDB's catalog. Called before each query so views created after the
+  // engine was first initialized (the after_eof prelude, user `INCLUDE`s,
+  // runtime CREATE PERFETTO VIEW) become resolvable. Idempotent:
+  // already-mirrored views are skipped; a view whose body still cannot bind in
+  // DuckDB is left unmirrored (it will be retried on the next query once its
+  // dependencies exist).
   void SyncViews();
 
   // Mirrors any stdlib RETURNS TABLE functions from `function_provider_()` not
@@ -198,13 +199,14 @@ class DuckDbEngine {
   // so the support predicate treats a call to it as eligible.
   void SyncScalarFunctions();
 
-  // Creates the hardcoded DuckDB table macros that FAITHFULLY emulate Perfetto's
-  // C++ slice-tree table intrinsics (ancestor_slice / descendant_slice and their
+  // Creates the hardcoded DuckDB table macros that FAITHFULLY emulate
+  // Perfetto's C++ slice-tree table intrinsics (ancestor_slice /
+  // descendant_slice and their
   // *_and_self variants), replicating the exact C++ algorithms in SQL:
   // ancestor_slice walks slice.parent_id up; descendant_slice uses ts/depth
   // containment plus a parent-chain (recursive) verification for the boundary
-  // candidates - matching plugins/{ancestor,descendant}. Created once, after the
-  // `slice` view is mirrored, with names added to mirrored_table_macros_.
+  // candidates - matching plugins/{ancestor,descendant}. Created once, after
+  // the `slice` view is mirrored, with names added to mirrored_table_macros_.
   void SyncIntrinsicMacros();
 
   StringPool* string_pool_;
@@ -225,8 +227,8 @@ class DuckDbEngine {
   ClockConverter* clock_converter_ = nullptr;
 
   // arg_set_id -> JSON converter for __intrinsic_arg_set_to_json; set via
-  // SetArgSetJsonConverter before the first query. A stable address is passed to
-  // the registered UDF, so this member must outlive the connection.
+  // SetArgSetJsonConverter before the first query. A stable address is passed
+  // to the registered UDF, so this member must outlive the connection.
   ArgSetJsonConverter arg_set_json_converter_;
   // ftrace row id -> systrace line for to_ftrace; set via SetToFtraceConverter.
   // Stable address passed to the registered UDF, so it must outlive the conn.
@@ -241,28 +243,29 @@ class DuckDbEngine {
   std::unordered_set<std::string> mirrored_views_;
 
   // Lowercased names of stdlib RETURNS TABLE functions successfully mirrored as
-  // DuckDB table macros. The support predicate treats a `FROM name(...)` call to
-  // one as an eligible table-valued reference (not an unported function).
+  // DuckDB table macros. The support predicate treats a `FROM name(...)` call
+  // to one as an eligible table-valued reference (not an unported function).
   std::unordered_set<std::string> mirrored_table_macros_;
 
-  // Lowercased names of runtime scalar functions successfully mirrored as DuckDB
-  // scalar macros (tracked to skip re-creating them). Their names are also added
-  // to registered_scalar_functions_ so the support predicate allows a call.
+  // Lowercased names of runtime scalar functions successfully mirrored as
+  // DuckDB scalar macros (tracked to skip re-creating them). Their names are
+  // also added to registered_scalar_functions_ so the support predicate allows
+  // a call.
   std::unordered_set<std::string> mirrored_scalar_macros_;
 
   // Set true once any mirrored view/table-macro/scalar-macro BODY references
   // `extract_arg`. extract_arg is most often called INSIDE a view body (e.g.
   // counter_track, journald, gpu_render_stages), not the user's SQL, so the
-  // extract_arg index must be built whenever such a view is reachable - not only
-  // when the user's query text literally mentions extract_arg.
+  // extract_arg index must be built whenever such a view is reachable - not
+  // only when the user's query text literally mentions extract_arg.
   bool mirrored_uses_extract_arg_ = false;
 
   // True once the hardcoded slice-tree intrinsic macros have been created.
   bool intrinsic_macros_created_ = false;
 
   // Lowercased names of scalar UDFs registered on the DuckDB connection at init
-  // (via RegisterScalarFunctions). The support predicate treats a call to one as
-  // an eligible function (in addition to the static builtin allowlist).
+  // (via RegisterScalarFunctions). The support predicate treats a call to one
+  // as an eligible function (in addition to the static builtin allowlist).
   std::unordered_set<std::string> registered_scalar_functions_;
 
   // Backing state for the `extract_arg` UDF: the lazily-built (arg_set_id, key)
@@ -283,8 +286,8 @@ class DuckDbEngine {
 // unchanged if there is no `_interval_intersect!` call to rewrite.
 std::string RewriteIntervalIntersectMacro(const std::string& sql);
 
-// Rewrites a PerfettoSQL `_interval_create!(starts, ends)` macro call into plain
-// SQL, so it runs in DuckDB without the table-pointer machinery. Faithful
+// Rewrites a PerfettoSQL `_interval_create!(starts, ends)` macro call into
+// plain SQL, so it runs in DuckDB without the table-pointer machinery. Faithful
 // semantics: for each start ts, the interval duration is (smallest end strictly
 // greater than the start) - start; a start with no such end is dropped; output
 // ordered by ts. Must be applied BEFORE macro expansion. Returns the input
@@ -292,10 +295,10 @@ std::string RewriteIntervalIntersectMacro(const std::string& sql);
 std::string RewriteIntervalCreateMacro(const std::string& sql);
 
 // Rewrites an unqualified `_auto_id` reference to `(row_number() OVER () - 1)`
-// (the 0-based dataframe row index the table_provider hides). Conservative: only
-// the unqualified form, and the whole input is left unchanged if it contains a
-// row-affecting clause (JOIN/WHERE/GROUP/etc.) that would desync row_number from
-// the row index. See the definition for the full contract.
+// (the 0-based dataframe row index the table_provider hides). Conservative:
+// only the unqualified form, and the whole input is left unchanged if it
+// contains a row-affecting clause (JOIN/WHERE/GROUP/etc.) that would desync
+// row_number from the row index. See the definition for the full contract.
 std::string RewriteAutoId(const std::string& sql);
 
 // Rewrites the non-partitioned `_interval_intersect_with_col_names!(tab1, id1,
@@ -316,10 +319,11 @@ std::string RewriteEmptyDoubleQuotedString(const std::string& sql);
 // Testing-only entry point for the support predicate's TOKENIZATION + decision
 // logic, exposed so a unittest can exercise the previously-buggy classification
 // cases (CAST(...), USING(...), WITH d(a,b) AS (...), double-quoted literals,
-// custom function calls) WITHOUT a live DuckDB connection. Returns the ineligible
-// reason (std::nullopt => the query is eligible to route to DuckDB). The two sets
-// are the function-name allowlist and the registered-UDF names the real engine
-// would consult; the analysis is otherwise a pure function of `sql`.
+// custom function calls) WITHOUT a live DuckDB connection. Returns the
+// ineligible reason (std::nullopt => the query is eligible to route to DuckDB).
+// The two sets are the function-name allowlist and the registered-UDF names the
+// real engine would consult; the analysis is otherwise a pure function of
+// `sql`.
 namespace internal {
 std::optional<std::string> AnalyzeSupportForTesting(
     const std::string& sql,

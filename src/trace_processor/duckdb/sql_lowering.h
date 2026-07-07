@@ -45,7 +45,8 @@ std::string ApplyEdits(const std::string& src, std::vector<SpanEdit> edits);
 //   - format(...)  -> printf(...)            (DuckDB printf is C-style)
 //   - char(X)      -> chr(CAST(X AS INTEGER))(single-arg only; DuckDB has no
 //                                             char and chr takes a 32-bit INT)
-//   - _auto_id     -> (row_number() OVER ()-1) for an unqualified reference in a
+//   - _auto_id     -> (row_number() OVER ()-1) for an unqualified reference in
+//   a
 //                     1:1 single-relation projection (bailed otherwise)
 //
 // `sql` must be macro-expanded (the run path expands macros upstream). If it

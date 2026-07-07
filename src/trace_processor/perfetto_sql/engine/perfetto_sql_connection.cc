@@ -1021,8 +1021,8 @@ base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
     RETURN_IF_ERROR(
         RegisterFunction<CreatedFunction>(std::move(created_fn_ctx), args));
   }
-  // Capture (name, args, body) before `sql` is moved, so a successful create can
-  // be mirrored into the experimental DuckDB engine as a scalar macro.
+  // Capture (name, args, body) before `sql` is moved, so a successful create
+  // can be mirrored into the experimental DuckDB engine as a scalar macro.
   std::string captured_name = prototype.function_name;
   std::vector<std::string> captured_args;
   captured_args.reserve(prototype.arguments.size());
@@ -1045,9 +1045,9 @@ base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
       }
     }
   }
-  created_scalar_functions_.push_back(
-      {std::move(captured_name), std::move(captured_args),
-       std::move(captured_body)});
+  created_scalar_functions_.push_back({std::move(captured_name),
+                                       std::move(captured_args),
+                                       std::move(captured_body)});
   return base::OkStatus();
 }
 

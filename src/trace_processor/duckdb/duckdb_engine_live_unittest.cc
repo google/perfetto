@@ -82,8 +82,8 @@ class DuckDbEngineLiveTest : public ::testing::Test {
 
     for (TraceProcessorImpl* tp : {duck_.get(), legacy_.get()}) {
       base::Status status = ReadTrace(
-          tp, base::GetTestDataPath("test/data/sched_switch_original.pb")
-                  .c_str());
+          tp,
+          base::GetTestDataPath("test/data/sched_switch_original.pb").c_str());
       ASSERT_TRUE(status.ok()) << status.message();
     }
     ASSERT_GT(duck_->context()->storage->sched_slice_table().row_count(), 0u);
@@ -96,8 +96,8 @@ class DuckDbEngineLiveTest : public ::testing::Test {
     auto duck = Drain(duck_.get(), sql, num_cols, &s_duck);
     auto legacy = Drain(legacy_.get(), sql, num_cols, &s_legacy);
     ASSERT_TRUE(s_duck.ok()) << "duck: " << sql << ": " << s_duck.message();
-    ASSERT_TRUE(s_legacy.ok()) << "legacy: " << sql << ": "
-                               << s_legacy.message();
+    ASSERT_TRUE(s_legacy.ok())
+        << "legacy: " << sql << ": " << s_legacy.message();
     ASSERT_EQ(legacy.size(), duck.size()) << "row count mismatch: " << sql;
     for (size_t r = 0; r < legacy.size(); ++r) {
       ASSERT_EQ(legacy[r], duck[r]) << "row " << r << " mismatch: " << sql;
@@ -218,7 +218,8 @@ TEST_F(DuckDbEngineLiveTest, FallbackDisabledErrorsOnIneligible) {
 // distinct defects are covered, both surfacing as garbage in the shell's
 // PrintStats output (`...<garbage>: <value>`):
 //   1. A `duckdb_string_t` is NOT NUL-terminated; returning its raw data
-//      pointer as a C string made consumers doing `%s`/strlen read past the end.
+//      pointer as a C string made consumers doing `%s`/strlen read past the
+//      end.
 //   2. The per-column owned-copy fix must NOT reallocate its buffer vector
 //      mid-row: reading a LATER column must not dangle an EARLIER column's
 //      `const char*` (short SSO strings live inside the moved std::string).
@@ -236,8 +237,8 @@ TEST_F(DuckDbEngineLiveTest, StatsViewStringsAreStableAndNulTerminated) {
     std::vector<std::pair<std::string, std::string>> rows;
     auto it = tp->ExecuteQuery(q);
     while (it.Next()) {
-      const char* name = it.Get(0).string_value;          // col 0 (string)
-      const char* desc = it.Get(3).string_value;          // col 3 (string)
+      const char* name = it.Get(0).string_value;  // col 0 (string)
+      const char* desc = it.Get(3).string_value;  // col 3 (string)
       // Read name AFTER desc to exercise the cross-column stability: both must
       // remain valid C strings simultaneously.
       std::string n = name ? std::string(name) : std::string("<null>");
@@ -259,8 +260,8 @@ TEST_F(DuckDbEngineLiveTest, StatsViewStringsAreStableAndNulTerminated) {
   EXPECT_EQ(duck_rows, legacy_rows);
 }
 
-// With the flag OFF, ExecuteQuery is the legacy path: a couple of sanity queries
-// match and nothing is routed to DuckDB.
+// With the flag OFF, ExecuteQuery is the legacy path: a couple of sanity
+// queries match and nothing is routed to DuckDB.
 TEST_F(DuckDbEngineLiveTest, FlagOffIsLegacy) {
   base::Status s1;
   base::Status s2;

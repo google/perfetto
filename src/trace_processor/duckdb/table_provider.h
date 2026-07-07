@@ -53,14 +53,14 @@ namespace perfetto::trace_processor::duckdb_integration {
 //
 // Type mapping (D1 section 2.1, the parity decision): ALL integer storage kinds
 // (Id, Uint32, Int32, Int64) map to DUCKDB_TYPE_BIGINT (matching SQLite's
-// uniform 64-bit numeric output); Double -> DOUBLE; String -> VARCHAR. Nulls are
-// expressed via DuckDB validity bitmaps.
+// uniform 64-bit numeric output); Double -> DOUBLE; String -> VARCHAR. Nulls
+// are expressed via DuckDB validity bitmaps.
 //
-// Lifetime: each registered table stores a `CopyFinalized()` snapshot (a shallow
-// shared-ptr copy of the column buffers) so the dataframe DuckDB scans is stable
-// for the scan's duration and outlives the query. The whole provider (and its
-// snapshots) is owned by the table function's extra-info and freed at DB
-// teardown.
+// Lifetime: each registered table stores a `CopyFinalized()` snapshot (a
+// shallow shared-ptr copy of the column buffers) so the dataframe DuckDB scans
+// is stable for the scan's duration and outlives the query. The whole provider
+// (and its snapshots) is owned by the table function's extra-info and freed at
+// DB teardown.
 //
 // Threading: the scan pins `max_threads = 1` because the StringPool and the
 // single cursor are not thread-safe.
@@ -72,13 +72,13 @@ namespace perfetto::trace_processor::duckdb_integration {
 // PerfettoSQL table name (e.g. `SELECT * FROM sched`, no `__perfetto_df(...)`,
 // no parens) resolves to the generic function: when DuckDB fails to find a name
 // in its catalog it fires the scan, which - on a registry hit - rewrites the
-// reference to `__perfetto_df('<name>')`. On a miss the scan leaves the function
-// name unset so DuckDB raises its normal catalog error (the miss path is what a
-// future routing/fallback layer keys on); it never crashes.
+// reference to `__perfetto_df('<name>')`. On a miss the scan leaves the
+// function name unset so DuckDB raises its normal catalog error (the miss path
+// is what a future routing/fallback layer keys on); it never crashes.
 //
 // READ-THROUGH CACHE (D1 section 5.1): the registry is a cache in front of an
-// optional resolver callback. When a name is not already in the local cache, the
-// provider calls the resolver (if one was supplied) to obtain the live
+// optional resolver callback. When a name is not already in the local cache,
+// the provider calls the resolver (if one was supplied) to obtain the live
 // `dataframe::Dataframe*`, snapshots it lazily (`CopyFinalized()`), inserts it,
 // and proceeds. This lets static AND runtime `CREATE PERFETTO TABLE` tables
 // resolve by name with no per-table DuckDB registration - the engine's
@@ -96,19 +96,19 @@ class DuckDbTableProvider {
 
   // `string_pool` must outlive the provider and every scan; it is used to
   // resolve `String` cells to text. It is the StringPool backing the registered
-  // dataframes. `resolver` is optional (may be empty); if set it is consulted on
-  // a local-cache miss to lazily snapshot a live dataframe by name.
-  explicit DuckDbTableProvider(StringPool* string_pool,
-                               Resolver resolver = {});
+  // dataframes. `resolver` is optional (may be empty); if set it is consulted
+  // on a local-cache miss to lazily snapshot a live dataframe by name.
+  explicit DuckDbTableProvider(StringPool* string_pool, Resolver resolver = {});
   ~DuckDbTableProvider();
 
   DuckDbTableProvider(const DuckDbTableProvider&) = delete;
   DuckDbTableProvider& operator=(const DuckDbTableProvider&) = delete;
 
-  // Registers `df` under `name`, taking a `CopyFinalized()` snapshot internally.
-  // `df` must be finalized. Returns an error if `name` is already registered or
-  // the dataframe has no id column.
-  base::Status Register(const std::string& name, const dataframe::Dataframe& df);
+  // Registers `df` under `name`, taking a `CopyFinalized()` snapshot
+  // internally. `df` must be finalized. Returns an error if `name` is already
+  // registered or the dataframe has no id column.
+  base::Status Register(const std::string& name,
+                        const dataframe::Dataframe& df);
 
   // Registers the generic `__perfetto_df(VARCHAR)` table function on
   // `connection`, backed by this provider. The provider must outlive the
@@ -122,14 +122,15 @@ class DuckDbTableProvider {
   base::Status RegisterReplacementScan(duckdb_database db);
 
   // Implementation detail, exposed only so the C-API callbacks (which are free
-  // functions) can reach the registry. Resolves `name` to its entry, or nullptr.
+  // functions) can reach the registry. Resolves `name` to its entry, or
+  // nullptr.
   struct Entry {
     explicit Entry(dataframe::Dataframe d)
         : df(std::move(d)), spec(df.CreateSpec()) {}
 
-    dataframe::Dataframe df;            // CopyFinalized() snapshot.
-    dataframe::DataframeSpec spec;      // Cached CreateSpec().
-    uint32_t id_col_idx = 0;            // Resolved id-column index.
+    dataframe::Dataframe df;        // CopyFinalized() snapshot.
+    dataframe::DataframeSpec spec;  // Cached CreateSpec().
+    uint32_t id_col_idx = 0;        // Resolved id-column index.
 
     // Maps each VISIBLE result column (the schema DuckDB sees, in order) to its
     // dataframe column index. The synthetic `_auto_id` column is hidden (to
@@ -149,11 +150,11 @@ class DuckDbTableProvider {
     uint64_t source_mutations = 0;
   };
 
-  // Resolves `name`: returns the cached entry if present; otherwise consults the
-  // read-through resolver (if any), lazily snapshotting + caching a hit. Returns
-  // nullptr if the name is unknown to both the cache and the resolver. This is
-  // the single resolution path used by BOTH the replacement scan and the table
-  // function's bind, so they always agree.
+  // Resolves `name`: returns the cached entry if present; otherwise consults
+  // the read-through resolver (if any), lazily snapshotting + caching a hit.
+  // Returns nullptr if the name is unknown to both the cache and the resolver.
+  // This is the single resolution path used by BOTH the replacement scan and
+  // the table function's bind, so they always agree.
   const Entry* Resolve(const std::string& name);
 
   // Like `Resolve` but read-only: only checks the local cache, never the
@@ -163,8 +164,8 @@ class DuckDbTableProvider {
   StringPool* string_pool() const { return string_pool_; }
 
  private:
-  // Inserts (or replaces) a snapshot of `df` under `name`, recording `df` as the
-  // staleness source. `df` must be finalized and have an id column. Returns
+  // Inserts (or replaces) a snapshot of `df` under `name`, recording `df` as
+  // the staleness source. `df` must be finalized and have an id column. Returns
   // nullptr on failure (no id column).
   const Entry* InsertSnapshot(const std::string& name,
                               const dataframe::Dataframe& df);

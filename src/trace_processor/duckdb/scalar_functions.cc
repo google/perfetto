@@ -29,8 +29,8 @@
 #include "duckdb.h"
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/regex.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -59,7 +59,8 @@ bool IsRowNull(duckdb_vector vec, idx_t row) {
 // The reusable registration primitive: builds a DuckDB scalar function from a
 // name, parameter logical-type ids, a return logical-type id, and a vectorized
 // trampoline, then registers it on `conn`. This is the mechanism the broader
-// UDF tier reuses. Records the (lowercased) name in `out_registered` on success.
+// UDF tier reuses. Records the (lowercased) name in `out_registered` on
+// success.
 //
 // `extra_info`/`destroy` are optional (nullptr for pure, context-free
 // functions). All logical types are created+destroyed here (C API owns them).
@@ -83,8 +84,8 @@ base::Status RegisterScalarFunction(
   duckdb_scalar_function_set_return_type(f, ret);
   duckdb_destroy_logical_type(&ret);
   // These functions can return NULL for non-NULL input (e.g. ln of a negative),
-  // so they must not be treated as NULL-propagating-only. They are deterministic
-  // (default), which is correct.
+  // so they must not be treated as NULL-propagating-only. They are
+  // deterministic (default), which is correct.
   if (extra_info) {
     duckdb_scalar_function_set_extra_info(f, extra_info, destroy);
   }
@@ -92,8 +93,8 @@ base::Status RegisterScalarFunction(
   duckdb_state st = duckdb_register_scalar_function(conn, f);
   duckdb_destroy_scalar_function(&f);
   if (st == DuckDBError) {
-    return base::ErrStatus(
-        "RegisterScalarFunctions: failed to register '%s'", name);
+    return base::ErrStatus("RegisterScalarFunctions: failed to register '%s'",
+                           name);
   }
   out_registered->insert(base::ToLower(name));
   return base::OkStatus();
@@ -108,7 +109,8 @@ base::Status RegisterScalarFunction(
 // passed as a plain function pointer so the trampoline can stay a C-compatible
 // `duckdb_scalar_function_t` while sharing the loop.
 template <double (*Fn)(double, bool*)>
-void MathTrampoline(duckdb_function_info, duckdb_data_chunk in,
+void MathTrampoline(duckdb_function_info,
+                    duckdb_data_chunk in,
                     duckdb_vector out) {
   idx_t n = duckdb_data_chunk_get_size(in);
   duckdb_vector a0 = duckdb_data_chunk_get_vector(in, 0);
@@ -134,8 +136,10 @@ void MathTrampoline(duckdb_function_info, duckdb_data_chunk in,
 // The VARCHAR overload of the math functions. Perfetto's intrinsics return NULL
 // for a text argument (the SQLite path tests `NumericType` and falls through to
 // NULL). DuckDB would otherwise implicitly cast the string to DOUBLE and error,
-// so we register an explicit (VARCHAR)->DOUBLE overload that always yields NULL.
-void MathVarcharNull(duckdb_function_info, duckdb_data_chunk in,
+// so we register an explicit (VARCHAR)->DOUBLE overload that always yields
+// NULL.
+void MathVarcharNull(duckdb_function_info,
+                     duckdb_data_chunk in,
                      duckdb_vector out) {
   idx_t n = duckdb_data_chunk_get_size(in);
   duckdb_vector_ensure_validity_writable(out);
@@ -145,8 +149,8 @@ void MathVarcharNull(duckdb_function_info, duckdb_data_chunk in,
   }
 }
 
-// Pure math bodies (shared semantics with math_functions/math.cc). `*is_null` is
-// set when the result is undefined (matching the SQLite intrinsic's NULL).
+// Pure math bodies (shared semantics with math_functions/math.cc). `*is_null`
+// is set when the result is undefined (matching the SQLite intrinsic's NULL).
 double LnImpl(double v, bool* is_null) {
   if (v > 0.0) {
     return std::log(v);
@@ -165,7 +169,8 @@ double SqrtImpl(double v, bool*) {
 // __intrinsic_regexp_extract: returns group 1 if the (single) capture group
 // matched, else the full match; NULL on no match. Errors if the pattern has
 // more than one group, or if the pattern is invalid.
-void RegexpExtractTrampoline(duckdb_function_info info, duckdb_data_chunk in,
+void RegexpExtractTrampoline(duckdb_function_info info,
+                             duckdb_data_chunk in,
                              duckdb_vector out) {
   idx_t n = duckdb_data_chunk_get_size(in);
   duckdb_vector a0 = duckdb_data_chunk_get_vector(in, 0);
@@ -206,7 +211,8 @@ void RegexpExtractTrampoline(duckdb_function_info info, duckdb_data_chunk in,
 // unhex(input VARCHAR) -> BIGINT. Mirrors __intrinsic_unhex: trims whitespace,
 // strips an optional 0x/0X prefix, parses base-16 into an int64. NULL in ->
 // NULL out; errors on empty / invalid / out-of-range.
-void UnhexTrampoline(duckdb_function_info info, duckdb_data_chunk in,
+void UnhexTrampoline(duckdb_function_info info,
+                     duckdb_data_chunk in,
                      duckdb_vector out) {
   idx_t n = duckdb_data_chunk_get_size(in);
   duckdb_vector a0 = duckdb_data_chunk_get_vector(in, 0);
@@ -232,8 +238,8 @@ void UnhexTrampoline(duckdb_function_info info, duckdb_data_chunk in,
       hex_str.remove_prefix(2);
     }
     if (hex_str.empty()) {
-      duckdb_scalar_function_set_error(info,
-                                       "UNHEX: hex string is empty after prefix");
+      duckdb_scalar_function_set_error(
+          info, "UNHEX: hex string is empty after prefix");
       return;
     }
     std::optional<int64_t> result =
@@ -253,7 +259,8 @@ void UnhexTrampoline(duckdb_function_info info, duckdb_data_chunk in,
 // DuckDB's native `hex(INTEGER)` does NOT do (it hexes the value). The surface
 // `hex` is therefore a MACRO that casts its argument to VARCHAR first and calls
 // this, reproducing SQLite's "hex of the text" semantics for every input type.
-void HexTextTrampoline(duckdb_function_info, duckdb_data_chunk in,
+void HexTextTrampoline(duckdb_function_info,
+                       duckdb_data_chunk in,
                        duckdb_vector out) {
   static const char kHex[] = "0123456789ABCDEF";
   idx_t n = duckdb_data_chunk_get_size(in);
@@ -282,8 +289,10 @@ void HexTextTrampoline(duckdb_function_info, duckdb_data_chunk in,
 // overload plus the (VARCHAR)->DOUBLE "text -> NULL" overload, matching the
 // Perfetto intrinsic's behaviour on a text argument.
 // demangle(VARCHAR) -> VARCHAR. Reuses the SAME C++ demangler as the SQLite
-// __intrinsic_demangle (byte-identical output). NULL in / un-demanglable -> NULL.
-void DemangleTrampoline(duckdb_function_info, duckdb_data_chunk in,
+// __intrinsic_demangle (byte-identical output). NULL in / un-demanglable ->
+// NULL.
+void DemangleTrampoline(duckdb_function_info,
+                        duckdb_data_chunk in,
                         duckdb_vector out) {
   idx_t n = duckdb_data_chunk_get_size(in);
   duckdb_vector a0 = duckdb_data_chunk_get_vector(in, 0);
@@ -324,9 +333,9 @@ base::Status RegisterMath(duckdb_connection conn,
 base::Status RegisterScalarFunctions(
     duckdb_connection conn,
     std::unordered_set<std::string>* out_registered) {
-  // Math: register under BOTH the public surface name (what a user query carries
-  // into DuckDB) and the underlying __intrinsic_* name (proving the mechanism
-  // generalizes to genuinely intrinsic-only functions).
+  // Math: register under BOTH the public surface name (what a user query
+  // carries into DuckDB) and the underlying __intrinsic_* name (proving the
+  // mechanism generalizes to genuinely intrinsic-only functions).
   struct MathReg {
     const char* surface;
     const char* intrinsic;
@@ -345,9 +354,9 @@ base::Status RegisterScalarFunctions(
   // demangle(VARCHAR) -> VARCHAR, under both the public surface name (DELEGATES
   // TO __intrinsic_demangle, so the surface name reaches DuckDB) and the
   // intrinsic name. Same C++ demangler -> byte-identical to SQLite.
-  RETURN_IF_ERROR(RegisterScalarFunction(conn, "demangle", {DUCKDB_TYPE_VARCHAR},
-                                         DUCKDB_TYPE_VARCHAR, DemangleTrampoline,
-                                         out_registered));
+  RETURN_IF_ERROR(RegisterScalarFunction(
+      conn, "demangle", {DUCKDB_TYPE_VARCHAR}, DUCKDB_TYPE_VARCHAR,
+      DemangleTrampoline, out_registered));
   RETURN_IF_ERROR(RegisterScalarFunction(
       conn, "__intrinsic_demangle", {DUCKDB_TYPE_VARCHAR}, DUCKDB_TYPE_VARCHAR,
       DemangleTrampoline, out_registered));
@@ -365,20 +374,21 @@ base::Status RegisterScalarFunctions(
   // type matches DuckDB's native overload, so ALTER_ON_CONFLICT cleanly
   // OVERWRITES the same-signature builtin), DuckDB's native `unhex(VARCHAR)`
   // returns BLOB. ScalarFunction::Equal compares the return type, so a
-  // BIGINT-returning overload is ADDED beside the BLOB one rather than replacing
-  // it, leaving `unhex(VARCHAR)` ambiguous. To match Perfetto's semantics we
-  // register the real implementation under the conflict-free `__intrinsic_unhex`
-  // name and shadow the surface `unhex` with a DuckDB MACRO that delegates to
-  // it (a user macro in the main catalog binds before the system builtin) -
-  // mirroring PerfettoSQL's own `unhex DELEGATES TO __intrinsic_unhex`.
+  // BIGINT-returning overload is ADDED beside the BLOB one rather than
+  // replacing it, leaving `unhex(VARCHAR)` ambiguous. To match Perfetto's
+  // semantics we register the real implementation under the conflict-free
+  // `__intrinsic_unhex` name and shadow the surface `unhex` with a DuckDB MACRO
+  // that delegates to it (a user macro in the main catalog binds before the
+  // system builtin) - mirroring PerfettoSQL's own `unhex DELEGATES TO
+  // __intrinsic_unhex`.
   RETURN_IF_ERROR(RegisterScalarFunction(
       conn, "__intrinsic_unhex", {DUCKDB_TYPE_VARCHAR}, DUCKDB_TYPE_BIGINT,
       UnhexTrampoline, out_registered));
   {
     duckdb_result res;
     duckdb_state st = duckdb_query(
-        conn,
-        "CREATE OR REPLACE MACRO unhex(s) AS __intrinsic_unhex(s);", &res);
+        conn, "CREATE OR REPLACE MACRO unhex(s) AS __intrinsic_unhex(s);",
+        &res);
     std::string err = st == DuckDBError ? duckdb_result_error(&res) : "";
     duckdb_destroy_result(&res);
     if (st == DuckDBError) {
@@ -389,15 +399,16 @@ base::Status RegisterScalarFunctions(
     out_registered->insert("unhex");
   }
 
-  // iif(cond, a, b): SQLite's ternary. DuckDB has no `iif` builtin (it spells it
-  // `CASE WHEN`), so define a MACRO with the exact CASE expansion. This binds
-  // with identical semantics to SQLite (including NULL-condition -> else branch).
+  // iif(cond, a, b): SQLite's ternary. DuckDB has no `iif` builtin (it spells
+  // it `CASE WHEN`), so define a MACRO with the exact CASE expansion. This
+  // binds with identical semantics to SQLite (including NULL-condition -> else
+  // branch).
   {
     duckdb_result res;
-    duckdb_state st = duckdb_query(
-        conn,
-        "CREATE OR REPLACE MACRO iif(c, a, b) AS CASE WHEN c THEN a ELSE b END;",
-        &res);
+    duckdb_state st = duckdb_query(conn,
+                                   "CREATE OR REPLACE MACRO iif(c, a, b) AS "
+                                   "CASE WHEN c THEN a ELSE b END;",
+                                   &res);
     std::string err = st == DuckDBError ? duckdb_result_error(&res) : "";
     duckdb_destroy_result(&res);
     if (st == DuckDBError) {
@@ -417,11 +428,10 @@ base::Status RegisterScalarFunctions(
       HexTextTrampoline, out_registered));
   {
     duckdb_result res;
-    duckdb_state st = duckdb_query(
-        conn,
-        "CREATE OR REPLACE MACRO hex(x) AS "
-        "__intrinsic_hex_text(CAST(x AS VARCHAR));",
-        &res);
+    duckdb_state st = duckdb_query(conn,
+                                   "CREATE OR REPLACE MACRO hex(x) AS "
+                                   "__intrinsic_hex_text(CAST(x AS VARCHAR));",
+                                   &res);
     std::string err = st == DuckDBError ? duckdb_result_error(&res) : "";
     duckdb_destroy_result(&res);
     if (st == DuckDBError) {

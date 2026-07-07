@@ -160,11 +160,11 @@ void GraphAggCombine(duckdb_function_info info,
                      duckdb_aggregate_state* source,
                      duckdb_aggregate_state* target,
                      idx_t count) {
-  BufCombine<GraphEdges>(info, source, target, count, [](GraphEdges* s,
-                                                         GraphEdges* d) {
-    d->srcs.insert(d->srcs.end(), s->srcs.begin(), s->srcs.end());
-    d->dsts.insert(d->dsts.end(), s->dsts.begin(), s->dsts.end());
-  });
+  BufCombine<GraphEdges>(
+      info, source, target, count, [](GraphEdges* s, GraphEdges* d) {
+        d->srcs.insert(d->srcs.end(), s->srcs.begin(), s->srcs.end());
+        d->dsts.insert(d->dsts.end(), s->dsts.begin(), s->dsts.end());
+      });
 }
 
 // --- __intrinsic_int_array_agg(node_id) -> BIGINT ---------------------------
@@ -192,11 +192,10 @@ void IntArrayCombine(duckdb_function_info info,
                      duckdb_aggregate_state* source,
                      duckdb_aggregate_state* target,
                      idx_t count) {
-  BufCombine<IntArray>(info, source, target, count,
-                       [](IntArray* s, IntArray* d) {
-                         d->vals.insert(d->vals.end(), s->vals.begin(),
-                                        s->vals.end());
-                       });
+  BufCombine<IntArray>(
+      info, source, target, count, [](IntArray* s, IntArray* d) {
+        d->vals.insert(d->vals.end(), s->vals.begin(), s->vals.end());
+      });
 }
 
 // === BFS/DFS reachability (replicated from the graph_traversal plugin) =======
@@ -207,10 +206,8 @@ std::vector<std::vector<uint32_t>> BuildAdjacency(const GraphEdges& edges,
                                                   uint32_t* graph_size_out) {
   uint32_t graph_size = 0;
   for (size_t i = 0; i < edges.srcs.size(); ++i) {
-    graph_size = std::max(graph_size,
-                          static_cast<uint32_t>(edges.srcs[i]) + 1);
-    graph_size = std::max(graph_size,
-                          static_cast<uint32_t>(edges.dsts[i]) + 1);
+    graph_size = std::max(graph_size, static_cast<uint32_t>(edges.srcs[i]) + 1);
+    graph_size = std::max(graph_size, static_cast<uint32_t>(edges.dsts[i]) + 1);
   }
   std::vector<std::vector<uint32_t>> adj(graph_size);
   for (size_t i = 0; i < edges.srcs.size(); ++i) {
@@ -248,8 +245,8 @@ std::vector<ResultRow> RunDfs(const GraphEdges& edges,
     if (visited[st.id]) {
       continue;
     }
-    out.push_back(ResultRow{st.id, st.parent ? *st.parent : 0,
-                            st.parent.has_value()});
+    out.push_back(
+        ResultRow{st.id, st.parent ? *st.parent : 0, st.parent.has_value()});
     visited[st.id] = true;
     if (st.id >= graph_size) {
       continue;
@@ -291,8 +288,8 @@ std::vector<ResultRow> RunBfs(const GraphEdges& edges,
   while (!queue.empty()) {
     State st = queue.front();
     queue.pop_front();
-    out.push_back(ResultRow{st.id, st.parent ? *st.parent : 0,
-                            st.parent.has_value()});
+    out.push_back(
+        ResultRow{st.id, st.parent ? *st.parent : 0, st.parent.has_value()});
     if (st.id >= graph_size) {
       continue;
     }
@@ -337,8 +334,8 @@ void CombineImpl(duckdb_function_info info,
     if (!edges || !starts) {
       continue;
     }
-    per_row[r] = is_bfs ? RunBfs(*edges, starts->vals)
-                        : RunDfs(*edges, starts->vals);
+    per_row[r] =
+        is_bfs ? RunBfs(*edges, starts->vals) : RunDfs(*edges, starts->vals);
     total += per_row[r].size();
   }
 
@@ -422,8 +419,8 @@ void WGraphAggCombine(duckdb_function_info info,
                       duckdb_aggregate_state* target,
                       idx_t count) {
   BufCombine<WeightedGraphEdges>(
-      info, source, target, count, [](WeightedGraphEdges* s,
-                                      WeightedGraphEdges* d) {
+      info, source, target, count,
+      [](WeightedGraphEdges* s, WeightedGraphEdges* d) {
         d->srcs.insert(d->srcs.end(), s->srcs.begin(), s->srcs.end());
         d->dsts.insert(d->dsts.end(), s->dsts.begin(), s->dsts.end());
         d->weights.insert(d->weights.end(), s->weights.begin(),
@@ -457,14 +454,12 @@ void RootWeightAggCombine(duckdb_function_info info,
                           duckdb_aggregate_state* source,
                           duckdb_aggregate_state* target,
                           idx_t count) {
-  BufCombine<WeightedRoots>(info, source, target, count,
-                            [](WeightedRoots* s, WeightedRoots* d) {
-                              d->ids.insert(d->ids.end(), s->ids.begin(),
-                                            s->ids.end());
-                              d->weights.insert(d->weights.end(),
-                                                s->weights.begin(),
-                                                s->weights.end());
-                            });
+  BufCombine<WeightedRoots>(
+      info, source, target, count, [](WeightedRoots* s, WeightedRoots* d) {
+        d->ids.insert(d->ids.end(), s->ids.begin(), s->ids.end());
+        d->weights.insert(d->weights.end(), s->weights.begin(),
+                          s->weights.end());
+      });
 }
 
 // Verbatim port of DfsWeightBoundedImpl (dfs_weight_bounded.cc): iterative DFS
@@ -571,7 +566,8 @@ void CombineDfsWeightBounded(duckdb_function_info info,
   }
 
   if (duckdb_list_vector_reserve(output, total) == DuckDBError) {
-    duckdb_scalar_function_set_error(info, "dfs_weight_bounded: reserve failed");
+    duckdb_scalar_function_set_error(info,
+                                     "dfs_weight_bounded: reserve failed");
     return;
   }
   duckdb_list_vector_set_size(output, total);
@@ -667,14 +663,14 @@ base::Status RegisterCombiner(duckdb_connection conn,
 }  // namespace
 
 base::Status RegisterGraphFunctions(duckdb_connection conn) {
-  RETURN_IF_ERROR(RegisterAgg(
-      conn, "__intrinsic_graph_agg", 2, GraphAggUpdate, GraphAggCombine,
-      BufStateSize<GraphEdges>, BufInit<GraphEdges>, BufFinalize<GraphEdges>,
-      BufDestroy<GraphEdges>));
-  RETURN_IF_ERROR(RegisterAgg(
-      conn, "__intrinsic_int_array_agg", 1, IntArrayUpdate, IntArrayCombine,
-      BufStateSize<IntArray>, BufInit<IntArray>, BufFinalize<IntArray>,
-      BufDestroy<IntArray>));
+  RETURN_IF_ERROR(RegisterAgg(conn, "__intrinsic_graph_agg", 2, GraphAggUpdate,
+                              GraphAggCombine, BufStateSize<GraphEdges>,
+                              BufInit<GraphEdges>, BufFinalize<GraphEdges>,
+                              BufDestroy<GraphEdges>));
+  RETURN_IF_ERROR(RegisterAgg(conn, "__intrinsic_int_array_agg", 1,
+                              IntArrayUpdate, IntArrayCombine,
+                              BufStateSize<IntArray>, BufInit<IntArray>,
+                              BufFinalize<IntArray>, BufDestroy<IntArray>));
   RETURN_IF_ERROR(RegisterCombiner(conn, "__intrinsic_graph_bfs", CombineBfs));
   RETURN_IF_ERROR(RegisterCombiner(conn, "__intrinsic_graph_dfs", CombineDfs));
 
@@ -695,8 +691,8 @@ base::Status RegisterGraphFunctions(duckdb_connection conn) {
     duckdb_logical_type bigint = duckdb_create_logical_type(DUCKDB_TYPE_BIGINT);
     duckdb_scalar_function_add_parameter(f, bigint);  // graph handle
     duckdb_scalar_function_add_parameter(f, bigint);  // roots handle
-    // is_target_weight_floor: BIGINT (the macro passes 0/1; non-zero = floor) so
-    // an integer literal binds without a cast.
+    // is_target_weight_floor: BIGINT (the macro passes 0/1; non-zero = floor)
+    // so an integer literal binds without a cast.
     duckdb_scalar_function_add_parameter(f, bigint);
     duckdb_logical_type members[3] = {bigint, bigint, bigint};
     const char* names[3] = {"root_node_id", "node_id", "parent_node_id"};

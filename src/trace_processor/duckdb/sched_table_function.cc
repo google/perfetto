@@ -81,8 +81,9 @@ struct CellReader : dataframe::CellCallback {
 };
 
 // Extra-info attached to the table function: the snapshot of the sched
-// dataframe that DuckDB scans, plus the resolved dataframe column indices. Owned
-// by DuckDB; freed via DestroyExtraInfo when the table function is destroyed.
+// dataframe that DuckDB scans, plus the resolved dataframe column indices.
+// Owned by DuckDB; freed via DestroyExtraInfo when the table function is
+// destroyed.
 struct ExtraInfo {
   explicit ExtraInfo(dataframe::Dataframe df) : sched(std::move(df)) {}
 
@@ -108,9 +109,10 @@ void DestroyBindData(void* p) {
   delete static_cast<BindData*>(p);
 }
 
-// Per-scan init data: the projection (which logical columns DuckDB asked for, in
-// output order) and a cursor of the next row to emit. max_threads is pinned to 1
-// so this single cursor is sufficient and StringPool reads stay single-threaded.
+// Per-scan init data: the projection (which logical columns DuckDB asked for,
+// in output order) and a cursor of the next row to emit. max_threads is pinned
+// to 1 so this single cursor is sufficient and StringPool reads stay
+// single-threaded.
 struct InitData {
   // For each output vector position, the logical SchedCol it carries.
   uint32_t projected[kNumCols] = {};
@@ -169,8 +171,8 @@ void Bind(duckdb_bind_info info) {
     duckdb_bind_set_error(info, "sched_df: missing extra info");
     return;
   }
-  // Declare the full result schema, in logical column order. Projection pushdown
-  // means DuckDB may later ask for only a subset (handled in init).
+  // Declare the full result schema, in logical column order. Projection
+  // pushdown means DuckDB may later ask for only a subset (handled in init).
   for (uint32_t c = 0; c < kNumCols; ++c) {
     duckdb_logical_type t = LogicalTypeFor(static_cast<SchedCol>(c));
     duckdb_bind_add_result_column(info, NameFor(static_cast<SchedCol>(c)), t);
@@ -201,8 +203,7 @@ void Init(duckdb_init_info info) {
 }
 
 void Main(duckdb_function_info info, duckdb_data_chunk output) {
-  auto* bind_data =
-      static_cast<BindData*>(duckdb_function_get_bind_data(info));
+  auto* bind_data = static_cast<BindData*>(duckdb_function_get_bind_data(info));
   auto* init = static_cast<InitData*>(duckdb_function_get_init_data(info));
   const ExtraInfo* extra = bind_data->extra;
   const dataframe::Dataframe& df = extra->sched;
@@ -322,8 +323,12 @@ base::Status RegisterSchedTableFunction(duckdb_connection connection,
     const char* name;
   };
   static constexpr ColSpec kCols[] = {
-      {kTs, "ts"},          {kDur, "dur"},          {kUtid, "utid"},
-      {kEndState, "end_state"}, {kPriority, "priority"}, {kUcpu, "ucpu"},
+      {kTs, "ts"},
+      {kDur, "dur"},
+      {kUtid, "utid"},
+      {kEndState, "end_state"},
+      {kPriority, "priority"},
+      {kUcpu, "ucpu"},
   };
 
   auto extra = std::make_unique<ExtraInfo>(sched.CopyFinalized());
