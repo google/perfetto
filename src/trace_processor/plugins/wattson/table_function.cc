@@ -52,7 +52,7 @@ static_assert(PERFETTO_IS_LITTLE_ENDIAN(),
 
 class WattsonCurvesBlobReader {
  public:
-  WattsonCurvesBlobReader(const uint8_t* data, size_t size)
+  explicit WattsonCurvesBlobReader(const uint8_t* data, size_t size)
       : data_(data), size_(size) {}
 
   template <typename T>

@@ -31,7 +31,7 @@ struct ZSTD_DCtx_s {};
 
 namespace perfetto::trace_processor::util {
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)  // Real Implementation
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
 ZstdDecompressor::ZstdDecompressor() : dstream_(ZSTD_createDStream()) {
   PERFETTO_CHECK(dstream_);
@@ -95,7 +95,7 @@ void ZstdDecompressor::Deleter::operator()(ZSTD_DCtx_s* stream) const {
   ZSTD_freeDStream(stream);
 }
 
-#else  // Dummy Implementation
+#else  // !PERFETTO_ZSTD
 
 ZstdDecompressor::ZstdDecompressor() = default;
 void ZstdDecompressor::Reset() {}

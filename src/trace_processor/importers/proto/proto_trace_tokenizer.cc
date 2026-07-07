@@ -30,9 +30,6 @@ ProtoTraceTokenizer::ProtoTraceTokenizer() = default;
 base::Status ProtoTraceTokenizer::Decompress(util::CompressionType type,
                                              TraceBlobView input,
                                              TraceBlobView* output) {
-  // A trace holds many compressed bundles, all one codec (it's fixed per
-  // tracing session). Build the decompressor once and Reset() it between
-  // bundles rather than reallocating each time.
   if (!decompressor_) {
     decompressor_ = util::CreateDecompressor(type);
     decompressor_type_ = type;

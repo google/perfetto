@@ -255,12 +255,9 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         "(ERR:tp-corrupt)");
   }
 
-  // Top-level compressed bundles are expanded by the tokenizer, so one here
-  // can only be nested inside another bundle, which the format doesn't allow.
-  if (PERFETTO_UNLIKELY(decoder.has_compressed_packets() ||
-                        decoder.has_zstd_compressed_packets())) {
-    return base::ErrStatus("Nested compressed packets are not supported");
-  }
+  // Compressed packets are expanded by the tokenizer; none should reach here.
+  PERFETTO_CHECK(!decoder.has_compressed_packets() &&
+                 !decoder.has_zstd_compressed_packets());
 
   // The top-level reader dispatches packets from other machines to a
   // per-machine reader; host and adopted-machine packets are parsed here.

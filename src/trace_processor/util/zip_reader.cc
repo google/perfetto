@@ -294,9 +294,8 @@ ZipReader::TryParseUnsizedCompressedData() {
   auto end = reader_.end_offset();
   auto slice = reader_.SliceOff(start, end - start);
   PERFETTO_CHECK(slice);
-  // We only want the bounds of the deflate stream, not its output, so decode
-  // into a throwaway buffer and discard it. Drain until the frame ends or the
-  // input runs out.
+  // Intentionally do nothing: we are only looking for the bounds of the deflate
+  // stream, we are not actually interested in the output.
   cur_.decompressor->Feed(slice->data(), slice->size());
   GzipDecompressor::Result result;
   uint8_t scratch[4096];

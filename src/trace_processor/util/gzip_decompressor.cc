@@ -31,7 +31,7 @@ struct z_stream_s {};
 
 namespace perfetto::trace_processor::util {
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)  // Real Implementation
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 GzipDecompressor::GzipDecompressor(InputMode mode)
     : z_stream_(new z_stream_s()) {
@@ -49,7 +49,9 @@ void GzipDecompressor::Reset() {
 }
 
 void GzipDecompressor::Feed(const uint8_t* data, size_t size) {
-  // zlib won't modify the input, so casting away const on next_in is safe.
+  // This const_cast is not harmfull as zlib will not modify the data in this
+  // pointer. This is only necessary because of the build flags we use to be
+  // compatible with other embedders.
   z_stream_->next_in = const_cast<uint8_t*>(data);
   z_stream_->avail_in = static_cast<uInt>(size);
 }
@@ -88,7 +90,7 @@ void GzipDecompressor::Deleter::operator()(z_stream_s* stream) const {
   delete stream;
 }
 
-#else  // Dummy Implementation
+#else  // !PERFETTO_ZLIB
 
 GzipDecompressor::GzipDecompressor(InputMode) {}
 void GzipDecompressor::Reset() {}
