@@ -94,11 +94,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     const result = await trace.engine.query(`
       SELECT pct.perf_session_id, pct.name, MAX(pct.is_timebase) as is_timebase
       FROM perf_counter_track pct
-      WHERE EXISTS (
-        SELECT 1 FROM counter c
-        WHERE c.track_id = pct.id AND c.value != 0
-        LIMIT 1
-      )
+      JOIN _counter_track_summary s ON pct.id = s.id
       GROUP BY pct.perf_session_id, pct.name
       ORDER BY pct.perf_session_id, is_timebase DESC, pct.name
     `);
