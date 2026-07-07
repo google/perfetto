@@ -94,14 +94,11 @@ void AndroidCpuPerUidModule::ParseField(const ParseFieldArgs& args) {
     state->cluster_count = evt.cluster_count();
   }
 
-  std::unordered_set<uint32_t> uid_with_value_this_packet;
-
   bool parse_error = false;
   uint32_t cluster = 0;
   auto uid_it = evt.uid(&parse_error);
   for (auto time_it = evt.total_time_ms(&parse_error); uid_it && time_it;
        ++time_it) {
-    uid_with_value_this_packet.insert(*uid_it);
     uint64_t key = MakeKey(*uid_it, cluster);
     uint64_t* previous = state->last_values.Find(key);
     uint64_t time_ms;
@@ -129,17 +126,7 @@ void AndroidCpuPerUidModule::ParseField(const ParseFieldArgs& args) {
     UpdateTotals(args.ts, "Apps", it.key(), it.value());
   }
 
-  // Anything we knew about but didn't see in this packet must not have
-  // incremented.
-  for (auto it = state->last_values.GetIterator(); it; ++it) {
-    uint32_t uid = it.key() >> 32;
-    if (uid_with_value_this_packet.count(uid)) {
-      continue;
-    }
-    uint32_t cluster_id = it.key() & 0xffffffff;
-
-    UpdateCounter(args.ts, uid, cluster_id, it.value());
-  }
+  last_packet_ts_ = args.ts;
 }
 
 void AndroidCpuPerUidModule::OnEventsFullyExtracted() {
@@ -191,7 +178,7 @@ void AndroidCpuPerUidModule::UpdateCounter(int64_t ts,
                                            uint64_t value) {
   TrackId track = context_->track_tracker->InternTrack(
       kCpuPerUidBlueprint, tracks::Dimensions(uid, cluster));
-  context_->event_tracker->PushCounter(ts, double(value), track);
+  PushCounter(ts, track, value);
 }
 
 void AndroidCpuPerUidModule::UpdateTotals(int64_t ts,
@@ -200,7 +187,29 @@ void AndroidCpuPerUidModule::UpdateTotals(int64_t ts,
                                           uint64_t value) {
   TrackId track = context_->track_tracker->InternTrack(
       kCpuTotalsBlueprint, tracks::Dimensions(name, cluster));
-  context_->event_tracker->PushCounter(ts, double(value), track);
+  PushCounter(ts, track, value);
+}
+
+void AndroidCpuPerUidModule::PushCounter(int64_t ts,
+                                         TrackId track,
+                                         uint64_t value) {
+  auto [state, inserted] = track_state_.Insert(track, TrackState{});
+  if (state->last_value == value) {
+    return;
+  }
+
+  // If the last value written wasn't from the last packet, there must have been
+  // a period where the counter held the same value. To cap off that period, we
+  // re-write the last value at the last global packet ts.
+  if (state->last_time != last_packet_ts_ && !inserted) {
+    context_->event_tracker->PushCounter(
+        last_packet_ts_, static_cast<double>(state->last_value), track);
+  }
+
+  context_->event_tracker->PushCounter(ts, static_cast<double>(value), track);
+
+  state->last_value = value;
+  state->last_time = ts;
 }
 
 }  // namespace perfetto::trace_processor
