@@ -212,8 +212,6 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
   // This needs to happen after the TrackEvent descriptors have been registered,
   // which happens in one of the modules. (See
   // https://github.com/google/perfetto/issues/6260)
-  PERFETTO_DCHECK(context_->descriptor_pool_->FindDescriptorIdx(
-      ".perfetto.protos.TrackEvent"));
   for (const std::string& raw_bytes :
        context_->config.extra_parsing_descriptors) {
     auto status = context_->descriptor_pool_->AddFromFileDescriptorSet(
