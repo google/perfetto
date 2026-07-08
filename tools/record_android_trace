@@ -698,10 +698,8 @@ def start_trace(args, print_log=True):
   while ctrl_c_count < 2:
     poll = None
     try:
-      # stderr is merged into stdout so that adb/shell diagnostics are drained
-      # by the readline() loop below. If stderr had its own pipe it would go
-      # undrained while we block on stdout for the whole trace, and enough
-      # output (e.g. a per-iteration shell warning) would fill it and deadlock.
+      # stderr is merged into stdout so that we can suppress identical adb
+      # error messages while waiting for reconnection.
       poll = adb(
           'shell',
           wait_cmd,
@@ -725,7 +723,7 @@ def start_trace(args, print_log=True):
             prt('ADB connection re-established, the trace is still ongoing',
                 ANSI.BLUE)
           continue
-        # Anything else is an adb/shell diagnostic; forward it live, deduping
+        # Anything else is an adb/shell message or error. Forward it, deduping
         # the same error repeated across retries.
         if token and token != last_adb_error:
           last_adb_error = token
