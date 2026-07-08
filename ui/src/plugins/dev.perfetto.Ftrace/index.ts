@@ -89,6 +89,7 @@ export default class implements PerfettoPlugin {
         description: `Ftrace events for CPU ${cpu.toString()}`,
         tags: {
           cpu: cpu.cpu,
+          ucpu: cpu.ucpu,
           kinds: [FTRACE_RAW_TRACK_KIND],
         },
         renderer: createFtraceTrack(ctx, uri, cpu.ucpu, filterStore),
@@ -110,15 +111,36 @@ export default class implements PerfettoPlugin {
       counters: [],
     };
 
+    // The event-name filter is shared (and persisted) across both the
+    // standalone tab and the area-selection tab.
+    const onExcludeListChange = (excludeList: ReadonlyArray<string>) =>
+      filterStore.edit((draft) => {
+        draft.excludeList = Array.from(excludeList);
+      });
+
+    const allUcpus = cpus.map((c) => c.ucpu);
+
     ctx.tabs.registerTab({
       uri: ftraceTabUri,
       isEphemeral: false,
       content: {
         render: () =>
           m(FtraceExplorer, {
-            filterStore,
-            cache,
             trace: ctx,
+            cache,
+            cpus,
+            excludeList: filterStore.state.excludeList,
+            onExcludeListChange,
+            // The standalone tab exposes a persisted cpu inclusion filter over
+            // all cpus. Undefined persisted state means "show all".
+            cpuFilter: {
+              kind: 'selectable',
+              show: filterStore.state.visibleCpus ?? allUcpus,
+              onChange: (show) =>
+                filterStore.edit((draft) => {
+                  draft.visibleCpus = Array.from(show);
+                }),
+            },
           }),
         getTitle: () => 'Ftrace Events',
       },
@@ -132,28 +154,30 @@ export default class implements PerfettoPlugin {
       },
     });
 
-    // Also use the ftrace tab for area selections, as a separate child of the
-    // selection tab, but using the same stored state (currently event filters)
-    // as the standalone tab.
+    // Also use the ftrace explorer for area selections, as a child of the
+    // selection tab. It shares the (persisted) event-name filter with the
+    // standalone tab, but takes its CPU list from the selected ftrace tracks.
     ctx.selection.registerAreaSelectionTab({
       id: 'ftrace_area_selection',
       name: 'Ftrace Events',
       priority: 100,
       render(selection) {
-        const cpus = selection.tracks
+        const selectedUcpus = selection.tracks
           .filter((t) => t.tags?.kinds?.includes(FTRACE_RAW_TRACK_KIND))
-          .map((t) => t.tags?.cpu)
-          .filter((cpu): cpu is number => cpu !== undefined);
-        if (cpus.length === 0) return undefined;
+          .map((t) => t.tags?.ucpu)
+          .filter((ucpu): ucpu is number => typeof ucpu === 'number');
+        if (selectedUcpus.length === 0) return undefined;
 
         return {
           isLoading: false,
           content: m(FtraceExplorer, {
-            filterStore,
-            cache,
             trace: ctx,
+            cache,
+            cpus,
             bounds: {start: selection.start, end: selection.end},
-            restrictToCpus: cpus,
+            excludeList: filterStore.state.excludeList,
+            onExcludeListChange,
+            cpuFilter: {kind: 'fixed', show: selectedUcpus},
           }),
         };
       },
