@@ -40,4 +40,11 @@ message DisplayVideoConfig {
   // Per-display cap on emitted bytes. On reaching it the stream is torn
   // down with a VideoFrameError (SIZE_CAP_HIT).
   optional uint64 max_stream_size_bytes = 4;
+
+  // Re-emit the codec config before every keyframe instead of only once at
+  // the start of the stream. This keeps the stream decodable from any
+  // retained window, which is required for ring-buffer capture (where the
+  // initial config would otherwise be overwritten). Costs a few extra bytes
+  // per keyframe; off by default.
+  optional bool repeat_codec_config = 5;
 }
