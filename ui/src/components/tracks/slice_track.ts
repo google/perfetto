@@ -817,7 +817,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const bounds = this.bufferedBounds.update(visibleSpan, resolution);
 
     const {data: dataFrame} = this.dataFrameSlot.use({
+      // sqlSource is constant for most tracks with a static dataset, but
+      // there are cases (e.g. raw ftrace tracks) where the query can
+      // change dynamically.
       key: {
+        sqlSource,
         start: bounds.start,
         end: bounds.end,
         resolution: bounds.resolution,
@@ -858,7 +862,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         this.trace.raf.scheduleFullRedraw();
         return result;
       },
-      retainOn: ['start', 'end', 'resolution'],
+      retainOn: ['sqlSource', 'start', 'end', 'resolution'],
     });
 
     return dataFrame;
