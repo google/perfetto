@@ -231,3 +231,88 @@ WITH
       main_thread_boundary.ts
   )
 SELECT *, ts_end - ts AS dur FROM boundary_base;
+
+
+-- Similar to `_android_jank_cuj_main_thread_frame_boundary` but for the render
+-- thread the expected start time is the time of the first `postAndWait` slice
+-- on the main thread.
+-- The query is slightly simpler because we don't have to handle the clock drift
+-- and data loss like with the frame timeline.
+-- One difference vs main thread is that there might be multiple DrawFrames
+-- slices for a single vsync - this happens when we are drawing multiple layers
+-- (e.g. status bar & notifications).
+CREATE PERFETTO TABLE _android_jank_cuj_render_thread_frame_boundary(
+  -- CUJ id.
+  cuj_id LONG,
+  -- Thread id of the render thread.
+  utid JOINID(thread.id),
+  -- Vsync ID of this frame.
+  vsync LONG,
+  -- Expected start timestamp (first postAndWait slice).
+  ts_expected TIMESTAMP,
+  -- Start timestamp of the DrawFrame slice.
+  ts_draw_frame_start TIMESTAMP,
+  -- End timestamp of the previous DrawFrame slice.
+  ts_prev_draw_frame_end TIMESTAMP,
+  -- Corrected start timestamp for the frame boundary.
+  ts TIMESTAMP,
+  -- End timestamp of the DrawFrame slice.
+  ts_end TIMESTAMP,
+  -- Duration of the frame boundary.
+  dur DURATION
+)
+AS
+-- see do_frame_ordered above
+-- we also order by `ts` to handle multiple DrawFrames for a single vsync
+WITH draw_frame_ordered AS (
+  SELECT
+    *,
+    -- ts_end of the previous draw frame, or -1 if no previous draw frame found
+    COALESCE(LAG(ts_end) OVER (PARTITION BY cuj_id ORDER BY vsync ASC, ts ASC), -1) AS ts_prev_draw_frame_end
+  FROM _android_jank_cuj_draw_frame_slice
+),
+-- introducing an intermediate table since we want to calculate dur = ts_end - ts
+frame_boundary_base AS (
+  SELECT
+    draw_frame.cuj_id,
+    draw_frame.utid,
+    draw_frame.vsync,
+    MIN(post_and_wait.ts) AS ts_expected,
+    MIN(draw_frame.ts) AS ts_draw_frame_start,
+    MIN(draw_frame.ts_prev_draw_frame_end) AS ts_prev_draw_frame_end,
+    MIN(
+      MAX(
+        MIN(post_and_wait.ts),
+        MIN(draw_frame.ts_prev_draw_frame_end)),
+      MIN(draw_frame.ts)) AS ts,
+    MAX(draw_frame.ts_end) AS ts_end
+  FROM draw_frame_ordered draw_frame
+  JOIN _android_jank_cuj_do_frames do_frame USING (cuj_id, vsync)
+  JOIN descendant_slice(do_frame.id) post_and_wait
+  WHERE post_and_wait.name = 'postAndWait'
+  GROUP BY draw_frame.cuj_id, draw_frame.utid, draw_frame.vsync
+)
+SELECT *, ts_end - ts AS dur FROM frame_boundary_base;
+
+-- Compute the CUJ boundary on the render thread from the frame boundaries.
+CREATE PERFETTO TABLE _android_jank_cuj_render_thread_cuj_boundary(
+  -- CUJ id.
+  cuj_id LONG,
+  -- Thread id of the render thread.
+  utid JOINID(thread.id),
+  -- Start timestamp of the CUJ on the render thread.
+  ts TIMESTAMP,
+  -- End timestamp of the CUJ on the render thread.
+  ts_end TIMESTAMP,
+  -- Duration of the CUJ on the render thread.
+  dur DURATION
+)
+AS
+SELECT
+  cuj_id,
+  utid,
+  MIN(ts) AS ts,
+  MAX(ts_end) AS ts_end,
+  MAX(ts_end) - MIN(ts) AS dur
+FROM _android_jank_cuj_render_thread_frame_boundary
+GROUP BY cuj_id, utid;
