@@ -152,6 +152,16 @@ export class CommandManagerImpl implements CommandManager {
   private readonly macros = new Registry<string>((macroId) => macroId);
   private isExecutingStartupCommands = false;
 
+  private activeCommandStack: Command[] = [];
+
+  get activeCommand(): Command | undefined {
+    return this.activeCommandStack[this.activeCommandStack.length - 1];
+  }
+
+  get activeCommandHistory(): readonly Command[] {
+    return this.activeCommandStack;
+  }
+
   constructor(private omnibox: OmniboxManagerImpl) {}
 
   getCommand(commandId: string): Command | undefined {
@@ -177,9 +187,22 @@ export class CommandManagerImpl implements CommandManager {
       throw new StartupCommandNotAllowedError(id);
     }
     const cmd = this.registry.get(id);
-    const res = cmd.callback(...args);
-    Promise.resolve(res).finally(() => raf.scheduleFullRedraw());
-    return res;
+    this.activeCommandStack.push(cmd);
+    try {
+      const res = cmd.callback(...args);
+      if (res instanceof Promise) {
+        return res.finally(() => {
+          this.activeCommandStack.pop();
+          raf.scheduleFullRedraw();
+        });
+      }
+      this.activeCommandStack.pop();
+      raf.scheduleFullRedraw();
+      return res;
+    } catch (err) {
+      this.activeCommandStack.pop();
+      throw err;
+    }
   }
 
   // Internal API: not part of the public CommandManager interface.

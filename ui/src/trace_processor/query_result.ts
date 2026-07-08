@@ -209,9 +209,37 @@ export function decodeInt64Varint(buf: Uint8Array, pos: number): bigint {
 // Info that could help debug a query error. For example the query
 // in question, the stack where the query was issued, the active
 // plugin etc.
+export class ActiveCommandInfo {
+  constructor(
+    readonly id: string,
+    readonly name: string,
+    readonly source?: string,
+    readonly parent?: ActiveCommandInfo,
+  ) {}
+
+  toString(indentSize: number = 0): string {
+    const spaces = ' '.repeat(indentSize);
+    const label = indentSize === 0 ? 'Command/Macro' : 'Called by';
+    const owner = this.source ? `\n${spaces}Source/Owner: ${this.source}` : '';
+    const parentStr = this.parent
+      ? `\n${this.parent.toString(indentSize + 2)}`
+      : '';
+    return `${spaces}${label}: ${this.name} (${this.id})${owner}${parentStr}`;
+  }
+}
+
+export let getActiveCommand: (() => ActiveCommandInfo | undefined) | undefined;
+
+export function registerActiveCommandProvider(
+  provider: () => ActiveCommandInfo | undefined,
+) {
+  getActiveCommand = provider;
+}
+
 export interface QueryErrorInfo {
   query: string;
   tag?: string; // The EngineProxy tag.
+  activeCommand?: ActiveCommandInfo;
 }
 
 export class QueryError extends Error {
@@ -224,7 +252,8 @@ export class QueryError extends Error {
 
   toString() {
     const info = this.queryErrorInfo;
-    return `${super.toString()}\nEngineTag: ${info.tag}\nQuery:\n${info.query}`;
+    const cmd = info.activeCommand ? `\n${info.activeCommand}` : '';
+    return `${super.toString()}\nEngineTag: ${info.tag}${cmd}\nQuery:\n${info.query}`;
   }
 }
 
@@ -1123,6 +1152,9 @@ class WaitableQueryResultImpl
 export function createQueryResult(
   errorInfo: QueryErrorInfo,
 ): QueryResult & Promise<QueryResult> & WritableQueryResult {
+  if (getActiveCommand && !errorInfo.activeCommand) {
+    errorInfo.activeCommand = getActiveCommand();
+  }
   return new WaitableQueryResultImpl(errorInfo);
 }
 

@@ -25,6 +25,10 @@ import type {Setting} from '../public/settings';
 import type {TraceStream} from '../public/stream';
 import type {DurationPrecision, TimestampFormat} from '../public/timeline';
 import type {NewEngineMode} from '../trace_processor/engine';
+import {
+  ActiveCommandInfo,
+  registerActiveCommandProvider,
+} from '../trace_processor/query_result';
 import {type AnalyticsInternal, initAnalytics} from './analytics_impl';
 import {
   type CommandInvocation,
@@ -167,6 +171,17 @@ export class AppImpl implements App {
       this.embedder.analyticsId,
     );
     this.pages = new PageManagerImpl(this.analytics);
+
+    registerActiveCommandProvider(() => {
+      const history = this.commands.activeCommandHistory;
+      if (history.length === 0) return undefined;
+
+      let current: ActiveCommandInfo | undefined = undefined;
+      for (const cmd of history) {
+        current = new ActiveCommandInfo(cmd.id, cmd.name, cmd.source, current);
+      }
+      return current;
+    });
   }
 
   setActiveTrace(trace: TraceImpl) {
