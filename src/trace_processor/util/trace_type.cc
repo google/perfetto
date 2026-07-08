@@ -27,6 +27,7 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
+#include "src/trace_processor/util/decompressor.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -41,6 +42,8 @@ constexpr char kFuchsiaMagic[] = {'\x10', '\x00', '\x04', '\x46',
 constexpr char kPerfMagic[] = {'P', 'E', 'R', 'F', 'I', 'L', 'E', '2'};
 constexpr char kZipMagic[] = {'P', 'K', '\x03', '\x04'};
 constexpr char kGzipMagic[] = {'\x1f', '\x8b'};
+// Ref: https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md
+constexpr char kZstdMagic[] = {'\x28', '\xb5', '\x2f', '\xfd'};
 constexpr char kArtMethodStreamingMagic[] = {'S', 'L', 'O', 'W'};
 constexpr char kArtHprofStreamingMagic[] = {'J', 'A', 'V', 'A', ' ', 'P',
                                             'R', 'O', 'F', 'I', 'L', 'E'};
@@ -264,6 +267,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "systrace";
     case kGzipTraceType:
       return "gzip";
+    case kZstdTraceType:
+      return "zstd";
     case kCtraceTraceType:
       return "ctrace";
     case kZipFile:
@@ -309,6 +314,7 @@ const char* TraceTypeToString(TraceType trace_type) {
 bool IsContainerTraceType(TraceType trace_type) {
   switch (trace_type) {
     case kGzipTraceType:
+    case kZstdTraceType:
     case kCtraceTraceType:
     case kZipFile:
     case kAndroidBugreportTraceType:
@@ -370,6 +376,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (MatchesMagic(data, size, kGzipMagic)) {
     return kGzipTraceType;
+  }
+
+  if (MatchesMagic(data, size, kZstdMagic)) {
+    return kZstdTraceType;
   }
 
   if (MatchesMagic(data, size, kArtMethodStreamingMagic)) {
@@ -485,6 +495,42 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   }
 
   return kUnknownTraceType;
+}
+
+util::CompressionType CompressionTypeForTraceType(TraceType type) {
+  switch (type) {
+    case kGzipTraceType:
+    case kCtraceTraceType:
+      return util::CompressionType::kGzip;
+    case kZstdTraceType:
+      return util::CompressionType::kZstd;
+    case kUnknownTraceType:
+    case kJsonTraceType:
+    case kProtoTraceType:
+    case kSymbolsTraceType:
+    case kNinjaLogTraceType:
+    case kFuchsiaTraceType:
+    case kSystraceTraceType:
+    case kAndroidBugreportTraceType:
+    case kAndroidDumpstateTraceType:
+    case kAndroidLogcatTraceType:
+    case kCollapsedStackTraceType:
+    case kPerfDataTraceType:
+    case kInstrumentsXmlTraceType:
+    case kGeckoTraceType:
+    case kArtMethodTraceType:
+    case kArtMethodV2TraceType:
+    case kArtHprofTraceType:
+    case kPerfTextTraceType:
+    case kSimpleperfProtoTraceType:
+    case kPprofTraceType:
+    case kZipFile:
+    case kTarTraceType:
+    case kPrimesTraceType:
+    case kPerfettoManifestTraceType:
+      return util::CompressionType::kNone;
+  }
+  return util::CompressionType::kNone;
 }
 
 }  // namespace perfetto::trace_processor

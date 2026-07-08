@@ -25,13 +25,13 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/importers/archive/gzip_trace_parser.h"
+#include "src/trace_processor/importers/archive/decompressing_trace_reader.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/read_trace_internal.h"
-#include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -87,19 +87,22 @@ base::Status ReadTrace(
   return base::OkStatus();
 }
 
-base::Status DecompressTrace(const uint8_t* data,
-                             size_t size,
-                             std::vector<uint8_t>* output) {
+base::Status DecompressTraceSlowly(const uint8_t* data,
+                                   size_t size,
+                                   std::vector<uint8_t>* output) {
   TraceType type = GuessTraceType(data, size);
-  if (type != TraceType::kGzipTraceType && type != TraceType::kProtoTraceType) {
+  if (type != TraceType::kGzipTraceType && type != TraceType::kZstdTraceType &&
+      type != TraceType::kProtoTraceType) {
     return base::ErrStatus(
-        "Only GZIP and proto trace types are supported by DecompressTrace");
+        "Only GZIP, ZSTD and proto trace types are supported by "
+        "DecompressTraceSlowly");
   }
 
-  if (type == TraceType::kGzipTraceType) {
+  if (type == TraceType::kGzipTraceType || type == TraceType::kZstdTraceType) {
+    auto codec = CompressionTypeForTraceType(type);
     std::unique_ptr<ChunkedTraceReader> reader(
         new SerializingProtoTraceReader(output));
-    GzipTraceParser parser(std::move(reader));
+    DecompressingTraceReader parser(std::move(reader), codec);
     RETURN_IF_ERROR(parser.ParseUnowned(data, size));
     RETURN_IF_ERROR(parser.OnPushDataToSorter());
     parser.OnEventsFullyExtracted();
@@ -108,31 +111,12 @@ base::Status DecompressTrace(const uint8_t* data,
 
   PERFETTO_CHECK(type == TraceType::kProtoTraceType);
 
-  protos::pbzero::Trace::Decoder decoder(data, size);
-  util::GzipDecompressor decompressor;
-  if (size > 0 && !decoder.packet()) {
-    return base::ErrStatus("Trace does not contain valid packets");
-  }
-  for (auto it = decoder.packet(); it; ++it) {
-    protos::pbzero::TracePacket::Decoder packet(*it);
-    if (!packet.has_compressed_packets()) {
-      it->SerializeAndAppendTo(output);
-      continue;
-    }
-
-    // Make sure that to reset the stream between the gzip streams.
-    auto bytes = packet.compressed_packets();
-    decompressor.Reset();
-    using ResultCode = util::GzipDecompressor::ResultCode;
-    ResultCode ret = decompressor.FeedAndExtract(
-        bytes.data, bytes.size, [&output](const uint8_t* buf, size_t buf_len) {
-          output->insert(output->end(), buf, buf + buf_len);
-        });
-    if (ret == ResultCode::kError || ret == ResultCode::kNeedsMoreInput) {
-      return base::ErrStatus("Failed while decompressing stream");
-    }
-  }
-  return base::OkStatus();
+  // Run the trace through the tokenizer, which expands any compressed_packets /
+  // zstd_compressed_packets bundles and hands back plain packets that the
+  // reader re-serializes into `output`. Copying the whole input into an owned
+  // TraceBlob is fine on this offline path (see the header).
+  SerializingProtoTraceReader reader(output);
+  return reader.Parse(TraceBlobView(TraceBlob::CopyFrom(data, size)));
 }
 
 }  // namespace perfetto::trace_processor
