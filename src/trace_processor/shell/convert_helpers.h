@@ -38,7 +38,10 @@ base::Status OpenConversionInput(const std::string& path,
 // Opens the output stream for a conversion. An empty |path| (or "-") means
 // write to stdout; otherwise the file at |path| is opened into |owned_file|. On
 // success |*out_stream| points at either |owned_file| or std::cout.
+// If |binary_output| is true, stdout is refused when connected to a TTY, as
+// dumping binary data would corrupt the terminal.
 base::Status OpenConversionOutput(const std::string& path,
+                                  bool binary_output,
                                   std::ofstream* owned_file,
                                   std::ostream** out_stream);
 

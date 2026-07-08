@@ -70,7 +70,9 @@ source_set("shell") {
     "../rpc:stdiod",
     "../trace_summary",
     "../trace_summary:gen_cc_trace_summary_descriptor",
+    "../util:json_value",
     "../util:stdlib",
+    "../util:tar_writer",
     "../util/deobfuscation:deobfuscator",
     "../util/symbolizer",
     "../util/symbolizer:symbolize_database",
@@ -94,6 +96,8 @@ source_set("subcommands") {
   sources = [
     "subcommand.cc",
     "subcommand.h",
+    "traceconv_compat.cc",
+    "traceconv_compat.h",
   ]
   deps = [
     "../../../gn:default_deps",

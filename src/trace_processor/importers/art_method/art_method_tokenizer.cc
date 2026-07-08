@@ -406,7 +406,8 @@ base::Status ArtMethodTokenizer::Streaming::ParseSummary(
 
 base::Status ArtMethodTokenizer::Streaming::OnPushDataToSorter() const {
   if (mode_ != kDone) {
-    return base::ErrStatus("ART Method trace: trace is incomplete");
+    return base::ErrStatus(
+        "ART Method trace: trace is incomplete (ERR:tp-corrupt)");
   }
 
   auto it = tokenizer_->reader_.GetIterator();
@@ -495,7 +496,8 @@ base::Status ArtMethodTokenizer::NonStreaming::OnPushDataToSorter() const {
   if (mode_ == NonStreaming::kData && tokenizer_->reader_.empty()) {
     return base::OkStatus();
   }
-  return base::ErrStatus("ART Method trace: trace is incomplete");
+  return base::ErrStatus(
+      "ART Method trace: trace is incomplete (ERR:tp-corrupt)");
 }
 
 base::StatusOr<bool> ArtMethodTokenizer::NonStreaming::ParseHeaderStart(
@@ -645,7 +647,8 @@ base::Status ArtMethodTokenizer::NonStreaming::ParseHeaderSectionLine(
 base::Status ArtMethodTokenizer::OnPushDataToSorter() {
   switch (sub_parser_.index()) {
     case base::variant_index<SubParser, Detect>():
-      return base::ErrStatus("ART Method trace: trace is incomplete");
+      return base::ErrStatus(
+          "ART Method trace: trace is incomplete (ERR:tp-corrupt)");
     case base::variant_index<SubParser, Streaming>():
       return std::get<Streaming>(sub_parser_).OnPushDataToSorter();
     case base::variant_index<SubParser, NonStreaming>():

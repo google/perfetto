@@ -91,7 +91,8 @@ base::Status SimpleperfProtoTokenizer::Parse(TraceBlobView blob) {
 
 base::Status SimpleperfProtoTokenizer::OnPushDataToSorter() {
   if (state_ != State::kFinished) {
-    return base::ErrStatus("Unexpected end of simpleperf_proto file");
+    return base::ErrStatus(
+        "Unexpected end of simpleperf_proto file (ERR:tp-corrupt)");
   }
   return base::OkStatus();
 }

@@ -54,3 +54,12 @@ format. A reference guide for this is available
 Use the [Tracing SDK](/docs/instrumentation/tracing-sdk.md#system-mode) in
 "system mode". All processes will connect to `traced` over a socket and traced
 will emit one trace with all processes.
+
+## Can I open several traces together, on one timeline?
+
+Yes. In the UI, use "Open multiple trace files" (or select/drop several
+files): a dialog lets you configure how they merge onto a shared timeline.
+From the command line, pass a ZIP or TAR archive of the traces to
+`trace_processor`. See
+[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md)
+and [Merging traces with Trace Processor](/docs/analysis/merging-traces.md).

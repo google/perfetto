@@ -32,8 +32,15 @@ import type {ExtendedModifiers} from './popper_utils';
 export interface CursorTooltipAttrs extends HTMLAttrs {
   // Which side of the cursor to place the tooltip. Defaults to Right.
   readonly position?: PopupPosition;
-  // Distance in px between the tooltip and the cursor. Default = 8.
+  // Gap in px between the tooltip and the cursor, measured along the placement
+  // axis — i.e. how far out in the `position` direction (e.g. how far to the
+  // right for the default Right placement). Default = 8.
   readonly offset?: number;
+  // Shift in px along the cross axis (perpendicular to `position`), sliding the
+  // tooltip sideways past the cursor without changing its distance. Positive
+  // values move toward the end of that axis — e.g. downward for the default
+  // Right placement. Default = 0.
+  readonly skidOffset?: number;
 }
 
 class VElement implements VirtualElement {
@@ -132,7 +139,7 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
   }
 
   private createOrUpdatePopper(attrs: CursorTooltipAttrs) {
-    const {position = PopupPosition.Right, offset = 8} = attrs;
+    const {position = PopupPosition.Right, offset = 8, skidOffset = 0} = attrs;
 
     // Custom modifier to hide the tooltip when our canary - and hence the
     // tooltip's parent - is not visible. This can be due to the canary or one
@@ -161,7 +168,7 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
         {
           name: 'offset',
           options: {
-            offset: [0, offset], // Shift away from cursor
+            offset: [skidOffset, offset],
           },
         },
         hideOnInvisible,

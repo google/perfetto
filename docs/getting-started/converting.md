@@ -1231,11 +1231,93 @@ flamegraph of the callstacks:
 
 ![Inline Callstacks Area Select](/docs/images/inline-callstacks-flamegraph.png)
 
+## Adding Trace-Level Metadata
+
+Sometimes the data you want to attach isn't tied to any specific event, slice,
+or track, but describes the trace as a whole, things like a build ID, the
+version of the tool that produced the trace, or the hostname of the machine
+that captured it. Perfetto's
+[TraceAttributes](/protos/perfetto/common/trace_attributes.proto) message lets
+you attach this kind of trace-level metadata directly to a `TracePacket`, with
+no track or timestamp required.
+
+Trace-level metadata is useful for:
+
+- Recording the version of the tool, library, or pipeline that produced the
+  trace.
+- Attaching a build ID or commit hash so a trace can be correlated with the
+  code that generated it.
+- Recording the hostname, device, or environment where the trace was
+  captured.
+- Any other producer-specific fact about the trace that doesn't belong on a
+  particular slice, counter, or track.
+
+To attach trace-level metadata:
+
+1.  For each piece of metadata, add an `Attribute` to the
+    `trace_attributes.attribute` field of a `TracePacket`, setting its `key`
+    along with either `string_value` or `long_value`.
+2.  Namespace your keys with a reverse-domain-style prefix (e.g.
+    `com.example.myapp.build_id`) so they don't collide with keys used by
+    other producers.
+3.  Emit these packets anywhere in the trace. No `timestamp`, `track_uuid`, or
+    `trusted_packet_sequence_id` is required.
+
+NOTE: Only string and 64-bit integer values are supported. If the same key is
+set more than once, whether within a single packet or across several
+packets, the last value written wins.
+
+### Python Example
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    def add_attribute(key, value):
+        packet = builder.add_packet()
+        attr = packet.trace_attributes.attribute.add()
+        attr.key = key
+        if isinstance(value, str):
+            attr.string_value = value
+        else:
+            attr.long_value = value
+
+    add_attribute("com.example.pipeline.version", "2.1.0")
+    add_attribute("com.example.pipeline.num_workers", 8)
+    add_attribute("com.example.hostname", "build-server-01")
+```
+
+</details>
+
+Unlike the other examples on this page, there's no track or slice to look at
+in the timeline view. Instead, after running the script and opening
+`my_custom_trace.pftrace` in the [Perfetto UI](https://ui.perfetto.dev), these
+attributes show up on the "Overview" page, reachable from the left sidebar,
+under the "Info and Stats (advanced)" tab, alongside the rest of the trace's
+metadata.
+
+![Trace attributes in the Info and Stats page](/docs/images/converting-trace-attributes.png)
+
+In Trace Processor, each attribute becomes a row in the `metadata` table, with
+its key prefixed by `trace_attribute.` to keep custom attributes separate from
+the built-in metadata. You can query trace-level metadata using SQL in the
+Perfetto UI's Query tab or with
+[Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT name, ifnull(str_value, cast(int_value as text)) AS value
+FROM metadata
+WHERE name GLOB 'trace_attribute.*';
+```
+
 ## Next Steps
 
 You've now seen how to convert custom timestamped data into Perfetto traces
 using Python and `TrackEvent`. With these techniques, you can represent slices,
-counters, flows, track hierarchies, debug annotations, and callstacks.
+counters, flows, track hierarchies, debug annotations, callstacks, and
+trace-level metadata.
 
 Once you have your custom data in the Perfetto trace format (`.pftrace` file),
 you can:

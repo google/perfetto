@@ -287,7 +287,8 @@ export const KernelSummarySection: m.Component<
       if (nums.length === 0) {
         return undefined;
       }
-      return Math.max(...nums);
+      // Reduce, not `Math.max(...nums)`, which overflows the stack for large arrays.
+      return nums.reduce((a, b) => Math.max(a, b));
     };
 
     state.rows = rows;

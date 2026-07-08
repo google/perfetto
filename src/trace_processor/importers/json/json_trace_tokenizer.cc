@@ -1033,7 +1033,8 @@ base::Status JsonTraceTokenizer::OnPushDataToSorter() {
                  (position_ == TracePosition::kInsideTraceEventsArray &&
                   format_ == TraceFormat::kOnlyTraceEvents)
              ? base::OkStatus()
-             : base::ErrStatus("JSON trace file is incomplete");
+             : base::ErrStatus(
+                   "JSON trace file is incomplete (ERR:tp-corrupt)");
 }
 
 }  // namespace perfetto::trace_processor

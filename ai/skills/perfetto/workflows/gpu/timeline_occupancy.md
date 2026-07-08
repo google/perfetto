@@ -14,9 +14,9 @@ point you upstream: submission/launch latency, host-side synchronization,
 allocation, host-device copies, or host work starving the device.
 
 If the user has not yet loaded a trace into `trace_processor`, follow
-`../../infra-references/querying.md` first, then come back here.
+`$SKILL_ROOT/infra-references/querying.md` first, then come back here.
 
-> If `gpu_timeline_decomposition.sql` returns no rows, the trace has no GPU
+> If `$SKILL_ROOT/workflows/gpu/scripts/gpu_timeline_decomposition.sql` returns no rows, the trace has no GPU
 > render-stage activity and this workflow does not apply.
 
 ---
@@ -29,7 +29,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
     returns one row per GPU as CSV.
 
     ```bash
-    trace_processor query --query-file scripts/gpu_timeline_decomposition.sql TRACE_FILE
+    trace_processor query --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_timeline_decomposition.sql TRACE_FILE
     ```
 
     Columns: `gpu`, `gpu_name`, `activities`, `trace_wall_ns`, `active_span_ns`,
@@ -43,10 +43,10 @@ Run this before any open-ended exploration. It produces the headline verdict.
       device-side question is *at what clock* the GPU ran while busy — a device
       packed at half its peak frequency looks GPU-bound but is really
       clock-limited. To check, read
-      [frequency_residency.md](frequency_residency.md). And when the device work
+      [frequency_residency.md]($SKILL_ROOT/workflows/gpu/frequency_residency.md). And when the device work
       is GPU **compute** kernels (CUDA / ROCm / compute dispatches), decompose
       the kernels themselves — which kernel, and what bounds it — with
-      [compute/kernel_analysis.md](compute/kernel_analysis.md).
+      [compute/kernel_analysis.md]($SKILL_ROOT/workflows/gpu/compute/kernel_analysis.md).
     - **`busy_pct_of_active` is low** — there are meaningful idle gaps *between*
       activities even while the workload is "running." This is **host-bound** /
       stalled. Proceed to Phase 2 to find and attribute the gaps.
@@ -92,7 +92,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
 1.  List the largest idle gaps on the GPU timeline:
 
     ```bash
-    trace_processor query --query-file scripts/gpu_idle_gaps.sql TRACE_FILE
+    trace_processor query --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_idle_gaps.sql TRACE_FILE
     ```
 
     Returns `gap_start_rel_ns` (relative to trace start) and `gap_dur_ns`,

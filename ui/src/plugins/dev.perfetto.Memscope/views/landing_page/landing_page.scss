@@ -1,0 +1,426 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Header capture strip: process identity + per-source capture facts. Layout
+// only — the raised-card chrome comes from the Panel this class is applied to.
+.pf-memscope-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 12px 16px;
+}
+
+.pf-memscope-capture__identity {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+
+  .pf-memscope-capture__process {
+    font-size: var(--pf-font-size-m);
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+}
+
+.pf-memscope-capture__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.pf-memscope-capture__source {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+
+  &--empty {
+    opacity: 0.6;
+  }
+
+  .pf-memscope-capture__label {
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  .pf-memscope-capture__facts {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.pf-memscope-capture__dot {
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  // Per-source colours, matching the chart series.
+  &--smaps {
+    background: #4caf50;
+  }
+
+  &--dump {
+    background: #2196f3;
+  }
+
+  &--native {
+    background: #ff9800;
+  }
+}
+
+// Tab strip selecting between the Summary and Smaps Detail bodies.
+.pf-memscope-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--pf-col-border);
+}
+
+.pf-memscope-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-size: var(--pf-font-size-m);
+  color: var(--pf-color-text-muted);
+  cursor: pointer;
+
+  .pf-icon {
+    font-size: 16px;
+  }
+
+  &:hover {
+    color: var(--pf-color-text);
+  }
+
+  &--active {
+    color: var(--pf-color-accent);
+    border-bottom-color: var(--pf-color-accent);
+    font-weight: 600;
+  }
+}
+
+// Process picker at the top of the overview page.
+.pf-memscope-process-select {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+
+  .pf-memscope-process-select__label {
+    font-weight: 600;
+    font-size: var(--pf-font-size-m);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+// Empty-state caption shown inside section panels (emptyPanel helper).
+.pf-memscope-landing__empty {
+  margin-block: 48px;
+  color: var(--pf-color-text-muted);
+}
+
+// Memory-composition chart: the line chart plus its snapshot-pill selector and
+// the "compare" badge in the header.
+.pf-memscope-memmap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__badge {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-left: auto;
+    padding: 4px 10px;
+    border: 0.5px solid var(--pf-col-border);
+    border-radius: 6px;
+    background: var(--pf-col-base);
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text);
+
+    .pf-icon {
+      align-self: center;
+      font-size: 14px;
+      color: var(--pf-color-text-muted);
+    }
+  }
+
+  .pf-chip {
+    padding: 2px 6px;
+  }
+
+  // Per-snapshot header for the flamegraph (memory_map), showing the snapshot
+  // index/time, or "diffing #a → #b" in compare mode.
+  &__section-header {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    .pf-memscope-memmap__section-title {
+      font-weight: 600;
+      color: var(--pf-color-text);
+
+      &--diff {
+        color: var(--pf-color-primary);
+      }
+    }
+
+    .pf-memscope-memmap__section-hint {
+      font-size: var(--pf-font-size-s);
+      color: var(--pf-color-text-muted);
+    }
+  }
+}
+
+// Grid of side-by-side top-N tables (the Java / bitmaps section bodies).
+.pf-memscope-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  gap: 8px 32px;
+  align-items: start;
+}
+
+.pf-memscope-toptable {
+  min-width: 0;
+
+  .pf-memscope-toptable__title {
+    margin-bottom: 4px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  .pf-memscope-toptable__subtitle {
+    font-weight: 400;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+// Monospace class-name cell + its "↳ via <owner>" retainer annotation lines.
+.pf-memscope-classname {
+  font-family: var(--pf-font-family-mono, monospace);
+  font-size: var(--pf-font-size-xs);
+}
+
+a.pf-memscope-classname {
+  color: var(--pf-color-primary);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.pf-memscope-classcell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+
+  &__via {
+    font-family: var(--pf-font-family-mono, monospace);
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+  }
+
+  // The via owner is a link too, but it stays in the muted retainer color so the
+  // annotation reads as one line; only the hover underline signals the link.
+  &__vialink {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+// Native allocation call stack: frames run leaf → root, top to bottom.
+.pf-memscope-stack {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--pf-font-family-mono, monospace);
+  font-size: var(--pf-font-size-xs);
+  line-height: 1.5;
+  word-break: break-all;
+
+  // Each caller is indented and prefixed with a connector so the chain reads
+  // vertically.
+  .pf-memscope-stack__frame {
+    &:first-child {
+      font-weight: 600;
+    }
+
+    &:not(:first-child) {
+      padding-left: 12px;
+      color: var(--pf-color-text-muted);
+
+      &::before {
+        content: "↳ ";
+        color: var(--pf-color-text-hint);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Smaps Detail tab
+// ---------------------------------------------------------------------------
+
+// Vertical stack of charts/panels in the smaps detail body.
+.pf-memscope-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+// "Where the growth went" bar below the composition chart: label + big signed
+// delta + a per-category ProportionBar. Layout only — the recessed chrome comes
+// from the Inset this class is applied to.
+.pf-memscope-growth {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  &__label {
+    font-size: var(--pf-font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__headline {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  &__delta {
+    font-size: var(--pf-font-size-xl);
+    font-weight: 700;
+    color: var(--pf-color-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__context {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+// Small colour swatch marking a smaps category/group.
+.pf-memscope-growth__swatch {
+  align-self: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+// Toolbar above the smaps table: unit toggle + path filter.
+.pf-memscope-smaps__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  .pf-memscope-tab {
+    padding: 4px 12px;
+    border: 0.5px solid var(--pf-col-border);
+    border-radius: 12px;
+
+    &--active {
+      border-color: var(--pf-color-accent);
+    }
+  }
+}
+
+.pf-memscope-smaps__filter {
+  flex: 1;
+  max-width: 320px;
+  margin-inline: 8px;
+}
+
+.pf-memscope-smaps__path {
+  font-family: var(--pf-font-family-mono, monospace);
+  font-size: var(--pf-font-size-xs);
+  word-break: break-all;
+}
+
+.pf-memscope-smaps__lvl1 {
+  padding-left: 28px !important;
+}
+
+.pf-memscope-smaps__lvl2 {
+  padding-left: 56px !important;
+}
+
+.pf-memscope-smaps__group,
+.pf-memscope-smaps__subgroup {
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+
+  td:first-child {
+    white-space: nowrap;
+  }
+
+  .pf-memscope-growth__swatch {
+    display: inline-block;
+    vertical-align: baseline;
+    margin-right: 2px;
+  }
+
+  .pf-memscope-smaps__count {
+    font-weight: 400;
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-memscope-smaps__group {
+  background: var(--pf-col-surface);
+}
+
+.pf-memscope-smaps__chevron {
+  font-size: 16px;
+  vertical-align: middle;
+  margin-right: 2px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-memscope-smaps__counttext {
+  align-self: center;
+  margin-left: 8px;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pf-memscope-smaps__more {
+  font-style: italic;
+  color: var(--pf-color-text-muted);
+  font-size: var(--pf-font-size-xs);
+}

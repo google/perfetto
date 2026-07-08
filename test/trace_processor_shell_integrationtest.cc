@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -961,6 +962,143 @@ TEST(TraceProcessorShellIntegrationTest, ClassicBadTraceFileShowsOnlyError) {
 }
 
 // ---------------------------------------------------------------------------
+// Subcommand: bundle
+// ---------------------------------------------------------------------------
+
+// This test requires llvm-symbolize on the PATH
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithDebugOnlyLibraries) {
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+  // Clean up on every exit path (an early ASSERT included): TempDir's
+  // destructor aborts the binary if the dir isn't empty.
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+
+  auto symbolize = [&](const std::string& in_file,
+                       const std::string& symbol_path) {
+    std::string in_path = base::GetTestDataPath(in_file);
+    std::string lib_path = base::GetTestDataPath(symbol_path);
+
+    auto result =
+        RunShell({"bundle", "--symbol-paths", lib_path, in_path, out_path});
+    if (result.exit_code == 0) {
+      return testing::AssertionSuccess();
+    }
+    return testing::AssertionFailure() << result.out;
+  };
+
+  auto get_stack_at_ts = [&](const std::string& ts) {
+    const std::string query_template = R"(
+    WITH start_callsite AS (
+      SELECT
+        0 AS i,
+        id,
+        parent_id,
+        frame_id
+      FROM
+        stack_profile_callsite
+      WHERE
+        id = (SELECT callsite_id FROM perf_sample WHERE ts = {ts})
+    ), stack AS (
+      SELECT * FROM start_callsite
+      UNION ALL
+      SELECT
+        child.i + 1 AS i,
+        parent.id AS id,
+        parent.parent_id,
+        parent.frame_id
+      FROM
+        stack AS child,
+        STACK_PROFILE_CALLSITE AS parent
+          ON child.parent_id = parent.id
+    ), call_graph AS (
+      SELECT
+        stack.i,
+        sps.id AS symbol_id,
+        COALESCE(sps.name, spf.name) AS name
+      FROM
+        stack,
+        stack_profile_frame AS spf
+          ON (stack.frame_id = spf.id)
+        LEFT JOIN stack_profile_symbol AS sps
+          USING(symbol_set_id)
+    )
+    SELECT GROUP_CONCAT(name ORDER BY i DESC, symbol_id DESC)
+    FROM call_graph;
+    )";
+
+    auto query = WriteTempFile(base::ReplaceAll(query_template, "{ts}", ts));
+    return RunShell({"query", "-f", query.path(), out_path});
+  };
+
+  // traced_perf executable
+  ASSERT_TRUE(symbolize("test/data/traced_perf_no_symbols.pb",
+                        "test/data/simpleperf/bin"));
+  auto query_result = get_stack_at_ts("344782441497");
+  EXPECT_EQ(query_result.exit_code, 0);
+  std::vector<std::string> expected_frames = {
+      "__libc_init",
+      "main",
+      "(anonymous namespace)::DrawGame()",
+      "(anonymous namespace)::DrawPlayer(int)",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // Simpleperf executable
+  ASSERT_TRUE(
+      symbolize("test/data/simpleperf/sdk_example.android.simpleperf.data",
+                "test/data/simpleperf/bin"));
+  query_result = get_stack_at_ts("621365392837983");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "_start_main",
+      "__libc_init",
+      "main",
+      "(anonymous namespace)::DrawGame()",
+      "(anonymous namespace)::DrawPlayer(int)",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // Perf executable
+  ASSERT_TRUE(symbolize("test/data/linux_perf/sdk_example.linux.perf.data",
+                        "test/data/linux_perf/bin"));
+  query_result = get_stack_at_ts("210798493518940");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "main",
+      "(anonymous namespace)::DrawGame()",
+      "(anonymous namespace)::DrawPlayer(int)",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // traced_perf dummy_app
+  ASSERT_TRUE(symbolize("test/data/simpleperf/unsymbolized_app_profile.data",
+                        "test/data/simpleperf/bin"));
+  query_result = get_stack_at_ts("238583681488");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "(anonymous namespace)::A()",
+      "(anonymous namespace)::B()",
+      "(anonymous namespace)::C()",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+
+  // Simpleperf dummy_app
+  ASSERT_TRUE(symbolize("test/data/unsymbolized_app_profile.pb",
+                        "test/data/simpleperf/bin"));
+  query_result = get_stack_at_ts("36621314142");
+  EXPECT_EQ(query_result.exit_code, 0);
+  expected_frames = {
+      "(anonymous namespace)::A()",
+      "(anonymous namespace)::B()",
+      "(anonymous namespace)::C()",
+  };
+  EXPECT_THAT(query_result.out, HasSubstr(base::Join(expected_frames, ",")));
+}
+
+#endif
+
+// ---------------------------------------------------------------------------
 // Classic: --metric-extension with --stdiod
 // ---------------------------------------------------------------------------
 
@@ -1092,6 +1230,157 @@ TEST(TraceProcessorShellIntegrationTest, ClassicAddSqlPackageWithStdiod) {
   ASSERT_THAT(stream.msg()[1].query_result().batch(), SizeIs(1));
   EXPECT_THAT(stream.msg()[1].query_result().batch()[0].varint_cells(),
               ElementsAre(99));
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: bundle
+// ---------------------------------------------------------------------------
+
+namespace {
+// Path to a real, small Perfetto trace shipped in test/data.
+std::string HeapprofdTracePath() {
+  return base::GetTestDataPath(
+      "test/data/heapprofd_standalone_client_example-trace");
+}
+
+// Parses a USTAR archive into a map of filename -> file content.
+// USTAR layout: each file is a 512-byte header (name at offset 0, size as
+// octal ASCII at offset 124) followed by the content padded to 512 bytes.
+std::map<std::string, std::string> ReadTarMembers(const std::string& path) {
+  std::string bytes;
+  PERFETTO_CHECK(base::ReadFile(path, &bytes));
+  std::map<std::string, std::string> out;
+  size_t pos = 0;
+  while (pos + 512 <= bytes.size()) {
+    const char* header = bytes.data() + pos;
+    if (header[0] == '\0') {
+      break;
+    }
+    std::string name(header, strnlen(header, 100));
+    char size_buf[13] = {};
+    memcpy(size_buf, header + 124, 12);
+    size_t size = static_cast<size_t>(strtoul(size_buf, nullptr, 8));
+    pos += 512;
+    PERFETTO_CHECK(pos + size <= bytes.size());
+    out.emplace(std::move(name), bytes.substr(pos, size));
+    pos += ((size + 511) / 512) * 512;
+  }
+  return out;
+}
+
+// Returns the set of package_name values from every deobfuscation_mapping
+// packet in a serialized Trace.
+std::set<std::string> DeobfuscationPackages(const std::string& deob_bytes) {
+  protos::gen::Trace trace;
+  PERFETTO_CHECK(trace.ParseFromString(deob_bytes));
+  std::set<std::string> names;
+  for (const auto& pkt : trace.packet()) {
+    if (pkt.has_deobfuscation_mapping()) {
+      names.insert(pkt.deobfuscation_mapping().package_name());
+    }
+  }
+  return names;
+}
+}  // namespace
+
+// The bundle must carry the input trace byte-for-byte in `trace.perfetto`
+// and a parseable `deobfuscation.pb` whose DeobfuscationMapping names our
+// class and method.
+TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
+  auto mapping = WriteTempFile(
+      "com.example.Foo -> a.a:\n"
+      "    void bar() -> b\n");
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+
+  auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
+                          "com.example=" + mapping.path(), HeapprofdTracePath(),
+                          out_path});
+  ASSERT_EQ(result.exit_code, 0) << result.out;
+
+  auto members = ReadTarMembers(out_path);
+  ASSERT_EQ(members.size(), 2u);
+
+  std::string trace_in;
+  ASSERT_TRUE(base::ReadFile(HeapprofdTracePath(), &trace_in));
+  ASSERT_TRUE(members.count("trace.perfetto"));
+  EXPECT_EQ(members["trace.perfetto"], trace_in);
+
+  ASSERT_TRUE(members.count("deobfuscation.pb"));
+  protos::gen::Trace deob;
+  ASSERT_TRUE(deob.ParseFromString(members["deobfuscation.pb"]));
+  ASSERT_EQ(deob.packet().size(), 1u);
+  const auto& dm = deob.packet()[0].deobfuscation_mapping();
+  EXPECT_EQ(dm.package_name(), "com.example");
+  ASSERT_EQ(dm.obfuscated_classes().size(), 1u);
+  EXPECT_EQ(dm.obfuscated_classes()[0].obfuscated_name(), "a.a");
+  EXPECT_EQ(dm.obfuscated_classes()[0].deobfuscated_name(), "com.example.Foo");
+  ASSERT_EQ(dm.obfuscated_classes()[0].obfuscated_methods().size(), 1u);
+  EXPECT_EQ(
+      dm.obfuscated_classes()[0].obfuscated_methods()[0].obfuscated_name(),
+      "b");
+}
+
+// Repeated --proguard-map should emit one DeobfuscationMapping per input map,
+// each tagged with the right package name.
+TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
+  auto m1 = WriteTempFile("com.example.Foo -> a.a:\n");
+  auto m2 = WriteTempFile("com.example.Bar -> b.b:\n");
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+
+  auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
+                          "com.example.one=" + m1.path(), "--proguard-map",
+                          "com.example.two=" + m2.path(), HeapprofdTracePath(),
+                          out_path});
+  ASSERT_EQ(result.exit_code, 0) << result.out;
+
+  auto members = ReadTarMembers(out_path);
+  ASSERT_TRUE(members.count("deobfuscation.pb"));
+  EXPECT_THAT(
+      DeobfuscationPackages(members["deobfuscation.pb"]),
+      testing::UnorderedElementsAre("com.example.one", "com.example.two"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, BundleMissingProguardMapFails) {
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+
+  auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
+                          "com.example=/nonexistent/mapping.txt",
+                          HeapprofdTracePath(), out_path});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, BundleHelpShowsProguardMap) {
+  auto result = RunShell({"help", "bundle"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("proguard-map"));
+  EXPECT_THAT(result.out, HasSubstr("symbol-paths"));
+  EXPECT_THAT(result.out, HasSubstr("no-auto-proguard-maps"));
+}
+
+// --no-auto-proguard-maps must not suppress explicit --proguard-map values:
+// the packet for the explicit package still appears in the bundle.
+TEST(TraceProcessorShellIntegrationTest, BundleNoAutoProguardMaps) {
+  auto mapping = WriteTempFile("com.example.Foo -> a.a:\n");
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+
+  auto result =
+      RunShell({"bundle", "--no-auto-symbol-paths", "--no-auto-proguard-maps",
+                "--proguard-map", "com.example=" + mapping.path(),
+                HeapprofdTracePath(), out_path});
+  ASSERT_EQ(result.exit_code, 0) << result.out;
+
+  auto members = ReadTarMembers(out_path);
+  ASSERT_TRUE(members.count("deobfuscation.pb"));
+  EXPECT_THAT(DeobfuscationPackages(members["deobfuscation.pb"]),
+              testing::UnorderedElementsAre("com.example"));
 }
 
 // ---------------------------------------------------------------------------

@@ -23,4 +23,4 @@ CREATE PERFETTO FUNCTION android_package_lookup(
 )
 -- The best-matching package name, or NULL if no package matches.
 RETURNS STRING
-DELEGATES TO package_lookup;
+DELEGATES TO _intrinsic_package_lookup;

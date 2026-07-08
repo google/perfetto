@@ -68,6 +68,9 @@ class StopArgsImpl : public DataSourceBase::StopArgs {
 // perfetto.protos.ClockSnapshot. However, custom clock IDs (>=64) are
 // reserved for internal use by the SDK for the time being.
 // The timestamp value should be in nanoseconds regardless of the clock domain.
+//
+// See the "Custom timestamps and clocks" section in
+// docs/instrumentation/track-events.md for a worked example.
 template <typename T>
 struct TraceTimestampTraits;
 

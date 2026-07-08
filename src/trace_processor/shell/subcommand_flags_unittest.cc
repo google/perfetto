@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/shell/common_flags.h"
 
-#include <getopt.h>
-
 #include <initializer_list>
 #include <string>
 #include <vector>
@@ -25,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/trace_processor/shell/bundle_subcommand.h"
 #include "src/trace_processor/shell/convert_subcommand.h"
@@ -93,6 +92,17 @@ base::TempFile WriteTempFile(const std::string& content) {
                  static_cast<ssize_t>(content.size()));
   return f;
 }
+
+// A path for an output file the code under test creates. Not a TempFile: on
+// Windows an open TempFile lacks FILE_SHARE_WRITE, so reopening it for write
+// hits a sharing violation.
+struct OutputPath {
+  base::TempDir dir = base::TempDir::Create();
+  std::string path() const { return dir.path() + "/out"; }
+  ~OutputPath() {
+    base::Unlink(path().c_str());
+  }  // TempDir needs an empty dir.
+};
 
 // A subcommand with a representative mix of flags for exercising ParseFlags:
 // a boolean flag, a string flag (both with short forms), and a repeatable flag.
@@ -276,7 +286,7 @@ TEST(ConvertSubcommandTest, RequiresFormat) {
 
 TEST(ConvertSubcommandTest, RejectsUnknownFormat) {
   base::TempFile input = WriteTempFile("ignored");
-  base::TempFile output = base::TempFile::Create();
+  OutputPath output;
 
   ConvertSubcommand convert;
   base::Status s =
@@ -289,7 +299,7 @@ TEST(ConvertSubcommandTest, RejectsUnknownFormat) {
 // in favour of `convert profile --java-heap`; `convert` must reject them all.
 TEST(ConvertSubcommandTest, RejectsFormatsMovedOrRemoved) {
   base::TempFile input = WriteTempFile("ignored");
-  base::TempFile output = base::TempFile::Create();
+  OutputPath output;
 
   for (const char* fmt :
        {"binary", "decompress_packets", "java_heap_profile"}) {
@@ -345,7 +355,7 @@ TEST(UtilSubcommandTest, RejectsUnknownUtility) {
 // must be converted to a non-empty binary trace.
 TEST(UtilSubcommandTest, TextToBinaryConvertsTextProto) {
   base::TempFile input = WriteTempFile("packet { timestamp: 42 }");
-  base::TempFile output = base::TempFile::Create();
+  OutputPath output;
 
   UtilSubcommand util;
   base::Status s = util.Run(

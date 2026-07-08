@@ -60,15 +60,17 @@ import {
   isCellRenderResult,
 } from './datagrid_schema';
 import {DataGridToolbar, GridFilterChip} from './datagrid_toolbar';
-import {DataGridExportButton} from './export_button';
+import {ExportButton} from '../../../widgets/export_button';
 import {
   buildColumnNames,
   defaultValueFormatter,
+  formatRows,
+} from './export_utils';
+import {
   formatAsJSON,
   formatAsMarkdown,
   formatAsTSV,
-  formatRows,
-} from './export_utils';
+} from '../../../base/export_formatters';
 import {InMemoryDataSource} from './in_memory_data_source';
 import {
   type AggregateColumn,
@@ -626,7 +628,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         rightItems: [
           toolbarItemsRight,
           showExportButton &&
-            m(DataGridExportButton, {
+            m(ExportButton, {
               onExportData: (format) =>
                 this.formatData(
                   datasource,

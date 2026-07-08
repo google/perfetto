@@ -25,6 +25,7 @@ _subprocess_supported =
 
 perfetto_component("base") {
   deps = [
+    ":check_cpu_optimizations",
     "../../gn:base_platform",
     "../../gn:default_deps",
   ]
@@ -88,6 +89,22 @@ perfetto_component("base") {
 
   if (enable_perfetto_stderr_crash_dump) {
     deps += [ ":debug_crash_stack_trace" ]
+  }
+}
+
+# Startup check that the CPU has the features the binary was built with. It has
+# to run even on CPUs that lack them, so this target drops the CPU optimization
+# flags (configs -= below) and builds using only baseline x86_64 instructions.
+source_set("check_cpu_optimizations") {
+  sources = [ "check_cpu_optimizations.cc" ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+  ]
+
+  # x64_cpu_opt only exists in standalone builds, not chromium/embedder.
+  if (perfetto_build_standalone) {
+    configs -= [ "//gn/standalone:x64_cpu_opt" ]  # nogncheck
   }
 }
 

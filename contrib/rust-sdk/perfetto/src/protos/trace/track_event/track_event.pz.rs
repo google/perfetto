@@ -44,6 +44,7 @@ pb_enum!(TrackEventType {
     TYPE_SLICE_END: 2,
     TYPE_INSTANT: 3,
     TYPE_COUNTER: 4,
+    TYPE_STATE: 5,
 });
 
 pb_enum!(LegacyEventFlowDirection {

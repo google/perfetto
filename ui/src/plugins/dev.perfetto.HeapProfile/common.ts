@@ -44,7 +44,7 @@ export function profileDescriptor(type: string): ProfileDescriptor {
   if (type === 'java_heap_graph') {
     return {
       type: ProfileType.JAVA_HEAP_GRAPH,
-      label: 'Java heap dump',
+      label: 'ART heap dump',
     };
   }
   if (type === 'oome_callstack') {
@@ -64,7 +64,7 @@ export function profileDescriptor(type: string): ProfileDescriptor {
   if (type === 'heap_profile:com.android.art') {
     return {
       type: ProfileType.JAVA_HEAP_SAMPLES,
-      label: 'Java heap profile',
+      label: 'ART allocation profile',
       heapName: 'com.android.art',
     };
   }

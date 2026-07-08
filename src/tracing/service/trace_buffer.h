@@ -43,12 +43,10 @@ class TraceBuffer {
 
   // Type of trace buffer implementation.
   // TODO(primiano): remove this once TraceBufferV2 proves itself.
-  // kV2 is experimental and kV1WithV2Shadow is a testing-only class that
-  // is used to gather confidence that the two return the same results.
+  // kV2 is experimental.
   enum BufType {
     kV1,
     kV2,
-    kV1WithV2Shadow,
   };
 
   // Argument for out-of-band patches applied through TryPatchChunkContents().

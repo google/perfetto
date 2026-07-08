@@ -33,12 +33,9 @@ EXTENSIONS_DIR = os.path.join(REPO_ROOT, 'ai', 'extensions')
 SKILLS_DIR = os.path.join(REPO_ROOT, 'ai', 'skills')
 SKILL_DIR = os.path.join(SKILLS_DIR, 'perfetto')
 # The bundler keys off these exact source paths; keep this list in sync with
-# build_ai_agents.py (SKILL_TEMPLATE / ENV_REF_DIR / SETUP_VARIANT).
+# build_ai_agents.py (SKILL_TEMPLATE).
 SKILL_TEMPLATE = os.path.join(SKILL_DIR, 'SKILL-template.md')
-SETUP_VARIANTS = [
-    os.path.join(SKILL_DIR, 'environment-references', 'setup-bundled.md'),
-    os.path.join(SKILL_DIR, 'environment-references', 'setup-standalone.md'),
-]
+SETUP_MD = os.path.join(SKILL_DIR, 'environment-references', 'setup.md')
 # Before the first prebuilt roll the manifests carry the dev sentinel;
 # roll-prebuilts stamps the release version (vX.Y) in place. Accept either.
 VERSION_SENTINEL = '0.0.0-dev'
@@ -114,8 +111,8 @@ def _check_file(rel_path: str) -> List[str]:
 def _check_skill_source() -> List[str]:
   """Verify the `perfetto` skill source tree is in the shape the bundler
 
-  expects: a router template, both setup variants, and no loadable SKILL.md
-  in source control (the source tree must never be a drop-in skill).
+  expects: a router template, the environment setup file, and no loadable
+  SKILL.md in source control (the source tree must never be a drop-in skill).
   """
   errors = []
   if not os.path.isdir(SKILL_DIR):
@@ -127,11 +124,9 @@ def _check_skill_source() -> List[str]:
   if os.path.isfile(os.path.join(SKILL_DIR, 'SKILL.md')):
     errors.append('ai/skills/perfetto/SKILL.md: source tree must not contain a '
                   'loadable SKILL.md; the entry point is SKILL-template.md')
-  for variant in SETUP_VARIANTS:
-    if not os.path.isfile(variant):
-      rel = os.path.relpath(variant, REPO_ROOT)
-      errors.append(f'{rel}: setup variant is missing (the bundler selects one '
-                    f'as environment-references/setup.md)')
+  if not os.path.isfile(SETUP_MD):
+    errors.append('ai/skills/perfetto/environment-references/setup.md: '
+                  'environment setup file is missing')
   return errors
 
 

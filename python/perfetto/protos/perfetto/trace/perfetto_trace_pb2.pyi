@@ -4806,10 +4806,8 @@ class TraceConfig(_message.Message):
             __slots__ = ()
             MODE_UNSPECIFIED: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
             TRACE_BUFFER_V2: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
-            TRACE_BUFFER_V2_SHADOW_MODE: _ClassVar[TraceConfig.BufferConfig.ExperimentalMode]
         MODE_UNSPECIFIED: TraceConfig.BufferConfig.ExperimentalMode
         TRACE_BUFFER_V2: TraceConfig.BufferConfig.ExperimentalMode
-        TRACE_BUFFER_V2_SHADOW_MODE: TraceConfig.BufferConfig.ExperimentalMode
         SIZE_KB_FIELD_NUMBER: _ClassVar[int]
         FILL_POLICY_FIELD_NUMBER: _ClassVar[int]
         TRANSFER_ON_CLONE_FIELD_NUMBER: _ClassVar[int]
@@ -5171,26 +5169,7 @@ class TraceStats(_message.Message):
     FINAL_FLUSH_SUCCEEDED: TraceStats.FinalFlushOutcome
     FINAL_FLUSH_FAILED: TraceStats.FinalFlushOutcome
     class BufferStats(_message.Message):
-        __slots__ = ("buffer_size", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss", "shadow_buffer_stats")
-        class ShadowBufferStats(_message.Message):
-            __slots__ = ("packets_seen", "packets_in_both", "packets_only_v1", "packets_only_v2", "patches_attempted", "v1_patches_succeeded", "v2_patches_succeeded", "stats_version")
-            PACKETS_SEEN_FIELD_NUMBER: _ClassVar[int]
-            PACKETS_IN_BOTH_FIELD_NUMBER: _ClassVar[int]
-            PACKETS_ONLY_V1_FIELD_NUMBER: _ClassVar[int]
-            PACKETS_ONLY_V2_FIELD_NUMBER: _ClassVar[int]
-            PATCHES_ATTEMPTED_FIELD_NUMBER: _ClassVar[int]
-            V1_PATCHES_SUCCEEDED_FIELD_NUMBER: _ClassVar[int]
-            V2_PATCHES_SUCCEEDED_FIELD_NUMBER: _ClassVar[int]
-            STATS_VERSION_FIELD_NUMBER: _ClassVar[int]
-            packets_seen: int
-            packets_in_both: int
-            packets_only_v1: int
-            packets_only_v2: int
-            patches_attempted: int
-            v1_patches_succeeded: int
-            v2_patches_succeeded: int
-            stats_version: int
-            def __init__(self, packets_seen: _Optional[int] = ..., packets_in_both: _Optional[int] = ..., packets_only_v1: _Optional[int] = ..., packets_only_v2: _Optional[int] = ..., patches_attempted: _Optional[int] = ..., v1_patches_succeeded: _Optional[int] = ..., v2_patches_succeeded: _Optional[int] = ..., stats_version: _Optional[int] = ...) -> None: ...
+        __slots__ = ("buffer_size", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss")
         BUFFER_SIZE_FIELD_NUMBER: _ClassVar[int]
         BYTES_WRITTEN_FIELD_NUMBER: _ClassVar[int]
         BYTES_OVERWRITTEN_FIELD_NUMBER: _ClassVar[int]
@@ -5210,7 +5189,6 @@ class TraceStats(_message.Message):
         READAHEADS_FAILED_FIELD_NUMBER: _ClassVar[int]
         ABI_VIOLATIONS_FIELD_NUMBER: _ClassVar[int]
         TRACE_WRITER_PACKET_LOSS_FIELD_NUMBER: _ClassVar[int]
-        SHADOW_BUFFER_STATS_FIELD_NUMBER: _ClassVar[int]
         buffer_size: int
         bytes_written: int
         bytes_overwritten: int
@@ -5230,8 +5208,7 @@ class TraceStats(_message.Message):
         readaheads_failed: int
         abi_violations: int
         trace_writer_packet_loss: int
-        shadow_buffer_stats: TraceStats.BufferStats.ShadowBufferStats
-        def __init__(self, buffer_size: _Optional[int] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ..., shadow_buffer_stats: _Optional[_Union[TraceStats.BufferStats.ShadowBufferStats, _Mapping]] = ...) -> None: ...
+        def __init__(self, buffer_size: _Optional[int] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ...) -> None: ...
     class WriterStats(_message.Message):
         __slots__ = ("sequence_id", "buffer", "chunk_payload_histogram_counts", "chunk_payload_histogram_sum")
         SEQUENCE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -17967,7 +17944,7 @@ class ProfilePacket(_message.Message):
         client_spinlock_blocked_us: int
         def __init__(self, unwinding_errors: _Optional[int] = ..., heap_samples: _Optional[int] = ..., map_reparses: _Optional[int] = ..., unwinding_time_us: _Optional[_Union[ProfilePacket.Histogram, _Mapping]] = ..., total_unwinding_time_us: _Optional[int] = ..., client_spinlock_blocked_us: _Optional[int] = ...) -> None: ...
     class ProcessHeapSamples(_message.Message):
-        __slots__ = ("pid", "from_startup", "rejected_concurrent", "disconnected", "buffer_overran", "client_error", "buffer_corrupted", "hit_guardrail", "heap_name", "sampling_interval_bytes", "orig_sampling_interval_bytes", "timestamp", "stats", "samples")
+        __slots__ = ("pid", "from_startup", "rejected_concurrent", "disconnected", "buffer_overran", "client_error", "buffer_corrupted", "hit_guardrail", "heap_name", "sampling_interval_bytes", "orig_sampling_interval_bytes", "timestamp", "start_timestamp", "stats", "samples")
         class ClientError(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
             __slots__ = ()
             CLIENT_ERROR_NONE: _ClassVar[ProfilePacket.ProcessHeapSamples.ClientError]
@@ -17988,6 +17965,7 @@ class ProfilePacket(_message.Message):
         SAMPLING_INTERVAL_BYTES_FIELD_NUMBER: _ClassVar[int]
         ORIG_SAMPLING_INTERVAL_BYTES_FIELD_NUMBER: _ClassVar[int]
         TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+        START_TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
         STATS_FIELD_NUMBER: _ClassVar[int]
         SAMPLES_FIELD_NUMBER: _ClassVar[int]
         pid: int
@@ -18002,9 +17980,10 @@ class ProfilePacket(_message.Message):
         sampling_interval_bytes: int
         orig_sampling_interval_bytes: int
         timestamp: int
+        start_timestamp: int
         stats: ProfilePacket.ProcessStats
         samples: _containers.RepeatedCompositeFieldContainer[ProfilePacket.HeapSample]
-        def __init__(self, pid: _Optional[int] = ..., from_startup: bool = ..., rejected_concurrent: bool = ..., disconnected: bool = ..., buffer_overran: bool = ..., client_error: _Optional[_Union[ProfilePacket.ProcessHeapSamples.ClientError, str]] = ..., buffer_corrupted: bool = ..., hit_guardrail: bool = ..., heap_name: _Optional[str] = ..., sampling_interval_bytes: _Optional[int] = ..., orig_sampling_interval_bytes: _Optional[int] = ..., timestamp: _Optional[int] = ..., stats: _Optional[_Union[ProfilePacket.ProcessStats, _Mapping]] = ..., samples: _Optional[_Iterable[_Union[ProfilePacket.HeapSample, _Mapping]]] = ...) -> None: ...
+        def __init__(self, pid: _Optional[int] = ..., from_startup: bool = ..., rejected_concurrent: bool = ..., disconnected: bool = ..., buffer_overran: bool = ..., client_error: _Optional[_Union[ProfilePacket.ProcessHeapSamples.ClientError, str]] = ..., buffer_corrupted: bool = ..., hit_guardrail: bool = ..., heap_name: _Optional[str] = ..., sampling_interval_bytes: _Optional[int] = ..., orig_sampling_interval_bytes: _Optional[int] = ..., timestamp: _Optional[int] = ..., start_timestamp: _Optional[int] = ..., stats: _Optional[_Union[ProfilePacket.ProcessStats, _Mapping]] = ..., samples: _Optional[_Iterable[_Union[ProfilePacket.HeapSample, _Mapping]]] = ...) -> None: ...
     STRINGS_FIELD_NUMBER: _ClassVar[int]
     MAPPINGS_FIELD_NUMBER: _ClassVar[int]
     FRAMES_FIELD_NUMBER: _ClassVar[int]

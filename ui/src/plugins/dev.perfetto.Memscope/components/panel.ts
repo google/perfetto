@@ -15,21 +15,77 @@
 import './panel.scss';
 import m from 'mithril';
 
+// Panel — the workhorse "card" of the Memscope UI: a bordered, raised surface
+// that groups a titled header with a body of content (a chart, a table, a strip
+// of Billboards). Nearly every block on a Memscope page is a Panel, which is
+// what gives the pages their consistent rhythm.
+//
+// Compose one from the two namespaced slots: a Panel.Header (a flat
+// {title, subtitle, controls} shape — every call site wants the same layout, so
+// it takes attrs rather than hand-assembled sub-slots) above a Panel.Body that
+// holds the payload. See the example at the bottom of this file.
+
 export interface PanelAttrs {
-  readonly title: string;
-  readonly subtitle?: string;
+  readonly className?: string;
 }
 
-export const Panel: m.Component<PanelAttrs> = {
-  view({attrs, children}) {
-    return m(
-      '.pf-memscope-panel',
-      m(
+export class Panel implements m.ClassComponent<PanelAttrs> {
+  view({attrs, children}: m.CVnode<PanelAttrs>): m.Children {
+    return m('.pf-memscope-panel', {className: attrs.className}, children);
+  }
+}
+
+export namespace Panel {
+  export interface HeaderAttrs {
+    readonly title: m.Children;
+    readonly subtitle?: m.Children;
+    readonly controls?: m.Children;
+  }
+
+  // The panel's header: a title row (title on the left, optional right-aligned
+  // controls) above an optional subtitle line.
+  export class Header implements m.ClassComponent<HeaderAttrs> {
+    view({attrs}: m.CVnode<HeaderAttrs>): m.Children {
+      return m(
         '.pf-memscope-panel__header',
-        m('h2', attrs.title),
-        attrs.subtitle !== undefined && m('p', attrs.subtitle),
-      ),
-      m('.pf-memscope-panel__body', children),
-    );
-  },
-};
+        m(
+          '.pf-memscope-panel__title-row',
+          m('h2.pf-memscope-panel__title', attrs.title),
+          attrs.controls !== undefined &&
+            m('.pf-memscope-panel__controls', attrs.controls),
+        ),
+        attrs.subtitle !== undefined &&
+          m('p.pf-memscope-panel__subtitle', attrs.subtitle),
+      );
+    }
+  }
+
+  export interface BodyAttrs {
+    readonly className?: string;
+  }
+
+  // The content area below the header. Holds the panel's actual payload
+  // (chart, table, billboards, free text).
+  export class Body implements m.ClassComponent<BodyAttrs> {
+    view({attrs, children}: m.CVnode<BodyAttrs>): m.Children {
+      return m(
+        '.pf-memscope-panel__body',
+        {className: attrs.className},
+        children,
+      );
+    }
+  }
+}
+
+// === Example usage ===
+//
+// import {Button} from '../../../../widgets/button';
+//
+// m(Panel,
+//   m(Panel.Header, {
+//     title: 'Memory Overview',
+//     subtitle: 'Heap usage across all processes',
+//     controls: m(Button, {label: 'Refresh', icon: 'refresh', onclick: reload}),
+//   }),
+//   m(Panel.Body, m(HeapChart, {data})),
+// );

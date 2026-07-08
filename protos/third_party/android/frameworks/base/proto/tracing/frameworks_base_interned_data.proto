@@ -54,8 +54,6 @@ message AndroidJobName {
 
 message FrameworksBaseInternedData {
   extend perfetto.protos.InternedData {
-    repeated perfetto.protos.InternedString protolog_string_args = 36;
-    repeated perfetto.protos.InternedString protolog_stacktrace = 37;
     repeated perfetto.protos.InternedString viewcapture_package_name = 38;
     repeated perfetto.protos.InternedString viewcapture_window_name = 39;
     repeated perfetto.protos.InternedString viewcapture_view_id = 40;

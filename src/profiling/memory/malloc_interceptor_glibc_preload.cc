@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/heap_profile.h"
 #include "src/profiling/memory/wrap_allocators.h"
 
@@ -28,10 +29,6 @@ namespace {
 #pragma GCC diagnostic ignored "-Wglobal-constructors"
 uint32_t g_heap_id = AHeapProfile_registerHeap(AHeapInfo_create("libc.malloc"));
 #pragma GCC diagnostic pop
-
-bool IsPowerOfTwo(size_t v) {
-  return (v != 0 && ((v & (v - 1)) == 0));
-}
 
 // The code inside the perfetto::profiling::wrap_ functions has been designed to
 // avoid calling malloc/free functions, but, in some rare cases, this happens
@@ -134,7 +131,8 @@ void* realloc(void* ptr, size_t size) {
 }
 
 int posix_memalign(void** memptr, size_t alignment, size_t size) {
-  if (alignment % sizeof(void*) || !IsPowerOfTwo(alignment / sizeof(void*))) {
+  if (alignment % sizeof(void*) ||
+      !perfetto::base::IsPowerOfTwo(alignment / sizeof(void*))) {
     return EINVAL;
   }
 

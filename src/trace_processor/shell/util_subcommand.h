@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SHELL_UTIL_SUBCOMMAND_H_
 #define SRC_TRACE_PROCESSOR_SHELL_UTIL_SUBCOMMAND_H_
 
+#include <string>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -24,8 +25,9 @@
 
 namespace perfetto::trace_processor::shell {
 
-// Low-level trace utilities. Currently the legacy symbolization helpers
-// ("symbolize" and "deobfuscate") that were traceconv modes; the recommended
+// Low-level trace utilities. Currently "merge" (pack traces into a mergeable
+// archive) and the legacy symbolization helpers ("symbolize" and
+// "deobfuscate") that were traceconv modes; for symbolization the recommended
 // path is the higher-level 'bundle' command.
 class UtilSubcommand : public Subcommand {
  public:
@@ -37,7 +39,13 @@ class UtilSubcommand : public Subcommand {
   base::Status Run(const SubcommandContext& ctx) override;
 
  private:
+  base::Status RunMerge(const SubcommandContext& ctx);
+
   bool verbose_ = false;
+  std::string merge_output_;
+  std::string merge_manifest_;
+  bool merge_no_validate_ = false;
+  bool merge_strict_ = false;
 };
 
 }  // namespace perfetto::trace_processor::shell

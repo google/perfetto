@@ -15,6 +15,7 @@
 import './tab_strip.scss';
 import m from 'mithril';
 import {Icon} from './icon';
+import type {Tabs, TabsAttrs, TabsTab} from './tabs';
 
 /** @deprecated Use {@link TabsTab} from `./tabs` instead. */
 export interface TabOption {

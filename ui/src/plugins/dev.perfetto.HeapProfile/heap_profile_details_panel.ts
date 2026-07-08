@@ -33,7 +33,8 @@ import {NUM} from '../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {DetailsShell} from '../../widgets/details_shell';
-import {Modal, showModal} from '../../widgets/modal';
+import {showModal} from '../../widgets/modal';
+import {incompleteFlamegraphModal} from './incomplete_flamegraph';
 import {
   Flamegraph,
   type FlamegraphState,
@@ -43,11 +44,129 @@ import {
 import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
+import {Anchor} from '../../widgets/anchor';
+import {Icon} from '../../widgets/icon';
+import {Popup, PopupPosition} from '../../widgets/popup';
 import {type ProfileDescriptor, ProfileType} from './common';
 import {
   buildOomeCallstackMetrics,
   loadOomeErrorMsg,
 } from './oome_callstack_common';
+
+const DOCS_NATIVE_HEAP_PROFILER =
+  'https://perfetto.dev/docs/data-sources/native-heap-profiler';
+const DOCS_JAVA_HEAP_PROFILER =
+  'https://perfetto.dev/docs/data-sources/java-heap-profiler';
+
+// Short "what is this / how do I use it" help shown by the header help icon,
+// with a link to the relevant data-source documentation.
+function profileHelp(descriptor: ProfileDescriptor): m.Children {
+  let what: string;
+  let how: string;
+  let docs: string;
+  switch (descriptor.type) {
+    case ProfileType.NATIVE_HEAP_PROFILE:
+      what =
+        'Callstack-sampled native (malloc/free) allocations recorded by ' +
+        'heapprofd over this interval.';
+      how =
+        'Read the flamegraph to attribute unreleased or heavily-allocated ' +
+        'memory to call paths, and switch the metric (retained vs total, ' +
+        'size vs count) with the dropdown.';
+      docs = DOCS_NATIVE_HEAP_PROFILER;
+      break;
+    case ProfileType.JAVA_HEAP_SAMPLES:
+      what =
+        'Callstack-sampled Java/Kotlin allocations recorded by ART over ' +
+        'this interval.';
+      how =
+        'Read the flamegraph to see which call paths allocate the most on ' +
+        'the managed heap.';
+      docs = DOCS_NATIVE_HEAP_PROFILER + '#art-allocation-profiling';
+      break;
+    case ProfileType.GENERIC_HEAP_PROFILE:
+      what =
+        'Callstack-sampled allocations from a custom heapprofd-compatible ' +
+        'allocator over this interval.';
+      how = 'Read the flamegraph to attribute allocations to call paths.';
+      docs = DOCS_NATIVE_HEAP_PROFILER;
+      break;
+    case ProfileType.JAVA_HEAP_GRAPH:
+      what =
+        'A full ART heap dump: the retention graph of live Java/Kotlin ' +
+        'objects at this point in time.';
+      how =
+        'Read the flamegraph to see what retains memory; the "Dominated" ' +
+        'metrics show memory kept alive exclusively by each node.';
+      docs = DOCS_JAVA_HEAP_PROFILER;
+      break;
+    case ProfileType.OOME_CALLSTACK:
+      what = 'The allocation callstack that triggered an OutOfMemoryError.';
+      how =
+        'Read the flamegraph to see the path that pushed the heap over its ' +
+        'limit.';
+      docs = DOCS_JAVA_HEAP_PROFILER;
+      break;
+  }
+  return m('.pf-heap-profile-help', [
+    m('div', what),
+    m('div', how),
+    m(
+      Anchor,
+      {href: docs, target: '_blank', icon: 'open_in_new'},
+      'Documentation',
+    ),
+  ]);
+}
+
+// Header title with a help affordance. Hovering the icon shows the help as a
+// transient preview (it disappears as soon as the pointer leaves the icon, so
+// you cannot reach the docs link). Clicking the icon pins the popup open, so it
+// persists and its link becomes clickable, until dismissed by clicking away or
+// clicking the icon again.
+function HeapProfileTitleHelp(): m.Component<{
+  label: string;
+  help: m.Children;
+}> {
+  let pinned = false;
+  let hovering = false;
+  return {
+    view: ({attrs}) =>
+      m(
+        'span.pf-heap-profile-title-help',
+        attrs.label,
+        m(
+          Popup,
+          {
+            isOpen: pinned || hovering,
+            onChange: (shouldOpen) => {
+              // The popup itself only ever asks to close (outside click /
+              // escape); honour it by clearing both states.
+              if (!shouldOpen) {
+                pinned = false;
+                hovering = false;
+              }
+            },
+            position: PopupPosition.Bottom,
+            trigger: m(Icon, {
+              className: 'pf-heap-profile-title-help__icon',
+              icon: 'help_outline',
+              onmouseenter: () => {
+                hovering = true;
+              },
+              onmouseleave: () => {
+                hovering = false;
+              },
+              onclick: () => {
+                pinned = !pinned;
+              },
+            }),
+          },
+          attrs.help,
+        ),
+      ),
+  };
+}
 
 interface Props {
   ts: time;
@@ -138,13 +257,12 @@ export class HeapProfileFlamegraphDetailsPanel
           title: m(
             Stack,
             {orientation: 'vertical'},
-            m('span', this.profileDescriptor.label),
+            m(HeapProfileTitleHelp, {
+              label: this.profileDescriptor.label,
+              help: profileHelp(this.profileDescriptor),
+            }),
             this.oomeErrorMsg &&
-              m(
-                'span',
-                {style: {fontSize: '12px', color: '#ff4081'}},
-                this.oomeErrorMsg,
-              ),
+              m('span.pf-heap-profile-oome-error', this.oomeErrorMsg),
           ),
           buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
             m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
@@ -184,26 +302,8 @@ export class HeapProfileFlamegraphDetailsPanel
     if (this.flamegraphModalDismissed) {
       return undefined;
     }
-    return m(Modal, {
-      title: 'The flamegraph is incomplete',
-      vAlign: 'TOP',
-      content: m(
-        'div',
-        'The current trace does not have a fully formed flamegraph',
-      ),
-      buttons: [
-        {
-          text: 'Show the errors',
-          primary: true,
-          action: () => trace.navigate('#!/info'),
-        },
-        {
-          text: 'Skip',
-          action: () => {
-            this.flamegraphModalDismissed = true;
-          },
-        },
-      ],
+    return incompleteFlamegraphModal(trace, () => {
+      this.flamegraphModalDismissed = true;
     });
   }
 }
@@ -546,7 +646,14 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
     return;
   }
   const blob = await trace.getTraceFile();
-  convertTraceToPprofAndDownload(blob, pid.firstRow({pid: NUM}).pid, ts);
+  // This is only reachable for heapprofd-based profiles (native heap and
+  // Java heap samples), which are both allocator profiles for traceconv.
+  convertTraceToPprofAndDownload(
+    blob,
+    'alloc',
+    pid.firstRow({pid: NUM}).pid,
+    ts,
+  );
 }
 
 function getHeapGraphDuplicateObjectsView(

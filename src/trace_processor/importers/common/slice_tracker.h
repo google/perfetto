@@ -40,6 +40,8 @@ class TraceProcessorContext;
 
 class SliceTracker {
  public:
+  static constexpr uint32_t kMaxDepth = 512;
+
   using OnSliceBeginCallback = std::function<void(TrackId, SliceId)>;
 
   // Sentinel default args callback; WantsArgs() compiles arg handling away.
@@ -70,6 +72,12 @@ class SliceTracker {
   // path here and the JSON "spill onto an overflow track" path) so both surface
   // the same queryable context in the TraceImportLogsTable.
   void AddOverlapArgs(const OverlapInfo&, ArgsTracker::BoundInserter&) const;
+
+  // Writes args describing parent and current slice names when max depth is
+  // exceeded onto |inserter|.
+  void AddMaxDepthArgs(StringId parent_name,
+                       StringId current_name,
+                       ArgsTracker::BoundInserter&) const;
 
   explicit SliceTracker(TraceProcessorContext*);
   ~SliceTracker();
@@ -281,8 +289,9 @@ class SliceTracker {
                                        int64_t duration,
                                        std::optional<OverlapInfo>* overlap_out);
 
-  PERFETTO_NORETURN void LogMaxDepthExceeded(const SliceInfo& parent,
-                                             StringId name);
+  void LogMaxDepthExceeded(const SliceInfo& parent,
+                           StringId name,
+                           int64_t timestamp);
 
   void AddLegacyUnnestableArgs(SliceInfo& slice_info,
                                const TrackInfo& track_info);
@@ -333,6 +342,10 @@ class SliceTracker {
   const StringId overlap_conflicting_name_key_;
   const StringId overlap_conflicting_ts_key_;
   const StringId overlap_conflicting_dur_key_;
+
+  // Interned arg-name keys for max depth exceeded import logs.
+  const StringId max_depth_parent_name_key_;
+  const StringId max_depth_current_name_key_;
 
   StackMap stacks_;
   std::vector<TranslatableArgs> translatable_args_;

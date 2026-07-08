@@ -1169,7 +1169,7 @@ public class PerfettoTraceTest {
         if (event.hasCallstack()) {
           hasCallstack = true;
           TrackEvent.Callstack callstack = event.getCallstack();
-          assertThat(callstack.getFramesCount()).isEqualTo(2); // 4 - 2 = 2
+          assertThat(callstack.getFramesCount()).isEqualTo(4);
 
           TrackEvent.Callstack.Frame frame0 = callstack.getFrames(0);
           assertThat(frame0.getFunctionName()).isEqualTo("ClassD.methodD");
@@ -1180,6 +1180,16 @@ public class PerfettoTraceTest {
           assertThat(frame1.getFunctionName()).isEqualTo("ClassC.methodC");
           assertThat(frame1.getSourceFile()).isEqualTo("FileC.java");
           assertThat(frame1.getLineNumber()).isEqualTo(30);
+
+          TrackEvent.Callstack.Frame frame2 = callstack.getFrames(2);
+          assertThat(frame2.getFunctionName()).isEqualTo("ClassB.methodB");
+          assertThat(frame2.getSourceFile()).isEqualTo("FileB.java");
+          assertThat(frame2.getLineNumber()).isEqualTo(20);
+
+          TrackEvent.Callstack.Frame frame3 = callstack.getFrames(3);
+          assertThat(frame3.getFunctionName()).isEqualTo("ClassA.methodA");
+          assertThat(frame3.getSourceFile()).isEqualTo("FileA.java");
+          assertThat(frame3.getLineNumber()).isEqualTo(10);
         }
       }
       collectInternedData(packet);
@@ -1187,59 +1197,6 @@ public class PerfettoTraceTest {
 
     assertThat(hasTrackEvent).isTrue();
     assertThat(hasCallstack).isTrue();
-  }
-
-  @Test
-  public void testExpensiveDebugCallStackWithSkip() throws Exception {
-    TraceConfig traceConfig = getTraceConfig(FOO);
-
-    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
-
-    StackTraceElement[] stackTrace =
-        new StackTraceElement[] {
-          new StackTraceElement("ClassA", "methodA", "FileA.java", 10),
-          new StackTraceElement("ClassB", "methodB", "FileB.java", 20),
-          new StackTraceElement("ClassC", "methodC", "FileC.java", 30),
-          new StackTraceElement("ClassD", "methodD", "FileD.java", 40)
-        };
-
-    // Test with skipFrames = 0 (should keep all 4 frames)
-    PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_skip_0", stackTrace, 0)
-        .emit();
-
-    // Test with skipFrames = 1 (should keep 3 frames: D, C, B)
-    PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_skip_1", stackTrace, 1)
-        .emit();
-
-    byte[] traceBytes = session.close();
-
-    Trace trace = Trace.parseFrom(traceBytes);
-
-    int eventCount = 0;
-    for (TracePacket packet : trace.getPacketList()) {
-      if (packet.hasTrackEvent()) {
-        TrackEvent event = packet.getTrackEvent();
-        if (event.hasCallstack()) {
-          eventCount++;
-          TrackEvent.Callstack callstack = event.getCallstack();
-          if (eventCount == 1) {
-            // skip_0
-            assertThat(callstack.getFramesCount()).isEqualTo(4);
-            assertThat(callstack.getFrames(0).getFunctionName()).isEqualTo("ClassD.methodD");
-            assertThat(callstack.getFrames(1).getFunctionName()).isEqualTo("ClassC.methodC");
-            assertThat(callstack.getFrames(2).getFunctionName()).isEqualTo("ClassB.methodB");
-            assertThat(callstack.getFrames(3).getFunctionName()).isEqualTo("ClassA.methodA");
-          } else if (eventCount == 2) {
-            // skip_1
-            assertThat(callstack.getFramesCount()).isEqualTo(3);
-            assertThat(callstack.getFrames(0).getFunctionName()).isEqualTo("ClassD.methodD");
-            assertThat(callstack.getFrames(1).getFunctionName()).isEqualTo("ClassC.methodC");
-            assertThat(callstack.getFrames(2).getFunctionName()).isEqualTo("ClassB.methodB");
-          }
-        }
-      }
-    }
-    assertThat(eventCount).isEqualTo(2);
   }
 
   @Test
@@ -1400,7 +1357,7 @@ public class PerfettoTraceTest {
       for (StackTraceElement ste : traces[i]) {
         Log.i(TAG, "  " + ste.toString());
       }
-      PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_" + i, traces[i], 0).emit();
+      PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_" + i, traces[i]).emit();
     }
 
     byte[] traceBytes = session.close();

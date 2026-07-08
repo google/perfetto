@@ -170,7 +170,7 @@ function heapDumps(): RecordProbe {
   };
   return {
     id: 'mem_heapdumps',
-    title: 'Java heap dumps',
+    title: 'ART heap dumps',
     image: 'rec_java_heap_dump.png',
     description:
       'Dump information about the Java object graph of an ' +

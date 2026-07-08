@@ -17,11 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_SYSTEM_PROBES_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_SYSTEM_PROBES_PARSER_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
 
+#include "perfetto/ext/base/cpu_info_features_allowlist.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -62,6 +65,14 @@ class SystemProbesParser {
   const StringId arm_cpu_variant;
   const StringId arm_cpu_part;
   const StringId arm_cpu_revision;
+
+  // Arg keys for the CPU features recorded in CpuInfo.Cpu.features:
+  // "cpu_features.<name>" per allowlisted feature, plus the verbatim bitmap
+  // under "cpu_features.raw_bitmap" so no data is lost when the trace comes
+  // from a recorder with a newer allowlist.
+  std::array<StringId, base::ArraySize(base::kCpuInfoFeatures)>
+      cpu_features_ids_;
+  const StringId cpu_features_raw_id_;
 
   const StringId pages_per_slab_id_;
   const StringId num_slabs_id_;

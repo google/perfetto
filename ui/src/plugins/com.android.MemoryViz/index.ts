@@ -277,10 +277,11 @@ export default class MemoryViz implements PerfettoPlugin {
     });
 
     const buckets = await ctx.engine.query(`
-      SELECT DISTINCT oom_bucket
+      SELECT oom_bucket
       FROM ${tableName}
       WHERE oom_bucket IS NOT NULL
-      ORDER BY oom_bucket
+      GROUP BY oom_bucket
+      ORDER BY MIN(oom_score_adj) ASC
     `);
     if (buckets.numRows() === 0) {
       return undefined;

@@ -27,6 +27,7 @@ perfetto_proto_library("android_extensions_@TYPE@") {
     "frameworks/base/proto/tracing:frameworks_base_interned_data_@TYPE@",
     "frameworks/base/proto/tracing:frameworks_base_trace_packet_@TYPE@",
     "frameworks/base/proto/tracing:frameworks_base_track_event_@TYPE@",
+    "frameworks/native/tracing:frameworks_native_interned_data_@TYPE@",
     "frameworks/native/tracing:frameworks_native_trace_packet_@TYPE@",
     "frameworks/native/tracing:frameworks_native_track_event_@TYPE@",
     "frameworks/native/tracing/winscope:winscope_extensions_@TYPE@",

@@ -230,21 +230,6 @@ class MockProcessTracker : public ProcessTracker {
               (override));
 };
 
-class MockBoundInserter : public ArgsTracker::BoundInserter {
- public:
-  MockBoundInserter() {
-    ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
-  }
-
-  MOCK_METHOD(ArgsTracker::BoundInserter&,
-              AddArg,
-              (StringId flat_key,
-               StringId key,
-               Variadic v,
-               ArgsTracker::UpdatePolicy update_policy),
-              (override));
-};
-
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
@@ -1010,8 +995,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
   row.upid = 1u;
   storage_->mutable_thread_table()->Insert(row);
 
-  MockBoundInserter inserter;
-
   constexpr TrackId thread_time_track{0u};
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
@@ -1085,8 +1068,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
   storage_->mutable_thread_table()->Insert(row);
-
-  MockBoundInserter inserter;
 
   constexpr TrackId thread_time_track{0u};
 
@@ -1252,7 +1233,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  MockBoundInserter inserter;
   // Only the begin timestamp counters can be imported into the counter table.
   EXPECT_CALL(*event_, PushCounter(1005000, testing::DoubleEq(2003000),
                                    thread_time_track));
@@ -2037,8 +2017,6 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
-  MockBoundInserter inserter;
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);

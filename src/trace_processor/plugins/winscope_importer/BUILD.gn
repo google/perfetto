@@ -79,6 +79,7 @@ source_set("winscope_importer") {
     "../../../../protos/perfetto/trace/interned_data:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_interned_data_zero",
+    "../../../../protos/third_party/android/frameworks/native/tracing:frameworks_native_interned_data_zero",
     "../../../../protos/third_party/android/frameworks/native/tracing/winscope:winscope_extensions_zero",
     "../../../../protos/third_party/android/frameworks/native/tracing/winscope:winscope_regular_zero",
     "../../../base",
