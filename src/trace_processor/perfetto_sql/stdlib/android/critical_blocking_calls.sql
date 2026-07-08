@@ -63,6 +63,21 @@ SELECT
   OR $name GLOB '*.*.*: *$*'
   OR $name GLOB '*.*$*: #*'));
 
+CREATE PERFETTO VIEW _android_critical_binder_calls AS
+SELECT
+  tx.aidl_name AS name,
+  tx.client_ts AS ts,
+  tx.client_dur AS dur,
+  tx.binder_txn_id AS id,
+  tx.client_process AS process_name,
+  tx.client_utid AS utid,
+  tx.client_upid AS upid,
+  tx.client_ts + tx.client_dur AS ts_end
+FROM android_binder_txns AS tx
+WHERE
+  NOT (aidl_name IS NULL)
+  AND is_sync = 1;
+
 --Extract critical blocking calls from all processes.
 CREATE PERFETTO TABLE _android_critical_blocking_calls AS
 SELECT
@@ -96,19 +111,8 @@ WHERE
 UNION ALL
 -- As binder names are not included in slice table, extract these directly from the
 -- android_binder_txns table.
-SELECT
-  tx.aidl_name AS name,
-  tx.client_ts AS ts,
-  tx.client_dur AS dur,
-  tx.binder_txn_id AS id,
-  tx.client_process AS process_name,
-  tx.client_utid AS utid,
-  tx.client_upid AS upid,
-  tx.client_ts + tx.client_dur AS ts_end
-FROM android_binder_txns AS tx
-WHERE
-  NOT (aidl_name IS NULL)
-  AND is_sync = 1;
+SELECT * FROM _android_critical_binder_calls;
+
 
 CREATE PERFETTO FUNCTION _is_relevant_notifications_blocking_call(
   name STRING,
