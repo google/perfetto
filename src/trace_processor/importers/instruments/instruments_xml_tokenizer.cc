@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 
+#include <expat.h>
 #include <algorithm>
 #include <cctype>
 #include <cinttypes>
@@ -23,7 +24,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <expat.h>
 #include <map>
 #include <memory>
 #include <optional>
