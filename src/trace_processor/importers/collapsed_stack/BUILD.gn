@@ -18,12 +18,12 @@ source_set("collapsed_stack") {
     "collapsed_stack_trace_reader.h",
   ]
   deps = [
-    "../../util:trace_type",
     "../../../../gn:default_deps",
     "../../importers/common",
     "../../storage",
     "../../tables:tables_python",
     "../../types:types",
     "../../util:trace_blob_view_reader",
+    "../../util:trace_type",
   ]
 }

@@ -18,7 +18,6 @@ source_set("pprof") {
     "pprof_trace_reader.h",
   ]
   deps = [
-    "../../util:trace_type",
     "../../../../gn:default_deps",
     "../../../../protos/third_party/pprof:zero",
     "../../../../src/protozero",
@@ -28,5 +27,6 @@ source_set("pprof") {
     "../../tables:tables_python",
     "../../types:types",
     "../../util:build_id",
+    "../../util:trace_type",
   ]
 }

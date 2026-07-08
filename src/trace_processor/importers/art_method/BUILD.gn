@@ -32,7 +32,6 @@ source_set("art_method") {
     "art_method_v2_tokenizer.h",
   ]
   deps = [
-    "../../util:trace_type",
     ":art_method_event",
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/common:zero",
@@ -43,5 +42,6 @@ source_set("art_method") {
     "../../storage",
     "../../types",
     "../../util:trace_blob_view_reader",
+    "../../util:trace_type",
   ]
 }

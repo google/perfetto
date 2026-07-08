@@ -22,7 +22,6 @@ source_set("primes") {
     "primes_trace_tokenizer.h",
   ]
   deps = [
-    "../../util:trace_type",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/base",
     "../../../../include/perfetto/protozero",
@@ -36,5 +35,6 @@ source_set("primes") {
     "../../storage",
     "../../types",
     "../../util:trace_blob_view_reader",
+    "../../util:trace_type",
   ]
 }

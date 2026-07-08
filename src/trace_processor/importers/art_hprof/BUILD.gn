@@ -24,7 +24,6 @@ source_set("art_hprof") {
     "art_hprof_types.h",
   ]
   deps = [
-    "../../util:trace_type",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
     "../../../../src/trace_processor/importers/common:common",
@@ -35,5 +34,6 @@ source_set("art_hprof") {
     "../../containers",
     "../../importers/common",
     "../../tables",
+    "../../util:trace_type",
   ]
 }
