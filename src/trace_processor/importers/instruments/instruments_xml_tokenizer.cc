@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -46,6 +47,7 @@
 #include "src/trace_processor/importers/instruments/row_data_tracker.h"
 #include "src/trace_processor/importers/instruments/row_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
@@ -283,7 +285,16 @@ class InstrumentsXmlTokenizer::Impl {
         current_new_process_ = new_process.id;
       }
       if (current_new_thread_) {
-        data_.GetThread(current_new_thread_)->process = process_lookup.ref;
+        // `current_new_thread_` was just returned by NewThread() above (or
+        // by an earlier sibling <thread id=...>), so it always resolves to a
+        // live Thread. Still check defensively rather than assume that
+        // invariant holds forever.
+        if (Thread* thread = data_.GetThread(current_new_thread_); thread) {
+          thread->process = process_lookup.ref;
+        } else {
+          context_->stats_tracker->IncrementStats(
+              stats::instruments_invalid_reference);
+        }
       }
     } else if (tag_name == "core") {
       MaybeCachedRef<uint32_t> core_id_lookup =
@@ -352,11 +363,28 @@ class InstrumentsXmlTokenizer::Impl {
         }
         current_new_frame_ = new_frame.id;
       }
-      data_.GetBacktrace(current_row_.backtrace)
-          ->frames.push_back(frame_lookup.ref);
+      // <frame> is only meaningful nested inside a <backtrace>. A malformed
+      // file (or an unregistered backtrace ref=) can leave
+      // current_row_.backtrace as kNullId here; guard instead of
+      // dereferencing a null Backtrace*.
+      if (Backtrace* backtrace = data_.GetBacktrace(current_row_.backtrace);
+          backtrace) {
+        backtrace->frames.push_back(frame_lookup.ref);
+      } else {
+        context_->stats_tracker->IncrementStats(
+            stats::instruments_invalid_reference);
+      }
     } else if (tag_name == "binary") {
-      // Can only be processing a binary when processing a new frame.
-      PERFETTO_DCHECK(current_new_frame_ != kNullId);
+      // <binary> is only meaningful nested inside a <frame>. A malformed file
+      // can have a <binary> outside of any <frame>, leaving
+      // current_new_frame_ as kNullId; guard instead of DCHECK-ing (which is
+      // compiled out in release builds) and dereferencing a null Frame*.
+      Frame* current_frame = data_.GetFrame(current_new_frame_);
+      if (!current_frame) {
+        context_->stats_tracker->IncrementStats(
+            stats::instruments_invalid_reference);
+        return;
+      }
 
       MaybeCachedRef<BinaryId> binary_lookup =
           GetOrInsertByRef(attrs, binary_ref_to_binary_);
@@ -376,8 +404,8 @@ class InstrumentsXmlTokenizer::Impl {
         }
         new_binary.ptr->max_addr = new_binary.ptr->load_addr;
       }
-      PERFETTO_DCHECK(data_.GetFrame(current_new_frame_)->binary == kNullId);
-      data_.GetFrame(current_new_frame_)->binary = binary_lookup.ref;
+      PERFETTO_DCHECK(current_frame->binary == kNullId);
+      current_frame->binary = binary_lookup.ref;
     }
   }
 
@@ -495,14 +523,31 @@ class InstrumentsXmlTokenizer::Impl {
   // id attribute into the given map, or look up the element in the cache by its
   // ref attribute. The returned value is a reference into the map, to allow
   // in-place modification.
+  //
+  // `attrs` comes directly from an untrusted, attacker-controlled XML file:
+  // a well-formed element always has `id=`/`ref=` as its first attribute, but
+  // a malformed one can have no attributes at all (attrs[0]/attrs[1] would be
+  // nullptr) or an unexpected first attribute. This used to be guarded only
+  // by PERFETTO_DCHECK, which is compiled out in release builds (NDEBUG),
+  // meaning malformed input could reach `strcmp(nullptr, ...)` and crash the
+  // process. Treat any such malformed case the same way an unregistered
+  // `ref=` is already (safely) handled: resolve to a synthetic id that never
+  // corresponds to a real entry, which RowDataTracker::Get*() already
+  // rejects by returning nullptr.
   template <typename Value>
   MaybeCachedRef<Value> GetOrInsertByRef(const char** attrs,
                                          std::map<unsigned long, Value>& map) {
-    PERFETTO_DCHECK(attrs[0] != nullptr);
-    PERFETTO_DCHECK(attrs[1] != nullptr);
+    static constexpr unsigned long kInvalidRefId =
+        std::numeric_limits<unsigned long>::max();
+
+    if (attrs[0] == nullptr || attrs[1] == nullptr ||
+        (strcmp(attrs[0], "ref") != 0 && strcmp(attrs[0], "id") != 0)) {
+      context_->stats_tracker->IncrementStats(
+          stats::instruments_invalid_reference);
+      return {map[kInvalidRefId], /*is_new=*/false};
+    }
+
     const char* key = attrs[0];
-    // The id or ref attribute has to be the first attribute on the element.
-    PERFETTO_DCHECK(strcmp(key, "ref") == 0 || strcmp(key, "id") == 0);
     unsigned long id = strtoul(attrs[1], nullptr, 10);
     // If the first attribute key is `id`, then this is a new entry in the
     // cache -- otherwise, for lookup by ref, it should already exist.

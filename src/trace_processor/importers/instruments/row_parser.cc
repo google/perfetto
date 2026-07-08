@@ -29,6 +29,7 @@
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/instruments/row_data_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
 
@@ -49,8 +50,21 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
     return;
   }
 
+  // `row.thread` and `row.backtrace` ultimately come from `ref=`/`id=`
+  // attributes in an untrusted Instruments XML trace file: a `ref` that was
+  // never declared (or a missing attribute) surfaces here as an id that
+  // doesn't resolve to a live entry. RowDataTracker::Get*() returns nullptr in
+  // that case; treat the whole row as unusable rather than dereferencing.
   Thread* thread = data_.GetThread(row.thread);
+  if (!thread) {
+    context_->stats_tracker->IncrementStats(stats::instruments_invalid_reference);
+    return;
+  }
   Process* process = data_.GetProcess(thread->process);
+  if (!process) {
+    context_->stats_tracker->IncrementStats(stats::instruments_invalid_reference);
+    return;
+  }
   uint32_t tid = static_cast<uint32_t>(thread->tid);
   uint32_t pid = static_cast<uint32_t>(process->pid);
 
@@ -67,16 +81,33 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   auto& stack_profile_tracker = *context_->stack_profile_tracker;
 
   Backtrace* backtrace = data_.GetBacktrace(row.backtrace);
+  if (!backtrace) {
+    context_->stats_tracker->IncrementStats(stats::instruments_invalid_reference);
+    return;
+  }
+  if (backtrace->frames.empty()) {
+    // A <backtrace> with no <frame> children is malformed: `rend() - 1`
+    // below would be undefined behavior on an empty vector.
+    context_->stats_tracker->IncrementStats(stats::instruments_invalid_reference);
+    return;
+  }
   std::optional<CallsiteId> parent;
   uint32_t depth = 0;
   auto leaf = backtrace->frames.rend() - 1;
   for (auto it = backtrace->frames.rbegin(); it != backtrace->frames.rend();
        ++it) {
     Frame* frame = data_.GetFrame(*it);
+    if (!frame) {
+      // A frame id that doesn't resolve to a live Frame means the backtrace
+      // is malformed beyond this point; stop walking it rather than
+      // dereferencing a null pointer.
+      context_->stats_tracker->IncrementStats(stats::instruments_invalid_reference);
+      break;
+    }
     Binary* binary = data_.GetBinary(frame->binary);
 
     uint64_t pc = static_cast<uint64_t>(frame->addr);
-    if (frame->binary) {
+    if (frame->binary && binary) {
       pc -= static_cast<uint64_t>(binary->load_addr);
     }
 

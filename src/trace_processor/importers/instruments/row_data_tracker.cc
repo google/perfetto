@@ -25,6 +25,29 @@
 
 namespace perfetto::trace_processor::instruments_importer {
 
+namespace {
+
+// Resolves an id (as handed out by RowDataTracker::New*()) back to a pointer
+// into `entries`, or nullptr if `id` doesn't refer to a live entry.
+//
+// The XML file format allows a `ref="N"` attribute to reference an entry
+// declared earlier via `id="N"`. Because the id -> entry mapping is derived
+// from an untrusted, attacker-controlled trace file, `id` must never be
+// trusted blindly: a `ref` that was never registered (or a tag missing its
+// id/ref attribute entirely) can otherwise surface here as `kNullId` or as a
+// stale/out-of-range value. Indexing `entries` without validating `id` first
+// is an out-of-bounds read (and, transitively, an out-of-bounds write via
+// whatever field callers subsequently assign through the returned pointer).
+template <typename T, typename Id>
+T* At(std::vector<T>& entries, Id id) {
+  if (id == kNullId || id > entries.size()) {
+    return nullptr;
+  }
+  return &entries[id - 1];
+}
+
+}  // namespace
+
 RowDataTracker::RowDataTracker() {}
 RowDataTracker::~RowDataTracker() = default;
 
@@ -35,8 +58,7 @@ IdPtr<Thread> RowDataTracker::NewThread() {
   return {id + 1, ptr};
 }
 Thread* RowDataTracker::GetThread(ThreadId id) {
-  PERFETTO_DCHECK(id != kNullId);
-  return &threads_[id - 1];
+  return At(threads_, id);
 }
 
 IdPtr<Process> RowDataTracker::NewProcess() {
@@ -46,8 +68,7 @@ IdPtr<Process> RowDataTracker::NewProcess() {
   return {id + 1, ptr};
 }
 Process* RowDataTracker::GetProcess(ProcessId id) {
-  PERFETTO_DCHECK(id != kNullId);
-  return &processes_[id - 1];
+  return At(processes_, id);
 }
 
 IdPtr<Frame> RowDataTracker::NewFrame() {
@@ -57,8 +78,7 @@ IdPtr<Frame> RowDataTracker::NewFrame() {
   return {id + 1, ptr};
 }
 Frame* RowDataTracker::GetFrame(BacktraceFrameId id) {
-  PERFETTO_DCHECK(id != kNullId);
-  return &frames_[id - 1];
+  return At(frames_, id);
 }
 
 IdPtr<Backtrace> RowDataTracker::NewBacktrace() {
@@ -68,8 +88,7 @@ IdPtr<Backtrace> RowDataTracker::NewBacktrace() {
   return {id + 1, ptr};
 }
 Backtrace* RowDataTracker::GetBacktrace(BacktraceId id) {
-  PERFETTO_DCHECK(id != kNullId);
-  return &backtraces_[id - 1];
+  return At(backtraces_, id);
 }
 
 IdPtr<Binary> RowDataTracker::NewBinary() {
@@ -80,9 +99,7 @@ IdPtr<Binary> RowDataTracker::NewBinary() {
 }
 Binary* RowDataTracker::GetBinary(BinaryId id) {
   // Frames are allowed to have null binaries.
-  if (id == kNullId)
-    return nullptr;
-  return &binaries_[id - 1];
+  return At(binaries_, id);
 }
 
 }  // namespace perfetto::trace_processor::instruments_importer

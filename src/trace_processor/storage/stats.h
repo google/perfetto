@@ -128,6 +128,10 @@ namespace perfetto::trace_processor::stats {
   F(fuchsia_invalid_event_arg_name,       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(fuchsia_unknown_event_arg,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(fuchsia_invalid_string_ref,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(instruments_invalid_reference,        kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+       "Count of Instruments (xctrace) XML elements referencing an id "        \
+       "(via ref=) that was never declared, or missing a required id/ref "     \
+       "attribute. The offending row/element is dropped."),                    \
   F(generic_task_state_invalid_order,     kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Invalid order of generic task state events. Should never happen."),    \
   F(gpu_counters_invalid_spec,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \

@@ -28,24 +28,37 @@ struct IdPtr {
 };
 
 // Keeps track of row data.
+//
+// The `id`s passed to the Get*() methods below ultimately come from `ref=`/
+// `id=` attributes in an untrusted, attacker-controlled Instruments XML trace
+// file (see InstrumentsXmlTokenizer), so they must never be assumed to be a
+// valid, previously-issued id. All Get*() methods therefore return nullptr
+// for any `id` that isn't currently live (including kNullId and out-of-range
+// values); callers MUST check for nullptr before dereferencing.
 class RowDataTracker {
  public:
   explicit RowDataTracker();
   ~RowDataTracker();
 
   IdPtr<Thread> NewThread();
+  // Returns nullptr if `id` is kNullId or doesn't refer to a live Thread.
   Thread* GetThread(ThreadId id);
 
   IdPtr<Process> NewProcess();
+  // Returns nullptr if `id` is kNullId or doesn't refer to a live Process.
   Process* GetProcess(ProcessId id);
 
   IdPtr<Frame> NewFrame();
+  // Returns nullptr if `id` is kNullId or doesn't refer to a live Frame.
   Frame* GetFrame(BacktraceFrameId id);
 
   IdPtr<Backtrace> NewBacktrace();
+  // Returns nullptr if `id` is kNullId or doesn't refer to a live Backtrace.
   Backtrace* GetBacktrace(BacktraceId id);
 
   IdPtr<Binary> NewBinary();
+  // Frames are allowed to have null binaries; also returns nullptr if `id`
+  // doesn't refer to a live Binary.
   Binary* GetBinary(BinaryId id);
 
  private:
