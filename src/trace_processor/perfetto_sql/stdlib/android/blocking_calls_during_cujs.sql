@@ -93,17 +93,20 @@ UNION ALL
 -- Add a summation of all drawLayer slices without the individual layer name
 SELECT
   'drawLayer' AS name,
-  s.ts,
-  s.dur,
-  s.id,
-  s.process_name,
+  slice.ts,
+  slice.dur,
+  slice.id,
+  process.name AS process_name,
   thread.utid,
-  s.upid,
-  s.ts + s.dur AS ts_end
-FROM thread_slice AS s
-JOIN thread USING (utid)
+  process.upid,
+  slice.ts + slice.dur AS ts_end
+FROM relevant_upids ru
+CROSS JOIN process ON process.upid = ru.upid
+CROSS JOIN thread ON thread.upid = process.upid
+CROSS JOIN thread_track ON thread_track.utid = thread.utid
+CROSS JOIN slice ON slice.track_id = thread_track.id
 WHERE
-  s.name GLOB 'drawLayer *'
+  slice.name GLOB 'drawLayer *'
 UNION ALL
 -- As binder names are not included in slice table, extract these directly from the
 -- android_binder_txns table.
@@ -121,6 +124,8 @@ CROSS JOIN android_binder_txns tx ON tx.client_upid = ru.upid
 WHERE
   NOT (aidl_name IS NULL)
   AND is_sync = 1;
+
+CREATE PERFETTO INDEX _android_blocking_calls_during_cujs_idx ON _android_blocking_calls_during_cujs(utid, ts);
 
 CREATE PERFETTO FUNCTION _is_relevant_notifications_blocking_call(
   name STRING,
