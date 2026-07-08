@@ -392,6 +392,12 @@ declare_args() {
   # Enables Zstd support. This is used to compress traces (by the tracing
   # service) and to decompress traces (by trace_processor), as an alternative
   # to Zlib/deflate.
+  #
+  # Off in Chromium builds: enabling it makes the tracing service the first
+  # thing to pull Chromium's //third_party/zstd:compress (the zstd *encoder*)
+  # into size-optimized Android. Chrome only ever linked the decoder there, so
+  # this added ~235 KB to Trichrome, which is too much to justify. See the
+  # size increase on the Chromium roll: https://crrev.com/c/8065805
   enable_perfetto_zstd =
       !build_with_chromium &&
       (enable_perfetto_trace_processor || enable_perfetto_platform_services)
