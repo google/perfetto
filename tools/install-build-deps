@@ -514,33 +514,33 @@ BIGTRACE_DEPS = [
 SYNTAQLITE_DEPS = [
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.0/syntaqlite-linux-x64.tar.gz',
-        'af06850aa30393eb4cab79c4c5ed2f1459acad5cffa706f3312567a80c7a1f39',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-linux-x64.tar.gz',
+        'fb5d23bb64d8a29c0dbda4fbbbfb3176cfd812107863438b4d09816952962ed1',
         'linux', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.0/syntaqlite-linux-arm64.tar.gz',
-        '99cde5e546d0c1713017b0ad994a871553253148605b7e59190bb9ba4c1d2e0f',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-linux-arm64.tar.gz',
+        'a8bb7a2de8760c496d03d04e896edbbe3caf7ac3e65aa71d0fad7983dec13409',
         'linux', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.0/syntaqlite-macos-x64.tar.gz',
-        '3225589d68e165fdc0bc7713f723444897c3222eae961a86841c7d7138cc3ca4',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-macos-x64.tar.gz',
+        'c4ee5ce813985278335b42d92aba5956abe8b7563212706e746b17f72e2490c5',
         'darwin', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.0/syntaqlite-macos-arm64.tar.gz',
-        'eb94d94131a69396702885cb540078096f1b8587d0318d306ff675e4c703236b',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-macos-arm64.tar.gz',
+        'd55cd20ee94c3fec9a79f9369a5b409ace3bc463c9e1ea2fd3d7f919706698ce',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.0/syntaqlite-windows-x64.zip',
-        '04f32c6291c76549d3aece4a0313216aa34d80e76fb80247ac564eac2eb21248',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-windows-x64.zip',
+        'fd05298eaff8e72eff1a0104951a4747e9912b3ae4b62dc5f6077a38056b6ec8',
         'windows', 'x64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.0/syntaqlite-windows-arm64.zip',
-        '5a4582681785fb8d6067ad72439c5e13d9acba9ca4b4bd04dddfde7724a0a6e3',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-windows-arm64.zip',
+        '3655abd1cb66615eb985a3534cbd6b336d705fcaba8252bded677d7499078243',
         'windows', 'arm64'),
 ]
 
