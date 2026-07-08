@@ -260,10 +260,22 @@ base::Status ZipReader::TryParseExtraField() {
       cur_.is_zip64 = true;
       const uint8_t* f = it;
       const uint8_t* const fend = it + size;
-      if (cur_.hdr.uncompressed_size == kZip64SizeSentinel && fend - f >= 8) {
+      if (cur_.hdr.uncompressed_size == kZip64SizeSentinel) {
+        if (fend - f < 8) {
+          return base::ErrStatus(
+              "Malformed ZIP at offset 0x%zx. Zip64 extra field is too short "
+              "to hold the uncompressed size.",
+              reader_.start_offset());
+        }
         cur_.hdr.uncompressed_size = ReadAndAdvance<uint64_t>(&f);
       }
-      if (cur_.hdr.compressed_size == kZip64SizeSentinel && fend - f >= 8) {
+      if (cur_.hdr.compressed_size == kZip64SizeSentinel) {
+        if (fend - f < 8) {
+          return base::ErrStatus(
+              "Malformed ZIP at offset 0x%zx. Zip64 extra field is too short "
+              "to hold the compressed size.",
+              reader_.start_offset());
+        }
         cur_.hdr.compressed_size = ReadAndAdvance<uint64_t>(&f);
       }
     }
@@ -425,11 +437,10 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
   out_data->resize(static_cast<size_t>(hdr_.uncompressed_size));
   auto dec_res = dec.ExtractOutput(out_data->data(), out_data->size());
   if (dec_res.ret != GzipDecompressor::ResultCode::kEof) {
-    return base::ErrStatus(
-        "Zip decompression error (%d) on %s (c=%" PRIu64 ", u=%" PRIu64
-        ") (ERR:tp-corrupt)",
-        static_cast<int>(dec_res.ret), hdr_.fname.c_str(), hdr_.compressed_size,
-        hdr_.uncompressed_size);
+    return base::ErrStatus("Zip decompression error (%d) on %s (c=%" PRIu64
+                           ", u=%" PRIu64 ") (ERR:tp-corrupt)",
+                           static_cast<int>(dec_res.ret), hdr_.fname.c_str(),
+                           hdr_.compressed_size, hdr_.uncompressed_size);
   }
   out_data->resize(dec_res.bytes_written);
 

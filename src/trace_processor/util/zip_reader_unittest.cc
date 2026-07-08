@@ -142,6 +142,28 @@ const uint8_t kTestZip64DataDescriptor[] = {
     0x00, 0x00,
 };
 
+// A single local file header whose 32-bit sizes are the 0xFFFFFFFF sentinel,
+// but whose Zip64 extra field (id 0x0001) declares a length of 4 bytes: too
+// short to carry the 8-byte size it promises. A conforming reader must reject
+// this rather than leave the sentinel in place as a real size.
+const uint8_t kTestZip64TruncatedExtraField[] = {
+    0x50, 0x4b, 0x03, 0x04,                          // signature
+    0x2d, 0x00,                                      // version needed 4.5
+    0x00, 0x00,                                      // flags
+    0x00, 0x00,                                      // compression: store
+    0x6a, 0x85, 0xf9, 0x54,                          // mod time + date
+    0xa8, 0x65, 0x32, 0x7e,                          // crc32
+    0xff, 0xff, 0xff, 0xff,                          // compressed size sentinel
+    0xff, 0xff, 0xff, 0xff,                          // uncompressed size sentinel
+    0x0b, 0x00,                                      // fname_len = 11
+    0x08, 0x00,                                      // extra_field_len = 8
+    0x73, 0x74, 0x6f, 0x72, 0x65, 0x64, 0x5f, 0x66,  // "stored_f"
+    0x69, 0x6c, 0x65,                                // "ile"
+    0x01, 0x00,                                      // extra id 0x0001
+    0x04, 0x00,                                      // extra size = 4 (< 8)
+    0x00, 0x00, 0x00, 0x00,                          // 4 bytes of payload
+};
+
 std::string vec2str(const std::vector<uint8_t>& vec) {
   return {reinterpret_cast<const char*>(vec.data()), vec.size()};
 }
@@ -229,6 +251,14 @@ TEST(ZipReaderTest, TruncatedZip) {
   ZipReader zr;
   ASSERT_OK(zr.Parse(TraceBlobView(TraceBlob::CopyFrom(kTestZip, 40))));
   ASSERT_EQ(zr.files().size(), 0u);
+}
+
+TEST(ZipReaderTest, MalformedZip64_TruncatedExtraField) {
+  ZipReader zr;
+  ASSERT_THAT(zr.Parse(TraceBlobView(TraceBlob::CopyFrom(
+                  kTestZip64TruncatedExtraField,
+                  sizeof(kTestZip64TruncatedExtraField)))),
+              IsError());
 }
 
 TEST(ZipReaderTest, Find) {
