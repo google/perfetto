@@ -23,12 +23,14 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/instruments/row_data_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
 
@@ -51,10 +53,14 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
 
   Thread* thread = data_.GetThread(row.thread);
   if (!thread) {
+    context_->import_logs_tracker->RecordParserError(
+        stats::instruments_row_missing_thread, ts);
     return;
   }
   Process* process = data_.GetProcess(thread->process);
   if (!process) {
+    context_->import_logs_tracker->RecordParserError(
+        stats::instruments_row_missing_process, ts);
     return;
   }
   uint32_t tid = static_cast<uint32_t>(thread->tid);
@@ -74,6 +80,8 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
 
   Backtrace* backtrace = data_.GetBacktrace(row.backtrace);
   if (!backtrace) {
+    context_->import_logs_tracker->RecordParserError(
+        stats::instruments_row_missing_backtrace, ts);
     return;
   }
   std::optional<CallsiteId> parent;
@@ -83,6 +91,8 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
        ++it) {
     Frame* frame = data_.GetFrame(*it);
     if (!frame) {
+      context_->import_logs_tracker->RecordParserError(
+          stats::instruments_row_missing_frame, ts);
       continue;
     }
     Binary* binary = data_.GetBinary(frame->binary);
