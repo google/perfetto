@@ -25,6 +25,8 @@ Unreleased:
       export the merged set as a self-contained .tar archive.
     * Ftrace plugin: now handles area selections. The existing cpu scope filter
       in the ftrace tab is removed in favour of track area selections.
+    * Add list of recently opened traces to the homepage.
+    * Remap OpenCommandPalette command hotkey to F1 on Firefox.
   SDK:
     *
 
