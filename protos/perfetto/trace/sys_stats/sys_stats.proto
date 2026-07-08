@@ -193,4 +193,18 @@ message SysStats {
     optional uint32 num_slabs = 3;
   }
   repeated SlabInfo slab_info = 18;
+
+  // Counters from cgroup subsystems for tracking task group resource usage.
+  message CgroupValue {
+    // The type of cgroup counter (CPU, memory, or I/O metric).
+    optional CgroupCounters key = 1;
+    // The counter value (usage in bytes, microseconds, or count).
+    optional uint64 value = 2;
+    // The cgroup path this value belongs to (e.g.,
+    // "/sys/fs/cgroup/cpu/top-app").
+    optional string cgroup_path = 3;
+    // For I/O stats, the device identifier (e.g., "8:0" for /dev/sda).
+    optional string device = 4;
+  }
+  repeated CgroupValue cgroup = 19;
 }
