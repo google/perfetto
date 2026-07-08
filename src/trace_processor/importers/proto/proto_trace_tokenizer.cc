@@ -42,7 +42,8 @@ base::Status ProtoTraceTokenizer::Decompress(util::CompressionType type,
   } else if (decompressor_type_ != type) {
     // Malformed (or adversarial) input: a well-formed trace never mixes codecs.
     return base::ErrStatus(
-        "A trace must not mix compressed_packets and zstd_compressed_packets");
+        "A trace must not mix compressed_packets and zstd_compressed_packets "
+        "(ERR:tp-corrupt)");
   } else {
     decompressor_->Reset();
   }
@@ -54,7 +55,8 @@ base::Status ProtoTraceTokenizer::Decompress(util::CompressionType type,
       util::DecompressToBuffer(*decompressor_, input.data(), input.length(),
                                util::FrameMode::kSingleFrame);
   if (!buffer) {
-    return base::ErrStatus("Failed to decompress compressed_packets");
+    return base::ErrStatus(
+        "Failed to decompress compressed_packets (ERR:tp-corrupt)");
   }
   *output = TraceBlobView(
       TraceBlob::TakeOwnership(std::move(buffer->data), buffer->size));

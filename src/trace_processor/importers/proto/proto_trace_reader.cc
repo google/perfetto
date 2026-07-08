@@ -233,7 +233,7 @@ base::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
                                             gzipped.data, gzipped.size);
     if (!decompressed || decompressed->size == 0) {
       return base::ErrStatus(
-          "Failed to decompress gzipped extension descriptor");
+          "Failed to decompress gzipped extension descriptor (ERR:tp-corrupt)");
     }
     data = decompressed->data.get();
     size = decompressed->size;

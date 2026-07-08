@@ -107,7 +107,8 @@ base::Status DecompressingTraceReader::ParseUnowned(const uint8_t* data,
         decompressor_->ExtractOutput(buffer_.get() + bytes_written_,
                                      kUncompressedBufferSize - bytes_written_);
     if (result.ret == ResultCode::kError)
-      return base::ErrStatus("Failed to decompress trace chunk");
+      return base::ErrStatus(
+          "Failed to decompress trace chunk (ERR:tp-corrupt)");
 
     if (result.ret == ResultCode::kNeedsMoreInput) {
       PERFETTO_DCHECK(result.bytes_written == 0);
@@ -142,7 +143,8 @@ base::Status DecompressingTraceReader::OnPushDataToSorter() {
   if (output_state_ != kStreamBoundary ||
       (decompressor_ && decompressor_->AvailIn() > 0)) {
     return base::ErrStatus(
-        "Compressed stream incomplete, trace is likely corrupt");
+        "Compressed stream incomplete, trace is likely corrupt "
+        "(ERR:tp-corrupt)");
   }
   PERFETTO_CHECK(!buffer_);
   return inner_ ? inner_->OnPushDataToSorter() : base::OkStatus();
