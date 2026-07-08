@@ -69,14 +69,11 @@ auto TraceBlobViewReader::SliceOffImpl(const size_t offset,
     return visitor.OneSlice(TraceBlobView());
   }
 
-  // Reject requests where `offset + length` would overflow. The bounds checks
-  // below compute `offset + length` in size_t arithmetic, so an overflowing
-  // (offset, length) pair -- e.g. an attacker-controlled section offset read
-  // from a perf.data file -- could wrap to a small value, spuriously pass the
-  // fast-path check and produce an out-of-bounds slice.
-  if (PERFETTO_UNLIKELY(offset > std::numeric_limits<size_t>::max() - length)) {
-    return visitor.NoData();
-  }
+  // `offset + length` is computed in size_t arithmetic below, so an overflowing
+  // (offset, length) pair would wrap and produce an out-of-bounds slice. Callers
+  // that read untrusted section bounds (e.g. the perf.data tokenizer) reject
+  // such traces before slicing, so we should never reach here with one.
+  PERFETTO_CHECK(offset <= std::numeric_limits<size_t>::max() - length);
 
   PERFETTO_DCHECK(offset >= start_offset());
 
