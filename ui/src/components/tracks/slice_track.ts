@@ -862,7 +862,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         this.trace.raf.scheduleFullRedraw();
         return result;
       },
-      retainOn: ['sqlSource', 'start', 'end', 'resolution'],
+      retainOn: ['start', 'end', 'resolution'],
     });
 
     return dataFrame;
