@@ -1883,6 +1883,8 @@ source_set("zstd") {
     "zstd/lib/compress/zstd_ldm_geartab.h",
     "zstd/lib/compress/zstd_opt.c",
     "zstd/lib/compress/zstd_opt.h",
+    "zstd/lib/compress/zstd_preSplit.c",
+    "zstd/lib/compress/zstd_preSplit.h",
     "zstd/lib/compress/zstdmt_compress.c",
     "zstd/lib/compress/zstdmt_compress.h",
     "zstd/lib/decompress/huf_decompress.c",
