@@ -130,10 +130,9 @@ packet {
     type: 2
   }
 }
-# Browser Main slice ends at 1000012 to make duration_ms = 1 (> 0).
 packet {
   trusted_packet_sequence_id: 2
-  timestamp: 1000012
+  timestamp: 1012
   track_event {
     track_uuid: 2
     categories: "cat"
