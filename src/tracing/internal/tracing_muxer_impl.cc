@@ -1106,8 +1106,15 @@ bool TracingMuxerImpl::RegisterDataSource(
     bool no_flush,
     DataSourceStaticState* static_state) {
   // Ignore repeated registrations.
-  if (static_state->index != kMaxDataSources)
+  if (static_state->index != kMaxDataSources) {
+    PERFETTO_ELOG(
+        "Data source \"%s\" registration ignored: this data source type is "
+        "already registered. See "
+        "https://perfetto.dev/docs/instrumentation/"
+        "tracing-sdk#reporting-many-similar-things",
+        descriptor.name().c_str());
     return true;
+  }
 
   uint32_t new_index = next_data_source_index_++;
   if (new_index >= kMaxDataSources) {
