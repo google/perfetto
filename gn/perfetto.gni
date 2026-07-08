@@ -389,6 +389,13 @@ declare_args() {
   enable_perfetto_zlib =
       enable_perfetto_trace_processor || enable_perfetto_platform_services
 
+  # Enables Zstd support. This is used to compress traces (by the tracing
+  # service) and to decompress traces (by trace_processor), as an alternative
+  # to Zlib/deflate.
+  enable_perfetto_zstd =
+      !build_with_chromium &&
+      (enable_perfetto_trace_processor || enable_perfetto_platform_services)
+
   # Enables PCRE2 support. Individual modules that should not pull libpcre2
   # in (e.g. libperfetto_client_experimental) can opt out by setting
   # -DPERFETTO_REGEX_FORCE_STD on their compile, which makes base::Regex

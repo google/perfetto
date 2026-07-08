@@ -30,9 +30,10 @@ source_set("common") {
     "../../base",
     "../../protozero",
     "../../trace_processor:lib",
+    "../../trace_processor/util:decompressor",
     "../../trace_processor/util:descriptors",
-    "../../trace_processor/util:gzip",
     "../../trace_processor/util:proto_profiler",
+    "../../trace_processor/util:trace_type",
   ]
   sources = [ "main.cc" ]
   deps = [

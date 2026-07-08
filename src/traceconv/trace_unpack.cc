@@ -32,7 +32,7 @@ bool UnpackCompressedPackets(std::istream* input, std::ostream* output) {
   std::vector<char> packed(std::istreambuf_iterator<char>{*input},
                            std::istreambuf_iterator<char>{});
   std::vector<uint8_t> unpacked;
-  auto status = trace_processor::DecompressTrace(
+  auto status = trace_processor::DecompressTraceSlowly(
       reinterpret_cast<uint8_t*>(packed.data()), packed.size(), &unpacked);
   if (!status.ok())
     return false;

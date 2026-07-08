@@ -147,16 +147,16 @@ const uint8_t kTestZip64DataDescriptor[] = {
 // short to carry the 8-byte size it promises. A conforming reader must reject
 // this rather than leave the sentinel in place as a real size.
 const uint8_t kTestZip64TruncatedExtraField[] = {
-    0x50, 0x4b, 0x03, 0x04,                          // signature
-    0x2d, 0x00,                                      // version needed 4.5
-    0x00, 0x00,                                      // flags
-    0x00, 0x00,                                      // compression: store
-    0x6a, 0x85, 0xf9, 0x54,                          // mod time + date
-    0xa8, 0x65, 0x32, 0x7e,                          // crc32
-    0xff, 0xff, 0xff, 0xff,                          // compressed size sentinel
-    0xff, 0xff, 0xff, 0xff,                          // uncompressed size sentinel
-    0x0b, 0x00,                                      // fname_len = 11
-    0x08, 0x00,                                      // extra_field_len = 8
+    0x50, 0x4b, 0x03, 0x04,  // signature
+    0x2d, 0x00,              // version needed 4.5
+    0x00, 0x00,              // flags
+    0x00, 0x00,              // compression: store
+    0x6a, 0x85, 0xf9, 0x54,  // mod time + date
+    0xa8, 0x65, 0x32, 0x7e,  // crc32
+    0xff, 0xff, 0xff, 0xff,  // compressed size sentinel
+    0xff, 0xff, 0xff, 0xff,  // uncompressed size sentinel
+    0x0b, 0x00,              // fname_len = 11
+    0x08, 0x00,              // extra_field_len = 8
     0x73, 0x74, 0x6f, 0x72, 0x65, 0x64, 0x5f, 0x66,  // "stored_f"
     0x69, 0x6c, 0x65,                                // "ile"
     0x01, 0x00,                                      // extra id 0x0001
@@ -255,9 +255,9 @@ TEST(ZipReaderTest, TruncatedZip) {
 
 TEST(ZipReaderTest, MalformedZip64_TruncatedExtraField) {
   ZipReader zr;
-  ASSERT_THAT(zr.Parse(TraceBlobView(TraceBlob::CopyFrom(
-                  kTestZip64TruncatedExtraField,
-                  sizeof(kTestZip64TruncatedExtraField)))),
+  ASSERT_THAT(zr.Parse(TraceBlobView(
+                  TraceBlob::CopyFrom(kTestZip64TruncatedExtraField,
+                                      sizeof(kTestZip64TruncatedExtraField)))),
               IsError());
 }
 

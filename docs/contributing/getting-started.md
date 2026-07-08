@@ -8,6 +8,19 @@ Follow those steps if you are new to contributing to Perfetto.
 
 **Prerequisites:** git and python3.
 
+On a fresh Debian/Ubuntu install (including WSL 2) a few extra system packages
+are needed. `tools/install-build-deps` uses `curl` to download toolchains and
+`python3 -m venv` to set up its Python environment, and the hermetic clang
+toolchain compiles against the system libc headers:
+
+```sh
+sudo apt install curl python3-venv build-essential
+```
+
+Without `build-essential` (specifically `libc6-dev`) the build fails with
+`fatal error: 'features.h' file not found`
+(see [#405](https://github.com/google/perfetto/issues/405)).
+
 ```sh
 # Clone the Perfetto repo and enter the directory
 git clone https://github.com/google/perfetto.git

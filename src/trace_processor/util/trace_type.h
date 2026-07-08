@@ -22,6 +22,10 @@
 
 namespace perfetto::trace_processor {
 
+namespace util {
+enum class CompressionType : uint8_t;  // Defined in util/decompressor.h.
+}  // namespace util
+
 enum TraceType {
   kAndroidBugreportTraceType,
   kAndroidDumpstateTraceType,
@@ -30,6 +34,7 @@ enum TraceType {
   kCtraceTraceType,
   kFuchsiaTraceType,
   kGzipTraceType,
+  kZstdTraceType,
   kJsonTraceType,
   kNinjaLogTraceType,
   kPerfDataTraceType,
@@ -55,6 +60,9 @@ constexpr size_t kGuessTraceMaxLookahead = 128;
 TraceType GuessTraceType(const uint8_t* data, size_t size);
 const char* TraceTypeToString(TraceType type);
 bool IsContainerTraceType(TraceType type);
+// The codec a whole compressed trace file is wrapped in, or kNone if `type` is
+// not a compressed container.
+util::CompressionType CompressionTypeForTraceType(TraceType type);
 
 }  // namespace perfetto::trace_processor
 

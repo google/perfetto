@@ -115,7 +115,7 @@ source_set("minimal") {
     "../../tables",
     "../../types",
     "../../util:build_id",
-    "../../util:gzip",
+    "../../util:decompressor",
     "../../util:json_args",
     "../../util:json_parser",
     "../../util:profiler_util",

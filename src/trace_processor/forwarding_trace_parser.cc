@@ -62,6 +62,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     const TraceProcessorContext& context) {
   switch (trace_type) {
     case kGzipTraceType:
+    case kZstdTraceType:
       return std::nullopt;
 
     case kAndroidDumpstateTraceType:
