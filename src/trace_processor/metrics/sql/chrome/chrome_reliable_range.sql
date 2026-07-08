@@ -54,7 +54,7 @@ GROUP BY utid;
 DROP VIEW IF EXISTS chrome_event_cnt_cutoff;
 
 -- Ignore the bottom 50% of threads by event count. 50% is a somewhat arbitrary number. It creates a
--- cutoff at around 10 events for a typical trace, and threads with fewer events are usually:
+-- cutoff at around 100 events for a typical trace, and threads with fewer events are usually:
 -- 1. Not particularly interesting for the reliable range definition.
 -- 2. Create a lot of noise for other metrics, such as event rate.
 CREATE PERFETTO VIEW chrome_event_cnt_cutoff
