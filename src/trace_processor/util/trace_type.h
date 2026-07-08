@@ -195,12 +195,12 @@ class TraceImporterRegistry {
 // The number of leading bytes an importer's Sniff() may inspect. Detection
 // must decide from at most this prefix.
 constexpr size_t kGuessTraceMaxLookahead = 128;
-
-// The two formats read_trace distinguishes, detected from magic bytes only, so
+// The formats read_trace distinguishes, detected from magic bytes only, so
 // tools that merely decompress or pass through a trace need not build the
-// importer registry or link any tokenizer.
-enum class CompressedTraceType { kGzip, kProto, kOther };
-CompressedTraceType SniffProtoOrGzip(const uint8_t* data, size_t size);
+// importer registry or link any tokenizer. kGzip/kZstd map to the matching
+// util::CompressionType.
+enum class CompressedTraceType { kGzip, kZstd, kProto, kOther };
+CompressedTraceType SniffCompressedTraceType(const uint8_t* data, size_t size);
 
 }  // namespace perfetto::trace_processor
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/archive/gzip_trace_parser.h"
+#include "src/trace_processor/importers/archive/decompressing_trace_reader.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -33,29 +34,41 @@
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/decompressor.h"
 
 namespace perfetto::trace_processor {
 
-namespace {
+DecompressingTraceReader::DecompressingTraceReader(
+    TraceProcessorContext* context,
+    util::CompressionType type)
+    : context_(context),
+      type_(type),
+      decompressor_(util::CreateDecompressor(type)) {}
 
-using ResultCode = util::GzipDecompressor::ResultCode;
+DecompressingTraceReader::DecompressingTraceReader(
+    std::unique_ptr<ChunkedTraceReader> reader,
+    util::CompressionType type)
+    : context_(nullptr),
+      type_(type),
+      decompressor_(util::CreateDecompressor(type)),
+      inner_(std::move(reader)) {}
 
-}  // namespace
+DecompressingTraceReader::~DecompressingTraceReader() = default;
 
-GzipTraceParser::GzipTraceParser(TraceProcessorContext* context)
-    : context_(context) {}
-
-GzipTraceParser::GzipTraceParser(std::unique_ptr<ChunkedTraceReader> reader)
-    : context_(nullptr), inner_(std::move(reader)) {}
-
-GzipTraceParser::~GzipTraceParser() = default;
-
-base::Status GzipTraceParser::Parse(TraceBlobView blob) {
+base::Status DecompressingTraceReader::Parse(TraceBlobView blob) {
   return ParseUnowned(blob.data(), blob.size());
 }
 
-base::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
+base::Status DecompressingTraceReader::ParseUnowned(const uint8_t* data,
+                                                    size_t size) {
+  if (!decompressor_) {
+    auto info = util::GetCompressionCodecInfo(type_);
+    return base::ErrStatus(
+        "Cannot decompress trace: %s is not enabled in this build (rebuild "
+        "with %s=true)",
+        info.name, info.gn_arg);
+  }
+
   const uint8_t* start = data;
   size_t len = size;
 
@@ -66,24 +79,26 @@ base::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
   }
 
   if (!first_chunk_parsed_) {
-    // .ctrace files begin with: "TRACE:\n" or "done. TRACE:\n" strip this if
-    // present.
-    base::StringView beginning(reinterpret_cast<const char*>(start), size);
-
-    static const char* kSystraceFileHeader = "TRACE:\n";
-    size_t offset = Find(kSystraceFileHeader, beginning);
-    if (offset != std::string::npos) {
-      start += strlen(kSystraceFileHeader) + offset;
-      len -= strlen(kSystraceFileHeader) + offset;
-    }
     first_chunk_parsed_ = true;
+    // .ctrace files (gzip) begin with "TRACE:\n" or "done. TRACE:\n"; strip it
+    // if present. This framing is gzip-only, so don't look for it otherwise.
+    if (type_ == util::CompressionType::kGzip) {
+      base::StringView beginning(reinterpret_cast<const char*>(start), size);
+      static const base::StringView kSystraceFileHeader("TRACE:\n");
+      size_t offset = base::Find(kSystraceFileHeader, beginning);
+      if (offset != std::string::npos) {
+        start += kSystraceFileHeader.size() + offset;
+        len -= kSystraceFileHeader.size() + offset;
+      }
+    }
   }
 
   // Our default uncompressed buffer size is 32MB as it allows for good
   // throughput.
   constexpr size_t kUncompressedBufferSize = 32ul * 1024 * 1024;
-  decompressor_.Feed(start, len);
+  decompressor_->Feed(start, len);
 
+  using ResultCode = util::Decompressor::ResultCode;
   for (;;) {
     if (!buffer_) {
       buffer_.reset(new uint8_t[kUncompressedBufferSize]);
@@ -91,50 +106,53 @@ base::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
     }
 
     auto result =
-        decompressor_.ExtractOutput(buffer_.get() + bytes_written_,
-                                    kUncompressedBufferSize - bytes_written_);
-    util::GzipDecompressor::ResultCode ret = result.ret;
-    if (ret == ResultCode::kError)
-      return base::ErrStatus("Failed to decompress trace chunk");
+        decompressor_->ExtractOutput(buffer_.get() + bytes_written_,
+                                     kUncompressedBufferSize - bytes_written_);
+    if (result.ret == ResultCode::kError)
+      return base::ErrStatus(
+          "Failed to decompress trace chunk (ERR:tp-corrupt)");
 
-    if (ret == ResultCode::kNeedsMoreInput) {
+    if (result.ret == ResultCode::kNeedsMoreInput) {
       PERFETTO_DCHECK(result.bytes_written == 0);
       return base::OkStatus();
     }
     bytes_written_ += result.bytes_written;
     output_state_ = kMidStream;
 
-    if (bytes_written_ == kUncompressedBufferSize || ret == ResultCode::kEof) {
+    if (bytes_written_ == kUncompressedBufferSize ||
+        result.ret == ResultCode::kEof) {
       TraceBlob blob =
           TraceBlob::TakeOwnership(std::move(buffer_), bytes_written_);
       RETURN_IF_ERROR(inner_->Parse(TraceBlobView(std::move(blob))));
     }
 
-    // We support multiple gzip streams in a single gzip file (which is valid
-    // according to RFC1952 section 2.2): in that case, we just need to reset
-    // the decompressor to begin processing the next stream: all other variables
-    // can be preserved.
-    if (ret == ResultCode::kEof) {
-      decompressor_.Reset();
+    // A compressed file may contain multiple concatenated streams/frames (valid
+    // for gzip per RFC1952 §2.2, and for zstd). When one is fully decoded,
+    // reset the decompressor to begin the next: all other state can be
+    // preserved.
+    if (result.ret == ResultCode::kEof) {
+      decompressor_->Reset();
       output_state_ = kStreamBoundary;
 
-      if (decompressor_.AvailIn() == 0) {
+      if (decompressor_->AvailIn() == 0) {
         return base::OkStatus();
       }
     }
   }
 }
 
-base::Status GzipTraceParser::OnPushDataToSorter() {
-  if (output_state_ != kStreamBoundary || decompressor_.AvailIn() > 0) {
+base::Status DecompressingTraceReader::OnPushDataToSorter() {
+  if (output_state_ != kStreamBoundary ||
+      (decompressor_ && decompressor_->AvailIn() > 0)) {
     return base::ErrStatus(
-        "GZIP stream incomplete, trace is likely corrupt (ERR:tp-corrupt)");
+        "Compressed stream incomplete, trace is likely corrupt "
+        "(ERR:tp-corrupt)");
   }
   PERFETTO_CHECK(!buffer_);
   return inner_ ? inner_->OnPushDataToSorter() : base::OkStatus();
 }
 
-void GzipTraceParser::OnEventsFullyExtracted() {
+void DecompressingTraceReader::OnEventsFullyExtracted() {
   if (inner_) {
     inner_->OnEventsFullyExtracted();
   }
@@ -150,13 +168,12 @@ void GzipTraceParser::OnEventsFullyExtracted() {
 
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {
 
-// Gzip-compressed trace.
+// Gzip-compressed trace container.
 class GzipImporter : public TraceImporter<GzipImporter> {
  public:
   GzipImporter() : TraceImporter(MakeDescriptor()) {}
@@ -175,7 +192,8 @@ class GzipImporter : public TraceImporter<GzipImporter> {
           "Cannot open compressed trace. zlib not enabled in the build config");
     }
     return std::unique_ptr<ChunkedTraceReader>(
-        std::make_unique<GzipTraceParser>(context));
+        std::make_unique<DecompressingTraceReader>(
+            context, util::CompressionType::kGzip));
   }
 
  private:
@@ -194,7 +212,45 @@ class GzipImporter : public TraceImporter<GzipImporter> {
 
 GzipImporter::~GzipImporter() = default;
 
-// atrace -z compressed systrace (ctrace). Uses the same GzipTraceParser reader.
+// Zstd-compressed trace container.
+class ZstdImporter : public TraceImporter<ZstdImporter> {
+ public:
+  ZstdImporter() : TraceImporter(MakeDescriptor()) {}
+  ~ZstdImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'\x28', '\xb5', '\x2f', '\xfd'};
+    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    if (!util::IsZstdSupported()) {
+      return base::ErrStatus(
+          "Cannot open compressed trace. zstd not enabled in the build config");
+    }
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<DecompressingTraceReader>(
+            context, util::CompressionType::kZstd));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "zstd";
+    d.is_container = true;
+    d.sort_policy = TraceSortPolicy::kNone;
+    d.archive_priority = 1;
+    d.forks_context = false;
+    d.detection_priority = 65;
+    return d;
+  }
+};
+
+ZstdImporter::~ZstdImporter() = default;
+
+// atrace -z compressed systrace (ctrace); a gzip stream behind "TRACE:\n".
 class CtraceImporter : public TraceImporter<CtraceImporter> {
  public:
   CtraceImporter() : TraceImporter(MakeDescriptor()) {}
@@ -214,7 +270,8 @@ class CtraceImporter : public TraceImporter<CtraceImporter> {
           "Cannot open compressed trace. zlib not enabled in the build config");
     }
     return std::unique_ptr<ChunkedTraceReader>(
-        std::make_unique<GzipTraceParser>(context));
+        std::make_unique<DecompressingTraceReader>(
+            context, util::CompressionType::kGzip));
   }
 
  private:
@@ -235,6 +292,10 @@ CtraceImporter::~CtraceImporter() = default;
 
 std::unique_ptr<TraceImporterBase> CreateGzipImporter() {
   return std::make_unique<GzipImporter>();
+}
+
+std::unique_ptr<TraceImporterBase> CreateZstdImporter() {
+  return std::make_unique<ZstdImporter>();
 }
 
 std::unique_ptr<TraceImporterBase> CreateCtraceImporter() {

@@ -26,7 +26,9 @@ perfetto_website_out_dir = "$root_out_dir/site"
 # The directory containing all the markdown sources for the docs.
 src_doc_dir = "../../docs"
 
-group("site") {
+# The site minus the search index, so gen_search_index can depend on this and
+# run last -- once every generated .md exists on disk for it to glob.
+group("site_content") {
   deps = [
     ":all_mdfiles",
     ":assets",
@@ -40,6 +42,13 @@ group("site") {
     ":node_assets",
     ":readme",
     ":style_scss",
+  ]
+}
+
+group("site") {
+  deps = [
+    ":gen_search_index",
+    ":site_content",
   ]
 }
 
@@ -386,6 +395,51 @@ foreach(source, removed_renamed_moved_files) {
 
 group("all_mdfiles") {
   deps = mdtargets
+}
+
+# Builds assets/search_index.json, the client-side full-text search index
+# consumed by setupSearch() in src/assets/script.js. Hand-written docs are
+# indexed in full; the huge auto-generated reference pages (SQL tables, stdlib,
+# protos) are indexed by title + headings only to keep the shipped index small.
+gen_search_index_out = "${perfetto_website_out_dir}/assets/search_index.json"
+
+nodejs_script("gen_search_index") {
+  script = "src/gen_search_index.js"
+  inputs = [
+    "src/md_utils.js",  # require()d by the script for anchor ids.
+    "${src_doc_dir}/toc.md",  # Nav labels indexed at title weight.
+  ]
+  outputs = [ gen_search_index_out ]
+
+  # Run last, so the glob below sees every generated .md. Caveat: a generated .md
+  # isn't a declared input, so editing its source needs a clean build to
+  # re-index (the deploy always builds clean).
+  deps = [ ":site_content" ]
+  args = [
+    "--out",
+    rebase_path(gen_search_index_out, root_build_dir),
+    "--doc-root",
+    rebase_path(src_doc_dir, root_build_dir),
+    "--toc",
+    rebase_path("${src_doc_dir}/toc.md", root_build_dir),
+
+    # Generated reference pages: the script globs this dir for *.md and takes
+    # each page's URL from its toc.md .autogen entry.
+    "--gen-dir",
+    rebase_path(target_gen_dir, root_build_dir),
+  ]
+
+  # Full-text: every hand-written doc (from the same glob as md_to_html) plus the
+  # landing page (README.md -> /docs/). Inputs, so editing a doc re-indexes.
+  full_mdfiles = mdfiles
+  full_mdfiles += [ rebase_path("../../docs/README.md", root_build_dir) ]
+  foreach(source, full_mdfiles) {
+    inputs += [ rebase_path(source, ".", root_build_dir) ]
+    args += [
+      "--full",
+      source,
+    ]
+  }
 }
 
 copy("node_assets") {

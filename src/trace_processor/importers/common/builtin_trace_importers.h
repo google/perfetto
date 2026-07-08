@@ -31,6 +31,7 @@ std::unique_ptr<TraceImporterBase> CreatePerfDataImporter();
 std::unique_ptr<TraceImporterBase> CreateSimpleperfProtoImporter();
 std::unique_ptr<TraceImporterBase> CreateZipImporter();
 std::unique_ptr<TraceImporterBase> CreateGzipImporter();
+std::unique_ptr<TraceImporterBase> CreateZstdImporter();
 std::unique_ptr<TraceImporterBase> CreateCtraceImporter();
 std::unique_ptr<TraceImporterBase> CreateArtHprofImporter();
 std::unique_ptr<TraceImporterBase> CreateTarImporter();

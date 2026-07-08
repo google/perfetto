@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_GZIP_TRACE_PARSER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_GZIP_TRACE_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_DECOMPRESSING_TRACE_READER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_DECOMPRESSING_TRACE_READER_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -23,17 +23,22 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/decompressor.h"
 
 namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
-class GzipTraceParser : public ChunkedTraceReader {
+// Parses a whole-file compressed trace (gzip or zstd), streaming the
+// decompressed bytes into an inner ForwardingTraceParser. The codec is fixed at
+// construction; the trace type detection picks it (kGzipTraceType,
+// kCtraceTraceType -> gzip; kZstdTraceType -> zstd).
+class DecompressingTraceReader : public ChunkedTraceReader {
  public:
-  explicit GzipTraceParser(TraceProcessorContext*);
-  explicit GzipTraceParser(std::unique_ptr<ChunkedTraceReader>);
-  ~GzipTraceParser() override;
+  DecompressingTraceReader(TraceProcessorContext*, util::CompressionType);
+  DecompressingTraceReader(std::unique_ptr<ChunkedTraceReader>,
+                           util::CompressionType);
+  ~DecompressingTraceReader() override;
 
   // ChunkedTraceReader implementation
   base::Status Parse(TraceBlobView) override;
@@ -44,7 +49,8 @@ class GzipTraceParser : public ChunkedTraceReader {
 
  private:
   TraceProcessorContext* const context_;
-  util::GzipDecompressor decompressor_;
+  const util::CompressionType type_;
+  std::unique_ptr<util::Decompressor> decompressor_;
   std::unique_ptr<ChunkedTraceReader> inner_;
 
   std::unique_ptr<uint8_t[]> buffer_;
@@ -56,4 +62,4 @@ class GzipTraceParser : public ChunkedTraceReader {
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_GZIP_TRACE_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_DECOMPRESSING_TRACE_READER_H_

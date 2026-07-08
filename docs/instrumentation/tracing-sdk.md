@@ -291,6 +291,45 @@ CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
 });
 ```
 
+#### Reporting many similar things (e.g. one per GPU) {#reporting-many-similar-things}
+
+A data source's identity is its C++ type, not the name passed to `Register()`.
+Calling `Register()` on the same class twice (even with a different name) does
+not create a second data source; the extra registrations are ignored (and
+logged).
+
+```C++
+// DOES NOT WORK: same C++ type, so the second Register() is dropped and a
+// session selecting "com.example.gpu1" never starts.
+GpuDataSource::Register(MakeDescriptor("com.example.gpu0"));
+GpuDataSource::Register(MakeDescriptor("com.example.gpu1"));
+```
+
+To report several instances of the same thing (e.g. one set of counters per GPU):
+
+1. **Preferred: register once, add a dimension.** Emit one packet stream per
+   entity from a single data source, tagging each with its own
+   [track](/docs/instrumentation/track-events.md) or an id field, and select
+   which to record from the `DataSourceConfig` you receive in `OnSetup()`. This
+   scales to a count discovered at runtime.
+
+2. **Use a distinct C++ type per instance.** Each template instantiation is a
+   distinct type, hence a distinct data source. A non-type template parameter
+   avoids any tag boilerplate:
+
+   ```C++
+   template <int GpuIndex>
+   class GpuDataSource : public perfetto::DataSource<GpuDataSource<GpuIndex>> {
+     ...
+   };
+
+   GpuDataSource<0>::Register(MakeDescriptor("com.example.gpu0"));
+   GpuDataSource<1>::Register(MakeDescriptor("com.example.gpu1"));
+   ```
+
+   The types must be known at compile time, and each uses one of the
+   `kMaxDataSources` (=32) slots shared by all data sources in the process.
+
 ## In-process vs System mode
 
 The two modes are not mutually exclusive. An app can be configured to work in

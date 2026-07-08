@@ -113,7 +113,7 @@ void ZipTraceReader::OnEventsFullyExtracted() {
 #include <memory>
 
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {

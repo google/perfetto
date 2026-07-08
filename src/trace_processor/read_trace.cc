@@ -18,20 +18,23 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/importers/archive/gzip_trace_parser.h"
+#include "src/trace_processor/importers/archive/decompressing_trace_reader.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/read_trace_internal.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -90,16 +93,21 @@ base::Status ReadTrace(
 base::Status DecompressTrace(const uint8_t* data,
                              size_t size,
                              std::vector<uint8_t>* output) {
-  CompressedTraceType type = SniffProtoOrGzip(data, size);
+  CompressedTraceType type = SniffCompressedTraceType(data, size);
   if (type == CompressedTraceType::kOther) {
     return base::ErrStatus(
-        "Only GZIP and proto trace types are supported by DecompressTrace");
+        "Only GZIP, ZSTD and proto trace types are supported by "
+        "DecompressTrace");
   }
 
-  if (type == CompressedTraceType::kGzip) {
+  if (type == CompressedTraceType::kGzip ||
+      type == CompressedTraceType::kZstd) {
+    util::CompressionType codec = type == CompressedTraceType::kZstd
+                                      ? util::CompressionType::kZstd
+                                      : util::CompressionType::kGzip;
     std::unique_ptr<ChunkedTraceReader> reader(
         new SerializingProtoTraceReader(output));
-    GzipTraceParser parser(std::move(reader));
+    DecompressingTraceReader parser(std::move(reader), codec);
     RETURN_IF_ERROR(parser.ParseUnowned(data, size));
     RETURN_IF_ERROR(parser.OnPushDataToSorter());
     parser.OnEventsFullyExtracted();
@@ -108,29 +116,44 @@ base::Status DecompressTrace(const uint8_t* data,
 
   PERFETTO_CHECK(type == CompressedTraceType::kProto);
 
+  // Plain proto: expand each compressed_packets / zstd_compressed_packets
+  // bundle into `output`, and pass other packets through unchanged.
   protos::pbzero::Trace::Decoder decoder(data, size);
-  util::GzipDecompressor decompressor;
   if (size > 0 && !decoder.packet()) {
     return base::ErrStatus("Trace does not contain valid packets");
   }
+
   for (auto it = decoder.packet(); it; ++it) {
     protos::pbzero::TracePacket::Decoder packet(*it);
-    if (!packet.has_compressed_packets()) {
+
+    util::CompressionType codec;
+    protozero::ConstBytes bytes;
+    if (packet.has_compressed_packets()) {
+      codec = util::CompressionType::kGzip;
+      bytes = packet.compressed_packets();
+    } else if (packet.has_zstd_compressed_packets()) {
+      codec = util::CompressionType::kZstd;
+      bytes = packet.zstd_compressed_packets();
+    } else {
       it->SerializeAndAppendTo(output);
       continue;
     }
 
-    // Make sure that to reset the stream between the gzip streams.
-    auto bytes = packet.compressed_packets();
-    decompressor.Reset();
-    using ResultCode = util::GzipDecompressor::ResultCode;
-    ResultCode ret = decompressor.FeedAndExtract(
-        bytes.data, bytes.size, [&output](const uint8_t* buf, size_t buf_len) {
-          output->insert(output->end(), buf, buf + buf_len);
-        });
-    if (ret == ResultCode::kError || ret == ResultCode::kNeedsMoreInput) {
-      return base::ErrStatus("Failed while decompressing stream");
+    if (!util::IsCompressionSupported(codec)) {
+      auto info = util::GetCompressionCodecInfo(codec);
+      return base::ErrStatus(
+          "Cannot decompress compressed_packets: %s is not enabled in this "
+          "build (rebuild with %s=true)",
+          info.name, info.gn_arg);
     }
+
+    std::optional<util::DecompressedBuffer> buf =
+        util::DecompressToBuffer(codec, bytes.data, bytes.size);
+    if (!buf) {
+      return base::ErrStatus(
+          "Failed to decompress compressed_packets (ERR:tp-corrupt)");
+    }
+    output->insert(output->end(), buf->data.get(), buf->data.get() + buf->size);
   }
   return base::OkStatus();
 }

@@ -101,9 +101,13 @@ bool TraceImporterRegistry::IsContainer(TraceImporterId id) const {
   return Find(id)->is_container;
 }
 
-CompressedTraceType SniffProtoOrGzip(const uint8_t* data, size_t size) {
+CompressedTraceType SniffCompressedTraceType(const uint8_t* data, size_t size) {
   if (size >= 2 && data[0] == 0x1f && data[1] == 0x8b) {
     return CompressedTraceType::kGzip;
+  }
+  if (size >= 4 && data[0] == 0x28 && data[1] == 0xb5 && data[2] == 0x2f &&
+      data[3] == 0xfd) {
+    return CompressedTraceType::kZstd;
   }
   // A raw proto trace starts with the length-delimited Trace.packet field tag.
   if (size > 0 && data[0] == kTracePacketTag) {
