@@ -192,3 +192,69 @@ JOIN slice
     AND slice.ts + slice.dur >= boundary.ts
     AND slice.ts <= boundary.ts_end
 WHERE slice.dur > 0;
+
+
+-- Slices overlapping with the SF CUJ boundaries in SurfaceFlinger.
+CREATE PERFETTO TABLE _android_jank_cuj_sf_slice(
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- Process ID of the process.
+  upid JOINID(process.id),
+  -- Name of the process.
+  process_name STRING,
+  -- Thread ID of the thread.
+  utid JOINID(thread.id),
+  -- Name of the thread.
+  thread_name STRING,
+  -- Slice id.
+  id ID(slice.id),
+  -- Timestamp of the slice.
+  ts TIMESTAMP,
+  -- Duration of the slice.
+  dur LONG,
+  -- Track id of the slice.
+  track_id JOINID(track.id),
+  -- Category of the slice.
+  category STRING,
+  -- Name of the slice.
+  name STRING,
+  -- Depth of the slice in the stack.
+  depth LONG,
+  -- Parent slice id.
+  parent_id LONG,
+  -- Arg set id.
+  arg_set_id LONG,
+  -- Thread timestamp.
+  thread_ts TIMESTAMP,
+  -- Thread duration.
+  thread_dur LONG,
+  -- Thread instruction count.
+  thread_instruction_count LONG,
+  -- Thread instruction delta.
+  thread_instruction_delta LONG,
+  -- Legacy category alias.
+  cat STRING,
+  -- Legacy slice id alias.
+  slice_id LONG,
+  -- End timestamp of the slice.
+  ts_end TIMESTAMP
+)
+AS
+SELECT
+  cuj_id,
+  upid,
+  sf_process.name AS process_name,
+  thread.utid,
+  thread.name AS thread_name,
+  slice.*,
+  slice.ts + slice.dur AS ts_end
+FROM _android_jank_cuj_sf_boundary sf_boundary
+JOIN _android_jank_cuj_sf_process sf_process
+JOIN thread USING (upid)
+JOIN thread_track USING (utid)
+JOIN slice
+  ON slice.track_id = thread_track.id
+    -- Take slices which overlap even they started before the boundaries
+    -- This is to be able to query slices that delayed start of a frame
+    AND slice.ts + slice.dur >= sf_boundary.ts AND slice.ts <= sf_boundary.ts_end
+WHERE slice.dur > 0;
