@@ -98,8 +98,7 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     return base::ErrStatus("Unknown trace type provided (ERR:fmt)");
   }
   PERFETTO_DLOG("%s trace detected",
-                input_context_->trace_importer_registry->ToString(
-                    trace_type_));
+                input_context_->trace_importer_registry->ToString(trace_type_));
 
   const TraceTypeDescriptor* desc =
       input_context_->trace_importer_registry->Find(trace_type_);

@@ -262,9 +262,10 @@ class AndroidDumpstateImporter
     std::string start(reinterpret_cast<const char*>(data),
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
     return base::StartsWith(start, "9,0,i,vers,") ||
-           base::StartsWith(start,
-                            "======================================================="
-                            "=\n== dumpstate: ");
+           base::StartsWith(
+               start,
+               "======================================================="
+               "=\n== dumpstate: ");
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

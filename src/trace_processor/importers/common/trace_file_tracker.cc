@@ -43,11 +43,11 @@ tables::TraceFileTable::Id TraceFileTracker::AddFileImpl(StringId name) {
       parsing_stack_.empty() ? std::nullopt
                              : std::make_optional(parsing_stack_.back());
   return context_->storage->mutable_trace_file_table()
-      ->Insert({parent, name, /*size=*/0,
-                context_->storage->InternString(
-                    context_->trace_importer_registry->ToString(
-                        TraceImporterId())),
-                /*processing_order=*/std::nullopt, /*is_container=*/0})
+      ->Insert(
+          {parent, name, /*size=*/0,
+           context_->storage->InternString(
+               context_->trace_importer_registry->ToString(TraceImporterId())),
+           /*processing_order=*/std::nullopt, /*is_container=*/0})
       .id;
 }
 
