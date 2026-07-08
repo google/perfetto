@@ -23,6 +23,8 @@ Unreleased:
       several files) opens a dialog to configure how the traces merge onto
       a shared timeline, warns if any events would be dropped, and can
       export the merged set as a self-contained .tar archive.
+    * Add list of recently opened traces to the homepage.
+    * Remap OpenCommandPalette command hotkey to F1 on Firefox.
   SDK:
     *
 
