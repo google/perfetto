@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, startup
+
 INCLUDE PERFETTO MODULE android.startup.startup_events;
 
 -- Marks the beginning of the trace and is equivalent to when the statsd startup

@@ -12,6 +12,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, power
+
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Light idle states. This is the state machine that quickly detects the

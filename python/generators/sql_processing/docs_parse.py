@@ -17,7 +17,7 @@ from abc import ABC
 from dataclasses import dataclass
 import re
 import sys
-from typing import Dict, List, Optional, NamedTuple
+from typing import Dict, List, Optional, NamedTuple, Tuple
 
 from python.generators.sql_processing.docs_extractor import DocsExtractor
 from python.generators.sql_processing.utils import ObjKind
@@ -489,6 +489,9 @@ class ParsedModule:
   table_functions: List[TableFunction] = []
   macros: List[Macro] = []
   includes: List[Include]
+  tags: List[str] = []
+  data_check: Optional[str] = None
+  table_data_checks: Dict[str, str] = {}
 
   def __init__(self,
                package_name: str,
@@ -499,7 +502,10 @@ class ParsedModule:
                table_functions: List[TableFunction],
                macros: List[Macro],
                includes: List[Include],
-               module_doc: Optional[ModuleDoc] = None):
+               module_doc: Optional[ModuleDoc] = None,
+               tags: Optional[List[str]] = None,
+               data_check: Optional[str] = None,
+               table_data_checks: Optional[Dict[str, str]] = None):
     self.package_name = package_name
     self.module_as_list = module_as_list
     self.module = ".".join(module_as_list)
@@ -510,6 +516,10 @@ class ParsedModule:
     self.table_functions = table_functions
     self.macros = macros
     self.includes = includes
+    self.tags = tags if tags is not None else []
+    self.data_check = data_check
+    self.table_data_checks = (table_data_checks
+                              if table_data_checks is not None else {})
 
 
 def _extract_module_doc(sql: str) -> Optional[ModuleDoc]:
@@ -552,6 +562,39 @@ def _extract_module_doc(sql: str) -> Optional[ModuleDoc]:
   return ModuleDoc(name=module_name, desc=module_desc)
 
 
+def _extract_module_metadata(
+    sql: str
+) -> Tuple[List[str], Optional[str], Dict[str, str]]:
+  """Extracts module metadata directives from the SQL header comments.
+
+  Recognized directives (one per line, anywhere in the file):
+    -- @tags tag1, tag2                     module tags (order preserved)
+    -- @data_check <sql>                    module-level data-availability check
+    -- @data_check_table <table> <sql>      per-table data-availability check
+
+  Returns (tags, data_check, table_data_checks), where the SQL values are the
+  raw inner checks (wrapped later by check_to_query).
+  """
+  tags: List[str] = []
+  data_check: Optional[str] = None
+  table_data_checks: Dict[str, str] = {}
+
+  for line in sql.split('\n'):
+    stripped = line.strip()
+    if stripped.startswith('-- @tags'):
+      value = stripped[len('-- @tags'):].strip()
+      tags = [t.strip() for t in value.split(',') if t.strip()]
+    elif stripped.startswith('-- @data_check_table'):
+      rest = stripped[len('-- @data_check_table'):].strip()
+      parts = rest.split(None, 1)
+      if len(parts) == 2:
+        table_data_checks[parts[0]] = parts[1]
+    elif stripped.startswith('-- @data_check'):
+      data_check = stripped[len('-- @data_check'):].strip()
+
+  return tags, data_check, table_data_checks
+
+
 def parse_file(
     path: str,
     sql: str,
@@ -575,12 +618,16 @@ def parse_file(
   # Extract module-level documentation
   module_doc = _extract_module_doc(sql)
 
+  # Extract module metadata directives (tags, data-availability checks).
+  tags, data_check, table_data_checks = _extract_module_metadata(sql)
+
   # Extract all the docs from the SQL.
   extractor = DocsExtractor(path, package_name, sql)
   docs = extractor.extract()
   if extractor.errors:
     return ParsedModule(package_name, module_as_list, extractor.errors, [], [],
-                        [], [], [], module_doc)
+                        [], [], [], module_doc, tags, data_check,
+                        table_data_checks)
 
   # Parse the extracted docs.
   # Note: We collect errors from all parsers even if the result is None (filtered out),
@@ -624,4 +671,5 @@ def parse_file(
       errors += parser.errors
 
   return ParsedModule(package_name, module_as_list, errors, table_views,
-                      functions, table_functions, macros, includes, module_doc)
+                      functions, table_functions, macros, includes, module_doc,
+                      tags, data_check, table_data_checks)

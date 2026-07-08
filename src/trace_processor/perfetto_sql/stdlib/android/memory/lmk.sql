@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, memory
+
 INCLUDE PERFETTO MODULE android.oom_adjuster;
 
 CREATE PERFETTO FUNCTION _android_lmk_kill_reason_string(

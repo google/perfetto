@@ -2,6 +2,9 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, startup
+-- @data_check SELECT 1 FROM thread_slice WHERE name = 'Startup.ActivityStart'
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- Access all startups, including those that don't lead to any visible content.

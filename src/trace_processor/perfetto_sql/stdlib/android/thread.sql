@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, metadata
+
 -- Standardizes an Android thread name by extracting its core identifier to make it
 -- possible to aggregate by name.
 --

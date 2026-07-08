@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, power
+-- @data_check SELECT 1 FROM slice WHERE name = 'BatteryStatus'
+
 INCLUDE PERFETTO MODULE counters.intervals;
 
 INCLUDE PERFETTO MODULE intervals.fill_gaps;

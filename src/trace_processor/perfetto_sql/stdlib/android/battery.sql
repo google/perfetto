@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, power
+-- @data_check SELECT 1 FROM slice WHERE name GLOB 'batt.*'
+
 -- Battery charge at timestamp.
 CREATE PERFETTO VIEW android_battery_charge(
   -- Timestamp.

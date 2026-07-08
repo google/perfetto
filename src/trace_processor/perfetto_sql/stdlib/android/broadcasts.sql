@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, app-lifecycle
+
 INCLUDE PERFETTO MODULE android.freezer;
 
 CREATE PERFETTO FUNCTION _extract_broadcast_process_name(name STRING)

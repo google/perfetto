@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui
+-- @data_check SELECT 1 FROM __intrinsic_windowmanager
+
 -- Android WindowManager (from android.windowmanager data source).
 CREATE PERFETTO VIEW android_windowmanager(
   -- Snapshot id

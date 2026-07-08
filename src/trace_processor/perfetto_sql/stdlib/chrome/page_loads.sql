@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome
+
 -- TODO(b/306300843): The recorded navigation ids are not guaranteed to be
 -- unique within a trace; they are only guaranteed to be unique within a single
 -- chrome instance. Chrome instance id needs to be recorded, and used here in

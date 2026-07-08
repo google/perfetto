@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui, input
+-- @data_check SELECT 1 FROM __intrinsic_inputmethod_clients
+
 -- Android inputmethod clients state dumps (from android.inputmethod data source).
 CREATE PERFETTO VIEW android_inputmethod_clients(
   -- Dump id

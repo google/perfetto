@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- @tags android, metadata
+-- @data_check SELECT 1 FROM track WHERE name = 'Statsd Atoms'
+
 -- Statsd atoms.
 --
 -- A subset of the slice table containing statsd atom instant events.

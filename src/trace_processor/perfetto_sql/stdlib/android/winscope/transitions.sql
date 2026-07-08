@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui
+-- @data_check SELECT 1 FROM __intrinsic_window_manager_shell_transition_participants
+
 -- Android transition participants (from com.android.wm.shell.transition data source).
 CREATE PERFETTO VIEW android_window_manager_shell_transition_participants(
   -- Transition id

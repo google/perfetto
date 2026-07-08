@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags linux, power
+
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Gets devfreq frequency counter based on device queried. These counters will

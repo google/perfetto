@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, memory
+
 CREATE PERFETTO TABLE _ref_type_ids AS
 SELECT id AS type_id
 FROM heap_graph_class

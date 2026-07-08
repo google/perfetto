@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, ipc
+
 INCLUDE PERFETTO MODULE android.binder;
 
 INCLUDE PERFETTO MODULE intervals.overlap;

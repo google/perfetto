@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui
+
 -- This module primarily performs composition between the blocking calls, frames and CUJs.
 -- This is used for capturing blocking call per frame metrics, and the related plugins.
 INCLUDE PERFETTO MODULE android.critical_blocking_calls;

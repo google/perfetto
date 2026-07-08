@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 -- Creates a Stack consisting of one frame for a path in the
 -- EXPERIMENTAL_PROTO_PATH table.
 CREATE PERFETTO FUNCTION _proto_path_to_frame(

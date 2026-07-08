@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui
+
 -- Categorizes whether the jank was caused by Surface Flinger
 CREATE PERFETTO FUNCTION android_is_sf_jank_type(
   -- the jank type

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags trace
+
 CREATE PERFETTO TABLE _slice_children_dur AS
 SELECT parent_id AS id, sum(dur) AS child_dur_sum
 FROM slice

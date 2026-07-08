@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, input
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- Chrome web content interactions (InteractionToFirstPaint), including

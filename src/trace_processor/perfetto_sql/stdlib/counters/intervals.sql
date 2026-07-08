@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags utilities
+
 -- For a given counter timeline (e.g. a single counter track), returns
 -- intervals of time where the counter has the same value. For every run
 -- of identical values, this macro will return a row for the first one,

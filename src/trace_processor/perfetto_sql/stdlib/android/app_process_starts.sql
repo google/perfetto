@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
+
+-- @tags android, app-lifecycle
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- All process starts.

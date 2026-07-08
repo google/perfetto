@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, ui, memory
+
 INCLUDE PERFETTO MODULE counters.intervals;
 
 INCLUDE PERFETTO MODULE intervals.intersect;

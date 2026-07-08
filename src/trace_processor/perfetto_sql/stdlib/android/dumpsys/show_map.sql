@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, memory
+
 CREATE PERFETTO TABLE _show_maps AS
 SELECT
   id,

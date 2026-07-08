@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui
+-- @data_check SELECT 1 FROM slice WHERE name GLOB 'Choreographer#doFrame*' OR name GLOB 'DrawFrame*'
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 INCLUDE PERFETTO MODULE android.frames.timeline_maxsdk28;

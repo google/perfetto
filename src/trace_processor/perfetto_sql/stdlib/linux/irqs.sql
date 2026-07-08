@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags linux
+
 -- All hard IRQs of the trace represented as slices.
 CREATE PERFETTO VIEW linux_hard_irqs(
   -- Starting timestamp of this IRQ.

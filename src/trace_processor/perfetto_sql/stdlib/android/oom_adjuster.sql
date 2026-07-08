@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, app-lifecycle, memory
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 INCLUDE PERFETTO MODULE counters.intervals;

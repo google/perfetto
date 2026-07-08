@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags performance
+-- @data_check SELECT 1 FROM __intrinsic_v8_isolate
+
 -- These are the tables for the V8 jit data source
 -- (protos/perfetto/trace/chrome/v8.proto).
 --

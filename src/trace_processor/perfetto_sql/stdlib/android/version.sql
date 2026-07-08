@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, metadata
+
 CREATE PERFETTO FUNCTION _android_sdk_version()
 RETURNS LONG
 AS

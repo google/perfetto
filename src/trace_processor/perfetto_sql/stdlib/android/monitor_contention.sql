@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, performance
+
 INCLUDE PERFETTO MODULE android.suspend;
 
 -- Extracts the blocking thread from a slice name

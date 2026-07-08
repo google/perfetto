@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags linux, performance
+
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
 CREATE PERFETTO TABLE _linux_perf_raw_callstacks AS

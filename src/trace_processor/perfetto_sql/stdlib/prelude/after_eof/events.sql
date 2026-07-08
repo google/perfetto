@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags trace
+-- @data_check SELECT 1 FROM __intrinsic_ftrace_event
+
 -- @module prelude.after_eof.events
 -- Event data and slices for trace analysis.
 --

@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, gpu, power
+
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- GPU power state which is analogous to CPU idle state

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 -- Returns an instance of `RawMarkerTable` as defined in
 -- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
 CREATE PERFETTO FUNCTION _export_firefox_thread_markers()

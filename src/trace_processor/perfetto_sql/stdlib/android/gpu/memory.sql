@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, gpu, memory
+
 INCLUDE PERFETTO MODULE linux.memory.general;
 
 -- Counter for GPU memory per process with duration.

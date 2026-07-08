@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, cpu, power
+
 -- Dvfs counter with duration.
 CREATE PERFETTO VIEW android_dvfs_counters(
   -- Counter name.

@@ -12,6 +12,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, power
+-- @data_check SELECT 1 FROM track WHERE name = 'wakeup_reason'
+
 INCLUDE PERFETTO MODULE android.suspend;
 
 -- Table of parsed wakeup / suspend failure events with suspend backoff.

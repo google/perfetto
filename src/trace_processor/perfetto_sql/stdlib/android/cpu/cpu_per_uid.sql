@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- @tags android, cpu
+-- @data_check SELECT 1 FROM __intrinsic_android_cpu_per_uid_track
+
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Table of tracks for CPU-per-UID data. Each row represents one UID / cluster

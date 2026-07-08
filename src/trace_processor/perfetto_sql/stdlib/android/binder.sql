@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- @tags android, ipc
+-- @data_check SELECT 1 FROM slice WHERE name GLOB 'binder *'
+
 INCLUDE PERFETTO MODULE android.process_metadata;
 
 INCLUDE PERFETTO MODULE android.suspend;

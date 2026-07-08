@@ -12,6 +12,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui
+-- @data_check SELECT 1 FROM slice WHERE name = 'Screenshot' AND category = 'android_screenshot'
+
 -- Screenshot slices, used in perfetto UI.
 CREATE PERFETTO TABLE android_screenshots(
   -- Id of the screenshot slice.

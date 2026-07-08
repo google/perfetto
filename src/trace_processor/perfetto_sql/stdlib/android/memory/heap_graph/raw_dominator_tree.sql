@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, memory
+
 INCLUDE PERFETTO MODULE android.memory.heap_graph.excluded_refs;
 
 INCLUDE PERFETTO MODULE graphs.dominator_tree;

@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- @tags android, metadata
+-- @data_check SELECT 1 FROM __intrinsic_android_user_list
+
 -- Contains information about Android users in the trace.
 --
 -- This is populated by the `android.user_list` data-source which lives in

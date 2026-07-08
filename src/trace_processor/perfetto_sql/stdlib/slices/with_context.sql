@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags trace
+-- @data_check_table thread_or_process_slice SELECT 1 FROM __intrinsic_slice
+
 -- All thread slices with data about thread, thread track and process.
 CREATE PERFETTO VIEW thread_slice(
   -- Slice

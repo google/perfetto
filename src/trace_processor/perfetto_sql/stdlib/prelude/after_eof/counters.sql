@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+-- @data_check SELECT 1 FROM __intrinsic_track
+
 -- @module prelude.after_eof.counters
 -- Performance counters and counter tracks.
 --

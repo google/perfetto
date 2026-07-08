@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags scheduling, cpu
+
 -- TODO(altimin): `sched_humanly_readable_name` doesn't handle some corner
 -- cases which thread_state.ts handles (as complex strings manipulations in
 -- SQL are pretty painful), but they are pretty niche.

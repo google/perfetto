@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @data_check SELECT 1 FROM __intrinsic_track_event_callstacks
+
 -- Private table containing track IDs that have track event callstacks.
 -- This is used by the UI to determine whether to show callstack-related tabs.
 CREATE PERFETTO TABLE _track_event_tracks_with_callstacks AS

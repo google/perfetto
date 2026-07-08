@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, memory
+
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
 INCLUDE PERFETTO MODULE graphs.scan;

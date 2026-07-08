@@ -13,6 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags cpu, scheduling
+-- @data_check_table sched SELECT 1 FROM __intrinsic_sched_slice
+-- @data_check_table thread_state SELECT 1 FROM __intrinsic_thread_state
+
 -- @module prelude.after_eof.cpu_scheduling
 -- CPU scheduling and thread state analysis.
 --

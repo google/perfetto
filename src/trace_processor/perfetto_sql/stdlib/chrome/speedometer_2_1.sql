@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, performance
+
 -- List Speedometer 2.1 test marks. Used to find relevant slices.
 CREATE PERFETTO VIEW _chrome_speedometer_2_1_mark_name (
   -- Expected slice name

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 INCLUDE PERFETTO MODULE graphs.search;
 
 -- Given a table containing the edges in a tree and a table of start_nodes,

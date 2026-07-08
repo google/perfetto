@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- @tags android, app-lifecycle
+-- @data_check SELECT 1 FROM slice WHERE name GLOB 'Freeze *'
+
 CREATE PERFETTO FUNCTION _extract_freezer_pid(name STRING)
 RETURNS LONG
 AS

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, metadata
+
 -- Extracts the device code name from an Android build fingerprint.
 CREATE PERFETTO FUNCTION android_device_name_from_fingerprint(
   -- Android build fingerprint (e.g. 'Android/aosp_raven/raven:VanillaIceCream/...').

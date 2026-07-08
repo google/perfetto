@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags performance, cpu
+
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
 -- Table containing all the timestamped samples of CPU profiling which occurred

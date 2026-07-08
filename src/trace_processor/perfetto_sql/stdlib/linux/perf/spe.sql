@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags linux, performance
+-- @data_check SELECT 1 FROM __intrinsic_spe_record
+
 -- Contains ARM Statistical Profiling Extension records
 CREATE PERFETTO VIEW linux_perf_spe_record(
   -- Timestap when the operation was sampled

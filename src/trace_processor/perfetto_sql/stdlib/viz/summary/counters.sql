@@ -13,5 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 CREATE PERFETTO TABLE _counter_track_summary AS
 SELECT DISTINCT track_id AS id FROM counter;

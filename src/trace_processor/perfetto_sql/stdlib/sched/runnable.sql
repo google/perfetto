@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags scheduling, cpu
+
 -- Previous runnable slice on the same thread.
 -- For each "Running" thread state finds:
 -- - previous "Runnable" (or runnable preempted) state.

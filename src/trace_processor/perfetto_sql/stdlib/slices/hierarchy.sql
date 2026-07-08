@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags trace
+
 -- Similar to `ancestor_slice`, but returns the slice itself in addition to strict ancestors.
 CREATE PERFETTO FUNCTION _slice_ancestor_and_self(
   -- Id of the slice.

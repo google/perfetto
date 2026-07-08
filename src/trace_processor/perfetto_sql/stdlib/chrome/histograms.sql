@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome
+
 -- A helper view on top of the histogram events emitted by Chrome.
 -- Requires "disabled-by-default-histogram_samples" Chrome category or the
 -- "org.chromium.histogram_sample" data source.

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags linux, memory
+
 INCLUDE PERFETTO MODULE linux.memory.general;
 
 -- All memory counters tables.

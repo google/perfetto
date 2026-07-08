@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- @tags android, power
+-- @data_check SELECT 1 FROM track WHERE type = 'power_rails'
+
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Android power rails counters data.

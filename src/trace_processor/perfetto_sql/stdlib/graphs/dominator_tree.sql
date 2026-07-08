@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 -- Given a table containing a directed flow-graph and an entry node, computes
 -- the "dominator tree" for the graph. See [1] for an explanation of what a
 -- dominator tree is.

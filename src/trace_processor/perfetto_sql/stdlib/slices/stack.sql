@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags trace
+
 INCLUDE PERFETTO MODULE slices.hierarchy;
 
 -- View that provides stack_id and parent_stack_id for all slices by computing

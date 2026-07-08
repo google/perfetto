@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, ui
+
 -- A simple table that checks the time between VSync (this can be used to
 -- determine if we're refreshing at 90 FPS or 60 FPS).
 --
