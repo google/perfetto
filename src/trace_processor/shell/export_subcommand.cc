@@ -75,7 +75,7 @@ base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
   }
   std::string trace_file = ctx.positional_args[1];
 
-  auto config = BuildConfig(*ctx.global, ctx.platform);
+  ASSIGN_OR_RETURN(Config config, BuildConfig(*ctx.global, ctx.platform));
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
   RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file).status());
