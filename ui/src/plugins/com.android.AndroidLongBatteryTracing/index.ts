@@ -24,6 +24,7 @@ import {
 } from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
+import {TrackNode} from '../../public/workspace';
 
 const PACKAGE_LOOKUP = `
   create or replace perfetto table package_name_lookup as
@@ -759,6 +760,19 @@ export default class implements PerfettoPlugin {
     }
 
     const groupName = 'Network Summary';
+    const networkGroup = ctx.plugins
+      .getPlugin(StandardGroupsPlugin)
+      .getOrCreateStandardGroup(ctx.defaultWorkspace, 'NETWORK');
+    // Render the summary tracks directly inside the Network group, sorted above
+    // the raw kernel network tracks.
+    const summaryGroup = new TrackNode({
+      name: groupName,
+      isSummary: true,
+      headless: true,
+      sortOrder: -1,
+    });
+    networkGroup.addChildInOrder(summaryGroup);
+    support.groups.set(groupName, summaryGroup);
 
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
