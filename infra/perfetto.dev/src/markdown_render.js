@@ -18,7 +18,7 @@ const argv = require("yargs").argv;
 const fs = require("fs-extra");
 const path = require("path");
 const hljs = require("highlight.js");
-const {headingAnchor} = require("./md_anchors");
+const {headingAnchor} = require("./md_utils");
 
 const CS_BASE_URL =
   "https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/";

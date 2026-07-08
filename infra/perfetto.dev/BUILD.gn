@@ -26,12 +26,13 @@ perfetto_website_out_dir = "$root_out_dir/site"
 # The directory containing all the markdown sources for the docs.
 src_doc_dir = "../../docs"
 
-group("site") {
+# The site minus the search index, so gen_search_index can depend on this and
+# run last -- once every generated .md exists on disk for it to glob.
+group("site_content") {
   deps = [
     ":all_mdfiles",
     ":assets",
     ":gen_index",
-    ":gen_search_index",
     ":gen_sql_stats_html",
     ":gen_sql_tables_html",
     ":gen_stdlib_docs_html",
@@ -41,6 +42,13 @@ group("site") {
     ":node_assets",
     ":readme",
     ":style_scss",
+  ]
+}
+
+group("site") {
+  deps = [
+    ":gen_search_index",
+    ":site_content",
   ]
 }
 
@@ -397,15 +405,16 @@ gen_search_index_out = "${perfetto_website_out_dir}/assets/search_index.json"
 
 nodejs_script("gen_search_index") {
   script = "src/gen_search_index.js"
-  inputs = [ "src/md_anchors.js" ]  # require()d by the script for anchor ids.
-  outputs = [ gen_search_index_out ]
-  deps = [
-    ":gen_sql_stats_md",
-    ":gen_sql_tables_md",
-    ":gen_stdlib_docs_md",
-    ":gen_trace_config_proto_md",
-    ":gen_trace_packet_proto_md",
+  inputs = [
+    "src/md_utils.js",  # require()d by the script for anchor ids.
+    "${src_doc_dir}/toc.md",  # Nav labels indexed at title weight.
   ]
+  outputs = [ gen_search_index_out ]
+
+  # Run last, so the glob below sees every generated .md. Caveat: a generated .md
+  # isn't a declared input, so editing its source needs a clean build to
+  # re-index (the deploy always builds clean).
+  deps = [ ":site_content" ]
   args = [
     "--out",
     rebase_path(gen_search_index_out, root_build_dir),
@@ -413,11 +422,15 @@ nodejs_script("gen_search_index") {
     rebase_path(src_doc_dir, root_build_dir),
     "--toc",
     rebase_path("${src_doc_dir}/toc.md", root_build_dir),
-  ]
-  inputs += [ "${src_doc_dir}/toc.md" ]  # Nav labels indexed at title weight.
 
-  # Full-text: every hand-written doc (same set globbed for md_to_html), plus
-  # the docs landing page (README.md -> /docs/).
+    # Generated reference pages: the script globs this dir for *.md and takes
+    # each page's URL from its toc.md .autogen entry.
+    "--gen-dir",
+    rebase_path(target_gen_dir, root_build_dir),
+  ]
+
+  # Full-text: every hand-written doc (from the same glob as md_to_html) plus the
+  # landing page (README.md -> /docs/). Inputs, so editing a doc re-indexes.
   full_mdfiles = mdfiles
   full_mdfiles += [ rebase_path("../../docs/README.md", root_build_dir) ]
   foreach(source, full_mdfiles) {
@@ -425,33 +438,6 @@ nodejs_script("gen_search_index") {
     args += [
       "--full",
       source,
-    ]
-  }
-
-  # Title + headings only: auto-generated reference pages. Each entry is
-  # "<url>=<markdown path>", where <url> mirrors the out_html mapping above.
-  gen_pages = [
-    "/docs/analysis/sql-stats=" + rebase_path(sql_stats_md, root_build_dir),
-    "/docs/analysis/sql-tables=" + rebase_path(sql_tables_md, root_build_dir),
-    "/docs/analysis/stdlib-docs=" + rebase_path(stdlib_docs_md, root_build_dir),
-    "/docs/reference/trace-config-proto=" +
-        rebase_path("${target_gen_dir}/gen_trace_config_proto.md",
-                    root_build_dir),
-    "/docs/reference/trace-packet-proto=" +
-        rebase_path("${target_gen_dir}/gen_trace_packet_proto.md",
-                    root_build_dir),
-  ]
-  inputs += [
-    sql_stats_md,
-    sql_tables_md,
-    stdlib_docs_md,
-    "${target_gen_dir}/gen_trace_config_proto.md",
-    "${target_gen_dir}/gen_trace_packet_proto.md",
-  ]
-  foreach(spec, gen_pages) {
-    args += [
-      "--gen",
-      spec,
     ]
   }
 }

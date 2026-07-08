@@ -18,9 +18,10 @@
 // setupSearch() in assets/script.js.
 //
 // Inputs (wired up in BUILD.gn):
-//   --full  <md>       Hand-written docs: title, headings and body are indexed.
-//   --gen   <url>=<md> Generated reference pages (SQL tables, stdlib, protos):
-//                      title and headings only, as their bodies are huge.
+//   --full     <md>   Hand-written docs: title, headings and body are indexed.
+//   --gen-dir  <dir>  Generated reference pages (SQL tables, stdlib, protos):
+//                     every *.md is indexed by title + headings only (bodies are
+//                     huge), with its URL from toc.md's `.autogen` entry.
 //
 // A --full doc's URL is derived from its path relative to --doc-root, mirroring
 // the out_html mapping in BUILD.gn (docs/foo/bar.md -> /docs/foo/bar,
@@ -30,7 +31,7 @@ const fs = require("fs");
 const path = require("path");
 const marked = require("marked");
 const argv = require("yargs").argv;
-const {headingAnchor} = require("./md_anchors");
+const {headingAnchor} = require("./md_utils");
 
 // Normalizes a yargs option that may be absent, a single value, or (for a
 // repeated flag) an array, into a plain array.
@@ -89,8 +90,10 @@ function parseMarkdown(md) {
         case "blockquote":
           walk(tok.tokens);
           break;
-        case "code":  // fenced/indented code, raw HTML, spacers: not searchable text.
-        case "html":
+        case "code":  // Index code too: people search config keys and API names.
+          pushText(tok.text || "");
+          break;
+        case "html":  // Raw HTML and blank/rule tokens carry no prose.
         case "space":
         case "hr":
           break;
@@ -127,6 +130,26 @@ function parseTocLabels(tocPath) {
   return map;
 }
 
+// Slug -> URL for generated pages, from toc.md's ".autogen" links -- where a
+// globbed .md, which carries no URL of its own, gets one.
+function parseGenUrls(tocPath) {
+  const map = new Map();
+  const md = fs.readFileSync(tocPath, "utf8");
+  const re = /\[[^\]]+\]\(([^)]+?)\.autogen\)/g;
+  let m;
+  while ((m = re.exec(md)) !== null) {
+    const rel = m[1].replace(/^\.\//, "");     // "reference/trace-config-proto"
+    map.set(rel.split("/").pop(), "/docs/" + rel); // slug -> url
+  }
+  return map;
+}
+
+// A generated .md's filename to its toc slug, e.g. gen_trace_config_proto.md ->
+// "trace-config-proto", stdlib_docs.md -> "stdlib-docs".
+function genFileSlug(file) {
+  return file.replace(/\.md$/, "").replace(/^gen_/, "").replace(/_/g, "-");
+}
+
 function main() {
   const outFile = argv["out"];
   const docRoot = argv["doc-root"];
@@ -151,24 +174,20 @@ function main() {
     docs.push(withNav({u: url, t: parsed.title, h: parsed.headings, b: parsed.body}));
   }
 
-  for (const spec of toArray(argv["gen"])) {
-    const eq = spec.indexOf("=");
-    const url = spec.slice(0, eq);
-    const mdPath = spec.slice(eq + 1);
-    const parsed = parseMarkdown(fs.readFileSync(mdPath, "utf8"));
-    docs.push(withNav({
-      u: url,
-      t: parsed.title || url,
-      h: parsed.headings,
-      // No body: these pages are huge (trace-packet-proto alone has ~2k
-      // headings), so for v1 we index title + headings only -- enough to find a
-      // proto message, stdlib package or table section by name, but not their
-      // field-level bodies (descriptions, columns, args).
-      // TODO: full-text indexing them costs ~+207KB gzipped (+58%) and, worse,
-      // lets these dumps dominate generic queries ("duration", "config") since
-      // their prose is full of common words. Doing it well likely needs a
-      // separate, lazily-fetched reference index rather than folding into this one.
-    }));
+  // Generated reference pages: index title + headings only (bodies are huge).
+  // The URL comes from toc.md; a .md with no `.autogen` entry there isn't a page.
+  // TODO: indexing their bodies too grows the gzipped index ~60% and lets these
+  // dumps dominate generic queries -- so it'd want a separate, lazily-loaded index.
+  const genDir = argv["gen-dir"];
+  if (genDir) {
+    const genUrls = parseGenUrls(argv["toc"]);
+    for (const file of fs.readdirSync(genDir)) {
+      if (!file.endsWith(".md")) continue;
+      const url = genUrls.get(genFileSlug(file));
+      if (!url) continue;
+      const parsed = parseMarkdown(fs.readFileSync(path.join(genDir, file), "utf8"));
+      docs.push(withNav({u: url, t: parsed.title || url, h: parsed.headings}));
+    }
   }
 
   docs.sort((a, b) => a.u.localeCompare(b.u)); // Deterministic output.
