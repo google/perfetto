@@ -75,7 +75,7 @@ TEST_F(ReadTraceIntegrationTest, CompressedTrace) {
   std::vector<uint8_t> decompressed;
   decompressed.reserve(raw_trace.size());
 
-  base::Status status = trace_processor::DecompressTraceSlowly(
+  base::Status status = trace_processor::DecompressTrace(
       raw_trace.data(), raw_trace.size(), &decompressed);
   ASSERT_TRUE(status.ok());
 
@@ -95,7 +95,7 @@ TEST_F(ReadTraceIntegrationTest, NonProtobufShouldNotDecompress) {
   std::vector<uint8_t> raw_trace = ReadAllData(f);
 
   std::vector<uint8_t> decompressed;
-  base::Status status = trace_processor::DecompressTraceSlowly(
+  base::Status status = trace_processor::DecompressTrace(
       raw_trace.data(), raw_trace.size(), &decompressed);
   ASSERT_FALSE(status.ok());
 }
@@ -106,7 +106,7 @@ TEST_F(ReadTraceIntegrationTest, OuterGzipDecompressTrace) {
   std::vector<uint8_t> raw_compressed_trace = ReadAllData(f);
 
   std::vector<uint8_t> decompressed;
-  base::Status status = trace_processor::DecompressTraceSlowly(
+  base::Status status = trace_processor::DecompressTrace(
       raw_compressed_trace.data(), raw_compressed_trace.size(), &decompressed);
   ASSERT_TRUE(status.ok());
 
@@ -123,7 +123,7 @@ TEST_F(ReadTraceIntegrationTest, DoubleGzipDecompressTrace) {
   std::vector<uint8_t> raw_compressed_trace = ReadAllData(f);
 
   std::vector<uint8_t> decompressed;
-  base::Status status = trace_processor::DecompressTraceSlowly(
+  base::Status status = trace_processor::DecompressTrace(
       raw_compressed_trace.data(), raw_compressed_trace.size(), &decompressed);
   ASSERT_TRUE(status.ok()) << status.message();
 
@@ -141,7 +141,7 @@ TEST_F(ReadTraceIntegrationTest, DoubleGzipDecompressTrace) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 // End-to-end check of the zstd decode path: wrap a zstd-compressed packet
 // stream in TracePacket.zstd_compressed_packets (as the tracing service emits)
-// and assert DecompressTraceSlowly recovers the original packets.
+// and assert DecompressTrace recovers the original packets.
 TEST_F(ReadTraceIntegrationTest, ZstdCompressedPackets) {
   // The framed packet stream is itself a valid Trace proto.
   constexpr uint64_t kTimestamps[] = {1000, 2000, 3000};
@@ -163,7 +163,7 @@ TEST_F(ReadTraceIntegrationTest, ZstdCompressedPackets) {
   std::vector<uint8_t> outer_bytes = outer.SerializeAsArray();
 
   std::vector<uint8_t> decompressed;
-  base::Status status = trace_processor::DecompressTraceSlowly(
+  base::Status status = trace_processor::DecompressTrace(
       outer_bytes.data(), outer_bytes.size(), &decompressed);
   ASSERT_TRUE(status.ok()) << status.message();
 
@@ -187,7 +187,7 @@ TEST_F(ReadTraceIntegrationTest, ZstdCorruptCompressedPacketsFails) {
   std::vector<uint8_t> outer_bytes = outer.SerializeAsArray();
 
   std::vector<uint8_t> decompressed;
-  base::Status status = trace_processor::DecompressTraceSlowly(
+  base::Status status = trace_processor::DecompressTrace(
       outer_bytes.data(), outer_bytes.size(), &decompressed);
   ASSERT_FALSE(status.ok());
 }

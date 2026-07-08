@@ -72,13 +72,10 @@ base::Status PERFETTO_EXPORT_COMPONENT ReadTrace(
     bool call_notify_end_of_file = true,
     const ReadTraceArgs& args = {});
 
-// Decompresses `data` into `output`. "Slowly" because it copies the whole input
-// and buffers the whole output, so it is only for offline/one-shot paths. A hot
-// path should add a streaming entry point rather than call this.
+// Decompresses a gzip/zstd trace, or a proto trace containing
+// compressed_packets, into `output` as a plain proto trace.
 base::Status PERFETTO_EXPORT_COMPONENT
-DecompressTraceSlowly(const uint8_t* data,
-                      size_t size,
-                      std::vector<uint8_t>* output);
+DecompressTrace(const uint8_t* data, size_t size, std::vector<uint8_t>* output);
 
 }  // namespace trace_processor
 }  // namespace perfetto

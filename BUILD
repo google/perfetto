@@ -3498,6 +3498,7 @@ perfetto_filegroup(
     name = "src_trace_processor_metrics_sql_chrome_chrome_sql",
     srcs = [
         "src/trace_processor/metrics/sql/chrome/chrome_args_class_names.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_browser_main_thread_duration.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_summaries.sql",
