@@ -483,3 +483,57 @@ base::Status ArtMethodV2Tokenizer::OnPushDataToSorter() {
 void ArtMethodV2Tokenizer::OnEventsFullyExtracted() {}
 
 }  // namespace perfetto::trace_processor::art_method
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+// ART method trace (streaming v2 format).
+class ArtMethodV2Importer : public TraceImporter<ArtMethodV2Importer> {
+ public:
+  ArtMethodV2Importer() : TraceImporter(MakeDescriptor()) {}
+  ~ArtMethodV2Importer() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'S', 'L', 'O', 'W'};
+    if (size < 6 || memcmp(data, kMagic, sizeof(kMagic)) != 0) {
+      return false;
+    }
+    uint16_t version = data[4] | static_cast<uint16_t>(data[5] << 8);
+    return version == 0x0004 || version == 0x0005 || version == 0x00f4 ||
+           version == 0x00f5;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<art_method::ArtMethodV2Tokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "art_method_v2";
+    d.clock_policy = TraceClockPolicy::kMonotonic;
+    d.detection_priority = 70;
+    return d;
+  }
+};
+
+ArtMethodV2Importer::~ArtMethodV2Importer() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateArtMethodV2Importer() {
+  return std::make_unique<ArtMethodV2Importer>();
+}
+
+}  // namespace perfetto::trace_processor

@@ -255,3 +255,53 @@ SimpleperfProtoTokenizer::ParseRecord() {
 }
 
 }  // namespace perfetto::trace_processor::simpleperf_proto_importer
+
+#include <cstddef>
+#include <cstring>
+#include <memory>
+
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Simpleperf protobuf report format.
+class SimpleperfProtoImporter : public TraceImporter<SimpleperfProtoImporter> {
+ public:
+  SimpleperfProtoImporter() : TraceImporter(MakeDescriptor()) {}
+  ~SimpleperfProtoImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'S', 'I', 'M', 'P', 'L',
+                                      'E', 'P', 'E', 'R', 'F'};
+    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<simpleperf_proto_importer::SimpleperfProtoTokenizer>(
+            context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "simpleperf_proto";
+    d.clock_policy = TraceClockPolicy::kMonotonic;
+    d.detection_priority = 40;
+    return d;
+  }
+};
+
+SimpleperfProtoImporter::~SimpleperfProtoImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateSimpleperfProtoImporter() {
+  return std::make_unique<SimpleperfProtoImporter>();
+}
+
+}  // namespace perfetto::trace_processor

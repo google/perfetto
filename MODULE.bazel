@@ -26,14 +26,13 @@ git_override(
     remote = "https://github.com/abseil/abseil-cpp.git",
 )
 
+bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
 bazel_dep(name = "platforms", version = "0.0.10")
 bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
-bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "rules_python", version = "1.0.0")
 bazel_dep(name = "rules_android", version = "0.6.6")
 bazel_dep(name = "rules_cc", version = "0.2.19")
-bazel_dep(name = "zstd", version = "1.5.7.bcr.1")
 
 remote_android_extensions = use_extension(
     "@rules_android//bzlmod_extensions:android_extensions.bzl",

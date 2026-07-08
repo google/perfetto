@@ -238,3 +238,58 @@ void AndroidDumpstateReader::MaybeSetTzOffsetFromAlarmService(
 void AndroidDumpstateReader::EndOfStream(base::StringView) {}
 
 }  // namespace perfetto::trace_processor
+
+#include <algorithm>
+#include <cstddef>
+#include <memory>
+#include <string>
+
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Android dumpstate / BatteryStats checkin text.
+class AndroidDumpstateImporter
+    : public TraceImporter<AndroidDumpstateImporter> {
+ public:
+  AndroidDumpstateImporter() : TraceImporter(MakeDescriptor()) {}
+  ~AndroidDumpstateImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    return base::StartsWith(start, "9,0,i,vers,") ||
+           base::StartsWith(start,
+                            "======================================================="
+                            "=\n== dumpstate: ");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<AndroidDumpstateReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "android_dumpstate";
+    d.clock_policy = TraceClockPolicy::kRealtime;
+    d.detection_priority = 250;
+    return d;
+  }
+};
+
+AndroidDumpstateImporter::~AndroidDumpstateImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateAndroidDumpstateImporter() {
+  return std::make_unique<AndroidDumpstateImporter>();
+}
+
+}  // namespace perfetto::trace_processor

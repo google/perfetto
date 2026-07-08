@@ -32,8 +32,6 @@ cc_test {
         "libandroid",
         "liblog",
         "libpcre2",
-        "libz",
-        "libzstd",
     ],
     test_suites: [
         "cts",

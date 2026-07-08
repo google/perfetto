@@ -36,6 +36,7 @@ if (enable_perfetto_trace_processor_mac_instruments) {
     public_deps = [ ":row" ]
     deps = [
       "../../../../gn:default_deps",
+      "../../util:trace_type",
       "../../../../gn:expat",
       "../../../../include/perfetto/ext/base:base",
       "../../../../include/perfetto/public",

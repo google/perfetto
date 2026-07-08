@@ -101,7 +101,6 @@ action("gen_buildflags") {
     "PERFETTO_TP_INSTRUMENTS=$enable_perfetto_trace_processor_mac_instruments",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
     "PERFETTO_ZLIB=$enable_perfetto_zlib",
-    "PERFETTO_ZSTD=$enable_perfetto_zstd",
     "PERFETTO_TRACED_PERF=$enable_perfetto_traced_perf",
     "PERFETTO_HEAPPROFD=$enable_perfetto_heapprofd",
     "PERFETTO_STDERR_CRASH_DUMP=$enable_perfetto_stderr_crash_dump",
@@ -457,35 +456,6 @@ if (enable_perfetto_zlib) {
     } else {
       public_configs = [ "//third_party/zlib:zlib_config" ]
       public_deps = [ "//third_party/zlib" ]
-    }
-  }
-}
-
-# Zstd is used both by trace_processor and by the tracing service.
-if (enable_perfetto_zstd) {
-  group("zstd") {
-    if (perfetto_root_path == "//") {
-      public_configs = [ "//buildtools:zstd_config" ]
-      public_deps = [ "//buildtools:zstd" ]
-    } else if (build_with_chromium) {
-      # Chromium's //third_party/zstd exposes per-stage source_sets rather than
-      # a single :zstd target + :zstd_config, so map to those and supply the
-      # include path ourselves.
-      # https://crsrc.org/c/third_party/zstd/BUILD.gn
-      public_configs = [ ":zstd_chromium_include_path" ]
-      public_deps = [
-        "//third_party/zstd:compress",
-        "//third_party/zstd:decompress",
-      ]
-    } else {
-      public_configs = [ "//third_party/zstd:zstd_config" ]
-      public_deps = [ "//third_party/zstd" ]
-    }
-  }
-
-  config("zstd_chromium_include_path") {
-    if (build_with_chromium) {
-      include_dirs = [ "//third_party/zstd/src/lib" ]
     }
   }
 }

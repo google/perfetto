@@ -18,6 +18,7 @@ source_set("collapsed_stack") {
     "collapsed_stack_trace_reader.h",
   ]
   deps = [
+    "../../util:trace_type",
     "../../../../gn:default_deps",
     "../../importers/common",
     "../../storage",

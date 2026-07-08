@@ -19,58 +19,6 @@ import {raf} from './raf_scheduler';
 import type {OmniboxManagerImpl} from './omnibox_manager';
 import {STARTUP_COMMAND_ALLOWLIST_SET} from './startup_command_allowlist';
 import {DisposableStack} from '../base/disposable_stack';
-import type {Hotkey} from '../base/hotkeys';
-
-// A map of command id -> hotkey.
-export type HotkeyOverlay = Record<string, Hotkey>;
-
-// A hotkey overlay for firefox browser.
-const firefoxOverlay: HotkeyOverlay = {
-  'dev.perfetto.OpenCommandPalette': '!F1', // Mod+Shift+P is not overridable in firefox
-};
-
-// Work out whether we are running inside firefox or not. Safe to evaluate this
-// at module scope because the browser cannot change.
-// TODO(stevegolton): We should move this to a common place.
-const isFirefox =
-  typeof navigator !== 'undefined' && navigator.userAgent.includes('Firefox');
-
-// The list of overlays for this environment.
-// For now - only firefox has mods, but this could include other browsers or
-// keyboard mappings in the future.
-const hotkeyOverlays = isFirefox ? [firefoxOverlay] : [];
-
-/**
- * Remaps command hotkeys using one or more overlays. Overlays are a map of
- * command id -> hotkey. Overlays are applied sequentially so the later overlays
- * take precedence.
- *
- * @param cmds Commands to remap.
- * @param overlays Overlays to apply.
- * @returns Remapped commands - 'cmd.defaultHotkey's updated.
- */
-export function remapHotkeys(
-  cmds: readonly Command[],
-  overlays: readonly HotkeyOverlay[],
-): readonly Command[] {
-  if (overlays.length === 0) {
-    return cmds;
-  }
-  return cmds.map((cmd) => {
-    const overriddenHotkey = overlays.reduce(
-      (hotkey: Hotkey | undefined, overlay: HotkeyOverlay) => {
-        const overriddenHotkey = overlay[cmd.id];
-        return overriddenHotkey ?? hotkey;
-      },
-      undefined,
-    );
-    if (!overriddenHotkey) return cmd;
-    return {
-      ...cmd,
-      defaultHotkey: overriddenHotkey,
-    };
-  });
-}
 
 /**
  * Zod schema for a single command invocation.
@@ -155,9 +103,7 @@ export class CommandManagerImpl implements CommandManager {
   constructor(private omnibox: OmniboxManagerImpl) {}
 
   getCommand(commandId: string): Command | undefined {
-    const cmd = this.registry.tryGet(commandId);
-    if (!cmd) return undefined;
-    return remapHotkeys([cmd], hotkeyOverlays)[0];
+    return this.registry.tryGet(commandId);
   }
 
   hasCommand(commandId: string): boolean {
@@ -165,7 +111,7 @@ export class CommandManagerImpl implements CommandManager {
   }
 
   getCommands(): readonly Command[] {
-    return remapHotkeys(this.registry.valuesAsArray(), hotkeyOverlays);
+    return this.registry.valuesAsArray();
   }
 
   registerCommand(cmd: Command): Disposable {

@@ -60,28 +60,19 @@ source_set("bump_allocator") {
   ]
 }
 
-# Codec-agnostic streaming decompressor (gzip, zstd). Consumers use
-# CreateDecompressor() / DecompressToBuffer() from decompressor.h; the concrete
-# codec headers are an implementation detail (zip_reader uses GzipDecompressor
-# directly for raw-deflate zip entries).
-source_set("decompressor") {
+source_set("gzip") {
   sources = [
-    "decompressor.cc",
-    "decompressor.h",
-    "gzip_decompressor.cc",
-    "gzip_decompressor.h",
-    "zstd_decompressor.cc",
-    "zstd_decompressor.h",
+    "gzip_utils.cc",
+    "gzip_utils.h",
   ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
   ]
+
+  # gzip_utils optionally depends on zlib.
   if (enable_perfetto_zlib) {
     deps += [ "../../../gn:zlib" ]
-  }
-  if (enable_perfetto_zstd) {
-    deps += [ "../../../gn:zstd" ]
   }
 }
 
@@ -221,7 +212,7 @@ source_set("zip_reader") {
     "zip_reader.h",
   ]
   deps = [
-    ":decompressor",
+    ":gzip",
     ":trace_blob_view_reader",
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor:storage",
@@ -422,15 +413,10 @@ source_set("trace_type") {
     "trace_type.h",
   ]
   deps = [
-    ":decompressor",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/trace:non_minimal_zero",
-    "../../../protos/third_party/pprof:zero",
     "../../protozero",
-    "../importers/android_bugreport:android_dumpstate_event",
-    "../importers/android_bugreport:android_log_event",
-    "../importers/perf_text:perf_text_sample_line_parser",
   ]
 }
 
@@ -471,10 +457,10 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":bump_allocator",
-    ":decompressor",
     ":descriptors",
     ":galloping_search",
     ":glob",
+    ":gzip",
     ":json_parser",
     ":json_serializer",
     ":json_value",
@@ -513,12 +499,8 @@ source_set("unittests") {
     ]
   }
   if (enable_perfetto_zlib) {
-    sources += [ "gzip_decompressor_unittest.cc" ]
+    sources += [ "gzip_utils_unittest.cc" ]
     deps += [ "../../../gn:zlib" ]
-  }
-  if (enable_perfetto_zstd) {
-    sources += [ "zstd_decompressor_unittest.cc" ]
-    deps += [ "../../../gn:zstd" ]
   }
   if (enable_perfetto_trace_processor_sqlite) {
     sources += [ "sql_module_doc_parser_unittest.cc" ]

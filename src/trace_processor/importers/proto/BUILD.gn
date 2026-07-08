@@ -80,6 +80,7 @@ source_set("minimal") {
   public_deps = [ ":proto_importer_module" ]
   deps = [
     ":gen_cc_chrome_track_event_descriptor",
+    "../../util:trace_type",
     ":gen_cc_gpu_track_event_descriptor",
     ":gen_cc_track_event_descriptor",
     "../../../../gn:default_deps",
@@ -115,7 +116,7 @@ source_set("minimal") {
     "../../tables",
     "../../types",
     "../../util:build_id",
-    "../../util:decompressor",
+    "../../util:gzip",
     "../../util:json_args",
     "../../util:json_parser",
     "../../util:profiler_util",

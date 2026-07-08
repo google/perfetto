@@ -25,6 +25,9 @@
 namespace perfetto {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+// Matches TracingServiceImpl::kMaxTracePacketSliceSize. Exposed for testing.
+static constexpr size_t kZlibCompressSliceSize = 128 * 1024 - 512;
+
 void ZlibCompressFn(std::vector<TracePacket>*);
 #endif
 

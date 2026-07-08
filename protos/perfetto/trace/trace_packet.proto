@@ -109,7 +109,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 134.
+// Next id: 133.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -247,9 +247,6 @@ message TracePacket {
     // Each compressed_packets TracePacket (including the two field ids and
     // sizes) should be less than 512KB.
     bytes compressed_packets = 50;
-
-    // The zstd counterpart of |compressed_packets|.
-    bytes zstd_compressed_packets = 133;
 
     // Data sources can extend the trace proto with custom extension protos (see
     // docs/instrumentation/extensions.md). When they do that, the descriptor of

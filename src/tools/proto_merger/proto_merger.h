@@ -17,8 +17,6 @@
 #ifndef SRC_TOOLS_PROTO_MERGER_PROTO_MERGER_H_
 #define SRC_TOOLS_PROTO_MERGER_PROTO_MERGER_H_
 
-#include <set>
-
 #include "perfetto/base/status.h"
 #include "src/tools/proto_merger/allowlist.h"
 #include "src/tools/proto_merger/proto_file.h"
@@ -33,16 +31,14 @@ namespace proto_merger {
 // Some notes about the merging algorithm:
 // * Comments for all values are always taken from |upstream|.
 // * If an enum is allowed, then so are all it's values.
-// * Options for fields and enums are taken from |input| unless explicitly
-//   allowlisted via |allowlisted_options| to be merged from |upstream|.
+// * Options for fields are always taken from |input|; any new options in
+//   |upstream| are ignored.
 // * Changing the type of an existing field is not supported (even if its
 //   just a move); this needs to be handled manually.
-base::Status MergeProtoFiles(
-    const ProtoFile& input,
-    const ProtoFile& upstream,
-    const Allowlist& allowlist,
-    ProtoFile& out,
-    const std::set<std::string>& allowlisted_options = {});
+base::Status MergeProtoFiles(const ProtoFile& input,
+                             const ProtoFile& upstream,
+                             const Allowlist& allowlist,
+                             ProtoFile& out);
 
 }  // namespace proto_merger
 }  // namespace perfetto

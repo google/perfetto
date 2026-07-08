@@ -40,7 +40,6 @@ cc_test {
         "liblog",
         "libpcre2",
         "libz",
-        "libzstd",
     ],
     test_suites: [
         "cts",

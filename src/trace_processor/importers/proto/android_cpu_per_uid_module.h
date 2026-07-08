@@ -41,7 +41,6 @@ class AndroidCpuPerUidModule : public ProtoImporterModule {
   void OnEventsFullyExtracted() override;
 
  private:
-  void PushCounter(int64_t ts, TrackId track, uint64_t value);
   void UpdateCounter(int64_t ts,
                      uint32_t uid,
                      uint32_t cluster,
@@ -53,19 +52,7 @@ class AndroidCpuPerUidModule : public ProtoImporterModule {
                     uint32_t cluster,
                     uint64_t value);
 
-  struct TrackState {
-    uint64_t last_value = 0;
-    int64_t last_time = 0;
-  };
-
   TraceProcessorContext* context_;
-
-  // The last packet's timestamp.
-  int64_t last_packet_ts_ = 0;
-
-  // The last value and time pushed per track. Using PushCounter, this allows
-  // writing only changed valued and backfilling the last data point.
-  base::FlatHashMap<TrackId, TrackState> track_state_;
 
   // Last cpu duration per uid/cluster (key is uid << 32 | cluster).
   base::FlatHashMap<uint64_t, uint64_t> last_value_;

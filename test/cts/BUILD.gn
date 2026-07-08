@@ -35,7 +35,7 @@ static_library("perfetto_cts_deps") {
     "../../protos/third_party/android/art:art_heap_graph_zero",
     "../../src/base:test_support",
     "../../src/protozero/filtering:bytecode_generator",
-    "../../src/trace_processor/util:decompressor",
+    "../../src/trace_processor/util:gzip",
     "../../test:test_helper",
   ]
   sources = [

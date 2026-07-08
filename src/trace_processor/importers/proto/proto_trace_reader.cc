@@ -60,8 +60,8 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/gzip_utils.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
@@ -222,21 +222,21 @@ base::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
 
   const uint8_t* data = nullptr;
   size_t size = 0;
-  std::optional<util::DecompressedBuffer> decompressed;
+  std::vector<uint8_t> decompressed;
   if (decoder.has_extension_set()) {
     auto extension = decoder.extension_set();
     data = extension.data;
     size = extension.size;
   } else if (decoder.has_extension_set_gzip()) {
     auto gzipped = decoder.extension_set_gzip();
-    decompressed = util::DecompressToBuffer(util::CompressionType::kGzip,
-                                            gzipped.data, gzipped.size);
-    if (!decompressed || decompressed->size == 0) {
+    decompressed =
+        util::GzipDecompressor::DecompressFully(gzipped.data, gzipped.size);
+    if (decompressed.empty()) {
       return base::ErrStatus(
-          "Failed to decompress gzipped extension descriptor (ERR:tp-corrupt)");
+          "Failed to decompress gzipped extension descriptor");
     }
-    data = decompressed->data.get();
-    size = decompressed->size;
+    data = decompressed.data();
+    size = decompressed.size();
   } else {
     return base::OkStatus();
   }
@@ -255,9 +255,8 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         "(ERR:tp-corrupt)");
   }
 
-  // Compressed packets are expanded by the tokenizer; none should reach here.
-  PERFETTO_CHECK(!decoder.has_compressed_packets() &&
-                 !decoder.has_zstd_compressed_packets());
+  // Any compressed packets should have been handled by the tokenizer.
+  PERFETTO_CHECK(!decoder.has_compressed_packets());
 
   // The top-level reader dispatches packets from other machines to a
   // per-machine reader; host and adopted-machine packets are parsed here.
@@ -1271,6 +1270,130 @@ void ProtoTraceReader::OnEventsFullyExtracted() {
     context_->stats_tracker->IncrementStats(
         stats::config_write_into_file_no_flush);
   }
+}
+
+}  // namespace perfetto::trace_processor
+
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+
+#include "perfetto/protozero/proto_utils.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+constexpr uint8_t kTracePacketTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::Trace::kPacketFieldNumber);
+constexpr uint16_t kModuleSymbolsTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::TracePacket::kModuleSymbolsFieldNumber);
+
+bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
+  const uint8_t* const end = ptr + size;
+
+  uint64_t tag;
+  const uint8_t* next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
+  if (next == ptr || tag != kTracePacketTag) {
+    return false;
+  }
+
+  ptr = next;
+  uint64_t field_length;
+  next = protozero::proto_utils::ParseVarInt(ptr, end, &field_length);
+  if (next == ptr) {
+    return false;
+  }
+  ptr = next;
+
+  if (field_length == 0) {
+    return false;
+  }
+
+  next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
+  if (next == ptr) {
+    return false;
+  }
+
+  return tag == kModuleSymbolsTag;
+}
+
+// Perfetto proto trace.
+class ProtoImporter : public TraceImporter<ProtoImporter> {
+ public:
+  ProtoImporter() : TraceImporter(MakeDescriptor()) {}
+  ~ProtoImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return size > 0 && data[0] == kTracePacketTag;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<ProtoTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "proto";
+    d.sort_policy = TraceSortPolicy::kConfigDriven;
+    d.clock_policy = TraceClockPolicy::kBoottime;
+    d.sets_default_clock = false;
+    d.claims_global_clock = false;
+    d.archive_priority = 0;
+    d.pid_zero_is_idle = true;
+    d.detection_priority = 230;
+    return d;
+  }
+};
+
+ProtoImporter::~ProtoImporter() = default;
+
+// Standalone module symbols proto (a proto trace whose first packet is
+// ModuleSymbols). Uses the same ProtoTraceReader.
+class SymbolsImporter : public TraceImporter<SymbolsImporter> {
+ public:
+  SymbolsImporter() : TraceImporter(MakeDescriptor()) {}
+  ~SymbolsImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return IsProtoTraceWithSymbols(data, size);
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<ProtoTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "symbols";
+    d.sort_policy = TraceSortPolicy::kConfigDriven;
+    d.archive_priority = 3;
+    d.detection_priority = 210;
+    return d;
+  }
+};
+
+SymbolsImporter::~SymbolsImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateProtoImporter() {
+  return std::make_unique<ProtoImporter>();
+}
+
+std::unique_ptr<TraceImporterBase> CreateSymbolsImporter() {
+  return std::make_unique<SymbolsImporter>();
 }
 
 }  // namespace perfetto::trace_processor

@@ -21,6 +21,7 @@ source_set("simpleperf_proto") {
     "simpleperf_proto_tracker.h",
   ]
   deps = [
+    "../../util:trace_type",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
     "../../../../include/perfetto/protozero:protozero",

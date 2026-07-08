@@ -147,3 +147,131 @@ base::Status CollapsedStackTraceReader::ParseLine(std::string_view line) {
 }
 
 }  // namespace perfetto::trace_processor
+
+#include <cctype>
+#include <cstddef>
+#include <memory>
+
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Checks if a line looks like a valid collapsed stack line:
+// frame1;frame2;frame3 count
+bool IsCollapsedStackLine(const char* line_start, size_t line_len) {
+  size_t start = 0;
+  while (start < line_len && base::IsSpace(line_start[start])) {
+    ++start;
+  }
+  if (start >= line_len || line_start[start] == '#') {
+    return false;
+  }
+
+  size_t end = line_len;
+  while (end > start && base::IsSpace(line_start[end - 1])) {
+    --end;
+  }
+
+  size_t len = end - start;
+  if (len == 0) {
+    return false;
+  }
+
+  const char* line = line_start + start;
+
+  size_t last_space = len;
+  for (size_t i = len; i > 0; --i) {
+    if (line[i - 1] == ' ') {
+      last_space = i - 1;
+      break;
+    }
+  }
+
+  if (last_space == len || last_space == 0) {
+    return false;
+  }
+
+  for (size_t i = last_space + 1; i < len; ++i) {
+    if (!std::isdigit(static_cast<unsigned char>(line[i]))) {
+      return false;
+    }
+  }
+
+  bool has_semicolon = false;
+  for (size_t i = 0; i < last_space; ++i) {
+    if (line[i] == ';') {
+      has_semicolon = true;
+      break;
+    }
+  }
+  return has_semicolon;
+}
+
+bool IsCollapsedStackFormat(const uint8_t* data, size_t size) {
+  const char* str = reinterpret_cast<const char*>(data);
+  size_t valid_lines = 0;
+  size_t pos = 0;
+
+  while (pos < size && valid_lines < 3) {
+    size_t nl = pos;
+    while (nl < size && str[nl] != '\n') {
+      ++nl;
+    }
+
+    size_t line_len = nl - pos;
+    size_t start = pos;
+    while (start < nl && base::IsSpace(str[start])) {
+      ++start;
+    }
+
+    if (start < nl && str[start] != '#') {
+      if (!IsCollapsedStackLine(str + pos, line_len)) {
+        return false;
+      }
+      ++valid_lines;
+    }
+
+    pos = (nl < size) ? nl + 1 : size;
+  }
+
+  return valid_lines > 0;
+}
+
+// Collapsed stack (flamegraph input) format.
+class CollapsedStackImporter : public TraceImporter<CollapsedStackImporter> {
+ public:
+  CollapsedStackImporter() : TraceImporter(MakeDescriptor()) {}
+  ~CollapsedStackImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return IsCollapsedStackFormat(data, size);
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<CollapsedStackTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "collapsed_stack";
+    d.detection_priority = 190;
+    return d;
+  }
+};
+
+CollapsedStackImporter::~CollapsedStackImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateCollapsedStackImporter() {
+  return std::make_unique<CollapsedStackImporter>();
+}
+
+}  // namespace perfetto::trace_processor

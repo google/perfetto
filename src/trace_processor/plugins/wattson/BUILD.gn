@@ -116,6 +116,6 @@ source_set("wattson") {
     "../../core/plugin",
     "../../storage",
     "../../types",
-    "../../util:decompressor",
+    "../../util:gzip",
   ]
 }

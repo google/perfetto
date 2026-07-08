@@ -378,3 +378,49 @@ base::Status DedupingAndroidLogReader::ProcessEvent(
 }
 
 }  // namespace perfetto::trace_processor
+
+#include <cstddef>
+#include <memory>
+
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Android logcat text log.
+class AndroidLogcatImporter : public TraceImporter<AndroidLogcatImporter> {
+ public:
+  AndroidLogcatImporter() : TraceImporter(MakeDescriptor()) {}
+  ~AndroidLogcatImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return AndroidLogEvent::IsAndroidLogcat(data, size);
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<AndroidLogReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "android_logcat";
+    d.clock_policy = TraceClockPolicy::kRealtime;
+    d.detection_priority = 185;
+    return d;
+  }
+};
+
+AndroidLogcatImporter::~AndroidLogcatImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateAndroidLogcatImporter() {
+  return std::make_unique<AndroidLogcatImporter>();
+}
+
+}  // namespace perfetto::trace_processor

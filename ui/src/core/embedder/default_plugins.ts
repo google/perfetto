@@ -102,7 +102,6 @@ export const defaultPlugins = [
   'dev.perfetto.TraceProcessorTrack',
   'dev.perfetto.TrackEvent',
   'dev.perfetto.TrackUtils',
-  'dev.perfetto.VideoFrames',
   'org.Chromium.OpenTableCommands',
   'org.chromium.MemorySnapshots',
   'org.kernel.LinuxKernelSubsystems',

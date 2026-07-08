@@ -31,6 +31,7 @@ source_set("gecko") {
     "gecko_trace_tokenizer.h",
   ]
   deps = [
+    "../../util:trace_type",
     ":gecko_event",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:storage",

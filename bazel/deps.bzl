@@ -97,16 +97,6 @@ def perfetto_deps():
         build_file = "//bazel:zlib.BUILD",
     )
 
-    # Zstd, for the legacy WORKSPACE path (bzlmod uses the BCR module, see
-    # MODULE.bazel). Upstream ships no Bazel BUILD (facebook/zstd#3123).
-    _add_repo_if_not_existing(
-        new_git_repository,
-        name = "zstd",
-        remote = "https://chromium.googlesource.com/external/github.com/facebook/zstd.git",
-        commit = "ac66b19e6bd6b83238bf008eecc1298105298532",  # refs/tags/upstream/v1.5.7
-        build_file = "//bazel:zstd.BUILD",
-    )
-
     _add_repo_if_not_existing(
         http_archive,
         name = "perfetto_dep_llvm_demangle",

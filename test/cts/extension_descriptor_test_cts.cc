@@ -15,13 +15,12 @@
  */
 
 #include <cstdint>
-#include <optional>
 #include <vector>
 
 #include "test/gtest_and_gmock.h"
 
 #include "src/base/test/test_task_runner.h"
-#include "src/trace_processor/util/decompressor.h"
+#include "src/trace_processor/util/gzip_utils.h"
 #include "test/test_helper.h"
 
 #include "protos/perfetto/common/descriptor.gen.h"
@@ -105,14 +104,11 @@ void ParseDescriptor(const protos::gen::ExtensionDescriptor& ext,
   EXPECT_EQ(static_cast<uint8_t>(gz[0]), 0x1f);  // gzip magic
   EXPECT_EQ(static_cast<uint8_t>(gz[1]), 0x8b);
 
-  std::optional<trace_processor::util::DecompressedBuffer> raw =
-      trace_processor::util::DecompressToBuffer(
-          trace_processor::util::CompressionType::kGzip,
+  std::vector<uint8_t> raw =
+      trace_processor::util::GzipDecompressor::DecompressFully(
           reinterpret_cast<const uint8_t*>(gz.data()), gz.size());
-  ASSERT_TRUE(raw);
-  ASSERT_GT(raw->size, 0u);
-  ASSERT_TRUE(
-      fds->ParseFromArray(raw->data.get(), static_cast<int>(raw->size)));
+  ASSERT_FALSE(raw.empty());
+  ASSERT_TRUE(fds->ParseFromArray(raw.data(), static_cast<int>(raw.size())));
   EXPECT_GT(fds->file_size(), 0);
 }
 

@@ -746,3 +746,52 @@ void FuchsiaTraceTokenizer::OnEventsFullyExtracted() {
 }
 
 }  // namespace perfetto::trace_processor
+
+#include <cstddef>
+#include <cstring>
+#include <memory>
+
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Fuchsia trace format (magic number record).
+class FuchsiaImporter : public TraceImporter<FuchsiaImporter> {
+ public:
+  FuchsiaImporter() : TraceImporter(MakeDescriptor()) {}
+  ~FuchsiaImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'\x10', '\x00', '\x04', '\x46',
+                                      '\x78', '\x54', '\x16', '\x00'};
+    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<FuchsiaTraceTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "fuchsia";
+    d.clock_policy = TraceClockPolicy::kBoottime;
+    d.detection_priority = 20;
+    return d;
+  }
+};
+
+FuchsiaImporter::~FuchsiaImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateFuchsiaImporter() {
+  return std::make_unique<FuchsiaImporter>();
+}
+
+}  // namespace perfetto::trace_processor

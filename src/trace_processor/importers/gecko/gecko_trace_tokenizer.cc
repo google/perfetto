@@ -819,3 +819,57 @@ void GeckoTraceTokenizer::ProcessMarkers(
 }
 
 }  // namespace perfetto::trace_processor::gecko_importer
+
+#include <algorithm>
+#include <cstddef>
+#include <memory>
+#include <string>
+
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Firefox Gecko / simpleperf-to-gecko JSON profile.
+class GeckoImporter : public TraceImporter<GeckoImporter> {
+ public:
+  GeckoImporter() : TraceImporter(MakeDescriptor()) {}
+  ~GeckoImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
+                start.end());
+    return base::StartsWith(start, "{\"meta\"") ||
+           base::StartsWith(start, "{\"libs\"");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<gecko_importer::GeckoTraceTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "gecko";
+    d.clock_policy = TraceClockPolicy::kTraceFile;
+    d.detection_priority = 100;
+    return d;
+  }
+};
+
+GeckoImporter::~GeckoImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateGeckoImporter() {
+  return std::make_unique<GeckoImporter>();
+}
+
+}  // namespace perfetto::trace_processor

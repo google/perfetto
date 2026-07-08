@@ -602,3 +602,51 @@ void PerfDataTokenizer::OnEventsFullyExtracted() {
 }
 
 }  // namespace perfetto::trace_processor::perf_importer
+
+#include <cstddef>
+#include <cstring>
+#include <memory>
+
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Linux perf.data format.
+class PerfDataImporter : public TraceImporter<PerfDataImporter> {
+ public:
+  PerfDataImporter() : TraceImporter(MakeDescriptor()) {}
+  ~PerfDataImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'P', 'E', 'R', 'F', 'I', 'L', 'E', '2'};
+    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<perf_importer::PerfDataTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "perf";
+    d.clock_policy = TraceClockPolicy::kMonotonic;
+    d.detection_priority = 30;
+    return d;
+  }
+};
+
+PerfDataImporter::~PerfDataImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreatePerfDataImporter() {
+  return std::make_unique<PerfDataImporter>();
+}
+
+}  // namespace perfetto::trace_processor

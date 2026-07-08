@@ -81,8 +81,8 @@ dependencies:
     specifier: ^7.6.2
     version: 7.6.2
   syntaqlite:
-    specifier: ^0.7.1
-    version: 0.7.1
+    specifier: ^0.5.9
+    version: 0.5.9
   uuid:
     specifier: ^14.0.0
     version: 14.0.0
@@ -3094,8 +3094,8 @@ packages:
       tslib: 2.6.3
     dev: true
 
-  /syntaqlite@0.7.1:
-    resolution: {integrity: sha512-R9Uua5+ypLg/cLFlPrReanWawt19CuflT5nbj8+6n5fOTI6+MG7NzSUkxGLYe2KOaAlEINzD9KKba2u3YReBAQ==}
+  /syntaqlite@0.5.9:
+    resolution: {integrity: sha512-hCJ58Nd+QVPv2UXQmMsd3BGikmoYIl4yynC6l9MSEoQ/m6Y2QbN1WipfM/C/6viyfSpdKsC1JwvmPdlmQ8prWw==}
     dev: false
 
   /tinybench@2.9.0:

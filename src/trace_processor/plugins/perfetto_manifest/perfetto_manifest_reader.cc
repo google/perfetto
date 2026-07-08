@@ -524,3 +524,61 @@ base::Status PerfettoManifestReader::ApplyManifest() {
 }
 
 }  // namespace perfetto::trace_processor::perfetto_manifest
+
+#include <algorithm>
+#include <cstddef>
+#include <memory>
+#include <string>
+
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+// A perfetto_manifest sidecar file: a JSON object whose only top-level key is
+// "perfetto_manifest". Must be the first file; overrides clock/machine handling
+// for the files that follow, so it produces no timeline and forks no context.
+class PerfettoManifestImporter
+    : public TraceImporter<PerfettoManifestImporter> {
+ public:
+  PerfettoManifestImporter() : TraceImporter(MakeDescriptor()) {}
+  ~PerfettoManifestImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
+                start.end());
+    return base::StartsWith(start, "{\"perfetto_manifest\"");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t file_id) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<perfetto_manifest::PerfettoManifestReader>(context,
+                                                                    file_id));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "perfetto_manifest";
+    d.archive_priority = -1;
+    d.forks_context = false;
+    d.is_manifest = true;
+    d.detection_priority = 90;
+    return d;
+  }
+};
+
+PerfettoManifestImporter::~PerfettoManifestImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreatePerfettoManifestImporter() {
+  return std::make_unique<PerfettoManifestImporter>();
+}
+
+}  // namespace perfetto::trace_processor

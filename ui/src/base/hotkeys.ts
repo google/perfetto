@@ -91,20 +91,7 @@ type Special =
   | ']'
   | ','
   | '.';
-type FunctionsKeys =
-  | 'F1'
-  | 'F2'
-  | 'F3'
-  | 'F4'
-  | 'F5'
-  | 'F6'
-  | 'F7'
-  | 'F8'
-  | 'F9'
-  | 'F10'
-  | 'F11'
-  | 'F12';
-export type Key = Alphabet | Number | Special | FunctionsKeys;
+export type Key = Alphabet | Number | Special;
 export type Modifier =
   | ''
   | 'Mod+'

@@ -35,7 +35,7 @@
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/util/decompressor.h"
+#include "src/trace_processor/util/gzip_utils.h"
 
 namespace perfetto::trace_processor::wattson {
 namespace {
@@ -52,8 +52,8 @@ static_assert(PERFETTO_IS_LITTLE_ENDIAN(),
 
 class WattsonCurvesBlobReader {
  public:
-  explicit WattsonCurvesBlobReader(const uint8_t* data, size_t size)
-      : data_(data), size_(size) {}
+  explicit WattsonCurvesBlobReader(const std::vector<uint8_t>& bytes)
+      : data_(bytes.data()), size_(bytes.size()) {}
 
   template <typename T>
   T Read() {
@@ -167,12 +167,9 @@ uint32_t WattsonCurvesTableFunction::GetArgumentCount() const {
 }
 
 base::StatusOr<Dataframe> WattsonCurvesTableFunction::BuildDataframe() const {
-  std::optional<util::DecompressedBuffer> bytes = util::DecompressToBuffer(
-      util::CompressionType::kGzip, compressed_blob_, compressed_blob_size_);
-  if (!bytes) {
-    return base::ErrStatus("Failed to decompress Wattson curves blob");
-  }
-  WattsonCurvesBlobReader reader(bytes->data.get(), bytes->size);
+  std::vector<uint8_t> bytes = util::GzipDecompressor::DecompressFully(
+      compressed_blob_, compressed_blob_size_);
+  WattsonCurvesBlobReader reader(bytes);
   uint32_t row_count = reader.Read<uint32_t>();
   uint32_t string_count = reader.Read<uint32_t>();
 

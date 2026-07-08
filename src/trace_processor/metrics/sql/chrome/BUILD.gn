@@ -22,7 +22,6 @@ assert(enable_perfetto_trace_processor_sqlite)
 perfetto_sql_source_set("chrome_sql") {
   sources = [
     "chrome_args_class_names.sql",
-    "chrome_browser_main_thread_duration.sql",
     "chrome_event_metadata.sql",
     "chrome_histogram_hashes.sql",
     "chrome_histogram_summaries.sql",

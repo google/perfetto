@@ -18,6 +18,7 @@ source_set("pprof") {
     "pprof_trace_reader.h",
   ]
   deps = [
+    "../../util:trace_type",
     "../../../../gn:default_deps",
     "../../../../protos/third_party/pprof:zero",
     "../../../../src/protozero",

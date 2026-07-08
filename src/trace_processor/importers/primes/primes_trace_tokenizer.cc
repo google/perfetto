@@ -108,3 +108,49 @@ base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
 }
 
 }  // namespace perfetto::trace_processor::primes
+
+#include <cstddef>
+#include <memory>
+
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Primes trace format.
+class PrimesImporter : public TraceImporter<PrimesImporter> {
+ public:
+  PrimesImporter() : TraceImporter(MakeDescriptor()) {}
+  ~PrimesImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return size > 0 && data[0] == 0x09;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<primes::PrimesTraceTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "primes";
+    d.clock_policy = TraceClockPolicy::kTraceFile;
+    d.detection_priority = 240;
+    return d;
+  }
+};
+
+PrimesImporter::~PrimesImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreatePrimesImporter() {
+  return std::make_unique<PrimesImporter>();
+}
+
+}  // namespace perfetto::trace_processor

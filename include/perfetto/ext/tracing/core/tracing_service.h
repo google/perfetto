@@ -307,6 +307,12 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
 };  // class ConsumerEndpoint.
 
 struct PERFETTO_EXPORT_COMPONENT TracingServiceInitOpts {
+  // Function used by tracing service to compress packets. Takes a pointer to
+  // a vector of TracePackets and replaces the packets in the vector with
+  // compressed ones.
+  using CompressorFn = void (*)(std::vector<TracePacket>*);
+  CompressorFn compressor_fn = nullptr;
+
   // An (optional) list of proto extension descriptors to dump into each trace
   // recorded. This is to support injecting protos that are known by the
   // embedder (e.g. the Android vendor image) but not by the upstream perfetto.
@@ -379,7 +385,8 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
     kDisabled
   };
 
-  // Implemented in src/core/tracing_service_impl.cc .
+  // Implemented in src/core/tracing_service_impl.cc . CompressorFn can be
+  // nullptr, in which case TracingService will not support compression.
   static std::unique_ptr<TracingService> CreateInstance(
       std::unique_ptr<SharedMemory::Factory>,
       base::TaskRunner*,

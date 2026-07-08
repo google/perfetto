@@ -77,8 +77,6 @@ const char kUsage[] =
 -r, --upstream-root-message: Root message in the upstream proto for which new
                               fields from the allowlist will be allowed.
 -o, --output:                Output path for writing the merged proto file.
--O, --allowlisted-option:    Option/annotation key that should be preserved
-                              from upstream (can be repeated).
 
 Example usage:
 
@@ -104,7 +102,6 @@ int Main(int argc, char** argv) {
       {"allowlist", required_argument, nullptr, 'a'},
       {"upstream-root-message", required_argument, nullptr, 'r'},
       {"output", required_argument, nullptr, 'o'},
-      {"allowlisted-option", required_argument, nullptr, 'O'},
       {nullptr, 0, nullptr, 0}};
 
   std::string input;
@@ -114,11 +111,10 @@ int Main(int argc, char** argv) {
   std::string allowlist;
   std::string upstream_root_message;
   std::string output;
-  std::set<std::string> allowlisted_options;
 
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hvi:I:u:U:a:r:o:O:", long_options, nullptr);
+        getopt_long(argc, argv, "hvi:I:u:U:a:r:o:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -160,11 +156,6 @@ int Main(int argc, char** argv) {
 
     if (option == 'o') {
       output = optarg;
-      continue;
-    }
-
-    if (option == 'O') {
-      allowlisted_options.insert(optarg);
       continue;
     }
 
@@ -258,8 +249,8 @@ int Main(int argc, char** argv) {
   }
 
   ProtoFile merged;
-  base::Status status = MergeProtoFiles(input_file, upstream_file, allowed,
-                                        merged, allowlisted_options);
+  base::Status status =
+      MergeProtoFiles(input_file, upstream_file, allowed, merged);
   if (!status.ok()) {
     PERFETTO_ELOG("Failed merging protos: %s", status.c_message());
     return 1;

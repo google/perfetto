@@ -41,7 +41,7 @@ class TraceFileTracker {
   tables::TraceFileTable::Id AddFile(const std::string& name);
   tables::TraceFileTable::Id AddFile() { return AddFileImpl(kNullStringId); }
   void SetSize(tables::TraceFileTable::Id id, uint64_t size);
-  void StartParsing(tables::TraceFileTable::Id id, TraceType trace_type);
+  void StartParsing(tables::TraceFileTable::Id id, TraceImporterId trace_type);
   void DoneParsing(tables::TraceFileTable::Id id, size_t size);
 
  private:

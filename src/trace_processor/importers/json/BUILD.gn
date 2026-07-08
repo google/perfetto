@@ -22,6 +22,7 @@ source_set("json") {
     "json_trace_tokenizer.h",
   ]
   deps = [
+    "../../util:trace_type",
     "../../../../gn:default_deps",
     "../../containers",
     "../../sorter",

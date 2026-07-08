@@ -385,14 +385,18 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private async formatSql(attrs: QueryPageAttrs, tabId: string, text: string) {
     try {
       const engine = await this.getFormatterEngine();
-      const formatted = engine.format(text, {
+      const result = engine.runFmt(text, {
         lineWidth: 80,
         indentWidth: 2,
-        keywordCase: 'upper',
+        keywordCase: 1,
         semicolons: true,
       });
-      attrs.onEditorContentUpdate?.(tabId, formatted);
-      m.redraw();
+      if (result.ok) {
+        attrs.onEditorContentUpdate?.(tabId, result.text);
+        m.redraw();
+      } else {
+        console.error('SQL formatting failed', result.text);
+      }
     } catch (e) {
       console.error('SQL formatting failed', e);
     }
