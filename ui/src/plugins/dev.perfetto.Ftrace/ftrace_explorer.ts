@@ -48,15 +48,19 @@ import {MenuItem} from '../../widgets/menu';
 
 const ROW_H = 24;
 
-// Describes how the explorer scopes events by cpu, which differs based on whether the explorer is used as part of an area selection, or as a standalne tab.
+// Describes how the explorer scopes events by cpu, which differs based on
+// whether the explorer is used as part of an area selection, or as a standalne
+// tab.
 export type FtraceCpuFilter =
   | {
-      // Show only these ucpus. Used by the area selection tab, where the cpus come from the selected tracks.
+      // Show only these ucpus. Used by the area selection tab, where the cpus
+      // come from the selected tracks.
       readonly kind: 'fixed';
       readonly show: ReadonlyArray<number>;
     }
   | {
-      // Show only these ucpus, where the set can be updated using a selector. Used by the standalone ftrace tab.
+      // Show only these ucpus, where the set can be updated using a selector.
+      // Used by the standalone ftrace tab.
       readonly kind: 'selectable';
       readonly show: ReadonlyArray<number>;
       readonly onChange: (show: ReadonlyArray<number>) => void;
@@ -386,7 +390,11 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
       return formatAsMarkdown(columns, columnNames, rows);
     };
 
-    return [cpuFilterButton, eventFilterButton, m(ExportButton, {onExportData})];
+    return [
+      cpuFilterButton,
+      eventFilterButton,
+      m(ExportButton, {onExportData}),
+    ];
   }
 }
 

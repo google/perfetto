@@ -19,7 +19,8 @@ export interface FtraceFilter {
   // want to include all events by default but we won't know what names are
   // present initially.
   excludeList: string[];
-  // Inclusion list of ucpu ids shown in the standalone ftrace tab. Undefined means all CPUs are shown.
+  // Inclusion list of ucpu ids shown in the standalone ftrace tab. Undefined
+  // means all CPUs are shown.
   visibleCpus?: number[];
 }
 
