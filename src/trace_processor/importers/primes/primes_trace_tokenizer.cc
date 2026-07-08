@@ -24,15 +24,15 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/primes/primes_trace_parser.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #include "protos/third_party/primes/primes_tracing.pbzero.h"
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace primespb = perfetto::third_party::primes::pbzero;
 

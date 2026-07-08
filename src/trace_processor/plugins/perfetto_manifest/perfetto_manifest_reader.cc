@@ -41,10 +41,10 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/json_value.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor::perfetto_manifest {
 namespace {

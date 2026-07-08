@@ -41,6 +41,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
@@ -62,6 +63,7 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -74,8 +76,6 @@
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {
