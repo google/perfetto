@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -40,6 +41,8 @@
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/third_party/simpleperf/cmd_report_sample.pbzero.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor::simpleperf_proto_importer {
 
@@ -255,13 +258,6 @@ SimpleperfProtoTokenizer::ParseRecord() {
 }
 
 }  // namespace perfetto::trace_processor::simpleperf_proto_importer
-
-#include <cstddef>
-#include <cstring>
-#include <memory>
-
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {

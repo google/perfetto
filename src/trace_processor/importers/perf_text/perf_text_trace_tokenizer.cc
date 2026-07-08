@@ -47,6 +47,8 @@
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor::perf_text_importer {
 
@@ -175,9 +177,6 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
 }
 
 }  // namespace perfetto::trace_processor::perf_text_importer
-
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {

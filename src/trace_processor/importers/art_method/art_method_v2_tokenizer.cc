@@ -17,7 +17,9 @@
 #include "src/trace_processor/importers/art_method/art_method_v2_tokenizer.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -31,8 +33,10 @@
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/art_method/art_method_parser.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor::art_method {
 namespace {
@@ -483,14 +487,6 @@ base::Status ArtMethodV2Tokenizer::OnPushDataToSorter() {
 void ArtMethodV2Tokenizer::OnEventsFullyExtracted() {}
 
 }  // namespace perfetto::trace_processor::art_method
-
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <memory>
-
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {

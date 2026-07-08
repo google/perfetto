@@ -45,6 +45,8 @@
 #include "src/trace_processor/util/clock_synchronizer.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 
@@ -745,16 +747,6 @@ void FuchsiaTraceTokenizer::OnEventsFullyExtracted() {
   proto_trace_reader_.OnEventsFullyExtracted();
 }
 
-}  // namespace perfetto::trace_processor
-
-#include <cstddef>
-#include <cstring>
-#include <memory>
-
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
-
-namespace perfetto::trace_processor {
 namespace {
 
 // Fuchsia trace format (magic number record).

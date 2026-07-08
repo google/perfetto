@@ -16,9 +16,12 @@
 
 #include "src/trace_processor/plugins/perfetto_manifest/perfetto_manifest_reader.h"
 
+#include <algorithm>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -39,7 +42,9 @@
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/json_value.h"
 
+#include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor::perfetto_manifest {
 namespace {
@@ -524,14 +529,6 @@ base::Status PerfettoManifestReader::ApplyManifest() {
 }
 
 }  // namespace perfetto::trace_processor::perfetto_manifest
-
-#include <algorithm>
-#include <cstddef>
-#include <memory>
-#include <string>
-
-#include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {

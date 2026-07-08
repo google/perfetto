@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -277,18 +278,6 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
   return base::OkStatus();
 }
 
-}  // namespace perfetto::trace_processor
-
-#include <algorithm>
-#include <cstddef>
-#include <memory>
-#include <string>
-
-#include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
-
-namespace perfetto::trace_processor {
 namespace {
 
 // Systrace / atrace text format. Runs after ctrace so a compressed atrace

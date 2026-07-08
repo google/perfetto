@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -38,7 +39,10 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
 
+#include "perfetto/protozero/proto_decoder.h"
 #include "protos/third_party/pprof/profile.pbzero.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::third_party::perftools::profiles::pbzero {
 using Profile = ::perfetto::third_party::perftools::profiles::pbzero::Profile;
@@ -358,16 +362,6 @@ base::Status PprofTraceReader::ParseProfile() {
   return base::OkStatus();
 }
 
-}  // namespace perfetto::trace_processor
-
-#include <cstddef>
-#include <memory>
-
-#include "perfetto/protozero/proto_decoder.h"
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
-
-namespace perfetto::trace_processor {
 namespace {
 
 bool IsPprofProfile(const uint8_t* data, size_t size) {

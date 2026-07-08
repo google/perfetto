@@ -35,6 +35,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -45,6 +46,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/simple_json_parser.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor::gecko_importer {
 
@@ -819,15 +821,6 @@ void GeckoTraceTokenizer::ProcessMarkers(
 }
 
 }  // namespace perfetto::trace_processor::gecko_importer
-
-#include <algorithm>
-#include <cstddef>
-#include <memory>
-#include <string>
-
-#include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {

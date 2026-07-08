@@ -37,6 +37,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -67,6 +68,7 @@
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor::perf_importer {
 namespace {
@@ -602,13 +604,6 @@ void PerfDataTokenizer::OnEventsFullyExtracted() {
 }
 
 }  // namespace perfetto::trace_processor::perf_importer
-
-#include <cstddef>
-#include <cstring>
-#include <memory>
-
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {

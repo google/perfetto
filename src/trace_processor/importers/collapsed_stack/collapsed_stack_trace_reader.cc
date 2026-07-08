@@ -16,8 +16,10 @@
 
 #include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
 
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,10 +31,12 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 
@@ -146,17 +150,6 @@ base::Status CollapsedStackTraceReader::ParseLine(std::string_view line) {
   return base::OkStatus();
 }
 
-}  // namespace perfetto::trace_processor
-
-#include <cctype>
-#include <cstddef>
-#include <memory>
-
-#include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
-
-namespace perfetto::trace_processor {
 namespace {
 
 // Checks if a line looks like a valid collapsed stack line:

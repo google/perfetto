@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <ctime>
 #include <memory>
@@ -35,12 +36,14 @@
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 
@@ -377,15 +380,6 @@ base::Status DedupingAndroidLogReader::ProcessEvent(
   return AndroidLogReader::ProcessEvent(event_ts, event);
 }
 
-}  // namespace perfetto::trace_processor
-
-#include <cstddef>
-#include <memory>
-
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
-
-namespace perfetto::trace_processor {
 namespace {
 
 // Android logcat text log.

@@ -63,6 +63,7 @@
 #include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/descriptors.h"
 
+#include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
@@ -73,6 +74,8 @@
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -1273,17 +1276,6 @@ void ProtoTraceReader::OnEventsFullyExtracted() {
   }
 }
 
-}  // namespace perfetto::trace_processor
-
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-
-#include "perfetto/protozero/proto_utils.h"
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
-
-namespace perfetto::trace_processor {
 namespace {
 
 constexpr uint8_t kTracePacketTag =

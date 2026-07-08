@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstddef>
@@ -40,6 +41,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
@@ -54,6 +56,7 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/json_parser.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -1037,18 +1040,6 @@ base::Status JsonTraceTokenizer::OnPushDataToSorter() {
                    "JSON trace file is incomplete (ERR:tp-corrupt)");
 }
 
-}  // namespace perfetto::trace_processor
-
-#include <algorithm>
-#include <cstddef>
-#include <memory>
-#include <string>
-
-#include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
-
-namespace perfetto::trace_processor {
 namespace {
 
 // Chrome JSON trace format.

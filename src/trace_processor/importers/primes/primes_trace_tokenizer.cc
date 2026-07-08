@@ -31,6 +31,8 @@
 #include "src/trace_processor/util/clock_synchronizer.h"
 
 #include "protos/third_party/primes/primes_tracing.pbzero.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace primespb = perfetto::third_party::primes::pbzero;
 
@@ -108,12 +110,6 @@ base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
 }
 
 }  // namespace perfetto::trace_processor::primes
-
-#include <cstddef>
-#include <memory>
-
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {

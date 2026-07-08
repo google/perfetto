@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 
-#include <expat.h>
 #include <algorithm>
 #include <cctype>
 #include <cinttypes>
@@ -24,6 +23,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <expat.h>
 #include <map>
 #include <memory>
 #include <optional>
@@ -36,10 +36,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/instruments/row.h"
@@ -49,6 +51,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
 #error \
@@ -569,15 +572,6 @@ base::Status InstrumentsXmlTokenizer::Parse(TraceBlobView view) {
 }
 
 }  // namespace perfetto::trace_processor::instruments_importer
-
-#include <algorithm>
-#include <cstddef>
-#include <memory>
-#include <string>
-
-#include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {

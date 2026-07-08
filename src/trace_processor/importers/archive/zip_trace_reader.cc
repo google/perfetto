@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -31,8 +32,10 @@
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_reader.h"
 #include "src/trace_processor/importers/archive/archive_entry.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/trace_type.h"
 #include "src/trace_processor/util/zip_reader.h"
 
@@ -106,17 +109,6 @@ void ZipTraceReader::OnEventsFullyExtracted() {
   }
 }
 
-}  // namespace perfetto::trace_processor
-
-#include <cstddef>
-#include <cstring>
-#include <memory>
-
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/decompressor.h"
-#include "src/trace_processor/util/trace_type.h"
-
-namespace perfetto::trace_processor {
 namespace {
 
 // ZIP archive.

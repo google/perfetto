@@ -16,9 +16,12 @@
 
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <string>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -29,10 +32,12 @@
 #include "perfetto/ext/base/string_view_splitter.h"
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 
@@ -237,18 +242,6 @@ void AndroidDumpstateReader::MaybeSetTzOffsetFromAlarmService(
 
 void AndroidDumpstateReader::EndOfStream(base::StringView) {}
 
-}  // namespace perfetto::trace_processor
-
-#include <algorithm>
-#include <cstddef>
-#include <memory>
-#include <string>
-
-#include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/common/builtin_trace_importers.h"
-#include "src/trace_processor/util/trace_type.h"
-
-namespace perfetto::trace_processor {
 namespace {
 
 // Android dumpstate / BatteryStats checkin text.
