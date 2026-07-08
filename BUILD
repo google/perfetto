@@ -544,11 +544,11 @@ perfetto_cc_library(
         ":src_trace_processor_util_blob",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
+        ":src_trace_processor_util_decompressor",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
-        ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
@@ -682,6 +682,7 @@ perfetto_cc_library(
            ] + PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
+           PERFETTO_CONFIG.deps.zstd +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
 )
@@ -852,11 +853,11 @@ perfetto_cc_library(
         ":src_trace_processor_util_blob",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
+        ":src_trace_processor_util_decompressor",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
-        ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
@@ -1007,6 +1008,7 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
+           PERFETTO_CONFIG.deps.zstd +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
 )
@@ -2541,8 +2543,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/archive/archive_entry.cc",
         "src/trace_processor/importers/archive/archive_entry.h",
-        "src/trace_processor/importers/archive/gzip_trace_parser.cc",
-        "src/trace_processor/importers/archive/gzip_trace_parser.h",
+        "src/trace_processor/importers/archive/decompressing_trace_reader.cc",
+        "src/trace_processor/importers/archive/decompressing_trace_reader.h",
         "src/trace_processor/importers/archive/tar_trace_reader.cc",
         "src/trace_processor/importers/archive/tar_trace_reader.h",
         "src/trace_processor/importers/archive/zip_trace_reader.cc",
@@ -5812,6 +5814,19 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:decompressor
+perfetto_filegroup(
+    name = "src_trace_processor_util_decompressor",
+    srcs = [
+        "src/trace_processor/util/decompressor.cc",
+        "src/trace_processor/util/decompressor.h",
+        "src/trace_processor/util/gzip_decompressor.cc",
+        "src/trace_processor/util/gzip_decompressor.h",
+        "src/trace_processor/util/zstd_decompressor.cc",
+        "src/trace_processor/util/zstd_decompressor.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:descriptors
 perfetto_filegroup(
     name = "src_trace_processor_util_descriptors",
@@ -5835,15 +5850,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/glob.cc",
         "src/trace_processor/util/glob.h",
-    ],
-)
-
-# GN target: //src/trace_processor/util:gzip
-perfetto_filegroup(
-    name = "src_trace_processor_util_gzip",
-    srcs = [
-        "src/trace_processor/util/gzip_utils.cc",
-        "src/trace_processor/util/gzip_utils.h",
     ],
 )
 
@@ -11343,11 +11349,11 @@ perfetto_cc_library(
         ":src_trace_processor_util_blob",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
+        ":src_trace_processor_util_decompressor",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
-        ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
@@ -11481,6 +11487,7 @@ perfetto_cc_library(
            ] + PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
+           PERFETTO_CONFIG.deps.zstd +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
 )
@@ -11672,11 +11679,11 @@ perfetto_cc_binary(
         ":src_trace_processor_util_blob",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_clock",
+        ":src_trace_processor_util_decompressor",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
-        ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_json_args",
         ":src_trace_processor_util_json_parser",
@@ -11807,6 +11814,7 @@ perfetto_cc_binary(
            ] + PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
+           PERFETTO_CONFIG.deps.zstd +
            PERFETTO_CONFIG.deps.demangle_wrapper,
 )
 
