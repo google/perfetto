@@ -452,18 +452,18 @@ UI_DEPS = [
         'linux', 'x64'),
     Dependency(
         'buildtools/mac/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-mac.tgz',
-        '2682c43580ae2265b4c7f3c7963629f7f501eb24a8ffa01be0059f9f5b3b8cd0',
+        'https://storage.googleapis.com/perfetto/emscripten-5.0.3-mac.tgz',
+        '1e7e137902c819ec10b3a1b8af618ebcdcf28b5de958e88ed04dff7d942d5989',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/mac/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-mac-x64.tgz',
-        'e1b2e6d4797338ed884f9d8a8419f93fc42cfcdea5e8a8b29fe13c6fd3fe7f7a',
+        'https://storage.googleapis.com/perfetto/emscripten-5.0.3-mac-x64.tgz',
+        '67f4e3792c1787f9b9f546a2c32b3f9ec2650b89d89220086c9bdf71b930679f',
         'darwin', 'x64'),
     Dependency(
         'buildtools/linux64/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-linux.tgz',
-        '2fd3e39b5e233bad39799c31029b6d6d5295135cb00c1bb2fd9a4b2c4b7c264b',
+        'https://storage.googleapis.com/perfetto/emscripten-5.0.3-linux.tgz',
+        '0096c64fc528b35c14a370459f35e09dab1773af8aa63d4540fea60441623dc1',
         'linux', 'x64'),
     Dependency(
         'buildtools/catapult_trace_viewer.tgz',
