@@ -922,7 +922,11 @@ SYNTAQLITE_DIALECT_API i64 SynqPerfettoGetToken(const SyntaqliteDialect* env, co
 #define SYNQ_PARSER_FINALIZE(d, p)   SynqPerfettoParseFinalize(p)
 #define SYNQ_PARSER_FREE(d, p, f)    SynqPerfettoParseFree(p, f)
 #define SYNQ_PARSER_FEED(d, p, t, m) SynqPerfettoParse(p, t, m)
+#ifndef NDEBUG
 #define SYNQ_PARSER_TRACE(d, f, s)   SynqPerfettoParseTrace(f, s)
+#else
+#define SYNQ_PARSER_TRACE(d, f, s)   ((void)0)
+#endif
 #define SYNQ_GET_TOKEN(env, z, t)    SynqPerfettoGetToken(env, z, t)
 #endif
 
