@@ -131,6 +131,14 @@ std::unique_ptr<Decompressor> CreateDecompressor(CompressionType type);
 // codec's library. False for kNone.
 bool IsCompressionSupported(CompressionType type);
 
+// The codec's display name ("gzip"/"zstd") and the GN arg that enables it, for
+// "not compiled in; rebuild with X=true" errors. Not valid for kNone.
+struct CompressionCodecInfo {
+  const char* name;
+  const char* gn_arg;
+};
+CompressionCodecInfo GetCompressionCodecInfo(CompressionType type);
+
 // Decompresses an entire in-memory block into one owned heap buffer, returned
 // for zero-copy handoff (e.g. TraceBlob::TakeOwnership). Returns nullopt if
 // `type` is unsupported or the input is corrupt or truncated. Concatenated

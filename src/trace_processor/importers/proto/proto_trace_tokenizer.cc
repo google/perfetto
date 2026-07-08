@@ -34,10 +34,11 @@ base::Status ProtoTraceTokenizer::Decompress(util::CompressionType type,
     decompressor_ = util::CreateDecompressor(type);
     decompressor_type_ = type;
     if (!decompressor_) {
+      auto info = util::GetCompressionCodecInfo(type);
       return base::ErrStatus(
-          "Cannot decompress compressed_packets: %s is not enabled in the "
-          "build config",
-          type == util::CompressionType::kZstd ? "zstd" : "zlib");
+          "Cannot decompress compressed_packets: %s is not enabled in this "
+          "build (rebuild with %s=true)",
+          info.name, info.gn_arg);
     }
   } else if (decompressor_type_ != type) {
     // Malformed (or adversarial) input: a well-formed trace never mixes codecs.

@@ -214,9 +214,12 @@ int Main(int argc, const char** argv) {
       trace_processor::GuessTraceType(bytes, s.size()));
   if (codec != util::CompressionType::kNone) {
     if (!util::IsCompressionSupported(codec)) {
+      auto info = util::GetCompressionCodecInfo(codec);
       PERFETTO_ELOG(
-          "Input (%s) is compressed but this build lacks the required codec",
-          input_path);
+          "Input (%s) is %s-compressed but this build lacks %s support. "
+          "Rebuild with %s=true, or decompress the input first (e.g. "
+          "`%s -d %s`).",
+          input_path, info.name, info.name, info.gn_arg, info.name, input_path);
       return 1;
     }
     std::optional<util::DecompressedBuffer> decompressed =

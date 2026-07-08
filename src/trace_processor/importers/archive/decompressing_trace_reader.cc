@@ -62,9 +62,11 @@ base::Status DecompressingTraceReader::Parse(TraceBlobView blob) {
 base::Status DecompressingTraceReader::ParseUnowned(const uint8_t* data,
                                                     size_t size) {
   if (!decompressor_) {
+    auto info = util::GetCompressionCodecInfo(type_);
     return base::ErrStatus(
-        "Cannot decompress trace: the codec is not enabled in the build "
-        "config");
+        "Cannot decompress trace: %s is not enabled in this build (rebuild "
+        "with %s=true)",
+        info.name, info.gn_arg);
   }
 
   const uint8_t* start = data;

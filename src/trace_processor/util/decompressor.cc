@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/util/gzip_decompressor.h"
 #include "src/trace_processor/util/zstd_decompressor.h"
 
@@ -40,6 +41,18 @@ bool IsCompressionSupported(CompressionType type) {
       return IsZstdSupported();
   }
   return false;
+}
+
+CompressionCodecInfo GetCompressionCodecInfo(CompressionType type) {
+  switch (type) {
+    case CompressionType::kGzip:
+      return {"gzip", "enable_perfetto_zlib"};
+    case CompressionType::kZstd:
+      return {"zstd", "enable_perfetto_zstd"};
+    case CompressionType::kNone:
+      break;
+  }
+  PERFETTO_FATAL("kNone has no codec");
 }
 
 std::unique_ptr<Decompressor> CreateDecompressor(CompressionType type) {
