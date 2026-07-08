@@ -685,7 +685,8 @@ def start_trace(args, print_log=True):
   #   something to block on
   # * poll the existence of /proc/pid to check that the process has exited
   #
-  # The following command prints RUN once, and TERM when the process finishes.
+  # On older Android devices adbd doesn't propagate the exit code. Hence
+  # the following command prints RUN once, and TERM when the process finishes.
   # On an error/disconnect the pipe closes without TERM.
   wait_cmd = (
       'echo RUN; while [ -d /proc/%s ]; do read -t 1 scratch_var; done; echo TERM'
