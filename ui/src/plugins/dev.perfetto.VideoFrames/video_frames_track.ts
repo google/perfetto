@@ -15,7 +15,6 @@
 import './video_frames.scss';
 import m from 'mithril';
 import {QuerySlot} from '../../base/query_slot';
-import {materialColorScheme} from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -29,15 +28,13 @@ export function createVideoFramesTrack(
   displayId: number,
   player: VideoFramePlayer,
 ) {
-  // dur = -1, depth = 0 renders each frame as an incomplete slice spanning
-  // to the next frame and fading out (same as the Screenshots track).
-  // is_config rows are decoder setup, not displayable, so excluded. The
-  // name doubles as the colorization seed.
+  // dur spans each frame to the next (last frame: 0). is_config rows are
+  // decoder setup, not displayable, so excluded.
   const src = `
     SELECT
       id,
       ts,
-      -1 AS dur,
+      COALESCE(LEAD(ts) OVER (ORDER BY ts) - ts, 0) AS dur,
       0 AS depth,
       'Frame ' || frame_number AS name
     FROM __intrinsic_video_frames
@@ -61,7 +58,6 @@ export function createVideoFramesTrack(
       src,
     }),
     detailsPanel: () => panel,
-    colorizer: (row) => materialColorScheme(row.name),
     tooltip: (data) => {
       const image = imageSlot.use({
         key: {id: data.id},
