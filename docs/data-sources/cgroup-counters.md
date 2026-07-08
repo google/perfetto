@@ -53,15 +53,17 @@ data_sources: {
     config {
         name: "linux.sys_stats"
         sys_stats_config {
-            # Poll cgroup stats every 100ms
+            # Poll cgroup stats every 100ms.
             cgroup_period_ms: 100
-            
-            # Cgroup paths to monitor
-            cgroup_paths: "/sys/fs/cgroup/cpu/top-app"
-            cgroup_paths: "/sys/fs/cgroup/memory/foreground"
-            cgroup_paths: "/sys/fs/cgroup/cpu/background"
-            
-            # Counters to collect
+
+            # Cgroup paths to monitor. These are cgroup v2 unified-hierarchy
+            # paths; on a cgroup v1 system use the per-controller paths such as
+            # "/sys/fs/cgroup/cpu/top-app".
+            cgroup_paths: "/sys/fs/cgroup/top-app"
+            cgroup_paths: "/sys/fs/cgroup/foreground"
+            cgroup_paths: "/sys/fs/cgroup/background"
+
+            # Counters to collect. If omitted, all known counters are reported.
             cgroup_counters: CGROUP_CPU_USAGE_USEC
             cgroup_counters: CGROUP_MEMORY_ANON
             cgroup_counters: CGROUP_IO_RBYTES
@@ -70,15 +72,27 @@ data_sources: {
 }
 ```
 
-## Common Android Cgroup Paths
+Under each configured path, the data source probes `cpu.stat`, `memory.stat`,
+`memory.current`, `memory.high`, `memory.max`, `memory.swap.current`,
+`memory.swap.max` and `io.stat`. Files that do not exist are skipped, so the
+same configuration works on both hierarchies: on cgroup v1 each controller has
+its own directory, while on cgroup v2 all files share one unified directory.
 
-- `/sys/fs/cgroup/cpu/top-app`: Foreground applications
-- `/sys/fs/cgroup/cpu/foreground`: Foreground services
-- `/sys/fs/cgroup/cpu/background`: Background tasks
-- `/sys/fs/cgroup/cpu/system-background`: System background tasks
-- `/sys/fs/cgroup/memory/top-app`: Foreground app memory group
-- `/sys/fs/cgroup/memory/foreground`: Foreground service memory group
-- `/sys/fs/cgroup/memory/background`: Background task memory group
+## Querying in Trace Processor
+
+Each counter becomes a counter track dimensioned by cgroup path, counter name
+and (for `io.stat`) block device:
+
+```sql
+SELECT
+  ts,
+  EXTRACT_ARG(t.dimension_arg_set_id, 'cgroup_path') AS path,
+  EXTRACT_ARG(t.dimension_arg_set_id, 'cgroup_name') AS name,
+  value
+FROM counter c
+JOIN track t ON c.track_id = t.id
+WHERE t.name GLOB 'cgroup *';
+```
 
 ## Use Cases
 
@@ -89,14 +103,7 @@ data_sources: {
 
 ## Implementation Details
 
-- All polling periods must be ≥ 10ms to avoid excessive CPU usage
-- If no cgroup paths are specified, Android default paths are used
-- Supports both cgroup v1 and v2 filesystem formats
-- Statistics include full cgroup paths for analysis-time differentiation
-
-## Performance Impact
-
-Cgroup polling overhead is minimal:
-- File reading: < 0.5ms per cgroup path
-- Parsing and injection: < 0.1ms per counter
-- Recommended polling interval: 100-1000ms depending on analysis needs
+- All polling periods must be ≥ 10ms to avoid excessive CPU usage.
+- `cgroup_paths` must be set explicitly; there are no default paths.
+- Works with both the cgroup v1 and v2 hierarchies.
+- A limit file reading the literal `max` (no limit) is reported as uint64 max.

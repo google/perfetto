@@ -19,10 +19,12 @@
 
 #include <string.h>
 
+#include <bitset>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -30,6 +32,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/data_source_config.h"
+#include "protos/perfetto/common/sys_stats_counters.pbzero.h"
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/probes_data_source.h"
@@ -107,27 +110,20 @@ class SysStatsDataSource : public ProbesDataSource {
   void ReadCgroup(protos::pbzero::SysStats* sys_stats);
   std::optional<uint64_t> ReadAMDGpuFreq();
 
-  // Cgroup parsing and processing helper methods
-  void ReadCgroupFile(protos::pbzero::SysStats* sys_stats,
-                      const std::string& cgroup_path,
-                      const std::string& file_name,
-                      bool log_errors);
-  void ParseCgroupCpuStat(protos::pbzero::SysStats* sys_stats,
-                          char* buf,
-                          size_t rsize,
-                          const std::string& cgroup_path);
-  void ParseCgroupMemoryStat(protos::pbzero::SysStats* sys_stats,
-                             char* buf,
-                             size_t rsize,
-                             const std::string& cgroup_path);
-  void ParseCgroupSingleValue(protos::pbzero::SysStats* sys_stats,
+  void ParseCgroupKeyValueStat(protos::pbzero::SysStats::Cgroup* cgroup,
+                               char* buf,
+                               size_t rsize);
+  void ParseCgroupSingleValue(protos::pbzero::SysStats::Cgroup* cgroup,
                               char* buf,
-                              const std::string& file_name,
-                              const std::string& cgroup_path);
-  void ParseCgroupIoStat(protos::pbzero::SysStats* sys_stats,
+                              protos::pbzero::CgroupCounters key);
+  void ParseCgroupIoStat(protos::pbzero::SysStats::Cgroup* cgroup,
                          char* buf,
-                         size_t rsize,
-                         const std::string& cgroup_path);
+                         size_t rsize);
+  void MaybeEmitCgroupCounter(protos::pbzero::SysStats::Cgroup* cgroup,
+                              protos::pbzero::CgroupCounters key,
+                              uint64_t value,
+                              const char* device = nullptr,
+                              size_t device_size = 0);
 
   size_t ReadFile(base::ScopedFile*, const char* path);
 
@@ -166,10 +162,9 @@ class SysStatsDataSource : public ProbesDataSource {
 
   std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
 
-  // Cgroup monitoring state and configuration
-  std::map<const char*, int, CStrCmp> cgroup_counters_;
+  std::map<const char*, int, CStrCmp> cgroup_name_to_id_;
+  std::bitset<protos::pbzero::CgroupCounters_MAX + 1> cgroup_counters_enabled_;
   std::vector<std::string> cgroup_paths_;
-  bool cgroup_error_logged_ = false;
   OpenFunction open_fn_;
 
   base::WeakPtrFactory<SysStatsDataSource> weak_factory_;  // Keep last.

@@ -212,43 +212,25 @@ SysStatsDataSource::SysStatsDataSource(
   slab_ticks_ = ticks[11];
   cgroup_ticks_ = ticks[12];
 
-  // Build cgroup counters lookup map for enabled counters
   constexpr size_t kMaxCgroupEnum = protos::pbzero::CgroupCounters_MAX;
-  std::bitset<kMaxCgroupEnum + 1> cgroup_counters_enabled{};
-  if (!cfg.has_cgroup_counters())
-    cgroup_counters_enabled.set();
-  for (auto it = cfg.cgroup_counters(); it; ++it) {
-    uint32_t counter = static_cast<uint32_t>(*it);
-    if (counter > 0 && counter <= kMaxCgroupEnum) {
-      cgroup_counters_enabled.set(counter);
-    } else {
-      PERFETTO_DFATAL("Cgroup counter out of bounds %u", counter);
+  if (!cfg.has_cgroup_counters()) {
+    cgroup_counters_enabled_.set();
+  } else {
+    for (auto it = cfg.cgroup_counters(); it; ++it) {
+      uint32_t counter = static_cast<uint32_t>(*it);
+      if (counter > 0 && counter <= kMaxCgroupEnum) {
+        cgroup_counters_enabled_.set(counter);
+      } else {
+        PERFETTO_DFATAL("Cgroup counter out of bounds %u", counter);
+      }
     }
   }
-  for (size_t i = 0; i < base::ArraySize(kCgroupKeys); i++) {
-    const auto& k = kCgroupKeys[i];
-    if (cgroup_counters_enabled[static_cast<size_t>(k.id)])
-      cgroup_counters_.emplace(k.str, k.id);
-  }
+  for (const auto& k : kCgroupKeys)
+    cgroup_name_to_id_.emplace(k.str, k.id);
 
-  // Configure cgroup paths to monitor
   for (auto it = cfg.cgroup_paths(); it; ++it) {
     cgroup_paths_.emplace_back(reinterpret_cast<const char*>(it->data()),
                                it->size());
-  }
-
-  // Use default Android cgroup paths if none specified
-  if (cgroup_paths_.empty()) {
-    cgroup_paths_ = {
-        "/sys/fs/cgroup/cpu/top-app",
-        "/sys/fs/cgroup/cpu/foreground",
-        "/sys/fs/cgroup/cpu/background",
-        "/sys/fs/cgroup/cpu/system-background",
-        "/sys/fs/cgroup/memory/top-app",
-        "/sys/fs/cgroup/memory/foreground",
-        "/sys/fs/cgroup/memory/background",
-        "/sys/fs/cgroup/memory/system-background",
-    };
   }
 }
 
@@ -831,216 +813,136 @@ void SysStatsDataSource::Flush(FlushRequestID, std::function<void()> callback) {
   writer_->Flush(callback);
 }
 
+namespace {
+// The files probed under each configured cgroup path. Missing files are
+// skipped, so the same list works for both the cgroup v1 (per-controller) and
+// v2 (unified) hierarchies.
+struct CgroupFile {
+  const char* name;
+  enum Kind { kKeyValue, kSingleValue, kIoStat } kind;
+  // Only used for kSingleValue files, whose counter is fixed by the file name.
+  protos::pbzero::CgroupCounters single_value_key;
+};
+constexpr CgroupFile kCgroupFiles[] = {
+    {"cpu.stat", CgroupFile::kKeyValue,
+     protos::pbzero::CgroupCounters::CGROUP_UNSPECIFIED},
+    {"memory.stat", CgroupFile::kKeyValue,
+     protos::pbzero::CgroupCounters::CGROUP_UNSPECIFIED},
+    {"memory.current", CgroupFile::kSingleValue,
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_CURRENT},
+    {"memory.high", CgroupFile::kSingleValue,
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_HIGH},
+    {"memory.max", CgroupFile::kSingleValue,
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_MAX},
+    {"memory.swap.current", CgroupFile::kSingleValue,
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_SWAP_CURRENT},
+    {"memory.swap.max", CgroupFile::kSingleValue,
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_SWAP_MAX},
+    {"io.stat", CgroupFile::kIoStat,
+     protos::pbzero::CgroupCounters::CGROUP_UNSPECIFIED},
+};
+}  // namespace
+
 void SysStatsDataSource::ReadCgroup(protos::pbzero::SysStats* sys_stats) {
-  for (const auto& cgroup_path : cgroup_paths_) {
-    // Determine which files to read based on cgroup type
-    if (cgroup_path.find("/cpu/") != std::string::npos ||
-        cgroup_path.find("/cpu") == cgroup_path.length() - 4) {
-      ReadCgroupFile(sys_stats, cgroup_path, "cpu.stat", true);
+  for (const auto& path : cgroup_paths_) {
+    auto* cgroup = sys_stats->add_cgroup();
+    cgroup->set_path(path);
+    for (const auto& file : kCgroupFiles) {
+      std::string full_path = path + "/" + file.name;
+      base::ScopedFile fd = open_fn_(full_path.c_str());
+      if (!fd)
+        continue;
+      size_t rsize = ReadFile(&fd, full_path.c_str());
+      if (!rsize)
+        continue;
+      char* buf = static_cast<char*>(read_buf_.Get());
+      switch (file.kind) {
+        case CgroupFile::kKeyValue:
+          ParseCgroupKeyValueStat(cgroup, buf, rsize);
+          break;
+        case CgroupFile::kSingleValue:
+          ParseCgroupSingleValue(cgroup, buf, file.single_value_key);
+          break;
+        case CgroupFile::kIoStat:
+          ParseCgroupIoStat(cgroup, buf, rsize);
+          break;
+      }
     }
-
-    if (cgroup_path.find("/memory/") != std::string::npos ||
-        cgroup_path.find("/memory") == cgroup_path.length() - 7) {
-      ReadCgroupFile(sys_stats, cgroup_path, "memory.stat", true);
-      ReadCgroupFile(sys_stats, cgroup_path, "memory.current", false);
-      ReadCgroupFile(sys_stats, cgroup_path, "memory.max", false);
-      ReadCgroupFile(sys_stats, cgroup_path, "memory.swap.current", false);
-      ReadCgroupFile(sys_stats, cgroup_path, "memory.swap.max", false);
-    }
-
-    // IO stats can be in various cgroup types
-    ReadCgroupFile(sys_stats, cgroup_path, "io.stat", false);
   }
 }
 
-void SysStatsDataSource::ReadCgroupFile(protos::pbzero::SysStats* sys_stats,
-                                        const std::string& cgroup_path,
-                                        const std::string& file_name,
-                                        bool log_errors) {
-  std::string full_path = cgroup_path + "/" + file_name;
-  base::ScopedFile fd = open_fn_(full_path.c_str());
-  if (!fd) {
-    if (log_errors && !cgroup_error_logged_) {
-      PERFETTO_PLOG("Failed to open %s", full_path.c_str());
-      cgroup_error_logged_ = true;
-    }
+void SysStatsDataSource::MaybeEmitCgroupCounter(
+    protos::pbzero::SysStats::Cgroup* cgroup,
+    protos::pbzero::CgroupCounters key,
+    uint64_t value,
+    const char* device,
+    size_t device_size) {
+  auto id = static_cast<size_t>(key);
+  if (id >= cgroup_counters_enabled_.size() || !cgroup_counters_enabled_[id])
     return;
-  }
-
-  size_t rsize = ReadFile(&fd, full_path.c_str());
-  if (!rsize)
-    return;
-
-  char* buf = static_cast<char*>(read_buf_.Get());
-
-  if (file_name == "cpu.stat") {
-    ParseCgroupCpuStat(sys_stats, buf, rsize, cgroup_path);
-  } else if (file_name == "memory.stat") {
-    ParseCgroupMemoryStat(sys_stats, buf, rsize, cgroup_path);
-  } else if (file_name == "memory.current" || file_name == "memory.max" ||
-             file_name == "memory.swap.current" ||
-             file_name == "memory.swap.max") {
-    ParseCgroupSingleValue(sys_stats, buf, file_name, cgroup_path);
-  } else if (file_name == "io.stat") {
-    ParseCgroupIoStat(sys_stats, buf, rsize, cgroup_path);
-  }
+  auto* counter = cgroup->add_counter();
+  counter->set_key(key);
+  counter->set_value(value);
+  if (device && device_size)
+    counter->set_device(device, device_size);
 }
 
-void SysStatsDataSource::ParseCgroupCpuStat(protos::pbzero::SysStats* sys_stats,
-                                            char* buf,
-                                            size_t rsize,
-                                            const std::string& cgroup_path) {
-  for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
-    base::StringSplitter words(&lines, ' ');
-    if (!words.Next())
-      continue;
-
-    auto it = cgroup_counters_.find(words.cur_token());
-    if (it == cgroup_counters_.end())
-      continue;
-
-    int counter_id = it->second;
-    if (!words.Next())
-      continue;
-
-    auto value = static_cast<uint64_t>(strtoll(words.cur_token(), nullptr, 10));
-    auto* cgroup_value = sys_stats->add_cgroup();
-    cgroup_value->set_key(
-        static_cast<protos::pbzero::CgroupCounters>(counter_id));
-    cgroup_value->set_value(value);
-    cgroup_value->set_cgroup_path(cgroup_path);
-  }
-}
-
-void SysStatsDataSource::ParseCgroupMemoryStat(
-    protos::pbzero::SysStats* sys_stats,
+// Parses files whose lines are "key value", e.g. cpu.stat and memory.stat.
+void SysStatsDataSource::ParseCgroupKeyValueStat(
+    protos::pbzero::SysStats::Cgroup* cgroup,
     char* buf,
-    size_t rsize,
-    const std::string& cgroup_path) {
+    size_t rsize) {
   for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
     base::StringSplitter words(&lines, ' ');
     if (!words.Next())
       continue;
-
-    auto it = cgroup_counters_.find(words.cur_token());
-    if (it == cgroup_counters_.end())
+    auto it = cgroup_name_to_id_.find(words.cur_token());
+    if (it == cgroup_name_to_id_.end())
       continue;
-
-    int counter_id = it->second;
     if (!words.Next())
       continue;
-
-    auto value = static_cast<uint64_t>(strtoll(words.cur_token(), nullptr, 10));
-    auto* cgroup_value = sys_stats->add_cgroup();
-    cgroup_value->set_key(
-        static_cast<protos::pbzero::CgroupCounters>(counter_id));
-    cgroup_value->set_value(value);
-    cgroup_value->set_cgroup_path(cgroup_path);
+    auto value =
+        static_cast<uint64_t>(strtoull(words.cur_token(), nullptr, 10));
+    MaybeEmitCgroupCounter(
+        cgroup, static_cast<protos::pbzero::CgroupCounters>(it->second), value);
   }
 }
 
 void SysStatsDataSource::ParseCgroupSingleValue(
-    protos::pbzero::SysStats* sys_stats,
+    protos::pbzero::SysStats::Cgroup* cgroup,
     char* buf,
-    const std::string& file_name,
-    const std::string& cgroup_path) {
-  // Map filename to counter enum
-  protos::pbzero::CgroupCounters counter_enum;
-  int counter_id;
-
-  if (file_name == "memory.current") {
-    counter_enum = protos::pbzero::CgroupCounters::CGROUP_MEMORY_CURRENT;
-    counter_id = static_cast<int>(counter_enum);
-  } else if (file_name == "memory.max") {
-    counter_enum = protos::pbzero::CgroupCounters::CGROUP_MEMORY_MAX;
-    counter_id = static_cast<int>(counter_enum);
-  } else if (file_name == "memory.swap.current") {
-    counter_enum = protos::pbzero::CgroupCounters::CGROUP_MEMORY_SWAP_CURRENT;
-    counter_id = static_cast<int>(counter_enum);
-  } else if (file_name == "memory.swap.max") {
-    counter_enum = protos::pbzero::CgroupCounters::CGROUP_MEMORY_SWAP_MAX;
-    counter_id = static_cast<int>(counter_enum);
-  } else {
-    return;
-  }
-
-  // Check if this counter is enabled by looking for its ID
-  bool enabled = false;
-  for (const auto& pair : cgroup_counters_) {
-    if (pair.second == counter_id) {
-      enabled = true;
-      break;
-    }
-  }
-
-  if (!enabled)
-    return;
-
-  auto value = static_cast<uint64_t>(strtoll(buf, nullptr, 10));
-  auto* cgroup_value = sys_stats->add_cgroup();
-  cgroup_value->set_key(counter_enum);
-  cgroup_value->set_value(value);
-  cgroup_value->set_cgroup_path(cgroup_path);
+    protos::pbzero::CgroupCounters key) {
+  // A literal "max" means the limit is unset; report it as uint64 max.
+  uint64_t value = !strncmp(buf, "max", 3)
+                       ? std::numeric_limits<uint64_t>::max()
+                       : static_cast<uint64_t>(strtoull(buf, nullptr, 10));
+  MaybeEmitCgroupCounter(cgroup, key, value);
 }
 
-void SysStatsDataSource::ParseCgroupIoStat(protos::pbzero::SysStats* sys_stats,
-                                           char* buf,
-                                           size_t rsize,
-                                           const std::string& cgroup_path) {
+// Parses io.stat: "<device> rbytes=X wbytes=Y rios=Z wios=A dbytes=B dios=C".
+void SysStatsDataSource::ParseCgroupIoStat(
+    protos::pbzero::SysStats::Cgroup* cgroup,
+    char* buf,
+    size_t rsize) {
   for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
     base::StringSplitter words(&lines, ' ');
     if (!words.Next())
       continue;
-
-    std::string device = words.cur_token();
-
-    // Parse IO stats: device rbytes=X wbytes=Y rios=Z wios=A dbytes=B dios=C
+    const char* device = words.cur_token();
+    size_t device_size = words.cur_token_size();
     while (words.Next()) {
-      std::string token = words.cur_token();
-      size_t eq_pos = token.find('=');
-      if (eq_pos == std::string::npos)
+      char* token = words.cur_token();
+      char* eq = strchr(token, '=');
+      if (!eq)
         continue;
-
-      std::string key = token.substr(0, eq_pos);
-      std::string value_str = token.substr(eq_pos + 1);
-      uint64_t value =
-          static_cast<uint64_t>(strtoll(value_str.c_str(), nullptr, 10));
-
-      protos::pbzero::CgroupCounters counter_enum;
-      if (key == "rbytes") {
-        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_RBYTES;
-      } else if (key == "wbytes") {
-        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_WBYTES;
-      } else if (key == "rios") {
-        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_RIOS;
-      } else if (key == "wios") {
-        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_WIOS;
-      } else if (key == "dbytes") {
-        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_DBYTES;
-      } else if (key == "dios") {
-        counter_enum = protos::pbzero::CgroupCounters::CGROUP_IO_DIOS;
-      } else {
+      *eq = '\0';
+      auto it = cgroup_name_to_id_.find(token);
+      if (it == cgroup_name_to_id_.end())
         continue;
-      }
-
-      // Check if this counter is enabled by looking for its ID
-      bool enabled = false;
-      int counter_id = static_cast<int>(counter_enum);
-      for (const auto& pair : cgroup_counters_) {
-        if (pair.second == counter_id) {
-          enabled = true;
-          break;
-        }
-      }
-
-      if (!enabled)
-        continue;
-
-      auto* cgroup_value = sys_stats->add_cgroup();
-      cgroup_value->set_key(counter_enum);
-      cgroup_value->set_value(value);
-      cgroup_value->set_cgroup_path(cgroup_path);
-      cgroup_value->set_device(device);
+      auto value = static_cast<uint64_t>(strtoull(eq + 1, nullptr, 10));
+      MaybeEmitCgroupCounter(
+          cgroup, static_cast<protos::pbzero::CgroupCounters>(it->second),
+          value, device, device_size);
     }
   }
 }

@@ -194,17 +194,21 @@ message SysStats {
   }
   repeated SlabInfo slab_info = 18;
 
-  // Counters from cgroup subsystems for tracking task group resource usage.
-  message CgroupValue {
-    // The type of cgroup counter (CPU, memory, or I/O metric).
-    optional CgroupCounters key = 1;
-    // The counter value (usage in bytes, microseconds, or count).
-    optional uint64 value = 2;
-    // The cgroup path this value belongs to (e.g.,
-    // "/sys/fs/cgroup/cpu/top-app").
-    optional string cgroup_path = 3;
-    // For I/O stats, the device identifier (e.g., "8:0" for /dev/sda).
-    optional string device = 4;
+  // Per-cgroup resource counters polled from /sys/fs/cgroup. Works with both
+  // the cgroup v1 (per-controller) and v2 (unified) hierarchies.
+  message Cgroup {
+    // Absolute cgroup path, e.g. "/sys/fs/cgroup/top-app".
+    optional string path = 1;
+    message Counter {
+      // The counter type (a CPU, memory, or IO metric).
+      optional CgroupCounters key = 1;
+      // The counter value in bytes, microseconds, or a raw count. For "max"
+      // limits with no bound set, this is uint64 max.
+      optional uint64 value = 2;
+      // For io.stat counters, the block device, e.g. "8:0".
+      optional string device = 3;
+    }
+    repeated Counter counter = 2;
   }
-  repeated CgroupValue cgroup = 19;
+  repeated Cgroup cgroup = 19;
 }

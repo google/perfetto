@@ -410,9 +410,9 @@ constexpr KeyAndId kCgroupKeys[] = {
     {"file_writeback",
      protos::pbzero::CgroupCounters::CGROUP_MEMORY_FILE_WRITEBACK},
     {"swapcached", protos::pbzero::CgroupCounters::CGROUP_MEMORY_SWAPCACHED},
-    {"anon_thp", protos::pbzero::CgroupCounters::CGROUP_MEMORY_ANON_THPS},
-    {"file_thp", protos::pbzero::CgroupCounters::CGROUP_MEMORY_FILE_THPS},
-    {"shmem_thp", protos::pbzero::CgroupCounters::CGROUP_MEMORY_SHMEM_THPS},
+    {"anon_thp", protos::pbzero::CgroupCounters::CGROUP_MEMORY_ANON_THP},
+    {"file_thp", protos::pbzero::CgroupCounters::CGROUP_MEMORY_FILE_THP},
+    {"shmem_thp", protos::pbzero::CgroupCounters::CGROUP_MEMORY_SHMEM_THP},
     {"inactive_anon",
      protos::pbzero::CgroupCounters::CGROUP_MEMORY_INACTIVE_ANON},
     {"active_anon", protos::pbzero::CgroupCounters::CGROUP_MEMORY_ACTIVE_ANON},
@@ -453,6 +453,24 @@ constexpr KeyAndId kCgroupKeys[] = {
      protos::pbzero::CgroupCounters::CGROUP_MEMORY_THP_FAULT_ALLOC},
     {"thp_collapse_alloc",
      protos::pbzero::CgroupCounters::CGROUP_MEMORY_THP_COLLAPSE_ALLOC},
+
+    // Single-value memory files. These strings are not matched against any
+    // file contents; they are used only to name the counter at parse time in
+    // trace_processor. The enum is chosen from the file name instead.
+    {"memory.current", protos::pbzero::CgroupCounters::CGROUP_MEMORY_CURRENT},
+    {"memory.high", protos::pbzero::CgroupCounters::CGROUP_MEMORY_HIGH},
+    {"memory.max", protos::pbzero::CgroupCounters::CGROUP_MEMORY_MAX},
+    {"memory.swap.current",
+     protos::pbzero::CgroupCounters::CGROUP_MEMORY_SWAP_CURRENT},
+    {"memory.swap.max", protos::pbzero::CgroupCounters::CGROUP_MEMORY_SWAP_MAX},
+
+    // IO stats from io.stat. The strings match the per-device tokens.
+    {"rbytes", protos::pbzero::CgroupCounters::CGROUP_IO_RBYTES},
+    {"wbytes", protos::pbzero::CgroupCounters::CGROUP_IO_WBYTES},
+    {"rios", protos::pbzero::CgroupCounters::CGROUP_IO_RIOS},
+    {"wios", protos::pbzero::CgroupCounters::CGROUP_IO_WIOS},
+    {"dbytes", protos::pbzero::CgroupCounters::CGROUP_IO_DBYTES},
+    {"dios", protos::pbzero::CgroupCounters::CGROUP_IO_DIOS},
 };
 
 inline std::vector<const char*> BuildCgroupCounterNames() {

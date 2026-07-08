@@ -4496,11 +4496,11 @@ enum CgroupCounters {
   // Swap-cached pages.
   CGROUP_MEMORY_SWAPCACHED = 17;
   // Anonymous transparent huge pages.
-  CGROUP_MEMORY_ANON_THPS = 18;
+  CGROUP_MEMORY_ANON_THP = 18;
   // File transparent huge pages.
-  CGROUP_MEMORY_FILE_THPS = 19;
+  CGROUP_MEMORY_FILE_THP = 19;
   // Shared memory transparent huge pages.
-  CGROUP_MEMORY_SHMEM_THPS = 20;
+  CGROUP_MEMORY_SHMEM_THP = 20;
   // Inactive anonymous memory.
   CGROUP_MEMORY_INACTIVE_ANON = 21;
   // Active anonymous memory.
