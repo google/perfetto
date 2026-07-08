@@ -15,6 +15,7 @@
 import './video_frames.scss';
 import m from 'mithril';
 import {QuerySlot} from '../../base/query_slot';
+import {materialColorScheme} from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -58,6 +59,7 @@ export function createVideoFramesTrack(
       src,
     }),
     detailsPanel: () => panel,
+    colorizer: (row) => materialColorScheme(row.name),
     tooltip: (data) => {
       const image = imageSlot.use({
         key: {id: data.id},
