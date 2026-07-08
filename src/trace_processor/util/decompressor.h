@@ -28,7 +28,8 @@ namespace perfetto::trace_processor::util {
 
 // The compression codecs trace_processor can decompress. To add one, subclass
 // Decompressor, add a case to CreateDecompressor() and, if the codec can arrive
-// as a whole compressed file, a magic in trace_type.cc's GuessTraceType().
+// as a whole compressed file, a magic in trace_type.cc's
+// SniffCompressedTraceType() and a matching importer.
 enum class CompressionType : uint8_t {
   // Not compressed, or a header we don't recognize.
   kNone,
