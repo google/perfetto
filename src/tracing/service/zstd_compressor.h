@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_SERVICE_ZLIB_COMPRESSOR_H_
-#define SRC_TRACING_SERVICE_ZLIB_COMPRESSOR_H_
+#ifndef SRC_TRACING_SERVICE_ZSTD_COMPRESSOR_H_
+#define SRC_TRACING_SERVICE_ZSTD_COMPRESSOR_H_
 
 #include <vector>
 
@@ -24,10 +24,11 @@
 
 namespace perfetto {
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-void ZlibCompressFn(std::vector<TracePacket>*);
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+// Compresses `packets` with zstd at the given compression `level`.
+void ZstdCompressFn(std::vector<TracePacket>*, int level);
 #endif
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_SERVICE_ZLIB_COMPRESSOR_H_
+#endif  // SRC_TRACING_SERVICE_ZSTD_COMPRESSOR_H_

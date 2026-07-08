@@ -1,5 +1,7 @@
 Unreleased:
   Tracing service and probes:
+    * Added Zstd as a trace compression option alongside deflate, selected via
+      the new TraceConfig.compression field (which supersedes compression_type).
     * The procfs scraper (process_stats data source) now writes an explicit
       Thread message for a process' main thread, instead of leaving it implied
       by the process entry. This fixes missing main thread names when a trace
