@@ -248,9 +248,8 @@ void MetadataModule::ParseTraceConfig(
 
   // Stash the raw config for the diagnostics rules, which run at finalization
   // (once trace bounds are known).
-  context_->trace_diagnostics_tracker->SetTraceConfig(
-      trace_config.begin(),
-      static_cast<size_t>(trace_config.end() - trace_config.begin()));
+  context_->trace_diagnostics_tracker->SetTraceConfig(trace_config.begin(),
+                                                      trace_config.end());
 }
 
 }  // namespace perfetto::trace_processor

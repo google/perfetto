@@ -462,8 +462,9 @@ TraceDiagnosticsTracker::TraceDiagnosticsTracker(TraceProcessorContext* context)
 
 TraceDiagnosticsTracker::~TraceDiagnosticsTracker() = default;
 
-void TraceDiagnosticsTracker::SetTraceConfig(const uint8_t* data, size_t size) {
-  raw_config_.assign(data, data + size);
+void TraceDiagnosticsTracker::SetTraceConfig(const uint8_t* data,
+                                             const uint8_t* data_end) {
+  raw_config_.assign(data, data_end);
 }
 
 void TraceDiagnosticsTracker::RunRules() {

@@ -48,7 +48,7 @@ class TraceDiagnosticsTracker {
   ~TraceDiagnosticsTracker();
 
   // Stashes a copy of the raw serialized TraceConfig for later analysis.
-  void SetTraceConfig(const uint8_t* data, size_t size);
+  void SetTraceConfig(const uint8_t* data, const uint8_t* end);
 
   // Runs every detection rule against the captured config. No-op if no config
   // was captured.
