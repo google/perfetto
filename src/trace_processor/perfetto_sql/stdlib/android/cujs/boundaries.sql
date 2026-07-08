@@ -231,3 +231,164 @@ WITH
       main_thread_boundary.ts
   )
 SELECT *, ts_end - ts AS dur FROM boundary_base;
+
+INCLUDE PERFETTO MODULE android.surfaceflinger;
+INCLUDE PERFETTO MODULE android.cujs.relevant_slices;
+
+-- Similarly, extract the min/max vsync for the SF from
+-- commit/compose/onMessageInvalidate slices on its main thread.
+CREATE PERFETTO TABLE _android_jank_cuj_sf_vsync_boundary(
+  -- CUJ id.
+  cuj_id LONG,
+  -- Minimum vsync ID within the CUJ.
+  vsync_min LONG,
+  -- Maximum vsync ID within the CUJ.
+  vsync_max LONG
+)
+AS
+SELECT
+  cuj_id,
+  MIN(vsync) AS vsync_min,
+  MAX(vsync) AS vsync_max
+FROM _android_jank_cuj_sf_root_slice
+GROUP BY cuj_id;
+
+-- Similar to `_android_jank_cuj_main_thread_frame_boundary` but for the render
+-- thread the expected start time is the time of the first `postAndWait` slice
+-- on the main thread.
+CREATE PERFETTO TABLE _android_jank_cuj_render_thread_frame_boundary(
+  -- CUJ id.
+  cuj_id LONG,
+  -- Thread id of the render thread.
+  utid JOINID(thread.id),
+  -- Vsync ID of this frame.
+  vsync LONG,
+  -- Expected start timestamp (first postAndWait slice).
+  ts_expected TIMESTAMP,
+  -- Start timestamp of the DrawFrame slice.
+  ts_draw_frame_start TIMESTAMP,
+  -- End timestamp of the previous DrawFrame slice.
+  ts_prev_draw_frame_end TIMESTAMP,
+  -- Corrected start timestamp for the frame boundary.
+  ts TIMESTAMP,
+  -- End timestamp of the DrawFrame slice.
+  ts_end TIMESTAMP,
+  -- Duration of the frame boundary.
+  dur DURATION
+)
+AS
+WITH draw_frame_ordered AS (
+  SELECT
+    *,
+    COALESCE(LAG(ts_end) OVER (PARTITION BY cuj_id ORDER BY vsync ASC, ts ASC), -1) AS ts_prev_draw_frame_end
+  FROM _android_jank_cuj_draw_frame_slice
+),
+frame_boundary_base AS (
+  SELECT
+    draw_frame.cuj_id,
+    draw_frame.utid,
+    draw_frame.vsync,
+    MIN(post_and_wait.ts) AS ts_expected,
+    MIN(draw_frame.ts) AS ts_draw_frame_start,
+    MIN(draw_frame.ts_prev_draw_frame_end) AS ts_prev_draw_frame_end,
+    MIN(
+      MAX(
+        MIN(post_and_wait.ts),
+        MIN(draw_frame.ts_prev_draw_frame_end)),
+      MIN(draw_frame.ts)) AS ts,
+    MAX(draw_frame.ts_end) AS ts_end
+  FROM draw_frame_ordered draw_frame
+  JOIN _android_jank_cuj_do_frames do_frame USING (cuj_id, vsync)
+  JOIN descendant_slice(do_frame.id) post_and_wait
+  WHERE post_and_wait.name = 'postAndWait'
+  GROUP BY draw_frame.cuj_id, draw_frame.utid, draw_frame.vsync
+)
+SELECT *, ts_end - ts AS dur FROM frame_boundary_base;
+
+-- Compute the CUJ boundary on the render thread from the frame boundaries.
+CREATE PERFETTO TABLE _android_jank_cuj_render_thread_cuj_boundary(
+  -- CUJ id.
+  cuj_id LONG,
+  -- Thread id of the render thread.
+  utid JOINID(thread.id),
+  -- Start timestamp of the CUJ on the render thread.
+  ts TIMESTAMP,
+  -- End timestamp of the CUJ on the render thread.
+  ts_end TIMESTAMP,
+  -- Duration of the CUJ on the render thread.
+  dur DURATION
+)
+AS
+SELECT
+  cuj_id,
+  utid,
+  MIN(ts) AS ts,
+  MAX(ts_end) AS ts_end,
+  MAX(ts_end) - MIN(ts) AS dur
+FROM _android_jank_cuj_render_thread_frame_boundary
+GROUP BY cuj_id, utid;
+
+-- Compute the CUJ boundary on the main thread from the frame boundaries.
+CREATE PERFETTO TABLE _android_jank_cuj_sf_main_thread_cuj_boundary(
+  -- CUJ id.
+  cuj_id LONG,
+  -- Thread id of the SF main thread.
+  utid JOINID(thread.id),
+  -- Start timestamp of the CUJ on the SF main thread.
+  ts TIMESTAMP,
+  -- End timestamp of the CUJ on the SF main thread.
+  ts_end TIMESTAMP,
+  -- Duration of the CUJ on the SF main thread.
+  dur DURATION
+)
+AS
+SELECT
+  cuj_id,
+  utid,
+  MIN(ts) AS ts,
+  MAX(ts_end) AS ts_end,
+  MAX(ts_end) - MIN(ts) AS dur
+FROM _android_jank_cuj_sf_main_thread_frame_boundary
+GROUP BY cuj_id, utid;
+
+-- RenderEngine will only work on a frame if SF falls back to client composition.
+CREATE PERFETTO TABLE _android_jank_cuj_sf_render_engine_frame_boundary(
+  -- CUJ id.
+  cuj_id LONG,
+  -- Thread id of the RenderEngine thread.
+  utid JOINID(thread.id),
+  -- Vsync ID of this frame.
+  vsync LONG,
+  -- Timestamp of the composeSurfaces slice bounding this drawLayers.
+  ts TIMESTAMP,
+  -- Start timestamp of the drawLayers slice.
+  ts_draw_layers_start TIMESTAMP,
+  -- End timestamp of the drawLayers slice.
+  ts_end TIMESTAMP,
+  -- Duration of the frame boundary.
+  dur DURATION
+)
+AS
+SELECT
+  cuj_id,
+  utid,
+  vsync,
+  draw_layers.ts_compose_surfaces AS ts,
+  draw_layers.ts AS ts_draw_layers_start,
+  draw_layers.ts_end,
+  draw_layers.ts_end - draw_layers.ts_compose_surfaces AS dur
+FROM _android_jank_cuj_sf_draw_layers_slice draw_layers;
+
+CREATE PERFETTO TABLE _android_jank_cuj_sf_boundary(
+  -- CUJ id.
+  cuj_id LONG,
+  -- Start timestamp of the CUJ.
+  ts TIMESTAMP,
+  -- End timestamp of the CUJ.
+  ts_end TIMESTAMP,
+  -- Duration of the CUJ.
+  dur DURATION
+)
+AS
+SELECT cuj_id, ts, ts_end, dur
+FROM _android_jank_cuj_sf_main_thread_cuj_boundary;

@@ -3750,6 +3750,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/cuj_frame_counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/frames.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/relevant_slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cujs/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/sysui_cujs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cujs/threads.sql",
     ],
