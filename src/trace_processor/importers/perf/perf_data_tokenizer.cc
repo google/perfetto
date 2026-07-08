@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -219,9 +220,9 @@ PerfDataTokenizer::ParseHeader() {
 static base::Status CheckSectionInBounds(uint64_t offset,
                                          uint64_t size,
                                          const char* name) {
-  if (offset + size < offset) {
+  if (size > std::numeric_limits<uint64_t>::max() - offset) {
     return base::ErrStatus("Invalid %s section: offset (%" PRIu64
-                           ") + size (%" PRIu64 ") overflows",
+                           ") + size (%" PRIu64 ") exceeds uint64 max",
                            name, offset, size);
   }
   return base::OkStatus();
