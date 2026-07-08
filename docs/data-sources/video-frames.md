@@ -99,6 +99,23 @@ data_sources {
 | `key_frame_interval_secs` | How often a keyframe is emitted. Smaller values make seeking snappier but grow the trace; larger values are more compact but slower to scrub. |
 | `max_stream_size_bytes` | A per-display cap on emitted bytes. When a display hits it, its stream is torn down (a size-cap error) rather than growing without bound. Left unset, the device applies a default cap of 256 MiB per display. |
 
+## Size limits
+
+Display video is limited to 256 MiB per display, enforced in two separate
+places:
+
+- On the device, `max_stream_size_bytes` caps how much each stream emits
+  (256 MiB by default; a size-cap error is recorded when it is hit).
+- Independently, trace_processor drops any frames beyond 256 MiB per
+  stream when it loads the trace, so raising the on-device cap alone will
+  not get you more frames in the UI.
+
+On a long session or at a high resolution, the video can therefore stop
+before the end of the trace. Both limits exist because of the memory cost
+of holding the stream, not a fundamental constraint. If they get in your
+way, comment on and upvote the tracking issue so it can be prioritised:
+[perfetto#6609](https://github.com/google/perfetto/issues/6609).
+
 ## Viewing display video
 
 ### The timeline track

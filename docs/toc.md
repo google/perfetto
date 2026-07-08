@@ -83,6 +83,7 @@
       - [Battery & Power](data-sources/battery-counters.md) {.tag-android}
       - [Android Game Interventions](data-sources/android-game-intervention-list.md) {.tag-android}
       - [Android Aflags](data-sources/android-aflags.md) {.tag-android}
+      - [Display Video Frames](data-sources/video-frames.md) {.tag-android}
 
   - [Tracing SDK](#)
 
@@ -99,7 +100,6 @@
     - [Embedding the UI](visualization/embedding-the-ui.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Debug Tracks](analysis/debug-tracks.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Heap Dump Explorer](visualization/heap-dump-explorer.md) {.tag-android}
-    - [Display Video Frames](visualization/video-frames.md) {.tag-android}
 
     - [Extending the UI](#)
 
