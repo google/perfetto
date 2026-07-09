@@ -138,7 +138,6 @@ class ZipImporter : public TraceImporter<ZipImporter> {
     TraceTypeDescriptor d;
     d.name = "zip";
     d.is_container = true;
-    d.requires_zlib = true;
     d.archive_priority = 1;
     d.forks_context = false;
     d.detection_priority = 50;

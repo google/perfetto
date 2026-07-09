@@ -191,7 +191,6 @@ class GzipImporter : public TraceImporter<GzipImporter> {
     TraceTypeDescriptor d;
     d.name = "gzip";
     d.is_container = true;
-    d.requires_zlib = true;
     d.sort_policy = TraceSortPolicy::kNone;
     d.archive_priority = 1;
     d.forks_context = false;
@@ -269,7 +268,6 @@ class CtraceImporter : public TraceImporter<CtraceImporter> {
     TraceTypeDescriptor d;
     d.name = "ctrace";
     d.is_container = true;
-    d.requires_zlib = true;
     d.forks_context = false;
     d.detection_priority = 160;
     return d;

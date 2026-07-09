@@ -56,7 +56,6 @@ enum class TraceClockPolicy {
 struct TraceTypeDescriptor {
   std::string name;
   bool is_container = false;
-  bool requires_zlib = false;
   TraceSortPolicy sort_policy = TraceSortPolicy::kFullSort;
   TraceClockPolicy clock_policy = TraceClockPolicy::kNone;
   // Whether the format's source clock (clock_policy) is recorded as the file's

@@ -355,8 +355,9 @@ class InstrumentsXmlTokenizer::Impl {
         }
         current_new_frame_ = new_frame.id;
       }
-      data_.GetBacktrace(current_row_.backtrace)
-          ->frames.push_back(frame_lookup.ref);
+      if (Backtrace* backtrace = data_.GetBacktrace(current_row_.backtrace)) {
+        backtrace->frames.push_back(frame_lookup.ref);
+      }
     } else if (tag_name == "binary") {
       // Can only be processing a binary when processing a new frame.
       PERFETTO_DCHECK(current_new_frame_ != kNullId);
@@ -379,8 +380,10 @@ class InstrumentsXmlTokenizer::Impl {
         }
         new_binary.ptr->max_addr = new_binary.ptr->load_addr;
       }
-      PERFETTO_DCHECK(data_.GetFrame(current_new_frame_)->binary == kNullId);
-      data_.GetFrame(current_new_frame_)->binary = binary_lookup.ref;
+      if (Frame* frame = data_.GetFrame(current_new_frame_)) {
+        PERFETTO_DCHECK(frame->binary == kNullId);
+        frame->binary = binary_lookup.ref;
+      }
     }
   }
 
