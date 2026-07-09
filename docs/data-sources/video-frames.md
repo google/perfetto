@@ -1,4 +1,4 @@
-# Display Video Frames
+# Screen Recording
 
 The **android.display.video** data source records what each physical
 display showed while a trace was being captured. Perfetto stores the
