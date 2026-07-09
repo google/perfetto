@@ -576,10 +576,12 @@ def gen_proto_label(target: GnParser.Target):
     # For example, we include the proto_path |buildtools_protobuf_src| because
     # we want to depend on the "google/protobuf/descriptor.proto" proto file.
     # This will be exposed by the |protobuf_descriptor_proto| dep.
-    if buildtools_protobuf_src in target.proto_paths:
-      sources_label.external_deps = [
-          'PERFETTO_CONFIG.deps.protobuf_descriptor_proto'
-      ]
+    # In GN, the proto_library template automatically includes the protobuf
+    # src dir by default. We mimic this in Bazel by unconditionally adding the
+    # descriptor proto dependency.
+    sources_label.external_deps = [
+        'PERFETTO_CONFIG.deps.protobuf_descriptor_proto'
+    ]
 
     sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
 

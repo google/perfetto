@@ -36,10 +36,6 @@ perfetto_proto_library("android_extensions_@TYPE@") {
   ]
   generate_descriptor = "android_extensions.descriptor"
   descriptor_root_source = "android_extensions.proto"
-
-  # Some of these protos use custom options, so the descriptor build needs the
-  # well-known protobuf types on its import path.
-  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
 }
 
 protozero_descriptor_diff("extension_descriptor") {

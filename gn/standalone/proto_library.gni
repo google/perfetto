@@ -52,6 +52,12 @@ template("proto_library") {
     import_dirs = invoker.import_dirs
   }
 
+  _protobuf_src_dir = "//buildtools/protobuf/src"
+  if (defined(perfetto_protobuf_src_dir)) {
+    _protobuf_src_dir = perfetto_protobuf_src_dir
+  }
+  import_dirs += [ _protobuf_src_dir ]
+
   # If false will not generate the default .pb.{cc,h} files. Used for custom
   # codegen plugins.
   generate_cc = true

@@ -18,7 +18,6 @@ import("../../../gn/proto_library.gni")
 perfetto_proto_library("@TYPE@") {
   sources = [ "proto_filter_options.proto" ]
   deps = [ "../common:semantic_type_@TYPE@" ]
-  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
   proto_generators = [
     "zero",
     "lite",
