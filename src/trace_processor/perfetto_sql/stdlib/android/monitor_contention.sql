@@ -330,7 +330,8 @@ JOIN android_monitor_contention AS parent
   AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur
 -- Ordering by id makes the id column sorted so the join in
 -- android_monitor_contention_chain can binary-search it instead of scanning.
-ORDER BY id;
+ORDER BY
+  id;
 
 -- For each monitor contention slice that is blocking one or more other contention
 -- slices, a single representative |child_id| (the earliest slice it blocks).
@@ -348,8 +349,10 @@ FROM android_monitor_contention AS parent
 JOIN android_monitor_contention AS child
   ON parent.blocked_utid = child.blocking_utid
   AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur
-GROUP BY parent.id
-ORDER BY id;
+GROUP BY
+  parent.id
+ORDER BY
+  id;
 
 -- Contains parsed monitor contention slices with the parent-child relationships.
 CREATE PERFETTO TABLE android_monitor_contention_chain(
@@ -450,10 +453,8 @@ SELECT
   co.child_id AS child_id,
   amc.lock_name
 FROM android_monitor_contention AS amc
-LEFT JOIN _children AS pc
-  USING (id)
-LEFT JOIN _child_of AS co
-  USING (id);
+LEFT JOIN _children AS pc USING (id)
+LEFT JOIN _child_of AS co USING (id);
 
 CREATE PERFETTO INDEX _android_monitor_contention_chain_idx ON android_monitor_contention_chain(
   blocking_method,
