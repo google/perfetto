@@ -360,6 +360,8 @@ perfetto_cc_binary(
         "src/tools/proto_merger/main.cc",
     ],
     deps = [
+        ":protos_perfetto_common_semantic_type_lite",
+        ":protos_perfetto_proto_filtering_lite",
         ":src_base_base",
         ":src_base_version",
     ] + PERFETTO_CONFIG.deps.protobuf_full,

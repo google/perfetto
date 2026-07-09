@@ -19,10 +19,18 @@
 #include <google/protobuf/descriptor.pb.h>
 
 #include "perfetto/ext/base/string_utils.h"
+#include "protos/perfetto/proto_filtering/proto_filter_options.pb.h"
 
 namespace perfetto {
 namespace proto_merger {
 namespace {
+
+bool IsPassthrough(const google::protobuf::FieldOptions& options) {
+  if (options.HasExtension(perfetto::protos::proto_filter)) {
+    return options.GetExtension(perfetto::protos::proto_filter).passthrough();
+  }
+  return false;
+}
 
 std::vector<std::string> SplitFieldPath(const std::string& name) {
   if (name.empty())
@@ -96,6 +104,31 @@ void AllowlistField(const google::protobuf::FieldDescriptor& desc,
   }
 }
 
+void ProcessMessagePassthrough(
+    const google::protobuf::Descriptor& input_desc,
+    const google::protobuf::Descriptor& upstream_desc,
+    Allowlist& allowlist) {
+  for (int i = 0; i < input_desc.field_count(); ++i) {
+    const auto* input_field = input_desc.field(i);
+    if (IsPassthrough(input_field->options())) {
+      const auto* upstream_field =
+          upstream_desc.FindFieldByNumber(input_field->number());
+      if (upstream_field) {
+        AllowlistField(*upstream_field, allowlist);
+      }
+    }
+  }
+
+  for (int i = 0; i < input_desc.nested_type_count(); ++i) {
+    const auto* input_nested = input_desc.nested_type(i);
+    const auto* upstream_nested =
+        upstream_desc.FindNestedTypeByName(input_nested->name());
+    if (upstream_nested) {
+      ProcessMessagePassthrough(*input_nested, *upstream_nested, allowlist);
+    }
+  }
+}
+
 }  // namespace
 
 base::Status AllowlistFromFieldList(
@@ -126,6 +159,21 @@ base::Status AllowlistFromFieldList(
                                std::string(desc.name()).c_str());
       }
       current = field->message_type();
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status AllowlistFromPassthrough(
+    const google::protobuf::FileDescriptor& input_file,
+    const google::protobuf::FileDescriptor& upstream_file,
+    Allowlist& allowlist) {
+  for (int i = 0; i < input_file.message_type_count(); ++i) {
+    const auto* input_msg = input_file.message_type(i);
+    const auto* upstream_msg =
+        upstream_file.FindMessageTypeByName(input_msg->name());
+    if (upstream_msg) {
+      ProcessMessagePassthrough(*input_msg, *upstream_msg, allowlist);
     }
   }
   return base::OkStatus();
