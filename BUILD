@@ -432,7 +432,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
         ":src_trace_processor_importers_perf_record",
-        ":src_trace_processor_importers_perf_text_perf_text",
         ":src_trace_processor_importers_pprof_pprof",
         ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
@@ -498,6 +497,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_metadata_metadata",
         ":src_trace_processor_plugins_package_lookup_package_lookup",
         ":src_trace_processor_plugins_perf_counter_perf_counter",
+        ":src_trace_processor_plugins_perf_text_perf_text",
         ":src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":src_trace_processor_plugins_pprof_functions_pprof_functions",
         ":src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
@@ -730,7 +730,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
         ":src_trace_processor_importers_perf_record",
-        ":src_trace_processor_importers_perf_text_perf_text",
         ":src_trace_processor_importers_pprof_pprof",
         ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
@@ -796,6 +795,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_metadata_metadata",
         ":src_trace_processor_plugins_package_lookup_package_lookup",
         ":src_trace_processor_plugins_perf_counter_perf_counter",
+        ":src_trace_processor_plugins_perf_text_perf_text",
         ":src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":src_trace_processor_plugins_pprof_functions_pprof_functions",
         ":src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
@@ -2957,20 +2957,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/importers/perf_text:perf_text
-perfetto_filegroup(
-    name = "src_trace_processor_importers_perf_text_perf_text",
-    srcs = [
-        "src/trace_processor/importers/perf_text/perf_text_event.h",
-        "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.cc",
-        "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h",
-        "src/trace_processor/importers/perf_text/perf_text_trace_parser.cc",
-        "src/trace_processor/importers/perf_text/perf_text_trace_parser.h",
-        "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.cc",
-        "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h",
-    ],
-)
-
 # GN target: //src/trace_processor/importers/pprof:pprof
 perfetto_filegroup(
     name = "src_trace_processor_importers_pprof_pprof",
@@ -4803,6 +4789,22 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/perf_counter/perf_counter.cc",
         "src/trace_processor/plugins/perf_counter/perf_counter.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/perf_text:perf_text
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_perf_text_perf_text",
+    srcs = [
+        "src/trace_processor/plugins/perf_text/perf_text.cc",
+        "src/trace_processor/plugins/perf_text/perf_text.h",
+        "src/trace_processor/plugins/perf_text/perf_text_event.h",
+        "src/trace_processor/plugins/perf_text/perf_text_sample_line_parser.cc",
+        "src/trace_processor/plugins/perf_text/perf_text_sample_line_parser.h",
+        "src/trace_processor/plugins/perf_text/perf_text_trace_parser.cc",
+        "src/trace_processor/plugins/perf_text/perf_text_trace_parser.h",
+        "src/trace_processor/plugins/perf_text/perf_text_trace_tokenizer.cc",
+        "src/trace_processor/plugins/perf_text/perf_text_trace_tokenizer.h",
     ],
 )
 
@@ -11226,7 +11228,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
         ":src_trace_processor_importers_perf_record",
-        ":src_trace_processor_importers_perf_text_perf_text",
         ":src_trace_processor_importers_pprof_pprof",
         ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
@@ -11292,6 +11293,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_metadata_metadata",
         ":src_trace_processor_plugins_package_lookup_package_lookup",
         ":src_trace_processor_plugins_perf_counter_perf_counter",
+        ":src_trace_processor_plugins_perf_text_perf_text",
         ":src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":src_trace_processor_plugins_pprof_functions_pprof_functions",
         ":src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
@@ -11554,7 +11556,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_perf_perf",
         ":src_trace_processor_importers_perf_record",
-        ":src_trace_processor_importers_perf_text_perf_text",
         ":src_trace_processor_importers_pprof_pprof",
         ":src_trace_processor_importers_primes_primes",
         ":src_trace_processor_importers_proto_full",
@@ -11620,6 +11621,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_metadata_metadata",
         ":src_trace_processor_plugins_package_lookup_package_lookup",
         ":src_trace_processor_plugins_perf_counter_perf_counter",
+        ":src_trace_processor_plugins_perf_text_perf_text",
         ":src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":src_trace_processor_plugins_pprof_functions_pprof_functions",
         ":src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
