@@ -56,16 +56,17 @@ bool AnyPositiveStat(TraceProcessorContext* context, Pred pred) {
 
 }  // namespace
 
-void TraceDiagnosticsHelper::AddTraceDiagnostic(base::StringView name,
+void TraceDiagnosticsHelper::AddTraceDiagnostic(base::StringView key,
+                                                base::StringView title,
                                                 base::StringView description,
                                                 base::StringView remediation,
                                                 double confidence) {
   tables::TraceDiagnosticsTable::Row row;
-  row.name = context_->storage->InternString(name);
+  row.key = context_->storage->InternString(key);
+  row.title = context_->storage->InternString(title);
   row.description = context_->storage->InternString(description);
   row.remediation = context_->storage->InternString(remediation);
   row.confidence = confidence;
-  row.machine_id = context_->machine_id();
   row.trace_id = context_->trace_id();
   context_->storage->mutable_trace_diagnostics_table()->Insert(row);
 }

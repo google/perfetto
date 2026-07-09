@@ -59,6 +59,7 @@ void RulePreserveFtraceBufferLateStart(const TraceConfigDecoder& config,
       return;
     helper->AddTraceDiagnostic(
         "preserve_ftrace_buffer_late_start",
+        "Unnecessary preserve_ftrace_buffer",
         "preserve_ftrace_buffer is set but tracing started more than a few "
         "minutes after boot; the preserved ftrace buffer may contain very old, "
         "misleading events.",
@@ -101,7 +102,7 @@ void RuleTinyFtraceBuffer(const TraceConfigDecoder& config,
                        " KB (< 1 MB); the kernel ftrace buffer may overrun and "
                        "drop events under load.";
     helper->AddTraceDiagnostic(
-        "tiny_ftrace_buffer", base::StringView(desc),
+        "tiny_ftrace_buffer", "Ftrace buffer too small", base::StringView(desc),
         "Avoid setting buffer_size_kb explicitly; leave it unset to use the "
         "default, which is tuned for typical workloads.",
         confidence);
@@ -147,7 +148,8 @@ void RuleLowFtraceDrainBandwidth(const TraceConfigDecoder& config,
         " gives under 5 MB/s); a burst of events can overflow the buffer "
         "before it is drained.";
     helper->AddTraceDiagnostic(
-        "low_ftrace_drain_bandwidth", base::StringView(desc),
+        "low_ftrace_drain_bandwidth", "Low ftrace drain bandwidth",
+        base::StringView(desc),
         "Leave buffer_size_kb and drain_period_ms unset to use the defaults, "
         "or raise buffer_size_kb / lower drain_period_ms to increase the drain "
         "bandwidth above 5 MB/s.",
@@ -171,7 +173,8 @@ void RuleExtremeFtraceDrainPeriod(const TraceConfigDecoder& config,
         " ms, outside the sane range [100, 60000]; this can cause "
         "excessive CPU wakeups or buffer overruns.";
     helper->AddTraceDiagnostic(
-        "extreme_ftrace_drain_period", base::StringView(desc),
+        "extreme_ftrace_drain_period", "Extreme ftrace drain period",
+        base::StringView(desc),
         "Set drain_period_ms within the advised range or, better, leave it "
         "unset to the default values.",
         0.6);
@@ -202,7 +205,7 @@ void RuleSyscallsWithoutFilter(const TraceConfigDecoder& config,
     double confidence = helper->HasFtraceCpuDataLoss() ? 0.9 : 0.3;
 
     helper->AddTraceDiagnostic(
-        "syscalls_without_filter",
+        "syscalls_without_filter", "Unfiltered syscall tracing",
         "raw_syscalls (sys_enter/sys_exit) are enabled without any "
         "syscall_events filter; every syscall is recorded, which can produce "
         "huge, expensive traces.",
@@ -238,7 +241,7 @@ void RuleSchedSwitchWithoutCompactSched(const TraceConfigDecoder& config,
       return;
 
     helper->AddTraceDiagnostic(
-        "sched_switch_without_compact_sched",
+        "sched_switch_without_compact_sched", "compact_sched not enabled",
         "sched/sched_switch is enabled without compact_sched; compact_sched "
         "significantly reduces the size of scheduling data at no real "
         "downside.",
@@ -265,6 +268,7 @@ void RuleEventsRequireSymbolizeKsyms(const TraceConfigDecoder& config,
     if (ftrace.enable_function_graph()) {
       helper->AddTraceDiagnostic(
           "function_graph_requires_symbolize_ksyms",
+          "Function graph needs symbolize_ksyms",
           "enable_function_graph is set but symbolize_ksyms is not; function "
           "graph tracing records kernel symbol addresses that are unusable "
           "without symbolization and cannot be resolved after the fact.",
@@ -291,7 +295,8 @@ void RuleEventsRequireSymbolizeKsyms(const TraceConfigDecoder& config,
         " is enabled but symbolize_ksyms is not set; its kernel symbol fields "
         "will be raw addresses that cannot be resolved after the fact.";
     helper->AddTraceDiagnostic(
-        "events_require_symbolize_ksyms", base::StringView(desc),
+        "events_require_symbolize_ksyms", "Events need symbolize_ksyms",
+        base::StringView(desc),
         "Set symbolize_ksyms: true in the ftrace config.", 0.6);
   });
 }
@@ -343,7 +348,8 @@ void RuleDiscardBufferForStreaming(const TraceConfigDecoder& config,
         "DISCARD stops recording once the buffer first fills, silently "
         "truncating long traces.";
     helper->AddTraceDiagnostic(
-        "discard_buffer_for_streaming", base::StringView(desc),
+        "discard_buffer_for_streaming", "DISCARD buffer for streaming",
+        base::StringView(desc),
         "Use the default RING_BUFFER fill_policy for buffers backing ftrace or "
         "track_event in long/streaming traces.",
         0.8);
@@ -398,7 +404,7 @@ void RuleAtraceWildcardApps(const TraceConfigDecoder& config,
       confidence += 0.3;
 
     helper->AddTraceDiagnostic(
-        "atrace_wildcard_apps",
+        "atrace_wildcard_apps", "Wildcard atrace_apps",
         "atrace_apps: \"*\" captures userspace atrace from every app; combined "
         "with this many atrace categories it generates a lot of ftrace "
         "traffic.",
@@ -435,7 +441,8 @@ void RuleHeapprofdSamplingIntervalTooLow(const TraceConfigDecoder& config,
             " (< 100 KB); such a small sampling interval rarely improves "
             "accuracy and increases profiling overhead.";
         helper->AddTraceDiagnostic(
-            "heapprofd_sampling_interval_too_low", base::StringView(desc),
+            "heapprofd_sampling_interval_too_low",
+            "Heapprofd sampling interval too low", base::StringView(desc),
             "Increase sampling_interval_bytes to at least 100 KB; smaller "
             "intervals add overhead without meaningfully improving accuracy.",
             confidence);

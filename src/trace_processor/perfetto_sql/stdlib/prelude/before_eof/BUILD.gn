@@ -21,7 +21,6 @@ perfetto_sql_source_set("before_eof") {
     "stats.sql",
     "tables.sql",
     "trace_bounds.sql",
-    "trace_diagnostics.sql",
     "views.sql",
   ]
 }

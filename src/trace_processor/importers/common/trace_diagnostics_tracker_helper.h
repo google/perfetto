@@ -44,8 +44,10 @@ class TraceDiagnosticsHelper {
       : context_(context) {}
 
   // Emits one diagnostic row, implicitly scoped to the current (trace,
-  // machine). `remediation` is a suggested fix for the problem.
-  void AddTraceDiagnostic(base::StringView name,
+  // machine). `key` is a stable identifier, `title` a short human-friendly
+  // label, and `remediation` a suggested fix for the problem.
+  void AddTraceDiagnostic(base::StringView key,
+                          base::StringView title,
                           base::StringView description,
                           base::StringView remediation,
                           double confidence);

@@ -867,56 +867,45 @@ TRACE_DIAGNOSTICS_TABLE = Table(
     sql_name='__intrinsic_trace_diagnostics',
     columns=[
         C(
-            'name',
+            'key',
             CppString(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'title',
+            CppString(),
         ),
         C(
             'description',
             CppString(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'remediation',
             CppString(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'confidence',
             CppDouble(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
-            'machine_id',
-            CppOptional(CppTableId(MACHINE_TABLE)),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'trace_id',
             CppOptional(CppTableId(TRACE_FILE_TABLE)),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
     tabledoc=TableDoc(
         doc='''
             Diagnostics detecting poorly-written trace configs and other
             problems that can affect trace quality, one row per detected issue.
-            Written by TraceDiagnosticsTracker;
-            exposed via the `trace_diagnostics` SQL view.
+            Written by TraceDiagnosticsTracker. Queried directly as
+            __intrinsic_trace_diagnostics.
         ''',
         group='Misc',
         columns={
-            'name': 'Stable diagnostic key (e.g. tiny_ftrace_buffer).',
+            'key': 'Stable diagnostic identifier (e.g. tiny_ftrace_buffer).',
+            'title': 'Short human-friendly title (e.g. "Ftrace buffer too '
+                     'small").',
             'description': 'Human-readable explanation of the problem.',
             'remediation': 'Suggested fix for the problem.',
             'confidence': '[0.0, 1.0] Confidence about the severity.',
-            'machine_id': 'Machine this diagnostic applies to.',
             'trace_id': 'Trace this diagnostic applies to.',
         }))
 

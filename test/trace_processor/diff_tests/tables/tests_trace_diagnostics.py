@@ -45,10 +45,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics ORDER BY name;
+        SELECT key FROM __intrinsic_trace_diagnostics ORDER BY key;
         """,
         out=Csv("""
-        "name"
+        "key"
         "extreme_ftrace_drain_period"
         "low_ftrace_drain_bandwidth"
         "syscalls_without_filter"
@@ -76,7 +76,7 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT count(*) AS n FROM trace_diagnostics;
+        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
         "n"
@@ -101,10 +101,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics;
+        SELECT key FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
-        "name"
+        "key"
         "tiny_ftrace_buffer"
         """))
 
@@ -133,10 +133,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics;
+        SELECT key FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
-        "name"
+        "key"
         "tiny_ftrace_buffer"
         """))
 
@@ -159,10 +159,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics;
+        SELECT key FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
-        "name"
+        "key"
         "low_ftrace_drain_bandwidth"
         """))
 
@@ -185,10 +185,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics;
+        SELECT key FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
-        "name"
+        "key"
         "sched_switch_without_compact_sched"
         """))
 
@@ -212,7 +212,7 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT count(*) AS n FROM trace_diagnostics;
+        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
         "n"
@@ -239,10 +239,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics;
+        SELECT key FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
-        "name"
+        "key"
         "function_graph_requires_symbolize_ksyms"
         """))
 
@@ -266,10 +266,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics;
+        SELECT key FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
-        "name"
+        "key"
         "events_require_symbolize_ksyms"
         """))
 
@@ -293,7 +293,7 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT count(*) AS n FROM trace_diagnostics;
+        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
         "n"
@@ -326,10 +326,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics ORDER BY name;
+        SELECT key FROM __intrinsic_trace_diagnostics ORDER BY key;
         """,
         out=Csv("""
-        "name"
+        "key"
         "tiny_ftrace_buffer"
         """))
 
@@ -358,10 +358,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics;
+        SELECT key FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
-        "name"
+        "key"
         "discard_buffer_for_streaming"
         """))
 
@@ -388,7 +388,7 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT count(*) AS n FROM trace_diagnostics;
+        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
         "n"
@@ -417,10 +417,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics;
+        SELECT key FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
-        "name"
+        "key"
         "atrace_wildcard_apps"
         """))
 
@@ -444,7 +444,7 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT count(*) AS n FROM trace_diagnostics;
+        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
         "n"
@@ -469,10 +469,10 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT name FROM trace_diagnostics;
+        SELECT key FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
-        "name"
+        "key"
         "heapprofd_sampling_interval_too_low"
         """))
 
@@ -494,7 +494,7 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT count(*) AS n FROM trace_diagnostics;
+        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
         "n"
@@ -522,7 +522,7 @@ class TraceDiagnostics(TestSuite):
         }
         """),
         query="""
-        SELECT count(*) AS n FROM trace_diagnostics;
+        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
         """,
         out=Csv("""
         "n"
