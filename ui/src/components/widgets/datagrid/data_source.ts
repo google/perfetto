@@ -76,6 +76,11 @@ interface DataSourceModelBase {
     readonly alias: string;
     readonly direction: 'ASC' | 'DESC';
   };
+
+  // Free-text search term. When set, rows are filtered to those where any
+  // visible column contains the term (case-insensitive substring match).
+  // Currently only honored in flat mode.
+  readonly search?: string;
 }
 
 // Flat mode: simple column selection
