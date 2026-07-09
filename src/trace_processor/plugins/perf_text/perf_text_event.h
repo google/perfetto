@@ -14,33 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_SAMPLE_LINE_PARSER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_SAMPLE_LINE_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_EVENT_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_EVENT_H_
 
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <string>
-#include <string_view>
+
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 
 namespace perfetto::trace_processor::perf_text_importer {
 
-struct SampleLine {
-  std::string comm;
-  std::optional<uint32_t> pid;
+struct alignas(8) PerfTextEvent {
+  std::optional<StringPool::Id> comm;
   uint32_t tid;
-  std::optional<uint32_t> cpu;
-  int64_t ts;
+  std::optional<uint32_t> pid;
+  tables::StackProfileCallsiteTable::Id callsite_id;
 };
-
-// Given a single line of a perf text sample, parses it into its components and
-// returns the result. If parsing was not possible, returns std::nullopt.
-std::optional<SampleLine> ParseSampleLine(std::string_view line);
-
-// Given a chunk of a trace file (starting at `ptr` and containing `size`
-// bytes), returns whether the file is a perf text format trace.
-bool IsPerfTextFormatTrace(const uint8_t* ptr, size_t size);
 
 }  // namespace perfetto::trace_processor::perf_text_importer
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_SAMPLE_LINE_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_EVENT_H_
