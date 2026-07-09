@@ -12,16 +12,6 @@ android_blocking_calls_cuj_metric {
     ts: 2000000
     dur: 15000000
     blocking_calls {
-      name: "CreateGraphicsPipeline"
-      cnt: 1
-      total_dur_ms: 1
-      max_dur_ms: 1
-      min_dur_ms: 1
-      total_dur_ns: 1000000
-      max_dur_ns: 1000000
-      min_dur_ns: 1000000
-    }
-    blocking_calls {
       name: "binder transaction"
       cnt: 4
       total_dur_ms: 6
@@ -29,6 +19,16 @@ android_blocking_calls_cuj_metric {
       min_dur_ms: 1
       total_dur_ns: 6000000
       max_dur_ns: 3000000
+      min_dur_ns: 1000000
+    }
+    blocking_calls {
+      name: "CreateGraphicsPipeline"
+      cnt: 1
+      total_dur_ms: 1
+      max_dur_ms: 1
+      min_dur_ms: 1
+      total_dur_ns: 1000000
+      max_dur_ns: 1000000
       min_dur_ns: 1000000
     }
   }
@@ -45,16 +45,6 @@ android_blocking_calls_cuj_metric {
     ts: 2000000
     dur: 15000000
     blocking_calls {
-      name: "CreateGraphicsPipeline"
-      cnt: 1
-      total_dur_ms: 1
-      max_dur_ms: 1
-      min_dur_ms: 1
-      total_dur_ns: 1000000
-      max_dur_ns: 1000000
-      min_dur_ns: 1000000
-    }
-    blocking_calls {
       name: "binder transaction"
       cnt: 4
       total_dur_ms: 6
@@ -64,72 +54,19 @@ android_blocking_calls_cuj_metric {
       max_dur_ns: 3000000
       min_dur_ns: 1000000
     }
+    blocking_calls {
+      name: "CreateGraphicsPipeline"
+      cnt: 1
+      total_dur_ms: 1
+      max_dur_ms: 1
+      min_dur_ms: 1
+      total_dur_ns: 1000000
+      max_dur_ns: 1000000
+      min_dur_ns: 1000000
+    }
   }
   cuj {
     id: 3
-    name: "CUJ_WITH_TOP_LEVEL_SLICES"
-    process {
-      name: "com.google.android.top.level.slices"
-      uid: 10004
-      android_user_id: 0
-      pid: 4000
-      is_kernel_task: false
-    }
-    ts: 2000000
-    dur: 70000000
-    blocking_calls {
-      name: "Handler: android.os.AsyncTask"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "Handler: android.view.View"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "Handler: com.android.keyguard.KeyguardUpdateMonitor"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "Handler: com.android.systemui.broadcast.ActionReceiver"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "Handler: com.android.systemui.qs.external.TileServiceManager"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-  }
-  cuj {
-    id: 4
     name: "CUJ_WITH_MANY_BLOCKING_CALLS"
     process {
       name: "com.google.android.third.process"
@@ -141,22 +78,22 @@ android_blocking_calls_cuj_metric {
     ts: 2000000
     dur: 300000000
     blocking_calls {
-      name: "Contending for pthread mutex"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
       name: "CoroutineContinuation"
       cnt: 2
       total_dur_ms: 20
       max_dur_ms: 10
       min_dur_ms: 10
       total_dur_ns: 20000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "Contending for pthread mutex"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
       max_dur_ns: 10000000
       min_dur_ns: 10000000
     }
@@ -412,6 +349,69 @@ android_blocking_calls_cuj_metric {
     }
     blocking_calls {
       name: "traversal"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+  }
+  cuj {
+    id: 4
+    name: "CUJ_WITH_TOP_LEVEL_SLICES"
+    process {
+      name: "com.google.android.top.level.slices"
+      uid: 10004
+      android_user_id: 0
+      pid: 4000
+      is_kernel_task: false
+    }
+    ts: 2000000
+    dur: 70000000
+    blocking_calls {
+      name: "Handler: android.os.AsyncTask"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "Handler: android.view.View"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "Handler: com.android.keyguard.KeyguardUpdateMonitor"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "Handler: com.android.systemui.broadcast.ActionReceiver"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "Handler: com.android.systemui.qs.external.TileServiceManager"
       cnt: 1
       total_dur_ms: 10
       max_dur_ms: 10
