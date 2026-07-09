@@ -30,7 +30,10 @@ export function createVideoFramesTrack(
   player: VideoFramePlayer,
 ) {
   // dur spans each frame to the next (last frame: 0). is_config rows are
-  // decoder setup, not displayable, so excluded.
+  // decoder setup, not displayable, so excluded. Frames before the first key
+  // frame can't be decoded (no key frame to seed the decoder, e.g. a ring
+  // buffer whose GOP start was overwritten), so start the track at the first
+  // key frame.
   const src = `
     SELECT
       id,
@@ -41,6 +44,10 @@ export function createVideoFramesTrack(
     FROM __intrinsic_video_frames
     WHERE display_id = ${displayId}
       AND COALESCE(is_config, 0) = 0
+      AND ts >= (
+        SELECT MIN(ts) FROM __intrinsic_video_frames
+        WHERE display_id = ${displayId} AND is_key_frame = 1
+      )
   `;
 
   // QuerySlot caches the decoded hover image per frame id.
