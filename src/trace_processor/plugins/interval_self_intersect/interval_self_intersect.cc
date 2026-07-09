@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <set>
@@ -404,6 +405,18 @@ struct IsiIntervalsAgg : public sqlite::AggregateFunction<IsiIntervalsAgg> {
   }
 };
 
+// Bit-level double equality for the segment-merge check: merging must only
+// happen when the emitted value would be byte-identical, and bit comparison
+// sidesteps float-equality pitfalls (NaN never equals itself with ==; a
+// missed merge just emits an extra, still-correct row).
+inline bool BitEqual(double a, double b) {
+  uint64_t ia;
+  uint64_t ib;
+  memcpy(&ia, &a, sizeof(ia));
+  memcpy(&ib, &b, sizeof(ib));
+  return ia == ib;
+}
+
 // Output column layout; must match the c0..c6 binds in
 // stdlib/intervals/self_intersect.sql.
 constexpr uint32_t kOutTs = 0;
@@ -451,30 +464,73 @@ uint32_t SweepPartition(dataframe::AdhocDataframeBuilder& builder,
   double sum = 0;
   std::multiset<double> values;
 
+  // Adjacent atomic segments with identical aggregates are merged into one
+  // row: a boundary where as many intervals start as end (e.g. back-to-back
+  // slices) changes nothing a step-function consumer can observe, so emitting
+  // it would only inflate the output. The pending row is extended until the
+  // aggregates change, then flushed. Merging on the exact double `sum` is
+  // conservative: a bit-level difference just emits an extra (still correct)
+  // row.
+  bool pending = false;
+  int64_t pend_ts = 0;
+  int64_t pend_end = 0;
+  int64_t pend_cnt = 0;
+  double pend_sum = 0;
+  bool pend_has_minmax = false;
+  double pend_min = 0;
+  double pend_max = 0;
+
   uint32_t rows = 0;
-  auto emit = [&](int64_t seg_ts, int64_t seg_dur) {
-    builder.PushNonNullUnchecked(kOutTs, seg_ts);
-    builder.PushNonNullUnchecked(kOutDur, seg_dur);
+  auto flush = [&]() {
+    if (!pending) {
+      return;
+    }
+    builder.PushNonNullUnchecked(kOutTs, pend_ts);
+    builder.PushNonNullUnchecked(kOutDur, pend_end - pend_ts);
     builder.PushNonNullUnchecked(kOutGroupId, group_id);
-    builder.PushNonNullUnchecked(kOutCnt, cnt);
-    builder.PushNonNullUnchecked(kOutSum, sum);
-    if (values.empty()) {
+    builder.PushNonNullUnchecked(kOutCnt, pend_cnt);
+    builder.PushNonNullUnchecked(kOutSum, pend_sum);
+    if (pend_has_minmax) {
+      builder.PushNonNullUnchecked(kOutMin, pend_min);
+      builder.PushNonNullUnchecked(kOutMax, pend_max);
+    } else {
       builder.PushNull(kOutMin, 1);
       builder.PushNull(kOutMax, 1);
-    } else {
-      builder.PushNonNullUnchecked(kOutMin, *values.begin());
-      builder.PushNonNullUnchecked(kOutMax, *values.rbegin());
     }
     ++group_id;
     ++rows;
+    pending = false;
+  };
+
+  auto add_segment = [&](int64_t seg_ts, int64_t seg_end) {
+    bool has_minmax = !values.empty();
+    double mn = has_minmax ? *values.begin() : 0;
+    double mx = has_minmax ? *values.rbegin() : 0;
+    // Segments within a partition are contiguous (pend_end == seg_ts always
+    // holds); the check documents the merge invariant.
+    if (pending && pend_end == seg_ts && pend_cnt == cnt &&
+        BitEqual(pend_sum, sum) && pend_has_minmax == has_minmax &&
+        (!has_minmax || (BitEqual(pend_min, mn) && BitEqual(pend_max, mx)))) {
+      pend_end = seg_end;
+      return;
+    }
+    flush();
+    pending = true;
+    pend_ts = seg_ts;
+    pend_end = seg_end;
+    pend_cnt = cnt;
+    pend_sum = sum;
+    pend_has_minmax = has_minmax;
+    pend_min = mn;
+    pend_max = mx;
   };
 
   int64_t prev_ts = events.front().ts;
   for (const auto& ev : events) {
     if (ev.ts > prev_ts) {
-      // Emit the segment [prev_ts, ev.ts) with the state accumulated from
-      // all events at prev_ts and earlier. Zero-active gaps emit too.
-      emit(prev_ts, ev.ts - prev_ts);
+      // Add the segment [prev_ts, ev.ts) with the state accumulated from
+      // all events at prev_ts and earlier. Zero-active gaps count too.
+      add_segment(prev_ts, ev.ts);
       prev_ts = ev.ts;
     }
     if (ev.delta > 0) {
@@ -492,10 +548,12 @@ uint32_t SweepPartition(dataframe::AdhocDataframeBuilder& builder,
     }
   }
   // Every start has a matching end, so the active set is empty here; the
-  // final dur=0 segment is the counter's drop-to-zero point at the
-  // partition's last endpoint.
+  // trailing zero-width segment is the counter's drop-to-zero point at the
+  // partition's last endpoint (it merges into a preceding zero-count gap
+  // row when one exists).
   PERFETTO_DCHECK(cnt == 0);
-  emit(prev_ts, 0);
+  add_segment(prev_ts, prev_ts);
+  flush();
   return rows;
 }
 

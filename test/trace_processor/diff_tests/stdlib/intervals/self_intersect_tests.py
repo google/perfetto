@@ -257,6 +257,9 @@ class IntervalsSelfIntersect(TestSuite):
         """))
 
   def test_self_intersect_count_zero_dur_intervals(self):
+    # The zero-dur interval at ts=5 is never active in any segment, so the
+    # boundary it creates changes no aggregate and the [0,5) and [5,10)
+    # segments merge into one row.
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
@@ -275,10 +278,45 @@ class IntervalsSelfIntersect(TestSuite):
         """,
         out=Csv("""
         "ts","dur","cnt","k0"
-        0,5,1,"Y"
-        5,5,1,"Y"
+        0,10,1,"Y"
         10,0,0,"Y"
         7,0,0,"Z"
+        """))
+
+  def test_self_intersect_agg_merges_touching_intervals(self):
+    # T: back-to-back intervals with equal values keep every aggregate
+    # constant across the ts=10 boundary, so a single merged row spans both.
+    # W: the boundary changes sum/min/max (1 vs 2) even though cnt stays 1,
+    # so no merge happens there.
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+        WITH
+          data(ts, dur, v, k0) AS (
+            VALUES
+              (0, 10, 5, 'T'),
+              (10, 10, 5, 'T'),
+              (0, 10, 1, 'W'),
+              (10, 10, 2, 'W')
+          )
+        SELECT
+          ts, dur, cnt,
+          CAST(sum_value AS INT64) AS sum_v,
+          CAST(min_value AS INT64) AS min_v,
+          CAST(max_value AS INT64) AS max_v,
+          k0
+        FROM _interval_self_intersect_agg!(data, v, (k0))
+        ORDER BY k0 ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","cnt","sum_v","min_v","max_v","k0"
+        0,20,1,5,5,5,"T"
+        20,0,0,0,"[NULL]","[NULL]","T"
+        0,10,1,1,1,1,"W"
+        10,10,1,2,2,2,"W"
+        20,0,0,0,"[NULL]","[NULL]","W"
         """))
 
   def test_self_intersect_count_global(self):

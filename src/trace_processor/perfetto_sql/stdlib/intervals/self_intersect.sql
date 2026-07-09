@@ -77,19 +77,21 @@ RETURNS Expr AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
 --
 -- Splits the timeline of each partition (tuple of $partition_cols values,
 -- NULL keys form their own partition) into atomic segments at every interval
--- endpoint and emits exactly ONE row per segment — including zero-active gap
--- segments and a final dur=0 segment at the partition's last endpoint, so a
--- counter sourced from this output drops to zero where cover ends. Output
--- size is at most 2x the input rows (per partition), regardless of overlap
--- depth.
+-- endpoint and emits ONE row per run of adjacent segments with identical
+-- aggregates — a boundary where as many intervals start as end (e.g.
+-- back-to-back slices with equal values) does not emit a row. Zero-active
+-- gap segments are emitted too, as is a trailing segment ending at the
+-- partition's last endpoint, so a counter sourced from this output drops to
+-- zero where cover ends. Output size is at most 2x the input rows (per
+-- partition), regardless of overlap depth.
 --
 -- |intervals| must expose `ts INT64`, `dur INT64` (>= 0), $value_col
 -- (numeric or NULL), and the $partition_cols. Input need not be sorted.
 --
 -- Output:
---   ts INT64          start of the atomic segment
---   dur INT64         duration to the next endpoint in the partition
---                     (0 at the final segment)
+--   ts INT64          start of the (merged) segment
+--   dur INT64         duration until the aggregates next change in the
+--                     partition (0 at the trailing segment)
 --   group_id INT64    globally unique 1-indexed segment id
 --   cnt INT64         number of intervals active in the segment
 --   sum_value DOUBLE  sum of $value_col over active intervals (0 when none)
