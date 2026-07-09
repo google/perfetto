@@ -17,6 +17,7 @@
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -579,12 +580,11 @@ base::Status ProtoToArgsParser::ParseSimpleField(
   switch (descriptor.type()) {
     case FieldDescriptorProto::TYPE_INT32:
     case FieldDescriptorProto::TYPE_SFIXED32:
-      if (!descriptor.flags_enum().empty()) {
+      if (auto idx = descriptor.flags_enum_descriptor_idx()) {
         // Zero-extend so the mask stays 32-bit (bit 31 is 0x80000000, not a
         // sign-extended int64).
         return AddFlags(
-            descriptor,
-            static_cast<int64_t>(static_cast<uint32_t>(field.as_int32())),
+            *idx, static_cast<int64_t>(static_cast<uint32_t>(field.as_int32())),
             delegate);
       }
       delegate.AddInteger(fk, k, field.as_int32());
@@ -594,8 +594,8 @@ base::Status ProtoToArgsParser::ParseSimpleField(
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_SFIXED64:
-      if (!descriptor.flags_enum().empty()) {
-        return AddFlags(descriptor, field.as_int64(), delegate);
+      if (auto idx = descriptor.flags_enum_descriptor_idx()) {
+        return AddFlags(*idx, field.as_int64(), delegate);
       }
       delegate.AddInteger(fk, k, field.as_int64());
       return base::OkStatus();
@@ -765,21 +765,28 @@ base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
   return base::OkStatus();
 }
 
-base::Status ProtoToArgsParser::AddFlags(const FieldDescriptor& descriptor,
+base::Status ProtoToArgsParser::AddFlags(uint32_t enum_descriptor_idx,
                                          int64_t value,
                                          Delegate& delegate) {
   flag_views_.clear();
-  DescriptorPool::CachedDescriptor cache;
-  pool_.FlagSetToViews(cache, descriptor.flags_enum(), value, &flag_views_);
-  // Emit each set flag's name as an array element under the field's key.
+  int64_t unmatched =
+      pool_.FlagSetToViews(enum_descriptor_idx, value, &flag_views_);
+
   const StringPool::Id fk = key_prefix_.flat_key_id;
-  for (size_t i = 0; i < flag_views_.size(); ++i) {
+  auto emit = [&](size_t i, protozero::ConstChars chars) {
     ScopedNestedKeyContext ctx = EnterArray(i);
     StringPool::Id k = delegate.InternString(
         base::StringView(key_prefix_.key.data(), key_prefix_.key.size()));
-    delegate.AddString(
-        fk, k,
-        protozero::ConstChars{flag_views_[i].data(), flag_views_[i].size()});
+    delegate.AddString(fk, k, chars);
+  };
+  size_t i = 0;
+  for (; i < flag_views_.size(); ++i) {
+    emit(i,
+         protozero::ConstChars{flag_views_[i].data(), flag_views_[i].size()});
+  }
+  if (unmatched != 0) {
+    base::StackString<20> hex("0x%" PRIx64, static_cast<uint64_t>(unmatched));
+    emit(i, protozero::ConstChars{hex.c_str(), hex.len()});
   }
   return base::OkStatus();
 }

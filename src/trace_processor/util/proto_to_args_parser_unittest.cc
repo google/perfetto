@@ -1163,15 +1163,28 @@ TEST_F(DebugAnnotationParserTest, InternedString) {
   EXPECT_THAT(args(), testing::ElementsAre("root root foo"));
 }
 
-TEST_F(ProtoToArgsParserTest, FlagsFieldExpandsToArgs) {
+namespace {
+// Builds a descriptor set with a FieldOptions carrying the (flags_enum) option,
+// an enum whose values are the flag bits, and a message with an int32 field
+// annotated with it.
+std::vector<uint8_t> BuildFlagsDescriptorSet() {
   using namespace protos::pbzero;
-  // Build a descriptor set with an enum whose values are the flag bits, and a
-  // message with an int32 field annotated with (flags_enum) pointing at it.
   protozero::HeapBuffered<FileDescriptorSet> fds{kChunkSize, kChunkSize};
+
+  auto* opts_file = fds->add_file();
+  opts_file->set_name("descriptor.proto");
+  opts_file->set_package("google.protobuf");
+  auto* opts = opts_file->add_message_type();
+  opts->set_name("FieldOptions");
+  auto* flags_enum = opts->add_field();
+  flags_enum->set_name("flags_enum");
+  flags_enum->set_number(51001);
+  flags_enum->set_type(FieldDescriptorProto::TYPE_STRING);
+  flags_enum->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+
   auto* file = fds->add_file();
   file->set_name("test.proto");
   file->set_package("test");
-
   auto* en = file->add_enum_type();
   en->set_name("Caps");
   auto add_val = [&](const char* n, int32_t v) {
@@ -1190,15 +1203,17 @@ TEST_F(ProtoToArgsParserTest, FlagsFieldExpandsToArgs) {
   field->set_number(1);
   field->set_type(FieldDescriptorProto::TYPE_INT32);
   field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
-  // (flags_enum) = ".test.Caps": custom FieldOptions extension field 60002.
-  field->set_options()->AppendString(60002, ".test.Caps");
+  field->set_options()->AppendString(51001, ".test.Caps");
+  return fds.SerializeAsArray();
+}
+}  // namespace
 
-  auto fds_bytes = fds.SerializeAsArray();
-
+TEST_F(ProtoToArgsParserTest, FlagsFieldExpandsToArgs) {
+  auto fds_bytes = BuildFlagsDescriptorSet();
   DescriptorPool pool;
   ASSERT_OK(pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size()));
 
-  // A Msg with caps = 5 (bits 0 and 2 -> CAP_A | CAP_C).
+  // caps = 5 (bits 0 and 2 -> CAP_A | CAP_C).
   protozero::HeapBuffered<protozero::Message> msg_proto{kChunkSize, kChunkSize};
   msg_proto->AppendVarInt(1, 5);
   auto binary = msg_proto.SerializeAsArray();
@@ -1210,6 +1225,25 @@ TEST_F(ProtoToArgsParserTest, FlagsFieldExpandsToArgs) {
 
   EXPECT_THAT(args(),
               testing::ElementsAre("caps caps[0] CAP_A", "caps caps[1] CAP_C"));
+}
+
+TEST_F(ProtoToArgsParserTest, FlagsFieldSurfacesUnknownBits) {
+  auto fds_bytes = BuildFlagsDescriptorSet();
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size()));
+
+  // caps = 9 (bit 0 -> CAP_A; bit 3 is unknown -> surfaced as 0x8).
+  protozero::HeapBuffered<protozero::Message> msg_proto{kChunkSize, kChunkSize};
+  msg_proto->AppendVarInt(1, 9);
+  auto binary = msg_proto.SerializeAsArray();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_OK(
+      parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
+                          ".test.Msg", nullptr, *this));
+
+  EXPECT_THAT(args(),
+              testing::ElementsAre("caps caps[0] CAP_A", "caps caps[1] 0x8"));
 }
 
 }  // namespace

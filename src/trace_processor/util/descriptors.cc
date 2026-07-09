@@ -520,7 +520,14 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     }
   }
 
-  // Fifth pass: resolve all "uninterpreted" options to real options.
+  // Fifth pass: resolve all "uninterpreted" options to real options, and
+  // resolve the (flags_enum) option to its enum's descriptor index.
+  std::optional<uint32_t> flags_enum_option_number;
+  if (auto idx = FindDescriptorIdx(".google.protobuf.FieldOptions")) {
+    if (const auto* opt = descriptors_[*idx].FindFieldByName("flags_enum")) {
+      flags_enum_option_number = opt->number();
+    }
+  }
   for (ProtoDescriptor& descriptor : descriptors_) {
     for (auto& entry : *descriptor.mutable_fields()) {
       FieldDescriptor& field = entry.second;
@@ -528,12 +535,14 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
         continue;
       }
       ResolveUninterpretedOption(descriptor, field, *field.mutable_options());
-      // Pull out the (flags_enum) annotation, now resolved to its field number.
-      protozero::ProtoDecoder opt(field.options().data(),
-                                  field.options().size());
-      for (auto f = opt.ReadField(); f.valid(); f = opt.ReadField()) {
-        if (f.id() == kFlagsEnumFieldOptionNumber) {
-          field.set_flags_enum(f.as_std_string());
+      if (flags_enum_option_number) {
+        protozero::ProtoDecoder opt(field.options().data(),
+                                    field.options().size());
+        if (auto f = opt.FindField(*flags_enum_option_number); f.valid()) {
+          if (auto enum_idx =
+                  ResolveShortType(descriptor.full_name(), f.as_std_string())) {
+            field.set_flags_enum_descriptor_idx(*enum_idx);
+          }
         }
       }
     }
@@ -648,17 +657,10 @@ std::optional<std::string> DescriptorPool::FindEnumString(
 }
 
 int64_t DescriptorPool::FlagSetToViews(
-    CachedDescriptor& cache,
-    std::string_view enum_name,
+    uint32_t enum_descriptor_idx,
     int64_t mask,
     std::vector<std::string_view>* out) const {
-  if (!cache.descriptor_idx_) {
-    cache.descriptor_idx_ = FindDescriptorIdx(std::string(enum_name));
-  }
-  if (!cache.descriptor_idx_) {
-    return mask;
-  }
-  const ProtoDescriptor& desc = descriptors_[*cache.descriptor_idx_];
+  const ProtoDescriptor& desc = descriptors_[enum_descriptor_idx];
   if (desc.type() != ProtoDescriptor::Type::kEnum) {
     return mask;
   }

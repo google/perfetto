@@ -338,9 +338,9 @@ class ProtoToArgsParser {
                        uint32_t node,
                        Delegate& delegate);
 
-  // Expands a bitmask field annotated with (flags_enum) into one string arg per
-  // set flag, as an array under the field's key.
-  base::Status AddFlags(const FieldDescriptor& descriptor,
+  // Expands a bitmask into one string arg per set flag, as an array under the
+  // field's key; unmatched bits become a trailing hex element.
+  base::Status AddFlags(uint32_t enum_descriptor_idx,
                         int64_t value,
                         Delegate& delegate);
 

@@ -791,37 +791,32 @@ TEST(DescriptorsTest, FlagSetToViews) {
   flags.AddEnumValue(INT32_MIN, "FLAG_31");  // Bit 31 (the int32 sign bit).
   pool.AddProtoDescriptorForTesting(std::move(flags));
 
-  DescriptorPool::CachedDescriptor cache;
+  auto idx = pool.FindDescriptorIdx("pkg.MyFlags");
+  ASSERT_TRUE(idx.has_value());
   std::vector<std::string_view> out;
 
-  EXPECT_EQ(pool.FlagSetToViews(cache, "pkg.MyFlags", 5, &out), 0);
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 5, &out), 0);
   EXPECT_THAT(out, testing::ElementsAre("FLAG_A", "FLAG_C"));
 
   // The composite value 7 is not emitted; its individual bits are.
   out.clear();
-  EXPECT_EQ(pool.FlagSetToViews(cache, "pkg.MyFlags", 7, &out), 0);
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 7, &out), 0);
   EXPECT_THAT(out, testing::ElementsAre("FLAG_A", "FLAG_B", "FLAG_C"));
 
   // A set bit with no named single-bit value is returned as unmatched.
   out.clear();
-  EXPECT_EQ(pool.FlagSetToViews(cache, "pkg.MyFlags", 9, &out), 0x8);
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 9, &out), 0x8);
   EXPECT_THAT(out, testing::ElementsAre("FLAG_A"));
 
   // Bit 31 is a valid int32 value (INT32_MIN), so it can name a flag.
   out.clear();
-  EXPECT_EQ(pool.FlagSetToViews(cache, "pkg.MyFlags", 0x80000000LL, &out), 0);
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 0x80000000LL, &out), 0);
   EXPECT_THAT(out, testing::ElementsAre("FLAG_31"));
 
   // Bits >= 32 aren't int32 values, so they can't be named -> unmatched.
   out.clear();
-  EXPECT_EQ(pool.FlagSetToViews(cache, "pkg.MyFlags", int64_t{1} << 32, &out),
+  EXPECT_EQ(pool.FlagSetToViews(*idx, int64_t{1} << 32, &out),
             int64_t{1} << 32);
-  EXPECT_THAT(out, testing::IsEmpty());
-
-  // Unknown enum -> the whole mask is unmatched and nothing is appended.
-  out.clear();
-  DescriptorPool::CachedDescriptor unknown_cache;
-  EXPECT_EQ(pool.FlagSetToViews(unknown_cache, "pkg.Unknown", 5, &out), 5);
   EXPECT_THAT(out, testing::IsEmpty());
 }
 

@@ -51,9 +51,9 @@ class FieldDescriptor {
   uint32_t type() const { return type_; }
   const std::string& raw_type_name() const { return raw_type_name_; }
   const std::string& resolved_type_name() const { return resolved_type_name_; }
-  // Full name of the flags enum this field's bitmask should be expanded with,
-  // from the (flags_enum) field option; empty if unannotated.
-  const std::string& flags_enum() const { return flags_enum_; }
+  std::optional<uint32_t> flags_enum_descriptor_idx() const {
+    return flags_enum_descriptor_idx_;
+  }
   bool is_repeated() const { return is_repeated_; }
   bool is_packed() const { return is_packed_; }
   bool is_extension() const { return is_extension_; }
@@ -71,8 +71,8 @@ class FieldDescriptor {
     resolved_type_name_ = resolved_type_name;
   }
 
-  void set_flags_enum(const std::string& flags_enum) {
-    flags_enum_ = flags_enum;
+  void set_flags_enum_descriptor_idx(uint32_t idx) {
+    flags_enum_descriptor_idx_ = idx;
   }
 
   void set_extension_full_name(const std::string& extension_full_name) {
@@ -85,7 +85,7 @@ class FieldDescriptor {
   uint32_t type_;
   std::string raw_type_name_;
   std::string resolved_type_name_;
-  std::string flags_enum_;
+  std::optional<uint32_t> flags_enum_descriptor_idx_;
   std::vector<uint8_t> options_;
   std::optional<std::string> default_value_;
   bool is_repeated_;
@@ -264,12 +264,10 @@ class DescriptorPool {
                                             std::string_view enum_name,
                                             int32_t value) const;
 
-  // For each single-bit flag set in |mask| for the flags enum |enum_name|,
-  // appends its name into |*out| as a string_view into the pool's own storage.
-  // Composite values are ignored. Returns the set bits with no single-bit name
-  // (|mask| if |enum_name| is unknown). |cache| memoises the resolved enum.
-  int64_t FlagSetToViews(CachedDescriptor& cache,
-                         std::string_view enum_name,
+  // Appends the name of each single-bit flag set in |mask| to |*out| (views
+  // into the pool's storage), for the flags enum at |enum_descriptor_idx|.
+  // Returns the set bits that matched no flag.
+  int64_t FlagSetToViews(uint32_t enum_descriptor_idx,
                          int64_t mask,
                          std::vector<std::string_view>* out) const;
 
