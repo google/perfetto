@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, app-lifecycle
+
 -- All scheduled jobs and their latencies.
 --
 -- The table is populated by ATrace using the system server ATrace category

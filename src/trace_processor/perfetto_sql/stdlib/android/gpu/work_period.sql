@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, gpu
+
 -- Tracks for GPU work period events originating from the
 -- `power/gpu_work_period` Linux ftrace tracepoint.
 --

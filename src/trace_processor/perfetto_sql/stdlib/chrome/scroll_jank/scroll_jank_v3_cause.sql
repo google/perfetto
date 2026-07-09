@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, ui
+
 -- Finds all slices with a direct parent with the given parent_id.
 CREATE PERFETTO FUNCTION _direct_children_slice(
     -- Id of the parent slice.

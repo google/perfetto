@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- @tags android, app-lifecycle, performance
+-- @data_check SELECT 1 FROM slice WHERE name GLOB '*ApplicationNotResponding*'
+
 CREATE PERFETTO FUNCTION _extract_anr_type(subject STRING, process_name STRING)
 RETURNS STRING
 AS

@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, performance
+
 INCLUDE PERFETTO MODULE chrome.speedometer_2_1;
 
 INCLUDE PERFETTO MODULE chrome.speedometer_3;

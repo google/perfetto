@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui, input
+
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
 INCLUDE PERFETTO MODULE intervals.intersect;

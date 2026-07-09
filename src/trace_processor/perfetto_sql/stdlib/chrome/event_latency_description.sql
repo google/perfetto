@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, input
+
 -- Source of truth of the descriptions of EventLatency stages.
 CREATE PERFETTO TABLE chrome_event_latency_stage_descriptions (
   -- The name of the EventLatency stage.

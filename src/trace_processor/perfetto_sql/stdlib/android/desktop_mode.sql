@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, ui
+
 INCLUDE PERFETTO MODULE android.statsd;
 
 -- Desktop Windows with durations they were open.

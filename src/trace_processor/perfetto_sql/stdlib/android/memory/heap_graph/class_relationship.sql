@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, memory
+
 INCLUDE PERFETTO MODULE graphs.scan;
 
 -- Given a list of classes as ancestor classes, return all the classes that

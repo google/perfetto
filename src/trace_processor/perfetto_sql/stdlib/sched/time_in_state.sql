@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags scheduling, cpu
+
 INCLUDE PERFETTO MODULE intervals.intersect;
 
 -- The time a thread spent in each scheduling state during it's lifetime.

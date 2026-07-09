@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, startup
+-- @data_check SELECT 1 FROM slice WHERE name IN ('bindApplication', 'activityStart', 'activityResume')
+
 INCLUDE PERFETTO MODULE android.process_metadata;
 
 INCLUDE PERFETTO MODULE android.startup.startups_maxsdk28;

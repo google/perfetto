@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, memory, performance
+
 INCLUDE PERFETTO MODULE android.startup.startups;
 
 INCLUDE PERFETTO MODULE intervals.intersect;

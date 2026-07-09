@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, trace
+
 CREATE PERFETTO FUNCTION _remove_lambda_name(
   -- Raw slice name containing at least one "$"
   name STRING

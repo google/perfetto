@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags performance
+
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
 CREATE PERFETTO TABLE _appleos_instruments_raw_callstacks AS

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags scheduling, cpu
+
 -- This module contains helpers for computing the thread-level parallelism counters,
 -- including how many threads were runnable at a given time and how many threads
 -- where running at a given point in time.

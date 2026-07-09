@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags power, cpu
+
 INCLUDE PERFETTO MODULE android.suspend;
 
 INCLUDE PERFETTO MODULE time.conversion;

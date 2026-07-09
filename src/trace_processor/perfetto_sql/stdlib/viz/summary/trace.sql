@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 -- Returns whether a machine is running a Linux kernel.
 CREATE PERFETTO FUNCTION _is_linux_machine(
   -- Machine id.

@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, power
+
 INCLUDE PERFETTO MODULE intervals.fill_gaps;
 
 -- Table of suspended and awake slices.

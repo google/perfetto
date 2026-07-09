@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags metadata
+
 -- Reports the duration of the flush operation for cloned traces, per
 -- buffer and per (machine_id, trace_id) context.
 CREATE PERFETTO TABLE traced_clone_flush_latency(

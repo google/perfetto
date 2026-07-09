@@ -25,9 +25,8 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 
 from python.generators.sql_processing.docs_parse import DocParseOptions, ParsedModule, parse_file
-from python.generators.sql_processing.utils import is_internal
-from python.generators.sql_processing.stdlib_tags import get_tags, get_table_importance
-from python.perfetto.trace_data_checks import check_to_query, MODULE_DATA_CHECK_SQL, TABLE_DATA_CHECK_SQL
+from python.generators.sql_processing.utils import is_internal, check_to_query
+from python.generators.sql_processing.stdlib_tags import get_table_importance
 
 ROOT_DIR = os.path.dirname(
     os.path.dirname(
@@ -202,9 +201,6 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
   Output format matches what gen_stdlib_docs_json currently produces.
   """
 
-  # Use the curated data check SQL map
-  data_check_sql_map = MODULE_DATA_CHECK_SQL
-
   def _summary_desc(s: str) -> str:
     """Extract the first sentence from a description."""
     s = s.replace('\n', ' ')
@@ -256,7 +252,7 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
             'desc': parsed.module_doc.desc,
         } if parsed.module_doc else None,
         'tags':
-            get_tags(module_name),
+            parsed.tags,
         'includes': [inc.module for inc in parsed.includes],
         'data_objects': [{
             'name':
@@ -272,8 +268,8 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
             'importance':
                 get_table_importance(table.name),
             'data_check_sql':
-                check_to_query(TABLE_DATA_CHECK_SQL[table.name])
-                if table.name in TABLE_DATA_CHECK_SQL else None,
+                check_to_query(parsed.table_data_checks[table.name])
+                if table.name in parsed.table_data_checks else None,
             'cols': [
                 _create_field_dict(col_name, col)
                 for (col_name, col) in table.cols.items()
@@ -332,8 +328,7 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
         }
                    for macro in parsed.macros],
         'data_check_sql':
-            check_to_query(data_check_sql_map.get(module_name))
-            if module_name in data_check_sql_map else None,
+            check_to_query(parsed.data_check) if parsed.data_check else None,
     }
     packages[package_name].append(module_dict)
 
@@ -374,18 +369,17 @@ def format_metadata(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
   result = {}
 
   for _, _, module_name, parsed in modules:
-    tags = get_tags(module_name)
+    tags = parsed.tags
     includes = [inc.module for inc in parsed.includes]
     data_check_sql = (
-        check_to_query(MODULE_DATA_CHECK_SQL[module_name])
-        if module_name in MODULE_DATA_CHECK_SQL else None)
+        check_to_query(parsed.data_check) if parsed.data_check else None)
 
     tables = {}
     for table in parsed.table_views:
       importance = get_table_importance(table.name)
       table_check = (
-          check_to_query(TABLE_DATA_CHECK_SQL[table.name])
-          if table.name in TABLE_DATA_CHECK_SQL else None)
+          check_to_query(parsed.table_data_checks[table.name])
+          if table.name in parsed.table_data_checks else None)
       if importance is not None or table_check is not None:
         tables[table.name] = {
             'importance': importance,

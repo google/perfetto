@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 -- sqlformat file off
 
 CREATE PERFETTO MACRO _ii_df_agg(x ColumnName, y ColumnName)

@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, power
+
 -- Android entity state residency samples.
 -- For details see: https://perfetto.dev/docs/reference/trace-config-proto#AndroidPowerConfig
 CREATE PERFETTO TABLE android_entity_state_residency(

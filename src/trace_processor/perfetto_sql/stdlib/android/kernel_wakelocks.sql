@@ -13,6 +13,9 @@
 -- limitations under the License.
 --
 
+-- @tags android, power
+-- @data_check SELECT 1 FROM track WHERE name = 'android_kernel_wakelock'
+
 INCLUDE PERFETTO MODULE counters.intervals;
 
 INCLUDE PERFETTO MODULE android.suspend;

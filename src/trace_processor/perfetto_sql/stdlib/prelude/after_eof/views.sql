@@ -13,6 +13,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags trace
+-- @data_check_table slice SELECT 1 FROM __intrinsic_slice
+-- @data_check_table counter SELECT 1 FROM __intrinsic_counter
+-- @data_check_table thread SELECT 1 FROM __intrinsic_thread
+-- @data_check_table process SELECT 1 FROM __intrinsic_process
+-- @data_check_table cpu_profile_stack_sample SELECT 1 FROM __intrinsic_cpu_profile_stack_sample
+
 INCLUDE PERFETTO MODULE prelude.after_eof.casts;
 
 -- Counters are values put into tracks during parsing of the trace.

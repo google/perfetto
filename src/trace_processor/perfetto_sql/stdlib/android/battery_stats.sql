@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, power
+-- @data_check SELECT 1 FROM counter_track WHERE name GLOB 'battery_stats.*'
+
 -- Converts a battery_stats counter value to human readable string.
 CREATE PERFETTO FUNCTION android_battery_stats_counter_to_string(
   -- The counter track name (e.g. 'battery_stats.audio').

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags linux, cpu, power
+
 INCLUDE PERFETTO MODULE linux.cpu.idle;
 
 -- Aggregates cpu idle statistics per core.

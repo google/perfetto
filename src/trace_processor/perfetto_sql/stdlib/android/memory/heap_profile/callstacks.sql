@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, memory
+
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
 CREATE PERFETTO MACRO _android_heap_profile_callstacks_for_allocations(

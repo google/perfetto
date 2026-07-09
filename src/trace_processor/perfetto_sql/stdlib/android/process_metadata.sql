@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- @tags android, metadata
+-- @data_check SELECT 1 FROM process
+
 INCLUDE PERFETTO MODULE android.user_list;
 
 -- Count packages by package UID.

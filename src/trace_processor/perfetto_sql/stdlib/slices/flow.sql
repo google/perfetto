@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags trace
+
 INCLUDE PERFETTO MODULE graphs.search;
 
 -- Computes the "reachable" set of slices from the |flows| table, starting from slice ids

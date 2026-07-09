@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags linux, cpu
+
 INCLUDE PERFETTO MODULE linux.cpu.frequency;
 
 -- Returns the timestamp of the start of the partition that contains the |ts|.

@@ -22,6 +22,11 @@ def is_internal(name: str) -> bool:
   return re.match(r'^_.*', name, re.IGNORECASE) is not None
 
 
+def check_to_query(check: str) -> str:
+  """Wrap a raw data-availability check into a boolean has_data query."""
+  return f"SELECT EXISTS({check} LIMIT 1) AS has_data"
+
+
 PKG_COMMON = "common"
 PKG_VIZ = "viz"
 PKG_CHROME = "chrome"

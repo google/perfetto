@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, gpu
+
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- GPU frequency counter per GPU.

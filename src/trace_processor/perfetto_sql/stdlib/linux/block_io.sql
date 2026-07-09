@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags linux
+
 INCLUDE PERFETTO MODULE intervals.overlap;
 
 -- View tracking the number of IO operations remaining in the kernel IO queue or

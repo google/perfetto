@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, ui
+
 -- This file implements the scrolling predictor jank metric, as is
 -- implemented in cc/metrics/predictor_jank_tracker.cc. See comments in that
 -- file to get additional context on how the metric is implemented.

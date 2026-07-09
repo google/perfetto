@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags scheduling, cpu, performance
+
 INCLUDE PERFETTO MODULE sched.runnable;
 
 CREATE PERFETTO VIEW _sched_with_thread_state_join AS

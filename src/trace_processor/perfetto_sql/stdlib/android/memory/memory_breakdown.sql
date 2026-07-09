@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @data_check SELECT 1 FROM process_counter_track WHERE name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file', 'mem.rss.shmem', 'Heap size (KB)')
+
 INCLUDE PERFETTO MODULE android.oom_adjuster;
 
 INCLUDE PERFETTO MODULE counters.intervals;

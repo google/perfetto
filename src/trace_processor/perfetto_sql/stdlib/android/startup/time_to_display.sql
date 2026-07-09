@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, startup
+
 INCLUDE PERFETTO MODULE android.startup.startups;
 
 INCLUDE PERFETTO MODULE android.frames.timeline;

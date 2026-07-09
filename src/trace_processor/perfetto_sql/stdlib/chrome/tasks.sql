@@ -2,6 +2,9 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome
+-- @data_check SELECT 1 FROM slice WHERE category GLOB '*toplevel*' AND (name = 'ThreadControllerImpl::RunTask' OR name = 'ThreadPool_RunTask')
+
 -- Checks if slice has an ancestor with provided name.
 CREATE PERFETTO FUNCTION _has_parent_slice_with_name(
     -- Id of the slice to check parents of.

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 -- Computes the "reachable" set of nodes in a directed graph from a given set
 -- of starting nodes by performing a depth-first search on the graph. The
 -- returned nodes are structured as a tree with parent-child relationships

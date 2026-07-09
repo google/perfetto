@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- @tags android
+-- @data_check SELECT 1 FROM slice WHERE name GLOB 'cam*_*:* (frame *)'
+
 INCLUDE PERFETTO MODULE counters.global_tracks;
 
 INCLUDE PERFETTO MODULE linux.memory.process;

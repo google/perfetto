@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 -- Partitions a tree into a forest of trees based on a given grouping key
 -- in a structure-preserving way.
 --

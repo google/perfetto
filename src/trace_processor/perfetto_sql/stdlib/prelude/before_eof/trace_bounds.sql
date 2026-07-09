@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags metadata
+
 -- The values are being filled by Trace Processor when parsing the trace.
 -- Exposed with `trace_bounds`.
 CREATE TABLE _trace_bounds AS

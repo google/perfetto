@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android
+-- @data_check SELECT 1 FROM __intrinsic_android_network_packets
+
 INCLUDE PERFETTO MODULE std.metasql.unparenthesize;
 
 -- Android network packet events (from android.network_packets data source).

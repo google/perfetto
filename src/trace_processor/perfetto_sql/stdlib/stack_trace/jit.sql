@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @data_check SELECT 1 FROM __intrinsic_jit_code
+
 -- Represents a jitted code snippet.
 -- TODO(carlscab): Make public
 CREATE PERFETTO VIEW _jit_code(

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags linux, memory
+
 CREATE PERFETTO VIEW _all_counters_per_process AS
 SELECT
   ts,

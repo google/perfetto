@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags scheduling
+
 -- View of scheduling slices with extended information.
 -- It holds slices with kernel thread scheduling information. These slices are
 -- collected when the Linux "ftrace" data source is used with the

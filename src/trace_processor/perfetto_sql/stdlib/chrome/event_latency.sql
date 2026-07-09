@@ -2,6 +2,9 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, input
+-- @data_check SELECT 1 FROM slice WHERE name = 'EventLatency'
+
 -- Finds the start timestamp for a given slice's descendant with a given name.
 -- If there are multiple descendants with a given name, the function will return
 -- the first one, so it's most useful when working with a timeline broken down

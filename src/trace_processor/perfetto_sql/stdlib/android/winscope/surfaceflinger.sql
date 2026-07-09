@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui
+-- @data_check SELECT 1 FROM __intrinsic_surfaceflinger_transaction
+
 -- Android surfaceflinger transactions (from android.surfaceflinger.transactions data source).
 CREATE PERFETTO VIEW android_surfaceflinger_transaction(
   -- Row id

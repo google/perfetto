@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 -- Returns the provided nanosecond duration, which is the default
 -- representation of time durations in trace processor. Provided for
 -- consistency with other functions.

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- All slices related to one frame for max SDK 28. Aggregates

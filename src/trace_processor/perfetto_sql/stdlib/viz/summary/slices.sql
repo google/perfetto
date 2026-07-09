@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags utilities
+
 CREATE PERFETTO TABLE _slice_track_summary AS
 SELECT
   track_id AS id,

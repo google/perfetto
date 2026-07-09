@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags android, metadata
+
 INCLUDE PERFETTO MODULE android.startup.startups;
 
 -- Time elapsed between the latest user start

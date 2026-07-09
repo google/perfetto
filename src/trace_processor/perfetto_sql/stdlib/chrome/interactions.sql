@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, input
+
 -- This file specifies common metrics/tables for critical user interactions. It
 -- is expected to be in flux as metrics are added across different CUI types.
 -- Currently we only track Chrome page loads and their associated metrics.

@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, ui
+
 -- Hardware info is useful when using sql metrics for analysis
 -- in BTP.
 

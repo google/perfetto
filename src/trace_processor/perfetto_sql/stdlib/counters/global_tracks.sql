@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+-- @tags utilities
+
 CREATE PERFETTO FUNCTION _counter_track_is_only_name_dimension(track_id LONG)
 RETURNS BOOL
 AS

@@ -2,6 +2,9 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, ui
+-- @data_check SELECT 1 FROM slice WHERE name = 'Graphics.Pipeline'
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- `Graphics.Pipeline` steps corresponding to work done by a Viz client to

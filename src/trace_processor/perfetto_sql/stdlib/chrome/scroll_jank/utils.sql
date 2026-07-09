@@ -4,6 +4,7 @@
 --
 -- These are helper functions/tables used in computing jank metrics
 
+-- @tags chrome, ui
 
 -- This function takes timestamps of two consecutive frames and determines if
 -- its janky by a delay of more than 0.5 of a frame  in order to make sure that

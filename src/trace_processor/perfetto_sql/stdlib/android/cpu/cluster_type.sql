@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, cpu
+
 -- Uses cluster_id which has been calculated using the cpu_capacity in order
 -- to determine the cluster type for cpus with 2, 3 or 4 clusters
 -- indicating whether they are "little", "medium" or "big".

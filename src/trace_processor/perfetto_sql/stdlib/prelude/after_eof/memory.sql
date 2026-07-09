@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags memory
+
 -- @module prelude.after_eof.memory
 -- Memory and heap analysis tables.
 --

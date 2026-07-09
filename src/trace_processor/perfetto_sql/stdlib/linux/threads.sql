@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags linux
+
 -- All kernel threads of the trace. As kernel threads are processes, provides
 -- also process data.
 CREATE PERFETTO TABLE linux_kernel_threads(

@@ -14,6 +14,10 @@
 -- limitations under the License.
 --
 
+-- @tags virtualization
+-- @data_check SELECT 1 FROM slice WHERE category = 'pkvm_hyp'
+-- @data_check_table pkvm_hypervisor_events SELECT 1 FROM slice WHERE category = 'pkvm_hyp'
+
 -- Events when CPU entered hypervisor.
 CREATE PERFETTO VIEW pkvm_hypervisor_events(
   -- Id of the corresponding slice in slice table.

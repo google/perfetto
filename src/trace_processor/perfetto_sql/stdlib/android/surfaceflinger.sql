@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- @tags android, ui
+
 INCLUDE PERFETTO MODULE android.cujs.base;
 
 CREATE PERFETTO TABLE _android_sf_process AS

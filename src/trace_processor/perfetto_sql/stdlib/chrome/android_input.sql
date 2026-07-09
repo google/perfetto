@@ -2,6 +2,9 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+-- @tags chrome, input
+-- @data_check SELECT 1 FROM slice WHERE name GLOB 'UnwantedInteractionBlocker::notifyMotion*'
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- This module defines tables with information about Android input pipeline
