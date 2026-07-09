@@ -524,7 +524,6 @@ static base::Status CheckRemoteFlagCompatibility(const GlobalOptions& opts) {
       {!opts.override_stdlib_path.empty(), "--override-stdlib"},
       {!opts.register_files_dir.empty(), "--register-files-dir"},
       {!opts.raw_metric_v1_extensions.empty(), "--metric-extension"},
-      {!opts.metatrace_path.empty(), "--metatrace"},
   };
   for (const auto& f : incompatible) {
     if (f.is_set) {
@@ -549,6 +548,14 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
     RETURN_IF_ERROR(CheckRemoteFlagCompatibility(opts));
     ASSIGN_OR_RETURN(auto remote,
                      RemoteTraceProcessor::Connect(opts.remote_addr));
+    // Metatracing is scoped to this client's queries: enabled here, then
+    // collected by MaybeWriteMetatrace. Note the buffer capacity override is
+    // not forwarded over the RPC, only the categories.
+    if (!opts.metatrace_path.empty()) {
+      metatrace::MetatraceConfig metatrace_config;
+      metatrace_config.categories = opts.metatrace_categories;
+      remote->EnableMetatrace(metatrace_config);
+    }
     if (t_load_out)
       *t_load_out = base::TimeNanos(0);
     return std::unique_ptr<TraceProcessor>(std::move(remote));

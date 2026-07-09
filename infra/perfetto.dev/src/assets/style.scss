@@ -258,7 +258,8 @@ h3 {
       &:last-child {
         border-bottom: none;
       }
-      &:hover {
+      &:hover,
+      &.sr-selected {
         background-color: #f7fafc;
       }
     }
@@ -269,6 +270,11 @@ h3 {
     .sr-snippet {
       color: var(--color-text-secondary);
       font-size: 0.9rem;
+    }
+    mark {
+      background-color: rgba(255, 210, 0, 0.35);
+      color: inherit;
+      border-radius: 2px;
     }
 
     a {

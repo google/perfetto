@@ -32,10 +32,12 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
+#include "perfetto/trace_processor/metatrace_config.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/rpc/query_result_deserializer.h"
 #include "src/trace_processor/rpc/rpc_transport.h"
 
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 
@@ -401,10 +403,25 @@ base::Status RemoteTraceProcessor::Summarize(
       });
 }
 
-void RemoteTraceProcessor::EnableMetatrace(MetatraceConfig) {
+void RemoteTraceProcessor::EnableMetatrace(MetatraceConfig config) {
+  using ProtoEnum = protos::pbzero::MetatraceCategories;
+  int32_t proto_categories = 0;
+  if (config.categories & metatrace::MetatraceCategories::QUERY_TIMELINE)
+    proto_categories |= ProtoEnum::QUERY_TIMELINE;
+  if (config.categories & metatrace::MetatraceCategories::QUERY_DETAILED)
+    proto_categories |= ProtoEnum::QUERY_DETAILED;
+  if (config.categories & metatrace::MetatraceCategories::FUNCTION_CALL)
+    proto_categories |= ProtoEnum::FUNCTION_CALL;
+  if (config.categories & metatrace::MetatraceCategories::DB)
+    proto_categories |= ProtoEnum::DB;
+  if (config.categories & metatrace::MetatraceCategories::API_TIMELINE)
+    proto_categories |= ProtoEnum::API_TIMELINE;
   base::ignore_result(RoundTrip(
       RpcProto::TPM_ENABLE_METATRACE,
-      [](RpcProto* rpc) { rpc->set_enable_metatrace_args(); },
+      [&](RpcProto* rpc) {
+        rpc->set_enable_metatrace_args()->set_categories(
+            static_cast<ProtoEnum>(proto_categories));
+      },
       [](RpcProto::Decoder&) { return base::OkStatus(); }));
 }
 
