@@ -621,8 +621,8 @@ TEST(TraceProcessorShellIntegrationTest, RemoteRejectsIncompatibleFlags) {
   EXPECT_THAT(r1.out, HasSubstr("--add-sql-package"));
   EXPECT_THAT(r1.out, HasSubstr("cannot be combined with --remote"));
 
-  auto r2 = RunShell({"query", "--remote", "some-session", "--full-sort",
-                      "SELECT 1"});
+  auto r2 = RunShell(
+      {"query", "--remote", "some-session", "--full-sort", "SELECT 1"});
   EXPECT_NE(r2.exit_code, 0);
   EXPECT_THAT(r2.out, HasSubstr("--full-sort"));
   EXPECT_THAT(r2.out, HasSubstr("cannot be combined with --remote"));
