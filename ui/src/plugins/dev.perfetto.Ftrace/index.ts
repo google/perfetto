@@ -29,7 +29,7 @@ import {
 import {FtraceExplorer, type FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
 
-const VERSION = 1;
+const VERSION = 2;
 
 const DEFAULT_STATE: FtraceFilters = {
   version: VERSION,
