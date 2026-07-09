@@ -210,8 +210,14 @@ int Main(int argc, const char** argv) {
   // magic bytes and decompress it whole.
   namespace util = trace_processor::util;
   const auto* bytes = reinterpret_cast<const uint8_t*>(s.data());
-  util::CompressionType codec = trace_processor::CompressionTypeForTraceType(
-      trace_processor::GuessTraceType(bytes, s.size()));
+  trace_processor::CompressedTraceType sniff =
+      trace_processor::SniffCompressedTraceType(bytes, s.size());
+  util::CompressionType codec =
+      sniff == trace_processor::CompressedTraceType::kGzip
+          ? util::CompressionType::kGzip
+      : sniff == trace_processor::CompressedTraceType::kZstd
+          ? util::CompressionType::kZstd
+          : util::CompressionType::kNone;
   if (codec != util::CompressionType::kNone) {
     if (!util::IsCompressionSupported(codec)) {
       auto info = util::GetCompressionCodecInfo(codec);

@@ -379,6 +379,12 @@ perfetto_unittest_source_set("top_level_unittests") {
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../include/perfetto/trace_processor",
+    "importers/common",
+    "importers/fuchsia:full",
+    "importers/json",
+    "importers/ninja",
+    "importers/proto:minimal",
+    "importers/systrace:full",
     "util:trace_type",
   ]
 
