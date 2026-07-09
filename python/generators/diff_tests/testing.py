@@ -118,8 +118,14 @@ class Tar:
   """A tar archive trace assembled from the given members.
 
   Member semantics are identical to Zip.
+
+  When `macos_style` is True the archive emulates one produced by macOS/BSD
+  `tar`: it uses PAX extended headers and terminates the numeric header fields
+  (e.g. size) with a trailing space rather than a NUL, exactly as libarchive
+  does. This exercises the parser's handling of such archives.
   """
   members: Dict[str, Union[str, bytes, 'TextProto', Path, DataPath]]
+  macos_style: bool = False
 
 
 @dataclass
