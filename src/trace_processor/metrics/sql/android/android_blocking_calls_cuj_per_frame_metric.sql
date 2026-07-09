@@ -22,7 +22,7 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
 INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
-INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+INCLUDE PERFETTO MODULE android.blocking_calls_during_cujs;
 INCLUDE PERFETTO MODULE android.frames.timeline;
 INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
@@ -67,7 +67,7 @@ hwui_tasks_in_cuj AS (
     MIN(ts.ts + ts.dur, df.ts_end) - MAX(ts.ts, df.ts) AS dur
   FROM draw_frames_in_cuj df
   JOIN thread t ON t.upid = df.upid AND t.name GLOB 'hwuiTask*'
-  JOIN thread_state ts ON ts.utid = t.utid AND ts.state = 'Running'
+  CROSS JOIN thread_state ts ON ts.utid = t.utid AND ts.state = 'Running'
   WHERE ts.ts < df.ts_end AND ts.ts + ts.dur > df.ts
 ),
 hwui_tasks_aggregate_values AS (
