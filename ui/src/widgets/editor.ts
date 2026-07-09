@@ -14,9 +14,14 @@
 
 import './editor.scss';
 import {indentWithTab} from '@codemirror/commands';
-import {EditorState, type Transaction} from '@codemirror/state';
+import {
+  Compartment,
+  EditorState,
+  type Extension,
+  type Transaction,
+} from '@codemirror/state';
 import {oneDark} from '@codemirror/theme-one-dark';
-import {keymap} from '@codemirror/view';
+import {keymap, tooltips} from '@codemirror/view';
 import {basicSetup, EditorView} from 'codemirror';
 import {javascript} from '@codemirror/lang-javascript';
 import m from 'mithril';
@@ -61,11 +66,19 @@ export interface EditorAttrs extends HTMLAttrs {
 
   // Callback for every change to the editor's content.
   onUpdate?: (text: string) => void;
+
+  // Extra CodeMirror extensions supplied by the caller (e.g. the LSP
+  // integration from the SqlEditorIntelligence plugin).
+  readonly extensions?: Extension;
 }
 
 export class Editor implements m.ClassComponent<EditorAttrs> {
   private editorView?: EditorView;
   private latestText?: string;
+  // Caller extensions live in a compartment so they can be swapped in on a
+  // later render (e.g. a plugin registering them after this editor mounted).
+  private readonly callerExtensions = new Compartment();
+  private latestExtensions?: Extension;
 
   focus() {
     this.editorView?.focus();
@@ -73,6 +86,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
 
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
     this.latestText = attrs.text;
+    this.latestExtensions = attrs.extensions;
     const keymaps = [indentWithTab];
     const onExecute = attrs.onExecute;
     const onSave = attrs.onSave;
@@ -171,6 +185,11 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
         oneDark,
         basicSetup,
         lang,
+        // Float popups (autocomplete, hover tooltips) in a body portal so an
+        // `overflow: hidden` ancestor (e.g. the query page's split pane)
+        // doesn't clip them at the pane edge.
+        tooltips({parent: document.body, position: 'fixed'}),
+        this.callerExtensions.of(attrs.extensions ?? []),
       ]),
       parent: dom,
       dispatch,
@@ -182,6 +201,13 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
   }
 
   onupdate({attrs}: m.CVnodeDOM<EditorAttrs>): void {
+    if (attrs.extensions !== this.latestExtensions) {
+      this.latestExtensions = attrs.extensions;
+      this.editorView?.dispatch({
+        effects: this.callerExtensions.reconfigure(attrs.extensions ?? []),
+      });
+    }
+
     // Uncontrolled mode: no need to do anything.
     if (attrs.text === undefined) {
       return;

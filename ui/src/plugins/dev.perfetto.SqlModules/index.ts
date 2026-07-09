@@ -32,6 +32,7 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
 
   private sqlModules: SqlModules | undefined;
+  private readonly sqlModulesReady = defer<SqlModules>();
 
   static onActivate(_: App): void {
     // Eagerly start loading the metadata when the plugin starts up,
@@ -41,6 +42,7 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
 
   async onTraceLoad(trace: Trace): Promise<void> {
     this.sqlModules = await loadSqlModulesFromTp(trace, await metadata);
+    this.sqlModulesReady.resolve(this.sqlModules);
     m.redraw();
 
     trace.commands.registerCommand({
@@ -99,6 +101,11 @@ export default class SqlModulesPlugin implements PerfettoPlugin {
 
   getSqlModules(): SqlModules | undefined {
     return this.sqlModules;
+  }
+
+  // Resolves once the modules have loaded and getSqlModules() is set.
+  waitForSqlModules(): Promise<SqlModules> {
+    return this.sqlModulesReady;
   }
 
   ensureInitialized(): Promise<void> {

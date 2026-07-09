@@ -10,6 +10,7 @@
     "@codemirror/commands": "^6.8.1",
     "@codemirror/lang-javascript": "^6.2.4",
     "@codemirror/language": "^6.11.1",
+    "@codemirror/lsp-client": "^6.2.5",
     "@codemirror/state": "^6.5.2",
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.37.1",
@@ -72,5 +73,10 @@
     "build": "node build.mjs",
     "test": "node build.mjs --run-unittests",
     "lint": "npx eslint . --ext .js,.ts"
+  },
+  "pnpm": {
+    "overrides": {
+      "@codemirror/autocomplete": "^6.20.3"
+    }
   }
 }
