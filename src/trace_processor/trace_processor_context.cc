@@ -165,6 +165,8 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
       Ptr<GlobalStatsTracker>::MakeRoot(context->storage.get());
   context->sorter = CreateSorter(context, config);
   context->reader_registry = Ptr<TraceReaderRegistry>::MakeRoot();
+  context->trace_importer_registry =
+      context->reader_registry->importer_registry();
   context->global_args_tracker =
       Ptr<GlobalArgsTracker>::MakeRoot(context->storage.get());
   context->global_metadata_tracker =
@@ -201,6 +203,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->storage = source->storage.Fork();
   dest->sorter = source->sorter.Fork();
   dest->reader_registry = source->reader_registry.Fork();
+  dest->trace_importer_registry = dest->reader_registry->importer_registry();
   dest->global_args_tracker = source->global_args_tracker.Fork();
   dest->global_metadata_tracker = source->global_metadata_tracker.Fork();
   dest->global_stats_tracker = source->global_stats_tracker.Fork();

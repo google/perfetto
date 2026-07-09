@@ -21,6 +21,7 @@ source_set("common") {
     "args_tracker.h",
     "args_translation_table.cc",
     "args_translation_table.h",
+    "builtin_trace_importers.h",
     "chunked_trace_reader.h",
     "clock_converter.cc",
     "clock_converter.h",

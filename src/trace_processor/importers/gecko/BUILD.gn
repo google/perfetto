@@ -44,5 +44,6 @@ source_set("gecko") {
     "../../util:json_args",
     "../../util:json_parser",
     "../../util:simple_json_parser",
+    "../../util:trace_type",
   ]
 }

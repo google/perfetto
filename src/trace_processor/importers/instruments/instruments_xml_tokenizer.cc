@@ -36,10 +36,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/instruments/row.h"
@@ -49,6 +51,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
 #error \
@@ -572,3 +575,47 @@ base::Status InstrumentsXmlTokenizer::Parse(TraceBlobView view) {
 }
 
 }  // namespace perfetto::trace_processor::instruments_importer
+
+namespace perfetto::trace_processor {
+namespace {
+
+// macOS Instruments XML export.
+class InstrumentsXmlImporter : public TraceImporter<InstrumentsXmlImporter> {
+ public:
+  InstrumentsXmlImporter() : TraceImporter(MakeDescriptor()) {}
+  ~InstrumentsXmlImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    return base::StartsWith(start,
+                            "<?xml version=\"1.0\"?>\n<trace-query-result>");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<instruments_importer::InstrumentsXmlTokenizer>(
+            context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "instruments_xml";
+    d.clock_policy = TraceClockPolicy::kTraceFile;
+    d.detection_priority = 150;
+    return d;
+  }
+};
+
+InstrumentsXmlImporter::~InstrumentsXmlImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateInstrumentsXmlImporter() {
+  return std::make_unique<InstrumentsXmlImporter>();
+}
+
+}  // namespace perfetto::trace_processor

@@ -34,5 +34,6 @@ source_set("art_hprof") {
     "../../containers",
     "../../importers/common",
     "../../tables",
+    "../../util:trace_type",
   ]
 }

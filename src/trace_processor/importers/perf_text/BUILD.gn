@@ -12,46 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/test.gni")
-
 source_set("perf_text") {
   sources = [
+    "perf_text_event.h",
+    "perf_text_sample_line_parser.cc",
+    "perf_text_sample_line_parser.h",
     "perf_text_trace_parser.cc",
     "perf_text_trace_parser.h",
     "perf_text_trace_tokenizer.cc",
     "perf_text_trace_tokenizer.h",
   ]
   deps = [
-    ":perf_text_event",
-    ":perf_text_sample_line_parser",
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/trace:minimal_zero",
+    "../../../base",
+    "../../containers",
+    "../../importers/common",
     "../../sorter",
     "../../storage",
     "../../tables",
     "../../types",
     "../../util:trace_blob_view_reader",
-    "../common",
-  ]
-}
-
-source_set("perf_text_event") {
-  sources = [ "perf_text_event.h" ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../containers",
-    "../../tables",
-  ]
-}
-
-source_set("perf_text_sample_line_parser") {
-  sources = [
-    "perf_text_sample_line_parser.cc",
-    "perf_text_sample_line_parser.h",
-  ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../base",
-    "../../containers",
+    "../../util:trace_type",
   ]
 }
