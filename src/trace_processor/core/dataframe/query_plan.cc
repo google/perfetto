@@ -1171,10 +1171,10 @@ PERFETTO_NO_INLINE i::Bytecode& QueryPlanBuilder::AddRawOpcode(
       const auto& eq = base::unchecked_get<EqualityFilterRowCount>(rc);
       if (eq.duplicate_state.Is<HasDuplicates>()) {
         if (plan_.params.estimated_row_count > 1) {
-          plan_.params.estimated_row_count =
-              std::max(1u, static_cast<uint32_t>(EqualityFilterRows(
-                               plan_.params.estimated_row_count,
-                               eq.estimated_distinct)));
+          plan_.params.estimated_row_count = std::max(
+              1u,
+              static_cast<uint32_t>(EqualityFilterRows(
+                  plan_.params.estimated_row_count, eq.estimated_distinct)));
         } else {
           // Leave the estimated row count as is if it is already 1 or less.
         }
