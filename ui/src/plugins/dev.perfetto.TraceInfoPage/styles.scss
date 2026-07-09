@@ -254,36 +254,6 @@
     word-break: break-word;
   }
 
-  // Stats tab table
-  &__stats-table {
-    width: 100%;
-    border-spacing: 4px 1px;
-    margin: 0;
-  }
-
-  &__stats-table-head-cell {
-    padding-bottom: 5px;
-    font-weight: 500;
-  }
-
-  &__stats-table-row:nth-child(odd) &__stats-table-cell {
-    background-color: color_hover(transparent);
-  }
-
-  &__stats-table-cell {
-    font-family: var(--pf-font-monospace);
-    font-size: var(--pf-font-size-s);
-    padding: 5px;
-    word-break: break-all;
-    white-space: pre-wrap;
-    vertical-align: top;
-  }
-
-  &__stats-table-cell--name {
-    font-weight: 800;
-    min-width: 150px;
-  }
-
   // Stats section wrapper
   &__stats-section {
     margin: 0;
@@ -359,6 +329,30 @@
     .pf-grid-cell {
       font-size: var(--pf-font-size-m);
       padding: 10px 12px;
+    }
+  }
+
+  // Dense key/value grids (metadata, stats), tightened back up from the
+  // larger-font pf-grid override above.
+  &__tab-content &__dense-grid.pf-grid {
+    font-size: var(--pf-font-size-s);
+
+    .pf-grid-header-cell {
+      font-size: var(--pf-font-size-s);
+
+      .pf-grid-header-cell__title-wrapper {
+        padding: 3px 8px;
+      }
+    }
+
+    .pf-grid-cell {
+      font-family: var(--pf-font-monospace);
+      font-size: var(--pf-font-size-s);
+      padding: 3px 8px;
+    }
+
+    .pf-grid-cell.pf-trace-info-page__grid-key {
+      font-weight: 700;
     }
   }
 
