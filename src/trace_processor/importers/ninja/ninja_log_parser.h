@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_NINJA_NINJA_LOG_PARSER_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -26,7 +27,11 @@
 
 namespace perfetto::trace_processor {
 
+class TraceImporterBase;
 class TraceProcessorContext;
+
+// Creates the importer for the ninja build log trace type (.ninja_log).
+std::unique_ptr<TraceImporterBase> CreateNinjaLogImporter();
 
 // This class parses Ninja's (the build system, ninja-build.org) build logs and
 // turns them into traces. A ninja log typically contains the logs of >1 ninja

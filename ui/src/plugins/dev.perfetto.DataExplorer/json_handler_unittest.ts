@@ -119,6 +119,40 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedNode).toBeInstanceOf(SlicesSourceNode);
   });
 
+  test('does not crash when serializeState is called with circular references in trace', () => {
+    // Create a mock Trace object with circular references resembling the actual TraceImpl structure.
+    const circularTrace: Record<string, unknown> = {};
+    const searchManager: Record<string, unknown> = {_trackManager: {}};
+    const trackManager: Record<string, unknown> = {_overlays: []};
+    const overlay: Record<string, unknown> = {trace: circularTrace};
+
+    (trackManager._overlays as unknown[]).push(overlay);
+    searchManager._trackManager = trackManager;
+    circularTrace.search = searchManager;
+
+    // Create a node with attrs referencing the trace.
+    const node = new SlicesSourceNode({}, {});
+    (node.attrs as Record<string, unknown>).trace = circularTrace;
+
+    const initialState: DataExplorerState = {
+      rootNodes: [node],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    // This should not throw 'TypeError: Converting circular structure to JSON'.
+    let json: string | undefined;
+    expect(() => {
+      json = serializeState(initialState);
+    }).not.toThrow();
+
+    // Verify that the serialized JSON doesn't contain the trace object
+    expect(json).toBeDefined();
+    const parsed = JSON.parse(json!);
+    expect(parsed.nodes[0].state.trace).toBeUndefined();
+  });
+
   test('handles multiple nodes and connections', () => {
     const tableNode = new TableSourceNode(
       {sqlTable: 'slice'},

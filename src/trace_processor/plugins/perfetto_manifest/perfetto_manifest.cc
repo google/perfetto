@@ -32,8 +32,7 @@ class PerfettoManifestPlugin : public Plugin<PerfettoManifestPlugin> {
   ~PerfettoManifestPlugin() override;
 
   void RegisterImporters(TraceReaderRegistry& registry) override {
-    registry.RegisterTraceReaderWithFileId<PerfettoManifestReader>(
-        kPerfettoManifestTraceType);
+    registry.Register(CreatePerfettoManifestImporter());
   }
 };
 

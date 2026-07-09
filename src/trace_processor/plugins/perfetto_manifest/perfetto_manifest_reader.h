@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PLUGINS_PERFETTO_MANIFEST_PERFETTO_MANIFEST_READER_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "perfetto/base/status.h"
@@ -26,6 +27,10 @@
 
 namespace perfetto::trace_processor {
 class TraceProcessorContext;
+class TraceImporterBase;
+
+// Creates the importer for the perfetto_manifest sidecar file.
+std::unique_ptr<TraceImporterBase> CreatePerfettoManifestImporter();
 }  // namespace perfetto::trace_processor
 
 namespace perfetto::trace_processor::perfetto_manifest {
