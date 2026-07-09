@@ -28,6 +28,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/common/trace_diagnostics_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -244,6 +245,11 @@ void MetadataModule::ParseTraceConfig(
   StringId id = context_->storage->InternString(base::StringView(text));
   context_->metadata_tracker->SetMetadata(metadata::trace_config_pbtxt,
                                           Variadic::String(id));
+
+  // Stash the raw config for the diagnostics rules, which run at finalization
+  // (once trace bounds are known).
+  context_->trace_diagnostics_tracker->SetTraceConfig(trace_config.begin(),
+                                                      trace_config.end());
 }
 
 }  // namespace perfetto::trace_processor

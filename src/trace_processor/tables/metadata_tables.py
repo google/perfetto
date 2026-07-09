@@ -861,6 +861,54 @@ STATS_TABLE = Table(
             'trace_id': 'Trace that produced this stat (NULL for kGlobal).',
         }))
 
+TRACE_DIAGNOSTICS_TABLE = Table(
+    python_module=__file__,
+    class_name='TraceDiagnosticsTable',
+    sql_name='__intrinsic_trace_diagnostics',
+    columns=[
+        C(
+            'key',
+            CppString(),
+        ),
+        C(
+            'title',
+            CppString(),
+        ),
+        C(
+            'description',
+            CppString(),
+        ),
+        C(
+            'remediation',
+            CppString(),
+        ),
+        C(
+            'confidence',
+            CppDouble(),
+        ),
+        C(
+            'trace_id',
+            CppOptional(CppTableId(TRACE_FILE_TABLE)),
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Diagnostics detecting poorly-written trace configs and other
+            problems that can affect trace quality, one row per detected issue.
+            Written by TraceDiagnosticsTracker. Queried directly as
+            __intrinsic_trace_diagnostics.
+        ''',
+        group='Misc',
+        columns={
+            'key': 'Stable diagnostic identifier (e.g. tiny_ftrace_buffer).',
+            'title': 'Short human-friendly title (e.g. "Ftrace buffer too '
+                     'small").',
+            'description': 'Human-readable explanation of the problem.',
+            'remediation': 'Suggested fix for the problem.',
+            'confidence': '[0.0, 1.0] Confidence about the severity.',
+            'trace_id': 'Trace this diagnostic applies to.',
+        }))
+
 METADATA_TABLE = Table(
     python_module=__file__,
     class_name='MetadataTable',
@@ -1108,5 +1156,6 @@ ALL_TABLES = [
     MODULES_TABLE,
     PROCESS_TABLE,
     THREAD_TABLE,
+    TRACE_DIAGNOSTICS_TABLE,
     TRACE_FILE_TABLE,
 ]

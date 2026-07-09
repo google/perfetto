@@ -198,6 +198,7 @@ from diff_tests.syntax.view_tests import PerfettoView
 from diff_tests.tables.tests import Tables
 from diff_tests.tables.tests_counters import TablesCounters
 from diff_tests.tables.tests_sched import TablesSched
+from diff_tests.tables.tests_trace_diagnostics import TraceDiagnostics
 from diff_tests.summary.metrics_v2_tests import SummaryMetricsV2
 
 sys.path.pop()
@@ -390,6 +391,7 @@ def fetch_all_diff_tests(
       Tables,
       TablesCounters,
       TablesSched,
+      TraceDiagnostics,
   ]
 
   summary_tests = [SummaryMetricsV2]

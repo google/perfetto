@@ -42,7 +42,7 @@ class ForwardingTraceParser : public ChunkedTraceReader {
   [[nodiscard]] base::Status OnPushDataToSorter() override;
   void OnEventsFullyExtracted() override;
 
-  TraceType trace_type() const { return trace_type_; }
+  TraceImporterId trace_type() const { return trace_type_; }
 
  private:
   base::Status Init(const TraceBlobView&);
@@ -57,7 +57,7 @@ class ForwardingTraceParser : public ChunkedTraceReader {
   size_t trace_size_ = 0;
   TraceProcessorContext* trace_context_;
   std::unique_ptr<ChunkedTraceReader> reader_;
-  TraceType trace_type_ = kUnknownTraceType;
+  TraceImporterId trace_type_;
 };
 
 }  // namespace perfetto::trace_processor

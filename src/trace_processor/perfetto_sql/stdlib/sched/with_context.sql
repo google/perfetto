@@ -61,6 +61,11 @@ SELECT
   sched.cpu,
   sched.end_state,
   sched.priority
-FROM sched
-JOIN thread USING (utid)
-LEFT JOIN process USING (upid);
+-- Join order matters: list the small dimensions first and the large fact table
+-- (sched) last. A `LEFT JOIN` pins its right table after everything to its
+-- left, so writing `sched ... LEFT JOIN process` forces `process` to be
+-- re-probed once per sched row; attaching `process` to `thread` and joining
+-- `sched` last lets the planner drive from whichever dimension is filtered.
+FROM thread
+LEFT JOIN process USING (upid)
+JOIN sched USING (utid);

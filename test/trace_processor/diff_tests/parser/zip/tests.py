@@ -209,6 +209,34 @@ class Zip(TestSuite):
         8,1
         '''))
 
+  # A tar archive as produced by macOS/BSD `tar`: PAX extended headers,
+  # space-terminated numeric fields, and AppleDouble ("._foo") / ".DS_Store"
+  # metadata files sprinkled next to the real trace. The real trace must load
+  # and every hidden (dot-prefixed) entry must be ignored, including one nested
+  # under a subdirectory.
+  def test_macos_tar(self):
+    return DiffTestBlueprint(
+        trace=Tar(
+            {
+                'sched.pb': DataPath('synth_1.pb'),
+                '._sched.pb': b'Mac OS X AppleDouble junk\x00\x01\x02',
+                '.DS_Store': b'Bud1\x00\x00\x00\x00junk',
+                'sub/._nested.pb': b'more junk',
+            },
+            macos_style=True,
+        ),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT count(*) FROM __intrinsic_trace_file) AS file_count,
+            (SELECT count(*) FROM __intrinsic_trace_file
+             WHERE name GLOB '*._*' OR name GLOB '*.DS_Store') AS hidden_count;
+        ''',
+        out=Csv('''
+        "sched_count","file_count","hidden_count"
+        8,2,0
+        '''))
+
   def test_multi_trace_single_machine_clock(self):
     return DiffTestBlueprint(
         trace=DataPath('multi_trace_single_machine_clock.zip'),

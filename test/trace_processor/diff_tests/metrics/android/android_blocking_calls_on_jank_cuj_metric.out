@@ -1,18 +1,18 @@
- android_blocking_calls_cuj_metric {
+android_blocking_calls_cuj_metric {
   cuj {
     id: 1
     name: "FIRST_CUJ"
     process {
       name: "com.android.systemui"
       uid: 10001
+      android_user_id: 0
+      pid: 1000
+      is_kernel_task: false
       package {
         package_name: "com.android.systemui"
         apk_version_code: 1
         debuggable: false
       }
-      pid: 1000
-      android_user_id: 0
-      is_kernel_task: false
     }
     ts: 0
     dur: 115000000
@@ -27,16 +27,6 @@
       min_dur_ns: 1000000
     }
     blocking_calls {
-      name: "binder transaction"
-      cnt: 11
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 0
-      total_dur_ns: 10950000
-      max_dur_ns: 10000000
-      min_dur_ns: 50000
-    }
-    blocking_calls {
       name: "flush layers"
       cnt: 3
       total_dur_ms: 13
@@ -46,6 +36,16 @@
       max_dur_ns: 12000000
       min_dur_ns: 300000
     }
+    blocking_calls {
+      name: "binder transaction"
+      cnt: 11
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 0
+      total_dur_ns: 10950000
+      max_dur_ns: 10000000
+      min_dur_ns: 50000
+    }
   }
   cuj {
     id: 2
@@ -53,14 +53,14 @@
     process {
       name: "com.android.systemui"
       uid: 10001
+      android_user_id: 0
+      pid: 1000
+      is_kernel_task: false
       package {
         package_name: "com.android.systemui"
         apk_version_code: 1
         debuggable: false
       }
-      pid: 1000
-      android_user_id: 0
-      is_kernel_task: false
     }
     ts: 0
     dur: 702000000

@@ -121,6 +121,7 @@ source_set("minimal") {
     "../../util:profiler_util",
     "../../util:simple_json_parser",
     "../../util:trace_blob_view_reader",
+    "../../util:trace_type",
     "../common",
     "../common:parser_types",
     "../common:v8_profile_parser",

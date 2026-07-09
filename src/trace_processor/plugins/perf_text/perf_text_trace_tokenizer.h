@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_TOKENIZER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_TOKENIZER_H_
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_TRACE_TOKENIZER_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_TRACE_TOKENIZER_H_
 
 #include <string>
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
-#include "src/trace_processor/importers/perf_text/perf_text_event.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
@@ -47,4 +47,4 @@ class PerfTextTraceTokenizer : public ChunkedTraceReader {
 
 }  // namespace perfetto::trace_processor::perf_text_importer
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_TOKENIZER_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_TRACE_TOKENIZER_H_
