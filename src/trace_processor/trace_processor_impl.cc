@@ -62,6 +62,7 @@
 #include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
+#include "src/trace_processor/importers/common/trace_diagnostics_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
@@ -572,6 +573,17 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   TraceProcessorStorageImpl::OnEventsFullyExtracted();
   DeobfuscationTracker::Get(context())->OnEventsFullyExtracted();
   CacheBoundsAndBuildTable();
+
+  // Run trace-config diagnostics before the parser context is destroyed (rules
+  // may read metadata/clocks off the context). Rules are per-(trace, machine),
+  // so loop the fork map like OnEventsFullyExtracted does.
+  auto& diag_contexts =
+      context()->forked_context_state->trace_and_machine_to_context;
+  for (auto it = diag_contexts.GetIterator(); it; ++it) {
+    if (it.value()->trace_diagnostics_tracker) {
+      it.value()->trace_diagnostics_tracker->RunRules();
+    }
+  }
 
   // Stage 3: reduce memory usage by both destroying parser context *and*
   // finalizing dataframes; once finalized, attach any indexes that were

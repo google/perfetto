@@ -62,6 +62,7 @@ class StateTracker;
 class SliceTranslationTable;
 class StackProfileTracker;
 class SymbolTracker;
+class TraceDiagnosticsTracker;
 class TraceFileTracker;
 class TraceImporterRegistry;
 class TraceReaderRegistry;
@@ -225,6 +226,7 @@ class TraceProcessorContext {
   PerTracePtr<TraceState> trace_state;
   PerTracePtr<Destructible> content_analyzer;
   PerTracePtr<ImportLogsTracker> import_logs_tracker;
+  PerTracePtr<TraceDiagnosticsTracker> trace_diagnostics_tracker;
 
   // Per-Machine State
   // =================

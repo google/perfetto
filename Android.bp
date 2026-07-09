@@ -17418,6 +17418,8 @@ filegroup {
         "src/trace_processor/importers/common/symbol_tracker.cc",
         "src/trace_processor/importers/common/system_info_tracker.cc",
         "src/trace_processor/importers/common/thread_state_tracker.cc",
+        "src/trace_processor/importers/common/trace_diagnostics_tracker.cc",
+        "src/trace_processor/importers/common/trace_diagnostics_tracker_helper.cc",
         "src/trace_processor/importers/common/trace_file_tracker.cc",
         "src/trace_processor/importers/common/track_compressor.cc",
         "src/trace_processor/importers/common/track_tracker.cc",
