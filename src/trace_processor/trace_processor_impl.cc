@@ -114,6 +114,7 @@
 #include "src/trace_processor/plugins/graph_traversal/graph_traversal.h"
 #include "src/trace_processor/plugins/import/import.h"
 #include "src/trace_processor/plugins/interval_intersect/interval_intersect.h"
+#include "src/trace_processor/plugins/interval_self_intersect/interval_self_intersect.h"
 #include "src/trace_processor/plugins/layout_functions/layout_functions.h"
 #include "src/trace_processor/plugins/math_functions/math_functions.h"
 #include "src/trace_processor/plugins/metadata/metadata.h"
@@ -348,6 +349,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   graph_traversal::RegisterPlugin();
   import::RegisterPlugin();
   interval_intersect::RegisterPlugin();
+  interval_self_intersect::RegisterPlugin();
   layout_functions::RegisterPlugin();
   math_functions::RegisterPlugin();
   metadata::RegisterPlugin();

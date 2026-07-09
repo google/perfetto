@@ -154,6 +154,7 @@ from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
 from diff_tests.stdlib.intervals.create_intervals_tests import CreateIntervals
 from diff_tests.stdlib.intervals.fill_gaps_tests import IntervalsFillGaps
 from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
+from diff_tests.stdlib.intervals.self_intersect_tests import IntervalsSelfIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
 from diff_tests.stdlib.linux.memory import Memory
@@ -363,6 +364,7 @@ def fetch_all_diff_tests(
       CreateIntervals,
       IntervalsFillGaps,
       IntervalsIntersect,
+      IntervalsSelfIntersect,
       StdlibIntervals,
       StdlibMetasql,
       SystemUICujs,

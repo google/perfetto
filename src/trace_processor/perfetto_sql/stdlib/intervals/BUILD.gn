@@ -21,5 +21,6 @@ perfetto_sql_source_set("intervals") {
     "intersect.sql",
     "mipmap.sql",
     "overlap.sql",
+    "self_intersect.sql",
   ]
 }
