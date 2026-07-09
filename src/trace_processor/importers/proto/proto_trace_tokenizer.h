@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -30,7 +31,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/decompressor.h"
 
 #include "perfetto/ext/base/status_macros.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -75,8 +76,9 @@ class ProtoTraceTokenizer {
       if (PERFETTO_UNLIKELY(tag_end == tag_start)) {
         return header->size() < kMaxHeaderBytes
                    ? base::OkStatus()
-                   : base::ErrStatus("Failed to parse tag @ 0x%zx",
-                                     start_offset);
+                   : base::ErrStatus(
+                         "Failed to parse tag @ 0x%zx (ERR:tp-corrupt)",
+                         start_offset);
       }
 
       if (PERFETTO_UNLIKELY(tag != kTracePacketTag)) {
@@ -92,8 +94,9 @@ class ProtoTraceTokenizer {
             if (PERFETTO_UNLIKELY(varint_end == varint_start)) {
               return header->size() < kMaxHeaderBytes
                          ? base::OkStatus()
-                         : base::ErrStatus("Failed to skip varint @ 0x%zx",
-                                           start_offset);
+                         : base::ErrStatus(
+                               "Failed to skip varint @ 0x%zx (ERR:tp-corrupt)",
+                               start_offset);
             }
             PERFETTO_CHECK(reader_.PopFrontBytes(
                 static_cast<size_t>(varint_end - tag_start)));
@@ -108,8 +111,10 @@ class ProtoTraceTokenizer {
             if (PERFETTO_UNLIKELY(varint_end == varint_start)) {
               return header->size() < kMaxHeaderBytes
                          ? base::OkStatus()
-                         : base::ErrStatus("Failed to skip delimited @ 0x%zx",
-                                           start_offset);
+                         : base::ErrStatus(
+                               "Failed to skip delimited @ 0x%zx "
+                               "(ERR:tp-corrupt)",
+                               start_offset);
             }
 
             size_t size_incl_header =
@@ -141,7 +146,8 @@ class ProtoTraceTokenizer {
             continue;
           }
           default:
-            return base::ErrStatus("Unknown field type @ 0x%zx", start_offset);
+            return base::ErrStatus(
+                "Unknown field type @ 0x%zx (ERR:tp-corrupt)", start_offset);
         }
       }
 
@@ -155,7 +161,8 @@ class ProtoTraceTokenizer {
       if (PERFETTO_UNLIKELY(size_start == size_end)) {
         return header->size() < kMaxHeaderBytes
                    ? base::OkStatus()
-                   : base::ErrStatus("Failed to parse TracePacket size");
+                   : base::ErrStatus(
+                         "Failed to parse TracePacket size (ERR:tp-corrupt)");
       }
 
       // Empty packets can legitimately happen if the producer ends up emitting
@@ -176,20 +183,23 @@ class ProtoTraceTokenizer {
       PERFETTO_CHECK(reader_.PopFrontBytes(hdr_size + field_size));
       protos::pbzero::TracePacket::Decoder decoder(packet->data(),
                                                    packet->length());
-      if (!decoder.has_compressed_packets()) {
+      util::CompressionType codec;
+      protozero::ConstBytes field;
+      if (decoder.has_compressed_packets()) {
+        codec = util::CompressionType::kGzip;
+        field = decoder.compressed_packets();
+      } else if (decoder.has_zstd_compressed_packets()) {
+        codec = util::CompressionType::kZstd;
+        field = decoder.zstd_compressed_packets();
+      } else {
         RETURN_IF_ERROR(callback(std::move(*packet)));
         continue;
       }
 
-      if (!util::IsGzipSupported()) {
-        return base::ErrStatus(
-            "Cannot decode compressed packets. Zlib not enabled");
-      }
-
-      protozero::ConstBytes field = decoder.compressed_packets();
       TraceBlobView compressed_packets = packet->slice(field.data, field.size);
       TraceBlobView packets;
-      RETURN_IF_ERROR(Decompress(std::move(compressed_packets), &packets));
+      RETURN_IF_ERROR(
+          Decompress(codec, std::move(compressed_packets), &packets));
 
       const uint8_t* start = packets.data();
       const uint8_t* end = packets.data() + packets.length();
@@ -197,14 +207,14 @@ class ProtoTraceTokenizer {
       while ((end - ptr) > 2) {
         const uint8_t* packet_outer = ptr;
         if (PERFETTO_UNLIKELY(*ptr != kTracePacketTag)) {
-          return base::ErrStatus("Expected TracePacket tag");
+          return base::ErrStatus("Expected TracePacket tag (ERR:tp-corrupt)");
         }
         uint64_t packet_size = 0;
         ptr = protozero::proto_utils::ParseVarInt(++ptr, end, &packet_size);
         const uint8_t* packet_start = ptr;
         ptr += packet_size;
         if (PERFETTO_UNLIKELY((ptr - packet_outer) < 2 || ptr > end)) {
-          return base::ErrStatus("Invalid packet size");
+          return base::ErrStatus("Invalid packet size (ERR:tp-corrupt)");
         }
         TraceBlobView sliced =
             packets.slice(packet_start, static_cast<size_t>(packet_size));
@@ -218,14 +228,18 @@ class ProtoTraceTokenizer {
       protozero::proto_utils::MakeTagLengthDelimited(
           protos::pbzero::Trace::kPacketFieldNumber);
 
-  base::Status Decompress(TraceBlobView input, TraceBlobView* output);
+  base::Status Decompress(util::CompressionType type,
+                          TraceBlobView input,
+                          TraceBlobView* output);
 
   // Used to glue together trace packets that span across two (or more)
   // Parse() boundaries.
   util::TraceBlobViewReader reader_;
 
-  // Allows support for compressed trace packets.
-  util::GzipDecompressor decompressor_;
+  // Decompressor for compressed_packets / zstd_compressed_packets, reused
+  // across packets; `decompressor_type_` is the codec it was built for.
+  std::unique_ptr<util::Decompressor> decompressor_;
+  util::CompressionType decompressor_type_ = util::CompressionType::kNone;
 };
 
 }  // namespace perfetto::trace_processor

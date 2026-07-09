@@ -41,6 +41,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
@@ -60,9 +61,11 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/trace_type.h"
 
+#include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
@@ -222,21 +225,21 @@ base::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
 
   const uint8_t* data = nullptr;
   size_t size = 0;
-  std::vector<uint8_t> decompressed;
+  std::optional<util::DecompressedBuffer> decompressed;
   if (decoder.has_extension_set()) {
     auto extension = decoder.extension_set();
     data = extension.data;
     size = extension.size;
   } else if (decoder.has_extension_set_gzip()) {
     auto gzipped = decoder.extension_set_gzip();
-    decompressed =
-        util::GzipDecompressor::DecompressFully(gzipped.data, gzipped.size);
-    if (decompressed.empty()) {
+    decompressed = util::DecompressToBuffer(util::CompressionType::kGzip,
+                                            gzipped.data, gzipped.size);
+    if (!decompressed || decompressed->size == 0) {
       return base::ErrStatus(
-          "Failed to decompress gzipped extension descriptor");
+          "Failed to decompress gzipped extension descriptor (ERR:tp-corrupt)");
     }
-    data = decompressed.data();
-    size = decompressed.size();
+    data = decompressed->data.get();
+    size = decompressed->size;
   } else {
     return base::OkStatus();
   }
@@ -251,11 +254,13 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   protos::pbzero::TracePacket::Decoder decoder(packet.data(), packet.length());
   if (PERFETTO_UNLIKELY(decoder.bytes_left())) {
     return base::ErrStatus(
-        "Failed to parse proto packet fully; the trace is probably corrupt.");
+        "Failed to parse proto packet fully; the trace is probably corrupt. "
+        "(ERR:tp-corrupt)");
   }
 
-  // Any compressed packets should have been handled by the tokenizer.
-  PERFETTO_CHECK(!decoder.has_compressed_packets());
+  // Compressed packets are expanded by the tokenizer; none should reach here.
+  PERFETTO_CHECK(!decoder.has_compressed_packets() &&
+                 !decoder.has_zstd_compressed_packets());
 
   // The top-level reader dispatches packets from other machines to a
   // per-machine reader; host and adopted-machine packets are parsed here.
@@ -1161,34 +1166,6 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
-    if (buf.has_shadow_buffer_stats()) {
-      protos::pbzero::TraceStats::BufferStats::ShadowBufferStats::Decoder sbs(
-          buf.shadow_buffer_stats());
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_seen, buf_num,
-          static_cast<int64_t>(sbs.packets_seen()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_in_both, buf_num,
-          static_cast<int64_t>(sbs.packets_in_both()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_only_v1, buf_num,
-          static_cast<int64_t>(sbs.packets_only_v1()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_packets_only_v2, buf_num,
-          static_cast<int64_t>(sbs.packets_only_v2()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_patches_attempted, buf_num,
-          static_cast<int64_t>(sbs.patches_attempted()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_v1_patches_succeeded, buf_num,
-          static_cast<int64_t>(sbs.v1_patches_succeeded()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_v2_patches_succeeded, buf_num,
-          static_cast<int64_t>(sbs.v2_patches_succeeded()));
-      context_->stats_tracker->SetIndexedStats(
-          stats::traced_buf_v2s_stats_version, buf_num,
-          static_cast<uint32_t>(sbs.stats_version()));
-    }
   }
 
   struct BufStats {
@@ -1297,6 +1274,119 @@ void ProtoTraceReader::OnEventsFullyExtracted() {
     context_->stats_tracker->IncrementStats(
         stats::config_write_into_file_no_flush);
   }
+}
+
+namespace {
+
+constexpr uint8_t kTracePacketTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::Trace::kPacketFieldNumber);
+constexpr uint16_t kModuleSymbolsTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::TracePacket::kModuleSymbolsFieldNumber);
+
+bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
+  const uint8_t* const end = ptr + size;
+
+  uint64_t tag;
+  const uint8_t* next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
+  if (next == ptr || tag != kTracePacketTag) {
+    return false;
+  }
+
+  ptr = next;
+  uint64_t field_length;
+  next = protozero::proto_utils::ParseVarInt(ptr, end, &field_length);
+  if (next == ptr) {
+    return false;
+  }
+  ptr = next;
+
+  if (field_length == 0) {
+    return false;
+  }
+
+  next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
+  if (next == ptr) {
+    return false;
+  }
+
+  return tag == kModuleSymbolsTag;
+}
+
+// Perfetto proto trace.
+class ProtoImporter : public TraceImporter<ProtoImporter> {
+ public:
+  ProtoImporter() : TraceImporter(MakeDescriptor()) {}
+  ~ProtoImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return size > 0 && data[0] == kTracePacketTag;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<ProtoTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "proto";
+    d.sort_policy = TraceSortPolicy::kConfigDriven;
+    d.clock_policy = TraceClockPolicy::kBoottime;
+    d.sets_default_clock = false;
+    d.claims_global_clock = false;
+    d.archive_priority = 0;
+    d.pid_zero_is_idle = true;
+    d.detection_priority = 230;
+    return d;
+  }
+};
+
+ProtoImporter::~ProtoImporter() = default;
+
+// Standalone module symbols proto (a proto trace whose first packet is
+// ModuleSymbols). Uses the same ProtoTraceReader.
+class SymbolsImporter : public TraceImporter<SymbolsImporter> {
+ public:
+  SymbolsImporter() : TraceImporter(MakeDescriptor()) {}
+  ~SymbolsImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return IsProtoTraceWithSymbols(data, size);
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<ProtoTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "symbols";
+    d.sort_policy = TraceSortPolicy::kConfigDriven;
+    d.archive_priority = 3;
+    d.detection_priority = 210;
+    return d;
+  }
+};
+
+SymbolsImporter::~SymbolsImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateProtoImporter() {
+  return std::make_unique<ProtoImporter>();
+}
+
+std::unique_ptr<TraceImporterBase> CreateSymbolsImporter() {
+  return std::make_unique<SymbolsImporter>();
 }
 
 }  // namespace perfetto::trace_processor

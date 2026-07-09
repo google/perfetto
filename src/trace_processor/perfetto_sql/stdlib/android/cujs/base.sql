@@ -31,7 +31,7 @@ AND (
 -- account instant events and frame boundaries in the following tables.
 CREATE PERFETTO TABLE _jank_cujs_slices AS
 SELECT
-  row_number() OVER (ORDER BY ts) AS cuj_id,
+  row_number() OVER (ORDER BY ts, slice.id) AS cuj_id,
   process.upid AS upid,
   process.name AS process_name,
   slice.id AS slice_id,

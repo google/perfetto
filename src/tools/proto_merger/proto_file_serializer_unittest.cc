@@ -218,6 +218,144 @@ TEST(ProtoFileSerializerTest, MergeDoesNotDuplicateDeletedComment) {
       << out;
 }
 
+TEST(ProtoFileSerializerTest, TypeTransitionDisallowedFails) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("bool", "flag", 1));
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("string", "flag", 1));
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.c_message(), HasSubstr("changed from bool to string"));
+}
+
+TEST(ProtoFileSerializerTest, TypeTransitionAllowedSucceeds) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("bool", "flag", 1));
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("uint32", "flag", 1));
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("uint32 flag = 1;"));
+  EXPECT_THAT(out, Not(HasSubstr("bool flag")));
+}
+
+TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("bool", "state", 1));
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("Container.MyEnum", "state", 1));
+
+    ProtoFile::Enum en{};
+    en.name = "MyEnum";
+    en.values.push_back(MakeEnumValue("UNKNOWN", 0));
+    en.values.push_back(MakeEnumValue("ACTIVE", 1));
+    message.enums.push_back(en);
+
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("Container.MyEnum state = 1;"));
+  EXPECT_THAT(out, Not(HasSubstr("bool state")));
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedOptionIsMerged) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("int32", "keep_me", 1));
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    auto field = MakeField("int32", "keep_me", 1);
+    field.options.push_back({"deprecated", "true"});
+    message.fields.push_back(field);
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, {"deprecated"})
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("int32 keep_me = 1 [deprecated = true];"));
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedOptionOnEnumIsMerged) {
+  ProtoFile input;
+  {
+    ProtoFile::Enum en{};
+    en.name = "MyEnum";
+    en.values.push_back(MakeEnumValue("ACTIVE", 1));
+    input.enums.push_back(en);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Enum en{};
+    en.name = "MyEnum";
+    auto val = MakeEnumValue("ACTIVE", 1);
+    val.options.push_back({"deprecated", "true"});
+    en.values.push_back(val);
+    upstream.enums.push_back(en);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, {"deprecated"})
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("ACTIVE = 1 [deprecated = true];"));
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto

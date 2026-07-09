@@ -44,7 +44,6 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_DeobfuscationMapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EntityStateResidency);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwTraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ExtensionDescriptor);
-PERFETTO_PB_MSG_DECL(perfetto_protos_FrameTimelineEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericGpuFrequencyEvent);
@@ -382,11 +381,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   73);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_FrameTimelineEvent,
-                  frame_timeline_event,
-                  76);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
                   perfetto_protos_AndroidEnergyEstimationBreakdown,
                   android_energy_estimation_breakdown,
                   77);
@@ -485,6 +479,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   const char*,
                   compressed_packets,
                   50);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  STRING,
+                  const char*,
+                  zstd_compressed_packets,
+                  133);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_ExtensionDescriptor,

@@ -275,6 +275,10 @@ export class SliceBatch {
    *   pixels (accounts for DPR and any scroll/pan offset).
    * @param clipRect Axis-aligned clip rectangle in device pixels (LTRB).
    *   Slices are clamped to this region.
+   * @param clipRect.left Left boundary of clip rectangle.
+   * @param clipRect.top Top boundary of clip rectangle.
+   * @param clipRect.right Right boundary of clip rectangle.
+   * @param clipRect.bottom Bottom boundary of clip rectangle.
    */
   draw(
     buffers: SliceBuffers,

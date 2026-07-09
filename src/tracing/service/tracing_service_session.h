@@ -159,9 +159,6 @@ struct TracingSession {
   // Whether we emitted the ProtoVM instances.
   bool did_emit_protovm_instances_ = false;
 
-  // Whether we should compress TracePackets after reading them.
-  bool compress_deflate = false;
-
   // The number of received triggers we've emitted into the trace output.
   size_t num_triggers_emitted_into_trace = 0;
 

@@ -310,10 +310,11 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
 //     debug_annotation->set_string_value("value");
 //   });
 //
-//   |time_in_nanoseconds| should be an uint64_t by default. To support custom
-//   timestamp types,
-//   |perfetto::TraceTimestampTraits<T>::ConvertTimestampToTraceTimeNs|
-//   should be defined. See |ConvertTimestampToTraceTimeNs| for more details.
+//   |time_in_nanoseconds| is a uint64_t on the trace clock by default. To pass
+//   a custom timestamp type, or a timestamp on a different clock, specialize
+//   |perfetto::TraceTimestampTraits<T>| and define a static
+//   ConvertTimestampToTraceTimeNs in it. See the "Custom timestamps and clocks"
+//   section in docs/instrumentation/track-events.md for a full example.
 //
 // 3. Arbitrary number of debug annotations:
 //

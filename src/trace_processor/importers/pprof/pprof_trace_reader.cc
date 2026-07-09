@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -29,6 +30,7 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -37,7 +39,9 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
+#include "src/trace_processor/util/trace_type.h"
 
+#include "perfetto/protozero/proto_decoder.h"
 #include "protos/third_party/pprof/profile.pbzero.h"
 
 namespace perfetto::third_party::perftools::profiles::pbzero {
@@ -356,6 +360,92 @@ base::Status PprofTraceReader::ParseProfile() {
     }
   }
   return base::OkStatus();
+}
+
+namespace {
+
+bool IsPprofProfile(const uint8_t* data, size_t size) {
+  using perfetto::third_party::perftools::profiles::pbzero::Profile;
+  using protozero::proto_utils::ProtoWireType;
+  constexpr size_t kMinPprofSize = 10;
+  if (size < kMinPprofSize) {
+    return false;
+  }
+
+  bool has_core_pprof_field = false;
+  protozero::ProtoDecoder decoder(data, size);
+  for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
+    switch (fld.id()) {
+      case Profile::kSampleFieldNumber:
+      case Profile::kMappingFieldNumber:
+      case Profile::kLocationFieldNumber:
+      case Profile::kFunctionFieldNumber:
+      case Profile::kStringTableFieldNumber:
+        has_core_pprof_field = true;
+        [[fallthrough]];
+      case Profile::kSampleTypeFieldNumber:
+      case Profile::kPeriodTypeFieldNumber:
+        if (fld.type() != ProtoWireType::kLengthDelimited) {
+          return false;
+        }
+        break;
+      case Profile::kCommentFieldNumber:
+        if (fld.type() != ProtoWireType::kLengthDelimited &&
+            fld.type() != ProtoWireType::kVarInt) {
+          return false;
+        }
+        break;
+      case Profile::kDropFramesFieldNumber:
+      case Profile::kKeepFramesFieldNumber:
+        has_core_pprof_field = true;
+        [[fallthrough]];
+      case Profile::kTimeNanosFieldNumber:
+      case Profile::kDurationNanosFieldNumber:
+      case Profile::kPeriodFieldNumber:
+      case Profile::kDefaultSampleTypeFieldNumber:
+        if (fld.type() != ProtoWireType::kVarInt) {
+          return false;
+        }
+        break;
+      default:
+        return false;
+    }
+  }
+  return has_core_pprof_field;
+}
+
+// pprof profile.proto format.
+class PprofImporter : public TraceImporter<PprofImporter> {
+ public:
+  PprofImporter() : TraceImporter(MakeDescriptor()) {}
+  ~PprofImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return IsPprofProfile(data, size);
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<PprofTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "pprof";
+    d.detection_priority = 220;
+    return d;
+  }
+};
+
+PprofImporter::~PprofImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreatePprofImporter() {
+  return std::make_unique<PprofImporter>();
 }
 
 }  // namespace perfetto::trace_processor

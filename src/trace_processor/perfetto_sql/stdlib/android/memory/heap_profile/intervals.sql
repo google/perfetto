@@ -14,9 +14,11 @@
 -- limitations under the License.
 
 -- One row per (process, heap, dump): the dump as a slice over its profiling
--- interval. The end is the dump timestamp; the start is just after the previous
--- dump of the same heap (or the trace start for the first), so continuous dumps
--- tile the timeline without gaps.
+-- interval. The end is heap_profile.ts_end (the dump timestamp); the start is
+-- heap_profile.ts when present. For older producers without a start (ts ==
+-- ts_end) we fall back to just after the previous dump of the same heap (or
+-- the trace start for the first), so continuous dumps tile the timeline
+-- without gaps.
 --
 -- Each row also carries three byte totals for the interval:
 --   * allocated: bytes allocated during the interval.
@@ -53,17 +55,21 @@ WITH
   dumps AS (
     SELECT
       min(min_id) AS id,
-      upid,
-      heap_name,
-      ts AS ts_end,
+      p.upid AS upid,
+      p.heap_name AS heap_name,
+      p.ts AS ts_end,
+      hp.ts AS start_ts,
       sum(iif(net_count > 0, net_size, 0)) AS retained,
       sum(alloc_size) AS allocated,
       sum(net_size) AS delta
-    FROM per_callsite
+    FROM per_callsite AS p
+    JOIN heap_profile AS hp
+      ON hp.upid = p.upid
+      AND p.ts = hp.ts_end
     GROUP BY
-      upid,
-      heap_name,
-      ts
+      p.upid,
+      p.heap_name,
+      p.ts
   ),
   with_start AS (
     SELECT
@@ -74,18 +80,22 @@ WITH
       retained,
       allocated,
       delta,
-      -- Start just after the previous dump of this heap, but never past this
-      -- dump: a dump at trace_start() has no room before it, so collapse to a
-      -- zero-duration instant (ts = ts_end) instead of inverting.
-      min(
-        lag(ts_end, 1, trace_start()) OVER (
-          PARTITION BY
-            upid,
-            heap_name
-          ORDER BY ts_end
+      iif(
+        start_ts < ts_end,
+        start_ts,
+        -- Start just after the previous dump of this heap, but never past this
+        -- dump: a dump at trace_start() has no room before it, so collapse to
+        -- a zero-duration instant (ts = ts_end) instead of inverting.
+        min(
+          lag(ts_end, 1, trace_start()) OVER (
+            PARTITION BY
+              upid,
+              heap_name
+            ORDER BY ts_end
+          )
+          + 1,
+          ts_end
         )
-        + 1,
-        ts_end
       ) AS ts
     FROM dumps
   )

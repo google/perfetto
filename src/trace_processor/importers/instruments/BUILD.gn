@@ -45,6 +45,7 @@ if (enable_perfetto_trace_processor_mac_instruments) {
       "../../storage",
       "../../types",
       "../../util:build_id",
+      "../../util:trace_type",
       "../common",
     ]
   }

@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -43,6 +44,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 
@@ -743,6 +745,45 @@ base::Status FuchsiaTraceTokenizer::OnPushDataToSorter() {
 
 void FuchsiaTraceTokenizer::OnEventsFullyExtracted() {
   proto_trace_reader_.OnEventsFullyExtracted();
+}
+
+namespace {
+
+// Fuchsia trace format (magic number record).
+class FuchsiaImporter : public TraceImporter<FuchsiaImporter> {
+ public:
+  FuchsiaImporter() : TraceImporter(MakeDescriptor()) {}
+  ~FuchsiaImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'\x10', '\x00', '\x04', '\x46',
+                                      '\x78', '\x54', '\x16', '\x00'};
+    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<FuchsiaTraceTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "fuchsia";
+    d.clock_policy = TraceClockPolicy::kBoottime;
+    d.detection_priority = 20;
+    return d;
+  }
+};
+
+FuchsiaImporter::~FuchsiaImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateFuchsiaImporter() {
+  return std::make_unique<FuchsiaImporter>();
 }
 
 }  // namespace perfetto::trace_processor

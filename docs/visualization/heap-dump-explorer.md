@@ -15,6 +15,9 @@ This guide covers:
 - How to use each tab of the explorer, starting with
   [inspecting a single object](#inspecting-a-single-object) — the view
   most investigations end up at.
+- A full reference for the [flamegraph](#flamegraph): what each node
+  and number means (cumulative, self, self count), the four metrics,
+  top-down vs. bottom-up, zooming, filters and pivoting.
 - Worked [case studies](#case-studies): a leaked `Activity` and
   duplicate bitmaps.
 
@@ -179,9 +182,12 @@ There are two entry points:
    ![Heap graph flamegraph with the `java.lang.String` node selected; the details popup lists its Cumulative size, Root Type and Self Count, and its overflow menu is open with "Open in Heapdump Explorer" visible.](../images/heap_docs/02-flamegraph-menu.png)
 
 The explorer is organized as tabs across the top. _Overview_,
-_Classes_, _Objects_, _Dominators_, _Bitmaps_, _Strings_ and _Arrays_
-are fixed. Tabs you open by drilling into a specific object or
-flamegraph selection are appended on the right and can be closed.
+_Flamegraph_, _Classes_, _Objects_, _Dominators_, _Bitmaps_, _Strings_,
+_Arrays_ and _Callstack_ are fixed (_Callstack_ shows the allocation
+stack that triggered the dump, and only has data for dumps captured on
+`OutOfMemoryError` on recent Android versions). Tabs you open by
+drilling into a specific object or flamegraph selection are appended on
+the right and can be closed.
 
 ![Tab bar with the seven fixed tabs and a dynamic object tab opened for `ProfileActivity 0x00032f52`.](../images/heap_docs/03-tab-bar.png)
 
@@ -206,6 +212,247 @@ The Overview is the default landing page and summarizes the dump:
   filtered to that group.
 
 ![Overview tab: General Information (437,681 reachable instances across app/image/zygote heaps), Bytes Retained by Heap (24.4 MiB total, 1.5 MiB on the app heap), and a Duplicate Bitmaps group wasting 785.8 KiB across 12 copies of the same 128×128 image.](../images/heap_docs/04-overview.png)
+
+## Flamegraph
+
+The Flamegraph tab shows the whole heap at once, aggregated by class.
+Where Classes and Objects answer "how much memory does class X own",
+the flamegraph also shows _where in the reference graph_ that memory
+sits: which chains of references, starting at the GC roots, lead to
+it. It is usually the fastest way to spot that one subtree of the
+heap is disproportionately large.
+
+The same flamegraph appears in the timeline when you click a heap
+dump diamond in a _"Heap Profile"_ track — every feature below works
+identically there. A few extras that only exist in the timeline
+variant are covered at the end under
+[the timeline flamegraph](#the-timeline-flamegraph).
+
+![Timeline on top, heap graph flamegraph in the bottom panel after clicking the heap dump diamond on the process track.](../images/heap_docs/14-flamegraph-bottom-panel.png)
+
+### How to read it
+
+A heap is a _graph_ — objects reference each other freely — but a
+flamegraph draws a _tree_, so the graph is first converted:
+
+- Starting from the GC roots, every reachable object is placed at its
+  **shortest reference path** from a root (a breadth-first search;
+  ties are broken deterministically). Each object appears in the tree
+  exactly once.
+- Objects at the same path are then **merged by class**: one node per
+  class per path. A node labelled `ArrayList` sitting under
+  `Class<ProfileActivity>` means "all `ArrayList` instances whose
+  shortest path from a root goes through a `ProfileActivity` class
+  object".
+
+Reading top-down: the synthetic `root` row at the top spans the whole
+dump; each row below it is one more reference hop away from the GC
+roots. The width of a node is proportional to the selected metric
+(bytes or object count) in that node's entire subtree. Objects with
+no known class name show as `[Unknown]`.
+
+One caveat that trips people up: in this shortest-path tree, a node's
+subtree is **not** the same as its retained size. An object referenced
+from two places is drawn only under its shortest path, but it would
+survive the other reference being dropped. When you need "what would
+actually be freed", switch to the
+[dominator metrics](#choosing-a-metric) below.
+
+Nodes too narrow to draw (less than ~3 pixels) are collapsed into a
+grey `(merged)` node. They are still counted in every total; zoom in
+or add a filter to see them individually.
+
+### Choosing a metric
+
+The dropdown at the top-left switches what the flamegraph measures:
+
+| Metric | Tree | Node width is |
+|--------|------|---------------|
+| **Object Size** | Shortest-path | Shallow bytes of all objects in the subtree |
+| **Object Count** | Shortest-path | Number of objects in the subtree |
+| **Dominated Object Size** | Dominator | Bytes freed if the subtree's top object died |
+| **Dominated Object Count** | Dominator | Objects freed if the subtree's top object died |
+
+The two **Dominated** metrics build the tree from the
+[dominator tree](#dominators) instead of shortest paths: each object
+hangs under the object that _exclusively_ retains it. A node's
+cumulative value is therefore its true retained size — exactly what
+the garbage collector would reclaim if those objects became
+unreachable. Use _Object Size_ to follow the actual reference
+structure of the heap, and _Dominated Object Size_ to attribute
+memory to the objects responsible for keeping it alive.
+
+Sizes count the Java shallow size of each object. Native memory
+registered against a Java object (for example bitmap pixel buffers on
+modern Android) is shown as a separate child node labelled
+`[native] <ClassName>` and is counted in all cumulative totals.
+Native memory that is not registered this way does not appear in the
+dump at all; use the
+[native heap profiler](/docs/data-sources/native-heap-profiler.md)
+for that.
+
+### Cumulative, Self and Self Count
+
+Hover or click a node to see its numbers:
+
+![Flamegraph with `java.lang.String` selected. Its details popup lists Cumulative size (2.48 MiB, 10.48%), Root Type (`ROOT_INTERNED_STRING`), Heap Type and Self Count (53,546).](../images/heap_docs/02-flamegraph-menu.png)
+
+- **Cumulative** — the metric summed over this node _and everything
+  below it_. This matches the node's width. Two percentages are
+  shown: `all` (share of the entire unfiltered dump) and `parent`
+  (share of the parent node's cumulative value).
+- **Self** — the metric for the objects merged into _this node only_,
+  excluding descendants. For _Object Size_ that is the summed shallow
+  size of this node's own instances. A node with a large self value
+  is itself heavy; a node with small self but large cumulative is a
+  cheap container holding an expensive subtree.
+- **Self Count** — the number of object instances merged into this
+  node. In the screenshot above, the `java.lang.String` node
+  represents 53,546 individual strings that all share the same
+  reference path. (Shown with the size metrics; with the count
+  metrics the main value already is the count.)
+- **Root Type** — only on nodes that are themselves GC roots: how the
+  runtime is pinning them, e.g. `ROOT_STATIC` (static fields),
+  `ROOT_JNI_GLOBAL` (JNI global references), `ROOT_JAVA_FRAME` (a
+  live thread's stack), `ROOT_INTERNED_STRING`.
+- **Heap Type** — which ART heap the objects live in: `app` (your
+  process's own allocations), `zygote` (inherited from the zygote at
+  fork) or `image` (the preloaded boot image). Leaks are almost
+  always on the `app` heap.
+
+Because nodes are only merged when Root Type and Heap Type match, the
+same class can legitimately appear as several sibling nodes — e.g.
+one `java.lang.String` node per heap.
+
+### Top Down and Bottom Up
+
+The radio buttons at the top-right flip the direction of aggregation:
+
+- **Top Down** (default) — as described above: roots at the top,
+  each row one reference hop further from a root.
+- **Bottom Up** — every occurrence of a class, wherever it sits in
+  the tree, is merged into a single row at the bottom; the referrer
+  chains that lead to it are stacked _above_, widest referrer first.
+  Use this to answer "how much do all `X` hold in total, regardless
+  of path?" and "who are the biggest referrers of `X`?" — the
+  flamegraph equivalent of a reverse-reference query across the whole
+  heap.
+
+### Zooming
+
+Double-click a node (or use _Zoom in_ from its popup) to stretch it
+to the full width. Nothing is filtered out — ancestors stay visible,
+greyed, and totals don't change. Double-click the `root` row to zoom
+back out. Zooming is purely visual; to actually cut the data down,
+use filters.
+
+### Filters
+
+The filter bar reshapes the tree. Type into it directly, or press the
+`+` button for a guided form. Active filters show as chips;
+double-click a chip to edit it, click its `x` to remove it, or use
+the bin button to clear everything.
+
+Patterns are regular expressions matched case-sensitively against
+the class name; bare text is a substring match (`String` matches
+`java.lang.String`), and `^`/`$` anchor it exactly. Patterns also
+match against a node's Root Type and Heap Type values, so
+`SS: ROOT_JNI_GLOBAL` or `SS: zygote` work too.
+
+There are four filter types plus [Pivot](#pivot). In the filter bar,
+prefix the pattern with the short or full name; with no prefix the
+text becomes a _Show Stack_ filter. Multiple filters can be typed in
+one go, separated by spaces: `SS: main HF: alloc.*`.
+
+- **Show Stack** (`SS:`) — keep only paths that contain a matching
+  node; everything else is removed. The `root` row shows how much of
+  the dump survived, e.g. `root: 1.2 MiB (4.92%)`. Multiple Show
+  Stack filters AND together: a path must match all of them.
+- **Hide Stack** (`HS:`) — the inverse: remove every path that
+  contains a matching node. Called "Drop function" in some other
+  profilers.
+- **Show From Frame** (`SFF:`) — keep only matching nodes and their
+  subtrees, dropping the ancestors above them. Useful to study one
+  class's subtree in isolation without re-rooting the whole graph.
+  Called "Focus on subtree" elsewhere.
+- **Hide Frame** (`HF:`) — delete matching nodes themselves and
+  splice their children onto their parent. This is the tool for
+  collapsing noise rows: `HF: java.lang.Object\[\]` merges array
+  containers away so container contents attach directly to whatever
+  owns the container. Called "Merge function" elsewhere.
+
+Filters persist when you switch metrics or between Top Down and
+Bottom Up, and the copy button next to the bar copies the active
+filter set as text so it can be shared or pasted back.
+
+### Pivot
+
+Pivoting (`P:` in the filter bar, or _Pivot on matching frames_ from
+a node's popup) re-roots the flamegraph at every node matching the
+pattern:
+
+- The matched class becomes the central row.
+- Everything it references grows **downwards**, as usual.
+- Everything that references it grows **upwards**, inverted.
+
+This is the "show me everything about this class in one picture"
+view: its total footprint, what it is made of, and who is holding it,
+without walking objects one at a time. A pivot shows as a
+`Pivot: ...` chip; only one can be active at a time (setting a new
+one replaces it), the Top Down / Bottom Up switch is disabled while
+pivoted, and removing the chip returns to Top Down.
+
+The object tab integrates with pivot directly: the
+_Shortest Path from GC Root_ and _Dominator Tree Path_ sections each
+have a _View in Flamegraph_ button that opens this tab pivoted on
+that specific instance's path (the chip reads
+`ClassName (this instance)`), using the _Object Size_ or
+_Dominated Object Size_ metric respectively.
+
+### Node actions
+
+Clicking a node opens its details popup with four menus, grouping
+everything you can do from a node:
+
+- **Focus** — reframe without removing data: _Zoom in_, _Focus on
+  matching subtrees_ (Show From Frame) and _Pivot on matching
+  frames_.
+- **Filter** — reshape the tree: _Keep stacks matching name_ (Show
+  Stack), _Hide stacks matching name_ (Hide Stack) and _Merge
+  matching frames into caller_ (Hide Frame).
+- **Drill down** — _Show objects from this class_ opens a closable
+  [Flamegraph objects](#jumping-from-a-flamegraph) tab listing the
+  individual instances behind the node, from which any object's
+  [object tab](#inspecting-a-single-object) is one click away. (In
+  the timeline flamegraph this action is called _Open in Heapdump
+  Explorer_.)
+- **Copy** — _Copy stack_ copies the chain of class names from the
+  root to this node as plain text; _Copy stack with details_ copies
+  it as a markdown table with Root Type, Heap Type, Cumulative, Self
+  and Self Count per row — handy for bug reports and code review
+  comments.
+
+Actions launched from a node match that node exactly (the pattern is
+anchored as `^name$`), so filtering on `java.lang.String` will not
+accidentally match `java.lang.StringBuilder`.
+
+### The timeline flamegraph
+
+The flamegraph in the timeline's _"Heap Profile"_ details panel has
+three extras:
+
+- Each node's _Drill down_ menu has _Open in Heapdump Explorer_,
+  which jumps into the explorer with a _Flamegraph objects_ tab open
+  for that node — see
+  [Jumping from a flamegraph](#jumping-from-a-flamegraph).
+- The `root` node's menu has _Reference paths by class_, which opens
+  a table aggregating every distinct reference path: one row per
+  class and path with the number of paths, object count, total size
+  and total native size. It is the tabular twin of the flamegraph —
+  the same data, but sortable and exportable.
+- If the heap graph in the trace is incomplete (the dump was cut
+  short), a warning modal offers to show the import errors; the
+  flamegraph still renders with whatever data arrived.
 
 ## Classes
 
@@ -365,9 +612,11 @@ the primitive array holding its data.
 
 ## Jumping from a flamegraph
 
-The heap graph flamegraph has an _Open in Heapdump Explorer_ action
-that opens the explorer on the list of objects matching a selected
-allocation path. Use it to inspect a flamegraph node object-by-object:
+The timeline heap graph flamegraph (a full feature reference is in
+the [Flamegraph](#flamegraph) section above) has an _Open in Heapdump
+Explorer_ action that opens the explorer on the list of objects
+matching a selected reference path. Use it to inspect a flamegraph
+node object-by-object:
 
 1. Click a diamond in a _"Heap Profile"_ track to open the flamegraph.
 

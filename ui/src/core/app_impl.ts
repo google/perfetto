@@ -16,7 +16,7 @@ import {AsyncLimiter} from '../base/async_limiter';
 import {defer} from '../base/deferred';
 import {ensureExists, assertTrue} from '../base/assert';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
-import type {App} from '../public/app';
+import type {App, Route} from '../public/app';
 import type {SqlPackage} from '../public/extra_sql_packages';
 import type {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import type {Raf} from '../public/raf';
@@ -284,6 +284,10 @@ export class AppImpl implements App {
 
   navigate(newHash: string): void {
     Router.navigate(newHash);
+  }
+
+  getCurrentRoute(): Route {
+    return Router.getCurrentRoute();
   }
 
   addSqlPackages(

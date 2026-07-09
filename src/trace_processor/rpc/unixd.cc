@@ -171,7 +171,8 @@ base::Status UnixRpcServer::Run() {
 #if PERFETTO_TP_UNIXD_CTRL_C()
   // Install *before* binding: a SIGTERM/SIGINT in the window after the socket
   // exists would otherwise terminate us without unlinking it, leaking the file.
-  // Unlinking a not-yet-bound path is harmless; the pid path is wired up later.
+  // Unlinking a not-yet-bound path is harmless; the pid path is registered the
+  // same way below.
   g_socket_path_for_signal = args_.socket_path.c_str();
   base::InstallCtrlCHandler(&HandleTermSignal);
 #endif
@@ -232,6 +233,11 @@ base::Status UnixRpcServer::Run() {
   // runs in the serving process (the child, when daemonized), so the pid
   // matches the one printed in the startup record.
   pid_path_ = args_.socket_path + session::kPidFileSuffix;
+#if PERFETTO_TP_UNIXD_CTRL_C()
+  // Register the pid path before creating the file, like the socket above, so
+  // a SIGTERM in the gap still unlinks it instead of leaking it.
+  g_pid_path_for_signal = pid_path_.c_str();
+#endif
   WritePidFile(pid_path_, static_cast<int>(base::GetProcessId()));
 
   listen_sock_ = base::UnixSocket::Listen(raw.ReleaseFd(), this, &task_runner_,
@@ -246,11 +252,6 @@ base::Status UnixRpcServer::Run() {
       std::make_unique<IdleReaper>(&task_runner_, args_.idle_timeout_ms,
                                    args_.idle_start, [this] { Shutdown(); });
   reaper_->Start();
-
-#if PERFETTO_TP_UNIXD_CTRL_C()
-  // Now that the pid-file path is known, let the handler unlink it too.
-  g_pid_path_for_signal = pid_path_.c_str();
-#endif
 
   task_runner_.Run();
   remove(args_.socket_path.c_str());

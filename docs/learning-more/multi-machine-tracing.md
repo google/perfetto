@@ -22,6 +22,41 @@ producers feed into the same trace via `traced_relay`. Substitute
 `<host-ip>` with the IP address (or hostname) of `host` as reachable from
 `guest`.
 
+## {#approaches} Choosing an approach
+
+Live relaying, which this guide covers, is one of three ways to get a
+single trace spanning several machines. Which one fits depends on whether
+the machines can reach each other at recording time and how much control
+you have over the producers:
+
+1. **Record it as one trace (this guide).** `traced_relay` on each guest
+   forwards producers to a single `traced` on the host, which owns the
+   buffers and clock-syncs the guests while recording. Best fidelity
+   (cross-machine clock sync is measured, not assumed), but needs a live
+   network path between the machines during the recording.
+
+2. **Record independently with pre-assigned machine ids.** Each machine
+   records its own trace, but SDK producers are initialized with a unique
+   `machine_id` (`TracingInitArgs::machine_id` in the C++ SDK,
+   `PerfettoProducerBackendInitArgsSetMachineId()` in the C SDK). Merging
+   the files later needs no configuration: every packet already says which
+   machine it came from, and the traces align through their wall clocks.
+   See [Merging traces with Trace Processor](/docs/analysis/merging-traces.md#no-config).
+
+3. **Record independently, merge afterwards.** Each machine records a
+   normal trace; nothing is coordinated at recording time. Machine
+   attribution and any clock relations the traces do not carry are supplied
+   when merging, either interactively in
+   [the Perfetto UI](/docs/visualization/merging-traces.md) or with a
+   [perfetto_manifest](/docs/reference/perfetto-manifest.md) file. The most
+   flexible option, and the only one available for traces that already
+   exist.
+
+All three produce the same result in the trace model: one trace, one
+timeline, one [`machine` table][machine-table] row per machine. They can
+also be combined, for example by merging two relay-recorded traces from
+different sites.
+
 ## Prerequisites
 
 * `tracebox` available on both machines. See
@@ -212,6 +247,9 @@ machine through different dimensions.
 * [Multi-machine architecture](/docs/deployment/multi-machine-architecture.md) —
   the why: how `traced_relay`, machine identity, and cross-kernel clock
   sync fit together.
+* [Merging traces with Trace Processor](/docs/analysis/merging-traces.md) —
+  the post-hoc alternative: combine independently recorded traces onto one
+  timeline when a live network path is not an option.
 * [PerfettoSQL: Getting Started](/docs/analysis/perfetto-sql-getting-started.md) —
   for slicing the resulting trace by `machine_id` across `cpu`, `thread`,
   and `process`.

@@ -25,6 +25,8 @@ import {Button, ButtonVariant} from '../widgets/button';
 import {Intent} from '../widgets/common';
 import {Checkbox} from '../widgets/checkbox';
 import {Anchor} from '../widgets/anchor';
+import {Callout} from '../widgets/callout';
+import {CodeSnippet} from '../widgets/code_snippet';
 import {Icons} from '../base/semantic_icons';
 import {mapStackTraceWithMinifiedSourceMap} from '../base/source_map_utils';
 
@@ -83,8 +85,21 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
     return;
   }
 
+  // A trace_processor parse failure. "(ERR:tp-corrupt)" means it determined the
+  // trace is genuinely corrupt/truncated; a bare "(ERR:tp-parse)" is a generic
+  // failure to parse. Check the more specific corrupt marker first.
+  if (err.message.includes('(ERR:tp-corrupt)')) {
+    showTraceParseError('corrupt', err.message);
+    return;
+  }
+
   if (err.message.includes('(ERR:tp-parse)')) {
-    showTraceParseError(err.message);
+    showTraceParseError('parse', err.message);
+    return;
+  }
+
+  if (err.message.includes('(ERR:trace_fetch)')) {
+    showTraceFetchError(err.message);
     return;
   }
 
@@ -335,47 +350,168 @@ function showOutOfMemoryDialog() {
 function showUnknownFileError() {
   showModal({
     title: 'Cannot open this file',
-    content: m(
-      'div',
+    content: () =>
       m(
-        'p',
-        "The file opened doesn't look like a Perfetto trace or any " +
-          'other format recognized by the Perfetto TraceProcessor.',
+        '.pf-error-dialog',
+        m(
+          Callout,
+          {icon: Icons.Info},
+          "The file opened doesn't look like a Perfetto trace or any " +
+            'other format recognized by the Perfetto trace processor.',
+        ),
+        m(
+          'div',
+          m('span.pf-error-dialog__list-label', 'Formats supported'),
+          m(
+            'ul.pf-error-dialog__list',
+            m('li', 'Perfetto protobuf trace'),
+            m('li', 'Chrome JSON (chrome://tracing)'),
+            m('li', 'Firefox Profiler / Gecko JSON'),
+            m('li', 'Android systrace and ftrace text'),
+            m('li', 'Android bugreport zip, logcat and dumpstate text'),
+            m('li', 'ART method trace and ART hprof heap dump'),
+            m('li', 'Linux perf.data and perf script text'),
+            m('li', 'Simpleperf proto'),
+            m('li', 'macOS Instruments XML export'),
+            m('li', 'Fuchsia trace (.fxt)'),
+            m('li', 'pprof profile'),
+            m('li', 'Collapsed / folded stacks'),
+            m('li', 'Ninja build log'),
+            m('li', 'Archives of the above (.zip, .tar, .gz)'),
+          ),
+        ),
+        m(
+          'p.pf-error-dialog__note',
+          'See ',
+          m(
+            Anchor,
+            {
+              href: 'https://perfetto.dev/docs/getting-started/other-formats',
+              target: '_blank',
+              icon: Icons.ExternalLink,
+            },
+            'the docs',
+          ),
+          ' for details on each format.',
+        ),
       ),
-      m('p', 'Formats supported:'),
-      m(
-        'ul',
-        m('li', 'Perfetto protobuf trace'),
-        m('li', 'chrome://tracing JSON'),
-        m('li', 'Android systrace'),
-        m('li', 'Fuchsia trace'),
-        m('li', 'Ninja build log'),
-        m('li', 'pprof'),
-      ),
-    ),
   });
 }
 
-function showTraceParseError(msg: string) {
+type TraceParseErrorVariant = 'corrupt' | 'parse';
+
+function showTraceParseError(variant: TraceParseErrorVariant, message: string) {
   showModal({
-    title: 'Trace file corrupt',
-    content: m(
-      'div',
-      m('p', msg),
-      m(
-        'p',
-        'If you think this is a genuine Perfetto bug please file a bug ',
-        'attaching the trace on ',
-        m(
-          Anchor,
-          {href: 'https://github.com/google/perfetto/issues'},
-          'GitHub',
-        ),
-        ' (Googlers: use ',
-        m(Anchor, {href: 'http://go/perfetto-bug'}, 'go/perfetto-bug'),
-        ')',
-      ),
+    title:
+      variant === 'corrupt'
+        ? 'Trace file corrupt'
+        : 'Unable to parse the trace',
+    content: () => m(TraceParseErrorComponent, {variant, message}),
+  });
+}
+
+// Pull the useful part out of a trace_processor parse error. The raw message
+// looks like: "Trace parse failure (<inner> (ERR:tp-corrupt)) (ERR:tp-parse).
+// The trace file is corrupt." We surface just <inner> without the markers,
+// falling back to the full message if the pattern doesn't match.
+function extractTraceParseDetails(message: string): string {
+  const match = /Trace parse failure \((.*)\) \(ERR:tp-parse\)/s.exec(message);
+  const inner = match ? match[1] : message;
+  return inner.replace(/\s*\(ERR:tp-(?:corrupt|parse)\)/g, '').trim();
+}
+
+// "If you think this is a Perfetto bug, please file a bug <attaching>."
+// pointing at go/perfetto-bug for internal users, GitHub issues otherwise.
+function fileBugNote(attaching: string): m.Children {
+  const bugUrl = AppImpl.instance.isInternalUser
+    ? 'http://go/perfetto-bug'
+    : 'https://github.com/google/perfetto/issues';
+  return m(
+    'p.pf-error-dialog__note',
+    'If you think this is a Perfetto bug, please ',
+    m(
+      Anchor,
+      {href: bugUrl, target: '_blank', icon: Icons.ExternalLink},
+      'file a bug',
     ),
+    ` ${attaching}.`,
+  );
+}
+
+interface TraceParseErrorAttrs {
+  readonly variant: TraceParseErrorVariant;
+  readonly message: string;
+}
+
+class TraceParseErrorComponent
+  implements m.ClassComponent<TraceParseErrorAttrs>
+{
+  view({attrs}: m.Vnode<TraceParseErrorAttrs>): m.Children {
+    const {variant, message} = attrs;
+    const details = extractTraceParseDetails(message);
+
+    const explanation =
+      variant === 'corrupt'
+        ? 'The trace file looks damaged or truncated. This is usually caused ' +
+          'by an incomplete download or a problem on the device while the ' +
+          'trace was being recorded, and is normally not a Perfetto bug.'
+        : 'Perfetto could not make sense of this file. It may be malformed, ' +
+          'use an unsupported feature, or have hit a trace_processor bug.';
+
+    const whatToDo =
+      variant === 'corrupt'
+        ? 'Try re-recording the trace, or re-downloading it if it came from ' +
+          'somewhere else.'
+        : undefined;
+
+    return m(
+      '.pf-error-dialog',
+      m(
+        Callout,
+        {
+          icon: variant === 'corrupt' ? Icons.Warning : 'error',
+          intent: variant === 'corrupt' ? Intent.Warning : Intent.Danger,
+        },
+        explanation,
+      ),
+      m(CodeSnippet, {
+        text: details,
+        language: 'Error details',
+        class: 'pf-error-dialog__code',
+      }),
+      whatToDo !== undefined && m('p.pf-error-dialog__note', whatToDo),
+      fileBugNote('attaching the trace'),
+    );
+  }
+}
+
+function showTraceFetchError(message: string) {
+  const details = message.replace(/\s*\(ERR:trace_fetch\)/g, '').trim();
+  showModal({
+    title: 'Could not fetch the trace',
+    content: () =>
+      m(
+        '.pf-error-dialog',
+        m(
+          Callout,
+          {icon: Icons.Warning, intent: Intent.Warning},
+          'Perfetto could not download the trace. This usually means the ' +
+            'URL is wrong or no longer valid, the server is unreachable, ' +
+            'or it does not allow cross-origin requests. It is normally ' +
+            'not a Perfetto bug.',
+        ),
+        m(CodeSnippet, {
+          text: details,
+          language: 'Error details',
+          class: 'pf-error-dialog__code',
+        }),
+        m(
+          'p.pf-error-dialog__note',
+          'Check that the trace URL is reachable from your browser and ' +
+            'try again.',
+        ),
+        fileBugNote('including the trace URL'),
+      ),
   });
 }
 

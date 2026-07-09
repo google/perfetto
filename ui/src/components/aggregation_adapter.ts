@@ -43,7 +43,7 @@ import {
   type DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
 import type {DataGridApi} from './widgets/datagrid/datagrid';
-import {DataGridExportButton} from './widgets/datagrid/export_button';
+import {ExportButton} from '../widgets/export_button';
 import {SerialTaskQueue} from '../base/query_slot';
 
 export interface AggregationData {
@@ -337,7 +337,7 @@ export function createAggregationTab(
         }),
         buttons:
           dataGridApi &&
-          m(DataGridExportButton, {onExportData: dataGridApi.exportData}),
+          m(ExportButton, {onExportData: dataGridApi.exportData}),
       };
     },
   };

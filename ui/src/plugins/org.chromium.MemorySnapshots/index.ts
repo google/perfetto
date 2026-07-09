@@ -13,15 +13,29 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Time, type time} from '../../base/time';
+import {materialColorScheme} from '../../components/colorizer';
+import {asUpid} from '../../components/sql_utils/core_types';
+import {
+  getProcessInfo,
+  getProcessName,
+} from '../../components/sql_utils/process';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
+import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
 import type {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
-import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import {Timestamp} from '../../components/widgets/timestamp';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
+import {TrackNode} from '../../public/workspace';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Select} from '../../widgets/select';
-import {NUM, STR_NULL} from '../../trace_processor/query_result';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 interface SnapshotInfo {
   id: number;
@@ -142,6 +156,41 @@ class SnapshotTab implements m.ClassComponent<SnapshotTabAttrs> {
   }
 }
 
+class MemorySnapshotDetailsPanel implements TrackEventDetailsPanel {
+  private processName?: string;
+
+  constructor(
+    private readonly trace: Trace,
+    private readonly upid: number,
+    private readonly snapshotId: number,
+    private readonly ts: time,
+  ) {}
+
+  async load(): Promise<void> {
+    const info = await getProcessInfo(this.trace.engine, asUpid(this.upid));
+    this.processName = getProcessName(info) ?? `upid: ${this.upid}`;
+  }
+
+  render(): m.Children {
+    return m(
+      DetailsShell,
+      {
+        title: this.processName ?? 'Process',
+        description: m('span', [
+          'Chrome memory snapshot at ',
+          m(Timestamp, {trace: this.trace, ts: this.ts}),
+        ]),
+        fillHeight: true,
+      },
+      m(SnapshotTab, {
+        key: this.snapshotId,
+        trace: this.trace,
+        snapshotId: this.snapshotId,
+      }),
+    );
+  }
+}
+
 class MemorySnapshotsTab implements m.ClassComponent<{trace: Trace}> {
   private snapshots?: SnapshotInfo[];
   private selectedSnapshotId?: number;
@@ -229,12 +278,70 @@ class MemorySnapshotsTab implements m.ClassComponent<{trace: Trace}> {
   }
 }
 
+const SNAPSHOTS_TABLE = '_chrome_memory_snapshots';
+
+function trackUri(upid: number): string {
+  return `/process_${upid}/chrome_memory_snapshots`;
+}
+
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.MemorySnapshots';
   static readonly description =
-    'Displays memory snapshot nodes in a hierarchical tree view.';
+    'Displays Chrome memory snapshot nodes in a hierarchical tree view and timeline tracks.';
+  static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   async onTraceLoad(trace: Trace) {
+    await createPerfettoTable({
+      engine: trace.engine,
+      name: SNAPSHOTS_TABLE,
+      as: `
+        SELECT
+          pms.id AS id,
+          pms.upid AS upid,
+          ms.timestamp AS ts
+        FROM process_memory_snapshot pms
+        JOIN memory_snapshot ms ON pms.snapshot_id = ms.id
+        WHERE pms.id IN (SELECT DISTINCT process_snapshot_id FROM memory_snapshot_node)
+      `,
+    });
+
+    const upids = await this.getUpids(trace);
+    const groupsPlugin = trace.plugins.getPlugin(ProcessThreadGroupsPlugin);
+
+    for (const upid of upids) {
+      const group = groupsPlugin.getGroupForProcess(upid);
+      if (!group) continue;
+
+      const uri = trackUri(upid);
+      const renderer = SliceTrack.create({
+        trace,
+        uri,
+        dataset: new SourceDataset({
+          src: SNAPSHOTS_TABLE,
+          schema: {id: NUM, ts: LONG},
+          filter: {col: 'upid', eq: upid},
+        }),
+        colorizer: () => materialColorScheme('chart'),
+        tooltip: () => 'Chrome memory snapshot',
+        detailsPanel: (row) =>
+          new MemorySnapshotDetailsPanel(
+            trace,
+            upid,
+            row.id,
+            Time.fromRaw(row.ts),
+          ),
+      });
+      trace.tracks.registerTrack({uri, renderer, tags: {upid}});
+
+      group.addChildInOrder(
+        new TrackNode({
+          uri,
+          name: 'Chrome memory snapshots',
+          sortOrder: -24,
+        }),
+      );
+    }
+
     trace.tabs.registerTab({
       uri: 'org.chromium.MemorySnapshotsTab',
       isEphemeral: false,
@@ -243,8 +350,16 @@ export default class implements PerfettoPlugin {
         render: () => m(MemorySnapshotsTab, {trace}),
       },
     });
+  }
 
-    // Show the tab immediately on trace load
-    trace.tabs.showTab('org.chromium.MemorySnapshotsTab');
+  private async getUpids(trace: Trace): Promise<ReadonlyArray<number>> {
+    const result = await trace.engine.query(
+      `SELECT DISTINCT upid FROM ${SNAPSHOTS_TABLE} ORDER BY upid`,
+    );
+    const upids: number[] = [];
+    for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
+      upids.push(it.upid);
+    }
+    return upids;
   }
 }

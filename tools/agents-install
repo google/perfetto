@@ -14,10 +14,10 @@
 # limitations under the License.
 """Fallback installer for the Perfetto AI agents skills bundle.
 
-Downloads the `ai-agents` release branch and copies the Perfetto skills it
-ships, plus the bundled `bin/trace_processor` wrapper, into a target
-directory. Used by fallback consumers (OpenCode, Antigravity, Pi) and any
-agent without a native plugin marketplace.
+Downloads the `ai-agents` release branch and copies the Perfetto skill it
+ships (which carries the `trace_processor` wrapper at `bin/` inside the
+skill) into a target directory. Used by fallback consumers (OpenCode,
+Antigravity, Pi) and any agent without a native plugin marketplace.
 
 The destination skills/ dir may be shared with skills the user installed
 from elsewhere (e.g. pi's ~/.agents/skills), so the installer touches only
@@ -53,7 +53,7 @@ DEFAULT_BRANCH = 'ai-agents'
 # `ai-agents` branch tip; held there for now so default installs serve the
 # rebuilt single-skill bundle until the next release re-stamps a pinned
 # version.
-DEFAULT_VERSION = '__VERSION__'
+DEFAULT_VERSION = 'v57.2'
 
 # Custom ref namespace mapping a release version to its ai-agents bundle commit,
 # e.g. refs/ai-agent-tag/v56.0 (created by the release pipeline). Kept out of
@@ -207,9 +207,11 @@ def _refresh_index(dst_skills: str) -> None:
 
 def install(extracted: str, target: str, agent: Optional[str],
             assume_yes: bool) -> None:
-  src_skill = os.path.join(extracted, 'skills', SKILL_NAME)
+  src_skill = os.path.join(extracted, 'plugins', 'perfetto', 'skills',
+                           SKILL_NAME)
   if not os.path.isdir(src_skill):
-    err(f'branch is missing skills/{SKILL_NAME} (wrong ref?)')
+    err(f'branch is missing plugins/perfetto/skills/{SKILL_NAME} '
+        '(wrong ref?)')
 
   os.makedirs(os.path.join(target, 'bin'), exist_ok=True)
   dst_skills = os.path.join(target, 'skills')
@@ -239,11 +241,16 @@ def install(extracted: str, target: str, agent: Optional[str],
       os.path.join(dst_skills, 'index.json')):
     _refresh_index(dst_skills)
 
-  src_tp = os.path.join(extracted, 'bin', 'trace_processor')
-  if os.path.isfile(src_tp):
-    dst_tp = os.path.join(target, 'bin', 'trace_processor')
-    shutil.copy(src_tp, dst_tp)
-    os.chmod(dst_tp, 0o755)
+  # Convenience copy of the wrapper at <target>/bin so users can put it on
+  # PATH. The canonical copy lives inside the skill (bin/trace_processor),
+  # which is what the skill's $SKILL_ROOT-based instructions use.
+  src_tp = os.path.join(dst_skill, 'bin', 'trace_processor')
+  if not os.path.isfile(src_tp):
+    err(f'branch is missing skills/{SKILL_NAME}/bin/trace_processor '
+        '(wrong ref?)')
+  dst_tp = os.path.join(target, 'bin', 'trace_processor')
+  shutil.copy(src_tp, dst_tp)
+  os.chmod(dst_tp, 0o755)
 
 
 def print_path_hint(target: str) -> None:

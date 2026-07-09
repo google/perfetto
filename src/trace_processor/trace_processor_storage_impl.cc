@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -30,6 +31,7 @@
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
@@ -54,13 +56,29 @@
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
+namespace {
+
+// (ERR:...) markers make the UI show a friendly dialog instead of a crash
+// report dialog (see ui/src/frontend/error_dialog.ts).
+base::Status WrapParseError(const base::Status& status) {
+  // (ERR:fmt) means an unrecognized file format: the UI has a more specific
+  // dialog for that, so don't wrap.
+  if (strstr(status.c_message(), "(ERR:fmt)") != nullptr) {
+    return status;
+  }
+  bool corrupt = strstr(status.c_message(), "(ERR:tp-corrupt)") != nullptr;
+  return base::ErrStatus("Trace parse failure (%s) (ERR:tp-parse). %s",
+                         status.c_message(),
+                         corrupt ? "The trace file is corrupt."
+                                 : "The trace file could not be parsed.");
+}
+
+}  // namespace
 
 TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
     : context_(TraceProcessorContext::CreateRootContext(cfg)) {
-  context()->reader_registry->RegisterTraceReader<ProtoTraceReader>(
-      kProtoTraceType);
-  context()->reader_registry->RegisterTraceReader<ProtoTraceReader>(
-      kSymbolsTraceType);
+  context()->reader_registry->Register(CreateProtoImporter());
+  context()->reader_registry->Register(CreateSymbolsImporter());
   for (const std::string& raw_bytes : cfg.extra_parsing_descriptors) {
     context_.descriptor_pool_->AddFromFileDescriptorSet(
         reinterpret_cast<const uint8_t*>(raw_bytes.data()), raw_bytes.size(),
@@ -106,10 +124,7 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
   base::Status status = parser_->Parse(std::move(blob));
   if (!status.ok()) {
     unrecoverable_parse_error_ = true;
-    status = base::ErrStatus(
-        "Trace parse failure (%s) (ERR:tp-parse). "
-        "The trace file is corrupt.",
-        status.c_message());
+    status = WrapParseError(status);
   }
   return status;
 }
@@ -144,7 +159,11 @@ base::Status TraceProcessorStorageImpl::OnPushDataToSorter() {
     return base::ErrStatus("Unrecoverable parsing error already occurred");
   }
   if (parser_) {
-    RETURN_IF_ERROR(parser_->OnPushDataToSorter());
+    base::Status status = parser_->OnPushDataToSorter();
+    if (!status.ok()) {
+      unrecoverable_parse_error_ = true;
+      return WrapParseError(status);
+    }
   }
   if (context()->sorter) {
     context()->sorter->ExtractEventsForced();

@@ -257,9 +257,10 @@ class QueryPlanBuilder {
   struct NonEqualityFilterRowCount {};
 
   // Indicates that the bytecode is a equality filter with given duplicate
-  // state.
+  // state and estimated distinct-value count (0 = unknown).
   struct EqualityFilterRowCount {
     DuplicateState duplicate_state;
+    uint32_t estimated_distinct = 0;
   };
 
   // Indicates that the bytecode produces *exactly* one row and the estimated

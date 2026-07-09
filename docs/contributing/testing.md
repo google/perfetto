@@ -150,7 +150,9 @@ _Zip_ and _Tar_: traces can also be archives assembled inline from a dict of
 members, keyed by the path within the archive. Each member is either a `str`
 (written verbatim, e.g. a JSON trace or systrace), a `TextProto` (serialized
 as a binary proto trace) or a `Path`/`DataPath` (raw bytes of an external
-file).
+file). This is how [trace merging](/docs/analysis/merging-traces.md) and
+[perfetto_manifest](/docs/reference/perfetto-manifest.md) handling are
+tested; see `diff_tests/parser/trace_manifest/` for examples.
 
 _Query_: For metric tests it is enough to provide the metric name. For query
 tests there can be a raw SQL statement, for example `"SELECT * FROM SLICE"`,
