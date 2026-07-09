@@ -526,6 +526,16 @@ TEST(TraceProcessorShellIntegrationTest, RemoteQueryRoundTrip) {
       RunShell({"query", "--remote", sock, "SELECT * FROM no_such_table"});
   EXPECT_NE(r3.exit_code, 0);
 
+  // -m against a remote session enables metatracing server-side and collects
+  // the resulting trace client-side.
+  base::TempFile mt = base::TempFile::Create();
+  auto r4 = RunShell({"query", "--remote", sock, "-m", mt.path(),
+                      "SELECT count(*) FROM slice"});
+  EXPECT_EQ(r4.exit_code, 0) << r4.out;
+  std::string mt_data;
+  EXPECT_TRUE(base::ReadFile(mt.path(), &mt_data));
+  EXPECT_GT(mt_data.size(), 0u);
+
   server.KillAndWaitForTermination(SIGTERM);
   EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
 }
@@ -611,10 +621,10 @@ TEST(TraceProcessorShellIntegrationTest, RemoteRejectsIncompatibleFlags) {
   EXPECT_THAT(r1.out, HasSubstr("--add-sql-package"));
   EXPECT_THAT(r1.out, HasSubstr("cannot be combined with --remote"));
 
-  auto r2 = RunShell({"query", "--remote", "some-session", "--metatrace",
-                      "/tmp/m.pb", "SELECT 1"});
+  auto r2 = RunShell(
+      {"query", "--remote", "some-session", "--full-sort", "SELECT 1"});
   EXPECT_NE(r2.exit_code, 0);
-  EXPECT_THAT(r2.out, HasSubstr("--metatrace"));
+  EXPECT_THAT(r2.out, HasSubstr("--full-sort"));
   EXPECT_THAT(r2.out, HasSubstr("cannot be combined with --remote"));
 }
 

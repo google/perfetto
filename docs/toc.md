@@ -83,6 +83,7 @@
       - [Battery & Power](data-sources/battery-counters.md) {.tag-android}
       - [Android Game Interventions](data-sources/android-game-intervention-list.md) {.tag-android}
       - [Android Aflags](data-sources/android-aflags.md) {.tag-android}
+      - [Screen Recording](data-sources/video-frames.md) {.tag-android}
 
   - [Tracing SDK](#)
 
