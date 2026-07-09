@@ -2088,6 +2088,7 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
 
   if (tracing_session->write_into_file) {
     tracing_session->write_period_ms = 0;
+    tracing_session->should_emit_stats = true;
     // Buffers are scraped, no need to flush before reading into file.
     ReadBuffersIntoFile(tracing_session->id,
                         /* async_flush_buffers_before_read = */ false);
@@ -2827,6 +2828,8 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
     EmitLifecycleEvents(tracing_session, &packets);
   }
 
+  MaybeFilterPackets(tracing_session, &packets);
+
   // Only emit the stats when there is no more trace data is available to read.
   // That way, any problems that occur while reading from the buffers are
   // reflected in the emitted stats. This is particularly important for use
@@ -2835,9 +2838,13 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   if (!*has_more && tracing_session->should_emit_stats) {
     EmitStats(tracing_session, &packets);
     tracing_session->should_emit_stats = false;
+    if (tracing_session->trace_filter) {
+      size_t stats_packet_size = packets.back().size();
+      tracing_session->filter_input_packets++;
+      tracing_session->filter_input_bytes += stats_packet_size;
+      tracing_session->filter_output_bytes += stats_packet_size;
+    }
   }
-
-  MaybeFilterPackets(tracing_session, &packets);
 
   MaybeCompressPackets(tracing_session, &packets);
 
