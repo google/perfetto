@@ -94,14 +94,12 @@ SELECT AndroidBlockingCallsCujMetric('cuj', (
                         'total_dur_ns', b.total_dur_ns,
                         'max_dur_ns', b.max_dur_ns,
                         'min_dur_ns', b.min_dur_ns
-                    )
+                    ) ORDER BY b.total_dur_ns DESC, b.name
                 )
                 FROM android_blocking_calls_cuj_calls b
                 WHERE b.cuj_id = cuj.cuj_id and b.upid = cuj.upid
-                ORDER BY total_dur_ns DESC
             )
-        )
+        ) ORDER BY cuj.cuj_id ASC
     )
     FROM android_jank_latency_cujs cuj
-    ORDER BY cuj.cuj_id ASC
 ));

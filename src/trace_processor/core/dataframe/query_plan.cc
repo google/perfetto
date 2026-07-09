@@ -760,11 +760,11 @@ void QueryPlanBuilder::NonStringConstraint(
   auto source = TranslateNonNullIndices(c.col, update, false);
   {
     using B = i::NonStringFilterBase;
-    B& bc = AddOpcode<B>(
-        i::Index<i::NonStringFilter>(type, op),
-        op.Is<Eq>()
-            ? RowCountModifier{EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct}}
-            : RowCountModifier{NonEqualityFilterRowCount{}});
+    B& bc = AddOpcode<B>(i::Index<i::NonStringFilter>(type, op),
+                         op.Is<Eq>()
+                             ? RowCountModifier{EqualityFilterRowCount{
+                                   col.duplicate_state, col.estimated_distinct}}
+                             : RowCountModifier{NonEqualityFilterRowCount{}});
     bc.arg<B::storage_register>() =
         StorageRegisterFor(c.col, type.Upcast<StorageType>());
     bc.arg<B::val_register>() = result;
@@ -789,11 +789,11 @@ base::Status QueryPlanBuilder::StringConstraint(
   auto source = TranslateNonNullIndices(c.col, update, false);
   {
     using B = i::StringFilterBase;
-    B& bc = AddOpcode<B>(
-        i::Index<i::StringFilter>(op),
-        op.Is<Eq>()
-            ? RowCountModifier{EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct}}
-            : RowCountModifier{NonEqualityFilterRowCount{}});
+    B& bc = AddOpcode<B>(i::Index<i::StringFilter>(op),
+                         op.Is<Eq>()
+                             ? RowCountModifier{EqualityFilterRowCount{
+                                   col.duplicate_state, col.estimated_distinct}}
+                             : RowCountModifier{NonEqualityFilterRowCount{}});
     bc.arg<B::storage_register>() = StorageRegisterFor(c.col, String{});
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
@@ -900,7 +900,8 @@ void QueryPlanBuilder::IndexConstraints(
             i::Index<i::FilterIn>(non_id->Upcast<StorageType>(),
                                   NullabilityToSparseNullCollapsedNullability(
                                       column.null_storage.nullability())),
-            RowCountModifier{EqualityFilterRowCount{column.duplicate_state, column.estimated_distinct}},
+            RowCountModifier{EqualityFilterRowCount{column.duplicate_state,
+                                                    column.estimated_distinct}},
             i::LogPerRowCost{10});
         bc.arg<B::storage_register>() =
             StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
@@ -924,7 +925,8 @@ void QueryPlanBuilder::IndexConstraints(
             i::Index<i::IndexedFilterEq>(
                 *non_id, NullabilityToSparseNullCollapsedNullability(
                              column.null_storage.nullability())),
-            RowCountModifier{EqualityFilterRowCount{column.duplicate_state, column.estimated_distinct}});
+            RowCountModifier{EqualityFilterRowCount{
+                column.duplicate_state, column.estimated_distinct}});
         bc.arg<B::storage_register>() =
             StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
         bc.arg<B::null_bv_register>() = null_bv_reg;
@@ -976,8 +978,8 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   // Handle set id equality with a specialized opcode.
   if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() && op.Is<Eq>()) {
     using B = i::Uint32SetIdSortedEq;
-    auto& bc = AddOpcode<B>(
-        RowCountModifier{EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct}});
+    auto& bc = AddOpcode<B>(RowCountModifier{
+        EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct}});
     bc.arg<B::storage_register>() = StorageRegisterFor(fs.col, ct);
     bc.arg<B::val_register>() = value_reg;
     bc.arg<B::update_register>() = reg;
@@ -987,8 +989,8 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   if (col.specialized_storage.Is<SpecializedStorage::SmallValueEq>() &&
       op.Is<Eq>()) {
     using B = i::SpecializedStorageSmallValueEq;
-    auto& bc = AddOpcode<B>(
-        RowCountModifier{EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct}});
+    auto& bc = AddOpcode<B>(RowCountModifier{
+        EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct}});
     bc.arg<B::small_value_bv_register>() = SmallValueEqBvRegisterFor(fs.col);
     bc.arg<B::small_value_popcount_register>() =
         SmallValueEqPopcountRegisterFor(fs.col);
@@ -1000,7 +1002,8 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
   RowCountModifier modifier;
   if (op.Is<Eq>()) {
-    modifier = EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct};
+    modifier =
+        EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct};
   } else {
     modifier = NonEqualityFilterRowCount{};
   }
@@ -1439,9 +1442,9 @@ void QueryPlanBuilder::AddLinearFilterEqBytecode(
 
   {
     using B = i::LinearFilterEqBase;
-    B& bc = AddOpcode<B>(
-        i::Index<i::LinearFilterEq>(non_id_storage_type),
-        RowCountModifier{EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct}});
+    B& bc = AddOpcode<B>(i::Index<i::LinearFilterEq>(non_id_storage_type),
+                         RowCountModifier{EqualityFilterRowCount{
+                             col.duplicate_state, col.estimated_distinct}});
     bc.arg<B::storage_register>() =
         StorageRegisterFor(c.col, non_id_storage_type.Upcast<StorageType>());
     bc.arg<B::filter_value_reg>() = filter_value_result_reg;

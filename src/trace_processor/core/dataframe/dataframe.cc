@@ -97,9 +97,9 @@ uint32_t CountDistinct(base::FlatHashMap<int64_t, uint32_t>& counts,
   double denom = static_cast<double>(sample - f1) +
                  static_cast<double>(f1) * static_cast<double>(sample) /
                      static_cast<double>(total);
-  double est = denom > 0 ? static_cast<double>(sample) * static_cast<double>(d) /
-                               denom
-                         : static_cast<double>(d);
+  double est =
+      denom > 0 ? static_cast<double>(sample) * static_cast<double>(d) / denom
+                : static_cast<double>(d);
   auto result = static_cast<uint64_t>(est + 0.5);
   if (result < d) {
     result = d;
