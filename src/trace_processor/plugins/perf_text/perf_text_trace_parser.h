@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_H_
 
 #include <cstdint>
 
-#include "src/trace_processor/importers/perf_text/perf_text_event.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -39,4 +39,4 @@ class PerfTextTraceParser
 
 }  // namespace perfetto::trace_processor::perf_text_importer
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_H_
