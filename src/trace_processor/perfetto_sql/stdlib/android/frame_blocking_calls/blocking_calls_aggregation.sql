@@ -129,6 +129,5 @@ JOIN _extended_frame_boundary AS frame
   ON bc.utid = frame.render_thread_utid
   AND bc.utid != frame.ui_thread_utid
 WHERE
-  (
-  (bc.ts >= frame.ts AND bc.ts <= frame.ts_end)
+  ((bc.ts >= frame.ts AND bc.ts <= frame.ts_end)
   OR (bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end));
