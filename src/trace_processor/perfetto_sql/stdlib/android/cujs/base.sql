@@ -60,7 +60,9 @@ WHERE
 CREATE PERFETTO TABLE _cuj_state_marker_slice AS
 SELECT id, ts, name, track_id
 FROM slice
-WHERE name GLOB '*FT#*' OR name GLOB '*#UIThread';
+WHERE
+  name GLOB '*FT#*'
+  OR name GLOB '*#UIThread';
 
 CREATE PERFETTO TABLE _cuj_state_markers AS
 SELECT
