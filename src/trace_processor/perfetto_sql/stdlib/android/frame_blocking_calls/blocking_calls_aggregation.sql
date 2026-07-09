@@ -79,16 +79,6 @@ ORDER BY
   frame_id;
 
 -- Capture blocking call duration within frames within a CUJ.
---
--- The join between blocking calls and frames is split into two branches (one
--- for the UI thread, one for the render thread) that are `UNION ALL`-ed
--- together, rather than joining on `bc.utid = frame.ui_thread_utid OR bc.utid =
--- frame.render_thread_utid`. An `OR` in a join condition forces a nested loop
--- over the full cross product; two separate equality joins can each be executed
--- efficiently. The `bc.utid != frame.ui_thread_utid` guard on the render branch
--- keeps the two branches disjoint (so no row is double counted in the rare case
--- where a frame's UI and render threads are the same), making this exactly
--- equivalent to the original `OR` join.
 CREATE PERFETTO TABLE _blocking_calls_frame_cuj AS
 SELECT
   min(bc.dur, frame.ts_end - bc.ts, bc.ts_end - frame.ts) AS dur,
@@ -103,32 +93,12 @@ SELECT
   cuj_name
 FROM _android_critical_blocking_calls AS bc
 JOIN _extended_frame_boundary AS frame
-  ON bc.utid = frame.ui_thread_utid
+  ON (bc.utid = frame.ui_thread_utid OR bc.utid = frame.render_thread_utid)
 -- The following condition to accommodate blocking call crossing frame boundary. The blocking
 -- call starts in a frame or ends in a frame. It can either be the same frame or a different
 -- frame.
 WHERE
   (
   -- Blocking call starts within the frame.
-  (bc.ts >= frame.ts AND bc.ts <= frame.ts_end)
-  OR (bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end))
-UNION ALL
-SELECT
-  min(bc.dur, frame.ts_end - bc.ts, bc.ts_end - frame.ts) AS dur,
-  max(frame.ts, bc.ts) AS ts,
-  bc.upid,
-  bc.name,
-  bc.process_name,
-  bc.utid,
-  frame.frame_id,
-  frame.layer_id,
-  cuj_id,
-  cuj_name
-FROM _android_critical_blocking_calls AS bc
-JOIN _extended_frame_boundary AS frame
-  ON bc.utid = frame.render_thread_utid
-  AND bc.utid != frame.ui_thread_utid
-WHERE
-  (
   (bc.ts >= frame.ts AND bc.ts <= frame.ts_end)
   OR (bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end));

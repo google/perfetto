@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_ARCHIVE_ENTRY_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_ARCHIVE_ENTRY_H_
 
+#include <cstddef>
 #include <string>
 
 #include "src/trace_processor/util/trace_type.h"
@@ -27,14 +28,21 @@ namespace perfetto::trace_processor {
 // a key of a std::map to automatically sort files before sending them in proper
 // order for tokenization.
 struct ArchiveEntry {
+  // Returns the archive ordering priority for `type` (lower is read first):
+  // manifest < proto < containers < others < symbols.
+  static int ComputePriority(TraceImporterId type,
+                             const TraceImporterRegistry& registry);
+
   // File name. Used to break ties.
   std::string name;
   // Position. Used to break ties.
   size_t index;
-  // Trace type. This is the main attribute traces are ordered by. Proto
-  // traces are always parsed first as they might contains clock sync
-  // data needed to correctly parse other traces.
-  TraceType trace_type;
+  // Trace type. Kept for the reader to cross-check the detected type.
+  TraceImporterId trace_type;
+  // Archive ordering priority derived from trace_type (see ComputePriority).
+  // This is the main attribute traces are ordered by; proto is read first as it
+  // may contain clock sync data needed to correctly parse other traces.
+  int priority;
   // Comparator used to determine the order in which files in the ZIP will be
   // read.
   bool operator<(const ArchiveEntry& rhs) const;

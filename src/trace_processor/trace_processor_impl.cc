@@ -60,7 +60,9 @@
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/art_method/art_method_v2_tokenizer.h"
 #include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
+#include "src/trace_processor/importers/common/trace_diagnostics_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
@@ -69,7 +71,6 @@
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/record_parser.h"
 #include "src/trace_processor/importers/perf/spe_record_parser.h"
-#include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
 #include "src/trace_processor/importers/pprof/pprof_trace_reader.h"
 #include "src/trace_processor/importers/primes/primes_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
@@ -425,69 +426,34 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                  etm::CreateEtmV4StreamDemultiplexer);
       });
 #endif
-  context()->reader_registry->RegisterTraceReader<AndroidDumpstateReader>(
-      kAndroidDumpstateTraceType);
-  context()->reader_registry->RegisterTraceReader<AndroidLogReader>(
-      kAndroidLogcatTraceType);
-  context()->reader_registry->RegisterTraceReader<FuchsiaTraceTokenizer>(
-      kFuchsiaTraceType);
-  context()->reader_registry->RegisterTraceReader<SystraceTraceParser>(
-      kSystraceTraceType);
-  context()->reader_registry->RegisterTraceReader<NinjaLogParser>(
-      kNinjaLogTraceType);
-  context()->reader_registry->RegisterTraceReader<PprofTraceReader>(
-      kPprofTraceType);
-  context()->reader_registry->RegisterTraceReader<CollapsedStackTraceReader>(
-      kCollapsedStackTraceType);
-  context()
-      ->reader_registry->RegisterTraceReader<perf_importer::PerfDataTokenizer>(
-          kPerfDataTraceType);
+  // Identity, detection, metadata and reader creation all live on the importer;
+  // gzip/zip/ctrace register unconditionally and report the disabled-zlib error
+  // from their CreateReader.
+  auto& reg = *context()->reader_registry;
+  reg.Register(CreateAndroidDumpstateImporter());
+  reg.Register(CreateAndroidLogcatImporter());
+  reg.Register(CreateFuchsiaImporter());
+  reg.Register(CreateSystraceImporter());
+  reg.Register(CreateNinjaLogImporter());
+  reg.Register(CreatePprofImporter());
+  reg.Register(CreateCollapsedStackImporter());
+  reg.Register(CreatePerfDataImporter());
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
-  context()
-      ->reader_registry
-      ->RegisterTraceReader<instruments_importer::InstrumentsXmlTokenizer>(
-          kInstrumentsXmlTraceType);
+  reg.Register(CreateInstrumentsXmlImporter());
 #endif
-  if constexpr (util::IsGzipSupported()) {
-    context()
-        ->reader_registry->RegisterTraceReaderWithArg<DecompressingTraceReader>(
-            kGzipTraceType, util::CompressionType::kGzip);
-    context()
-        ->reader_registry->RegisterTraceReaderWithArg<DecompressingTraceReader>(
-            kCtraceTraceType, util::CompressionType::kGzip);
-    context()->reader_registry->RegisterTraceReader<ZipTraceReader>(kZipFile);
-  }
-  if constexpr (util::IsZstdSupported()) {
-    context()
-        ->reader_registry->RegisterTraceReaderWithArg<DecompressingTraceReader>(
-            kZstdTraceType, util::CompressionType::kZstd);
-  }
-  context()->reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
-      kJsonTraceType);
-  context()
-      ->reader_registry
-      ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
-          kGeckoTraceType);
-  context()
-      ->reader_registry->RegisterTraceReader<art_method::ArtMethodTokenizer>(
-          kArtMethodTraceType);
-  context()
-      ->reader_registry->RegisterTraceReader<art_method::ArtMethodV2Tokenizer>(
-          kArtMethodV2TraceType);
-  context()->reader_registry->RegisterTraceReader<art_hprof::ArtHprofParser>(
-      kArtHprofTraceType);
-  context()
-      ->reader_registry
-      ->RegisterTraceReader<perf_text_importer::PerfTextTraceTokenizer>(
-          kPerfTextTraceType);
-  context()
-      ->reader_registry->RegisterTraceReader<
-          simpleperf_proto_importer::SimpleperfProtoTokenizer>(
-          kSimpleperfProtoTraceType);
-  context()->reader_registry->RegisterTraceReader<TarTraceReader>(
-      kTarTraceType);
-  context()->reader_registry->RegisterTraceReader<primes::PrimesTraceTokenizer>(
-      kPrimesTraceType);
+  reg.Register(CreateGzipImporter());
+  reg.Register(CreateZstdImporter());
+  reg.Register(CreateCtraceImporter());
+  reg.Register(CreateZipImporter());
+  reg.Register(CreateJsonImporter());
+  reg.Register(CreateGeckoImporter());
+  reg.Register(CreateArtMethodImporter());
+  reg.Register(CreateArtMethodV2Importer());
+  reg.Register(CreateArtHprofImporter());
+  reg.Register(CreateSimpleperfProtoImporter());
+  reg.Register(CreateTarImporter());
+  reg.Register(CreatePrimesImporter());
+  reg.Register(CreatePerfTextImporter());
 
   // Force initialization of heap graph tracker.
   //
@@ -607,6 +573,17 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   TraceProcessorStorageImpl::OnEventsFullyExtracted();
   DeobfuscationTracker::Get(context())->OnEventsFullyExtracted();
   CacheBoundsAndBuildTable();
+
+  // Run trace-config diagnostics before the parser context is destroyed (rules
+  // may read metadata/clocks off the context). Rules are per-(trace, machine),
+  // so loop the fork map like OnEventsFullyExtracted does.
+  auto& diag_contexts =
+      context()->forked_context_state->trace_and_machine_to_context;
+  for (auto it = diag_contexts.GetIterator(); it; ++it) {
+    if (it.value()->trace_diagnostics_tracker) {
+      it.value()->trace_diagnostics_tracker->RunRules();
+    }
+  }
 
   // Stage 3: reduce memory usage by both destroying parser context *and*
   // finalizing dataframes; once finalized, attach any indexes that were

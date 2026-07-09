@@ -333,8 +333,8 @@ export function serializeState(state: DataExplorerState): string {
   };
 
   const replacer = (key: string, value: unknown) => {
-    // Only strip _trace to avoid including large trace objects
-    if (key === '_trace') {
+    // strip _trace / trace to avoid including large trace objects
+    if (key === '_trace' || key === 'trace') {
       return undefined;
     }
     // Connection info is stored in node-specific state (primaryInputId, inputNodeIds, etc.)

@@ -20,35 +20,16 @@
 
 namespace perfetto::trace_processor {
 
+int ArchiveEntry::ComputePriority(TraceImporterId type,
+                                  const TraceImporterRegistry& registry) {
+  return registry.Find(type)->archive_priority;
+}
+
 bool ArchiveEntry::operator<(const ArchiveEntry& rhs) const {
-  auto trace_priority = [](TraceType type) -> int {
-    if (type == kPerfettoManifestTraceType)
-      // perfetto_manifest files configure how the other archive members are
-      // parsed, so they must come first.
-      return -1;
-    if (type == kSymbolsTraceType)
-      // Traces with symbols should be the last ones to be read.
-      // TODO(carlscab): Proto traces with just ModuleSymbols packets should be
-      // an exception. We actually need those are the very end (once whe have
-      // all the Frames). Alternatively we could build a map address -> symbol
-      // during tokenization and use this during parsing to resolve symbols.
-      return 3;
-    if (type == TraceType::kProtoTraceType)
-      // Proto traces should always parsed first as they might contains clock
-      // sync data needed to correctly parse other traces.
-      return 0;
-    if (IsContainerTraceType(type))
-      return 1;
-    return 2;
-  };
-
-  // Compare first by trace type priority, then by name,
-  // and finally by index to ensure strict ordering.
-  int lhs_priority = trace_priority(trace_type);
-  int rhs_priority = trace_priority(rhs.trace_type);
-
-  return std::tie(lhs_priority, name, index) <
-         std::tie(rhs_priority, rhs.name, rhs.index);
+  // Compare first by archive priority, then by name, and finally by index to
+  // ensure strict ordering.
+  return std::tie(priority, name, index) <
+         std::tie(rhs.priority, rhs.name, rhs.index);
 }
 
 }  // namespace perfetto::trace_processor

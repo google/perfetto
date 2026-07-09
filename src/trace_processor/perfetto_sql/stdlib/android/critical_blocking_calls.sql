@@ -19,73 +19,49 @@ INCLUDE PERFETTO MODULE android.binder;
 
 INCLUDE PERFETTO MODULE slices.with_context;
 
--- Internal implementation detail. Expands to a boolean expression that is true
--- when `slice_name` refers to a relevant blocking call.
---
--- This is a macro (rather than a `PERFETTO FUNCTION`) purely for performance:
--- trace_processor does not inline SQL functions, so calling one per row across
--- the whole `thread_slice` table (millions of rows) adds several seconds of
--- per-call dispatch overhead. A macro is expanded textually into the query, so
--- the predicate is evaluated directly with no call overhead.
-CREATE PERFETTO MACRO _is_relevant_blocking_call_expr(
-  -- Expression evaluating to the slice name to test.
-  slice_name Expr
-)
--- Boolean expression: true if the slice is a relevant blocking call.
-RETURNS Expr
-AS (
-  $slice_name IN (
-    'measure',
-    'layout',
-    'configChanged',
-    'animation',
-    'input',
-    'traversal',
-    'Contending for pthread mutex',
-    'postAndWait',
-    'CreateGraphicsPipeline',
-    'flush layers',
-    'flush commands',
-    'queueBuffer'
-  )
-  OR $slice_name GLOB 'monitor contention with*'
-  OR $slice_name GLOB 'SuspendThreadByThreadId*'
-  OR $slice_name GLOB 'LoadApkAssetsFd*'
-  OR $slice_name GLOB '*binder transaction*'
-  OR $slice_name GLOB 'inflate*'
-  OR $slice_name GLOB 'Lock contention on*'
-  OR $slice_name GLOB 'android.os.Handler: kotlinx.coroutines*'
-  OR $slice_name GLOB 'relayoutWindow*'
-  OR $slice_name GLOB 'ImageDecoder#decode*'
-  OR $slice_name GLOB 'NotificationStackScrollLayout#onMeasure'
-  OR $slice_name GLOB 'ExpNotRow#*'
-  OR $slice_name GLOB 'GC: Wait For*'
-  OR $slice_name GLOB 'Recomposer:*'
-  OR $slice_name GLOB 'Compose:*'
-  OR $slice_name GLOB 'draw-VRI*'
-  OR $slice_name GLOB 'drawLayer *'
-  OR $slice_name GLOB 'DrawFrames*'
-  OR $slice_name GLOB 'Texture upload*'
-  OR (
-    NOT ($slice_name GLOB '*Choreographer*')
-    AND NOT ($slice_name GLOB '*Input*')
-    AND NOT ($slice_name GLOB '*input*')
-    AND NOT ($slice_name GLOB 'android.os.Handler: #*')
-    AND (
-      -- Handler pattern heuristics
-      $slice_name GLOB '*Handler: *$*'
-      OR $slice_name GLOB '*.*.*: *$*'
-      OR $slice_name GLOB '*.*$*: #*'
-    )
-  )
-);
-
--- Retained for backwards compatibility with any external callers. The `depth`
--- argument is unused.
 CREATE PERFETTO FUNCTION _is_relevant_blocking_call(name STRING, depth LONG)
 RETURNS BOOL
 AS
-SELECT _is_relevant_blocking_call_expr!($name);
+SELECT
+  $name = 'measure'
+  OR $name = 'layout'
+  OR $name = 'configChanged'
+  OR $name = 'animation'
+  OR $name = 'input'
+  OR $name = 'traversal'
+  OR $name = 'Contending for pthread mutex'
+  OR $name = 'postAndWait'
+  OR $name GLOB 'monitor contention with*'
+  OR $name GLOB 'SuspendThreadByThreadId*'
+  OR $name GLOB 'LoadApkAssetsFd*'
+  OR $name GLOB '*binder transaction*'
+  OR $name GLOB 'inflate*'
+  OR $name GLOB 'Lock contention on*'
+  OR $name GLOB 'android.os.Handler: kotlinx.coroutines*'
+  OR $name GLOB 'relayoutWindow*'
+  OR $name GLOB 'ImageDecoder#decode*'
+  OR $name GLOB 'NotificationStackScrollLayout#onMeasure'
+  OR $name GLOB 'ExpNotRow#*'
+  OR $name GLOB 'GC: Wait For*'
+  OR $name GLOB 'Recomposer:*'
+  OR $name GLOB 'Compose:*'
+  OR $name GLOB 'draw-VRI*'
+  OR $name = 'CreateGraphicsPipeline'
+  OR $name GLOB 'drawLayer *'
+  OR $name GLOB 'DrawFrames*'
+  OR $name = 'flush layers'
+  OR $name = 'flush commands'
+  OR $name = 'queueBuffer'
+  OR $name GLOB 'Texture upload*'
+  OR (NOT ($name GLOB '*Choreographer*')
+  AND NOT ($name GLOB '*Input*')
+  AND NOT ($name GLOB '*input*')
+  AND NOT ($name GLOB 'android.os.Handler: #*')
+  AND (
+  -- Handler pattern heuristics
+  $name GLOB '*Handler: *$*'
+  OR $name GLOB '*.*.*: *$*'
+  OR $name GLOB '*.*$*: #*'));
 
 --Extract critical blocking calls from all processes.
 CREATE PERFETTO TABLE _android_critical_blocking_calls AS
@@ -101,7 +77,7 @@ SELECT
 FROM thread_slice AS s
 JOIN thread USING (utid)
 WHERE
-  _is_relevant_blocking_call_expr!(s.name)
+  _is_relevant_blocking_call(s.name, s.depth)
 UNION ALL
 -- Add a summation of all drawLayer slices without the individual layer name
 SELECT
