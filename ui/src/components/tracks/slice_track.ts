@@ -1131,6 +1131,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   renderTooltip(): m.Children {
+    if (this.sliceLayout.collapsed) {
+      return 'Click to expand';
+    }
     if (!this.hoveredSlice) {
       return undefined;
     }
@@ -1298,6 +1301,14 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   onMouseClick(event: TrackMouseEvent): boolean {
+    if (this.sliceLayout.collapsed) {
+      this.sliceLayout = {
+        ...this.sliceLayout,
+        collapsed: false,
+      };
+      this.trace.raf.scheduleFullRedraw();
+      return true;
+    }
     const slice = this.findSlice(event);
     if (slice === undefined) {
       return false;
