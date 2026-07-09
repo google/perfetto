@@ -27,6 +27,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -58,6 +59,85 @@ void GatherBitsInPlace(core::BitVector& bv,
     bv.change(i, bv.is_set(indices[i]));
   }
   bv.resize(count);
+}
+
+// Rows sampled when estimating a column's distinct-value count. Sampling
+// caps both the work and the hash-map size at finalization, independent of
+// how large the column is.
+constexpr uint32_t kDistinctSampleRows = 10000;
+
+// Estimates the distinct-value count of `data` from a strided sample using the
+// Haas-Stokes estimator (as used by Postgres ANALYZE): from a sample of
+// `sample` rows with `d` distinct values, `f1` of which occur exactly once,
+//   D = sample*d / (sample - f1 + f1*sample/total)
+// projected to `total` rows. Exact when the whole column fits in the sample.
+template <typename T, typename KeyFn>
+uint32_t CountDistinct(base::FlatHashMap<int64_t, uint32_t>& counts,
+                       const core::FlexVector<T>& data,
+                       KeyFn key) {
+  uint64_t total = data.size();
+  if (total == 0) {
+    return 0;
+  }
+  uint64_t stride =
+      total <= kDistinctSampleRows ? 1 : total / kDistinctSampleRows;
+  counts.Clear();
+  uint64_t sample = 0;
+  uint64_t f1 = 0;  // distinct values seen exactly once so far
+  for (uint64_t i = 0; i < total; i += stride) {
+    auto [count, inserted] = counts.Insert(key(data[i]), 1u);
+    if (inserted) {
+      ++f1;
+    } else if (++*count == 2) {
+      --f1;
+    }
+    ++sample;
+  }
+  uint64_t d = counts.size();
+  double denom = static_cast<double>(sample - f1) +
+                 static_cast<double>(f1) * static_cast<double>(sample) /
+                     static_cast<double>(total);
+  double est = denom > 0 ? static_cast<double>(sample) * static_cast<double>(d) /
+                               denom
+                         : static_cast<double>(d);
+  auto result = static_cast<uint64_t>(est + 0.5);
+  if (result < d) {
+    result = d;
+  }
+  if (result > total) {
+    result = total;
+  }
+  return static_cast<uint32_t>(result);
+}
+
+// Estimates the distinct-value count of a finalized column, or 0 if unknown.
+// Only computed for HasDuplicates columns: unique columns select at most one
+// row regardless, and the planner already handles them exactly.
+uint32_t EstimateDistinct(base::FlatHashMap<int64_t, uint32_t>& counts,
+                          const Column& c) {
+  if (!c.duplicate_state.Is<HasDuplicates>()) {
+    return 0;
+  }
+  switch (c.storage.type().index()) {
+    case StorageType::GetTypeIndex<Uint32>():
+      return CountDistinct(counts, c.storage.unchecked_get<Uint32>(),
+                           [](uint32_t v) { return static_cast<int64_t>(v); });
+    case StorageType::GetTypeIndex<Int32>():
+      return CountDistinct(counts, c.storage.unchecked_get<Int32>(),
+                           [](int32_t v) { return static_cast<int64_t>(v); });
+    case StorageType::GetTypeIndex<Int64>():
+      return CountDistinct(counts, c.storage.unchecked_get<Int64>(),
+                           [](int64_t v) { return v; });
+    case StorageType::GetTypeIndex<String>():
+      return CountDistinct(
+          counts, c.storage.unchecked_get<String>(),
+          [](StringPool::Id v) { return static_cast<int64_t>(v.raw_id()); });
+    case StorageType::GetTypeIndex<Double>():
+    case StorageType::GetTypeIndex<Id>():
+      return 0;
+    default:
+      PERFETTO_FATAL("Invalid storage type");
+  }
 }
 
 }  // namespace
@@ -197,6 +277,9 @@ void Dataframe::Finalize() {
     return;
   }
   finalized_ = true;
+  // Reused across columns; Clear() keeps its capacity so it allocates at most
+  // once for the whole dataframe.
+  base::FlatHashMap<int64_t, uint32_t> distinct_counts;
   for (const auto& c : columns_) {
     switch (c->storage.type().index()) {
       case StorageType::GetTypeIndex<Uint32>():
@@ -245,6 +328,7 @@ void Dataframe::Finalize() {
       default:
         PERFETTO_FATAL("Invalid nullability type");
     }
+    c->estimated_distinct = EstimateDistinct(distinct_counts, *c);
   }
   // Bump the mutation counter so that any cursors with cached pointers
   // know to refresh them: shrink_to_fit() may have reallocated the internal
