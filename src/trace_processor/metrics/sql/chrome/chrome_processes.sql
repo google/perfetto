@@ -35,33 +35,40 @@ SELECT utid, thread.upid, thread.name
 FROM thread, all_chrome_processes
 WHERE thread.upid = all_chrome_processes.upid;
 
+-- For sandboxed and privileged processes (found in Android system traces), use
+-- the main thread name to type of process.
+DROP VIEW IF EXISTS chrome_subprocess_types;
+CREATE PERFETTO VIEW chrome_subprocess_types AS
+-- Sometimes you can get multiple threads in a trace marked main_thread, but
+-- they appear to have the same name so just use one of them.
+SELECT DISTINCT p.upid,
+  SUBSTR(t.name, 3, LENGTH(t.name) - 6) AS sandbox_type
+FROM all_chrome_processes p
+JOIN all_chrome_threads t ON p.upid = t.upid
+WHERE process_type IN ("Sandboxed", "Privileged")
+  AND t.name GLOB "Cr*Main"
+ORDER BY p.upid;
+
 -- Contains all the chrome processes from process with an extra column,
 -- process_type.
 DROP VIEW IF EXISTS chrome_process;
 CREATE PERFETTO VIEW chrome_process AS
-SELECT
-  process.*,
-  IIF(
-    all_chrome_processes.process_type IN ("Sandboxed", "Privileged"),
-    COALESCE(
-      (
-        SELECT SUBSTR(name, 3, LENGTH(name) - 6)
-        FROM thread
-        WHERE thread.upid = process.upid AND name GLOB "Cr*Main"
-        LIMIT 1
-      ),
-      all_chrome_processes.process_type
-    ),
-    all_chrome_processes.process_type
-  ) AS process_type
+SELECT process.*,
+  IIF(sandbox_type IS NULL, process_type, sandbox_type) AS process_type
 FROM process
-JOIN all_chrome_processes ON process.upid = all_chrome_processes.upid;
+JOIN (
+    SELECT a.upid,
+      sandbox_type,
+      process_type
+    FROM all_chrome_processes a
+    LEFT JOIN chrome_subprocess_types s ON a.upid = s.upid
+  ) c ON process.upid = c.upid
+ORDER BY upid;
 
 -- Contains all the chrome threads from thread with an extra column,
 -- canonical_name, that should contain a thread that's the same in both chrome
 -- and system traces.
 DROP VIEW IF EXISTS chrome_thread;
-
 CREATE PERFETTO VIEW chrome_thread AS
 SELECT thread.*,
   CASE
@@ -70,4 +77,5 @@ SELECT thread.*,
     ELSE thread.name
   END AS canonical_name
 FROM thread
-JOIN chrome_process ON thread.upid = chrome_process.upid;
+JOIN chrome_process ON thread.upid = chrome_process.upid
+ORDER BY utid;
