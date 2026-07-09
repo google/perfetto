@@ -5153,6 +5153,12 @@ message TraceConfig {
 
     // Disable emitting extension descriptors into the trace.
     optional bool disable_extension_descriptors = 9;
+
+    // Emit state changes of other tracing sessions running concurrently
+    // with this one (see ConcurrentSessionEvent).
+    //
+    // Introduced in v58 / Android 26Q3+.
+    optional bool enable_concurrent_session_events = 10;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
