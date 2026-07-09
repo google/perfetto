@@ -133,7 +133,7 @@ void AndroidCpuPerUidModule::ParseField(const ParseFieldArgs& args) {
     // Totals are computed using grouped IDs, because totals correspond 1:1 with
     // real tracks. Grouped UIDs (such as isolated UIDs) are consolidated onto
     // a single track for the group.
-    uint32_t grouped_uid = GetGroupedUid(*uit_it);
+    uint32_t grouped_uid = GetGroupedUid(*uid_it);
     ComputeTotals(grouped_uid, cluster, delta_ms);
 
     cluster++;
@@ -232,12 +232,12 @@ std::pair<uint64_t, uint64_t> AndroidCpuPerUidModule::IncrementalStateUpdate(
 
   // The last value irregardless of incremental state is stored on the importer.
   // We use this to compute the non-negative delta since the last value.
-  auto [local_value, local_inserted] = last_value_.Insert(key, *incr_value);
-  if (*incr_value > *local_value) {
-    delta_ms = *incr_value - *local_value;
+  auto [global_value, _] = last_value_.Insert(key, *incr_value);
+  if (*incr_value > *global_value) {
+    delta_ms = *incr_value - *global_value;
   }
 
-  *local_value = *incr_value;
+  *global_value = *incr_value;
   return std::make_pair(*incr_value, delta_ms);
 }
 
