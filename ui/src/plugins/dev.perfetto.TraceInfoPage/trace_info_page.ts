@@ -56,6 +56,12 @@ import {
   type UiLoadingErrorsData,
 } from './tabs/ui_loading_errors';
 import {StatsTab, type StatsData, loadStatsData} from './tabs/stats';
+import {
+  MetadataTab,
+  type MetadataData,
+  loadMetadataData,
+  hasMetadataData,
+} from './tabs/metadata';
 
 export interface TraceInfoPageAttrs {
   readonly trace: Trace;
@@ -68,6 +74,7 @@ interface AllTabData {
   android: AndroidData;
   machines: MachinesData;
   traces: TracesData;
+  metadata: MetadataData;
   importErrors: ImportErrorsData;
   traceErrors: TraceErrorsData;
   dataLosses: DataLossesData;
@@ -146,6 +153,10 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
         return m(MachinesTab, {
           data: this.tabData.machines,
         });
+      case 'metadata':
+        return m(MetadataTab, {
+          data: this.tabData.metadata,
+        });
       case 'import_errors':
         return m(ImportErrorsTab, {
           data: this.tabData.importErrors,
@@ -177,6 +188,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
       android: await loadAndroidData(engine),
       machines: await loadMachinesData(engine),
       traces: await loadTracesData(engine),
+      metadata: await loadMetadataData(engine),
       importErrors: await loadImportErrorsData(engine),
       traceErrors: await loadTraceErrorsData(engine),
       dataLosses: await loadDataLossesData(engine),
@@ -212,7 +224,10 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     if ((this.tabData?.machines?.machineCount ?? 0) > 1) {
       tabs.push({key: 'machines', title: 'Machines'});
     }
-    tabs.push({key: 'stats', title: 'Info and Stats (advanced)'});
+    if (hasMetadataData(this.tabData?.metadata)) {
+      tabs.push({key: 'metadata', title: 'Metadata'});
+    }
+    tabs.push({key: 'stats', title: 'Statistics'});
     return tabs;
   }
 }
