@@ -6,6 +6,8 @@ Unreleased:
       Thread message for a process' main thread, instead of leaving it implied
       by the process entry. This fixes missing main thread names when a trace
       is recorded using procfs alone.
+    * Replaced TraceConfig.notes and `perfetto --add-note` with
+      TraceConfig.trace_attributes and `--add-attribute`.
   Trace Processor:
     * Added a client-server mode to `trace_processor_shell`: start a server
       over a unix socket (`server unix`) or WebSocket (`server http`) and
@@ -17,6 +19,9 @@ Unreleased:
       See https://perfetto.dev/docs/analysis/merging-traces.
     * Added `trace_processor_shell util merge`: packs traces and an optional
       manifest into a merged-trace archive and sanity-checks the result.
+    * Trace attributes can now also come from the trace config.
+      perfetto_manifest files can annotate an archive via an `attributes`
+      section.
   UI:
     * Opening multiple trace files is now supported by default: the "Open
       multiple trace files" sidebar item (or multi-selecting / dropping

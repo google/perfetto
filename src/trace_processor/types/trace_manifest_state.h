@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -71,10 +72,17 @@ struct TraceManifestState {
     int64_t offset_ns = 0;
   };
 
+  // A parsed trace attribute: key plus a string or int64 value (see
+  // protos/perfetto/common/trace_attributes.proto).
+  using Attribute = std::pair<std::string, std::variant<int64_t, std::string>>;
+
   struct FileEntry {
     // Exact path of the member within the archive.
     std::string path;
     std::optional<ClockOverride> clock_override;
+    // The entry's `attributes` block, applied as manifest_attribute.* metadata
+    // rows scoped to this file.
+    std::vector<Attribute> attributes;
     // The file's base machine: a synthetic raw id the reader allocates per
     // distinct |machine_name|, so files sharing a name land on one machine.
     std::optional<int64_t> machine_id;

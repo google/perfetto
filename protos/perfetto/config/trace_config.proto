@@ -20,6 +20,7 @@ package perfetto.protos;
 
 import "protos/perfetto/common/builtin_clock.proto";
 import "protos/perfetto/common/semantic_type.proto";
+import "protos/perfetto/common/trace_attributes.proto";
 import "protos/perfetto/config/data_source_config.proto";
 import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 
@@ -28,7 +29,7 @@ import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 48.
+// Next id: 49.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -969,12 +970,15 @@ message TraceConfig {
   // Introduced in: perfetto v54.
   optional bool trace_all_machines = 43;
 
-  // Allow key, value pairs to save arbitrary data about trace.
-  message Note {
-    // Required.
-    optional string key = 1;
-    // Required.
-    optional string value = 2;
-  }
-  repeated Note notes = 46;
+  // |notes|, replaced by |trace_attributes|.
+  reserved 46;
+  reserved "notes";
+
+  // Trace attributes: arbitrary key/value pairs describing the trace, saved
+  // into it and surfaced by trace_processor in the `metadata` table (see
+  // common/trace_attributes.proto). Typically set via
+  // `perfetto --add-attribute key=value`.
+  //
+  // Introduced in: perfetto v58.
+  optional TraceAttributes trace_attributes = 48;
 }

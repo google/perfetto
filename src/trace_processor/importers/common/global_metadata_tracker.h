@@ -74,12 +74,22 @@ class GlobalMetadataTracker {
                             metadata::KeyId key,
                             Variadic value);
 
-  // Sets a metadata entry using any interned string as key.
-  // Returns the id of the new entry.
+  // Sets a metadata entry using any interned string as key. If an entry with
+  // the same name, machine_id, and trace_id already exists, it is updated
+  // (last value wins).
+  // Returns the id of the entry.
   MetadataId SetDynamicMetadata(std::optional<MachineId> machine_id,
                                 std::optional<TraceId> trace_id,
                                 StringId key,
                                 Variadic value);
+
+  // Appends a metadata entry using any interned string as key. Multiple
+  // entries with the same name, machine_id, and trace_id can coexist.
+  // Returns the id of the new entry.
+  MetadataId AppendDynamicMetadata(std::optional<MachineId> machine_id,
+                                   std::optional<TraceId> trace_id,
+                                   StringId key,
+                                   Variadic value);
 
   // Reads back a set metadata value.
   // Only kSingle types are supported right now.
@@ -98,6 +108,11 @@ class GlobalMetadataTracker {
     std::optional<TraceId> trace_id;
   };
 
+  MetadataId InsertRow(StringId name,
+                       metadata::KeyType key_type,
+                       std::optional<MachineId> machine_id,
+                       std::optional<TraceId> trace_id,
+                       Variadic value);
   void WriteValue(tables::MetadataTable::RowReference rr, Variadic value);
   ContextIds GetContextIds(metadata::KeyId key,
                            std::optional<MachineId> machine_id,

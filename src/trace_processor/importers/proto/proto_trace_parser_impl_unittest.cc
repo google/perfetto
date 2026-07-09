@@ -3086,5 +3086,24 @@ TEST_F(ProtoTraceParserTest, TraceAttributes) {
                "trace_attribute.int_key");
 }
 
+TEST_F(ProtoTraceParserTest, TraceAttributesLastValueWins) {
+  auto* container = trace_->add_packet()->set_trace_attributes();
+  auto* attribute = container->add_attribute();
+  attribute->set_key("key");
+  attribute->set_string_value("old_value");
+  container = trace_->add_packet()->set_trace_attributes();
+  attribute = container->add_attribute();
+  attribute->set_key("key");
+  attribute->set_long_value(42);
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+  const auto& metadata_table = context_.storage->metadata_table();
+  EXPECT_EQ(metadata_table.row_count(), 1u);
+  EXPECT_STREQ(context_.storage->GetString(metadata_table[0].name()).c_str(),
+               "trace_attribute.key");
+  EXPECT_FALSE(metadata_table[0].str_value().has_value());
+  EXPECT_EQ(metadata_table[0].int_value(), 42);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

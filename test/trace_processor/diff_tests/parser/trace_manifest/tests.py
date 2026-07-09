@@ -1950,6 +1950,151 @@ class TraceManifest(TestSuite):
             "perfetto_manifest: clocks: file 'multi.pb' is a multi-machine "
             "trace; name which machine the clock is on with clocks: machine."))
 
+  # --- attributes ---
+
+  # Top-level `attributes` entries become global-scoped
+  # `manifest_attribute.*` rows of the metadata table (a namespace distinct
+  # from the trace_attribute.* rows of TraceAttributes packets: they
+  # annotate the archive, not the recorded trace).
+  def test_attributes(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'attributes': {
+                        'benchmark': 'startup',
+                        'run_id': 42,
+                    },
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='''
+          SELECT
+            md.name,
+            md.str_value,
+            md.int_value,
+            f.name AS file,
+            m.name AS machine
+          FROM metadata md
+          LEFT JOIN __intrinsic_trace_file f ON md.trace_id = f.id
+          LEFT JOIN machine m ON md.machine_id = m.id
+          WHERE md.name GLOB 'manifest_attribute.*'
+          ORDER BY md.name;
+        ''',
+        out=Csv('''
+        "name","str_value","int_value","file","machine"
+        "manifest_attribute.benchmark","startup","[NULL]","[NULL]","[NULL]"
+        "manifest_attribute.run_id","[NULL]",42,"[NULL]","[NULL]"
+        '''))
+
+  # A files entry's `attributes` are scoped to that file: the metadata rows
+  # carry the file's trace_id and its declared machine (via `machine` or a
+  # one-entry `machines`), while top-level attributes stay global (NULL
+  # machine and trace).
+  def test_attributes_per_file(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'attributes': {
+                        'benchmark': 'startup',
+                    },
+                    'files': [
+                        {
+                            'path': 'phone.pb',
+                            'machine': {
+                                'name': 'phone'
+                            },
+                            'attributes': {
+                                'role': 'client',
+                                'iteration': 3,
+                            },
+                        },
+                        {
+                            'path': 'watch.pb',
+                            'machines': [{
+                                'id': 0,
+                                'name': 'watch'
+                            }],
+                            'attributes': {
+                                'role': 'server',
+                            },
+                        },
+                    ],
+                }),
+            'phone.pb':
+                _proto_boot_snap('phone_slice', 1, 111, 1000000000, 1100000000),
+            'watch.pb':
+                _proto_boot_snap('watch_slice', 2, 222, 1000000000, 1100000000),
+        }),
+        query='''
+          SELECT
+            md.name,
+            md.str_value,
+            md.int_value,
+            f.name AS file,
+            m.name AS machine
+          FROM metadata md
+          LEFT JOIN __intrinsic_trace_file f ON md.trace_id = f.id
+          LEFT JOIN machine m ON md.machine_id = m.id
+          WHERE md.name GLOB 'manifest_attribute.*'
+          ORDER BY md.name, file;
+        ''',
+        out=Csv('''
+        "name","str_value","int_value","file","machine"
+        "manifest_attribute.benchmark","startup","[NULL]","[NULL]","[NULL]"
+        "manifest_attribute.iteration","[NULL]",3,"phone.pb","phone"
+        "manifest_attribute.role","client","[NULL]","phone.pb","phone"
+        "manifest_attribute.role","server","[NULL]","watch.pb","watch"
+        '''))
+
+  # `attributes` on a files entry whose path matches no archive member is an
+  # error: the annotation would silently vanish otherwise.
+  def test_error_attributes_missing_file(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'ghost.pb',
+                        'attributes': {
+                            'role': 'client',
+                        },
+                    }],
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            "perfetto_manifest: attributes: could not resolve file "
+            "'ghost.pb'"))
+
+  # Attribute values must be strings or integers.
+  def test_error_attributes_bad_value(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'attributes': {
+                        'flags': ['a', 'b'],
+                    },
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            "perfetto_manifest: attributes: 'flags' must be a string or an "
+            'integer'))
+
   # The source `machine` must name a machine the file itself declares.
   def test_error_source_machine_unknown(self):
     return DiffTestBlueprint(

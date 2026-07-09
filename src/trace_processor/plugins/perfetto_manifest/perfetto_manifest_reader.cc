@@ -25,6 +25,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -150,6 +151,58 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
   return result;
 }
 
+// Parses an `attributes` block (top-level or on a files entry): arbitrary
+// key/value pairs annotating the archive.
+base::StatusOr<std::vector<TraceManifestState::Attribute>> ParseAttributes(
+    const json::Dom& attributes) {
+  if (!attributes.IsObject()) {
+    return base::ErrStatus(
+        "perfetto_manifest: attributes must be an object of string or "
+        R"(integer values, e.g. "attributes": {"benchmark": "startup"}.)");
+  }
+  std::vector<TraceManifestState::Attribute> result;
+  for (const std::string& key : attributes.GetMemberNames()) {
+    if (key.empty()) {
+      return base::ErrStatus(
+          "perfetto_manifest: attributes: keys must be non-empty");
+    }
+    const json::Dom& value = attributes[key];
+    if (value.IsString()) {
+      result.emplace_back(key, value.AsString());
+    } else if (value.IsIntegral()) {
+      result.emplace_back(key, value.AsInt64());
+    } else {
+      return base::ErrStatus(
+          "perfetto_manifest: attributes: '%s' must be a string or an "
+          "integer",
+          key.c_str());
+    }
+  }
+  return result;
+}
+
+// Writes parsed attributes as `manifest_attribute.<key>` rows of the
+// metadata table. Deliberately not `trace_attribute.*`: those are properties
+// recorded in a trace itself, while these annotate the archive after the
+// fact. Top-level attributes are global (null ids); a files entry's
+// attributes carry that file's trace and machine ids.
+void ApplyAttributes(TraceProcessorContext* context,
+                     const std::vector<TraceManifestState::Attribute>& attrs,
+                     std::optional<tables::MachineTable::Id> machine_id,
+                     std::optional<tables::TraceFileTable::Id> trace_id) {
+  for (const auto& [key, value] : attrs) {
+    StringId key_id = context->storage->InternString(
+        base::StringView("manifest_attribute." + key));
+    Variadic variadic =
+        std::holds_alternative<int64_t>(value)
+            ? Variadic::Integer(std::get<int64_t>(value))
+            : Variadic::String(context->storage->InternString(
+                  base::StringView(std::get<std::string>(value))));
+    context->global_metadata_tracker->SetDynamicMetadata(machine_id, trace_id,
+                                                         key_id, variadic);
+  }
+}
+
 base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
   if (!file.IsObject() || !file["path"].IsString()) {
     return base::ErrStatus(
@@ -158,6 +211,9 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
   }
   FileEntry entry;
   entry.path = file["path"].AsString();
+  if (file.HasMember("attributes")) {
+    ASSIGN_OR_RETURN(entry.attributes, ParseAttributes(file["attributes"]));
+  }
   if (file.HasMember("clocks")) {
     if (!file["clocks"].IsObject()) {
       return base::ErrStatus("perfetto_manifest: clocks must be an object");
@@ -312,6 +368,13 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
       state->files.push_back(std::move(entry));
     }
   }
+
+  if (meta.HasMember("attributes")) {
+    ASSIGN_OR_RETURN(std::vector<TraceManifestState::Attribute> attrs,
+                     ParseAttributes(meta["attributes"]));
+    ApplyAttributes(context_, attrs, /*machine_id=*/std::nullopt,
+                    /*trace_id=*/std::nullopt);
+  }
   return ApplyManifest();
 }
 
@@ -461,12 +524,14 @@ base::Status PerfettoManifestReader::ApplyManifest() {
     return *name_to_id.Find(*co.source_machine);
   };
 
-  // Resolves a declared file's trace_file_table id by path; a TraceFile-clock
-  // edge endpoint needs it. All archive members are added to the table before
-  // any is parsed, so the ids exist by the time this (the first file's) reader
-  // runs.
+  // Resolves a declared file's trace_file_table id by path; TraceFile-clock
+  // edge endpoints and per-file attributes need it. |block| names the
+  // manifest block in error messages. All archive members are added to the
+  // table before any is parsed, so the ids exist by the time this (the first
+  // file's) reader runs.
   auto find_trace_file_id =
-      [&](const std::string& path) -> base::StatusOr<uint32_t> {
+      [&](const char* block,
+          const std::string& path) -> base::StatusOr<uint32_t> {
     StringId name = context_->storage->InternString(base::StringView(path));
     for (auto it = context_->storage->trace_file_table().IterateRows(); it;
          ++it) {
@@ -475,10 +540,34 @@ base::Status PerfettoManifestReader::ApplyManifest() {
       }
     }
     return base::ErrStatus(
-        "perfetto_manifest: clocks: could not resolve file '%s'. It must match "
+        "perfetto_manifest: %s: could not resolve file '%s'. It must match "
         "the `path` of an entry in the `files` array.",
-        path.c_str());
+        block, path.c_str());
   };
+
+  // Attribute rows get the file's trace_id, and its machine only when the file
+  // declares exactly one (via `machine` or a one-entry `machines`); a
+  // multi-machine file has none to pick.
+  for (const FileEntry& entry : state->files) {
+    if (entry.attributes.empty()) {
+      continue;
+    }
+    ASSIGN_OR_RETURN(uint32_t tid,
+                     find_trace_file_id("attributes", entry.path));
+    std::optional<int64_t> raw_machine;
+    if (entry.machine_mappings.empty()) {
+      raw_machine = entry.machine_id;
+    } else if (entry.machine_mappings.size() == 1) {
+      raw_machine = *entry.machine_remap.Find(entry.machine_mappings[0].first);
+    }
+    std::optional<tables::MachineTable::Id> machine_id;
+    if (raw_machine) {
+      machine_id =
+          tables::MachineTable::Id(EnsureMachineRow(context_, *raw_machine));
+    }
+    ApplyAttributes(context_, entry.attributes, machine_id,
+                    tables::TraceFileTable::Id(tid));
+  }
 
   // Add every override's cross-machine edge to the global clock graph now,
   // before any file is parsed (a file may reference another parsed later),
@@ -505,7 +594,7 @@ base::Status PerfettoManifestReader::ApplyManifest() {
     if (co.source_clock) {
       source = ClockId::Machine(source_row, *co.source_clock);
     } else {
-      ASSIGN_OR_RETURN(uint32_t tid, find_trace_file_id(entry.path));
+      ASSIGN_OR_RETURN(uint32_t tid, find_trace_file_id("clocks", entry.path));
       source = ClockId::TraceFile(tid);
       source.machine_id = source_row;
     }
@@ -513,7 +602,8 @@ base::Status PerfettoManifestReader::ApplyManifest() {
     if (co.ref_clock) {
       ref = ClockId::Machine(ref_row, *co.ref_clock);
     } else {
-      ASSIGN_OR_RETURN(uint32_t tid, find_trace_file_id(*co.ref_file));
+      ASSIGN_OR_RETURN(uint32_t tid,
+                       find_trace_file_id("clocks", *co.ref_file));
       ref = ClockId::TraceFile(tid);
       ref.machine_id = ref_row;
     }

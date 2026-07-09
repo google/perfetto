@@ -86,16 +86,10 @@ MetadataId GlobalMetadataTracker::SetMetadata(
     }
   }
 
-  tables::MetadataTable::Row row;
-  row.name = name_id;
-  row.key_type = key_type_ids_[static_cast<size_t>(metadata::KeyType::kSingle)];
-  row.machine_id = ctx_ids.machine_id;
-  row.trace_id = ctx_ids.trace_id;
-
-  auto id_and_row = metadata_table.Insert(row);
-  WriteValue(metadata_table[id_and_row.row], value);
-  id_by_entry_.Insert(entry, id_and_row.id);
-  return id_and_row.id;
+  MetadataId id = InsertRow(name_id, metadata::KeyType::kSingle,
+                            ctx_ids.machine_id, ctx_ids.trace_id, value);
+  id_by_entry_.Insert(entry, id);
+  return id;
 }
 
 std::optional<SqlValue> GlobalMetadataTracker::GetMetadata(
@@ -142,17 +136,9 @@ MetadataId GlobalMetadataTracker::AppendMetadata(
   PERFETTO_CHECK(value.type == metadata::kValueTypes[key]);
 
   auto ctx_ids = GetContextIds(key, machine_id, trace_id);
-  auto& metadata_table = *storage_->mutable_metadata_table();
-
-  tables::MetadataTable::Row row;
-  row.name = key_ids_[static_cast<size_t>(key)];
-  row.key_type = key_type_ids_[static_cast<size_t>(metadata::KeyType::kMulti)];
-  row.machine_id = ctx_ids.machine_id;
-  row.trace_id = ctx_ids.trace_id;
-
-  auto id_and_row = metadata_table.Insert(row);
-  WriteValue(metadata_table[id_and_row.row], value);
-  return id_and_row.id;
+  return InsertRow(key_ids_[static_cast<size_t>(key)],
+                   metadata::KeyType::kMulti, ctx_ids.machine_id,
+                   ctx_ids.trace_id, value);
 }
 
 MetadataId GlobalMetadataTracker::SetDynamicMetadata(
@@ -160,10 +146,36 @@ MetadataId GlobalMetadataTracker::SetDynamicMetadata(
     std::optional<TraceId> trace_id,
     StringId key,
     Variadic value) {
+  MetadataEntry entry{key, machine_id, trace_id};
+  if (auto* id_ptr = id_by_entry_.Find(entry)) {
+    WriteValue((*storage_->mutable_metadata_table())[*id_ptr], value);
+    return *id_ptr;
+  }
+
+  MetadataId id =
+      InsertRow(key, metadata::KeyType::kSingle, machine_id, trace_id, value);
+  id_by_entry_.Insert(entry, id);
+  return id;
+}
+
+MetadataId GlobalMetadataTracker::AppendDynamicMetadata(
+    std::optional<MachineId> machine_id,
+    std::optional<TraceId> trace_id,
+    StringId key,
+    Variadic value) {
+  return InsertRow(key, metadata::KeyType::kSingle, machine_id, trace_id,
+                   value);
+}
+
+MetadataId GlobalMetadataTracker::InsertRow(StringId name,
+                                            metadata::KeyType key_type,
+                                            std::optional<MachineId> machine_id,
+                                            std::optional<TraceId> trace_id,
+                                            Variadic value) {
   auto& metadata_table = *storage_->mutable_metadata_table();
   tables::MetadataTable::Row row;
-  row.name = key;
-  row.key_type = key_type_ids_[static_cast<size_t>(metadata::KeyType::kSingle)];
+  row.name = name;
+  row.key_type = key_type_ids_[static_cast<size_t>(key_type)];
   row.machine_id = machine_id;
   row.trace_id = trace_id;
 
@@ -174,15 +186,20 @@ MetadataId GlobalMetadataTracker::SetDynamicMetadata(
 
 void GlobalMetadataTracker::WriteValue(tables::MetadataTable::RowReference rr,
                                        Variadic value) {
+  // A dynamic key can be overwritten with a value of a different type; clear
+  // the other value column.
   switch (value.type) {
     case Variadic::Type::kInt:
       rr.set_int_value(value.int_value);
+      rr.set_str_value(std::nullopt);
       break;
     case Variadic::Type::kString:
       rr.set_str_value(value.string_value);
+      rr.set_int_value(std::nullopt);
       break;
     case Variadic::Type::kJson:
       rr.set_str_value(value.json_value);
+      rr.set_int_value(std::nullopt);
       break;
     case Variadic::Type::kBool:
     case Variadic::Type::kPointer:
