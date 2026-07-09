@@ -17,11 +17,13 @@ import {
   BreakdownTrackAggType,
   BreakdownTracks,
 } from '../../components/tracks/breakdown_tracks';
+import {SliceTrack} from '../../components/tracks/slice_track';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {NUM, STR} from '../../trace_processor/query_result';
-import {PROCESS_STATE_SQL} from './sql';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {PERCEPTIBLE_STATE_SQL, PROCESS_STATE_SQL} from './sql';
 
 /**
  * Visualizes framework process-state transitions (the `process_state_changed`
@@ -70,6 +72,7 @@ export default class implements PerfettoPlugin {
     if (stateRows.length === 0) return;
 
     const group = new TrackNode({name: 'Process States', isSummary: true});
+    group.uri = await this.createPerceptibleStateTrack(ctx);
 
     await Promise.all(
       stateRows.map(async ({state, rank, displayName}) => {
@@ -110,5 +113,40 @@ export default class implements PerfettoPlugin {
     );
 
     ctx.defaultWorkspace.addChildInOrder(group);
+  }
+
+  // The group's own track: at every instant, the most perceptible (best
+  // ranked) state any tracked process is in, rendered as slices named after
+  // the state. This is what shows when the group is collapsed, replacing the
+  // "root counter" a plain BreakdownTracks tree would put there.
+  private async createPerceptibleStateTrack(ctx: Trace): Promise<string> {
+    await ctx.engine.query(PERCEPTIBLE_STATE_SQL);
+
+    const uri = `/process_state_breakdowns_perceptible`;
+    ctx.tracks.registerTrack({
+      uri,
+      description:
+        'The most perceptible process state any tracked process is in, ' +
+        'at every point in time.',
+      renderer: SliceTrack.create({
+        trace: ctx,
+        uri,
+        dataset: new SourceDataset({
+          schema: {
+            id: NUM,
+            ts: LONG,
+            dur: LONG,
+            name: STR,
+          },
+          src: `
+            SELECT s.id, s.ts, s.dur,
+                   IFNULL(r.display_name, 'UNKNOWN') AS name
+            FROM _psb_perceptible_slices s
+            LEFT JOIN _psb_state_rank r USING (rank)
+          `,
+        }),
+      }),
+    });
+    return uri;
   }
 }

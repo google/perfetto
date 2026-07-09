@@ -261,3 +261,49 @@ SELECT
 FROM calculated_durations
 WHERE dur > 0;
 `;
+
+// The "most perceptible state" timeline: at every instant, the best (lowest)
+// perceptibility rank across ALL tracked processes, as one slice per run.
+// _interval_self_intersect_agg computes MIN(rank) over each atomic overlap
+// segment in C++ (one pre-aggregated row per segment); the islands pass then
+// merges contiguous same-rank segments — the C++ merge alone can't fuse them
+// because the process count changing splits segments even when the min
+// doesn't. Time with no tracked process alive produces no slice (cnt = 0
+// rows are dropped), so gaps stay visibly empty.
+export const PERCEPTIBLE_STATE_SQL = `
+INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+CREATE OR REPLACE PERFETTO TABLE _psb_perceptible_slices AS
+WITH ranked AS (
+  SELECT i.ts, i.dur, IFNULL(r.rank, 500) AS v
+  FROM _psb_process_state_intervals i
+  LEFT JOIN _psb_state_rank r USING (state)
+),
+covered AS (
+  SELECT ts, dur, CAST(min_value AS INT64) AS rank
+  FROM _interval_self_intersect_agg!(ranked, v, ())
+  WHERE cnt > 0
+),
+marked AS (
+  SELECT
+    ts, dur, rank,
+    IIF(
+      LAG(rank) OVER (ORDER BY ts) = rank
+        AND LAG(ts + dur) OVER (ORDER BY ts) = ts,
+      0,
+      1
+    ) AS is_break
+  FROM covered
+),
+runs AS (
+  SELECT ts, dur, rank, SUM(is_break) OVER (ORDER BY ts) AS run_id
+  FROM marked
+)
+SELECT
+  run_id AS id,
+  MIN(ts) AS ts,
+  MAX(ts + dur) - MIN(ts) AS dur,
+  MIN(rank) AS rank
+FROM runs
+GROUP BY run_id;
+`;
