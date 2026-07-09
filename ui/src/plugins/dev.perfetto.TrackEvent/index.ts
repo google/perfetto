@@ -285,6 +285,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
               trackIds.length > 1
                 ? '__trackevent_track_layout_depth'
                 : undefined,
+            sliceLayout: trackIds.length > 1 ? {collapsed: true} : undefined,
           }),
         });
       } else {
