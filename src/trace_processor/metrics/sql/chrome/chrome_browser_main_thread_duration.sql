@@ -23,14 +23,17 @@ SELECT MAX(len) AS duration_ms
 FROM (
   SELECT (MAX(ts) - MIN(ts)) / 1000 / 1000 AS len
   FROM slice s
-  LEFT JOIN thread_track tt ON s.track_id = tt.id
-  LEFT JOIN chrome_thread t ON t.utid = tt.utid
-  LEFT JOIN chrome_process p ON t.upid = p.upid
-  LEFT JOIN track tr ON tt.id = tr.id
-  LEFT JOIN args a ON tr.source_arg_set_id = a.arg_set_id
-  WHERE (t.canonical_name = "CrProcessMain" OR t.canonical_name = "CrBrowserMain")
-    AND p.process_type = "Browser"
-    AND a.key = "is_root_in_scope"
-    AND a.int_value = 1
+  WHERE s.track_id IN (
+    SELECT tt.id
+    FROM thread_track tt
+    JOIN chrome_thread t ON t.utid = tt.utid
+    JOIN chrome_process p ON t.upid = p.upid
+    JOIN track tr ON tt.id = tr.id
+    JOIN args a ON tr.source_arg_set_id = a.arg_set_id
+    WHERE (t.canonical_name = "CrProcessMain" OR t.canonical_name = "CrBrowserMain")
+      AND p.process_type = "Browser"
+      AND a.key = "is_root_in_scope"
+      AND a.int_value = 1
+  )
   GROUP BY s.track_id
 );
