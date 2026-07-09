@@ -71,7 +71,10 @@ export default class implements PerfettoPlugin {
     // Trace has no process state events: don't add an empty group.
     if (stateRows.length === 0) return;
 
-    const group = new TrackNode({name: 'Process States', isSummary: true});
+    // Deliberately NOT isSummary: a summary node's track content is omitted
+    // while the group is expanded, but the perceptible-state timeline is the
+    // headline content of this group and should stay visible in both states.
+    const group = new TrackNode({name: 'Process States'});
     group.uri = await this.createPerceptibleStateTrack(ctx);
 
     await Promise.all(

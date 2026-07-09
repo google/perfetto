@@ -34,12 +34,12 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/partitioned_intervals.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -96,9 +96,9 @@ void RunSelfIntersect(dataframe::AdhocDataframeBuilder& builder,
   uint32_t max_id = 0;
   for (auto p_it = table.partitions_map.GetIterator(); p_it; ++p_it) {
     for (const auto& iv : p_it.value().intervals) {
-      events.push_back(
-          Event{static_cast<int64_t>(iv.start), static_cast<uint32_t>(iv.id),
-                static_cast<int8_t>(1)});
+      events.push_back(Event{static_cast<int64_t>(iv.start),
+                             static_cast<uint32_t>(iv.id),
+                             static_cast<int8_t>(1)});
       events.push_back(Event{static_cast<int64_t>(iv.end),
                              static_cast<uint32_t>(iv.id),
                              static_cast<int8_t>(-1)});
@@ -185,8 +185,7 @@ void RunSelfIntersect(dataframe::AdhocDataframeBuilder& builder,
   emit_segment(prev_ts, prev_ts);
 }
 
-struct IntervalSelfIntersect
-    : public sqlite::Function<IntervalSelfIntersect> {
+struct IntervalSelfIntersect : public sqlite::Function<IntervalSelfIntersect> {
   static constexpr char kName[] = "__intrinsic_interval_self_intersect";
   static constexpr int kArgCount = 1;
 
@@ -253,7 +252,7 @@ struct IsiIntervals {
   struct Interval {
     int64_t start;
     int64_t end;
-    double value;     // Meaningless when !has_value.
+    double value;  // Meaningless when !has_value.
     bool has_value;
   };
 
@@ -399,8 +398,7 @@ struct IsiIntervalsAgg : public sqlite::AggregateFunction<IsiIntervalsAgg> {
       return sqlite::result::Null(ctx);
     }
     return sqlite::result::UniquePointer(
-        ctx,
-        std::make_unique<IsiIntervals>(std::move(raw.get()->intervals)),
+        ctx, std::make_unique<IsiIntervals>(std::move(raw.get()->intervals)),
         IsiIntervals::kName);
   }
 };
@@ -580,13 +578,11 @@ struct IntervalSelfIntersectAgg
       return sqlite::result::Error(
           ctx, "interval_self_intersect_agg: column list cannot be null");
     }
-    std::vector<std::string> ret_col_names{"ts",  "dur",       "group_id",
-                                           "cnt", "sum_value", "min_value",
-                                           "max_value"};
-    std::vector<ColType> col_types{ColType::kInt64,  ColType::kInt64,
-                                   ColType::kInt64,  ColType::kInt64,
-                                   ColType::kDouble, ColType::kDouble,
-                                   ColType::kDouble};
+    std::vector<std::string> ret_col_names{
+        "ts", "dur", "group_id", "cnt", "sum_value", "min_value", "max_value"};
+    std::vector<ColType> col_types{
+        ColType::kInt64,  ColType::kInt64,  ColType::kInt64, ColType::kInt64,
+        ColType::kDouble, ColType::kDouble, ColType::kDouble};
     uint32_t num_partition_cols = 0;
     for (const auto& c :
          base::SplitString(base::StripChars(partition_list, "()", ' '), ",")) {
@@ -673,9 +669,9 @@ struct IntervalSelfIntersectAgg
                                        rows);
               break;
             case SqlValue::kString:
-              ok = builder.PushNonNull(kOutPartitionOffset + i,
-                                       pool->InternString(v.string_value),
-                                       rows);
+              ok =
+                  builder.PushNonNull(kOutPartitionOffset + i,
+                                      pool->InternString(v.string_value), rows);
               break;
             case SqlValue::kNull:
               builder.PushNull(kOutPartitionOffset + i, rows);
@@ -698,8 +694,7 @@ struct IntervalSelfIntersectAgg
   }
 };
 
-class IntervalSelfIntersectPlugin
-    : public Plugin<IntervalSelfIntersectPlugin> {
+class IntervalSelfIntersectPlugin : public Plugin<IntervalSelfIntersectPlugin> {
  public:
   ~IntervalSelfIntersectPlugin() override;
 

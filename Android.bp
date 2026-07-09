@@ -3096,6 +3096,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
         ":perfetto_src_trace_processor_plugins_interval_intersect_interval_intersect",
+        ":perfetto_src_trace_processor_plugins_interval_self_intersect_interval_self_intersect",
         ":perfetto_src_trace_processor_plugins_layout_functions_layout_functions",
         ":perfetto_src_trace_processor_plugins_math_functions_math_functions",
         ":perfetto_src_trace_processor_plugins_metadata_metadata",
@@ -18559,6 +18560,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/stdlib/intervals/intersect.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/mipmap.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/overlap.sql",
+        "src/trace_processor/perfetto_sql/stdlib/intervals/self_intersect.sql",
     ],
 }
 
@@ -19548,6 +19550,14 @@ filegroup {
     name: "perfetto_src_trace_processor_plugins_interval_intersect_interval_intersect",
     srcs: [
         "src/trace_processor/plugins/interval_intersect/interval_intersect.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/interval_self_intersect:interval_self_intersect
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_interval_self_intersect_interval_self_intersect",
+    srcs: [
+        "src/trace_processor/plugins/interval_self_intersect/interval_self_intersect.cc",
     ],
 }
 
@@ -20595,6 +20605,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
         ":perfetto_src_trace_processor_plugins_interval_intersect_interval_intersect",
+        ":perfetto_src_trace_processor_plugins_interval_self_intersect_interval_self_intersect",
         ":perfetto_src_trace_processor_plugins_layout_functions_layout_functions",
         ":perfetto_src_trace_processor_plugins_math_functions_math_functions",
         ":perfetto_src_trace_processor_plugins_metadata_metadata",
@@ -23483,6 +23494,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
         ":perfetto_src_trace_processor_plugins_interval_intersect_interval_intersect",
+        ":perfetto_src_trace_processor_plugins_interval_self_intersect_interval_self_intersect",
         ":perfetto_src_trace_processor_plugins_layout_functions_layout_functions",
         ":perfetto_src_trace_processor_plugins_math_functions_math_functions",
         ":perfetto_src_trace_processor_plugins_metadata_metadata",
@@ -24581,6 +24593,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
         ":perfetto_src_trace_processor_plugins_interval_intersect_interval_intersect",
+        ":perfetto_src_trace_processor_plugins_interval_self_intersect_interval_self_intersect",
         ":perfetto_src_trace_processor_plugins_layout_functions_layout_functions",
         ":perfetto_src_trace_processor_plugins_math_functions_math_functions",
         ":perfetto_src_trace_processor_plugins_metadata_metadata",
@@ -25260,6 +25273,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
         ":perfetto_src_trace_processor_plugins_interval_intersect_interval_intersect",
+        ":perfetto_src_trace_processor_plugins_interval_self_intersect_interval_self_intersect",
         ":perfetto_src_trace_processor_plugins_layout_functions_layout_functions",
         ":perfetto_src_trace_processor_plugins_math_functions_math_functions",
         ":perfetto_src_trace_processor_plugins_metadata_metadata",

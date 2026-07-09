@@ -34,11 +34,9 @@
 --   group_id INT64          1-indexed stable per-segment id
 --   id INT64                original interval id
 --   interval_ends_at_ts INT64    0 = active in segment, 1 = end marker
-CREATE PERFETTO MACRO _interval_self_intersect(
-  intervals TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
+CREATE PERFETTO MACRO _interval_self_intersect(intervals TableOrSubquery)
+RETURNS TableOrSubquery
+AS (
   SELECT
     c0 AS ts,
     c1 AS dur,
@@ -65,13 +63,16 @@ RETURNS TableOrSubquery AS
 
 -- Helper macros for the aggregated variant below.
 CREATE PERFETTO MACRO _isi_agg_pair(x ColumnName, y ColumnName)
-RETURNS _ProjectionFragment AS __intrinsic_stringify!($x), input.$y;
+RETURNS _ProjectionFragment
+AS __intrinsic_stringify!($x), input.$y;
 
 CREATE PERFETTO MACRO _isi_select(x ColumnName, y Expr)
-RETURNS _ProjectionFragment AS $x AS $y;
+RETURNS _ProjectionFragment
+AS $x AS $y;
 
 CREATE PERFETTO MACRO _isi_bind(x Expr, y Expr)
-RETURNS Expr AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
+RETURNS Expr
+AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
 
 -- Partitioned self-intersect with aggregation done during the sweep.
 --
@@ -103,8 +104,8 @@ CREATE PERFETTO MACRO _interval_self_intersect_agg(
   value_col ColumnName,
   partition_cols ColumnNameList
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     c0 AS ts,
     c1 AS dur,
@@ -155,8 +156,8 @@ CREATE PERFETTO MACRO _interval_self_intersect_count(
   intervals TableOrSubquery,
   partition_cols ColumnNameList
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     c0 AS ts,
     c1 AS dur,
