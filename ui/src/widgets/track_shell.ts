@@ -146,6 +146,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       '.pf-track',
       {
         id,
+        className: attrs.className,
         style: {
           '--height': trackHeight,
           '--depth': clamp(depth, 0, 16),

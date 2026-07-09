@@ -217,4 +217,10 @@
     flex-direction: column;
     row-gap: 6px;
   }
+
+  &--collapsed-slices {
+    .pf-track__canvas {
+      cursor: row-resize;
+    }
+  }
 }

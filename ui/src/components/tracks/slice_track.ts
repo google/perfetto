@@ -1421,6 +1421,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     };
   }
 
+  get collapsed(): boolean | undefined {
+    return this.rowCount > 1 ? this.sliceLayout.collapsed : undefined;
+  }
+
   getTrackShellButtons(): m.Children {
     const collapseButton =
       this.rowCount > 1
