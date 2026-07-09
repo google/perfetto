@@ -98,7 +98,9 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
     Binary* binary = data_.GetBinary(frame->binary);
 
     uint64_t pc = static_cast<uint64_t>(frame->addr);
-    if (frame->binary) {
+    // GetBinary returns null for a null or out-of-range binary id, so gate the
+    // load_addr adjustment on the resolved pointer rather than the raw id.
+    if (binary) {
       pc -= static_cast<uint64_t>(binary->load_addr);
     }
 
