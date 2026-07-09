@@ -107,3 +107,214 @@ class IntervalsSelfIntersect(TestSuite):
         out=Csv("""
         "ts","dur","group_id","id","interval_ends_at_ts"
         """))
+
+  # --- _interval_self_intersect_count / _interval_self_intersect_agg ---
+  # group_id is hash-map iteration order across partitions (stable only
+  # within a partition), so tests exclude it except where a single
+  # partition makes it deterministic.
+
+  def test_self_intersect_count_partitioned(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+        WITH
+          data(ts, dur, k0) AS (
+            VALUES
+              (0, 100, 'A'),
+              (10, 50, 'A'),
+              (20, 100, 'B'),
+              (30, 20, 'B')
+          )
+        SELECT ts, dur, cnt, k0
+        FROM _interval_self_intersect_count!(data, (k0))
+        ORDER BY k0 ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","cnt","k0"
+        0,10,1,"A"
+        10,50,2,"A"
+        60,40,1,"A"
+        100,0,0,"A"
+        20,10,1,"B"
+        30,20,2,"B"
+        50,70,1,"B"
+        120,0,0,"B"
+        """))
+
+  def test_self_intersect_count_gap_drops_to_zero(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+        WITH
+          data(ts, dur, k0) AS (
+            VALUES
+              (0, 10, 'X'),
+              (20, 10, 'X')
+          )
+        SELECT ts, dur, group_id, cnt, k0
+        FROM _interval_self_intersect_count!(data, (k0))
+        ORDER BY ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","group_id","cnt","k0"
+        0,10,1,1,"X"
+        10,10,2,0,"X"
+        20,10,3,1,"X"
+        30,0,4,0,"X"
+        """))
+
+  def test_self_intersect_agg_values(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+        WITH
+          data(ts, dur, v, k0) AS (
+            VALUES
+              (0, 10, 10, 'P'),
+              (5, 10, NULL, 'P'),
+              (8, 4, 2, 'P')
+          )
+        SELECT
+          ts, dur, cnt,
+          CAST(sum_value AS INT64) AS sum_v,
+          CAST(min_value AS INT64) AS min_v,
+          CAST(max_value AS INT64) AS max_v,
+          k0
+        FROM _interval_self_intersect_agg!(data, v, (k0))
+        ORDER BY ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","cnt","sum_v","min_v","max_v","k0"
+        0,5,1,10,10,10,"P"
+        5,3,2,10,10,10,"P"
+        8,2,3,12,2,10,"P"
+        10,2,2,2,2,2,"P"
+        12,3,1,0,"[NULL]","[NULL]","P"
+        15,0,0,0,"[NULL]","[NULL]","P"
+        """))
+
+  def test_self_intersect_count_null_partition_key(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+        WITH
+          data(ts, dur, k0) AS (
+            VALUES
+              (0, 10, NULL),
+              (5, 10, NULL),
+              (2, 6, 'X')
+          )
+        SELECT ts, dur, cnt, k0
+        FROM _interval_self_intersect_count!(data, (k0))
+        ORDER BY k0 ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","cnt","k0"
+        0,5,1,"[NULL]"
+        5,5,2,"[NULL]"
+        10,5,1,"[NULL]"
+        15,0,0,"[NULL]"
+        2,6,1,"X"
+        8,0,0,"X"
+        """))
+
+  def test_self_intersect_count_multi_key(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+        WITH
+          data(ts, dur, p, q) AS (
+            VALUES
+              (0, 10, 'A', 1),
+              (5, 10, 'A', 1),
+              (5, 10, 'B', 1),
+              (10, 5, 'B', 2)
+          )
+        SELECT ts, dur, cnt, p, q
+        FROM _interval_self_intersect_count!(data, (p, q))
+        ORDER BY p ASC, q ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","cnt","p","q"
+        0,5,1,"A",1
+        5,5,2,"A",1
+        10,5,1,"A",1
+        15,0,0,"A",1
+        5,10,1,"B",1
+        15,0,0,"B",1
+        10,5,1,"B",2
+        15,0,0,"B",2
+        """))
+
+  def test_self_intersect_count_zero_dur_intervals(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+        WITH
+          data(ts, dur, k0) AS (
+            VALUES
+              (0, 10, 'Y'),
+              (5, 0, 'Y'),
+              (7, 0, 'Z')
+          )
+        SELECT ts, dur, cnt, k0
+        FROM _interval_self_intersect_count!(data, (k0))
+        ORDER BY k0 ASC, ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","cnt","k0"
+        0,5,1,"Y"
+        5,5,1,"Y"
+        10,0,0,"Y"
+        7,0,0,"Z"
+        """))
+
+  def test_self_intersect_count_global(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+        WITH
+          data(ts, dur) AS (
+            VALUES
+              (0, 10),
+              (5, 10)
+          )
+        SELECT ts, dur, group_id, cnt
+        FROM _interval_self_intersect_count!(data, ())
+        ORDER BY ts ASC;
+        """,
+        out=Csv("""
+        "ts","dur","group_id","cnt"
+        0,5,1,1
+        5,5,2,2
+        10,5,3,1
+        15,0,4,0
+        """))
+
+  def test_self_intersect_count_empty_input(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.self_intersect;
+
+        SELECT ts, dur, cnt, k0
+        FROM _interval_self_intersect_count!(
+          (SELECT 0 AS ts, 0 AS dur, '' AS k0 WHERE FALSE), (k0));
+        """,
+        out=Csv("""
+        "ts","dur","cnt","k0"
+        """))
