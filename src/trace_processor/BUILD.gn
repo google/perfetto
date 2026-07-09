@@ -478,9 +478,11 @@ if (enable_perfetto_integration_tests) {
         "../../include/perfetto/protozero",
         "../../protos/perfetto/common:zero",
         "../../protos/perfetto/trace:zero",
+        "../../protos/perfetto/trace/track_event:zero",
         "../../protos/perfetto/trace_processor:zero",
         "../base",
         "../base:test_support",
+        "../protozero",
         "sqlite",
         "trace_summary:integrationtests",
       ]

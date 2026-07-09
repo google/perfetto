@@ -209,6 +209,24 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
   if (context_->register_additional_proto_modules) {
     context_->register_additional_proto_modules(&module_context_, context_);
   }
+  // This needs to happen after the TrackEvent descriptors have been registered,
+  // which happens in one of the modules. (See
+  // https://github.com/google/perfetto/issues/6260)
+  for (const std::string& raw_bytes :
+       context_->config.extra_parsing_descriptors) {
+    auto status = context_->descriptor_pool_->AddFromFileDescriptorSet(
+        reinterpret_cast<const uint8_t*>(raw_bytes.data()), raw_bytes.size(),
+        {}, true);
+    if (!status.ok()) {
+      context_->import_logs_tracker->RecordAnalysisError(
+          stats::extra_parsing_descriptors_error,
+          [&](ArgsTracker::BoundInserter& ins) {
+            ins.AddArg(context_->storage->InternString("message"),
+                       Variadic::String(
+                           context_->storage->InternString(status.message())));
+          });
+    }
+  }
 }
 
 ProtoTraceReader::~ProtoTraceReader() = default;
