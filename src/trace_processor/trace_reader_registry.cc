@@ -17,94 +17,23 @@
 #include "src/trace_processor/trace_reader_registry.h"
 
 #include <memory>
-#include <utility>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/gzip_decompressor.h"
 #include "src/trace_processor/util/trace_type.h"
-#include "src/trace_processor/util/zstd_decompressor.h"
 
 namespace perfetto::trace_processor {
-namespace {
-const char kNoZlibErr[] =
-    "Cannot open compressed trace. zlib not enabled in the build config";
-const char kNoZstdErr[] =
-    "Cannot open compressed trace. zstd not enabled in the build config";
-
-bool RequiresZlibSupport(TraceType type) {
-  switch (type) {
-    case kGzipTraceType:
-    case kAndroidBugreportTraceType:
-    case kCtraceTraceType:
-    case kZipFile:
-      return true;
-
-    case kZstdTraceType:
-    case kCollapsedStackTraceType:
-    case kNinjaLogTraceType:
-    case kSystraceTraceType:
-    case kPerfDataTraceType:
-    case kPprofTraceType:
-    case kInstrumentsXmlTraceType:
-    case kUnknownTraceType:
-    case kJsonTraceType:
-    case kFuchsiaTraceType:
-    case kProtoTraceType:
-    case kSymbolsTraceType:
-    case kAndroidLogcatTraceType:
-    case kAndroidDumpstateTraceType:
-    case kGeckoTraceType:
-    case kArtMethodTraceType:
-    case kArtMethodV2TraceType:
-    case kArtHprofTraceType:
-    case kPerfTextTraceType:
-    case kSimpleperfProtoTraceType:
-    case kTarTraceType:
-    case kPrimesTraceType:
-    case kPerfettoManifestTraceType:
-      return false;
-  }
-  PERFETTO_FATAL("For GCC");
-}
-}  // namespace
-
-void TraceReaderRegistry::RegisterPluginTraceReader(
-    TraceType trace_type,
-    std::function<std::unique_ptr<ChunkedTraceReader>()> factory) {
-  RegisterFactory(trace_type,
-                  [f = std::move(factory)](TraceProcessorContext*, uint32_t) {
-                    return f();
-                  });
-}
-
-void TraceReaderRegistry::RegisterFactory(TraceType trace_type,
-                                          Factory factory) {
-  PERFETTO_CHECK(factories_.Insert(trace_type, std::move(factory)).second);
-}
 
 base::StatusOr<std::unique_ptr<ChunkedTraceReader>>
-TraceReaderRegistry::CreateTraceReader(TraceType type,
+TraceReaderRegistry::CreateTraceReader(TraceImporterId id,
                                        TraceProcessorContext* context,
                                        uint32_t file_id) {
-  if (auto* it = factories_.Find(type); it) {
-    return (*it)(context, file_id);
+  const TraceImporterBase* importer = importers_.FindImporter(id);
+  if (!importer) {
+    return base::ErrStatus("No reader registered for the detected trace type");
   }
-
-  if (RequiresZlibSupport(type) && !util::IsGzipSupported()) {
-    return base::ErrStatus("%s support is disabled. %s",
-                           TraceTypeToString(type), kNoZlibErr);
-  }
-
-  if (type == TraceType::kZstdTraceType && !util::IsZstdSupported()) {
-    return base::ErrStatus("%s support is disabled. %s",
-                           TraceTypeToString(type), kNoZstdErr);
-  }
-
-  return base::ErrStatus("%s support is disabled", TraceTypeToString(type));
+  return importer->CreateReader(context, file_id);
 }
 
 }  // namespace perfetto::trace_processor

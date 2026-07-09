@@ -331,6 +331,13 @@ class TraceStorage {
     return mutable_table<tables::StatsTable>();
   }
 
+  const tables::TraceDiagnosticsTable& trace_diagnostics_table() const {
+    return table<tables::TraceDiagnosticsTable>();
+  }
+  tables::TraceDiagnosticsTable* mutable_trace_diagnostics_table() {
+    return mutable_table<tables::TraceDiagnosticsTable>();
+  }
+
   const tables::AndroidAflagsTable& android_aflags_table() const {
     return table<tables::AndroidAflagsTable>();
   }

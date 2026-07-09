@@ -36,6 +36,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/archive/archive_entry.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_type.h"
@@ -347,10 +348,57 @@ void TarTraceReader::AddFile(const Metadata& metadata,
                              std::vector<TraceBlobView> data) {
   auto file_id = context_->trace_file_tracker->AddFile(metadata.name);
   context_->trace_file_tracker->SetSize(file_id, metadata.size);
+  const auto& importers = *context_->trace_importer_registry;
+  TraceImporterId type = importers.Guess(header.data(), header.size());
   ordered_files_.emplace(
-      ArchiveEntry{metadata.name, ordered_files_.size(),
-                   GuessTraceType(header.data(), header.size())},
+      ArchiveEntry{metadata.name, ordered_files_.size(), type,
+                   ArchiveEntry::ComputePriority(type, importers)},
       File{file_id, std::move(data)});
+}
+
+namespace {
+
+// POSIX/GNU tar archive.
+class TarImporter : public TraceImporter<TarImporter> {
+ public:
+  TarImporter() : TraceImporter(MakeDescriptor()) {}
+  ~TarImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr size_t kOffset = 257;
+    static constexpr char kPosix[] = {'u', 's', 't', 'a', 'r', '\0'};
+    static constexpr char kGnu[] = {'u', 's', 't', 'a', 'r', ' ', ' ', '\0'};
+    return (size >= sizeof(kPosix) + kOffset &&
+            memcmp(data + kOffset, kPosix, sizeof(kPosix)) == 0) ||
+           (size >= sizeof(kGnu) + kOffset &&
+            memcmp(data + kOffset, kGnu, sizeof(kGnu)) == 0);
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<TarTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "tar";
+    d.is_container = true;
+    d.archive_priority = 1;
+    d.forks_context = false;
+    d.detection_priority = 10;
+    return d;
+  }
+};
+
+TarImporter::~TarImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateTarImporter() {
+  return std::make_unique<TarImporter>();
 }
 
 }  // namespace perfetto::trace_processor

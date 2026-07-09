@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -45,6 +46,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 
@@ -175,3 +177,44 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
 }
 
 }  // namespace perfetto::trace_processor::perf_text_importer
+
+namespace perfetto::trace_processor {
+namespace {
+
+// The perf_text trace type: the textual output of `perf script` and the
+// equivalent simpleperf command.
+class PerfTextImporter : public TraceImporter<PerfTextImporter> {
+ public:
+  PerfTextImporter() : TraceImporter(MakeDescriptor()) {}
+  ~PerfTextImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return perf_text_importer::IsPerfTextFormatTrace(data, size);
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<perf_text_importer::PerfTextTraceTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "perf_text";
+    d.clock_policy = TraceClockPolicy::kMonotonic;
+    d.detection_priority = 195;
+    return d;
+  }
+};
+
+PerfTextImporter::~PerfTextImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreatePerfTextImporter() {
+  return std::make_unique<PerfTextImporter>();
+}
+
+}  // namespace perfetto::trace_processor

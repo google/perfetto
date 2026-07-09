@@ -53,6 +53,7 @@
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/common/trace_diagnostics_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
@@ -276,6 +277,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.clock_tracker = std::make_unique<ClockTracker>(
         &context_, primary_sync_.get(), /*is_primary=*/true);
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+    context_.trace_diagnostics_tracker =
+        std::make_unique<TraceDiagnosticsTracker>(&context_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
@@ -283,7 +286,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.uuid_state = std::make_unique<TraceProcessorContext::UuidState>();
     context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(
         storage_, context_.global_stats_tracker.get());
-
+    context_.trace_diagnostics_tracker =
+        std::make_unique<TraceDiagnosticsTracker>(&context_);
     context_.track_compressor.reset(new TrackCompressor(&context_));
     context_.track_group_idx_state =
         std::make_unique<TrackCompressorGroupIdxState>();

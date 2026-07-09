@@ -27,5 +27,6 @@ source_set("pprof") {
     "../../tables:tables_python",
     "../../types:types",
     "../../util:build_id",
+    "../../util:trace_type",
   ]
 }
