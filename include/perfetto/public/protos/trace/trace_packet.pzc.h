@@ -480,6 +480,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   compressed_packets,
                   50);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  STRING,
+                  const char*,
+                  zstd_compressed_packets,
+                  133);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_ExtensionDescriptor,
                   extension_descriptor,
