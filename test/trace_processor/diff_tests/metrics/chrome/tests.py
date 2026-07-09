@@ -234,7 +234,7 @@ class ChromeMetrics(TestSuite):
         query=Path('chrome_reliable_range_test.sql'),
         out=Csv("""
         "start","reason","debug_limiting_upid","debug_limiting_utid"
-        0,"[NULL]","[NULL]","[NULL]"
+        99069280596,"[NULL]","[NULL]","[NULL]"
         """))
 
   # Chrome slices

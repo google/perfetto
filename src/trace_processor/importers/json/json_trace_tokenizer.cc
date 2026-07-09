@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstddef>
@@ -40,6 +41,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
@@ -55,6 +57,7 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/json_parser.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -1130,6 +1133,47 @@ base::Status JsonTraceTokenizer::OnPushDataToSorter() {
              ? base::OkStatus()
              : base::ErrStatus(
                    "JSON trace file is incomplete (ERR:tp-corrupt)");
+}
+
+namespace {
+
+// Chrome JSON trace format.
+class JsonImporter : public TraceImporter<JsonImporter> {
+ public:
+  JsonImporter() : TraceImporter(MakeDescriptor()) {}
+  ~JsonImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
+                start.end());
+    return base::StartsWith(start, "{\"") || base::StartsWith(start, "[{\"");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<JsonTraceTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "json";
+    d.clock_policy = TraceClockPolicy::kTraceFile;
+    d.detection_priority = 110;
+    return d;
+  }
+};
+
+JsonImporter::~JsonImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateJsonImporter() {
+  return std::make_unique<JsonImporter>();
 }
 
 }  // namespace perfetto::trace_processor

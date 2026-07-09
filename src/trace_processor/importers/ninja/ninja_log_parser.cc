@@ -18,8 +18,10 @@
 
 #include <stdio.h>
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -33,6 +35,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 
@@ -186,6 +189,46 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
                                 name_id, dur_ns);
   }
   return base::OkStatus();
+}
+
+namespace {
+
+// The ninja build log trace type (.ninja_log).
+class NinjaLogImporter : public TraceImporter<NinjaLogImporter> {
+ public:
+  NinjaLogImporter() : TraceImporter(MakeDescriptor()) {}
+  ~NinjaLogImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = "# ninja log";
+    size_t n = sizeof(kMagic) - 1;
+    return size >= n && memcmp(data, kMagic, n) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<NinjaLogParser>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "ninja_log";
+    d.detection_priority = 183;
+    // Ninja logs cannot be parsed nested inside another trace format.
+    d.supports_nesting = false;
+    return d;
+  }
+};
+
+NinjaLogImporter::~NinjaLogImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateNinjaLogImporter() {
+  return std::make_unique<NinjaLogImporter>();
 }
 
 }  // namespace perfetto::trace_processor

@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/archive/decompressing_trace_reader.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -31,10 +32,12 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/decompressor.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 
@@ -156,6 +159,135 @@ void DecompressingTraceReader::OnEventsFullyExtracted() {
   if (inner_) {
     inner_->OnEventsFullyExtracted();
   }
+}
+
+namespace {
+
+// Gzip-compressed trace container.
+class GzipImporter : public TraceImporter<GzipImporter> {
+ public:
+  GzipImporter() : TraceImporter(MakeDescriptor()) {}
+  ~GzipImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'\x1f', '\x8b'};
+    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    if (!util::IsGzipSupported()) {
+      return base::ErrStatus(
+          "Cannot open compressed trace. zlib not enabled in the build config");
+    }
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<DecompressingTraceReader>(
+            context, util::CompressionType::kGzip));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "gzip";
+    d.is_container = true;
+    d.sort_policy = TraceSortPolicy::kNone;
+    d.archive_priority = 1;
+    d.forks_context = false;
+    d.detection_priority = 60;
+    return d;
+  }
+};
+
+GzipImporter::~GzipImporter() = default;
+
+// Zstd-compressed trace container.
+class ZstdImporter : public TraceImporter<ZstdImporter> {
+ public:
+  ZstdImporter() : TraceImporter(MakeDescriptor()) {}
+  ~ZstdImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'\x28', '\xb5', '\x2f', '\xfd'};
+    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    if (!util::IsZstdSupported()) {
+      return base::ErrStatus(
+          "Cannot open compressed trace. zstd not enabled in the build config");
+    }
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<DecompressingTraceReader>(
+            context, util::CompressionType::kZstd));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "zstd";
+    d.is_container = true;
+    d.sort_policy = TraceSortPolicy::kNone;
+    d.archive_priority = 1;
+    d.forks_context = false;
+    d.detection_priority = 65;
+    return d;
+  }
+};
+
+ZstdImporter::~ZstdImporter() = default;
+
+// atrace -z compressed systrace (ctrace); a gzip stream behind "TRACE:\n".
+class CtraceImporter : public TraceImporter<CtraceImporter> {
+ public:
+  CtraceImporter() : TraceImporter(MakeDescriptor()) {}
+  ~CtraceImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    return base::Contains(start, "TRACE:\n\x78\x9c");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    if (!util::IsGzipSupported()) {
+      return base::ErrStatus(
+          "Cannot open compressed trace. zlib not enabled in the build config");
+    }
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<DecompressingTraceReader>(
+            context, util::CompressionType::kGzip));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "ctrace";
+    d.is_container = true;
+    d.forks_context = false;
+    d.detection_priority = 160;
+    return d;
+  }
+};
+
+CtraceImporter::~CtraceImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateGzipImporter() {
+  return std::make_unique<GzipImporter>();
+}
+
+std::unique_ptr<TraceImporterBase> CreateZstdImporter() {
+  return std::make_unique<ZstdImporter>();
+}
+
+std::unique_ptr<TraceImporterBase> CreateCtraceImporter() {
+  return std::make_unique<CtraceImporter>();
 }
 
 }  // namespace perfetto::trace_processor

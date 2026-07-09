@@ -3506,6 +3506,68 @@ TEST_F(TracingServiceImplTest, WriteIntoFileFilterMultipleChunks) {
   EXPECT_GT(total_size, kNumTestPackets * kPayloadSize);
 }
 
+TEST_F(TracingServiceImplTest, WriteIntoFileFinalStats) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(5000);  // 5 seconds period
+
+  base::TempFile tmp_file = base::TempFile::Create();
+  consumer->EnableTracing(trace_config, base::ScopedFile(dup(tmp_file.fd())));
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  // Advance time to run the first periodic ReadBuffersIntoFile task.
+  // This consumes the initial should_emit_stats (writing a stats packet with
+  // chunks_written = 0).
+  producer->ExpectFlush(nullptr);
+  task_runner.AdvanceTimeAndRunUntilIdle(5000);
+
+  // Write a packet from the producer.
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+  writer->Flush();
+  writer.reset();
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  protos::gen::Trace trace;
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(tmp_file, trace));
+
+  // Find the last stats packet in the file.
+  const protos::gen::TracePacket* last_stats_packet = nullptr;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_trace_stats()) {
+      last_stats_packet = &packet;
+    }
+  }
+
+  ASSERT_NE(last_stats_packet, nullptr);
+  // Verify that the final stats show that chunks were written.
+  // On TOT (before our changes), this expectation fails because the last
+  // stats packet is the one from startup (where chunks_written was 0).
+  ASSERT_EQ(last_stats_packet->trace_stats().buffer_stats().size(), 1u);
+  EXPECT_GT(last_stats_packet->trace_stats().buffer_stats()[0].chunks_written(),
+            0u);
+}
+
 // Test the logic that allows the trace config to set the shm total size and
 // page size from the trace config. Also check that, if the config doesn't
 // specify a value we fall back on the hint provided by the producer.
