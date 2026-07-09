@@ -35,10 +35,6 @@ message ProtoFilterOptions {
   // Note: If semantic_type is set, filter_string is implicitly true.
   optional bool filter_string = 2;
 
-  // If true, this nested message field is passed through as opaque bytes
-  // without recursing into its structure. Only applies to message fields.
-  optional bool passthrough = 3;
-
   // If true and semantic_type is set, the field is also included in v2
   // bytecode (not just v54 overlay). This is useful for fields that
   // need to be filtered by older parsers. Defaults to false.
@@ -48,6 +44,9 @@ message ProtoFilterOptions {
   // bytecode. This is useful for fields that need to be filtered by older
   // parsers. Defaults to false.
   optional bool allow_v1_with_filter_string = 5;
+
+  reserved 3;
+  reserved "passthrough";
 }
 
 // Extend google.protobuf.FieldOptions with filtering metadata.

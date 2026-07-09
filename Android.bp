@@ -3971,6 +3971,50 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/common:passthrough_lite
+filegroup {
+    name: "perfetto_protos_perfetto_common_passthrough_lite",
+    srcs: [
+        "protos/perfetto/common/passthrough.proto",
+    ],
+}
+
+// GN: //protos/perfetto/common:passthrough_lite
+genrule {
+    name: "perfetto_protos_perfetto_common_passthrough_lite_gen",
+    srcs: [
+        ":libprotobuf-internal-descriptor-proto",
+        ":perfetto_protos_perfetto_common_passthrough_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --proto_path=external/protobuf/src --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_common_passthrough_lite)",
+    out: [
+        "external/perfetto/protos/perfetto/common/passthrough.pb.cc",
+    ],
+}
+
+// GN: //protos/perfetto/common:passthrough_lite
+genrule {
+    name: "perfetto_protos_perfetto_common_passthrough_lite_gen_headers",
+    srcs: [
+        ":libprotobuf-internal-descriptor-proto",
+        ":perfetto_protos_perfetto_common_passthrough_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --proto_path=external/protobuf/src --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_common_passthrough_lite)",
+    out: [
+        "external/perfetto/protos/perfetto/common/passthrough.pb.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/perfetto/common:semantic_type_cpp
 filegroup {
     name: "perfetto_protos_perfetto_common_semantic_type_cpp",
@@ -16452,6 +16496,7 @@ genrule {
     name: "perfetto_src_protozero_filtering_filter_util_test_messages_descriptor",
     srcs: [
         ":libprotobuf-internal-descriptor-proto",
+        "protos/perfetto/common/passthrough.proto",
         "protos/perfetto/common/semantic_type.proto",
         "protos/perfetto/proto_filtering/proto_filter_options.proto",
         "src/protozero/filtering/filter_util_test_messages.proto",
@@ -23135,6 +23180,7 @@ cc_test {
         ":perfetto_include_perfetto_tracing_tracing",
         ":perfetto_protos_perfetto_common_cpp_gen",
         ":perfetto_protos_perfetto_common_lite_gen",
+        ":perfetto_protos_perfetto_common_passthrough_lite_gen",
         ":perfetto_protos_perfetto_common_semantic_type_cpp_gen",
         ":perfetto_protos_perfetto_common_semantic_type_lite_gen",
         ":perfetto_protos_perfetto_common_semantic_type_zero_gen",
@@ -23702,6 +23748,7 @@ cc_test {
     generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
         "perfetto_protos_perfetto_common_lite_gen_headers",
+        "perfetto_protos_perfetto_common_passthrough_lite_gen_headers",
         "perfetto_protos_perfetto_common_semantic_type_cpp_gen_headers",
         "perfetto_protos_perfetto_common_semantic_type_lite_gen_headers",
         "perfetto_protos_perfetto_common_semantic_type_zero_gen_headers",

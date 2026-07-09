@@ -378,14 +378,14 @@ TEST(ProtoFileSerializerTest,
   std::string input_content = R"(
     syntax = "proto2";
     package perfetto.protos;
-    import "protos/perfetto/proto_filtering/proto_filter_options.proto";
+    import "protos/perfetto/common/passthrough.proto";
 
     message SubMessage {
       optional int32 f1 = 1;
     }
 
     message RootMessage {
-      optional SubMessage sub = 1 [(perfetto.protos.proto_filter).passthrough = true];
+      optional SubMessage sub = 1 [(perfetto.protos.passthrough) = true];
     }
   )";
 
@@ -448,7 +448,7 @@ TEST(ProtoFileSerializerTest,
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
   EXPECT_THAT(out, HasSubstr("string f2 = 2;"));
   EXPECT_THAT(out, HasSubstr("int64 f3 = 3;"));
-  EXPECT_THAT(out, HasSubstr("passthrough: true"));
+  EXPECT_THAT(out, HasSubstr("passthrough) = true"));
 }
 
 TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
@@ -467,7 +467,7 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
   std::string input_content = R"(
     syntax = "proto2";
     package perfetto.protos;
-    import "protos/perfetto/proto_filtering/proto_filter_options.proto";
+    import "protos/perfetto/common/passthrough.proto";
 
     message SubMessage {
       optional int32 f1 = 1;
@@ -475,7 +475,7 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
 
     message Outer {
       message Inner {
-        optional SubMessage sub = 1 [(perfetto.protos.proto_filter).passthrough = true];
+        optional SubMessage sub = 1 [(perfetto.protos.passthrough) = true];
       }
       optional Inner inner = 1;
     }
@@ -540,7 +540,7 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
   EXPECT_THAT(out, HasSubstr("string f2 = 2;"));
-  EXPECT_THAT(out, HasSubstr("passthrough: true"));
+  EXPECT_THAT(out, HasSubstr("passthrough) = true"));
 }
 
 TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
@@ -559,7 +559,7 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
   std::string input_content = R"(
     syntax = "proto2";
     package perfetto.protos;
-    import "protos/perfetto/proto_filtering/proto_filter_options.proto";
+    import "protos/perfetto/common/passthrough.proto";
 
     message Deep2 {
       optional int32 f1 = 1;
@@ -570,7 +570,7 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
     }
 
     message Root {
-      optional Deep1 d1 = 1 [(perfetto.protos.proto_filter).passthrough = true];
+      optional Deep1 d1 = 1 [(perfetto.protos.passthrough) = true];
     }
   )";
 
@@ -636,7 +636,7 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
   EXPECT_THAT(out, HasSubstr("string f2 = 2;"));
   EXPECT_THAT(out, HasSubstr("int64 f3 = 2;"));
-  EXPECT_THAT(out, HasSubstr("passthrough: true"));
+  EXPECT_THAT(out, HasSubstr("passthrough) = true"));
 }
 
 }  // namespace

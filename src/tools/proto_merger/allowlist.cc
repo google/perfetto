@@ -19,15 +19,15 @@
 #include <google/protobuf/descriptor.pb.h>
 
 #include "perfetto/ext/base/string_utils.h"
-#include "protos/perfetto/proto_filtering/proto_filter_options.pb.h"
+#include "protos/perfetto/common/passthrough.pb.h"
 
 namespace perfetto {
 namespace proto_merger {
 namespace {
 
 bool IsPassthrough(const google::protobuf::FieldOptions& options) {
-  if (options.HasExtension(perfetto::protos::proto_filter)) {
-    return options.GetExtension(perfetto::protos::proto_filter).passthrough();
+  if (options.HasExtension(perfetto::protos::passthrough)) {
+    return options.GetExtension(perfetto::protos::passthrough);
   }
   return false;
 }

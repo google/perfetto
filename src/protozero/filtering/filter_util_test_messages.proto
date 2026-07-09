@@ -18,6 +18,7 @@ syntax = "proto2";
 
 package protozero.test;
 
+import "protos/perfetto/common/passthrough.proto";
 import "protos/perfetto/proto_filtering/proto_filter_options.proto";
 
 // Test: SchemaToBytecode_Simple
@@ -136,8 +137,7 @@ message PassthroughConfig {
 message PassthroughPacket {
   optional int32 f1 = 3;
   optional int64 f2 = 4;
-  optional PassthroughConfig cfg = 5
-      [(perfetto.protos.proto_filter).passthrough = true];
+  optional PassthroughConfig cfg = 5 [(perfetto.protos.passthrough) = true];
 }
 
 // Test: FilterString
@@ -194,9 +194,9 @@ message ValidationRoot {
 message MsgFilterPassthroughRoot {
   optional int64 timestamp = 1;
   optional MsgFilterPassthroughConfig cfg = 2
-      [(perfetto.protos.proto_filter).passthrough = true];
+      [(perfetto.protos.passthrough) = true];
   optional MsgFilterPassthroughConfig cfg_filtered = 3;
-  optional string other = 4 [(perfetto.protos.proto_filter).passthrough = true];
+  optional string other = 4 [(perfetto.protos.passthrough) = true];
 }
 
 message MsgFilterPassthroughSubConfig {

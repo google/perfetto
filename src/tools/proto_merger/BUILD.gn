@@ -33,7 +33,7 @@ source_set("lib") {
   deps = [
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
-    "../../../protos/perfetto/proto_filtering:lite",
+    "../../../protos/perfetto/common:passthrough_lite",
     "../../base",
   ]
   sources = [
