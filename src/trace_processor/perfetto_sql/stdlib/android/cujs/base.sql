@@ -49,6 +49,19 @@ WHERE
 
 -- Slices logged from FrameTracker#markEvent that describe when
 -- the instrumentation was started and the reason the CUJ ended.
+--
+-- The candidate marker slices are pre-filtered by name before the per-CUJ range
+-- join. Without this the join scans every slice inside each (wide) CUJ time
+-- window - i.e. large swathes of the whole `slice` table - only to discard all
+-- but the handful of `FT#` / `#UIThread` markers. The `_cuj_state_marker_slice`
+-- prefilter narrows the candidates to just those markers up front; it is a
+-- superset of every name pattern matched in the WHERE below, so the result is
+-- unchanged.
+CREATE PERFETTO TABLE _cuj_state_marker_slice AS
+SELECT id, ts, name, track_id
+FROM slice
+WHERE name GLOB '*FT#*' OR name GLOB '*#UIThread';
+
 CREATE PERFETTO TABLE _cuj_state_markers AS
 SELECT
   cuj.cuj_id,
@@ -65,7 +78,7 @@ SELECT
   cuj_state_marker.name AS marker_name,
   thread_track.utid AS utid
 FROM _jank_cujs_slices AS cuj
-LEFT JOIN slice AS cuj_state_marker
+LEFT JOIN _cuj_state_marker_slice AS cuj_state_marker
   ON cuj_state_marker.ts >= cuj.ts
   AND cuj_state_marker.ts < cuj.ts_end
 LEFT JOIN track AS marker_track
