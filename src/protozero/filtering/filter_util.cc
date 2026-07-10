@@ -65,8 +65,9 @@ ProtoFilterOptions ReadProtoFilterAnnotation(
     opts.allow_v2_with_semantic_type = ext.allow_v2_with_semantic_type();
     opts.allow_v1_with_filter_string = ext.allow_v1_with_filter_string();
   }
-  if (options.HasExtension(perfetto::protos::passthrough)) {
-    opts.passthrough = options.GetExtension(perfetto::protos::passthrough);
+  if (options.HasExtension(perfetto::protos::proto_filter_merge_passthrough)) {
+    opts.passthrough =
+        options.GetExtension(perfetto::protos::proto_filter_merge_passthrough);
   }
   return opts;
 }

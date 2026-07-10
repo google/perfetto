@@ -385,7 +385,7 @@ TEST(ProtoFileSerializerTest,
     }
 
     message RootMessage {
-      optional SubMessage sub = 1 [(perfetto.protos.passthrough) = true];
+      optional SubMessage sub = 1 [(perfetto.protos.proto_filter_merge_passthrough) = true];
     }
   )";
 
@@ -448,7 +448,7 @@ TEST(ProtoFileSerializerTest,
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
   EXPECT_THAT(out, HasSubstr("string f2 = 2;"));
   EXPECT_THAT(out, HasSubstr("int64 f3 = 3;"));
-  EXPECT_THAT(out, HasSubstr("passthrough) = true"));
+  EXPECT_THAT(out, HasSubstr("proto_filter_merge_passthrough) = true"));
 }
 
 TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
@@ -475,7 +475,7 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
 
     message Outer {
       message Inner {
-        optional SubMessage sub = 1 [(perfetto.protos.passthrough) = true];
+        optional SubMessage sub = 1 [(perfetto.protos.proto_filter_merge_passthrough) = true];
       }
       optional Inner inner = 1;
     }
@@ -540,7 +540,7 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
   EXPECT_THAT(out, HasSubstr("string f2 = 2;"));
-  EXPECT_THAT(out, HasSubstr("passthrough) = true"));
+  EXPECT_THAT(out, HasSubstr("proto_filter_merge_passthrough) = true"));
 }
 
 TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
@@ -570,7 +570,7 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
     }
 
     message Root {
-      optional Deep1 d1 = 1 [(perfetto.protos.passthrough) = true];
+      optional Deep1 d1 = 1 [(perfetto.protos.proto_filter_merge_passthrough) = true];
     }
   )";
 
@@ -636,7 +636,7 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
   EXPECT_THAT(out, HasSubstr("string f2 = 2;"));
   EXPECT_THAT(out, HasSubstr("int64 f3 = 2;"));
-  EXPECT_THAT(out, HasSubstr("passthrough) = true"));
+  EXPECT_THAT(out, HasSubstr("proto_filter_merge_passthrough) = true"));
 }
 
 }  // namespace

@@ -26,8 +26,9 @@ namespace proto_merger {
 namespace {
 
 bool IsPassthrough(const google::protobuf::FieldOptions& options) {
-  if (options.HasExtension(perfetto::protos::passthrough)) {
-    return options.GetExtension(perfetto::protos::passthrough);
+  if (options.HasExtension(perfetto::protos::proto_filter_merge_passthrough)) {
+    return options.GetExtension(
+        perfetto::protos::proto_filter_merge_passthrough);
   }
   return false;
 }

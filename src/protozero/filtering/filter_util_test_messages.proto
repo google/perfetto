@@ -137,7 +137,8 @@ message PassthroughConfig {
 message PassthroughPacket {
   optional int32 f1 = 3;
   optional int64 f2 = 4;
-  optional PassthroughConfig cfg = 5 [(perfetto.protos.passthrough) = true];
+  optional PassthroughConfig cfg = 5
+      [(perfetto.protos.proto_filter_merge_passthrough) = true];
 }
 
 // Test: FilterString
@@ -194,9 +195,10 @@ message ValidationRoot {
 message MsgFilterPassthroughRoot {
   optional int64 timestamp = 1;
   optional MsgFilterPassthroughConfig cfg = 2
-      [(perfetto.protos.passthrough) = true];
+      [(perfetto.protos.proto_filter_merge_passthrough) = true];
   optional MsgFilterPassthroughConfig cfg_filtered = 3;
-  optional string other = 4 [(perfetto.protos.passthrough) = true];
+  optional string other = 4
+      [(perfetto.protos.proto_filter_merge_passthrough) = true];
 }
 
 message MsgFilterPassthroughSubConfig {

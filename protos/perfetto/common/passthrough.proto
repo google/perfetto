@@ -19,8 +19,11 @@ package perfetto.protos;
 import "google/protobuf/descriptor.proto";
 
 extend google.protobuf.FieldOptions {
+  // This option is designed for tooling which works with filtering of traces
+  // or merging protos together.
+  //
   // If true, this message field and its entire sub-tree are treated as fully
   // allowed by default, bypassing individual field-level inspection or manual
   // allowlisting. Only applies to message fields.
-  optional bool passthrough = 73400002;
+  optional bool proto_filter_merge_passthrough = 73400002;
 }
