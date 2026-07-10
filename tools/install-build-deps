@@ -1143,10 +1143,18 @@ def Main():
         os.symlink(tools_hook_path, git_hook_path)
 
   cur_python_interpreter = sys.executable
-  test_data_synced = 0 == subprocess.call([
+  test_data_status_cmd = [
       cur_python_interpreter, TEST_DATA_SCRIPT, 'status', '--quiet',
       '--ignore-new'
-  ])
+  ]
+  if not args.ui:
+    test_data_status_cmd += [
+        '--skip-prefix',
+        'ui-screenshots',
+        '--skip-prefix',
+        'ui-funcgraph.pftrace',
+    ]
+  test_data_synced = 0 == subprocess.call(test_data_status_cmd)
   if args.check_only:
     if not deps_updated and test_data_synced:
       with open(args.check_only, 'w') as f:
@@ -1162,6 +1170,13 @@ def Main():
 
   if not test_data_synced:
     cmd = [cur_python_interpreter, TEST_DATA_SCRIPT, 'download', '--overwrite']
+    if not args.ui:
+      cmd += [
+          '--skip-prefix',
+          'ui-screenshots',
+          '--skip-prefix',
+          'ui-funcgraph.pftrace',
+      ]
     if not sys.stdout.isatty():
       cmd += ['--verbose']  # For CI bots
     subprocess.check_call(cmd)

@@ -742,16 +742,41 @@ def CheckSqlMetrics(changed_files: List[str]) -> List[str]:
   return []
 
 
-def CheckTestData(_: List[str]) -> List[str]:
+def CheckTestData(changed_files: List[str]) -> List[str]:
   tool_rel_path = 'tools/test_data'
   tool = os.path.join(REPO_ROOT, tool_rel_path)
+  has_ui_changes = len(
+      filter_files(
+          changed_files,
+          files_to_check=[
+              'ui/*',
+              'test/data/ui-screenshots/*',
+              'test/data/ui-funcgraph.pftrace*',
+          ])) > 0
+
+  cmd = [sys.executable, tool, 'status', '--quiet']
+  if not has_ui_changes:
+    cmd += [
+        '--skip-prefix',
+        'ui-screenshots',
+        '--skip-prefix',
+        'ui-funcgraph.pftrace',
+    ]
+
   try:
-    # Assume tool needs execution permissions or use sys.executable
-    run_command([sys.executable, tool, 'status', '--quiet'], cwd=REPO_ROOT)
+    run_command(cmd, cwd=REPO_ROOT)
   except FileNotFoundError:
     # Try without sys.executable if it's meant to be directly executable
     try:
-      run_command([tool, 'status', '--quiet'], cwd=REPO_ROOT)
+      cmd_no_py = [tool, 'status', '--quiet']
+      if not has_ui_changes:
+        cmd_no_py += [
+            '--skip-prefix',
+            'ui-screenshots',
+            '--skip-prefix',
+            'ui-funcgraph.pftrace',
+        ]
+      run_command(cmd_no_py, cwd=REPO_ROOT)
     except FileNotFoundError:
       return [f"Tool not found: {tool}"]
     except subprocess.CalledProcessError:
