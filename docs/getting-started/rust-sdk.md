@@ -13,8 +13,11 @@ the same level of support, stability, or feature coverage as the
 official C++ SDK.
 
 The Perfetto Rust SDK provides safe and ergonomic bindings for the
-Perfetto tracing framework. It wraps the Perfetto C API with Rust
-abstractions for tracing sessions, data sources, and track events.
+Perfetto tracing framework. It is a language binding built on top of the
+[C SDK](/docs/instrumentation/choosing-an-sdk.md): it wraps the Perfetto
+C API (via `bindgen`) with Rust abstractions for tracing sessions, data
+sources, and track events, so Rust events use the same core and produce
+the same trace format as every other Perfetto SDK.
 
 ## Crates
 

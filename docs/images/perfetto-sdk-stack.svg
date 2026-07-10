@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="Roboto, Arial, sans-serif">
+  <style>
+    .box { rx: 8; }
+    .lbl { fill: #202124; font-size: 15px; font-weight: 600; }
+    .sub { fill: #5f6368; font-size: 12px; }
+    .layer { fill: #202124; font-size: 13px; font-weight: 700; letter-spacing: .3px; }
+    .cap { fill: #5f6368; font-size: 13px; }
+    .arrow { stroke: #9aa0a6; stroke-width: 2; marker-end: url(#ah); }
+  </style>
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="6" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#9aa0a6"/>
+    </marker>
+  </defs>
+
+  <!-- Top row: language bindings (peers) -->
+  <text x="20" y="30" class="layer">Language bindings — pick the one that fits your app</text>
+
+  <!-- C++ SDK -->
+  <rect x="20" y="45" width="200" height="72" rx="8" fill="#e8f0fe" stroke="#4285f4" stroke-width="1.5"/>
+  <text x="120" y="76" text-anchor="middle" class="lbl">C++ SDK</text>
+  <text x="120" y="98" text-anchor="middle" class="sub">native · most ergonomic today</text>
+
+  <!-- Rust SDK -->
+  <rect x="240" y="45" width="200" height="72" rx="8" fill="#e8f0fe" stroke="#4285f4" stroke-width="1.5"/>
+  <text x="340" y="76" text-anchor="middle" class="lbl">Rust SDK</text>
+  <text x="340" y="98" text-anchor="middle" class="sub">bindgen (FFI) · community</text>
+
+  <!-- Java/Android SDK -->
+  <rect x="460" y="45" width="200" height="72" rx="8" fill="#e8f0fe" stroke="#4285f4" stroke-width="1.5"/>
+  <text x="560" y="76" text-anchor="middle" class="lbl">Java / Android SDK</text>
+  <text x="560" y="98" text-anchor="middle" class="sub">JNI · Android-internal</text>
+
+  <!-- Your language -->
+  <rect x="680" y="45" width="200" height="72" rx="8" fill="#f1f3f4" stroke="#9aa0a6" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="780" y="76" text-anchor="middle" class="lbl">Your language</text>
+  <text x="780" y="98" text-anchor="middle" class="sub">any FFI-capable language</text>
+
+  <!-- Arrows down to convenience layer -->
+  <line x1="120" y1="117" x2="120" y2="197" class="arrow"/>
+  <line x1="340" y1="117" x2="340" y2="197" class="arrow"/>
+  <line x1="560" y1="117" x2="560" y2="197" class="arrow"/>
+  <line x1="780" y1="117" x2="780" y2="197" class="arrow"/>
+
+  <!-- Middle layer: C convenience headers -->
+  <rect x="20" y="200" width="860" height="82" rx="8" fill="#fef7e0" stroke="#f9ab00" stroke-width="1.5"/>
+  <text x="450" y="232" text-anchor="middle" class="layer">Perfetto C SDK — header-only convenience layer</text>
+  <text x="450" y="256" text-anchor="middle" class="sub">inline wrappers + macros (PERFETTO_TE, PERFETTO_DS_TRACE, …) · generated protozero headers (*.pzc.h)</text>
+  <text x="450" y="273" text-anchor="middle" class="sub">include/perfetto/public/*.h</text>
+
+  <line x1="450" y1="282" x2="450" y2="332" class="arrow"/>
+
+  <!-- Base layer: the stable ABI (the foundation) -->
+  <rect x="20" y="335" width="860" height="92" rx="8" fill="#e6f4ea" stroke="#188038" stroke-width="2.5"/>
+  <text x="450" y="368" text-anchor="middle" class="layer">Stable-by-design C ABI  —  libperfetto_c</text>
+  <text x="450" y="392" text-anchor="middle" class="sub">opaque pointers + extern "C" · the foundation every binding is built on</text>
+  <text x="450" y="409" text-anchor="middle" class="sub">include/perfetto/public/abi/*  ·  implemented in src/shared_lib/</text>
+
+  <!-- Bottom caption -->
+  <text x="450" y="470" text-anchor="middle" class="cap">Every binding emits the same protobuf trace format —</text>
+  <text x="450" y="490" text-anchor="middle" class="cap">app events and system events land on one timeline in the Perfetto UI.</text>
+</svg>

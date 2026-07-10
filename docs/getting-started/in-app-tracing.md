@@ -11,6 +11,10 @@ The Perfetto SDK is a C++ library that allows you to instrument your application
 to record trace events. These events can then be visualized and analyzed with
 the Perfetto UI and Trace Processor.
 
+TIP: This guide uses the C++ SDK. It is one of several language bindings — see
+[Choosing a Perfetto SDK](/docs/instrumentation/choosing-an-sdk.md) to decide
+between C++, [C](/docs/getting-started/c-sdk.md), Rust and Java.
+
 ## Adding your first instrumentation
 
 ### Setup

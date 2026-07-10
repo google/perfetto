@@ -33,3 +33,12 @@ executable("example_shlib_track_event") {
   ]
   sources = [ "example_shlib_track_event.c" ]
 }
+
+executable("example_shlib_in_process") {
+  testonly = true
+  deps = [
+    "../../gn:default_deps",
+    "../../src/shared_lib:libperfetto_c",
+  ]
+  sources = [ "example_shlib_in_process.c" ]
+}

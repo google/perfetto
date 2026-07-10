@@ -9,7 +9,8 @@
   - [Tutorials](#)
 
     - [System Tracing](getting-started/system-tracing.md) {.tag-android .tag-linux}
-    - [In-App Tracing](getting-started/in-app-tracing.md) {.tag-cpp-rust}
+    - [In-App Tracing (C++)](getting-started/in-app-tracing.md) {.tag-cpp-rust}
+    - [In-App Tracing (C)](getting-started/c-sdk.md) {.tag-c}
     - [Rust SDK](getting-started/rust-sdk.md) {.tag-cpp-rust}
     - [Memory Profiling](getting-started/memory-profiling.md) {.tag-android .tag-linux}
     - [CPU Profiling](getting-started/cpu-profiling.md) {.tag-android .tag-linux}
@@ -84,10 +85,19 @@
       - [Android Aflags](data-sources/android-aflags.md) {.tag-android}
       - [Screen Recording](data-sources/video-frames.md) {.tag-android}
 
-  - [Tracing SDK](#)
+  - [Tracing SDKs](#)
 
-    - [Tracing SDK](instrumentation/tracing-sdk.md) {.tag-cpp-rust}
-    - [Track Events](instrumentation/track-events.md) {.tag-cpp-rust}
+    - [Choosing an SDK](instrumentation/choosing-an-sdk.md) {.tag-c .tag-cpp-rust .tag-android}
+
+    - [C SDK](#)
+
+      - [Track Events](instrumentation/c-sdk-track-events.md) {.tag-c}
+      - [Custom Data Sources](instrumentation/c-sdk-data-sources.md) {.tag-c}
+      - [Reference](reference/c-sdk-api.md) {.tag-c}
+
+    - [C++ SDK](instrumentation/tracing-sdk.md) {.tag-cpp-rust}
+    - [Java / Android SDK](instrumentation/java-sdk.md) {.tag-android}
+    - [Track Events model](instrumentation/track-events.md) {.tag-c .tag-cpp-rust}
 
   - [Visualization](#)
 
