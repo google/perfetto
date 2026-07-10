@@ -215,40 +215,6 @@ void RuleSyscallsWithoutFilter(const TraceConfigDecoder& config,
   });
 }
 
-// Sched_switch is enabled without compact_sched. compact_sched substantially
-// shrinks scheduling data with no real downside, so there is no good reason
-// to leave it off.
-void RuleSchedSwitchWithoutCompactSched(const TraceConfigDecoder& config,
-                                        TraceDiagnosticsHelper* helper) {
-  helper->ForEachFtraceConfig(config, [&](const FtraceConfigDecoder& ftrace) {
-    bool has_sched_switch = false;
-    for (auto it = ftrace.ftrace_events(); it; ++it) {
-      if (base::StringView(it->as_string()).EndsWith("sched_switch")) {
-        has_sched_switch = true;
-        break;
-      }
-    }
-    if (!has_sched_switch)
-      return;
-
-    bool compact_enabled = false;
-    if (ftrace.has_compact_sched()) {
-      protos::pbzero::FtraceConfig::CompactSchedConfig::Decoder compact(
-          ftrace.compact_sched());
-      compact_enabled = compact.enabled();
-    }
-    if (compact_enabled)
-      return;
-
-    helper->AddTraceDiagnostic(
-        "sched_switch_without_compact_sched", "compact_sched not enabled",
-        "sched/sched_switch is enabled without compact_sched; compact_sched "
-        "significantly reduces the size of scheduling data at no real "
-        "downside.",
-        "Enable compact_sched (compact_sched { enabled: true }).", 0.6);
-  });
-}
-
 // An ftrace event whose payload is a kernel symbol address is enabled but
 // symbolize_ksyms is not set, so those addresses can never be resolved to
 // names. These symbols cannot be added after the fact.
@@ -450,16 +416,15 @@ void RuleHeapprofdSamplingIntervalTooLow(const TraceConfigDecoder& config,
 }
 
 constexpr RuleFn kRules[] = {
-    &RulePreserveFtraceBufferLateStart,
-    &RuleTinyFtraceBuffer,
-    &RuleLowFtraceDrainBandwidth,
-    &RuleExtremeFtraceDrainPeriod,
-    &RuleSyscallsWithoutFilter,
-    &RuleSchedSwitchWithoutCompactSched,
-    &RuleEventsRequireSymbolizeKsyms,
-    &RuleDiscardBufferForStreaming,
-    &RuleAtraceWildcardApps,
-    &RuleHeapprofdSamplingIntervalTooLow,
+    &RulePreserveFtraceBufferLateStart,    //
+    &RuleTinyFtraceBuffer,                 //
+    &RuleLowFtraceDrainBandwidth,          //
+    &RuleExtremeFtraceDrainPeriod,         //
+    &RuleSyscallsWithoutFilter,            //
+    &RuleEventsRequireSymbolizeKsyms,      //
+    &RuleDiscardBufferForStreaming,        //
+    &RuleAtraceWildcardApps,               //
+    &RuleHeapprofdSamplingIntervalTooLow,  //
 };
 
 }  // namespace
