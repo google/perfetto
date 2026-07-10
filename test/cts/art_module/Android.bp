@@ -21,6 +21,7 @@ cc_test {
     ],
     static_libs: [
         "libgmock",
+        "libzstd",
         "perfetto_cts_deps",
         "perfetto_flags_c_lib",
         "perfetto_trace_protos",
@@ -33,7 +34,6 @@ cc_test {
         "liblog",
         "libpcre2",
         "libz",
-        "libzstd",
     ],
     test_suites: [
         "cts",

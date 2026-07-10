@@ -27,6 +27,7 @@ export const ALL_TAB_KEYS = [
   'android',
   'traces',
   'machines',
+  'metadata',
   'import_errors',
   'trace_errors',
   'data_losses',

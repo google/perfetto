@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_sample_line_parser.h"
 
 #include <cctype>
 #include <cstddef>

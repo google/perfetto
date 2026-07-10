@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_trace_tokenizer.h"
 
 #include <cctype>
 #include <cstddef>
@@ -31,20 +31,22 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
-#include "src/trace_processor/importers/perf_text/perf_text_event.h"
-#include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
-#include "src/trace_processor/importers/perf_text/perf_text_trace_parser.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_event.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_sample_line_parser.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_trace_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 

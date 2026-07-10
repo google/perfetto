@@ -33,6 +33,9 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_AndroidReportConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_BufferConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_BuiltinDataSource);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CmdTraceStartDelay);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CompressionConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CompressionConfig_Deflate);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CompressionConfig_Zstd);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_DataSource);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_GuardrailOverrides);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_IncidentReportConfig);
@@ -274,6 +277,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   24);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   MSG,
+                  perfetto_protos_TraceConfig_CompressionConfig,
+                  compression,
+                  47);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  MSG,
                   perfetto_protos_TraceConfig_IncidentReportConfig,
                   incident_report_config,
                   25);
@@ -489,6 +497,27 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_IncidentReportConfig,
                   bool,
                   skip_dropbox,
                   4);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_CompressionConfig);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_CompressionConfig,
+                  MSG,
+                  perfetto_protos_TraceConfig_CompressionConfig_Deflate,
+                  deflate,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_CompressionConfig,
+                  MSG,
+                  perfetto_protos_TraceConfig_CompressionConfig_Zstd,
+                  zstd,
+                  2);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_CompressionConfig_Zstd);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_CompressionConfig_Zstd,
+                  VARINT,
+                  int32_t,
+                  level,
+                  1);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_CompressionConfig_Deflate);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_IncrementalStateConfig);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_IncrementalStateConfig,

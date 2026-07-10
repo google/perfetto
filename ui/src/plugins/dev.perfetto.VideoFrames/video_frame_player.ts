@@ -232,6 +232,9 @@ export class VideoFramePlayer {
     const setup = await this.loadSetup();
     if (setup === undefined) return undefined;
     const k = this.nearestKey(idx);
+    // No key frame precedes idx (ring buffer dropped the GOP start); the
+    // decoder can't be seeded, so this frame is undecodable.
+    if (k < 0) return undefined;
     const range = this.frames.slice(k, idx + 1);
     const datas = await this.fetchAuData(range.map((f) => f.id));
     const outs: VideoFrame[] = [];
@@ -303,6 +306,7 @@ export class VideoFramePlayer {
     // paint from fromIdx, so play() starts on the selected frame. Frames in
     // [k, fromIdx) are decoded only to prime the decoder, not painted.
     const k = this.nearestKey(fromIdx);
+    if (k < 0) return; // no key frame to seed from (ring buffer start)
     const session = await this.openPlaySession(token, k);
     if (session === undefined) return;
     this.startPlaybackLoop(token, session, fromIdx);
@@ -448,7 +452,9 @@ export class VideoFramePlayer {
   // frame to seed the reference list before any non-key frame.
   private nearestKey(idx: number): number {
     let k = idx;
-    while (k > 0 && !this.frames[k].isKey) k--;
+    while (k >= 0 && !this.frames[k].isKey) k--;
+    // -1 when no key frame precedes idx, e.g. a ring buffer whose start (and
+    // the GOP's key frame) was overwritten. Such frames can't be decoded.
     return k;
   }
 

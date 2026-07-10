@@ -41,6 +41,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
@@ -62,7 +63,9 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/trace_type.h"
 
+#include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
@@ -205,6 +208,24 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
   RegisterDefaultModules(&module_context_, context_);
   if (context_->register_additional_proto_modules) {
     context_->register_additional_proto_modules(&module_context_, context_);
+  }
+  // This needs to happen after the TrackEvent descriptors have been registered,
+  // which happens in one of the modules. (See
+  // https://github.com/google/perfetto/issues/6260)
+  for (const std::string& raw_bytes :
+       context_->config.extra_parsing_descriptors) {
+    auto status = context_->descriptor_pool_->AddFromFileDescriptorSet(
+        reinterpret_cast<const uint8_t*>(raw_bytes.data()), raw_bytes.size(),
+        {}, true);
+    if (!status.ok()) {
+      context_->import_logs_tracker->RecordAnalysisError(
+          stats::extra_parsing_descriptors_error,
+          [&](ArgsTracker::BoundInserter& ins) {
+            ins.AddArg(context_->storage->InternString("message"),
+                       Variadic::String(
+                           context_->storage->InternString(status.message())));
+          });
+    }
   }
 }
 
@@ -1271,6 +1292,119 @@ void ProtoTraceReader::OnEventsFullyExtracted() {
     context_->stats_tracker->IncrementStats(
         stats::config_write_into_file_no_flush);
   }
+}
+
+namespace {
+
+constexpr uint8_t kTracePacketTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::Trace::kPacketFieldNumber);
+constexpr uint16_t kModuleSymbolsTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::TracePacket::kModuleSymbolsFieldNumber);
+
+bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
+  const uint8_t* const end = ptr + size;
+
+  uint64_t tag;
+  const uint8_t* next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
+  if (next == ptr || tag != kTracePacketTag) {
+    return false;
+  }
+
+  ptr = next;
+  uint64_t field_length;
+  next = protozero::proto_utils::ParseVarInt(ptr, end, &field_length);
+  if (next == ptr) {
+    return false;
+  }
+  ptr = next;
+
+  if (field_length == 0) {
+    return false;
+  }
+
+  next = protozero::proto_utils::ParseVarInt(ptr, end, &tag);
+  if (next == ptr) {
+    return false;
+  }
+
+  return tag == kModuleSymbolsTag;
+}
+
+// Perfetto proto trace.
+class ProtoImporter : public TraceImporter<ProtoImporter> {
+ public:
+  ProtoImporter() : TraceImporter(MakeDescriptor()) {}
+  ~ProtoImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return size > 0 && data[0] == kTracePacketTag;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<ProtoTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "proto";
+    d.sort_policy = TraceSortPolicy::kConfigDriven;
+    d.clock_policy = TraceClockPolicy::kBoottime;
+    d.sets_default_clock = false;
+    d.claims_global_clock = false;
+    d.archive_priority = 0;
+    d.pid_zero_is_idle = true;
+    d.detection_priority = 230;
+    return d;
+  }
+};
+
+ProtoImporter::~ProtoImporter() = default;
+
+// Standalone module symbols proto (a proto trace whose first packet is
+// ModuleSymbols). Uses the same ProtoTraceReader.
+class SymbolsImporter : public TraceImporter<SymbolsImporter> {
+ public:
+  SymbolsImporter() : TraceImporter(MakeDescriptor()) {}
+  ~SymbolsImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return IsProtoTraceWithSymbols(data, size);
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<ProtoTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "symbols";
+    d.sort_policy = TraceSortPolicy::kConfigDriven;
+    d.archive_priority = 3;
+    d.detection_priority = 210;
+    return d;
+  }
+};
+
+SymbolsImporter::~SymbolsImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateProtoImporter() {
+  return std::make_unique<ProtoImporter>();
+}
+
+std::unique_ptr<TraceImporterBase> CreateSymbolsImporter() {
+  return std::make_unique<SymbolsImporter>();
 }
 
 }  // namespace perfetto::trace_processor

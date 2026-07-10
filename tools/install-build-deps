@@ -293,20 +293,21 @@ BUILD_DEPS_HOST = [
     Dependency('buildtools/lzma',
                'https://android.googlesource.com/platform/external/lzma.git',
                '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3', 'all', 'all'),
-    Dependency('buildtools/zstd',
-               'https://android.googlesource.com/platform/external/zstd.git',
-               '77211fcc5e08c781734a386402ada93d0d18d093', 'all', 'all'),
     Dependency('buildtools/bionic',
                'https://android.googlesource.com/platform/bionic.git',
                'a0d0355105cb9d4a4b5384897448676133d7b8e2', 'all', 'all'),
 
-    # Zlib used both in the tracing binaries, as well as the trace processor and
-    # assorted tools.
-    # If updating the version, also update bazel/deps.bzl.
+    # Zlib and Zstd, the compression libraries used both in the tracing binaries
+    # and in the trace processor and assorted tools.
+    # If updating either version, also update bazel/deps.bzl.
     Dependency(
         'buildtools/zlib',
         'https://chromium.googlesource.com/chromium/src/third_party/zlib.git',
         '6f9b4e61924021237d474569027cfb8ac7933ee6', 'all', 'all'),
+    Dependency(
+        'buildtools/zstd',
+        'https://chromium.googlesource.com/external/github.com/facebook/zstd.git',
+        'f8745da6ff1ad1e7bab384bd1f9d742439278e99', 'all', 'all'),
 
     # Linenoise, used only by trace_processor in standalone builds.
     # If updating the version, also update bazel/deps.bzl.

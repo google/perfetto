@@ -30,13 +30,13 @@ cc_library_shared {
   header_libs: ["jni_headers"],
   static_libs: [
     "perfetto_cts_jni_deps",
+    "libzstd",
   ],
   shared_libs: [
     "libandroid",
     "liblog",
     "libpcre2",
     "libz",
-    "libzstd",
   ],
   compile_multilib: "both",
   stl: "libc++_static",

@@ -262,6 +262,7 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
           '*.pb',
           '*.png',
           '*.jpg',
+          '*.gif',
           '*/test/data/*',
           'Makefile',
           'rules',
@@ -696,9 +697,11 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
     return []
 
   try:
-    run_command(
-        [sys.executable, tool, '--check-includes', '--check-new-packages'],
-        cwd=REPO_ROOT)
+    run_command([
+        sys.executable, tool, '--check-includes', '--check-new-packages',
+        '--check-layering'
+    ],
+                cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
   except subprocess.CalledProcessError as e:

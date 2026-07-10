@@ -62,7 +62,9 @@ class StateTracker;
 class SliceTranslationTable;
 class StackProfileTracker;
 class SymbolTracker;
+class TraceDiagnosticsTracker;
 class TraceFileTracker;
+class TraceImporterRegistry;
 class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
@@ -166,6 +168,11 @@ class TraceProcessorContext {
   GlobalPtr<TraceStorage> storage;
   GlobalPtr<TraceSorter> sorter;
   GlobalPtr<TraceReaderRegistry> reader_registry;
+  // Non-owning view of the trace-type metadata + plugin importers owned by
+  // `reader_registry`. Exposed here so low-layer code (trace_file_tracker,
+  // archive readers) can query per-type metadata without depending on the
+  // reader registry header.
+  TraceImporterRegistry* trace_importer_registry = nullptr;
   GlobalPtr<GlobalArgsTracker> global_args_tracker;
   GlobalPtr<GlobalMetadataTracker> global_metadata_tracker;
   GlobalPtr<GlobalStatsTracker> global_stats_tracker;
@@ -219,6 +226,7 @@ class TraceProcessorContext {
   PerTracePtr<TraceState> trace_state;
   PerTracePtr<Destructible> content_analyzer;
   PerTracePtr<ImportLogsTracker> import_logs_tracker;
+  PerTracePtr<TraceDiagnosticsTracker> trace_diagnostics_tracker;
 
   // Per-Machine State
   // =================
