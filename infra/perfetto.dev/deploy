@@ -62,6 +62,7 @@ EOF
 [ "$(file $OUT_DIR/docs/images/perfetto-stack.svg)" == "image/svg+xml" ]
 [ "$(file $OUT_DIR/docs/images/perfetto-stack.svg)" == "image/svg+xml" ]
 [ "$(file $OUT_DIR/docs/analysis/sql-tables)" == "text/html" ]
+[ "$(file $OUT_DIR/assets/search_index.json)" == "application/json" ]
 
 # -j: apply 'Content-Encoding: gzip' compression to passed extensions.
 # -d: mirror also deletetions.
@@ -69,5 +70,5 @@ EOF
 # -r: recursive.
 # The trailing slash appended to $OUT_DIR is to prevent that gsutil creates a
 # nested sub-directory inside gs://perfetto.dev/.
-gsutil -m rsync -j html,js,css,svg -d -c -r \
+gsutil -m rsync -j html,js,css,svg,json -d -c -r \
   "$OUT_DIR/" gs://perfetto.dev/

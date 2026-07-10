@@ -22,6 +22,7 @@ def main():
       '.css': 'text/css',
       '.js': 'text/javascript',
       '.jpg': 'image/jpeg',
+      '.json': 'application/json',
       '.png': 'image/png',
       '.svg': 'image/svg+xml',
   }

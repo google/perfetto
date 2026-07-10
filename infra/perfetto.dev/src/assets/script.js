@@ -373,179 +373,12 @@ function initMermaid() {
 }
 
 // ---------------------------------------------------------------------------
-// Client-side docs search. We ship a build-time full-text index
-// (assets/search_index.json, built by src/gen_search_index.js) and rank it
-// locally with BM25. The old Google Custom Search Engine couldn't see a doc
-// until Googlebot crawled it, often weeks after it shipped.
+// Client-side docs search. A build-time full-text index (assets/
+// search_index.json, built by src/gen_search_index.js) is fetched and ranked
+// with BM25 in a web worker (assets/search_worker.js); this file only sends the
+// query and renders the results the worker posts back. The old Google Custom
+// Search Engine couldn't see a doc until Googlebot crawled it, weeks later.
 // ---------------------------------------------------------------------------
-
-// The parsed index, loaded lazily on first interaction (see loadSearchIndex).
-let searchIndex = null;
-let searchIndexPromise = null;
-
-// Lowercase alphanumeric tokens, keeping a trailing "++"/"#" so "c++" and "c#"
-// stay searchable. Tokens shorter than 2 chars are dropped as noise.
-function searchTokenize(str) {
-  const out = [];
-  const re = /[a-z0-9]+(\+\+|#)?/g;
-  let m;
-  while ((m = re.exec(str.toLowerCase())) !== null) {
-    if (m[0].length >= 2) out.push(m[0]);
-  }
-  return out;
-}
-
-async function loadSearchIndex() {
-  const resp = await fetch("/assets/search_index.json");
-  if (!resp.ok) throw new Error(`search index HTTP ${resp.status}`);
-  const docs = (await resp.json()).docs;
-
-  // Field boosts: a hit in the title matters far more than one in the body.
-  const FIELD_BOOST = {title: 8, heading: 4, body: 1};
-  const postings = new Map();
-  const docLen = new Array(docs.length).fill(0);
-  const titleTokens = new Array(docs.length);
-  const navTokens = new Array(docs.length);
-  const addTokens = (docIdx, tokens, boost) => {
-    for (const tok of tokens) {
-      let postingList = postings.get(tok);
-      if (postingList === undefined) {
-        postingList = new Map();
-        postings.set(tok, postingList);
-      }
-      postingList.set(docIdx, (postingList.get(docIdx) || 0) + boost);
-      docLen[docIdx] += boost;
-    }
-  };
-  for (let i = 0; i < docs.length; i++) {
-    const d = docs[i];
-    const tt = searchTokenize(d.t || "");
-    titleTokens[i] = tt;
-    addTokens(i, tt, FIELD_BOOST.title);
-    // The toc.md nav label (d.n), when it differs from the title, is a curated
-    // keyword alias -- index it at title weight too.
-    if (d.n) {
-      navTokens[i] = searchTokenize(d.n);
-      addTokens(i, navTokens[i], FIELD_BOOST.title);
-    }
-    // The URL slug (last path segment, e.g. "perfetto-cli", "stdlib-docs") is a
-    // curated keyword, often searched even when the word never appears in the
-    // prose. searchTokenize splits it on the "-"/"_"; index it at title weight.
-    const slug = d.u.split("/").filter(Boolean).pop() || "";
-    addTokens(i, searchTokenize(slug), FIELD_BOOST.title);
-    for (const h of d.h || []) addTokens(i, searchTokenize(h.t), FIELD_BOOST.heading);
-    if (d.b) addTokens(i, searchTokenize(d.b), FIELD_BOOST.body);
-  }
-  let total = 0;
-  for (const l of docLen) total += l;
-  searchIndex = {
-    docs,
-    postings,
-    // Sorted so searchPostings() can binary-search the prefix range.
-    sortedTerms: [...postings.keys()].sort(),
-    docLen,
-    titleTokens,
-    navTokens,
-    avgdl: docLen.length ? total / docLen.length : 1,
-    N: docs.length,
-  };
-  return searchIndex;
-}
-
-// Index of the first element of the sorted array `arr` that is >= `key`.
-function lowerBound(arr, key) {
-  let lo = 0;
-  let hi = arr.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (arr[mid] < key) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
-
-function ensureSearchIndex() {
-  if (searchIndexPromise === null) {
-    searchIndexPromise = loadSearchIndex().catch((e) => {
-      searchIndexPromise = null;  // Allow a retry on the next keystroke.
-      throw e;
-    });
-  }
-  return searchIndexPromise;
-}
-
-// Returns {df, tf: Map(docIdx -> weightedTf)} for a query term. The final,
-// still-being-typed term also matches everything it prefixes, so "trace"
-// surfaces "traceconv" and "tracing"; earlier terms match exactly.
-function searchPostings(idx, term, allowPrefix) {
-  const exact = idx.postings.get(term);
-  if (!allowPrefix) return exact === undefined ? null : {df: exact.size, tf: exact};
-  const merged = new Map();
-  const union = (postingList) => {
-    for (const [docIdx, w] of postingList) merged.set(docIdx, (merged.get(docIdx) || 0) + w);
-  };
-  if (exact !== undefined) union(exact);
-  // Prefix matches are a contiguous run in sortedTerms: walk from the first
-  // term >= `term` and stop at the first miss.
-  let matched = 0;
-  for (let i = lowerBound(idx.sortedTerms, term); i < idx.sortedTerms.length; i++) {
-    const t = idx.sortedTerms[i];
-    if (!t.startsWith(term)) break;
-    if (t === term) continue;
-    union(idx.postings.get(t));
-    if (++matched >= 200) break;  // Cap fan-out on very short prefixes.
-  }
-  return merged.size ? {df: merged.size, tf: merged} : null;
-}
-
-// Ranks docs against the query with BM25. Returns up to `limit` doc objects.
-function searchRank(idx, query, limit) {
-  const terms = searchTokenize(query);
-  if (terms.length === 0) return [];
-  const k1 = 1.2;
-  const b = 0.75;
-  const scores = new Map();
-  for (let ti = 0; ti < terms.length; ti++) {
-    const p = searchPostings(idx, terms[ti], ti === terms.length - 1);
-    if (p === null) continue;
-    // BM25, the standard ranking function: https://en.wikipedia.org/wiki/Okapi_BM25
-    //   idf  -- rarer terms (matching fewer docs, `df`) count for more.
-    //   score -- rises with term frequency `tf` but saturates (`k1`), and is
-    //            penalised for long docs (`b`, via dl/avgdl) so a short focused
-    //            page outranks a long one that just repeats the word.
-    const idf = Math.log(1 + (idx.N - p.df + 0.5) / (p.df + 0.5));
-    for (const [docIdx, tf] of p.tf) {
-      // Floor the length used for normalization so near-empty pages (e.g. the
-      // body-less generated reference pages) don't win on BM25's short-doc bonus.
-      const dl = Math.max(idx.docLen[docIdx], 0.5 * idx.avgdl);
-      const s = idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * dl / idx.avgdl));
-      scores.set(docIdx, (scores.get(docIdx) || 0) + s);  // sum over query terms
-    }
-  }
-  // Boost title matches. Past an exact title, reward how much of the title the
-  // query covers -- so a short "Perfetto UI" beats a long "...Perfetto UI..." --
-  // with a small extra bump when the query leads the title, which keeps "Batch
-  // Trace Processor" below "Trace Processor (C++)". Tokenized so title
-  // punctuation can't block a match; the nav label counts as a title too, so
-  // "boot tracing" finds the page labelled "Boot Tracing".
-  const phrase = terms.join(" ");
-  const titleBoost = (toks) => {
-    const norm = toks.join(" ");
-    if (norm === phrase) return 12;
-    if (!terms.every((t) => toks.includes(t))) return norm.includes(phrase) ? 3 : 0;
-    return 3 + 6 * (terms.length / toks.length) + (norm.startsWith(phrase + " ") ? 3 : 0);
-  };
-  for (const docIdx of scores.keys()) {
-    let boost = titleBoost(idx.titleTokens[docIdx]);
-    const nav = idx.navTokens[docIdx];
-    if (nav) boost = Math.max(boost, titleBoost(nav));
-    if (boost) scores.set(docIdx, scores.get(docIdx) + boost);
-  }
-  return [...scores.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([docIdx]) => idx.docs[docIdx]);
-}
 
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -574,31 +407,6 @@ function appendHighlighted(el, text, terms) {
   if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
 }
 
-// Extracts a ~180 char window of body text centred on the first term match.
-function searchSnippet(doc, terms) {
-  const text = doc.b || (doc.h || []).map((h) => h.t).join(" · ") || doc.t || "";
-  const lower = text.toLowerCase();
-  let pos = -1;
-  for (const t of terms) {
-    const i = lower.indexOf(t);
-    if (i !== -1 && (pos === -1 || i < pos)) pos = i;
-  }
-  if (pos === -1) pos = 0;
-  const start = Math.max(0, pos - 40);
-  let out = text.slice(start, start + 180);
-  if (start > 0) out = "…" + out;
-  if (start + 180 < text.length) out += "…";
-  return out;
-}
-
-// If a query term matches a heading with an anchor, deep-link to it.
-function searchAnchor(doc, terms) {
-  for (const h of doc.h || []) {
-    if (h.a && terms.some((t) => h.t.toLowerCase().includes(t))) return h.a;
-  }
-  return "";
-}
-
 function setupSearch() {
   const searchContainer = document.getElementById("search");
   const searchBox = document.getElementById("search-box");
@@ -618,8 +426,34 @@ function setupSearch() {
     }
   });
 
-  let results = [];
+  let results = [];  // From the worker: {u, t, snippet, anchor}.
+  let terms = [];    // Query terms to highlight, tokenized by the worker.
   let selected = -1;
+
+  // The worker (assets/search_worker.js) holds the index and does the ranking;
+  // it's spawned lazily and only once. `workerReady` gates the loading row.
+  let worker = null;
+  let workerReady = false;
+  const ensureWorker = () => {
+    if (worker !== null) return worker;
+    try {
+      worker = new Worker("/assets/search_worker.js");
+    } catch (e) {
+      worker = null;  // No worker support; search stays inert rather than error.
+      return null;
+    }
+    worker.addEventListener("message", (e) => {
+      const msg = e.data;
+      if (msg.type === "ready") {
+        workerReady = true;
+      } else if (msg.type === "results" && searchBox.value.trim() === msg.query) {
+        results = msg.results;  // Ignore stale replies superseded by newer typing.
+        terms = msg.terms;
+        render();
+      }
+    });
+    return worker;
+  };
 
   const highlightSelected = () => {
     const items = searchRes.children;
@@ -631,15 +465,13 @@ function setupSearch() {
     }
   };
 
-  const render = (query) => {
-    const terms = searchTokenize(query);
+  const render = () => {
     searchRes.style.width = `${searchBox.offsetWidth}px`;
     searchRes.innerHTML = "";
     selected = -1;
     for (const doc of results) {
-      const anchor = searchAnchor(doc, terms);
       const link = document.createElement("a");
-      link.href = doc.u + (anchor ? "#" + anchor : "");
+      link.href = doc.u + (doc.anchor ? "#" + doc.anchor : "");
 
       const title = document.createElement("div");
       title.className = "sr-title";
@@ -648,7 +480,7 @@ function setupSearch() {
 
       const snippet = document.createElement("div");
       snippet.className = "sr-snippet";
-      appendHighlighted(snippet, searchSnippet(doc, terms), terms);
+      appendHighlighted(snippet, doc.snippet, terms);
       link.appendChild(snippet);
 
       const div = document.createElement("div");
@@ -657,27 +489,38 @@ function setupSearch() {
     }
   };
 
-  const runSearch = async () => {
+  const runSearch = () => {
     const query = searchBox.value.trim();
     if (query === "") {
       results = [];
       searchRes.innerHTML = "";
       return;
     }
-    let idx;
-    try {
-      idx = await ensureSearchIndex();
-    } catch (e) {
-      return;  // Index failed to load; leave the box empty rather than error.
+    const w = ensureWorker();
+    if (w === null) return;
+    // Show a placeholder while the index is still building, so a slow first
+    // load looks like it's working instead of a frozen box (issue #6654).
+    if (!workerReady) {
+      searchRes.style.width = `${searchBox.offsetWidth}px`;
+      searchRes.innerHTML = "";
+      const loading = document.createElement("div");
+      loading.className = "sr-loading";
+      loading.textContent = "Loading search index…";
+      searchRes.appendChild(loading);
     }
-    if (searchBox.value.trim() !== query) return;  // A newer query superseded us.
-    results = searchRank(idx, query, 8);
-    render(query);
+    w.postMessage({query, limit: 8});
   };
 
-  // Start fetching the index as soon as the user engages with the box.
-  searchBox.addEventListener("focus", () => { ensureSearchIndex().catch(() => {}); },
-                             {once: true});
+  // Spawn the worker once the page is idle so it fetches and builds the index in
+  // the background, making the first search instant. It builds off the main
+  // thread, so this never blocks the page.
+  const scheduleIdle = window.requestIdleCallback
+      ? (cb) => window.requestIdleCallback(cb, {timeout: 2000})
+      : (cb) => setTimeout(cb, 200);
+  scheduleIdle(() => { ensureWorker(); });
+
+  // In case the idle spawn hasn't run yet, also start on first focus.
+  searchBox.addEventListener("focus", () => { ensureWorker(); }, {once: true});
 
   let timerId = -1;
   searchBox.addEventListener("input", () => {

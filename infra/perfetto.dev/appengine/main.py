@@ -57,12 +57,19 @@ def main(path=''):
   blob = bucket.get_blob(path[1:])
   if blob is None:
     return flask.abort(404)
+  # download_as_bytes() always returns the decompressed content, so don't copy
+  # the blob's content_encoding onto the response: claiming the plain body is
+  # gzip stopped App Engine from compressing anything on the site.
   data = blob.download_as_bytes()
   resp = flask.Response(data)
   resp.headers['Content-Type'] = blob.content_type
   resp.headers['Content-Length'] = len(data)
-  resp.headers['Content-Encoding'] = blob.content_encoding
-  if os.path.splitext(path)[1] in ('.png', '.svg'):
+  if path == '/assets/search_index.json':
+    # The index only changes on a docs push and being a bit stale is fine, so
+    # cache it for an hour to avoid re-fetching ~0.5MB as the user reads.
+    resp.headers['Cache-Control'] = (
+        'public, max-age=3600, stale-while-revalidate=86400')
+  elif os.path.splitext(path)[1] in ('.png', '.svg'):
     resp.headers['Cache-Control'] = 'public, max-age=86400'  # 1 Day
   else:
     resp.headers['Cache-Control'] = 'public, max-age=600'  # 10 min
