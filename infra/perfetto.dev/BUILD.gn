@@ -371,6 +371,8 @@ foreach(source, mdfiles) {
 removed_renamed_moved_files = [
   "analysis/common-queries.md",
   "analysis/pivot-tables.md",
+  "case-studies/android-boot-tracing.md",
+  "case-studies/android-outofmemoryerror.md",
   "contributing/embedding.md",
   "contributing/perfetto-in-the-press.md",
   "contributing/ui-development.md",
