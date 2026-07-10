@@ -194,16 +194,17 @@ export class OverviewTab implements m.ClassComponent<OverviewTabAttrs> {
     const filteredCards = cards.filter(Boolean);
     const bannerCfg = options?.banner;
     const banner =
-      bannerCfg &&
-      m(
-        Callout,
-        {
-          icon: bannerCfg.icon,
-          intent: Intent.Primary,
-          className: 'pf-trace-info-page__banner',
-        },
-        bannerCfg.text,
-      );
+      bannerCfg === undefined || bannerCfg === false
+        ? undefined
+        : m(
+            Callout,
+            {
+              icon: bannerCfg.icon,
+              intent: Intent.Primary,
+              className: 'pf-trace-info-page__banner',
+            },
+            bannerCfg.text,
+          );
     return m(
       Section,
       {title, subtitle},
