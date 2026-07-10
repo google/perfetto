@@ -3138,6 +3138,8 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
         ":perfetto_src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
+        ":perfetto_src_trace_processor_plugins_strace_strace",
+        ":perfetto_src_trace_processor_plugins_strace_strace_line_parser",
         ":perfetto_src_trace_processor_plugins_string_functions_string_functions",
         ":perfetto_src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":perfetto_src_trace_processor_plugins_symbolize_symbolize",
@@ -20075,6 +20077,32 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/plugins/strace:strace
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_strace_strace",
+    srcs: [
+        "src/trace_processor/plugins/strace/strace.cc",
+        "src/trace_processor/plugins/strace/strace_trace_parser.cc",
+        "src/trace_processor/plugins/strace/strace_trace_tokenizer.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/strace:strace_line_parser
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_strace_strace_line_parser",
+    srcs: [
+        "src/trace_processor/plugins/strace/strace_line_parser.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/strace:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_strace_unittests",
+    srcs: [
+        "src/trace_processor/plugins/strace/strace_line_parser_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/plugins/string_functions:string_functions
 filegroup {
     name: "perfetto_src_trace_processor_plugins_string_functions_string_functions",
@@ -21009,6 +21037,8 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
         ":perfetto_src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
+        ":perfetto_src_trace_processor_plugins_strace_strace",
+        ":perfetto_src_trace_processor_plugins_strace_strace_line_parser",
         ":perfetto_src_trace_processor_plugins_string_functions_string_functions",
         ":perfetto_src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":perfetto_src_trace_processor_plugins_symbolize_symbolize",
@@ -23950,6 +23980,9 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
         ":perfetto_src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
+        ":perfetto_src_trace_processor_plugins_strace_strace",
+        ":perfetto_src_trace_processor_plugins_strace_strace_line_parser",
+        ":perfetto_src_trace_processor_plugins_strace_unittests",
         ":perfetto_src_trace_processor_plugins_string_functions_string_functions",
         ":perfetto_src_trace_processor_plugins_string_functions_unittests",
         ":perfetto_src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
@@ -25068,6 +25101,8 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
         ":perfetto_src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
+        ":perfetto_src_trace_processor_plugins_strace_strace",
+        ":perfetto_src_trace_processor_plugins_strace_strace_line_parser",
         ":perfetto_src_trace_processor_plugins_string_functions_string_functions",
         ":perfetto_src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":perfetto_src_trace_processor_plugins_symbolize_symbolize",
@@ -25764,6 +25799,8 @@ cc_binary_host {
         ":perfetto_src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
         ":perfetto_src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
+        ":perfetto_src_trace_processor_plugins_strace_strace",
+        ":perfetto_src_trace_processor_plugins_strace_strace_line_parser",
         ":perfetto_src_trace_processor_plugins_string_functions_string_functions",
         ":perfetto_src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":perfetto_src_trace_processor_plugins_symbolize_symbolize",
