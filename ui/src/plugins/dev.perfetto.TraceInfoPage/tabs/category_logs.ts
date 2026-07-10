@@ -147,9 +147,7 @@ export interface CategoryLogsTabAttrs {
 
 // Renders a set of stats categories as summary cards plus a detailed breakdown.
 // Shared by the Import Errors and Notices tabs.
-export class CategoryLogsTab
-  implements m.ClassComponent<CategoryLogsTabAttrs>
-{
+export class CategoryLogsTab implements m.ClassComponent<CategoryLogsTabAttrs> {
   // Track current pagination window per category.
   private logsWindows = new Map<
     string,
@@ -171,7 +169,11 @@ export class CategoryLogsTab
               GridLayout,
               {},
               categories.map((cat) =>
-                renderErrorCategoryCard(cat, config.cardSeverity, config.cardIcon),
+                renderErrorCategoryCard(
+                  cat,
+                  config.cardSeverity,
+                  config.cardIcon,
+                ),
               ),
             ),
       ),

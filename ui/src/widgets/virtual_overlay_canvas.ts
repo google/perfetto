@@ -221,6 +221,12 @@ export class VirtualOverlayCanvas
       });
       if (webglCtx) {
         this.webglRenderer = new WebGLRenderer(this.ctx, webglCtx);
+        // Fail loudly if we lose context
+        this.webglCanvas.addEventListener('webglcontextlost', (e) => {
+          const statusMessage =
+            (e as WebGLContextEvent).statusMessage || 'no status message';
+          throw new Error(`WebGL context lost: ${statusMessage}`);
+        });
       }
     }
 

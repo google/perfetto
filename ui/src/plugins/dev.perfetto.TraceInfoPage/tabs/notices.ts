@@ -24,7 +24,11 @@ import {
 export type NoticesData = CategoryLogsData;
 
 export async function loadNoticesData(engine: Engine): Promise<NoticesData> {
-  return loadCategoryLogsData(engine, "severity = 'notice' AND value > 0", 'notice');
+  return loadCategoryLogsData(
+    engine,
+    "severity = 'notice' AND value > 0",
+    'notice',
+  );
 }
 
 const CONFIG: CategoryLogsViewConfig = {

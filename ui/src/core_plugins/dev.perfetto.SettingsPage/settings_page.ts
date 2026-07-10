@@ -38,6 +38,7 @@ import {GateDetector} from '../../base/mithril_utils';
 import {findRef} from '../../base/dom_utils';
 
 const SEARCH_BOX_REF = 'settings-search-box';
+const CORE_GROUP = 'Core';
 
 export interface SettingsPageAttrs {
   readonly subpage?: string;
@@ -59,10 +60,10 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       : this.getAllSettingsGrouped(settingsManager);
     const groupedSettings = this.groupSettingsByPlugin(settings);
 
-    // Sort plugin IDs: CORE_PLUGIN_ID first, then alphabetically
+    // Sort plugin IDs: CORE_GROUP first, then alphabetically
     const sortedPluginIds = Array.from(groupedSettings.keys()).sort((a, b) => {
-      if (!a) return -1;
-      if (!b) return 1;
+      if (a === CORE_GROUP) return -1;
+      if (b === CORE_GROUP) return 1;
       return a.localeCompare(b);
     });
 
@@ -187,7 +188,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       const isCore =
         setting.pluginId === undefined ||
         app.plugins.isCorePlugin(setting.pluginId);
-      const targetGroup = isCore ? 'Core' : setting.pluginId;
+      const targetGroup = isCore ? CORE_GROUP : setting.pluginId;
 
       const existing = grouped.get(targetGroup) ?? [];
       existing.push(result);
