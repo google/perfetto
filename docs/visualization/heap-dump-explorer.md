@@ -110,7 +110,7 @@ Use `--wait-for-oom` to trigger on `OutOfMemoryError`, or
 `-c <interval_ms>` for continuous dumps. See
 [ART heap dumps](/docs/data-sources/java-heap-profiler.md) for the
 full config and
-[OutOfMemoryError heap dumps](/docs/case-studies/android-outofmemoryerror.md)
+[OutOfMemoryError heap dumps](/docs/getting-started/local-android-trace-recording.md#oom-heap-dump)
 for the OOM-triggered variant.
 
 ### ART HPROF (full detail)
@@ -894,7 +894,7 @@ dump is how you confirm each fix and catch regressions.
 - [Memory case study](/docs/case-studies/memory.md) — end-to-end guide
   to investigating Android memory issues, covering `dumpsys meminfo`,
   native heap profiles and ART heap dumps together.
-- [OutOfMemoryError heap dumps](/docs/case-studies/android-outofmemoryerror.md)
+- [OutOfMemoryError heap dumps](/docs/getting-started/local-android-trace-recording.md#oom-heap-dump)
   — capturing a heap dump automatically on OOM.
 - [Native heap profiler](/docs/data-sources/native-heap-profiler.md) —
   for allocation call-path analysis rather than heap contents.
