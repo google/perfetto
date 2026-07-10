@@ -17,7 +17,8 @@ import type {LlmGateway} from '../dev.perfetto.Llm/gateway';
 import {Agent} from './agent';
 import type {ContextRegistry} from './context';
 import type {ToolRegistry} from './tools';
-import {SYSTEM_PROMPT} from './system_prompt';
+import {SYSTEM_PROMPT, GUIDES_HEADER} from './system_prompt';
+import {router} from '../../virtual/guides';
 
 /** A single line in the conversation transcript. */
 export interface ChatLine {
@@ -226,10 +227,19 @@ export class ChatSession {
 // effect on the next one.
 function assembleSystemPrompt(context: ContextRegistry): string {
   const descriptions = context.descriptions();
-  if (descriptions.length === 0) return SYSTEM_PROMPT;
-  return [
-    SYSTEM_PROMPT,
-    'Context payload formats (for the context preamble on user messages):',
-    ...descriptions,
-  ].join('\n\n');
+
+  const sections = [SYSTEM_PROMPT];
+
+  if (router !== '') {
+    sections.push(`${GUIDES_HEADER}\n\n${router}`);
+  }
+
+  if (descriptions.length > 0) {
+    sections.push(
+      'Context payload formats (for the context preamble on user messages):',
+      ...descriptions,
+    );
+  }
+
+  return sections.join('\n\n');
 }

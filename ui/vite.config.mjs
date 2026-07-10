@@ -169,6 +169,61 @@ export function pluginPerfettoVersion() {
   });
 }
 
+// Exposes ai/skills/perfetto via ui/src/virtual/guides (typed by guides.d.ts)
+// as two exports: `router` (the SKILL-template.md body, which the assistant
+// inlines into its system prompt) and `guides` (every other file, keyed by path
+// relative to the skill root, as the router links to them). It's one Agent
+// Skill to the CLI harnesses that install it, but the UI has no skill
+// discovery, so to the assistant it's just a router plus a pile of guides.
+export function pluginPerfettoGuides() {
+  const SKILL_DIR = path.join(ROOT_DIR, 'ai/skills/perfetto');
+  const ROUTER_FILE = 'SKILL-template.md';
+
+  const generate = (ctx) => {
+    const guides = {};
+    let router = '';
+
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+        const child = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(child);
+          continue;
+        }
+        if (!entry.isFile()) continue;
+        ctx.addWatchFile(child);
+        const relPath = path.relative(SKILL_DIR, child);
+        const content = fs.readFileSync(child, 'utf8');
+        if (relPath === ROUTER_FILE) {
+          // The YAML frontmatter is there so agent harnesses can discover and
+          // route to the skill; the UI has neither discovery nor sibling skills
+          // to route between, so drop it and inline just the body. $SKILL_ROOT
+          // anchors paths against an install dir that doesn't exist here.
+          router = content
+            .replace(/^---\n[\s\S]*?\n---\n+/, '')
+            .replace(/\$SKILL_ROOT\//g, '');
+        } else {
+          guides[relPath] = content;
+        }
+      }
+    };
+    walk(SKILL_DIR);
+
+    let tsContent = 'export const guides = {\n';
+    for (const [key, value] of Object.entries(guides)) {
+      tsContent += `  ${JSON.stringify(key)}: ${JSON.stringify(value)},\n`;
+    }
+    tsContent += '};\n';
+    tsContent += `export const router = ${JSON.stringify(router)};\n`;
+    return tsContent;
+  };
+
+  return makeSynthModulePlugin({
+    name: 'perfetto:guides',
+    modules: {[path.join(SRC, 'virtual', 'guides')]: generate},
+  });
+}
+
 function pluginGenRelativeImports() {
   return {
     name: 'perfetto:gen-relative-imports',
@@ -267,6 +322,7 @@ export default defineConfig(({command}) => {
     publicDir: false,
     plugins: [
       pluginPerfettoVersion(),
+      pluginPerfettoGuides(),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),
