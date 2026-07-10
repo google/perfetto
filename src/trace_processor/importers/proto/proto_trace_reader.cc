@@ -571,6 +571,10 @@ void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
       }
     }
   }
+
+  if (trace_config.has_trace_attributes()) {
+    HandleTraceAttributes(trace_config.trace_attributes());
+  }
 }
 
 void ProtoTraceReader::HandleIncrementalStateCleared(

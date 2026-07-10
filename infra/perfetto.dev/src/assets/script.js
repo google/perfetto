@@ -844,6 +844,8 @@ if (fragment in legacyRedirectMap) {
 const redirectMap = {
   '/docs/analysis/common-queries': '/docs/getting-started/android-trace-analysis',
   '/docs/analysis/pivot-tables': '/docs/visualization/perfetto-ui#pivot-tables',
+  '/docs/case-studies/android-boot-tracing': '/docs/getting-started/local-android-trace-recording#boot-tracing',
+  '/docs/case-studies/android-outofmemoryerror': '/docs/getting-started/local-android-trace-recording#oom-heap-dump',
   '/docs/contributing/embedding': '/docs/analysis/trace-processor#embedding',
   '/docs/contributing/perfetto-in-the-press': '/docs/#who-uses-perfetto',
   '/docs/contributing/ui-development': '/docs/contributing/ui-getting-started',

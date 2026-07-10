@@ -81,6 +81,7 @@
 #include "src/proto_utils/txt_to_pb.h"
 
 #include "protos/perfetto/common/ftrace_descriptor.gen.h"
+#include "protos/perfetto/common/trace_attributes.gen.h"
 #include "protos/perfetto/common/tracing_service_state.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
 
@@ -174,7 +175,8 @@ Usage: %s
                              extend past 80 chars.
   --query-raw              : Like --query, but prints raw proto-encoded bytes
                              of tracing_service_state.proto.
-  --add-note key[=value]   : Add user notes to trace. If "=value" is omitted,
+  --add-attribute key[=value] : Add a trace attribute (a key/value pair
+                             describing the trace). If "=value" is omitted,
                              the value is the empty string.
   --help           -h
 
@@ -242,7 +244,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_VERSION,
     OPT_NOTIFY_FD,
     OPT_NO_CLOBBER,
-    OPT_NOTE,
+    OPT_ADD_ATTRIBUTE,
   };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
@@ -273,7 +275,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"query", no_argument, nullptr, OPT_QUERY},
       {"long", no_argument, nullptr, OPT_LONG},
       {"query-raw", no_argument, nullptr, OPT_QUERY_RAW},
-      {"add-note", required_argument, nullptr, OPT_NOTE},
+      {"add-attribute", required_argument, nullptr, OPT_ADD_ATTRIBUTE},
       {"version", no_argument, nullptr, OPT_VERSION},
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
       {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
@@ -290,7 +292,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   ConfigOptions config_options;
   bool has_config_options = false;
 
-  std::vector<std::pair<std::string, std::string>> notes;
+  std::vector<std::pair<std::string, std::string>> attributes;
 
   if (argc <= 1) {
     PrintUsage(argv[0]);
@@ -302,7 +304,16 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   static base::NoDestructor<std::mutex> getopt_mutex;
   std::unique_lock<std::mutex> getopt_lock(getopt_mutex.ref());
 
-  optind = 1;  // Reset getopt state. It's reused by the snapshot thread.
+  // Reset getopt state. It's reused by the snapshot thread and by tests.
+  // Rescanning requires optind = 0 on glibc (see NOTES in `man 3 getopt`,
+  // https://man7.org/linux/man-pages/man3/getopt.3.html) and on our
+  // getopt_compat; macOS requires optind = 1 plus optreset instead.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  optind = 1;
+  optreset = 1;
+#else
+  optind = 0;
+#endif
   for (;;) {
     int option =
         getopt_long(argc, argv, "hc:o:dDt:b:s:a:", long_options, nullptr);
@@ -508,26 +519,26 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       continue;
     }
 
-    if (option == OPT_NOTE) {
+    if (option == OPT_ADD_ATTRIBUTE) {
       std::string arg(optarg ? optarg : "");
       if (arg.empty()) {
-        PERFETTO_ELOG("add-note: key must be non-empty");
+        PERFETTO_ELOG("add-attribute: key must be non-empty");
         return 1;
       }
 
       const size_t eq = arg.find('=');
       if (eq == std::string::npos) {
-        notes.emplace_back(std::move(arg), std::string());
+        attributes.emplace_back(std::move(arg), std::string());
         continue;
       }
 
       if (eq == 0) {
-        PERFETTO_ELOG("add-note: key must be non-empty");
+        PERFETTO_ELOG("add-attribute: key must be non-empty");
         return 1;
       }
 
       // Split on the first '=' so values can contain '=' (e.g. 'k=a=b=c').
-      notes.emplace_back(arg.substr(0, eq), arg.substr(eq + 1));
+      attributes.emplace_back(arg.substr(0, eq), arg.substr(eq + 1));
       continue;
     }
 
@@ -783,10 +794,10 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
                                         ? TraceConfig::STATSD_LOGGING_ENABLED
                                         : TraceConfig::STATSD_LOGGING_DISABLED);
 
-  for (const auto& note : notes) {
-    auto n = trace_config_->add_notes();
-    n->set_key(note.first);
-    n->set_value(note.second);
+  for (const auto& attribute : attributes) {
+    auto* attr = trace_config_->mutable_trace_attributes()->add_attribute();
+    attr->set_key(attribute.first);
+    attr->set_string_value(attribute.second);
   }
 
   // Set up the output file. Either --out or --upload are expected, with the

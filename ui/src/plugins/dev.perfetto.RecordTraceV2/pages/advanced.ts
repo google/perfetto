@@ -40,6 +40,12 @@ export function advancedRecordSection(): RecordSubpage {
 }
 
 function ftraceCfg(): RecordProbe {
+  const additionalEvents = new Toggle({
+    title: 'Record additional ftrace events',
+    descr:
+      'Capture individual ftrace events by name, in addition to those ' +
+      'enabled by the presets below and by other probes.',
+  });
   const settings = {
     ksyms: new Toggle({
       title: 'Resolve kernel symbols',
@@ -49,16 +55,11 @@ function ftraceCfg(): RecordProbe {
         'sched_blocked_reason and other events ' +
         '(userdebug/eng builds only).',
     }),
-    additionalEvents: new Toggle({
-      title: 'Record additional ftrace events',
-      descr:
-        'Capture individual ftrace events by name, in addition to those ' +
-        'enabled by the presets below and by other probes.',
-    }),
+    additionalEvents,
     customEvents: new Textarea({
       title: 'Additional ftrace events',
       placeholder: 'e.g. myfs/my_event\nsched/sched_wakeup_new',
-      disabled: () => !settings.additionalEvents.enabled,
+      disabled: () => !additionalEvents.enabled,
     }),
     bufSize: new Slider({
       title: 'Buf size',

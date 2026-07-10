@@ -1267,6 +1267,13 @@ NOTE: Only string and 64-bit integer values are supported. If the same key is
 set more than once, whether within a single packet or across several
 packets, the last value written wins.
 
+Besides writing packets, attributes can be set when recording a trace with
+`perfetto --add-attribute key=value`; both end up in the same
+`trace_attribute.*` rows. Trace archives can additionally be annotated via
+the `attributes` section of a
+[trace manifest](/docs/reference/perfetto-manifest.md#attributes), which
+uses its own `manifest_attribute.*` namespace.
+
 ### Python Example
 
 Copy the following Python code into the `populate_packets(builder)` function in
