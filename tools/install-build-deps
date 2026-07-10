@@ -1142,21 +1142,21 @@ def Main():
         tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
         os.symlink(tools_hook_path, git_hook_path)
 
-  cur_python_interpreter = sys.executable
-  test_data_status_cmd = [
-      cur_python_interpreter, TEST_DATA_SCRIPT, 'status', '--quiet',
-      '--ignore-new'
-  ]
-  if not args.ui:
-    test_data_status_cmd += [
-        '--skip-prefix',
-        'ui-screenshots',
-        '--skip-prefix',
-        'ui-funcgraph.pftrace',
+  test_data_synced = True
+  if not args.check_only:
+    test_data_status_cmd = [
+        cur_python_interpreter, TEST_DATA_SCRIPT, 'status', '--quiet',
+        '--ignore-new'
     ]
-  test_data_synced = 0 == subprocess.call(test_data_status_cmd)
+    if not args.ui:
+      test_data_status_cmd += [
+          '--skip-prefix',
+          'ui-screenshots',
+      ]
+    test_data_synced = 0 == subprocess.call(test_data_status_cmd)
+
   if args.check_only:
-    if not deps_updated and test_data_synced:
+    if not deps_updated:
       with open(args.check_only, 'w') as f:
         f.write('OK')  # The content is irrelevant, just keep GN happy.
       return 0
@@ -1164,8 +1164,6 @@ def Main():
         [x for x in sys.argv[1:] if not x.startswith('--check-only')])
     print('\033[91mBuild deps are stale. ' +
           'Please run tools/install-build-deps %s\033[0m' % argz)
-    if not test_data_synced:
-      print('//test/data/ is out of sync. `tools/test_data status` for details')
     return 1
 
   if not test_data_synced:
@@ -1174,8 +1172,6 @@ def Main():
       cmd += [
           '--skip-prefix',
           'ui-screenshots',
-          '--skip-prefix',
-          'ui-funcgraph.pftrace',
       ]
     if not sys.stdout.isatty():
       cmd += ['--verbose']  # For CI bots

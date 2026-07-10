@@ -747,11 +747,9 @@ def CheckTestData(changed_files: List[str]) -> List[str]:
   tool = os.path.join(REPO_ROOT, tool_rel_path)
   has_ui_changes = len(
       filter_files(
-          changed_files,
-          files_to_check=[
+          changed_files, files_to_check=[
               'ui/*',
               'test/data/ui-screenshots/*',
-              'test/data/ui-funcgraph.pftrace*',
           ])) > 0
 
   cmd = [sys.executable, tool, 'status', '--quiet']
@@ -759,8 +757,6 @@ def CheckTestData(changed_files: List[str]) -> List[str]:
     cmd += [
         '--skip-prefix',
         'ui-screenshots',
-        '--skip-prefix',
-        'ui-funcgraph.pftrace',
     ]
 
   try:
@@ -773,8 +769,6 @@ def CheckTestData(changed_files: List[str]) -> List[str]:
         cmd_no_py += [
             '--skip-prefix',
             'ui-screenshots',
-            '--skip-prefix',
-            'ui-funcgraph.pftrace',
         ]
       run_command(cmd_no_py, cwd=REPO_ROOT)
     except FileNotFoundError:
