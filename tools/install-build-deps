@@ -1142,6 +1142,7 @@ def Main():
         tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
         os.symlink(tools_hook_path, git_hook_path)
 
+  cur_python_interpreter = sys.executable
   test_data_synced = True
   if not args.check_only:
     test_data_status_cmd = [
