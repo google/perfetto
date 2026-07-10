@@ -49,3 +49,23 @@ export interface CommandManager {
   // callback. Returns whatever the callback returns.
   runCommand(id: string, ...args: unknown[]): Promise<unknown>;
 }
+
+export class CommandError extends Error {
+  constructor(
+    readonly commandId: string,
+    readonly commandName: string,
+    readonly commandSource: string | undefined,
+    override readonly cause: Error,
+  ) {
+    super(`Command '${commandName}' (${commandId}) failed`);
+    this.name = 'CommandError';
+  }
+
+  override toString(): string {
+    const owner = this.commandSource
+      ? `\nSource/Owner: ${this.commandSource}`
+      : '';
+    const header = `Command/Macro: ${this.commandName} (${this.commandId})${owner}`;
+    return `${header}\nCaused by: ${this.cause.toString()}`;
+  }
+}

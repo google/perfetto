@@ -209,23 +209,9 @@ export function decodeInt64Varint(buf: Uint8Array, pos: number): bigint {
 // Info that could help debug a query error. For example the query
 // in question, the stack where the query was issued, the active
 // plugin etc.
-export class ActiveCommandInfo {
-  constructor(
-    readonly id: string,
-    readonly name: string,
-    readonly source?: string,
-  ) {}
-
-  toString(): string {
-    const owner = this.source ? `\nSource/Owner: ${this.source}` : '';
-    return `Command/Macro: ${this.name} (${this.id})${owner}`;
-  }
-}
-
 export interface QueryErrorInfo {
   query: string;
   tag?: string; // The EngineProxy tag.
-  activeCommand?: ActiveCommandInfo;
 }
 
 export class QueryError extends Error {
@@ -238,8 +224,7 @@ export class QueryError extends Error {
 
   toString() {
     const info = this.queryErrorInfo;
-    const cmd = info.activeCommand ? `\n${info.activeCommand}` : '';
-    return `${super.toString()}\nEngineTag: ${info.tag}${cmd}\nQuery:\n${info.query}`;
+    return `${super.toString()}\nEngineTag: ${info.tag}\nQuery:\n${info.query}`;
   }
 }
 

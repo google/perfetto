@@ -14,13 +14,13 @@
 
 import {z} from 'zod';
 import {Registry} from '../base/registry';
+import {CommandError} from '../public/commands';
 import type {Command, CommandManager} from '../public/commands';
 import {raf} from './raf_scheduler';
 import type {OmniboxManagerImpl} from './omnibox_manager';
 import {STARTUP_COMMAND_ALLOWLIST_SET} from './startup_command_allowlist';
 import {DisposableStack} from '../base/disposable_stack';
 import type {Hotkey} from '../base/hotkeys';
-import {ActiveCommandInfo, QueryError} from '../trace_processor/query_result';
 
 // A map of command id -> hotkey.
 export type HotkeyOverlay = Record<string, Hotkey>;
@@ -181,14 +181,8 @@ export class CommandManagerImpl implements CommandManager {
     try {
       return await cmd.callback(...args);
     } catch (err) {
-      if (err instanceof QueryError) {
-        err.queryErrorInfo.activeCommand = new ActiveCommandInfo(
-          cmd.id,
-          cmd.name,
-          cmd.source,
-        );
-      }
-      throw err;
+      const error = err instanceof Error ? err : new Error(String(err));
+      throw new CommandError(cmd.id, cmd.name, cmd.source, error);
     } finally {
       raf.scheduleFullRedraw();
     }
