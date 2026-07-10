@@ -55,6 +55,7 @@ ConcurrentSessionsModule::ConcurrentSessionsModule(
       context_(context),
       arg_consumer_uid_(context->storage->InternString("consumer_uid")),
       arg_num_data_sources_(context->storage->InternString("num_data_sources")),
+      state_disabled_(context->storage->InternString("DISABLED")),
       state_configured_(context->storage->InternString("CONFIGURED")),
       state_started_(context->storage->InternString("STARTED")),
       state_disabling_waiting_stop_acks_(
@@ -79,9 +80,7 @@ void ConcurrentSessionsModule::ParseConcurrentSessionEvent(
   StringId state_name = kNullStringId;
   switch (event.state()) {
     case ConcurrentSessionEvent::STATE_DISABLED:
-      // DISABLED is terminal: close the track instead of drawing an
-      // open-ended DISABLED state.
-      state_name = kNullStringId;
+      state_name = state_disabled_;
       break;
     case ConcurrentSessionEvent::STATE_CONFIGURED:
       state_name = state_configured_;
@@ -120,12 +119,6 @@ void ConcurrentSessionsModule::ParseConcurrentSessionEvent(
       tracks::Dimensions(static_cast<int64_t>(event.session_id())),
       tracks::DynamicName(track_name));
 
-  // A null state name only ends the active state; no new args to add.
-  if (state_name.is_null()) {
-    context_->state_tracker->UpdateState(ts, track_id, kNullStringId);
-    return;
-  }
-
   context_->state_tracker->UpdateState(
       ts, track_id, state_name, kNullStringId,
       [this, &event](ArgsTracker::BoundInserter* args) {
@@ -134,6 +127,11 @@ void ConcurrentSessionsModule::ParseConcurrentSessionEvent(
         args->AddArg(arg_num_data_sources_,
                      Variadic::Integer(event.num_data_sources()));
       });
+
+  // DISABLED is terminal: close it at the same timestamp, so it renders as a
+  // zero-width marker rather than an open-ended state.
+  if (event.state() == ConcurrentSessionEvent::STATE_DISABLED)
+    context_->state_tracker->UpdateState(ts, track_id, kNullStringId);
 }
 
 }  // namespace perfetto::trace_processor

@@ -46,6 +46,7 @@ class ConcurrentSessionsModule : public ProtoImporterModule {
   const StringId arg_num_data_sources_;
 
   // State names, same strings as TracingServiceState.TracingSession.state.
+  const StringId state_disabled_;
   const StringId state_configured_;
   const StringId state_started_;
   const StringId state_disabling_waiting_stop_acks_;

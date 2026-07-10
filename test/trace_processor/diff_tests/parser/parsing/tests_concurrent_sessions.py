@@ -20,8 +20,8 @@ from python.generators.diff_tests.testing import TestSuite
 
 class ParsingConcurrentSessions(TestSuite):
   # ConcurrentSessionEvent packets become one state track per session (shown
-  # by the UI under System > Concurrent tracing sessions). STATE_DISABLED
-  # closes the track (a disabled session never becomes active again).
+  # by the UI under System > Concurrent tracing sessions). STATE_DISABLED is
+  # terminal: it closes the track and renders as a zero-width marker.
   # consumer_uid and num_data_sources become args.
   def test_concurrent_session_events_become_state_tracks(self):
     return DiffTestBlueprint(
@@ -99,13 +99,14 @@ class ParsingConcurrentSessions(TestSuite):
         "track_name","ts","dur","value","consumer_uid","num_data_sources"
         "session_a",400,100,"CONFIGURED",10000,3
         "session_a",500,3500,"STARTED",10000,3
+        "session_a",4000,0,"DISABLED",10000,3
         "session_b",1000,2000,"STARTED",10001,1
+        "session_b",3000,0,"DISABLED",10001,1
         """))
 
   # Tracks are keyed by session_id, so overlapping unnamed sessions get their
   # own track, named "Session <id>". Cloned sessions (born in
-  # CLONED_READ_ONLY) get a " (clone)" suffix. STATE_DISABLED closes each
-  # track.
+  # CLONED_READ_ONLY) get a " (clone)" suffix.
   def test_concurrent_unnamed_sessions_paired_by_id(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -179,6 +180,36 @@ class ParsingConcurrentSessions(TestSuite):
         "track_name","ts","dur","value"
         "Session 1",1000,2000,"STARTED"
         "Session 1",3000,500,"DISABLING_WAITING_STOP_ACKS"
+        "Session 1",3500,0,"DISABLED"
         "Session 2",2000,3000,"STARTED"
+        "Session 2",5000,0,"DISABLED"
         "snapshot (clone)",4000,500,"CLONED_READ_ONLY"
+        "snapshot (clone)",4500,0,"DISABLED"
+        """))
+
+  # A session observed only through its terminal DISABLED event still gets a
+  # track, carrying just the zero-width DISABLED marker.
+  def test_disabled_only_session_gets_marker_track(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          concurrent_session_event {
+            state: STATE_DISABLED
+            session_name: "ghost"
+            session_id: 7
+          }
+        }
+        """),
+        query="""
+          SELECT t.name AS track_name, s.ts, s.dur, s.value
+          FROM state s
+          JOIN track t ON s.track_id = t.id
+          WHERE t.type = 'concurrent_tracing_sessions'
+          ORDER BY t.name, s.ts;
+        """,
+        out=Csv("""
+        "track_name","ts","dur","value"
+        "ghost",1000,0,"DISABLED"
         """))
