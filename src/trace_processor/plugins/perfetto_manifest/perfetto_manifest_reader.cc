@@ -25,6 +25,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -148,6 +149,51 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
     result.offset_ns = offset_ns;
   }
   return result;
+}
+
+using Attribute = std::pair<std::string, std::variant<int64_t, std::string>>;
+
+base::StatusOr<std::vector<Attribute>> ParseAttributes(
+    const json::Dom& attributes) {
+  if (!attributes.IsObject()) {
+    return base::ErrStatus(
+        "perfetto_manifest: attributes must be an object of string or "
+        R"(integer values, e.g. "attributes": {"benchmark": "startup"}.)");
+  }
+  std::vector<Attribute> result;
+  for (const std::string& key : attributes.GetMemberNames()) {
+    if (key.empty()) {
+      return base::ErrStatus(
+          "perfetto_manifest: attributes: keys must be non-empty");
+    }
+    const json::Dom& value = attributes[key];
+    if (value.IsString()) {
+      result.emplace_back(key, value.AsString());
+    } else if (value.IsIntegral()) {
+      result.emplace_back(key, value.AsInt64());
+    } else {
+      return base::ErrStatus(
+          "perfetto_manifest: attributes: '%s' must be a string or an "
+          "integer",
+          key.c_str());
+    }
+  }
+  return result;
+}
+
+void ApplyAttributes(TraceProcessorContext* context,
+                     const std::vector<Attribute>& attrs) {
+  for (const auto& [key, value] : attrs) {
+    StringId key_id = context->storage->InternString(
+        base::StringView("manifest_attribute." + key));
+    Variadic variadic =
+        std::holds_alternative<int64_t>(value)
+            ? Variadic::Integer(std::get<int64_t>(value))
+            : Variadic::String(context->storage->InternString(
+                  base::StringView(std::get<std::string>(value))));
+    context->global_metadata_tracker->SetDynamicMetadata(
+        std::nullopt, std::nullopt, key_id, variadic);
+  }
 }
 
 base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
@@ -311,6 +357,12 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
       ASSIGN_OR_RETURN(FileEntry entry, ParseFileEntry(file));
       state->files.push_back(std::move(entry));
     }
+  }
+
+  if (meta.HasMember("attributes")) {
+    ASSIGN_OR_RETURN(std::vector<Attribute> attrs,
+                     ParseAttributes(meta["attributes"]));
+    ApplyAttributes(context_, attrs);
   }
   return ApplyManifest();
 }

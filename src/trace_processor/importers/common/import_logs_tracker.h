@@ -67,6 +67,12 @@ class ImportLogsTracker {
       int64_t timestamp,
       std::function<void(ArgsTracker::BoundInserter&)> args_callback = {});
 
+  // Overload for collection errors not tied to a specific timestamp, e.g.
+  // trace-setup errors reported in a summary packet.
+  void RecordCollectionError(
+      size_t stat_key,
+      std::function<void(ArgsTracker::BoundInserter&)> args_callback);
+
   // For "analysis" errors (validation/resolution phase, no specific event)
   // Use ONLY when the error occurs during analysis/validation, not tied to a
   // specific packet or event (e.g., track hierarchy validation).

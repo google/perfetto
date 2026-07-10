@@ -109,6 +109,10 @@
     border-left: 4px solid var(--pf-color-danger);
   }
 
+  &__status-card--notice {
+    border-left: 4px solid var(--pf-color-primary);
+  }
+
   &__status-card--clickable {
     cursor: pointer;
     transition:
@@ -203,11 +207,27 @@
   &__arg-value {
     font-family: var(--pf-font-monospace);
     color: var(--pf-color-text-muted);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   // Logs grid with virtualization
   &__logs-grid {
     max-height: 500px;
+
+    // These logs render multi-line, variable-height content. The default cell
+    // content is styled for single-line text: its `height: 100%` mis-resolves
+    // to a fraction of the row and clips content with `overflow: hidden`. Let
+    // the content size to itself and center it so each entry renders in full
+    // with even padding within its (estimated) row height.
+    .pf-grid-cell,
+    .pf-grid-cell__content {
+      align-items: center;
+    }
+
+    .pf-grid-cell__content {
+      height: auto;
+    }
   }
 
   // Help icon

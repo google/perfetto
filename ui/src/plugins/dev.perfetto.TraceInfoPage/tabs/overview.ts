@@ -27,7 +27,7 @@ import {EmptyState} from '../../../widgets/empty_state';
 import {Callout} from '../../../widgets/callout';
 import {Intent} from '../../../widgets/common';
 import type {Trace} from '../../../public/trace';
-import type {duration} from '../../../base/time';
+import {Time, type duration} from '../../../base/time';
 import {formatDuration} from '../../../components/time_utils';
 import type {TabKey} from '../utils';
 import {formatFileSize} from '../../../base/file_utils';
@@ -37,6 +37,7 @@ export interface OverviewData {
   importErrors: number;
   traceErrors: number;
   dataLosses: number;
+  notices: number;
   uiLoadingErrorCount: number;
   // Metrics
   traceSizeBytes?: bigint;
@@ -62,16 +63,20 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'error' AND source = 'analysis') as import_errors,
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'error' AND source = 'trace') as trace_errors,
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'data_loss') as data_losses,
+      (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'notice') as notices,
       -- Metrics
       extract_metadata('trace_size_bytes') as trace_size_bytes,
       extract_metadata('tracing_disabled_ns') - 
         extract_metadata('tracing_started_ns') as duration_ns,
       (SELECT max(ts) - min(ts) FROM sched) as sched_duration_ns,
-      -- System info
-      extract_metadata('system_name') as system_name,
-      extract_metadata('system_release') as system_release,
-      extract_metadata('system_machine') as system_machine,
-      extract_metadata('android_build_fingerprint') as android_build_fingerprint,
+      -- System info for the host machine. label_index orders the host first
+      -- (raw_id 0), falling back to the lowest-id machine when a merged trace
+      -- has no host row. See the machine view in the prelude.
+      (SELECT sysname FROM machine ORDER BY label_index LIMIT 1) as system_name,
+      (SELECT release FROM machine ORDER BY label_index LIMIT 1) as system_release,
+      (SELECT arch FROM machine ORDER BY label_index LIMIT 1) as system_machine,
+      (SELECT android_build_fingerprint FROM machine ORDER BY label_index LIMIT 1)
+        as android_build_fingerprint,
       (SELECT COUNT(DISTINCT trace_id) FROM metadata WHERE trace_id IS NOT NULL) as trace_count,
       (SELECT COUNT(DISTINCT machine_id) FROM metadata WHERE machine_id IS NOT NULL) as machine_count;
   `);
@@ -80,6 +85,7 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
     import_errors: NUM_NULL,
     trace_errors: NUM_NULL,
     data_losses: NUM_NULL,
+    notices: NUM_NULL,
     trace_size_bytes: LONG_NULL,
     duration_ns: LONG_NULL,
     sched_duration_ns: LONG_NULL,
@@ -94,6 +100,7 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
     importErrors: row.import_errors ?? 0,
     traceErrors: row.trace_errors ?? 0,
     dataLosses: row.data_losses ?? 0,
+    notices: row.notices ?? 0,
     uiLoadingErrorCount: trace.loadingErrors.length,
     traceSizeBytes: row.trace_size_bytes ?? undefined,
     traceTypes: trace.traceInfo.traceTypes,
@@ -118,7 +125,7 @@ export interface OverviewTabAttrs {
 interface StatusCardConfig {
   title: string;
   count: number;
-  severity: 'success' | 'danger' | 'warning';
+  severity: 'success' | 'danger' | 'warning' | 'notice';
   icon: string;
   helpText: string;
   targetTab: TabKey;
@@ -135,26 +142,6 @@ export class OverviewTab implements m.ClassComponent<OverviewTabAttrs> {
   view({attrs}: m.CVnode<OverviewTabAttrs>) {
     return m(
       '.pf-trace-info-page__tab-content',
-      attrs.data.traceCount > 1 &&
-        m(
-          Callout,
-          {
-            icon: 'layers',
-            intent: Intent.Primary,
-            className: 'pf-trace-info-page__banner',
-          },
-          'This session contains multiple traces. See the "Traces" tab for details.',
-        ),
-      attrs.data.machineCount > 1 &&
-        m(
-          Callout,
-          {
-            icon: 'computer',
-            intent: Intent.Primary,
-            className: 'pf-trace-info-page__banner',
-          },
-          'This session contains data from multiple machines. See the "Machines" tab for details.',
-        ),
       this.renderCardSection(
         'Trace Health',
         'Summary of errors, warnings, and data quality indicators',
@@ -168,6 +155,14 @@ export class OverviewTab implements m.ClassComponent<OverviewTabAttrs> {
         createTraceMetrics(attrs.trace, attrs.data).map((metric) =>
           renderMetricCard(metric),
         ),
+        {
+          banner: attrs.data.traceCount > 1 && {
+            icon: 'layers',
+            text:
+              'This session contains multiple traces; the values here are ' +
+              'session-wide. See the "Traces" tab for per-trace details.',
+          },
+        },
       ),
       this.renderCardSection(
         'System Information',
@@ -180,6 +175,12 @@ export class OverviewTab implements m.ClassComponent<OverviewTabAttrs> {
             icon: 'computer',
             title: 'No system information available',
           },
+          banner: attrs.data.machineCount > 1 && {
+            icon: 'computer',
+            text:
+              'This session contains multiple machines; only the host ' +
+              'machine is shown here. See the "Machines" tab for the others.',
+          },
         },
       ),
     );
@@ -189,12 +190,29 @@ export class OverviewTab implements m.ClassComponent<OverviewTabAttrs> {
     title: string,
     subtitle: string,
     cards: m.Children[],
-    options?: {emptyState?: {icon: string; title: string}},
+    options?: {
+      emptyState?: {icon: string; title: string};
+      banner?: {icon: string; text: string} | false;
+    },
   ): m.Children {
     const filteredCards = cards.filter(Boolean);
+    const bannerCfg = options?.banner;
+    const banner =
+      bannerCfg === undefined || bannerCfg === false
+        ? undefined
+        : m(
+            Callout,
+            {
+              icon: bannerCfg.icon,
+              intent: Intent.Primary,
+              className: 'pf-trace-info-page__banner',
+            },
+            bannerCfg.text,
+          );
     return m(
       Section,
       {title, subtitle},
+      banner,
       filteredCards.length === 0 && options?.emptyState
         ? m(EmptyState, options.emptyState)
         : m(GridLayout, {}, ...filteredCards),
@@ -320,6 +338,15 @@ function createStatusCards(data: OverviewData): StatusCardConfig[] {
         'Events that were dropped during trace recording due to buffer overflow or other issues.',
       targetTab: data.dataLosses > 0 ? 'data_losses' : 'stats',
     },
+    {
+      title: 'Notices',
+      count: data.notices,
+      severity: data.notices === 0 ? 'success' : 'notice',
+      icon: data.notices === 0 ? 'check_circle' : 'info',
+      helpText:
+        'Normal but noteworthy conditions detected during recording or import, such as ftrace categories that failed to enable or packets skipped while incremental state was invalid. These are not errors.',
+      targetTab: data.notices > 0 ? 'notices' : 'stats',
+    },
   ];
   // Optional UI loading errors card - only show if there are errors
   if (data.uiLoadingErrorCount > 0) {
@@ -372,6 +399,12 @@ function createTraceMetrics(
       help: 'Duration from first to last scheduling event (max(ts) - min(ts) from sched)',
     },
     {
+      label: 'Recording Started',
+      value: formatTraceStartWallClock(trace),
+      help: "Wall-clock time recording began, from the trace's REALTIME clock",
+      wide: true,
+    },
+    {
       label: 'Trace UUID',
       value: data.uuid,
       help:
@@ -381,6 +414,30 @@ function createTraceMetrics(
       wide: true,
     },
   ];
+}
+
+// Renders the trace start as a wall-clock time, or undefined if the trace has
+// no REALTIME clock snapshot (in which case unixOffset is zero).
+function formatTraceStartWallClock(trace: Trace): string | undefined {
+  const {start, unixOffset, tzOffMin} = trace.traceInfo;
+  if (unixOffset === Time.ZERO) {
+    return undefined;
+  }
+  const utc = Time.toDate(start, unixOffset);
+  const local = new Date(utc.getTime() + tzOffMin * 60_000);
+  const iso = local.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 19)} ${formatTzOffset(tzOffMin)}`;
+}
+
+function formatTzOffset(tzOffMin: number): string {
+  if (tzOffMin === 0) {
+    return 'UTC';
+  }
+  const sign = tzOffMin > 0 ? '+' : '-';
+  const abs = Math.abs(tzOffMin);
+  const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+  const mm = String(abs % 60).padStart(2, '0');
+  return `UTC${sign}${hh}:${mm}`;
 }
 
 function createSystemInfoMetrics(data: OverviewData): MetricCardConfig[] {

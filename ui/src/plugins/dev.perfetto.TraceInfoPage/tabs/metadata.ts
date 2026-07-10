@@ -104,6 +104,22 @@ const SECTION_DEFS: ReadonlyArray<SectionDef> = [
     matches: (n) => n.startsWith('json_metadata.'),
     strip: 'json_metadata.',
   },
+  {
+    title: 'Manifest Attributes',
+    description:
+      'Custom key/value pairs annotating the trace archive, set when it was ' +
+      'packed with a manifest.',
+    matches: (n) => n.startsWith('manifest_attribute.'),
+    strip: 'manifest_attribute.',
+  },
+  {
+    title: 'Trace Attributes',
+    description:
+      'Custom key/value pairs describing the trace, set via ' +
+      '`perfetto --add-attribute` or TraceAttributes packets.',
+    matches: (n) => n.startsWith('trace_attribute.'),
+    strip: 'trace_attribute.',
+  },
 ];
 
 const OTHER_TITLE = 'Other';

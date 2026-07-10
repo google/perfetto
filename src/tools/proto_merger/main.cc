@@ -257,9 +257,17 @@ int Main(int argc, char** argv) {
     }
   }
 
+  base::Status status = AllowlistFromPassthrough(
+      *input_proto.file_descriptor, *upstream_proto.file_descriptor, allowed);
+  if (!status.ok()) {
+    PERFETTO_ELOG("Failed adding passthrough fields to allowlist: %s",
+                  status.c_message());
+    return 1;
+  }
+
   ProtoFile merged;
-  base::Status status = MergeProtoFiles(input_file, upstream_file, allowed,
-                                        merged, allowlisted_options);
+  status = MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                           allowlisted_options);
   if (!status.ok()) {
     PERFETTO_ELOG("Failed merging protos: %s", status.c_message());
     return 1;
