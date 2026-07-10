@@ -23,6 +23,7 @@ import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
 // All possible tab keys - single source of truth
 export const ALL_TAB_KEYS = [
   'overview',
+  'trace_doctor',
   'config',
   'android',
   'traces',
