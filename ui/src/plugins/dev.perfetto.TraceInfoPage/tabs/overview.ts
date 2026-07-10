@@ -37,6 +37,7 @@ export interface OverviewData {
   importErrors: number;
   traceErrors: number;
   dataLosses: number;
+  notices: number;
   uiLoadingErrorCount: number;
   // Metrics
   traceSizeBytes?: bigint;
@@ -62,6 +63,7 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'error' AND source = 'analysis') as import_errors,
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'error' AND source = 'trace') as trace_errors,
       (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'data_loss') as data_losses,
+      (SELECT IFNULL(sum(value), 0) FROM stats WHERE severity = 'notice') as notices,
       -- Metrics
       extract_metadata('trace_size_bytes') as trace_size_bytes,
       extract_metadata('tracing_disabled_ns') - 
@@ -83,6 +85,7 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
     import_errors: NUM_NULL,
     trace_errors: NUM_NULL,
     data_losses: NUM_NULL,
+    notices: NUM_NULL,
     trace_size_bytes: LONG_NULL,
     duration_ns: LONG_NULL,
     sched_duration_ns: LONG_NULL,
@@ -97,6 +100,7 @@ export async function loadOverviewData(trace: Trace): Promise<OverviewData> {
     importErrors: row.import_errors ?? 0,
     traceErrors: row.trace_errors ?? 0,
     dataLosses: row.data_losses ?? 0,
+    notices: row.notices ?? 0,
     uiLoadingErrorCount: trace.loadingErrors.length,
     traceSizeBytes: row.trace_size_bytes ?? undefined,
     traceTypes: trace.traceInfo.traceTypes,
@@ -121,7 +125,7 @@ export interface OverviewTabAttrs {
 interface StatusCardConfig {
   title: string;
   count: number;
-  severity: 'success' | 'danger' | 'warning';
+  severity: 'success' | 'danger' | 'warning' | 'notice';
   icon: string;
   helpText: string;
   targetTab: TabKey;
@@ -333,6 +337,15 @@ function createStatusCards(data: OverviewData): StatusCardConfig[] {
       helpText:
         'Events that were dropped during trace recording due to buffer overflow or other issues.',
       targetTab: data.dataLosses > 0 ? 'data_losses' : 'stats',
+    },
+    {
+      title: 'Notices',
+      count: data.notices,
+      severity: data.notices === 0 ? 'success' : 'notice',
+      icon: data.notices === 0 ? 'check_circle' : 'info',
+      helpText:
+        'Normal but noteworthy conditions detected during recording or import, such as ftrace categories that failed to enable or packets skipped while incremental state was invalid. These are not errors.',
+      targetTab: data.notices > 0 ? 'notices' : 'stats',
     },
   ];
   // Optional UI loading errors card - only show if there are errors

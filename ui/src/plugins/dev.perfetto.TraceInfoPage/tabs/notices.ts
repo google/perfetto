@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,33 +21,31 @@ import {
   loadCategoryLogsData,
 } from './category_logs';
 
-export type ImportErrorsData = CategoryLogsData;
+export type NoticesData = CategoryLogsData;
 
-export async function loadImportErrorsData(
-  engine: Engine,
-): Promise<ImportErrorsData> {
+export async function loadNoticesData(engine: Engine): Promise<NoticesData> {
   return loadCategoryLogsData(
     engine,
-    "severity = 'error' AND source = 'analysis' AND value > 0",
-    'error',
+    "severity = 'notice' AND value > 0",
+    'notice',
   );
 }
 
 const CONFIG: CategoryLogsViewConfig = {
-  categoriesTitle: 'Import Error Categories',
+  categoriesTitle: 'Notices',
   categoriesSubtitle:
-    'Summary of import errors grouped by category. These errors occurred during trace processing',
-  detailedSubtitle: 'Individual import error entries grouped by category',
-  cardSeverity: 'danger',
-  cardIcon: 'error',
+    'Normal but noteworthy conditions detected during recording or import. These are not errors and do not indicate corruption',
+  detailedSubtitle: 'Individual notice entries grouped by category',
+  cardSeverity: 'notice',
+  cardIcon: 'info',
 };
 
-export interface ImportErrorsTabAttrs {
-  data: ImportErrorsData;
+export interface NoticesTabAttrs {
+  data: NoticesData;
 }
 
-export class ImportErrorsTab implements m.ClassComponent<ImportErrorsTabAttrs> {
-  view({attrs}: m.CVnode<ImportErrorsTabAttrs>) {
+export class NoticesTab implements m.ClassComponent<NoticesTabAttrs> {
+  view({attrs}: m.CVnode<NoticesTabAttrs>) {
     return m(CategoryLogsTab, {data: attrs.data, config: CONFIG});
   }
 }
