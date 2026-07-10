@@ -268,8 +268,6 @@ class TracingServiceImpl : public TracingService {
   // The only way to change a session's state. Broadcasts the change into the
   // other opted-in sessions' concurrent_session_events.
   void SetSessionState(TracingSession*, TracingSession::State);
-  // Snapshots the sessions already active into a newly created session.
-  void PopulateConcurrentTracingSessions(TracingSession*);
   void EmitConcurrentSessionEvents(TracingSession*, std::vector<TracePacket>*);
   void EmitUuid(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);

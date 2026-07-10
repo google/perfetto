@@ -629,7 +629,10 @@ CollectConcurrentSessionEvents(
 }
 
 // Checks that each tracing session records the state changes of the *other*
-// tracing sessions that overlapped with it, as ConcurrentSessionEvent packets.
+// tracing sessions that overlapped with it, as ConcurrentSessionEvent packets:
+// sessions already in the service when one starts are snapshotted in their
+// current state (including ended-but-not-yet-freed ones, as DISABLED), and
+// later state changes are recorded as they happen.
 TEST_F(TracingServiceImplTest, ConcurrentSessionEvents) {
   auto make_config = [](const char* name) {
     TraceConfig cfg;
@@ -661,11 +664,29 @@ TEST_F(TracingServiceImplTest, ConcurrentSessionEvents) {
                   protos::gen::ConcurrentSessionEvent::STATE_STARTED,
                   "session_a", 1u)));
 
+  // |session_b| has ended but its consumer hasn't freed it yet, so it lingers
+  // in the DISABLED state. |session_c| starts now: its snapshot contains both
+  // the running |session_a| and the lingering |session_b|.
+  constexpr uid_t kConsumerCUid = 2002;
+  std::unique_ptr<MockConsumer> consumer_c = CreateMockConsumer();
+  consumer_c->Connect(svc.get(), kConsumerCUid);
+  consumer_c->EnableTracing(make_config("session_c"));
+  consumer_c->DisableTracing();
+  consumer_c->WaitForTracingDisabled();
+  EXPECT_THAT(
+      CollectConcurrentSessionEvents(consumer_c->ReadBuffers()),
+      ElementsAre(
+          std::make_tuple(protos::gen::ConcurrentSessionEvent::STATE_STARTED,
+                          "session_a", 1u),
+          std::make_tuple(protos::gen::ConcurrentSessionEvent::STATE_DISABLED,
+                          "session_b", 2u)));
+
   consumer_a->DisableTracing();
   consumer_a->WaitForTracingDisabled();
 
-  // |session_a| observed |session_b|'s full lifecycle. With no data sources
-  // to wait for, DISABLING_WAITING_STOP_ACKS is skipped.
+  // |session_a| observed the full lifecycle of both |session_b| and
+  // |session_c|. With no data sources to wait for,
+  // DISABLING_WAITING_STOP_ACKS is skipped.
   auto packets_a = consumer_a->ReadBuffers();
   EXPECT_THAT(
       CollectConcurrentSessionEvents(packets_a),
@@ -675,14 +696,22 @@ TEST_F(TracingServiceImplTest, ConcurrentSessionEvents) {
           std::make_tuple(protos::gen::ConcurrentSessionEvent::STATE_STARTED,
                           "session_b", 2u),
           std::make_tuple(protos::gen::ConcurrentSessionEvent::STATE_DISABLED,
-                          "session_b", 2u)));
+                          "session_b", 2u),
+          std::make_tuple(protos::gen::ConcurrentSessionEvent::STATE_CONFIGURED,
+                          "session_c", 3u),
+          std::make_tuple(protos::gen::ConcurrentSessionEvent::STATE_STARTED,
+                          "session_c", 3u),
+          std::make_tuple(protos::gen::ConcurrentSessionEvent::STATE_DISABLED,
+                          "session_c", 3u)));
 
   // Events carry the source session's consumer uid and data source count.
   for (const auto& packet : packets_a) {
     if (!packet.has_concurrent_session_event())
       continue;
     const auto& ev = packet.concurrent_session_event();
-    EXPECT_EQ(ev.consumer_uid(), static_cast<int32_t>(kConsumerBUid));
+    EXPECT_EQ(ev.consumer_uid(),
+              static_cast<int32_t>(ev.session_id() == 2u ? kConsumerBUid
+                                                         : kConsumerCUid));
     EXPECT_EQ(ev.num_data_sources(), 0u);
   }
 }
@@ -730,51 +759,6 @@ TEST_F(TracingServiceImplTest, ConcurrentSessionEventsAreOptIn) {
                           "session_b", 2u),
           std::make_tuple(protos::gen::ConcurrentSessionEvent::STATE_DISABLED,
                           "session_b", 2u)));
-}
-
-// A session that has already ended but not yet been freed lingers in the
-// service in the DISABLED state. It must not be snapshotted into a session that
-// starts afterwards: it isn't concurrently active and would produce a dangling
-// terminal event with no matching lifecycle.
-TEST_F(TracingServiceImplTest, ConcurrentSessionEventsSkipDisabled) {
-  auto make_config = [](const char* name) {
-    TraceConfig cfg;
-    cfg.add_buffers()->set_size_kb(128);
-    cfg.set_unique_session_name(name);
-    cfg.mutable_builtin_data_sources()->set_enable_concurrent_session_events(
-        true);
-    return cfg;
-  };
-
-  // |session_a| (id 1) stays running throughout.
-  std::unique_ptr<MockConsumer> consumer_a = CreateMockConsumer();
-  consumer_a->Connect(svc.get());
-  consumer_a->EnableTracing(make_config("session_a"));
-
-  // |session_b| (id 2) starts and fully stops, but is not freed (its consumer
-  // stays connected), so it lingers in the DISABLED state.
-  std::unique_ptr<MockConsumer> consumer_b = CreateMockConsumer();
-  consumer_b->Connect(svc.get());
-  consumer_b->EnableTracing(make_config("session_b"));
-  consumer_b->DisableTracing();
-  consumer_b->WaitForTracingDisabled();
-
-  // |session_c| (id 3) starts while |session_b| is lingering DISABLED.
-  std::unique_ptr<MockConsumer> consumer_c = CreateMockConsumer();
-  consumer_c->Connect(svc.get());
-  consumer_c->EnableTracing(make_config("session_c"));
-  consumer_c->DisableTracing();
-  consumer_c->WaitForTracingDisabled();
-
-  // |session_c|'s snapshot contains the running |session_a| but not the
-  // already-DISABLED |session_b|.
-  EXPECT_THAT(CollectConcurrentSessionEvents(consumer_c->ReadBuffers()),
-              ElementsAre(std::make_tuple(
-                  protos::gen::ConcurrentSessionEvent::STATE_STARTED,
-                  "session_a", 1u)));
-
-  consumer_a->DisableTracing();
-  consumer_a->WaitForTracingDisabled();
 }
 
 // Creates a tracing session with a START_TRACING trigger and checks that data

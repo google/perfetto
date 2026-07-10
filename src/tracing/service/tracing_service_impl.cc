@@ -1093,7 +1093,17 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
                                           weak_runner_.task_runner()))
            .first->second;
 
-  PopulateConcurrentTracingSessions(tracing_session);
+  // Snapshot the current state of every other session into the newly created
+  // one, so its trace records which sessions were already active when it
+  // started. Each snapshot is timestamped with when that session entered its
+  // current state.
+  if (cfg.builtin_data_sources().enable_concurrent_session_events()) {
+    for (auto& [src_id, src] : tracing_sessions_) {
+      if (src_id == tsid)
+        continue;
+      tracing_session->AddConcurrentSessionEventWithLimit(src);
+    }
+  }
 
   tracing_session->trace_uuid = uuid;
 
@@ -4296,7 +4306,6 @@ void TracingServiceImpl::SetSessionState(TracingSession* session,
   // Broadcast this state change into every other session that opted into
   // concurrent session events, so their trace logs that this session changed
   // state while they were running.
-  std::optional<TracingSession::ConcurrentSessionEvent> event;
   for (auto& [dst_id, dst] : tracing_sessions_) {
     if (!dst.config.builtin_data_sources().enable_concurrent_session_events())
       continue;
@@ -4312,49 +4321,7 @@ void TracingServiceImpl::SetSessionState(TracingSession* session,
       continue;
     }
 
-    if (!event) {
-      event.emplace();
-      event->timestamp = session->current_state_start_ns;
-      event->session_id = session->id;
-      event->state = session->state;
-      event->consumer_uid = session->consumer_uid;
-      event->num_data_sources =
-          static_cast<uint32_t>(session->data_source_instances.size());
-      event->name = session->config.unique_session_name();
-    }
-    dst.AddConcurrentSessionEventWithLimit(*event);
-  }
-}
-
-void TracingServiceImpl::PopulateConcurrentTracingSessions(
-    TracingSession* dst) {
-  if (!dst->config.builtin_data_sources().enable_concurrent_session_events())
-    return;
-
-  // Snapshot the current state of every other session into the newly created
-  // |dst|, so its trace records which sessions were already active when it
-  // started. Each snapshot is timestamped with when |src| entered its current
-  // state.
-  for (auto& [src_id, src] : tracing_sessions_) {
-    if (src_id == dst->id)
-      continue;
-
-    // Skip DISABLED sessions: they've already finished (a DISABLED session
-    // lingers in the map until the consumer calls FreeBuffers) and won't emit a
-    // follow-up transition, so snapshotting one would leave a dangling terminal
-    // event for a session |dst| never really overlapped with.
-    if (src.state == TracingSession::DISABLED)
-      continue;
-
-    TracingSession::ConcurrentSessionEvent event{};
-    event.timestamp = src.current_state_start_ns;
-    event.session_id = src.id;
-    event.state = src.state;
-    event.consumer_uid = src.consumer_uid;
-    event.num_data_sources =
-        static_cast<uint32_t>(src.data_source_instances.size());
-    event.name = src.config.unique_session_name();
-    dst->AddConcurrentSessionEventWithLimit(std::move(event));
+    dst.AddConcurrentSessionEventWithLimit(*session);
   }
 }
 

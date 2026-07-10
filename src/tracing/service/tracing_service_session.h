@@ -97,6 +97,11 @@ struct TracingSession {
   // session.
   bool IsCloneAllowed(uid_t clone_uid) const;
 
+  // Records |src|'s current state into concurrent_session_events, dropping the
+  // event once the buffer hits the limit. The cap bounds memory, as the buffer
+  // is drained only on ReadBuffers().
+  void AddConcurrentSessionEventWithLimit(const TracingSession& src);
+
   const TracingSessionID id;
 
   // The consumer that started the session.
@@ -245,14 +250,6 @@ struct TracingSession {
     std::string name;                 // Its unique_session_name (or empty).
   };
 
-  // Appends |event|, dropping it once the buffer hits the limit. The cap
-  // bounds memory, as the buffer is drained only on ReadBuffers().
-  void AddConcurrentSessionEventWithLimit(ConcurrentSessionEvent event) {
-    static constexpr size_t kMaxConcurrentSessionEvents = 4096;
-    if (concurrent_session_events.size() >= kMaxConcurrentSessionEvents)
-      return;
-    concurrent_session_events.emplace_back(std::move(event));
-  }
   std::vector<ConcurrentSessionEvent> concurrent_session_events;
 
   // If the consumer detached the session, this variable defines the key used
