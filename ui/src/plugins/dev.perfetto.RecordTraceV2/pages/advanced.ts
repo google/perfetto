@@ -122,7 +122,9 @@ function ftraceCfg(): RecordProbe {
       cfg.ftraceEvents ??= [];
       cfg.ftraceEvents.push(...settings.groups.selectedValues());
       if (settings.additionalEvents.enabled) {
-        cfg.ftraceEvents.push(...splitLinesNonEmpty(settings.customEvents.text));
+        cfg.ftraceEvents.push(
+          ...splitLinesNonEmpty(settings.customEvents.text),
+        );
       }
     },
   };
