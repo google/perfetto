@@ -354,8 +354,13 @@ export default defineConfig(({command}) => {
             onwarn(warning, warn) {
               if (warning.code === 'CIRCULAR_DEPENDENCY') {
                 if ((warning.message || '').includes('node_modules')) return;
+                // Rollup >=4 reports the cycle in `warning.ids` (older versions
+                // used `warning.importer`/`warning.cycle`, which are now
+                // undefined). `warning.message` already contains a formatted
+                // "a -> b -> a" chain, so prefer it and fall back to `ids`.
+                const cycle = warning.ids ?? warning.cycle ?? [];
                 throw new Error(
-                  `Circular dependency: ${warning.importer}\n  ${(warning.cycle || []).join('\n  ')}`,
+                  `${warning.message ?? 'Circular dependency'}\n  ${cycle.join('\n  ')}`,
                 );
               }
               warn(warning);
