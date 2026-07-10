@@ -31,6 +31,7 @@ export const ALL_TAB_KEYS = [
   'import_errors',
   'trace_errors',
   'data_losses',
+  'notices',
   'ui_loading_errors',
   'stats',
 ] as const;
@@ -153,7 +154,7 @@ export function groupByCategory(stats: StatsSectionRow[]): ErrorCategory[] {
 // Render an error category card
 export function renderErrorCategoryCard(
   category: ErrorCategory,
-  severity: 'danger' | 'warning',
+  severity: 'danger' | 'warning' | 'notice',
   icon: string,
 ): m.Children {
   const scrollToSection = () => {

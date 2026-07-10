@@ -51,6 +51,7 @@ import {
   type TraceErrorsData,
   loadTraceErrorsData,
 } from './tabs/trace_errors';
+import {NoticesTab, type NoticesData, loadNoticesData} from './tabs/notices';
 import {
   UiLoadingErrorsTab,
   type UiLoadingErrorsData,
@@ -78,6 +79,7 @@ interface AllTabData {
   importErrors: ImportErrorsData;
   traceErrors: TraceErrorsData;
   dataLosses: DataLossesData;
+  notices: NoticesData;
   uiLoadingErrors: UiLoadingErrorsData;
   stats: StatsData;
 }
@@ -169,6 +171,10 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
         return m(DataLossesTab, {
           data: this.tabData.dataLosses,
         });
+      case 'notices':
+        return m(NoticesTab, {
+          data: this.tabData.notices,
+        });
       case 'ui_loading_errors':
         return m(UiLoadingErrorsTab, {
           data: this.tabData.uiLoadingErrors,
@@ -192,6 +198,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
       importErrors: await loadImportErrorsData(engine),
       traceErrors: await loadTraceErrorsData(engine),
       dataLosses: await loadDataLossesData(engine),
+      notices: await loadNoticesData(engine),
       uiLoadingErrors: {errors: trace.loadingErrors},
       stats: await loadStatsData(engine),
     };
@@ -211,6 +218,9 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     }
     if ((this.tabData?.overview?.dataLosses ?? 0) > 0) {
       tabs.push({key: 'data_losses', title: 'Data Losses'});
+    }
+    if ((this.tabData?.notices?.categories?.length ?? 0) > 0) {
+      tabs.push({key: 'notices', title: 'Notices'});
     }
     if ((this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0) {
       tabs.push({key: 'ui_loading_errors', title: 'UI Loading Errors'});
