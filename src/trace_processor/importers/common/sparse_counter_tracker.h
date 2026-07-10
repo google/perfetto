@@ -27,7 +27,7 @@
 
 namespace perfetto::trace_processor {
 
-struct SparseCounterEvent {
+struct alignas(8) SparseCounterEvent {
   TrackId track;
   double value;
 };
