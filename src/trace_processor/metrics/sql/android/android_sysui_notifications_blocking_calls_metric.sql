@@ -47,9 +47,8 @@ SELECT AndroidSysUINotificationsBlockingCallsMetric('blocking_calls', (
                 'total_dur_ns', a.total_dur_ns,
                 'max_dur_ns', a.max_dur_ns,
                 'min_dur_ns', a.min_dur_ns
-            )
+            ) ORDER BY a.total_dur_ns DESC, a.name
         )
         FROM android_sysui_notifications_blocking_calls a
-        ORDER BY total_dur_ns DESC
     )
 );

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_EVENT_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_EVENT_H_
-
-#include <cstddef>
-#include <cstdint>
-#include <optional>
-
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/tables/profiler_tables_py.h"
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_H_
 
 namespace perfetto::trace_processor::perf_text_importer {
 
-struct alignas(8) PerfTextEvent {
-  std::optional<StringPool::Id> comm;
-  uint32_t tid;
-  std::optional<uint32_t> pid;
-  tables::StackProfileCallsiteTable::Id callsite_id;
-};
+void RegisterPlugin();
 
 }  // namespace perfetto::trace_processor::perf_text_importer
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_EVENT_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_PERF_TEXT_PERF_TEXT_H_

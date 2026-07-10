@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
@@ -51,7 +52,6 @@
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -76,15 +76,8 @@ base::Status WrapParseError(const base::Status& status) {
 
 TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
     : context_(TraceProcessorContext::CreateRootContext(cfg)) {
-  context()->reader_registry->RegisterTraceReader<ProtoTraceReader>(
-      kProtoTraceType);
-  context()->reader_registry->RegisterTraceReader<ProtoTraceReader>(
-      kSymbolsTraceType);
-  for (const std::string& raw_bytes : cfg.extra_parsing_descriptors) {
-    context_.descriptor_pool_->AddFromFileDescriptorSet(
-        reinterpret_cast<const uint8_t*>(raw_bytes.data()), raw_bytes.size(),
-        {}, true);
-  }
+  context()->reader_registry->Register(CreateProtoImporter());
+  context()->reader_registry->Register(CreateSymbolsImporter());
 }
 
 TraceProcessorStorageImpl::~TraceProcessorStorageImpl() {}

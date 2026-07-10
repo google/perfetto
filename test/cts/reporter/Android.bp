@@ -23,6 +23,7 @@ cc_test {
     "libgmock",
     "libprotobuf-cpp-lite",
     "libperfetto_client_experimental",
+    "libzstd",
     "perfetto_cts_deps",
     "perfetto_flags_c_lib",
     "perfetto_trace_protos",
@@ -35,7 +36,6 @@ cc_test {
     "liblog",
     "libpcre2",
     "libz",
-    "libzstd",
   ],
   test_suites: [
     "cts",

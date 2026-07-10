@@ -140,6 +140,18 @@ namespace perfetto::trace_processor::stats {
   F(gpu_render_stage_parser_errors,       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(graphics_frame_event_parser_errors,   kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(guess_trace_type_duration_ns,         kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
+  F(instruments_row_missing_thread,       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+      "An instruments trace row referenced an unknown thread id; the "         \
+      "row was skipped."),                                                     \
+  F(instruments_row_missing_process,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+      "An instruments trace row's thread referenced an unknown "               \
+      "process id; the row was skipped."),                                     \
+  F(instruments_row_missing_backtrace,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+      "An instruments trace row referenced an unknown backtrace id; "          \
+      "the row was skipped."),                                                 \
+  F(instruments_row_missing_frame,        kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+      "An instruments trace backtrace referenced an unknown frame id; "        \
+      "the frame was skipped."),                                               \
   F(interned_data_tokenizer_errors,       kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(invalid_clock_snapshots,              kSingle,  kError,    kAnalysis, Scope::kGlobal, ""), \
   F(invalid_cpu_times,                    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
@@ -956,7 +968,10 @@ namespace perfetto::trace_processor::stats {
       "actual patch format."),                                                 \
   F(protovm_registration_error, kSingle,  kError, kAnalysis, Scope::kMachineAndTrace,                   \
     "Failed to find the sequence IDs corresponding to a ProtoVM's producer "   \
-    "ID. Such mapping should be provided by the TraceProvenance packet.")
+    "ID. Such mapping should be provided by the TraceProvenance packet."),     \
+  F(extra_parsing_descriptors_error, kSingle,  kError, kAnalysis, Scope::kGlobal,                       \
+    "Failed to parse a FileDescriptorSet passed as TraceProcessor "            \
+    "configuration parameter")
 // clang-format on
 
 enum Type {

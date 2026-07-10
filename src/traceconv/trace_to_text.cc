@@ -37,7 +37,6 @@ namespace trace_to_text {
 namespace {
 
 using perfetto::trace_processor::DescriptorPool;
-using trace_processor::TraceType;
 namespace util = trace_processor::util;
 
 template <size_t N>
@@ -204,10 +203,15 @@ bool TraceToText(std::istream* input,
   OnlineTraceToText online_trace_to_text(output, options);
 
   input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize);
-  TraceType type = trace_processor::GuessTraceType(buffer.get(), buffer_len);
+  trace_processor::CompressedTraceType type =
+      trace_processor::SniffCompressedTraceType(buffer.get(), buffer_len);
 
-  if (type == TraceType::kGzipTraceType || type == TraceType::kZstdTraceType) {
-    auto codec = trace_processor::CompressionTypeForTraceType(type);
+  if (type == trace_processor::CompressedTraceType::kGzip ||
+      type == trace_processor::CompressedTraceType::kZstd) {
+    util::CompressionType codec =
+        type == trace_processor::CompressedTraceType::kZstd
+            ? util::CompressionType::kZstd
+            : util::CompressionType::kGzip;
     std::unique_ptr<util::Decompressor> decompressor =
         util::CreateDecompressor(codec);
     if (!decompressor) {
@@ -257,8 +261,7 @@ bool TraceToText(std::istream* input,
       return false;
     }
     return input_reader.ok();
-  } else if (type == TraceType::kProtoTraceType ||
-             type == trace_processor::kSymbolsTraceType) {
+  } else if (type == trace_processor::CompressedTraceType::kProto) {
     do {
       online_trace_to_text.Feed(buffer.get(), buffer_len);
       if (!online_trace_to_text.ok())
@@ -266,7 +269,7 @@ bool TraceToText(std::istream* input,
     } while (input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize));
     return input_reader.ok();
   } else {
-    PERFETTO_ELOG("Unrecognised file (type: %d).", type);
+    PERFETTO_ELOG("Unrecognised file.");
     return false;
   }
 }

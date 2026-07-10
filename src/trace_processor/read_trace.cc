@@ -93,16 +93,18 @@ base::Status ReadTrace(
 base::Status DecompressTrace(const uint8_t* data,
                              size_t size,
                              std::vector<uint8_t>* output) {
-  TraceType type = GuessTraceType(data, size);
-  if (type != TraceType::kGzipTraceType && type != TraceType::kZstdTraceType &&
-      type != TraceType::kProtoTraceType) {
+  CompressedTraceType type = SniffCompressedTraceType(data, size);
+  if (type == CompressedTraceType::kOther) {
     return base::ErrStatus(
         "Only GZIP, ZSTD and proto trace types are supported by "
         "DecompressTrace");
   }
 
-  if (type == TraceType::kGzipTraceType || type == TraceType::kZstdTraceType) {
-    auto codec = CompressionTypeForTraceType(type);
+  if (type == CompressedTraceType::kGzip ||
+      type == CompressedTraceType::kZstd) {
+    util::CompressionType codec = type == CompressedTraceType::kZstd
+                                      ? util::CompressionType::kZstd
+                                      : util::CompressionType::kGzip;
     std::unique_ptr<ChunkedTraceReader> reader(
         new SerializingProtoTraceReader(output));
     DecompressingTraceReader parser(std::move(reader), codec);
@@ -112,7 +114,7 @@ base::Status DecompressTrace(const uint8_t* data,
     return base::OkStatus();
   }
 
-  PERFETTO_CHECK(type == TraceType::kProtoTraceType);
+  PERFETTO_CHECK(type == CompressedTraceType::kProto);
 
   // Plain proto: expand each compressed_packets / zstd_compressed_packets
   // bundle into `output`, and pass other packets through unchanged.
