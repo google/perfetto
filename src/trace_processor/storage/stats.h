@@ -968,7 +968,10 @@ namespace perfetto::trace_processor::stats {
       "actual patch format."),                                                 \
   F(protovm_registration_error, kSingle,  kError, kAnalysis, Scope::kMachineAndTrace,                   \
     "Failed to find the sequence IDs corresponding to a ProtoVM's producer "   \
-    "ID. Such mapping should be provided by the TraceProvenance packet.")
+    "ID. Such mapping should be provided by the TraceProvenance packet."),     \
+  F(extra_parsing_descriptors_error, kSingle,  kError, kAnalysis, Scope::kGlobal,                       \
+    "Failed to parse a FileDescriptorSet passed as TraceProcessor "            \
+    "configuration parameter")
 // clang-format on
 
 enum Type {

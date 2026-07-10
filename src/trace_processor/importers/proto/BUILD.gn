@@ -360,6 +360,7 @@ source_set("unittests") {
     ":gen_cc_trace_descriptor",
     ":minimal",
     ":packet_sequence_state_generation_hdr",
+    "../..:storage_minimal",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../../protos/perfetto/common:cpp",

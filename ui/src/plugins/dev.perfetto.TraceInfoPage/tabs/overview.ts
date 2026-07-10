@@ -194,7 +194,7 @@ export class OverviewTab implements m.ClassComponent<OverviewTabAttrs> {
     const filteredCards = cards.filter(Boolean);
     const bannerCfg = options?.banner;
     const banner =
-      bannerCfg !== undefined &&
+      bannerCfg &&
       m(
         Callout,
         {

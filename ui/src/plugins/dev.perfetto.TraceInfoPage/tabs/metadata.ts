@@ -98,6 +98,12 @@ const SECTION_DEFS: ReadonlyArray<SectionDef> = [
     matches: (n) => n.startsWith('cr-'),
     strip: 'cr-',
   },
+  {
+    title: 'JSON Metadata',
+    description: 'Top-level metadata from a Chrome or DevTools JSON trace.',
+    matches: (n) => n.startsWith('json_metadata.'),
+    strip: 'json_metadata.',
+  },
 ];
 
 const OTHER_TITLE = 'Other';

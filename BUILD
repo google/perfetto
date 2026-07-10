@@ -320,6 +320,7 @@ perfetto_cc_binary(
     ],
     deps = [
         ":protos_perfetto_common_cpp",
+        ":protos_perfetto_common_passthrough_lite",
         ":protos_perfetto_common_semantic_type_cpp",
         ":protos_perfetto_common_semantic_type_lite",
         ":protos_perfetto_common_semantic_type_zero",
@@ -360,6 +361,7 @@ perfetto_cc_binary(
         "src/tools/proto_merger/main.cc",
     ],
     deps = [
+        ":protos_perfetto_common_passthrough_lite",
         ":src_base_base",
         ":src_base_version",
     ] + PERFETTO_CONFIG.deps.protobuf_full,
@@ -7646,6 +7648,27 @@ perfetto_cc_protocpp_library(
         ":protos_perfetto_common_protos",
         ":protos_perfetto_protovm_cpp",
     ],
+)
+
+# GN target: //protos/perfetto/common:passthrough_lite
+perfetto_cc_proto_library(
+    name = "protos_perfetto_common_passthrough_lite",
+    deps = [
+        ":protos_perfetto_common_passthrough_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/common:passthrough_source_set
+perfetto_proto_library(
+    name = "protos_perfetto_common_passthrough_protos",
+    srcs = [
+        "protos/perfetto/common/passthrough.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
 )
 
 # GN target: //protos/perfetto/common:source_set
