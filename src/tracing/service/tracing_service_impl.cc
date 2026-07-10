@@ -132,6 +132,7 @@
 #include "protos/perfetto/protovm/vm_program.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/extension_descriptor.pbzero.h"
+#include "protos/perfetto/trace/perfetto/concurrent_session_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
@@ -1092,6 +1093,18 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
                                           weak_runner_.task_runner()))
            .first->second;
 
+  // Snapshot the current state of every other session into the newly created
+  // one, so its trace records which sessions were already active when it
+  // started. Each snapshot is timestamped with when that session entered its
+  // current state.
+  if (cfg.builtin_data_sources().enable_concurrent_session_events()) {
+    for (auto& [src_id, src] : tracing_sessions_) {
+      if (src_id == tsid)
+        continue;
+      tracing_session->AddConcurrentSessionEventWithLimit(src);
+    }
+  }
+
   tracing_session->trace_uuid = uuid;
 
   if (trace_filter)
@@ -1305,7 +1318,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       // is handled few lines above (search for TriggerMode_MAX).
   }
 
-  tracing_session->state = TracingSession::CONFIGURED;
+  SetSessionState(tracing_session, TracingSession::CONFIGURED);
   PERFETTO_LOG(
       "Configured tracing session %" PRIu64
       ", #sources:%zu, duration:%u ms%s, #buffers:%d, total "
@@ -1475,7 +1488,7 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
     return;
   }
 
-  tracing_session->state = TracingSession::STARTED;
+  SetSessionState(tracing_session, TracingSession::STARTED);
 
   // We store the start of trace snapshot separately as it's important to make
   // sure we can interpret all the data in the trace and storing it in the ring
@@ -1714,7 +1727,7 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
   if (tracing_session->AllDataSourceInstancesStopped())
     return DisableTracingNotifyConsumerAndFlushFile(tracing_session, error);
 
-  tracing_session->state = TracingSession::DISABLING_WAITING_STOP_ACKS;
+  SetSessionState(tracing_session, TracingSession::DISABLING_WAITING_STOP_ACKS);
   weak_runner_.PostDelayedTask([this, tsid] { OnDisableTracingTimeout(tsid); },
                                tracing_session->data_source_stop_timeout_ms());
 
@@ -2075,7 +2088,7 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
           *producer, inst_kv.second);
     }
   }
-  tracing_session->state = TracingSession::DISABLED;
+  SetSessionState(tracing_session, TracingSession::DISABLED);
 
   // Scrape any remaining chunks that weren't flushed by the producers.
   for (auto& producer_id_and_producer : producers_)
@@ -2717,6 +2730,11 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   if (!tracing_session->config.builtin_data_sources().disable_service_events())
     EmitLifecycleEvents(tracing_session, &packets);
 
+  if (tracing_session->config.builtin_data_sources()
+          .enable_concurrent_session_events()) {
+    EmitConcurrentSessionEvents(tracing_session, &packets);
+  }
+
   // In a multi-machine tracing session, emit clock synchronization messages for
   // remote machines.
   if (!tracing_session->config.builtin_data_sources()
@@ -3048,6 +3066,12 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,
   bool is_long_trace =
       (tracing_session->config.write_into_file() &&
        tracing_session->config.file_write_period_ms() < kMillisPerDay);
+
+  // DisableTracing() above ignores cloned sessions: record their teardown
+  // here so other sessions observing this one see a terminal DISABLED state.
+  if (tracing_session->state == TracingSession::CLONED_READ_ONLY)
+    SetSessionState(tracing_session, TracingSession::DISABLED);
+
   auto pending_clones = std::move(tracing_session->pending_clones);
   tracing_sessions_.erase(tsid);
   tracing_session = nullptr;
@@ -4269,6 +4293,88 @@ void TracingServiceImpl::EmitLifecycleEvents(
     SerializeAndAppendPacket(packets, std::move(pair.second));
 }
 
+void TracingServiceImpl::SetSessionState(TracingSession* session,
+                                         TracingSession::State new_state) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  if (session->state == new_state)
+    return;
+
+  session->state = new_state;
+  session->current_state_start_ns = clock_->GetBootTimeNs().count();
+
+  // Broadcast this state change into every other session that opted into
+  // concurrent session events, so their trace logs that this session changed
+  // state while they were running.
+  for (auto& [dst_id, dst] : tracing_sessions_) {
+    if (!dst.config.builtin_data_sources().enable_concurrent_session_events())
+      continue;
+    if (dst_id == session->id)
+      continue;
+
+    // Skip CLONED_READ_ONLY sessions, whose buffers are a frozen snapshot and
+    // must never change, and DISABLED ones (terminal, or not yet configured).
+    // Every other state (CONFIGURED, STARTED, DISABLING_WAITING_STOP_ACKS) is a
+    // live trace still being recorded or finalized, and will be read.
+    if (dst.state == TracingSession::CLONED_READ_ONLY ||
+        dst.state == TracingSession::DISABLED) {
+      continue;
+    }
+
+    dst.AddConcurrentSessionEventWithLimit(*session);
+  }
+}
+
+void TracingServiceImpl::EmitConcurrentSessionEvents(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  auto& events = tracing_session->concurrent_session_events;
+  if (events.empty())
+    return;
+
+  // Sort by timestamp so this sequence has monotonic timestamps, like the
+  // other service-emitted sequences.
+  std::sort(events.begin(), events.end(),
+            [](const TracingSession::ConcurrentSessionEvent& a,
+               const TracingSession::ConcurrentSessionEvent& b) {
+              return a.timestamp < b.timestamp;
+            });
+
+  auto to_proto_state = [](TracingSession::State state) {
+    using protos::pbzero::ConcurrentSessionEvent;
+    switch (state) {
+      case TracingSession::DISABLED:
+        return ConcurrentSessionEvent::STATE_DISABLED;
+      case TracingSession::CONFIGURED:
+        return ConcurrentSessionEvent::STATE_CONFIGURED;
+      case TracingSession::STARTED:
+        return ConcurrentSessionEvent::STATE_STARTED;
+      case TracingSession::DISABLING_WAITING_STOP_ACKS:
+        return ConcurrentSessionEvent::STATE_DISABLING_WAITING_STOP_ACKS;
+      case TracingSession::CLONED_READ_ONLY:
+        return ConcurrentSessionEvent::STATE_CLONED_READ_ONLY;
+    }
+    PERFETTO_FATAL("For GCC");
+  };
+
+  for (const auto& event : events) {
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    packet->set_timestamp(static_cast<uint64_t>(event.timestamp));
+    SetServiceTracePacketHeader(packet.get());
+    auto* session_event = packet->set_concurrent_session_event();
+    session_event->set_state(to_proto_state(event.state));
+    if (!event.name.empty()) {
+      session_event->set_session_name(event.name);
+    }
+    session_event->set_session_id(event.session_id);
+    session_event->set_consumer_uid(static_cast<int32_t>(event.consumer_uid));
+    session_event->set_num_data_sources(event.num_data_sources);
+    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  }
+
+  events.clear();
+}
+
 void TracingServiceImpl::MaybeEmitRemoteClockSync(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
@@ -4829,7 +4935,7 @@ base::Status TracingServiceImpl::FinishCloneSession(
   // that triggered it. See the corresponding code in perfetto_cmd.cc which
   // reads at triggering_subscription_id().
   const int64_t orig_uuid_lsb = src->trace_uuid.lsb();
-  cloned_session->state = TracingSession::CLONED_READ_ONLY;
+  SetSessionState(cloned_session, TracingSession::CLONED_READ_ONLY);
   cloned_session->trace_uuid = base::Uuidv4();
   cloned_session->trace_uuid.set_lsb(orig_uuid_lsb);
   *new_uuid = cloned_session->trace_uuid;
@@ -4864,6 +4970,7 @@ base::Status TracingServiceImpl::FinishCloneSession(
       std::vector<TracingSession::LifecycleEvent>(src->lifecycle_events);
   cloned_session->slow_start_event = src->slow_start_event;
   cloned_session->last_flush_events = src->last_flush_events;
+  cloned_session->concurrent_session_events = src->concurrent_session_events;
   cloned_session->initial_clock_snapshot = src->initial_clock_snapshot;
   cloned_session->clock_snapshot_ring_buffer = src->clock_snapshot_ring_buffer;
   cloned_session->invalid_packets = src->invalid_packets;
