@@ -95,6 +95,7 @@ from diff_tests.parser.linux.tests import Linux
 from diff_tests.parser.memory.tests import MemoryParser
 from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
+from diff_tests.parser.parsing.tests_concurrent_sessions import ParsingConcurrentSessions
 from diff_tests.parser.parsing.tests_debug_annotation import ParsingDebugAnnotation
 from diff_tests.parser.parsing.tests_memory_counters import ParsingMemoryCounters
 from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
@@ -271,6 +272,7 @@ def fetch_all_diff_tests(
       TranslatedArgs,
       Ufs,
       Parsing,
+      ParsingConcurrentSessions,
       ParsingDebugAnnotation,
       ParsingRssStats,
       ParsingSysStats,

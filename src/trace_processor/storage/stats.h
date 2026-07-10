@@ -178,6 +178,14 @@ namespace perfetto::trace_processor::stats {
        "Parsing packed repeated field. Should never happen."),                 \
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Interning ID not found. Should never happen."),                        \
+  F(concurrent_session_event_unknown_state,                                    \
+                                          kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+       "ConcurrentSessionEvent packet with an unspecified or unknown "         \
+       "state, likely emitted by a newer version of the tracing service. "     \
+       "The event was dropped, so the session's state track is missing a "     \
+       "transition. Retry with a trace_processor version at least as new as "  \
+       "the traced that recorded the trace; the raw state value is in the "    \
+       "trace import logs."),                                                  \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(cpu_info_unknown_cpu_features,        kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
        "CpuInfo contained CPU feature bits not known to this version of "      \

@@ -3207,6 +3207,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/chrome_system_probes_module.h",
         "src/trace_processor/importers/proto/chrome_system_probes_parser.cc",
         "src/trace_processor/importers/proto/chrome_system_probes_parser.h",
+        "src/trace_processor/importers/proto/concurrent_sessions_module.cc",
+        "src/trace_processor/importers/proto/concurrent_sessions_module.h",
         "src/trace_processor/importers/proto/default_modules.cc",
         "src/trace_processor/importers/proto/default_modules.h",
         "src/trace_processor/importers/proto/incremental_state.cc",

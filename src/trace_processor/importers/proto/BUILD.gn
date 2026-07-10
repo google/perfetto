@@ -30,6 +30,8 @@ source_set("minimal") {
     "chrome_system_probes_module.h",
     "chrome_system_probes_parser.cc",
     "chrome_system_probes_parser.h",
+    "concurrent_sessions_module.cc",
+    "concurrent_sessions_module.h",
     "default_modules.cc",
     "default_modules.h",
     "incremental_state.cc",
