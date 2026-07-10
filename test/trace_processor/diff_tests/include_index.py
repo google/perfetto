@@ -124,6 +124,7 @@ from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
 from diff_tests.parser.smoke.tests_sched_events import SmokeSchedEvents
+from diff_tests.parser.strace.tests import StraceParser
 from diff_tests.parser.trace_manifest.tests import TraceManifest
 from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
@@ -256,6 +257,7 @@ def fetch_all_diff_tests(
       SmokeComputeMetrics,
       SmokeJson,
       SmokeSchedEvents,
+      StraceParser,
       Symbolize,
       InputMethodClients,
       InputMethodManagerService,

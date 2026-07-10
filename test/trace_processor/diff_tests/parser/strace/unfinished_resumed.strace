@@ -1,0 +1,3 @@
+14:32:01.000000 futex(0x7f, FUTEX_WAIT, 2, NULL <unfinished ...>
+14:32:01.000500 <... futex resumed> )  = 0
+14:32:01.000600 write(1, "done", 4)    = 4

@@ -745,6 +745,11 @@ namespace perfetto::trace_processor::stats {
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
       "Linux kernel documentation for causes of this and potential fixes."),   \
+  F(strace_unmatched_resume,                    kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,   \
+      "An strace \"<... syscall resumed>\" line was encountered with no "      \
+      "preceding \"<unfinished ...>\" line on the same tid. This can happen "  \
+      "if the trace was truncated before the syscall started, or if a tid "   \
+      "was reused across an unfinished/resumed pair."),                       \
   F(simpleperf_missing_file_mapping,            kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,   \
       "One or more simpleperf samples were dropped because their callchain "   \
       "entries referenced a file_id that has no corresponding File record in " \
