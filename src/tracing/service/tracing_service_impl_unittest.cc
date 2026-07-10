@@ -3393,6 +3393,8 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionLifecycleEvents) {
     consumer->Connect(svc.get());
     TraceConfig trace_config = create_trace_config_fn();
     trace_config.set_write_into_file(true);
+    // Large period so the periodic drain/flush timers don't race the clone.
+    trace_config.set_file_write_period_ms(100000);  // 100s
     consumer->EnableTracing(
         trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
 
