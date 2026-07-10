@@ -214,26 +214,12 @@ export class ActiveCommandInfo {
     readonly id: string,
     readonly name: string,
     readonly source?: string,
-    readonly parent?: ActiveCommandInfo,
   ) {}
 
-  toString(indentSize: number = 0): string {
-    const spaces = ' '.repeat(indentSize);
-    const label = indentSize === 0 ? 'Command/Macro' : 'Called by';
-    const owner = this.source ? `\n${spaces}Source/Owner: ${this.source}` : '';
-    const parentStr = this.parent
-      ? `\n${this.parent.toString(indentSize + 2)}`
-      : '';
-    return `${spaces}${label}: ${this.name} (${this.id})${owner}${parentStr}`;
+  toString(): string {
+    const owner = this.source ? `\nSource/Owner: ${this.source}` : '';
+    return `Command/Macro: ${this.name} (${this.id})${owner}`;
   }
-}
-
-export let getActiveCommand: (() => ActiveCommandInfo | undefined) | undefined;
-
-export function registerActiveCommandProvider(
-  provider: () => ActiveCommandInfo | undefined,
-) {
-  getActiveCommand = provider;
 }
 
 export interface QueryErrorInfo {
@@ -1152,9 +1138,6 @@ class WaitableQueryResultImpl
 export function createQueryResult(
   errorInfo: QueryErrorInfo,
 ): QueryResult & Promise<QueryResult> & WritableQueryResult {
-  if (getActiveCommand && !errorInfo.activeCommand) {
-    errorInfo.activeCommand = getActiveCommand();
-  }
   return new WaitableQueryResultImpl(errorInfo);
 }
 

@@ -20,6 +20,7 @@ import type {OmniboxManagerImpl} from './omnibox_manager';
 import {STARTUP_COMMAND_ALLOWLIST_SET} from './startup_command_allowlist';
 import {DisposableStack} from '../base/disposable_stack';
 import type {Hotkey} from '../base/hotkeys';
+import {ActiveCommandInfo, QueryError} from '../trace_processor/query_result';
 
 // A map of command id -> hotkey.
 export type HotkeyOverlay = Record<string, Hotkey>;
@@ -152,16 +153,6 @@ export class CommandManagerImpl implements CommandManager {
   private readonly macros = new Registry<string>((macroId) => macroId);
   private isExecutingStartupCommands = false;
 
-  private activeCommandStack: Command[] = [];
-
-  get activeCommand(): Command | undefined {
-    return this.activeCommandStack[this.activeCommandStack.length - 1];
-  }
-
-  get activeCommandHistory(): readonly Command[] {
-    return this.activeCommandStack;
-  }
-
   constructor(private omnibox: OmniboxManagerImpl) {}
 
   getCommand(commandId: string): Command | undefined {
@@ -182,26 +173,24 @@ export class CommandManagerImpl implements CommandManager {
     return this.registry.register(cmd);
   }
 
-  runCommand(id: string, ...args: unknown[]): unknown {
+  async runCommand(id: string, ...args: unknown[]): Promise<unknown> {
     if (this.isExecutingStartupCommands && !this.isStartupCommandAllowed(id)) {
       throw new StartupCommandNotAllowedError(id);
     }
     const cmd = this.registry.get(id);
-    this.activeCommandStack.push(cmd);
     try {
-      const res = cmd.callback(...args);
-      if (res instanceof Promise) {
-        return res.finally(() => {
-          this.activeCommandStack.pop();
-          raf.scheduleFullRedraw();
-        });
-      }
-      this.activeCommandStack.pop();
-      raf.scheduleFullRedraw();
-      return res;
+      return await cmd.callback(...args);
     } catch (err) {
-      this.activeCommandStack.pop();
+      if (err instanceof QueryError) {
+        err.queryErrorInfo.activeCommand = new ActiveCommandInfo(
+          cmd.id,
+          cmd.name,
+          cmd.source,
+        );
+      }
       throw err;
+    } finally {
+      raf.scheduleFullRedraw();
     }
   }
 

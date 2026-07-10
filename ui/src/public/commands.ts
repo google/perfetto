@@ -47,5 +47,5 @@ export interface CommandManager {
   getCommands(): readonly Command[];
   // Invoke a registered command by id, forwarding any extra args to its
   // callback. Returns whatever the callback returns.
-  runCommand(id: string, ...args: unknown[]): unknown;
+  runCommand(id: string, ...args: unknown[]): Promise<unknown>;
 }
