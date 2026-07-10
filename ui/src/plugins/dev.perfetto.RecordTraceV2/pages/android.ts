@@ -58,13 +58,11 @@ function atrace(): RecordProbe {
     apps: new Textarea({
       title: 'Process / package names to trace',
       placeholder: 'e.g. system_server\ncom.android.settings',
+      disabled: () => settings.allApps.enabled,
     }),
     allApps: new Toggle({
       title: 'Record events from all Android apps and services',
       cssClass: '.thin',
-      onChange(allAppsEnabled: boolean) {
-        settings.apps.attrs.disabled = allAppsEnabled;
-      },
     }),
   };
   return {
