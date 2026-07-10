@@ -181,8 +181,6 @@ base::StatusOr<std::vector<Attribute>> ParseAttributes(
   return result;
 }
 
-// The manifest_attribute.* namespace is separate from trace_attribute.*:
-// these annotate the archive, not the recorded trace.
 void ApplyAttributes(TraceProcessorContext* context,
                      const std::vector<Attribute>& attrs) {
   for (const auto& [key, value] : attrs) {

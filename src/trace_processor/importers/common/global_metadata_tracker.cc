@@ -158,7 +158,7 @@ MetadataId GlobalMetadataTracker::SetDynamicMetadata(
   return id;
 }
 
-MetadataId GlobalMetadataTracker::AppendDynamicMetadata(
+MetadataId GlobalMetadataTracker::AppendDynamicMetadataLegacy(
     std::optional<MachineId> machine_id,
     std::optional<TraceId> trace_id,
     StringId key,

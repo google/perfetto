@@ -20,8 +20,7 @@ Unreleased:
     * Added `trace_processor_shell util merge`: packs traces and an optional
       manifest into a merged-trace archive and sanity-checks the result.
     * Trace attributes can now also come from the trace config.
-      perfetto_manifest files can annotate an archive via an `attributes`
-      section.
+    * perfetto_manifest files can annotate an archive via `attributes`.
   UI:
     * Opening multiple trace files is now supported by default: the "Open
       multiple trace files" sidebar item (or multi-selecting / dropping

@@ -56,7 +56,7 @@ class MetadataTracker {
   //
   // Legacy, kept for backward compatibility with Chrome metadata. Use
   // SetDynamicMetadata in new code.
-  MetadataId AppendDynamicMetadata(StringId key, Variadic value);
+  MetadataId AppendDynamicMetadataLegacy(StringId key, Variadic value);
 
   // Reads back a set metadata value.
   // Only kSingle types are supported right now.

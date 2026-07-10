@@ -88,10 +88,10 @@ class GlobalMetadataTracker {
   //
   // Legacy, kept for backward compatibility with Chrome metadata. Use
   // SetDynamicMetadata in new code.
-  MetadataId AppendDynamicMetadata(std::optional<MachineId> machine_id,
-                                   std::optional<TraceId> trace_id,
-                                   StringId key,
-                                   Variadic value);
+  MetadataId AppendDynamicMetadataLegacy(std::optional<MachineId> machine_id,
+                                         std::optional<TraceId> trace_id,
+                                         StringId key,
+                                         Variadic value);
 
   // Reads back a set metadata value.
   // Only kSingle types are supported right now.
