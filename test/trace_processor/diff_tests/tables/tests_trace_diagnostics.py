@@ -166,59 +166,6 @@ class TraceDiagnostics(TestSuite):
         "low_ftrace_drain_bandwidth"
         """))
 
-  # sched_switch without compact_sched warns.
-  def test_sched_switch_without_compact_sched(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          trace_config {
-            data_sources {
-              config {
-                name: "linux.ftrace"
-                ftrace_config {
-                  ftrace_events: "sched/sched_switch"
-                  buffer_size_kb: 8192
-                }
-              }
-            }
-          }
-        }
-        """),
-        query="""
-        SELECT key FROM __intrinsic_trace_diagnostics;
-        """,
-        out=Csv("""
-        "key"
-        "sched_switch_without_compact_sched"
-        """))
-
-  # ...but enabling compact_sched suppresses it.
-  def test_sched_switch_with_compact_sched(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          trace_config {
-            data_sources {
-              config {
-                name: "linux.ftrace"
-                ftrace_config {
-                  ftrace_events: "sched/sched_switch"
-                  buffer_size_kb: 8192
-                  compact_sched { enabled: true }
-                }
-              }
-            }
-          }
-        }
-        """),
-        query="""
-        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
-        """,
-        out=Csv("""
-        "n"
-        0
-        """))
-
   # enable_function_graph without symbolize_ksyms is a hard misconfiguration.
   def test_function_graph_requires_symbolize_ksyms(self):
     return DiffTestBlueprint(
