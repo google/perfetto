@@ -302,7 +302,16 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   static base::NoDestructor<std::mutex> getopt_mutex;
   std::unique_lock<std::mutex> getopt_lock(getopt_mutex.ref());
 
-  optind = 1;  // Reset getopt state. It's reused by the snapshot thread.
+  // Reset getopt state. It's reused by the snapshot thread and by tests.
+  // Rescanning requires optind = 0 on glibc (see NOTES in `man 3 getopt`,
+  // https://man7.org/linux/man-pages/man3/getopt.3.html) and on our
+  // getopt_compat; macOS requires optind = 1 plus optreset instead.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  optind = 1;
+  optreset = 1;
+#else
+  optind = 0;
+#endif
   for (;;) {
     int option =
         getopt_long(argc, argv, "hc:o:dDt:b:s:a:", long_options, nullptr);

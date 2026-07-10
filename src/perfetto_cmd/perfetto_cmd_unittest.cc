@@ -33,13 +33,15 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
  protected:
   static std::optional<int> ParseCmdline(PerfettoCmd* cmd,
                                          std::vector<std::string> args) {
+    // getopt() expects a null-terminated argv (argv[argc] == nullptr).
     std::vector<char*> argv;
-    argv.reserve(args.size());
+    argv.reserve(args.size() + 1);
     for (auto& arg : args)
       argv.push_back(arg.data());
+    argv.push_back(nullptr);
 
     std::optional<int> res = cmd->ParseCmdlineAndMaybeDaemonize(
-        static_cast<int>(argv.size()), argv.data());
+        static_cast<int>(argv.size()) - 1, argv.data());
     return res;
   }
 
