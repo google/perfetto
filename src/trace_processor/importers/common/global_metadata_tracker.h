@@ -75,8 +75,7 @@ class GlobalMetadataTracker {
                             Variadic value);
 
   // Sets a metadata entry using any interned string as key. If an entry with
-  // the same name, machine_id, and trace_id already exists, it is updated
-  // (last value wins).
+  // the same name, machine_id, and trace_id already exists, it is updated.
   // Returns the id of the entry.
   MetadataId SetDynamicMetadata(std::optional<MachineId> machine_id,
                                 std::optional<TraceId> trace_id,
@@ -84,8 +83,11 @@ class GlobalMetadataTracker {
                                 Variadic value);
 
   // Appends a metadata entry using any interned string as key. Multiple
-  // entries with the same name, machine_id, and trace_id can coexist.
+  // entries with the same name, machine_id, and trace_id can exist.
   // Returns the id of the new entry.
+  //
+  // Legacy, kept for backward compatibility with Chrome metadata. Use
+  // SetDynamicMetadata in new code.
   MetadataId AppendDynamicMetadata(std::optional<MachineId> machine_id,
                                    std::optional<TraceId> trace_id,
                                    StringId key,

@@ -186,8 +186,7 @@ MetadataId GlobalMetadataTracker::InsertRow(StringId name,
 
 void GlobalMetadataTracker::WriteValue(tables::MetadataTable::RowReference rr,
                                        Variadic value) {
-  // A dynamic key can be overwritten with a value of a different type; clear
-  // the other value column.
+  // Clear the other column: an overwrite can change the value type.
   switch (value.type) {
     case Variadic::Type::kInt:
       rr.set_int_value(value.int_value);

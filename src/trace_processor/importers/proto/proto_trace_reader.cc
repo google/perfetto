@@ -572,8 +572,6 @@ void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
     }
   }
 
-  // Handle config attributes in the same pass as TraceAttributes packets so
-  // "last value wins" simply follows packet order.
   if (trace_config.has_trace_attributes()) {
     HandleTraceAttributes(trace_config.trace_attributes());
   }

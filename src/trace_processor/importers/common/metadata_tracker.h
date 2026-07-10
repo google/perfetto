@@ -46,13 +46,16 @@ class MetadataTracker {
   MetadataId AppendMetadata(metadata::KeyId key, Variadic value);
 
   // Sets a metadata entry using any interned string as key, overwriting any
-  // existing entry with the same key (last value wins).
+  // existing entry with the same key.
   // Returns the id of the entry.
   MetadataId SetDynamicMetadata(StringId key, Variadic value);
 
   // Appends a metadata entry using any interned string as key; repeated keys
-  // each add a new row.
+  // add new rows.
   // Returns the id of the new entry.
+  //
+  // Legacy, kept for backward compatibility with Chrome metadata. Use
+  // SetDynamicMetadata in new code.
   MetadataId AppendDynamicMetadata(StringId key, Variadic value);
 
   // Reads back a set metadata value.

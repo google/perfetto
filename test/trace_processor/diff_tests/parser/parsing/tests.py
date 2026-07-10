@@ -613,10 +613,8 @@ class Parsing(TestSuite):
         "trace_uuid","123e4567-e89b-12d3-a456-426655443322","[NULL]"
         """))
 
-  # TraceConfig.trace_attributes (e.g. from `perfetto --add-attribute`) and
-  # TraceAttributes packets are two carriers of the same message: both become
-  # trace_attribute.* rows of the metadata table, with the value parsed last
-  # winning on key collisions.
+  # TraceConfig.trace_attributes and TraceAttributes packets both become
+  # trace_attribute.* metadata rows; the last value wins on key collisions.
   def test_config_trace_attributes(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
