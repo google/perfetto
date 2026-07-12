@@ -126,6 +126,7 @@
 #include "src/trace_processor/plugins/span_join_operator/span_join_operator.h"
 #include "src/trace_processor/plugins/sql_stats_table/sql_stats_table.h"
 #include "src/trace_processor/plugins/stack_functions/stack_functions.h"
+#include "src/trace_processor/plugins/stack_sample_importer/plugin.h"
 #include "src/trace_processor/plugins/stdlib_docs/stdlib_docs.h"
 #include "src/trace_processor/plugins/storage_tables/storage_tables.h"
 #include "src/trace_processor/plugins/string_functions/string_functions.h"
@@ -361,6 +362,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   span_join_operator::RegisterPlugin();
   sql_stats_table::RegisterPlugin();
   stack_functions::RegisterPlugin();
+  stack_sample_importer::RegisterPlugin();
   stdlib_docs::RegisterPlugin();
   storage_tables::RegisterPlugin();
   string_functions::RegisterPlugin();

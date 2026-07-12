@@ -243,6 +243,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/span_join_operator",
       "plugins/sql_stats_table",
       "plugins/stack_functions",
+      "plugins/stack_sample_importer",
       "plugins/stdlib_docs",
       "plugins/storage_tables",
       "plugins/string_functions",

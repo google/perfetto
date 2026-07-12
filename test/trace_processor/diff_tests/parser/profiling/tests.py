@@ -642,6 +642,76 @@ class Profiling(TestSuite):
         0,0,2,1144537.000000
         """))
 
+  def test_stack_sample(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample.textproto'),
+        query="""
+        SELECT
+          ss.ts,
+          ec.cpu,
+          ec.mode,
+          ss.weight,
+          tb.source,
+          tb.name AS timebase_name,
+          tb.unit,
+          spf.name AS frame_name
+        FROM __intrinsic_stack_sample ss
+        JOIN __intrinsic_stack_sample_timebase tb ON ss.timebase_id = tb.id
+        LEFT JOIN __intrinsic_stack_sample_execution_context ec
+          ON ss.execution_context_id = ec.id
+        JOIN stack_profile_callsite spc ON ss.callsite_id = spc.id
+        JOIN stack_profile_frame spf ON spc.frame_id = spf.id
+        ORDER BY ss.ts;
+        """,
+        out=Csv("""
+        "ts","cpu","mode","weight","source","timebase_name","unit","frame_name"
+        1000,2,"user",1000000,"python.wall","wall-time","ns","foo"
+        7000,"[NULL]","[NULL]",7000000,"python.wall","wall-time","ns","foo"
+        """))
+
+  def test_stack_sample_contexts(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample.textproto'),
+        query="""
+        -- The ts=1000 sample is attributed to a task and execution context; the
+        -- ts=7000 sample has neither, so both context ids are NULL.
+        SELECT
+          ss.ts,
+          p.name AS process_name,
+          ec.cpu,
+          ec.mode
+        FROM __intrinsic_stack_sample ss
+        LEFT JOIN __intrinsic_stack_sample_task_context tc
+          ON ss.task_context_id = tc.id
+        LEFT JOIN process p ON tc.upid = p.upid
+        LEFT JOIN __intrinsic_stack_sample_execution_context ec
+          ON ss.execution_context_id = ec.id
+        ORDER BY ss.ts;
+        """,
+        out=Csv("""
+        "ts","process_name","cpu","mode"
+        1000,"myproc",2,"user"
+        7000,"[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_frame_types(self):
+    return DiffTestBlueprint(
+        trace=Path('frame_types.textproto'),
+        query="""
+        -- Frame.kind (well-known enum) and Frame.kind_str (custom label) are
+        -- parsed into stack_profile_frame.type; frames with no kind are NULL.
+        SELECT name, type
+        FROM stack_profile_frame
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","type"
+        "custom_fn","custom"
+        "gc_fn","gc"
+        "interp_fn","interpreted"
+        "plain_fn","[NULL]"
+        """))
+
   def test_art_oome_stack_sample(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

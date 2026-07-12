@@ -371,6 +371,12 @@ STACK_PROFILE_FRAME_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'type',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -389,7 +395,10 @@ STACK_PROFILE_FRAME_TABLE = Table(
                 '''If the profile was offline symbolized, the offline
                 symbol information of this frame.''',
             'deobfuscated_name':
-                '''Deobfuscated name of the function this location is in.'''
+                '''Deobfuscated name of the function this location is in.''',
+            'type':
+                '''The kind of frame (e.g. "native", "kernel", "interpreted",
+                "jit", "gc", "runtime") if reported by the producer, else NULL.'''
         }))
 
 STACK_PROFILE_CALLSITE_TABLE = Table(
