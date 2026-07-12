@@ -41,6 +41,10 @@ packet {
       rel_pc: 0x100
       function_name_id: 1
     }
+    callstacks {
+      iid: 1
+      frame_ids: 1
+    }
   }
 }
 
@@ -61,6 +65,23 @@ packet {
     }
     primary_weight: 1000000
     follower_weights: 500
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  stack_sample {
+    task_context {
+      pid: 100
+      tid: 101
+    }
+    execution_context {
+      cpu: 2
+      mode: MODE_KERNEL
+    }
+    callstack_iid: 1
+    primary_weight: 2000000
   }
 }
 

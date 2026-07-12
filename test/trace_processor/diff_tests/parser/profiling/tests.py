@@ -666,6 +666,7 @@ class Profiling(TestSuite):
         out=Csv("""
         "ts","cpu","mode","weight","source","timebase_name","unit","frame_name"
         1000,2,"user",1000000,"python.wall","wall-time","ns","foo"
+        2000,2,"kernel",2000000,"python.wall","wall-time","ns","foo"
         6000,"[NULL]","[NULL]",4000000,"python.wall","wall-time","ns","foo"
         7000,"[NULL]","[NULL]",7000000,"python.wall","wall-time","ns","foo"
         """))
@@ -692,8 +693,28 @@ class Profiling(TestSuite):
         out=Csv("""
         "ts","process_name","cpu","mode"
         1000,"myproc",2,"user"
+        2000,"myproc",2,"kernel"
         6000,"myproc","[NULL]","[NULL]"
         7000,"[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_stack_sample_interned_callstack(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample.textproto'),
+        query="""
+        -- The ts=2000 sample references its callstack via callstack_iid.
+        SELECT
+          ss.ts,
+          ss.weight,
+          spf.name AS frame_name
+        FROM __intrinsic_stack_sample ss
+        JOIN stack_profile_callsite spc ON ss.callsite_id = spc.id
+        JOIN stack_profile_frame spf ON spc.frame_id = spf.id
+        WHERE ss.ts = 2000;
+        """,
+        out=Csv("""
+        "ts","weight","frame_name"
+        2000,2000000,"foo"
         """))
 
   def test_stack_sample_async(self):
