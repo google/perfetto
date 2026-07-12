@@ -660,6 +660,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BuiltinDataSource,
                   bool,
                   disable_extension_descriptors,
                   9);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BuiltinDataSource,
+                  VARINT,
+                  bool,
+                  enable_concurrent_session_events,
+                  10);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_DataSource);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_DataSource,
