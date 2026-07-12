@@ -13,6 +13,12 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/perfetto_cc_proto_descriptor.gni")
+
+perfetto_cc_proto_descriptor("gen_cc_report_descriptor") {
+  descriptor_name = "report.descriptor"
+  descriptor_target = "../../../protos/perfetto/trace_processor:report_descriptor"
+}
 
 source_set("shell") {
   sources = [
@@ -40,6 +46,17 @@ source_set("shell") {
     "query.h",
     "query_subcommand.cc",
     "query_subcommand.h",
+    "report/report_sink.cc",
+    "report/report_sink.h",
+    "report/report_view.cc",
+    "report/report_view.h",
+    "report/slices_view.cc",
+    "report/slices_view.h",
+    "report/text_renderer.cc",
+    "report/text_renderer.h",
+    "report/view_common.h",
+    "report_subcommand.cc",
+    "report_subcommand.h",
     "server_subcommand.cc",
     "server_subcommand.h",
     "shell_utils.cc",
@@ -52,10 +69,13 @@ source_set("shell") {
     "util_subcommand.h",
   ]
   deps = [
+    ":gen_cc_report_descriptor",
     ":subcommands",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
     "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../../include/perfetto/protozero",
+    "../../../protos/perfetto/trace_processor:report_zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../base:version",
@@ -70,7 +90,10 @@ source_set("shell") {
     "../rpc:stdiod",
     "../trace_summary",
     "../trace_summary:gen_cc_trace_summary_descriptor",
+    "../util:descriptors",
     "../util:json_value",
+    "../util:protozero_to_json",
+    "../util:simple_json_serializer",
     "../util:stdlib",
     "../util:tar_writer",
     "../util/deobfuscation:deobfuscator",
@@ -110,6 +133,8 @@ source_set("unittests") {
   sources = [
     "convert_helpers_unittest.cc",
     "find_subcommand_unittest.cc",
+    "report/report_render_unittest.cc",
+    "report_subcommand_unittest.cc",
     "subcommand_flags_unittest.cc",
   ]
   deps = [
@@ -118,6 +143,8 @@ source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../gn:protobuf_full",
+    "../../../include/perfetto/protozero",
+    "../../../protos/perfetto/trace_processor:report_zero",
     "../../base",
   ]
 }

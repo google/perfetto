@@ -60,6 +60,7 @@
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/metrics_subcommand.h"
 #include "src/trace_processor/shell/query_subcommand.h"
+#include "src/trace_processor/shell/report_subcommand.h"
 #include "src/trace_processor/shell/server_subcommand.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/shell/summarize_subcommand.h"
@@ -160,6 +161,7 @@ Commands:
   interactive   Interactive SQL shell (default if no command is given).
   convert       Convert trace format.
   summarize     Compute a trace summary from specs and/or built-in metrics.
+  report        Print opinionated, built-in summaries of a trace.
   bundle        Bundle a trace with symbols and deobfuscation data.
   util          Low-level trace utilities (symbolize, deobfuscate).
   server        Start an RPC server (http or stdio).
@@ -810,6 +812,7 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     shell::InteractiveSubcommand interactive_subcommand;
     shell::ServerSubcommand server_subcommand;
     shell::SummarizeSubcommand summarize_subcommand;
+    shell::ReportSubcommand report_subcommand;
     shell::ExportSubcommand export_subcommand;
     shell::MetricsSubcommand metrics_subcommand;
     shell::ConvertSubcommand convert_subcommand;
@@ -817,8 +820,9 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     shell::UtilSubcommand util_subcommand;
     std::vector<shell::Subcommand*> subcommands = {
         &query_subcommand,     &interactive_subcommand, &convert_subcommand,
-        &summarize_subcommand, &bundle_subcommand,      &util_subcommand,
-        &server_subcommand,    &export_subcommand,      &metrics_subcommand,
+        &summarize_subcommand, &report_subcommand,      &bundle_subcommand,
+        &util_subcommand,      &server_subcommand,       &export_subcommand,
+        &metrics_subcommand,
     };
 
     // Handle "help" pseudo-subcommand: `tp help <command>` or bare `tp help`.
