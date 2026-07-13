@@ -34,9 +34,17 @@ namespace pbtest = ::protozero::test::protos::pbzero;
 
 perfetto::base::StatusOr<std::vector<uint8_t>> Parse(
     const std::string& root_type,
-    const std::string& input) {
+    const std::string& input,
+    bool allow_unknown_fields = false) {
   return TextToProto(kTestMessagesDescriptor.data(),
-                     kTestMessagesDescriptor.size(), root_type, "test", input);
+                     kTestMessagesDescriptor.size(), root_type, "test", input,
+                     allow_unknown_fields);
+}
+
+perfetto::base::StatusOr<std::vector<uint8_t>> ParseLossy(
+    const std::string& root_type,
+    const std::string& input) {
+  return Parse(root_type, input, /*allow_unknown_fields=*/true);
 }
 
 TEST(TextToProtoTest, RegularField) {
@@ -150,6 +158,100 @@ TEST(TextToProtoTest, ExtensionFileScope) {
 TEST(TextToProtoTest, ExtensionEmptyBrackets) {
   auto result = Parse(".protozero.test.protos.RealFakeEvent", "[]: 1");
   EXPECT_FALSE(result.ok());
+}
+
+TEST(TextToProtoTest, UnknownFieldFailsByDefault) {
+  auto result = Parse(".protozero.test.protos.EveryField",
+                      R"(field_int32: 7
+                         no_such_field: 42)");
+  ASSERT_FALSE(result.ok());
+  EXPECT_NE(result.status().message().find("No field named"), std::string::npos)
+      << result.status().message();
+}
+
+TEST(TextToProtoTest, LossyDropsUnknownScalarField) {
+  auto result = ParseLossy(".protozero.test.protos.EveryField",
+                           R"(field_int32: 7
+                              no_such_field: 42
+                              field_string: "hi")");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  pbtest::EveryField::Decoder dec(result.value().data(), result.value().size());
+  EXPECT_EQ(dec.field_int32(), 7);
+  EXPECT_EQ(dec.field_string().ToStdString(), "hi");
+}
+
+TEST(TextToProtoTest, LossyDropsUnknownStringAndIdentifierFields) {
+  auto result = ParseLossy(".protozero.test.protos.EveryField",
+                           R"(field_int32: 1
+                              unknown_str: "drop me"
+                              unknown_bool: true)");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  pbtest::EveryField::Decoder dec(result.value().data(), result.value().size());
+  EXPECT_EQ(dec.field_int32(), 1);
+}
+
+TEST(TextToProtoTest, LossyDropsUnknownNestedMessage) {
+  auto result = ParseLossy(".protozero.test.protos.EveryField",
+                           R"(field_int32: 7
+                              unknown_msg {
+                                a: 1
+                                b: "two"
+                                deeper {
+                                  c: true
+                                }
+                              }
+                              field_string: "kept")");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  pbtest::EveryField::Decoder dec(result.value().data(), result.value().size());
+  EXPECT_EQ(dec.field_int32(), 7);
+  EXPECT_EQ(dec.field_string().ToStdString(), "kept");
+}
+
+TEST(TextToProtoTest, LossyKeepsKnownNestedMessageWithUnknownChild) {
+  // The nested message field (field_nested) is known, but it contains an
+  // unrecognised field that should be dropped while the known one is kept.
+  auto result = ParseLossy(".protozero.test.protos.EveryField",
+                           R"(field_nested {
+                                field_int32: 11
+                                bogus: 5
+                              })");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  pbtest::EveryField::Decoder dec(result.value().data(), result.value().size());
+  auto it = dec.field_nested();
+  ASSERT_TRUE(it);
+  pbtest::EveryField::Decoder nested(*it);
+  EXPECT_EQ(nested.field_int32(), 11);
+}
+
+TEST(TextToProtoTest, LossyDropsUnknownEnumValue) {
+  // small_enum is a known enum field, but WHATEVER is not a known value name.
+  auto result = ParseLossy(".protozero.test.protos.EveryField",
+                           R"(field_int32: 3
+                              small_enum: WHATEVER)");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  pbtest::EveryField::Decoder dec(result.value().data(), result.value().size());
+  EXPECT_EQ(dec.field_int32(), 3);
+  EXPECT_FALSE(dec.has_small_enum());
+}
+
+TEST(TextToProtoTest, LossyKeepsKnownEnumValue) {
+  auto result =
+      ParseLossy(".protozero.test.protos.EveryField", R"(small_enum: TO_BE)");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  pbtest::EveryField::Decoder dec(result.value().data(), result.value().size());
+  ASSERT_TRUE(dec.has_small_enum());
+  EXPECT_EQ(dec.small_enum(), pbtest::SmallEnum::TO_BE);
+}
+
+TEST(TextToProtoTest, LossyStillReportsTypeMismatchOnKnownField) {
+  // field_int32 is a known integer field; giving it a string is a hard error
+  // even in lossy mode (it is not an "unknown field").
+  auto result = ParseLossy(".protozero.test.protos.EveryField",
+                           R"(field_int32: "not a number")");
+  ASSERT_FALSE(result.ok());
+  EXPECT_NE(result.status().message().find("Expected value of type"),
+            std::string::npos)
+      << result.status().message();
 }
 
 }  // namespace
