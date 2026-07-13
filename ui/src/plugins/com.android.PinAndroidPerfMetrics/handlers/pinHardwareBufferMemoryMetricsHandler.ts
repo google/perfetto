@@ -20,5 +20,5 @@ export const pinHardwareBufferMemoryMetricsInstance =
       /perfetto_android_dmabuf_per_process_metric_max_val-(?<processName>.*)-p95/,
       /perfetto_android_gralloc_buffers_per_process_metric_max_val-(?<processName>.*)-p95/,
     ],
-    ['GPU Memory', 'GPU Completion'],
+    ['dmabuf allocs', 'mem.gralloc.allocations', 'mem.gralloc.buffers'],
   );

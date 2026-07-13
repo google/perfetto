@@ -16,5 +16,5 @@ import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 
 export const pinBitmapMetricsInstance = new SimpleProcessMetricHandler(
   [/^perfetto_android_bitmap_metric_max_val-(?<processName>.*)/],
-  ['Bitmap Memory', 'Bitmap Count'],
+  ['Bitmap Count', 'Bitmap Memory'],
 );

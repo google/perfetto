@@ -18,5 +18,5 @@ export const pinDirtyMemoryMetricsInstance = new SimpleProcessMetricHandler(
   [
     /perfetto_android_mem-(?<processName>.*)-total_counters-anon_and_swap-max-mean/,
   ],
-  ['mem.rss', 'mem.rss.anon'],
+  ['mem.rss.anon', 'mem.swap'],
 );

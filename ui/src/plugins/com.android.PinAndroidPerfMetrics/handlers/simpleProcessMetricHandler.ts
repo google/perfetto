@@ -26,12 +26,14 @@ export class SimpleProcessMetricHandler implements MetricHandler {
    * Use when you have a Regexp which can extract a process name from an url
    * And pin tracks in the found process
    *
-   * @param {RegExp[]} matchers List of matchers to check original url with
-   * @param {string[]} trackMatchers Matches track in the process for pinning (using prefix match)
+   * @param {RegExp[]} matchers List of matchers for metric keys
+   * @param {string[]} trackPrefixMatchers Matches track in the process based on prefix
+   * @param {RegExp[]} tracksRegexpMatchers Mathes track in the processe based on RegExp
    */
   constructor(
     private readonly matchers: RegExp[],
-    private readonly trackMatchers: string[],
+    private readonly trackPrefixMatchers: string[],
+    private readonly tracksRegexpMatchers: RegExp[] = [],
   ) {}
 
   /**
@@ -68,11 +70,14 @@ export class SimpleProcessMetricHandler implements MetricHandler {
     // Find the tracks to pin.
     const tracksToPin = ctx.currentWorkspace.flatTracks.filter((track) => {
       const name = track.name;
-      const isTargetTrack = this.trackMatchers.some((matcher) => {
+      const matchesPrefix = this.trackPrefixMatchers.some((matcher) => {
         return name.startsWith(matcher);
       });
+      const matchesRegex = this.tracksRegexpMatchers.some((regex) => {
+        return regex.test(name);
+      });
 
-      if (!isTargetTrack) {
+      if (!matchesPrefix && !matchesRegex) {
         return false;
       }
       if (!track.uri) {
