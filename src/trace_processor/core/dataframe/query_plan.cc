@@ -1171,10 +1171,18 @@ PERFETTO_NO_INLINE i::Bytecode& QueryPlanBuilder::AddRawOpcode(
       const auto& eq = base::unchecked_get<EqualityFilterRowCount>(rc);
       if (eq.duplicate_state.Is<HasDuplicates>()) {
         if (plan_.params.estimated_row_count > 1) {
-          plan_.params.estimated_row_count = std::max(
-              1u,
-              static_cast<uint32_t>(EqualityFilterRows(
-                  plan_.params.estimated_row_count, eq.estimated_distinct)));
+          if (!selective_filter_base_row_count_) {
+            selective_filter_base_row_count_ =
+                plan_.params.estimated_row_count;
+          }
+          // Estimate against the pre-selective-filter row count and keep the
+          // most selective result: correlated filters on one scan shouldn't
+          // compound and collapse the estimate toward 1.
+          plan_.params.estimated_row_count = std::min(
+              plan_.params.estimated_row_count,
+              std::max(1u, static_cast<uint32_t>(EqualityFilterRows(
+                               *selective_filter_base_row_count_,
+                               eq.estimated_distinct))));
         } else {
           // Leave the estimated row count as is if it is already 1 or less.
         }
@@ -1190,16 +1198,21 @@ PERFETTO_NO_INLINE i::Bytecode& QueryPlanBuilder::AddRawOpcode(
       const auto& in = base::unchecked_get<InFilterRowCount>(rc);
       if (in.duplicate_state.Is<HasDuplicates>() &&
           plan_.params.estimated_row_count > 1) {
+        if (!selective_filter_base_row_count_) {
+          selective_filter_base_row_count_ = plan_.params.estimated_row_count;
+        }
         // An IN is a union of equalities over the list values. The list size
         // is unknown at plan time, so scale the single-value estimate by an
-        // assumed distinct-value count, capped at the current row count.
-        double per_value = EqualityFilterRows(plan_.params.estimated_row_count,
+        // assumed distinct-value count. As with equality, estimate against the
+        // pre-selective-filter row count and keep the most selective result.
+        double per_value = EqualityFilterRows(*selective_filter_base_row_count_,
                                               in.estimated_distinct);
         double new_count =
-            std::min(static_cast<double>(plan_.params.estimated_row_count),
+            std::min(static_cast<double>(*selective_filter_base_row_count_),
                      per_value * kAssumedInListSize);
         plan_.params.estimated_row_count =
-            std::max(1u, static_cast<uint32_t>(new_count));
+            std::min(plan_.params.estimated_row_count,
+                     std::max(1u, static_cast<uint32_t>(new_count)));
       }
       break;
     }
