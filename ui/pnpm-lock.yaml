@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@codemirror/autocomplete': ^6.20.3
-
 dependencies:
   '@codemirror/commands':
     specifier: ^6.8.1

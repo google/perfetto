@@ -68,7 +68,7 @@ export interface EditorAttrs extends HTMLAttrs {
   onUpdate?: (text: string) => void;
 
   // Extra CodeMirror extensions supplied by the caller (e.g. the LSP
-  // integration from the SqlEditorIntelligence plugin).
+  // integration from the SqlLsp plugin).
   readonly extensions?: Extension;
 }
 

@@ -96,15 +96,16 @@ export default class QueryPagePlugin implements PerfettoPlugin {
 
   constructor(private readonly trace: Trace) {}
 
-  // Set by the optional SqlEditorIntelligence plugin; undefined => plain
-  // editor. Called per editor tab with a stable document id — the language
-  // server needs each tab to be a separate document.
-  private editorIntelligence?: (docId: string) => Extension;
+  // Optional per-tab editor extensions injected by another plugin (e.g. the
+  // SqlLsp plugin's language-server integration); undefined => plain editor.
+  // Called per editor tab with a stable document id, since a language server
+  // needs each tab to be a separate document.
+  private editorExtensions?: (docId: string) => Extension;
 
-  setEditorIntelligence(
-    intelligence: ((docId: string) => Extension) | undefined,
+  setEditorExtensions(
+    extensions: ((docId: string) => Extension) | undefined,
   ): void {
-    this.editorIntelligence = intelligence;
+    this.editorExtensions = extensions;
   }
 
   addQueryResultsTab(
@@ -349,7 +350,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
           onTabRename,
           onTabReorder,
           sidebarVisibleSetting: QueryPagePlugin.sidebarVisibleSetting,
-          editorIntelligence: this.editorIntelligence,
+          editorExtensions: this.editorExtensions,
         }),
     });
 

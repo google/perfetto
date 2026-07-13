@@ -28,8 +28,8 @@ import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {createSqlEngine} from './engine';
 import {engineTransport} from './lsp';
 
-export default class SqlEditorIntelligencePlugin implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.SqlEditorIntelligence';
+export default class SqlLspPlugin implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.SqlLsp';
   static readonly description =
     'Schema-aware autocomplete, live diagnostics, and hover docs in the ' +
     'PerfettoSQL query editor (powered by the syntaqlite language server).';
@@ -49,7 +49,7 @@ export default class SqlEditorIntelligencePlugin implements PerfettoPlugin {
     // reopening the server document) on every redraw.
     const client = new LSPClient({extensions: languageServerExtensions()});
     const byDoc = new Map<string, Extension>();
-    trace.plugins.getPlugin(QueryPagePlugin).setEditorIntelligence((docId) => {
+    trace.plugins.getPlugin(QueryPagePlugin).setEditorExtensions((docId) => {
       let extensions = byDoc.get(docId);
       if (extensions === undefined) {
         extensions = client.plugin(`file:///${docId}.sql`, 'sql');
@@ -71,13 +71,14 @@ export default class SqlEditorIntelligencePlugin implements PerfettoPlugin {
     });
     client.connect(engineTransport(engine));
 
-    // Feed the stdlib schema once its catalog is loaded; the server re-runs
-    // analysis and re-publishes diagnostics for open documents on receipt.
-    trace.plugins
-      .getPlugin(SqlModulesPlugin)
-      .waitForSqlModules()
-      .then((modules) =>
-        client.request('syntaqlite/setSessionContext', {
+    // Feed the stdlib schema to the server, which re-runs analysis and
+    // re-publishes diagnostics for open documents on receipt. SqlModules is a
+    // declared dependency, so its onTraceLoad — which awaits the catalog — has
+    // already completed by the time ours runs; the modules are ready now.
+    const modules = trace.plugins.getPlugin(SqlModulesPlugin).getSqlModules();
+    if (modules !== undefined) {
+      client
+        .request('syntaqlite/setSessionContext', {
           context: {
             tables: modules.listTables().map((t) => ({
               name: t.name,
@@ -86,10 +87,10 @@ export default class SqlEditorIntelligencePlugin implements PerfettoPlugin {
             views: [],
             functions: [],
           },
-        }),
-      )
-      .catch((e) => {
-        console.warn('failed to feed SQL schema to the language server', e);
-      });
+        })
+        .catch((e) => {
+          console.warn('failed to feed SQL schema to the language server', e);
+        });
+    }
   }
 }

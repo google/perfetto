@@ -43,7 +43,7 @@ async function loadBase(): Promise<Base | undefined> {
     if (!bootstrap.lspSupported) {
       console.warn(
         'syntaqlite runtime has no LSP entry point; ' +
-          'SQL editor intelligence disabled',
+          'SQL editor language server disabled',
       );
       return undefined;
     }
@@ -55,7 +55,7 @@ async function loadBase(): Promise<Base | undefined> {
     return {runtime, dialectPtr: binding.ptr};
   } catch (e) {
     console.warn(
-      'syntaqlite engine failed to load; SQL editor intelligence disabled',
+      'syntaqlite engine failed to load; SQL editor language server disabled',
       e,
     );
     return undefined;

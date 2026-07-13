@@ -73,10 +73,5 @@
     "build": "node build.mjs",
     "test": "node build.mjs --run-unittests",
     "lint": "npx eslint . --ext .js,.ts"
-  },
-  "pnpm": {
-    "overrides": {
-      "@codemirror/autocomplete": "^6.20.3"
-    }
   }
 }

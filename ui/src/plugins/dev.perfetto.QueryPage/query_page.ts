@@ -88,11 +88,11 @@ export interface QueryPageAttrs {
 
   readonly sidebarVisibleSetting: Setting<boolean>;
 
-  // LSP-backed editor extensions (completion, diagnostics, hover, ...) from
-  // the optional SqlEditorIntelligence plugin, keyed by a stable per-tab
-  // document id; the factory returns a referentially-stable extension per id.
-  // Absent => plain editor.
-  readonly editorIntelligence?: (docId: string) => Extension;
+  // Optional per-tab editor extensions injected by another plugin (e.g. the
+  // SqlLsp plugin: completion, diagnostics, hover, ...), keyed by a stable
+  // per-tab document id; the factory returns a referentially-stable extension
+  // per id. Absent => plain editor.
+  readonly editorExtensions?: (docId: string) => Extension;
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
@@ -307,7 +307,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       m(Editor, {
         language: 'perfetto-sql',
         text: tab.editorText,
-        extensions: attrs.editorIntelligence?.(tab.id),
+        extensions: attrs.editorExtensions?.(tab.id),
         onUpdate: (content) => attrs.onEditorContentUpdate?.(tab.id, content),
         onExecute: (query) => attrs.onExecute?.(tab.id, query),
         onFormat: (text) => this.formatSql(attrs, tab.id, text),
