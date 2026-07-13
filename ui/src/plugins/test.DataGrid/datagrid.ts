@@ -29,42 +29,34 @@ export interface DataGridAttrs {
   readonly onColumnsChanged: (columns: ColumnMetadata[]) => void;
 }
 
-export function resolveDisplayNameParts(
-  path: string[],
-  schema: Record<string, unknown>,
-): string[] {
+export function resolveDisplayNameParts(path: string[], schema: Record<string, unknown>): string[] {
   let currentSchema: Record<string, unknown> = schema;
   const resolvedNames: string[] = [];
-
+  
   for (let i = 0; i < path.length; i++) {
     const segment = path[i];
     let displayName = segment;
-
+    
     if (currentSchema && typeof currentSchema === 'object') {
       const entry = currentSchema[segment];
       if (entry && typeof entry === 'object') {
-        const entryObj = entry as {
-          name?: unknown;
-          schema?: unknown;
-          parameterized?: unknown;
-        };
-
+        const entryObj = entry as {name?: unknown; schema?: unknown; parameterized?: unknown};
+        
         if (entryObj.parameterized === true && i + 1 < path.length) {
-          const niceName =
-            typeof entryObj.name === 'string' ? entryObj.name : segment;
+          const niceName = typeof entryObj.name === 'string' ? entryObj.name : segment;
           const paramSegment = path[i + 1];
           displayName = `${niceName}[${paramSegment}]`;
-
+          
           resolvedNames.push(displayName);
           i++;
           currentSchema = {};
           continue;
         }
-
+        
         if (typeof entryObj.name === 'string') {
           displayName = entryObj.name;
         }
-
+        
         const nestedSchema = entryObj.schema;
         if (nestedSchema && typeof nestedSchema === 'object') {
           currentSchema = nestedSchema as Record<string, unknown>;
@@ -77,10 +69,10 @@ export function resolveDisplayNameParts(
     } else {
       currentSchema = {};
     }
-
+    
     resolvedNames.push(displayName);
   }
-
+  
   return resolvedNames;
 }
 
@@ -98,27 +90,25 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     return Object.entries(schema).map(([key, val]) => {
       if (!val || typeof val !== 'object') return null;
       const currentPath = [...pathPrefix, key];
-      const entryObj = val as {
-        name?: unknown;
-        schema?: unknown;
-        parameterized?: unknown;
-      };
-      const displayName =
-        typeof entryObj.name === 'string' ? entryObj.name : key;
-
+      const entryObj = val as {name?: unknown; schema?: unknown; parameterized?: unknown};
+      const displayName = typeof entryObj.name === 'string' ? entryObj.name : key;
+      
       const isParameterized = entryObj.parameterized === true;
       if (isParameterized) {
-        return m(MenuItem, {
-          label: displayName,
-          onclick: () => {
-            const param = prompt(`Enter parameter for ${displayName}:`);
-            if (param && param.trim()) {
-              this.addColumn(attrs, [...currentPath, param.trim()]);
-            }
+        return m(
+          MenuItem,
+          {
+            label: displayName,
+            onclick: () => {
+              const param = prompt(`Enter parameter for ${displayName}:`);
+              if (param && param.trim()) {
+                this.addColumn(attrs, [...currentPath, param.trim()]);
+              }
+            },
           },
-        });
+        );
       }
-
+      
       const nestedSchema = entryObj.schema;
       if (nestedSchema && typeof nestedSchema === 'object') {
         return m(
@@ -127,35 +117,37 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             label: displayName,
           },
           m(LazyMenu, {
-            renderItems: () =>
-              this.renderSchemaMenuItems(
-                attrs,
-                currentPath,
-                nestedSchema as Record<string, unknown>,
-                depth + 1,
-              ),
+            renderItems: () => this.renderSchemaMenuItems(
+              attrs,
+              currentPath,
+              nestedSchema as Record<string, unknown>,
+              depth + 1,
+            ),
           }),
         );
       } else {
-        return m(MenuItem, {
-          label: displayName,
-          onclick: () => {
-            this.addColumn(attrs, currentPath);
+        return m(
+          MenuItem,
+          {
+            label: displayName,
+            onclick: () => {
+              this.addColumn(attrs, currentPath);
+            },
           },
-        });
+        );
       }
     });
   }
 
   private addColumn(attrs: DataGridAttrs, path: string[]) {
     const pathStr = path.join('.');
-
+    
     // Avoid duplicate paths
     if (attrs.columns.some((col) => col.path.join('.') === pathStr)) {
       console.log('Column with this path already exists:', pathStr);
       return;
     }
-
+    
     const displayNameParts = resolveDisplayNameParts(path, attrs.schema);
     const uniqueId = `${pathStr}_${Math.random().toString(36).substring(2, 9)}`;
     const newCol: ColumnMetadata = {
@@ -164,7 +156,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       path,
       displayNameParts,
     };
-
+    
     attrs.onColumnsChanged([...attrs.columns, newCol]);
   }
 

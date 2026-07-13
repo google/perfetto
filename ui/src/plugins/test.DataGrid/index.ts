@@ -25,39 +25,61 @@ import {z} from 'zod';
 
 class TestDataGridPage implements m.ClassComponent {
   private jsCode = `({
-  schema: {
-    'id': {},
-    'ts': {},
-    'dur': {},
-    'name': {},
-    'track_id': {},
-    'track': {
+  schema: (() => {
+    const root = {
+      id: {},
+      ts: {},
+      dur: {},
+      name: {},
+      track_id: {},
+      track: {
+        schema: {
+          id: {},
+          name: {},
+        },
+      },
+      arg: {
+        name: 'Argument',
+        parameterized: true,
+      },
+      parent: {
+        name: 'Parent',
+        get schema() {
+          return root;
+        },
+      },
+    };
+    return root;
+  })(),
+  sql: (() => {
+    const sqlSchema = {
+      sql: 'select * from slice',
       schema: {
-        'id': {},
-        'name': {},
+        track: {
+          join: (ctx) => \`left join track as \${ctx.tableAlias} on \${ctx.tableAlias}.id = base.track_id\`,
+        },
+        arg: {
+          select: (param, ctx) => \`extract_arg(\${ctx.parentAlias}.arg_set_id, '\${param}')\`,
+        },
+        parent: {
+          get schema() {
+            return sqlSchema.schema;
+          },
+          join: (ctx) => {
+            const parentAlias = ctx.path.length === 1 ? 'base' : ctx.parentAlias;
+            return \`left join slice as \${ctx.tableAlias} on \${ctx.tableAlias}.id = \${parentAlias}.parent_id\`;
+          },
+        },
       },
-    },
-    'arg': {
-      name: 'Argument',
-      parameterized: true,
-    },
-  },
-  sql: {
-    sql: 'select * from slice',
-    schema: {
-      'track': {
-        join: (ctx) => \`left join track as \${ctx.tableAlias} on \${ctx.tableAlias}.id = base.track_id\`,
-      },
-      'arg': {
-        select: (param, ctx) => \`extract_arg(\${ctx.parentAlias}.arg_set_id, '\${param}')\`,
-      },
-    },
-  },
+    };
+    return sqlSchema;
+  })(),
   cols: [
     { field: ['id'], id: 'id_1', colId: 'id' },
     { field: ['ts'], id: 'ts_1', colId: 'ts' },
     { field: ['name'], id: 'name_1', colId: 'name' },
     { field: ['track', 'name'], id: 'track_name_1', colId: 'track_name' },
+    { field: ['parent', 'name'], id: 'parent_name_1', colId: 'parent_name' },
     { field: ['arg', 'some_argkey'], id: 'some_argkey_1', colId: 'some_argkey' },
     { field: ['dur'], id: 'dur_1', colId: 'dur' },
   ],
@@ -98,19 +120,40 @@ class TestDataGridPage implements m.ClassComponent {
       const result = eval(codeToEval);
       console.log('Evaluated result:', result);
 
-      const parseResult = DataGridConfigSchema.safeParse(result);
-      if (parseResult.success) {
-        const config = parseResult.data;
+      let config: any;
+      let hasConfig = false;
+
+      try {
+        const parseResult = DataGridConfigSchema.safeParse(result);
+        if (parseResult.success) {
+          config = parseResult.data;
+          hasConfig = true;
+        } else {
+          this.errorMsg = 'Schema Validation Error:\n' + this.formatZodError(parseResult.error);
+          console.warn('TestDataGrid schema validation failed:', parseResult.error.format());
+        }
+      } catch (err) {
+        const error = err as Error;
+        if (error.message.includes('Maximum call stack size exceeded')) {
+          console.warn('TestDataGrid validation bypassed due to cyclic schema:', error);
+          config = result;
+          hasConfig = true;
+        } else {
+          throw err;
+        }
+      }
+
+      if (hasConfig) {
         const schemaObj = config.schema as Record<string, unknown>;
         this.schemaObj = schemaObj;
-        
-        this.columns = config.cols.map((col) => ({
+
+        this.columns = config.cols.map((col: any) => ({
           key: col.id,
           colId: col.colId,
           path: col.field,
           displayNameParts: resolveDisplayNameParts(col.field, schemaObj),
         }));
-        
+
         if (config.sql) {
           this.sqlObj = config.sql;
           this.baseSql = config.sql.sql || '';
@@ -118,14 +161,11 @@ class TestDataGridPage implements m.ClassComponent {
           this.sqlObj = {};
           this.baseSql = '';
         }
-        
+
         this.pivotObj = config.pivot;
         this.errorMsg = '';
         console.log('Initial columns populated:', this.columns.map(c => c.key));
         return;
-      } else {
-        this.errorMsg = 'Schema Validation Error:\n' + this.formatZodError(parseResult.error);
-        console.warn('TestDataGrid schema validation failed:', parseResult.error.format());
       }
       
       // Reset columns and baseSql if validation fails
