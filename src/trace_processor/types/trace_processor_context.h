@@ -60,6 +60,7 @@ class SchedEventTracker;
 class SliceTracker;
 class StateTracker;
 class SliceTranslationTable;
+class SparseCounterTracker;
 class StackProfileTracker;
 class SymbolTracker;
 class TraceDiagnosticsTracker;
@@ -262,6 +263,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
   PerTraceAndMachinePtr<MetadataTracker> metadata_tracker;
   PerTraceAndMachinePtr<StatsTracker> stats_tracker;
+  PerTraceAndMachinePtr<SparseCounterTracker> sparse_counter_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
