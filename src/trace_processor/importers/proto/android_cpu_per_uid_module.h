@@ -36,7 +36,7 @@ class AndroidCpuPerUidModule : public ProtoImporterModule {
 
   ~AndroidCpuPerUidModule() override;
 
-  void ParseField(const ParseFieldArgs& args) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
   void OnEventsFullyExtracted() override;
 
