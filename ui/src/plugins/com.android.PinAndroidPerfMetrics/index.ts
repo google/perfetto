@@ -28,9 +28,11 @@ function getMetricsFromHash(): string[] {
   // back-compat reasons only. Figure out a way to preserve backwards
   // compatibility of plugin arguments when plugins change id.
   const metricVal = location.hash;
+  console.log('PinAndroidPerfMetrics: location.hash =', metricVal);
   const regex = new RegExp(`dev.perfetto.PinAndroidPerfMetrics:metrics=(.*)`);
   const match = metricVal.match(regex);
   if (match === null) {
+    console.log('PinAndroidPerfMetrics: No metrics found in hash');
     return [];
   }
   const capturedString = match[1];
@@ -40,7 +42,12 @@ function getMetricsFromHash(): string[] {
   } else {
     metricList = [capturedString];
   }
-  return metricList.map((metric) => decodeURIComponent(metric));
+  const decodedMetrics = metricList.map((metric) => decodeURIComponent(metric));
+  console.log(
+    'PinAndroidPerfMetrics: Decoded metrics from hash =',
+    decodedMetrics,
+  );
+  return decodedMetrics;
 }
 
 let metrics: string[];
@@ -60,47 +67,76 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [AndroidCujsPlugin, Wattson];
 
   static onActivate(): void {
+    console.log('PinAndroidPerfMetrics: onActivate()');
     metrics = getMetricsFromHash();
+    console.log('PinAndroidPerfMetrics: metrics to pin =', metrics);
     Wattson.updateWindowsOfInterest(metrics);
   }
 
   async onTraceLoad(ctx: Trace) {
+    console.log('PinAndroidPerfMetrics: onTraceLoad()');
     ctx.commands.registerCommand({
       id: 'com.android.PinAndroidPerfMetrics',
       name: 'Add and Pin: Jank Metric Slice',
       callback: async () => {
+        console.log('PinAndroidPerfMetrics: Command triggered');
         const metric = await ctx.omnibox.prompt(
           'Metrics names (separated by comma)',
         );
-        if (metric === undefined) return;
+        if (metric === undefined) {
+          console.log('PinAndroidPerfMetrics: Command cancelled (no input)');
+          return;
+        }
         const metricList = metric.split(',');
+        console.log(
+          'PinAndroidPerfMetrics: Command input metrics =',
+          metricList,
+        );
         this.callHandlers(metricList, ctx);
       },
     });
     if (metrics.length !== 0) {
+      console.log(
+        'PinAndroidPerfMetrics: Automatic pinning triggered for metrics =',
+        metrics,
+      );
       const plugin = ctx.plugins.getPlugin(AndroidCujsPlugin);
       await plugin.pinJankCujs(ctx);
       await plugin.pinLatencyCujs(ctx);
       this.callHandlers(metrics, ctx);
+    } else {
+      console.log('PinAndroidPerfMetrics: No metrics to automatically pin');
     }
   }
 
   private async callHandlers(metricsList: string[], ctx: Trace) {
+    console.log('PinAndroidPerfMetrics: callHandlers() with =', metricsList);
     // List of metrics that actually match some handler
     const metricsToShow: MetricHandlerMatch[] =
       this.getMetricsToShow(metricsList);
 
+    console.log('PinAndroidPerfMetrics: metricsToShow =', metricsToShow);
     if (metricsToShow.length === 0) {
       return;
     }
 
+    console.log('PinAndroidPerfMetrics: Running precondition query');
     await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
     for (const {metricData, metricHandler} of metricsToShow) {
+      console.log(
+        'PinAndroidPerfMetrics: Adding track for',
+        metricData,
+        'using',
+        metricHandler,
+      );
       metricHandler.addMetricTrack(metricData, ctx);
     }
   }
 
   private getMetricsToShow(metricList: string[]): MetricHandlerMatch[] {
+    console.log(
+      'PinAndroidPerfMetrics: getMetricsToShow() matching metrics against handlers',
+    );
     const sortedMetricList = [...metricList].sort();
     const validMetrics: MetricHandlerMatch[] = [];
     const alreadyMatchedMetricData: Set<string> = new Set();
@@ -110,11 +146,21 @@ export default class implements PerfettoPlugin {
         if (!metricData) continue;
         const jsonMetricData = this.metricDataToJson(metricData);
         if (!alreadyMatchedMetricData.has(jsonMetricData)) {
+          console.log(
+            `PinAndroidPerfMetrics: Metric "${metric}" matched handler`,
+            metricHandler,
+            'with data',
+            metricData,
+          );
           alreadyMatchedMetricData.add(jsonMetricData);
           validMetrics.push({
             metricData: metricData,
             metricHandler: metricHandler,
           });
+        } else {
+          console.log(
+            `PinAndroidPerfMetrics: Metric "${metric}" already matched (duplicate)`,
+          );
         }
       }
     }
