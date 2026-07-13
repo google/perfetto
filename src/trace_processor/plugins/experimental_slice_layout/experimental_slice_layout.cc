@@ -35,7 +35,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
@@ -60,10 +59,42 @@ struct GroupInfo {
   uint32_t max_depth;
 };
 
-// Shift a timestamp into the non-negative unsigned domain the interval tree
-// expects. Monotonic for all ts >= |base|, so overlap order is preserved.
-uint64_t NormalizeTs(int64_t ts, int64_t base) {
-  return static_cast<uint64_t>(ts) - static_cast<uint64_t>(base);
+// A single layout row: the [start, end) time ranges occupied on it, sorted by
+// start and disjoint. Being disjoint their ends are increasing too, so the last
+// range's end is the row's high-water mark.
+using Row = std::vector<std::pair<int64_t, int64_t>>;
+
+// First range that starts at or after |ts|.
+Row::const_iterator LowerBound(const Row& row, int64_t ts) {
+  return std::lower_bound(row.begin(), row.end(), ts,
+                          [](const std::pair<int64_t, int64_t>& r, int64_t t) {
+                            return r.first < t;
+                          });
+}
+
+// True if [start, end) overlaps nothing occupied on |row|.
+bool RowIsFree(const Row& row, int64_t start, int64_t end) {
+  if (row.empty() || start >= row.back().second) {
+    return true;  // empty, or clear from the last occupied range onwards
+  }
+  auto it = LowerBound(row, start);
+  if (it != row.end() && it->first < end) {
+    return false;
+  }
+  if (it != row.begin() && std::prev(it)->second > start) {
+    return false;
+  }
+  return true;
+}
+
+// Record [start, end) as occupied. Placements on a row almost always arrive in
+// time order, so this is an append; the rare out-of-order case shifts.
+void RowMark(Row& row, int64_t start, int64_t end) {
+  if (row.empty() || start >= row.back().first) {
+    row.emplace_back(start, end);
+  } else {
+    row.insert(LowerBound(row, start), {start, end});
+  }
 }
 
 }  // namespace
@@ -157,9 +188,12 @@ bool ExperimentalSliceLayout::Cursor::Run(
 //     its whole subtree) downwards; placing tall boxes first avoids this. When
 //     every box has the same height this reduces to start ts order, matching
 //     the historical behaviour so single-depth tracks are unchanged.
-//  2. Each box takes the lowest row whose [depth] band collides with no already
-//     placed box overlapping it in time. Overlaps are found with an interval
-//     tree over the box time ranges, so we never rescan unrelated boxes.
+//  2. Each box takes the lowest run of (max depth + 1) rows that are free over
+//     its whole time range. Slices on one track never overlap, so at any point
+//     in time at most one box per track is live and at most 'number of tracks'
+//     rows are occupied. That bounds how far this scan ever walks, so we just
+//     track the occupied time ranges per row rather than reasoning about which
+//     boxes overlap which.
 std::vector<ExperimentalSliceLayout::CachedRow>
 ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
     const std::vector<tables::SliceTable::RowNumber>& rows) {
@@ -170,7 +204,11 @@ ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
   // Step 1: reduce each group (a depth 0 root and its descendants) to a
   // bounding box. Slices arrive in id order so a parent is always seen before
   // its children, letting us map every slice to its group in a single pass.
-  base::FlatHashMap<uint32_t, uint32_t> slice_to_group;
+  // |id_to_group| resolves a parent id; |slice_group| records each row's group
+  // positionally so the emit pass never has to hash.
+  base::FlatHashMap<uint32_t, uint32_t> id_to_group;
+  std::vector<uint32_t> slice_group;
+  slice_group.reserve(rows.size());
   std::vector<GroupInfo> groups;
   for (tables::SliceTable::RowNumber i : rows) {
     auto ref = i.ToRowReference(*slice_table_);
@@ -182,7 +220,7 @@ ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
     uint32_t group_idx;
     std::optional<tables::SliceTable::Id> parent = ref.parent_id();
     if (parent) {
-      group_idx = *slice_to_group.Find(parent->value);
+      group_idx = *id_to_group.Find(parent->value);
       GroupInfo& group = groups[group_idx];
       group.max_depth = std::max(group.max_depth, depth);
       group.end = std::max(group.end, end);
@@ -190,26 +228,11 @@ ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
       group_idx = static_cast<uint32_t>(groups.size());
       groups.emplace_back(start, end, depth);
     }
-    slice_to_group.Insert(ref.id().value, group_idx);
+    id_to_group.Insert(ref.id().value, group_idx);
+    slice_group.push_back(group_idx);
   }
 
-  // Step 2: build an interval tree over the group time ranges and order the
-  // groups tallest first.
-  int64_t min_start = std::numeric_limits<int64_t>::max();
-  for (const GroupInfo& group : groups) {
-    min_start = std::min(min_start, group.start);
-  }
-  std::vector<Interval> intervals;
-  intervals.reserve(groups.size());
-  for (uint32_t i = 0; i < groups.size(); ++i) {
-    intervals.push_back(Interval{NormalizeTs(groups[i].start, min_start),
-                                 NormalizeTs(groups[i].end, min_start), i});
-  }
-  std::sort(
-      intervals.begin(), intervals.end(),
-      [](const Interval& a, const Interval& b) { return a.start < b.start; });
-  IntervalTree tree(intervals);
-
+  // Step 2: order the groups tallest first, ties broken by start ts then id.
   std::vector<uint32_t> order(groups.size());
   for (uint32_t i = 0; i < groups.size(); ++i) {
     order[i] = i;
@@ -226,48 +249,44 @@ ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
     return a < b;
   });
 
-  // Step 3: place each group at the lowest row that does not collide in depth
-  // with any already placed group overlapping it in time.
-  std::vector<bool> placed(groups.size(), false);
-  std::vector<uint32_t> overlaps;
-  std::vector<std::pair<uint32_t, uint32_t>> occupied;
+  // Step 3: place each group at the lowest run of (max depth + 1) rows that is
+  // free over its whole time range, then mark those rows occupied.
+  std::vector<Row> occupied;
   for (uint32_t group_idx : order) {
     GroupInfo& group = groups[group_idx];
 
-    overlaps.clear();
-    tree.FindOverlaps(NormalizeTs(group.start, min_start),
-                      NormalizeTs(group.end, min_start), overlaps);
-
-    occupied.clear();
-    for (uint32_t other : overlaps) {
-      if (other == group_idx || !placed[other]) {
-        continue;
-      }
-      const GroupInfo& o = groups[other];
-      occupied.emplace_back(o.layout_depth, o.layout_depth + o.max_depth);
-    }
-    std::sort(occupied.begin(), occupied.end());
-
-    // Walk the occupied [top, bottom] depth bands in increasing order and take
-    // the lowest row where our own band of height max_depth still fits.
     uint32_t layout_depth = 0;
-    for (const auto& band : occupied) {
-      if (band.first > layout_depth + group.max_depth) {
-        break;
+    uint32_t run = 0;
+    for (uint32_t r = 0;; ++r) {
+      if (r >= occupied.size() ||
+          RowIsFree(occupied[r], group.start, group.end)) {
+        if (run == 0) {
+          layout_depth = r;
+        }
+        if (++run == group.max_depth + 1) {
+          break;
+        }
+      } else {
+        run = 0;
       }
-      layout_depth = std::max(layout_depth, band.second + 1);
     }
     group.layout_depth = layout_depth;
-    placed[group_idx] = true;
+
+    uint32_t top = layout_depth + group.max_depth;
+    if (occupied.size() <= top) {
+      occupied.resize(top + 1);
+    }
+    for (uint32_t r = layout_depth; r <= top; ++r) {
+      RowMark(occupied[r], group.start, group.end);
+    }
   }
 
   // Step 4: emit each slice at its own depth plus its group's root depth.
   std::vector<CachedRow> cached;
   cached.reserve(rows.size());
-  for (tables::SliceTable::RowNumber i : rows) {
-    auto ref = i.ToRowReference(*slice_table_);
-    uint32_t group_depth =
-        groups[*slice_to_group.Find(ref.id().value)].layout_depth;
+  for (uint32_t i = 0; i < rows.size(); ++i) {
+    auto ref = rows[i].ToRowReference(*slice_table_);
+    uint32_t group_depth = groups[slice_group[i]].layout_depth;
     cached.emplace_back(ExperimentalSliceLayout::CachedRow{
         ref.id(), ref.depth() + group_depth});
   }
