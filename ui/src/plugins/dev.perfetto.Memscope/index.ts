@@ -15,7 +15,7 @@
 import './styles.scss';
 import m from 'mithril';
 import type {App} from '../../public/app';
-import type {PerfettoPlugin} from '../../public/plugin';
+import type {PerfettoPlugin, PluginStatus} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import {ConnectionPage} from './views/connection';
@@ -28,6 +28,7 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
   static readonly description =
     'Live memory profiler for Android/Linux devices';
+  static readonly status: PluginStatus = 'experimental';
   static readonly dependencies = [RecordPageV2];
 
   static onActivate(app: App) {
