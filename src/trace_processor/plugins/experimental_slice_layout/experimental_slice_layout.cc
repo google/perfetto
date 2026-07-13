@@ -20,12 +20,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <map>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
-#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -33,10 +30,12 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
@@ -60,6 +59,12 @@ struct GroupInfo {
   uint32_t layout_depth = 0;
   uint32_t max_depth;
 };
+
+// Shift a timestamp into the non-negative unsigned domain the interval tree
+// expects. Monotonic for all ts >= |base|, so overlap order is preserved.
+uint64_t NormalizeTs(int64_t ts, int64_t base) {
+  return static_cast<uint64_t>(ts) - static_cast<uint64_t>(base);
+}
 
 }  // namespace
 
@@ -124,21 +129,6 @@ bool ExperimentalSliceLayout::Cursor::Run(
   return OnSuccess(&table_.dataframe());
 }
 
-// Build up a table of slice id -> root slice id by observing each
-// (id, opt_parent_id) pair in order.
-tables::SliceTable::Id ExperimentalSliceLayout::Cursor::InsertSlice(
-    std::map<tables::SliceTable::Id, tables::SliceTable::Id>& id_map,
-    tables::SliceTable::Id id,
-    std::optional<tables::SliceTable::Id> parent_id) {
-  if (parent_id) {
-    tables::SliceTable::Id root_id = id_map[parent_id.value()];
-    id_map[id] = root_id;
-    return root_id;
-  }
-  id_map[id] = id;
-  return id;
-}
-
 // The problem we're trying to solve is this: given a number of tracks each of
 // which contain a number of 'stalactites' - depth 0 slices and all their
 // children - layout the stalactites to minimize vertical depth without
@@ -157,135 +147,129 @@ tables::SliceTable::Id ExperimentalSliceLayout::Cursor::InsertSlice(
 //       b
 //                       bbb
 //                        b
-// We do this by computing an additional column: layout_depth. layout_depth
-// tells us the vertical position of each slice in each stalactite.
+// We do this by computing an additional column: layout_depth, the vertical
+// position of each slice.
 //
-// The algorithm works in three passes:
-// 1. For each stalactite find the 'bounding box' (start, end, & max depth)
-// 2. Considering each stalactite bounding box in start ts order pick a
-//    layout_depth for the root slice of stalactite to avoid collisions with
-//    all previous stalactite's we've considered.
-// 3. Go though each slice and give it a layout_depth by summing it's
-//    current depth and the root layout_depth of the stalactite it belongs to.
+// Each stalactite is reduced to a bounding box (start, end, max depth) and the
+// boxes are packed into rows. Two choices keep the layout compact:
+//  1. Boxes are placed tallest first, ties broken by start ts. Packing a wide
+//     shallow box before a tall box it overlaps would wedge the tall box (and
+//     its whole subtree) downwards; placing tall boxes first avoids this. When
+//     every box has the same height this reduces to start ts order, matching
+//     the historical behaviour so single-depth tracks are unchanged.
+//  2. Each box takes the lowest row whose [depth] band collides with no already
+//     placed box overlapping it in time. Overlaps are found with an interval
+//     tree over the box time ranges, so we never rescan unrelated boxes.
 std::vector<ExperimentalSliceLayout::CachedRow>
 ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
     const std::vector<tables::SliceTable::RowNumber>& rows) {
-  std::map<tables::SliceTable::Id, GroupInfo> groups;
-  // Map of id -> root_id
-  std::map<tables::SliceTable::Id, tables::SliceTable::Id> id_map;
+  if (rows.empty()) {
+    return {};
+  }
 
-  // Step 1:
-  // Find the bounding box (start ts, end ts, and max depth) for each group
+  // Step 1: reduce each group (a depth 0 root and its descendants) to a
+  // bounding box. Slices arrive in id order so a parent is always seen before
+  // its children, letting us map every slice to its group in a single pass.
+  base::FlatHashMap<uint32_t, uint32_t> slice_to_group;
+  std::vector<GroupInfo> groups;
   for (tables::SliceTable::RowNumber i : rows) {
     auto ref = i.ToRowReference(*slice_table_);
-
-    tables::SliceTable::Id id = ref.id();
     uint32_t depth = ref.depth();
     int64_t start = ref.ts();
     int64_t dur = ref.dur();
     int64_t end = dur == -1 ? std::numeric_limits<int64_t>::max() : start + dur;
-    InsertSlice(id_map, id, ref.parent_id());
-    std::map<tables::SliceTable::Id, GroupInfo>::iterator it;
-    bool inserted;
-    std::tie(it, inserted) = groups.emplace(
-        std::piecewise_construct, std::forward_as_tuple(id_map[id]),
-        std::forward_as_tuple(start, end, depth));
-    if (!inserted) {
-      it->second.max_depth = std::max(it->second.max_depth, depth);
-      it->second.end = std::max(it->second.end, end);
+
+    uint32_t group_idx;
+    std::optional<tables::SliceTable::Id> parent = ref.parent_id();
+    if (parent) {
+      group_idx = *slice_to_group.Find(parent->value);
+      GroupInfo& group = groups[group_idx];
+      group.max_depth = std::max(group.max_depth, depth);
+      group.end = std::max(group.end, end);
+    } else {
+      group_idx = static_cast<uint32_t>(groups.size());
+      groups.emplace_back(start, end, depth);
     }
+    slice_to_group.Insert(ref.id().value, group_idx);
   }
 
-  // Sort the groups by ts
-  std::vector<GroupInfo*> sorted_groups;
-  sorted_groups.resize(groups.size());
-  size_t idx = 0;
-  for (auto& group : groups) {
-    sorted_groups[idx++] = &group.second;
+  // Step 2: build an interval tree over the group time ranges and order the
+  // groups tallest first.
+  int64_t min_start = std::numeric_limits<int64_t>::max();
+  for (const GroupInfo& group : groups) {
+    min_start = std::min(min_start, group.start);
   }
-  std::sort(std::begin(sorted_groups), std::end(sorted_groups),
-            [](const GroupInfo* group1, const GroupInfo* group2) {
-              return group1->start < group2->start;
-            });
+  std::vector<Interval> intervals;
+  intervals.reserve(groups.size());
+  for (uint32_t i = 0; i < groups.size(); ++i) {
+    intervals.push_back(Interval{NormalizeTs(groups[i].start, min_start),
+                                 NormalizeTs(groups[i].end, min_start), i});
+  }
+  std::sort(
+      intervals.begin(), intervals.end(),
+      [](const Interval& a, const Interval& b) { return a.start < b.start; });
+  IntervalTree tree(intervals);
 
-  // Step 2:
-  // Go though each group and choose a depth for the root slice.
-  // We keep track of those groups where the start time has passed but the
-  // end time has not in this vector:
-  std::vector<GroupInfo*> still_open;
-  for (GroupInfo* group : sorted_groups) {
-    int64_t start = group->start;
-    uint32_t max_depth = group->max_depth;
+  std::vector<uint32_t> order(groups.size());
+  for (uint32_t i = 0; i < groups.size(); ++i) {
+    order[i] = i;
+  }
+  std::sort(order.begin(), order.end(), [&](uint32_t a, uint32_t b) {
+    const GroupInfo& ga = groups[a];
+    const GroupInfo& gb = groups[b];
+    if (ga.max_depth != gb.max_depth) {
+      return ga.max_depth > gb.max_depth;
+    }
+    if (ga.start != gb.start) {
+      return ga.start < gb.start;
+    }
+    return a < b;
+  });
 
-    // Discard all 'closed' groups where that groups end_ts is < our start_ts:
-    {
-      auto it = still_open.begin();
-      while (it != still_open.end()) {
-        if ((*it)->end <= start) {
-          it = still_open.erase(it);
-        } else {
-          ++it;
-        }
+  // Step 3: place each group at the lowest row that does not collide in depth
+  // with any already placed group overlapping it in time.
+  std::vector<bool> placed(groups.size(), false);
+  std::vector<uint32_t> overlaps;
+  std::vector<std::pair<uint32_t, uint32_t>> occupied;
+  for (uint32_t group_idx : order) {
+    GroupInfo& group = groups[group_idx];
+
+    overlaps.clear();
+    tree.FindOverlaps(NormalizeTs(group.start, min_start),
+                      NormalizeTs(group.end, min_start), overlaps);
+
+    occupied.clear();
+    for (uint32_t other : overlaps) {
+      if (other == group_idx || !placed[other]) {
+        continue;
       }
+      const GroupInfo& o = groups[other];
+      occupied.emplace_back(o.layout_depth, o.layout_depth + o.max_depth);
     }
+    std::sort(occupied.begin(), occupied.end());
 
+    // Walk the occupied [top, bottom] depth bands in increasing order and take
+    // the lowest row where our own band of height max_depth still fits.
     uint32_t layout_depth = 0;
-
-    // In a pathological case you can end up stacking up slices forever
-    // triggering n^2 behaviour below. In those cases we want to give
-    // up on trying to find a pretty (height minimizing ) layout and
-    // just find *some* layout. To do that we start looking for
-    // a layout depth below the maximum open group which should
-    // immediately succeed.
-    if (still_open.size() > 500) {
-      for (const auto& open : still_open) {
-        layout_depth =
-            std::max(layout_depth, open->layout_depth + open->max_depth);
+    for (const auto& band : occupied) {
+      if (band.first > layout_depth + group.max_depth) {
+        break;
       }
+      layout_depth = std::max(layout_depth, band.second + 1);
     }
-
-    // Find a start layout depth for this group s.t. our start depth +
-    // our max depth will not intersect with the start depth + max depth for
-    // any of the open groups:
-    bool done = false;
-    while (!done) {
-      done = true;
-      uint32_t start_depth = layout_depth;
-      uint32_t end_depth = layout_depth + max_depth;
-      for (const auto& open : still_open) {
-        uint32_t open_start_depth = open->layout_depth;
-        uint32_t open_end_depth = open->layout_depth + open->max_depth;
-        bool fully_above_open = end_depth < open_start_depth;
-        bool fully_below_open = open_end_depth < start_depth;
-        if (!fully_above_open && !fully_below_open) {
-          // This is extremely dumb, we can make a much better guess for what
-          // depth to try next but it is a little complicated to get right.
-          layout_depth++;
-          done = false;
-          break;
-        }
-      }
-    }
-
-    // Add this group to the open groups & re
-    still_open.push_back(group);
-
-    // Set our root layout depth:
-    group->layout_depth = layout_depth;
+    group.layout_depth = layout_depth;
+    placed[group_idx] = true;
   }
 
-  // Step 3: Add the two new columns layout_depth and filter_track_ids:
+  // Step 4: emit each slice at its own depth plus its group's root depth.
   std::vector<CachedRow> cached;
+  cached.reserve(rows.size());
   for (tables::SliceTable::RowNumber i : rows) {
     auto ref = i.ToRowReference(*slice_table_);
-
-    // Each slice depth is it's current slice depth + root slice depth of the
-    // group:
-    uint32_t group_depth = groups.at(id_map[ref.id()]).layout_depth;
+    uint32_t group_depth =
+        groups[*slice_to_group.Find(ref.id().value)].layout_depth;
     cached.emplace_back(ExperimentalSliceLayout::CachedRow{
-        ref.id(),
-        ref.depth() + group_depth,
-    });
+        ref.id(), ref.depth() + group_depth});
   }
   return cached;
 }
