@@ -62,3 +62,15 @@
   white-space: pre-wrap;
   margin: 0;
 }
+
+.pf-test-sql-error {
+  font-family: var(--pf-font-mono, monospace);
+  font-size: var(--pf-font-size-m);
+  color: #e06c75;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 10px 14px;
+  background-color: rgba(224, 108, 117, 0.07);
+  border-left: 4px solid #e06c75;
+  border-radius: 2px;
+}

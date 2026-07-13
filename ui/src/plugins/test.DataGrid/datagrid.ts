@@ -160,6 +160,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const uniqueId = `${pathStr}_${Math.random().toString(36).substring(2, 9)}`;
     const newCol: ColumnMetadata = {
       key: uniqueId,
+      colId: pathStr,
       path,
       displayNameParts,
     };

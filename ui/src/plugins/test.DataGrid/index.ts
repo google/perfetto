@@ -20,89 +20,72 @@ import {SplitPanel} from '../../widgets/split_panel';
 import {Editor} from '../../widgets/editor';
 import {generateSqlQuery, type ColumnMetadata} from './sql_generator';
 import {DataGrid, resolveDisplayNameParts} from './datagrid';
+import {DataGridConfigSchema} from './schema';
+import {z} from 'zod';
 
 class TestDataGridPage implements m.ClassComponent {
   private jsCode = `({
-  schema: (() => {
-    const node = {
-      'foo': {
-        schema: {
-          'bar': { name: 'Nested Bar Column' },
-          'raw_nested': {},
-          'arg': {
-            name: 'Argument',
-            parameterized: true,
-          },
-        },
+  schema: {
+    'id': {},
+    'ts': {},
+    'dur': {},
+    'name': {},
+    'track_id': {},
+    'track': {
+      schema: {
+        'id': {},
+        'name': {},
       },
-      'simple_col': {},
-      'baz': {
-        schema: {
-          'inner': {
-            schema: {
-              'deep': {},
-            },
-          },
-        },
+    },
+    'arg': {
+      name: 'Argument',
+      parameterized: true,
+    },
+  },
+  sql: {
+    sql: 'select * from slice',
+    schema: {
+      'track': {
+        join: (ctx) => \`left join track as \${ctx.tableAlias} on \${ctx.tableAlias}.id = base.track_id\`,
       },
-    };
-    const root = {
-      ...node,
-      'recursive_node': {
-        schema: {},
+      'arg': {
+        select: (param, ctx) => \`extract_arg(\${ctx.parentAlias}.arg_set_id, '\${param}')\`,
       },
-    };
-    root.recursive_node.schema = root; // Recursive reference!
-    return root;
-  })(),
+    },
+  },
   cols: [
-    { field: ['foo', 'bar'], id: 'foo_bar' },
-    { field: ['foo', 'raw_nested'], id: 'foo_raw_nested' },
-    { field: ['simple_col'], id: 'simple_col' },
-    { field: ['baz', 'inner', 'deep'], id: 'baz_deep' },
-    { field: ['recursive_node', 'recursive_node', 'foo', 'bar'], id: 'rec_foo_bar' },
-    { field: ['foo', 'arg', 'some_argkey'], id: 'some_argkey' },
+    { field: ['id'], id: 'id_1', colId: 'id' },
+    { field: ['ts'], id: 'ts_1', colId: 'ts' },
+    { field: ['name'], id: 'name_1', colId: 'name' },
+    { field: ['track', 'name'], id: 'track_name_1', colId: 'track_name' },
+    { field: ['arg', 'some_argkey'], id: 'some_argkey_1', colId: 'some_argkey' },
+    { field: ['dur'], id: 'dur_1', colId: 'dur' },
   ],
-  sql: (() => {
-    const sqlSchema = {
-      'foo': {
-        join: (ctx) => \`left join foo_table as \${ctx.tableAlias} on \${ctx.tableAlias}.id = base.foo_id\`,
-        schema: {
-          'arg': {
-            select: (param, ctx) => \`extract_arg(\${ctx.parentAlias}.arg_set_id, '\${param}')\`,
-          },
-        },
-      },
-      'baz': {
-        join: (ctx) => \`left join baz_table as \${ctx.tableAlias} using (baz_id)\`,
-        schema: {
-          'inner': {
-            join: (ctx) => \`left join inner_table as \${ctx.tableAlias} on \${ctx.tableAlias}.baz_id = baz_table.id\`,
-          },
-        },
-      },
-      'recursive_node': {
-        join: (ctx) => {
-          const parentAlias = ctx.path.length === 1 ? 'base' : ctx.parentAlias;
-          return \`left join recursive_table as \${ctx.tableAlias} on \${ctx.tableAlias}.id = \${parentAlias}.parent_id\`;
-        },
-        schema: {},
-      },
-    };
-    sqlSchema.recursive_node.schema = sqlSchema; // Recursive reference!
-    return {
-      sql: 'select * from slice',
-      schema: sqlSchema,
-    };
-  })()
+  pivot: {
+    groupby: ['track_name'],
+    aggregate: [
+      { colId: 'dur', func: 'sum' },
+    ],
+  },
 })`;
   private columns: ColumnMetadata[] = [];
   private schemaObj: Record<string, unknown> = {};
   private baseSql = '';
   private sqlObj: Record<string, unknown> = {};
+  private pivotObj?: unknown = undefined;
+  private errorMsg = '';
 
   constructor() {
     this.evalCode(this.jsCode);
+  }
+
+  private formatZodError(error: z.ZodError): string {
+    return error.issues
+      .map((issue) => {
+        const path = issue.path.join('.') || 'root';
+        return `❌ [${path}]: ${issue.message}`;
+      })
+      .join('\n');
   }
 
   private evalCode(val: string) {
@@ -115,71 +98,65 @@ class TestDataGridPage implements m.ClassComponent {
       const result = eval(codeToEval);
       console.log('Evaluated result:', result);
 
-      // Extract schema if present
-      if (result && typeof result === 'object' && 'schema' in result) {
-        const schema = (result as {schema?: unknown}).schema;
-        const cols = (result as {cols?: unknown}).cols;
-        const sqlVal = (result as {sql?: unknown}).sql;
-
-        if (schema && typeof schema === 'object') {
-          const schemaObj = schema as Record<string, unknown>;
-          this.schemaObj = schemaObj;
-
-          if (Array.isArray(cols)) {
-            this.columns = cols
-              .map((colEntry) => {
-                if (!colEntry || typeof colEntry !== 'object') return null;
-                const field = (colEntry as {field?: unknown}).field;
-                const id = (colEntry as {id?: unknown}).id;
-
-                if (!Array.isArray(field)) return null;
-                if (!field.every((item) => typeof item === 'string'))
-                  return null;
-                if (typeof id !== 'string') return null;
-
-                const displayNameParts = resolveDisplayNameParts(
-                  field,
-                  schemaObj,
-                );
-
-                return {
-                  key: id,
-                  path: field,
-                  displayNameParts,
-                };
-              })
-              .filter((col): col is ColumnMetadata => col !== null);
-          } else {
-            this.columns = [];
-          }
-
-          if (sqlVal && typeof sqlVal === 'object') {
-            this.sqlObj = sqlVal;
-            const innerSql = (sqlVal as {sql?: unknown}).sql;
-            if (typeof innerSql === 'string') {
-              this.baseSql = innerSql;
-            } else {
-              this.baseSql = '';
-            }
-          } else {
-            this.sqlObj = {};
-            this.baseSql = '';
-          }
-          console.log(
-            'Initial columns populated:',
-            this.columns.map((c) => c.key),
-          );
-          return;
+      const parseResult = DataGridConfigSchema.safeParse(result);
+      if (parseResult.success) {
+        const config = parseResult.data;
+        const schemaObj = config.schema as Record<string, unknown>;
+        this.schemaObj = schemaObj;
+        
+        this.columns = config.cols.map((col) => ({
+          key: col.id,
+          colId: col.colId,
+          path: col.field,
+          displayNameParts: resolveDisplayNameParts(col.field, schemaObj),
+        }));
+        
+        if (config.sql) {
+          this.sqlObj = config.sql;
+          this.baseSql = config.sql.sql || '';
+        } else {
+          this.sqlObj = {};
+          this.baseSql = '';
         }
+        
+        this.pivotObj = config.pivot;
+        this.errorMsg = '';
+        console.log('Initial columns populated:', this.columns.map(c => c.key));
+        return;
+      } else {
+        this.errorMsg = 'Schema Validation Error:\n' + this.formatZodError(parseResult.error);
+        console.warn('TestDataGrid schema validation failed:', parseResult.error.format());
       }
-      // Reset columns and baseSql if no valid schema returned
+      
+      // Reset columns and baseSql if validation fails
       this.columns = [];
       this.schemaObj = {};
       this.baseSql = '';
       this.sqlObj = {};
+      this.pivotObj = undefined;
     } catch (err) {
-      // Log errors to console so we can see issues (e.g. syntax errors or missing params)
+      const error = err as Error;
+      this.errorMsg = 'JS Evaluation Error:\n' + error.message;
       console.error('TestDataGrid eval error:', err);
+      
+      this.columns = [];
+      this.schemaObj = {};
+      this.baseSql = '';
+      this.sqlObj = {};
+      this.pivotObj = undefined;
+    }
+  }
+
+  private renderSqlContent(): m.Children {
+    if (this.errorMsg) {
+      return m('pre.pf-test-sql-error', this.errorMsg);
+    }
+    try {
+      const sql = generateSqlQuery(this.baseSql, this.columns, this.sqlObj, this.pivotObj);
+      return m('pre.pf-test-sql-code', sql);
+    } catch (err) {
+      const error = err as Error;
+      return m('pre.pf-test-sql-error', `SQL Generation Error:\n${error.message}`);
     }
   }
 
@@ -218,10 +195,7 @@ class TestDataGridPage implements m.ClassComponent {
             ),
             secondPanel: m(
               '.pf-test-sql-container',
-              m(
-                'pre.pf-test-sql-code',
-                generateSqlQuery(this.baseSql, this.columns, this.sqlObj),
-              ),
+              this.renderSqlContent(),
             ),
           }),
         }),
