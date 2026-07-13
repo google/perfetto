@@ -88,8 +88,31 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
     }
     current_file_tag_ = own_file_id_;
   }
-  for (auto& ct : clock_timestamps)
+  // REALTIME is a single universal wall clock and the cross-machine rendezvous
+  // domain used to place files that share no other clock (see
+  // docs/concepts/merging-traces.md). A non-primary file on a *remote*
+  // (non-trace-time) machine reaches trace time only through that rendezvous,
+  // so relate each REALTIME clock it actually carries to the machine-canonical
+  // REALTIME at zero offset (a twin added to this snapshot). The trace-time
+  // machine is excluded: its events reach trace time directly through BOOTTIME.
+  const bool bridge_realtime =
+      !is_primary_ &&
+      machine_id_ != context_->trace_time_state->clock_id.machine_id;
+  std::vector<ClockTimestamp> canonical_realtime;
+  for (auto& ct : clock_timestamps) {
+    const uint32_t clock = ct.clock.id.clock_id;
     ct.clock.id = ClockId::Qualify(ct.clock.id, machine_id_, current_file_tag_);
+    if (PERFETTO_UNLIKELY(
+            bridge_realtime &&
+            (clock == protos::pbzero::BUILTIN_CLOCK_REALTIME ||
+             clock == protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE))) {
+      ClockTimestamp twin = ct;
+      twin.clock.id = ClockId::Qualify(ClockId::Machine(clock), machine_id_, 0);
+      canonical_realtime.push_back(twin);
+    }
+  }
+  clock_timestamps.insert(clock_timestamps.end(), canonical_realtime.begin(),
+                          canonical_realtime.end());
   return AddSnapshotInternal(clock_timestamps);
 }
 
