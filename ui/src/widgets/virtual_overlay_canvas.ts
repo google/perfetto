@@ -304,14 +304,6 @@ export class VirtualOverlayCanvas
     const virtualCanvas = ensureExists(this.virtualCanvas);
     const attrs = ensureExists(this.attrs);
     const containerElement = ensureExists(this.dom);
-    const canvasSize = virtualCanvas.size;
-
-    // If the canavs size is 0, just don't render anything. This either means
-    // the canavs element is hidden (has no layout) or it genuinely is 0. Either
-    // way - there's nothing to be gained from rendering to it.
-    if (canvasSize.height <= 0 || canvasSize.width <= 0) {
-      return;
-    }
 
     // Create the appropriate renderer: WebGLRenderer if available, otherwise
     // Canvas2DRenderer as fallback.

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PLUGINS_EXPERIMENTAL_SLICE_LAYOUT_EXPERIMENTAL_SLICE_LAYOUT_IMPL_H_
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -51,6 +52,11 @@ class ExperimentalSliceLayout : public StaticTableFunction {
    private:
     std::vector<CachedRow> ComputeLayoutTable(
         const std::vector<tables::SliceTable::RowNumber>& rows);
+
+    static tables::SliceTable::Id InsertSlice(
+        std::map<tables::SliceTable::Id, tables::SliceTable::Id>& id_map,
+        tables::SliceTable::Id id,
+        std::optional<tables::SliceTable::Id> parent_id);
 
     StringPool* string_pool_;
     const tables::SliceTable* slice_table_;
