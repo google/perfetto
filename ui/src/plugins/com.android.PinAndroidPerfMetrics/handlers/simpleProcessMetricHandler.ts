@@ -28,12 +28,12 @@ export class SimpleProcessMetricHandler implements MetricHandler {
    *
    * @param {RegExp[]} matchers List of matchers for metric keys
    * @param {string[]} trackPrefixMatchers Matches track in the process based on prefix
-   * @param {RegExp[]} tracksRegexpMatchers Mathes track in the processe based on RegExp
+   * @param {RegExp[]} trackRegexpMatchers Matches track in the process based on RegExp
    */
   constructor(
     private readonly matchers: RegExp[],
     private readonly trackPrefixMatchers: string[],
-    private readonly tracksRegexpMatchers: RegExp[] = [],
+    private readonly trackRegexpMatchers: RegExp[] = [],
   ) {}
 
   /**
@@ -93,7 +93,7 @@ export class SimpleProcessMetricHandler implements MetricHandler {
     }
 
     // Pin tracks matching regex matchers in order.
-    for (const regexMatcher of this.tracksRegexpMatchers) {
+    for (const regexMatcher of this.trackRegexpMatchers) {
       const tracksToPin = processTracks.filter((track) => {
         if (pinnedUris.has(track.uri!)) {
           return false;

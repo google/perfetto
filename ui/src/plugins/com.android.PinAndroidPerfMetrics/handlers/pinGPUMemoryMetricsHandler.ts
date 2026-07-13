@@ -16,8 +16,7 @@ import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 
 export const pinGPUMemoryMetricsInstance = new SimpleProcessMetricHandler(
   [
-    /perfetto_android_gpu-(?<processName>.*)-mem_max-max/,
-    /perfetto_android_gpu-\/system\/bin\/(?<processName>surfaceflinger)-mem_avg-mean/,
+    /perfetto_android_gpu-(?<processName>.*)-mem_.*/,
   ],
   ['GPU Memory'],
   [/^GPU completion$/],
