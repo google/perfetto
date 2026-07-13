@@ -2650,6 +2650,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/slice_tracker.h",
         "src/trace_processor/importers/common/slice_translation_table.cc",
         "src/trace_processor/importers/common/slice_translation_table.h",
+        "src/trace_processor/importers/common/sparse_counter_tracker.cc",
+        "src/trace_processor/importers/common/sparse_counter_tracker.h",
         "src/trace_processor/importers/common/stack_profile_tracker.cc",
         "src/trace_processor/importers/common/stack_profile_tracker.h",
         "src/trace_processor/importers/common/state_tracker.cc",
