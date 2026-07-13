@@ -30,7 +30,7 @@ const validMetricsTest: {
     inputMetric:
       'perfetto_android_mem-systemui-total_counters-anon_and_swap-max-mean',
     expectedOutput: {
-      process: 'com.android.systemui', // Should be expanded
+      process: 'com.android.systemui',
     },
   },
   {

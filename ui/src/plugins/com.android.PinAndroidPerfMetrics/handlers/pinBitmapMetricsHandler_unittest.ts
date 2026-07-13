@@ -28,7 +28,7 @@ const validMetricsTest: {
   {
     inputMetric: 'perfetto_android_bitmap_metric_max_val-systemui',
     expectedOutput: {
-      process: 'com.android.systemui', // Should be expanded
+      process: 'com.android.systemui',
     },
   },
   {

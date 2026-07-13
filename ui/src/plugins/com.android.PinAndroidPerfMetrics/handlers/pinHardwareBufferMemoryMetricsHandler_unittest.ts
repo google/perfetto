@@ -30,7 +30,7 @@ const validMetricsTest: {
     inputMetric:
       'perfetto_android_dmabuf_per_process_metric_max_val-systemui-p95',
     expectedOutput: {
-      process: 'com.android.systemui', // Should be expanded
+      process: 'com.android.systemui',
     },
   },
   {

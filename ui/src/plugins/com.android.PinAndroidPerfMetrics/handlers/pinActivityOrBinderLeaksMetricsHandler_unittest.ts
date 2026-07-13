@@ -28,7 +28,7 @@ const validMetricsTest: {
   {
     inputMetric: 'systemui_View-last-first-diff',
     expectedOutput: {
-      process: 'com.android.systemui', // Should be expanded
+      process: 'com.android.systemui',
     },
   },
   {

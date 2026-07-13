@@ -28,7 +28,7 @@ const validMetricsTest: {
   {
     inputMetric: 'perfetto_android_gpu-systemui-mem_max-max',
     expectedOutput: {
-      process: 'com.android.systemui', // Should be expanded
+      process: 'com.android.systemui',
     },
   },
   {
