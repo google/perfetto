@@ -683,7 +683,7 @@ async function getTraceTimeBounds(engine: Engine): Promise<TimeSpan> {
 }
 
 async function getTraceErrors(engine: Engine): Promise<number> {
-  const sql = `SELECT sum(value) as errs FROM stats WHERE severity != 'info'`;
+  const sql = `SELECT sum(value) as errs FROM stats WHERE severity IN ('error', 'data_loss')`;
   const result = await engine.query(sql);
   return result.firstRow({errs: NUM}).errs;
 }

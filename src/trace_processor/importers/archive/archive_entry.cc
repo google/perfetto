@@ -16,9 +16,33 @@
 
 #include "src/trace_processor/importers/archive/archive_entry.h"
 
+#include <cstddef>
+#include <string>
 #include <tuple>
 
 namespace perfetto::trace_processor {
+
+bool IsHiddenArchivePath(const std::string& path) {
+  size_t start = 0;
+  while (start <= path.size()) {
+    size_t slash = path.find('/', start);
+    size_t end = slash == std::string::npos ? path.size() : slash;
+    // Inspect the component [start, end).
+    if (end > start && path[start] == '.') {
+      // "." and ".." are current/parent directory segments, not hidden files.
+      bool is_dot = (end - start) == 1;
+      bool is_dot_dot = (end - start) == 2 && path[start + 1] == '.';
+      if (!is_dot && !is_dot_dot) {
+        return true;
+      }
+    }
+    if (slash == std::string::npos) {
+      break;
+    }
+    start = slash + 1;
+  }
+  return false;
+}
 
 int ArchiveEntry::ComputePriority(TraceImporterId type,
                                   const TraceImporterRegistry& registry) {

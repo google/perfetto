@@ -68,9 +68,7 @@ class AndroidCpuPerUid(TestSuite):
         "CPU for UID 0 CL0",10000,1000000.000000
         "CPU for UID 0 CL0",12000,1000100.000000
         "CPU for UID 0 CL1",10000,1000000.000000
-        "CPU for UID 0 CL1",12000,1000000.000000
         "CPU for UID 0 CL2",10000,1000000.000000
-        "CPU for UID 0 CL2",12000,1000000.000000
         "CPU for UID 1000 CL0",10000,1000000.000000
         "CPU for UID 1000 CL0",12000,1002000.000000
         "CPU for UID 1000 CL1",10000,1000000.000000
@@ -78,11 +76,8 @@ class AndroidCpuPerUid(TestSuite):
         "CPU for UID 1000 CL2",10000,1000000.000000
         "CPU for UID 1000 CL2",12000,1000020.000000
         "CPU for UID 1001 CL0",10000,1000000.000000
-        "CPU for UID 1001 CL0",12000,1000000.000000
         "CPU for UID 1001 CL1",10000,1000000.000000
-        "CPU for UID 1001 CL1",12000,1000000.000000
         "CPU for UID 1001 CL2",10000,1000000.000000
-        "CPU for UID 1001 CL2",12000,1000000.000000
         """))
 
   def test_android_cpu_per_uid_malformed(self):
@@ -129,9 +124,7 @@ class AndroidCpuPerUid(TestSuite):
         "CPU for UID 0 CL2",10000,1000000.000000
         "CPU for UID 0 CL2",12000,2000000.000000
         "CPU for UID 1000 CL0",10000,1000000.000000
-        "CPU for UID 1000 CL0",12000,1000000.000000
         "CPU for UID 1000 CL1",10000,1000000.000000
-        "CPU for UID 1000 CL1",12000,1000000.000000
         """))
 
   def test_android_cpu_per_uid_isolated_uids(self):

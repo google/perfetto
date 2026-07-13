@@ -14,6 +14,7 @@
 
 import {z} from 'zod';
 import {Registry} from '../base/registry';
+import {CommandError} from '../public/commands';
 import type {Command, CommandManager} from '../public/commands';
 import {raf} from './raf_scheduler';
 import type {OmniboxManagerImpl} from './omnibox_manager';
@@ -172,14 +173,19 @@ export class CommandManagerImpl implements CommandManager {
     return this.registry.register(cmd);
   }
 
-  runCommand(id: string, ...args: unknown[]): unknown {
+  async runCommand(id: string, ...args: unknown[]): Promise<unknown> {
     if (this.isExecutingStartupCommands && !this.isStartupCommandAllowed(id)) {
       throw new StartupCommandNotAllowedError(id);
     }
     const cmd = this.registry.get(id);
-    const res = cmd.callback(...args);
-    Promise.resolve(res).finally(() => raf.scheduleFullRedraw());
-    return res;
+    try {
+      return await cmd.callback(...args);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      throw new CommandError(cmd.id, cmd.name, cmd.source, error);
+    } finally {
+      raf.scheduleFullRedraw();
+    }
   }
 
   // Internal API: not part of the public CommandManager interface.

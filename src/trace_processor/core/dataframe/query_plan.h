@@ -263,6 +263,16 @@ class QueryPlanBuilder {
     uint32_t estimated_distinct = 0;
   };
 
+  // Indicates that the bytecode is an IN filter over a value list. Unlike a
+  // scalar equality, an IN matches multiple distinct values; since the list
+  // size is not known at plan time (the RHS may be a subquery), we assume it
+  // selects a fixed number of distinct values. `estimated_distinct` is the
+  // per-column distinct-value count (0 = unknown).
+  struct InFilterRowCount {
+    DuplicateState duplicate_state;
+    uint32_t estimated_distinct = 0;
+  };
+
   // Indicates that the bytecode produces *exactly* one row and the estimated
   // and maximum should be set to 1.
   struct OneRowCount {};
@@ -279,6 +289,7 @@ class QueryPlanBuilder {
   using RowCountModifier = std::variant<UnchangedRowCount,
                                         NonEqualityFilterRowCount,
                                         EqualityFilterRowCount,
+                                        InFilterRowCount,
                                         OneRowCount,
                                         ZeroRowCount,
                                         LimitOffsetRowCount>;

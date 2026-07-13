@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/sparse_counter_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -108,13 +109,13 @@ AndroidCpuPerUidModule::AndroidCpuPerUidModule(
 
 AndroidCpuPerUidModule::~AndroidCpuPerUidModule() = default;
 
-void AndroidCpuPerUidModule::ParseField(const ParseFieldArgs& args) {
+ModuleResult AndroidCpuPerUidModule::TokenizePacket(
+    const TokenizePacketArgs& args) {
   if (args.field.id() != TracePacket::kCpuPerUidDataFieldNumber) {
-    return;
+    return ModuleResult::Ignored();
   }
 
-  auto* state =
-      args.data.sequence_state->GetCustomState<AndroidCpuPerUidState>();
+  auto* state = args.state->GetCustomState<AndroidCpuPerUidState>();
   protos::pbzero::CpuPerUidData::Decoder evt(
       args.field.Cast<TracePacket::kCpuPerUidData>());
 
@@ -161,6 +162,8 @@ void AndroidCpuPerUidModule::ParseField(const ParseFieldArgs& args) {
       UpdateCounter(args.ts, uid, cluster_id, it.value());
     }
   }
+
+  return ModuleResult::Handled();
 }
 
 void AndroidCpuPerUidModule::OnEventsFullyExtracted() {
@@ -202,7 +205,7 @@ void AndroidCpuPerUidModule::UpdateCounter(int64_t ts,
                                            uint64_t value) {
   TrackId track = context_->track_tracker->InternTrack(
       kCpuPerUidBlueprint, tracks::Dimensions(uid, cluster));
-  context_->event_tracker->PushCounter(ts, double(value), track);
+  context_->sparse_counter_tracker->PushCounter(ts, track, double(value));
 }
 
 void AndroidCpuPerUidModule::UpdateTotals(int64_t ts,
@@ -211,7 +214,7 @@ void AndroidCpuPerUidModule::UpdateTotals(int64_t ts,
                                           uint64_t value) {
   TrackId track = context_->track_tracker->InternTrack(
       kCpuTotalsBlueprint, tracks::Dimensions(name, cluster));
-  context_->event_tracker->PushCounter(ts, double(value), track);
+  context_->sparse_counter_tracker->PushCounter(ts, track, double(value));
 }
 
 std::pair<uint64_t, uint64_t> AndroidCpuPerUidModule::IncrementalStateUpdate(
