@@ -1263,6 +1263,12 @@ base::Status ProtoTraceReader::OnPushDataToSorter() {
   for (auto& packet : eof_deferred_packets_) {
     RETURN_IF_ERROR(TimestampTokenizeAndPushToSorter(std::move(packet)));
   }
+  // Remote-machine readers are only ever reached by the dispatcher, never by
+  // the ForwardingTraceParser, so their own clock-deferred packets would
+  // otherwise never be flushed. Propagate EOF to them too.
+  for (auto it = machine_to_proto_readers_.GetIterator(); it; ++it) {
+    RETURN_IF_ERROR(it.value()->OnPushDataToSorter());
+  }
   return base::OkStatus();
 }
 
