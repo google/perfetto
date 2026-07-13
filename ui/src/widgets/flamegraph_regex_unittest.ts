@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {escapeRegex, userFilterToRegex} from './flamegraph_regex';
+import {escapeRegex, escapeRegexEmptyBrackets} from './flamegraph_regex';
 
 test('flamegraph_regex.escapeRegex', () => {
   expect(escapeRegex('byte[]')).toEqual('byte\\[\\]');
@@ -25,20 +25,23 @@ test('flamegraph_regex.escapeRegex', () => {
   expect(escapeRegex('plain_name')).toEqual('plain_name');
 });
 
-test('flamegraph_regex.userFilterToRegex', () => {
-  // Bare text is matched literally: all metacharacters escaped.
-  expect(userFilterToRegex('MyClass$Nested')).toEqual('MyClass\\$Nested');
-  expect(userFilterToRegex('byte[]')).toEqual('byte\\[\\]');
-  expect(userFilterToRegex('operator()')).toEqual('operator\\(\\)');
-  expect(userFilterToRegex('malloc')).toEqual('malloc');
-  expect(userFilterToRegex('')).toEqual('');
+test('flamegraph_regex.escapeRegexEmptyBrackets', () => {
+  // Bare [] is rewritten to match literally.
+  expect(escapeRegexEmptyBrackets('byte[]')).toEqual('byte\\[\\]');
+  expect(escapeRegexEmptyBrackets('.*Object[] com\\..*')).toEqual(
+    '.*Object\\[\\] com\\..*',
+  );
+  expect(escapeRegexEmptyBrackets('[][]')).toEqual('\\[\\]\\[\\]');
 
-  // `/…/` opts into a raw regex: inner pattern used verbatim.
-  expect(userFilterToRegex('/alloc.*/')).toEqual('alloc.*');
-  expect(userFilterToRegex('/^main$/')).toEqual('^main$');
-  expect(userFilterToRegex('//')).toEqual('');
+  // Valid regex constructs are left untouched.
+  expect(escapeRegexEmptyBrackets('[abc]+')).toEqual('[abc]+');
+  expect(escapeRegexEmptyBrackets('\\[]')).toEqual('\\[]');
+  expect(escapeRegexEmptyBrackets('\\[\\]')).toEqual('\\[\\]');
+  expect(escapeRegexEmptyBrackets('[a[]]')).toEqual('[a[]]');
+  expect(escapeRegexEmptyBrackets('[^]]')).toEqual('[^]]');
+  expect(escapeRegexEmptyBrackets('plain')).toEqual('plain');
+  expect(escapeRegexEmptyBrackets('')).toEqual('');
 
-  // A lone slash is not a regex delimiter.
-  expect(userFilterToRegex('/')).toEqual('/');
-  expect(userFilterToRegex('a/b')).toEqual('a/b');
+  // Trailing backslash does not drop characters.
+  expect(escapeRegexEmptyBrackets('foo\\')).toEqual('foo\\');
 });

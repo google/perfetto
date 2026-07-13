@@ -40,7 +40,7 @@ import {
 } from '../widgets/flamegraph';
 import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
-import {userFilterToRegex} from '../widgets/flamegraph_regex';
+import {escapeRegexEmptyBrackets} from '../widgets/flamegraph_regex';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
 import {Monitor} from '../base/monitor';
 
@@ -292,10 +292,12 @@ async function computeFlamegraphTree(
   const unaggCols = unagg.map((x) => x.name);
 
   const matchingColumns = ['name', ...unaggCols];
-  // Filters match literally by default; `/…/` opts into a raw regex.
+  // Frame names commonly contain literal `[]` (e.g. Java arrays), which is
+  // not valid regex syntax; rewrite it so such filters match literally.
   const matchExpr = (x: string) =>
     matchingColumns.map(
-      (c) => `(IFNULL(${c}, '') REGEXP ${sqliteString(userFilterToRegex(x))})`,
+      (c) =>
+        `(IFNULL(${c}, '') REGEXP ${sqliteString(escapeRegexEmptyBrackets(x))})`,
     );
 
   const showStackFilter =

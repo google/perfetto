@@ -13,23 +13,44 @@
 // limitations under the License.
 
 // Regex helpers for flamegraph filters. Frame names routinely contain regex
-// metacharacters (`byte[]`, `operator()`, `MyClass$Nested`), so filters match
-// literally by default and opt into regex with `/…/`.
+// metacharacters (`byte[]`, `operator()`, Java lambda `$` names), which
+// break or silently mis-match when interpolated into REGEXP patterns.
 
 // Escapes all regex metacharacters so the result matches |str| literally
-// when embedded in a regular expression.
+// when embedded in a regular expression. Used when a known-literal frame
+// name is turned into a filter (e.g. via the node menu).
 export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Interprets a user-typed filter as a REGEXP pattern.
+// Rewrites every bare `[]` in a user-typed filter into `\[\]`.
 //
-// Bare text matches literally: every metacharacter is escaped, so a pasted
-// symbol like `MyClass$Nested` or `byte[]` matches as-is. Wrapping the text in
-// `/…/` opts into a raw regex, e.g. `/alloc.*/`.
-export function userFilterToRegex(filter: string): string {
-  if (filter.length >= 2 && filter.startsWith('/') && filter.endsWith('/')) {
-    return filter.slice(1, -1);
+// Filters like `byte[]` or `.*Object[]` are common for Java heap dumps, but
+// an empty character class is either a compile error (RE2, PCRE2) or matches
+// nothing (ECMAScript). No working pattern can contain a bare `[]`, so this
+// rewrite only revives dead patterns and never changes a valid one.
+export function escapeRegexEmptyBrackets(pattern: string): string {
+  let res = '';
+  let inClass = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === '\\' && i + 1 < pattern.length) {
+      res += c + pattern[i + 1];
+      i++;
+    } else if (!inClass && c === '[') {
+      if (pattern[i + 1] === ']') {
+        res += '\\[\\]';
+        i++;
+      } else {
+        inClass = true;
+        res += c;
+      }
+    } else {
+      if (inClass && c === ']') {
+        inClass = false;
+      }
+      res += c;
+    }
   }
-  return escapeRegex(filter);
+  return res;
 }
