@@ -18,7 +18,7 @@ import type {TrackEventSelection} from '../../public/selection';
 import type {TrackEventDetailsPanelSection} from '../../components/details/thread_slice_details_tab';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {STR_NULL, NUM_NULL} from '../../trace_processor/query_result';
+import {STR, STR_NULL, NUM_NULL} from '../../trace_processor/query_result';
 
 interface CallstackFrame {
   name: string;
@@ -96,13 +96,13 @@ export class CallstackDetailsSection implements TrackEventDetailsPanelSection {
     `);
     const frames: CallstackFrame[] = [];
     const it = result.iter({
-      name: STR_NULL,
+      name: STR,
       sourceFile: STR_NULL,
       lineNumber: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       frames.push({
-        name: it.name ?? '<unknown>',
+        name: it.name,
         sourceFile: it.sourceFile ?? undefined,
         lineNumber: it.lineNumber ?? undefined,
       });

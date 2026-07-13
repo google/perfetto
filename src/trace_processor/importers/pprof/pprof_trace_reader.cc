@@ -65,7 +65,6 @@ struct FunctionInfo {
 
 PprofTraceReader::PprofTraceReader(TraceProcessorContext* context)
     : context_(context),
-      unknown_string_id_(context->storage->InternString("[unknown]")),
       unknown_no_brackets_string_id_(context->storage->InternString("unknown")),
       count_string_id_(context->storage->InternString("count")),
       pprof_file_string_id_(context->storage->InternString("pprof_file")) {}
@@ -129,7 +128,7 @@ base::Status PprofTraceReader::ParseProfile() {
 
     StringId filename_id = mapping_decoder.has_filename()
                                ? lookup_string_id(mapping_decoder.filename())
-                               : unknown_string_id_;
+                               : kNullStringId;
     StringId build_id_id = mapping_decoder.has_build_id()
                                ? lookup_string_id(mapping_decoder.build_id())
                                : kNullStringId;
@@ -160,7 +159,7 @@ base::Status PprofTraceReader::ParseProfile() {
 
     functions[func_decoder.id()] = {
         func_decoder.has_name() ? lookup_string_id(func_decoder.name())
-                                : unknown_string_id_,
+                                : kNullStringId,
         func_decoder.has_filename() ? lookup_string_id(func_decoder.filename())
                                     : kNullStringId,
         func_decoder.has_start_line() ? func_decoder.start_line() : 0};
@@ -182,11 +181,12 @@ base::Status PprofTraceReader::ParseProfile() {
       }
     }
     if (!mapping) {
-      mapping = &context_->mapping_tracker->CreateDummyMapping("[unknown]");
+      mapping = &context_->mapping_tracker->CreateDummyMapping("");
     }
 
-    // Extract function information from the first line for frame name
-    StringId frame_name_id = unknown_string_id_;
+    // Extract function information from the first line for frame name. Leave it
+    // empty when unsymbolized so downstream renders the address and mapping.
+    StringId frame_name_id = kNullStringId;
     for (auto line_it = loc_decoder.line(); line_it; ++line_it) {
       const Line::Decoder line_decoder(*line_it);
       if (!line_decoder.has_function_id()) {

@@ -17,6 +17,7 @@
 #include "src/trace_processor/plugins/utils_functions/utils_functions.h"
 
 #include <cerrno>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -229,6 +230,92 @@ void Demangle::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
           ctx, "Unsupported type of arg passed to DEMANGLE");
   }
 }
+
+// Resolves the display name of a callstack frame. Args (all nullable):
+//   0: symbol name, 1: deobfuscated name, 2: frame name,
+//   3: source file, 4: rel_pc, 5: mapping name.
+// The first non-empty of the three names is demangled if possible, else used
+// as-is. If there is no name but there is source info (e.g. an anonymous JS
+// function), the empty string is returned. Otherwise the frame is treated as an
+// unsymbolized native frame and rendered as '0x<rel_pc>' optionally followed by
+// ' @ <mapping basename>', e.g. '0x1a2b @ libfoo.so'.
+struct FrameName : public sqlite::Function<FrameName> {
+  static constexpr char kName[] = "__intrinsic_frame_name";
+  static constexpr int kArgCount = 6;
+
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_DCHECK(argc == 6);
+
+    // Prefer the first non-empty of symbol / deobfuscated / frame name.
+    for (int i = 0; i < 3; ++i) {
+      if (sqlite::value::Type(argv[i]) != sqlite::Type::kText) {
+        continue;
+      }
+      const char* name = sqlite::value::Text(argv[i]);
+      if (!name || name[0] == '\0') {
+        continue;
+      }
+      // Demangling dominates runtime on big traces, so only attempt it for
+      // names that could plausibly be mangled: every scheme the demangler
+      // understands (Itanium '_Z', Rust '_R', D '_D', MSVC '?') starts with
+      // '_' or '?'. On success we hand off the malloc'd buffer, so SQLite does
+      // not copy it.
+      if (name[0] == '_' || name[0] == '?') {
+        if (std::unique_ptr<char, base::FreeDeleter> demangled =
+                demangle::Demangle(name)) {
+          int len = static_cast<int>(strlen(demangled.get()));
+          return sqlite::result::RawString(ctx, demangled.release(), len, free);
+        }
+      }
+      // Not mangled: return the text as-is. A transient copy is unavoidable
+      // (the pointer is only valid for this call) but is cheaper than dup'ing
+      // the whole sqlite3_value.
+      return sqlite::result::TransientString(ctx, name,
+                                             sqlite::value::Bytes(argv[i]));
+    }
+
+    // No name. Keep symbolized-but-anonymous frames (those with source info)
+    // empty rather than synthesizing a meaningless address.
+    if (sqlite::value::Type(argv[3]) == sqlite::Type::kText) {
+      return sqlite::result::StaticString(ctx, "", 0);
+    }
+
+    // Unsymbolized native frame: '0x<rel_pc>' optionally followed by
+    // ' @ <mapping basename>'. Assemble it into a single owned buffer that is
+    // handed off to SQLite, avoiding both a std::string and a result copy.
+    int64_t rel_pc = sqlite::value::Type(argv[4]) == sqlite::Type::kInteger
+                         ? sqlite::value::Int64(argv[4])
+                         : 0;
+    base::StackString<20> addr("0x%" PRIx64, rel_pc);
+
+    std::string_view base;
+    if (sqlite::value::Type(argv[5]) == sqlite::Type::kText) {
+      std::string_view mapping = sqlite::value::Text(argv[5]);
+      if (!mapping.empty()) {
+        size_t slash = mapping.find_last_of('/');
+        base = slash == std::string_view::npos ? mapping
+                                               : mapping.substr(slash + 1);
+      }
+    }
+
+    static constexpr std::string_view kSep = " @ ";
+    size_t suffix_len = base.empty() ? 0 : kSep.size() + base.size();
+    char* buf = static_cast<char*>(malloc(addr.len() + suffix_len + 1));
+    if (!buf) {
+      return sqlite::utils::SetError(ctx, "FRAME_NAME: out of memory");
+    }
+    memcpy(buf, addr.c_str(), addr.len());
+    size_t len = addr.len();
+    if (!base.empty()) {
+      memcpy(buf + len, kSep.data(), kSep.size());
+      len += kSep.size();
+      memcpy(buf + len, base.data(), base.size());
+      len += base.size();
+    }
+    buf[len] = '\0';
+    return sqlite::result::RawString(ctx, buf, static_cast<int>(len), free);
+  }
+};
 
 struct WriteFile : public sqlite::Function<WriteFile> {
   static constexpr char kName[] = "write_file";
@@ -485,6 +572,7 @@ class UtilsFunctionsPlugin : public Plugin<UtilsFunctionsPlugin> {
     out.push_back(MakeFunctionRegistration<Reverse>(nullptr));
     out.push_back(MakeFunctionRegistration<Base64Encode>(nullptr));
     out.push_back(MakeFunctionRegistration<Demangle>(nullptr));
+    out.push_back(MakeFunctionRegistration<FrameName>(nullptr));
     out.push_back(MakeFunctionRegistration<TablePtrBind>(nullptr));
     out.push_back(MakeFunctionRegistration<Glob>(nullptr));
     out.push_back(MakeFunctionRegistration<Regexp>(nullptr));

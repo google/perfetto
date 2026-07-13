@@ -46,7 +46,6 @@ class PprofTraceReader : public ChunkedTraceReader {
   bool parsed_any_data_ = false;
 
   // Constant strings interned at construction time
-  const StringId unknown_string_id_;
   const StringId unknown_no_brackets_string_id_;
   const StringId count_string_id_;
   const StringId pprof_file_string_id_;

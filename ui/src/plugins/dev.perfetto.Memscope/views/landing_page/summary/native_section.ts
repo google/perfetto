@@ -243,7 +243,9 @@ async function loadNativeStacks(
       CAST(c.unreleased AS INT) AS unreleased,
       CAST(c.allocs AS INT) AS allocs,
       c.depth AS depth,
-      coalesce(f.deobfuscated_name, f.name, '<unknown>') AS frame_name,
+      __intrinsic_frame_name(
+        NULL, f.deobfuscated_name, f.name, NULL, f.rel_pc, mp.name
+      ) AS frame_name,
       mp.name AS mapping_name
     FROM chain c
     JOIN stack_profile_callsite sc ON sc.id = c.callsite_id

@@ -45,11 +45,14 @@ export function buildOomeCallstackMetrics(
         SELECT
           cs.id,
           cs.parentId,
-          coalesce(f.deobfuscated_name, f.name) as name,
+          __intrinsic_frame_name(
+            s.name, f.deobfuscated_name, f.name, s.source_file, f.rel_pc, m.name
+          ) as name,
           iif(cs.depth = (select max(depth) from callstack), 1, 0) as value,
           s.source_file || ':' || cast(s.line_number as text) as source_location
         FROM callstack cs
         JOIN stack_profile_frame f ON cs.frame_id = f.id
+        JOIN stack_profile_mapping m ON f.mapping = m.id
         LEFT JOIN stack_profile_symbol s ON f.symbol_set_id = s.symbol_set_id
       `,
       unaggregatableProperties: [],

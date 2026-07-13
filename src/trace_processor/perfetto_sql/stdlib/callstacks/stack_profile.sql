@@ -81,10 +81,17 @@ SELECT
     'REGEXP: ' || rc.pattern,
     'V8: ' || v8c.function_name,
     'JIT: ' || jc.function_name,
-    demangle(coalesce(s.name, f.deobfuscated_name, f.name)),
-    coalesce(s.name, f.deobfuscated_name, f.name, '[Unknown]')
+    __intrinsic_frame_name(
+      s.name,
+      f.deobfuscated_name,
+      f.name,
+      s.source_file,
+      f.rel_pc,
+      m.name
+    )
   ) AS name,
   f.mapping AS mapping_id,
+  m.name AS mapping_name,
   s.source_file,
   coalesce(jsf.line, s.line_number) AS line_number,
   coalesce(jsf.col, 0) AS column_number,
@@ -94,6 +101,8 @@ SELECT
 FROM _callstack_spc_raw_forest AS c
 JOIN stack_profile_frame AS f
   ON c.frame_id = f.id
+JOIN stack_profile_mapping AS m
+  ON f.mapping = m.id
 LEFT JOIN _v8_js_code AS jsc USING (jit_code_id)
 LEFT JOIN v8_js_function AS jsf USING (v8_js_function_id)
 LEFT JOIN _v8_internal_code AS v8c USING (jit_code_id)
@@ -131,7 +140,7 @@ AS (
     f.parent_id,
     f.callsite_id,
     f.name,
-    m.name AS mapping_name,
+    f.mapping_name,
     f.source_file,
     f.line_number,
     f.inlined,
@@ -147,8 +156,6 @@ AS (
   ) AS g
   JOIN _callstack_spc_forest AS f
     USING (id)
-  JOIN stack_profile_mapping AS m
-    ON f.mapping_id = m.id
 );
 
 CREATE PERFETTO MACRO _callstacks_for_callsites(samples TableOrSubquery)

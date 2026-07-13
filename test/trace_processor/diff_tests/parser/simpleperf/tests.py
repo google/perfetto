@@ -368,16 +368,16 @@ class Simpleperf(TestSuite):
         ''',
         out=Csv('''
           "id","parent_id","name","mapping_name","source_file","line_number","self_count","cumulative_count"
-          0,"[NULL]","","/elf","[NULL]","[NULL]",84,84
-          1,"[NULL]","","/elf","[NULL]","[NULL]",69,69
-          2,"[NULL]","","/elf","[NULL]","[NULL]",177,177
-          3,"[NULL]","","/elf","[NULL]","[NULL]",89,89
-          4,"[NULL]","","/t1","[NULL]","[NULL]",70,70
-          5,"[NULL]","","/elf","[NULL]","[NULL]",218,218
-          6,"[NULL]","","/elf","[NULL]","[NULL]",65,65
-          7,"[NULL]","","/elf","[NULL]","[NULL]",70,70
-          8,"[NULL]","","/t1","[NULL]","[NULL]",87,87
-          9,"[NULL]","","/elf","[NULL]","[NULL]",64,64
+          0,"[NULL]","0x513 @ elf","/elf","[NULL]","[NULL]",84,84
+          1,"[NULL]","0x4f7 @ elf","/elf","[NULL]","[NULL]",69,69
+          2,"[NULL]","0x51c @ elf","/elf","[NULL]","[NULL]",177,177
+          3,"[NULL]","0x513 @ elf","/elf","[NULL]","[NULL]",89,89
+          4,"[NULL]","0x4f7 @ t1","/t1","[NULL]","[NULL]",70,70
+          5,"[NULL]","0x51c @ elf","/elf","[NULL]","[NULL]",218,218
+          6,"[NULL]","0x518 @ elf","/elf","[NULL]","[NULL]",65,65
+          7,"[NULL]","0x4ed @ elf","/elf","[NULL]","[NULL]",70,70
+          8,"[NULL]","0x518 @ t1","/t1","[NULL]","[NULL]",87,87
+          9,"[NULL]","0x523 @ elf","/elf","[NULL]","[NULL]",64,64
         '''))
 
   def test_global_counters(self):
