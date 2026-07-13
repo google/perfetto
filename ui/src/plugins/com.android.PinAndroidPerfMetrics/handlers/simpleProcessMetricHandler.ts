@@ -67,19 +67,8 @@ export class SimpleProcessMetricHandler implements MetricHandler {
       return;
     }
 
-    // Find the tracks to pin.
-    const tracksToPin = ctx.currentWorkspace.flatTracks.filter((track) => {
-      const name = track.name;
-      const matchesPrefix = this.trackPrefixMatchers.some((matcher) => {
-        return name.startsWith(matcher);
-      });
-      const matchesRegex = this.tracksRegexpMatchers.some((regex) => {
-        return regex.test(name);
-      });
-
-      if (!matchesPrefix && !matchesRegex) {
-        return false;
-      }
+    // Filter tracks for this process first
+    const processTracks = ctx.currentWorkspace.flatTracks.filter((track) => {
       if (!track.uri) {
         return false;
       }
@@ -87,9 +76,33 @@ export class SimpleProcessMetricHandler implements MetricHandler {
       return descriptor?.tags?.upid === upid;
     });
 
-    if (tracksToPin.length > 0) {
+    const pinnedUris = new Set<string>();
+
+    // Pin tracks matching prefix matchers in order.
+    for (const prefixMatcher of this.trackPrefixMatchers) {
+      const tracksToPin = processTracks.filter((track) => {
+        if (pinnedUris.has(track.uri!)) {
+          return false;
+        }
+        return track.name.startsWith(prefixMatcher);
+      });
       tracksToPin.forEach((track) => {
         track.pin();
+        pinnedUris.add(track.uri!);
+      });
+    }
+
+    // Pin tracks matching regex matchers in order.
+    for (const regexMatcher of this.tracksRegexpMatchers) {
+      const tracksToPin = processTracks.filter((track) => {
+        if (pinnedUris.has(track.uri!)) {
+          return false;
+        }
+        return regexMatcher.test(track.name);
+      });
+      tracksToPin.forEach((track) => {
+        track.pin();
+        pinnedUris.add(track.uri!);
       });
     }
   }
