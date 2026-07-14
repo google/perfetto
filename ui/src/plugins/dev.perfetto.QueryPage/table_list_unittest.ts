@@ -14,7 +14,10 @@
 
 import m from 'mithril';
 import {TableList} from './table_list';
-import type {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
+import type {
+  SqlModules,
+  SqlTable,
+} from '../dev.perfetto.SqlModules/sql_modules';
 
 function makeSqlModules(names: string[]): SqlModules {
   const tables = names.map(

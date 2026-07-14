@@ -82,7 +82,10 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       filteredTables.length > 0
         ? m(
             '.pf-simple-table-list__items',
-            m(Accordion, this.renderSections(filteredTables, attrs.onQueryTable)),
+            m(
+              Accordion,
+              this.renderSections(filteredTables, attrs.onQueryTable),
+            ),
           )
         : m(EmptyState, {
             title: 'No matching tables found',
