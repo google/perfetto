@@ -16,5 +16,11 @@ import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 
 export const pinBitmapMetricsInstance = new SimpleProcessMetricHandler(
   [/^perfetto_android_bitmap_metric_(.*)_val-(?<processName>.*)/],
-  ['Bitmap Count', 'Bitmap Memory', 'dmabuf allocs', 'mem.gralloc.allocations', 'mem.gralloc.buffers'],
+  [
+    'Bitmap Count',
+    'Bitmap Memory',
+    'dmabuf allocs',
+    'mem.gralloc.allocations',
+    'mem.gralloc.buffers',
+  ],
 );
