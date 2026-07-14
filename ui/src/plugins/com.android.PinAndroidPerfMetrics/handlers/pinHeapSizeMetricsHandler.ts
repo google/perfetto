@@ -16,8 +16,8 @@ import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 
 export const pinHeapSizeMetricsInstance = new SimpleProcessMetricHandler(
   [
-    /perfetto_android_mem-(?<processName>.*)-total_counters-java_heap-max-mean/,
+    /perfetto_android_mem-(?<processName>.*)-total_counters-java_heap-(.*)/,
     /^perfetto_java_heap_class_stats-instance_stats-name-(?<processName>.*?)-samples-type_count-type_name/,
   ],
-  ['Heap size', 'ART allocation profile'],
+  ['Heap size', 'anon.rss', 'ART allocation profile'],
 );

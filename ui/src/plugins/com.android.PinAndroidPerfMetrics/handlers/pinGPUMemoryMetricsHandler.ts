@@ -15,9 +15,12 @@
 import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 
 export const pinGPUMemoryMetricsInstance = new SimpleProcessMetricHandler(
+  [/perfetto_android_gpu-(?<processName>.*)-mem_.*/],
   [
-    /perfetto_android_gpu-(?<processName>.*)-mem_.*/,
+    'GPU Memory',
+    'dmabuf allocs',
+    'mem.gralloc.allocations',
+    'mem.gralloc.buffers',
   ],
-  ['GPU Memory'],
   [/^GPU completion$/],
 );

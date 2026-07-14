@@ -17,8 +17,8 @@ import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 export const pinHardwareBufferMemoryMetricsInstance =
   new SimpleProcessMetricHandler(
     [
-      /perfetto_android_dmabuf_per_process_metric_max_val-(?<processName>.*)-.*/,
-      /perfetto_android_gralloc_buffers_per_process_metric_max_val-(?<processName>.*)-.*/,
+      /perfetto_android_dmabuf_per_process_metric_(.*)_val-(?<processName>.*)-.*/,
+      /perfetto_android_gralloc_buffers_per_process_metric_(.*)_val-(?<processName>.*)-.*/,
     ],
     ['dmabuf allocs', 'mem.gralloc.allocations', 'mem.gralloc.buffers'],
   );

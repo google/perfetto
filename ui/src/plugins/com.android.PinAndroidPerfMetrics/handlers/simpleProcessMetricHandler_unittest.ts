@@ -86,9 +86,7 @@ describe('SimpleProcessMetricHandler subclasses', () => {
     const tester = pinGPUMemoryMetricsInstance;
     it('parses valid metrics', () => {
       expect(
-        tester.match(
-          'perfetto_android_gpu-com.android.systemui-mem_max-max',
-        ),
+        tester.match('perfetto_android_gpu-com.android.systemui-mem_max-max'),
       ).toEqual({process: 'com.android.systemui'});
 
       expect(
@@ -125,9 +123,9 @@ describe('SimpleProcessMetricHandler subclasses', () => {
         tester.match('com.android.systemui_Activities-last-first-diff'),
       ).toEqual({process: 'com.android.systemui'});
 
-      expect(
-        tester.match('systemui_View-last-first-diff'),
-      ).toEqual({process: 'com.android.systemui'});
+      expect(tester.match('systemui_View-last-first-diff')).toEqual({
+        process: 'com.android.systemui',
+      });
     });
     it('returns undefined for invalid metrics', () => {
       expect(
