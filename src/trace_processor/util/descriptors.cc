@@ -536,14 +536,7 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
       }
       ResolveUninterpretedOption(descriptor, field, *field.mutable_options());
       if (flags_enum_option_number) {
-        protozero::ProtoDecoder opt(field.options().data(),
-                                    field.options().size());
-        if (auto f = opt.FindField(*flags_enum_option_number); f.valid()) {
-          if (auto enum_idx =
-                  ResolveShortType(descriptor.full_name(), f.as_std_string())) {
-            field.set_flags_enum_descriptor_idx(*enum_idx);
-          }
-        }
+        ResolveFlagsEnumOption(descriptor, *flags_enum_option_number, &field);
       }
     }
   }
@@ -632,6 +625,20 @@ base::Status DescriptorPool::ResolveUninterpretedOption(
   }
   options = field_options.SerializeAsArray();
   return base::OkStatus();
+}
+
+void DescriptorPool::ResolveFlagsEnumOption(const ProtoDescriptor& descriptor,
+                                            uint32_t option_number,
+                                            FieldDescriptor* field) {
+  protozero::ProtoDecoder opt(field->options().data(), field->options().size());
+  auto f = opt.FindField(option_number);
+  if (!f.valid()) {
+    return;
+  }
+  if (auto enum_idx =
+          ResolveShortType(descriptor.full_name(), f.as_std_string())) {
+    field->set_flags_enum_descriptor_idx(*enum_idx);
+  }
 }
 
 std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(

@@ -299,6 +299,10 @@ class DescriptorPool {
                                           const FieldDescriptor&,
                                           std::vector<uint8_t>&);
 
+  void ResolveFlagsEnumOption(const ProtoDescriptor& descriptor,
+                              uint32_t option_number,
+                              FieldDescriptor* field);
+
   // Adds a new descriptor to the pool and returns its index. There must not be
   // already a descriptor with the same full_name in the pool.
   uint32_t AddProtoDescriptor(ProtoDescriptor descriptor);
