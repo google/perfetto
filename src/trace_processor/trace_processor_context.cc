@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/sparse_counter_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -89,6 +90,8 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context,
   context->stats_tracker = Ptr<StatsTracker>::MakeRoot(context);
   context->trace_diagnostics_tracker =
       Ptr<TraceDiagnosticsTracker>::MakeRoot(context);
+  context->sparse_counter_tracker =
+      Ptr<SparseCounterTracker>::MakeRoot(context);
 
   context->slice_tracker->SetOnSliceBeginCallback(
       [context](TrackId track_id, SliceId slice_id) {

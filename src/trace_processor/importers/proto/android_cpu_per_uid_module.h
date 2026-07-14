@@ -36,17 +36,26 @@ class AndroidCpuPerUidModule : public ProtoImporterModule {
 
   ~AndroidCpuPerUidModule() override;
 
-  void ParseField(const ParseFieldArgs& args) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
   void OnEventsFullyExtracted() override;
 
  private:
+  // Takes in a raw time reading from the proto and handles the incremental
+  // state and internal state (last_value_). Returns the value of the counter
+  // currently, and the difference from the last value (if any).
+  std::pair<uint64_t, uint64_t> IncrementalStateUpdate(
+      uint32_t uid,
+      uint32_t cluster,
+      uint64_t raw_time,
+      AndroidCpuPerUidState* state);
+
   void UpdateCounter(int64_t ts,
                      uint32_t uid,
                      uint32_t cluster,
                      uint64_t value);
 
-  void ComputeTotals(uint32_t uid, uint32_t cluster, uint64_t time_ms);
+  void ComputeTotals(uint32_t uid, uint32_t cluster, uint64_t delta_ms);
   void UpdateTotals(int64_t ts,
                     base::StringView name,
                     uint32_t cluster,
