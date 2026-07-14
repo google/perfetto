@@ -616,6 +616,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_android_zero",
                ":protos_perfetto_trace_chrome_zero",
                ":protos_perfetto_trace_etw_zero",
+               ":protos_perfetto_trace_field_options_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_generic_kernel_zero",
@@ -931,6 +932,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_android_zero",
                ":protos_perfetto_trace_chrome_zero",
                ":protos_perfetto_trace_etw_zero",
+               ":protos_perfetto_trace_field_options_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_generic_kernel_zero",
@@ -7246,6 +7248,7 @@ perfetto_proto_library(
         ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_chrome_protos",
         ":protos_perfetto_trace_etw_protos",
+        ":protos_perfetto_trace_field_options_protos",
         ":protos_perfetto_trace_filesystem_protos",
         ":protos_perfetto_trace_ftrace_protos",
         ":protos_perfetto_trace_generic_kernel_protos",
@@ -8869,6 +8872,27 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace:field_options_source_set
+perfetto_proto_library(
+    name = "protos_perfetto_trace_field_options_protos",
+    srcs = [
+        "protos/perfetto/trace/field_options.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+)
+
+# GN target: //protos/perfetto/trace:field_options_zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_trace_field_options_zero",
+    deps = [
+        ":protos_perfetto_trace_field_options_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/filesystem:source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_filesystem_protos",
@@ -9800,6 +9824,7 @@ perfetto_proto_library(
         ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_chrome_protos",
         ":protos_perfetto_trace_etw_protos",
+        ":protos_perfetto_trace_field_options_protos",
         ":protos_perfetto_trace_filesystem_protos",
         ":protos_perfetto_trace_ftrace_protos",
         ":protos_perfetto_trace_generic_kernel_protos",
@@ -10276,9 +10301,11 @@ perfetto_proto_library(
         PERFETTO_CONFIG.proto_library_visibility,
     ],
     deps = [
+        ":protos_perfetto_trace_field_options_protos",
         ":protos_perfetto_trace_track_event_protos",
     ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
     exports = [
+        ":protos_perfetto_trace_field_options_protos",
         ":protos_perfetto_trace_track_event_protos",
     ],
 )
@@ -10287,6 +10314,7 @@ perfetto_proto_library(
 perfetto_cc_protozero_library(
     name = "protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero",
     deps = [
+        ":protos_perfetto_trace_field_options_zero",
         ":protos_perfetto_trace_track_event_zero",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
     ],
@@ -11486,6 +11514,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_android_zero",
                ":protos_perfetto_trace_chrome_zero",
                ":protos_perfetto_trace_etw_zero",
+               ":protos_perfetto_trace_field_options_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_generic_kernel_zero",
@@ -11805,6 +11834,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_android_zero",
                ":protos_perfetto_trace_chrome_zero",
                ":protos_perfetto_trace_etw_zero",
+               ":protos_perfetto_trace_field_options_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_generic_kernel_zero",

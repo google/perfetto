@@ -14,9 +14,14 @@
 
 import("../../../../../../../gn/proto_library.gni")
 
+# Imports field_options.proto (a custom option), so it is protozero-only.
 perfetto_proto_library("frameworks_base_track_event_@TYPE@") {
+  proto_generators = [ "zero" ]
   sources = [ "frameworks_base_track_event.proto" ]
-  public_deps = [ "../../../../../../perfetto/trace/track_event:@TYPE@" ]
+  public_deps = [
+    "../../../../../../perfetto/trace:field_options_@TYPE@",
+    "../../../../../../perfetto/trace/track_event:@TYPE@",
+  ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
 }
 
