@@ -88,6 +88,8 @@ export interface ProcessMetricData {
   process: string;
 }
 
+export interface GlobalDmaHeapMetricData {}
+
 // Common MetricData for all handler. If new needed then add here.
 export type MetricData =
   | FullTraceMetricData
@@ -95,7 +97,8 @@ export type MetricData =
   | BlockingCallMetricData
   | NotificationsBlockingCallMetricData
   | CujMetricData
-  | ProcessMetricData;
+  | ProcessMetricData
+  | GlobalDmaHeapMetricData;
 
 // Common JankType for cujScoped and fullTrace metrics
 export type JankType = 'sf_frames' | 'app_frames' | 'frames';

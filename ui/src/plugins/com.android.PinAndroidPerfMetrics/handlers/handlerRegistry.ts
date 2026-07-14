@@ -24,6 +24,7 @@ import {pinDirtyMemoryMetricsInstance} from './pinDirtyMemoryMetricsHandler';
 import {pinGPUMemoryMetricsInstance} from './pinGPUMemoryMetricsHandler';
 import {pinActivityOrBinderLeaksMetricsInstance} from './pinActivityOrBinderLeaksMetricsHandler';
 import {pinHardwareBufferMemoryMetricsInstance} from './pinHardwareBufferMemoryMetricsHandler';
+import {pinGlobalDmaHeapSizeMetricsInstance} from './pinGlobalDmaHeapSizeMetricsHandler';
 
 // TODO: b/337774166 - Add handlers for the metric name categories here
 export const METRIC_HANDLERS: MetricHandler[] = [
@@ -38,4 +39,5 @@ export const METRIC_HANDLERS: MetricHandler[] = [
   pinGPUMemoryMetricsInstance,
   pinActivityOrBinderLeaksMetricsInstance,
   pinHardwareBufferMemoryMetricsInstance,
+  pinGlobalDmaHeapSizeMetricsInstance,
 ];
