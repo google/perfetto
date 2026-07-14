@@ -22,6 +22,7 @@
 #include "src/android_sdk/nativehelper/scoped_utf_chars.h"
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 
+#include <algorithm>
 #include <list>
 #include <utility>
 
