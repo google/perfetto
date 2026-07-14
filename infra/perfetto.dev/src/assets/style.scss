@@ -271,6 +271,11 @@ h3 {
       color: var(--color-text-secondary);
       font-size: 0.9rem;
     }
+    .sr-loading {
+      color: var(--color-text-secondary);
+      font-size: 0.9rem;
+      font-style: italic;
+    }
     mark {
       background-color: rgba(255, 210, 0, 0.35);
       color: inherit;

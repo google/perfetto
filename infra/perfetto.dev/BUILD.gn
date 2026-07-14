@@ -399,11 +399,11 @@ group("all_mdfiles") {
   deps = mdtargets
 }
 
-# Builds assets/search_index.json, the client-side full-text search index
+# Builds assets/search_index.json.gz, the client-side full-text search index
 # consumed by setupSearch() in src/assets/script.js. Hand-written docs are
 # indexed in full; the huge auto-generated reference pages (SQL tables, stdlib,
 # protos) are indexed by title + headings only to keep the shipped index small.
-gen_search_index_out = "${perfetto_website_out_dir}/assets/search_index.json"
+gen_search_index_out = "${perfetto_website_out_dir}/assets/search_index.json.gz"
 
 nodejs_script("gen_search_index") {
   script = "src/gen_search_index.js"
