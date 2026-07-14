@@ -14,10 +14,10 @@
 
 import {vi} from 'vitest';
 import type {Trace} from '../../../public/trace';
-import {pinDMAHeapSizeMetricsInstance} from './pinDMAHeapSizeMetricsHandler';
+import {pinGlobalDmaHeapSizeMetricsInstance} from './pinGlobalDmaHeapSizeMetricsHandler';
 
-describe('PinDMAHeapSizeMetricsHandler.match', () => {
-  const tester = pinDMAHeapSizeMetricsInstance;
+describe('PinGlobalDmaHeapSizeMetricsHandler.match', () => {
+  const tester = pinGlobalDmaHeapSizeMetricsInstance;
   it('parses valid metrics', () => {
     expect(
       tester.match('perfetto_android_dma_heap-avg_size_bytes-p95'),
@@ -41,8 +41,8 @@ describe('PinDMAHeapSizeMetricsHandler.match', () => {
   });
 });
 
-describe('PinDMAHeapSizeMetricsHandler.addMetricTrack', () => {
-  const tester = pinDMAHeapSizeMetricsInstance;
+describe('PinGlobalDmaHeapSizeMetricsHandler.addMetricTrack', () => {
+  const tester = pinGlobalDmaHeapSizeMetricsInstance;
 
   it('pins mem.dma_heap and mem.dma_buffer tracks', async () => {
     const createMockTrack = (

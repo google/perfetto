@@ -19,7 +19,7 @@ import type {
   MetricHandler,
 } from './metricUtils';
 
-export class PinDMAHeapSizeMetricsHandler implements MetricHandler {
+export class PinGlobalDmaHeapSizeMetricsHandler implements MetricHandler {
   private readonly matcher = /perfetto_android_dma_heap-(.*)_size_bytes-.*/;
 
   public match(metricKey: string): GlobalDmaHeapMetricData | undefined {
@@ -47,4 +47,5 @@ export class PinDMAHeapSizeMetricsHandler implements MetricHandler {
   }
 }
 
-export const pinDMAHeapSizeMetricsInstance = new PinDMAHeapSizeMetricsHandler();
+export const pinGlobalDmaHeapSizeMetricsInstance =
+  new PinGlobalDmaHeapSizeMetricsHandler();
