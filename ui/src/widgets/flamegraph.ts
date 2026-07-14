@@ -305,7 +305,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     label: 'Hide Frame',
     friendlyLabel: 'Merge matching frames into caller',
     shortLabel: 'HF',
-    example: 'alloc.*',
+    example: '/alloc.*/',
     icon: 'call_merge',
     category: 'FILTER',
     description:
@@ -317,7 +317,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     label: 'Pivot',
     friendlyLabel: 'Pivot on matching frames',
     shortLabel: 'P',
-    example: 'std::.*',
+    example: '/std::.*/',
     icon: 'account_tree',
     category: 'FOCUS',
     description:
@@ -364,7 +364,7 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
       m(FormLabel, 'Filter'),
       m(TextInput, {
         autofocus: true,
-        placeholder: 'e.g. main, alloc.*',
+        placeholder: 'e.g. main, or /alloc.*/',
         value: this.filter,
         onInput: (v) => {
           this.filter = v;
@@ -372,13 +372,13 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
       }),
       m(
         '.pf-filter-builder__hint',
-        'Matched as a regex: bare text is a substring match (e.g. ',
+        'Matched literally as a substring (e.g. ',
         m('code', 'malloc'),
-        '); anchor with ',
-        m('code', '^'),
-        '/',
-        m('code', '$'),
-        ' for exact matches.',
+        '); wrap in ',
+        m('code', '/…/'),
+        ' for a regex (e.g. ',
+        m('code', '/alloc.*/'),
+        ').',
       ),
       hasPivot &&
         this.type === 'PIVOT' &&
@@ -398,7 +398,8 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
               '.pf-filter-builder__help',
               m(
                 '.pf-filter-builder__help-title',
-                'Filter bar syntax (patterns are regular expressions):',
+                'Filter bar syntax (bare text matches literally; wrap in ' +
+                  '/…/ for a regex):',
               ),
               FILTER_TYPES.map((o) =>
                 m(
@@ -411,7 +412,7 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
               m(
                 '.pf-filter-builder__help-row',
                 'Combine filters by separating with spaces, e.g. ',
-                m('code', 'SS: main HF: alloc.*'),
+                m('code', 'SS: main HF: /alloc.*/'),
               ),
             ),
           ),
@@ -943,7 +944,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         onTagRemove: removeTag,
         placeholder: hasFilters
           ? ''
-          : 'e.g. malloc (contains), or regex like ^main$ — press + for more filter options',
+          : 'e.g. malloc (contains), or /^main$/ for regex; press + for more filter options',
         renderTag: (text, onRemove) =>
           m(Chip, {
             ondblclick: () => {
@@ -1232,9 +1233,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     };
     const addF = (kind: FlamegraphFilter['kind'], filter: string) =>
       applyState(addFilter(this.attrs.state, {kind, filter}));
-    // Names are literal, so escape regex metacharacters (e.g. `[]` in Java
-    // array types, `()` in function names).
-    const exactNameRegex = `^${escapeRegex(name)}$`;
+    // Match this exact name: an anchored regex over the escaped literal name,
+    // wrapped in `/…/` so the filter bar reads it as a regex.
+    const exactNameRegex = `/^${escapeRegex(name)}$/`;
     const ft = (v: FilterType) =>
       ensureExists(FILTER_TYPES.find((o) => o.value === v));
     const filterAction = (v: FilterType, execute: () => void): NodeAction => {
