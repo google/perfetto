@@ -2650,6 +2650,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/slice_tracker.h",
         "src/trace_processor/importers/common/slice_translation_table.cc",
         "src/trace_processor/importers/common/slice_translation_table.h",
+        "src/trace_processor/importers/common/sparse_counter_tracker.cc",
+        "src/trace_processor/importers/common/sparse_counter_tracker.h",
         "src/trace_processor/importers/common/stack_profile_tracker.cc",
         "src/trace_processor/importers/common/stack_profile_tracker.h",
         "src/trace_processor/importers/common/state_tracker.cc",
@@ -7550,6 +7552,54 @@ perfetto_dart_proto_library(
     name = "proto_filter_options_dart_proto",
     deps = [
         ":proto_filter_options_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/common:passthrough_source_set]
+perfetto_proto_library(
+    name = "passthrough_proto",
+    deps = [
+        ":protos_perfetto_common_passthrough_protos",
+    ],
+)
+
+# GN target: [//protos/perfetto/common:passthrough_source_set]
+perfetto_cc_proto_library(
+    name = "passthrough_cc_proto",
+    deps = [
+        ":passthrough_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/common:passthrough_source_set]
+perfetto_java_proto_library(
+    name = "passthrough_java_proto",
+    deps = [
+        ":passthrough_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/common:passthrough_source_set]
+perfetto_java_lite_proto_library(
+    name = "passthrough_java_proto_lite",
+    deps = [
+        ":passthrough_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/common:passthrough_source_set]
+perfetto_py_proto_library(
+    name = "passthrough_py_pb2",
+    deps = [
+        ":passthrough_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/common:passthrough_source_set]
+perfetto_dart_proto_library(
+    name = "passthrough_dart_proto",
+    deps = [
+        ":passthrough_proto",
     ],
 )
 

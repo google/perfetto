@@ -386,7 +386,7 @@ export class HeapDumpExplorerSession {
       filters: [],
       view: {
         kind: 'PIVOT',
-        pivot: `^${pathHash}$`,
+        pivot: `/^${pathHash}$/`,
         displayLabel: `${label} (this instance)`,
       },
     });

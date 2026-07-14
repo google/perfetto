@@ -1172,17 +1172,16 @@ PERFETTO_NO_INLINE i::Bytecode& QueryPlanBuilder::AddRawOpcode(
       if (eq.duplicate_state.Is<HasDuplicates>()) {
         if (plan_.params.estimated_row_count > 1) {
           if (!selective_filter_base_row_count_) {
-            selective_filter_base_row_count_ =
-                plan_.params.estimated_row_count;
+            selective_filter_base_row_count_ = plan_.params.estimated_row_count;
           }
           // Estimate against the pre-selective-filter row count and keep the
           // most selective result: correlated filters on one scan shouldn't
           // compound and collapse the estimate toward 1.
-          plan_.params.estimated_row_count = std::min(
-              plan_.params.estimated_row_count,
-              std::max(1u, static_cast<uint32_t>(EqualityFilterRows(
-                               *selective_filter_base_row_count_,
-                               eq.estimated_distinct))));
+          plan_.params.estimated_row_count =
+              std::min(plan_.params.estimated_row_count,
+                       std::max(1u, static_cast<uint32_t>(EqualityFilterRows(
+                                        *selective_filter_base_row_count_,
+                                        eq.estimated_distinct))));
         } else {
           // Leave the estimated row count as is if it is already 1 or less.
         }

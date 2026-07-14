@@ -34,7 +34,15 @@ def serve(path):
 
   data = blob.download_as_bytes()
   content_type = blob.content_type or "application/octet-stream"
-  return Response(data, content_type=content_type)
+  resp = Response(data, content_type=content_type)
+  # Cache in the browser but never in shared/middleware caches (CDN, GFE). The
+  # CORS response varies per-origin (Access-Control-Allow-Origin reflects the
+  # request Origin), and shared caches here don't key on Vary: Origin, so a
+  # cached response for one origin would otherwise be served to another and
+  # break CORS. "private" keeps it out of those caches; the browser still
+  # caches per-origin.
+  resp.headers["Cache-Control"] = "private, max-age=3600"
+  return resp
 
 
 if __name__ == "__main__":
