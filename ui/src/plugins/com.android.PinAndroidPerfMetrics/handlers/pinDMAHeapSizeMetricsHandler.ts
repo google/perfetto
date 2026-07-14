@@ -13,11 +13,7 @@
 // limitations under the License.
 
 import type {Trace} from '../../../public/trace';
-import type {
-  DMAHeapMetricData,
-  MetricData,
-  MetricHandler,
-} from './metricUtils';
+import type {DMAHeapMetricData, MetricData, MetricHandler} from './metricUtils';
 
 export class PinDMAHeapSizeMetricsHandler implements MetricHandler {
   private readonly matcher = /perfetto_android_dma_heap-(.*)_size_bytes-.*/;
