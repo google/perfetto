@@ -23,7 +23,6 @@
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/plugins/strace/strace_line_parser.h"
 #include "src/trace_processor/plugins/strace/strace_trace_tokenizer.h"
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -32,7 +31,7 @@
 namespace perfetto::trace_processor::strace_importer {
 namespace {
 
-// The strace trace type: the textual output of `strace -t`/`-tt`/`-ttt`.
+// The strace trace type: the textual output of `strace -ttt`.
 class StraceImporter : public TraceImporter<StraceImporter> {
  public:
   StraceImporter() : TraceImporter(MakeDescriptor()) {}
@@ -52,9 +51,12 @@ class StraceImporter : public TraceImporter<StraceImporter> {
   static TraceTypeDescriptor MakeDescriptor() {
     TraceTypeDescriptor d;
     d.name = "strace";
-    // strace timestamps (-t/-tt/-ttt) are wall-clock time-of-day with no
-    // date, so they're treated as BUILTIN_CLOCK_REALTIME, same as
-    // android_logcat/android_dumpstate.
+    // Only `-ttt` (Unix epoch seconds, with an optional fractional part) is
+    // accepted as input, so every timestamp we emit genuinely is an
+    // absolute realtime moment; treated as BUILTIN_CLOCK_REALTIME, same as
+    // android_logcat/android_dumpstate. `-t`/`-tt` (wall-clock
+    // time-of-day, no date) lines are rejected by the parser rather than
+    // misinterpreted as realtime — see strace_trace_tokenizer.h.
     d.clock_policy = TraceClockPolicy::kRealtime;
     // Must run before the generic systrace fallback (200), which otherwise
     // claims any input starting with a leading space.

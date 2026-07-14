@@ -28,9 +28,9 @@ source_set("strace") {
     "strace_trace_tokenizer.h",
   ]
   deps = [
-    ":strace_line_parser",
     "../..:storage_minimal",
     "../../../../gn:default_deps",
+    "../../../base",
     "../../containers",
     "../../core/plugin",
     "../../importers/common",
@@ -43,22 +43,11 @@ source_set("strace") {
   ]
 }
 
-source_set("strace_line_parser") {
-  sources = [
-    "strace_line_parser.cc",
-    "strace_line_parser.h",
-  ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../base",
-  ]
-}
-
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "strace_line_parser_unittest.cc" ]
+  sources = [ "strace_trace_tokenizer_unittest.cc" ]
   deps = [
-    ":strace_line_parser",
+    ":strace",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
   ]

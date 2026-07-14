@@ -31,9 +31,11 @@ class StraceParser(TestSuite):
         """,
         out=Csv("""
         "ts","dur","name"
-        52321000000000,0,"openat"
-        52321000100000,0,"read"
-        52321000200000,0,"close"
+        1700000052321000000,0,"openat"
+        1700000052321100000,0,"read"
+        1700000052321200000,0,"close"
+        1700000052321300000,0,"openat"
+        1700000052321400000,0,"write"
         """))
 
   def test_strace_basic_args(self):
@@ -44,12 +46,49 @@ class StraceParser(TestSuite):
         FROM slice s
         JOIN args a ON s.arg_set_id = a.arg_set_id
         WHERE s.name = 'openat'
-        ORDER BY a.key;
+        ORDER BY s.ts, a.key;
         """,
         out=Csv("""
         "name","key","string_value"
         "openat","args","AT_FDCWD, "/etc/passwd", O_RDONLY"
         "openat","ret","3"
+        "openat","args","AT_FDCWD, "/nope", O_RDONLY"
+        "openat","ret","-1 ENOENT (No such file or directory)"
+        """))
+
+  def test_strace_dash_f_pid(self):
+    # The "1234 <ts> write(...)" line in basic.strace was collected with
+    # `strace -f`; its leading pid becomes the slice's thread, distinct
+    # from the other (unprefixed, tid-1) syscalls in the same trace.
+    return DiffTestBlueprint(
+        trace=Path('basic.strace'),
+        query="""
+        SELECT s.name, t.tid
+        FROM slice s
+        JOIN thread_track tt ON s.track_id = tt.id
+        JOIN thread t USING (utid)
+        WHERE s.name = 'write';
+        """,
+        out=Csv("""
+        "name","tid"
+        "write",1234
+        """))
+
+  def test_strace_basic_parse_failures_counted(self):
+    # basic.strace has 3 lines that aren't syscall events: a SIGCHLD
+    # delivery line, a process-exit banner, and one line that isn't valid
+    # strace output at all. All three should be counted, not silently
+    # dropped.
+    return DiffTestBlueprint(
+        trace=Path('basic.strace'),
+        query="""
+        SELECT name, value
+        FROM stats
+        WHERE name = 'strace_parse_failure';
+        """,
+        out=Csv("""
+        "name","value"
+        "strace_parse_failure",3
         """))
 
   def test_strace_unfinished_resumed(self):
@@ -62,6 +101,6 @@ class StraceParser(TestSuite):
         """,
         out=Csv("""
         "ts","dur","name"
-        52321000000000,500000,"futex"
-        52321000600000,0,"write"
+        1700000052321000000,500000,"futex"
+        1700000052321600000,0,"write"
         """))

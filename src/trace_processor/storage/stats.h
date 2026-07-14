@@ -745,6 +745,13 @@ namespace perfetto::trace_processor::stats {
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
       "Linux kernel documentation for causes of this and potential fixes."),   \
+  F(strace_parse_failure,                       kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A line in an strace trace could not be parsed as a syscall event "     \
+      "and was skipped. This is expected for non-syscall lines (signal "      \
+      "delivery, process exit banners), but can also indicate `strace -t` "   \
+      "or `-tt` output: only `-ttt` (Unix epoch timestamps) is supported, "   \
+      "since `-t`/`-tt` print wall-clock time-of-day with no date, which "    \
+      "cannot be safely treated as an absolute point in time."),              \
   F(strace_unmatched_resume,                    kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,   \
       "An strace \"<... syscall resumed>\" line was encountered with no "      \
       "preceding \"<unfinished ...>\" line on the same tid. This can happen "  \
