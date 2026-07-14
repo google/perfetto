@@ -60,7 +60,8 @@ class AndroidCpuPerUid(TestSuite):
         query="""
         SELECT t.name, c.ts, c.value
         FROM counter_track t JOIN counter c ON t.id = c.track_id
-        WHERE type = 'android_cpu_per_uid';
+        WHERE type = 'android_cpu_per_uid'
+        ORDER BY 1, 2;
         """,
         out=Csv("""
         "name","ts","value"
@@ -111,7 +112,8 @@ class AndroidCpuPerUid(TestSuite):
         query="""
         SELECT t.name, c.ts, c.value
         FROM counter_track t JOIN counter c ON t.id = c.track_id
-        WHERE type = 'android_cpu_per_uid';
+        WHERE type = 'android_cpu_per_uid'
+        ORDER BY 1, 2;
         """,
         out=Csv("""
         "name","ts","value"
@@ -123,4 +125,156 @@ class AndroidCpuPerUid(TestSuite):
         "CPU for UID 0 CL2",12000,2000000.000000
         "CPU for UID 1000 CL0",10000,1000000.000000
         "CPU for UID 1000 CL1",10000,1000000.000000
+        """))
+
+  def test_android_cpu_per_uid_isolated_uids(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 10000
+          cpu_per_uid_data {
+            cluster_count: 1
+            uid: 90000
+            uid: 90001
+            uid: 91000
+            total_time_ms: 1000000
+            total_time_ms: 100000
+            total_time_ms: 10000
+          }
+        }
+        packet {
+          timestamp: 12000
+          cpu_per_uid_data {
+            uid: 91000
+            total_time_ms: 50
+          }
+        }
+        packet {
+          timestamp: 14000
+          cpu_per_uid_data {
+            uid: 90001
+            total_time_ms: 60
+          }
+        }
+        """),
+        query="""
+        SELECT t.name, c.ts, c.value
+        FROM counter_track t JOIN counter c ON t.id = c.track_id
+        WHERE type = 'android_cpu_per_uid'
+        ORDER BY 1, 2;
+        """,
+        out=Csv("""
+        "name","ts","value"
+        "CPU for UID 90000 CL0",10000,0.000000
+        "CPU for UID 90000 CL0",12000,50.000000
+        "CPU for UID 90000 CL0",14000,110.000000
+        """))
+
+  def test_android_cpu_per_uid_cumulative_tracks(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 10000
+          cpu_per_uid_data {
+            cluster_count: 3
+            uid: 0
+            uid: 1000
+            uid: 1001
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+          }
+        }
+        packet {
+          timestamp: 12000
+          cpu_per_uid_data {
+            uid: 0
+            uid: 1000
+            total_time_ms: 100
+            total_time_ms: 0
+            total_time_ms: 0
+            total_time_ms: 2000
+            total_time_ms: 200
+            total_time_ms: 20
+          }
+        }
+        """),
+        query="""
+        SELECT t.name, c.ts, c.value
+        FROM counter_track t JOIN counter c ON t.id = c.track_id
+        WHERE type = 'android_cpu_per_uid_totals'
+        ORDER BY 1, 2;
+        """,
+        out=Csv("""
+        "name","ts","value"
+        "CPU for System CL0",10000,0.000000
+        "CPU for System CL0",12000,2100.000000
+        "CPU for System CL1",10000,0.000000
+        "CPU for System CL1",12000,200.000000
+        "CPU for System CL2",10000,0.000000
+        "CPU for System CL2",12000,20.000000
+        """))
+
+  def test_android_cpu_per_uid_track_summaries(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 10000
+          cpu_per_uid_data {
+            cluster_count: 2
+            uid: 0
+            uid: 1000
+            uid: 1001
+            uid: 1090001
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+            total_time_ms: 1000000
+          }
+        }
+        packet {
+          timestamp: 12000
+          cpu_per_uid_data {
+            uid: 0
+            uid: 1000
+            total_time_ms: 100
+            total_time_ms: 0
+            total_time_ms: 2000
+            total_time_ms: 200
+          }
+        }
+        packet {
+          timestamp: 14000
+          cpu_per_uid_data {
+            uid: 1090001
+            total_time_ms: 60
+            total_time_ms: 80
+          }
+        }
+        """),
+        query="""
+        SELECT uid, cluster, total_cpu_millis
+        FROM __intrinsic_android_cpu_per_uid_track
+        ORDER BY uid, cluster;
+        """,
+        out=Csv("""
+        "uid","cluster","total_cpu_millis"
+        0,0,100
+        0,1,0
+        1000,0,2000
+        1000,1,200
+        1001,0,0
+        1001,1,0
+        1090000,0,60
+        1090000,1,80
         """))
