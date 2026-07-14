@@ -13,19 +13,23 @@
 // limitations under the License.
 
 import type {Trace} from '../../../public/trace';
-import type {DMAHeapMetricData, MetricData, MetricHandler} from './metricUtils';
+import type {
+  GlobalDmaHeapMetricData,
+  MetricData,
+  MetricHandler,
+} from './metricUtils';
 
 export class PinDMAHeapSizeMetricsHandler implements MetricHandler {
   private readonly matcher = /perfetto_android_dma_heap-(.*)_size_bytes-.*/;
 
-  public match(metricKey: string): DMAHeapMetricData | undefined {
+  public match(metricKey: string): GlobalDmaHeapMetricData | undefined {
     if (this.matcher.test(metricKey)) {
       return {};
     }
     return undefined;
   }
 
-  public addMetricTrack(metricData: MetricData, ctx: Trace) {
+  public addMetricTrack(_metricData: MetricData, ctx: Trace) {
     const dmaHeapTracks = ctx.currentWorkspace.flatTracks.filter(
       (t) => t.uri !== undefined && t.name === 'mem.dma_heap',
     );
