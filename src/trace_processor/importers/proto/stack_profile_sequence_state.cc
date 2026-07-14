@@ -51,6 +51,29 @@ bool IsMagicalKernelMapping(const CreateMappingParams& params) {
          !params.build_id.has_value() && (params.name == "/kernel");
 }
 
+// Maps a well-known Frame.Kind to the canonical lowercase label stored in
+// stack_profile_frame.type. Returns nullptr for KIND_UNKNOWN / unrecognized.
+const char* StringifyFrameKind(protos::pbzero::Frame::Kind kind) {
+  using protos::pbzero::Frame;
+  switch (kind) {
+    case Frame::Kind::KIND_UNKNOWN:
+      return nullptr;
+    case Frame::Kind::KIND_NATIVE:
+      return "native";
+    case Frame::Kind::KIND_KERNEL:
+      return "kernel";
+    case Frame::Kind::KIND_INTERPRETED:
+      return "interpreted";
+    case Frame::Kind::KIND_JIT:
+      return "jit";
+    case Frame::Kind::KIND_GC:
+      return "gc";
+    case Frame::Kind::KIND_RUNTIME:
+      return "runtime";
+  }
+  return nullptr;
+}
+
 }  // namespace
 
 StackProfileSequenceState::StackProfileSequenceState(
@@ -188,9 +211,25 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
     return std::nullopt;
   }
 
+  std::optional<CallsiteId> callsite_id =
+      FindOrInsertCallstackFromFrames(state, upid, *decoder);
+  if (!callsite_id) {
+    return std::nullopt;
+  }
+
+  cached_callstacks_.Insert({upid, iid}, *callsite_id);
+
+  return callsite_id;
+}
+
+std::optional<CallsiteId>
+StackProfileSequenceState::FindOrInsertCallstackFromFrames(
+    PacketSequenceStateGeneration* state,
+    std::optional<UniquePid> upid,
+    const protos::pbzero::Callstack_Decoder& callstack) {
   std::optional<CallsiteId> parent_callsite_id;
   uint32_t depth = 0;
-  for (auto it = decoder->frame_ids(); it; ++it) {
+  for (auto it = callstack.frame_ids(); it; ++it) {
     std::optional<FrameId> frame_id = FindOrInsertFrame(state, upid, *it);
     if (!frame_id) {
       return std::nullopt;
@@ -205,8 +244,6 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
         stats::stackprofile_empty_callstack);
     return std::nullopt;
   }
-
-  cached_callstacks_.Insert({upid, iid}, *parent_callsite_id);
 
   return parent_callsite_id;
 }
@@ -251,38 +288,52 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
     line_number = decoder->line_number();
   }
 
-  // Check if mapping_id is 0, which means this is a "dummy" frame (no real
-  // mapping) In this case, we should use the dummy mapping API with source file
-  // and line number
+  // mapping_id == 0 means a "dummy" frame (no real mapping): use the dummy
+  // mapping API with source file and line number. Otherwise it's a regular
+  // frame in a real mapping. Both paths land in `frame_id`.
+  FrameId frame_id;
+  bool cache = true;
   if (decoder->mapping_id() == 0) {
     // Get or create the dummy mapping for interned frames with mapping_id = 0
     if (!dummy_mapping_for_interned_frames_) {
       dummy_mapping_for_interned_frames_ =
           &context_->mapping_tracker->CreateDummyMapping("");
     }
-
-    FrameId frame_id = dummy_mapping_for_interned_frames_->InternDummyFrame(
+    frame_id = dummy_mapping_for_interned_frames_->InternDummyFrame(
         function_name, source_file, line_number);
+  } else {
+    VirtualMemoryMapping* mapping =
+        FindOrInsertMappingImpl(state, upid, decoder->mapping_id());
+    if (!mapping) {
+      return std::nullopt;
+    }
+    // InternFrame will create the symbol entry if source_file or line_number is
+    // provided
+    frame_id = mapping->InternFrame(decoder->rel_pc(), function_name,
+                                    source_file, line_number);
+    cache = !mapping->is_jitted();
+  }
+
+  // Back-patch the frame kind (type) if the producer reported one.
+  std::optional<StringId> type_id;
+  if (decoder->has_kind()) {
+    const char* kind = StringifyFrameKind(
+        static_cast<protos::pbzero::Frame::Kind>(decoder->kind()));
+    if (kind) {
+      type_id = context_->storage->InternString(kind);
+    }
+  } else if (decoder->has_kind_str()) {
+    type_id = context_->storage->InternString(decoder->kind_str());
+  }
+  if (type_id) {
+    auto* frames = context_->storage->mutable_stack_profile_frame_table();
+    auto rr = (*frames)[frame_id];
+    rr.set_type(*type_id);
+  }
+
+  if (cache) {
     cached_frames_.Insert({upid, iid}, frame_id);
-    return frame_id;
   }
-
-  // Regular frame with a real mapping
-  VirtualMemoryMapping* mapping =
-      FindOrInsertMappingImpl(state, upid, decoder->mapping_id());
-  if (!mapping) {
-    return std::nullopt;
-  }
-
-  // InternFrame will create the symbol entry if source_file or line_number is
-  // provided
-  FrameId frame_id = mapping->InternFrame(decoder->rel_pc(), function_name,
-                                          source_file, line_number);
-
-  if (!mapping->is_jitted()) {
-    cached_frames_.Insert({upid, iid}, frame_id);
-  }
-
   return frame_id;
 }
 

@@ -28,6 +28,10 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+namespace perfetto::protos::pbzero {
+class Callstack_Decoder;
+}  // namespace perfetto::protos::pbzero
+
 namespace perfetto::trace_processor {
 
 class DummyMemoryMapping;
@@ -51,6 +55,14 @@ class StackProfileSequenceState final
       PacketSequenceStateGeneration* state,
       std::optional<UniquePid> upid,
       uint64_t iid);
+
+  // Walks a Callstack's frame_ids (interned frame iids, bottom frame first),
+  // interning each frame and building the callsite chain. Used for both the
+  // interned callstack path and inline callstacks.
+  std::optional<CallsiteId> FindOrInsertCallstackFromFrames(
+      PacketSequenceStateGeneration* state,
+      std::optional<UniquePid> upid,
+      const protos::pbzero::Callstack_Decoder& callstack);
 
  private:
   std::optional<base::StringView> LookupInternedBuildId(

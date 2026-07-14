@@ -22,5 +22,14 @@ perfetto_proto_library("@TYPE@") {
     "profile_common.proto",
     "profile_packet.proto",
     "smaps.proto",
+    "stack_sample.proto",
   ]
+}
+
+# StackSample interned_data extension. Kept in its own target so InternedData,
+# which depends on this directory's protos, does not form a dependency cycle.
+perfetto_proto_library("stack_sample_interned_data_@TYPE@") {
+  sources = [ "stack_sample_interned_data.proto" ]
+  deps = [ ":@TYPE@" ]
+  public_deps = [ "../interned_data:@TYPE@" ]
 }

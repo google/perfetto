@@ -176,11 +176,18 @@
           "proto": "protos/perfetto/trace/gpu/gpu_interned_data.proto"
         },
         {
+          "name": "perfetto_profiling",
+          "range": [2000, 2099],
+          "contact": "perfetto-dev@googlegroups.com",
+          "description": "Reserved for Perfetto transport-neutral profiling (StackSample)",
+          "proto": "protos/perfetto/trace/profiling/stack_sample_interned_data.proto"
+        },
+        {
           "name": "unallocated",
           "comment": [
             "The next allocation goes here. Shrink and take from here."
           ],
-          "range": [2000, 9999]
+          "range": [2100, 9999]
         }
       ]
     }

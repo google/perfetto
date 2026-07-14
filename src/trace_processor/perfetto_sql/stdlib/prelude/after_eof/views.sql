@@ -569,7 +569,10 @@ CREATE PERFETTO VIEW stack_profile_frame(
   -- If the profile was offline symbolized, the offline symbol information.
   symbol_set_id LONG,
   -- Deobfuscated name of the function this location is in.
-  deobfuscated_name STRING
+  deobfuscated_name STRING,
+  -- The kind of frame (e.g. "native", "kernel", "interpreted", "jit", "gc",
+  -- "runtime") if reported by the producer, else NULL.
+  type STRING
 )
 AS
 SELECT * FROM __intrinsic_stack_profile_frame;
