@@ -463,21 +463,7 @@ export function createSimpleSchema(
   return {
     [schemaName]: {
       table,
-      columns: {
-        args: {
-          expression: (alias, key) =>
-            `extract_arg(${alias}.arg_set_id, '${key}')`,
-          parameterized: true,
-          parameterKeysQuery: (baseTable, baseAlias) => `
-            SELECT DISTINCT args.key
-            FROM ${baseTable} AS ${baseAlias}
-            JOIN args ON args.arg_set_id = ${baseAlias}.arg_set_id
-            WHERE args.key IS NOT NULL
-            ORDER BY args.key
-            LIMIT 1000
-          `,
-        },
-      },
+      columns: {}, // Empty columns - all column access falls through to direct access
     },
   };
 }
