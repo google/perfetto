@@ -35,6 +35,7 @@ Unreleased:
     * Remap OpenCommandPalette command hotkey to F1 on Firefox.
     * Ftrace plugin: now handles area selections and multi-machine traces.
     * Update node to v22.23.1.
+    * Allow pivoting on arg values in slice aggregation table.
   SDK:
     *
 
