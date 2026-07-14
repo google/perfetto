@@ -82,30 +82,39 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       filteredTables.length > 0
         ? m(
             '.pf-simple-table-list__items',
-            m(
-              Accordion,
-              filteredTables.map(({table, segments}) =>
-                m(
-                  AccordionSection,
-                  {
-                    key: table.name,
-                    summary: m(
-                      'code.pf-simple-table-list__item-name',
-                      renderHighlightedName(segments),
-                    ),
-                  },
-                  m(TableContent, {
-                    table,
-                    onQueryTable: attrs.onQueryTable,
-                  }),
-                ),
-              ),
-            ),
+            m(Accordion, this.renderSections(filteredTables, attrs.onQueryTable)),
           )
         : m(EmptyState, {
             title: 'No matching tables found',
           }),
     );
+  }
+
+  private renderSections(
+    filteredTables: ReadonlyArray<FilteredTable>,
+    onQueryTable?: (tableName: string, query: string) => void,
+  ): m.Children {
+    // Table names are usually unique, but a registered SQL package can declare
+    // one that already exists in the stdlib, so the same name can appear more
+    // than once. Suffix repeats to keep the accordion keys unique: mithril
+    // crashes on duplicate keys during its keyed diff.
+    const nameCounts = new Map<string, number>();
+    return filteredTables.map(({table, segments}) => {
+      const dup = nameCounts.get(table.name) ?? 0;
+      nameCounts.set(table.name, dup + 1);
+      const key = dup === 0 ? table.name : `${table.name} (${dup})`;
+      return m(
+        AccordionSection,
+        {
+          key,
+          summary: m(
+            'code.pf-simple-table-list__item-name',
+            renderHighlightedName(segments),
+          ),
+        },
+        m(TableContent, {table, onQueryTable}),
+      );
+    });
   }
 }
 
