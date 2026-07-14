@@ -153,12 +153,22 @@ struct RegisteredExtension {
   const FieldDescriptorProto* field;
 };
 
-struct ParserDelegateContext {
+struct MessageContext {
   const DescriptorProto* descriptor;
   // Leading-dot qualified form (".pkg.Msg"), to match extendee names.
   std::string descriptor_full_name;
   protozero::Message* message;
   std::set<std::string> seen_fields;
+};
+
+// One entry per open message on the parse stack. nullopt denotes the body
+// of an unrecognised nested message that is being skipped in
+// allow_unknown_fields mode.
+using ParserDelegateContext = std::optional<MessageContext>;
+
+struct FieldLookup {
+  const FieldDescriptorProto* field = nullptr;
+  bool unknown_key = false;
 };
 
 class ErrorReporter {
@@ -222,15 +232,19 @@ class ParserDelegate {
       ErrorReporter* reporter,
       std::map<std::string, const DescriptorProto*> name_to_descriptor,
       std::map<std::string, const EnumDescriptorProto*> name_to_enum,
-      std::map<std::string, RegisteredExtension> name_to_extension)
+      std::map<std::string, RegisteredExtension> name_to_extension,
+      bool allow_unknown_fields)
       : reporter_(reporter),
         name_to_descriptor_(std::move(name_to_descriptor)),
         name_to_enum_(std::move(name_to_enum)),
-        name_to_extension_(std::move(name_to_extension)) {
-    ctx_.push(ParserDelegateContext{descriptor, root_type, message, {}});
+        name_to_extension_(std::move(name_to_extension)),
+        allow_unknown_fields_(allow_unknown_fields) {
+    ctx_.push(MessageContext{descriptor, root_type, message, {}});
   }
 
   void NumericField(const Token& key, const Token& value) {
+    if (InUnknownMessage())
+      return;
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
@@ -246,7 +260,8 @@ class ParserDelegate {
                             FieldDescriptorProto::TYPE_SFIXED32,
                             FieldDescriptorProto::TYPE_DOUBLE,
                             FieldDescriptorProto::TYPE_FLOAT,
-                        });
+                        })
+            .field;
     if (!field)
       return;
     const auto& field_type = field->type();
@@ -286,12 +301,15 @@ class ParserDelegate {
   }
 
   void StringField(const Token& key, const Token& value) {
+    if (InUnknownMessage())
+      return;
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
                             FieldDescriptorProto::TYPE_STRING,
                             FieldDescriptorProto::TYPE_BYTES,
-                        });
+                        })
+            .field;
     if (!field)
       return;
     auto field_id = static_cast<uint32_t>(field->number());
@@ -397,12 +415,15 @@ class ParserDelegate {
   }
 
   void IdentifierField(const Token& key, const Token& value) {
+    if (InUnknownMessage())
+      return;
     const FieldDescriptorProto* field =
         FindFieldByName(key, value,
                         {
                             FieldDescriptorProto::TYPE_BOOL,
                             FieldDescriptorProto::TYPE_ENUM,
-                        });
+                        })
+            .field;
     if (!field)
       return;
     uint32_t field_id = static_cast<uint32_t>(field->number());
@@ -435,6 +456,10 @@ class ParserDelegate {
         break;
       }
       if (!found_value) {
+        // Drop unrecognised enum values since the descriptor doesn't have the
+        // numeric value for it.
+        if (allow_unknown_fields_)
+          return;
         AddError(value,
                  "Unexpected value '$v' for enum field $k in "
                  "proto $n",
@@ -450,27 +475,38 @@ class ParserDelegate {
   }
 
   bool BeginNestedMessage(const Token& key, const Token& value) {
-    const FieldDescriptorProto* field =
-        FindFieldByName(key, value,
-                        {
-                            FieldDescriptorProto::TYPE_MESSAGE,
-                        });
-    if (!field) {
-      // FindFieldByName adds an error.
+    // Already inside a skipped subtree: keep skipping, but push a context
+    // anyway to balance the context pops from EndNestedMessage.
+    if (InUnknownMessage()) {
+      ctx_.push(std::nullopt);
+      return true;
+    }
+    FieldLookup lookup = FindFieldByName(key, value,
+                                         {
+                                             FieldDescriptorProto::TYPE_MESSAGE,
+                                         });
+    if (!lookup.field) {
+      if (lookup.unknown_key && allow_unknown_fields_) {
+        ctx_.push(std::nullopt);
+        return true;
+      }
       return false;
     }
+    const FieldDescriptorProto* field = lookup.field;
     uint32_t field_id = static_cast<uint32_t>(field->number());
     const std::string& type_name = field->type_name();
     const DescriptorProto* nested_descriptor = name_to_descriptor_[type_name];
     PERFETTO_CHECK(nested_descriptor);
     auto* nested_msg = msg()->BeginNestedMessage<protozero::Message>(field_id);
-    ctx_.push(
-        ParserDelegateContext{nested_descriptor, type_name, nested_msg, {}});
+    ctx_.push(MessageContext{nested_descriptor, type_name, nested_msg, {}});
     return true;
   }
 
   void EndNestedMessage() {
-    msg()->Finalize();
+    // A skipped subtree never opened a real nested message, so there is nothing
+    // to finalize.
+    if (!InUnknownMessage())
+      msg()->Finalize();
     ctx_.pop();
   }
 
@@ -529,7 +565,7 @@ class ParserDelegate {
     return true;
   }
 
-  const FieldDescriptorProto* FindFieldByName(
+  FieldLookup FindFieldByName(
       const Token& key,
       const Token& value,
       const std::set<FieldDescriptorProto::Type>& valid_field_types) {
@@ -538,22 +574,27 @@ class ParserDelegate {
     if (key.is_extension) {
       auto it = name_to_extension_.find(field_name);
       if (it == name_to_extension_.end()) {
-        AddError(key, "No extension named \"$n\" registered",
-                 {
-                     {"$n", field_name},
-                 });
-        return nullptr;
+        if (!allow_unknown_fields_) {
+          AddError(key, "No extension named \"$n\" registered",
+                   {
+                       {"$n", field_name},
+                   });
+        }
+        return {nullptr, /*unknown_key=*/true};
       }
       const RegisteredExtension& ext = it->second;
       if (ext.extendee_full_name != descriptor_full_name()) {
-        AddError(key,
-                 "Extension \"$n\" extends \"$e\", not the current message $p",
-                 {
-                     {"$n", field_name},
-                     {"$e", ext.extendee_full_name},
-                     {"$p", descriptor_full_name()},
-                 });
-        return nullptr;
+        if (!allow_unknown_fields_) {
+          AddError(
+              key,
+              "Extension \"$n\" extends \"$e\", not the current message $p",
+              {
+                  {"$n", field_name},
+                  {"$e", ext.extendee_full_name},
+                  {"$p", descriptor_full_name()},
+              });
+        }
+        return {nullptr, /*unknown_key=*/true};
       }
       field_descriptor = ext.field;
     } else {
@@ -565,18 +606,20 @@ class ParserDelegate {
       }
 
       if (!field_descriptor) {
-        AddError(key, "No field named \"$n\" in proto $p",
-                 {
-                     {"$n", field_name},
-                     {"$p", descriptor_name()},
-                 });
-        return nullptr;
+        if (!allow_unknown_fields_) {
+          AddError(key, "No field named \"$n\" in proto $p",
+                   {
+                       {"$n", field_name},
+                       {"$p", descriptor_name()},
+                   });
+        }
+        return {nullptr, /*unknown_key=*/true};
       }
     }
 
     bool is_repeated =
         field_descriptor->label() == FieldDescriptorProto::LABEL_REPEATED;
-    auto it_and_inserted = ctx_.top().seen_fields.emplace(field_name);
+    auto it_and_inserted = CurrentMessage().seen_fields.emplace(field_name);
     if (!it_and_inserted.second && !is_repeated) {
       AddError(key, "Saw non-repeating field '$f' more than once",
                {
@@ -594,34 +637,40 @@ class ParserDelegate {
                    {"$n", descriptor_name()},
                    {"$v", value.ToStdString()},
                });
-      return nullptr;
+      return {nullptr, /*unknown_key=*/false};
     }
 
-    return field_descriptor;
+    return {field_descriptor};
   }
 
-  const DescriptorProto* descriptor() {
+  bool InUnknownMessage() {
     PERFETTO_CHECK(!ctx_.empty());
-    return ctx_.top().descriptor;
+    return !ctx_.top().has_value();
   }
+
+  // The current (innermost) message being built.
+  MessageContext& CurrentMessage() {
+    PERFETTO_CHECK(!ctx_.empty());
+    PERFETTO_CHECK(ctx_.top().has_value());
+    return *ctx_.top();
+  }
+
+  const DescriptorProto* descriptor() { return CurrentMessage().descriptor; }
 
   const std::string& descriptor_name() { return descriptor()->name(); }
 
   const std::string& descriptor_full_name() {
-    PERFETTO_CHECK(!ctx_.empty());
-    return ctx_.top().descriptor_full_name;
+    return CurrentMessage().descriptor_full_name;
   }
 
-  protozero::Message* msg() {
-    PERFETTO_CHECK(!ctx_.empty());
-    return ctx_.top().message;
-  }
+  protozero::Message* msg() { return CurrentMessage().message; }
 
   std::stack<ParserDelegateContext> ctx_;
   ErrorReporter* reporter_;
   std::map<std::string, const DescriptorProto*> name_to_descriptor_;
   std::map<std::string, const EnumDescriptorProto*> name_to_enum_;
   std::map<std::string, RegisteredExtension> name_to_extension_;
+  bool allow_unknown_fields_;
 };
 
 void Parse(std::string_view input, ParserDelegate* delegate) {
@@ -872,7 +921,8 @@ perfetto::base::StatusOr<std::vector<uint8_t>> TextToProto(
     size_t descriptor_set_size,
     const std::string& root_type,
     const std::string& file_name,
-    std::string_view input) {
+    std::string_view input,
+    bool allow_unknown_fields) {
   std::map<std::string, const DescriptorProto*> name_to_descriptor;
   std::map<std::string, const EnumDescriptorProto*> name_to_enum;
   std::map<std::string, RegisteredExtension> name_to_extension;
@@ -912,8 +962,8 @@ perfetto::base::StatusOr<std::vector<uint8_t>> TextToProto(
   ErrorReporter reporter(file_name, input);
   ParserDelegate delegate(root_type, descriptor, message.get(), &reporter,
                           std::move(name_to_descriptor),
-                          std::move(name_to_enum),
-                          std::move(name_to_extension));
+                          std::move(name_to_enum), std::move(name_to_extension),
+                          allow_unknown_fields);
   Parse(input, &delegate);
   if (!reporter.success())
     return perfetto::base::ErrStatus("%s", reporter.error().c_str());

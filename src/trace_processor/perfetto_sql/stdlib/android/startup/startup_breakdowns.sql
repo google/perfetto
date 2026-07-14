@@ -134,14 +134,7 @@ WHERE
 
 -- All relevant startup slices normalized with _normalize_android_string.
 CREATE PERFETTO TABLE _startup_normalized_slices AS
-SELECT
-  p.id,
-  p.parent_id,
-  p.depth,
-  p.name,
-  s.ts,
-  s.dur,
-  s.utid
+SELECT p.id, p.parent_id, p.depth, p.name, s.ts, s.dur, s.utid
 FROM _slice_remove_nulls_and_reparent
     !(
       (SELECT id, parent_id, depth, name FROM _startup_relevant_slices),
