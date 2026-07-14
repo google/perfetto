@@ -10277,7 +10277,7 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_trace_track_event_protos",
-    ],
+    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
     exports = [
         ":protos_perfetto_trace_track_event_protos",
     ],

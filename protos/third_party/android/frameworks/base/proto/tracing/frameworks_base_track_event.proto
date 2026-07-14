@@ -21,6 +21,7 @@
 syntax = "proto2";
 
 import public "protos/perfetto/trace/track_event/track_event.proto";
+import "protos/perfetto/trace/field_options.proto";
 
 package com.android.internal;
 
@@ -568,7 +569,9 @@ message AndroidBroadcastEvent {
   optional BroadcastDeliveryGroupPolicy delivery_group_policy = 13;
 
   // Flags set in the broadcast intent.
-  optional int32 intent_flags = 14;
+  optional int32 intent_flags = 14
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.BroadcastIntentFlag"];
 
   // The intent filter priority of the broadcast receiver.
   optional int32 filter_priority = 15;
@@ -684,10 +687,14 @@ message AndroidProcessStateChangedEvent {
   optional ProcessStateEnum cur_proc_state = 4;
 
   // Previous capability flags.
-  optional int32 prev_capability_flags = 5;
+  optional int32 prev_capability_flags = 5
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcessCapabilityEnum"];
 
   // Current capability flags.
-  optional int32 cur_capability_flags = 6;
+  optional int32 cur_capability_flags = 6
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcessCapabilityEnum"];
 
   // Previous oom score.
   optional int32 prev_oom_score = 7;
@@ -704,13 +711,17 @@ message AndroidProcessStateChangedEvent {
   optional int64 seq_id = 10;
 
   // Bitmask of reasons for granting PROCESS_CAPABILITY_CPU_TIME.
-  optional int32 cpu_time_reasons = 11;
+  optional int32 cpu_time_reasons = 11
+      [(perfetto.protos.flags_enum) = ".com.android.internal.CpuTimeReason"];
 
   // Bitmask of reasons for granting PROCESS_CAPABILITY_IMPLICIT_CPU_TIME.
-  optional int32 implicit_cpu_time_reasons = 12;
+  optional int32 implicit_cpu_time_reasons = 12
+      [(perfetto.protos.flags_enum) = ".com.android.internal.CpuTimeReason"];
 
   // Bitfield to represent boolean freeze policy states.
-  optional int32 freeze_policy_flags = 13;
+  optional int32 freeze_policy_flags = 13
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.FreezerPolicyFlag"];
 }
 
 message AndroidServiceStateChangedEvent {
@@ -732,7 +743,8 @@ message AndroidServiceStateChangedEvent {
   optional int32 caller_pid = 8;
   optional ServiceRestartReason reason_enum = 9;
   // Bitmask of flags used in the service binding.
-  optional int32 bind_flags = 10;
+  optional int32 bind_flags = 10
+      [(perfetto.protos.flags_enum) = ".com.android.internal.ServiceBindFlag"];
 }
 
 message AndroidProviderStateChangedEvent {
@@ -800,7 +812,8 @@ message AndroidCapabilityUpdateEvent {
 
   // Bitfield representing various process state flags (see
   // CapabilityUpdateFlag).
-  optional int32 flags = 12;
+  optional int32 flags = 12 [(perfetto.protos.flags_enum) =
+                                 ".com.android.internal.CapabilityUpdateFlag"];
 }
 
 message FrameworksBaseTrackEvent {
