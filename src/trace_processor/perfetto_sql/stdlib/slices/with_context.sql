@@ -75,11 +75,16 @@ SELECT
   slice.arg_set_id,
   slice.thread_ts,
   slice.thread_dur
-FROM slice
-JOIN thread_track
-  ON slice.track_id = thread_track.id
+-- Join order matters: dimensions first, the large fact table (slice) last. A
+-- `LEFT JOIN` pins its right table after everything to its left, so
+-- `slice ... LEFT JOIN process` re-probes `process` once per slice; attaching
+-- `process` to `thread` and joining `slice` last lets the planner drive from
+-- whichever dimension is filtered.
+FROM thread_track
 JOIN thread USING (utid)
-LEFT JOIN process USING (upid);
+LEFT JOIN process USING (upid)
+JOIN slice
+  ON slice.track_id = thread_track.id;
 
 -- All process slices with data about process track and process.
 CREATE PERFETTO VIEW process_slice(
@@ -190,11 +195,12 @@ SELECT
   slice.depth,
   slice.parent_id,
   slice.arg_set_id
-FROM slice
-JOIN thread_track
-  ON slice.track_id = thread_track.id
+-- Dimensions first, fact table (slice) last -- see thread_slice above.
+FROM thread_track
 JOIN thread USING (utid)
 LEFT JOIN process USING (upid)
+JOIN slice
+  ON slice.track_id = thread_track.id
 UNION ALL
 SELECT
   slice.id,

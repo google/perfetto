@@ -62,6 +62,7 @@
 #include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
+#include "src/trace_processor/importers/common/trace_diagnostics_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
@@ -118,6 +119,7 @@
 #include "src/trace_processor/plugins/metadata/metadata.h"
 #include "src/trace_processor/plugins/package_lookup/package_lookup.h"
 #include "src/trace_processor/plugins/perf_counter/perf_counter.h"
+#include "src/trace_processor/plugins/perf_text/perf_text.h"
 #include "src/trace_processor/plugins/perfetto_manifest/perfetto_manifest.h"
 #include "src/trace_processor/plugins/pprof_functions/pprof_functions.h"
 #include "src/trace_processor/plugins/slice_mipmap_operator/slice_mipmap_operator.h"
@@ -352,6 +354,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   metadata::RegisterPlugin();
   package_lookup::RegisterPlugin();
   perf_counter::RegisterPlugin();
+  perf_text_importer::RegisterPlugin();
   perfetto_manifest::RegisterPlugin();
   pprof_functions::RegisterPlugin();
   slice_mipmap_operator::RegisterPlugin();
@@ -452,7 +455,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   reg.Register(CreateSimpleperfProtoImporter());
   reg.Register(CreateTarImporter());
   reg.Register(CreatePrimesImporter());
-  reg.Register(CreatePerfTextImporter());
 
   // Force initialization of heap graph tracker.
   //
@@ -572,6 +574,17 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   TraceProcessorStorageImpl::OnEventsFullyExtracted();
   DeobfuscationTracker::Get(context())->OnEventsFullyExtracted();
   CacheBoundsAndBuildTable();
+
+  // Run trace-config diagnostics before the parser context is destroyed (rules
+  // may read metadata/clocks off the context). Rules are per-(trace, machine),
+  // so loop the fork map like OnEventsFullyExtracted does.
+  auto& diag_contexts =
+      context()->forked_context_state->trace_and_machine_to_context;
+  for (auto it = diag_contexts.GetIterator(); it; ++it) {
+    if (it.value()->trace_diagnostics_tracker) {
+      it.value()->trace_diagnostics_tracker->RunRules();
+    }
+  }
 
   // Stage 3: reduce memory usage by both destroying parser context *and*
   // finalizing dataframes; once finalized, attach any indexes that were

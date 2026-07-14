@@ -988,7 +988,7 @@ CREATE PERFETTO VIEW _trace_import_logs(
   ts TIMESTAMP,
   -- The byte offset in the trace file where the error occurred (if available).
   byte_offset LONG,
-  -- The severity of the log entry ('info', 'data_loss', or 'error').
+  -- The severity of the log entry ('info', 'notice', 'data_loss', or 'error').
   severity STRING,
   -- The name of the stat/error type.
   name STRING,

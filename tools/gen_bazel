@@ -175,6 +175,10 @@ proto_groups = {
         'sources': ['//protos/perfetto/proto_filtering:source_set'],
         'visibility': [],
     },
+    'passthrough': {
+        'sources': ['//protos/perfetto/common:passthrough_source_set'],
+        'visibility': [],
+    },
 }
 
 # Path for the protobuf sources in the standalone build.

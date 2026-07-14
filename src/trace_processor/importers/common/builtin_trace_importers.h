@@ -46,7 +46,6 @@ std::unique_ptr<TraceImporterBase> CreateAndroidDumpstateImporter();
 std::unique_ptr<TraceImporterBase> CreateCollapsedStackImporter();
 std::unique_ptr<TraceImporterBase> CreatePprofImporter();
 std::unique_ptr<TraceImporterBase> CreatePrimesImporter();
-std::unique_ptr<TraceImporterBase> CreatePerfTextImporter();
 std::unique_ptr<TraceImporterBase> CreateProtoImporter();
 std::unique_ptr<TraceImporterBase> CreateSymbolsImporter();
 

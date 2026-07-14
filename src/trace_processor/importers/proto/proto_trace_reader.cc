@@ -209,6 +209,24 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
   if (context_->register_additional_proto_modules) {
     context_->register_additional_proto_modules(&module_context_, context_);
   }
+  // This needs to happen after the TrackEvent descriptors have been registered,
+  // which happens in one of the modules. (See
+  // https://github.com/google/perfetto/issues/6260)
+  for (const std::string& raw_bytes :
+       context_->config.extra_parsing_descriptors) {
+    auto status = context_->descriptor_pool_->AddFromFileDescriptorSet(
+        reinterpret_cast<const uint8_t*>(raw_bytes.data()), raw_bytes.size(),
+        {}, true);
+    if (!status.ok()) {
+      context_->import_logs_tracker->RecordAnalysisError(
+          stats::extra_parsing_descriptors_error,
+          [&](ArgsTracker::BoundInserter& ins) {
+            ins.AddArg(context_->storage->InternString("message"),
+                       Variadic::String(
+                           context_->storage->InternString(status.message())));
+          });
+    }
+  }
 }
 
 ProtoTraceReader::~ProtoTraceReader() = default;
@@ -552,6 +570,10 @@ void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
             stats::config_write_into_file_discard, i);
       }
     }
+  }
+
+  if (trace_config.has_trace_attributes()) {
+    HandleTraceAttributes(trace_config.trace_attributes());
   }
 }
 
@@ -1240,6 +1262,12 @@ base::Status ProtoTraceReader::OnPushDataToSorter() {
   received_eof_ = true;
   for (auto& packet : eof_deferred_packets_) {
     RETURN_IF_ERROR(TimestampTokenizeAndPushToSorter(std::move(packet)));
+  }
+  // Remote-machine readers are only ever reached by the dispatcher, never by
+  // the ForwardingTraceParser, so their own clock-deferred packets would
+  // otherwise never be flushed. Propagate EOF to them too.
+  for (auto it = machine_to_proto_readers_.GetIterator(); it; ++it) {
+    RETURN_IF_ERROR(it.value()->OnPushDataToSorter());
   }
   return base::OkStatus();
 }

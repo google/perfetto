@@ -97,6 +97,11 @@ struct TracingSession {
   // session.
   bool IsCloneAllowed(uid_t clone_uid) const;
 
+  // Records |src|'s current state into concurrent_session_events, dropping the
+  // event once the buffer hits the limit. The cap bounds memory, as the buffer
+  // is drained only on ReadBuffers().
+  void AddConcurrentSessionEventWithLimit(const TracingSession& src);
+
   const TracingSessionID id;
 
   // The consumer that started the session.
@@ -226,6 +231,26 @@ struct TracingSession {
   base::CircularQueue<ClockSnapshotData> clock_snapshot_ring_buffer;
 
   State state = DISABLED;
+
+  // BOOTTIME (ns) when this session entered its current state. Maintained
+  // solely by SetSessionState(), which every state transition goes through.
+  // Used as the timestamp when this session is snapshotted into another
+  // session's concurrent_session_events.
+  int64_t current_state_start_ns = 0;
+
+  // State changes of other concurrently active sessions. Emitted as
+  // ConcurrentSessionEvent packets and cleared on ReadBuffers(), like
+  // lifecycle_events.
+  struct ConcurrentSessionEvent {
+    int64_t timestamp = 0;            // BOOTTIME (ns) of the state change.
+    TracingSessionID session_id = 0;  // Id of the session that changed state.
+    State state = DISABLED;           // The state it transitioned to.
+    uid_t consumer_uid = 0;           // Uid of its consumer.
+    uint32_t num_data_sources = 0;    // Its data source count.
+    std::string name;                 // Its unique_session_name (or empty).
+  };
+
+  std::vector<ConcurrentSessionEvent> concurrent_session_events;
 
   // If the consumer detached the session, this variable defines the key used
   // for identifying the session later when reattaching.

@@ -40,6 +40,7 @@
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
@@ -88,6 +89,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
         std::make_unique<MetadataTracker>(&host_context_);
     host_context_.sorter = std::make_unique<TraceSorter>(
         &host_context_, TraceSorter::SortingMode::kDefault);
+    host_context_.reader_registry = std::make_unique<TraceReaderRegistry>();
     host_context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
     host_context_.register_additional_proto_modules =
         &RegisterAdditionalModules;

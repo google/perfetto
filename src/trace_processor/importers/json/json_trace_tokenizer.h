@@ -131,6 +131,11 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
                                       const char* end,
                                       const char** out);
 
+  // Parses the top-level "metadata" dictionary of a Chrome/DevTools JSON trace
+  // (the bytes in [start, end) must span a single complete JSON object) and
+  // adds each field to the metadata table under the "json_metadata." prefix.
+  base::Status ParseMetadataDictionary(const char* start, const char* end);
+
   // Returns the absolute byte offset (within the whole trace) of the current
   // parse position of |it_|. Used to attach context to import logs.
   int64_t CurrentByteOffset() const;

@@ -95,6 +95,7 @@ from diff_tests.parser.linux.tests import Linux
 from diff_tests.parser.memory.tests import MemoryParser
 from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
+from diff_tests.parser.parsing.tests_concurrent_sessions import ParsingConcurrentSessions
 from diff_tests.parser.parsing.tests_debug_annotation import ParsingDebugAnnotation
 from diff_tests.parser.parsing.tests_memory_counters import ParsingMemoryCounters
 from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
@@ -198,6 +199,7 @@ from diff_tests.syntax.view_tests import PerfettoView
 from diff_tests.tables.tests import Tables
 from diff_tests.tables.tests_counters import TablesCounters
 from diff_tests.tables.tests_sched import TablesSched
+from diff_tests.tables.tests_trace_diagnostics import TraceDiagnostics
 from diff_tests.summary.metrics_v2_tests import SummaryMetricsV2
 
 sys.path.pop()
@@ -270,6 +272,7 @@ def fetch_all_diff_tests(
       TranslatedArgs,
       Ufs,
       Parsing,
+      ParsingConcurrentSessions,
       ParsingDebugAnnotation,
       ParsingRssStats,
       ParsingSysStats,
@@ -390,6 +393,7 @@ def fetch_all_diff_tests(
       Tables,
       TablesCounters,
       TablesSched,
+      TraceDiagnostics,
   ]
 
   summary_tests = [SummaryMetricsV2]

@@ -225,6 +225,14 @@ or, at a higher level, the `_metadata_by_trace` view in the
   to a single `TraceProcessor` instance.
 - Archives containing archives cannot be merged recursively; merge the leaf
   files directly.
+- **Hidden files are ignored**: any archive entry whose name has a path
+  component starting with a `.` is skipped and never parsed as a trace. This
+  covers the metadata that archiving tools add automatically — most notably the
+  AppleDouble resource-fork files (`._foo`) and `.DS_Store` entries that macOS
+  `tar` and Finder-created ZIPs sprinkle next to the real files. As a result a
+  `.tar`/`.zip` built on macOS loads without a spurious "unknown trace type"
+  error. If you deliberately want a dot-prefixed file to be parsed, rename it so
+  no path component starts with a `.`.
 
 ## Next steps
 

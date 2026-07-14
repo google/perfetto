@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_trace_tokenizer.h"
 
 #include <cctype>
 #include <cstddef>
@@ -37,9 +37,9 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
-#include "src/trace_processor/importers/perf_text/perf_text_event.h"
-#include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
-#include "src/trace_processor/importers/perf_text/perf_text_trace_parser.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_event.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_sample_line_parser.h"
+#include "src/trace_processor/plugins/perf_text/perf_text_trace_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -177,44 +177,3 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
 }
 
 }  // namespace perfetto::trace_processor::perf_text_importer
-
-namespace perfetto::trace_processor {
-namespace {
-
-// The perf_text trace type: the textual output of `perf script` and the
-// equivalent simpleperf command.
-class PerfTextImporter : public TraceImporter<PerfTextImporter> {
- public:
-  PerfTextImporter() : TraceImporter(MakeDescriptor()) {}
-  ~PerfTextImporter() override;
-
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return perf_text_importer::IsPerfTextFormatTrace(data, size);
-  }
-
-  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
-      TraceProcessorContext* context,
-      uint32_t) const override {
-    return std::unique_ptr<ChunkedTraceReader>(
-        std::make_unique<perf_text_importer::PerfTextTraceTokenizer>(context));
-  }
-
- private:
-  static TraceTypeDescriptor MakeDescriptor() {
-    TraceTypeDescriptor d;
-    d.name = "perf_text";
-    d.clock_policy = TraceClockPolicy::kMonotonic;
-    d.detection_priority = 195;
-    return d;
-  }
-};
-
-PerfTextImporter::~PerfTextImporter() = default;
-
-}  // namespace
-
-std::unique_ptr<TraceImporterBase> CreatePerfTextImporter() {
-  return std::make_unique<PerfTextImporter>();
-}
-
-}  // namespace perfetto::trace_processor

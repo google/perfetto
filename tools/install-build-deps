@@ -438,18 +438,18 @@ TYPEFACES_SHA256 = '2325f6ee28898f3c04b76ea6e27e5e0109eec20c7338d58808cba84212ed
 UI_DEPS = [
     Dependency(
         'buildtools/mac/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/20.11.0/5b5681e12a21cda986410f69e03e6220a21dd4d2',
-        'cecb99fbb369a9090dddc27e228b66335cd72555b44fa8839ef78e56c51682c5',
+        'https://storage.googleapis.com/perfetto/node-22.23.1-mac.tgz',
+        '159be6a4001b7dd51ce3bb31cee84da2bdbe9d6825deab7ea487e803f4ae45d9',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/mac/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/20.11.0/e3c0fd53caae857309815f3f8de7c2dce49d7bca',
-        '20affacca2480c368b75a1d91ec1a2720604b325207ef0cf39cfef3c235dad19',
+        'https://storage.googleapis.com/perfetto/node-22.23.1-mac-x64.tgz',
+        'cb1793557bf072a898023cc6bc25f6e45deba651ccde65d7927f8e468a69bf06',
         'darwin', 'x64'),
     Dependency(
         'buildtools/linux64/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/20.11.0/f9a337cfa0e2b92d3e5c671c26b454bd8e99769e',
-        '0ba9cc91698c1f833a1fdc1fe0cb392d825ad484c71b0d84388ac80bfd3d6079',
+        'https://storage.googleapis.com/perfetto/node-22.23.1-linux.tgz',
+        '3f5bbb3b56e2a9d069eadba8a22c427577f135ccdc04af69db216bcf25f115e6',
         'linux', 'x64'),
     Dependency(
         'buildtools/mac/emsdk.tgz',

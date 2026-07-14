@@ -521,6 +521,46 @@ class JsonParser(TestSuite):
           970000,10000,"NoPidNoTidEvent","[NULL]",0,"[NULL]",0,"[NULL]","[NULL]","[NULL]","[NULL]"
         """))
 
+  # Regression test for https://github.com/google/perfetto/issues/595: the
+  # top-level "metadata" dictionary of a Chrome/DevTools JSON trace should be
+  # exposed in the metadata table under the "json_metadata." prefix.
+  def test_json_trace_metadata(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+            "metadata": {
+              "source": "DevTools",
+              "startTime": "2023-09-21T21:04:15.706Z",
+              "cpuThrottling": 1,
+              "networkThrottling": "No throttling",
+              "hardwareConcurrency": 12
+            },
+            "traceEvents": [{
+              "pid": 1,
+              "tid": 1,
+              "ts": 0,
+              "dur": 10,
+              "name": "slice",
+              "ph": "X",
+              "cat": "cat"
+            }]
+          }
+        '''),
+        query="""
+          SELECT name, int_value, str_value
+          FROM metadata
+          WHERE name GLOB 'json_metadata.*'
+          ORDER BY name
+        """,
+        out=Csv("""
+          "name","int_value","str_value"
+          "json_metadata.cpuThrottling",1,"[NULL]"
+          "json_metadata.hardwareConcurrency",12,"[NULL]"
+          "json_metadata.networkThrottling","[NULL]","No throttling"
+          "json_metadata.source","[NULL]","DevTools"
+          "json_metadata.startTime","[NULL]","2023-09-21T21:04:15.706Z"
+        """))
+
   def test_json_extreme_vals(self):
     return DiffTestBlueprint(
         trace=Json('''
