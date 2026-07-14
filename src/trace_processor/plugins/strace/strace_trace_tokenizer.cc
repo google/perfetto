@@ -19,6 +19,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -50,6 +51,14 @@ std::string_view ToStringView(const TraceBlobView& tbv) {
   return {reinterpret_cast<const char*>(tbv.data()), tbv.size()};
 }
 
+// The largest number of whole seconds since the epoch for which
+// `seconds * kNsPerSec` cannot overflow int64_t. Anything larger is
+// rejected outright rather than silently saturating/overflowing; genuine
+// strace -ttt output is always vastly smaller than this (it's a real
+// wall-clock date), so this only ever rejects garbage input.
+constexpr int64_t kMaxEpochSeconds =
+    std::numeric_limits<int64_t>::max() / kNsPerSec;
+
 // Parses a `-ttt` "seconds[.microseconds]" timestamp (Unix epoch) into
 // nanoseconds. Returns std::nullopt for anything else, including `-t`/`-tt`
 // "HH:MM:SS[.ffffff]" time-of-day timestamps: those contain no date and
@@ -67,13 +76,25 @@ std::optional<int64_t> ParseEpochTimestamp(std::string_view s) {
       dot == std::string_view::npos ? std::string_view() : s.substr(dot + 1);
 
   auto seconds = base::StringToInt64(std::string(whole));
-  if (!seconds)
+  // Reject negative and out-of-range values explicitly: base::StringToInt64
+  // happily parses a leading '-' (this is not a `-t`/`-tt` line, which is
+  // already excluded by the ':' check above, but garbage/adversarial input
+  // could still supply one), and it saturates to INT64_MAX on overflow
+  // rather than failing, so an absurdly long digit run would otherwise
+  // silently turn `*seconds * kNsPerSec` below into a signed integer
+  // overflow (undefined behaviour). A real strace timestamp is always a
+  // small, non-negative number of seconds since the epoch.
+  if (!seconds || *seconds < 0 || *seconds > kMaxEpochSeconds)
     return std::nullopt;
 
   int64_t ns = *seconds * kNsPerSec;
   if (!frac.empty()) {
     auto us = base::StringToInt64(std::string(frac));
-    if (!us)
+    // Same reasoning as above: reject a negative fractional part (it would
+    // otherwise silently move the timestamp backwards) and one so long it
+    // could overflow when multiplied by kNsPerUs. strace only ever prints
+    // up to 6 digits of microseconds here.
+    if (!us || *us < 0 || *us > 999999)
       return std::nullopt;
     // frac is microseconds regardless of how many digits strace prints.
     ns += *us * kNsPerUs;

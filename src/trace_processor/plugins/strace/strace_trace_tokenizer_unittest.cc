@@ -61,6 +61,44 @@ TEST(StraceLineParserTest, PidPrefixFromDashF) {
   EXPECT_EQ(line->syscall, "read");
 }
 
+TEST(StraceLineParserTest, RejectsNegativeTimestampAfterPidPrefix) {
+  // The leading '-' guard in ParseStraceLine only inspects the first
+  // character of the whole line (to reject "--- SIGCHLD ... ---"), which is
+  // the pid here, not the timestamp. A negative timestamp must still be
+  // rejected once the pid prefix is stripped, rather than silently accepted
+  // as a valid (nonsensical, pre-epoch) point in time.
+  EXPECT_FALSE(
+      ParseStraceLine(R"(1234 -5 read(3, "abc", 1024) = 3)").has_value());
+}
+
+TEST(StraceLineParserTest, RejectsNegativeTimestampNoPidPrefix) {
+  EXPECT_FALSE(ParseStraceLine(R"(-5 read(3, "abc", 1024) = 3)").has_value());
+}
+
+TEST(StraceLineParserTest, RejectsOverflowingTimestamp) {
+  // A digit run long enough that `seconds * kNsPerSec` would overflow
+  // int64_t (undefined behaviour) must be rejected rather than silently
+  // saturated/overflowed.
+  EXPECT_FALSE(
+      ParseStraceLine(R"(99999999999999999999 read(3, "abc", 1024) = 3)")
+          .has_value());
+}
+
+TEST(StraceLineParserTest, RejectsOverflowingFractionalPart) {
+  EXPECT_FALSE(
+      ParseStraceLine(R"(1700000000.99999999999999999999 read(3) = 3)")
+          .has_value());
+}
+
+TEST(StraceLineParserTest, RejectsNegativeFractionalPart) {
+  // Malformed input with a '-' after the decimal point; StringToInt64 would
+  // otherwise happily parse "-123456" as microseconds and move the
+  // timestamp backwards.
+  EXPECT_FALSE(
+      ParseStraceLine(R"(1700000000.-123456 read(3, "abc", 1024) = 3)")
+          .has_value());
+}
+
 TEST(StraceLineParserTest, Unfinished) {
   auto line =
       ParseStraceLine(R"(1700000000.000000 read(3,  <unfinished ...>)");
