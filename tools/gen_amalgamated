@@ -44,15 +44,22 @@ c_sdk_targets = [
     '//src/shared_lib:shared_lib',
 ]
 
-# Preamble to add to the C SDK header file to disable shared library exports.
+# Preamble to add to the C SDK header file.
 c_sdk_header_preamble = [
     '// Enable GNU extensions for syscall() on Linux when compiling as C.',
     '#if defined(__linux__) && !defined(_GNU_SOURCE)',
     '#define _GNU_SOURCE',
     '#endif',
     '',
-    '// Disable shared library export annotations for static linking.',
-    '#define PERFETTO_SDK_DISABLE_SHLIB_EXPORT',
+]
+
+# Preamble to add to the C SDK source file. The generated .cc is the SDK
+# implementation: in shared library mode (PERFETTO_SDK_SHLIB) it exports the
+# ABI symbols and its consumers import them (see perfetto/public/abi/export.h).
+c_sdk_source_preamble = [
+    '#if !defined(PERFETTO_SDK_SHLIB_IMPLEMENTATION)',
+    '#define PERFETTO_SDK_SHLIB_IMPLEMENTATION',
+    '#endif',
     '',
 ]
 
@@ -254,6 +261,7 @@ class AmalgamatedProject(object):
                source_deps,
                compute_deps_only=False,
                header_preamble=None,
+               source_preamble=None,
                header_filter=None):
     """Constructor.
 
@@ -265,6 +273,7 @@ class AmalgamatedProject(object):
                 dependency information. Use |get_source_files()| to retrieve
                 the result.
             header_preamble: Optional list of lines to prepend to the header file.
+            source_preamble: Optional list of lines to prepend to the source file.
             header_filter: Optional regex pattern. Only headers matching this pattern
                 will be included in the header file; others go in the source file.
         """
@@ -274,6 +283,7 @@ class AmalgamatedProject(object):
     self.source = []
     self.source_defines = []
     self.header_preamble = header_preamble or []
+    self.source_preamble = source_preamble or []
     self.header_filter = header_filter
     # Note that we don't support multi-arg flags.
     self.cflags = set(default_cflags)
@@ -598,8 +608,9 @@ class AmalgamatedProject(object):
                         ['\n']))
     with open(source_file, 'w') as f:
       include_stmt = '#include "%s"' % os.path.basename(header_file)
-      f.write('\n'.join([preamble] + self.source_defines + [include_stmt] +
-                        self.source + ['\n']))
+      f.write(
+          '\n'.join([preamble] + self.source_preamble + self.source_defines +
+                    [include_stmt] + self.source + ['\n']))
     build_cmd = self.get_build_command(output_prefix, system_buildtools)
     return """Amalgamated project written to %s and %s.
 
@@ -637,6 +648,7 @@ def generate_sdk(targets,
                  args,
                  out,
                  header_preamble=None,
+                 source_preamble=None,
                  header_filter=None):
   source_deps = gn_utils.compute_source_dependencies(out,
                                                      args.system_buildtools)
@@ -645,6 +657,7 @@ def generate_sdk(targets,
       source_deps,
       compute_deps_only=args.dump_deps,
       header_preamble=header_preamble,
+      source_preamble=source_preamble,
       header_filter=header_filter)
 
   for target in targets:
@@ -746,6 +759,7 @@ def main():
         'targets': tgt,
         'output': out_path,
         'header_preamble': None,
+        'source_preamble': None,
         'header_filter': None
     })
 
@@ -764,6 +778,7 @@ def main():
         'targets': tgt,
         'output': out_path,
         'header_preamble': c_sdk_header_preamble,
+        'source_preamble': c_sdk_source_preamble,
         'header_filter': c_sdk_header_filter
     })
 
@@ -785,7 +800,8 @@ def main():
 
     for sdk in sdks:
       generate_sdk(sdk['targets'], sdk['output'], args, out,
-                   sdk['header_preamble'], sdk['header_filter'])
+                   sdk['header_preamble'], sdk['source_preamble'],
+                   sdk['header_filter'])
 
   finally:
     if not args.keep:
