@@ -12,8 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/perfetto.gni")
+
+assert(enable_perfetto_trace_processor_sqlite)
+
 source_set("perf_text") {
   sources = [
+    "perf_text.cc",
+    "perf_text.h",
     "perf_text_event.h",
     "perf_text_sample_line_parser.cc",
     "perf_text_sample_line_parser.h",
@@ -23,10 +29,12 @@ source_set("perf_text") {
     "perf_text_trace_tokenizer.h",
   ]
   deps = [
+    "../..:storage_minimal",
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/trace:minimal_zero",
     "../../../base",
     "../../containers",
+    "../../core/plugin",
     "../../importers/common",
     "../../sorter",
     "../../storage",

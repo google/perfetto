@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {ZodRawShape} from 'zod';
-import type {PerfettoPlugin} from '../../public/plugin';
+import type {PerfettoPlugin, PluginStatus} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import LlmPlugin from '../dev.perfetto.Llm';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
@@ -48,6 +48,7 @@ export default class IntellettoPlugin
     'it queries the trace and drives the UI. Requires the dev.perfetto.Llm ' +
     'gateway and an LLM protocol plugin. Other plugins can register their own ' +
     'tools via getPlugin(IntellettoPlugin).registerTool().';
+  static readonly status: PluginStatus = 'experimental';
   static readonly dependencies = [
     LlmPlugin,
     QueryPagePlugin,

@@ -36,6 +36,7 @@ import {Icon} from '../../widgets/icon';
 import {Icons} from '../../base/semantic_icons';
 import {GateDetector} from '../../base/mithril_utils';
 import {findRef} from '../../base/dom_utils';
+import {Callout} from '../../widgets/callout';
 
 const SEARCH_BOX_REF = 'plugin-search-box';
 
@@ -300,16 +301,28 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
       this.dependenciesByPluginId.get(plugin.desc.id) ?? [];
     const dependantPlugins =
       this.dependantsByPluginId.get(plugin.desc.id) ?? [];
+    const isExperimental = plugin.desc.status === 'experimental';
     return m(SettingsCard, {
       key: plugin.desc.id,
       id: plugin.desc.id,
       className: classNames(
         'pf-plugins-page__card',
         plugin.enableFlag.get() && 'pf-plugins-page__card--enabled',
+        isExperimental && 'pf-plugins-page__card--experimental',
       ),
       title: plugin.desc.id,
       linkHref: `#!/plugins/${encodeURIComponent(plugin.desc.id)}`,
       description: [
+        isExperimental &&
+          m(
+            Callout,
+            {
+              className: 'pf-plugins-page__warning',
+              icon: 'warning',
+              intent: Intent.Danger,
+            },
+            ' This plugin is experimental and may contain unstable features.',
+          ),
         plugin.desc.description?.trim(),
         this.renderPluginIdList(
           'Requires',

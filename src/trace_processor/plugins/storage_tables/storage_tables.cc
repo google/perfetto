@@ -205,6 +205,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_android_network_packets_table());
     AddDataframe(out, s->mutable_metadata_table());
     AddDataframe(out, s->mutable_stats_table());
+    AddDataframe(out, s->mutable_trace_diagnostics_table());
     AddDataframe(out, s->mutable_slice_table(), {{"parent_id"}, {"track_id"}});
     AddDataframe(out, s->mutable_state_table());
     AddDataframe(out, s->mutable_track_event_callstacks_table());

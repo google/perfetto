@@ -39,10 +39,10 @@ export interface InputChainRow {
   totalLatency: duration | null;
 
   durReader: duration | null;
-  deltaDispatch: duration | null;
-  deltaReceive: duration | null;
-  deltaConsume: duration | null;
-  deltaFrame: duration | null;
+  durDispatch: duration | null;
+  durReceive: duration | null;
+  durConsume: duration | null;
+  durFrame: duration | null;
 
   navReader?: NavTarget;
   navDispatch?: NavTarget;
@@ -158,22 +158,13 @@ export class AndroidInputEventSource {
           it.total_latency !== null ? Duration.fromRaw(it.total_latency) : null,
         durReader:
           it.dur_reader !== null ? Duration.fromRaw(it.dur_reader) : null,
-        deltaDispatch:
-          it.ts_dispatch !== null && it.ts_reader !== null
-            ? Duration.fromRaw(it.ts_dispatch - it.ts_reader)
-            : null,
-        deltaReceive:
-          it.ts_receive !== null && it.ts_dispatch !== null
-            ? Duration.fromRaw(it.ts_receive - it.ts_dispatch)
-            : null,
-        deltaConsume:
-          it.ts_consume !== null && it.ts_receive !== null
-            ? Duration.fromRaw(it.ts_consume - it.ts_receive)
-            : null,
-        deltaFrame:
-          it.ts_frame !== null && it.ts_consume !== null
-            ? Duration.fromRaw(it.ts_frame - it.ts_consume)
-            : null,
+        durDispatch:
+          it.dur_dispatch !== null ? Duration.fromRaw(it.dur_dispatch) : null,
+        durReceive:
+          it.dur_receive !== null ? Duration.fromRaw(it.dur_receive) : null,
+        durConsume:
+          it.dur_consume !== null ? Duration.fromRaw(it.dur_consume) : null,
+        durFrame: it.dur_frame !== null ? Duration.fromRaw(it.dur_frame) : null,
         navReader,
         navDispatch,
         navReceive,
