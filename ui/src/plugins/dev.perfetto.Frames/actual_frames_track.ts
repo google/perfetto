@@ -21,6 +21,7 @@ import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import type {VisualMarkerStyle} from '../../components/tracks/visual_marker';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -70,6 +71,68 @@ const JANK_TYPE_DESCRIPTIONS: Record<string, string> = {
   'Unknown Jank': 'The frame was not presented on time due to unknown reasons.',
 };
 
+export interface JankBadgeSpec {
+  readonly icon: string;
+  readonly title: string;
+  readonly priority: number;
+  readonly strokeColor: string;
+}
+
+const JANK_BADGE_SPECS: Record<string, JankBadgeSpec> = {
+  'Self Jank': {
+    icon: '🔴',
+    title: 'Self Jank',
+    priority: 40,
+    strokeColor: '#FFFFFF',
+  },
+  'Other Jank': {
+    icon: '🟡',
+    title: 'Other Jank',
+    priority: 30,
+    strokeColor: '#000000',
+  },
+  'Dropped Frame': {
+    icon: '🚫',
+    title: 'Dropped Frame',
+    priority: 20,
+    strokeColor: '#FFFFFF',
+  },
+  'Dropped': {
+    icon: '🚫',
+    title: 'Dropped Frame',
+    priority: 20,
+    strokeColor: '#FFFFFF',
+  },
+  'Non-perceivable Jank': {
+    icon: '⚪',
+    title: 'Non-perceivable Jank',
+    priority: 10,
+    strokeColor: '#000000',
+  },
+};
+
+export function getJankBadgeSpec(
+  jankTag: string | null,
+  jankSeverityType: string | null,
+): VisualMarkerStyle | undefined {
+  if (!jankTag) return undefined;
+  const spec = JANK_BADGE_SPECS[jankTag];
+  if (spec === undefined) return undefined;
+  const colorScheme = getColorSchemeForJank(jankTag, jankSeverityType);
+  return {
+    sizePx: 16,
+    icon: spec.icon,
+    colorScheme,
+    strokeColor: spec.strokeColor,
+  };
+}
+
+export function getJankBadgePriority(jankTag: string | null): number {
+  if (!jankTag) return 0;
+  const spec = JANK_BADGE_SPECS[jankTag];
+  return spec !== undefined ? spec.priority : 0;
+}
+
 export function createActualFramesTrack(
   trace: Trace,
   uri: string,
@@ -108,8 +171,16 @@ export function createActualFramesTrack(
 
       if (tag && tag !== 'No Jank' && tag !== 'None') {
         const elements: m.Vnode[] = [];
+        const spec = tag ? JANK_BADGE_SPECS[tag] : undefined;
+        const headerIcon = spec?.icon ?? '🟡';
+        const headerTitle = spec?.title ?? `${tag}`;
+
         elements.push(
-          m('div', {style: 'font-weight: bold; margin-bottom: 4px;'}, `${tag}`),
+          m(
+            'div',
+            {style: 'font-weight: bold; margin-bottom: 4px;'},
+            `${headerIcon} ${headerTitle}`,
+          ),
         );
 
         if (jankType && jankType !== 'None' && jankType !== 'Unspecified') {
@@ -131,6 +202,18 @@ export function createActualFramesTrack(
         return elements;
       }
       return undefined;
+    },
+    markerProvider: (row) => {
+      const tag = useExperimentalJankForClassification
+        ? row.jank_tag_experimental
+        : row.jank_tag;
+      return getJankBadgeSpec(tag, row.jank_severity_type);
+    },
+    markerPriority: (row) => {
+      const tag = useExperimentalJankForClassification
+        ? row.jank_tag_experimental
+        : row.jank_tag;
+      return getJankBadgePriority(tag);
     },
     colorizer: (row) => {
       return getColorSchemeForJank(

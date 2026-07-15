@@ -74,6 +74,8 @@ import {
 } from '../../base/renderer';
 import {cropText} from '../../base/string_utils';
 
+import type {VisualMarkerStyle} from './visual_marker';
+
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
 const CHEVRON_WIDTH_PX = 10;
 
@@ -277,6 +279,16 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
    * Define buttons displayed on the track shell.
    */
   shellButtons?(): m.Children;
+
+  /**
+   * Provides fixed-size overlay markers for events of interest (e.g. Jank, Cadence Drop).
+   */
+  markerProvider?(row: T): VisualMarkerStyle | undefined;
+
+  /**
+   * Priority score generator for row markers when clustering overlapping markers.
+   */
+  markerPriority?(row: T): number;
 
   /**
    * Called once per render cycle before drawing. Return an array of
@@ -634,6 +646,163 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         rowHeightFromLayout(rowLayout, depths[selectedIdx]) + THICKNESS,
       );
     }
+
+    // Draw generic fixed-size visual markers and cluster overlays
+    if (this.attrs.markerProvider) {
+      this.renderVisualMarkersOverlay(
+        ctx,
+        slices,
+        starts,
+        ends,
+        depths,
+        count,
+        pxPerNs,
+        baseOffsetPx,
+        pxEnd,
+        rowLayout,
+      );
+    }
+  }
+
+  private renderVisualMarkersOverlay(
+    ctx: CanvasRenderingContext2D,
+    slices: readonly Slice<T>[],
+    starts: Float32Array,
+    ends: Float32Array,
+    depths: Uint16Array,
+    count: number,
+    pxPerNs: number,
+    baseOffsetPx: number,
+    pxEnd: number,
+    rowLayout: RowLayout,
+  ): void {
+    if (!this.attrs.markerProvider) return;
+
+    interface MarkerItem {
+      screenX: number;
+      depth: number;
+      style: VisualMarkerStyle;
+      priority: number;
+    }
+
+    const itemsByDepth = new Map<number, MarkerItem[]>();
+    for (let j = 0; j < count; j++) {
+      const rawLeft = starts[j] * pxPerNs + baseOffsetPx;
+      const rawRight = ends[j] * pxPerNs + baseOffsetPx;
+      const screenX = (rawLeft + rawRight) / 2;
+
+      // Skip offscreen slices early before markerProvider lookup
+      if (screenX < -20 || screenX > pxEnd + 20) continue;
+
+      const slice = slices[j];
+      const style = this.attrs.markerProvider(slice.row);
+      if (!style) continue;
+
+      const depth = depths[j];
+      const priority = this.attrs.markerPriority?.(slice.row) ?? 1;
+      let depthItems = itemsByDepth.get(depth);
+      if (!depthItems) {
+        depthItems = [];
+        itemsByDepth.set(depth, depthItems);
+      }
+      depthItems.push({screenX, depth, style, priority});
+    }
+
+    if (itemsByDepth.size === 0) return;
+
+    const MIN_DIST = 16;
+    const clusters: Array<{
+      screenX: number;
+      depth: number;
+      count: number;
+      bestStyle: VisualMarkerStyle;
+    }> = [];
+
+    // Cluster per depth row
+    for (const [, items] of itemsByDepth) {
+      let current: MarkerItem[] = [];
+      for (const item of items) {
+        if (current.length === 0) {
+          current.push(item);
+          continue;
+        }
+        const prev = current[current.length - 1];
+        if (Math.abs(item.screenX - prev.screenX) < MIN_DIST) {
+          current.push(item);
+        } else {
+          clusters.push(this.makeMarkerCluster(current));
+          current = [item];
+        }
+      }
+      if (current.length > 0) {
+        clusters.push(this.makeMarkerCluster(current));
+      }
+    }
+
+    // Draw canvas badges
+    for (const cl of clusters) {
+      const yTop = rowTopFromLayout(rowLayout, cl.depth);
+      const rowH = rowHeightFromLayout(rowLayout, cl.depth);
+      const yCenter = yTop + rowH / 2;
+      this.drawBadgeMarker(ctx, cl.screenX, yCenter, cl.bestStyle, cl.count);
+    }
+  }
+
+  private makeMarkerCluster(
+    items: Array<{
+      screenX: number;
+      depth: number;
+      style: VisualMarkerStyle;
+      priority: number;
+    }>,
+  ) {
+    let best = items[0];
+    let sumX = 0;
+    for (const it of items) {
+      sumX += it.screenX;
+      if (it.priority > best.priority) best = it;
+    }
+    return {
+      screenX: sumX / items.length,
+      depth: best.depth,
+      count: items.length,
+      bestStyle: best.style,
+    };
+  }
+
+  private drawBadgeMarker(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    style: VisualMarkerStyle,
+    count: number,
+  ): void {
+    const size = style.sizePx ?? 16;
+    const radius = size / 2;
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    if (style.render) {
+      style.render(ctx, 0, 0, size, style.colorScheme);
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+      ctx.fillStyle = style.colorScheme.base.cssString;
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = style.strokeColor ?? '#FFFFFF';
+      ctx.stroke();
+
+      const text = count > 1 ? `${count}` : style.icon ?? '⚠️';
+      ctx.fillStyle = style.textColor ?? style.colorScheme.textBase.cssString;
+      ctx.font = 'bold 10px Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 0, 0);
+    }
+
+    ctx.restore();
   }
 
   private renderInstants(
