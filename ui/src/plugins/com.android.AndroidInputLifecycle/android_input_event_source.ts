@@ -263,13 +263,4 @@ const CORE_STAGES: StageDefinition[] = [
     tsField: 'ts_consume',
     durField: 'dur_consume',
   },
-  {
-    key: 'frame',
-    headerName: 'App Frame',
-    sequenceNumber: 5000,
-    idField: 'id_frame',
-    trackField: 'track_frame',
-    tsField: 'ts_frame',
-    durField: 'dur_frame',
-  },
 ];
