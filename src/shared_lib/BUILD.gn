@@ -14,37 +14,16 @@
 
 import("../../gn/perfetto.gni")
 
-# Makes the public ABI headers annotate symbols for shared library usage
-# (dllimport on Windows) in consumers of libperfetto_c. See
-# include/perfetto/public/abi/export.h.
-config("shlib_config") {
-  defines = [ "PERFETTO_SDK_SHLIB" ]
-}
-
-# Makes the public ABI headers annotate symbols for export from the shared
-# library, in the targets that implement it. Empty in the amalgamated SDK,
-# where the consumer chooses between static and shared linking when compiling
-# the generated sources. See include/perfetto/public/abi/export.h.
-config("shlib_impl_config") {
-  if (!perfetto_amalgamated_sdk) {
-    defines = [
-      "PERFETTO_SDK_SHLIB",
-      "PERFETTO_SDK_SHLIB_IMPLEMENTATION",
-    ]
-  }
-}
-
 source_set("for_testing") {
-  configs += [ ":shlib_impl_config" ]
   deps = [
     "../../gn:default_deps",
     "../../include/perfetto/public",
   ]
   sources = [ "reset_for_testing.h" ]
+  defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
 }
 
 source_set("shared_lib") {
-  configs += [ ":shlib_impl_config" ]
   deps = [
     ":for_testing",
     "../../gn:default_deps",
@@ -64,6 +43,7 @@ source_set("shared_lib") {
     "thread_utils.cc",
     "tracing_session.cc",
   ]
+  defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
 
   # Abseil is only used in Perfetto via:
   # - the gRPC/libprotobuf
@@ -79,7 +59,6 @@ shared_library("libperfetto_c") {
     ":shared_lib",
     "../../gn:default_deps",
   ]
-  public_configs = [ ":shlib_config" ]
   public_deps = [ "../../include/perfetto/public" ]
 }
 

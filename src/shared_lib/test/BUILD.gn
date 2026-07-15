@@ -26,6 +26,7 @@ source_set("utils") {
     "utils.cc",
     "utils.h",
   ]
+  defines = [ "PERFETTO_SDK_DISABLE_SHLIB_EXPORT" ]
 }
 
 if (enable_perfetto_benchmarks) {
@@ -38,6 +39,7 @@ if (enable_perfetto_benchmarks) {
       "../../../gn:default_deps",
       "../../../include/perfetto/public",
     ]
+    defines = [ "PERFETTO_SDK_DISABLE_SHLIB_EXPORT" ]
     sources = [ "benchmark.cc" ]
   }
 }
@@ -55,6 +57,7 @@ if (enable_perfetto_integration_tests) {
       "../../base",
       "protos",
     ]
+    defines = [ "PERFETTO_SDK_DISABLE_SHLIB_EXPORT" ]
     sources = [ "api_integrationtest.cc" ]
   }
 }

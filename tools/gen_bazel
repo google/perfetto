@@ -259,13 +259,8 @@ target_overrides = {
     }
 }
 
-# Defines required for Bazel. Note that cc_library defines propagate to all
-# dependent targets, so linkage macros must never be listed here: the Bazel
-# build has no shared library target for the C SDK (the libperfetto_c
-# cc_library is linked statically into its consumers, including the JNI .so
-# built by perfetto_android_jni_library), so no linkage macros are needed (see
-# include/perfetto/public/abi/export.h).
-bazel_required_defines = []
+# Defines required for Bazel.
+bazel_required_defines = ["PERFETTO_SHLIB_SDK_IMPLEMENTATION"]
 
 # Targets with the "avoid_dep" tag;
 avoid_dep_targets = set([

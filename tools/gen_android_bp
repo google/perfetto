@@ -373,15 +373,7 @@ additional_args = {
     'libperfetto_c': [
         ('min_sdk_version', '30'),
         ('export_include_dirs', {'include'}),
-        # Shared library export macros for the implementation side (see
-        # include/perfetto/public/abi/export.h). Consumers of the .so compile
-        # with no macros and rely on the static-linking default, which is
-        # sufficient on ELF (import annotations are only needed on Windows).
-        # Soong cannot propagate cflags to consumers.
-        ('cflags', {
-            '-DPERFETTO_SDK_SHLIB',
-            '-DPERFETTO_SDK_SHLIB_IMPLEMENTATION',
-        }),
+        ('cflags', {'-DPERFETTO_SHLIB_SDK_IMPLEMENTATION'}),
         ('windows', {
             'enabled': True,
             'cflags': [
