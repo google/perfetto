@@ -16,7 +16,13 @@ import m from 'mithril';
 import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
 import type {ColorScheme} from '../../base/color_scheme';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
@@ -87,10 +93,11 @@ export function createActualFramesTrack(
         name: STR,
         ts: LONG,
         dur: LONG,
-        jank_type: STR,
+        jank_type: STR_NULL,
         jank_tag: STR_NULL,
         jank_tag_experimental: STR_NULL,
         jank_severity_type: STR_NULL,
+        is_cadence_drop: NUM_NULL,
         arg_set_id: NUM,
         track_id: NUM,
       },
@@ -106,9 +113,27 @@ export function createActualFramesTrack(
         ? row.jank_tag_experimental
         : row.jank_tag;
       const jankType = row.jank_type;
+      const isCadenceDrop = row.is_cadence_drop === 1;
+
+      const elements: m.Children = [];
+
+      if (isCadenceDrop) {
+        elements.push(
+          m(
+            'div',
+            {style: 'font-weight: bold; margin-bottom: 4px;'},
+            '⚠️ Potential Skipped Frame',
+          ),
+          m('div', 'Cadence variance detected - skipped frame?'),
+          m(
+            'div',
+            {style: 'color: #888; margin-top: 4px; margin-bottom: 8px;'},
+            'Informational hint',
+          ),
+        );
+      }
 
       if (tag && tag !== 'No Jank' && tag !== 'None') {
-        const elements: m.Children = [];
         let headerIcon = '🟡';
         let headerTitle = `${tag}`;
         if (tag === 'Self Jank') {
@@ -145,10 +170,9 @@ export function createActualFramesTrack(
             );
           }
         }
-
-        return elements;
       }
-      return undefined;
+
+      return elements.length > 0 ? elements : undefined;
     },
     markerProvider: (row) => {
       const tag = useExperimentalJankForClassification
@@ -186,6 +210,14 @@ export function createActualFramesTrack(
             strokeColor: '#000000',
           };
         default:
+          if (row.is_cadence_drop === 1) {
+            return {
+              sizePx: 16,
+              icon: '⚠️',
+              colorScheme: GREEN_200,
+              strokeColor: '#FFFFFF',
+            };
+          }
           return undefined;
       }
     },
@@ -194,6 +226,7 @@ export function createActualFramesTrack(
       if (tag === 'Self Jank') return 40;
       if (tag === 'Other Jank') return 30;
       if (tag === 'Dropped Frame' || tag === 'Dropped') return 20;
+      if (row.is_cadence_drop === 1) return 15;
       if (tag === 'Non-perceivable Jank') return 10;
       return 0;
     },
