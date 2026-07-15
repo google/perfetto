@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
 import type {ColorScheme} from '../../base/color_scheme';
@@ -37,6 +38,37 @@ const LIGHT_GREEN_100 = makeColorScheme(new HSLColor('#DCEDC8'));
 const PINK_500 = makeColorScheme(new HSLColor('#F515E0'));
 const PINK_200 = makeColorScheme(new HSLColor('#F48FB1'));
 const WHITE_200 = makeColorScheme(new HSLColor('#F5F5F5'));
+
+const JANK_TYPE_DESCRIPTIONS: Record<string, string> = {
+  'App Deadline Missed':
+    'The application failed to finish rendering the frame within its deadline.',
+  'SurfaceFlinger CPU Deadline Missed':
+    'SurfaceFlinger composition work failed to finish within the deadline in HWC composition.',
+  'SurfaceFlinger GPU Deadline Missed':
+    'SurfaceFlinger composition work failed to finish within the deadline in GPU composition.',
+  'SurfaceFlinger Scheduling':
+    'The frame was presented at an unexpected time due to reasons within SurfaceFlinger.',
+  'Prediction Error':
+    'Discrepancy between predicted VSYNC timestamp and actual display hardware presentation timestamp.',
+  'Display HAL':
+    'The frame was presented at an unexpected time due to reasons within Hardware Composer.',
+  'Buffer Stuffing':
+    'The frame was presented late as there were a prior frame in the queue that was presented instead',
+  'SurfaceFlinger Stuffing':
+    'SurfaceFlinger composited frame was presented late as there were a prior frame in the HWC queue that was presented instead',
+  'App Resynced Jitter':
+    'The application shifted/changed its animation time due to delays in Choreographer execution.',
+  'Dropped Frame': 'The frame buffer was not presented on display.',
+  'Non Animating':
+    'The frame was not presented on time, but it is not causing a perceivable jank as it is not part of an animation (e.g. a cursor blinking).',
+  'Display not ON':
+    'The frame was presented while the display was not on (off or doze).',
+  'ModeChange in progress':
+    'The frame was not presented on time due to a display mode change (refresh rate or resolution).',
+  'PowerModeChange in progress':
+    'The frame was not presented on time due to an active display power state transition.',
+  'Unknown Jank': 'The frame was not presented on time due to unknown reasons.',
+};
 
 export function createActualFramesTrack(
   trace: Trace,
@@ -67,6 +99,36 @@ export function createActualFramesTrack(
         in: trackIds,
       },
     }),
+    tooltip: (slice) => {
+      const row = slice.row;
+      const tag = useExperimentalJankForClassification
+        ? row.jank_tag_experimental
+        : row.jank_tag;
+      const jankType = row.jank_type;
+
+      if (tag && tag !== 'No Jank' && tag !== 'None') {
+        const elements: m.Children = [];
+        elements.push(
+          m('div', {style: 'font-weight: bold; margin-bottom: 4px;'}, `${tag}`),
+        );
+
+        if (jankType && jankType !== 'None' && jankType !== 'Unspecified') {
+          const reasons = jankType.split(',').map((r) => r.trim());
+          for (const reason of reasons) {
+            const desc = JANK_TYPE_DESCRIPTIONS[reason];
+            elements.push(
+              m('div', {style: 'margin-top: 4px;'}, [
+                m('span', {style: 'font-weight: 500;'}, `${reason}: `),
+                m('span', desc || 'Rendering performance delay.'),
+              ]),
+            );
+          }
+        }
+
+        return elements;
+      }
+      return undefined;
+    },
     colorizer: (row) => {
       return getColorSchemeForJank(
         useExperimentalJankForClassification
