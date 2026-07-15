@@ -22,5 +22,6 @@ perfetto_proto_library("@TYPE@") {
     "profile_common.proto",
     "profile_packet.proto",
     "smaps.proto",
+    "stack_sample.proto",
   ]
 }
