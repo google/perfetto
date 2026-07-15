@@ -61,7 +61,7 @@ message StackSample {
   // be set.
   message TaskContext {
     // Interning key, used when this context is emitted via
-    // StackSampleInternedData.task_contexts and referenced by
+    // InternedData.stack_sample_task_contexts and referenced by
     // StackSample.task_context_iid. Starts from 1; 0 is the same as "not set".
     optional uint64 iid = 1;
 
@@ -78,7 +78,7 @@ message StackSample {
   // no meaningful cpu or mode.
   message ExecutionContext {
     // Interning key, used when this context is emitted via
-    // StackSampleInternedData.execution_contexts and referenced by
+    // InternedData.stack_sample_execution_contexts and referenced by
     // StackSample.execution_context_iid. Starts from 1; 0 is the same as "not
     // set".
     optional uint64 iid = 1;
@@ -95,7 +95,7 @@ message StackSample {
   // the sample as weights; this only describes their meaning.
   message CounterDescriptor {
     // Interning key, used when this descriptor is emitted via
-    // StackSampleInternedData.counter_descriptors and referenced by
+    // InternedData.stack_sample_counter_descriptors and referenced by
     // StackSample.primary_descriptor_iid. Starts from 1; 0 is the same as "not
     // set".
     optional uint64 iid = 1;
@@ -128,7 +128,8 @@ message StackSample {
     // Inline task context.
     TaskContext task_context = 1;
 
-    // Interned task context, referencing StackSampleInternedData.task_contexts.
+    // Interned task context, referencing
+    // InternedData.stack_sample_task_contexts.
     uint64 task_context_iid = 2;
   }
 
@@ -140,7 +141,7 @@ message StackSample {
     ExecutionContext execution_context = 3;
 
     // Interned execution context, referencing
-    // StackSampleInternedData.execution_contexts.
+    // InternedData.stack_sample_execution_contexts.
     uint64 execution_context_iid = 4;
   }
 
@@ -175,7 +176,7 @@ message StackSample {
     CounterDescriptor primary_descriptor = 9;
 
     // Interned timebase descriptor, referencing
-    // StackSampleInternedData.counter_descriptors.
+    // InternedData.stack_sample_counter_descriptors.
     uint64 primary_descriptor_iid = 10;
   }
 

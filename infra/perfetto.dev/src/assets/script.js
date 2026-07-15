@@ -374,7 +374,7 @@ function initMermaid() {
 
 // ---------------------------------------------------------------------------
 // Client-side docs search. We ship a build-time full-text index
-// (assets/search_index.json, built by src/gen_search_index.js) and rank it
+// (assets/search_index.json.gz, built by src/gen_search_index.js) and rank it
 // locally with BM25. The old Google Custom Search Engine couldn't see a doc
 // until Googlebot crawled it, often weeks after it shipped.
 // ---------------------------------------------------------------------------
@@ -396,58 +396,36 @@ function searchTokenize(str) {
 }
 
 async function loadSearchIndex() {
-  const resp = await fetch("/assets/search_index.json");
+  const resp = await fetch("/assets/search_index.json.gz");
   if (!resp.ok) throw new Error(`search index HTTP ${resp.status}`);
-  const docs = (await resp.json()).docs;
+  // The server doesn't gzip this file, so it's gzipped at build time and
+  // decompressed here.
+  const stream = resp.body.pipeThrough(new DecompressionStream("gzip"));
+  const data = await new Response(stream).json();
 
-  // Field boosts: a hit in the title matters far more than one in the body.
-  const FIELD_BOOST = {title: 8, heading: 4, body: 1};
-  const postings = new Map();
-  const docLen = new Array(docs.length).fill(0);
-  const titleTokens = new Array(docs.length);
-  const navTokens = new Array(docs.length);
-  const addTokens = (docIdx, tokens, boost) => {
-    for (const tok of tokens) {
-      let postingList = postings.get(tok);
-      if (postingList === undefined) {
-        postingList = new Map();
-        postings.set(tok, postingList);
-      }
-      postingList.set(docIdx, (postingList.get(docIdx) || 0) + boost);
-      docLen[docIdx] += boost;
+  const postings = new Map();  // token -> Map(docIdx -> weight)
+  for (let i = 0; i < data.terms.length; i++) {
+    const flat = data.post[i];
+    const postingList = new Map();
+    for (let j = 0; j < flat.length; j += 2) {
+      const docIdx = flat[j];
+      const weight = flat[j + 1];
+      postingList.set(docIdx, weight);
     }
-  };
-  for (let i = 0; i < docs.length; i++) {
-    const d = docs[i];
-    const tt = searchTokenize(d.t || "");
-    titleTokens[i] = tt;
-    addTokens(i, tt, FIELD_BOOST.title);
-    // The toc.md nav label (d.n), when it differs from the title, is a curated
-    // keyword alias -- index it at title weight too.
-    if (d.n) {
-      navTokens[i] = searchTokenize(d.n);
-      addTokens(i, navTokens[i], FIELD_BOOST.title);
-    }
-    // The URL slug (last path segment, e.g. "perfetto-cli", "stdlib-docs") is a
-    // curated keyword, often searched even when the word never appears in the
-    // prose. searchTokenize splits it on the "-"/"_"; index it at title weight.
-    const slug = d.u.split("/").filter(Boolean).pop() || "";
-    addTokens(i, searchTokenize(slug), FIELD_BOOST.title);
-    for (const h of d.h || []) addTokens(i, searchTokenize(h.t), FIELD_BOOST.heading);
-    if (d.b) addTokens(i, searchTokenize(d.b), FIELD_BOOST.body);
+    postings.set(data.terms[i], postingList);
   }
+
   let total = 0;
-  for (const l of docLen) total += l;
+  for (const l of data.docLen) total += l;
   searchIndex = {
-    docs,
+    docs: data.docs,
     postings,
-    // Sorted so searchPostings() can binary-search the prefix range.
-    sortedTerms: [...postings.keys()].sort(),
-    docLen,
-    titleTokens,
-    navTokens,
-    avgdl: docLen.length ? total / docLen.length : 1,
-    N: docs.length,
+    sortedTerms: data.terms,  // Already sorted at build time.
+    docLen: data.docLen,
+    titleTokens: data.titleTokens,
+    navTokens: data.navTokens,
+    avgdl: data.docLen.length ? total / data.docLen.length : 1,
+    N: data.docs.length,
   };
   return searchIndex;
 }
@@ -664,20 +642,28 @@ function setupSearch() {
       searchRes.innerHTML = "";
       return;
     }
+    // Show a placeholder while the index loads, so a slow first search looks
+    // like it's working rather than broken.
+    if (searchIndex === null) {
+      searchRes.style.width = `${searchBox.offsetWidth}px`;
+      searchRes.innerHTML = '<div class="sr-loading">Loading search index…</div>';
+    }
     let idx;
     try {
       idx = await ensureSearchIndex();
     } catch (e) {
-      return;  // Index failed to load; leave the box empty rather than error.
+      console.error("Docs search: could not load the index.", e);
+      searchRes.innerHTML = "";  // Clear the placeholder if loading failed.
+      return;
     }
     if (searchBox.value.trim() !== query) return;  // A newer query superseded us.
     results = searchRank(idx, query, 8);
     render(query);
   };
 
-  // Start fetching the index as soon as the user engages with the box.
-  searchBox.addEventListener("focus", () => { ensureSearchIndex().catch(() => {}); },
-                             {once: true});
+  // Start loading the index now, so the first search doesn't wait on the
+  // download. runSearch() shows a placeholder if the user types before it lands.
+  ensureSearchIndex().catch(() => {});
 
   let timerId = -1;
   searchBox.addEventListener("input", () => {

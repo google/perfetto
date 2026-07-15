@@ -37,7 +37,12 @@ Unreleased:
     * Update node to v22.23.1.
     * Allow pivoting on arg values in slice aggregation table.
   SDK:
-    *
+    * Reworked the C SDK shared library export macros: static linking (the
+      default) no longer needs any macros; define PERFETTO_SDK_SHLIB to build
+      or consume the SDK, including the amalgamated one, as a shared library.
+      PERFETTO_SDK_DISABLE_SHLIB_EXPORT is removed and
+      PERFETTO_SHLIB_SDK_IMPLEMENTATION is renamed to
+      PERFETTO_SDK_SHLIB_IMPLEMENTATION.
 
 v57.2 - 2026-07-07:
   Trace Processor:

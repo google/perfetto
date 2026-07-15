@@ -29,7 +29,6 @@
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/stack_sample.pbzero.h"
-#include "protos/perfetto/trace/profiling/stack_sample_interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
 
@@ -208,9 +207,9 @@ void StackSampleModule::ParseStackSample(
     int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
     protozero::ConstBytes blob) {
+  using protos::pbzero::InternedData;
   using protos::pbzero::StackSample;
   using protos::pbzero::StackSampleDefaults;
-  using protos::pbzero::StackSampleInternedData;
   using CounterDescriptor = StackSample::CounterDescriptor;
   using ExecutionContext = StackSample::ExecutionContext;
   using Mode = StackSample::Mode;
@@ -247,7 +246,7 @@ void StackSampleModule::ParseStackSample(
     extract_task(t);
   } else if (sample.has_task_context_iid()) {
     if (auto* t = sequence_state->LookupInternedMessage<
-            StackSampleInternedData::kTaskContextsFieldNumber, TaskContext>(
+            InternedData::kStackSampleTaskContextsFieldNumber, TaskContext>(
             sample.task_context_iid())) {
       extract_task(*t);
     }
@@ -286,7 +285,7 @@ void StackSampleModule::ParseStackSample(
     extract_exec(e);
   } else if (sample.has_execution_context_iid()) {
     if (auto* e = sequence_state->LookupInternedMessage<
-            StackSampleInternedData::kExecutionContextsFieldNumber,
+            InternedData::kStackSampleExecutionContextsFieldNumber,
             ExecutionContext>(sample.execution_context_iid())) {
       extract_exec(*e);
     }
@@ -306,7 +305,7 @@ void StackSampleModule::ParseStackSample(
     primary = ResolveCounterDescriptor(context_, d);
   } else if (sample.has_primary_descriptor_iid()) {
     if (auto* d = sequence_state->LookupInternedMessage<
-            StackSampleInternedData::kCounterDescriptorsFieldNumber,
+            InternedData::kStackSampleCounterDescriptorsFieldNumber,
             CounterDescriptor>(sample.primary_descriptor_iid())) {
       primary = ResolveCounterDescriptor(context_, *d);
     }

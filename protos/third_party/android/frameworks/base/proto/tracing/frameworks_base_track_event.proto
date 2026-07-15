@@ -21,6 +21,7 @@
 syntax = "proto2";
 
 import public "protos/perfetto/trace/track_event/track_event.proto";
+import "protos/perfetto/trace/field_options.proto";
 
 package com.android.internal;
 
@@ -525,6 +526,26 @@ enum ServiceBindFlag {
   SERVICE_BIND_FLAG_EXTERNAL_SERVICE = -2147483648;               // 1 << 31
 }
 
+// A bitmask (see the foreground_service_type field).
+enum ForegroundServiceTypeFlag {
+  FOREGROUND_SERVICE_TYPE_NONE = 0;
+  FOREGROUND_SERVICE_TYPE_DATA_SYNC = 0x00000001;         // 1 << 0
+  FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK = 0x00000002;    // 1 << 1
+  FOREGROUND_SERVICE_TYPE_PHONE_CALL = 0x00000004;        // 1 << 2
+  FOREGROUND_SERVICE_TYPE_LOCATION = 0x00000008;          // 1 << 3
+  FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE = 0x00000010;  // 1 << 4
+  FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION = 0x00000020;  // 1 << 5
+  FOREGROUND_SERVICE_TYPE_CAMERA = 0x00000040;            // 1 << 6
+  FOREGROUND_SERVICE_TYPE_MICROPHONE = 0x00000080;        // 1 << 7
+  FOREGROUND_SERVICE_TYPE_HEALTH = 0x00000100;            // 1 << 8
+  FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING = 0x00000200;  // 1 << 9
+  FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED = 0x00000400;   // 1 << 10
+  FOREGROUND_SERVICE_TYPE_SHORT_SERVICE = 0x00000800;     // 1 << 11
+  FOREGROUND_SERVICE_TYPE_FILE_MANAGEMENT = 0x00001000;   // 1 << 12
+  FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING = 0x00002000;  // 1 << 13
+  FOREGROUND_SERVICE_TYPE_SPECIAL_USE = 0x40000000;       // 1 << 30
+}
+
 message AndroidBroadcastEvent {
   // The package uid of the broadcast receiver.
   optional int32 receiver_uid = 1;
@@ -568,7 +589,9 @@ message AndroidBroadcastEvent {
   optional BroadcastDeliveryGroupPolicy delivery_group_policy = 13;
 
   // Flags set in the broadcast intent.
-  optional int32 intent_flags = 14;
+  optional int32 intent_flags = 14
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.BroadcastIntentFlag"];
 
   // The intent filter priority of the broadcast receiver.
   optional int32 filter_priority = 15;
@@ -684,10 +707,14 @@ message AndroidProcessStateChangedEvent {
   optional ProcessStateEnum cur_proc_state = 4;
 
   // Previous capability flags.
-  optional int32 prev_capability_flags = 5;
+  optional int32 prev_capability_flags = 5
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcessCapabilityEnum"];
 
   // Current capability flags.
-  optional int32 cur_capability_flags = 6;
+  optional int32 cur_capability_flags = 6
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcessCapabilityEnum"];
 
   // Previous oom score.
   optional int32 prev_oom_score = 7;
@@ -704,13 +731,17 @@ message AndroidProcessStateChangedEvent {
   optional int64 seq_id = 10;
 
   // Bitmask of reasons for granting PROCESS_CAPABILITY_CPU_TIME.
-  optional int32 cpu_time_reasons = 11;
+  optional int32 cpu_time_reasons = 11
+      [(perfetto.protos.flags_enum) = ".com.android.internal.CpuTimeReason"];
 
   // Bitmask of reasons for granting PROCESS_CAPABILITY_IMPLICIT_CPU_TIME.
-  optional int32 implicit_cpu_time_reasons = 12;
+  optional int32 implicit_cpu_time_reasons = 12
+      [(perfetto.protos.flags_enum) = ".com.android.internal.CpuTimeReason"];
 
   // Bitfield to represent boolean freeze policy states.
-  optional int32 freeze_policy_flags = 13;
+  optional int32 freeze_policy_flags = 13
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.FreezerPolicyFlag"];
 }
 
 message AndroidServiceStateChangedEvent {
@@ -725,14 +756,17 @@ message AndroidServiceStateChangedEvent {
   // Identifier for the binding.
   optional int32 bind_id = 5;
   // Type of foreground service.
-  optional int32 foreground_service_type = 6;
+  optional int32 foreground_service_type = 6
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ForegroundServiceTypeFlag"];
   // UID of the app accessing the service.
   optional int32 caller_uid = 7;
   // PID of the app accessing the service.
   optional int32 caller_pid = 8;
   optional ServiceRestartReason reason_enum = 9;
   // Bitmask of flags used in the service binding.
-  optional int32 bind_flags = 10;
+  optional int32 bind_flags = 10
+      [(perfetto.protos.flags_enum) = ".com.android.internal.ServiceBindFlag"];
 }
 
 message AndroidProviderStateChangedEvent {
@@ -800,7 +834,8 @@ message AndroidCapabilityUpdateEvent {
 
   // Bitfield representing various process state flags (see
   // CapabilityUpdateFlag).
-  optional int32 flags = 12;
+  optional int32 flags = 12 [(perfetto.protos.flags_enum) =
+                                 ".com.android.internal.CapabilityUpdateFlag"];
 }
 
 message FrameworksBaseTrackEvent {

@@ -499,6 +499,11 @@ class QueryPlanBuilder {
 
   // Last scratch registers returned by GetOrCreateScratchSpanRegister.
   std::optional<Scratch> scratch_;
+
+  // Row count before the first selective (equality/IN) filter was applied. Used
+  // to avoid compounding the selectivity of multiple such filters: only the
+  // most selective one determines the estimate.
+  std::optional<uint32_t> selective_filter_base_row_count_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

@@ -14,8 +14,8 @@
 
 "use strict";
 
-// Builds the client-side full-text search index (search_index.json) consumed by
-// setupSearch() in assets/script.js.
+// Builds the client-side full-text search index (search_index.json.gz) consumed
+// by setupSearch() in assets/script.js.
 //
 // Inputs (wired up in BUILD.gn):
 //   --full     <md>   Hand-written docs: title, headings and body are indexed.
@@ -28,6 +28,7 @@
 // README.md -> /docs/).
 
 const fs = require("fs");
+const zlib = require("zlib");
 const path = require("path");
 const marked = require("marked");
 const argv = require("yargs").argv;
@@ -150,6 +151,73 @@ function genFileSlug(file) {
   return file.replace(/\.md$/, "").replace(/^gen_/, "").replace(/_/g, "-");
 }
 
+// Lowercase alphanumeric tokens, keeping a trailing "++"/"#" so "c++" and "c#"
+// stay searchable. Tokens shorter than 2 chars are dropped as noise.
+function searchTokenize(str) {
+  const out = [];
+  const re = /[a-z0-9]+(\+\+|#)?/g;
+  let m;
+  while ((m = re.exec(str.toLowerCase())) !== null) {
+    if (m[0].length >= 2) out.push(m[0]);
+  }
+  return out;
+}
+
+// Builds the BM25 inverted index here rather than in the browser, which would
+// otherwise tokenize every doc on load. Field boosts: a hit in the title matters
+// far more than one in the body. Returns:
+//   terms       -- sorted unique tokens
+//   post        -- parallel to terms; each a flat [docIdx, weight, ...] array
+//   docLen      -- per-doc total weighted token count (BM25 length normalization)
+//   titleTokens -- per-doc tokenized title, for the title boost
+//   navTokens   -- per-doc tokenized nav label, or null; also for the title boost
+function buildInvertedIndex(docs) {
+  const FIELD_BOOST = {title: 8, heading: 4, body: 1};
+  const postings = new Map();  // token -> Map(docIdx -> weight)
+  const docLen = new Array(docs.length).fill(0);
+  const titleTokens = new Array(docs.length);
+  const navTokens = new Array(docs.length).fill(null);
+  const addTokens = (i, tokens, boost) => {
+    for (const tok of tokens) {
+      let postingList = postings.get(tok);
+      if (postingList === undefined) {
+        postingList = new Map();
+        postings.set(tok, postingList);
+      }
+      postingList.set(i, (postingList.get(i) || 0) + boost);
+      docLen[i] += boost;
+    }
+  };
+  for (let i = 0; i < docs.length; i++) {
+    const d = docs[i];
+    titleTokens[i] = searchTokenize(d.t || "");
+    addTokens(i, titleTokens[i], FIELD_BOOST.title);
+    // The toc.md nav label (d.n) is a curated keyword alias -- index at title
+    // weight. Same for the URL slug (last path segment, e.g. "perfetto-cli").
+    if (d.n) {
+      navTokens[i] = searchTokenize(d.n);
+      addTokens(i, navTokens[i], FIELD_BOOST.title);
+    }
+    const slug = d.u.split("/").filter(Boolean).pop() || "";
+    addTokens(i, searchTokenize(slug), FIELD_BOOST.title);
+    for (const h of d.h || []) {
+      addTokens(i, searchTokenize(h.t), FIELD_BOOST.heading);
+    }
+    if (d.b) {
+      addTokens(i, searchTokenize(d.b), FIELD_BOOST.body);
+    }
+  }
+  const terms = [...postings.keys()].sort();
+  const post = terms.map((t) => {
+    const flat = [];
+    for (const [docIdx, weight] of postings.get(t)) {
+      flat.push(docIdx, weight);
+    }
+    return flat;
+  });
+  return {terms, post, docLen, titleTokens, navTokens};
+}
+
 function main() {
   const outFile = argv["out"];
   const docRoot = argv["doc-root"];
@@ -191,8 +259,12 @@ function main() {
   }
 
   docs.sort((a, b) => a.u.localeCompare(b.u)); // Deterministic output.
+  const index = buildInvertedIndex(docs);
+  // The docs-site proxy serves this file uncompressed, so gzip it here and let
+  // script.js inflate it. Level 9: built once, so size wins over speed.
+  const json = JSON.stringify({docs, ...index});
   fs.mkdirSync(path.dirname(outFile), {recursive: true});
-  fs.writeFileSync(outFile, JSON.stringify({docs}));
+  fs.writeFileSync(outFile, zlib.gzipSync(json, {level: 9}));
 }
 
 main();
