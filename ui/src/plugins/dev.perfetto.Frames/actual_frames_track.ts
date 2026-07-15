@@ -87,7 +87,7 @@ export function createActualFramesTrack(
     trace,
     uri,
     dataset: new SourceDataset({
-      src: 'actual_frame_timeline_slice',
+      src: '_actual_frame_cadence_drops',
       schema: {
         id: NUM,
         name: STR,

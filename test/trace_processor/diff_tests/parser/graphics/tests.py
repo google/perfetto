@@ -228,7 +228,7 @@ class GraphicsParser(TestSuite):
             name,
             jank_tag,
             is_cadence_drop
-          FROM actual_frame_timeline_slice
+          FROM _actual_frame_cadence_drops
           WHERE extract_arg(arg_set_id, 'Surface frame token') IS NOT NULL
           ORDER BY ts;
         ''',

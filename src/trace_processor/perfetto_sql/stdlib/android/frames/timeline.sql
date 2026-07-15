@@ -159,11 +159,6 @@ SELECT
   track_id
 FROM cadence_analysis;
 
--- Re-define actual_frame_timeline_slice view so all consumers automatically inherit is_cadence_drop.
-DROP TABLE IF EXISTS actual_frame_timeline_slice;
-CREATE PERFETTO VIEW actual_frame_timeline_slice AS
-SELECT * FROM _actual_frame_cadence_drops;
-
 -- Fetch distinct actual frames per layer per process.
 CREATE PERFETTO TABLE _distinct_layer_actual_timeline_slice_per_process AS
 SELECT
