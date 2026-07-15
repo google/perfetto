@@ -110,6 +110,28 @@ const JANK_BADGE_SPECS: Record<string, JankBadgeSpec> = {
   },
 };
 
+export function getJankBadgeSpec(
+  jankTag: string | null,
+  jankSeverityType: string | null,
+): VisualMarkerStyle | undefined {
+  if (!jankTag) return undefined;
+  const spec = JANK_BADGE_SPECS[jankTag];
+  if (spec === undefined) return undefined;
+  const colorScheme = getColorSchemeForJank(jankTag, jankSeverityType);
+  return {
+    sizePx: 16,
+    icon: spec.icon,
+    colorScheme,
+    strokeColor: spec.strokeColor,
+  };
+}
+
+export function getJankBadgePriority(jankTag: string | null): number {
+  if (!jankTag) return 0;
+  const spec = JANK_BADGE_SPECS[jankTag];
+  return spec !== undefined ? spec.priority : 0;
+}
+
 export function createActualFramesTrack(
   trace: Trace,
   uri: string,
@@ -184,24 +206,13 @@ export function createActualFramesTrack(
       const tag = useExperimentalJankForClassification
         ? row.jank_tag_experimental
         : row.jank_tag;
-      if (!tag) return undefined;
-      const spec = JANK_BADGE_SPECS[tag];
-      if (spec === undefined) return undefined;
-      const colorScheme = getColorSchemeForJank(tag, row.jank_severity_type);
-      return {
-        sizePx: 16,
-        icon: spec.icon,
-        colorScheme,
-        strokeColor: spec.strokeColor,
-      };
+      return getJankBadgeSpec(tag, row.jank_severity_type);
     },
     markerPriority: (row) => {
       const tag = useExperimentalJankForClassification
         ? row.jank_tag_experimental
         : row.jank_tag;
-      if (!tag) return 0;
-      const spec = JANK_BADGE_SPECS[tag];
-      return spec !== undefined ? spec.priority : 0;
+      return getJankBadgePriority(tag);
     },
     colorizer: (row) => {
       return getColorSchemeForJank(
