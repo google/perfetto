@@ -21,6 +21,7 @@ import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import type {VisualMarkerStyle} from '../../components/tracks/visual_marker';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
