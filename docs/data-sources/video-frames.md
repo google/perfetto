@@ -56,7 +56,7 @@ disabled by default: unlock it first by setting a system property over
 ADB.
 
 ```
-adb shell setprop debug.video_tracing_allowed true
+adb shell setprop debug.tracing_video_allowed true
 ```
 
 This property is **not persistent** — it is cleared on the next reboot.
