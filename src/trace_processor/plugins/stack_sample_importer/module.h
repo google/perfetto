@@ -47,12 +47,13 @@ struct ResolvedCounterDescriptor {
 // into their own tables; the sample rows reference them by id.
 class StackSampleModule : public ProtoImporterModule {
  public:
-  StackSampleModule(ProtoImporterModuleContext* module_context,
-                    TraceProcessorContext* context,
-                    tables::StackSampleTable* table,
-                    tables::StackSampleTaskContextTable* task_context_table,
-                    tables::StackSampleExecutionContextTable* exec_context_table,
-                    tables::StackSampleTimebaseTable* timebase_table);
+  StackSampleModule(
+      ProtoImporterModuleContext* module_context,
+      TraceProcessorContext* context,
+      tables::StackSampleTable* table,
+      tables::StackSampleTaskContextTable* task_context_table,
+      tables::StackSampleExecutionContextTable* exec_context_table,
+      tables::StackSampleTimebaseTable* timebase_table);
 
   void ParseField(const ParseFieldArgs& args) override;
 

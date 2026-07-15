@@ -45,11 +45,14 @@ class StackSampleImporter : public Plugin<StackSampleImporter> {
     EnsureTables();
     out.push_back({&table_->dataframe(), tables::StackSampleTable::Name(), {}});
     out.push_back({&task_context_table_->dataframe(),
-                   tables::StackSampleTaskContextTable::Name(), {}});
+                   tables::StackSampleTaskContextTable::Name(),
+                   {}});
     out.push_back({&exec_context_table_->dataframe(),
-                   tables::StackSampleExecutionContextTable::Name(), {}});
+                   tables::StackSampleExecutionContextTable::Name(),
+                   {}});
     out.push_back({&timebase_table_->dataframe(),
-                   tables::StackSampleTimebaseTable::Name(), {}});
+                   tables::StackSampleTimebaseTable::Name(),
+                   {}});
   }
 
   void RegisterProtoImporterModules(
@@ -85,8 +88,7 @@ class StackSampleImporter : public Plugin<StackSampleImporter> {
         std::make_unique<tables::StackSampleTaskContextTable>(pool);
     exec_context_table_ =
         std::make_unique<tables::StackSampleExecutionContextTable>(pool);
-    timebase_table_ =
-        std::make_unique<tables::StackSampleTimebaseTable>(pool);
+    timebase_table_ = std::make_unique<tables::StackSampleTimebaseTable>(pool);
   }
 
   std::unique_ptr<tables::StackSampleTable> table_;

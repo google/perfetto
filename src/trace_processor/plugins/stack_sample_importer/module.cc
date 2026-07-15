@@ -245,9 +245,10 @@ void StackSampleModule::ParseStackSample(
     TaskContext::Decoder t(sample.task_context());
     extract_task(t);
   } else if (sample.has_task_context_iid()) {
-    if (auto* t = sequence_state->LookupInternedMessage<
-            InternedData::kStackSampleTaskContextsFieldNumber, TaskContext>(
-            sample.task_context_iid())) {
+    if (auto* t =
+            sequence_state->LookupInternedMessage<
+                InternedData::kStackSampleTaskContextsFieldNumber, TaskContext>(
+                sample.task_context_iid())) {
       extract_task(*t);
     }
   }
@@ -259,8 +260,8 @@ void StackSampleModule::ParseStackSample(
     upid = procs->GetOrCreateProcess(*pid);
   }
   if (tid) {
-    utid = pid ? procs->UpdateThread(*tid, *pid)
-               : procs->GetOrCreateThread(*tid);
+    utid =
+        pid ? procs->UpdateThread(*tid, *pid) : procs->GetOrCreateThread(*tid);
   }
   std::optional<tables::StackSampleTaskContextTable::Id> task_context_id;
   if (has_task && (utid || upid)) {
@@ -285,8 +286,8 @@ void StackSampleModule::ParseStackSample(
     extract_exec(e);
   } else if (sample.has_execution_context_iid()) {
     if (auto* e = sequence_state->LookupInternedMessage<
-            InternedData::kStackSampleExecutionContextsFieldNumber,
-            ExecutionContext>(sample.execution_context_iid())) {
+                  InternedData::kStackSampleExecutionContextsFieldNumber,
+                  ExecutionContext>(sample.execution_context_iid())) {
       extract_exec(*e);
     }
   }
@@ -305,8 +306,8 @@ void StackSampleModule::ParseStackSample(
     primary = ResolveCounterDescriptor(context_, d);
   } else if (sample.has_primary_descriptor_iid()) {
     if (auto* d = sequence_state->LookupInternedMessage<
-            InternedData::kStackSampleCounterDescriptorsFieldNumber,
-            CounterDescriptor>(sample.primary_descriptor_iid())) {
+                  InternedData::kStackSampleCounterDescriptorsFieldNumber,
+                  CounterDescriptor>(sample.primary_descriptor_iid())) {
       primary = ResolveCounterDescriptor(context_, *d);
     }
   } else if (defaults && defaults->has_primary_descriptor()) {

@@ -121,8 +121,7 @@ STACK_SAMPLE_TABLE = Table(
         C('execution_context_id',
           CppOptional(CppTableId(STACK_SAMPLE_EXECUTION_CONTEXT_TABLE))),
         C('timebase_id', CppTableId(STACK_SAMPLE_TIMEBASE_TABLE)),
-        C('callsite_id',
-          CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
+        C('callsite_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
         C('weight', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
