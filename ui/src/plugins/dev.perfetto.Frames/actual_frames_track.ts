@@ -87,7 +87,71 @@ export function createActualFramesTrack(
     trace,
     uri,
     dataset: new SourceDataset({
-      src: '_actual_frame_cadence_drops',
+      src: `(
+        WITH frame_present_times AS (
+          SELECT
+            s.id,
+            s.name,
+            s.ts,
+            s.dur,
+            COALESCE(
+              (
+                SELECT d.ts + d.dur
+                FROM actual_frame_timeline_slice d
+                WHERE d.surface_frame_token IS NULL
+                  AND d.display_frame_token = s.display_frame_token
+                LIMIT 1
+              ),
+              s.ts + s.dur
+            ) AS pres_ts,
+            s.surface_frame_token,
+            s.jank_type,
+            s.jank_tag,
+            s.jank_tag_experimental,
+            s.jank_severity_type,
+            s.arg_set_id,
+            s.track_id,
+            pt.upid
+          FROM actual_frame_timeline_slice s
+          JOIN process_track pt ON pt.id = s.track_id
+        ),
+        frame_deltas AS (
+          SELECT
+            *,
+            pres_ts - LAG(pres_ts, 1) OVER (PARTITION BY upid ORDER BY ts) AS pres_delta
+          FROM frame_present_times
+        ),
+        cadence_analysis AS (
+          SELECT
+            *,
+            LAG(pres_delta, 1) OVER (PARTITION BY upid ORDER BY ts) AS prev_pres_delta,
+            LEAD(pres_delta, 1) OVER (PARTITION BY upid ORDER BY ts) AS next_pres_delta
+          FROM frame_deltas
+        )
+        SELECT
+          id,
+          name,
+          ts,
+          dur,
+          jank_type,
+          jank_tag,
+          CAST(
+            (
+              surface_frame_token IS NOT NULL
+              AND jank_tag = 'No Jank'
+              AND pres_delta >= 1.5 * prev_pres_delta
+              AND pres_delta >= 1.25 * next_pres_delta
+              AND prev_pres_delta > 0
+              AND next_pres_delta > 0
+              AND pres_delta <= 50000000
+            ) AS INT
+          ) AS is_cadence_drop,
+          jank_tag_experimental,
+          jank_severity_type,
+          arg_set_id,
+          track_id
+        FROM cadence_analysis
+      )`,
       schema: {
         id: NUM,
         name: STR,

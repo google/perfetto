@@ -51,19 +51,11 @@ export default class FramesPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await this.setupCadenceDropTables(ctx);
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new FrameSelectionAggregator(), 10),
     );
-  }
-
-  async setupCadenceDropTables(ctx: Trace): Promise<void> {
-    const {engine} = ctx;
-    await engine.query(`
-      INCLUDE PERFETTO MODULE android.frames.timeline;
-    `);
   }
 
   async addExpectedFrames(ctx: Trace): Promise<void> {

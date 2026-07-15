@@ -217,30 +217,6 @@ class GraphicsParser(TestSuite):
           245,15,666,18,"[NULL]","[NULL]","Dropped Frame",0,0,"Dropped Frame","Unspecified Prediction","Dropped Frame","Unknown"
         """))
 
-  def test_frame_timeline_cadence_drop(self):
-    return DiffTestBlueprint(
-        trace=Path('frame_timeline_events.py'),
-        query='''
-          INCLUDE PERFETTO MODULE android.frames.timeline;
-
-          SELECT
-            id,
-            name,
-            jank_tag,
-            is_cadence_drop
-          FROM _actual_frame_cadence_drops
-          WHERE extract_arg(arg_set_id, 'Surface frame token') IS NOT NULL
-          ORDER BY ts;
-        ''',
-        out=Csv("""
-          "id","name","jank_tag","is_cadence_drop"
-          3,"1","No Jank",0
-          6,"5","Self Jank",0
-          9,"16","Self Jank",0
-          12,"7","Other Jank",0
-          18,"14","No Jank",0
-          19,"14","No Jank",0
-        """))
   def test_display_power_mode_change(self):
     return DiffTestBlueprint(
         trace=Path('frame_timeline_power_mode.py'),
