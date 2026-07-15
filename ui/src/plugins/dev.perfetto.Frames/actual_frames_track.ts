@@ -20,6 +20,7 @@ import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import {VideoFrameLinkSection} from './video_frame_link';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -77,7 +78,12 @@ export function createActualFramesTrack(
     },
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
-    detailsPanel: () => new ThreadSliceDetailsPanel(trace),
+    // Link, above the standard details, to the captured display-video frame
+    // this composite produced (self-hides when the trace has no video frames).
+    detailsPanel: () =>
+      new ThreadSliceDetailsPanel(trace, {
+        topSections: [new VideoFrameLinkSection(trace)],
+      }),
   });
 }
 
