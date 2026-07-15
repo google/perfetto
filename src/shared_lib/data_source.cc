@@ -29,6 +29,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/thread_annotations.h"
+#include "perfetto/base/time.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/public/abi/atomic.h"
 #include "perfetto/public/abi/data_source_abi.h"
@@ -608,4 +609,23 @@ void PerfettoDsTracerImplFlush(struct PerfettoDsTracerImpl* tracer,
     fn = [user_arg, cb]() { cb(user_arg); };
   }
   tls_inst->trace_writer->Flush(fn);
+}
+
+uint32_t PerfettoDsGetDefaultClockId() {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return PERFETTO_DS_CLOCK_BOOTTIME;
+#else
+  return PERFETTO_DS_CLOCK_MONOTONIC;
+#endif
+}
+
+struct PerfettoDsTimestamp PerfettoDsGetTimestamp() {
+  struct PerfettoDsTimestamp ret;
+  ret.clock_id = PerfettoDsGetDefaultClockId();
+  ret.value = static_cast<uint64_t>((ret.clock_id == PERFETTO_DS_CLOCK_BOOTTIME
+                                         ? perfetto::base::GetBootTimeNs()
+                                         : perfetto::base::GetWallTimeNs())
+                                        .count());
+  return ret;
 }

@@ -43,6 +43,11 @@ Unreleased:
       PERFETTO_SDK_DISABLE_SHLIB_EXPORT is removed and
       PERFETTO_SHLIB_SDK_IMPLEMENTATION is renamed to
       PERFETTO_SDK_SHLIB_IMPLEMENTATION.
+    * Added PerfettoDsGetTimestamp() and PerfettoDsGetDefaultClockId() to
+      the C data source ABI. These return the current timestamp in the
+      preferred trace clock, so callers no longer need to pick the OS
+      specific clock themselves. Also added DataSourceTimestamp::now() in
+      the Rust SDK.
 
 v57.2 - 2026-07-07:
   Trace Processor:
