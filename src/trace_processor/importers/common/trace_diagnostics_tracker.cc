@@ -415,6 +415,43 @@ void RuleHeapprofdSamplingIntervalTooLow(const TraceConfigDecoder& config,
       });
 }
 
+// android.display.video was configured but produced no frames, on a user
+// build with no producer error — the most likely cause is that the
+// debug.tracing_video_allowed system property was not enabled (it gates
+// display-video capture on user builds and resets on reboot).
+void RuleDisplayVideoNotEnabled(const TraceConfigDecoder& config,
+                                TraceDiagnosticsHelper* helper) {
+  bool has_display_video = false;
+  helper->ForEachDataSourceConfig(
+      config, [&](const protos::pbzero::DataSourceConfig::Decoder& ds_cfg) {
+        if (ds_cfg.name().ToStdStringView() == "android.display.video")
+          has_display_video = true;
+      });
+  if (!has_display_video)
+    return;
+  // On userdebug/eng builds capture works out of the box, so an empty table
+  // there points at something else; only fire on user (production) builds.
+  if (!helper->IsAndroidUserBuild())
+    return;
+  // Frames were captured: nothing wrong.
+  if (helper->HasVideoFramesEmitted())
+    return;
+  // The producer reported a failure (codec error, no encoder, size cap, ...);
+  // video *did* run but failed for a known reason, so the sysprop hint would
+  // be misleading.
+  if (helper->HasVideoErrorStats())
+    return;
+  helper->AddTraceDiagnostic(
+      "display_video_not_enabled", "Display video not captured",
+      "The trace config requested android.display.video, but no frames were "
+      "captured and the producer reported no errors. On user (production) "
+      "builds display video is disabled until the debug.tracing_video_allowed "
+      "system property is set; it resets on reboot.",
+      "Enable it over ADB before recording, then record again (re-run after "
+      "each reboot): adb shell setprop debug.tracing_video_allowed true",
+      0.7);
+}
+
 constexpr RuleFn kRules[] = {
     &RulePreserveFtraceBufferLateStart,    //
     &RuleTinyFtraceBuffer,                 //
@@ -425,6 +462,7 @@ constexpr RuleFn kRules[] = {
     &RuleDiscardBufferForStreaming,        //
     &RuleAtraceWildcardApps,               //
     &RuleHeapprofdSamplingIntervalTooLow,  //
+    &RuleDisplayVideoNotEnabled,           //
 };
 
 }  // namespace

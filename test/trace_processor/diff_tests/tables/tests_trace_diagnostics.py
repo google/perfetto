@@ -448,6 +448,62 @@ class TraceDiagnostics(TestSuite):
         0
         """))
 
+  # android.display.video configured on a user build, but no frames captured
+  # and no producer error: trips display_video_not_enabled (the sysprop hint).
+  def test_display_video_not_enabled_on_user_build(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            android_build_fingerprint: "google/x/x:14/AB/1:user/release-keys"
+          }
+        }
+        packet {
+          trace_config {
+            data_sources {
+              config {
+                name: "android.display.video"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT key FROM __intrinsic_trace_diagnostics;
+        """,
+        out=Csv("""
+        "key"
+        "display_video_not_enabled"
+        """))
+
+  # Same config on a userdebug build, where display video works out of the box:
+  # the rule must not fire.
+  def test_display_video_userdebug_ok(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            android_build_fingerprint: "google/x/x:14/AB/1:userdebug/dev-keys"
+          }
+        }
+        packet {
+          trace_config {
+            data_sources {
+              config {
+                name: "android.display.video"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
+        """,
+        out=Csv("""
+        "n"
+        0
+        """))
+
   # preserve_ftrace_buffer is set but there is no tracing_started_ns metadata to
   # tell how long after boot tracing started. The rule must degrade gracefully.
   def test_preserve_ftrace_buffer_without_clock(self):

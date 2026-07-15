@@ -115,4 +115,36 @@ bool TraceDiagnosticsHelper::HasHeapprofdErrorStats() const {
   });
 }
 
+bool TraceDiagnosticsHelper::IsAndroidUserBuild() const {
+  std::optional<SqlValue> fp = context_->metadata_tracker->GetMetadata(
+      metadata::android_build_fingerprint);
+  if (!fp.has_value() || fp->type != SqlValue::kString)
+    return false;
+  // The fingerprint is brand/product/device:release/id/incr:type/tags, so the
+  // build type is the token after the last ':' up to the following '/'.
+  base::StringView s(fp->AsString());
+  size_t colon = s.rfind(':');
+  if (colon == base::StringView::npos)
+    return false;
+  base::StringView rest = s.substr(colon + 1);
+  size_t slash = rest.find('/');
+  base::StringView type =
+      slash == base::StringView::npos ? rest : rest.substr(0, slash);
+  return type == base::StringView("user");
+}
+
+bool TraceDiagnosticsHelper::HasVideoFramesEmitted() const {
+  return AnyPositiveStat(context_, [](size_t key) {
+    return key == stats::android_video_frames_emitted;
+  });
+}
+
+bool TraceDiagnosticsHelper::HasVideoErrorStats() const {
+  return AnyPositiveStat(context_, [](size_t key) {
+    return (stats::kSeverities[key] == stats::kError ||
+            stats::kSeverities[key] == stats::kDataLoss) &&
+           base::StringView(stats::kNames[key]).StartsWith("android_video_");
+  });
+}
+
 }  // namespace perfetto::trace_processor
