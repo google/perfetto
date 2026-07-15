@@ -52,6 +52,24 @@ export class AndroidFramesInputLifecycleExtension
         tsField: 'ts_do_frame',
         durField: 'dur_do_frame',
       },
+      {
+        key: 'draw_frames',
+        headerName: 'DrawFrames',
+        sequenceNumber: 6000,
+        idField: 'id_draw_frames',
+        trackField: 'track_draw_frames',
+        tsField: 'ts_draw_frames',
+        durField: 'dur_draw_frames',
+      },
+      {
+        key: 'sf',
+        headerName: 'SurfaceFlinger',
+        sequenceNumber: 7000,
+        idField: 'id_sf',
+        trackField: 'track_sf',
+        tsField: 'ts_sf',
+        durField: 'dur_sf',
+      },
     ];
   }
 
@@ -60,12 +78,25 @@ export class AndroidFramesInputLifecycleExtension
     sliceId: number,
   ): Promise<string | undefined> {
     const query = `
+      WITH selected_vsync AS (
+        -- Case 1: Selected Choreographer slice
+        SELECT chor.frame_id AS vsync_id, chor.upid
+        FROM android_frames_choreographer_do_frame chor
+        WHERE chor.id = ${sliceId}
+        UNION ALL
+        -- Case 2: Selected DrawFrames slice
+        SELECT d.frame_id AS vsync_id, d.upid
+        FROM android_frames_draw_frame d
+        WHERE d.id = ${sliceId}
+        UNION ALL
+        -- Case 3: Selected SurfaceFlinger composite slice
+        SELECT sf.app_vsync AS vsync_id, sf.app_upid AS upid
+        FROM _input_sf_resolved sf
+        WHERE sf.id = ${sliceId}
+      )
       SELECT e.input_event_id AS input_id
       FROM android_input_events e
-      JOIN android_frames_choreographer_do_frame chor 
-        ON chor.frame_id = e.frame_id
-        AND chor.upid = e.upid
-      WHERE chor.id = ${sliceId}
+      JOIN selected_vsync cv ON e.frame_id = cv.vsync_id AND e.upid = cv.upid
       LIMIT 1
     `;
     const result = await trace.engine.query(query);
