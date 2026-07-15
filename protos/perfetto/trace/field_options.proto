@@ -25,5 +25,5 @@ package perfetto.protos;
 extend google.protobuf.FieldOptions {
   // Fully-qualified flags enum for a bitmask int field; trace_processor expands
   // the mask into one string arg per set flag.
-  optional string flags_enum = 51001;
+  optional string flags_enum = 73921;
 }
