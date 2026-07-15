@@ -10,7 +10,7 @@
     "outDir": "../../out/tsc/bigtrace",
     "lib": [
       "dom", // Need to be explicitly mentioned now since we're overriding default included libs.
-      "es2021", // Need this to use Promise.allSettled, replaceAll, etc
+      "es2022", // Need this to use Promise.allSettled, replaceAll, Error.cause, etc
     ],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
