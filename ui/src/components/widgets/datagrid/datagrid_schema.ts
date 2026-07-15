@@ -47,15 +47,6 @@ export type CellRenderer = (
 export type CellFormatter = (value: SqlValue, row: Row) => string;
 
 /**
- * A registry of named schemas that can reference each other.
- * This allows defining complex relational schemas with self-references
- * (e.g., parent.parent.parent.name) and cross-references between tables.
- */
-export interface SchemaRegistry {
-  [schemaName: string]: ColumnSchema;
-}
-
-/**
  * A schema defining the available columns in a data source.
  * Each key is a column name, and the value describes how to render it
  * or references another schema for nested data.
@@ -107,10 +98,10 @@ export interface ColumnDef {
  */
 export interface SchemaRef {
   // Name of the schema in the registry to reference
-  readonly ref: string;
+  readonly schema: ColumnSchema;
 
   // Override the title for this reference (e.g., "Parent Slice" instead of "Slice")
-  readonly title?: string;
+  readonly title?: m.Children;
 
   // Override filter type for all columns accessed through this reference
   readonly filterType?: 'quantitative' | 'text';
@@ -124,7 +115,7 @@ export interface ParameterizedColumnDef {
   readonly parameterized: true;
 
   // Title can be a static string or a function that takes the key
-  readonly title?: m.Children | ((key: string) => m.Children);
+  readonly title?: m.Children;
 
   // Plain string title for exports. Falls back to column path if not provided.
   readonly titleString?: string;
@@ -136,53 +127,21 @@ export interface ParameterizedColumnDef {
 }
 
 /**
- * Type guard to check if a schema entry is a leaf ColumnDef.
- */
-export function isColumnDef(
-  entry: ColumnDef | SchemaRef | ParameterizedColumnDef,
-): entry is ColumnDef {
-  return !('ref' in entry) && !('parameterized' in entry);
-}
-
-/**
- * Type guard to check if a schema entry is a SchemaRef.
- */
-export function isSchemaRef(
-  entry: ColumnDef | SchemaRef | ParameterizedColumnDef,
-): entry is SchemaRef {
-  return 'ref' in entry;
-}
-
-/**
- * Type guard to check if a schema entry is a ParameterizedColumnDef.
- */
-export function isParameterizedColumnDef(
-  entry: ColumnDef | SchemaRef | ParameterizedColumnDef,
-): entry is ParameterizedColumnDef {
-  return 'parameterized' in entry;
-}
-
-/**
  * Gets the default visible columns for a schema.
  * Returns all leaf columns (ColumnDef) at the root level.
  * Does not include schema references or parameterized columns by default.
  *
- * @param registry The schema registry
- * @param rootSchema The root schema name
+ * @param schema The datagrid schema.
  * @returns Array of column names that are leaf columns
  */
-export function getDefaultVisibleColumns(
-  registry: SchemaRegistry,
-  rootSchema: string,
-): string[] {
-  const schema = maybeUndefined(registry[rootSchema]);
-  if (!schema) return [];
-
+export function getDefaultVisibleColumns(schema: ColumnSchema): string[] {
   const columns: string[] = [];
   for (const [columnName, entry] of Object.entries(schema)) {
-    if (isColumnDef(entry)) {
-      columns.push(columnName);
+    if ('schema' in entry || 'parameterized' in entry) {
+      // Skip schema references and parameterized columns
+      continue;
     }
+    columns.push(columnName);
   }
   return columns;
 }
@@ -214,25 +173,18 @@ export interface ColumnInfo {
  * Resolves a column path and returns all information needed for rendering.
  * This consolidates multiple schema lookups into a single traversal.
  *
- * @param registry The schema registry
- * @param rootSchema The root schema name
+ * @param schema The schema
  * @param path The column path (e.g., "parent.parent.name")
  * @returns Complete column info, or undefined if path is invalid
  */
 export function getColumnInfo(
-  registry: SchemaRegistry,
-  rootSchema: string,
+  schema: ColumnSchema,
   path: string,
 ): ColumnInfo | undefined {
   const parts = path.split('.');
-  const initialSchema = maybeUndefined(registry[rootSchema]);
-
-  if (!initialSchema) {
-    return undefined;
-  }
 
   const titleParts: m.Children[] = [];
-  let currentSchema = initialSchema;
+  let currentSchema = schema;
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
@@ -242,34 +194,25 @@ export function getColumnInfo(
       return undefined;
     }
 
-    if (isSchemaRef(entry)) {
+    if ('schema' in entry) {
       // Add title for this ref
       titleParts.push(entry.title ?? part);
       // Follow the reference
-      const referencedSchema = maybeUndefined(registry[entry.ref]);
-      if (!referencedSchema) {
-        return undefined;
-      }
-      currentSchema = referencedSchema;
-    } else if (isParameterizedColumnDef(entry)) {
+      currentSchema = entry.schema;
+    } else if ('parameterized' in entry) {
       // For parameterized columns, remaining parts are the key
       const remainingParts = parts.slice(i + 1);
       const paramKey =
         remainingParts.length > 0 ? remainingParts.join('.') : undefined;
 
-      // Build title for parameterized column as "Name[key]" format
-      if (typeof entry.title === 'function' && paramKey) {
-        titleParts.push(entry.title(paramKey));
+      const baseName = typeof entry.title === 'string' ? entry.title : part;
+      if (paramKey) {
+        // Format as "Name[key]" - single element with index-style notation
+        titleParts.push(
+          m('span', [baseName, m('span.pf-param-key', `[${paramKey}]`)]),
+        );
       } else {
-        const baseName = typeof entry.title === 'string' ? entry.title : part;
-        if (paramKey) {
-          // Format as "Name[key]" - single element with index-style notation
-          titleParts.push(
-            m('span', [baseName, m('span.pf-param-key', `[${paramKey}]`)]),
-          );
-        } else {
-          titleParts.push(baseName);
-        }
+        titleParts.push(baseName);
       }
 
       return {
@@ -280,7 +223,7 @@ export function getColumnInfo(
         cellRenderer: entry.cellRenderer,
         cellFormatter: entry.cellFormatter,
       };
-    } else if (isColumnDef(entry)) {
+    } else {
       // Leaf column - should be the last part of the path
       if (i === parts.length - 1) {
         titleParts.push(entry.title ?? part);

@@ -31,7 +31,7 @@ import {runQueryForQueryTable} from '../../../query_table/queries';
 import type {DataSourceRows, PivotModel} from '../data_source';
 import type {GroupPath} from '../model';
 import {serializeFilters} from './group_by';
-import {type SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
+import {type SQLTableSchema, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, sqlAggregateExpr, toAlias} from '../sql_utils';
 import {stringifyJsonWithBigints} from '../../../../base/json_utils';
 
@@ -109,8 +109,7 @@ export class SQLDataSourceRollupTree {
     private readonly uuid: string,
     queue: SerialTaskQueue,
     private readonly engine: Engine,
-    private readonly sqlSchema: SQLSchemaRegistry,
-    private readonly rootSchemaName: string,
+    private readonly sqlSchema: SQLTableSchema,
   ) {
     this.rowCountSlot = new QuerySlot<number>(queue);
     this.rowsSlot = new QuerySlot<{
@@ -140,28 +139,14 @@ export class SQLDataSourceRollupTree {
     const rollupTableName = rollupTableResult.data.name;
 
     // Build column alias mappings
-    const columnAliases: Record<string, string> = {};
-    const aliasToColumn: Record<string, string> = {};
-    for (let i = 0; i < groupBy.length; i++) {
-      columnAliases[`__group_${i}`] = toAlias(groupBy[i].alias);
-      aliasToColumn[groupBy[i].alias] = `__group_${i}`;
-    }
-    for (let i = 0; i < aggregates.length; i++) {
-      columnAliases[`__agg_${i}`] = toAlias(aggregates[i].alias);
-      aliasToColumn[aggregates[i].alias] = `__agg_${i}`;
-    }
+    const {columnAliases, aliasToColumn} = this.buildColumnAliases(
+      groupBy,
+      aggregates,
+    );
 
     // Determine sort column and direction
     // Default to __id ASC to preserve natural order when no sort is specified
-    let sortColumn = '__id';
-    let sortDirection: 'ASC' | 'DESC' = 'ASC';
-    if (sort) {
-      const column = aliasToColumn[sort.alias];
-      if (column) {
-        sortColumn = column;
-      }
-      sortDirection = sort.direction;
-    }
+    const {sortColumn, sortDirection} = this.resolveSort(sort, aliasToColumn);
 
     const pivotKey = {
       groupBy,
@@ -252,13 +237,7 @@ export class SQLDataSourceRollupTree {
 
     const rollupTableName = rollupTableResult.data.name;
 
-    const columnAliases: Record<string, string> = {};
-    for (let i = 0; i < groupBy.length; i++) {
-      columnAliases[`__group_${i}`] = toAlias(groupBy[i].alias);
-    }
-    for (let i = 0; i < aggregates.length; i++) {
-      columnAliases[`__agg_${i}`] = toAlias(aggregates[i].alias);
-    }
+    const {columnAliases} = this.buildColumnAliases(groupBy, aggregates);
 
     return this.summariesSlot.use({
       key: {
@@ -282,13 +261,7 @@ export class SQLDataSourceRollupTree {
 
     const sourceQuery = this.buildSourceQuery(filters);
     const groupByColumns = groupBy.map((col) => col.field);
-    const aggregateExprs = aggregates.map((agg) => {
-      if (agg.function === 'COUNT') {
-        return 'COUNT(*)';
-      } else {
-        return sqlAggregateExpr(agg.function, agg.field);
-      }
-    });
+    const aggregateExprs = this.buildAggregateExprs(aggregates);
 
     return this.rollupTableSlot.use({
       key: {
@@ -301,18 +274,135 @@ export class SQLDataSourceRollupTree {
           sourceTable: sourceQuery,
           groupByColumns,
           aggregateExprs,
-          tableName: `rollup_${this.uuid}`,
+          tableName: this.rollupTableName,
         });
       },
     });
   }
 
+  /**
+   * The name of this instance's materialized rollup table. Stable for the
+   * lifetime of this datasource, so it can be used to synthesize SQL even
+   * before the table has actually been created.
+   */
+  private get rollupTableName(): string {
+    return `rollup_${this.uuid}`;
+  }
+
+  private buildAggregateExprs(aggregates: PivotModel['aggregates']): string[] {
+    return aggregates.map((agg) => {
+      if (agg.function === 'COUNT') {
+        return 'COUNT(*)';
+      } else {
+        return sqlAggregateExpr(agg.function, agg.field);
+      }
+    });
+  }
+
+  /**
+   * Maps group/aggregate columns to their internal (`__group_N`/`__agg_N`)
+   * and back. Shared by `getRows`, `getSummaries` and `getQuery`.
+   */
+  private buildColumnAliases(
+    groupBy: PivotModel['groupBy'],
+    aggregates: PivotModel['aggregates'],
+  ): {
+    columnAliases: Record<string, string>;
+    aliasToColumn: Record<string, string>;
+  } {
+    const columnAliases: Record<string, string> = {};
+    const aliasToColumn: Record<string, string> = {};
+    for (let i = 0; i < groupBy.length; i++) {
+      columnAliases[`__group_${i}`] = toAlias(groupBy[i].alias);
+      aliasToColumn[groupBy[i].alias] = `__group_${i}`;
+    }
+    for (let i = 0; i < aggregates.length; i++) {
+      columnAliases[`__agg_${i}`] = toAlias(aggregates[i].alias);
+      aliasToColumn[aggregates[i].alias] = `__agg_${i}`;
+    }
+    return {columnAliases, aliasToColumn};
+  }
+
+  /**
+   * Resolves the internal column/direction to sort the rollup traversal by,
+   * given the model's `sort` (which refers to a column alias). Default to
+   * __id ASC to preserve natural order when no sort is specified.
+   */
+  private resolveSort(
+    sort: PivotModel['sort'],
+    aliasToColumn: Record<string, string>,
+  ): {sortColumn: string; sortDirection: 'ASC' | 'DESC'} {
+    let sortColumn = '__id';
+    let sortDirection: 'ASC' | 'DESC' = 'ASC';
+    if (sort) {
+      const column = aliasToColumn[sort.alias];
+      if (column) {
+        sortColumn = column;
+      }
+      sortDirection = sort.direction;
+    }
+    return {sortColumn, sortDirection};
+  }
+
+  /**
+   * Returns the SQL that materializes and traverses the rollup table for this
+   * model, without running it. The table name is stable for this datasource
+   * instance, so this can be computed even before the table has actually been
+   * created.
+   */
+  getQuery(model: PivotModel): string {
+    const {
+      groupBy,
+      aggregates,
+      filters = [],
+      expandedGroups,
+      collapsedGroups,
+    } = model;
+
+    const sourceQuery = this.buildSourceQuery(filters);
+    const groupByColumns = groupBy.map((col) => col.field);
+    const aggregateExprs = this.buildAggregateExprs(aggregates);
+    const tableName = this.rollupTableName;
+    const {columnAliases, aliasToColumn} = this.buildColumnAliases(
+      groupBy,
+      aggregates,
+    );
+    const {sortColumn, sortDirection} = this.resolveSort(
+      model.sort,
+      aliasToColumn,
+    );
+
+    const traversalQuery = buildTreeQuery(tableName, {
+      expandedGroups,
+      collapsedGroups,
+      sortColumn,
+      sortDirection,
+      offset: model.pagination?.offset,
+      limit: model.pagination?.limit,
+      minDepth: 1,
+      columnAliases,
+    });
+
+    return [
+      `-- Materialize rollup table:`,
+      `CREATE PERFETTO TABLE ${tableName} AS`,
+      buildRollupTableCreateQuery(
+        sourceQuery,
+        groupByColumns,
+        aggregateExprs,
+      ).trim(),
+      ``,
+      `-- Traverse rollup table:`,
+      traversalQuery.trim(),
+    ].join('\n');
+  }
+
   private buildSourceQuery(filters: PivotModel['filters']): string {
-    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
-    const baseTable = resolver.getBaseTable();
+    const resolver = new SQLSchemaResolver(this.sqlSchema);
+    const baseTable = resolver.getBaseTableOrSubquery();
     const baseAlias = resolver.getBaseAlias();
 
-    let sql = `SELECT ${baseAlias}.* FROM ${baseTable} AS ${baseAlias}`;
+    let sql = `SELECT ${baseAlias}.* FROM (${baseTable}) AS ${baseAlias}`;
 
     if (filters && filters.length > 0) {
       for (const filter of filters) {
@@ -353,27 +443,17 @@ interface RollupTableConfig {
 }
 
 /**
- * Creates a rollup table using UNION ALL queries.
- *
- * The table contains all rollup levels with:
- * - __id: unique row identifier
- * - __parent_id: parent row id (NULL for root)
- * - __depth: hierarchy depth (0 for root, 1+ for groups)
- * - __child_count: number of direct children
- * - __group_0, __group_1, ...: hierarchy column values
- * - __agg_0, __agg_1, ...: aggregate values
+ * Builds the query used to materialize the rollup table (see
+ * `createRollupTable` for the shape of the resulting columns). Pure function
+ * of the source table/columns/aggregates - shared by `createRollupTable`
+ * (which executes it) and `SQLDataSourceRollupTree.getQuery` (which just
+ * shows it).
  */
-async function createRollupTable(
-  engine: Engine,
-  config: RollupTableConfig,
-): Promise<DisposableSqlEntity> {
-  const {
-    sourceTable,
-    groupByColumns,
-    aggregateExprs,
-    tableName = '__rollup_tree_default__',
-  } = config;
-
+function buildRollupTableCreateQuery(
+  sourceTable: string,
+  groupByColumns: readonly string[],
+  aggregateExprs: readonly string[],
+): string {
   const numHier = groupByColumns.length;
   const numAggs = aggregateExprs.length;
 
@@ -454,10 +534,7 @@ async function createRollupTable(
     groupCols.length > 0 ? prefixCols(groupCols, 'w') + ',' : '';
   const aggColsSelectW = prefixCols(aggCols, 'w');
 
-  // Drop existing table if it exists (in case of stale data)
-  await engine.query(`DROP TABLE IF EXISTS ${tableName}`);
-
-  const createQuery = `
+  return `
     WITH rollup_raw AS (
       ${unionQuery}
     ),
@@ -503,7 +580,38 @@ async function createRollupTable(
     )
     SELECT * FROM with_child_count
   `;
+}
 
+/**
+ * Creates a rollup table using UNION ALL queries.
+ *
+ * The table contains all rollup levels with:
+ * - __id: unique row identifier
+ * - __parent_id: parent row id (NULL for root)
+ * - __depth: hierarchy depth (0 for root, 1+ for groups)
+ * - __child_count: number of direct children
+ * - __group_0, __group_1, ...: hierarchy column values
+ * - __agg_0, __agg_1, ...: aggregate values
+ */
+async function createRollupTable(
+  engine: Engine,
+  config: RollupTableConfig,
+): Promise<DisposableSqlEntity> {
+  const {
+    sourceTable,
+    groupByColumns,
+    aggregateExprs,
+    tableName = '__rollup_tree_default__',
+  } = config;
+
+  const createQuery = buildRollupTableCreateQuery(
+    sourceTable,
+    groupByColumns,
+    aggregateExprs,
+  );
+
+  // Drop existing table if it exists (in case of stale data)
+  await engine.query(`DROP TABLE IF EXISTS ${tableName}`);
   await engine.query(createQuery);
 
   return await createPerfettoTable({

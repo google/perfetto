@@ -21,7 +21,7 @@ import type {Engine} from '../../../../trace_processor/engine';
 import {NUM, type Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import type {DataSourceRows, PivotModel} from '../data_source';
-import {type SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
+import {type SQLTableSchema, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, sqlAggregateExpr, toAlias} from '../sql_utils';
 
 // Flat GROUP BY datasource - uses simple GROUP BY queries without hierarchy.
@@ -36,8 +36,7 @@ export class SQLDataSourceGroupBy {
   constructor(
     queue: SerialTaskQueue,
     private readonly engine: Engine,
-    private readonly sqlSchema: SQLSchemaRegistry,
-    private readonly rootSchemaName: string,
+    private readonly sqlSchema: SQLTableSchema,
   ) {
     this.rowCountSlot = new QuerySlot<number>(queue);
     this.rowsSlot = new QuerySlot<{
@@ -111,9 +110,17 @@ export class SQLDataSourceGroupBy {
     return result.rows;
   }
 
+  /**
+   * Returns the SQL query that `getRows` would execute for this model,
+   * without running it.
+   */
+  getQuery(model: PivotModel): string {
+    return this.buildGroupByQuery(model);
+  }
+
   private buildSummariesQuery(model: PivotModel): string {
     const {aggregates, filters = []} = model;
-    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
+    const resolver = new SQLSchemaResolver(this.sqlSchema);
 
     const selectExprs: string[] = [];
     for (const agg of aggregates) {
@@ -127,12 +134,12 @@ export class SQLDataSourceGroupBy {
       selectExprs.push(`${aggExpr} AS ${toAlias(agg.alias)}`);
     }
 
-    const baseTable = resolver.getBaseTable();
+    const baseTable = resolver.getBaseTableOrSubquery();
     const baseAlias = resolver.getBaseAlias();
     const joinClauses = resolver.buildJoinClauses();
 
     let sql = `SELECT ${selectExprs.join(', ')}`;
-    sql += `\nFROM ${baseTable} AS ${baseAlias}`;
+    sql += `\nFROM (${baseTable}) AS ${baseAlias}`;
     if (joinClauses) {
       sql += `\n${joinClauses}`;
     }
@@ -153,7 +160,7 @@ export class SQLDataSourceGroupBy {
     options?: {countOnly?: boolean},
   ): string {
     const {groupBy, aggregates, filters = [], pagination, sort} = model;
-    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
+    const resolver = new SQLSchemaResolver(this.sqlSchema);
 
     const selectExprs: string[] = [];
 
@@ -175,12 +182,12 @@ export class SQLDataSourceGroupBy {
       selectExprs.push(`${aggExpr} AS ${toAlias(agg.alias)}`);
     }
 
-    const baseTable = resolver.getBaseTable();
+    const baseTable = resolver.getBaseTableOrSubquery();
     const baseAlias = resolver.getBaseAlias();
     const joinClauses = resolver.buildJoinClauses();
 
     let sql = `SELECT ${selectExprs.join(', ')}`;
-    sql += `\nFROM ${baseTable} AS ${baseAlias}`;
+    sql += `\nFROM (${baseTable}) AS ${baseAlias}`;
     if (joinClauses) {
       sql += `\n${joinClauses}`;
     }

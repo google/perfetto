@@ -18,8 +18,7 @@ import type {SqlValue} from '../../../trace_processor/query_result';
 import {EmptyState} from '../../../widgets/empty_state';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
-import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {fmtHex} from '../format';
 import {
@@ -52,55 +51,53 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): SchemaRegistry {
+function makeUiSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      id: {
-        title: 'Object',
-        columnType: 'identifier',
-        cellRenderer: (value: SqlValue, row) => {
-          const id = Number(value);
-          const cls = String(row.cls ?? '');
-          const display = `${shortClassName(cls)} ${fmtHex(id)}`;
-          return m(
-            'button',
-            {
-              class: 'pf-hde-link',
-              onclick: () => navigate('object', {id, label: display}),
-            },
-            display,
-          );
-        },
+    id: {
+      title: 'Object',
+      columnType: 'identifier',
+      cellRenderer: (value: SqlValue, row) => {
+        const id = Number(value);
+        const cls = String(row.cls ?? '');
+        const display = `${shortClassName(cls)} ${fmtHex(id)}`;
+        return m(
+          'button',
+          {
+            class: 'pf-hde-link',
+            onclick: () => navigate('object', {id, label: display}),
+          },
+          display,
+        );
       },
-      cls: {
-        title: 'Class',
-        columnType: 'text',
-      },
-      self_size: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      native_size: {
-        title: colHeader('Native', COL_INFO.shallowNative),
-        titleString: 'Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      element_count: {
-        title: 'Elements',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      heap: {
-        title: 'Heap',
-        columnType: 'text',
-      },
-      array_hash: {
-        title: 'Content Hash',
-        columnType: 'text',
-      },
+    },
+    cls: {
+      title: 'Class',
+      columnType: 'text',
+    },
+    self_size: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    native_size: {
+      title: colHeader('Native', COL_INFO.shallowNative),
+      titleString: 'Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    element_count: {
+      title: 'Elements',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    heap: {
+      title: 'Heap',
+      columnType: 'text',
+    },
+    array_hash: {
+      title: 'Content Hash',
+      columnType: 'text',
     },
   };
 }
@@ -135,8 +132,7 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
       const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
-        sqlSchema: createSimpleSchema(query),
-        rootSchemaName: 'query',
+        tableOrSubquery: query,
       });
       counter.init(engine, query);
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
@@ -160,7 +156,6 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
         m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Arrays')),
         m(DataGrid, {
           schema: makeUiSchema(navigate),
-          rootSchema: 'query',
           data: dataSource,
           fillHeight: true,
           initialColumns: [

@@ -16,7 +16,7 @@ import m from 'mithril';
 import {Duration} from '../../../base/time';
 import type {SqlValue, Row} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {OverviewData} from '../types';
 import {fmtSize} from '../format';
 import type {NavState} from '../nav_state';
@@ -32,164 +32,155 @@ import {
 } from '../../../widgets/grid';
 import {removeFalsyValues} from '../../../base/array_utils';
 
-const HEAP_SCHEMA: SchemaRegistry = {
-  query: {
-    heap: {
-      title: 'Heap',
-      columnType: 'text',
-    },
-    java_size: {
-      title: 'Java Size',
-      columnType: 'quantitative',
-      cellRenderer: sizeRenderer,
-    },
-    native_size: {
-      title: 'Native Size',
-      columnType: 'quantitative',
-      cellRenderer: sizeRenderer,
-    },
-    total_size: {
-      title: 'Total Size',
-      columnType: 'quantitative',
-      cellRenderer: sizeRenderer,
-    },
+const HEAP_SCHEMA: ColumnSchema = {
+  heap: {
+    title: 'Heap',
+    columnType: 'text',
+  },
+  java_size: {
+    title: 'Java Size',
+    columnType: 'quantitative',
+    cellRenderer: sizeRenderer,
+  },
+  native_size: {
+    title: 'Native Size',
+    columnType: 'quantitative',
+    cellRenderer: sizeRenderer,
+  },
+  total_size: {
+    title: 'Total Size',
+    columnType: 'quantitative',
+    cellRenderer: sizeRenderer,
   },
 };
 
-function makeDuplicateBitmapSchema(navigate: NavFn): SchemaRegistry {
+function makeDuplicateBitmapSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      dimensions: {
-        title: 'Dimensions',
-        columnType: 'text',
-      },
-      copies: {
-        title: 'Copies',
-        columnType: 'quantitative',
-        cellRenderer: (value: SqlValue, row) =>
-          m(
-            'button',
-            {
-              class: 'pf-hde-link',
-              onclick: () =>
-                navigate('bitmaps', {
-                  filterKey: String(row.groupKey ?? ''),
-                }),
-            },
-            String(value),
-          ),
-      },
-      total_bytes: {
-        title: 'Total',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      wasted_bytes: {
-        title: 'Wasted',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
+    dimensions: {
+      title: 'Dimensions',
+      columnType: 'text',
+    },
+    copies: {
+      title: 'Copies',
+      columnType: 'quantitative',
+      cellRenderer: (value: SqlValue, row) =>
+        m(
+          'button',
+          {
+            class: 'pf-hde-link',
+            onclick: () =>
+              navigate('bitmaps', {
+                filterKey: String(row.groupKey ?? ''),
+              }),
+          },
+          String(value),
+        ),
+    },
+    total_bytes: {
+      title: 'Total',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    wasted_bytes: {
+      title: 'Wasted',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
     },
   };
 }
 
-function makeDuplicateArraySchema(navigate: NavFn): SchemaRegistry {
+function makeDuplicateArraySchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      className: {
-        title: 'Array Type',
-        columnType: 'text',
-        cellRenderer: (value: SqlValue) =>
-          m(
-            'button',
-            {
-              class: 'pf-hde-link',
-              onclick: () => navigate('objects', {cls: String(value ?? '')}),
-            },
-            String(value ?? ''),
-          ),
-      },
-      arrayHash: {
-        title: 'Hash',
-        columnType: 'text',
-      },
-      copies: {
-        title: 'Copies',
-        columnType: 'quantitative',
-        cellRenderer: (value: SqlValue, row) =>
-          m(
-            'button',
-            {
-              class: 'pf-hde-link',
-              onclick: () =>
-                navigate('arrays', {
-                  arrayHash: String(row.arrayHash ?? ''),
-                }),
-            },
-            String(value),
-          ),
-      },
-      total_bytes: {
-        title: 'Total',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      wasted_bytes: {
-        title: 'Wasted',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
+    className: {
+      title: 'Array Type',
+      columnType: 'text',
+      cellRenderer: (value: SqlValue) =>
+        m(
+          'button',
+          {
+            class: 'pf-hde-link',
+            onclick: () => navigate('objects', {cls: String(value ?? '')}),
+          },
+          String(value ?? ''),
+        ),
+    },
+    arrayHash: {
+      title: 'Hash',
+      columnType: 'text',
+    },
+    copies: {
+      title: 'Copies',
+      columnType: 'quantitative',
+      cellRenderer: (value: SqlValue, row) =>
+        m(
+          'button',
+          {
+            class: 'pf-hde-link',
+            onclick: () =>
+              navigate('arrays', {
+                arrayHash: String(row.arrayHash ?? ''),
+              }),
+          },
+          String(value),
+        ),
+    },
+    total_bytes: {
+      title: 'Total',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    wasted_bytes: {
+      title: 'Wasted',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
     },
   };
 }
 
-function makeDuplicateStringSchema(navigate: NavFn): SchemaRegistry {
+function makeDuplicateStringSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      value: {
-        title: 'Value',
-        columnType: 'text',
-        cellRenderer: (value: SqlValue) =>
-          m(
-            'button',
-            {
-              class:
-                'pf-hde-link pf-hde-mono pf-hde-break-all pf-hde-str-color',
-              onclick: () =>
-                navigate('strings', {
-                  q: String(value ?? ''),
-                }),
-            },
-            '"' +
-              (String(value ?? '').length > 200
-                ? String(value).slice(0, 200) + '\u2026'
-                : String(value ?? '')) +
-              '"',
-          ),
-      },
-      copies: {
-        title: 'Copies',
-        columnType: 'quantitative',
-        cellRenderer: (value: SqlValue, row) =>
-          m(
-            'button',
-            {
-              class: 'pf-hde-link',
-              onclick: () => navigate('strings', {q: String(row.value ?? '')}),
-            },
-            String(value),
-          ),
-      },
-      total_bytes: {
-        title: 'Total',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      wasted_bytes: {
-        title: 'Wasted',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
+    value: {
+      title: 'Value',
+      columnType: 'text',
+      cellRenderer: (value: SqlValue) =>
+        m(
+          'button',
+          {
+            class: 'pf-hde-link pf-hde-mono pf-hde-break-all pf-hde-str-color',
+            onclick: () =>
+              navigate('strings', {
+                q: String(value ?? ''),
+              }),
+          },
+          '"' +
+            (String(value ?? '').length > 200
+              ? String(value).slice(0, 200) + '\u2026'
+              : String(value ?? '')) +
+            '"',
+        ),
+    },
+    copies: {
+      title: 'Copies',
+      columnType: 'quantitative',
+      cellRenderer: (value: SqlValue, row) =>
+        m(
+          'button',
+          {
+            class: 'pf-hde-link',
+            onclick: () => navigate('strings', {q: String(row.value ?? '')}),
+          },
+          String(value),
+        ),
+    },
+    total_bytes: {
+      title: 'Total',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    wasted_bytes: {
+      title: 'Wasted',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
     },
   };
 }
@@ -201,7 +192,7 @@ function renderDuplicateSection(
   targetView: string,
   linkLabel: string,
   navigate: NavFn,
-  schema: SchemaRegistry,
+  schema: ColumnSchema,
   data: Row[],
   columns: Array<{id: string; field: string}>,
 ): m.Children {
@@ -226,7 +217,6 @@ function renderDuplicateSection(
     m('div', {class: 'pf-hde-dup-grid-container'}, [
       m(DataGrid, {
         schema,
-        rootSchema: 'query',
         data,
         initialColumns: columns,
         fillHeight: true,
@@ -358,7 +348,6 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
           m('h3', {class: 'pf-hde-sub-heading'}, 'Bytes Retained by Heap'),
           m(DataGrid, {
             schema: HEAP_SCHEMA,
-            rootSchema: 'query',
             data: heapRows,
             initialColumns: [
               {id: 'heap', field: 'heap'},

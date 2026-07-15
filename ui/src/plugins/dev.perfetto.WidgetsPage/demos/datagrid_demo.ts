@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {Row, SqlValue} from '../../../trace_processor/query_result';
 import {InMemoryDataSource} from '../../../components/widgets/datagrid/in_memory_data_source';
 import type {
@@ -24,7 +24,7 @@ import type {
 } from '../../../components/widgets/datagrid/data_source';
 import type {QueryResult} from '../../../base/query_slot';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import type {SQLSchemaRegistry} from '../../../components/widgets/datagrid/sql_schema';
+import type {SQLTableSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import type {App} from '../../../public/app';
 import {Anchor} from '../../../widgets/anchor';
@@ -81,124 +81,122 @@ let cachedSliceDataSource: SQLDataSource | undefined;
 let employeeErrorDataSource: ErrorEmulatingDataSource | undefined;
 
 // SQL schema for slice table with track join
-const SLICE_SQL_SCHEMA: SQLSchemaRegistry = {
-  slice: {
-    table: 'slice',
-    columns: {
-      id: {},
-      ts: {},
-      dur: {},
-      track_id: {},
-      track: {
-        ref: 'track',
-        foreignKey: 'track_id',
-      },
-      parent: {
-        ref: 'slice',
-        foreignKey: 'parent_id',
-      },
-      args: {
-        expression: (alias, key) =>
-          `extract_arg(${alias}.arg_set_id, '${key}')`,
-        parameterized: true,
-        parameterKeysQuery: (baseTable) => `
-          SELECT DISTINCT args.key
-          FROM ${baseTable}
-          JOIN args ON args.arg_set_id = ${baseTable}.arg_set_id
-          WHERE args.key IS NOT NULL
-          ORDER BY args.key
-          LIMIT 1000
-        `,
-      },
-      all_args: {
-        expression: (alias) =>
-          `__intrinsic_arg_set_to_json(${alias}.arg_set_id)`,
+const SLICE_SQL_SCHEMA: SQLTableSchema = {
+  tableOrSubquery: 'slice',
+  columns: {
+    id: {},
+    ts: {},
+    dur: {},
+    track_id: {},
+    track: {
+      foreignKey: 'track_id',
+      schema: {
+        tableOrSubquery: 'track',
+        columns: {
+          id: {},
+          name: {},
+        },
       },
     },
-  },
-  track: {
-    table: 'track',
-    columns: {
-      id: {},
-      name: {},
+    parent: {
+      foreignKey: 'parent_id',
+      get schema() {
+        return SLICE_SQL_SCHEMA;
+      },
+    },
+    args: {
+      expression: (alias: string, key?: string) =>
+        `extract_arg(${alias}.arg_set_id, '${key}')`,
+      parameterized: true,
+      parameterKeysQuery: (tableOrSubquery: string, alias: string) => `
+        SELECT DISTINCT args.key
+        FROM (${tableOrSubquery}) AS ${alias}
+        JOIN args ON args.arg_set_id = ${alias}.arg_set_id
+        WHERE args.key IS NOT NULL
+        ORDER BY args.key
+        LIMIT 1000
+      `,
+    },
+    all_args: {
+      expression: (alias: string) =>
+        `__intrinsic_arg_set_to_json(${alias}.arg_set_id)`,
     },
   },
 };
 
 // UI schema for slice table (defines how columns are displayed)
-const SLICE_UI_SCHEMA: SchemaRegistry = {
-  slice: {
-    id: {
-      title: 'ID',
-      columnType: 'identifier',
-    },
-    ts: {
-      title: 'Timestamp',
-      columnType: 'quantitative',
-    },
-    dur: {
-      title: 'Duration',
-      columnType: 'quantitative',
-    },
-    name: {
-      title: 'Name',
-      columnType: 'text',
-    },
-    track_id: {
-      title: 'Track ID',
-      columnType: 'quantitative',
-    },
-    track: {
-      ref: 'track',
-      title: 'Track',
-    },
-    parent: {
-      ref: 'slice',
-      title: 'Parent',
-    },
-    args: {
-      parameterized: true,
-      title: 'Arg',
-    },
-    all_args: {
-      title: 'All Args',
-      columnType: 'text',
-      cellRenderer: (value) => {
-        if (value === null || value === undefined) {
-          return m('span.pf-null-value', 'NULL');
-        }
-        try {
-          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-          if (typeof parsed !== 'object' || parsed === null) {
-            return String(value);
-          }
-          const entries = Object.entries(parsed);
-          if (entries.length === 0) {
-            return m('span.pf-empty-value', '{}');
-          }
-          return m(
-            'span.pf-args-list',
-            entries.map(([key, val], i) => [
-              i > 0 ? ', ' : '',
-              m('b', key),
-              ': ',
-              String(val),
-            ]),
-          );
-        } catch {
-          return String(value);
-        }
+const SLICE_UI_SCHEMA: ColumnSchema = {
+  id: {
+    title: 'ID',
+    columnType: 'identifier',
+  },
+  ts: {
+    title: 'Timestamp',
+    columnType: 'quantitative',
+  },
+  dur: {
+    title: 'Duration',
+    columnType: 'quantitative',
+  },
+  name: {
+    title: 'Name',
+    columnType: 'text',
+  },
+  track_id: {
+    title: 'Track ID',
+    columnType: 'quantitative',
+  },
+  track: {
+    title: 'Track',
+    schema: {
+      id: {
+        title: 'ID',
+        columnType: 'quantitative',
+      },
+      name: {
+        title: 'Name',
+        columnType: 'text',
       },
     },
   },
-  track: {
-    id: {
-      title: 'ID',
-      columnType: 'quantitative',
+  parent: {
+    title: 'Parent',
+    get schema() {
+      return SLICE_UI_SCHEMA;
     },
-    name: {
-      title: 'Name',
-      columnType: 'text',
+  },
+  args: {
+    parameterized: true,
+    title: 'Arg',
+  },
+  all_args: {
+    title: 'All Args',
+    columnType: 'text',
+    cellRenderer: (value: SqlValue) => {
+      if (value === null || value === undefined) {
+        return m('span.pf-null-value', 'NULL');
+      }
+      try {
+        const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+        if (typeof parsed !== 'object' || parsed === null) {
+          return String(value);
+        }
+        const entries = Object.entries(parsed);
+        if (entries.length === 0) {
+          return m('span.pf-empty-value', '{}');
+        }
+        return m(
+          'span.pf-args-list',
+          entries.map(([key, val], i) => [
+            i > 0 ? ', ' : '',
+            m('b', key),
+            ': ',
+            String(val),
+          ]),
+        );
+      } catch {
+        return String(value);
+      }
     },
   },
 };
@@ -208,8 +206,7 @@ export function renderDataGrid(app: App): m.Children {
   if (app.trace && !cachedSliceDataSource) {
     cachedSliceDataSource = new SQLDataSource({
       engine: app.trace.engine,
-      sqlSchema: SLICE_SQL_SCHEMA,
-      rootSchemaName: 'slice',
+      ...SLICE_SQL_SCHEMA,
     });
   }
 
@@ -246,11 +243,10 @@ export function renderDataGrid(app: App): m.Children {
         }
         employeeErrorDataSource.failing = emulateError;
         return m(DataGrid, {
-          ...rest,
           fillHeight: true,
           schema: EMPLOYEE_SCHEMA,
-          rootSchema: 'employee',
           data: employeeErrorDataSource,
+          ...rest,
         });
       },
       initialOpts: {
@@ -305,10 +301,8 @@ export function renderDataGrid(app: App): m.Children {
         ? renderWidgetShowcase({
             renderWidget: ({...rest}) => {
               return m(DataGrid, {
-                ...rest,
                 fillHeight: true,
                 schema: SLICE_UI_SCHEMA,
-                rootSchema: 'slice',
                 data: cachedSliceDataSource!,
                 initialColumns: [
                   {id: 'id', field: 'id'},
@@ -316,6 +310,7 @@ export function renderDataGrid(app: App): m.Children {
                   {id: 'dur', field: 'dur'},
                   {id: 'track_name', field: 'track.name'},
                 ],
+                ...rest,
               });
             },
             initialOpts: {},
@@ -326,106 +321,114 @@ export function renderDataGrid(app: App): m.Children {
   ];
 }
 
-// Complex multi-table schema demonstrating relationships
-const EMPLOYEE_SCHEMA: SchemaRegistry = {
-  employee: {
-    id: {
-      title: 'ID',
-      columnType: 'quantitative',
-    },
-    name: {
-      title: 'Name',
-      columnType: 'text',
-    },
-    title: {
-      title: 'Job Title',
-      columnType: 'text',
-    },
-    email: {
-      title: 'Email',
-      columnType: 'text',
-    },
-    salary: {
-      title: 'Salary',
-      columnType: 'quantitative',
-    },
-    hireDate: {
-      title: 'Hire Date',
-      columnType: 'text',
-    },
-    // Self-referential: manager is also an employee
-    manager: {
-      ref: 'employee',
-      title: 'Manager',
-    },
-    // Cross-reference to department
-    department: {
-      ref: 'department',
-      title: 'Department',
-    },
-    // Cross-reference to current project
-    project: {
-      ref: 'project',
-      title: 'Current Project',
-    },
-    // Parameterized column for dynamic skill ratings
-    skills: {
-      parameterized: true,
-      title: 'Skills',
-      columnType: 'quantitative',
+// Department sub-schema (used by employee and project)
+const EMPLOYEE_DEPT_SCHEMA: ColumnSchema = {
+  id: {
+    title: 'Dept ID',
+    columnType: 'quantitative',
+  },
+  name: {
+    title: 'Name',
+    columnType: 'text',
+  },
+  budget: {
+    title: 'Budget',
+    columnType: 'quantitative',
+  },
+  location: {
+    title: 'Location',
+    columnType: 'text',
+  },
+  // Head of department is an employee
+  head: {
+    title: 'Department Head',
+    get schema() {
+      return EMPLOYEE_SCHEMA;
     },
   },
+};
+
+// Project sub-schema (used by employee)
+const EMPLOYEE_PROJECT_SCHEMA: ColumnSchema = {
+  id: {
+    title: 'Project ID',
+    columnType: 'quantitative',
+  },
+  name: {
+    title: 'Project Name',
+    columnType: 'text',
+  },
+  status: {
+    title: 'Status',
+    columnType: 'text',
+    distinctValues: true,
+  },
+  deadline: {
+    title: 'Deadline',
+    columnType: 'text',
+  },
+  // Project lead is an employee
+  lead: {
+    title: 'Project Lead',
+    get schema() {
+      return EMPLOYEE_SCHEMA;
+    },
+  },
+  // Project belongs to a department
   department: {
-    id: {
-      title: 'Dept ID',
-      columnType: 'quantitative',
-    },
-    name: {
-      title: 'Name',
-      columnType: 'text',
-    },
-    budget: {
-      title: 'Budget',
-      columnType: 'quantitative',
-    },
-    location: {
-      title: 'Location',
-      columnType: 'text',
-    },
-    // Head of department is an employee
-    head: {
-      ref: 'employee',
-      title: 'Department Head',
+    title: 'Owning Department',
+    schema: EMPLOYEE_DEPT_SCHEMA,
+  },
+};
+
+// Complex multi-table schema demonstrating relationships
+const EMPLOYEE_SCHEMA: ColumnSchema = {
+  id: {
+    title: 'ID',
+    columnType: 'quantitative',
+  },
+  name: {
+    title: 'Name',
+    columnType: 'text',
+  },
+  title: {
+    title: 'Job Title',
+    columnType: 'text',
+  },
+  email: {
+    title: 'Email',
+    columnType: 'text',
+  },
+  salary: {
+    title: 'Salary',
+    columnType: 'quantitative',
+  },
+  hireDate: {
+    title: 'Hire Date',
+    columnType: 'text',
+  },
+  // Self-referential: manager is also an employee
+  manager: {
+    title: 'Manager',
+    get schema() {
+      return EMPLOYEE_SCHEMA;
     },
   },
+  // Cross-reference to department
+  department: {
+    title: 'Department',
+    schema: EMPLOYEE_DEPT_SCHEMA,
+  },
+  // Cross-reference to current project
   project: {
-    id: {
-      title: 'Project ID',
-      columnType: 'quantitative',
-    },
-    name: {
-      title: 'Project Name',
-      columnType: 'text',
-    },
-    status: {
-      title: 'Status',
-      columnType: 'text',
-      distinctValues: true,
-    },
-    deadline: {
-      title: 'Deadline',
-      columnType: 'text',
-    },
-    // Project lead is an employee
-    lead: {
-      ref: 'employee',
-      title: 'Project Lead',
-    },
-    // Project belongs to a department
-    department: {
-      ref: 'department',
-      title: 'Owning Department',
-    },
+    title: 'Current Project',
+    schema: EMPLOYEE_PROJECT_SCHEMA,
+  },
+  // Parameterized column for dynamic skill ratings
+  skills: {
+    parameterized: true,
+    title: 'Skills',
+    filterType: 'quantitative',
   },
 };
 

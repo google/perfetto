@@ -14,10 +14,9 @@
 
 import m from 'mithril';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import type {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
+import type {SQLTableSchema} from '../../components/widgets/datagrid/sql_schema';
 import type {Tab} from '../../public/tab';
 import type {Trace} from '../../public/trace';
 import {
@@ -37,6 +36,7 @@ import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {formatFileSize} from '../../base/file_utils';
 import {QuerySlot} from '../../base/query_slot';
+import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -52,37 +52,31 @@ interface ScriptResults {
   details: V8JsScript;
 }
 
-const V8_JS_SCRIPT_SCHEMA_NAME = 'v8JsScript';
-const V8_JS_SCRIPT_SCHEMA: SQLSchemaRegistry = {
-  [V8_JS_SCRIPT_SCHEMA_NAME]: {
-    table: 'v8_js_script_view',
-    columns: {
-      v8_js_script_id: {},
-      name: {},
-      domain: {},
-      script_type: {},
-      source: {},
-      v8_isolate_id: {},
-      script_size: {
-        expression: (alias) => `LENGTH(${alias}.source)`,
-      },
+const V8_JS_SCRIPT_SCHEMA: SQLTableSchema = {
+  tableOrSubquery: 'v8_js_script_view',
+  columns: {
+    v8_js_script_id: {},
+    name: {},
+    domain: {},
+    script_type: {},
+    source: {},
+    v8_isolate_id: {},
+    script_size: {
+      expression: (alias) => `LENGTH(${alias}.source)`,
     },
   },
 };
 
-const V8_JS_FUNCTION_SCHEMA_NAME = 'v8JsFunction';
-const V8_JS_FUNCTION_SCHEMA: SQLSchemaRegistry = {
-  [V8_JS_FUNCTION_SCHEMA_NAME]: {
-    table: 'v8_js_function',
-    columns: {
-      v8_js_function_id: {},
-      name: {},
-      v8_js_script_id: {},
-      is_toplevel: {},
-      kind: {},
-      line: {},
-      col: {},
-    },
+const V8_JS_FUNCTION_SCHEMA: SQLTableSchema = {
+  tableOrSubquery: 'v8_js_function',
+  columns: {
+    v8_js_function_id: {},
+    name: {},
+    v8_js_script_id: {},
+    is_toplevel: {},
+    kind: {},
+    line: {},
+    col: {},
   },
 };
 
@@ -124,13 +118,11 @@ export class V8SourcesTab implements Tab {
     this.trace = trace;
     this.dataSource = new SQLDataSource({
       engine: this.trace.engine,
-      sqlSchema: V8_JS_SCRIPT_SCHEMA,
-      rootSchemaName: V8_JS_SCRIPT_SCHEMA_NAME,
+      ...V8_JS_SCRIPT_SCHEMA,
     });
     this.functionsDataSource = new SQLDataSource({
       engine: this.trace.engine,
-      sqlSchema: V8_JS_FUNCTION_SCHEMA,
-      rootSchemaName: V8_JS_FUNCTION_SCHEMA_NAME,
+      ...V8_JS_FUNCTION_SCHEMA,
     });
     this.initialize();
   }
@@ -249,20 +241,17 @@ export class V8SourcesTab implements Tab {
     if (!scriptDetails) {
       return undefined;
     }
-    const v8JsFunctionUiSchema: SchemaRegistry = {
-      v8JsFunction: {
-        v8_js_function_id: {title: 'ID'},
-        name: {title: 'Name'},
-        is_toplevel: {title: 'Is Toplevel'},
-        kind: {title: 'Kind'},
-        line: {title: 'Line'},
-        col: {title: 'Column'},
-      },
+    const v8JsFunctionUiSchema: ColumnSchema = {
+      v8_js_function_id: {title: 'ID'},
+      name: {title: 'Name'},
+      is_toplevel: {title: 'Is Toplevel'},
+      kind: {title: 'Kind'},
+      line: {title: 'Line'},
+      col: {title: 'Column'},
     };
     return m(DataGrid, {
       data: this.functionsDataSource,
       schema: v8JsFunctionUiSchema,
-      rootSchema: V8_JS_FUNCTION_SCHEMA_NAME,
       fillHeight: true,
       initialFilters: this.functionsFilters,
       onFiltersChanged: (filters: readonly Filter[]) => {
@@ -287,43 +276,41 @@ export class V8SourcesTab implements Tab {
       queryFn: () => this.selectScript(selectedId),
     });
 
-    const v8JsScriptUiSchema: SchemaRegistry = {
-      v8JsScript: {
-        v8_js_script_id: {
-          title: 'ID',
-          cellRenderer: (value: unknown, row: Row) => {
-            return m(
-              Anchor,
-              {
-                onclick: (e: Event) => {
-                  e.preventDefault();
-                  this.selectedScriptId = row.v8_js_script_id as number;
-                },
+    const v8JsScriptUiSchema: ColumnSchema = {
+      v8_js_script_id: {
+        title: 'ID',
+        cellRenderer: (value: unknown, row: Row) => {
+          return m(
+            Anchor,
+            {
+              onclick: (e: Event) => {
+                e.preventDefault();
+                this.selectedScriptId = row.v8_js_script_id as number;
               },
-              String(value),
-            );
-          },
+            },
+            String(value),
+          );
         },
-        name: {
-          title: 'Name',
-          cellRenderer: formatUrlValue,
-        },
-        domain: {
-          title: 'Domain',
-        },
-        source: {
-          title: 'Source',
-        },
-        script_type: {
-          title: 'Type',
-        },
-        v8_isolate_id: {
-          title: 'Isolate',
-        },
-        script_size: {
-          title: 'Size',
-          cellRenderer: formatByteValue,
-        },
+      },
+      name: {
+        title: 'Name',
+        cellRenderer: formatUrlValue,
+      },
+      domain: {
+        title: 'Domain',
+      },
+      source: {
+        title: 'Source',
+      },
+      script_type: {
+        title: 'Type',
+      },
+      v8_isolate_id: {
+        title: 'Isolate',
+      },
+      script_size: {
+        title: 'Size',
+        cellRenderer: formatByteValue,
       },
     };
 
@@ -349,7 +336,6 @@ export class V8SourcesTab implements Tab {
         m(DataGrid, {
           data: this.dataSource,
           schema: v8JsScriptUiSchema,
-          rootSchema: V8_JS_SCRIPT_SCHEMA_NAME,
           fillHeight: true,
           filters: this.filters,
           onFiltersChanged: (filters: readonly Filter[]) => {
