@@ -552,7 +552,6 @@ RETURNS TABLE(
   ts_dispatch LONG,
   ts_receive LONG,
   ts_consume LONG,
-  ts_frame LONG,
   -- InputReader Stage
   id_reader LONG,
   track_reader LONG,
@@ -569,10 +568,6 @@ RETURNS TABLE(
   id_consume LONG,
   track_consume LONG,
   dur_consume LONG,
-  -- Choreographer Frame Stage
-  id_frame LONG,
-  track_frame LONG,
-  dur_frame LONG,
   is_speculative_frame BOOL
 )
 AS
@@ -584,7 +579,6 @@ SELECT
   e.dispatch_ts AS ts_dispatch,
   e.receive_ts AS ts_receive,
   s_cons.ts AS ts_consume,
-  s_frame.ts AS ts_frame,
   s_read.id AS id_reader,
   s_read.track_id AS track_reader,
   s_read.dur AS dur_reader,
@@ -597,9 +591,6 @@ SELECT
   s_cons.id AS id_consume,
   s_cons.track_id AS track_consume,
   s_cons.dur AS dur_consume,
-  s_frame.id AS id_frame,
-  s_frame.track_id AS track_frame,
-  s_frame.dur AS dur_frame,
   e.is_speculative_frame
 FROM android_input_events AS e
 LEFT JOIN slice AS s_read
@@ -613,7 +604,16 @@ LEFT JOIN slice AS s_recv
   AND s_recv.track_id = e.receive_track_id
 LEFT JOIN _input_consumers_lookup AS s_cons
   ON s_cons.cookie = e.event_seq
-LEFT JOIN _frame_choreographer_lookup AS s_frame
-  ON s_frame.frame_id = CAST(e.frame_id AS LONG)
 WHERE
-  $slice_id IN (s_read.id, s_disp.id, s_recv.id, s_cons.id, s_frame.id);
+  $slice_id IN (s_read.id, s_disp.id, s_recv.id, s_cons.id);
+
+CREATE PERFETTO VIEW _android_input_frames AS
+SELECT
+  chor.upid,
+  chor.frame_id,
+  chor.id AS id_do_frame,
+  s_chor.track_id AS track_do_frame,
+  chor.ts AS ts_do_frame,
+  s_chor.dur AS dur_do_frame
+FROM android_frames_choreographer_do_frame AS chor
+JOIN slice AS s_chor ON s_chor.id = chor.id;

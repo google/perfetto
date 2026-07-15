@@ -36,9 +36,11 @@ import {AndroidInputLifecycleTab} from './tab';
 import type {AsyncMemoResult} from '../../base/async_memo';
 import type {InputLifecycleExtension, NavTarget} from './extensions/interface';
 import {PixelInputLifecycleExtension} from './extensions/pixel_extension';
+import {AndroidFramesInputLifecycleExtension} from './extensions/android_frames_extension';
 
 const EXTENSIONS: InputLifecycleExtension[] = [
   new PixelInputLifecycleExtension(),
+  new AndroidFramesInputLifecycleExtension(),
 ];
 
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
