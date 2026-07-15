@@ -267,16 +267,11 @@ export function createActualFramesTrack(
 
         if (isSkippedFrame) {
           elements.push(
+            m('div', 'Cadence variance detected - skipped frame?'),
             m(
               'div',
-              {style: 'margin-top: 4px; color: #d97706; font-weight: 500;'},
-              [
-                m('span', '⚠️ Potential Skipped Frame: '),
-                m(
-                  'span',
-                  'Frame duration significantly exceeded expected VSYNC cycle.',
-                ),
-              ],
+              {style: 'color: #888; margin-top: 4px; margin-bottom: 8px;'},
+              'Informational hint',
             ),
           );
         }
