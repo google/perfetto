@@ -22,7 +22,7 @@ import {NUM, type Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import type {DataSourceRows, PivotModel} from '../data_source';
 import {type SQLTableSchema, SQLSchemaResolver} from '../sql_schema';
-import {filterToSql, sqlAggregateExpr, toAlias} from '../sql_utils';
+import {filterToSql, quoteIdentifier, sqlAggregateExpr} from '../sql_utils';
 
 // Flat GROUP BY datasource - uses simple GROUP BY queries without hierarchy.
 export class SQLDataSourceGroupBy {
@@ -131,7 +131,7 @@ export class SQLDataSourceGroupBy {
         const fieldExpr = resolver.resolveColumnPath(agg.field);
         aggExpr = sqlAggregateExpr(agg.function, fieldExpr ?? agg.field);
       }
-      selectExprs.push(`${aggExpr} AS ${toAlias(agg.alias)}`);
+      selectExprs.push(`${aggExpr} AS ${quoteIdentifier(agg.alias)}`);
     }
 
     const baseTable = resolver.getBaseTableOrSubquery();
@@ -167,7 +167,7 @@ export class SQLDataSourceGroupBy {
     for (const col of groupBy) {
       const sqlExpr = resolver.resolveColumnPath(col.field);
       if (sqlExpr) {
-        selectExprs.push(`${sqlExpr} AS ${toAlias(col.alias)}`);
+        selectExprs.push(`${sqlExpr} AS ${quoteIdentifier(col.alias)}`);
       }
     }
 
@@ -179,7 +179,7 @@ export class SQLDataSourceGroupBy {
         const fieldExpr = resolver.resolveColumnPath(agg.field);
         aggExpr = sqlAggregateExpr(agg.function, fieldExpr ?? agg.field);
       }
-      selectExprs.push(`${aggExpr} AS ${toAlias(agg.alias)}`);
+      selectExprs.push(`${aggExpr} AS ${quoteIdentifier(agg.alias)}`);
     }
 
     const baseTable = resolver.getBaseTableOrSubquery();
@@ -211,7 +211,7 @@ export class SQLDataSourceGroupBy {
 
     if (sort) {
       // Sort strings case insensitively
-      sql += `\nORDER BY ${toAlias(sort.alias)} COLLATE NOCASE ${sort.direction} `;
+      sql += `\nORDER BY ${quoteIdentifier(sort.alias)} COLLATE NOCASE ${sort.direction} `;
     }
 
     if (pagination) {

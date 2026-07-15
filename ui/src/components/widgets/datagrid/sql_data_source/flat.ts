@@ -22,7 +22,7 @@ import {NUM, type Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import type {DataSourceRows, FlatModel} from '../data_source';
 import {type SQLTableSchema, SQLSchemaResolver} from '../sql_schema';
-import {filterToSql, toAlias} from '../sql_utils';
+import {filterToSql, quoteIdentifier} from '../sql_utils';
 
 export class SQLDataSourceFlat {
   private readonly rowCountSlot: QuerySlot<number>;
@@ -73,7 +73,9 @@ export class SQLDataSourceFlat {
           const sqlExpr = resolver.resolveColumnPath(col.field);
           const field = sqlExpr ?? col.field;
           const aggFunc = col.aggregate!;
-          selectExprs.push(`${aggFunc}(${field}) AS ${toAlias(col.alias)}`);
+          selectExprs.push(
+            `${aggFunc}(${field}) AS ${quoteIdentifier(col.alias)}`,
+          );
         }
 
         let sql = `SELECT ${selectExprs.join(', ')}`;
@@ -195,7 +197,7 @@ function buildSelectClause(
   for (const col of columns) {
     const sqlExpr = resolver.resolveColumnPath(col.field);
     if (sqlExpr) {
-      const alias = toAlias(col.alias);
+      const alias = quoteIdentifier(col.alias);
       selectExprs.push(`${sqlExpr} AS ${alias}`);
     }
   }

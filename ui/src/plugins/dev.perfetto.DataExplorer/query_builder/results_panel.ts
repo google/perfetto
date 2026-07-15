@@ -15,6 +15,7 @@
 import m from 'mithril';
 import type {QueryResponse} from '../../../components/query_table/queries';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
+import {escapePath} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {
   CellRenderer,
   ColumnSchema,
@@ -474,7 +475,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
           }
         }
 
-        schema[c] = {cellRenderer, columnType};
+        schema[escapePath(c)] = {cellRenderer, columnType};
       }
 
       // Build menu items for joinid columns (add columns from related tables)
@@ -577,8 +578,8 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
       const sortDir = this.columns.find((c) => c.sort)?.sort;
       this.columns = attrs.response.columns.map((col) => ({
         id: col,
-        field: col,
-        ...(col === sortedColId ? {sort: sortDir} : {}),
+        field: escapePath(col),
+        ...(escapePath(col) === sortedColId ? {sort: sortDir} : {}),
       }));
 
       return [

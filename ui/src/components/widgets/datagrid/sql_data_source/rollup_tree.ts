@@ -32,7 +32,7 @@ import type {DataSourceRows, PivotModel} from '../data_source';
 import type {GroupPath} from '../model';
 import {serializeFilters} from './group_by';
 import {type SQLTableSchema, SQLSchemaResolver} from '../sql_schema';
-import {filterToSql, sqlAggregateExpr, toAlias} from '../sql_utils';
+import {filterToSql, quoteIdentifier, sqlAggregateExpr} from '../sql_utils';
 import {stringifyJsonWithBigints} from '../../../../base/json_utils';
 
 /**
@@ -313,11 +313,11 @@ export class SQLDataSourceRollupTree {
     const columnAliases: Record<string, string> = {};
     const aliasToColumn: Record<string, string> = {};
     for (let i = 0; i < groupBy.length; i++) {
-      columnAliases[`__group_${i}`] = toAlias(groupBy[i].alias);
+      columnAliases[`__group_${i}`] = quoteIdentifier(groupBy[i].alias);
       aliasToColumn[groupBy[i].alias] = `__group_${i}`;
     }
     for (let i = 0; i < aggregates.length; i++) {
-      columnAliases[`__agg_${i}`] = toAlias(aggregates[i].alias);
+      columnAliases[`__agg_${i}`] = quoteIdentifier(aggregates[i].alias);
       aliasToColumn[aggregates[i].alias] = `__agg_${i}`;
     }
     return {columnAliases, aliasToColumn};
