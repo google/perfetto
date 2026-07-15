@@ -16,12 +16,16 @@
 
 #include "src/trace_processor/plugins/perfetto_manifest/perfetto_manifest_reader.h"
 
+#include <algorithm>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -38,7 +42,9 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/json_value.h"
+#include "src/trace_processor/util/trace_type.h"
 
+#include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 
 namespace perfetto::trace_processor::perfetto_manifest {
@@ -143,6 +149,51 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
     result.offset_ns = offset_ns;
   }
   return result;
+}
+
+using Attribute = std::pair<std::string, std::variant<int64_t, std::string>>;
+
+base::StatusOr<std::vector<Attribute>> ParseAttributes(
+    const json::Dom& attributes) {
+  if (!attributes.IsObject()) {
+    return base::ErrStatus(
+        "perfetto_manifest: attributes must be an object of string or "
+        R"(integer values, e.g. "attributes": {"benchmark": "startup"}.)");
+  }
+  std::vector<Attribute> result;
+  for (const std::string& key : attributes.GetMemberNames()) {
+    if (key.empty()) {
+      return base::ErrStatus(
+          "perfetto_manifest: attributes: keys must be non-empty");
+    }
+    const json::Dom& value = attributes[key];
+    if (value.IsString()) {
+      result.emplace_back(key, value.AsString());
+    } else if (value.IsIntegral()) {
+      result.emplace_back(key, value.AsInt64());
+    } else {
+      return base::ErrStatus(
+          "perfetto_manifest: attributes: '%s' must be a string or an "
+          "integer",
+          key.c_str());
+    }
+  }
+  return result;
+}
+
+void ApplyAttributes(TraceProcessorContext* context,
+                     const std::vector<Attribute>& attrs) {
+  for (const auto& [key, value] : attrs) {
+    StringId key_id = context->storage->InternString(
+        base::StringView("manifest_attribute." + key));
+    Variadic variadic =
+        std::holds_alternative<int64_t>(value)
+            ? Variadic::Integer(std::get<int64_t>(value))
+            : Variadic::String(context->storage->InternString(
+                  base::StringView(std::get<std::string>(value))));
+    context->global_metadata_tracker->SetDynamicMetadata(
+        std::nullopt, std::nullopt, key_id, variadic);
+  }
 }
 
 base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
@@ -306,6 +357,12 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
       ASSIGN_OR_RETURN(FileEntry entry, ParseFileEntry(file));
       state->files.push_back(std::move(entry));
     }
+  }
+
+  if (meta.HasMember("attributes")) {
+    ASSIGN_OR_RETURN(std::vector<Attribute> attrs,
+                     ParseAttributes(meta["attributes"]));
+    ApplyAttributes(context_, attrs);
   }
   return ApplyManifest();
 }
@@ -524,3 +581,53 @@ base::Status PerfettoManifestReader::ApplyManifest() {
 }
 
 }  // namespace perfetto::trace_processor::perfetto_manifest
+
+namespace perfetto::trace_processor {
+namespace {
+
+// A perfetto_manifest sidecar file: a JSON object whose only top-level key is
+// "perfetto_manifest". Must be the first file; overrides clock/machine handling
+// for the files that follow, so it produces no timeline and forks no context.
+class PerfettoManifestImporter
+    : public TraceImporter<PerfettoManifestImporter> {
+ public:
+  PerfettoManifestImporter() : TraceImporter(MakeDescriptor()) {}
+  ~PerfettoManifestImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
+                start.end());
+    return base::StartsWith(start, "{\"perfetto_manifest\"");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t file_id) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<perfetto_manifest::PerfettoManifestReader>(context,
+                                                                    file_id));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "perfetto_manifest";
+    d.archive_priority = -1;
+    d.forks_context = false;
+    d.is_manifest = true;
+    d.detection_priority = 90;
+    return d;
+  }
+};
+
+PerfettoManifestImporter::~PerfettoManifestImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreatePerfettoManifestImporter() {
+  return std::make_unique<PerfettoManifestImporter>();
+}
+
+}  // namespace perfetto::trace_processor

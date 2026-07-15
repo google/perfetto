@@ -29,6 +29,8 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/status.h"
@@ -36,6 +38,11 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
+#include "protos/perfetto/trace/test_extensions.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 #include "src/base/test/status_matchers.h"
@@ -45,6 +52,7 @@
 namespace perfetto::trace_processor {
 namespace {
 
+using testing::Eq;
 using testing::HasSubstr;
 
 constexpr size_t kMaxChunkSize = 4ul * 1024 * 1024;
@@ -150,6 +158,46 @@ TEST(TraceProcessorCustomConfigTest,
                       "select value from stats where name = "
                       "'slice_drop_overlapping_complete_event'"),
             0);
+}
+
+TEST(TraceProcessorCustomConfigTest, ExtraParsingDescriptors) {
+  Config config;
+  std::string data;
+  ASSERT_TRUE(base::ReadFile(
+      base::GetGenDataPath(
+          "protos/perfetto/trace/test_extensions_slim.descriptor"),
+      &data));
+  config.extra_parsing_descriptors.push_back(std::move(data));
+  auto processor = TraceProcessor::CreateInstance(std::move(config));
+
+  protozero::HeapBuffered<protos::pbzero::Trace> trace;
+
+  auto* packet = trace->add_packet();
+  packet->set_trusted_packet_sequence_id(1);
+  packet->set_timestamp(1000);
+  auto* te = packet->set_track_event();
+  te->add_categories("cat");
+  te->set_name("name");
+  te->set_type(protos::pbzero::TrackEvent::TYPE_INSTANT);
+  auto* ext = static_cast<protos::pbzero::TestExtension*>(te);
+  ext->set_string_extension_for_testing("testing");
+
+  trace->Finalize();
+  auto [buffer, size] = trace.SerializeAsUniquePtr();
+
+  ASSERT_OK(processor->Parse(
+      TraceBlobView(TraceBlob::TakeOwnership(std::move(buffer), size))));
+  ASSERT_OK(processor->NotifyEndOfFile());
+
+  auto it = processor->ExecuteQuery(
+      "SELECT COUNT(*) FROM args WHERE key = 'string_extension_for_testing'");
+  ASSERT_TRUE(it.Next());
+  EXPECT_THAT(it.Get(0).AsLong(), Eq(1));
+
+  it = processor->ExecuteQuery(
+      "SELECT value FROM stats WHERE name = 'unknown_extension_fields'");
+  ASSERT_TRUE(it.Next());
+  EXPECT_THAT(it.Get(0).AsLong(), Eq(0));
 }
 
 class TraceProcessorIntegrationTest : public ::testing::Test {

@@ -520,7 +520,14 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     }
   }
 
-  // Fifth pass: resolve all "uninterpreted" options to real options.
+  // Fifth pass: resolve all "uninterpreted" options to real options, and
+  // resolve the (flags_enum) option to its enum's descriptor index.
+  std::optional<uint32_t> flags_enum_option_number;
+  if (auto idx = FindDescriptorIdx(".google.protobuf.FieldOptions")) {
+    if (const auto* opt = descriptors_[*idx].FindFieldByName("flags_enum")) {
+      flags_enum_option_number = opt->number();
+    }
+  }
   for (ProtoDescriptor& descriptor : descriptors_) {
     for (auto& entry : *descriptor.mutable_fields()) {
       FieldDescriptor& field = entry.second;
@@ -528,6 +535,9 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
         continue;
       }
       ResolveUninterpretedOption(descriptor, field, *field.mutable_options());
+      if (flags_enum_option_number) {
+        ResolveFlagsEnumOption(descriptor, *flags_enum_option_number, &field);
+      }
     }
   }
   return base::OkStatus();
@@ -617,6 +627,20 @@ base::Status DescriptorPool::ResolveUninterpretedOption(
   return base::OkStatus();
 }
 
+void DescriptorPool::ResolveFlagsEnumOption(const ProtoDescriptor& descriptor,
+                                            uint32_t option_number,
+                                            FieldDescriptor* field) {
+  protozero::ProtoDecoder opt(field->options().data(), field->options().size());
+  auto f = opt.FindField(option_number);
+  if (!f.valid()) {
+    return;
+  }
+  if (auto enum_idx =
+          ResolveShortType(descriptor.full_name(), f.as_std_string())) {
+    field->set_flags_enum_descriptor_idx(*enum_idx);
+  }
+}
+
 std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
     const std::string& full_name) const {
   auto it = full_name_to_descriptor_index_.find(full_name);
@@ -637,6 +661,31 @@ std::optional<std::string> DescriptorPool::FindEnumString(
     return std::nullopt;
   }
   return descriptors_[*cache.descriptor_idx_].FindEnumString(value);
+}
+
+int64_t DescriptorPool::FlagSetToViews(
+    uint32_t enum_descriptor_idx,
+    int64_t mask,
+    std::vector<std::string_view>* out) const {
+  const ProtoDescriptor& desc = descriptors_[enum_descriptor_idx];
+  if (desc.type() != ProtoDescriptor::Type::kEnum) {
+    return mask;
+  }
+  const auto& names_by_value = desc.enum_values_by_number();
+  uint64_t unmatched = 0;
+  for (auto bits = static_cast<uint64_t>(mask); bits != 0; bits &= bits - 1) {
+    uint64_t flag = bits & ~(bits - 1);  // lowest set bit
+    // int32 enum values: only bits 0..31 can match (bit 31 = INT32_MIN).
+    auto it = flag < (uint64_t{1} << 32)
+                  ? names_by_value.find(static_cast<int32_t>(flag))
+                  : names_by_value.end();
+    if (it != names_by_value.end()) {
+      out->push_back(it->second);
+    } else {
+      unmatched |= flag;
+    }
+  }
+  return static_cast<int64_t>(unmatched);
 }
 
 std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {

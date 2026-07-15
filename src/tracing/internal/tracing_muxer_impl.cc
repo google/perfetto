@@ -1106,8 +1106,15 @@ bool TracingMuxerImpl::RegisterDataSource(
     bool no_flush,
     DataSourceStaticState* static_state) {
   // Ignore repeated registrations.
-  if (static_state->index != kMaxDataSources)
+  if (static_state->index != kMaxDataSources) {
+    PERFETTO_ELOG(
+        "Data source \"%s\" registration ignored: this data source type is "
+        "already registered. See "
+        "https://perfetto.dev/docs/instrumentation/"
+        "tracing-sdk#reporting-many-similar-things",
+        descriptor.name().c_str());
     return true;
+  }
 
   uint32_t new_index = next_data_source_index_++;
   if (new_index >= kMaxDataSources) {
@@ -2790,6 +2797,7 @@ void TracingMuxerImpl::Shutdown() {
 
   std::unique_ptr<base::TaskRunner> owned_task_runner(
       muxer->task_runner_.get());
+  Platform* platform = muxer->platform_;
   base::WaitableEvent shutdown_done;
   owned_task_runner->PostTask([muxer, &shutdown_done] {
     // Check that no consumer session is currently active on any backend.
@@ -2807,13 +2815,17 @@ void TracingMuxerImpl::Shutdown() {
     // The task runner must be deleted outside the muxer thread. This is done by
     // `owned_task_runner` above.
     muxer->task_runner_.release();
-    auto* platform = muxer->platform_;
     delete muxer;
     instance_ = TracingMuxerFake::Get();
-    platform->Shutdown();
     shutdown_done.Notify();
   });
   shutdown_done.Wait();
+
+  // Join the muxer thread before the platform (and its TLS key) is destroyed.
+  owned_task_runner.reset();
+
+  // On the calling thread, so the platform can free this thread's TLS object.
+  platform->Shutdown();
 }
 
 void TracingMuxerImpl::AppendResetForTestingCallback(std::function<void()> cb) {

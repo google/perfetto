@@ -171,3 +171,33 @@
 .pf-modal-small {
   font-size: 0.75rem;
 }
+
+// Shared layout for the styled error modals in frontend/error_dialog.ts
+// (trace parse errors, unknown file format).
+.pf-error-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  &__code pre {
+    white-space: pre-wrap;
+    max-height: 40vh;
+    overflow: auto;
+  }
+
+  &__list-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
+  &__list {
+    margin: 0;
+    padding-left: 1.5rem;
+  }
+
+  &__note {
+    margin: 0;
+  }
+}

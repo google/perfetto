@@ -106,28 +106,33 @@ You are now ready to instrument your app with trace events.
 
 ## Optional features
 
-The amalgamated SDK ships two optional features. They are off by default;
+The amalgamated SDK ships three optional features. They are off by default;
 opt in by dropping a header named `perfetto_sdk_config.h` on the SDK's
 include path and defining the matching macro inside it:
 
 ```C++
 // perfetto_sdk_config.h
 #define PERFETTO_SDK_ENABLE_ZLIB 1   // optional
+#define PERFETTO_SDK_ENABLE_ZSTD 1   // optional
 #define PERFETTO_SDK_ENABLE_RE2  1   // optional
 ```
 
 `build_config.h` detects the file via `__has_include` and reads the macros
-from there; no cflag plumbing is required. The two features are
-independent — set either, both, or neither.
+from there; no cflag plumbing is required. The features are
+independent — set any combination, or none.
 
 | Macro | Link | System header | What it does |
 | --- | --- | --- | --- |
-| `PERFETTO_SDK_ENABLE_ZLIB` | `-lz` | `zlib.h` | Honors `TraceConfig.compression_type = COMPRESSION_TYPE_DEFLATE` on the in-process backend so `.pftrace` files written via `TracingSession::Setup(cfg, fd)` are zlib-compressed. Without the macro the field is silently ignored. |
+| `PERFETTO_SDK_ENABLE_ZLIB` | `-lz` | `zlib.h` | Enables the deflate (zlib) codec on the in-process backend, honoring `TraceConfig.compression { deflate {} }` (and the legacy `compression_type = COMPRESSION_TYPE_DEFLATE`) so `.pftrace` files written via `TracingSession::Setup(cfg, fd)` are compressed. Without the macro the field is silently ignored. |
+| `PERFETTO_SDK_ENABLE_ZSTD` | `-lzstd` | `zstd.h` | Enables the zstd codec on the in-process backend, honoring `TraceConfig.compression { zstd { level: N } }`. zstd produces smaller traces than deflate at a similar speed. Without the macro the field is silently ignored. |
 | `PERFETTO_SDK_ENABLE_RE2` | `-lre2` | `re2/re2.h` | Replaces the default `std::regex` backend used by `base::Regex` (e.g. for `TraceConfig` data-source/producer name filtering) with [RE2](https://github.com/google/re2), which is significantly faster on large input. |
 
+See [Compressing the trace](/docs/concepts/config.md#compression) for how to
+select and tune a codec in the `TraceConfig`.
+
 When opting in, the matching system header must also be reachable from the
-include path; on Debian/Ubuntu that's `zlib1g-dev` / `libre2-dev`, on
-Fedora `zlib-devel` / `re2-devel`.
+include path; on Debian/Ubuntu that's `zlib1g-dev` / `libzstd-dev` /
+`libre2-dev`, on Fedora `zlib-devel` / `libzstd-devel` / `re2-devel`.
 
 ## Custom data sources vs Track events
 
@@ -290,6 +295,45 @@ CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
   DoSomethingWith(safe_handle->my_custom_state);
 });
 ```
+
+#### Reporting many similar things (e.g. one per GPU) {#reporting-many-similar-things}
+
+A data source's identity is its C++ type, not the name passed to `Register()`.
+Calling `Register()` on the same class twice (even with a different name) does
+not create a second data source; the extra registrations are ignored (and
+logged).
+
+```C++
+// DOES NOT WORK: same C++ type, so the second Register() is dropped and a
+// session selecting "com.example.gpu1" never starts.
+GpuDataSource::Register(MakeDescriptor("com.example.gpu0"));
+GpuDataSource::Register(MakeDescriptor("com.example.gpu1"));
+```
+
+To report several instances of the same thing (e.g. one set of counters per GPU):
+
+1. **Preferred: register once, add a dimension.** Emit one packet stream per
+   entity from a single data source, tagging each with its own
+   [track](/docs/instrumentation/track-events.md) or an id field, and select
+   which to record from the `DataSourceConfig` you receive in `OnSetup()`. This
+   scales to a count discovered at runtime.
+
+2. **Use a distinct C++ type per instance.** Each template instantiation is a
+   distinct type, hence a distinct data source. A non-type template parameter
+   avoids any tag boilerplate:
+
+   ```C++
+   template <int GpuIndex>
+   class GpuDataSource : public perfetto::DataSource<GpuDataSource<GpuIndex>> {
+     ...
+   };
+
+   GpuDataSource<0>::Register(MakeDescriptor("com.example.gpu0"));
+   GpuDataSource<1>::Register(MakeDescriptor("com.example.gpu1"));
+   ```
+
+   The types must be known at compile time, and each uses one of the
+   `kMaxDataSources` (=32) slots shared by all data sources in the process.
 
 ## In-process vs System mode
 

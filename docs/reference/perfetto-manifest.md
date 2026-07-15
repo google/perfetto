@@ -5,8 +5,9 @@ archive (ZIP or TAR) which controls how
 [Trace Processor](/docs/analysis/trace-processor.md)
 and the Perfetto UI interpret the other files in the archive. It is a
 general mechanism; the fields defined so far configure how multiple trace
-files merge onto a single timeline: which machine each file belongs to, how
-their clocks relate, and which clock the merged trace uses as its timeline.
+files merge onto a single timeline (which machine each file belongs to, how
+their clocks relate, and which clock the merged trace uses as its timeline)
+and attach [attributes](#attributes) annotating the archive.
 
 This page is the normative reference for the format. For a task-oriented
 guide to merging see
@@ -99,6 +100,7 @@ key, containing:
 | `version` | integer | yes | Must be `1`. Any other value is rejected. |
 | `trace_time` | object | no | Selects the clock of the merged timeline. See [trace_time](#trace-time). |
 | `files` | array | no | Per-file configuration entries. See [files](#files). |
+| `attributes` | object | no | Key/value pairs annotating the archive. See [attributes](#attributes). |
 
 Files present in the archive but not listed in `files` are still imported;
 they just get no overrides and follow the default merging rules described in
@@ -225,6 +227,30 @@ merged timeline causes those events to be dropped, counted in the
 `trace_sorter_negative_timestamp_dropped` stat. The Perfetto UI's merge
 dialog reports this before opening.
 
+## {#attributes} attributes
+
+Arbitrary key/value pairs annotating the archive: a benchmark name, a run
+id, a build id, and so on. Each entry becomes a `manifest_attribute.<key>`
+row of the `metadata` table.
+
+The namespace is deliberately separate from `trace_attribute.*`
+([TraceAttributes](/protos/perfetto/common/trace_attributes.proto)): those
+are properties recorded in a trace itself, while manifest attributes
+describe the archive as a whole.
+
+```json
+{
+  "perfetto_manifest": {
+    "version": 1,
+    "attributes": {"benchmark": "startup", "run_id": 42}
+  }
+}
+```
+
+Values must be strings or integers; keys must be non-empty and should be
+namespaced (e.g. `myapp.build_id`) to avoid collisions between tools.
+Setting the same key twice overwrites: the last value wins.
+
 ## {#clock-names} Clock names
 
 Wherever a clock name is expected, one of:
@@ -246,6 +272,8 @@ After import, the manifest's effects are visible in the trace:
   2^32, deliberately outside the 32-bit space of ids embedded in trace
   packets.
 - `trace_time` sets the `trace_time_clock_id` key in the `metadata` table.
+- Every `attributes` entry becomes a `manifest_attribute.<key>` row in the
+  `metadata` table.
 - Every `clocks` override is recorded as an edge in the `clock_snapshot`
   table, alongside the snapshots read from the traces themselves.
 - Each input file has a row in the `trace_file` table; `stats` and
@@ -265,6 +293,9 @@ with an error prefixed by `perfetto_manifest:`. The conditions:
 | Second manifest in one input | `multiple perfetto_manifest files in archive` |
 | Manifest after a trace file in a concatenated stream | `perfetto_manifest file must be the first trace file in the input` |
 | `machine` and `machines` on the same entry | `machine and machines are mutually exclusive` |
+| `attributes` is not an object | `attributes must be an object of string or integer values` |
+| `attributes` value is not a string or integer | `attributes: 'X' must be a string or an integer` |
+| Empty `attributes` key | `attributes: keys must be non-empty` |
 | Empty machine name | `machine: name must be non-empty` |
 | `machines` id outside [0, 4294967295] | `machines: id must be in [0, 4294967295]` |
 | Packet from an embedded machine id not declared in `machines` | `undeclared machine id N` |

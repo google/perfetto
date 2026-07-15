@@ -1319,6 +1319,20 @@ TEST_F(SharedLibDataSourceTest, GetInstanceLockedStopBeforeRelease) {
   t.join();
 }
 
+TEST_F(SharedLibDataSourceTest, GetTimestamp) {
+  struct PerfettoDsTimestamp ts = PerfettoDsGetTimestamp();
+  EXPECT_TRUE(ts.clock_id == PERFETTO_DS_CLOCK_MONOTONIC ||
+              ts.clock_id == PERFETTO_DS_CLOCK_BOOTTIME);
+  EXPECT_GT(ts.value, 0u);
+
+  struct PerfettoTeTimestamp te_ts = PerfettoTeGetTimestamp();
+  EXPECT_EQ(te_ts.clock_id, ts.clock_id);
+  // Values should be very close (within 1ms) as they are taken in quick
+  // succession from the same underlying clock.
+  EXPECT_NEAR(static_cast<double>(te_ts.value), static_cast<double>(ts.value),
+              1e6);
+}
+
 TEST_F(SharedLibDataSourceTest, ProtoVm) {
   TracingSession tracing_session =
       TracingSession::Builder()

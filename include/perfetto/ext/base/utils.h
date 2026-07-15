@@ -99,11 +99,18 @@ inline constexpr size_t AlignDown(size_t size, size_t alignment) {
   return size & ~(alignment - 1);
 }
 
+template <typename T>
+inline constexpr bool IsPowerOfTwo(T x) {
+  static_assert(std::is_unsigned_v<T> && std::is_integral_v<T>,
+                "T must be an unsigned integer");
+  return x != 0 && (x & (x - 1)) == 0;
+}
+
 // TODO(primiano): clean this up and move all existing usages to the constexpr
 // version above.
 template <size_t alignment>
 constexpr size_t AlignUp(size_t size) {
-  static_assert((alignment & (alignment - 1)) == 0, "alignment must be a pow2");
+  static_assert(IsPowerOfTwo(alignment), "alignment must be a pow2");
   return AlignUp(size, alignment);
 }
 

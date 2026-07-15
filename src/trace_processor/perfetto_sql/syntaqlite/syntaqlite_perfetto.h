@@ -46,6 +46,8 @@
 #define SYNTAQLITE_OMIT_SQLITE_API
 #endif
 
+#define SYNQ_AMALG_DIALECT perfetto
+
 /* ======== begin: syntaqlite/compiler.h ======== */
 #ifndef SYNTAQLITE_COMPILER_H
 #define SYNTAQLITE_COMPILER_H
@@ -445,20 +447,22 @@ typedef struct SyntaqliteTextSpan {
 #define SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE ((uint32_t)1u)    // "..."
 #define SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK ((uint32_t)2u)  // `...`
 #define SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET ((uint32_t)4u)   // [...]
+#define SYNTAQLITE_SPAN_FLAG_QUOTE_SINGLE ((uint32_t)8u)    // '...'
 
 #define SYNTAQLITE_SPAN_QUOTE_MASK                                           \
   (SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE | SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK | \
-   SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET)
+   SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET | SYNTAQLITE_SPAN_FLAG_QUOTE_SINGLE)
 
 // Was this identifier quoted in source?  Returns nonzero if `sp` came
-// from any of `"..."`, `` `...` ``, or `[...]`.
+// from any of `"..."`, `` `...` ``, `[...]`, or `'...'` (a string
+// literal in identifier position).
 static inline int syntaqlite_span_is_quoted(SyntaqliteTextSpan sp) {
   return (sp.flags & SYNTAQLITE_SPAN_QUOTE_MASK) != 0;
 }
 
 // The character that opened this identifier's quotes in source: `"`,
-// `` ` ``, or `[`.  Returns 0 if the span was unquoted.  For `[...]`
-// only the opener is reported; the closer is always `]`.
+// `` ` ``, `[`, or `'`.  Returns 0 if the span was unquoted.  For
+// `[...]` only the opener is reported; the closer is always `]`.
 static inline char syntaqlite_span_quote_char(SyntaqliteTextSpan sp) {
   if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE)
     return '"';
@@ -466,6 +470,8 @@ static inline char syntaqlite_span_quote_char(SyntaqliteTextSpan sp) {
     return '`';
   if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET)
     return '[';
+  if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_SINGLE)
+    return '\'';
   return 0;
 }
 
@@ -514,6 +520,33 @@ static inline char syntaqlite_span_quote_char(SyntaqliteTextSpan sp) {
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+// ── _with_dialect API gate ────────────────────────────────────────────────
+//
+// `SYNTAQLITE_HAS_WITH_DIALECT_API` is defined when the public
+// `syntaqlite_{parser,tokenizer}_create_with_dialect` entry points are
+// available in this translation unit.
+//
+// They're hidden only when calling them would silently mis-parse: when
+// the runtime body in *this* TU has its dispatch macros hardcoded to one
+// dialect (a Full amalgamation that auto-inlined dispatch). The
+// amalgamator marks that case by defining `SYNQ_AMALG_DIALECT`. The user
+// can step back out of inline dispatch with
+// `-DSYNTAQLITE_NO_INLINE_DIALECT_DISPATCH` (force function pointers) or
+// `-DSYNTAQLITE_INLINE_DIALECT_DISPATCH=<path>` (custom dispatch header);
+// `-DSYNTAQLITE_OMIT_RUNTIME` moves the runtime to a separate TU that
+// uses function-pointer dispatch, so the dialect argument once again
+// controls dispatch.
+//
+// When the API is hidden, use the dialect-pinned wrappers instead:
+// `syntaqlite_parser_create_<dialect>()` and
+// `syntaqlite_tokenizer_create_<dialect>()`.
+#if !defined(SYNQ_AMALG_DIALECT) ||                   \
+    defined(SYNTAQLITE_NO_INLINE_DIALECT_DISPATCH) || \
+    defined(SYNTAQLITE_INLINE_DIALECT_DISPATCH) ||    \
+    defined(SYNTAQLITE_OMIT_RUNTIME)
+#define SYNTAQLITE_HAS_WITH_DIALECT_API 1
 #endif
 
 // ── Token category ────────────────────────────────────────────────────────
@@ -1443,12 +1476,16 @@ SYNTAQLITE_API char* syntaqlite_dump_node(SyntaqliteParser* p,
 // Advanced: custom dialects
 // ---------------------------------------------------------------------------
 
-// Allocate a parser bound to a specific dialect environment.  Use this
-// for custom dialects; for the built-in SQLite dialect prefer
-// `syntaqlite_parser_create`.
+// Allocate a parser bound to a specific dialect environment. Hidden
+// when calling it with a non-matching dialect would silently mis-parse —
+// see `SYNTAQLITE_HAS_WITH_DIALECT_API` in `dialect.h`. Use the pinned
+// `syntaqlite_parser_create_<dialect>()` (declared by the dialect's own
+// header) when this one is unavailable.
+#ifdef SYNTAQLITE_HAS_WITH_DIALECT_API
 SYNTAQLITE_API SyntaqliteParser* syntaqlite_parser_create_with_dialect(
     const SyntaqliteMemMethods* mem,
     SyntaqliteDialect env);
+#endif
 
 #ifndef SYNTAQLITE_OMIT_SQLITE_API
 // Return the built-in SQLite dialect handle.
@@ -1520,9 +1557,15 @@ typedef struct SyntaqliteToken {
 // the caller's struct does not need to outlive the tokenizer, but the dialect
 // pointer inside must remain valid for the tokenizer's lifetime.
 // The mem methods are copied — pass NULL for all defaults (malloc/free).
+//
+// Hidden when calling it with a non-matching dialect would silently
+// mis-tokenize — see `SYNTAQLITE_HAS_WITH_DIALECT_API` in `dialect.h`.
+// Use the pinned `syntaqlite_tokenizer_create_<dialect>()` when unavailable.
+#ifdef SYNTAQLITE_HAS_WITH_DIALECT_API
 SYNTAQLITE_API SyntaqliteTokenizer* syntaqlite_tokenizer_create_with_dialect(
     const SyntaqliteMemMethods* mem,
     SyntaqliteDialect env);
+#endif
 
 // Bind a source buffer and start tokenizing from the beginning. The source
 // must remain valid until the next reset() or destroy(). Can be called
@@ -1764,6 +1807,11 @@ extern "C" {
 
 SYNTAQLITE_API SyntaqliteDialect syntaqlite_perfetto_dialect(void);
 SYNTAQLITE_API const SyntaqliteDialectTemplate* syntaqlite_perfetto_dialect_template(void);
+
+SYNTAQLITE_API SyntaqliteParser* syntaqlite_parser_create_perfetto(
+    const SyntaqliteMemMethods* mem);
+SYNTAQLITE_API SyntaqliteTokenizer* syntaqlite_tokenizer_create_perfetto(
+    const SyntaqliteMemMethods* mem);
 
 #ifdef __cplusplus
 }
@@ -2226,6 +2274,8 @@ typedef struct SyntaqliteCompoundSelect {
     SyntaqliteCompoundOp op;
     uint32_t left;
     uint32_t right;
+    uint32_t orderby;
+    uint32_t limit_clause;
 } SyntaqliteCompoundSelect;
 
 typedef struct SyntaqliteSubqueryExpr {

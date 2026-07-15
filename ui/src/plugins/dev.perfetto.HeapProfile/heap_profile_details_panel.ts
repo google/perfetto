@@ -646,7 +646,14 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
     return;
   }
   const blob = await trace.getTraceFile();
-  convertTraceToPprofAndDownload(blob, pid.firstRow({pid: NUM}).pid, ts);
+  // This is only reachable for heapprofd-based profiles (native heap and
+  // Java heap samples), which are both allocator profiles for traceconv.
+  convertTraceToPprofAndDownload(
+    blob,
+    'alloc',
+    pid.firstRow({pid: NUM}).pid,
+    ts,
+  );
 }
 
 function getHeapGraphDuplicateObjectsView(

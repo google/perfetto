@@ -32,6 +32,7 @@ use std::{
         Mutex, OnceLock,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
+    time::Duration,
 };
 use thiserror::Error;
 
@@ -431,6 +432,72 @@ impl TraceContextBase {
     /// Returns the index of the current instance.
     pub fn instance_index(&self) -> u32 {
         self.iterator.inst_id
+    }
+}
+
+/// Data source timestamp types.
+#[derive(Debug, Copy, Clone)]
+pub enum DataSourceTimestamp {
+    /// Monotonic timestamp.
+    Monotonic(Duration),
+    /// Boot clock timestamp.
+    Boot(Duration),
+    /// Custom clock timestamp.
+    Custom {
+        /// Custom clock ID.
+        id: u32,
+        /// Timestamp value.
+        value: Duration,
+    },
+}
+
+impl DataSourceTimestamp {
+    /// Get a data source timestamp using the preferred trace clock.
+    ///
+    /// Returns a timestamp suitable for use with
+    /// `TracePacket::set_timestamp` and `set_timestamp_clock_id`.
+    #[allow(non_upper_case_globals)]
+    pub fn now() -> Self {
+        // SAFETY: FFI call with no outstanding preconditions.
+        let ds_timestamp = unsafe { PerfettoDsGetTimestamp() };
+        if ds_timestamp.clock_id == PerfettoDsClockId_PERFETTO_DS_CLOCK_MONOTONIC {
+            DataSourceTimestamp::Monotonic(Duration::from_nanos(ds_timestamp.value))
+        } else if ds_timestamp.clock_id == PerfettoDsClockId_PERFETTO_DS_CLOCK_BOOTTIME {
+            DataSourceTimestamp::Boot(Duration::from_nanos(ds_timestamp.value))
+        } else {
+            DataSourceTimestamp::Custom {
+                id: ds_timestamp.clock_id,
+                value: Duration::from_nanos(ds_timestamp.value),
+            }
+        }
+    }
+
+    /// Returns the timestamp clock ID.
+    #[allow(non_upper_case_globals)]
+    pub fn clock_id(&self) -> u32 {
+        match &self {
+            DataSourceTimestamp::Monotonic(_) => PerfettoDsClockId_PERFETTO_DS_CLOCK_MONOTONIC,
+            DataSourceTimestamp::Boot(_) => PerfettoDsClockId_PERFETTO_DS_CLOCK_BOOTTIME,
+            DataSourceTimestamp::Custom { id, value: _ } => *id,
+        }
+    }
+
+    /// Returns the timestamp value in nanoseconds.
+    pub fn timestamp(&self) -> u64 {
+        match &self {
+            DataSourceTimestamp::Monotonic(value) => value.as_nanos() as u64,
+            DataSourceTimestamp::Boot(value) => value.as_nanos() as u64,
+            DataSourceTimestamp::Custom { id: _, value } => value.as_nanos() as u64,
+        }
+    }
+
+    /// Returns the timestamp as a `Duration`.
+    pub fn as_duration(&self) -> Duration {
+        match &self {
+            DataSourceTimestamp::Monotonic(v) => *v,
+            DataSourceTimestamp::Boot(v) => *v,
+            DataSourceTimestamp::Custom { id: _, value } => *value,
+        }
     }
 }
 
@@ -969,5 +1036,17 @@ mod tests {
         }
         assert_eq!(&test_str, &super_long_test_string);
         Ok(())
+    }
+
+    #[test]
+    fn timestamp() {
+        let _lock = acquire_test_environment();
+        let ts = DataSourceTimestamp::now();
+        // Clock id should be monotonic (3) or boottime (6).
+        assert!(
+            ts.clock_id() == PerfettoDsClockId_PERFETTO_DS_CLOCK_MONOTONIC
+                || ts.clock_id() == PerfettoDsClockId_PERFETTO_DS_CLOCK_BOOTTIME
+        );
+        assert!(ts.timestamp() > 0);
     }
 }

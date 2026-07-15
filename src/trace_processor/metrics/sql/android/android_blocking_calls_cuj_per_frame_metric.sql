@@ -26,6 +26,49 @@ INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 INCLUDE PERFETTO MODULE android.frames.timeline;
 INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
+-- The `DrawFrames` slices (one per drawn layer) for each frame within a CUJ,
+-- with their render thread timing.
+--
+-- This is materialized into its own table (rather than left as a CTE) for two
+-- reasons:
+--   1. It avoids the query planner re-evaluating it multiple times when it is
+--      consumed downstream.
+--   2. It lets us join against the pre-parsed `android_frames_draw_frame` table
+--      (integer equality on frame_id) instead of re-parsing the slice name with
+--      `STR_SPLIT` on every row of a `thread_slice` scan.
+DROP TABLE IF EXISTS android_blocking_calls_cuj_per_frame_draw_frames;
+CREATE PERFETTO TABLE android_blocking_calls_cuj_per_frame_draw_frames AS
+SELECT
+  frame.frame_id,
+  frame.cuj_name,
+  df.upid,
+  p.name AS process_name,
+  s.ts,
+  s.ts + s.dur AS ts_end
+FROM _extended_frame_boundary frame
+JOIN android_frames_draw_frame df
+  ON df.frame_id = frame.frame_id
+  AND df.render_thread_utid = frame.render_thread_utid
+JOIN slice s ON s.id = df.id
+JOIN process p ON p.upid = df.upid;
+
+-- The `hwuiTask` running time overlapping each frame within a CUJ. Materialized
+-- for the same reasons as above: the interval-overlap join against
+-- `thread_state` is expensive and must only run once.
+DROP TABLE IF EXISTS android_blocking_calls_cuj_per_frame_hwui_tasks;
+CREATE PERFETTO TABLE android_blocking_calls_cuj_per_frame_hwui_tasks AS
+SELECT
+  df.frame_id,
+  df.cuj_name,
+  df.upid,
+  df.process_name,
+  'hwuiTask' AS name,
+  MIN(ts.ts + ts.dur, df.ts_end) - MAX(ts.ts, df.ts) AS dur
+FROM android_blocking_calls_cuj_per_frame_draw_frames df
+JOIN thread t ON t.upid = df.upid AND t.name GLOB 'hwuiTask*'
+JOIN thread_state ts ON ts.utid = t.utid AND ts.state = 'Running'
+WHERE ts.ts < df.ts_end AND ts.ts + ts.dur > df.ts;
+
 -- Calculate the mean/max values for duration and count for blocking calls per frame.
 DROP TABLE IF EXISTS android_blocking_calls_cuj_per_frame_calls;
 CREATE PERFETTO TABLE android_blocking_calls_cuj_per_frame_calls AS
@@ -42,34 +85,6 @@ WITH blocking_calls_aggregate_values AS (
   FROM _blocking_calls_frame_cuj
   GROUP BY cuj_name, name, frame_id
 ),
-draw_frames_in_cuj AS (
-  SELECT
-    frame.frame_id,
-    frame.cuj_name,
-    t.upid,
-    p.name AS process_name,
-    s.ts,
-    s.ts + s.dur AS ts_end
-  FROM _extended_frame_boundary frame
-  JOIN thread t ON t.utid = frame.render_thread_utid
-  JOIN process p ON p.upid = t.upid
-  JOIN thread_slice s ON s.utid = frame.render_thread_utid
-                      AND s.name GLOB 'DrawFrames*'
-                      AND CAST(STR_SPLIT(s.name, ' ', 1) AS INT) = frame.frame_id
-),
-hwui_tasks_in_cuj AS (
-  SELECT
-    df.frame_id,
-    df.cuj_name,
-    df.upid,
-    df.process_name,
-    'hwuiTask' AS name,
-    MIN(ts.ts + ts.dur, df.ts_end) - MAX(ts.ts, df.ts) AS dur
-  FROM draw_frames_in_cuj df
-  JOIN thread t ON t.upid = df.upid AND t.name GLOB 'hwuiTask*'
-  JOIN thread_state ts ON ts.utid = t.utid AND ts.state = 'Running'
-  WHERE ts.ts < df.ts_end AND ts.ts + ts.dur > df.ts
-),
 hwui_tasks_aggregate_values AS (
   SELECT
     1 AS cnt,
@@ -78,7 +93,7 @@ hwui_tasks_aggregate_values AS (
     upid,
     process_name,
     name
-  FROM hwui_tasks_in_cuj
+  FROM android_blocking_calls_cuj_per_frame_hwui_tasks
   GROUP BY cuj_name, name, frame_id
 ),
 all_blocking_calls_aggregate_values AS (

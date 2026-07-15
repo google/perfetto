@@ -175,6 +175,10 @@ proto_groups = {
         'sources': ['//protos/perfetto/proto_filtering:source_set'],
         'visibility': [],
     },
+    'passthrough': {
+        'sources': ['//protos/perfetto/common:passthrough_source_set'],
+        'visibility': [],
+    },
 }
 
 # Path for the protobuf sources in the standalone build.
@@ -201,6 +205,7 @@ external_deps = {
         'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
     ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
+    '//gn:zstd': ['PERFETTO_CONFIG.deps.zstd'],
     '//gn:llvm_demangle': ['PERFETTO_CONFIG.deps.llvm_demangle'],
     '//src/trace_processor:demangle': ['PERFETTO_CONFIG.deps.demangle_wrapper'],
     gn_utils.GEN_VERSION_TARGET: ['PERFETTO_CONFIG.deps.version_header'],
@@ -254,8 +259,13 @@ target_overrides = {
     }
 }
 
-# Defines required for Bazel.
-bazel_required_defines = ["PERFETTO_SHLIB_SDK_IMPLEMENTATION"]
+# Defines required for Bazel. Note that cc_library defines propagate to all
+# dependent targets, so linkage macros must never be listed here: the Bazel
+# build has no shared library target for the C SDK (the libperfetto_c
+# cc_library is linked statically into its consumers, including the JNI .so
+# built by perfetto_android_jni_library), so no linkage macros are needed (see
+# include/perfetto/public/abi/export.h).
+bazel_required_defines = []
 
 # Targets with the "avoid_dep" tag;
 avoid_dep_targets = set([

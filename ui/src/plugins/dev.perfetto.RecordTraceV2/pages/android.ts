@@ -32,6 +32,7 @@ export function androidRecordSection(): RecordSubpage {
       atrace(),
       logcat(),
       frameTimeline(),
+      displayVideo(),
       gameInterventions(),
       netTracing(),
       statsdAtoms(),
@@ -49,6 +50,10 @@ function atrace(): RecordProbe {
       defaultSelected.push(key);
     }
   }
+  const allApps = new Toggle({
+    title: 'Record events from all Android apps and services',
+    cssClass: '.thin',
+  });
   const settings = {
     categories: new TypedMultiselect<string>({
       options,
@@ -57,14 +62,9 @@ function atrace(): RecordProbe {
     apps: new Textarea({
       title: 'Process / package names to trace',
       placeholder: 'e.g. system_server\ncom.android.settings',
+      disabled: () => allApps.enabled,
     }),
-    allApps: new Toggle({
-      title: 'Record events from all Android apps and services',
-      cssClass: '.thin',
-      onChange(allAppsEnabled: boolean) {
-        settings.apps.attrs.disabled = allAppsEnabled;
-      },
-    }),
+    allApps,
   };
   return {
     id: 'atrace',
@@ -139,6 +139,18 @@ function frameTimeline(): RecordProbe {
     docsLink: 'https://perfetto.dev/docs/data-sources/frametimeline',
     genConfig: function (tc: TraceConfigBuilder) {
       tc.addDataSource('android.surfaceflinger.frametimeline');
+    },
+  };
+}
+
+function displayVideo(): RecordProbe {
+  return {
+    id: 'android_display_video',
+    title: 'Display video frames',
+    description: 'Captures what each display showed during the trace.',
+    supportedPlatforms: ['ANDROID'],
+    genConfig: function (tc: TraceConfigBuilder) {
+      tc.addDataSource('android.display.video');
     },
   };
 }

@@ -43,6 +43,7 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -768,36 +769,36 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
     }
   }
 
-  // Compute atrace + ftrace setup errors. We do two things here:
-  // 1. We add up all the errors and put the counter in the stats table (which
-  //    can hold only numerals).
-  // 2. We concatenate together all the errors in a string and put that in the
-  //    medatata table.
-  // Both will be reported in the 'Info & stats' page in the UI.
+  // Record atrace + ftrace setup errors reported by the producer. Each error
+  // bumps the ftrace_setup_errors stat and adds a row to the trace import logs
+  // with a human-readable message. These surface on the Notices tab in the UI.
   if (is_start) {
     if (seen_errors_for_sequence_id_.count(packet_sequence_id) == 0) {
-      std::string error_str;
+      StringId message_key = storage->InternString("message");
+      bool any_errors = false;
+      auto record = [&](const std::string& message) {
+        any_errors = true;
+        StringId message_id = storage->InternString(base::StringView(message));
+        context_->import_logs_tracker->RecordCollectionError(
+            stats::ftrace_setup_errors,
+            [&](ArgsTracker::BoundInserter& inserter) {
+              inserter.AddArg(message_key, Variadic::String(message_id));
+            });
+      };
       for (auto it = evt.failed_ftrace_events(); it; ++it) {
-        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
-        error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
+        record("Ftrace event failed: " + it->as_std_string());
       }
       for (auto it = evt.unknown_ftrace_events(); it; ++it) {
-        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
-        error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
+        record("Ftrace event unknown: " + it->as_std_string());
       }
       if (evt.atrace_errors().size > 0) {
-        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
-        error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
+        record("Atrace failures: " + evt.atrace_errors().ToStdString());
       }
       if (evt.exclusive_feature_error().size > 0) {
-        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
-        error_str += "Ftrace exclusive feature error: " +
-                     evt.exclusive_feature_error().ToStdString();
+        record("Ftrace exclusive feature error: " +
+               evt.exclusive_feature_error().ToStdString());
       }
-      if (!error_str.empty()) {
-        auto error_str_id = storage->InternString(base::StringView(error_str));
-        context_->metadata_tracker->AppendMetadata(
-            metadata::ftrace_setup_errors, Variadic::String(error_str_id));
+      if (any_errors) {
         seen_errors_for_sequence_id_.insert(packet_sequence_id);
       }
     }

@@ -81,6 +81,13 @@ void ImportLogsTracker::RecordCollectionError(
                   /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
 
+void ImportLogsTracker::RecordCollectionError(
+    size_t stat_key,
+    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+  RecordImportLog(stat_key, /*timestamp=*/std::nullopt,
+                  /*byte_offset=*/std::nullopt, std::move(args_callback));
+}
+
 void ImportLogsTracker::RecordAnalysisError(
     size_t stat_key,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {

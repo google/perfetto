@@ -275,6 +275,54 @@ class Profiling(TestSuite):
         """,
         out=Path('perf_sample_rvc.out'))
 
+  def test_perf_sample_timebase_count(self):
+    return DiffTestBlueprint(
+        trace=TextProto(R"""
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          timestamp: 1000
+          trace_packet_defaults {
+            perf_sample_defaults {
+              timebase {
+                name: "leader"
+                counter: SW_CPU_CLOCK
+                frequency: 1000
+              }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          perf_sample {
+            cpu: 0
+            pid: 1
+            tid: 42
+            cpu_mode: MODE_USER
+            timebase_count: 512
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000
+          perf_sample {
+            cpu: 0
+            pid: 1
+            tid: 42
+            cpu_mode: MODE_USER
+            # Note: No timebase_count set!
+          }
+        }
+        """),
+        query="""
+        SELECT ts, value FROM counter;
+        """,
+        out=Csv("""
+        "ts","value"
+        3000,512.000000
+        """))
+
   def test_perf_sample_sc(self):
     return DiffTestBlueprint(
         trace=DataPath('perf_sample_sc.pb'),

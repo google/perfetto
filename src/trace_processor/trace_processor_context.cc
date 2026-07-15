@@ -42,10 +42,12 @@
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/sparse_counter_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/symbol_tracker.h"
+#include "src/trace_processor/importers/common/trace_diagnostics_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -86,6 +88,10 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context,
       Ptr<ArgsTranslationTable>::MakeRoot(context->storage.get());
   context->metadata_tracker = Ptr<MetadataTracker>::MakeRoot(context);
   context->stats_tracker = Ptr<StatsTracker>::MakeRoot(context);
+  context->trace_diagnostics_tracker =
+      Ptr<TraceDiagnosticsTracker>::MakeRoot(context);
+  context->sparse_counter_tracker =
+      Ptr<SparseCounterTracker>::MakeRoot(context);
 
   context->slice_tracker->SetOnSliceBeginCallback(
       [context](TrackId track_id, SliceId slice_id) {
@@ -165,6 +171,8 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
       Ptr<GlobalStatsTracker>::MakeRoot(context->storage.get());
   context->sorter = CreateSorter(context, config);
   context->reader_registry = Ptr<TraceReaderRegistry>::MakeRoot();
+  context->trace_importer_registry =
+      context->reader_registry->importer_registry();
   context->global_args_tracker =
       Ptr<GlobalArgsTracker>::MakeRoot(context->storage.get());
   context->global_metadata_tracker =
@@ -201,6 +209,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->storage = source->storage.Fork();
   dest->sorter = source->sorter.Fork();
   dest->reader_registry = source->reader_registry.Fork();
+  dest->trace_importer_registry = dest->reader_registry->importer_registry();
   dest->global_args_tracker = source->global_args_tracker.Fork();
   dest->global_metadata_tracker = source->global_metadata_tracker.Fork();
   dest->global_stats_tracker = source->global_stats_tracker.Fork();

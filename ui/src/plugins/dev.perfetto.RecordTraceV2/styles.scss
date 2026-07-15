@@ -510,7 +510,8 @@
       grid-area: descr;
       font-size: var(--pf-font-size-s);
       color: var(--pf-color-text-muted);
-      height: 20px;
+      height: auto;
+      min-height: 20px;
       line-height: 20px;
     }
 

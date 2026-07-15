@@ -297,9 +297,12 @@ void ProfileModule::ParsePerfSample(
   // Collect counter IDs for counter set association
   std::vector<CounterId> counter_ids;
 
-  auto timebase_counter_id = context_->event_tracker->PushCounter(
-      ts, static_cast<double>(sample.timebase_count()),
-      sampling_stream.timebase_track_id);
+  std::optional<CounterId> timebase_counter_id;
+  if (sample.has_timebase_count()) {
+    timebase_counter_id = context_->event_tracker->PushCounter(
+        ts, static_cast<double>(sample.timebase_count()),
+        sampling_stream.timebase_track_id);
+  }
   if (timebase_counter_id) {
     counter_ids.push_back(*timebase_counter_id);
   }

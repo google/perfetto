@@ -198,7 +198,8 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       key.append(metadata.name().data, metadata.name().size);
 
       auto metadata_id = storage->InternString(base::StringView(key));
-      context_->metadata_tracker->SetDynamicMetadata(metadata_id, value);
+      context_->metadata_tracker->AppendDynamicMetadataLegacy(metadata_id,
+                                                              value);
     }
   }
 
