@@ -53,9 +53,9 @@ const JANK_TYPE_DESCRIPTIONS: Record<string, string> = {
   'Display HAL':
     'The frame was presented at an unexpected time due to reasons within Hardware Composer.',
   'Buffer Stuffing':
-    'The frame was presented late as there were a prior frame in the queue that was presented instead',
+    'The frame was presented late as there was a prior frame in the queue that was presented instead.',
   'SurfaceFlinger Stuffing':
-    'SurfaceFlinger composited frame was presented late as there were a prior frame in the HWC queue that was presented instead',
+    'A SurfaceFlinger composited frame was presented late as there was a prior frame in the HWC queue that was presented instead.',
   'App Resynced Jitter':
     'The application shifted/changed its animation time due to delays in Choreographer execution.',
   'Dropped Frame': 'The frame buffer was not presented on display.',
@@ -107,13 +107,16 @@ export function createActualFramesTrack(
       const jankType = row.jank_type;
 
       if (tag && tag !== 'No Jank' && tag !== 'None') {
-        const elements: m.Children = [];
+        const elements: m.Vnode[] = [];
         elements.push(
           m('div', {style: 'font-weight: bold; margin-bottom: 4px;'}, `${tag}`),
         );
 
         if (jankType && jankType !== 'None' && jankType !== 'Unspecified') {
-          const reasons = jankType.split(',').map((r) => r.trim());
+          const reasons = jankType
+            .split(',')
+            .map((r) => r.trim())
+            .filter(Boolean);
           for (const reason of reasons) {
             const desc = JANK_TYPE_DESCRIPTIONS[reason];
             elements.push(
