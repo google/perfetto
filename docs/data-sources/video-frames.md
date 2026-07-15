@@ -7,17 +7,21 @@ per-display timeline track that decodes them in the browser. You can
 hover the track to preview a frame, play the frames back like a video,
 and click any frame to line it up with the tracks below it.
 
-It records the actual contents of the screen, so it is meant for
-`userdebug` (debuggable) devices only, and any trace that contains it is
-sensitive: it shows exactly what was on the display.
+It records the actual contents of the screen, so any trace that contains
+it is sensitive: it shows exactly what was on the display. On `userdebug`
+(debuggable) devices it is available out of the box. On `user`
+(production) builds it is disabled by default and must be unlocked with a
+system property first — see [Prerequisite on `user`
+builds](#prerequisite-on-user-builds).
 
 This guide covers:
 
 - [How it works, and what it costs](#how-it-works-and-what-it-costs) —
   how the frames get into the trace, and the overhead on the device.
-- [Capturing display video](#capturing-display-video): the three ways to
-  turn it on — the on-device toggle, the record page, and a raw config
-  with full control over quality and size.
+- [Capturing display video](#capturing-display-video): the property to
+  set first on `user` builds, then the three ways to turn it on — the
+  on-device toggle, the record page, and a raw config with full control
+  over quality and size.
 - [Viewing display video](#viewing-display-video): the timeline track,
   hovering to preview a frame, and playing the capture back with the
   timeline kept in sync.
@@ -41,7 +45,24 @@ When the data source is off, it costs nothing.
 ## Capturing display video
 
 There are three ways to turn on display-video capture, from the simplest
-to the most control.
+to the most control. On `user` builds there is also a one-time-per-boot
+property to set first — see the prerequisite below.
+
+### Prerequisite on `user` builds
+
+On `userdebug` (debuggable) devices, display-video capture works out of
+the box, and you can skip this step. On `user` (production) builds it is
+disabled by default: unlock it first by setting a system property over
+ADB.
+
+```
+adb shell setprop debug.video_tracing_allowed true
+```
+
+This property is **not persistent** — it is cleared on the next reboot.
+After the device restarts you have to set it again before you can capture
+display video. Once it is set, capture works through any of the methods
+below: the on-device toggle, the record page, or a raw config.
 
 ### On the device, with System Tracing
 
