@@ -281,7 +281,7 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   shellButtons?(): m.Children;
 
   /**
-   * Provides fixed-size overlay markers for events of interest (e.g. Jank, Cadence Drop).
+   * Provides fixed-size overlay markers for events of interest (e.g. Jank, Skipped Frame).
    */
   markerProvider?(row: T): VisualMarkerStyle | undefined;
 

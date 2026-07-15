@@ -16,7 +16,13 @@ import m from 'mithril';
 import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
 import type {ColorScheme} from '../../base/color_scheme';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
@@ -109,6 +115,12 @@ const JANK_BADGE_SPECS: Record<string, JankBadgeSpec> = {
     priority: 10,
     strokeColor: '#000000',
   },
+  'Skipped Frame': {
+    icon: '⚠️',
+    title: 'Potential Skipped Frame',
+    priority: 15,
+    strokeColor: '#FFFFFF',
+  },
 };
 
 export function getJankBadgeSpec(
@@ -144,7 +156,30 @@ export function createActualFramesTrack(
     trace,
     uri,
     dataset: new SourceDataset({
-      src: 'actual_frame_timeline_slice',
+      src: `(
+        WITH actual_with_prev AS (
+          SELECT
+            id,
+            name,
+            ts,
+            dur,
+            jank_type,
+            jank_tag,
+            jank_tag_experimental,
+            jank_severity_type,
+            arg_set_id,
+            track_id,
+            LAG(dur) OVER (PARTITION BY track_id ORDER BY ts) AS prev_dur
+          FROM actual_frame_timeline_slice
+        )
+        SELECT
+          *,
+          CASE
+            WHEN prev_dur IS NOT NULL AND dur > (prev_dur * 15 / 10) THEN 1
+            ELSE 0
+          END AS is_skipped_frame
+        FROM actual_with_prev
+      )`,
       schema: {
         id: NUM,
         name: STR,
@@ -156,6 +191,7 @@ export function createActualFramesTrack(
         jank_severity_type: STR_NULL,
         arg_set_id: NUM,
         track_id: NUM,
+        is_skipped_frame: NUM_NULL,
       },
       filter: {
         col: 'track_id',
@@ -168,12 +204,17 @@ export function createActualFramesTrack(
         ? row.jank_tag_experimental
         : row.jank_tag;
       const jankType = row.jank_type;
+      const isSkippedFrame = row.is_skipped_frame === 1;
 
-      if (tag && tag !== 'No Jank' && tag !== 'None') {
+      if ((tag && tag !== 'No Jank' && tag !== 'None') || isSkippedFrame) {
         const elements: m.Vnode[] = [];
         const spec = tag ? JANK_BADGE_SPECS[tag] : undefined;
-        const headerIcon = spec?.icon ?? '🟡';
-        const headerTitle = spec?.title ?? `${tag}`;
+        const headerIcon = isSkippedFrame ? '⚠️' : spec?.icon ?? '🟡';
+        const headerTitle = isSkippedFrame
+          ? tag && tag !== 'No Jank'
+            ? `${tag} (Potential Skipped Frame)`
+            : 'Potential Skipped Frame'
+          : spec?.title ?? `${tag}`;
 
         elements.push(
           m(
@@ -182,6 +223,22 @@ export function createActualFramesTrack(
             `${headerIcon} ${headerTitle}`,
           ),
         );
+
+        if (isSkippedFrame) {
+          elements.push(
+            m(
+              'div',
+              {style: 'margin-top: 4px; color: #d97706; font-weight: 500;'},
+              [
+                m('span', '⚠️ Potential Skipped Frame: '),
+                m(
+                  'span',
+                  'Frame duration significantly exceeded expected VSYNC cycle.',
+                ),
+              ],
+            ),
+          );
+        }
 
         if (jankType && jankType !== 'None' && jankType !== 'Unspecified') {
           const reasons = jankType
@@ -207,13 +264,25 @@ export function createActualFramesTrack(
       const tag = useExperimentalJankForClassification
         ? row.jank_tag_experimental
         : row.jank_tag;
+      const tagPriority = getJankBadgePriority(tag);
+      if (row.is_skipped_frame === 1 && tagPriority < 15) {
+        const colorScheme = getColorSchemeForJank(tag, row.jank_severity_type);
+        return {
+          sizePx: 16,
+          icon: '⚠️',
+          colorScheme,
+          strokeColor: '#FFFFFF',
+        };
+      }
       return getJankBadgeSpec(tag, row.jank_severity_type);
     },
     markerPriority: (row) => {
       const tag = useExperimentalJankForClassification
         ? row.jank_tag_experimental
         : row.jank_tag;
-      return getJankBadgePriority(tag);
+      const tagPriority = getJankBadgePriority(tag);
+      const skippedPriority = row.is_skipped_frame === 1 ? 15 : 0;
+      return Math.max(tagPriority, skippedPriority);
     },
     colorizer: (row) => {
       return getColorSchemeForJank(
