@@ -57,10 +57,6 @@ namespace perfetto::trace_processor::stats {
   F(android_video_parse_size_cap_hit,     kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "android.display.video stream exceeded the parse-time size cap; frames " \
       "dropped. See the trace_import_logs table for the affected display."),   \
-  F(android_video_frames_emitted,         kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,         \
-      "Number of android.display.video frames written to "                     \
-      "__intrinsic_video_frames. Zero alongside a display-video config on a "  \
-      "user build usually means debug.tracing_video_allowed was not set."),    \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \

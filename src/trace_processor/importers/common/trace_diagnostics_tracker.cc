@@ -429,16 +429,12 @@ void RuleDisplayVideoNotEnabled(const TraceConfigDecoder& config,
       });
   if (!has_display_video)
     return;
-  // On userdebug/eng builds capture works out of the box, so an empty table
-  // there points at something else; only fire on user (production) builds.
+  // userdebug/eng builds capture out of the box; only fire on user builds.
   if (!helper->IsAndroidUserBuild())
     return;
-  // Frames were captured: nothing wrong.
-  if (helper->HasVideoFramesEmitted())
+  if (helper->HasVideoFrames())
     return;
-  // The producer reported a failure (codec error, no encoder, size cap, ...);
-  // video *did* run but failed for a known reason, so the sysprop hint would
-  // be misleading.
+  // Producer reported a failure: video ran but failed for another reason.
   if (helper->HasVideoErrorStats())
     return;
   helper->AddTraceDiagnostic(

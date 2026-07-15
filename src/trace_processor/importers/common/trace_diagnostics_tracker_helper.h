@@ -77,10 +77,8 @@ class TraceDiagnosticsHelper {
   // absent or the build type is anything else (userdebug/eng) or unparseable.
   bool IsAndroidUserBuild() const;
 
-  // Returns true if any android.display.video frames were written to the
-  // __intrinsic_video_frames table (i.e. the android_video_frames_emitted stat
-  // is non-zero) for this (trace, machine).
-  bool HasVideoFramesEmitted() const;
+  // True if the display.video importer emitted any frames.
+  bool HasVideoFrames() const;
 
   // Returns true if any android_video_* stat of severity kError/kDataLoss is
   // non-zero for this (trace, machine), i.e. the producer reported a failure

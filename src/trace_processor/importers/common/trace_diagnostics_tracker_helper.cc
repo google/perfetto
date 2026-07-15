@@ -133,10 +133,8 @@ bool TraceDiagnosticsHelper::IsAndroidUserBuild() const {
   return type == base::StringView("user");
 }
 
-bool TraceDiagnosticsHelper::HasVideoFramesEmitted() const {
-  return AnyPositiveStat(context_, [](size_t key) {
-    return key == stats::android_video_frames_emitted;
-  });
+bool TraceDiagnosticsHelper::HasVideoFrames() const {
+  return context_->storage->has_android_video_frames();
 }
 
 bool TraceDiagnosticsHelper::HasVideoErrorStats() const {
