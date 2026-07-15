@@ -1,0 +1,207 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Schema for the output of `trace_processor_shell report`.
+//
+// A Report is a stream of self-delimited packets, modeled on the Perfetto Trace
+// format (`Trace` = repeated `TracePacket`). The stream can be truncated at any
+// packet boundary and the prefix remains parseable, and consumers can process
+// packets incrementally without buffering the whole report. The same schema is
+// emitted in three encodings: length-delimited binary (this message), JSONL
+// (one `ReportPacket` per line), and a human-readable text rendering.
+message Report {
+  repeated ReportPacket packet = 1;
+}
+
+// A single unit in the report stream. Exactly one field is set.
+//
+// Interned definitions (Function, Frame, Callstack) are always emitted before
+// any packet that references them by id, so a truncated prefix stays internally
+// consistent. Each interned type has its own id space.
+message ReportPacket {
+  oneof data {
+    // Stream framing and trace-level context.
+    ReportHeader header = 1;
+    SectionInfo section_info = 2;
+
+    // Interned tables, pprof-oriented but Perfetto-native. A Function is a
+    // symbol; a Frame is a physical location (PC/line) pointing at a Function;
+    // a Callstack is a prefix-shared tree node. Many frames can share one
+    // function (inlining, multiple call sites), which is why they are distinct.
+    Function function = 3;
+    Frame frame = 4;
+    Callstack callstack = 5;
+
+    // Typed data rows: one arm per trace data type. Extended per increment.
+    SliceAggregate slice_aggregate = 6;
+    CounterAggregate counter_aggregate = 7;
+    Track track = 8;
+    Process process = 9;
+    // Stack samples / heap profiles aggregated BY FUNCTION (functions view)
+    // versus BY CALLSTACK (top-down / bottom-up tree views) are deliberately
+    // separate packet types.
+    FunctionStat function_stat = 10;
+    CallstackStat callstack_stat = 11;
+    HeapObject heap_object = 12;
+  }
+}
+
+// Trace-level context, emitted once at the start of the stream.
+message ReportHeader {
+  optional string trace_file = 1;
+  optional int64 trace_start_ns = 2;
+  optional int64 trace_end_ns = 3;
+  optional int64 trace_dur_ns = 4;
+  optional int64 process_count = 5;
+  // Device / OS metadata deferred to a later increment.
+}
+
+// Marks the start of a view section and carries the totals needed to render a
+// truncation footnote. Emitted before the section's data rows; the totals are
+// known up-front because the builder counts before selecting the top rows.
+message SectionInfo {
+  optional string title = 1;  // e.g. "Slices"
+  optional string noun = 2;   // e.g. "slices"
+  optional string view = 3;   // e.g. "table"
+  // Distinct rows available in scope vs rows actually emitted (bounded by
+  // --top). shown_rows < total_rows means the section was truncated.
+  optional int64 total_rows = 4;
+  optional int64 shown_rows = 5;
+  // Total underlying items in scope and their noun, for headline counts like
+  // "Slices (12.3M total)".
+  optional int64 total_items = 6;
+  optional string item_noun = 7;
+  // Plural noun for the aggregated rows, used in the truncation footnote
+  // ("N more <row_noun> below --top T"), e.g. "slice names" or "processes".
+  optional string row_noun = 8;
+
+  // How a column's values should be rendered. The typed row packets carry raw
+  // values; the format tells a renderer how to turn each into a display string.
+  enum ColumnFormat {
+    CF_STRING = 0;    // as-is
+    CF_INT = 1;       // plain integer
+    CF_COUNT = 2;     // integer, abbreviated (12.3k, 4.1M)
+    CF_DURATION = 3;  // nanoseconds as 4.1s / 128ms / 33us
+    CF_PERCENT = 4;   // 33.2%
+    CF_NUMBER = 5;    // arbitrary magnitude (33.2k, 1.2G, 4.20)
+  }
+  // The section's columns, in order, declared by the view. A renderer takes its
+  // headers and per-column formatting from here rather than from the noun.
+  message Column {
+    optional string name = 1;
+    optional ColumnFormat format = 2;
+  }
+  repeated Column columns = 10;
+}
+
+// -------------------------------------------------------------------------
+// Interned tables.
+// -------------------------------------------------------------------------
+
+// An interned symbol.
+message Function {
+  optional uint32 id = 1;
+  optional string name = 2;
+  optional string module = 3;  // mapping / shared object name
+  optional string file = 4;
+}
+
+// An interned physical location, referencing a Function by id.
+message Frame {
+  optional uint32 id = 1;
+  optional uint32 function_id = 2;  // -> Function.id
+  optional int64 rel_pc = 3;
+  optional uint32 line = 4;
+}
+
+// An interned callstack tree node: a leaf Frame plus a parent node, giving
+// prefix sharing across callstacks (as in stack_profile_callsite).
+message Callstack {
+  optional uint32 id = 1;
+  optional uint32 parent_id = 2;  // -> Callstack.id; unset at the root
+  optional uint32 frame_id = 3;   // -> Frame.id
+}
+
+// -------------------------------------------------------------------------
+// Typed data rows.
+// -------------------------------------------------------------------------
+
+// Slices grouped by name.
+message SliceAggregate {
+  optional string name = 1;
+  optional int64 count = 2;
+  optional int64 total_dur_ns = 3;
+  optional double pct_of_trace = 4;
+  optional int64 max_dur_ns = 5;
+  // Coordinates (ts / thread) of the max-duration instance deferred.
+}
+
+// Counters grouped by name.
+message CounterAggregate {
+  optional string name = 1;
+  optional int64 count = 2;
+  optional double min = 3;
+  optional double max = 4;
+  optional double avg = 5;
+  optional double last = 6;
+}
+
+// A track, for structural discovery.
+message Track {
+  optional string name = 1;
+  optional string type = 2;
+  optional int64 event_count = 3;
+  optional string context = 4;  // owning process / thread
+}
+
+// A process, for structural discovery.
+message Process {
+  optional int64 pid = 1;
+  optional string name = 2;
+  optional int64 cpu_time_ns = 3;
+  optional double pct_of_trace = 4;
+  optional int64 thread_count = 5;
+}
+
+// Stack samples / heap profile aggregated by function.
+message FunctionStat {
+  optional uint32 function_id = 1;  // -> Function.id
+  optional int64 self_value = 2;
+  optional int64 total_value = 3;
+  optional double self_percent = 4;
+  optional double total_percent = 5;
+  optional int64 sample_count = 6;
+}
+
+// Stack samples / heap profile aggregated by callstack (one per tree node).
+message CallstackStat {
+  optional uint32 callstack_id = 1;  // -> Callstack.id
+  optional int64 self_value = 2;
+  optional int64 total_value = 3;
+  optional double self_percent = 4;
+  optional double total_percent = 5;
+}
+
+// A heap-dump type / object row.
+message HeapObject {
+  optional string type_name = 1;
+  optional int64 retained_size = 2;
+  optional int64 live_count = 3;
+}

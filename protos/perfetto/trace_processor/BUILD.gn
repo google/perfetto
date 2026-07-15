@@ -45,3 +45,12 @@ perfetto_proto_library("metrics_impl_@TYPE@") {
   proto_generators = [ "zero" ]
   sources = [ "metrics_impl.proto" ]
 }
+
+perfetto_proto_library("report_@TYPE@") {
+  proto_generators = [ "zero" ]
+  sources = [ "report.proto" ]
+  generate_descriptor = "report.descriptor"
+  generator_visibility =
+      [ "../../../src/trace_processor/shell:gen_cc_report_descriptor" ]
+  descriptor_root_source = "report.proto"
+}
