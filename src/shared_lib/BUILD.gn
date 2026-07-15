@@ -27,10 +27,7 @@ config("shlib_config") {
 # the generated sources. See include/perfetto/public/abi/export.h.
 config("shlib_impl_config") {
   if (!perfetto_amalgamated_sdk) {
-    defines = [
-      "PERFETTO_SDK_SHLIB",
-      "PERFETTO_SDK_SHLIB_IMPLEMENTATION",
-    ]
+    defines = [ "PERFETTO_SDK_SHLIB_IMPLEMENTATION" ]
   }
 }
 

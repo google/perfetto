@@ -56,8 +56,11 @@ c_sdk_header_preamble = [
 # Preamble to add to the C SDK source file. The generated .cc is the SDK
 # implementation: in shared library mode (PERFETTO_SDK_SHLIB) it exports the
 # ABI symbols and its consumers import them (see perfetto/public/abi/export.h).
+# In the default static mode neither macro is defined and no symbol is
+# annotated.
 c_sdk_source_preamble = [
-    '#if !defined(PERFETTO_SDK_SHLIB_IMPLEMENTATION)',
+    '#if defined(PERFETTO_SDK_SHLIB) && \\',
+    '    !defined(PERFETTO_SDK_SHLIB_IMPLEMENTATION)',
     '#define PERFETTO_SDK_SHLIB_IMPLEMENTATION',
     '#endif',
     '',
