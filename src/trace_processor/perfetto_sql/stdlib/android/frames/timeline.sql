@@ -347,5 +347,3 @@ WHERE
 ORDER BY
   ts
 LIMIT 1;
-
-
