@@ -1095,11 +1095,21 @@ class TraceStorage {
     return static_cast<Variadic::Type>(idx);
   }
 
+  // Set by the display.video importer when it emits a frame; read by trace
+  // doctor to tell "no capture" from a producer error. A flag not a stat, to
+  // keep per-event counts out of stats. TODO(lalitm): drop once trace doctor
+  // is pluginized and can read __intrinsic_video_frames directly.
+  bool has_android_video_frames() const { return has_android_video_frames_; }
+  void set_has_android_video_frames() { has_android_video_frames_ = true; }
+
  private:
   using StringHash = uint64_t;
 
   TraceStorage(const TraceStorage&) = delete;
   TraceStorage& operator=(const TraceStorage&) = delete;
+
+  // See has_android_video_frames().
+  bool has_android_video_frames_ = false;
 
   TraceStorage(TraceStorage&&) = delete;
   TraceStorage& operator=(TraceStorage&&) = delete;

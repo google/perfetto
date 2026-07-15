@@ -415,6 +415,39 @@ void RuleHeapprofdSamplingIntervalTooLow(const TraceConfigDecoder& config,
       });
 }
 
+// android.display.video was configured but produced no frames, on a user
+// build with no producer error — the most likely cause is that the
+// debug.tracing_video_allowed system property was not enabled (it gates
+// display-video capture on user builds and resets on reboot).
+void RuleDisplayVideoNotEnabled(const TraceConfigDecoder& config,
+                                TraceDiagnosticsHelper* helper) {
+  bool has_display_video = false;
+  helper->ForEachDataSourceConfig(
+      config, [&](const protos::pbzero::DataSourceConfig::Decoder& ds_cfg) {
+        if (ds_cfg.name().ToStdStringView() == "android.display.video")
+          has_display_video = true;
+      });
+  if (!has_display_video)
+    return;
+  // userdebug/eng builds capture out of the box; only fire on user builds.
+  if (!helper->IsAndroidUserBuild())
+    return;
+  if (helper->HasVideoFrames())
+    return;
+  // Producer reported a failure: video ran but failed for another reason.
+  if (helper->HasVideoErrorStats())
+    return;
+  helper->AddTraceDiagnostic(
+      "display_video_not_enabled", "Display video not captured",
+      "The trace config requested android.display.video, but no frames were "
+      "captured and the producer reported no errors. On user (production) "
+      "builds display video is disabled until the debug.tracing_video_allowed "
+      "system property is set; it resets on reboot.",
+      "Enable it over ADB before recording, then record again (re-run after "
+      "each reboot): adb shell setprop debug.tracing_video_allowed true",
+      0.7);
+}
+
 constexpr RuleFn kRules[] = {
     &RulePreserveFtraceBufferLateStart,    //
     &RuleTinyFtraceBuffer,                 //
@@ -425,6 +458,7 @@ constexpr RuleFn kRules[] = {
     &RuleDiscardBufferForStreaming,        //
     &RuleAtraceWildcardApps,               //
     &RuleHeapprofdSamplingIntervalTooLow,  //
+    &RuleDisplayVideoNotEnabled,           //
 };
 
 }  // namespace
