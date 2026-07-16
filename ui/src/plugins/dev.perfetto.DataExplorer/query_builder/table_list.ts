@@ -512,7 +512,10 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     }
 
     // Perform the actual search for display
-    const sortedFuzzyResults = searchAndRankTables(allTables, attrs.searchQuery);
+    const sortedFuzzyResults = searchAndRankTables(
+      allTables,
+      attrs.searchQuery,
+    );
 
     const tableCards = sortedFuzzyResults.map(({item, segments, matchType}) =>
       m(TableCard, {

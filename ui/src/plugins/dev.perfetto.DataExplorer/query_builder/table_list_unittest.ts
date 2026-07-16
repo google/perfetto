@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import {searchAndRankTables} from './table_list';
-import type {SqlColumn, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
+import type {
+  SqlColumn,
+  SqlTable,
+} from '../../dev.perfetto.SqlModules/sql_modules';
 
 function mkTable(
   name: string,
