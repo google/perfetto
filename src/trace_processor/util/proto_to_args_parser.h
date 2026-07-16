@@ -121,6 +121,8 @@ class ProtoToArgsParser {
     virtual void AddDouble(Id flat_key, Id key, double value) = 0;
     virtual void AddPointer(Id flat_key, Id key, uint64_t value) = 0;
     virtual void AddBoolean(Id flat_key, Id key, bool value) = 0;
+    virtual void AddUpid(Id, Id, int64_t) {}
+    virtual void AddUtid(Id, Id, int64_t) {}
     virtual void AddBytes(Id flat_key,
                           Id key,
                           const protozero::ConstBytes& value) {
@@ -344,6 +346,16 @@ class ProtoToArgsParser {
                         int64_t value,
                         Delegate& delegate);
 
+  // Emit companion args for (pid)/(tid) fields.
+  void AddPid(int64_t pid, Delegate& delegate);
+  void AddTid(int64_t tid, Delegate& delegate);
+
+  // Interns the current flat_key/key with a trailing |from| replaced by |to|.
+  std::pair<StringPool::Id, StringPool::Id> InternSuffixedKeys(
+      Delegate& delegate,
+      std::string_view from,
+      std::string_view to);
+
   // A node in the traversal tree, a flattened trie over the descriptor path.
   // Nodes live in the |path_nodes_| arena and reference each other by index, so
   // the arena can grow without invalidating handles. Each field is a pure
@@ -406,6 +418,8 @@ class ProtoToArgsParser {
   std::vector<PathNode> path_nodes_;
   // Reused scratch buffer for AddFlags (flag-name views), to avoid per-call
   // allocation.
+  // Reused buffer for InternSuffixedKeys, to avoid a per-field allocation.
+  std::string suffixed_key_scratch_;
   std::vector<std::string_view> flag_views_;
   // Edge -> child node index in |path_nodes_| (see |PathEdgeKey|). Roots are
   // keyed by pool descriptor index under the kNoPath parent.
