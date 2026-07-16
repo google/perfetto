@@ -25,8 +25,8 @@
 // This script allows mixing build tools that support --watch mode (tsc and
 // rollup) and auto-triggering-on-file-change rules via fs.watch.
 // When invoked without any argument (e.g., for production builds), this script
-// just runs all the build tasks serially. It doesn't to do any mtime-based
-// check, it always re-runs all the tasks.
+// always re-runs all the tasks rather than doing any mtime-based check. Most
+// tasks are serial, but independent type checks and bundles run concurrently.
 // When invoked with --watch, it mounts a pipeline of tasks based on fs.watch
 // and runs them together with tsc --watch and rollup --watch.
 // The output directory structure is carefully crafted so that any change to UI
@@ -140,11 +140,12 @@ const RULES = [
 ];
 
 const tasks = [];
+let taskRunnerPromise;
 let tasksTot = 0;
 let tasksRan = 0;
 const httpWatches = [];
 const tStart = performance.now();
-const subprocesses = [];
+const subprocesses = new Set();
 const LIVE_SERVER_DEBOUNCE_MS = 250;
 let liveServerDebounceTimerId = 0;
 const notifyLiveServerPendingFiles = new Set();
@@ -425,21 +426,22 @@ Env-var overrides:
       }
     } else {
       // Vite owns TS transpile + bundling. tsc is invoked separately purely
-      // for type checking. In non-watch builds it runs synchronously and a
-      // type error fails the build. In watch mode tsc --watch runs async in
-      // the background and prints errors without killing the build.
-      for (const prj of tsProjects) {
-        if (cfg.watch) {
+      // for type checking. In non-watch builds the type checks and independent
+      // bundles run concurrently, but all must finish successfully before the
+      // build completes. In watch mode tsc --watch runs in the background and
+      // prints errors without killing the build.
+      if (cfg.watch) {
+        for (const prj of tsProjects) {
           transpileTsProject(prj, {
             watch: true,
             noEmit: true,
             noErrCheck: true,
           });
-        } else {
-          transpileTsProject(prj, {noEmit: true});
         }
+        runVite();
+      } else {
+        checkTypeScriptAndBuildBundles(tsProjects);
       }
-      runVite();
       genServiceWorkerManifestJson();
 
       // Watches the /dist. When changed:
@@ -449,20 +451,26 @@ Env-var overrides:
     }
   }
 
-  // We should enter the loop only in watch mode, where tsc and rollup are
-  // asynchronous because they run in watch mode.
+  // Do not serve, test, or report success until every initial build task has
+  // finished. Watch processes are background tasks and are not awaited here.
+  await waitForTasks();
+
   if (args.no_build && !isDistComplete()) {
     console.log('No build was requested, but artifacts are not available.');
     console.log('In case of execution error, re-run without --no-build.');
   }
   if (!args.no_build && !cfg.check) {
-    const tStart = performance.now();
-    while (!isDistComplete()) {
-      const secs = Math.ceil((performance.now() - tStart) / 1000);
-      process.stdout.write(
-        `\t\tWaiting for first build to complete... ${secs} s\r`,
-      );
-      await new Promise((r) => setTimeout(r, 500));
+    if (cfg.watch) {
+      const tStart = performance.now();
+      while (!isDistComplete()) {
+        const secs = Math.ceil((performance.now() - tStart) / 1000);
+        process.stdout.write(
+          `\t\tWaiting for first build to complete... ${secs} s\r`,
+        );
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    } else if (!isDistComplete()) {
+      throw new Error('Build completed without all required artifacts');
     }
   }
   if (cfg.watch) console.log('\nFirst build completed!');
@@ -476,6 +484,7 @@ Env-var overrides:
   }
   if (args.run_unittests) {
     runTests();
+    await waitForTasks();
   }
 }
 
@@ -495,7 +504,7 @@ function runTests() {
     args.push('-t', cfg.testFilter);
   }
   if (cfg.watch) {
-    addTask(execModule, ['vitest', args, {async: true}]);
+    addTask(execModule, ['vitest', args, {async: true}], {background: true});
   } else {
     addTask(execModule, ['vitest', args]);
   }
@@ -784,14 +793,18 @@ function transpileTsProject(project, options) {
 
   if (options.watch) {
     args.push('--watch', '--preserveWatchOutput');
-    addTask(execModule, [
-      'tsc',
-      args,
-      {
-        async: true,
-        noErrCheck: options.noErrCheck,
-      },
-    ]);
+    addTask(
+      execModule,
+      [
+        'tsc',
+        args,
+        {
+          async: true,
+          noErrCheck: options.noErrCheck,
+        },
+      ],
+      {background: true},
+    );
   } else if (options.noEmit) {
     addTask(execModule, ['tsc', args]);
   } else {
@@ -808,7 +821,7 @@ function transpileTsProject(project, options) {
 // dev server (see startViteDevServer) — workers and the service worker still
 // go through `vite build --watch` because they're loaded as separate files by
 // `new Worker(assetSrc(...))` / SW registration.
-function runVite() {
+function getViteBuildCommands() {
   const baseEnv = {
     NO_SOURCE_MAPS: cfg.noSourceMaps ? 'true' : '',
     NO_TREESHAKE: cfg.noTreeshake ? 'true' : '',
@@ -820,19 +833,49 @@ function runVite() {
   if (cfg.bigtrace) bundles.push('bigtrace');
   if (cfg.engineBench) bundles.push('engine_bench', 'engine_bench_worker');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
-  for (const bundle of bundles) {
+  return bundles.map((bundle) => {
     const args = ['build', '--config', pjoin(ROOT_DIR, 'ui/vite.config.mjs')];
     if (cfg.watch) args.push('--watch');
     if (!cfg.verbose) args.push('--logLevel', 'warn');
-    addTask(execModule, [
-      'vite',
-      args,
-      {
-        async: cfg.watch,
-        env: {...baseEnv, BUNDLE: bundle},
-      },
-    ]);
+    return ['vite', args, {env: {...baseEnv, BUNDLE: bundle}}];
+  });
+}
+
+function runVite() {
+  for (const [module, args, opts] of getViteBuildCommands()) {
+    addTask(execModule, [module, args, {...opts, async: cfg.watch}], {
+      background: cfg.watch,
+    });
   }
+}
+
+function checkTypeScriptAndBuildBundles(tsProjects) {
+  const commands = tsProjects.map((project) => [
+    'tsc',
+    ['--project', pjoin(ROOT_DIR, project), '--noEmit'],
+    {},
+  ]);
+  commands.push(...getViteBuildCommands());
+  addTask(execModuleCommandsParallel, [commands]);
+}
+
+async function execModuleCommandsParallel(commands) {
+  // Each Vite process can use over a GiB on the main bundle. Keep enough work
+  // in flight to overlap independent builds without unbounded memory growth
+  // when optional bundles are enabled.
+  const maxParallel = 2;
+  let next = 0;
+  async function worker() {
+    while (next < commands.length) {
+      const [module, args, opts] = commands[next++];
+      await execModule(module, args, {...opts, async: true});
+    }
+  }
+  const workers = Array.from(
+    {length: Math.min(maxParallel, commands.length)},
+    worker,
+  );
+  await Promise.all(workers);
 }
 
 function genServiceWorkerManifestJson() {
@@ -1025,7 +1068,7 @@ async function startViteDevServer() {
   await server.listen();
   server.printUrls();
   // Make sure the dev server is shut down on process exit.
-  subprocesses.push({pid: 'vite-dev', kill: () => server.close()});
+  subprocesses.add({pid: 'vite-dev', kill: () => server.close()});
 }
 
 function startServer() {
@@ -1235,29 +1278,47 @@ function copyExtensionAssets() {
 // Task chaining functions
 // -----------------------
 
-function addTask(func, args) {
-  const task = new Task(func, args);
+function addTask(func, args, options) {
+  const task = new Task(func, args, options);
   for (const t of tasks) {
     if (t.identity === task.identity) {
       return;
     }
   }
   tasks.push(task);
-  setTimeout(runTasks, 0);
+  scheduleRunTasks();
 }
 
-function runTasks() {
-  const snapTasks = tasks.splice(0); // snap = std::move(tasks).
-  tasksTot += snapTasks.length;
-  for (const task of snapTasks) {
-    const DIM = '\u001b[2m';
-    const BRT = '\u001b[37m';
-    const RST = '\u001b[0m';
-    const ms = (performance.now() - tStart) / 1000;
-    const ts = `[${DIM}${ms.toFixed(3)}${RST}]`;
-    const descr = task.description.substr(0, 80);
-    console.log(`${ts} ${BRT}${++tasksRan}/${tasksTot}${RST}\t${descr}`);
-    task.func.apply(/* this=*/ undefined, task.args);
+function scheduleRunTasks() {
+  if (taskRunnerPromise !== undefined) return;
+  taskRunnerPromise = new Promise((resolve) => setTimeout(resolve, 0))
+    .then(runTasks)
+    .finally(() => {
+      taskRunnerPromise = undefined;
+      // A task can be queued after runTasks drains but before this finalizer.
+      if (tasks.length > 0) scheduleRunTasks();
+    });
+}
+
+async function waitForTasks() {
+  while (taskRunnerPromise !== undefined) await taskRunnerPromise;
+}
+
+async function runTasks() {
+  while (tasks.length > 0) {
+    const snapTasks = tasks.splice(0); // snap = std::move(tasks).
+    tasksTot += snapTasks.length;
+    for (const task of snapTasks) {
+      const DIM = '\u001b[2m';
+      const BRT = '\u001b[37m';
+      const RST = '\u001b[0m';
+      const ms = (performance.now() - tStart) / 1000;
+      const ts = `[${DIM}${ms.toFixed(3)}${RST}]`;
+      const descr = task.description.substr(0, 80);
+      console.log(`${ts} ${BRT}${++tasksRan}/${tasksTot}${RST}\t${descr}`);
+      const result = task.func.apply(/* this=*/ undefined, task.args);
+      if (!task.background) await result;
+    }
   }
 }
 
@@ -1315,11 +1376,10 @@ function exec(cmd, args, opts) {
   };
   if (opts.async) {
     const proc = childProcess.spawn(cmd, args, spwOpts);
-    const procIndex = subprocesses.length;
-    subprocesses.push(proc);
+    subprocesses.add(proc);
     return new Promise((resolve, _reject) => {
       proc.on('exit', (code, signal) => {
-        delete subprocesses[procIndex];
+        subprocesses.delete(proc);
         checkExitCode(code, signal);
         resolve();
       });
@@ -1341,9 +1401,10 @@ function execModule(module, args, opts) {
 // ------------------------------------------
 
 class Task {
-  constructor(func, args) {
+  constructor(func, args, options) {
     this.func = func;
     this.args = args || [];
+    this.background = options?.background ?? false;
     // |identity| is used to dedupe identical tasks in the queue.
     this.identity = JSON.stringify([this.func.name, this.args]);
   }
