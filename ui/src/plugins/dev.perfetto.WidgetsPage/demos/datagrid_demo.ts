@@ -231,6 +231,15 @@ export function renderDataGrid(app: App): m.Children {
         '"manager.manager.name" or "department.head.name". For parameterized columns ',
         'like "skills", you can type any key name (e.g., "typescript", "python").',
       ]),
+      m('p', [
+        'Want to experiment with custom schemas? Try the ',
+        m(
+          Anchor,
+          {href: '#!/widgets/datagrid-playground'},
+          'DataGrid Playground',
+        ),
+        ' for an interactive editor where you can define and test your own DataGrid configs.',
+      ]),
     ),
 
     renderWidgetShowcase({
