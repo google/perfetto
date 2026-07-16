@@ -22,35 +22,29 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/tools/proto_merger/proto_file_serializer.h"
 
 namespace perfetto {
 namespace proto_merger {
 namespace {
 
 void StripDeletedElementComment(std::vector<std::string>& leading_comments) {
-  auto is_warning = [](std::string_view s) {
-    return base::TrimWhitespace(s) ==
-           "The following enums/messages/fields are not present upstream";
-  };
-  auto is_empty = [](std::string_view s) {
-    return base::TrimWhitespace(s).empty();
-  };
-
-  auto it = std::find_if(leading_comments.begin(), leading_comments.end(),
-                         [&](const std::string& s) { return is_warning(s); });
-  while (it != leading_comments.end()) {
-    auto start = it;
-    if (start != leading_comments.begin() && is_empty(*(start - 1))) {
-      --start;
+  std::vector<std::string> kept;
+  kept.reserve(leading_comments.size());
+  for (size_t i = 0; i < leading_comments.size(); i++) {
+    if (base::TrimWhitespace(leading_comments[i]) != kDeletedCommentWarning) {
+      kept.push_back(std::move(leading_comments[i]));
+      continue;
     }
-    auto end = it + 1;
-    if (end != leading_comments.end() && is_empty(*end)) {
-      ++end;
-    }
-    it = leading_comments.erase(start, end);
-    it = std::find_if(it, leading_comments.end(),
-                      [&](const std::string& s) { return is_warning(s); });
+    // |i| is the warning line: don't keep it, and also drop one blank
+    // comment line before it (already in |kept|) and one after it.
+    if (!kept.empty() && base::TrimWhitespace(kept.back()).empty())
+      kept.pop_back();
+    if (i + 1 < leading_comments.size() &&
+        base::TrimWhitespace(leading_comments[i + 1]).empty())
+      i++;  // Skips the blank line: the loop increment moves past it.
   }
+  leading_comments = std::move(kept);
 }
 
 bool IsAllowlistedOption(const std::string& key,
