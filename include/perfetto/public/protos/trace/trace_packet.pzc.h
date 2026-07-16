@@ -77,6 +77,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessTree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProfilePacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_RemoteClockSync);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SmapsPacket);
+PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StatsdAtom);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StreamingAllocation);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StreamingFree);
@@ -370,6 +371,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_ConcurrentSessionEvent,
                   concurrent_session_event,
                   134);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_StackSample,
+                  stack_sample,
+                  135);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_InitialDisplayState,
