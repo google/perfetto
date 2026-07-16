@@ -56,7 +56,8 @@ void ProtoVmIncrementalTracing::ProcessProtoVmsPacket(
                                       ? instance.state()
                                       : protozero::ConstBytes{nullptr, 0};
     vms_.push_back(std::make_unique<protovm::Vm>(
-        instance.program(), 1024 * instance.memory_limit_kb(), state));
+        instance.program(),
+        static_cast<size_t>(instance.memory_limit_kb()) * 1024, state));
     protovm::Vm* vm = vms_.back().get();
     for (auto producer_id = instance.producer_id(); producer_id;
          ++producer_id) {
