@@ -28,12 +28,28 @@ namespace proto_merger {
 namespace {
 
 void StripDeletedElementComment(std::vector<std::string>& leading_comments) {
-  while (leading_comments.size() >= 3 && leading_comments[0].empty() &&
-         leading_comments[1] ==
-             " The following enums/messages/fields are not present upstream" &&
-         leading_comments[2].empty()) {
-    leading_comments.erase(leading_comments.begin(),
-                           leading_comments.begin() + 3);
+  auto is_warning = [](std::string_view s) {
+    return base::TrimWhitespace(s) ==
+           "The following enums/messages/fields are not present upstream";
+  };
+  auto is_empty = [](std::string_view s) {
+    return base::TrimWhitespace(s).empty();
+  };
+
+  auto it = std::find_if(leading_comments.begin(), leading_comments.end(),
+                         [&](const std::string& s) { return is_warning(s); });
+  while (it != leading_comments.end()) {
+    auto start = it;
+    if (start != leading_comments.begin() && is_empty(*(start - 1))) {
+      --start;
+    }
+    auto end = it + 1;
+    if (end != leading_comments.end() && is_empty(*end)) {
+      ++end;
+    }
+    it = leading_comments.erase(start, end);
+    it = std::find_if(it, leading_comments.end(),
+                      [&](const std::string& s) { return is_warning(s); });
   }
 }
 

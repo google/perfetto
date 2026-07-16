@@ -223,6 +223,43 @@ TEST(ProtoFileSerializerTest, MergeDoesNotDuplicateDeletedComment) {
       << out;
 }
 
+TEST(ProtoFileSerializerTest, MergeDoesNotDuplicateDeletedCommentFormatted) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    ProtoFile::Field deleted_field =
+        MakeField("optional string", "deleted_upstream", 2);
+    // Formatted comment without empty comment lines or without leading space
+    deleted_field.leading_comments.push_back(
+        "The following enums/messages/fields are not present upstream");
+    message.fields.push_back(deleted_field);
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+
+  size_t first_pos =
+      out.find("The following enums/messages/fields are not present upstream");
+  ASSERT_NE(first_pos, std::string::npos);
+  size_t second_pos =
+      out.find("The following enums/messages/fields are not present upstream",
+               first_pos + 1);
+  EXPECT_EQ(second_pos, std::string::npos)
+      << "Comment was duplicated in output:\n"
+      << out;
+}
+
 TEST(ProtoFileSerializerTest, TypeTransitionDisallowedFails) {
   ProtoFile input;
   {
