@@ -39,6 +39,9 @@ export abstract class AdbDevice {
 
   abstract close(): void;
 
+  // True while the underlying transport is connected.
+  abstract get connected(): boolean;
+
   /** Invoke a command and return its stdout+err. */
   async shell(cmd: string): Promise<Result<string>> {
     const cmdOut = new ResizableArrayBuffer();

@@ -12,31 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type protos from '../../../../protos';
 import type {RecordingTarget} from '../../interfaces/recording_target';
 import type {PreflightCheck} from '../../interfaces/connection_check';
 import type {AdbKeyManager} from './adb_key_manager';
-import {
-  createAdbTracingSession,
-  getAdbTracingServiceState,
-} from '../adb_tracing_session';
 import {AdbWebusbDevice} from './adb_webusb_device';
 import {type AdbUsbInterface, usbDeviceToStr} from './adb_webusb_utils';
-import {errResult, okResult, type Result} from '../../../../base/result';
+import {okResult, type Result} from '../../../../base/result';
 import {checkAndroidTarget} from '../adb_platform_checks';
-import type {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
-import {AsyncLazy} from '../../../../base/async_lazy';
+import {AdbRecordingTarget} from '../adb_recording_target';
 
-export class AdbWebusbTarget implements RecordingTarget {
-  readonly kind = 'LIVE_RECORDING';
-  readonly platform = 'ANDROID';
+export class AdbWebusbTarget
+  extends AdbRecordingTarget<AdbWebusbDevice>
+  implements RecordingTarget
+{
   readonly transportType = 'WebUSB';
-  private adbDevice = new AsyncLazy<AdbWebusbDevice>();
 
   constructor(
     private usbiface: AdbUsbInterface,
     private adbKeyMgr: AdbKeyManager,
-  ) {}
+  ) {
+    super();
+  }
+
+  get id(): string {
+    return usbDeviceToStr(this.usbiface.dev);
+  }
+
+  get name(): string {
+    const dev = this.usbiface.dev;
+    return `${dev.productName} [${dev.serialNumber}]`;
+  }
 
   async *runPreflightChecks(): AsyncGenerator<PreflightCheck> {
     const status = await this.connectIfNeeded();
@@ -53,42 +58,9 @@ export class AdbWebusbTarget implements RecordingTarget {
     yield* checkAndroidTarget(this.adbDevice.value);
   }
 
-  async connectIfNeeded(): Promise<Result<AdbWebusbDevice>> {
+  protected connectIfNeeded(): Promise<Result<AdbWebusbDevice>> {
     return this.adbDevice.getOrCreate(() =>
       AdbWebusbDevice.connect(this.usbiface.dev, this.adbKeyMgr),
     );
-  }
-
-  get connected(): boolean {
-    return this.adbDevice.value?.connected ?? false;
-  }
-
-  get id(): string {
-    return usbDeviceToStr(this.usbiface.dev);
-  }
-
-  get name(): string {
-    const dev = this.usbiface.dev;
-    return `${dev.productName} [${dev.serialNumber}]`;
-  }
-
-  async getServiceState(): Promise<Result<protos.ITracingServiceState>> {
-    if (this.adbDevice.value === undefined) {
-      return errResult('WebUSB transport disconnected');
-    }
-    return getAdbTracingServiceState(this.adbDevice.value);
-  }
-
-  async startTracing(
-    traceConfig: protos.ITraceConfig,
-  ): Promise<Result<ConsumerIpcTracingSession>> {
-    const adbDeviceStatus = await this.connectIfNeeded();
-    if (!adbDeviceStatus.ok) return adbDeviceStatus;
-    return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
-  }
-
-  disconnect(): void {
-    this.adbDevice.value?.close();
-    this.adbDevice.reset();
   }
 }
