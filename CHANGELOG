@@ -37,6 +37,13 @@ Unreleased:
     * Update node to v22.23.1.
     * Allow pivoting on arg values in slice aggregation table.
   SDK:
+    * Reworked the C SDK shared library export macros: static linking (the
+      default) no longer needs any macros. Define
+      PERFETTO_SDK_SHLIB_IMPLEMENTATION (renamed from
+      PERFETTO_SHLIB_SDK_IMPLEMENTATION) when building the SDK into a shared
+      library, and PERFETTO_SDK_SHLIB when consuming it as one. This applies
+      to the amalgamated SDK too. PERFETTO_SDK_DISABLE_SHLIB_EXPORT is
+      removed.
     * Added PerfettoDsGetTimestamp() and PerfettoDsGetDefaultClockId() to
       the C data source ABI. These return the current timestamp in the
       preferred trace clock, so callers no longer need to pick the OS

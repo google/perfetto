@@ -206,7 +206,7 @@ perfetto_cc_library(
         ":include_perfetto_tracing_tracing",
     ],
     defines = [
-        "PERFETTO_SHLIB_SDK_IMPLEMENTATION",
+        "PERFETTO_SDK_SHLIB_IMPLEMENTATION",
     ],
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
