@@ -77,7 +77,8 @@ class InstructionEmitter {
                      const std::vector<std::string_view>& src_relative_path,
                      const std::vector<std::string_view>& dst_relative_path,
                      bool is_recursive,
-                     AbortLevel abort_level) const;
+                     AbortLevel abort_level,
+                     int recursion_depth = 0) const;
 
   base::Status MergeByKey(
       const Scope& scope,
@@ -101,6 +102,11 @@ class InstructionEmitter {
       AbortLevel abort_level) const;
 
  private:
+  // Bounds the schema recursion of a recursive merge. Message types that
+  // (indirectly) contain themselves via a non-repeated field would otherwise
+  // make the emitter recurse forever.
+  static constexpr int kMaxRecursiveMergeDepth = 32;
+
   struct Field {
     uint32_t id;
     const perfetto::trace_processor::FieldDescriptor* descriptor;

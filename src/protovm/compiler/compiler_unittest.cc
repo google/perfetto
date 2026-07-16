@@ -20,6 +20,8 @@
 
 #include "test/gtest_and_gmock.h"
 
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "src/protovm/compiler/android_extension.descriptor.h"
 #include "src/protovm/compiler/compiler.h"
 #include "src/protovm/compiler/trace.descriptor.h"
@@ -44,18 +46,20 @@ class CompilerTest : public ::testing::Test {
     EXPECT_TRUE(status.ok());
   }
 
+  static std::string GetCombinedDescriptors() {
+    return std::string(
+               reinterpret_cast<const char*>(perfetto::kTraceDescriptor.data()),
+               perfetto::kTraceDescriptor.size()) +
+           std::string(reinterpret_cast<const char*>(
+                           perfetto::kAndroidExtensionDescriptor.data()),
+                       perfetto::kAndroidExtensionDescriptor.size());
+  }
+
   void CheckCompilation(std::string_view config_textproto,
                         std::string_view expected_instructions_textproto) {
     Compiler compiler;
-    std::string combined_descriptors =
-        std::string(
-            reinterpret_cast<const char*>(perfetto::kTraceDescriptor.data()),
-            perfetto::kTraceDescriptor.size()) +
-        std::string(reinterpret_cast<const char*>(
-                        perfetto::kAndroidExtensionDescriptor.data()),
-                    perfetto::kAndroidExtensionDescriptor.size());
     base::StatusOr<std::string> actual_instructions_binary =
-        compiler.Compile(config_textproto, combined_descriptors);
+        compiler.Compile(config_textproto, GetCombinedDescriptors());
     EXPECT_TRUE(actual_instructions_binary.ok())
         << actual_instructions_binary.status().message();
 
@@ -566,15 +570,7 @@ TEST_F(CompilerTest, ErrorInvalidFieldName) {
       }
     })";
 
-  auto compiler = Compiler{};
-  std::string combined_descriptors =
-      std::string(
-          reinterpret_cast<const char*>(perfetto::kTraceDescriptor.data()),
-          perfetto::kTraceDescriptor.size()) +
-      std::string(reinterpret_cast<const char*>(
-                      perfetto::kAndroidExtensionDescriptor.data()),
-                  perfetto::kAndroidExtensionDescriptor.size());
-  auto status_or = compiler.Compile(config, combined_descriptors);
+  auto status_or = Compiler{}.Compile(config, GetCombinedDescriptors());
   EXPECT_FALSE(status_or.ok());
   EXPECT_THAT(
       status_or.status().message(),
@@ -674,6 +670,132 @@ TEST_F(CompilerTest, CanResolveWinscopeExtensionsProtos) {
     })";
 
   CheckCompilation(config, expected_instructions);
+}
+
+TEST_F(CompilerTest, ErrorScalarFieldInPathMiddle) {
+  // "string_to_merge" is a string: the path cannot continue past it. The
+  // compiler must report an error, not crash.
+  std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
+    commands {
+      set {
+        src: "for_testing"
+        src: "protovm_patch"
+        src: "string_to_merge"
+        src: "bogus"
+        dst: "for_testing"
+      }
+    })";
+
+  auto status_or = Compiler{}.Compile(config, GetCombinedDescriptors());
+  EXPECT_FALSE(status_or.ok());
+  EXPECT_THAT(status_or.status().message(),
+              ::testing::HasSubstr("the parent field is not a message"));
+}
+
+TEST_F(CompilerTest, ErrorRecursiveMergeTypeMismatch) {
+  // src is a ProtoVmMessage, dst is a ProtoVmIncrementalState: a recursive
+  // merge between different message types is meaningless. The compiler must
+  // report an error, not crash.
+  std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
+    commands {
+      merge {
+        src: "for_testing"
+        src: "protovm_patch"
+        src: "single_message"
+        dst: "for_testing"
+        dst: "protovm_incremental_state"
+        recursive: true
+      }
+    })";
+
+  auto status_or = Compiler{}.Compile(config, GetCombinedDescriptors());
+  EXPECT_FALSE(status_or.ok());
+  EXPECT_THAT(
+      status_or.status().message(),
+      ::testing::HasSubstr(
+          "Recursive merge requires src and dst to be messages of the same"));
+}
+
+TEST_F(CompilerTest, ErrorRecursiveMergeOnScalarField) {
+  std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
+    commands {
+      merge {
+        src: "for_testing"
+        src: "protovm_patch"
+        src: "string_to_merge"
+        dst: "for_testing"
+        dst: "protovm_incremental_state"
+        dst: "string_merged"
+        recursive: true
+      }
+    })";
+
+  auto status_or = Compiler{}.Compile(config, GetCombinedDescriptors());
+  EXPECT_FALSE(status_or.ok());
+  EXPECT_THAT(
+      status_or.status().message(),
+      ::testing::HasSubstr(
+          "Recursive merge requires src and dst to be messages of the same"));
+}
+
+TEST_F(CompilerTest, ErrorKeyFieldNotNumericScalar) {
+  // "submessage" is a message: it can never match a numeric register at
+  // runtime, so the compiler must reject it as a key field.
+  std::string config = R"(
+    root_message: "perfetto.protos.TracePacket"
+    commands {
+      merge {
+        src: "for_testing"
+        src: "protovm_patch"
+        src: "messages"
+        dst: "for_testing"
+        dst: "protovm_incremental_state"
+        dst: "messages"
+        key_field: "submessage"
+      }
+    })";
+
+  auto status_or = Compiler{}.Compile(config, GetCombinedDescriptors());
+  EXPECT_FALSE(status_or.ok());
+  EXPECT_THAT(
+      status_or.status().message(),
+      ::testing::HasSubstr(
+          "Key field 'submessage' must be a non-repeated numeric field"));
+}
+
+TEST_F(CompilerTest, ErrorRecursiveMergeCyclicMessage) {
+  // A message type that contains itself via a non-repeated field would make
+  // a recursive merge recurse forever. The compiler must report an error, not
+  // crash.
+  protozero::HeapBuffered<protos::pbzero::FileDescriptorSet> descriptor_set;
+  auto* file = descriptor_set->add_file();
+  file->set_name("cyclic.proto");
+  file->set_package("cyclictest");
+  auto* message = file->add_message_type();
+  message->set_name("Cyclic");
+  auto* field = message->add_field();
+  field->set_name("child");
+  field->set_number(1);
+  field->set_label(protos::pbzero::FieldDescriptorProto::LABEL_OPTIONAL);
+  field->set_type(protos::pbzero::FieldDescriptorProto::TYPE_MESSAGE);
+  field->set_type_name(".cyclictest.Cyclic");
+
+  std::string config = R"(
+    root_message: "cyclictest.Cyclic"
+    commands {
+      merge {
+        recursive: true
+      }
+    })";
+
+  auto status_or =
+      Compiler{}.Compile(config, descriptor_set.SerializeAsString());
+  EXPECT_FALSE(status_or.ok());
+  EXPECT_THAT(status_or.status().message(),
+              ::testing::HasSubstr("cyclic message types are not supported"));
 }
 
 }  // namespace
