@@ -353,6 +353,11 @@ class TraceProcessor:
     self.close()
     return False
 
+  def __del__(self):
+    # Fallback for callers that skip close()/the context manager, so temp files
+    # and the HTTP connection don't leak (as a "ResourceWarning: unclosed file").
+    self.close()
+
   def close(self):
     if getattr(self, 'subprocess', None):
       # Force-kill the whole process tree (the trace_processor subprocess and

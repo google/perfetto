@@ -1,9 +1,17 @@
 Unreleased:
   Tracing service and probes:
+    * Added optional recording of the state changes of other concurrent
+      tracing sessions, as ConcurrentSessionEvent packets. Opt-in via
+      TraceConfig.BuiltinDataSource.enable_concurrent_session_events. Trace
+      Processor and the UI show them as one state track per session.
+    * Added Zstd as a trace compression option alongside deflate, selected via
+      the new TraceConfig.compression field (which supersedes compression_type).
     * The procfs scraper (process_stats data source) now writes an explicit
       Thread message for a process' main thread, instead of leaving it implied
       by the process entry. This fixes missing main thread names when a trace
       is recorded using procfs alone.
+    * Replaced TraceConfig.notes and `perfetto --add-note` with
+      TraceConfig.trace_attributes and `--add-attribute`.
   Trace Processor:
     * Added a client-server mode to `trace_processor_shell`: start a server
       over a unix socket (`server unix`) or WebSocket (`server http`) and
@@ -15,14 +23,31 @@ Unreleased:
       See https://perfetto.dev/docs/analysis/merging-traces.
     * Added `trace_processor_shell util merge`: packs traces and an optional
       manifest into a merged-trace archive and sanity-checks the result.
+    * Trace attributes can now also come from the trace config.
+    * perfetto_manifest files can annotate an archive via `attributes`.
   UI:
     * Opening multiple trace files is now supported by default: the "Open
       multiple trace files" sidebar item (or multi-selecting / dropping
       several files) opens a dialog to configure how the traces merge onto
       a shared timeline, warns if any events would be dropped, and can
       export the merged set as a self-contained .tar archive.
+    * Add list of recently opened traces to the homepage.
+    * Remap OpenCommandPalette command hotkey to F1 on Firefox.
+    * Ftrace plugin: now handles area selections and multi-machine traces.
+    * Update node to v22.23.1.
+    * Allow pivoting on arg values in slice aggregation table.
   SDK:
-    *
+    * Reworked the C SDK shared library export macros: static linking (the
+      default) no longer needs any macros; define PERFETTO_SDK_SHLIB to build
+      or consume the SDK, including the amalgamated one, as a shared library.
+      PERFETTO_SDK_DISABLE_SHLIB_EXPORT is removed and
+      PERFETTO_SHLIB_SDK_IMPLEMENTATION is renamed to
+      PERFETTO_SDK_SHLIB_IMPLEMENTATION.
+    * Added PerfettoDsGetTimestamp() and PerfettoDsGetDefaultClockId() to
+      the C data source ABI. These return the current timestamp in the
+      preferred trace clock, so callers no longer need to pick the OS
+      specific clock themselves. Also added DataSourceTimestamp::now() in
+      the Rust SDK.
 
 v57.2 - 2026-07-07:
   Trace Processor:

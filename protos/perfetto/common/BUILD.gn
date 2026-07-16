@@ -56,3 +56,13 @@ perfetto_proto_library("semantic_type_@TYPE@") {
     "zero",
   ]
 }
+
+# Passthrough annotation for proto merging and filtering.
+perfetto_proto_library("passthrough_@TYPE@") {
+  sources = [ "passthrough.proto" ]
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+  proto_generators = [
+    "lite",
+    "zero",
+  ]
+}

@@ -247,15 +247,7 @@ SELECT
       AND sf_frames.upid = _input_event_id_to_android_frame.upid
     LIMIT 1
   ) AS present_time,
-  (
-    SELECT app_surface_frame_token
-    FROM _app_frame_to_surface_flinger_frame AS sf_frames
-    WHERE
-      sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
-      -- App frame should belong to the process the input is delivered to.
-      AND sf_frames.upid = _input_event_id_to_android_frame.upid
-    LIMIT 1
-  ) AS frame_id,
+  _input_event_id_to_android_frame.frame_id,
   event_seq,
   event_action,
   _input_event_id_to_android_frame.is_speculative_match
@@ -412,8 +404,8 @@ SELECT
   dispatch.event_seq,
   dispatch.event_channel,
   _normalize_event_channel(dispatch.event_channel) AS normalized_event_channel,
-  frame.input_event_id,
-  frame.read_time,
+  seq_map.input_event_id,
+  read_time.read_time,
   dispatch.track_id AS dispatch_track_id,
   dispatch.ts AS dispatch_ts,
   dispatch.dur AS dispatch_dur,
@@ -422,7 +414,7 @@ SELECT
   receive.track_id AS receive_track_id,
   frame.frame_id,
   frame.is_speculative_match AS is_speculative_frame,
-  frame.event_time
+  read_time.event_time
 FROM dispatch
 JOIN receive
   ON receive.dispatch_event_channel = dispatch.event_channel
@@ -434,7 +426,12 @@ JOIN finish_ack
   ON finish_ack.event_channel = dispatch.event_channel
   AND dispatch.event_seq = finish_ack.event_seq
 LEFT JOIN _first_non_dropped_frame_after_input AS frame
-  ON frame.event_seq = dispatch.event_seq;
+  ON frame.event_seq = dispatch.event_seq
+LEFT JOIN _event_seq_to_input_event_id AS seq_map
+  ON seq_map.event_seq = dispatch.event_seq
+  AND seq_map.event_channel = dispatch.event_channel
+LEFT JOIN _input_read_time AS read_time
+  ON read_time.input_event_id = seq_map.input_event_id;
 
 -- Key events processed by the Android framework (from android.input.inputevent data source).
 CREATE PERFETTO VIEW android_key_events(

@@ -170,9 +170,12 @@ async function ConvertTraceAndOpenInLegacy(
   }
 }
 
+type PprofProfileType = 'alloc' | 'perf' | 'java-heap';
+
 interface ConvertTraceToPprofArgs {
   kind: 'ConvertTraceToPprof';
   trace: Blob;
+  profileType: PprofProfileType;
   pid: number;
   ts: time;
 }
@@ -184,9 +187,15 @@ function isConvertTraceToPprof(msg: Args): msg is ConvertTraceToPprofArgs {
   return true;
 }
 
-async function ConvertTraceToPprof(trace: Blob, pid: number, ts: time) {
+async function ConvertTraceToPprof(
+  trace: Blob,
+  profileType: PprofProfileType,
+  pid: number,
+  ts: time,
+) {
   const args = [
     'profile',
+    `--${profileType}`,
     `--pid`,
     `${pid}`,
     `--timestamps`,
@@ -199,6 +208,12 @@ async function ConvertTraceToPprof(trace: Blob, pid: number, ts: time) {
     const heapDirName = Object.keys(
       module.FS.lookupPath('/tmp/').node.contents,
     )[0];
+    if (heapDirName === undefined) {
+      throw new Error(
+        'No profiles generated; the trace has no profile matching ' +
+          `type=${profileType} pid=${pid} ts=${ts}`,
+      );
+    }
     const heapDirContents = module.FS.lookupPath(`/tmp/${heapDirName}`).node
       .contents;
     const heapDumpFiles = Object.keys(heapDirContents);
@@ -225,7 +240,7 @@ selfWorker.onmessage = (msg: MessageEvent) => {
   } else if (isConvertTraceAndOpenInLegacy(args)) {
     ConvertTraceAndOpenInLegacy(args.trace, args.truncate);
   } else if (isConvertTraceToPprof(args)) {
-    ConvertTraceToPprof(args.trace, args.pid, args.ts);
+    ConvertTraceToPprof(args.trace, args.profileType, args.pid, args.ts);
   } else {
     throw new Error(`Unknown method call ${JSON.stringify(args)}`);
   }

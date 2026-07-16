@@ -23,6 +23,7 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <variant>
@@ -337,6 +338,12 @@ class ProtoToArgsParser {
                        uint32_t node,
                        Delegate& delegate);
 
+  // Expands a bitmask into one string arg per set flag, as an array under the
+  // field's key; unmatched bits become a trailing hex element.
+  base::Status AddFlags(uint32_t enum_descriptor_idx,
+                        int64_t value,
+                        Delegate& delegate);
+
   // A node in the traversal tree, a flattened trie over the descriptor path.
   // Nodes live in the |path_nodes_| arena and reference each other by index, so
   // the arena can grow without invalidating handles. Each field is a pure
@@ -397,6 +404,9 @@ class ProtoToArgsParser {
   // Arena of traversal-tree nodes, referenced by index. Persists across parses;
   // grows as new descriptor paths are first seen.
   std::vector<PathNode> path_nodes_;
+  // Reused scratch buffer for AddFlags (flag-name views), to avoid per-call
+  // allocation.
+  std::vector<std::string_view> flag_views_;
   // Edge -> child node index in |path_nodes_| (see |PathEdgeKey|). Roots are
   // keyed by pool descriptor index under the kNoPath parent.
   base::FlatHashMap<uint64_t, uint32_t> path_index_;

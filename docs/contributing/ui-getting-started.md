@@ -9,6 +9,16 @@ and installs the `node_modules` in `ui/node_modules`:
 tools/install-build-deps --ui
 ```
 
+On a fresh Debian/Ubuntu install (including WSL 2), first install the system
+packages the build depends on:
+
+```bash
+sudo apt install curl python3-venv build-essential
+```
+
+Building the UI from Windows is not supported natively, but works from Windows
+via [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/about).
+
 ### Build the UI
 
 ```bash

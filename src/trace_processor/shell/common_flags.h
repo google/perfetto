@@ -97,8 +97,9 @@ base::Status ParseFlags(Subcommand* cmd,
                         char** argv);
 
 // Builds a TraceProcessor Config from the global options.
-Config BuildConfig(const GlobalOptions& opts,
-                   TraceProcessorShell_PlatformInterface* platform);
+base::StatusOr<Config> BuildConfig(
+    const GlobalOptions& opts,
+    TraceProcessorShell_PlatformInterface* platform);
 
 // Creates and configures a TraceProcessor instance.
 base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(

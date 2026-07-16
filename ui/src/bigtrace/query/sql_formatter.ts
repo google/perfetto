@@ -44,14 +44,12 @@ export async function formatPerfettoSql(
 ): Promise<string | undefined> {
   try {
     const engine = await getFormatterEngine();
-    const result = engine.runFmt(text, {
+    return engine.format(text, {
       lineWidth: 80,
       indentWidth: 2,
-      keywordCase: 1,
+      keywordCase: 'upper',
       semicolons: true,
     });
-    if (result.ok) return result.text;
-    console.error('SQL formatting failed', result.text);
   } catch (e) {
     console.error('SQL formatting failed', e);
   }

@@ -23,13 +23,16 @@ import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
 // All possible tab keys - single source of truth
 export const ALL_TAB_KEYS = [
   'overview',
+  'trace_doctor',
   'config',
   'android',
   'traces',
   'machines',
+  'metadata',
   'import_errors',
   'trace_errors',
   'data_losses',
+  'notices',
   'ui_loading_errors',
   'stats',
 ] as const;
@@ -152,7 +155,7 @@ export function groupByCategory(stats: StatsSectionRow[]): ErrorCategory[] {
 // Render an error category card
 export function renderErrorCategoryCard(
   category: ErrorCategory,
-  severity: 'danger' | 'warning',
+  severity: 'danger' | 'warning' | 'notice',
   icon: string,
 ): m.Children {
   const scrollToSection = () => {

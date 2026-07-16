@@ -374,6 +374,26 @@ PERFETTO_SDK_EXPORT void PerfettoDsTracerImplPacketEnd(
 // Called when a flush request is complete.
 typedef void (*PerfettoDsTracerOnFlushCb)(void* user_arg);
 
+enum PerfettoDsClockId {
+  // Builtin clock ids (see perfetto.common.BuiltinClock).
+  PERFETTO_DS_CLOCK_MONOTONIC = 3,
+  PERFETTO_DS_CLOCK_BOOTTIME = 6,
+};
+
+// Returns the clock id for the default trace clock.
+PERFETTO_SDK_EXPORT uint32_t PerfettoDsGetDefaultClockId(void);
+
+struct PerfettoDsTimestamp {
+  // PerfettoDsClockId
+  uint32_t clock_id;
+  uint64_t value;
+};
+
+// Returns the current timestamp in the preferred trace clock. The returned
+// clock_id indicates which clock was used and should be set on
+// TracePacket.timestamp_clock_id.
+PERFETTO_SDK_EXPORT struct PerfettoDsTimestamp PerfettoDsGetTimestamp(void);
+
 // Forces a commit of the thread-local tracing data written so far to the
 // service.
 //
