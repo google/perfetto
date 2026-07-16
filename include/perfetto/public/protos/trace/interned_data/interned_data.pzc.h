@@ -44,6 +44,9 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_InternedV8WasmScript);
 PERFETTO_PB_MSG_DECL(perfetto_protos_LogMessageBody);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Mapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SourceLocation);
+PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample_CounterDescriptor);
+PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample_ExecutionContext);
+PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample_TaskContext);
 PERFETTO_PB_MSG_DECL(perfetto_protos_UnsymbolizedSourceLocation);
 
 PERFETTO_PB_MSG(perfetto_protos_InternedData);
@@ -69,24 +72,14 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   27);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
-                  perfetto_protos_SourceLocation,
-                  source_locations,
-                  4);
+                  perfetto_protos_InternedString,
+                  debug_annotation_string_values,
+                  29);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
-                  perfetto_protos_UnsymbolizedSourceLocation,
-                  unsymbolized_source_locations,
-                  28);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_LogMessageBody,
-                  log_message_body,
-                  20);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_HistogramName,
-                  histogram_names,
-                  25);
+                  perfetto_protos_InternedString,
+                  correlation_id_str,
+                  43);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
                   perfetto_protos_InternedString,
@@ -124,6 +117,41 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   7);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
+                  perfetto_protos_StackSample_TaskContext,
+                  stack_sample_task_contexts,
+                  48);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_StackSample_ExecutionContext,
+                  stack_sample_execution_contexts,
+                  49);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_StackSample_CounterDescriptor,
+                  stack_sample_counter_descriptors,
+                  50);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_SourceLocation,
+                  source_locations,
+                  4);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_UnsymbolizedSourceLocation,
+                  unsymbolized_source_locations,
+                  28);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_LogMessageBody,
+                  log_message_body,
+                  20);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_HistogramName,
+                  histogram_names,
+                  25);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
                   perfetto_protos_InternedString,
                   vulkan_memory_keys,
                   22);
@@ -139,14 +167,14 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   24);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
-                  perfetto_protos_InternedString,
-                  kernel_symbols,
-                  26);
+                  perfetto_protos_InternedGpuCounterDescriptor,
+                  gpu_counter_descriptors,
+                  47);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
                   perfetto_protos_InternedString,
-                  debug_annotation_string_values,
-                  29);
+                  kernel_symbols,
+                  26);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
                   perfetto_protos_InternedV8String,
@@ -172,15 +200,5 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   perfetto_protos_InternedV8Isolate,
                   v8_isolate,
                   35);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_InternedString,
-                  correlation_id_str,
-                  43);
-PERFETTO_PB_FIELD(perfetto_protos_InternedData,
-                  MSG,
-                  perfetto_protos_InternedGpuCounterDescriptor,
-                  gpu_counter_descriptors,
-                  47);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_INTERNED_DATA_INTERNED_DATA_PZC_H_
