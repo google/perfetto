@@ -588,6 +588,12 @@ base::Status ProtoToArgsParser::ParseSimpleField(
             delegate);
       }
       delegate.AddInteger(fk, k, field.as_int32());
+      if (descriptor.is_pid()) {
+        AddPid(field.as_int32(), delegate);
+      }
+      if (descriptor.is_tid()) {
+        AddTid(field.as_int32(), delegate);
+      }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT32:
       delegate.AddInteger(fk, k, field.as_sint32());
@@ -598,6 +604,12 @@ base::Status ProtoToArgsParser::ParseSimpleField(
         return AddFlags(*idx, field.as_int64(), delegate);
       }
       delegate.AddInteger(fk, k, field.as_int64());
+      if (descriptor.is_pid()) {
+        AddPid(field.as_int64(), delegate);
+      }
+      if (descriptor.is_tid()) {
+        AddTid(field.as_int64(), delegate);
+      }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT64:
       delegate.AddInteger(fk, k, field.as_sint64());
@@ -789,6 +801,32 @@ base::Status ProtoToArgsParser::AddFlags(uint32_t enum_descriptor_idx,
     emit(i, protozero::ConstChars{hex.c_str(), hex.len()});
   }
   return base::OkStatus();
+}
+
+std::pair<StringPool::Id, StringPool::Id> ProtoToArgsParser::InternSuffixedKeys(
+    Delegate& delegate,
+    std::string_view from,
+    std::string_view to) {
+  auto intern = [&](const std::string& key) {
+    const bool matched = base::StringView(key).EndsWith(from);
+    suffixed_key_scratch_.assign(
+        key, 0, matched ? key.size() - from.size() : key.size());
+    if (!matched)
+      suffixed_key_scratch_.push_back('_');
+    suffixed_key_scratch_.append(to);
+    return delegate.InternString(base::StringView(suffixed_key_scratch_));
+  };
+  return {intern(key_prefix_.flat_key), intern(key_prefix_.key)};
+}
+
+void ProtoToArgsParser::AddPid(int64_t pid, Delegate& delegate) {
+  auto [fk, k] = InternSuffixedKeys(delegate, "pid", "upid");
+  delegate.AddUpid(fk, k, pid);
+}
+
+void ProtoToArgsParser::AddTid(int64_t tid, Delegate& delegate) {
+  auto [fk, k] = InternSuffixedKeys(delegate, "tid", "utid");
+  delegate.AddUtid(fk, k, tid);
 }
 
 // ===========================================================================

@@ -82,6 +82,16 @@
     border-style: solid;
     border-color: var(--pf-color-border-secondary);
 
+    // A subtle tint to indicate this track is part of the current selection.
+    // Declared before --highlight so that highlighting wins.
+    &--selected {
+      background-color: color-mix(
+        in srgb,
+        var(--pf-color-accent) 12%,
+        transparent
+      );
+    }
+
     &--highlight {
       background-color: var(--pf-color-highlight);
       color: var(--pf-color-text);

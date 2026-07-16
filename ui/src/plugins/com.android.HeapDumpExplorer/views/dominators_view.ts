@@ -143,7 +143,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function DominatorsView(): m.Component<DominatorsViewAttrs> {
+export function DominatorsView(): m.Component<DominatorsViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   const counter = new RowCounter();
 
@@ -189,5 +189,3 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
     },
   };
 }
-
-export default DominatorsView;

@@ -22,6 +22,8 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/profiling/stack_sample.pbzero.h"
+#include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/plugins/stack_sample_importer/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -53,7 +55,8 @@ class StackSampleModule : public ProtoImporterModule {
       tables::StackSampleTable* table,
       tables::StackSampleTaskContextTable* task_context_table,
       tables::StackSampleExecutionContextTable* exec_context_table,
-      tables::StackSampleTimebaseTable* timebase_table);
+      tables::StackSampleCounterTable* counter_table,
+      tables::StackSampleFollowerTable* follower_table);
 
   void ParseField(const ParseFieldArgs& args) override;
 
@@ -64,9 +67,16 @@ class StackSampleModule : public ProtoImporterModule {
   tables::StackSampleExecutionContextTable::Id InternExecutionContext(
       std::optional<uint32_t> cpu,
       StringId mode);
-  tables::StackSampleTimebaseTable::Id InternTimebase(
+  tables::StackSampleCounterTable::Id InternCounter(
       StringId source,
       const ResolvedCounterDescriptor& desc);
+  void ParseFollowers(
+      tables::StackSampleTable::Id sample_id,
+      PacketSequenceStateGeneration* sequence_state,
+      StringId source,
+      const protos::pbzero::StackSample::Decoder& sample,
+      const std::optional<protos::pbzero::StackSampleDefaults::Decoder>&
+          defaults);
 
   void ParseStackSample(int64_t ts,
                         PacketSequenceStateGeneration* sequence_state,
@@ -76,14 +86,15 @@ class StackSampleModule : public ProtoImporterModule {
   tables::StackSampleTable* const table_;
   tables::StackSampleTaskContextTable* const task_context_table_;
   tables::StackSampleExecutionContextTable* const exec_context_table_;
-  tables::StackSampleTimebaseTable* const timebase_table_;
+  tables::StackSampleCounterTable* const counter_table_;
+  tables::StackSampleFollowerTable* const follower_table_;
 
   // Content-dedup maps: fingerprint of the context fields -> interned row id.
   base::FlatHashMap<uint64_t, tables::StackSampleTaskContextTable::Id>
       task_contexts_;
   base::FlatHashMap<uint64_t, tables::StackSampleExecutionContextTable::Id>
       exec_contexts_;
-  base::FlatHashMap<uint64_t, tables::StackSampleTimebaseTable::Id> timebases_;
+  base::FlatHashMap<uint64_t, tables::StackSampleCounterTable::Id> counters_;
 };
 
 }  // namespace perfetto::trace_processor::stack_sample_importer

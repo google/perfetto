@@ -187,7 +187,8 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
   context_->slice_tracker->Scoped(
       ts, InternTrackId(), kNullStringId, atom_name, 0,
       [&](ArgsTracker::BoundInserter* inserter) {
-        ArgsParser delegate(ts, *inserter, *context_->storage);
+        ArgsParser delegate(ts, *inserter, *context_->storage,
+                            *context_->process_tracker);
 
         const auto& descriptor =
             context_->descriptor_pool_->descriptors()[descriptor_idx_];

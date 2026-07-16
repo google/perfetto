@@ -111,7 +111,7 @@ interface ArraysViewAttrs {
   readonly hasFieldValues?: boolean;
 }
 
-function ArraysView(): m.Component<ArraysViewAttrs> {
+export function ArraysView(): m.Component<ArraysViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   const counter = new RowCounter();
   let filters: Filter[] = [];
@@ -177,5 +177,3 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
     },
   };
 }
-
-export default ArraysView;

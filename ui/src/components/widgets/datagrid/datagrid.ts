@@ -1640,7 +1640,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         return this.columns.map((col) => {
           const {field} = col;
           const alias = getColumnAlias(col);
-          const value = row[alias];
+          const value = maybeUndefined(row[alias]);
+
+          if (value === undefined) {
+            return renderMissingCell();
+          }
+
           const colInfo = columnInfoCache.get(field);
           const cellRenderer =
             colInfo?.cellRenderer ?? ((v: SqlValue) => renderCell(v, field));
@@ -2329,10 +2334,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   }
 }
 
-export function renderCell(value: SqlValue, columnName?: string) {
-  if (value === undefined) {
-    return '';
-  } else if (value instanceof Uint8Array) {
+export function renderCell(value: SqlValue, columnName?: string): m.Children {
+  if (value instanceof Uint8Array) {
     return m(
       Anchor,
       {
@@ -2348,6 +2351,24 @@ export function renderCell(value: SqlValue, columnName?: string) {
   } else {
     return String(value);
   }
+}
+
+// Renders a cell for missing data (undefined value) with a placeholder message
+// and a distinct style. This is almost certainly a developer error
+// (misconfigured schema or initial column list), so we want to make it obvious
+// in the UI. We could throw, but throwing in the render loop takes the whole UI
+// down. We should attempt to handle errors in render loops more gracefully in
+// the future but for now this is better than the alternative which is a blank
+// cell.
+function renderMissingCell(): m.Children {
+  return m(
+    GridCell,
+    {
+      className: 'pf-datagrid-cell--missing',
+      align: 'center',
+    },
+    'no data',
+  );
 }
 
 function getAligment(value: SqlValue): 'left' | 'right' | 'center' {

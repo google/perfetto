@@ -162,7 +162,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
+export function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   const counter = new RowCounter();
   let filters: Filter[] = [];
@@ -227,5 +227,3 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
     },
   };
 }
-
-export default AllObjectsView;

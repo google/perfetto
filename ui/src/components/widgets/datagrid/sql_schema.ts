@@ -318,8 +318,8 @@ export class SQLSchemaResolver {
       );
 
       if (rest.length === 0) {
-        // Path ends at a join - return the primary key of the joined table
-        return `${joinAlias}.${targetSchema.primaryKey ?? 'id'}`;
+        // Path ends at a join - this is invalid
+        return undefined;
       }
 
       // Continue resolving into the joined table

@@ -372,7 +372,7 @@ interface BitmapGalleryViewAttrs {
   readonly filterKey?: string;
 }
 
-function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
+export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
   let rows: BitmapListRow[] | null = null;
   let alive = true;
   let pathMode: PathMode = 'none';
@@ -621,5 +621,3 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
     },
   };
 }
-
-export default BitmapGalleryView;
