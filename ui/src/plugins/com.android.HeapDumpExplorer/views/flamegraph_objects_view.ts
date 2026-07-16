@@ -168,7 +168,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
+export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   let lastPathHashes: string | undefined;
   const counter = new RowCounter();
@@ -272,5 +272,3 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
     },
   };
 }
-
-export default FlamegraphObjectsView;

@@ -109,7 +109,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function ClassesView(): m.Component<ClassesViewAttrs> {
+export function ClassesView(): m.Component<ClassesViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   let alive = true;
   const counter = new RowCounter();
@@ -189,5 +189,3 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
     },
   };
 }
-
-export default ClassesView;
