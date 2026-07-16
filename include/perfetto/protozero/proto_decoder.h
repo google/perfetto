@@ -118,10 +118,16 @@ class RepeatedFieldIterator {
   RepeatedFieldIterator()
       : field_id_(0u), iter_(nullptr), end_(nullptr), last_(nullptr) {}
 
-  explicit operator bool() const { return iter_ != end_; }
+  explicit operator bool() const {
+    if (PERFETTO_UNLIKELY(packed_is_active_))
+      return true;
+    return iter_ != end_;
+  }
   const Field& field() const { return *iter_; }
 
   T operator*() const {
+    if (PERFETTO_UNLIKELY(packed_is_active_))
+      return packed_curr_value_;
     T val{};
     iter_->get(&val);
     return val;
@@ -130,6 +136,11 @@ class RepeatedFieldIterator {
 
   RepeatedFieldIterator& operator++() {
     PERFETTO_DCHECK(iter_ != end_);
+    if (PERFETTO_UNLIKELY(packed_is_active_)) {
+      DecodeNextPacked();
+      if (packed_is_active_)
+        return *this;
+    }
     if (iter_ == last_) {
       iter_ = end_;
       return *this;
@@ -148,12 +159,71 @@ class RepeatedFieldIterator {
 
  private:
   void FindNextMatchingId() {
+    packed_is_active_ = false;
     PERFETTO_DCHECK(iter_ != last_);
     for (; iter_ != end_; ++iter_) {
-      if (iter_->id() == field_id_)
-        return;
+      if (iter_->id() == field_id_) {
+        if (MaybeActivatePacked())
+          return;
+      }
     }
     iter_ = last_->valid() ? last_ : end_;
+    if (iter_ != end_) {
+      if (!MaybeActivatePacked())
+        iter_ = end_;
+    }
+  }
+
+  bool MaybeActivatePacked() {
+    constexpr bool kIsPackable =
+        std::is_arithmetic<T>::value || std::is_enum<T>::value;
+    if (kIsPackable &&
+        iter_->type() == proto_utils::ProtoWireType::kLengthDelimited) {
+      if (iter_->size() > 0) {
+        packed_is_active_ = true;
+        packed_read_ptr_ = iter_->data();
+        packed_data_end_ = packed_read_ptr_ + iter_->size();
+        DecodeNextPacked();
+        return packed_is_active_;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  void DecodeNextPacked() {
+    if constexpr (std::is_arithmetic<T>::value || std::is_enum<T>::value) {
+      if (PERFETTO_UNLIKELY(packed_read_ptr_ >= packed_data_end_)) {
+        packed_is_active_ = false;
+        return;
+      }
+      if constexpr (std::is_floating_point<T>::value) {
+        constexpr size_t kStep = sizeof(T);
+        if (packed_read_ptr_ + kStep <= packed_data_end_) {
+          memcpy(&packed_curr_value_, packed_read_ptr_, kStep);
+          packed_read_ptr_ += kStep;
+        } else {
+          packed_is_active_ = false;
+        }
+      } else {
+        uint64_t new_value = 0;
+        const uint8_t* new_pos = proto_utils::ParseVarInt(
+            packed_read_ptr_, packed_data_end_, &new_value);
+        if (PERFETTO_UNLIKELY(new_pos == packed_read_ptr_ || !new_pos)) {
+          packed_is_active_ = false;
+        } else {
+          packed_read_ptr_ = new_pos;
+          if constexpr (std::is_signed<T>::value) {
+            packed_curr_value_ =
+                static_cast<T>(static_cast<int64_t>(new_value));
+          } else {
+            packed_curr_value_ = static_cast<T>(new_value);
+          }
+        }
+      }
+    } else {
+      packed_is_active_ = false;
+    }
   }
 
   uint32_t field_id_;
@@ -167,6 +237,12 @@ class RepeatedFieldIterator {
 
   // Always points to fields_[field_id].
   const Field* last_;
+
+  // Packed field state when iterating over length-delimited packed buffers.
+  bool packed_is_active_ = false;
+  const uint8_t* packed_read_ptr_ = nullptr;
+  const uint8_t* packed_data_end_ = nullptr;
+  T packed_curr_value_ = {};
 };
 
 // As RepeatedFieldIterator, but allows iterating over a packed repeated field

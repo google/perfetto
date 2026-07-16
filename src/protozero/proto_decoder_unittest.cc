@@ -199,6 +199,22 @@ TEST(ProtoDecoderTest, RepeatedFields) {
   EXPECT_FALSE(++it);
 }
 
+TEST(ProtoDecoderTest, RepeatedFieldPackedBug) {
+  // Field ID 1, wire type 2 (kLengthDelimited).
+  // Payload: length 2, contents: varints 10 and 20.
+  // 1 << 3 | 2 = 10 (0x0A), length = 2 (0x02), varint 10 = 0x0A, varint 20 =
+  // 0x14
+  uint8_t buf[] = {0x0A, 0x02, 0x0A, 0x14};
+  TypedProtoDecoder<2> tpd(buf, sizeof(buf));
+
+  auto it = tpd.GetRepeated<int32_t>(1);
+  EXPECT_TRUE(it);
+  EXPECT_EQ(*it, 10);
+  EXPECT_TRUE(++it);
+  EXPECT_EQ(*it, 20);
+  EXPECT_FALSE(++it);
+}
+
 TEST(ProtoDecoderTest, FixedData) {
   struct FieldExpectation {
     const char* encoded;
