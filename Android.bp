@@ -20424,6 +20424,7 @@ filegroup {
     srcs: [
         "src/trace_processor/shell/convert_helpers_unittest.cc",
         "src/trace_processor/shell/find_subcommand_unittest.cc",
+        "src/trace_processor/shell/shell_utils_unittest.cc",
         "src/trace_processor/shell/subcommand_flags_unittest.cc",
     ],
 }
