@@ -239,6 +239,139 @@ TEST_F(VmTest, ApplyPatch_AccessDeletedDstAborts) {
   ASSERT_TRUE(status.IsAbort());
 }
 
+TEST_F(VmTest, ApplyPatch_FailedPatchKeepsPreviousState) {
+  auto program =
+      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
+  constexpr size_t kSmallMemoryLimitBytes = 4096;
+  Vm vm{AsConstBytes(program), kSmallMemoryLimitBytes};
+
+  auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
+  ASSERT_TRUE(vm.ApplyPatch(AsConstBytes(patch)).IsOk());
+  std::string state_before_failed_patch = SerializeIncrementalStateAsString(vm);
+
+  // Craft a patch whose first elements_to_merge entry fits in memory and
+  // whose second entry exceeds the memory limit, so that the program fails
+  // after having already merged the first entry.
+  protozero::HeapBuffered<protozero::Message> failing_patch;
+  {
+    auto* element = failing_patch->BeginNestedMessage<protozero::Message>(
+        protos::Patch::kElementsToMergeFieldNumber);
+    element->AppendVarInt(protos::Element::kIdFieldNumber, 0);
+    element->AppendVarInt(protos::Element::kValueFieldNumber, 100);
+    element->Finalize();
+  }
+  {
+    auto* element = failing_patch->BeginNestedMessage<protozero::Message>(
+        protos::Patch::kElementsToMergeFieldNumber);
+    element->AppendVarInt(protos::Element::kIdFieldNumber, 1);
+    std::string huge_payload(2 * kSmallMemoryLimitBytes, 'x');
+    element->AppendBytes(1000, huge_payload.data(), huge_payload.size());
+    element->Finalize();
+  }
+
+  auto failing_patch_bytes = failing_patch.SerializeAsString();
+  ASSERT_FALSE(vm.ApplyPatch(AsConstBytes(failing_patch_bytes)).IsOk());
+
+  // The failed patch must be rolled back entirely: a half-applied patch would
+  // silently corrupt the incremental state.
+  ASSERT_EQ(SerializeIncrementalStateAsString(vm), state_before_failed_patch);
+}
+
+TEST_F(VmTest, ApplyPatch_TruncatedPatchFailsAndKeepsPreviousState) {
+  auto program =
+      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
+  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES,
+        AsConstBytes(InitialIncrementalState())};
+
+  std::string state_before_patch = SerializeIncrementalStateAsString(vm);
+
+  auto patch = SamplePackets::PatchWithMergeOperation1().SerializeAsString();
+  auto truncated_patch = patch.substr(0, patch.size() - 1);
+  ASSERT_FALSE(vm.ApplyPatch(AsConstBytes(truncated_patch)).IsOk());
+
+  ASSERT_EQ(SerializeIncrementalStateAsString(vm), state_before_patch);
+}
+
+// Documents a known limitation of the schema-free VM: a packet that is not a
+// patch, but whose field numbers happen to collide with the ones the program
+// selects on, is folded into the incremental state with an OK status. Here
+// TraceEntry.single_element (field 2) collides with Patch.elements_to_merge
+// (field 2). Full prevention requires schema knowledge (or a system-level
+// marker restricting which packets reach the VM), which the VM doesn't have.
+TEST_F(VmTest, ApplyPatch_ForeignPacketWithCollidingFieldIdsIsAbsorbed) {
+  auto program =
+      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
+  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+
+  protos::TraceEntry foreign_packet;
+  foreign_packet.mutable_single_element()->set_id(7);
+  foreign_packet.mutable_single_element()->set_value(42);
+  auto foreign_packet_bytes = foreign_packet.SerializeAsString();
+
+  ASSERT_TRUE(vm.ApplyPatch(AsConstBytes(foreign_packet_bytes)).IsOk());
+
+  protos::TraceEntry state{};
+  state.ParseFromString(SerializeIncrementalStateAsString(vm));
+  ASSERT_EQ(state.elements_size(), 1);
+  ASSERT_EQ(state.elements(0).id(), 7);
+  ASSERT_EQ(state.elements(0).value(), 42);
+}
+
+TEST_F(VmTest, ApplyPatch_MapKeysAbove32BitAreDistinct) {
+  auto program =
+      SamplePrograms::IncrementalTraceInstructions().SerializeAsString();
+  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+
+  // Insert an element whose key doesn't fit in 32 bits (5 + 2^32) and then an
+  // element with key 5. If the key is truncated to 32 bits along the way, the
+  // two patches collide on the same map entry.
+  constexpr uint64_t kBigId = 5 + (uint64_t{1} << 32);
+  {
+    protozero::HeapBuffered<protozero::Message> patch;
+    auto* element = patch->BeginNestedMessage<protozero::Message>(
+        protos::Patch::kElementsToSetFieldNumber);
+    element->AppendVarInt(protos::Element::kIdFieldNumber, kBigId);
+    element->AppendVarInt(protos::Element::kValueFieldNumber, 1);
+    element->Finalize();
+    auto patch_bytes = patch.SerializeAsString();
+    ASSERT_TRUE(vm.ApplyPatch(AsConstBytes(patch_bytes)).IsOk());
+  }
+  {
+    protozero::HeapBuffered<protozero::Message> patch;
+    auto* element = patch->BeginNestedMessage<protozero::Message>(
+        protos::Patch::kElementsToSetFieldNumber);
+    element->AppendVarInt(protos::Element::kIdFieldNumber, 5);
+    element->AppendVarInt(protos::Element::kValueFieldNumber, 2);
+    element->Finalize();
+    auto patch_bytes = patch.SerializeAsString();
+    ASSERT_TRUE(vm.ApplyPatch(AsConstBytes(patch_bytes)).IsOk());
+  }
+
+  protos::TraceEntry state{};
+  state.ParseFromString(SerializeIncrementalStateAsString(vm));
+  ASSERT_EQ(state.elements_size(), 2);
+}
+
+TEST_F(VmTest, ApplyPatch_RegisterIdOutOfRangeAborts) {
+  // reg_load with dst_register = 256. A naive truncation to uint8_t would
+  // silently alias register 0 instead of failing.
+  perfetto::protos::VmProgram program;
+  auto* instruction = program.add_instructions();
+  auto* select = instruction->mutable_select();
+  select->add_relative_path()->set_field_id(
+      protos::Patch::kElementsToMergeFieldNumber);
+  select->add_relative_path()->set_array_index(0);
+  select->add_relative_path()->set_field_id(protos::Element::kIdFieldNumber);
+  auto* reg_load = instruction->add_nested_instructions()->mutable_reg_load();
+  reg_load->set_dst_register(256);
+
+  auto program_bytes = program.SerializeAsString();
+  Vm vm{AsConstBytes(program_bytes), MEMORY_LIMIT_BYTES};
+
+  auto patch = SamplePackets::PatchWithMergeOperation1().SerializeAsString();
+  ASSERT_TRUE(vm.ApplyPatch(AsConstBytes(patch)).IsAbort());
+}
+
 TEST_F(VmTest, GetMemoryUsage) {
   auto program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();

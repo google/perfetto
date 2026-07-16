@@ -44,9 +44,41 @@ StatusOr<void> Vm::ApplyPatch(protozero::ConstBytes packet) {
   if (!rw_state) {
     return StatusOr<void>::Abort();
   }
+
+  // Snapshot the serialized incremental state upfront, so that a patch that
+  // aborts halfway through the program can be rolled back. Without the
+  // rollback, an aborted patch would leave the state half-mutated (neither
+  // the old state nor the new one), silently corrupting the snapshot.
+  // Note: the snapshot lives on the regular heap (not accounted by the VM's
+  // allocator) only for the duration of this call, so the transient peak
+  // memory usage can reach up to ~2x the configured limit.
+  std::string snapshot = SerializeIncrementalStateAsString();
+
   auto src = RoCursor(packet);
   auto dst = rw_state->incremental_state.GetRoot();
-  return rw_state->parser.Run(src, dst);
+  auto status = rw_state->parser.Run(src, dst);
+  if (!status.IsAbort()) {
+    // A plain error is not rolled back: it indicates an instruction that
+    // failed in an expected way (e.g. a field not present in this patch),
+    // where partial application is by design (the program opts in/out via
+    // the instructions' abort_level).
+    return status;
+  }
+
+  // Roll back: clear the (possibly half-patched) state and restore the
+  // snapshot.
+  auto status_clear = rw_state->incremental_state.GetRoot().Delete();
+  PERFETTO_CHECK(status_clear.IsOk());
+  if (!snapshot.empty()) {
+    auto status_restore = rw_state->incremental_state.GetRoot().SetBytes(
+        protozero::ConstBytes{reinterpret_cast<const uint8_t*>(snapshot.data()),
+                              snapshot.size()});
+    // Cannot fail: the serialized form of the state is smaller than the node
+    // tree it was serialized from, which fitted within the memory limit.
+    PERFETTO_CHECK(status_restore.IsOk());
+  }
+
+  return status;
 }
 
 void Vm::SerializeIncrementalState(protozero::Message* proto) const {
