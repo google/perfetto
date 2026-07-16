@@ -18,7 +18,10 @@ import {Icons} from '../../base/semantic_icons';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
-import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
+import {
+  escapePath,
+  type ColumnSchema,
+} from '../../components/widgets/datagrid/datagrid_schema';
 import type {Trace} from '../../public/trace';
 import type {Row} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
@@ -146,12 +149,13 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
     const resolvedTable = this.resolveIdTable(data.columns);
 
     for (const col of data.columns) {
+      const field = escapePath(col);
       const cellRenderer =
         col === 'id' && attrs.onIdClick
           ? (value: Row[string]) =>
               this.renderIdCell(value, resolvedTable, attrs.onIdClick!)
           : undefined;
-      schema[col] = {
+      schema[field] = {
         title: col,
         cellRenderer,
       };

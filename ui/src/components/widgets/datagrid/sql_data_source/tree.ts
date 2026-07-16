@@ -27,7 +27,7 @@ import {
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import type {DataSourceRows, TreeModel} from '../data_source';
 import {type SQLTableSchema, SQLSchemaResolver} from '../sql_schema';
-import {filterToSql, sqlValue, toAlias} from '../sql_utils';
+import {filterToSql, quoteIdentifier, sqlValue} from '../sql_utils';
 
 /**
  * SQL data source for tree mode using id/parent_id columns.
@@ -82,7 +82,7 @@ export class SQLDataSourceTree {
     // Build column alias mappings
     const columnAliases: Record<string, string> = {};
     for (const col of columns) {
-      columnAliases[col.field] = toAlias(col.alias);
+      columnAliases[col.field] = quoteIdentifier(col.alias);
     }
 
     // Determine sort column and direction
@@ -212,7 +212,7 @@ export class SQLDataSourceTree {
     for (const col of columns) {
       const sqlExpr = resolver.resolveColumnPath(col.field);
       if (sqlExpr) {
-        selectExprs.push(`${sqlExpr} AS ${toAlias(col.alias)}`);
+        selectExprs.push(`${sqlExpr} AS ${quoteIdentifier(col.alias)}`);
       }
     }
 
@@ -267,7 +267,7 @@ export class SQLDataSourceTree {
     if (sort) {
       const sortCol = columns.find((c) => c.alias === sort.alias);
       if (sortCol) {
-        sortColumn = toAlias(sortCol.alias);
+        sortColumn = quoteIdentifier(sortCol.alias);
       }
       sortDirection = sort.direction;
     }

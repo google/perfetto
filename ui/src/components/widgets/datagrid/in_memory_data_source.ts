@@ -23,6 +23,7 @@ import type {
   FlatModel,
 } from './data_source';
 import type {Filter} from './model';
+import {splitPath} from './datagrid_schema';
 
 // Column shape from FlatModel
 type FlatColumn = FlatModel['columns'][number];
@@ -53,7 +54,16 @@ export class InMemoryDataSource implements DataSource {
       return {isPending: false};
     }
 
-    const columns = model.columns;
+    const columns = model.columns.map((col) => {
+      // Split the paths (unescapes dots) and re-join. In-memory datasource
+      // doesn't haev the concept of paths really, so we just index using dots
+      // directly into the datasource.
+      const path = splitPath(col.field).join('.');
+      return {
+        field: path,
+        alias: col.alias,
+      };
+    });
     const filters = model.filters ?? [];
     const sort = model.sort;
 

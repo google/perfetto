@@ -58,6 +58,7 @@ import {
   getColumnInfo,
   getDefaultVisibleColumns,
   isCellRenderResult,
+  splitPath,
 } from './datagrid_schema';
 import {DataGridToolbar, GridFilterChip} from './datagrid_toolbar';
 import {ExportButton} from '../../../widgets/export_button';
@@ -644,7 +645,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           this.pivot?.drillDown &&
           this.pivot.drillDown.map(({field, value}) => {
             const colInfo = getColumnInfo(schema, field);
-            const titleParts = colInfo?.titleParts ?? field.split('.');
+            const titleParts = colInfo?.titleParts ?? splitPath(field);
             return {
               title: buildColumnTitle(titleParts),
               value: formatChipValue(value, colInfo?.cellFormatter),
@@ -1480,7 +1481,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       const colInfo = columnInfoCache.get(field);
 
       // Build column title with chevron separators
-      const titleParts = colInfo?.titleParts ?? field.split('.');
+      const titleParts = colInfo?.titleParts ?? splitPath(field);
       const titleContent = buildColumnTitle(titleParts);
 
       // Build menu items
@@ -1803,7 +1804,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
       // Get column info from schema
       const colInfo = getColumnInfo(schema, field);
-      const titleParts = colInfo?.titleParts ?? field.split('.');
+      const titleParts = colInfo?.titleParts ?? splitPath(field);
       const titleContent = buildColumnTitle(titleParts);
 
       // Build menu items for groupBy column
@@ -2295,7 +2296,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const colInfo = getColumnInfo(schema, filter.field);
 
     // Build column title with chevron separators
-    const titleParts = colInfo?.titleParts ?? filter.field.split('.');
+    const titleParts = colInfo?.titleParts ?? splitPath(filter.field);
     const columnDisplay = buildColumnTitle(titleParts);
 
     if ('value' in filter) {

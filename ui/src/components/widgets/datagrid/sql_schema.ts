@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {maybeUndefined} from '../../../base/utils';
+import {splitPath} from './datagrid_schema';
+import {quoteIdentifier} from './sql_utils';
 
 /**
  * SQL Schema system for SQLDataSource.
@@ -39,7 +41,11 @@ import {maybeUndefined} from '../../../base/utils';
  *       foreignKey: 'parent_id',
  *     },
  *     args: {
- *       expression: (alias, key) => `extract_arg(${alias}.arg_set_id, '${key}')`,
+ *       // `key` may come from user/trace data, so it must go through
+ *       // sqlValue() rather than being interpolated directly - otherwise a
+ *       // key containing a quote could break out of the string literal.
+ *       expression: (alias, key) =>
+ *         `extract_arg(${alias}.arg_set_id, ${sqlValue(key ?? null)})`,
  *       parameterized: true,
  *     },
  *   },
@@ -108,7 +114,9 @@ export interface SQLExpressionDef {
    * SQL expression generator.
    *
    * For simple expressions: (alias) => `${alias}.some_col`
-   * For parameterized: (alias, key) => `extract_arg(${alias}.arg_set_id, '${key}')`
+   * For parameterized (escape `key` with sqlValue() - it may come from
+   * user/trace data): (alias, key) =>
+   *   `extract_arg(${alias}.arg_set_id, ${sqlValue(key ?? null)})`
    */
   readonly expression: (tableAlias: string, paramKey?: string) => string;
 
@@ -257,7 +265,7 @@ export class SQLSchemaResolver {
    * @returns The SQL expression, or undefined if the path is invalid
    */
   resolveColumnPath(path: string): string | undefined {
-    const parts = path.split('.');
+    const parts = splitPath(path);
     return this.resolvePath(parts, this.schema, this.baseAlias);
   }
 
@@ -274,10 +282,12 @@ export class SQLSchemaResolver {
     const colDef = maybeUndefined(schema.columns?.[first]);
 
     if (!colDef) {
-      // Column not found in schema - treat as raw column name
-      // This allows passthrough for columns not explicitly defined
+      // Column not found in schema - treat as raw column name.
+      // This allows passthrough for columns not explicitly defined, so the
+      // name (which may come from user/trace data rather than a trusted
+      // schema definition) must be quoted as an identifier.
       if (rest.length === 0) {
-        return `${currentAlias}.${first}`;
+        return `${currentAlias}.${quoteIdentifier(first)}`;
       }
       return undefined;
     }

@@ -170,6 +170,21 @@ export interface ColumnInfo {
 }
 
 /**
+ * Escapes dots in a column name so it can be used as a datagrid field path.
+ * The schema resolver splits paths on single dots (via splitPath()), so a
+ * literal dot is represented by doubling it up.
+ *
+ * @param path The raw column name to escape
+ * @returns The escaped path suitable for use as a datagrid field
+ * @example
+ *   escapePath("foo.bar")  // "foo..bar"
+ *   escapePath("a.b.c")    // "a..b..c"
+ */
+export function escapePath(path: string): string {
+  return path.replace(/\./g, '..');
+}
+
+/**
  * Resolves a column path and returns all information needed for rendering.
  * This consolidates multiple schema lookups into a single traversal.
  *
@@ -177,11 +192,45 @@ export interface ColumnInfo {
  * @param path The column path (e.g., "parent.parent.name")
  * @returns Complete column info, or undefined if path is invalid
  */
+/**
+ * Splits a dot-separated path into its parts. A double dot (`..`) is treated
+ * as an escaped literal dot rather than a separator; a single dot separates
+ * parts.
+ *
+ * @example
+ *   splitPath("parent.child")        → ["parent", "child"]
+ *   splitPath("parent.name..dots")   → ["parent", "name.dots"]
+ *   splitPath("foo..bar")            → ["foo.bar"]
+ *   splitPath("foo..bar.baz")        → ["foo.bar", "baz"]
+ */
+export function splitPath(path: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let i = 0;
+  while (i < path.length) {
+    if (path[i] === '.') {
+      if (path[i + 1] === '.') {
+        current += '.';
+        i += 2;
+      } else {
+        parts.push(current);
+        current = '';
+        i += 1;
+      }
+    } else {
+      current += path[i];
+      i += 1;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
 export function getColumnInfo(
   schema: ColumnSchema,
   path: string,
 ): ColumnInfo | undefined {
-  const parts = path.split('.');
+  const parts = splitPath(path);
 
   const titleParts: m.Children[] = [];
   let currentSchema = schema;
