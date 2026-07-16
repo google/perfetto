@@ -62,8 +62,11 @@ class Executor {
   virtual StatusOr<RwProto::Cursor::RepeatedFieldIterator> IterateRepeatedField(
       RwProto::Cursor* dst,
       uint32_t field_id) const;
-  virtual StatusOr<uint64_t> ReadRegister(uint8_t reg_id) const;
-  virtual StatusOr<void> WriteRegister(const Cursors& cursors, uint8_t reg_id);
+  // reg_id is deliberately uint32_t (the program's wire type): narrowing it
+  // at the call site would silently alias registers (e.g. 256 -> 0). Out of
+  // range ids are rejected here.
+  virtual StatusOr<uint64_t> ReadRegister(uint32_t reg_id) const;
+  virtual StatusOr<void> WriteRegister(const Cursors& cursors, uint32_t reg_id);
   virtual StatusOr<void> Delete(RwProto::Cursor* dst) const;
   virtual StatusOr<void> Merge(Cursors* cursors, uint32_t flags) const;
   virtual StatusOr<void> Set(Cursors* cursors) const;

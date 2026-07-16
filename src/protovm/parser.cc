@@ -15,11 +15,32 @@
  */
 
 #include "src/protovm/parser.h"
+
+#include <cinttypes>
+
 #include "protos/perfetto/protovm/vm_program.pbzero.h"
 #include "src/protovm/error_handling.h"
 
 namespace perfetto {
 namespace protovm {
+
+namespace {
+
+// Increments a recursion depth counter for the duration of a scope. Used to
+// bound the parser's recursion, since the recursion depth is controlled by
+// the (producer-supplied) program.
+class ScopedRecursionDepth {
+ public:
+  explicit ScopedRecursionDepth(int* depth) : depth_(depth) { ++*depth_; }
+  ~ScopedRecursionDepth() { --*depth_; }
+  ScopedRecursionDepth(const ScopedRecursionDepth&) = delete;
+  ScopedRecursionDepth& operator=(const ScopedRecursionDepth&) = delete;
+
+ private:
+  int* depth_;
+};
+
+}  // namespace
 
 Parser::Parser(protozero::ConstBytes program, Executor* executor)
     : program_{program}, executor_(executor) {}
@@ -28,6 +49,7 @@ StatusOr<void> Parser::Run(RoCursor src, RwProto::Cursor dst) {
   cursors_.src = src;
   cursors_.dst = dst;
   cursors_.innermost_saved_dst = nullptr;
+  recursion_depth_ = 0;
   return ParseInstructions(program_.instructions());
 }
 
@@ -67,6 +89,12 @@ StatusOr<void> Parser::ParseInstructions(
 
 StatusOr<void> Parser::ParseInstruction(
     const protos::pbzero::VmInstruction::Decoder& instruction) {
+  ScopedRecursionDepth recursion_depth(&recursion_depth_);
+  if (recursion_depth_ > kMaxRecursionDepth) {
+    PROTOVM_ABORT("Program exceeds the max recursion depth (%d)",
+                  kMaxRecursionDepth);
+  }
+
   if (instruction.has_select()) {
     auto status = ParseSelect(instruction);
     PROTOVM_RETURN(status, "select");
@@ -125,8 +153,7 @@ StatusOr<void> Parser::ParseRegLoad(
   cursors_.selected = !reg_load.has_cursor()
                           ? CursorEnum::VM_CURSOR_SRC
                           : static_cast<CursorEnum>(reg_load.cursor());
-  auto status = executor_->WriteRegister(
-      cursors_, static_cast<uint8_t>(reg_load.dst_register()));
+  auto status = executor_->WriteRegister(cursors_, reg_load.dst_register());
 
   cursors_.selected = saved_selected;
 
@@ -161,6 +188,12 @@ StatusOr<void> Parser::ParseSelect(
 StatusOr<void> Parser::ParseSelectRec(
     const protos::pbzero::VmInstruction::Decoder& instruction,
     protozero::RepeatedFieldIterator<protozero::ConstBytes> it_path_component) {
+  ScopedRecursionDepth recursion_depth(&recursion_depth_);
+  if (recursion_depth_ > kMaxRecursionDepth) {
+    PROTOVM_ABORT("Program exceeds the max recursion depth (%d)",
+                  kMaxRecursionDepth);
+  }
+
   protos::pbzero::VmOpSelect::Decoder select(instruction.select());
 
   bool has_entered_all_path_components = !it_path_component;
@@ -242,17 +275,16 @@ StatusOr<void> Parser::ParseSelectRec(
       PROTOVM_ABORT(
           "enter mapped repeated field: expected field 'register_to_match'");
     }
-    auto reg_id = static_cast<uint8_t>(next_component->register_to_match());
-    auto key = executor_->ReadRegister(reg_id);
+    auto key = executor_->ReadRegister(next_component->register_to_match());
     PROTOVM_RETURN_IF_NOT_OK(key, "enter mapped repeated field");
     auto status_enter = executor_->EnterRepeatedFieldByKey(
         &cursors_, curr_component.field_id(),
-        next_component->map_key_field_id(), static_cast<uint32_t>(*key));
+        next_component->map_key_field_id(), *key);
     PROTOVM_RETURN_IF_NOT_OK(status_enter, "enter mapped repeated field");
     auto status_select = ParseSelectRec(instruction, it_path_component);
-    PROTOVM_RETURN(status_select, "mapped repeated field (id = %d, key = %d)",
-                   static_cast<int>(curr_component.field_id()),
-                   static_cast<int>(*key));
+    PROTOVM_RETURN(status_select,
+                   "mapped repeated field (id = %d, key = %" PRIu64 ")",
+                   static_cast<int>(curr_component.field_id()), *key);
   }
 
   // enter field
