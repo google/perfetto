@@ -228,6 +228,181 @@ class TableCard
   }
 }
 
+interface SearchResult {
+  item: TableWithModule;
+  segments: FuzzySegment[];
+  matchType: MatchType;
+  // Fuzzy relevance score for table-name matches, higher is better. Unused for
+  // the other (substring-based) match types.
+  score: number;
+}
+
+// Searches tables by query. Returns results in priority order: table name,
+// column name, table description, column description.
+export function searchTables(
+  tables: ReadonlyArray<TableWithModule>,
+  query: string,
+): SearchResult[] {
+  if (query.trim() === '') {
+    return tables.map((table) => ({
+      item: table,
+      segments: [{matching: false, value: table.table.name}],
+      matchType: 'table-name' as MatchType,
+      score: 1,
+    }));
+  }
+
+  // Track which tables have been matched to avoid duplicates
+  const matchedTableNames = new Set<string>();
+
+  // 1. Search by table name (highest priority)
+  const tableFinder = new FuzzyFinder(tables, (item) => item.table.name);
+  const tableNameResults = tableFinder.find(query).map((result) => {
+    matchedTableNames.add(result.item.table.name);
+    return {
+      ...result,
+      matchType: 'table-name' as MatchType,
+    };
+  });
+
+  // 2. Search by column names (second priority) - exact match
+  const columnNameResults: SearchResult[] = [];
+
+  const lowerQuery = query.toLowerCase();
+  for (const tableWithModule of tables) {
+    if (matchedTableNames.has(tableWithModule.table.name)) {
+      continue;
+    }
+
+    const hasMatch = tableWithModule.table.columns.some((col) =>
+      col.name.toLowerCase().includes(lowerQuery),
+    );
+
+    if (hasMatch) {
+      matchedTableNames.add(tableWithModule.table.name);
+      columnNameResults.push({
+        item: tableWithModule,
+        segments: [{matching: false, value: tableWithModule.table.name}],
+        matchType: 'column-name',
+        score: 0,
+      });
+    }
+  }
+
+  // 3. Search by table description (third priority) - exact match
+  const tableDescriptionResults: SearchResult[] = [];
+
+  for (const tableWithModule of tables) {
+    if (matchedTableNames.has(tableWithModule.table.name)) {
+      continue;
+    }
+
+    if (
+      tableWithModule.table.description &&
+      tableWithModule.table.description.toLowerCase().includes(lowerQuery)
+    ) {
+      matchedTableNames.add(tableWithModule.table.name);
+      tableDescriptionResults.push({
+        item: tableWithModule,
+        segments: [{matching: false, value: tableWithModule.table.name}],
+        matchType: 'table-description',
+        score: 0,
+      });
+    }
+  }
+
+  // 4. Search by column descriptions (lowest priority) - exact match
+  const columnDescriptionResults: SearchResult[] = [];
+
+  for (const tableWithModule of tables) {
+    if (matchedTableNames.has(tableWithModule.table.name)) {
+      continue;
+    }
+
+    const hasMatch = tableWithModule.table.columns.some(
+      (col) =>
+        col.description !== undefined &&
+        col.description.toLowerCase().includes(lowerQuery),
+    );
+
+    if (hasMatch) {
+      matchedTableNames.add(tableWithModule.table.name);
+      columnDescriptionResults.push({
+        item: tableWithModule,
+        segments: [{matching: false, value: tableWithModule.table.name}],
+        matchType: 'column-description',
+        score: 0,
+      });
+    }
+  }
+
+  return [
+    ...tableNameResults,
+    ...columnNameResults,
+    ...tableDescriptionResults,
+    ...columnDescriptionResults,
+  ];
+}
+
+// Rounds a fuzzy relevance score into coarse buckets. Matches whose scores land
+// in the same bucket are treated as equally relevant and are then ordered by
+// importance. Larger buckets let importance decide more matches; smaller buckets
+// let fuzzy relevance dominate.
+const FUZZY_SCORE_BUCKET = 0.5;
+
+function fuzzyBucket(score: number): number {
+  return Math.round(score / FUZZY_SCORE_BUCKET);
+}
+
+// Importance as a sortable rank, higher is more important. Tables with no
+// declared importance sit between 'mid' and 'low', matching the previous order.
+const IMPORTANCE_RANK = {core: 4, high: 3, mid: 2, low: 0} as const;
+const DEFAULT_IMPORTANCE_RANK = 1;
+
+function importanceRank(importance?: 'core' | 'high' | 'mid' | 'low'): number {
+  return importance === undefined
+    ? DEFAULT_IMPORTANCE_RANK
+    : IMPORTANCE_RANK[importance];
+}
+
+// Ranks a group of matches lexicographically: bucketed fuzzy relevance first,
+// importance second. So a clearly better match always wins, and importance only
+// decides the order between matches of comparable relevance. The substring match
+// groups carry no fuzzy score, so this reduces to ordering them by importance.
+function rankByRelevance(results: ReadonlyArray<SearchResult>): SearchResult[] {
+  return [...results].sort((a, b) => {
+    const bucketDiff = fuzzyBucket(b.score) - fuzzyBucket(a.score);
+    if (bucketDiff !== 0) return bucketDiff;
+    return (
+      importanceRank(b.item.table.importance) -
+      importanceRank(a.item.table.importance)
+    );
+  });
+}
+
+// Searches and ranks tables for display. Within each match group the order is
+// bucketed fuzzy relevance first, importance second, so that for example the
+// query `androidx_` surfaces the exact extension-server matches
+// (`androidx_art_metrics`) above the merely-fuzzy stdlib matches
+// (`android_frames`), while more important tables still come first among matches
+// of comparable relevance.
+export function searchAndRankTables(
+  tables: ReadonlyArray<TableWithModule>,
+  query: string,
+): SearchResult[] {
+  const searchResults = searchTables(tables, query);
+
+  const rankGroup = (matchType: MatchType) =>
+    rankByRelevance(searchResults.filter((r) => r.matchType === matchType));
+
+  return [
+    ...rankGroup('table-name'),
+    ...rankGroup('column-name'),
+    ...rankGroup('table-description'),
+    ...rankGroup('column-description'),
+  ];
+}
+
 // The main component that displays a searchable list of SQL tables.
 // It orchestrates the search bar, the list of tables, and handles filtering.
 export class TableList implements m.ClassComponent<TableListAttrs> {
@@ -289,125 +464,6 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
         .filter((module) => module.tables.length > 0);
     }
 
-    // Helper function to search tables by query (used for both display and tag filtering)
-    // Returns results in priority order: table name, column name, table description, column description
-    const searchTables = (
-      tables: TableWithModule[],
-      query: string,
-    ): Array<{
-      item: TableWithModule;
-      segments: FuzzySegment[];
-      matchType: MatchType;
-    }> => {
-      if (query.trim() === '') {
-        return tables.map((table) => ({
-          item: table,
-          segments: [{matching: false, value: table.table.name}],
-          matchType: 'table-name' as MatchType,
-        }));
-      }
-
-      // Track which tables have been matched to avoid duplicates
-      const matchedTableNames = new Set<string>();
-
-      // 1. Search by table name (highest priority)
-      const tableFinder = new FuzzyFinder(tables, (item) => item.table.name);
-      const tableNameResults = tableFinder.find(query).map((result) => {
-        matchedTableNames.add(result.item.table.name);
-        return {
-          ...result,
-          matchType: 'table-name' as MatchType,
-        };
-      });
-
-      // 2. Search by column names (second priority) - exact match
-      const columnNameResults: Array<{
-        item: TableWithModule;
-        segments: FuzzySegment[];
-        matchType: MatchType;
-      }> = [];
-
-      const lowerQuery = query.toLowerCase();
-      for (const tableWithModule of tables) {
-        if (matchedTableNames.has(tableWithModule.table.name)) {
-          continue;
-        }
-
-        const hasMatch = tableWithModule.table.columns.some((col) =>
-          col.name.toLowerCase().includes(lowerQuery),
-        );
-
-        if (hasMatch) {
-          matchedTableNames.add(tableWithModule.table.name);
-          columnNameResults.push({
-            item: tableWithModule,
-            segments: [{matching: false, value: tableWithModule.table.name}],
-            matchType: 'column-name',
-          });
-        }
-      }
-
-      // 3. Search by table description (third priority) - exact match
-      const tableDescriptionResults: Array<{
-        item: TableWithModule;
-        segments: FuzzySegment[];
-        matchType: MatchType;
-      }> = [];
-
-      for (const tableWithModule of tables) {
-        if (matchedTableNames.has(tableWithModule.table.name)) {
-          continue;
-        }
-
-        if (
-          tableWithModule.table.description &&
-          tableWithModule.table.description.toLowerCase().includes(lowerQuery)
-        ) {
-          matchedTableNames.add(tableWithModule.table.name);
-          tableDescriptionResults.push({
-            item: tableWithModule,
-            segments: [{matching: false, value: tableWithModule.table.name}],
-            matchType: 'table-description',
-          });
-        }
-      }
-
-      // 4. Search by column descriptions (lowest priority) - exact match
-      const columnDescriptionResults: Array<{
-        item: TableWithModule;
-        segments: FuzzySegment[];
-        matchType: MatchType;
-      }> = [];
-
-      for (const tableWithModule of tables) {
-        if (matchedTableNames.has(tableWithModule.table.name)) {
-          continue;
-        }
-
-        const hasMatch = tableWithModule.table.columns.some(
-          (col) =>
-            col.description !== undefined &&
-            col.description.toLowerCase().includes(lowerQuery),
-        );
-
-        if (hasMatch) {
-          matchedTableNames.add(tableWithModule.table.name);
-          columnDescriptionResults.push({
-            item: tableWithModule,
-            segments: [{matching: false, value: tableWithModule.table.name}],
-            matchType: 'column-description',
-          });
-        }
-      }
-
-      return [
-        ...tableNameResults,
-        ...columnNameResults,
-        ...tableDescriptionResults,
-        ...columnDescriptionResults,
-      ];
-    };
-
     const allTables: TableWithModule[] = filteredModules.flatMap((module) =>
       module.tables.map((table) => ({table, moduleName: module.includeKey})),
     );
@@ -456,46 +512,10 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     }
 
     // Perform the actual search for display
-    const searchResults = searchTables(allTables, attrs.searchQuery);
-
-    // Helper function to sort by importance within a group
-    const sortByImportance = (
-      results: Array<{
-        item: TableWithModule;
-        segments: FuzzySegment[];
-        matchType: MatchType;
-      }>,
-    ) => {
-      const core = results.filter((r) => r.item.table.importance === 'core');
-      const high = results.filter((r) => r.item.table.importance === 'high');
-      const mid = results.filter((r) => r.item.table.importance === 'mid');
-      const normal = results.filter(
-        (r) => r.item.table.importance === undefined,
-      );
-      const low = results.filter((r) => r.item.table.importance === 'low');
-      return [...core, ...high, ...mid, ...normal, ...low];
-    };
-
-    // Group by match type (already ordered by searchTables), then sort by importance within each group
-    const tableNameResults = searchResults.filter(
-      (r) => r.matchType === 'table-name',
+    const sortedFuzzyResults = searchAndRankTables(
+      allTables,
+      attrs.searchQuery,
     );
-    const columnNameResults = searchResults.filter(
-      (r) => r.matchType === 'column-name',
-    );
-    const tableDescResults = searchResults.filter(
-      (r) => r.matchType === 'table-description',
-    );
-    const columnDescResults = searchResults.filter(
-      (r) => r.matchType === 'column-description',
-    );
-
-    const sortedFuzzyResults = [
-      ...sortByImportance(tableNameResults),
-      ...sortByImportance(columnNameResults),
-      ...sortByImportance(tableDescResults),
-      ...sortByImportance(columnDescResults),
-    ];
 
     const tableCards = sortedFuzzyResults.map(({item, segments, matchType}) =>
       m(TableCard, {

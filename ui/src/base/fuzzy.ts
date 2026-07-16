@@ -22,6 +22,9 @@ export interface FuzzySegment {
 export interface FuzzyResult<T> {
   item: T;
   segments: FuzzySegment[];
+  // Relevance score of the match, higher is better. Exact matches score higher
+  // than fuzzy ones. Empty search terms produce a uniform score of 1.
+  score: number;
 }
 
 export type KeyLookup<T> = (x: T) => string;
@@ -64,13 +67,18 @@ export class FuzzyFinder<T> {
         return {
           item,
           segments: [{matching: false, value: normalisedTerm}],
+          score: 1,
         };
       });
     }
     return this.miniSearch.search(searchTerm).map((result) => {
       const item = this.items[result.id as number];
       const text = this.keyLookup(item);
-      return {item, segments: computeHighlightSegments(searchTerm, text)};
+      return {
+        item,
+        segments: computeHighlightSegments(searchTerm, text),
+        score: result.score,
+      };
     });
   }
 }
