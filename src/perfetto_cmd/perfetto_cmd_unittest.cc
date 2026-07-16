@@ -23,10 +23,19 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "src/perfetto_cmd/packet_writer.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/system_properties.h>
+#endif
+
+#include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+
 #include "protos/perfetto/common/trace_attributes.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
+#include "protos/perfetto/trace/android/after_reboot_trace_event.pbzero.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
@@ -52,9 +61,8 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
-      base::ScopedMmap mmapped_trace) {
-    return PerfettoCmd::ParseTraceConfigFromMmapedTrace(
-        std::move(mmapped_trace));
+      const base::ScopedMmap& mmapped_trace) {
+    return PerfettoCmd::ParseTraceConfigFromMmapedTrace(mmapped_trace);
   }
 #endif
 };
@@ -254,6 +262,136 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
         result->android_report_config().use_pipe_in_framework_for_testing(),
         true);
   }
+}
+
+TEST_F(PerfettoCmdlineUnitTest,
+       TruncatesIncompleteTrailingPacketAndAppendsAfterRebootEvent) {
+  base::TempFile trace_file = base::TempFile::Create();
+  {
+    std::vector<perfetto::TracePacket> packets;
+    packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
+      msg->set_trusted_uid(9999);
+      auto config = msg->mutable_trace_config();
+      config->set_trace_uuid_lsb(555);
+      config->set_trace_uuid_msb(888);
+    }));
+    WritePacketsToFile(packets, trace_file.path());
+  }
+
+  auto orig_size = base::GetFileSize(trace_file.path());
+  ASSERT_TRUE(orig_size.has_value());
+  uint64_t valid_bytes = *orig_size;
+
+  // Append 5 garbage bytes to simulate an incomplete trailing packet
+  const char garbage[] = {0x7f, 0x7f, 0x7f, 0x7f, 0x7f};
+  lseek(trace_file.fd(), 0, SEEK_END);
+  base::WriteAll(trace_file.fd(), garbage, sizeof(garbage));
+
+  uint64_t file_with_garbage_size = valid_bytes + sizeof(garbage);
+
+  base::ScopedMmap mmaped = base::ReadMmapWholeFile(trace_file.path());
+  ASSERT_TRUE(mmaped.IsValid());
+
+  // Call the production static helper function
+  size_t final_offset = PerfettoCmd::SanitizeAndAnnotatePersistentTrace(
+      trace_file.fd(), mmaped, "test.tmp");
+
+  EXPECT_GT(final_offset, valid_bytes);
+
+  // Verify resulting trace file can be re-mmapped and contains
+  // AfterRebootTraceEvent
+  base::ScopedMmap updated_mmaped = base::ReadMmapWholeFile(trace_file.path());
+  ASSERT_TRUE(updated_mmaped.IsValid());
+
+  bool found_after_reboot_evt = false;
+  protozero::ProtoDecoder updated_decoder(updated_mmaped.data(),
+                                          updated_mmaped.length());
+  for (auto p = updated_decoder.ReadField(); p;
+       p = updated_decoder.ReadField()) {
+    if (p.id() ==
+        protos::pbzero::TracePacket::kAfterRebootTraceEventFieldNumber) {
+      found_after_reboot_evt = true;
+      protos::pbzero::AfterRebootTraceEvent::Decoder evt_decoder(p.data(),
+                                                                 p.size());
+      EXPECT_EQ(evt_decoder.original_file_size(), file_with_garbage_size);
+      EXPECT_EQ(evt_decoder.bytes_truncated(), sizeof(garbage));
+    }
+  }
+  EXPECT_TRUE(found_after_reboot_evt);
+}
+
+TEST_F(PerfettoCmdlineUnitTest,
+       SanitizeAndAnnotatePersistentTraceCleanFileHasZeroTruncatedBytes) {
+  base::TempFile trace_file = base::TempFile::Create();
+  {
+    std::vector<perfetto::TracePacket> packets;
+    packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
+      msg->set_trusted_uid(9999);
+      auto config = msg->mutable_trace_config();
+      config->set_trace_uuid_lsb(111);
+      config->set_trace_uuid_msb(222);
+    }));
+    WritePacketsToFile(packets, trace_file.path());
+  }
+
+  auto orig_size = base::GetFileSize(trace_file.path());
+  ASSERT_TRUE(orig_size.has_value());
+
+  base::ScopedMmap mmaped = base::ReadMmapWholeFile(trace_file.path());
+  ASSERT_TRUE(mmaped.IsValid());
+
+  size_t final_offset = PerfettoCmd::SanitizeAndAnnotatePersistentTrace(
+      trace_file.fd(), mmaped, "clean_test.tmp");
+
+  EXPECT_GT(final_offset, *orig_size);
+
+  base::ScopedMmap updated_mmaped = base::ReadMmapWholeFile(trace_file.path());
+  ASSERT_TRUE(updated_mmaped.IsValid());
+
+  bool found_after_reboot_evt = false;
+  protozero::ProtoDecoder updated_decoder(updated_mmaped.data(),
+                                          updated_mmaped.length());
+  for (auto p = updated_decoder.ReadField(); p;
+       p = updated_decoder.ReadField()) {
+    if (p.id() ==
+        protos::pbzero::TracePacket::kAfterRebootTraceEventFieldNumber) {
+      found_after_reboot_evt = true;
+      protos::pbzero::AfterRebootTraceEvent::Decoder evt_decoder(p.data(),
+                                                                 p.size());
+      EXPECT_EQ(evt_decoder.original_file_size(), *orig_size);
+      EXPECT_EQ(evt_decoder.bytes_truncated(), 0u);
+    }
+  }
+  EXPECT_TRUE(found_after_reboot_evt);
+}
+
+TEST_F(PerfettoCmdlineUnitTest,
+       WaitForPreviousRebootTraceUploadNonExistentFileReturnsImmediately) {
+  // Should return immediately when the .tmp trace file does not exist on disk
+  std::string non_existent_path =
+      "/data/misc/perfetto-traces/persistent/non_existent_session_9999.tmp";
+  EXPECT_FALSE(base::FileExists(non_existent_path));
+
+  auto start = base::GetBootTimeNs();
+  PerfettoCmd::WaitForPreviousRebootTraceUpload(
+      "/data/misc/perfetto-traces/persistent", "non_existent_session_9999",
+      non_existent_path);
+  auto elapsed_ns = (base::GetBootTimeNs() - start).count();
+
+  // Assert execution returns immediately (under 100 milliseconds)
+  EXPECT_LT(elapsed_ns, 100 * 1000 * 1000LL);
+}
+
+TEST_F(PerfettoCmdlineUnitTest,
+       WaitForPreviousRebootTraceUploadFileExistsWithPropertySetCrashes) {
+  base::TempFile temp_file = base::TempFile::Create();
+  // Set property indicating previous upload has started or finished
+  __system_property_set("traced.reboot_trace_status", "1:100000000");
+
+  EXPECT_DEATH(PerfettoCmd::WaitForPreviousRebootTraceUpload(
+                   "/data/misc/perfetto-traces/persistent",
+                   "finished_session_test", temp_file.path()),
+               "still exists on disk even though property is set");
 }
 #endif
 

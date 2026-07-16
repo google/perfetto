@@ -2952,6 +2952,42 @@ TEST_F(TracingServiceImplTest, FlushStrategies) {
         });
   }
 
+  // Verify that flush happens on every write period when
+  // flush_before_writing_into_file is true.
+  {
+    constexpr uint32_t kShortWritePeriodMs = 100;
+    TraceConfig cfg;
+    cfg.add_buffers()->set_size_kb(128);
+    cfg.add_data_sources()->mutable_config()->set_name("data_source");
+    cfg.set_write_into_file(true);
+    cfg.set_file_write_period_ms(kShortWritePeriodMs);
+    cfg.set_flush_before_writing_into_file(true);
+
+    run_strategy_test(
+        "mock_producer_flush_before_write", cfg, [&](MockProducer* producer) {
+          int flushes_seen = 0;
+          auto checkpoint =
+              task_runner.CreateCheckpoint("flushes_before_write");
+          EXPECT_CALL(*producer, Flush(_, _, _, _))
+              .WillRepeatedly([&](FlushRequestID flush_req_id,
+                                  const DataSourceInstanceID*, size_t,
+                                  FlushFlags flags) {
+                EXPECT_EQ(flags.reason(), FlushFlags::Reason::kPeriodic);
+                producer->endpoint()->NotifyFlushComplete(flush_req_id);
+                if (++flushes_seen == 3)
+                  checkpoint();
+              });
+
+          AdvanceTimeAndRunUntilIdle(kShortWritePeriodMs);
+          EXPECT_EQ(flushes_seen, 1);
+          AdvanceTimeAndRunUntilIdle(kShortWritePeriodMs);
+          EXPECT_EQ(flushes_seen, 2);
+          AdvanceTimeAndRunUntilIdle(kShortWritePeriodMs);
+          task_runner.RunUntilCheckpoint("flushes_before_write");
+          EXPECT_EQ(flushes_seen, 3);
+        });
+  }
+
   // 2) Strategy: kPeriodic (via WRITE_FLUSH_AUTO and period <= 5s).
   // Verify that flushes do NOT happen on write, but only periodically (every
   // 5s).

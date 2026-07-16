@@ -3561,6 +3561,7 @@ filegroup {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -7924,6 +7925,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_cpp",
     srcs: [
+        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -7952,6 +7954,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/after_reboot_trace_event.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/android_log.gen.cc",
@@ -7980,6 +7983,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/after_reboot_trace_event.gen.h",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.gen.h",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.gen.h",
         "external/perfetto/protos/perfetto/trace/android/android_log.gen.h",
@@ -8002,6 +8006,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_lite",
     srcs: [
+        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -8029,6 +8034,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_lite)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/after_reboot_trace_event.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/android_log.pb.cc",
@@ -8056,6 +8062,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_lite)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/after_reboot_trace_event.pb.h",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.pb.h",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.pb.h",
         "external/perfetto/protos/perfetto/trace/android/android_log.pb.h",
@@ -8078,6 +8085,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_zero",
     srcs: [
+        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -8106,6 +8114,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_zero)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/after_reboot_trace_event.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/android_log.pbzero.cc",
@@ -8134,6 +8143,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_android_zero)",
     out: [
+        "external/perfetto/protos/perfetto/trace/android/after_reboot_trace_event.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/android_aflags.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/android_game_intervention_list.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/android_log.pbzero.h",
@@ -8395,6 +8405,7 @@ genrule {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -10018,6 +10029,7 @@ genrule {
         "protos/perfetto/common/tracing_service_state.proto",
         "protos/perfetto/common/track_event_descriptor.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -11309,6 +11321,7 @@ filegroup {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -13701,6 +13714,7 @@ genrule {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -22859,6 +22873,7 @@ java_library {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -23332,6 +23347,7 @@ python_library_host {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
         "protos/perfetto/protovm/vm_program.proto",
+        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",

@@ -351,6 +351,8 @@ void ConsumerEndpointImpl::QueryServiceState(
       session->set_bugreport_score(s.config.bugreport_score());
     if (s.config.has_bugreport_filename())
       session->set_bugreport_filename(s.config.bugreport_filename());
+    if (s.config.write_into_file())
+      session->set_is_write_into_file(true);
     for (const auto& snap_kv : s.initial_clock_snapshot) {
       if (snap_kv.clock_id == protos::pbzero::BUILTIN_CLOCK_REALTIME)
         session->set_start_realtime_ns(static_cast<int64_t>(snap_kv.timestamp));

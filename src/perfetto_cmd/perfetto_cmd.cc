@@ -250,6 +250,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_NOTIFY_FD,
     OPT_NO_CLOBBER,
     OPT_ADD_ATTRIBUTE,
+    OPT_UPLOAD_AFTER_REBOOT,
   };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
@@ -287,6 +288,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
       {"notify-fd", required_argument, nullptr, OPT_NOTIFY_FD},
       {"no-clobber", no_argument, nullptr, OPT_NO_CLOBBER},
+      {"upload-after-reboot", no_argument, nullptr, OPT_UPLOAD_AFTER_REBOOT},
       {nullptr, 0, nullptr, 0}};
 
   std::string config_file_name;
@@ -434,6 +436,15 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       continue;
 #else
       PERFETTO_ELOG("--upload is only supported on Android");
+      return 1;
+#endif
+    }
+
+    if (option == OPT_UPLOAD_AFTER_REBOOT) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+      return UploadPersistentTracesAfterReboot();
+#else
+      PERFETTO_ELOG("--upload-after-reboot is only supported on Android");
       return 1;
 #endif
     }
@@ -866,8 +877,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
              (trace_config_->write_into_file() &&
               !trace_config_->output_path().empty())) {
     open_out_file = false;
-  } else if (trace_out_path_.empty() && !upload_flag_) {
-    PERFETTO_ELOG("Either --out or --upload is required");
+  } else if (trace_out_path_.empty() && !upload_flag_ &&
+             !trace_config_->persist_trace_across_reboots()) {
+    PERFETTO_ELOG(
+        "Either --out, --upload, or persist_trace_across_reboots in trace "
+        "config is required");
     return 1;
   } else if (is_detach() && !trace_config_->write_into_file()) {
     // In detached mode we must pass the file descriptor to the service and
@@ -1331,7 +1345,12 @@ bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
   base::ScopedFile fd;
   if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    fd = CreateUnlinkedTmpFile();
+    if (trace_config_ && trace_config_->persist_trace_across_reboots()) {
+      fd = CreatePersistentTmpFile(trace_config_->unique_session_name(),
+                                   &persistent_file_path_);
+    } else {
+      fd = CreateUnlinkedTmpFile();
+    }
 #endif
   } else if (trace_out_path_ == "-") {
     fd.reset(dup(fileno(stdout)));
@@ -1776,6 +1795,8 @@ void PerfettoCmd::CloneAllBugreportTraces(
     int32_t bugreport_score;
     TracingSessionID tsid;
     std::string fname;  // Before deduping logic.
+    std::string unique_session_name;
+    bool is_write_into_file = false;
     bool operator<(const SessionToClone& other) const {
       return bugreport_score > other.bugreport_score;  // High score first.
     }
@@ -1790,8 +1811,13 @@ void PerfettoCmd::CloneAllBugreportTraces(
     } else {
       fname = "systrace.pftrace";
     }
-    sessions.emplace_back(
-        SessionToClone{session.bugreport_score(), session.id(), fname});
+    SessionToClone s_clone;
+    s_clone.bugreport_score = session.bugreport_score();
+    s_clone.tsid = session.id();
+    s_clone.fname = fname;
+    s_clone.unique_session_name = session.unique_session_name();
+    s_clone.is_write_into_file = session.is_write_into_file();
+    sessions.emplace_back(std::move(s_clone));
   }  // for(session)
 
   if (sessions.empty()) {
@@ -1838,6 +1864,36 @@ void PerfettoCmd::CloneAllBugreportTraces(
     // Clone the tracing session into the bugreport file.
     std::string out_path = GetBugreportTraceDir() + "/" + actual_fname;
     remove(out_path.c_str());
+
+    if (it->is_write_into_file) {
+      std::string clean_name =
+          it->unique_session_name.empty() ? "default" : it->unique_session_name;
+      base::StackString<256> persistent_path(
+          "/data/misc/perfetto-traces/persistent/%s.tmp", clean_name.c_str());
+      base::ScopedFile fd_in =
+          base::OpenFile(persistent_path.c_str(), O_RDONLY | O_CLOEXEC);
+      if (fd_in) {
+        base::ScopedFile fd_out = base::OpenFile(
+            out_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0600);
+        if (fd_out) {
+          PERFETTO_LOG(
+              "Copying persistent trace %s for write_into_file session %" PRIu64
+              " into bugreport path %s",
+              persistent_path.c_str(), it->tsid, out_path.c_str());
+          base::CopyFileContents(*fd_in, *fd_out);
+        } else {
+          PERFETTO_PLOG("Failed to open bugreport output file %s",
+                        out_path.c_str());
+        }
+      } else {
+        PERFETTO_LOG("Persistent trace %s for write_into_file session %" PRIu64
+                     " not found",
+                     persistent_path.c_str(), it->tsid);
+      }
+      sync_fn();
+      continue;
+    }
+
     PERFETTO_LOG("Cloning tracing session %" PRIu64 " with score %d into %s",
                  it->tsid, it->bugreport_score, out_path.c_str());
     std::string cmdline;
