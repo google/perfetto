@@ -138,7 +138,8 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
 
   ArgsTracker args_tracker(context_->trace_processor_context_);
   auto inserter = args_tracker.AddArgsTo(snapshot_id);
-  ArgsParser writer(timestamp, inserter, *storage);
+  ArgsParser writer(timestamp, inserter, *storage,
+                    *context_->trace_processor_context_->process_tracker);
   const auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name);
@@ -165,7 +166,8 @@ void SurfaceFlingerLayersParser::ParseLayer(
   auto row_id =
       InsertLayerRow(blob, snapshot_id, visibility, layers_by_id, rects);
   auto inserter = tracker.AddArgsTo(row_id);
-  ArgsParser writer(timestamp, inserter, *storage);
+  ArgsParser writer(timestamp, inserter, *storage,
+                    *context_->trace_processor_context_->process_tracker);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(

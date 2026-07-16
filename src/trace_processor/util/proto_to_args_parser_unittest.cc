@@ -150,21 +150,9 @@ class ProtoToArgsParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
-  void AddProcessName(Id fk, Id k, int64_t pid) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " process_name_of(" << pid << ")";
-    args_.push_back(ss.str());
-  }
-
   void AddUtid(Id fk, Id k, int64_t tid) override {
     std::stringstream ss;
     ss << K(fk) << " " << K(k) << " utid_of(" << tid << ")";
-    args_.push_back(ss.str());
-  }
-
-  void AddThreadName(Id fk, Id k, int64_t tid) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " thread_name_of(" << tid << ")";
     args_.push_back(ss.str());
   }
 
@@ -861,21 +849,9 @@ class DebugAnnotationParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
-  void AddProcessName(Id fk, Id k, int64_t pid) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " process_name_of(" << pid << ")";
-    args_.push_back(ss.str());
-  }
-
   void AddUtid(Id fk, Id k, int64_t tid) override {
     std::stringstream ss;
     ss << K(fk) << " " << K(k) << " utid_of(" << tid << ")";
-    args_.push_back(ss.str());
-  }
-
-  void AddThreadName(Id fk, Id k, int64_t tid) override {
-    std::stringstream ss;
-    ss << K(fk) << " " << K(k) << " thread_name_of(" << tid << ")";
     args_.push_back(ss.str());
   }
 
@@ -1314,8 +1290,8 @@ std::vector<uint8_t> BuildPidTidDescriptorSet() {
     o->set_type(FieldDescriptorProto::TYPE_BOOL);
     o->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
   };
-  add_bool_opt("pid", 51002);
-  add_bool_opt("tid", 51003);
+  add_bool_opt("is_pid", 51002);
+  add_bool_opt("is_tid", 51003);
 
   auto* file = fds->add_file();
   file->set_name("test.proto");
@@ -1354,18 +1330,14 @@ TEST_F(ProtoToArgsParserTest, PidTidFieldsEmitCompanionArgs) {
       parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
                           ".test.Msg", nullptr, *this));
 
-  // Each id field emits its raw value plus two companion args, keyed by
-  // replacing the trailing "pid"/"tid". Resolution itself is the delegate's
-  // job.
+  // Each id field emits its raw value plus a companion upid/utid, keyed by
+  // replacing (or appending) the trailing "pid"/"tid".
   EXPECT_THAT(
       args(),
       testing::ElementsAre(
           "caller_pid caller_pid 4321", "caller_upid caller_upid upid_of(4321)",
-          "caller_process_name caller_process_name process_name_of(4321)",
           "caller_tid caller_tid 99", "caller_utid caller_utid utid_of(99)",
-          "caller_thread_name caller_thread_name thread_name_of(99)",
-          "owner owner 7", "owner_upid owner_upid upid_of(7)",
-          "owner_process_name owner_process_name process_name_of(7)"));
+          "owner owner 7", "owner_upid owner_upid upid_of(7)"));
 }
 
 }  // namespace

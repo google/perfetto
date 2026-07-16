@@ -200,7 +200,8 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
+                    *trace_processor_context->process_tracker);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
@@ -229,7 +230,8 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
+                    *trace_processor_context->process_tracker);
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(
@@ -257,7 +259,8 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
+                    *trace_processor_context->process_tracker);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(

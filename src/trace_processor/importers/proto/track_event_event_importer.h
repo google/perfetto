@@ -1448,9 +1448,9 @@ class TrackEventEventImporter {
 
     log_errors(ParseCallstack());
 
-    ArgsParser args_writer(ts_, *inserter, *storage_, sequence_state_,
-                           /*support_json=*/true,
-                           context_->process_tracker.get());
+    ArgsParser args_writer(ts_, *inserter, *storage_,
+                           *context_->process_tracker, sequence_state_,
+                           /*support_json=*/true);
     int unknown_extensions = 0;
     log_errors(parser_->args_parser_.ParseMessage(
         blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,

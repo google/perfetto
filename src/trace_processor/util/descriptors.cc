@@ -651,10 +651,10 @@ DescriptorPool::CustomOptionNumbers DescriptorPool::FindCustomOptionNumbers()
   if (const auto* opt = field_options.FindFieldByName("flags_enum")) {
     numbers.flags_enum = opt->number();
   }
-  if (const auto* opt = field_options.FindFieldByName("pid")) {
+  if (const auto* opt = field_options.FindFieldByName("is_pid")) {
     numbers.pid = opt->number();
   }
-  if (const auto* opt = field_options.FindFieldByName("tid")) {
+  if (const auto* opt = field_options.FindFieldByName("is_tid")) {
     numbers.tid = opt->number();
   }
   return numbers;

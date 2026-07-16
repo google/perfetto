@@ -40,9 +40,9 @@ using BoundInserter = ArgsTracker::BoundInserter;
 ArgsParser::ArgsParser(int64_t packet_timestamp,
                        BoundInserter& inserter,
                        TraceStorage& storage,
+                       ProcessTracker& process_tracker,
                        PacketSequenceStateGeneration* sequence_state,
-                       bool support_json,
-                       ProcessTracker* process_tracker)
+                       bool support_json)
     : support_json_(support_json),
       packet_timestamp_(packet_timestamp),
       sequence_state_(sequence_state),
@@ -90,40 +90,14 @@ void ArgsParser::AddBoolean(Id flat_key, Id key, bool value) {
 }
 
 void ArgsParser::AddUpid(Id flat_key, Id key, int64_t pid) {
-  if (!process_tracker_)
-    return;
-  if (auto upid = process_tracker_->GetProcessOrNull(pid)) {
+  if (auto upid = process_tracker_.GetProcessOrNull(pid)) {
     inserter_.AddArg(flat_key, key, Variadic::Integer(*upid));
   }
 }
 
-void ArgsParser::AddProcessName(Id flat_key, Id key, int64_t pid) {
-  if (!process_tracker_)
-    return;
-  auto upid = process_tracker_->GetProcessOrNull(pid);
-  if (!upid)
-    return;
-  if (auto name = storage_.process_table()[*upid].name()) {
-    inserter_.AddArg(flat_key, key, Variadic::String(*name));
-  }
-}
-
 void ArgsParser::AddUtid(Id flat_key, Id key, int64_t tid) {
-  if (!process_tracker_)
-    return;
-  if (auto utid = process_tracker_->GetThreadOrNull(tid)) {
+  if (auto utid = process_tracker_.GetThreadOrNull(tid)) {
     inserter_.AddArg(flat_key, key, Variadic::Integer(*utid));
-  }
-}
-
-void ArgsParser::AddThreadName(Id flat_key, Id key, int64_t tid) {
-  if (!process_tracker_)
-    return;
-  auto utid = process_tracker_->GetThreadOrNull(tid);
-  if (!utid)
-    return;
-  if (auto name = storage_.thread_table()[*utid].name()) {
-    inserter_.AddArg(flat_key, key, Variadic::String(*name));
   }
 }
 
