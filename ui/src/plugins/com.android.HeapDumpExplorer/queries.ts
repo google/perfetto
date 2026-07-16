@@ -36,7 +36,6 @@ import type {
   DuplicateBitmapGroup,
   DuplicateStringGroup,
   DuplicateArrayGroup,
-  ClassRow,
 } from './types';
 import {fmtHex} from './format';
 import {shortClassName, SQL_PREAMBLE} from './components';
@@ -114,10 +113,6 @@ function makeDisplay(cls: string, id: number): string {
 
 function sqlEsc(s: string): string {
   return s.replace(/'/g, "''");
-}
-
-function heapFilter(heap: string | null): string {
-  return heap ? `AND o.heap_type = '${sqlEsc(heap)}'` : '';
 }
 
 const KIND_TO_REACHABILITY: Record<string, string> = {
@@ -544,83 +539,6 @@ export async function getOome(
     return {upid: row.upid, ts: Time.fromRaw(row.ts)};
   }
   return undefined;
-}
-
-export async function getAllocations(
-  engine: Engine,
-  activeDump: HeapDump,
-  heap: string | null,
-): Promise<ClassRow[]> {
-  await requireDominatorTree(engine);
-  const hf = heapFilter(heap);
-  const res = await engine.query(`
-    SELECT
-      ifnull(c.deobfuscated_name, c.name) AS cls,
-      COUNT(*) AS cnt,
-      SUM(o.self_size) AS shallow,
-      SUM(o.native_size) AS native_shallow,
-      SUM(ifnull(d.dominated_size_bytes, o.self_size)) AS retained,
-      SUM(ifnull(d.dominated_native_size_bytes, o.native_size))
-        AS retained_native,
-      SUM(ifnull(d.dominated_obj_count, 1)) AS retained_count,
-      ifnull(o.heap_type, 'default') AS heap
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
-    WHERE o.reachable != 0
-      AND ${dumpFilterSql(activeDump, 'o')}
-      ${hf}
-    GROUP BY cls, heap
-    ORDER BY retained DESC
-  `);
-  const rows: ClassRow[] = [];
-  for (
-    const it = res.iter({
-      cls: STR,
-      cnt: NUM,
-      shallow: NUM,
-      native_shallow: NUM,
-      retained: NUM,
-      retained_native: NUM,
-      retained_count: NUM,
-      heap: STR,
-    });
-    it.valid();
-    it.next()
-  ) {
-    rows.push({
-      className: it.cls,
-      count: it.cnt,
-      shallowSize: it.shallow,
-      nativeSize: it.native_shallow,
-      retainedSize: it.retained,
-      retainedNativeSize: it.retained_native,
-      retainedCount: it.retained_count,
-      reachableSize: null,
-      reachableNativeSize: null,
-      reachableCount: null,
-      heap: it.heap,
-    });
-  }
-  return rows;
-}
-
-export async function getRooted(
-  engine: Engine,
-  activeDump: HeapDump,
-): Promise<InstanceRow[]> {
-  await requireDominatorTree(engine);
-  const res = await engine.query(`
-    SELECT ${INSTANCE_COLS}
-    FROM heap_graph_dominator_tree d
-    JOIN heap_graph_object o ON d.id = o.id
-    JOIN heap_graph_class c ON o.type_id = c.id
-    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    WHERE d.idom_id IS NULL
-      AND ${dumpFilterSql(activeDump, 'o')}
-    ORDER BY d.dominated_size_bytes + d.dominated_native_size_bytes DESC
-  `);
-  return collectRows(res);
 }
 
 type FieldEntry = {name: string; typeName: string; value: PrimOrRef};
@@ -1449,41 +1367,6 @@ export async function getRawArrayBlob(
   return null;
 }
 
-export async function getRawBitmapBlob(
-  engine: Engine,
-  activeDump: HeapDump,
-  objectId: number,
-): Promise<{data: Uint8Array; format: string} | null> {
-  const fieldRes = await engine.query(`
-    SELECT f.long_value
-    FROM heap_graph_object o
-    JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    JOIN heap_graph_primitive f ON f.field_set_id = od.field_set_id
-    WHERE o.id = ${objectId}
-      AND f.field_name GLOB '*mNativePtr'
-  `);
-  const fit = fieldRes.iter({long_value: LONG_NULL});
-  if (!fit.valid() || fit.long_value === null) return null;
-  const nativePtr = toNativePtr(fit.long_value);
-
-  const dumpData = await loadBitmapDumpData(engine, activeDump);
-  if (!dumpData) return null;
-  const bufferObjId = dumpData.bufferMap.get(nativePtr);
-  if (bufferObjId === undefined) return null;
-
-  const bufRes = await engine.query(`
-    SELECT __intrinsic_heap_graph_array(od.array_data_id) AS data
-    FROM heap_graph_object o
-    JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    WHERE o.id = ${bufferObjId}
-  `);
-  const bit = bufRes.iter({data: BLOB_NULL});
-  if (!bit.valid() || bit.data === null) return null;
-
-  const format = DUMP_DATA_FORMAT_NAMES[dumpData.format] ?? 'png';
-  return {data: bit.data, format};
-}
-
 /** Format a single JSON-decoded primitive value for display. */
 function formatPrimValue(type: string, v: number | string | boolean): string {
   if (type === 'boolean') return Number(v) !== 0 ? 'true' : 'false';
@@ -1738,59 +1621,6 @@ export async function search(
         OR c.deobfuscated_name LIKE '%${escaped}%' ESCAPE '\\')
     ORDER BY (ifnull(d.dominated_size_bytes, 0)
       + ifnull(d.dominated_native_size_bytes, 0)) DESC
-  `);
-  return collectRows(res);
-}
-
-export async function getObjects(
-  engine: Engine,
-  activeDump: HeapDump,
-  cls: string,
-  heap: string | null,
-): Promise<InstanceRow[]> {
-  await requireDominatorTree(engine);
-  const escaped = sqlEsc(cls);
-  const hf = heapFilter(heap);
-  const res = await engine.query(`
-    SELECT ${INSTANCE_COLS}
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
-    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    WHERE o.reachable != 0
-      AND ${dumpFilterSql(activeDump, 'o')}
-      AND (c.name = '${escaped}' OR c.deobfuscated_name = '${escaped}')
-      ${hf}
-    ORDER BY o.self_size + o.native_size DESC
-  `);
-  return collectRows(res);
-}
-
-export async function getObjectsByFlamegraphSelection(
-  engine: Engine,
-  pathHashes: string,
-  isDominator: boolean,
-): Promise<InstanceRow[]> {
-  await requireDominatorTree(engine);
-  // Query objects matching the given path hashes from the flamegraph.
-  // Path hashes are comma-separated integers identifying class tree nodes.
-  const hashTable = isDominator
-    ? '_heap_graph_dominator_path_hashes'
-    : '_heap_graph_path_hashes';
-  const values = pathHashes
-    .split(',')
-    .map((v) => `(${v.trim()})`)
-    .join(', ');
-  const res = await engine.query(`
-    WITH _hde_sel(path_hash) AS (VALUES ${values})
-    SELECT ${INSTANCE_COLS}
-    FROM _hde_sel f
-    JOIN ${hashTable} h ON h.path_hash = f.path_hash
-    JOIN heap_graph_object o ON o.id = h.id
-    JOIN heap_graph_class c ON o.type_id = c.id
-    LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
-    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    ORDER BY o.self_size + o.native_size DESC
   `);
   return collectRows(res);
 }

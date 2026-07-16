@@ -141,20 +141,6 @@ export interface InstanceDetail {
   shortestPath: PathEntry[] | null;
 }
 
-export interface ClassRow {
-  className: string;
-  count: number;
-  shallowSize: number;
-  nativeSize: number;
-  retainedSize: number;
-  retainedNativeSize: number;
-  retainedCount: number;
-  reachableSize: number | null;
-  reachableNativeSize: number | null;
-  reachableCount: number | null;
-  heap: string;
-}
-
 export interface BitmapListRow {
   row: InstanceRow;
   width: number;
