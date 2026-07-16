@@ -588,6 +588,12 @@ base::Status ProtoToArgsParser::ParseSimpleField(
             delegate);
       }
       delegate.AddInteger(fk, k, field.as_int32());
+      if (descriptor.is_pid()) {
+        AddPid(field.as_int32(), delegate);
+      }
+      if (descriptor.is_tid()) {
+        AddTid(field.as_int32(), delegate);
+      }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT32:
       delegate.AddInteger(fk, k, field.as_sint32());
@@ -598,6 +604,12 @@ base::Status ProtoToArgsParser::ParseSimpleField(
         return AddFlags(*idx, field.as_int64(), delegate);
       }
       delegate.AddInteger(fk, k, field.as_int64());
+      if (descriptor.is_pid()) {
+        AddPid(field.as_int64(), delegate);
+      }
+      if (descriptor.is_tid()) {
+        AddTid(field.as_int64(), delegate);
+      }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT64:
       delegate.AddInteger(fk, k, field.as_sint64());
@@ -789,6 +801,41 @@ base::Status ProtoToArgsParser::AddFlags(uint32_t enum_descriptor_idx,
     emit(i, protozero::ConstChars{hex.c_str(), hex.len()});
   }
   return base::OkStatus();
+}
+
+namespace {
+// "caller_pid" + ("pid","upid") -> "caller_upid"; else appends "_<to>".
+std::string ReplaceKeySuffix(const std::string& key,
+                             const std::string& from,
+                             const std::string& to) {
+  if (base::EndsWith(key, from))
+    return key.substr(0, key.size() - from.size()) + to;
+  return key + "_" + to;
+}
+}  // namespace
+
+std::pair<StringPool::Id, StringPool::Id> ProtoToArgsParser::InternSuffixedKeys(
+    Delegate& delegate,
+    const std::string& from,
+    const std::string& to) {
+  std::string flat_key = ReplaceKeySuffix(key_prefix_.flat_key, from, to);
+  std::string key = ReplaceKeySuffix(key_prefix_.key, from, to);
+  return {delegate.InternString(base::StringView(flat_key)),
+          delegate.InternString(base::StringView(key))};
+}
+
+void ProtoToArgsParser::AddPid(int64_t pid, Delegate& delegate) {
+  auto [upid_fk, upid_k] = InternSuffixedKeys(delegate, "pid", "upid");
+  delegate.AddUpid(upid_fk, upid_k, pid);
+  auto [name_fk, name_k] = InternSuffixedKeys(delegate, "pid", "process_name");
+  delegate.AddProcessName(name_fk, name_k, pid);
+}
+
+void ProtoToArgsParser::AddTid(int64_t tid, Delegate& delegate) {
+  auto [utid_fk, utid_k] = InternSuffixedKeys(delegate, "tid", "utid");
+  delegate.AddUtid(utid_fk, utid_k, tid);
+  auto [name_fk, name_k] = InternSuffixedKeys(delegate, "tid", "thread_name");
+  delegate.AddThreadName(name_fk, name_k, tid);
 }
 
 // ===========================================================================

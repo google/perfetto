@@ -169,6 +169,13 @@ bool AreEnumValuesCompatible(const ProtoDescriptor& existing,
   return true;
 }
 
+// True if the bool option |option_number| is set on |field|.
+bool FieldBoolOption(const FieldDescriptor& field, uint32_t option_number) {
+  protozero::ProtoDecoder opt(field.options().data(), field.options().size());
+  auto f = opt.FindField(option_number);
+  return f.valid() && f.as_bool();
+}
+
 }  // namespace
 
 std::optional<uint32_t> DescriptorPool::ResolveShortType(
@@ -520,14 +527,8 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     }
   }
 
-  // Fifth pass: resolve all "uninterpreted" options to real options, and
-  // resolve the (flags_enum) option to its enum's descriptor index.
-  std::optional<uint32_t> flags_enum_option_number;
-  if (auto idx = FindDescriptorIdx(".google.protobuf.FieldOptions")) {
-    if (const auto* opt = descriptors_[*idx].FindFieldByName("flags_enum")) {
-      flags_enum_option_number = opt->number();
-    }
-  }
+  // Fifth pass: interpret options and resolve Perfetto's custom field options.
+  const CustomOptionNumbers option_numbers = FindCustomOptionNumbers();
   for (ProtoDescriptor& descriptor : descriptors_) {
     for (auto& entry : *descriptor.mutable_fields()) {
       FieldDescriptor& field = entry.second;
@@ -535,9 +536,7 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
         continue;
       }
       ResolveUninterpretedOption(descriptor, field, *field.mutable_options());
-      if (flags_enum_option_number) {
-        ResolveFlagsEnumOption(descriptor, *flags_enum_option_number, &field);
-      }
+      ResolveCustomFieldOptions(descriptor, option_numbers, &field);
     }
   }
   return base::OkStatus();
@@ -638,6 +637,41 @@ void DescriptorPool::ResolveFlagsEnumOption(const ProtoDescriptor& descriptor,
   if (auto enum_idx =
           ResolveShortType(descriptor.full_name(), f.as_std_string())) {
     field->set_flags_enum_descriptor_idx(*enum_idx);
+  }
+}
+
+DescriptorPool::CustomOptionNumbers DescriptorPool::FindCustomOptionNumbers()
+    const {
+  CustomOptionNumbers numbers;
+  auto idx = FindDescriptorIdx(".google.protobuf.FieldOptions");
+  if (!idx) {
+    return numbers;
+  }
+  const ProtoDescriptor& field_options = descriptors_[*idx];
+  if (const auto* opt = field_options.FindFieldByName("flags_enum")) {
+    numbers.flags_enum = opt->number();
+  }
+  if (const auto* opt = field_options.FindFieldByName("pid")) {
+    numbers.pid = opt->number();
+  }
+  if (const auto* opt = field_options.FindFieldByName("tid")) {
+    numbers.tid = opt->number();
+  }
+  return numbers;
+}
+
+void DescriptorPool::ResolveCustomFieldOptions(
+    const ProtoDescriptor& descriptor,
+    const CustomOptionNumbers& numbers,
+    FieldDescriptor* field) {
+  if (numbers.flags_enum) {
+    ResolveFlagsEnumOption(descriptor, *numbers.flags_enum, field);
+  }
+  if (numbers.pid && FieldBoolOption(*field, *numbers.pid)) {
+    field->set_is_pid(true);
+  }
+  if (numbers.tid && FieldBoolOption(*field, *numbers.tid)) {
+    field->set_is_tid(true);
   }
 }
 

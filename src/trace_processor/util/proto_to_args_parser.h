@@ -121,6 +121,10 @@ class ProtoToArgsParser {
     virtual void AddDouble(Id flat_key, Id key, double value) = 0;
     virtual void AddPointer(Id flat_key, Id key, uint64_t value) = 0;
     virtual void AddBoolean(Id flat_key, Id key, bool value) = 0;
+    virtual void AddUpid(Id, Id, int64_t) {}
+    virtual void AddProcessName(Id, Id, int64_t) {}
+    virtual void AddUtid(Id, Id, int64_t) {}
+    virtual void AddThreadName(Id, Id, int64_t) {}
     virtual void AddBytes(Id flat_key,
                           Id key,
                           const protozero::ConstBytes& value) {
@@ -343,6 +347,16 @@ class ProtoToArgsParser {
   base::Status AddFlags(uint32_t enum_descriptor_idx,
                         int64_t value,
                         Delegate& delegate);
+
+  // Emit companion args for (pid)/(tid) fields.
+  void AddPid(int64_t pid, Delegate& delegate);
+  void AddTid(int64_t tid, Delegate& delegate);
+
+  // Interns the current flat_key/key with a trailing |from| replaced by |to|.
+  std::pair<StringPool::Id, StringPool::Id> InternSuffixedKeys(
+      Delegate& delegate,
+      const std::string& from,
+      const std::string& to);
 
   // A node in the traversal tree, a flattened trie over the descriptor path.
   // Nodes live in the |path_nodes_| arena and reference each other by index, so

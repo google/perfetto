@@ -31,11 +31,13 @@ class ArgsParser : public util::ProtoToArgsParser::Delegate {
   using Key = util::ProtoToArgsParser::Key;
   using Id = StringPool::Id;
 
+  // |process_tracker| (nullable) resolves (pid)/(tid) companion args.
   ArgsParser(int64_t packet_timestamp,
              ArgsTracker::BoundInserter& inserter,
              TraceStorage& storage,
              PacketSequenceStateGeneration* sequence_state = nullptr,
-             bool support_json = false);
+             bool support_json = false,
+             ProcessTracker* process_tracker = nullptr);
   ~ArgsParser() override;
   Id InternString(base::StringView) override;
   void AddInteger(Id flat_key, Id key, int64_t) override;
@@ -45,6 +47,10 @@ class ArgsParser : public util::ProtoToArgsParser::Delegate {
   void AddDouble(Id flat_key, Id key, double) override;
   void AddPointer(Id flat_key, Id key, uint64_t) override;
   void AddBoolean(Id flat_key, Id key, bool) override;
+  void AddUpid(Id flat_key, Id key, int64_t pid) override;
+  void AddProcessName(Id flat_key, Id key, int64_t pid) override;
+  void AddUtid(Id flat_key, Id key, int64_t tid) override;
+  void AddThreadName(Id flat_key, Id key, int64_t tid) override;
   void AddBytes(Id flat_key, Id key, const protozero::ConstBytes&) override;
   bool AddJson(Id flat_key, Id key, const protozero::ConstChars&) override;
   void AddNull(Id flat_key, Id key) override;
@@ -63,6 +69,7 @@ class ArgsParser : public util::ProtoToArgsParser::Delegate {
   PacketSequenceStateGeneration* const sequence_state_;
   ArgsTracker::BoundInserter& inserter_;
   TraceStorage& storage_;
+  ProcessTracker* const process_tracker_;
 };
 
 }  // namespace perfetto::trace_processor

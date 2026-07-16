@@ -551,13 +551,13 @@ message AndroidBroadcastEvent {
   optional int32 receiver_uid = 1;
 
   // The pid of the broadcast receiver.
-  optional int32 receiver_pid = 2;
+  optional int32 receiver_pid = 2 [(perfetto.protos.pid) = true];
 
   // The package uid of the broadcast sender.
   optional int32 sender_uid = 3;
 
   // The pid of the broadcast sender.
-  optional int32 sender_pid = 4;
+  optional int32 sender_pid = 4 [(perfetto.protos.pid) = true];
 
   // The action name of the broadcast.
   optional string action_name = 5;
@@ -611,7 +611,7 @@ message AndroidFreezerEvent {
   optional int32 uid = 1;
 
   // The pid of the process being frozen or unfrozen.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.pid) = true];
 
   // Time since last unfrozen.
   optional int64 unfrozen_dur_ms = 3;
@@ -628,7 +628,7 @@ message AndroidProcessStartEvent {
   optional int32 uid = 1;
 
   // The process pid.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.pid) = true];
 
   // The process name.
   optional string process_name = 3;
@@ -659,7 +659,7 @@ message AndroidProcessDiedEvent {
   optional int32 uid = 1;
 
   // Pid of the dying process.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.pid) = true];
 
   // The process name of the dying process.
   optional string process_name = 3;
@@ -687,7 +687,7 @@ message AndroidBinderDiedEvent {
   optional int32 uid = 1;
 
   // Pid of the dying process.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.pid) = true];
 
   // The process name of the dying process.
   optional string process_name = 3;
@@ -698,7 +698,7 @@ message AndroidProcessStateChangedEvent {
   optional int32 uid = 1;
 
   // Pid of the process changing state.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.pid) = true];
 
   // Previous proc state.
   optional ProcessStateEnum prev_proc_state = 3;
@@ -748,7 +748,7 @@ message AndroidServiceStateChangedEvent {
   // UID of the app hosting the service.
   optional int32 uid = 1;
   // PID of the app hosting the service.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.pid) = true];
   // Component name of the service.
   optional string component_name = 3;
   // Intent action used to bind/start the service.
@@ -762,7 +762,7 @@ message AndroidServiceStateChangedEvent {
   // UID of the app accessing the service.
   optional int32 caller_uid = 7;
   // PID of the app accessing the service.
-  optional int32 caller_pid = 8;
+  optional int32 caller_pid = 8 [(perfetto.protos.pid) = true];
   optional ServiceRestartReason reason_enum = 9;
   // Bitmask of flags used in the service binding.
   optional int32 bind_flags = 10
@@ -773,13 +773,13 @@ message AndroidProviderStateChangedEvent {
   // UID of the app hosting the provider.
   optional int32 uid = 1;
   // PID of the app hosting the provider.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.pid) = true];
   // Authority of the content provider.
   optional string authority = 3;
   // UID of the app accessing the provider.
   optional int32 caller_uid = 4;
   // PID of the app accessing the provider.
-  optional int32 caller_pid = 5;
+  optional int32 caller_pid = 5 [(perfetto.protos.pid) = true];
   // Whether the connection is stable.
   optional int32 is_stable = 6;
 }
@@ -806,7 +806,7 @@ message AndroidCapabilityUpdateEvent {
   optional OomChangeReasonEnum reason = 2;
 
   // Pid of the process.
-  optional int32 pid = 3;
+  optional int32 pid = 3 [(perfetto.protos.pid) = true];
 
   // The capabilities computed by CapabilityController.
   optional int32 capability = 4;
