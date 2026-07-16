@@ -43,6 +43,10 @@ export interface RecordingTarget extends WithPreflightChecks {
 
   disconnect(): void;
 
+  // Runs a shell command on the target and returns its output. Present only on
+  // transports with a device shell (adb); undefined otherwise (e.g. Chrome).
+  runShellCommand?(cmd: string): Promise<Result<string>>;
+
   startTracing(
     traceConfig: protos.ITraceConfig,
   ): Promise<Result<TracingSession>>;

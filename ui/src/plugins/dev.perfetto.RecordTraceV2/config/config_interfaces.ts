@@ -14,6 +14,7 @@
 
 import type m from 'mithril';
 import type {TargetPlatformId} from '../interfaces/target_platform';
+import type {RecordingTarget} from '../interfaces/recording_target';
 import type {TraceConfigBuilder} from './trace_config_builder';
 import type {
   ProbesSessionSchema,
@@ -114,6 +115,14 @@ export interface RecordProbe {
    * method.
    */
   genConfig(tc: TraceConfigBuilder): void;
+
+  /**
+   * (optional) Device-side setup run just before recording starts, for enabled
+   * probes only -- e.g. flipping a sysprop the data source needs. Best-effort.
+   * Use `target.runShellCommand` (present on adb transports) to touch the
+   * device.
+   */
+  onStartRecording?(target: RecordingTarget): Promise<void>;
 }
 
 /**

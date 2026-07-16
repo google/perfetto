@@ -37,6 +37,8 @@ Unreleased:
     * Update node to v22.23.1.
     * Allow pivoting on arg values in slice aggregation table.
     * Bump vite to v7.3.6 and vitest to v4.1.10.
+    * Record page: on user builds, recording display video now enables the
+      required debug.tracing_video_allowed sysprop over adb automatically.
   SDK:
     * Reworked the C SDK shared library export macros: static linking (the
       default) no longer needs any macros. Define

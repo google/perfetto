@@ -167,6 +167,11 @@ export class ConfigManager {
     });
   }
 
+  // Enabled probes, dependencies first (same order as config generation).
+  getEnabledProbes(): RecordProbe[] {
+    return this.getProbesOrderedByDep(/* enabledOnly */ true);
+  }
+
   private getProbesOrderedByDep(enabledOnly = false): RecordProbe[] {
     const orderedProbes: RecordProbe[] = [];
     const seenIds = new Set<string>();

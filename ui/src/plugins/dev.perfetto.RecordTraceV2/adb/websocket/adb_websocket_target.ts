@@ -85,6 +85,12 @@ export class AdbWebsocketTarget implements RecordingTarget {
     return getAdbTracingServiceState(this.adbDevice.value);
   }
 
+  async runShellCommand(cmd: string): Promise<Result<string>> {
+    const dev = await this.connectIfNeeded();
+    if (!dev.ok) return dev;
+    return dev.value.shell(cmd);
+  }
+
   async startTracing(
     traceConfig: protos.ITraceConfig,
   ): Promise<Result<ConsumerIpcTracingSession>> {
