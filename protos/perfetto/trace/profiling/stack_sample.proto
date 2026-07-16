@@ -183,10 +183,17 @@ message StackSample {
   // The value attributed to this sample for the primary counter (e.g. the
   // number of cycles or nanoseconds this sample represents).
   optional uint64 primary_weight = 11;
+
+  // Additional counters read at the same sample (e.g. instructions, cache
+  // misses read alongside a cycles timebase). follower_weights is positional
+  // with whichever of follower_descriptors / follower_descriptor_iids is set.
+  repeated CounterDescriptor follower_descriptors = 12;
+  repeated uint64 follower_descriptor_iids = 13 [packed = true];
+  repeated uint64 follower_weights = 14 [packed = true];
 }
 
 // Per-sequence defaults for StackSample. Lets a producer declare the source and
-// the common timebase once instead of on every sample.
+// the common timebase / followers once instead of on every sample.
 message StackSampleDefaults {
   // Identifies the profiler that produced these samples, e.g. "linux.perf",
   // "python.wall". Recorded once per sampling stream.
@@ -194,4 +201,7 @@ message StackSampleDefaults {
 
   // Default primary timebase for samples that omit their own.
   optional StackSample.CounterDescriptor primary_descriptor = 2;
+
+  // Default follower counters, positional with StackSample.follower_weights.
+  repeated StackSample.CounterDescriptor follower_descriptors = 3;
 }

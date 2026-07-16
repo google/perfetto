@@ -656,7 +656,7 @@ class Profiling(TestSuite):
           tb.unit,
           spf.name AS frame_name
         FROM __intrinsic_stack_sample ss
-        JOIN __intrinsic_stack_sample_timebase tb ON ss.timebase_id = tb.id
+        JOIN __intrinsic_stack_sample_counter tb ON ss.timebase_id = tb.id
         LEFT JOIN __intrinsic_stack_sample_execution_context ec
           ON ss.execution_context_id = ec.id
         JOIN stack_profile_callsite spc ON ss.callsite_id = spc.id
@@ -692,6 +692,27 @@ class Profiling(TestSuite):
         "ts","process_name","cpu","mode"
         1000,"myproc",2,"user"
         7000,"[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_stack_sample_followers(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample.textproto'),
+        query="""
+        -- The ts=1000 sample has one follower ("instructions") with value 500;
+        -- the primary timebase and the follower share the counter table.
+        SELECT
+          ss.ts,
+          c.name AS counter_name,
+          c.unit,
+          f.weight
+        FROM __intrinsic_stack_sample ss
+        JOIN __intrinsic_stack_sample_follower f ON f.stack_sample_id = ss.id
+        JOIN __intrinsic_stack_sample_counter c ON f.counter_id = c.id
+        ORDER BY ss.ts, f.id;
+        """,
+        out=Csv("""
+        "ts","counter_name","unit","weight"
+        1000,"instructions","instructions",500
         """))
 
   def test_frame_types(self):
