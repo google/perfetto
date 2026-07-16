@@ -40,10 +40,11 @@ import type {
 } from './types';
 import {fmtHex} from './format';
 import {shortClassName, SQL_PREAMBLE} from './components';
+import {type time, Time} from '../../base/time';
 
 export interface HeapDump {
   readonly upid: number;
-  readonly ts: bigint;
+  readonly ts: time;
   readonly processName: string | null;
   readonly pid: number;
 }
@@ -73,7 +74,7 @@ export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
   ) {
     result.push({
       upid: it.upid,
-      ts: it.ts,
+      ts: Time.fromRaw(it.ts),
       processName: it.pname,
       pid: it.pid ?? 0,
     });
@@ -529,7 +530,7 @@ export async function getOome(
   `);
   if (oomeRes.numRows() > 0) {
     const row = oomeRes.firstRow({upid: NUM, ts: LONG});
-    return {upid: row.upid, ts: row.ts};
+    return {upid: row.upid, ts: Time.fromRaw(row.ts)};
   }
   return undefined;
 }

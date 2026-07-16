@@ -108,7 +108,7 @@ function buildTabs(
       content: m(FlamegraphView, {
         trace,
         upid: activeDump.upid,
-        ts: Time.fromRaw(activeDump.ts),
+        ts: activeDump.ts,
         state: session.flamegraphPanelState,
         onStateChange: session.setFlamegraphPanelState,
         onShowObjects: (pathHashes, isDominator) =>
@@ -285,10 +285,7 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
         }),
       },
       allDumps.map((d) => {
-        const offset = Time.diff(
-          Time.fromRaw(d.ts),
-          session.trace.traceInfo.start,
-        );
+        const offset = Time.diff(d.ts, session.trace.traceInfo.start);
         return m(MenuItem, {
           label: `${processLabel(d)} — ${formatDuration(session.trace, offset)}`,
           active: d === active,

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {time} from '../../base/time';
+
 export interface HeapInfo {
   name: string;
   java: number;
@@ -45,7 +47,7 @@ export interface DuplicateArrayGroup {
 
 export interface OomeData {
   upid: number;
-  ts: bigint;
+  ts: time;
 }
 
 export interface OverviewData {
