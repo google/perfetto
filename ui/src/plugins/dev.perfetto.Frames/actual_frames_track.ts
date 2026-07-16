@@ -24,10 +24,12 @@ import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_det
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
 // full jank)
+//
+// Design principle: janky frames (the signal) use vivid saturated colors
+// that pop, while non-janky frames (the noise) use muted desaturated
+// colors that recede into the background.
 const BLUE_500 = makeColorScheme(new HSLColor('#03A9F4'));
 const BLUE_200 = makeColorScheme(new HSLColor('#90CAF9'));
-const GREEN_500 = makeColorScheme(new HSLColor('#4CAF50'));
-const GREEN_200 = makeColorScheme(new HSLColor('#A5D6A7'));
 const YELLOW_500 = makeColorScheme(new HSLColor('#FFEB3B'));
 const YELLOW_100 = makeColorScheme(new HSLColor('#FFF9C4'));
 const RED_500 = makeColorScheme(new HSLColor('#FF5722'));
@@ -36,7 +38,12 @@ const LIGHT_GREEN_500 = makeColorScheme(new HSLColor('#C0D588'));
 const LIGHT_GREEN_100 = makeColorScheme(new HSLColor('#DCEDC8'));
 const PINK_500 = makeColorScheme(new HSLColor('#F515E0'));
 const PINK_200 = makeColorScheme(new HSLColor('#F48FB1'));
-const WHITE_200 = makeColorScheme(new HSLColor('#F5F5F5'));
+
+// Non-janky frames use muted grays so they recede visually and janky
+// frames stand out as the important signal
+const NO_JANK = makeColorScheme(new HSLColor([0, 0, 82])); // light gray
+const NO_JANK_PARTIAL = makeColorScheme(new HSLColor([0, 0, 88])); // lighter gray
+const NON_PERCEIVABLE_JANK = makeColorScheme(new HSLColor([0, 0, 85]));
 
 export function createActualFramesTrack(
   trace: Trace,
@@ -45,11 +52,30 @@ export function createActualFramesTrack(
   trackIds: ReadonlyArray<number>,
   useExperimentalJankForClassification: boolean,
 ) {
+  // Compute a layer column so that janky frames are on a separate mipmap
+  // plane (layer=1, rendered on top) from non-janky frames (layer=0,
+  // background). This prevents janky frames from being mipmapped away
+  // when zoomed out — they get their own aggregation buckets with no
+  // non-janky competition.
+  const jankTagCol = useExperimentalJankForClassification
+    ? 'jank_tag_experimental'
+    : 'jank_tag';
+  const src = `
+      SELECT
+        *,
+        CASE
+          WHEN ${jankTagCol} NOT IN ('No Jank', 'Non-perceivable Jank', NULL)
+            THEN 1
+          ELSE 0
+        END AS layer
+      FROM actual_frame_timeline_slice
+    `;
+
   return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
-      src: 'actual_frame_timeline_slice',
+      src,
       schema: {
         id: NUM,
         name: STR,
@@ -61,6 +87,7 @@ export function createActualFramesTrack(
         jank_severity_type: STR_NULL,
         arg_set_id: NUM,
         track_id: NUM,
+        layer: NUM,
       },
       filter: {
         col: 'track_id',
@@ -97,9 +124,9 @@ function getColorSchemeForJank(
       case 'SurfaceFlinger Stuffing':
         return LIGHT_GREEN_100;
       case 'No Jank': // should not happen
-        return GREEN_200;
+        return NO_JANK_PARTIAL;
       case 'Non-perceivable Jank':
-        return WHITE_200;
+        return NON_PERCEIVABLE_JANK;
       default:
         return PINK_200;
     }
@@ -115,9 +142,9 @@ function getColorSchemeForJank(
       case 'SurfaceFlinger Stuffing':
         return LIGHT_GREEN_500;
       case 'No Jank':
-        return GREEN_500;
+        return NO_JANK;
       case 'Non-perceivable Jank':
-        return WHITE_200;
+        return NON_PERCEIVABLE_JANK;
       default:
         return PINK_500;
     }
