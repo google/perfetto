@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "perfetto/ext/base/fnv_hash.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -135,13 +136,15 @@ StackSampleModule::StackSampleModule(
     tables::StackSampleTable* table,
     tables::StackSampleTaskContextTable* task_context_table,
     tables::StackSampleExecutionContextTable* exec_context_table,
-    tables::StackSampleTimebaseTable* timebase_table)
+    tables::StackSampleCounterTable* counter_table,
+    tables::StackSampleFollowerTable* follower_table)
     : ProtoImporterModule(module_context),
       context_(context),
       table_(table),
       task_context_table_(task_context_table),
       exec_context_table_(exec_context_table),
-      timebase_table_(timebase_table) {
+      counter_table_(counter_table),
+      follower_table_(follower_table) {
   RegisterForField(TracePacket::kStackSampleFieldNumber);
 }
 
@@ -182,25 +185,74 @@ StackSampleModule::InternExecutionContext(std::optional<uint32_t> cpu,
   return id;
 }
 
-tables::StackSampleTimebaseTable::Id StackSampleModule::InternTimebase(
+tables::StackSampleCounterTable::Id StackSampleModule::InternCounter(
     StringId source,
     const ResolvedCounterDescriptor& desc) {
   uint64_t key = base::FnvHasher::Combine(
       source.raw_id(), desc.name.raw_id(), OptStringKey(desc.unit),
       desc.unit_multiplier ? static_cast<uint64_t>(*desc.unit_multiplier) : 0,
       OptStringKey(desc.description));
-  if (auto* id = timebases_.Find(key)) {
+  if (auto* id = counters_.Find(key)) {
     return *id;
   }
-  tables::StackSampleTimebaseTable::Row row;
+  tables::StackSampleCounterTable::Row row;
   row.source = source;
   row.name = desc.name;
   row.unit = desc.unit;
   row.unit_multiplier = desc.unit_multiplier;
   row.description = desc.description;
-  auto id = timebase_table_->Insert(row).id;
-  timebases_.Insert(key, id);
+  auto id = counter_table_->Insert(row).id;
+  counters_.Insert(key, id);
   return id;
+}
+
+void StackSampleModule::ParseFollowers(
+    tables::StackSampleTable::Id sample_id,
+    PacketSequenceStateGeneration* sequence_state,
+    StringId source,
+    const protos::pbzero::StackSample::Decoder& sample,
+    const std::optional<protos::pbzero::StackSampleDefaults::Decoder>& defaults) {
+  using protos::pbzero::InternedData;
+  using CounterDescriptor = protos::pbzero::StackSample::CounterDescriptor;
+
+  std::vector<tables::StackSampleCounterTable::Id> counters;
+  for (auto it = sample.follower_descriptors(); it; ++it) {
+    CounterDescriptor::Decoder desc(*it);
+    counters.push_back(
+        InternCounter(source, ResolveCounterDescriptor(context_, desc)));
+  }
+  bool parse_error = false;
+  if (counters.empty()) {
+    for (auto it = sample.follower_descriptor_iids(&parse_error); it; ++it) {
+      auto* desc = sequence_state->LookupInternedMessage<
+          InternedData::kStackSampleCounterDescriptorsFieldNumber,
+          CounterDescriptor>(*it);
+      if (!desc) {
+        continue;
+      }
+      counters.push_back(
+          InternCounter(source, ResolveCounterDescriptor(context_, *desc)));
+    }
+  }
+  if (counters.empty() && defaults) {
+    for (auto it = defaults->follower_descriptors(); it; ++it) {
+      CounterDescriptor::Decoder desc(*it);
+      counters.push_back(
+          InternCounter(source, ResolveCounterDescriptor(context_, desc)));
+    }
+  }
+
+  size_t i = 0;
+  for (auto it = sample.follower_weights(&parse_error); it; ++it, ++i) {
+    if (i >= counters.size()) {
+      break;
+    }
+    tables::StackSampleFollowerTable::Row row;
+    row.stack_sample_id = sample_id;
+    row.counter_id = counters[i];
+    row.weight = static_cast<int64_t>(*it);
+    follower_table_->Insert(row);
+  }
 }
 
 void StackSampleModule::ParseStackSample(
@@ -314,8 +366,8 @@ void StackSampleModule::ParseStackSample(
     CounterDescriptor::Decoder d(defaults->primary_descriptor());
     primary = ResolveCounterDescriptor(context_, d);
   }
-  tables::StackSampleTimebaseTable::Id timebase_id =
-      InternTimebase(source_id, primary);
+  tables::StackSampleCounterTable::Id timebase_id =
+      InternCounter(source_id, primary);
 
   std::optional<CallsiteId> cs_id =
       ResolveCallstack(sequence_state, upid, sample);
@@ -332,7 +384,9 @@ void StackSampleModule::ParseStackSample(
   row.timebase_id = timebase_id;
   row.callsite_id = cs_id;
   row.weight = weight;
-  table_->Insert(row);
+  tables::StackSampleTable::Id sample_id = table_->Insert(row).id;
+
+  ParseFollowers(sample_id, sequence_state, source_id, sample, defaults);
 }
 
 }  // namespace perfetto::trace_processor::stack_sample_importer

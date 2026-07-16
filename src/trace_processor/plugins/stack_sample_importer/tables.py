@@ -72,10 +72,10 @@ STACK_SAMPLE_EXECUTION_CONTEXT_TABLE = Table(
                    "kernel"). Empty if unknown.''',
         }))
 
-STACK_SAMPLE_TIMEBASE_TABLE = Table(
+STACK_SAMPLE_COUNTER_TABLE = Table(
     python_module=__file__,
-    class_name='StackSampleTimebaseTable',
-    sql_name='__intrinsic_stack_sample_timebase',
+    class_name='StackSampleCounterTable',
+    sql_name='__intrinsic_stack_sample_counter',
     columns=[
         C('source', CppString()),
         C('name', CppString()),
@@ -85,9 +85,9 @@ STACK_SAMPLE_TIMEBASE_TABLE = Table(
     ],
     tabledoc=TableDoc(
         doc='''
-          The counter timebase a stack sample is measured against: the profiler
-          source and the primary CounterDescriptor. Deduplicated, one row per
-          distinct timebase.
+          A counter a stack sample is measured against: the profiler source and
+          a CounterDescriptor. Used both for the primary timebase and for
+          follower counters. Deduplicated, one row per distinct counter.
         ''',
         group='Callstack profilers',
         columns={
@@ -120,7 +120,7 @@ STACK_SAMPLE_TABLE = Table(
           CppOptional(CppTableId(STACK_SAMPLE_TASK_CONTEXT_TABLE))),
         C('execution_context_id',
           CppOptional(CppTableId(STACK_SAMPLE_EXECUTION_CONTEXT_TABLE))),
-        C('timebase_id', CppTableId(STACK_SAMPLE_TIMEBASE_TABLE)),
+        C('timebase_id', CppTableId(STACK_SAMPLE_COUNTER_TABLE)),
         C('callsite_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
         C('weight', CppOptional(CppInt64())),
     ],
@@ -138,7 +138,8 @@ STACK_SAMPLE_TABLE = Table(
                 '''The execution state (cpu, privilege mode) at sample time, if
                    known.''',
             'timebase_id':
-                '''The counter timebase this sample is measured against.''',
+                '''The primary counter (timebase) this sample is measured
+                   against.''',
             'callsite_id':
                 '''If set, the captured callstack.''',
             'weight':
@@ -146,10 +147,34 @@ STACK_SAMPLE_TABLE = Table(
                    set.''',
         }))
 
+STACK_SAMPLE_FOLLOWER_TABLE = Table(
+    python_module=__file__,
+    class_name='StackSampleFollowerTable',
+    sql_name='__intrinsic_stack_sample_follower',
+    columns=[
+        C('stack_sample_id', CppTableId(STACK_SAMPLE_TABLE)),
+        C('counter_id', CppTableId(STACK_SAMPLE_COUNTER_TABLE)),
+        C('weight', CppInt64()),
+    ],
+    tabledoc=TableDoc(
+        doc='''A follower counter value recorded alongside a stack sample: an
+               additional counter (e.g. instructions) read at the same sample
+               point as the primary timebase.''',
+        group='Callstack profilers',
+        columns={
+            'stack_sample_id':
+                '''The sample this follower value belongs to.''',
+            'counter_id':
+                '''The follower counter this value is for.''',
+            'weight':
+                '''The follower counter value at this sample.''',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
+    STACK_SAMPLE_COUNTER_TABLE,
     STACK_SAMPLE_EXECUTION_CONTEXT_TABLE,
+    STACK_SAMPLE_FOLLOWER_TABLE,
     STACK_SAMPLE_TABLE,
     STACK_SAMPLE_TASK_CONTEXT_TABLE,
-    STACK_SAMPLE_TIMEBASE_TABLE,
 ]

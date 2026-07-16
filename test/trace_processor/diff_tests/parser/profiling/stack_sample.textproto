@@ -21,6 +21,10 @@ packet {
         name: "wall-time"
         unit: UNIT_NANOSECONDS
       }
+      follower_descriptors {
+        name: "instructions"
+        unit: UNIT_INSTRUCTIONS
+      }
     }
   }
   interned_data {
@@ -56,6 +60,7 @@ packet {
       frame_ids: 1
     }
     primary_weight: 1000000
+    follower_weights: 500
   }
 }
 
