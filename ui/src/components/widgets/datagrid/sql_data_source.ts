@@ -27,11 +27,8 @@ import {
   UNKNOWN,
 } from '../../../trace_processor/query_result';
 import type {DataSource, DataSourceModel, DataSourceRows} from './data_source';
-import {
-  isSQLExpressionDef,
-  type SQLSchemaRegistry,
-  SQLSchemaResolver,
-} from './sql_schema';
+import {type SQLTableSchema, SQLSchemaResolver} from './sql_schema';
+
 import {SQLDataSourceFlat} from './sql_data_source/flat';
 import {SQLDataSourcePivot} from './sql_data_source/pivot';
 import {SQLDataSourceTree} from './sql_data_source/tree';
@@ -39,10 +36,8 @@ import {SQLDataSourceTree} from './sql_data_source/tree';
 /**
  * Configuration for SQLDataSource.
  */
-export interface DatagridEngineSQLConfig {
+export interface DatagridEngineSQLConfig extends SQLTableSchema {
   readonly engine: Engine;
-  readonly sqlSchema: SQLSchemaRegistry;
-  readonly rootSchemaName: string;
   readonly preamble?: string;
   readonly queue?: SerialTaskQueue;
 }
@@ -54,8 +49,7 @@ export interface DatagridEngineSQLConfig {
  */
 export class SQLDataSource implements DataSource {
   private readonly engine: Engine;
-  private readonly sqlSchema: SQLSchemaRegistry;
-  private readonly rootSchemaName: string;
+  private readonly sqlSchema: SQLTableSchema;
   private readonly preamble?: string;
   private readonly flatEngine: SQLDataSourceFlat;
   private readonly pivotEngine: SQLDataSourcePivot;
@@ -67,8 +61,7 @@ export class SQLDataSource implements DataSource {
 
   constructor(config: DatagridEngineSQLConfig) {
     this.engine = config.engine;
-    this.sqlSchema = config.sqlSchema;
-    this.rootSchemaName = config.rootSchemaName;
+    this.sqlSchema = config;
     this.preamble = config.preamble;
     this.queue = config.queue ?? new SerialTaskQueue();
     this.preambleSlot = new QuerySlot<void>(this.queue);
@@ -80,7 +73,6 @@ export class SQLDataSource implements DataSource {
       this.queue,
       this.engine,
       this.sqlSchema,
-      this.rootSchemaName,
     );
 
     this.pivotEngine = new SQLDataSourcePivot(
@@ -88,14 +80,12 @@ export class SQLDataSource implements DataSource {
       this.queue,
       this.engine,
       this.sqlSchema,
-      this.rootSchemaName,
     );
 
     this.treeEngine = new SQLDataSourceTree(
       this.queue,
       this.engine,
       this.sqlSchema,
-      this.rootSchemaName,
     );
   }
 
@@ -160,22 +150,19 @@ export class SQLDataSource implements DataSource {
     return this.distinctValuesSlot.use({
       key: column,
       queryFn: async () => {
-        const resolver = new SQLSchemaResolver(
-          this.sqlSchema,
-          this.rootSchemaName,
-        );
+        const resolver = new SQLSchemaResolver(this.sqlSchema);
         const sqlExpr = resolver.resolveColumnPath(column);
         if (sqlExpr === undefined) {
           return [];
         }
 
-        const baseTable = resolver.getBaseTable();
+        const baseTable = resolver.getBaseTableOrSubquery();
         const baseAlias = resolver.getBaseAlias();
         const joinClauses = resolver.buildJoinClauses();
 
         const query = `
           SELECT DISTINCT ${sqlExpr} AS value
-          FROM ${baseTable} AS ${baseAlias}
+          FROM (${baseTable}) AS ${baseAlias}
           ${joinClauses}
           ORDER BY 1
         `;
@@ -203,28 +190,20 @@ export class SQLDataSource implements DataSource {
     return this.parameterKeysSlot.use({
       key: prefix,
       queryFn: async () => {
-        const rootSchema = maybeUndefined(this.sqlSchema[this.rootSchemaName]);
-        if (!rootSchema) {
-          return [];
-        }
-
-        const colDef = maybeUndefined(rootSchema.columns[prefix]);
+        const colDef = maybeUndefined(this.sqlSchema.columns?.[prefix]);
         if (
           !colDef ||
-          !isSQLExpressionDef(colDef) ||
+          !('expression' in colDef) ||
           !colDef.parameterKeysQuery
         ) {
           return [];
         }
 
-        const baseTable = rootSchema.table;
-        const resolver = new SQLSchemaResolver(
-          this.sqlSchema,
-          this.rootSchemaName,
-        );
+        const baseTableOrSubquery = this.sqlSchema.tableOrSubquery;
+        const resolver = new SQLSchemaResolver(this.sqlSchema);
         const baseAlias = resolver.getBaseAlias();
 
-        const query = colDef.parameterKeysQuery(baseTable, baseAlias);
+        const query = colDef.parameterKeysQuery(baseTableOrSubquery, baseAlias);
         const queryResult = await this.engine.query(query);
         const keys: string[] = [];
         for (let it = queryResult.iter({key: UNKNOWN}); it.valid(); it.next()) {
@@ -233,6 +212,26 @@ export class SQLDataSource implements DataSource {
         return keys;
       },
     });
+  }
+
+  /**
+   * Returns the SQL that `useRows` would execute for this model, without
+   * running it. For pivot/tree modes this includes the statement that
+   * materializes their backing table, since traversing it standalone
+   * wouldn't mean much - see the mode-specific getQuery for details.
+   */
+  getQuery(model: DataSourceModel): string {
+    const mode = model.mode;
+    switch (mode) {
+      case 'flat':
+        return this.flatEngine.getQuery(model);
+      case 'pivot':
+        return this.pivotEngine.getQuery(model);
+      case 'tree':
+        return this.treeEngine.getQuery(model);
+      default:
+        assertUnreachable(mode);
+    }
   }
 
   async exportData(model: DataSourceModel): Promise<readonly Row[]> {

@@ -35,10 +35,7 @@ import {Spinner} from '../widgets/spinner';
 import {AggregationPanel} from './aggregation_panel';
 import type {Column, Filter, Pivot} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
-import {
-  createSimpleSchema,
-  type SQLSchemaRegistry,
-} from './widgets/datagrid/sql_schema';
+import type {SQLTableSchema} from './widgets/datagrid/sql_schema';
 import type {BarChartData} from './aggregation';
 import {
   createPerfettoTable,
@@ -76,10 +73,10 @@ export interface AggregatorGridConfig {
   readonly initialFilters?: readonly Filter[];
   /**
    * Optional override that produces the SQL schema used to resolve columns
-   * for the aggregation table. If undefined, a generic schema is created from
-   * the table name via `createSimpleSchema`.
+   * for the aggregation table. If undefined, a simple table-or-subquery
+   * schema is created from the table name.
    */
-  readonly sqlConfig?: (data: AggregationData) => SQLSchemaRegistry;
+  readonly sqlConfig?: (data: AggregationData) => SQLTableSchema;
 }
 
 /**
@@ -273,13 +270,13 @@ export function createAggregationTab(
           if (aggregation) {
             data = await aggregation?.prepareData(trace.engine);
             const gridConfig = aggregator.getGridConfig();
+            const sqlConfig = gridConfig.sqlConfig?.(data) ?? {
+              tableOrSubquery: data.tableName,
+            };
             dataSource = new SQLDataSource({
               queue,
               engine: trace.engine,
-              sqlSchema:
-                gridConfig.sqlConfig?.(data) ??
-                createSimpleSchema(data.tableName),
-              rootSchemaName: 'query',
+              ...sqlConfig,
             });
           }
         });

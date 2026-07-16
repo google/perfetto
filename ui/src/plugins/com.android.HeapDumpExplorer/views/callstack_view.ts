@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {Trace} from '../../../public/trace';
-import {Time} from '../../../base/time';
+import type {time} from '../../../base/time';
 import type {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../../components/flamegraph_panel';
 import {Flamegraph, type FlamegraphState} from '../../../widgets/flamegraph';
@@ -48,8 +48,8 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
   private readonly limiter = new AsyncLimiter();
   private monitor?: Monitor;
 
-  async loadErrorMsg(trace: Trace, ts: bigint) {
-    this.errorMsg = await loadOomeErrorMsg(trace.engine, Time.fromRaw(ts));
+  async loadErrorMsg(trace: Trace, ts: time) {
+    this.errorMsg = await loadOomeErrorMsg(trace.engine, ts);
     m.redraw();
   }
 
@@ -103,7 +103,7 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
     const ts = this.oomeData.ts;
     const key = `${upid}:${ts}`;
     if (this.cachedMetrics === undefined || key !== this.cachedKey) {
-      this.cachedMetrics = buildOomeCallstackMetrics(Time.fromRaw(ts));
+      this.cachedMetrics = buildOomeCallstackMetrics(ts);
       this.cachedKey = key;
       this.errorMsg = undefined;
       this.loadErrorMsg(attrs.trace, ts);

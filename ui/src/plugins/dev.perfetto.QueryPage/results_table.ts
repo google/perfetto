@@ -18,9 +18,9 @@ import {Icons} from '../../base/semantic_icons';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
-import type {
-  ColumnSchema,
-  SchemaRegistry,
+import {
+  escapePath,
+  type ColumnSchema,
 } from '../../components/widgets/datagrid/datagrid_schema';
 import type {Trace} from '../../public/trace';
 import type {Row} from '../../trace_processor/query_result';
@@ -143,25 +143,23 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
     attrs: ResultsTableAttrs,
     data: ResultsSuccess,
   ): m.Children {
-    const schema: SchemaRegistry = {};
-    const rootSchema: ColumnSchema = {};
-
+    const schema: ColumnSchema = {};
     const hasIdColumn = data.columns.includes('id');
     const autoDetected = this.detectAutoTable(data.columns);
     const resolvedTable = this.resolveIdTable(data.columns);
 
     for (const col of data.columns) {
+      const field = escapePath(col);
       const cellRenderer =
         col === 'id' && attrs.onIdClick
           ? (value: Row[string]) =>
               this.renderIdCell(value, resolvedTable, attrs.onIdClick!)
           : undefined;
-      rootSchema[col] = {
+      schema[field] = {
         title: col,
         cellRenderer,
       };
     }
-    schema['root'] = rootSchema;
 
     const selectedLabel =
       this.selectedIdTable === 'auto'
@@ -231,7 +229,6 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
       m(DataGrid, {
         disablePivotControls: true, // In-memory datasource does not support pivoting
         schema: schema,
-        rootSchema: 'root',
         data: this.getDataSource(data.rows),
         fillHeight: true,
         emptyStateMessage: 'Query returned no rows',

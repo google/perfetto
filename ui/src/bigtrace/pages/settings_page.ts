@@ -51,10 +51,7 @@ import {TextInput} from '../../widgets/text_input';
 import {Stack, StackAuto} from '../../widgets/stack';
 
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import type {
-  ColumnSchema,
-  SchemaRegistry,
-} from '../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
 import type {
   Column,
   Filter,
@@ -179,13 +176,11 @@ class BigTraceSettingsCard
 // renderer can branch on it.
 const TRACE_ADDRESS_DISPLAY = 'Trace Address';
 
-const SCHEMA_ROOT = 'trace_list';
-
-// SchemaRegistry from /trace_metadata_schema: one entry per column, default
-// string renderer (every cell is a string per the always-strings contract).
-function buildSchemaRegistry(
+// Schema from /trace_metadata_schema: one entry per column, default string
+// renderer (every cell is a string per the always-strings contract).
+function columnSchema(
   schema: ReadonlyArray<TraceColumnDescriptor>,
-): SchemaRegistry {
+): ColumnSchema {
   const columnSchema: ColumnSchema = {};
   for (const c of schema) {
     // The `link` column renders as a clickable link; all others as strings.
@@ -199,7 +194,7 @@ function buildSchemaRegistry(
           }
         : {cellRenderer: undefined};
   }
-  return {[SCHEMA_ROOT]: columnSchema};
+  return columnSchema;
 }
 
 interface SchemaError {
@@ -708,7 +703,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
 
     // Schema resolved: build the column list from the effective selection.
     const chosen = traceColumnsState.effective(schema!.columns);
-    const schemaRegistry = buildSchemaRegistry(schema!.columns);
+    const datagridSchema = columnSchema(schema!.columns);
 
     return m(
       Card,
@@ -737,8 +732,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
             style: {height: '500px', marginTop: '16px'},
           },
           m(DataGrid, {
-            schema: schemaRegistry,
-            rootSchema: SCHEMA_ROOT,
+            schema: datagridSchema,
             data: ds,
             // Inner virtualized Grid uses the wrapper's 500px as its viewport.
             fillHeight: true,
