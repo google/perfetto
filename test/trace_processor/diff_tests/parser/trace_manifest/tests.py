@@ -1950,6 +1950,55 @@ class TraceManifest(TestSuite):
             "perfetto_manifest: clocks: file 'multi.pb' is a multi-machine "
             "trace; name which machine the clock is on with clocks: machine."))
 
+  # --- attributes ---
+
+  # `attributes` entries become `manifest_attribute.*` rows of the metadata
+  # table.
+  def test_attributes(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'attributes': {
+                        'benchmark': 'startup',
+                        'run_id': 42,
+                    },
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='''
+          SELECT name, str_value, int_value
+          FROM metadata
+          WHERE name GLOB 'manifest_attribute.*'
+          ORDER BY name;
+        ''',
+        out=Csv('''
+        "name","str_value","int_value"
+        "manifest_attribute.benchmark","startup","[NULL]"
+        "manifest_attribute.run_id","[NULL]",42
+        '''))
+
+  # Attribute values must be strings or integers.
+  def test_error_attributes_bad_value(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'attributes': {
+                        'flags': ['a', 'b'],
+                    },
+                }),
+            'app.json':
+                _json_trace('json_slice'),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            "perfetto_manifest: attributes: 'flags' must be a string or an "
+            'integer'))
+
   # The source `machine` must name a machine the file itself declares.
   def test_error_source_machine_unknown(self):
     return DiffTestBlueprint(

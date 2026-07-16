@@ -265,6 +265,10 @@ class TracingServiceImpl : public TracingService {
   void EmitStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession*);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
+  // The only way to change a session's state. Broadcasts the change into the
+  // other opted-in sessions' concurrent_session_events.
+  void SetSessionState(TracingSession*, TracingSession::State);
+  void EmitConcurrentSessionEvents(TracingSession*, std::vector<TracePacket>*);
   void EmitUuid(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void EmitSystemInfo(std::vector<TracePacket>*);

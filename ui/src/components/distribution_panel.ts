@@ -42,15 +42,9 @@ import {
 } from './widgets/charts/histogram_loader';
 import {DataGrid, renderCell} from './widgets/datagrid/datagrid';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
-import type {
-  ColumnSchema,
-  SchemaRegistry,
-} from './widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
 import type {Column, Filter} from './widgets/datagrid/model';
-import type {
-  SQLSchemaRegistry,
-  SQLTableSchema,
-} from './widgets/datagrid/sql_schema';
+import type {SQLTableSchema} from './widgets/datagrid/sql_schema';
 import {formatDuration} from './time_utils';
 
 export function helpIcon(help: m.Children): m.Children {
@@ -505,7 +499,6 @@ export class DistributionPanel
     const dataSource = this.useDataSource(attrs, tableEntity.name);
     return m(DataGrid, {
       schema: buildGridSchema(attrs, this.renderIdCell.bind(this)),
-      rootSchema: 'root',
       data: dataSource,
       filters: brushFilters(attrs.valueColumn, this.brush),
       initialColumns: gridColumns(attrs),
@@ -523,8 +516,7 @@ export class DistributionPanel
       ds?.dispose();
       ds = new SQLDataSource({
         engine: attrs.trace.engine,
-        sqlSchema: buildSqlSchema(attrs, tableName),
-        rootSchemaName: 'root',
+        ...buildSqlSchema(attrs, tableName),
       });
       this.dataSource = ds;
       this.dataSourceTableName = tableName;
@@ -567,7 +559,7 @@ function buildGridSchema(
     attrs: DistributionPanelAttrs,
     value: Row[string],
   ) => m.Children,
-): SchemaRegistry {
+): ColumnSchema {
   const rootSchema: ColumnSchema = {};
   for (const col of [attrs.idColumn, ...attrs.displayColumns]) {
     const cellRenderer =
@@ -576,7 +568,7 @@ function buildGridSchema(
         : attrs.cellRenderers?.[col];
     rootSchema[col] = {title: col, cellRenderer};
   }
-  return {root: rootSchema};
+  return rootSchema;
 }
 
 function gridColumns(attrs: DistributionPanelAttrs): Column[] {
@@ -644,7 +636,7 @@ function requiredSchema(
 function buildSqlSchema(
   attrs: DistributionPanelAttrs,
   tableName: string,
-): SQLSchemaRegistry {
+): SQLTableSchema {
   const columns: SQLTableSchema['columns'] = {};
   columns[attrs.idColumn] = {};
   columns[attrs.valueColumn] = {};
@@ -652,11 +644,9 @@ function buildSqlSchema(
     columns[col] = {};
   }
   return {
-    root: {
-      table: tableName,
-      primaryKey: attrs.idColumn,
-      columns,
-    },
+    tableOrSubquery: tableName,
+    primaryKey: attrs.idColumn,
+    columns,
   };
 }
 

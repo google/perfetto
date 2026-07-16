@@ -132,23 +132,26 @@ class Tables(TestSuite):
         query=Metric('trace_metadata'),
         out=Path('trace_metadata.json.out'))
 
-  # Ftrace stats imports in metadata and stats tables
+  # Ftrace setup errors surface as a stat count plus per-error trace import logs.
   def test_ftrace_setup_errors(self):
     return DiffTestBlueprint(
         trace=DataPath('ftrace_error_stats.pftrace'),
         query="""
         SELECT value FROM stats WHERE name = 'ftrace_setup_errors'
         UNION ALL
-        SELECT str_value FROM metadata WHERE name = 'ftrace_setup_errors';
+        SELECT extract_arg(arg_set_id, 'message')
+        FROM _trace_import_logs
+        WHERE name = 'ftrace_setup_errors'
+        ORDER BY 1;
         """,
         out=Csv("""
         "value"
         3
-        "Ftrace event unknown: foo/bar
-        Ftrace event unknown: sched/foobar
-        Atrace failures: error: unknown tracing category "bar"
+        "Atrace failures: error: unknown tracing category "bar"
         error enabling tracing category "bar"
         "
+        "Ftrace event unknown: foo/bar"
+        "Ftrace event unknown: sched/foobar"
         """))
 
   # Ftrace stats imports in metadata and stats tables

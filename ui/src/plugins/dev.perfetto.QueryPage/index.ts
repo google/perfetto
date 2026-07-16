@@ -24,6 +24,7 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
 import {QueryPage, type QueryEditorTab} from './query_page';
+import type {Extension} from '@codemirror/state';
 import {queryHistoryStorage} from '../../components/widgets/query_history';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {shortUuid} from '../../base/uuid';
@@ -94,6 +95,18 @@ export default class QueryPagePlugin implements PerfettoPlugin {
   private static sidebarVisibleSetting: Setting<boolean>;
 
   constructor(private readonly trace: Trace) {}
+
+  // Optional per-tab editor extensions injected by another plugin (e.g. the
+  // SqlLsp plugin's language-server integration); undefined => plain editor.
+  // Called per editor tab with a stable document id, since a language server
+  // needs each tab to be a separate document.
+  private editorExtensions?: (docId: string) => Extension;
+
+  setEditorExtensions(
+    extensions: ((docId: string) => Extension) | undefined,
+  ): void {
+    this.editorExtensions = extensions;
+  }
 
   addQueryResultsTab(
     config: {query: string; title: string},
@@ -337,6 +350,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
           onTabRename,
           onTabReorder,
           sidebarVisibleSetting: QueryPagePlugin.sidebarVisibleSetting,
+          editorExtensions: this.editorExtensions,
         }),
     });
 

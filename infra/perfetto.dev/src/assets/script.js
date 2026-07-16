@@ -372,9 +372,212 @@ function initMermaid() {
   document.body.appendChild(script);
 }
 
+// ---------------------------------------------------------------------------
+// Client-side docs search. We ship a build-time full-text index
+// (assets/search_index.json.gz, built by src/gen_search_index.js) and rank it
+// locally with BM25. The old Google Custom Search Engine couldn't see a doc
+// until Googlebot crawled it, often weeks after it shipped.
+// ---------------------------------------------------------------------------
+
+// The parsed index, loaded lazily on first interaction (see loadSearchIndex).
+let searchIndex = null;
+let searchIndexPromise = null;
+
+// Lowercase alphanumeric tokens, keeping a trailing "++"/"#" so "c++" and "c#"
+// stay searchable. Tokens shorter than 2 chars are dropped as noise.
+function searchTokenize(str) {
+  const out = [];
+  const re = /[a-z0-9]+(\+\+|#)?/g;
+  let m;
+  while ((m = re.exec(str.toLowerCase())) !== null) {
+    if (m[0].length >= 2) out.push(m[0]);
+  }
+  return out;
+}
+
+async function loadSearchIndex() {
+  const resp = await fetch("/assets/search_index.json.gz");
+  if (!resp.ok) throw new Error(`search index HTTP ${resp.status}`);
+  // The server doesn't gzip this file, so it's gzipped at build time and
+  // decompressed here.
+  const stream = resp.body.pipeThrough(new DecompressionStream("gzip"));
+  const data = await new Response(stream).json();
+
+  const postings = new Map();  // token -> Map(docIdx -> weight)
+  for (let i = 0; i < data.terms.length; i++) {
+    const flat = data.post[i];
+    const postingList = new Map();
+    for (let j = 0; j < flat.length; j += 2) {
+      const docIdx = flat[j];
+      const weight = flat[j + 1];
+      postingList.set(docIdx, weight);
+    }
+    postings.set(data.terms[i], postingList);
+  }
+
+  let total = 0;
+  for (const l of data.docLen) total += l;
+  searchIndex = {
+    docs: data.docs,
+    postings,
+    sortedTerms: data.terms,  // Already sorted at build time.
+    docLen: data.docLen,
+    titleTokens: data.titleTokens,
+    navTokens: data.navTokens,
+    avgdl: data.docLen.length ? total / data.docLen.length : 1,
+    N: data.docs.length,
+  };
+  return searchIndex;
+}
+
+// Index of the first element of the sorted array `arr` that is >= `key`.
+function lowerBound(arr, key) {
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid] < key) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function ensureSearchIndex() {
+  if (searchIndexPromise === null) {
+    searchIndexPromise = loadSearchIndex().catch((e) => {
+      searchIndexPromise = null;  // Allow a retry on the next keystroke.
+      throw e;
+    });
+  }
+  return searchIndexPromise;
+}
+
+// Returns {df, tf: Map(docIdx -> weightedTf)} for a query term. The final,
+// still-being-typed term also matches everything it prefixes, so "trace"
+// surfaces "traceconv" and "tracing"; earlier terms match exactly.
+function searchPostings(idx, term, allowPrefix) {
+  const exact = idx.postings.get(term);
+  if (!allowPrefix) return exact === undefined ? null : {df: exact.size, tf: exact};
+  const merged = new Map();
+  const union = (postingList) => {
+    for (const [docIdx, w] of postingList) merged.set(docIdx, (merged.get(docIdx) || 0) + w);
+  };
+  if (exact !== undefined) union(exact);
+  // Prefix matches are a contiguous run in sortedTerms: walk from the first
+  // term >= `term` and stop at the first miss.
+  let matched = 0;
+  for (let i = lowerBound(idx.sortedTerms, term); i < idx.sortedTerms.length; i++) {
+    const t = idx.sortedTerms[i];
+    if (!t.startsWith(term)) break;
+    if (t === term) continue;
+    union(idx.postings.get(t));
+    if (++matched >= 200) break;  // Cap fan-out on very short prefixes.
+  }
+  return merged.size ? {df: merged.size, tf: merged} : null;
+}
+
+// Ranks docs against the query with BM25. Returns up to `limit` doc objects.
+function searchRank(idx, query, limit) {
+  const terms = searchTokenize(query);
+  if (terms.length === 0) return [];
+  const k1 = 1.2;
+  const b = 0.75;
+  const scores = new Map();
+  for (let ti = 0; ti < terms.length; ti++) {
+    const p = searchPostings(idx, terms[ti], ti === terms.length - 1);
+    if (p === null) continue;
+    // BM25, the standard ranking function: https://en.wikipedia.org/wiki/Okapi_BM25
+    //   idf  -- rarer terms (matching fewer docs, `df`) count for more.
+    //   score -- rises with term frequency `tf` but saturates (`k1`), and is
+    //            penalised for long docs (`b`, via dl/avgdl) so a short focused
+    //            page outranks a long one that just repeats the word.
+    const idf = Math.log(1 + (idx.N - p.df + 0.5) / (p.df + 0.5));
+    for (const [docIdx, tf] of p.tf) {
+      // Floor the length used for normalization so near-empty pages (e.g. the
+      // body-less generated reference pages) don't win on BM25's short-doc bonus.
+      const dl = Math.max(idx.docLen[docIdx], 0.5 * idx.avgdl);
+      const s = idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * dl / idx.avgdl));
+      scores.set(docIdx, (scores.get(docIdx) || 0) + s);  // sum over query terms
+    }
+  }
+  // Boost title matches. Past an exact title, reward how much of the title the
+  // query covers -- so a short "Perfetto UI" beats a long "...Perfetto UI..." --
+  // with a small extra bump when the query leads the title, which keeps "Batch
+  // Trace Processor" below "Trace Processor (C++)". Tokenized so title
+  // punctuation can't block a match; the nav label counts as a title too, so
+  // "boot tracing" finds the page labelled "Boot Tracing".
+  const phrase = terms.join(" ");
+  const titleBoost = (toks) => {
+    const norm = toks.join(" ");
+    if (norm === phrase) return 12;
+    if (!terms.every((t) => toks.includes(t))) return norm.includes(phrase) ? 3 : 0;
+    return 3 + 6 * (terms.length / toks.length) + (norm.startsWith(phrase + " ") ? 3 : 0);
+  };
+  for (const docIdx of scores.keys()) {
+    let boost = titleBoost(idx.titleTokens[docIdx]);
+    const nav = idx.navTokens[docIdx];
+    if (nav) boost = Math.max(boost, titleBoost(nav));
+    if (boost) scores.set(docIdx, scores.get(docIdx) + boost);
+  }
+  return [...scores.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([docIdx]) => idx.docs[docIdx]);
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Appends `text` to `el`, wrapping any occurrence of a query term in <mark>.
+// Builds DOM text nodes (never innerHTML) so index content can't inject markup.
+function appendHighlighted(el, text, terms) {
+  if (terms.length === 0) {
+    el.appendChild(document.createTextNode(text));
+    return;
+  }
+  const re = new RegExp("(" + terms.map(escapeRegExp).join("|") + ")", "ig");
+  let last = 0;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      el.appendChild(document.createTextNode(text.slice(last, m.index)));
+    }
+    const mark = document.createElement("mark");
+    mark.textContent = m[0];
+    el.appendChild(mark);
+    last = m.index + m[0].length;
+    if (m.index === re.lastIndex) re.lastIndex++;  // Guard against empty match.
+  }
+  if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+}
+
+// Extracts a ~180 char window of body text centred on the first term match.
+function searchSnippet(doc, terms) {
+  const text = doc.b || (doc.h || []).map((h) => h.t).join(" · ") || doc.t || "";
+  const lower = text.toLowerCase();
+  let pos = -1;
+  for (const t of terms) {
+    const i = lower.indexOf(t);
+    if (i !== -1 && (pos === -1 || i < pos)) pos = i;
+  }
+  if (pos === -1) pos = 0;
+  const start = Math.max(0, pos - 40);
+  let out = text.slice(start, start + 180);
+  if (start > 0) out = "…" + out;
+  if (start + 180 < text.length) out += "…";
+  return out;
+}
+
+// If a query term matches a heading with an anchor, deep-link to it.
+function searchAnchor(doc, terms) {
+  for (const h of doc.h || []) {
+    if (h.a && terms.some((t) => h.t.toLowerCase().includes(t))) return h.a;
+  }
+  return "";
+}
+
 function setupSearch() {
-  const URL =
-    "https://www.googleapis.com/customsearch/v1?key=AIzaSyBTD2XJkQkkuvDn76LSftsgWOkdBz9Gfwo&cx=007128963598137843411:8suis14kcmy&q=";
   const searchContainer = document.getElementById("search");
   const searchBox = document.getElementById("search-box");
   const searchRes = document.getElementById("search-res");
@@ -393,34 +596,37 @@ function setupSearch() {
     }
   });
 
-  let timerId = -1;
-  let lastSearchId = 0;
+  let results = [];
+  let selected = -1;
 
-  const doSearch = async () => {
-    timerId = -1;
-    searchRes.style.width = `${searchBox.offsetWidth}px`;
-
-    // `searchId` handles the case of two subsequent requests racing. This is to
-    // prevent older results, delivered in reverse order, to replace newer ones.
-    const searchId = ++lastSearchId;
-    const f = await fetch(URL + encodeURIComponent(searchBox.value));
-    const jsonRes = await f.json();
-    const results = jsonRes["items"];
-    searchRes.innerHTML = "";
-    if (results === undefined || searchId != lastSearchId) {
-      return;
+  const highlightSelected = () => {
+    const items = searchRes.children;
+    for (let i = 0; i < items.length; i++) {
+      items[i].classList.toggle("sr-selected", i === selected);
     }
-    for (const res of results) {
+    if (selected >= 0 && items[selected]) {
+      items[selected].scrollIntoView({block: "nearest"});
+    }
+  };
+
+  const render = (query) => {
+    const terms = searchTokenize(query);
+    searchRes.style.width = `${searchBox.offsetWidth}px`;
+    searchRes.innerHTML = "";
+    selected = -1;
+    for (const doc of results) {
+      const anchor = searchAnchor(doc, terms);
       const link = document.createElement("a");
-      link.href = res.link;
+      link.href = doc.u + (anchor ? "#" + anchor : "");
+
       const title = document.createElement("div");
       title.className = "sr-title";
-      title.innerText = res.title.replace(" - Perfetto Tracing Docs", "");
+      appendHighlighted(title, doc.t, terms);
       link.appendChild(title);
 
       const snippet = document.createElement("div");
       snippet.className = "sr-snippet";
-      snippet.innerText = res.snippet;
+      appendHighlighted(snippet, searchSnippet(doc, terms), terms);
       link.appendChild(snippet);
 
       const div = document.createElement("div");
@@ -429,9 +635,56 @@ function setupSearch() {
     }
   };
 
-  searchBox.addEventListener("keyup", () => {
-    if (timerId >= 0) return;
-    timerId = setTimeout(doSearch, 200);
+  const runSearch = async () => {
+    const query = searchBox.value.trim();
+    if (query === "") {
+      results = [];
+      searchRes.innerHTML = "";
+      return;
+    }
+    // Show a placeholder while the index loads, so a slow first search looks
+    // like it's working rather than broken.
+    if (searchIndex === null) {
+      searchRes.style.width = `${searchBox.offsetWidth}px`;
+      searchRes.innerHTML = '<div class="sr-loading">Loading search index…</div>';
+    }
+    let idx;
+    try {
+      idx = await ensureSearchIndex();
+    } catch (e) {
+      console.error("Docs search: could not load the index.", e);
+      searchRes.innerHTML = "";  // Clear the placeholder if loading failed.
+      return;
+    }
+    if (searchBox.value.trim() !== query) return;  // A newer query superseded us.
+    results = searchRank(idx, query, 8);
+    render(query);
+  };
+
+  // Start loading the index now, so the first search doesn't wait on the
+  // download. runSearch() shows a placeholder if the user types before it lands.
+  ensureSearchIndex().catch(() => {});
+
+  let timerId = -1;
+  searchBox.addEventListener("input", () => {
+    if (timerId >= 0) clearTimeout(timerId);
+    timerId = setTimeout(() => { timerId = -1; runSearch(); }, 120);
+  });
+
+  searchBox.addEventListener("keydown", (e) => {
+    if (results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      selected = Math.min(results.length - 1, selected + 1);
+      highlightSelected();
+      e.preventDefault();
+    } else if (e.key === "ArrowUp") {
+      selected = Math.max(0, selected - 1);
+      highlightSelected();
+      e.preventDefault();
+    } else if (e.key === "Enter") {
+      const link = searchRes.querySelectorAll("a")[selected >= 0 ? selected : 0];
+      if (link) window.location.href = link.href;
+    }
   });
 }
 
@@ -577,6 +830,8 @@ if (fragment in legacyRedirectMap) {
 const redirectMap = {
   '/docs/analysis/common-queries': '/docs/getting-started/android-trace-analysis',
   '/docs/analysis/pivot-tables': '/docs/visualization/perfetto-ui#pivot-tables',
+  '/docs/case-studies/android-boot-tracing': '/docs/getting-started/local-android-trace-recording#boot-tracing',
+  '/docs/case-studies/android-outofmemoryerror': '/docs/getting-started/local-android-trace-recording#oom-heap-dump',
   '/docs/contributing/embedding': '/docs/analysis/trace-processor#embedding',
   '/docs/contributing/perfetto-in-the-press': '/docs/#who-uses-perfetto',
   '/docs/contributing/ui-development': '/docs/contributing/ui-getting-started',

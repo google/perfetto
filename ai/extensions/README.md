@@ -18,25 +18,27 @@ for how users install.
 ```
 ai/extensions/
 ├── claude-code/
-│   ├── plugin.json              → plugins/perfetto/.claude-plugin/plugin.json
+│   ├── plugin.json              → .claude-plugin/plugin.json
 │   └── marketplace.json         → .claude-plugin/marketplace.json
 └── codex/
-    ├── plugin.json              → plugins/perfetto/.codex-plugin/plugin.json
+    ├── plugin.json              → .codex-plugin/plugin.json
     └── marketplace.json         → .agents/plugins/marketplace.json
 ```
 
 The arrows show where each file lands on the `ai-agents` branch. Claude Code
 and Codex are the only agents that need a per-agent manifest. Every other
-agent (OpenCode, Pi, Antigravity, …) is a fallback consumer of the root
-`skills/` tree, installed via `tools/agents-install` (served at
+agent (OpenCode, Pi, Antigravity, …) is a fallback consumer installed via
+`tools/agents-install` (served at
 <https://get.perfetto.dev/agents-install>) — no manifest required.
 
-The one content difference between the two consumers is the environment
-setup the bundler resolves into the skill: plugin consumers
-(`plugins/perfetto/skills/`) get the bundled-`trace_processor` variant,
-fallback consumers (root `skills/`) get the standalone fetch-it-yourself
-variant. See [`ai/skills/README.md`](../skills/README.md) for how the
-bundler assembles the single skill.
+The skill tree is emitted exactly once, at `plugins/perfetto/skills/`:
+plugin installs consume the `plugins/perfetto/` subdir, and fallback
+consumers (OpenCode's `index.json` URL, `tools/agents-install`) read the
+same tree at its full path. Every install gets the identical assembled
+skill, which carries the `trace_processor` wrapper at `bin/` inside the
+skill, so `$SKILL_ROOT/bin/trace_processor` resolves everywhere. See
+[`ai/skills/README.md`](../skills/README.md) for how the bundler
+assembles the single skill.
 
 ## Versioning
 

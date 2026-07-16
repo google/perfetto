@@ -38,13 +38,13 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeMetadataPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeTrigger);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ClockSnapshot);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ConcurrentSessionEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CpuInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CpuPerUidData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DeobfuscationMapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EntityStateResidency);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwTraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ExtensionDescriptor);
-PERFETTO_PB_MSG_DECL(perfetto_protos_FrameTimelineEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericGpuFrequencyEvent);
@@ -77,6 +77,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessTree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProfilePacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_RemoteClockSync);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SmapsPacket);
+PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StatsdAtom);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StreamingAllocation);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StreamingFree);
@@ -367,6 +368,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   69);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
+                  perfetto_protos_ConcurrentSessionEvent,
+                  concurrent_session_event,
+                  134);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_StackSample,
+                  stack_sample,
+                  135);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
                   perfetto_protos_InitialDisplayState,
                   initial_display_state,
                   70);
@@ -380,11 +391,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_MemoryTrackerSnapshot,
                   memory_tracker_snapshot,
                   73);
-PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
-                  MSG,
-                  perfetto_protos_FrameTimelineEvent,
-                  frame_timeline_event,
-                  76);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_AndroidEnergyEstimationBreakdown,
@@ -485,6 +491,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   const char*,
                   compressed_packets,
                   50);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  STRING,
+                  const char*,
+                  zstd_compressed_packets,
+                  133);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_ExtensionDescriptor,

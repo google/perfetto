@@ -80,7 +80,8 @@
 
   // Cards (shared base styles)
   &__metric-card,
-  &__status-card {
+  &__status-card,
+  &__diagnostic-card {
     padding: 12px;
     min-height: 110px;
     display: flex;
@@ -107,6 +108,10 @@
 
   &__status-card--danger {
     border-left: 4px solid var(--pf-color-danger);
+  }
+
+  &__status-card--notice {
+    border-left: 4px solid var(--pf-color-primary);
   }
 
   &__status-card--clickable {
@@ -203,11 +208,97 @@
   &__arg-value {
     font-family: var(--pf-font-monospace);
     color: var(--pf-color-text-muted);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   // Logs grid with virtualization
   &__logs-grid {
     max-height: 500px;
+
+    // These logs render multi-line, variable-height content. The default cell
+    // content is styled for single-line text: its `height: 100%` mis-resolves
+    // to a fraction of the row and clips content with `overflow: hidden`. Let
+    // the content size to itself and center it so each entry renders in full
+    // with even padding within its (estimated) row height.
+    .pf-grid-cell,
+    .pf-grid-cell__content {
+      align-items: center;
+    }
+
+    .pf-grid-cell__content {
+      height: auto;
+    }
+  }
+
+  // Overview diagnostic card: severity shown via a coloured left border (colour
+  // set inline), no score.
+  &__diagnostic-card {
+    border-left: 4px solid transparent;
+  }
+
+  &__diagnostic-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  &__diagnostic-description {
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  &__diagnostic-trace {
+    align-self: flex-start;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    background: var(--pf-color-background-secondary);
+    border-radius: 4px;
+  }
+
+  // Trace Doctor tab: two columns — the problem card on the left, an accented
+  // "Suggested fix" card on the right, both the same height.
+  &__diagnostic-row {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 16px;
+    align-items: stretch;
+    margin-bottom: 12px;
+  }
+
+  &__diagnostic-problem {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding: 12px;
+    background: var(--pf-color-background-secondary);
+    border-radius: 4px;
+  }
+
+  // Problem header: mini score bar first, then the title.
+  &__diagnostic-problem-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  &__diagnostic-fix {
+    padding: 12px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--pf-color-accent) 12%, transparent);
+    border: 1px solid var(--pf-color-accent);
+  }
+
+  &__diagnostic-fix-head {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-accent);
+    margin-bottom: 6px;
   }
 
   // Help icon
@@ -252,36 +343,6 @@
     line-height: 1.5;
     color: var(--pf-color-text);
     word-break: break-word;
-  }
-
-  // Stats tab table
-  &__stats-table {
-    width: 100%;
-    border-spacing: 4px 1px;
-    margin: 0;
-  }
-
-  &__stats-table-head-cell {
-    padding-bottom: 5px;
-    font-weight: 500;
-  }
-
-  &__stats-table-row:nth-child(odd) &__stats-table-cell {
-    background-color: color_hover(transparent);
-  }
-
-  &__stats-table-cell {
-    font-family: var(--pf-font-monospace);
-    font-size: var(--pf-font-size-s);
-    padding: 5px;
-    word-break: break-all;
-    white-space: pre-wrap;
-    vertical-align: top;
-  }
-
-  &__stats-table-cell--name {
-    font-weight: 800;
-    min-width: 150px;
   }
 
   // Stats section wrapper
@@ -362,6 +423,30 @@
     }
   }
 
+  // Dense key/value grids (metadata, stats), tightened back up from the
+  // larger-font pf-grid override above.
+  &__tab-content &__dense-grid.pf-grid {
+    font-size: var(--pf-font-size-s);
+
+    .pf-grid-header-cell {
+      font-size: var(--pf-font-size-s);
+
+      .pf-grid-header-cell__title-wrapper {
+        padding: 3px 8px;
+      }
+    }
+
+    .pf-grid-cell {
+      font-family: var(--pf-font-monospace);
+      font-size: var(--pf-font-size-s);
+      padding: 3px 8px;
+    }
+
+    .pf-grid-cell.pf-trace-info-page__grid-key {
+      font-weight: 700;
+    }
+  }
+
   // Override pf-grid-layout for consistent card layout
   &__tab-content .pf-grid-layout {
     margin-bottom: 0;
@@ -392,5 +477,129 @@
     margin-top: 2px;
     margin-bottom: 12px;
     line-height: 1.5;
+  }
+}
+
+// ============================================================================
+// Shared Trace Doctor atoms: the small "Trace config issue" header and its
+// mini score bar. Emitted by renderCardHeader()/renderMiniBar() and reused by
+// the overview cards, the Trace Doctor tab and the details drawer, so they live
+// in their own neutral namespace rather than any one surface's.
+// ============================================================================
+
+.pf-trace-doctor {
+  &__issue-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  &__issue-head-title {
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+  }
+
+  &__mini-bar {
+    flex: 0 0 auto;
+    width: 48px;
+    height: 6px;
+    background: var(--pf-color-background);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  &__mini-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+}
+
+// ============================================================================
+// Trace Doctor details drawer (bottom tab panel): a compact union of trace
+// health + diagnostics, as tiles. Rendered outside the overview page, so it has
+// its own root rather than borrowing .pf-trace-info-page.
+// ============================================================================
+
+.pf-trace-info-doctor-details-tab {
+  padding: 12px;
+  overflow-y: auto;
+
+  &__intro {
+    margin-bottom: 12px;
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-m);
+    line-height: 1.4;
+  }
+
+  &__tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+  }
+
+  // All tiles are the same fixed height; the grid reflows them as needed.
+  &__tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    height: 100px;
+    background: var(--pf-color-background-secondary);
+    border-top: 3px solid transparent;
+    border-radius: 4px;
+  }
+
+  // Diagnostic tiles span two columns and give the description more room.
+  &__tile--wide {
+    grid-column: span 2;
+  }
+
+  &__tile--clickable {
+    cursor: pointer;
+    transition:
+      transform 0.1s ease-in-out,
+      box-shadow 0.1s ease-in-out;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &__tile-title {
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__tile-value {
+    font-size: 22px;
+    font-weight: 600;
+  }
+
+  // Diagnostic tile body: the short title. Clamp to 2 lines just in case.
+  &__tile-desc {
+    flex: 1;
+    min-height: 0;
+    font-size: var(--pf-font-size-m);
+    line-height: 1.4;
+    color: var(--pf-color-text);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }

@@ -59,11 +59,12 @@ std::string SerializeEntries(const std::vector<Entry>& entries) {
   });
 }
 
+// Parses |module_key| in the caller-resolved |package|. The package must not
+// be re-derived from the key: names can contain dots (e.g. "dev.perfetto.test"
+// owns "dev.perfetto.test.common").
 base::StatusOr<stdlib_doc::ParsedModule> ParseModule(
-    const PerfettoSqlConnection* connection,
+    const sql_modules::RegisteredPackage* package,
     const std::string& module_key) {
-  const auto* package =
-      connection->FindPackage(sql_modules::GetPackageName(module_key));
   if (!package) {
     return base::ErrStatus("Module not found: %s", module_key.c_str());
   }
@@ -189,15 +190,18 @@ base::Status ForEachModule(const PerfettoSqlConnection* engine,
                            Fn callback) {
   if (arg == "*") {
     for (const auto& kv : engine->GetModules()) {
+      const std::string& pkg = kv.first;
       const std::string& mod = kv.second;
-      auto parsed_or = ParseModule(engine, mod);
+      // The package name comes straight from the registry, so no re-derivation
+      // from the module key is needed (and would be wrong for dotted packages).
+      auto parsed_or = ParseModule(engine->FindPackage(pkg), mod);
       if (!parsed_or.ok()) {
         return parsed_or.status();
       }
       callback(mod, *parsed_or);
     }
   } else {
-    auto parsed_or = ParseModule(engine, arg);
+    auto parsed_or = ParseModule(engine->FindPackageForModule(arg), arg);
     if (!parsed_or.ok()) {
       return parsed_or.status();
     }

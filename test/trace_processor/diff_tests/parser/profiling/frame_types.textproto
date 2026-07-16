@@ -1,0 +1,92 @@
+packet {
+  process_tree {
+    processes {
+      pid: 100
+      ppid: 1
+      cmdline: "myproc"
+      uid: 0
+    }
+  }
+}
+
+packet {
+  previous_packet_dropped: 1
+  incremental_state_cleared: true
+  trusted_packet_sequence_id: 1
+  timestamp: 500
+  trace_packet_defaults {
+    stack_sample_defaults {
+      source: "python.wall"
+      primary_descriptor {
+        name: "wall-time"
+        unit: UNIT_NANOSECONDS
+      }
+    }
+  }
+  interned_data {
+    mappings {
+      iid: 1
+    }
+    function_names {
+      iid: 1
+      str: "interp_fn"
+    }
+    function_names {
+      iid: 2
+      str: "custom_fn"
+    }
+    function_names {
+      iid: 3
+      str: "gc_fn"
+    }
+    function_names {
+      iid: 4
+      str: "plain_fn"
+    }
+    frames {
+      iid: 1
+      mapping_id: 1
+      rel_pc: 0x100
+      function_name_id: 1
+      kind: KIND_INTERPRETED
+    }
+    frames {
+      iid: 2
+      mapping_id: 1
+      rel_pc: 0x200
+      function_name_id: 2
+      kind_str: "custom"
+    }
+    frames {
+      iid: 3
+      mapping_id: 1
+      rel_pc: 0x300
+      function_name_id: 3
+      kind: KIND_GC
+    }
+    frames {
+      iid: 4
+      mapping_id: 1
+      rel_pc: 0x400
+      function_name_id: 4
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  stack_sample {
+    task_context {
+      pid: 100
+      tid: 101
+    }
+    callstack {
+      frame_ids: 1
+      frame_ids: 2
+      frame_ids: 3
+      frame_ids: 4
+    }
+    primary_weight: 1000000
+  }
+}

@@ -16,6 +16,7 @@
 
 #include "src/tools/proto_merger/proto_merger.h"
 
+#include <algorithm>
 #include <optional>
 
 #include "perfetto/base/logging.h"
@@ -33,6 +34,32 @@ void StripDeletedElementComment(std::vector<std::string>& leading_comments) {
          leading_comments[2].empty()) {
     leading_comments.erase(leading_comments.begin(),
                            leading_comments.begin() + 3);
+  }
+}
+
+bool IsAllowlistedOption(const std::string& key,
+                         const std::set<std::string>& allowlisted_options) {
+  return allowlisted_options.count(key);
+}
+
+void MergeAllowlistedOptions(const std::vector<ProtoFile::Option>& upstream,
+                             std::vector<ProtoFile::Option>& out,
+                             const std::set<std::string>& allowlisted_options) {
+  if (allowlisted_options.empty() || upstream.empty())
+    return;
+
+  for (const auto& upstream_opt : upstream) {
+    if (IsAllowlistedOption(upstream_opt.key, allowlisted_options)) {
+      auto it = std::find_if(out.begin(), out.end(),
+                             [&](const ProtoFile::Option& opt) {
+                               return opt.key == upstream_opt.key;
+                             });
+      if (it != out.end()) {
+        it->value = upstream_opt.value;
+      } else {
+        out.push_back(upstream_opt);
+      }
+    }
   }
 }
 
@@ -120,8 +147,10 @@ std::vector<T> ComputeDeletedByNumber(const std::vector<T>& input,
   return deleted;
 }
 
-ProtoFile::Enum::Value MergeEnumValue(const ProtoFile::Enum::Value& input,
-                                      const ProtoFile::Enum::Value& upstream) {
+ProtoFile::Enum::Value MergeEnumValue(
+    const ProtoFile::Enum::Value& input,
+    const ProtoFile::Enum::Value& upstream,
+    const std::set<std::string>& allowlisted_options) {
   PERFETTO_CHECK(input.number == upstream.number);
 
   ProtoFile::Enum::Value out;
@@ -134,11 +163,15 @@ ProtoFile::Enum::Value MergeEnumValue(const ProtoFile::Enum::Value& input,
   // Get everything else from the input.
   out.number = input.number;
   out.options = input.options;
+
+  MergeAllowlistedOptions(upstream.options, out.options, allowlisted_options);
+
   return out;
 }
 
 ProtoFile::Enum MergeEnum(const ProtoFile::Enum& input,
-                          const ProtoFile::Enum& upstream) {
+                          const ProtoFile::Enum& upstream,
+                          const std::set<std::string>& allowlisted_options) {
   PERFETTO_CHECK(input.name == upstream.name);
 
   ProtoFile::Enum out;
@@ -153,7 +186,8 @@ ProtoFile::Enum MergeEnum(const ProtoFile::Enum& input,
     // values are also allowed. Therefore, if the value doesn't exist
     // in the input, just take it from the source of truth.
     auto* input_value = FindByNumber(input.values, upstream_value.number);
-    auto out_value = input_value ? MergeEnumValue(*input_value, upstream_value)
+    auto out_value = input_value ? MergeEnumValue(*input_value, upstream_value,
+                                                  allowlisted_options)
                                  : upstream_value;
     out.values.emplace_back(std::move(out_value));
   }
@@ -167,7 +201,8 @@ ProtoFile::Enum MergeEnum(const ProtoFile::Enum& input,
 std::vector<ProtoFile::Enum> MergeEnums(
     const std::vector<ProtoFile::Enum>& input,
     const std::vector<ProtoFile::Enum>& upstream,
-    const std::set<std::string>& allowlist) {
+    const std::set<std::string>& allowlist,
+    const std::set<std::string>& allowlisted_options) {
   std::vector<ProtoFile::Enum> out;
   for (const auto& upstream_enum : upstream) {
     auto* input_enum = FindByName(input, upstream_enum.name);
@@ -181,30 +216,95 @@ std::vector<ProtoFile::Enum> MergeEnums(
     }
 
     // Otherwise, merge the enums from the input and source of truth.
-    out.emplace_back(MergeEnum(*input_enum, upstream_enum));
+    out.emplace_back(
+        MergeEnum(*input_enum, upstream_enum, allowlisted_options));
   }
   return out;
 }
 
+void CollectEnums(const std::vector<ProtoFile::Enum>& enums,
+                  const std::vector<ProtoFile::Message>& messages,
+                  const std::string& prefix,
+                  std::set<std::string>& out) {
+  for (const auto& en : enums) {
+    out.insert(prefix + en.name);
+  }
+  for (const auto& msg : messages) {
+    CollectEnums(msg.enums, msg.nested_messages, prefix + msg.name + ".", out);
+  }
+}
+// Protocol Buffers binary/wire-compatible type transitions.
+// Transitions are allowed between types within the same category as they share
+// the same wire format.
+bool IsAllowedTypeTransition(const std::string& from,
+                             const std::string& to,
+                             const std::set<std::string>& known_enums) {
+  auto is_primitive = [](const std::string& type) {
+    return type == "double" || type == "float" || type == "int64" ||
+           type == "uint64" || type == "int32" || type == "fixed64" ||
+           type == "fixed32" || type == "bool" || type == "string" ||
+           type == "bytes" || type == "uint32" || type == "sfixed32" ||
+           type == "sfixed64" || type == "sint32" || type == "sint64";
+  };
+  auto is_varint = [&](const std::string& type) {
+    return type == "int32" || type == "uint32" || type == "int64" ||
+           type == "uint64" || type == "bool" || known_enums.count(type);
+  };
+  auto is_message = [&](const std::string& type) {
+    return !is_primitive(type) && !known_enums.count(type);
+  };
+
+  if (is_varint(from) && is_varint(to)) {
+    return true;
+  }
+  if ((from == "sint32" || from == "sint64") &&
+      (to == "sint32" || to == "sint64")) {
+    return true;
+  }
+  if ((from == "fixed32" || from == "sfixed32") &&
+      (to == "fixed32" || to == "sfixed32")) {
+    return true;
+  }
+  if ((from == "fixed64" || from == "sfixed64") &&
+      (to == "fixed64" || to == "sfixed64")) {
+    return true;
+  }
+  if ((from == "string" || from == "bytes") &&
+      (to == "string" || to == "bytes")) {
+    return true;
+  }
+  if ((from == "bytes" && is_message(to)) ||
+      (is_message(from) && to == "bytes")) {
+    return true;
+  }
+  return false;
+}
+
 base::Status MergeField(const ProtoFile::Field& input,
                         const ProtoFile::Field& upstream,
+                        const std::set<std::string>& known_enums,
+                        const std::set<std::string>& allowlisted_options,
                         ProtoFile::Field& out) {
   PERFETTO_CHECK(input.number == upstream.number);
 
   if (input.packageless_type != upstream.packageless_type) {
-    return base::ErrStatus(
-        "The type of field with id %d and name %s (source of truth name: %s) "
-        "changed from %s to %s. Please resolve conflict manually before "
-        "rerunning.",
-        input.number, input.name.c_str(), upstream.name.c_str(),
-        input.packageless_type.c_str(), upstream.packageless_type.c_str());
+    if (!IsAllowedTypeTransition(input.packageless_type,
+                                 upstream.packageless_type, known_enums)) {
+      return base::ErrStatus(
+          "The type of field with id %d and name %s (source of truth name: %s) "
+          "changed from %s to %s. Please resolve conflict manually before "
+          "rerunning.",
+          input.number, input.name.c_str(), upstream.name.c_str(),
+          input.packageless_type.c_str(), upstream.packageless_type.c_str());
+    }
   }
 
   // If the packageless type name is the same but the type is different
   // mostly we should error however sometimes it is useful to allow downstream
   // to 'alias' an upstream type. For example 'Foo' to an existing internal
   // type in another package 'my.private.Foo'.
-  if (input.type != upstream.type) {
+  if (input.packageless_type == upstream.packageless_type &&
+      input.type != upstream.type) {
     if (!base::EndsWith(upstream.type, "Atom")) {
       return base::ErrStatus(
           "Upstream field with id %d and name '%s' "
@@ -225,8 +325,16 @@ base::Status MergeField(const ProtoFile::Field& input,
   // Get everything else from the input.
   out.number = input.number;
   out.options = input.options;
-  out.packageless_type = input.packageless_type;
-  out.type = input.type;
+
+  MergeAllowlistedOptions(upstream.options, out.options, allowlisted_options);
+
+  if (input.packageless_type != upstream.packageless_type) {
+    out.packageless_type = upstream.packageless_type;
+    out.type = upstream.type;
+  } else {
+    out.packageless_type = input.packageless_type;
+    out.type = input.type;
+  }
 
   return base::OkStatus();
 }
@@ -234,6 +342,8 @@ base::Status MergeField(const ProtoFile::Field& input,
 base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
                          const std::vector<ProtoFile::Field>& upstream,
                          const std::set<int>& allowlist,
+                         const std::set<std::string>& known_enums,
+                         const std::set<std::string>& allowlisted_options,
                          std::vector<ProtoFile::Field>& out) {
   for (const auto& upstream_field : upstream) {
     auto* input_field = FindByNumber(input, upstream_field.number);
@@ -248,7 +358,8 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
 
     // Otherwise, merge the fields from the input and source of truth.
     ProtoFile::Field out_field;
-    base::Status status = MergeField(*input_field, upstream_field, out_field);
+    base::Status status = MergeField(*input_field, upstream_field, known_enums,
+                                     allowlisted_options, out_field);
     if (!status.ok())
       return status;
     out.emplace_back(std::move(out_field));
@@ -261,11 +372,15 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
 base::Status Merge(const ProtoFile::Oneof& input,
                    const ProtoFile::Oneof& upstream,
                    const Allowlist::Oneof& allowlist,
+                   const std::set<std::string>& known_enums,
+                   const std::set<std::string>& allowlisted_options,
                    ProtoFile::Oneof& out);
 
 base::Status Merge(const ProtoFile::Message& input,
                    const ProtoFile::Message& upstream,
                    const Allowlist::Message& allowlist,
+                   const std::set<std::string>& known_enums,
+                   const std::set<std::string>& allowlisted_options,
                    ProtoFile::Message& out);
 
 template <typename T, typename AllowlistType>
@@ -273,6 +388,8 @@ base::Status MergeRecursive(
     const std::vector<T>& input,
     const std::vector<T>& upstream,
     const std::map<std::string, AllowlistType>& allowlist_map,
+    const std::set<std::string>& known_enums,
+    const std::set<std::string>& allowlisted_options,
     std::vector<T>& out) {
   for (const auto& upstream_item : upstream) {
     auto opt_allowlist = FindInMap(allowlist_map, upstream_item.name);
@@ -299,7 +416,8 @@ base::Status MergeRecursive(
 
     auto allowlist = opt_allowlist.value_or(AllowlistType{});
     T out_item;
-    auto status = Merge(input_or_fake, upstream_item, allowlist, out_item);
+    auto status = Merge(input_or_fake, upstream_item, allowlist, known_enums,
+                        allowlisted_options, out_item);
     if (!status.ok())
       return status;
     out.emplace_back(std::move(out_item));
@@ -310,6 +428,8 @@ base::Status MergeRecursive(
 base::Status Merge(const ProtoFile::Oneof& input,
                    const ProtoFile::Oneof& upstream,
                    const Allowlist::Oneof& allowlist,
+                   const std::set<std::string>& known_enums,
+                   const std::set<std::string>& allowlisted_options,
                    ProtoFile::Oneof& out) {
   PERFETTO_CHECK(input.name == upstream.name);
   out.name = input.name;
@@ -323,12 +443,15 @@ base::Status Merge(const ProtoFile::Oneof& input,
   out.deleted_fields = ComputeDeletedByNumber(input.fields, upstream.fields);
 
   // Finish by merging the list of fields.
-  return MergeFields(input.fields, upstream.fields, allowlist, out.fields);
+  return MergeFields(input.fields, upstream.fields, allowlist, known_enums,
+                     allowlisted_options, out.fields);
 }
 
 base::Status Merge(const ProtoFile::Message& input,
                    const ProtoFile::Message& upstream,
                    const Allowlist::Message& allowlist,
+                   const std::set<std::string>& known_enums,
+                   const std::set<std::string>& allowlisted_options,
                    ProtoFile::Message& out) {
   PERFETTO_CHECK(input.name == upstream.name);
   out.name = input.name;
@@ -346,23 +469,25 @@ base::Status Merge(const ProtoFile::Message& input,
   out.deleted_fields = ComputeDeletedByNumber(input.fields, upstream.fields);
 
   // Merge any nested enum types.
-  out.enums = MergeEnums(input.enums, upstream.enums, allowlist.enums);
+  out.enums = MergeEnums(input.enums, upstream.enums, allowlist.enums,
+                         allowlisted_options);
 
   // Merge any nested message types.
   auto status = MergeRecursive(input.nested_messages, upstream.nested_messages,
-                               allowlist.nested_messages, out.nested_messages);
+                               allowlist.nested_messages, known_enums,
+                               allowlisted_options, out.nested_messages);
   if (!status.ok())
     return status;
 
   // Merge any oneofs.
   status = MergeRecursive(input.oneofs, upstream.oneofs, allowlist.oneofs,
-                          out.oneofs);
+                          known_enums, allowlisted_options, out.oneofs);
   if (!status.ok())
     return status;
 
   // Finish by merging the list of fields.
   return MergeFields(input.fields, upstream.fields, allowlist.fields,
-                     out.fields);
+                     known_enums, allowlisted_options, out.fields);
 }
 
 }  // namespace
@@ -370,10 +495,25 @@ base::Status Merge(const ProtoFile::Message& input,
 base::Status MergeProtoFiles(const ProtoFile& input,
                              const ProtoFile& upstream,
                              const Allowlist& allowlist,
-                             ProtoFile& out) {
+                             ProtoFile& out,
+                             const std::set<std::string>& allowlisted_options) {
   // The preamble is taken directly from upstream. This allows private stuff
   // to be in the preamble without being present in upstream.
   out.preamble = input.preamble;
+
+  std::set<std::string> known_enums;
+  for (const auto& en : upstream.enums) {
+    known_enums.insert(en.name);
+  }
+  for (const auto& msg : upstream.messages) {
+    CollectEnums(msg.enums, msg.nested_messages, msg.name + ".", known_enums);
+  }
+  for (const auto& en : input.enums) {
+    known_enums.insert(en.name);
+  }
+  for (const auto& msg : input.messages) {
+    CollectEnums(msg.enums, msg.nested_messages, msg.name + ".", known_enums);
+  }
 
   // Compute all the enums and messages present in the input but deleted in the
   // source of truth.
@@ -382,11 +522,12 @@ base::Status MergeProtoFiles(const ProtoFile& input,
       ComputeDeletedByName(input.messages, upstream.messages);
 
   // Merge the top-level enums.
-  out.enums = MergeEnums(input.enums, upstream.enums, allowlist.enums);
+  out.enums = MergeEnums(input.enums, upstream.enums, allowlist.enums,
+                         allowlisted_options);
 
   // Finish by merging the top-level messages.
   return MergeRecursive(input.messages, upstream.messages, allowlist.messages,
-                        out.messages);
+                        known_enums, allowlisted_options, out.messages);
 }
 
 }  // namespace proto_merger

@@ -371,6 +371,12 @@ STACK_PROFILE_FRAME_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'type',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -389,7 +395,10 @@ STACK_PROFILE_FRAME_TABLE = Table(
                 '''If the profile was offline symbolized, the offline
                 symbol information of this frame.''',
             'deobfuscated_name':
-                '''Deobfuscated name of the function this location is in.'''
+                '''Deobfuscated name of the function this location is in.''',
+            'type':
+                '''The kind of frame (e.g. "native", "kernel", "interpreted",
+                "jit", "gc", "runtime") if reported by the producer, else NULL.'''
         }))
 
 STACK_PROFILE_CALLSITE_TABLE = Table(
@@ -814,6 +823,46 @@ SYMBOL_TABLE = Table(
                 ''''''
         }))
 
+HEAP_PROFILE_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapProfileTable',
+    sql_name='__intrinsic_heap_profile',
+    wrapping_sql_view=WrappingSqlView('heap_profile'),
+    columns=[
+        C('ts', CppInt64()),
+        C('ts_end', CppInt64()),
+        C('dur', CppInt64()),
+        C('upid', CppUint32()),
+        C('heap_name', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          A list of heap profiles (heapprofd dumps) captured during the trace.
+          Each row describes the profiling window a single dump represents for a
+          single heap (e.g. the native "libc.malloc" heap or an ART heap).
+        ''',
+        group='Callstack profilers',
+        columns={
+            'ts':
+                '''Timestamp of the start of the profiling window in
+                nanoseconds.''',
+            'ts_end':
+                '''Timestamp of the end of the profiling window (i.e. when the
+                dump was taken) in nanoseconds. This is the timestamp the
+                allocations are recorded at, so heap_profile_allocation joins
+                this table via (upid, heap_profile_allocation.ts = ts_end).''',
+            'dur':
+                '''Duration of the profiling window in nanoseconds
+                (ts_end - ts).''',
+            'upid':
+                '''Unique ID of the process whose heap was dumped. Joinable with
+                process.upid.''',
+            'heap_name':
+                '''Name of the heap this dump is for (e.g. "libc.malloc" for the
+                native heap), or NULL if the producer did not report one.''',
+        }),
+)
+
 HEAP_PROFILE_ALLOCATION_TABLE = Table(
     python_module=__file__,
     class_name='HeapProfileAllocationTable',
@@ -867,7 +916,9 @@ HEAP_PROFILE_ALLOCATION_TABLE = Table(
             'ts':
                 '''The timestamp the allocations happened at. heapprofd batches
                 allocations and frees, and all data from a dump will have the
-                same timestamp.''',
+                same timestamp. This is the end of the dump's profiling window,
+                so it is joinable with heap_profile via
+                (upid, ts = heap_profile.ts_end).''',
             'upid':
                 '''The unique PID of the allocating process.''',
             'callsite_id':
@@ -1545,6 +1596,7 @@ ALL_TABLES = [
     HEAP_GRAPH_REFERENCE_TABLE,
     HEAP_GRAPH_TABLE,
     HEAP_GRAPH_THREAD_CALLSITE_TABLE,
+    HEAP_PROFILE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
     INSTRUMENTS_SAMPLE_TABLE,
     PACKAGE_LIST_TABLE,

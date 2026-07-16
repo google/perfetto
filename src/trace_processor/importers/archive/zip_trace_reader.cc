@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -31,8 +32,10 @@
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_reader.h"
 #include "src/trace_processor/importers/archive/archive_entry.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/trace_type.h"
 #include "src/trace_processor/util/zip_reader.h"
 
@@ -73,12 +76,20 @@ base::Status ZipTraceReader::OnPushDataToSorter() {
   std::map<ArchiveEntry, File> ordered_files;
   for (size_t i = 0; i < files.size(); ++i) {
     util::ZipFile& zip_file = files[i];
+    // Ignore hidden files/directories (e.g. macOS "__MACOSX/._" resource forks
+    // and ".DS_Store"). They are never traces and would otherwise fail the
+    // whole archive with an "unknown trace type" error.
+    if (IsHiddenArchivePath(zip_file.name())) {
+      continue;
+    }
     auto id = context_->trace_file_tracker->AddFile(zip_file.name());
     context_->trace_file_tracker->SetSize(id, zip_file.compressed_size());
     RETURN_IF_ERROR(files[i].Decompress(&buffer));
     TraceBlobView data(TraceBlob::CopyFrom(buffer.data(), buffer.size()));
-    ArchiveEntry entry{zip_file.name(), i,
-                       GuessTraceType(data.data(), data.size())};
+    const auto& importers = *context_->trace_importer_registry;
+    TraceImporterId type = importers.Guess(data.data(), data.size());
+    ArchiveEntry entry{zip_file.name(), i, type,
+                       ArchiveEntry::ComputePriority(type, importers)};
     ordered_files.emplace(entry, File{id, std::move(data)});
   }
 
@@ -102,6 +113,50 @@ void ZipTraceReader::OnEventsFullyExtracted() {
   for (auto it = parsers_.rbegin(); it != parsers_.rend(); ++it) {
     (*it)->OnEventsFullyExtracted();
   }
+}
+
+namespace {
+
+// ZIP archive.
+class ZipImporter : public TraceImporter<ZipImporter> {
+ public:
+  ZipImporter() : TraceImporter(MakeDescriptor()) {}
+  ~ZipImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'P', 'K', '\x03', '\x04'};
+    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    if (!util::IsGzipSupported()) {
+      return base::ErrStatus(
+          "Cannot open compressed trace. zlib not enabled in the build config");
+    }
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<ZipTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "zip";
+    d.is_container = true;
+    d.archive_priority = 1;
+    d.forks_context = false;
+    d.detection_priority = 50;
+    return d;
+  }
+};
+
+ZipImporter::~ZipImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateZipImporter() {
+  return std::make_unique<ZipImporter>();
 }
 
 }  // namespace perfetto::trace_processor

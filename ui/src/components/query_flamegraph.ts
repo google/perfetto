@@ -40,6 +40,7 @@ import {
 } from '../widgets/flamegraph';
 import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
+import {userFilterToRegex} from '../widgets/flamegraph_regex';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
 import {Monitor} from '../base/monitor';
 
@@ -291,8 +292,11 @@ async function computeFlamegraphTree(
   const unaggCols = unagg.map((x) => x.name);
 
   const matchingColumns = ['name', ...unaggCols];
+  // Filters match literally by default; `/…/` opts into a raw regex.
   const matchExpr = (x: string) =>
-    matchingColumns.map((c) => `(IFNULL(${c}, '') REGEXP ${sqliteString(x)})`);
+    matchingColumns.map(
+      (c) => `(IFNULL(${c}, '') REGEXP ${sqliteString(userFilterToRegex(x))})`,
+    );
 
   const showStackFilter =
     showStackAndPivot.length === 0
@@ -533,7 +537,8 @@ async function computeFlamegraphTree(
     for (const a of agg) {
       const r = it.get(a.name);
       if (r !== null) {
-        const value = r as string;
+        // UNKNOWN-typed aggregations (e.g. SUM) can yield number/bigint.
+        const value = String(r);
         properties.set(a.name, {
           displayName: a.displayName,
           value,

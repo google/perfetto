@@ -32,19 +32,19 @@ import {
 import type {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
-import {shortUuid} from '../base/uuid';
 import {AggregationPanel} from './aggregation_panel';
 import type {Column, Filter, Pivot} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from './widgets/datagrid/sql_schema';
-import type {BarChartData, ColumnDef} from './aggregation';
+import type {SQLTableSchema} from './widgets/datagrid/sql_schema';
+import type {BarChartData} from './aggregation';
 import {
   createPerfettoTable,
   type DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
 import type {DataGridApi} from './widgets/datagrid/datagrid';
-import {DataGridExportButton} from './widgets/datagrid/export_button';
+import {ExportButton} from '../widgets/export_button';
 import {SerialTaskQueue} from '../base/query_slot';
+import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -63,9 +63,21 @@ export interface Aggregation {
   prepareData(engine: Engine): Promise<AggregationData>;
 }
 
-export type AggregatePivotModel = Pivot & {
-  readonly columns: ReadonlyArray<ColumnDef>;
-};
+/**
+ * Initial configuration for the DataGrid in an aggregation panel.
+ */
+export interface AggregatorGridConfig {
+  readonly schema: ColumnSchema;
+  readonly initialColumns?: readonly Column[];
+  readonly initialPivot?: Pivot;
+  readonly initialFilters?: readonly Filter[];
+  /**
+   * Optional override that produces the SQL schema used to resolve columns
+   * for the aggregation table. If undefined, a simple table-or-subquery
+   * schema is created from the table name.
+   */
+  readonly sqlConfig?: (data: AggregationData) => SQLTableSchema;
+}
 
 /**
  * State that can be controlled externally for a DataGrid.
@@ -100,9 +112,9 @@ export interface Aggregator {
   // Returns the name of this aggregation tag. Called every render cycle.
   getTabName(): string;
 
-  // Return the column definitions for this aggregation panel. Called every
+  // Return the grid configuration for this aggregation panel. Called every
   // render cycle.
-  getColumnDefinitions(): ColumnDef[] | AggregatePivotModel;
+  getGridConfig(): AggregatorGridConfig;
 
   // Optional controls to render in the top bar of the aggregation panel.
   renderTopbarControls?(): m.Children;
@@ -222,28 +234,12 @@ export function createAggregationTab(
   let dataGridApi: DataGridApi | undefined;
 
   function createInitialState(): DataGridModel {
-    const initialModel = aggregator.getColumnDefinitions();
-    if ('groupBy' in initialModel) {
-      return {
-        pivot: {
-          groupBy: initialModel.groupBy,
-          aggregates: initialModel.aggregates,
-        },
-        filters: [],
-      };
-    } else {
-      // Generate initial columns for flat mode
-      const columns: readonly Column[] = initialModel.map((c) => ({
-        id: shortUuid(),
-        field: c.columnId,
-        aggregate: c.sum ? 'SUM' : undefined,
-        sort: c.sort,
-      }));
-      return {
-        columns,
-        filters: [],
-      };
-    }
+    const config = aggregator.getGridConfig();
+    return {
+      columns: config.initialColumns,
+      pivot: config.initialPivot,
+      filters: config.initialFilters ?? [],
+    };
   }
 
   // DataGrid state managed by the adapter
@@ -273,11 +269,14 @@ export function createAggregationTab(
           data = undefined;
           if (aggregation) {
             data = await aggregation?.prepareData(trace.engine);
+            const gridConfig = aggregator.getGridConfig();
+            const sqlConfig = gridConfig.sqlConfig?.(data) ?? {
+              tableOrSubquery: data.tableName,
+            };
             dataSource = new SQLDataSource({
               queue,
               engine: trace.engine,
-              sqlSchema: createSimpleSchema(data.tableName),
-              rootSchemaName: 'query',
+              ...sqlConfig,
             });
           }
         });
@@ -324,7 +323,7 @@ export function createAggregationTab(
           controls: aggregator.renderTopbarControls?.(),
           key: aggregator.id,
           dataSource,
-          columns: aggregator.getColumnDefinitions(),
+          gridConfig: aggregator.getGridConfig(),
           barChartData: data?.barChartData,
           onReady: (api: DataGridApi) => {
             dataGridApi = api;
@@ -337,7 +336,7 @@ export function createAggregationTab(
         }),
         buttons:
           dataGridApi &&
-          m(DataGridExportButton, {onExportData: dataGridApi.exportData}),
+          m(ExportButton, {onExportData: dataGridApi.exportData}),
       };
     },
   };

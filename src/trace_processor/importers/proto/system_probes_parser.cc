@@ -27,8 +27,10 @@
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/cpu_info_features_allowlist.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -171,6 +173,8 @@ struct CpuInfo {
   std::optional<uint32_t> capacity;
   std::vector<uint32_t> frequencies;
   protozero::ConstChars processor;
+  // Bitmap of CPU features, indexed by base::kCpuInfoFeatures.
+  uint64_t features = 0;
   // Extend the variant to support additional identifiers
   std::variant<std::nullopt_t, ArmCpuIdentifier> identifier = std::nullopt;
 };
@@ -271,10 +275,17 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       arm_cpu_variant(context->storage->InternString("arm_cpu_variant")),
       arm_cpu_part(context->storage->InternString("arm_cpu_part")),
       arm_cpu_revision(context->storage->InternString("arm_cpu_revision")),
+      cpu_features_raw_id_(
+          context->storage->InternString("cpu_features.raw_bitmap")),
       pages_per_slab_id_(context->storage->InternString("pages_per_slab")),
       num_slabs_id_(context->storage->InternString("num_slabs")),
       meminfo_strs_(BuildMeminfoCounterNames()),
-      vmstat_strs_(BuildVmstatCounterNames()) {}
+      vmstat_strs_(BuildVmstatCounterNames()) {
+  for (size_t i = 0; i < base::ArraySize(base::kCpuInfoFeatures); ++i) {
+    base::StackString<1024> key("cpu_features.%s", base::kCpuInfoFeatures[i]);
+    cpu_features_ids_[i] = context->storage->InternString(key.string_view());
+  }
+}
 
 void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::DiskStat::Decoder ds(blob);
@@ -1133,6 +1144,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     if (cpu.has_capacity()) {
       current_cpu_info.capacity = cpu.capacity();
     }
+    current_cpu_info.features = cpu.features();
 
     if (cpu.has_arm_identifier()) {
       protos::pbzero::CpuInfo::ArmCpuIdentifier::Decoder identifier(
@@ -1216,9 +1228,10 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
     }
 
+    ArgsTracker args_tracker(context_);
+    auto inserter = args_tracker.AddArgsTo(ucpu);
     if (auto* id = std::get_if<ArmCpuIdentifier>(&cpu_info.identifier)) {
-      ArgsTracker args_tracker(context_);
-      args_tracker.AddArgsTo(ucpu)
+      inserter
           .AddArg(arm_cpu_implementer,
                   Variadic::UnsignedInteger(id->implementer))
           .AddArg(arm_cpu_architecture,
@@ -1226,6 +1239,22 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
           .AddArg(arm_cpu_variant, Variadic::UnsignedInteger(id->variant))
           .AddArg(arm_cpu_part, Variadic::UnsignedInteger(id->part))
           .AddArg(arm_cpu_revision, Variadic::UnsignedInteger(id->revision));
+    }
+
+    for (size_t i = 0; i < base::ArraySize(base::kCpuInfoFeatures); ++i) {
+      if (cpu_info.features & (1ull << i)) {
+        inserter.AddArg(cpu_features_ids_[i], Variadic::Boolean(true));
+      }
+    }
+    if (cpu_info.features != 0) {
+      inserter.AddArg(cpu_features_raw_id_,
+                      Variadic::UnsignedInteger(cpu_info.features));
+    }
+    // Bits beyond the allowlist come from a recorder newer than this
+    // version of trace_processor; they stay queryable via the raw bitmap.
+    if ((cpu_info.features >> base::ArraySize(base::kCpuInfoFeatures)) != 0) {
+      context_->stats_tracker->IncrementStats(
+          stats::cpu_info_unknown_cpu_features);
     }
   }
 }

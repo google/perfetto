@@ -26,10 +26,7 @@ FROM process
 -- descriptor when Chromium track event data source is enabled.
 -- So this returns all processes in Chrome traces, and a subset of processes
 -- in system traces.
-JOIN
-  (SELECT arg_set_id, string_value FROM args WHERE key = 'chrome.process_type')
-  pt
-  ON process.arg_set_id = pt.arg_set_id;
+JOIN args pt ON process.arg_set_id = pt.arg_set_id AND pt.key = 'chrome.process_type';
 
 -- A view of all Chrome threads.
 DROP VIEW IF EXISTS all_chrome_threads;
@@ -49,28 +46,29 @@ SELECT DISTINCT p.upid,
 FROM all_chrome_processes p
 JOIN all_chrome_threads t ON p.upid = t.upid
 WHERE process_type IN ("Sandboxed", "Privileged")
-  AND t.name GLOB "Cr*Main";
+  AND t.name GLOB "Cr*Main"
+ORDER BY p.upid;
 
 -- Contains all the chrome processes from process with an extra column,
 -- process_type.
 DROP VIEW IF EXISTS chrome_process;
 CREATE PERFETTO VIEW chrome_process AS
-SELECT PROCESS.*,
+SELECT process.*,
   IIF(sandbox_type IS NULL, process_type, sandbox_type) AS process_type
-FROM PROCESS
+FROM process
 JOIN (
     SELECT a.upid,
       sandbox_type,
       process_type
     FROM all_chrome_processes a
     LEFT JOIN chrome_subprocess_types s ON a.upid = s.upid
-  ) c ON PROCESS.upid = c.upid;
+  ) c ON process.upid = c.upid
+ORDER BY upid;
 
 -- Contains all the chrome threads from thread with an extra column,
 -- canonical_name, that should contain a thread that's the same in both chrome
 -- and system traces.
 DROP VIEW IF EXISTS chrome_thread;
-
 CREATE PERFETTO VIEW chrome_thread AS
 SELECT thread.*,
   CASE
@@ -78,10 +76,6 @@ SELECT thread.*,
     WHEN thread.name IS NULL THEN "Unknown"
     ELSE thread.name
   END AS canonical_name
-FROM (
-    SELECT t.utid,
-      p.*
-    FROM all_chrome_threads t
-    JOIN chrome_process p ON t.upid = p.upid
-  ) c
-JOIN thread ON thread.utid = c.utid;
+FROM thread
+JOIN chrome_process ON thread.upid = chrome_process.upid
+ORDER BY utid;

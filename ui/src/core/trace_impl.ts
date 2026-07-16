@@ -57,6 +57,7 @@ import type {TraceStream} from '../public/stream';
 import type {OmniboxModeDescriptor} from '../public/omnibox';
 import type {SidePanelManagerImpl} from './side_panel_manager';
 import type {SidePanelTabDescriptor} from '../public/side_panel';
+import type {Route} from '../public/app';
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -320,6 +321,10 @@ export class TraceImpl implements Trace, Disposable {
 
   navigate(newHash: string): void {
     this.app.navigate(newHash);
+  }
+
+  getCurrentRoute(): Route {
+    return this.app.getCurrentRoute();
   }
 
   openTraceFromFile(file: File) {

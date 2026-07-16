@@ -45,8 +45,7 @@ bool NextNonWs(SyntaqliteTokenizer* tok, SyntaqliteToken* out) {
 }  // namespace
 
 IntrinsicMacroExpander::IntrinsicMacroExpander() {
-  tok_ = syntaqlite_tokenizer_create_with_dialect(
-      nullptr, syntaqlite_perfetto_dialect());
+  tok_ = syntaqlite_tokenizer_create_perfetto(nullptr);
   PERFETTO_CHECK(tok_ != nullptr);
 }
 

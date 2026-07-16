@@ -27,7 +27,8 @@ import {renderChip} from './demos/chip_demo';
 import {renderCodeSnippet} from './demos/code_snippet_demo';
 import {renderCopyableLink} from './demos/copyable_link_demo';
 import {cursorTooltip} from './demos/cursor_tooltip_demo';
-import {renderDataGrid} from './demos/datagrid_demo';
+import {renderDataGrid as renderDataGridDemo} from './demos/datagrid_demo';
+import {renderDataGrid as renderDataGridPlayground} from './demos/datagrid_playground';
 import {renderDrawerPanel} from './demos/drawer_panel_demo';
 import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
@@ -66,6 +67,9 @@ interface WidgetSection {
   readonly id: string;
   readonly label: string;
   readonly view: (app: App) => m.Children;
+  // If set, the content area drops its max-width and fills the screen. Useful
+  // for pages showing wide, interactive widgets (e.g. DataGrid).
+  readonly fullWidth?: boolean;
 }
 
 const WIDGET_SECTIONS: WidgetSection[] = [
@@ -83,7 +87,13 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'combobox', label: 'Combobox', view: renderCombobox},
   {id: 'copyablelink', label: 'CopyableLink', view: renderCopyableLink},
   {id: 'cursor-tooltip', label: 'CursorTooltip', view: cursorTooltip},
-  {id: 'datagrid', label: 'DataGrid', view: renderDataGrid},
+  {id: 'datagrid', label: 'DataGrid', view: renderDataGridDemo},
+  {
+    id: 'datagrid-playground',
+    label: 'DataGrid Playground',
+    view: renderDataGridPlayground,
+    fullWidth: true,
+  },
   {id: 'drawer-panel', label: 'DrawerPanel', view: renderDrawerPanel},
   {id: 'editor', label: 'Editor', view: renderEditor},
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},
@@ -153,9 +163,21 @@ export class WidgetsPage implements m.ClassComponent<WidgetsPageAttrs> {
       // Main content area
       m(
         '.pf-widgets-page__content-container',
-        {key: currentSection ? currentSection.id : 'no-section'},
+        {
+          key: currentSection ? currentSection.id : 'no-section',
+          className: classNames(
+            currentSection?.fullWidth &&
+              'pf-widgets-page__content-container--full-width',
+          ),
+        },
         m(
           '.pf-widgets-page__content',
+          {
+            className: classNames(
+              currentSection?.fullWidth &&
+                'pf-widgets-page__content--full-width',
+            ),
+          },
           currentSection
             ? currentSection.view(attrs.app)
             : m(

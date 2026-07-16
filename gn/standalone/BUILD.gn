@@ -327,23 +327,15 @@ config("default") {
     cflags += [ "-fno-omit-frame-pointer" ]
   } else if (current_cpu == "x64") {
     cflags += [ "-fno-omit-frame-pointer" ]  # For perf profiling.
-    if (enable_perfetto_x64_cpu_opt) {
-      # When updating these flags, the CheckCpuOptimizations() in utils.cc must
-      # be updated accordingly.
-      cflags += [
-        "-mbmi",
-        "-mbmi2",
-        "-mavx2",
-        "-mpopcnt",
-        "-mlzcnt",
-        "-msse4.2",
-      ]
-    }
   }
 
   if (is_wasm) {
-    # -msimd128 enables WASM SIMD128 and is safe for all WASM targets.
-    cflags += [ "-msimd128" ]
+    # -msimd128 enables WASM SIMD128 and is safe for all WASM targets. -mavx2
+    # lets x86 AVX2 intrinsics compile, emulated on top of SIMD128.
+    cflags += [
+      "-msimd128",
+      "-mavx2",
+    ]
   }
 
   if (is_wasm_memory64) {
@@ -433,6 +425,21 @@ config("default") {
       "-static-libstdc++",
     ]
     lib_dirs = [ android_lib_dir ]
+  }
+}
+
+# x64 CPU optimization flags (SSE4.2, AVX2, BMI2, LZCNT). Separate config so the
+# startup CPU check can opt out of it. Keep in sync with CheckCpuOptimizations().
+config("x64_cpu_opt") {
+  if (current_cpu == "x64" && enable_perfetto_x64_cpu_opt) {
+    cflags = [
+      "-mbmi",
+      "-mbmi2",
+      "-mavx2",
+      "-mpopcnt",
+      "-mlzcnt",
+      "-msse4.2",
+    ]
   }
 }
 
@@ -550,17 +557,4 @@ perfetto_check_build_deps("check_build_deps_android") {
     "--no-dev-tools",
     "--android",
   ]
-}
-
-# TODO(https://github.com/google/perfetto/issues/5353): Remove this after
-# updating emscripten.
-config("wasm_avx2") {
-  # Opt-in config for targets that use x86 AVX2 hand-rolled SIMD compiled for
-  # WASM. Apply explicitly via configs += ["//gn/standalone:wasm_avx2"]; do NOT
-  # add to default_configs — third-party code (e.g. Abseil CRC) uses AVX2
-  # intrinsics with types incompatible with Emscripten's strict AVX2 headers.
-  # See https://github.com/emscripten-core/emscripten/issues/24076.
-  if (is_wasm) {
-    cflags = [ "-mavx2" ]
-  }
 }

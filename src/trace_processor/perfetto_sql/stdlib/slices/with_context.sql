@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE std.thread.with_context;
+
 -- All thread slices with data about thread, thread track and process.
 CREATE PERFETTO VIEW thread_slice(
   -- Slice
@@ -63,23 +65,28 @@ SELECT
   slice.name,
   slice.track_id,
   thread_track.name AS track_name,
-  thread.name AS thread_name,
-  thread.utid,
-  thread.tid,
-  thread.is_main_thread,
-  process.name AS process_name,
-  process.upid,
-  process.pid,
+  _thread_with_process.thread_name,
+  _thread_with_process.utid,
+  _thread_with_process.tid,
+  _thread_with_process.is_main_thread,
+  _thread_with_process.process_name,
+  _thread_with_process.upid,
+  _thread_with_process.pid,
   slice.depth,
   slice.parent_id,
   slice.arg_set_id,
   slice.thread_ts,
   slice.thread_dur
-FROM slice
-JOIN thread_track
-  ON slice.track_id = thread_track.id
-JOIN thread USING (utid)
-LEFT JOIN process USING (upid);
+-- Join order matters. The thread/process context is pre-joined in
+-- `_thread_with_process` so that all joins here are INNER (the `thread LEFT JOIN
+-- process` is materialized in that table): SQLite will not reorder a virtual
+-- table across a LEFT JOIN, which would stop the planner from driving an
+-- id-keyed join into this view off `slice.id`. Dimensions first, the large fact
+-- table (slice) last, so the planner can drive from whichever side is filtered.
+FROM thread_track
+JOIN _thread_with_process USING (utid)
+JOIN slice
+  ON slice.track_id = thread_track.id;
 
 -- All process slices with data about process track and process.
 CREATE PERFETTO VIEW process_slice(
@@ -181,20 +188,20 @@ SELECT
   slice.name,
   slice.track_id,
   thread_track.name AS track_name,
-  thread.name AS thread_name,
-  thread.utid,
-  thread.tid,
-  process.name AS process_name,
-  process.upid AS upid,
-  process.pid AS pid,
+  _thread_with_process.thread_name,
+  _thread_with_process.utid,
+  _thread_with_process.tid,
+  _thread_with_process.process_name,
+  _thread_with_process.upid,
+  _thread_with_process.pid,
   slice.depth,
   slice.parent_id,
   slice.arg_set_id
-FROM slice
-JOIN thread_track
+-- Dimensions first, fact table (slice) last -- see thread_slice above.
+FROM thread_track
+JOIN _thread_with_process USING (utid)
+JOIN slice
   ON slice.track_id = thread_track.id
-JOIN thread USING (utid)
-LEFT JOIN process USING (upid)
 UNION ALL
 SELECT
   slice.id,

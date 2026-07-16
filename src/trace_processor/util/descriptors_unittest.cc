@@ -17,6 +17,9 @@
 #include "src/trace_processor/util/descriptors.h"
 
 #include <cstdint>
+#include <optional>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -214,6 +217,56 @@ std::vector<uint8_t> BuildReDeclDescriptorSet(bool second_is_scalar_mismatch) {
     ext2->set_type(FieldDescriptorProto::TYPE_MESSAGE);
     ext2->set_type_name(".test.ExtMsg");
   }
+
+  return fds.SerializeAsArray();
+}
+
+// Two scalar extensions at the same tag with the given types, re-declaring a
+// field with a possibly-widened scalar type (e.g. bool -> uint32).
+std::vector<uint8_t> BuildScalarReDeclDescriptorSet(
+    protos::pbzero::FieldDescriptorProto::Type type_a,
+    protos::pbzero::FieldDescriptorProto::Type type_b) {
+  protozero::HeapBuffered<FileDescriptorSet> fds;
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+
+  auto* base_msg = file->add_message_type();
+  base_msg->set_name("BaseMessage");
+
+  auto* ext1 = file->add_extension();
+  ext1->set_name("ext_field");
+  ext1->set_number(10);
+  ext1->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext1->set_type(type_a);
+  ext1->set_extendee(".test.BaseMessage");
+
+  auto* ext2 = file->add_extension();
+  ext2->set_name("ext_field");
+  ext2->set_number(10);
+  ext2->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext2->set_type(type_b);
+  ext2->set_extendee(".test.BaseMessage");
+
+  return fds.SerializeAsArray();
+}
+
+// A message with one message-typed field pointing at `type_name` that is never
+// defined, leaving a dangling reference for the resolution pass to handle.
+std::vector<uint8_t> BuildDanglingTypeDescriptorSet(const char* type_name) {
+  protozero::HeapBuffered<FileDescriptorSet> fds;
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+
+  auto* base_msg = file->add_message_type();
+  base_msg->set_name("BaseMessage");
+  auto* field = base_msg->add_field();
+  field->set_name("removed_field");
+  field->set_number(81);
+  field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  field->set_type(FieldDescriptorProto::TYPE_MESSAGE);
+  field->set_type_name(type_name);
 
   return fds.SerializeAsArray();
 }
@@ -506,6 +559,51 @@ TEST(DescriptorsTest, ExtensionReDeclaredWithDifferentFundamentalTypeRejected) {
               testing::HasSubstr("re-introduced with different type"));
 }
 
+// A field naming an intentionally-removed type is tolerated and left
+// unresolved rather than failing the trace.
+TEST(DescriptorsTest, RemovedTypeReferenceTolerated) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes = BuildDanglingTypeDescriptorSet(
+      ".perfetto.protos.AndroidCameraSessionStats");
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_TRUE(status.ok()) << status.message();
+  auto base_idx = pool.FindDescriptorIdx(".test.BaseMessage");
+  ASSERT_TRUE(base_idx.has_value());
+  const auto* field = pool.descriptors()[base_idx.value()].FindFieldByTag(81);
+  ASSERT_NE(field, nullptr);
+  // The removed type could not be resolved, so it stays empty.
+  EXPECT_TRUE(field->resolved_type_name().empty());
+}
+
+// A field naming an unresolvable type not on the allowlist still fails, so
+// genuine missing types are not masked.
+TEST(DescriptorsTest, UnknownTypeReferenceRejected) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes =
+      BuildDanglingTypeDescriptorSet(".perfetto.protos.SomeTypoedType");
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.c_message(),
+              testing::HasSubstr("Unable to find short type"));
+}
+
+// Same wire type (bool -> uint32, both kVarInt) is accepted: the
+// previous_packet_dropped case where an old trace still declares the field as
+// bool.
+TEST(DescriptorsTest, ScalarReDeclaredWithSameWireTypeAllowed) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes = BuildScalarReDeclDescriptorSet(
+      FieldDescriptorProto::TYPE_BOOL, FieldDescriptorProto::TYPE_UINT32);
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_TRUE(status.ok()) << status.message();
+  auto base_idx = pool.FindDescriptorIdx(".test.BaseMessage");
+  ASSERT_TRUE(base_idx.has_value());
+  EXPECT_NE(pool.descriptors()[base_idx.value()].FindFieldByTag(10), nullptr);
+}
+
 // CheckExtensionField: re-declaring an extension at the same tag with an
 // identical type (same name, same kind) is accepted and does not trigger a
 // deferred structural check.
@@ -680,6 +778,46 @@ TEST(DescriptorsTest, DifferentFixedWidthScalarChangeRejected) {
   EXPECT_FALSE(status.ok());
   EXPECT_THAT(status.c_message(),
               testing::HasSubstr("not structurally identical"));
+}
+
+TEST(DescriptorsTest, FlagSetToViews) {
+  DescriptorPool pool;
+  ProtoDescriptor flags("f.proto", "pkg", "pkg.MyFlags",
+                        ProtoDescriptor::Type::kEnum, std::nullopt);
+  flags.AddEnumValue(1, "FLAG_A");
+  flags.AddEnumValue(2, "FLAG_B");
+  flags.AddEnumValue(4, "FLAG_C");
+  flags.AddEnumValue(7, "FLAG_ALL");         // Composite: must be ignored.
+  flags.AddEnumValue(INT32_MIN, "FLAG_31");  // Bit 31 (the int32 sign bit).
+  pool.AddProtoDescriptorForTesting(std::move(flags));
+
+  auto idx = pool.FindDescriptorIdx("pkg.MyFlags");
+  ASSERT_TRUE(idx.has_value());
+  std::vector<std::string_view> out;
+
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 5, &out), 0);
+  EXPECT_THAT(out, testing::ElementsAre("FLAG_A", "FLAG_C"));
+
+  // The composite value 7 is not emitted; its individual bits are.
+  out.clear();
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 7, &out), 0);
+  EXPECT_THAT(out, testing::ElementsAre("FLAG_A", "FLAG_B", "FLAG_C"));
+
+  // A set bit with no named single-bit value is returned as unmatched.
+  out.clear();
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 9, &out), 0x8);
+  EXPECT_THAT(out, testing::ElementsAre("FLAG_A"));
+
+  // Bit 31 is a valid int32 value (INT32_MIN), so it can name a flag.
+  out.clear();
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 0x80000000LL, &out), 0);
+  EXPECT_THAT(out, testing::ElementsAre("FLAG_31"));
+
+  // Bits >= 32 aren't int32 values, so they can't be named -> unmatched.
+  out.clear();
+  EXPECT_EQ(pool.FlagSetToViews(*idx, int64_t{1} << 32, &out),
+            int64_t{1} << 32);
+  EXPECT_THAT(out, testing::IsEmpty());
 }
 
 }  // namespace

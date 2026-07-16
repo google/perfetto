@@ -275,6 +275,54 @@ class Profiling(TestSuite):
         """,
         out=Path('perf_sample_rvc.out'))
 
+  def test_perf_sample_timebase_count(self):
+    return DiffTestBlueprint(
+        trace=TextProto(R"""
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          timestamp: 1000
+          trace_packet_defaults {
+            perf_sample_defaults {
+              timebase {
+                name: "leader"
+                counter: SW_CPU_CLOCK
+                frequency: 1000
+              }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          perf_sample {
+            cpu: 0
+            pid: 1
+            tid: 42
+            cpu_mode: MODE_USER
+            timebase_count: 512
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000
+          perf_sample {
+            cpu: 0
+            pid: 1
+            tid: 42
+            cpu_mode: MODE_USER
+            # Note: No timebase_count set!
+          }
+        }
+        """),
+        query="""
+        SELECT ts, value FROM counter;
+        """,
+        out=Csv("""
+        "ts","value"
+        3000,512.000000
+        """))
+
   def test_perf_sample_sc(self):
     return DiffTestBlueprint(
         trace=DataPath('perf_sample_sc.pb'),
@@ -594,6 +642,76 @@ class Profiling(TestSuite):
         0,0,2,1144537.000000
         """))
 
+  def test_stack_sample(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample.textproto'),
+        query="""
+        SELECT
+          ss.ts,
+          ec.cpu,
+          ec.mode,
+          ss.weight,
+          tb.source,
+          tb.name AS timebase_name,
+          tb.unit,
+          spf.name AS frame_name
+        FROM __intrinsic_stack_sample ss
+        JOIN __intrinsic_stack_sample_timebase tb ON ss.timebase_id = tb.id
+        LEFT JOIN __intrinsic_stack_sample_execution_context ec
+          ON ss.execution_context_id = ec.id
+        JOIN stack_profile_callsite spc ON ss.callsite_id = spc.id
+        JOIN stack_profile_frame spf ON spc.frame_id = spf.id
+        ORDER BY ss.ts;
+        """,
+        out=Csv("""
+        "ts","cpu","mode","weight","source","timebase_name","unit","frame_name"
+        1000,2,"user",1000000,"python.wall","wall-time","ns","foo"
+        7000,"[NULL]","[NULL]",7000000,"python.wall","wall-time","ns","foo"
+        """))
+
+  def test_stack_sample_contexts(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample.textproto'),
+        query="""
+        -- The ts=1000 sample is attributed to a task and execution context; the
+        -- ts=7000 sample has neither, so both context ids are NULL.
+        SELECT
+          ss.ts,
+          p.name AS process_name,
+          ec.cpu,
+          ec.mode
+        FROM __intrinsic_stack_sample ss
+        LEFT JOIN __intrinsic_stack_sample_task_context tc
+          ON ss.task_context_id = tc.id
+        LEFT JOIN process p ON tc.upid = p.upid
+        LEFT JOIN __intrinsic_stack_sample_execution_context ec
+          ON ss.execution_context_id = ec.id
+        ORDER BY ss.ts;
+        """,
+        out=Csv("""
+        "ts","process_name","cpu","mode"
+        1000,"myproc",2,"user"
+        7000,"[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_frame_types(self):
+    return DiffTestBlueprint(
+        trace=Path('frame_types.textproto'),
+        query="""
+        -- Frame.kind (well-known enum) and Frame.kind_str (custom label) are
+        -- parsed into stack_profile_frame.type; frames with no kind are NULL.
+        SELECT name, type
+        FROM stack_profile_frame
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","type"
+        "custom_fn","custom"
+        "gc_fn","gc"
+        "interp_fn","interpreted"
+        "plain_fn","[NULL]"
+        """))
+
   def test_art_oome_stack_sample(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -664,17 +782,17 @@ class Profiling(TestSuite):
             oom_error_msg: "Failed to allocate 1048576 bytes"
             oom_thread_java_stack {
               frames {
-                method_name: "com.example.oometest.MainActivity.oomeInducer"
+                method_name: "void com.example.oometest.MainActivity.oomeInducer(int, java.lang.String)"
                 source_file: "MainActivity.java"
                 line_number: 45
               }
               frames {
-                method_name: "com.example.oometest.MainActivity.oomeInducer"
+                method_name: "com.example.oometest.MainActivity.oomeInducer(double)"
                 source_file: "MainActivity.java"
                 line_number: 42
               }
               frames {
-                method_name: "com.example.oometest.MainActivity.triggerOOM"
+                method_name: "void com.example.oometest.MainActivity.triggerOOM"
                 source_file: "MainActivity.java"
                 line_number: 31
               }

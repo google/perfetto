@@ -42,8 +42,7 @@ static_assert(sql_token::kComment == SYNTAQLITE_TK_COMMENT);
 static_assert(sql_token::kIllegal == SYNTAQLITE_TK_ILLEGAL);
 
 SqliteTokenizer::SqliteTokenizer(SqlSource sql) : source_(std::move(sql)) {
-  tok_ = syntaqlite_tokenizer_create_with_dialect(
-      nullptr, syntaqlite_perfetto_dialect());
+  tok_ = syntaqlite_tokenizer_create_perfetto(nullptr);
   PERFETTO_CHECK(tok_ != nullptr);
   syntaqlite_tokenizer_reset(tok_, source_.sql().data(),
                              static_cast<uint32_t>(source_.sql().size()));

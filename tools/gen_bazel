@@ -175,6 +175,10 @@ proto_groups = {
         'sources': ['//protos/perfetto/proto_filtering:source_set'],
         'visibility': [],
     },
+    'passthrough': {
+        'sources': ['//protos/perfetto/common:passthrough_source_set'],
+        'visibility': [],
+    },
 }
 
 # Path for the protobuf sources in the standalone build.
@@ -201,6 +205,7 @@ external_deps = {
         'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
     ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
+    '//gn:zstd': ['PERFETTO_CONFIG.deps.zstd'],
     '//gn:llvm_demangle': ['PERFETTO_CONFIG.deps.llvm_demangle'],
     '//src/trace_processor:demangle': ['PERFETTO_CONFIG.deps.demangle_wrapper'],
     gn_utils.GEN_VERSION_TARGET: ['PERFETTO_CONFIG.deps.version_header'],
@@ -255,7 +260,16 @@ target_overrides = {
 }
 
 # Defines required for Bazel.
-bazel_required_defines = ["PERFETTO_SHLIB_SDK_IMPLEMENTATION"]
+# PERFETTO_SDK_SHLIB_IMPLEMENTATION makes the C SDK objects export the ABI
+# symbols (see include/perfetto/public/abi/export.h). Bazel cc_library defines
+# propagate to all dependent targets, which is intentional here: Bazel cannot
+# inject defines from a leaf target into a dependency's compilation, and
+# downstream users wrap libperfetto_c into their own shared library and
+# re-export the SDK ABI from it, so the export annotation must come from this
+# target. See b/535183253 for the breakage caused by removing this define.
+bazel_required_defines = [
+    "PERFETTO_SDK_SHLIB_IMPLEMENTATION",
+]
 
 # Targets with the "avoid_dep" tag;
 avoid_dep_targets = set([

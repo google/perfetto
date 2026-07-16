@@ -81,6 +81,7 @@
 #include "src/proto_utils/txt_to_pb.h"
 
 #include "protos/perfetto/common/ftrace_descriptor.gen.h"
+#include "protos/perfetto/common/trace_attributes.gen.h"
 #include "protos/perfetto/common/tracing_service_state.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
 
@@ -102,8 +103,9 @@ const uint32_t kCloneTimeoutMs = 30000;
 
 bool ParseTraceConfigPbtxt(const std::string& file_name,
                            const std::string& pbtxt,
-                           TraceConfig* config) {
-  auto res = TraceConfigTxtToPb(pbtxt, file_name);
+                           TraceConfig* config,
+                           bool allow_unknown_fields) {
+  auto res = TraceConfigTxtToPb(pbtxt, file_name, allow_unknown_fields);
   if (!res.ok()) {
     fprintf(stderr, "%s\n", res.status().c_message());
     return false;
@@ -169,12 +171,16 @@ Usage: %s
   --no-clobber             : Do not overwrite an existing output file.
   --txt                    : Parse config as pbtxt. Not for production use.
                              Not a stable API.
+  --txt-lossy              : Like --txt, but silently drops fields and enum
+                             values not known to this binary instead of
+                             failing. Not for production use. Not a stable API.
   --query [--long]         : Queries the service state and prints it as
                              human-readable text. --long allows the output to
                              extend past 80 chars.
   --query-raw              : Like --query, but prints raw proto-encoded bytes
                              of tracing_service_state.proto.
-  --add-note key[=value]   : Add user notes to trace. If "=value" is omitted,
+  --add-attribute key[=value] : Add a trace attribute (a key/value pair
+                             describing the trace). If "=value" is omitted,
                              the value is the empty string.
   --help           -h
 
@@ -229,6 +235,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_SUBSCRIPTION_ID,
     OPT_RESET_GUARDRAILS,
     OPT_PBTXT_CONFIG,
+    OPT_PBTXT_CONFIG_LOSSY,
     OPT_DROPBOX,
     OPT_UPLOAD,
     OPT_IGNORE_GUARDRAILS,
@@ -242,7 +249,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_VERSION,
     OPT_NOTIFY_FD,
     OPT_NO_CLOBBER,
-    OPT_NOTE,
+    OPT_ADD_ATTRIBUTE,
   };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
@@ -256,6 +263,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"app", required_argument, nullptr, 'a'},
       {"no-guardrails", no_argument, nullptr, OPT_IGNORE_GUARDRAILS},
       {"txt", no_argument, nullptr, OPT_PBTXT_CONFIG},
+      {"txt-lossy", no_argument, nullptr, OPT_PBTXT_CONFIG_LOSSY},
       {"upload", no_argument, nullptr, OPT_UPLOAD},
       {"dropbox", required_argument, nullptr, OPT_DROPBOX},
       {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
@@ -273,7 +281,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"query", no_argument, nullptr, OPT_QUERY},
       {"long", no_argument, nullptr, OPT_LONG},
       {"query-raw", no_argument, nullptr, OPT_QUERY_RAW},
-      {"add-note", required_argument, nullptr, OPT_NOTE},
+      {"add-attribute", required_argument, nullptr, OPT_ADD_ATTRIBUTE},
       {"version", no_argument, nullptr, OPT_VERSION},
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
       {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
@@ -284,13 +292,14 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   std::string config_file_name;
   std::string trace_config_raw;
   bool parse_as_pbtxt = false;
+  bool parse_as_pbtxt_lossy = false;
   bool no_clobber = false;
   TraceConfig::StatsdMetadata statsd_metadata;
 
   ConfigOptions config_options;
   bool has_config_options = false;
 
-  std::vector<std::pair<std::string, std::string>> notes;
+  std::vector<std::pair<std::string, std::string>> attributes;
 
   if (argc <= 1) {
     PrintUsage(argv[0]);
@@ -302,7 +311,16 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   static base::NoDestructor<std::mutex> getopt_mutex;
   std::unique_lock<std::mutex> getopt_lock(getopt_mutex.ref());
 
-  optind = 1;  // Reset getopt state. It's reused by the snapshot thread.
+  // Reset getopt state. It's reused by the snapshot thread and by tests.
+  // Rescanning requires optind = 0 on glibc (see NOTES in `man 3 getopt`,
+  // https://man7.org/linux/man-pages/man3/getopt.3.html) and on our
+  // getopt_compat; macOS requires optind = 1 plus optreset instead.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  optind = 1;
+  optreset = 1;
+#else
+  optind = 0;
+#endif
   for (;;) {
     int option =
         getopt_long(argc, argv, "hc:o:dDt:b:s:a:", long_options, nullptr);
@@ -436,6 +454,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       continue;
     }
 
+    if (option == OPT_PBTXT_CONFIG_LOSSY) {
+      parse_as_pbtxt_lossy = true;
+      continue;
+    }
+
     if (option == OPT_IGNORE_GUARDRAILS) {
       ignore_guardrails_ = true;
       continue;
@@ -508,26 +531,26 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       continue;
     }
 
-    if (option == OPT_NOTE) {
+    if (option == OPT_ADD_ATTRIBUTE) {
       std::string arg(optarg ? optarg : "");
       if (arg.empty()) {
-        PERFETTO_ELOG("add-note: key must be non-empty");
+        PERFETTO_ELOG("add-attribute: key must be non-empty");
         return 1;
       }
 
       const size_t eq = arg.find('=');
       if (eq == std::string::npos) {
-        notes.emplace_back(std::move(arg), std::string());
+        attributes.emplace_back(std::move(arg), std::string());
         continue;
       }
 
       if (eq == 0) {
-        PERFETTO_ELOG("add-note: key must be non-empty");
+        PERFETTO_ELOG("add-attribute: key must be non-empty");
         return 1;
       }
 
       // Split on the first '=' so values can contain '=' (e.g. 'k=a=b=c').
-      notes.emplace_back(arg.substr(0, eq), arg.substr(eq + 1));
+      attributes.emplace_back(arg.substr(0, eq), arg.substr(eq + 1));
       continue;
     }
 
@@ -583,6 +606,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
   if (is_detach() && is_attach()) {
     PERFETTO_ELOG("--attach and --detach are mutually exclusive");
+    return 1;
+  }
+
+  if (parse_as_pbtxt && parse_as_pbtxt_lossy) {
+    PERFETTO_ELOG("--txt and --txt-lossy are mutually exclusive");
     return 1;
   }
 
@@ -653,9 +681,9 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       return 1;
     }
     PERFETTO_DLOG("Parsing TraceConfig, %zu bytes", trace_config_raw.size());
-    if (parse_as_pbtxt) {
+    if (parse_as_pbtxt || parse_as_pbtxt_lossy) {
       parsed = ParseTraceConfigPbtxt(config_file_name, trace_config_raw,
-                                     trace_config_.get());
+                                     trace_config_.get(), parse_as_pbtxt_lossy);
     } else {
       parsed = trace_config_->ParseFromString(trace_config_raw);
       cfg_could_be_txt =
@@ -783,10 +811,10 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
                                         ? TraceConfig::STATSD_LOGGING_ENABLED
                                         : TraceConfig::STATSD_LOGGING_DISABLED);
 
-  for (const auto& note : notes) {
-    auto n = trace_config_->add_notes();
-    n->set_key(note.first);
-    n->set_value(note.second);
+  for (const auto& attribute : attributes) {
+    auto* attr = trace_config_->mutable_trace_attributes()->add_attribute();
+    attr->set_key(attribute.first);
+    attr->set_string_value(attribute.second);
   }
 
   // Set up the output file. Either --out or --upload are expected, with the
@@ -1038,8 +1066,8 @@ int PerfettoCmd::ConnectToServiceAndRun() {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (!background_ && !is_detach() && !upload_flag_ &&
-      triggers_to_activate_.empty() && !isatty(STDIN_FILENO) &&
-      !isatty(STDERR_FILENO) && getenv("TERM")) {
+      triggers_to_activate_.empty() && !base::IsTty(STDIN_FILENO) &&
+      !base::IsTty(STDERR_FILENO) && getenv("TERM")) {
     fprintf(stderr,
             "Warning: No PTY. CTRL+C won't gracefully stop the trace. If you "
             "are running perfetto via adb shell, use the -tt arg (adb shell "

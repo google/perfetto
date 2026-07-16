@@ -25,6 +25,7 @@ import "protos/perfetto/trace/track_event/log_message.proto";
 import "protos/perfetto/trace/track_event/track_event.proto";
 import "protos/perfetto/trace/track_event/source_location.proto";
 import "protos/perfetto/trace/profiling/profile_common.proto";
+import "protos/perfetto/trace/profiling/stack_sample.proto";
 
 package perfetto.protos;
 
@@ -55,7 +56,7 @@ package perfetto.protos;
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 48.
+// Next id: 51.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -65,17 +66,30 @@ message InternedData {
   // index, thus interning IDs are scoped to the tracing session and field
   // (usually as a counter for efficient var-int encoding), and optionally to
   // the incremental state generation of the packet sequence.
+  //
+  // Note: field IDs up to 15 should be used for frequent data only.
+
+  //
+  // == STABLE PUBLIC API: TrackEvent ==
+  //
+  // Interning for the stable TrackEvent API (see trace_packet.proto and
+  // docs/instrumentation/track-events.md).
   repeated EventCategory event_categories = 1;
   repeated EventName event_names = 2;
   repeated DebugAnnotationName debug_annotation_names = 3;
   repeated DebugAnnotationValueTypeName debug_annotation_value_type_names = 27;
-  repeated SourceLocation source_locations = 4;
-  repeated UnsymbolizedSourceLocation unsymbolized_source_locations = 28;
-  repeated LogMessageBody log_message_body = 20;
-  repeated HistogramName histogram_names = 25;
+  // Interned string values in the DebugAnnotation proto.
+  repeated InternedString debug_annotation_string_values = 29;
+  // Interned correlation ids in track_event.
+  repeated InternedString correlation_id_str = 43;
 
-  // Note: field IDs up to 15 should be used for frequent data only.
-
+  //
+  // == STABLE PUBLIC API: Callstacks and symbolization ==
+  //
+  // Interned callstacks, frames, mappings and symbol strings. Referenced by the
+  // stable TrackEvent callstack fields (TrackEvent.callstack_iid) and by the
+  // StackSample API.
+  //
   // Build IDs of exectuable files.
   repeated InternedString build_ids = 16;
   // Paths to executable files.
@@ -91,6 +105,30 @@ message InternedData {
   // A callstack of a program.
   repeated Callstack callstacks = 7;
 
+  //
+  // == STABLE PUBLIC API: StackSample ==
+  //
+  // Interned StackSample context and descriptors, referenced by iid from
+  // StackSample. See protos/perfetto/trace/profiling/stack_sample.proto.
+  repeated StackSample.TaskContext stack_sample_task_contexts = 48;
+  repeated StackSample.ExecutionContext stack_sample_execution_contexts = 49;
+  repeated StackSample.CounterDescriptor stack_sample_counter_descriptors = 50;
+
+  //
+  // == UNSTABLE / CONTEXT-SPECIFIC FIELDS ==
+  //
+  // The fields below are NOT part of the stable public API. They are emitted
+  // by specific Perfetto data sources and may change without notice. Depend on
+  // them at your own risk.
+
+  // Interning for the non-stable TrackEvent arguments below the "NOT part of
+  // the stable public API" line in track_event.proto: source_location,
+  // log_message and chrome_histogram_sample (Chrome/Android internal).
+  repeated SourceLocation source_locations = 4;
+  repeated UnsymbolizedSourceLocation unsymbolized_source_locations = 28;
+  repeated LogMessageBody log_message_body = 20;
+  repeated HistogramName histogram_names = 25;
+
   // Additional Vulkan information sent in a VulkanMemoryEvent message
   repeated InternedString vulkan_memory_keys = 22;
 
@@ -101,6 +139,9 @@ message InternedData {
   // Description of a GPU hardware queue or render stage.
   repeated InternedGpuRenderStageSpecification gpu_specifications = 24;
 
+  // Description of GPU counters available in a data source.
+  repeated InternedGpuCounterDescriptor gpu_counter_descriptors = 47;
+
   // This is set when FtraceConfig.symbolize_ksyms = true.
   // The id of each symbol the number that will be reported in ftrace events
   // like sched_block_reason.caller and is obtained from a monotonic counter.
@@ -108,9 +149,6 @@ message InternedData {
   // This is is NOT the real address. This is to avoid disclosing KASLR through
   // traces.
   repeated InternedString kernel_symbols = 26;
-
-  // Interned string values in the DebugAnnotation proto.
-  repeated InternedString debug_annotation_string_values = 29;
 
   // Interned name of a js function. We only intern js functions as there is a
   // lot of duplication for them, but less so for other strings in the V8 data
@@ -126,12 +164,6 @@ message InternedData {
   // Every V8 event is associated with an isolate, intern the isolate to remove
   // duplication.
   repeated InternedV8Isolate v8_isolate = 35;
-
-  // Interned correlation ids in track_event.
-  repeated InternedString correlation_id_str = 43;
-
-  // Description of GPU counters available in a data source.
-  repeated InternedGpuCounterDescriptor gpu_counter_descriptors = 47;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;

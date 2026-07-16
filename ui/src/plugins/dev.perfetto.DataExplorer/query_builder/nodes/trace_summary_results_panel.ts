@@ -22,7 +22,7 @@ import {Spinner} from '../../../../widgets/spinner';
 import {Switch} from '../../../../widgets/switch';
 import {Intent} from '../../../../widgets/common';
 import {DataGrid} from '../../../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../../../components/widgets/datagrid/datagrid_schema';
 import type {Row} from '../../../../trace_processor/query_result';
 import {Tabs} from '../../../../widgets/tabs';
 import {
@@ -76,7 +76,7 @@ function extractDimensionNames(
 
 interface MetricBundleResult {
   metricId: string;
-  schema: SchemaRegistry;
+  schema: ColumnSchema;
   rows: Row[];
 }
 
@@ -111,19 +111,17 @@ function parseTraceSummaryProto(data: Uint8Array): MetricBundleResult[] {
 
     // Build one MetricBundleResult per metric (each gets its own tab).
     for (const {metricId, valueName, valueIndex} of metrics) {
-      const schemaColumns: Record<
+      const schema: Record<
         string,
         {title: string; columnType: 'text' | 'quantitative'}
       > = {};
       for (const dimName of dimensionNames) {
-        schemaColumns[dimName] = {title: dimName, columnType: 'text'};
+        schema[dimName] = {title: dimName, columnType: 'text'};
       }
-      schemaColumns[valueName] = {
+      schema[valueName] = {
         title: valueName,
         columnType: 'quantitative',
       };
-
-      const schema: SchemaRegistry = {[metricId]: schemaColumns};
 
       const rows: Row[] = [];
       for (const row of bundle.row ?? []) {
@@ -316,7 +314,6 @@ export class TraceSummaryResultsPanel
           return m(DataGrid, {
             data: bundle.rows,
             schema: bundle.schema,
-            rootSchema: bundle.metricId,
             fillHeight: true,
           });
         }
@@ -331,7 +328,6 @@ export class TraceSummaryResultsPanel
             content: m(DataGrid, {
               data: bundle.rows,
               schema: bundle.schema,
-              rootSchema: bundle.metricId,
               fillHeight: true,
             }),
           })),

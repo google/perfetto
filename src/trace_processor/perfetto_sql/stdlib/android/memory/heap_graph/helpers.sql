@@ -19,8 +19,11 @@ INCLUDE PERFETTO MODULE graphs.scan;
 -- Distinct classes (e.g. the same class loaded by different class loaders)
 -- have distinct type_ids but the same name; hashing the name here lets the
 -- path-hash scan coalesce them while keeping the hot loop purely int64.
+-- A class can have no name (e.g. in an incomplete/non-finalized graph), so
+-- coalesce to '' to keep HASH out of NULL (which it rejects); nameless classes
+-- collapse to one node.
 CREATE PERFETTO TABLE _heap_graph_class_name_hash AS
-SELECT id, HASH(coalesce(deobfuscated_name, name)) AS name_hash
+SELECT id, HASH(coalesce(deobfuscated_name, name, '')) AS name_hash
 FROM heap_graph_class;
 
 -- Given a table containing a "tree-ified" heap graph object table (i.e.

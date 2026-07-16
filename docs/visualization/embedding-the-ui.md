@@ -220,11 +220,48 @@ appears.
 
 NOTE: `ui.perfetto.dev` follows the latest release, so the embedding protocol
 described here is stable, though UI details may change over time. If you need a
-fixed version, self-host the UI build to pin it. Self-hosting also gives the
+fixed version, self-host the UI build to pin it (see
+[Self-hosting the UI](#self-hosting-the-ui) below). Self-hosting also gives the
 same-origin trust benefit described above.
 
 NOTE: The UI is client-only. Posted traces stay in browser memory and are never
 uploaded anywhere.
+
+## Self-hosting the UI
+
+Every [Perfetto release on GitHub](https://github.com/google/perfetto/releases/latest)
+ships a `perfetto-ui.zip` asset containing the exact UI build deployed to
+`ui.perfetto.dev` for that release: the root `index.html`, the service worker,
+and a versioned directory with all the js/wasm/css assets it references.
+
+To self-host, unzip the asset and serve the resulting directory with any
+static file server; no server-side logic is needed since the UI is fully
+client-side. As a quick smoke test, from inside the unzipped directory:
+
+```sh
+python3 -m http.server 8080
+```
+
+then open `http://localhost:8080`.
+
+A few things to keep in mind when serving it for real:
+
+- Serve the files at the root of their own origin (e.g. `perfetto.example.com`,
+  not `example.com/perfetto/`). The service worker, which handles offline
+  caching and faster subsequent loads, only registers when the UI is served
+  from `/`; the UI still works without it from a subdirectory, just without
+  that optimization.
+- Make sure the server serves `.wasm` files with the `application/wasm` MIME
+  type. Most modern static file servers do this by default.
+- No special headers are required. In particular, do not add
+  `Cross-Origin-Opener-Policy: same-origin` on pages that embed the UI (see
+  [Before you begin](#before-you-begin) above).
+- Each release's zip pins that release's UI exactly; there is no auto-update.
+  To move to a newer release, deploy the newer release's zip in its place.
+
+Because a self-hosted UI is served from your own domain, a host page on that
+same origin is automatically trusted, so no trust prompt appears when it posts
+traces to the embedded iframe.
 
 ## A complete example
 

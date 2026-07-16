@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+export const FTRACE_RAW_TRACK_KIND = 'FtraceRawTrack';
+
 export interface FtraceFilter {
   // We use an exclude list rather than include list for filtering events, as we
   // want to include all events by default but we won't know what names are
   // present initially.
   excludeList: string[];
-  // Exclude list of CPU numbers (logical cpu). Empty means all CPUs included.
-  cpuFilter: number[];
+  // Inclusion list of ucpu ids shown in the standalone ftrace tab. Undefined
+  // means all CPUs are shown.
+  visibleCpus?: number[];
 }
 
 export interface FtracePluginState {

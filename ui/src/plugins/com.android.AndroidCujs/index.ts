@@ -129,11 +129,10 @@ const JANK_CUJ_QUERY = `
 
 const JANK_COLUMNS = [
   'name',
+  'process_name',
   'total_frames',
   'missed_app_frames',
   'missed_sf_frames',
-  'sf_callback_missed_frames',
-  'hwui_callback_missed_frames',
   'layer_name',
   'ts',
   'dur',

@@ -154,8 +154,10 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
         Callout,
         {intent: Intent.Warning, icon: 'warning'},
         `${verdict.droppedEvents.toLocaleString()} events would be dropped: ` +
-          'some traces share no clock with the shared timeline and will be ' +
-          'omitted. Set an explicit alignment, or check the manifest.',
+          'they cannot be placed on the shared timeline, either because ' +
+          'their trace shares no clock with it or because an offset moves ' +
+          'them before its start. Adjust the alignment, or check the ' +
+          'manifest.',
       );
     }
     return m(
@@ -587,6 +589,12 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
           autofocus: true,
           placeholder: 'machine name',
           value: machines.find((mm) => mm.id === selectedId)?.name ?? '',
+          // Select the prefilled default name so typing replaces it.
+          onfocus: (e: FocusEvent) => {
+            if (e.target instanceof HTMLInputElement) {
+              e.target.select();
+            }
+          },
           onInput: (value: string) =>
             controller.renameMachine(selectedId, value),
           // Enter or blur finishes the edit.

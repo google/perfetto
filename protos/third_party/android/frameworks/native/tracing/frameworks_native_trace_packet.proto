@@ -20,58 +20,6 @@ import public "protos/perfetto/trace/trace_packet.proto";
 
 package com.android.internal;
 
-// Records an event in the evdev protocol, as used by Linux and some other *nix
-// kernels to report events from human interface devices.
-//
-// Next ID: 5
-message EvdevEvent {
-  // The device's unique ID number. This need not be the number of its
-  // /dev/input/event node.
-  optional uint32 device_id = 1;
-
-  oneof event {
-    InputEvent input_event = 2;
-    DeviceAddition add_event = 3;
-    DeviceRemoval remove_event = 4;
-  }
-
-  // Proto version of Linux's struct input_event. The meaning of types and codes
-  // are described in the Linux kernel documentation at
-  // https://www.kernel.org/doc/html/latest/input/event-codes.html.
-  //
-  // Next ID: 5
-  message InputEvent {
-    // The monotonic timestamp at which the event occurred, as reported by the
-    // kernel, in integer nanoseconds. If omitted, assume that it hasn't changed
-    // since the previous event.
-    optional uint64 kernel_timestamp = 1;
-
-    // The code grouping for this event, used to distinguish signals, absolute
-    // and relative axis changes, and other types of event.
-    optional uint32 type = 2;
-    // The precise type of the event, such as the axis code for absolute and
-    // relative events.
-    optional uint32 code = 3;
-    // The new value of the axis described by type and code.
-    optional sint32 value = 4;
-  }
-
-  // Describes an evdev device being added to the system.
-  //
-  // Next ID: 2
-  message DeviceAddition {
-    optional EvdevDevice device = 1;
-  }
-
-  // Describes an evdev device being removed from the system.
-  //
-  // Next ID: 1
-  message DeviceRemoval {
-    // Empty — we don't need to record any data other than the device ID for
-    // this event type.
-  }
-}
-
 // The properties of an input device that don't change during the time that it's
 // connected, as well as the current values for all of its axes.
 //
@@ -168,10 +116,55 @@ message EvdevDevice {
   map<uint32, SlotValuesMap> abs_mt_states = 12;
 }
 
-message FrameworksNativeTracePacket {
-  extend perfetto.protos.TracePacket {
-    optional FrameTimelineEvent frame_timeline_event = 76;
-    optional EvdevEvent evdev_event = 121;
+// Records an event in the evdev protocol, as used by Linux and some other *nix
+// kernels to report events from human interface devices.
+//
+// Next ID: 5
+message EvdevEvent {
+  // The device's unique ID number. This need not be the number of its
+  // /dev/input/event node.
+  optional uint32 device_id = 1;
+
+  oneof event {
+    InputEvent input_event = 2;
+    DeviceAddition add_event = 3;
+    DeviceRemoval remove_event = 4;
+  }
+
+  // Proto version of Linux's struct input_event. The meaning of types and codes
+  // are described in the Linux kernel documentation at
+  // https://www.kernel.org/doc/html/latest/input/event-codes.html.
+  //
+  // Next ID: 5
+  message InputEvent {
+    // The monotonic timestamp at which the event occurred, as reported by the
+    // kernel, in integer nanoseconds. If omitted, assume that it hasn't changed
+    // since the previous event.
+    optional uint64 kernel_timestamp = 1;
+
+    // The code grouping for this event, used to distinguish signals, absolute
+    // and relative axis changes, and other types of event.
+    optional uint32 type = 2;
+    // The precise type of the event, such as the axis code for absolute and
+    // relative events.
+    optional uint32 code = 3;
+    // The new value of the axis described by type and code.
+    optional sint32 value = 4;
+  }
+
+  // Describes an evdev device being added to the system.
+  //
+  // Next ID: 2
+  message DeviceAddition {
+    optional EvdevDevice device = 1;
+  }
+
+  // Describes an evdev device being removed from the system.
+  //
+  // Next ID: 1
+  message DeviceRemoval {
+    // Empty — we don't need to record any data other than the device ID for
+    // this event type.
   }
 }
 
@@ -393,5 +386,12 @@ message FrameTimelineEvent {
     ActualSurfaceFrameStart actual_surface_frame_start = 4;
 
     FrameEnd frame_end = 5;
+  }
+}
+
+message FrameworksNativeTracePacket {
+  extend perfetto.protos.TracePacket {
+    optional FrameTimelineEvent frame_timeline_event = 76;
+    optional EvdevEvent evdev_event = 121;
   }
 }

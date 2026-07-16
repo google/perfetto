@@ -110,8 +110,49 @@ class ProfilingHeapProfiling(TestSuite):
         "unknown",0,0,-1000
         """))
 
-  # A dump's interval falls back to just after the previous dump of the same
-  # heap, so continuous dumps still render as non-zero intervals.
+  # A dump with start_timestamp populates heap_profile, and allocations join it
+  # via (upid, ts = ts_end).
+  def test_heap_profile_window(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_window.textproto'),
+        query="""
+        SELECT hp.ts, hp.ts_end, hp.dur, a.ts AS alloc_ts, a.size
+        FROM heap_profile AS hp
+        JOIN heap_profile_allocation AS a
+          ON hp.upid = a.upid AND a.ts = hp.ts_end;
+        """,
+        out=Csv("""
+        "ts","ts_end","dur","alloc_ts","size"
+        5,20,15,20,1000
+        """))
+
+  # Without start_timestamp the window collapses to a point at the dump time.
+  def test_heap_profile_window_legacy(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_dump_max.textproto'),
+        query="""
+        SELECT ts, ts_end, dur FROM heap_profile;
+        """,
+        out=Csv("""
+        "ts","ts_end","dur"
+        -10,-10,0
+        """))
+
+  # With start_timestamp, the interval comes straight from heap_profile.
+  def test_heap_profile_intervals_window(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_window.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.heap_profile.intervals;
+        SELECT heap_name, ts, dur FROM _android_heap_profile_intervals;
+        """,
+        out=Csv("""
+        "heap_name","ts","dur"
+        "unknown",5,15
+        """))
+
+  # Without start_timestamp, a dump's interval falls back to the previous dump
+  # of the same heap, so continuous dumps still render as non-zero intervals.
   def test_heap_profile_intervals_legacy(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_continuous_legacy.textproto'),
