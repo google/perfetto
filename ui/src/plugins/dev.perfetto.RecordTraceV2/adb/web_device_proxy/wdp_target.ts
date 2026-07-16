@@ -12,33 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type protos from '../../../../protos';
 import {errResult, okResult, type Result} from '../../../../base/result';
 import type {PreflightCheck} from '../../interfaces/connection_check';
 import type {RecordingTarget} from '../../interfaces/recording_target';
-import type {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
 import {checkAndroidTarget} from '../adb_platform_checks';
-import {
-  createAdbTracingSession,
-  getAdbTracingServiceState,
-} from '../adb_tracing_session';
 import {AdbWebsocketDevice} from '../websocket/adb_websocket_device';
-import {AsyncLazy} from '../../../../base/async_lazy';
 import type {WdpDevice} from './wdp_schema';
 import {showPopupWindow} from '../../../../base/popup_window';
 import {defer} from '../../../../base/deferred';
+import {AdbRecordingTarget} from '../adb_recording_target';
 
-export class WebDeviceProxyTarget implements RecordingTarget {
-  readonly kind = 'LIVE_RECORDING';
-  readonly platform = 'ANDROID';
-
-  private adbDevice = new AsyncLazy<AdbWebsocketDevice>();
+export class WebDeviceProxyTarget
+  extends AdbRecordingTarget<AdbWebsocketDevice>
+  implements RecordingTarget
+{
   readonly id: string;
 
   constructor(
     private wsUrl: string,
     private devJson: WdpDevice,
   ) {
+    super();
     this.id = this.devJson.serialNumber;
     this.updateWdpState(devJson);
   }
@@ -79,10 +73,6 @@ export class WebDeviceProxyTarget implements RecordingTarget {
     return `${this.devJson.proxyStatus} [${this.id}]`;
   }
 
-  get connected(): boolean {
-    return this.adbDevice.value?.connected ?? false;
-  }
-
   async *runPreflightChecks(): AsyncGenerator<PreflightCheck> {
     await this.connectIfNeeded();
 
@@ -94,7 +84,7 @@ export class WebDeviceProxyTarget implements RecordingTarget {
     yield* checkAndroidTarget(this.adbDevice.value);
   }
 
-  private async connectIfNeeded(): Promise<Result<AdbWebsocketDevice>> {
+  protected async connectIfNeeded(): Promise<Result<AdbWebsocketDevice>> {
     return this.adbDevice.getOrCreate(async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         if (this.devJson.proxyStatus === 'PROXY_UNAUTHORIZED') {
@@ -126,29 +116,5 @@ export class WebDeviceProxyTarget implements RecordingTarget {
           'authorize access and try again',
       );
     });
-  }
-
-  disconnect(): void {
-    // There isn't much to do in this case. If the device is disconnected,
-    // the per-stream sockets will be naturally closed by adb. In turn,
-    // websocket_bridge will propagate that as a closure of the per-stream
-    // WebSockets.
-    this.adbDevice.value?.close();
-    this.adbDevice.reset();
-  }
-
-  async getServiceState(): Promise<Result<protos.ITracingServiceState>> {
-    if (this.adbDevice.value === undefined) {
-      return errResult('WebSocket transport disconnected');
-    }
-    return getAdbTracingServiceState(this.adbDevice.value);
-  }
-
-  async startTracing(
-    traceConfig: protos.ITraceConfig,
-  ): Promise<Result<ConsumerIpcTracingSession>> {
-    const adbDeviceStatus = await this.connectIfNeeded();
-    if (!adbDeviceStatus.ok) return adbDeviceStatus;
-    return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
   }
 }

@@ -16,7 +16,7 @@ import protos from '../../protos';
 import {assertFalse, assertTrue} from '../../base/assert';
 import {errResult, okResult, type Result} from '../../base/result';
 import type {App} from '../../public/app';
-import type {RecordSubpage} from './config/config_interfaces';
+import {supportsPlatform, type RecordSubpage} from './config/config_interfaces';
 import {ConfigManager} from './config/config_manager';
 import type {RecordingTarget} from './interfaces/recording_target';
 import type {RecordingTargetProvider} from './interfaces/recording_target_provider';
@@ -175,6 +175,16 @@ export class RecordingManager {
     if (this._tracingSession !== undefined) {
       this._tracingSession.session?.cancel();
       this._tracingSession = undefined;
+    }
+    // Let enabled probes do any device-side setup (e.g. flip a sysprop the data
+    // source needs) before the session starts.
+    const target = this.currentTarget;
+    if (target !== undefined) {
+      for (const probe of this.recordConfig.getEnabledProbes()) {
+        if (supportsPlatform(probe, this.currentPlatform)) {
+          await probe.onStartRecording?.(target);
+        }
+      }
     }
     const traceCfg = this.genTraceConfig();
     const wrappedSession = new CurrentTracingSession(this, traceCfg);

@@ -10,18 +10,18 @@ and click any frame to line it up with the tracks below it.
 It records the actual contents of the screen, so any trace that contains
 it is sensitive: it shows exactly what was on the display. On `userdebug`
 (debuggable) devices it is available out of the box. On `user`
-(production) builds it is disabled by default and must be unlocked with a
-system property first — see [Prerequisite on `user`
-builds](#prerequisite-on-user-builds).
+(production) builds it is gated behind a system property; the record page
+sets it for you, and you only set it by hand for other capture paths — see
+[Prerequisite on `user` builds](#prerequisite-on-user-builds).
 
 This guide covers:
 
 - [How it works, and what it costs](#how-it-works-and-what-it-costs) —
   how the frames get into the trace, and the overhead on the device.
-- [Capturing display video](#capturing-display-video): the property to
-  set first on `user` builds, then the three ways to turn it on — the
-  on-device toggle, the record page, and a raw config with full control
-  over quality and size.
+- [Capturing display video](#capturing-display-video): the three ways to
+  turn it on — the on-device toggle, the record page, and a raw config with
+  full control over quality and size — plus the `user`-build property you set
+  by hand only for the non-record-page paths.
 - [Viewing display video](#viewing-display-video): the timeline track,
   hovering to preview a frame, and playing the capture back with the
   timeline kept in sync.
@@ -50,19 +50,22 @@ property to set first — see the prerequisite below.
 
 ### Prerequisite on `user` builds
 
-On `userdebug` (debuggable) devices, display-video capture works out of
-the box, and you can skip this step. On `user` (production) builds it is
-disabled by default: unlock it first by setting a system property over
-ADB.
+On `userdebug` (debuggable) devices, display-video capture works out of the
+box. On `user` (production) builds it is gated behind the
+`debug.tracing_video_allowed` system property.
+
+**If you record from the Perfetto UI record page over ADB, skip this** — the
+record page sets the property for you before starting a trace that includes
+display video. You only set it by hand for the other capture paths (the
+on-device System Tracing toggle, or a raw config you push another way):
 
 ```
 adb shell setprop debug.tracing_video_allowed true
 ```
 
-This property is **not persistent** — it is cleared on the next reboot.
-After the device restarts you have to set it again before you can capture
-display video. Once it is set, capture works through any of the methods
-below: the on-device toggle, the record page, or a raw config.
+The property is **not persistent** — it is cleared on the next reboot, so it
+must be set again after a restart. The record page does this each time; a
+manual setter has to redo it.
 
 ### On the device, with System Tracing
 
@@ -77,7 +80,9 @@ holding — no config to write.
 
 Open the Perfetto UI record page, find **Display video frames** under the
 Android probes, and enable it. This adds the `android.display.video` data
-source to the generated config with the producer's default settings.
+source to the generated config with the producer's default settings. On
+`user` builds, when recording over ADB, the record page sets
+`debug.tracing_video_allowed` for you first — no manual step needed.
 
 ![The Perfetto record page with "Android apps & svcs" selected in the sidebar; the "Display video frames" probe sits in the probe list, toggled off, captioned "Captures what each display showed during the trace."](../images/video_frames/02-record-probe.png)
 

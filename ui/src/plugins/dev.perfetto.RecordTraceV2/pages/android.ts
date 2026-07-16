@@ -149,13 +149,21 @@ function displayVideo(): RecordProbe {
     title: 'Display video frames',
     description:
       'Captures what each display showed during the trace. On user ' +
-      '(production) builds this must be enabled first, until the next ' +
-      'reboot, by running:' +
+      '(production) builds this needs debug.tracing_video_allowed; the ' +
+      'record page sets it over adb automatically (it resets on reboot). ' +
+      'Set it manually only if capturing another way: ' +
       '```adb shell setprop debug.tracing_video_allowed true```',
     supportedPlatforms: ['ANDROID'],
     docsLink: 'https://perfetto.dev/docs/data-sources/video-frames',
     genConfig: function (tc: TraceConfigBuilder) {
       tc.addDataSource('android.display.video');
+    },
+    async onStartRecording(target) {
+      // Enable display video before the producer reads the gate at session
+      // start; best-effort (no-op on non-adb targets, harmless on userdebug).
+      await target.runShellCommand?.(
+        'setprop debug.tracing_video_allowed true',
+      );
     },
   };
 }
