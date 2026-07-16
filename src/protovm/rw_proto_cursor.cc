@@ -16,6 +16,8 @@
 
 #include "src/protovm/rw_proto_cursor.h"
 
+#include <cinttypes>
+
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/protovm/error_handling.h"
 
@@ -277,6 +279,7 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
     }
 
     if (it->value->GetIf<Node::MappedRepeatedField>()) {
+      allocator_->Delete(status_or_map_value->release());
       PROTOVM_ABORT(
           "Merge operation of mapped repeated field is not supported (field id "
           "= %u)",
@@ -290,7 +293,10 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
     if (it->value->has_been_merged) {
       auto status_convert_to_indexed =
           ConvertToIndexedRepeatedFieldIfNeeded(it->value.get());
-      PROTOVM_RETURN_IF_NOT_OK(status_convert_to_indexed);
+      if (!status_convert_to_indexed.IsOk()) {
+        allocator_->Delete(status_or_map_value->release());
+        PROTOVM_RETURN(status_convert_to_indexed);
+      }
     }
 
     if (auto* indexed_fields = it->value->GetIf<Node::IndexedRepeatedField>()) {
@@ -303,9 +309,10 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
         allocator_->DeleteReferencedData(it->value.get());
         it->value->has_been_merged = true;
       }
-      MapInsert(&indexed_fields->index_to_node,
-                indexed_fields->index_to_node.Size(),
-                std::move(*status_or_map_value));
+      auto status_or_inserted_it = MapInsert(
+          &indexed_fields->index_to_node, indexed_fields->index_to_node.Size(),
+          std::move(*status_or_map_value));
+      PROTOVM_RETURN_IF_NOT_OK(status_or_inserted_it);
       continue;
     }
 
@@ -314,6 +321,14 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
     allocator_->Delete(it->value.release());
     it->value = std::move(*status_or_map_value);
     it->value->has_been_merged = true;
+  }
+
+  // The decoder stops both at the end of the message and at the first
+  // malformed field. Bytes left means malformed (untrusted) data: fail loudly
+  // instead of silently applying a partial merge.
+  if (decoder.bytes_left() > 0) {
+    PROTOVM_ABORT("Malformed proto data (%zu undecodable bytes)",
+                  decoder.bytes_left());
   }
 
   // Reset the merge flags
@@ -329,6 +344,10 @@ StatusOr<void> RwProtoCursor::Delete() {
 
   PROTOVM_ASSIGN_OR_RETURN(bool is_root, IsRoot());
   if (is_root) {
+    // Free the subtree hanging off the root, not just reset the root's
+    // value: the subtree would otherwise be unreachable but still accounted
+    // by the allocator (leak).
+    allocator_->DeleteReferencedData(node_);
     node_->value = Node::Empty{};
     return StatusOr<void>::Ok();
   }
@@ -411,6 +430,15 @@ StatusOr<void> RwProtoCursor::ConvertToMessageIfNeeded(Node* node) {
                      "Insert repeated field (id = %u, index = %d)", field.id(),
                      static_cast<int>(index_to_node.Size()));
     }
+  }
+
+  // The decoder stops both at the end of the message and at the first
+  // malformed field. Bytes left means malformed (untrusted) data, which must
+  // not be silently decomposed into a partial message.
+  if (decoder.bytes_left() > 0) {
+    allocator_->DeleteReferencedData(&message);
+    PROTOVM_ABORT("Malformed proto data (%zu undecodable bytes)",
+                  decoder.bytes_left());
   }
 
   allocator_->DeleteReferencedData(node);
@@ -505,6 +533,17 @@ StatusOr<void> RwProtoCursor::ConvertToMappedRepeatedFieldIfNeeded(
   if (auto* indexed = node->GetIf<Node::IndexedRepeatedField>()) {
     Node::MappedRepeatedField mapped_repeated_field;
 
+    // On failure, the entries migrated into the (discarded) local map so far
+    // would be leaked, so they must be freed to keep the allocator's
+    // accounting consistent. The error is propagated to the caller anyways.
+    auto delete_migrated_entries = [&]() {
+      for (auto it = mapped_repeated_field.key_to_node.begin(); it;) {
+        auto& migrated_entry = *it;
+        it = mapped_repeated_field.key_to_node.Remove(it);
+        allocator_->Delete(&migrated_entry);
+      }
+    };
+
     for (auto it = indexed->index_to_node.begin(); it;) {
       auto& map_entry = *it;
       auto& value_node = *it->value;
@@ -512,10 +551,26 @@ StatusOr<void> RwProtoCursor::ConvertToMappedRepeatedFieldIfNeeded(
       it = indexed->index_to_node.Remove(it);
 
       auto status_or_key = ReadScalarField(value_node, map_key_field_id);
-      PROTOVM_RETURN_IF_NOT_OK(status_or_key);
+      if (!status_or_key.IsOk()) {
+        allocator_->Delete(&map_entry);
+        delete_migrated_entries();
+        PROTOVM_RETURN(status_or_key);
+      }
 
       map_entry.key = *status_or_key;
-      mapped_repeated_field.key_to_node.Insert(map_entry);
+      bool inserted =
+          mapped_repeated_field.key_to_node.Insert(map_entry).second;
+      if (!inserted) {
+        // Silently dropping one of the colliding entries would corrupt the
+        // state, so this is an abort.
+        uint64_t key = map_entry.key;
+        allocator_->Delete(&map_entry);
+        delete_migrated_entries();
+        PROTOVM_ABORT(
+            "Failed to convert to mapped repeated field: duplicated key "
+            "(%" PRIu64 ")",
+            key);
+      }
     }
 
     node->value = mapped_repeated_field;
