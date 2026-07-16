@@ -161,7 +161,7 @@ interface StringsViewAttrs {
   readonly hasFieldValues?: boolean;
 }
 
-function StringsView(): m.Component<StringsViewAttrs> {
+export function StringsView(): m.Component<StringsViewAttrs> {
   let allRows: StringListRow[] | null = null;
   let alive = true;
   let dataSource: SQLDataSource | null = null;
@@ -276,5 +276,3 @@ function StringsView(): m.Component<StringsViewAttrs> {
     },
   };
 }
-
-export default StringsView;

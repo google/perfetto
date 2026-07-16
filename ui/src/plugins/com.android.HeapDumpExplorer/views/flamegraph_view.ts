@@ -170,7 +170,7 @@ function buildHeapGraphMetrics(
   );
 }
 
-const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
+export const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
   let cachedMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
   let cachedKey: string | undefined;
 
@@ -232,5 +232,3 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
     },
   };
 };
-
-export default FlamegraphView;

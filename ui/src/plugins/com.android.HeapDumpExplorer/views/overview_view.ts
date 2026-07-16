@@ -233,7 +233,7 @@ interface OverviewViewAttrs {
   readonly onBackToTimeline: () => void;
   readonly onDismissDefaultChangedHint: () => void;
 }
-function OverviewView(): m.Component<OverviewViewAttrs> {
+export function OverviewView(): m.Component<OverviewViewAttrs> {
   return {
     view(vnode) {
       const {
@@ -446,5 +446,3 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
     },
   };
 }
-
-export default OverviewView;

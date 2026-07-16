@@ -523,7 +523,7 @@ function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
   };
 }
 
-function ObjectView(): m.Component<ObjectViewAttrs> {
+export function ObjectView(): m.Component<ObjectViewAttrs> {
   let detail: InstanceDetail | null | 'loading' = 'loading';
   let prevId: number | undefined;
   let alive = true;
@@ -1108,5 +1108,3 @@ function renderClassHierarchy(
     ),
   );
 }
-
-export default ObjectView;
