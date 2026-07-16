@@ -162,12 +162,9 @@ STACK_SAMPLE_FOLLOWER_TABLE = Table(
                point as the primary timebase.''',
         group='Callstack profilers',
         columns={
-            'stack_sample_id':
-                '''The sample this follower value belongs to.''',
-            'counter_id':
-                '''The follower counter this value is for.''',
-            'weight':
-                '''The follower counter value at this sample.''',
+            'stack_sample_id': '''The sample this follower value belongs to.''',
+            'counter_id': '''The follower counter this value is for.''',
+            'weight': '''The follower counter value at this sample.''',
         }))
 
 # Keep this list sorted.

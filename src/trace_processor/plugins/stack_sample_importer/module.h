@@ -22,6 +22,8 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/profiling/stack_sample.pbzero.h"
+#include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/plugins/stack_sample_importer/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -73,8 +75,8 @@ class StackSampleModule : public ProtoImporterModule {
       PacketSequenceStateGeneration* sequence_state,
       StringId source,
       const protos::pbzero::StackSample::Decoder& sample,
-      const std::optional<
-          protos::pbzero::StackSampleDefaults::Decoder>& defaults);
+      const std::optional<protos::pbzero::StackSampleDefaults::Decoder>&
+          defaults);
 
   void ParseStackSample(int64_t ts,
                         PacketSequenceStateGeneration* sequence_state,

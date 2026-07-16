@@ -211,7 +211,8 @@ void StackSampleModule::ParseFollowers(
     PacketSequenceStateGeneration* sequence_state,
     StringId source,
     const protos::pbzero::StackSample::Decoder& sample,
-    const std::optional<protos::pbzero::StackSampleDefaults::Decoder>& defaults) {
+    const std::optional<protos::pbzero::StackSampleDefaults::Decoder>&
+        defaults) {
   using protos::pbzero::InternedData;
   using CounterDescriptor = protos::pbzero::StackSample::CounterDescriptor;
 
