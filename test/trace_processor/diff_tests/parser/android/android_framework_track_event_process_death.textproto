@@ -1,0 +1,69 @@
+# Exercises process-death matching in the android_framework_track_event plugin.
+# start / binder_died / process_died are matched by start_seq, in either order;
+# whichever death comes first ends the process, and process_died always records
+# the exit reason (even if already ended by binder_died).
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor { uuid: 2 thread { pid: 100 tid: 100 thread_name: "procA" } }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1
+  track_descriptor { uuid: 3 thread { pid: 200 tid: 200 thread_name: "procB" } }
+}
+# Exit-reason enums so reason/sub_reason resolve to names.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2
+  extension_descriptor {
+    extension_set {
+      file {
+        package: "com.android.internal"
+        name: "fbte_exit_enums.proto"
+        enum_type {
+          name: "AppExitReasonCode"
+          value { name: "APP_EXIT_REASON_CRASH" number: 4 }
+          value { name: "APP_EXIT_REASON_ANR" number: 6 }
+        }
+        enum_type {
+          name: "AppExitSubReasonCode"
+          value { name: "APP_EXIT_SUBREASON_TOO_MANY_CACHED" number: 2 }
+        }
+      }
+    }
+  }
+}
+# A: start (seq 1).
+packet { trusted_packet_sequence_id: 1 timestamp: 1000 track_event {
+  type: TYPE_INSTANT track_uuid: 2 name: "start_A"
+  [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+    uid: 10001 pid: 100 process_name: "com.example.a" start_seq: 1 } } }
+# B: start (seq 2).
+packet { trusted_packet_sequence_id: 1 timestamp: 1500 track_event {
+  type: TYPE_INSTANT track_uuid: 3 name: "start_B"
+  [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+    uid: 10002 pid: 200 process_name: "com.example.b" start_seq: 2 } } }
+# A: binder_died FIRST -> ends the process.
+packet { trusted_packet_sequence_id: 1 timestamp: 2000 track_event {
+  type: TYPE_INSTANT track_uuid: 2 name: "binder_died_A"
+  [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+    uid: 10001 pid: 100 process_name: "com.example.a" start_seq: 1 } } }
+# B: process_died FIRST -> ends + records reason.
+packet { trusted_packet_sequence_id: 1 timestamp: 2500 track_event {
+  type: TYPE_INSTANT track_uuid: 3 name: "process_died_B"
+  [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+    uid: 10002 pid: 200 process_name: "com.example.b" start_seq: 2
+    reason: 6 } } }
+# A: process_died LATER -> already ended, but still records the exit reason.
+packet { trusted_packet_sequence_id: 1 timestamp: 3000 track_event {
+  type: TYPE_INSTANT track_uuid: 2 name: "process_died_A"
+  [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+    uid: 10001 pid: 100 process_name: "com.example.a" start_seq: 1
+    reason: 4 sub_reason: 2 } } }
+# B: binder_died LATER -> already ended, so skipped.
+packet { trusted_packet_sequence_id: 1 timestamp: 3500 track_event {
+  type: TYPE_INSTANT track_uuid: 3 name: "binder_died_B"
+  [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+    uid: 10002 pid: 200 process_name: "com.example.b" start_seq: 2 } } }

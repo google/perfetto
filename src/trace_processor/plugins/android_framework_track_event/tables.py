@@ -50,6 +50,15 @@ ANDROID_TRACK_EVENT_PROCESS_TABLE = Table(
         C('process_start_delay_ms',
           CppOptional(CppInt64()),
           cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('start_seq',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('reason',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('sub_reason',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ],
     tabledoc=TableDoc(
         doc='Per-process lifecycle from Android framework TrackEvents.',
@@ -71,6 +80,12 @@ ANDROID_TRACK_EVENT_PROCESS_TABLE = Table(
                 'Milliseconds to reach bind application.',
             'process_start_delay_ms':
                 'Milliseconds to finish starting the process.',
+            'start_seq':
+                'Framework start sequence matching this instance.',
+            'reason':
+                'AppExitReasonCode from AndroidProcessDiedEvent.',
+            'sub_reason':
+                'AppExitSubReasonCode from AndroidProcessDiedEvent.',
         },
     ),
 )

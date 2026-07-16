@@ -650,6 +650,10 @@ message AndroidProcessStartEvent {
 
   // Whether the process was spawned from the native or legacy zygote variant.
   optional HostingZygoteVariant hosting_zygote_variant = 9;
+
+  // Sequence number of the process start; matches the start/death events of
+  // the same process instance even across pid reuse.
+  optional int64 start_seq = 10;
 }
 
 // This can be delayed for up to 15s in some cases. It should typically
@@ -678,6 +682,10 @@ message AndroidProcessDiedEvent {
 
   // Whether or not this process is hosting one or more foreground services.
   optional int32 has_foreground_services = 8;
+
+  // Sequence number of the process start; matches the start/death events of
+  // the same process instance even across pid reuse.
+  optional int64 start_seq = 9;
 }
 
 // This is expected to come earlier than AndroidProcessDiedEvent.
@@ -691,6 +699,10 @@ message AndroidBinderDiedEvent {
 
   // The process name of the dying process.
   optional string process_name = 3;
+
+  // Sequence number of the process start; matches the start/death events of
+  // the same process instance even across pid reuse.
+  optional int64 start_seq = 4;
 }
 
 message AndroidProcessStateChangedEvent {

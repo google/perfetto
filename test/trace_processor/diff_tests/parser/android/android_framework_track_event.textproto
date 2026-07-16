@@ -25,6 +25,7 @@ packet {
       uid: 10001
       pid: 100
       process_name: "com.example.app"
+      start_seq: 1
     }
   }
 }
@@ -41,6 +42,7 @@ packet {
       uid: 10001
       pid: 100
       process_name: "com.example.app"
+      start_seq: 1
     }
   }
 }
@@ -56,6 +58,7 @@ packet {
       uid: 10001
       pid: 100
       process_name: "com.example.app"
+      start_seq: 1
     }
   }
 }
