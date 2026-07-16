@@ -15,7 +15,10 @@
 import type m from 'mithril';
 import type {Trace} from '../public/trace';
 import {QueryFlamegraph, type QueryFlamegraphMetric} from './query_flamegraph';
-import type {FlamegraphState} from '../widgets/flamegraph';
+import type {
+  FlamegraphAddableMetric,
+  FlamegraphState,
+} from '../widgets/flamegraph';
 
 export interface FlamegraphPanelAttrs {
   readonly trace: Trace;
@@ -29,6 +32,9 @@ export interface FlamegraphPanelAttrs {
   readonly state?: FlamegraphState;
 
   readonly onStateChange: (state: FlamegraphState) => void;
+
+  readonly addableMetrics?: ReadonlyArray<FlamegraphAddableMetric>;
+  readonly onAddMetric?: (metric: FlamegraphAddableMetric) => void;
 
   // Perfetto tables / indices the metric SQL depends on. The panel forwards
   // them to the inner `QueryFlamegraph`, which disposes them along with
@@ -60,6 +66,8 @@ export class FlamegraphPanel implements m.ClassComponent<FlamegraphPanelAttrs> {
     return this.flamegraph.render({
       metrics: attrs.metrics,
       state: attrs.state,
+      addableMetrics: attrs.addableMetrics,
+      onAddMetric: attrs.onAddMetric,
       onStateChange: attrs.onStateChange,
     });
   }

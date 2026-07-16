@@ -380,9 +380,10 @@ export class HeapDumpExplorerSession {
     isDominator: boolean,
   ): void => {
     this.setFlamegraphPanelState({
-      selectedMetricName: isDominator
+      selectedMetricId: isDominator
         ? METRIC_DOMINATED_OBJECT_SIZE
         : METRIC_OBJECT_SIZE,
+      addedMetricIds: [],
       filters: [],
       view: {
         kind: 'PIVOT',

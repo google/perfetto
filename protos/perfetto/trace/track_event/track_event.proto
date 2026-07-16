@@ -303,6 +303,13 @@ message TrackEvent {
     uint64 callstack_iid = 56;
   }
 
+  // An optional additive value attributed to this callstack occurrence. When
+  // present, weighted callstack aggregations only include occurrences which
+  // have this field set; they do not mix weighted and unweighted samples.
+  // Consumers can use sample count as a separate fallback measure when no
+  // weighted occurrences are available.
+  optional double callstack_weight = 57;
+
   // Inline callstack for TrackEvents when interning is not needed.
   // This is a simplified version of the profiling Callstack/Frame messages,
   // designed for cases where trace size is not critical or callstacks are
