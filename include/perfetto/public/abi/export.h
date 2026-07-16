@@ -31,7 +31,7 @@
 // line):
 // * PERFETTO_SDK_DISABLE_SHLIB_EXPORT: If this is defined, no export
 //   annotations are added. This might be useful when static linking.
-// * PERFETTO_SDK_SHLIB_IMPLEMENTATION: This must be defined when compiling the
+// * PERFETTO_SHLIB_SDK_IMPLEMENTATION: This must be defined when compiling the
 //   shared library itself (in order to export the symbols), but must be
 //   undefined when compiling objects that use the shared library (in order to
 //   import the symbols).
