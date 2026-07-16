@@ -20,6 +20,7 @@
 // directly from .ts source instead of from tsc's emit.
 
 import {defineConfig} from 'vite';
+import checker from 'vite-plugin-checker';
 import path from 'node:path';
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
@@ -266,6 +267,21 @@ export default defineConfig(({command}) => {
     // magic "publicDir" handling so it doesn't try to serve it at /.
     publicDir: false,
     plugins: [
+      // Type-checks the main `ui` tsconfig project. The checker spawns
+      // `tsc --noEmit -p ui/tsconfig.json` from buildStart and only awaits it
+      // in buildEnd, so it runs concurrently with bundling instead of ahead of
+      // it. Gated to the frontend bundle: build.mjs runs one `vite build` per
+      // bundle, and frontend is both the only slow one (so there's something
+      // to overlap with) and the only one that covers this tsconfig project.
+      ...(isBuild && BUNDLE === 'frontend'
+        ? [
+            checker({
+              typescript: {
+                tsconfigPath: path.join(ROOT_DIR, 'ui/tsconfig.json'),
+              },
+            }),
+          ]
+        : []),
       pluginPerfettoVersion(),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.

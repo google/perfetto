@@ -429,6 +429,13 @@ Env-var overrides:
       // type error fails the build. In watch mode tsc --watch runs async in
       // the background and prints errors without killing the build.
       for (const prj of tsProjects) {
+        // The `ui` project is type-checked by vite-plugin-checker from within
+        // the frontend `vite build` (see vite.config.mjs), which runs it
+        // concurrently with bundling rather than serially before it. That
+        // bundle only exists when !useHmr (see runVite) — under HMR the dev
+        // server serves the frontend live and never builds it — so `ui` still
+        // needs a tsc of its own in that case.
+        if (prj === 'ui' && !cfg.useHmr) continue;
         if (cfg.watch) {
           transpileTsProject(prj, {
             watch: true,
@@ -810,6 +817,14 @@ function transpileTsProject(project, options) {
 // `new Worker(assetSrc(...))` / SW registration.
 function runVite() {
   const baseEnv = {
+    // vite-plugin-checker (see vite.config.mjs) spawns `tsc` through a shell,
+    // resolving it from PATH which it derives by walking up from the cwd. We
+    // run vite with cwd=cfg.outDir, which has no node_modules above it, so
+    // point PATH at the toolchain explicitly.
+    PATH: [
+      pjoin(ROOT_DIR, 'ui/node_modules/.bin'),
+      process.env.PATH ?? '',
+    ].join(path.delimiter),
     NO_SOURCE_MAPS: cfg.noSourceMaps ? 'true' : '',
     NO_TREESHAKE: cfg.noTreeshake ? 'true' : '',
     MINIFY_JS: cfg.minifyJs || '',
