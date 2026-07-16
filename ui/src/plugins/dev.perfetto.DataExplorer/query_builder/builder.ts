@@ -118,7 +118,6 @@ import {
   DrawerPanelVisibility,
 } from '../../../widgets/drawer_panel';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import type {QueryResponse} from '../../../components/query_table/queries';
 import QueryPagePlugin from '../../dev.perfetto.QueryPage';
 import {SqlSourceNode} from './nodes/sources/sql_source';
@@ -639,8 +638,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
     this.dataSource = new SQLDataSource({
       engine,
-      sqlSchema: createSimpleSchema(result.tableName),
-      rootSchemaName: 'query',
+      tableOrSubquery: result.tableName,
     });
     this.isQueryRunning = false;
 

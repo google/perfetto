@@ -19,21 +19,28 @@ import {maybeUndefined} from '../../../base/utils';
  *
  * This module defines how column paths (like 'parent.name' or 'thread.process.pid')
  * map to SQL queries with appropriate JOINs. It works in parallel with the UI
- * SchemaRegistry but focuses on SQL generation rather than rendering.
+ * ColumnSchema but focuses on SQL generation rather than rendering.
+ *
+ * A schema is a tree: joins embed the referenced table schema directly. For
+ * self-referential tables (e.g. a slice's parent slice) use a `get schema()`
+ * getter so the reference resolves lazily, after the object is constructed.
  *
  * Example usage:
  * ```typescript
- * const schema: SQLSchemaRegistry = {
- *   slice: {
- *     table: 'slice',
- *     columns: {
- *       id: {},
- *       name: {},
- *       parent: { ref: 'slice', foreignKey: 'parent_id' },
- *       args: {
- *         expression: (alias, key) => `extract_arg(${alias}.arg_set_id, '${key}')`,
- *         parameterized: true,
+ * const slice: SQLTableSchema = {
+ *   table: 'slice',
+ *   columns: {
+ *     id: {},
+ *     name: {},
+ *     parent: {
+ *       get schema() {
+ *         return slice; // Lazy self-reference.
  *       },
+ *       foreignKey: 'parent_id',
+ *     },
+ *     args: {
+ *       expression: (alias, key) => `extract_arg(${alias}.arg_set_id, '${key}')`,
+ *       parameterized: true,
  *     },
  *   },
  * };
@@ -41,21 +48,13 @@ import {maybeUndefined} from '../../../base/utils';
  */
 
 /**
- * Registry of named SQL schemas that can reference each other.
- * Parallel to SchemaRegistry but for SQL generation.
- */
-export interface SQLSchemaRegistry {
-  [schemaName: string]: SQLTableSchema;
-}
-
-/**
  * Defines how to produce SQL for a table's columns.
  */
 export interface SQLTableSchema {
   /**
-   * The SQL table name.
+   * The SQL table name or subquery
    */
-  readonly table: string;
+  readonly tableOrSubquery: string;
 
   /**
    * The primary key column (defaults to 'id').
@@ -65,7 +64,7 @@ export interface SQLTableSchema {
   /**
    * Column definitions.
    */
-  readonly columns: {
+  readonly columns?: {
     [columnName: string]: SQLColumnDef | SQLJoinDef | SQLExpressionDef;
   };
 }
@@ -85,9 +84,9 @@ export interface SQLColumnDef {
  */
 export interface SQLJoinDef {
   /**
-   * Name of the schema in the registry to join to.
+   * The schema of the table to join to.
    */
-  readonly ref: string;
+  readonly schema: SQLTableSchema;
 
   /**
    * Local column containing the foreign key (e.g., 'parent_id').
@@ -123,8 +122,8 @@ export interface SQLExpressionDef {
    * SQL query generator to fetch available parameter keys.
    * Only used when parameterized is true.
    *
-   * @param baseTable The base table name (e.g., 'slice')
-   * @param baseAlias The base table alias (e.g., 'slice_0')
+   * @param tableOrSubquery The base table name (e.g., 'slice')
+   * @param alias The base table alias (e.g., 'base')
    * @returns A SQL query that returns rows with a 'key' column
    *
    * Example for args:
@@ -140,36 +139,9 @@ export interface SQLExpressionDef {
    * ```
    */
   readonly parameterKeysQuery?: (
-    baseTable: string,
-    baseAlias: string,
+    tableOrSubquery: string,
+    alias: string,
   ) => string;
-}
-
-/**
- * Type guard for SQLJoinDef.
- */
-export function isSQLJoinDef(
-  def: SQLColumnDef | SQLJoinDef | SQLExpressionDef,
-): def is SQLJoinDef {
-  return 'ref' in def && 'foreignKey' in def;
-}
-
-/**
- * Type guard for SQLExpressionDef.
- */
-export function isSQLExpressionDef(
-  def: SQLColumnDef | SQLJoinDef | SQLExpressionDef,
-): def is SQLExpressionDef {
-  return 'expression' in def;
-}
-
-/**
- * Type guard for SQLColumnDef.
- */
-export function isSQLColumnDef(
-  def: SQLColumnDef | SQLJoinDef | SQLExpressionDef,
-): def is SQLColumnDef {
-  return !isSQLJoinDef(def) && !isSQLExpressionDef(def);
 }
 
 /**
@@ -177,12 +149,12 @@ export function isSQLColumnDef(
  */
 export interface ResolvedJoin {
   /**
-   * The table to join.
+   * The table or subquery to join.
    */
-  readonly table: string;
+  readonly tableOrSubquery: string;
 
   /**
-   * Unique alias for this join instance (e.g., 'slice_1', 'slice_2').
+   * Unique alias for this join instance (e.g., 't0', 't1').
    */
   readonly alias: string;
 
@@ -227,21 +199,20 @@ export interface ResolvedSQLColumn {
  */
 interface JoinKey {
   readonly fromAlias: string;
-  readonly table: string;
+  readonly tableOrSubquery: string;
   readonly foreignKey: string;
   readonly innerJoin: boolean;
 }
 
 function joinKeyToString(key: JoinKey): string {
-  return `${key.fromAlias}|${key.table}|${key.foreignKey}|${key.innerJoin}`;
+  return `${key.fromAlias}|${key.tableOrSubquery}|${key.foreignKey}|${key.innerJoin}`;
 }
 
 /**
  * Builder class for resolving column paths to SQL with JOIN deduplication.
  */
 export class SQLSchemaResolver {
-  private readonly registry: SQLSchemaRegistry;
-  private readonly rootSchemaName: string;
+  private readonly schema: SQLTableSchema;
   private readonly baseAlias: string;
 
   // Track existing joins to deduplicate
@@ -249,23 +220,13 @@ export class SQLSchemaResolver {
   private readonly joins: ResolvedJoin[] = [];
   private aliasCounter = 0;
 
-  constructor(
-    registry: SQLSchemaRegistry,
-    rootSchemaName: string,
-    baseAlias?: string,
-  ) {
-    this.registry = registry;
-    this.rootSchemaName = rootSchemaName;
+  constructor(schema: SQLTableSchema, baseAlias?: string) {
+    this.schema = schema;
 
-    if (baseAlias) {
-      this.baseAlias = baseAlias;
-    } else {
-      const table = registry[rootSchemaName]?.table ?? 'base';
-      // If the table is a subquery (starts with '('), use a generic alias
-      // to avoid creating invalid SQL like "(SELECT ...)_0"
-      const aliasBase = table.startsWith('(') ? 'subquery' : table;
-      this.baseAlias = `${aliasBase}_0`;
-    }
+    // Aliases are neutral identifiers ('base', 't0', 't1', ...). They only need
+    // to be unique and valid SQL - the table/subquery text is never embedded, so
+    // subqueries can't produce invalid aliases.
+    this.baseAlias = baseAlias ?? 'base';
   }
 
   /**
@@ -278,9 +239,8 @@ export class SQLSchemaResolver {
   /**
    * Gets the base table name.
    */
-  getBaseTable(): string {
-    const schema = this.registry[this.rootSchemaName];
-    return schema?.table ?? this.rootSchemaName;
+  getBaseTableOrSubquery(): string {
+    return this.schema.tableOrSubquery;
   }
 
   /**
@@ -298,25 +258,20 @@ export class SQLSchemaResolver {
    */
   resolveColumnPath(path: string): string | undefined {
     const parts = path.split('.');
-    return this.resolvePath(parts, this.rootSchemaName, this.baseAlias);
+    return this.resolvePath(parts, this.schema, this.baseAlias);
   }
 
   private resolvePath(
     parts: string[],
-    schemaName: string,
+    schema: SQLTableSchema,
     currentAlias: string,
   ): string | undefined {
     if (parts.length === 0) {
       return undefined;
     }
 
-    const schema = maybeUndefined(this.registry[schemaName]);
-    if (!schema) {
-      return undefined;
-    }
-
     const [first, ...rest] = parts;
-    const colDef = maybeUndefined(schema.columns[first]);
+    const colDef = maybeUndefined(schema.columns?.[first]);
 
     if (!colDef) {
       // Column not found in schema - treat as raw column name
@@ -327,7 +282,7 @@ export class SQLSchemaResolver {
       return undefined;
     }
 
-    if (isSQLExpressionDef(colDef)) {
+    if ('expression' in colDef) {
       // Expression column
       if (colDef.parameterized) {
         // Remaining parts form the parameter key
@@ -341,16 +296,12 @@ export class SQLSchemaResolver {
       return colDef.expression(currentAlias);
     }
 
-    if (isSQLJoinDef(colDef)) {
+    if ('schema' in colDef) {
       // JOIN column - need to add a join and continue resolving
-      const targetSchema = maybeUndefined(this.registry[colDef.ref]);
-      if (!targetSchema) {
-        return undefined;
-      }
-
+      const targetSchema = colDef.schema;
       const joinAlias = this.getOrCreateJoin(
         currentAlias,
-        targetSchema.table,
+        targetSchema.tableOrSubquery,
         colDef.foreignKey,
         targetSchema.primaryKey ?? 'id',
         colDef.innerJoin ?? false,
@@ -362,7 +313,7 @@ export class SQLSchemaResolver {
       }
 
       // Continue resolving into the joined table
-      return this.resolvePath(rest, colDef.ref, joinAlias);
+      return this.resolvePath(rest, colDef.schema, joinAlias);
     }
 
     // Simple column
@@ -376,12 +327,12 @@ export class SQLSchemaResolver {
 
   private getOrCreateJoin(
     fromAlias: string,
-    table: string,
+    tableOrSubquery: string,
     foreignKey: string,
     primaryKey: string,
     innerJoin: boolean,
   ): string {
-    const key: JoinKey = {fromAlias, table, foreignKey, innerJoin};
+    const key: JoinKey = {fromAlias, tableOrSubquery, foreignKey, innerJoin};
     const keyStr = joinKeyToString(key);
 
     const existing = this.joinMap.get(keyStr);
@@ -390,11 +341,11 @@ export class SQLSchemaResolver {
     }
 
     // Create new join
+    const alias = `t${this.aliasCounter}`;
     this.aliasCounter++;
-    const alias = `${table}_${this.aliasCounter}`;
 
     const join: ResolvedJoin = {
-      table,
+      tableOrSubquery,
       alias,
       fromAlias,
       foreignKey,
@@ -415,7 +366,7 @@ export class SQLSchemaResolver {
     return this.joins
       .map((join) => {
         const joinType = join.innerJoin ? 'JOIN' : 'LEFT JOIN';
-        return `${joinType} ${join.table} AS ${join.alias} ON ${join.alias}.${join.primaryKey} = ${join.fromAlias}.${join.foreignKey}`;
+        return `${joinType} (${join.tableOrSubquery}) AS ${join.alias} ON ${join.alias}.${join.primaryKey} = ${join.fromAlias}.${join.foreignKey}`;
       })
       .join('\n');
   }
@@ -428,42 +379,4 @@ export class SQLSchemaResolver {
     this.joins.length = 0;
     this.aliasCounter = 0;
   }
-}
-
-/**
- * Creates a simple schema from a table name or subquery.
- *
- * This enables using SQLDataSource with arbitrary queries/tables without
- * defining explicit column schemas. Columns are accessed directly by name.
- *
- * @param tableOrQuery A table name (e.g., 'slice') or subquery (e.g., 'SELECT * FROM slice')
- * @param schemaName Optional name for the schema (defaults to 'query')
- * @returns A SQLSchemaRegistry with a single schema entry
- *
- * Example usage:
- * ```typescript
- * const schema = createSimpleSchema('SELECT * FROM slice WHERE dur > 0');
- * const dataSource = new SQLDataSource({
- *   engine,
- *   sqlSchema: schema,
- *   rootSchemaName: 'query',
- * });
- * ```
- */
-export function createSimpleSchema(
-  tableOrQuery: string,
-  schemaName: string = 'query',
-): SQLSchemaRegistry {
-  // If it looks like a query (contains SELECT, spaces, etc.), wrap in parens
-  const isQuery =
-    tableOrQuery.trim().toUpperCase().startsWith('SELECT') ||
-    tableOrQuery.includes(' ');
-  const table = isQuery ? `(${tableOrQuery})` : tableOrQuery;
-
-  return {
-    [schemaName]: {
-      table,
-      columns: {}, // Empty columns - all column access falls through to direct access
-    },
-  };
 }

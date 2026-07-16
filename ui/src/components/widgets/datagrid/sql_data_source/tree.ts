@@ -26,7 +26,7 @@ import {
 } from '../../../../trace_processor/sql_utils';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import type {DataSourceRows, TreeModel} from '../data_source';
-import {type SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
+import {type SQLTableSchema, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, sqlValue, toAlias} from '../sql_utils';
 
 /**
@@ -50,8 +50,7 @@ export class SQLDataSourceTree {
   constructor(
     queue: SerialTaskQueue,
     private readonly engine: Engine,
-    private readonly sqlSchema: SQLSchemaRegistry,
-    private readonly rootSchemaName: string,
+    private readonly sqlSchema: SQLTableSchema,
   ) {
     this.treeTableSlot = new QuerySlot<DisposableSqlEntity>(queue);
     this.rowCountSlot = new QuerySlot<number>(queue);
@@ -62,7 +61,7 @@ export class SQLDataSourceTree {
   }
 
   getRows(model: TreeModel): DataSourceRows {
-    const {columns, filters = [], pagination, sort, tree} = model;
+    const {columns, filters = [], pagination, tree} = model;
 
     // First, ensure the base table is materialized
     const treeTableResult = this.useTreeTable(model);
@@ -87,15 +86,7 @@ export class SQLDataSourceTree {
     }
 
     // Determine sort column and direction
-    let sortColumn = '__id';
-    let sortDirection: 'ASC' | 'DESC' = 'ASC';
-    if (sort) {
-      const sortCol = columns.find((c) => c.alias === sort.alias);
-      if (sortCol) {
-        sortColumn = toAlias(sortCol.alias);
-      }
-      sortDirection = sort.direction;
-    }
+    const {sortColumn, sortDirection} = this.resolveSort(model);
 
     const baseKey = {
       columns,
@@ -185,16 +176,8 @@ export class SQLDataSourceTree {
       return [];
     }
 
-    const {columns, sort, tree} = model;
-    let sortColumn = '__id';
-    let sortDirection: 'ASC' | 'DESC' = 'ASC';
-    if (sort) {
-      const sortCol = columns.find((c) => c.alias === sort.alias);
-      if (sortCol) {
-        sortColumn = toAlias(sortCol.alias);
-      }
-      sortDirection = sort.direction;
-    }
+    const {tree} = model;
+    const {sortColumn, sortDirection} = this.resolveSort(model);
 
     const query = buildTreeQuery(treeTableResult.data.name, {
       expandedIds: tree.expandedIds,
@@ -207,15 +190,16 @@ export class SQLDataSourceTree {
   }
 
   /**
-   * Materialize the base tree table with __id, __parent_id, __has_children,
-   * and all user columns. This is cached and only rebuilt when columns or
-   * filters change.
+   * Builds the query whose results get materialized into the tree table
+   * (__id, __parent_id, and all user columns). Pure function of the model -
+   * shared by `useTreeTable` (which executes it) and `getQuery` (which just
+   * shows it).
    */
-  private useTreeTable(model: TreeModel): QueryResult<DisposableSqlEntity> {
+  private buildSourceQuery(model: TreeModel): string {
     const {columns, filters = [], tree} = model;
 
-    const resolver = new SQLSchemaResolver(this.sqlSchema, this.rootSchemaName);
-    const baseTable = resolver.getBaseTable();
+    const resolver = new SQLSchemaResolver(this.sqlSchema);
+    const baseTable = resolver.getBaseTableOrSubquery();
     const baseAlias = resolver.getBaseAlias();
 
     // Resolve the id and parent_id columns
@@ -248,16 +232,56 @@ export class SQLDataSourceTree {
     const userColumns =
       selectExprs.length > 0 ? selectExprs.join(', ') : `${baseAlias}.*`;
 
-    // The source query that we'll materialize
-    const sourceQuery = `
+    return `
       SELECT
         ${idExpr} AS __id,
         ${parentIdExpr} AS __parent_id,
         ${userColumns}
-      FROM ${baseTable} AS ${baseAlias}
+      FROM (${baseTable}) AS ${baseAlias}
       ${joinClauses}
       ${whereClause}
     `;
+  }
+
+  /**
+   * The name of this instance's materialized tree table. Stable for the
+   * lifetime of this datasource, so it can be used to synthesize SQL even
+   * before the table has actually been created.
+   */
+  private get treeTableName(): string {
+    return `tree_${this.uuid}`;
+  }
+
+  /**
+   * Resolves the alias/direction to sort the tree traversal by, given the
+   * model's `sort` (which refers to a column alias). Shared by `getRows`,
+   * `exportData` and `getQuery`.
+   */
+  private resolveSort(model: TreeModel): {
+    sortColumn: string;
+    sortDirection: 'ASC' | 'DESC';
+  } {
+    const {columns, sort} = model;
+    let sortColumn = '__id';
+    let sortDirection: 'ASC' | 'DESC' = 'ASC';
+    if (sort) {
+      const sortCol = columns.find((c) => c.alias === sort.alias);
+      if (sortCol) {
+        sortColumn = toAlias(sortCol.alias);
+      }
+      sortDirection = sort.direction;
+    }
+    return {sortColumn, sortDirection};
+  }
+
+  /**
+   * Materialize the base tree table with __id, __parent_id, __has_children,
+   * and all user columns. This is cached and only rebuilt when columns or
+   * filters change.
+   */
+  private useTreeTable(model: TreeModel): QueryResult<DisposableSqlEntity> {
+    const {columns, filters = [], tree} = model;
+    const sourceQuery = this.buildSourceQuery(model);
 
     return this.treeTableSlot.use({
       key: {
@@ -269,10 +293,39 @@ export class SQLDataSourceTree {
       queryFn: async () => {
         return await createTreeTable(this.engine, {
           sourceQuery,
-          tableName: `tree_${this.uuid}`,
+          tableName: this.treeTableName,
         });
       },
     });
+  }
+
+  /**
+   * Returns the SQL that materializes and traverses the tree table for this
+   * model, without running it. The table name is stable for this datasource
+   * instance, so this can be computed even before the table has actually been
+   * created.
+   */
+  getQuery(model: TreeModel): string {
+    const sourceQuery = this.buildSourceQuery(model);
+    const tableName = this.treeTableName;
+    const {sortColumn, sortDirection} = this.resolveSort(model);
+    const traversalQuery = buildTreeQuery(tableName, {
+      expandedIds: model.tree.expandedIds,
+      collapsedIds: model.tree.collapsedIds,
+      sortColumn,
+      sortDirection,
+      offset: model.pagination?.offset,
+      limit: model.pagination?.limit,
+    });
+
+    return [
+      `-- Materialize tree table:`,
+      `CREATE PERFETTO TABLE ${tableName} AS`,
+      buildTreeTableCreateQuery(sourceQuery).trim(),
+      ``,
+      `-- Traverse tree table:`,
+      traversalQuery.trim(),
+    ].join('\n');
   }
 
   dispose(): void {
@@ -298,17 +351,13 @@ interface TreeTableConfig {
 }
 
 /**
- * Creates a materialized tree table with __id, __parent_id, __has_children,
- * and all user columns from the source query.
+ * Builds the query used to materialize the tree table (adds __has_children on
+ * top of the source query's __id/__parent_id/user columns). Pure function of
+ * the source query - shared by `createTreeTable` (which executes it) and
+ * `SQLDataSourceTree.getQuery` (which just shows it).
  */
-async function createTreeTable(
-  engine: Engine,
-  config: TreeTableConfig,
-): Promise<DisposableSqlEntity> {
-  const {sourceQuery, tableName} = config;
-
-  // Build the complete table with child counts
-  const createQuery = `
+function buildTreeTableCreateQuery(sourceQuery: string): string {
+  return `
     WITH base_data AS (
       ${sourceQuery}
     ),
@@ -326,6 +375,18 @@ async function createTreeTable(
     )
     SELECT * FROM with_children
   `;
+}
+
+/**
+ * Creates a materialized tree table with __id, __parent_id, __has_children,
+ * and all user columns from the source query.
+ */
+async function createTreeTable(
+  engine: Engine,
+  config: TreeTableConfig,
+): Promise<DisposableSqlEntity> {
+  const {sourceQuery, tableName} = config;
+  const createQuery = buildTreeTableCreateQuery(sourceQuery);
 
   return await createPerfettoTable({
     engine,

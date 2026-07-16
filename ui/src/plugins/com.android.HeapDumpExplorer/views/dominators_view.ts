@@ -17,8 +17,7 @@ import type {Engine} from '../../../trace_processor/engine';
 import type {SqlValue} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
-import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {fmtHex} from '../format';
 import {
   type NavFn,
@@ -62,86 +61,84 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): SchemaRegistry {
+function makeUiSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      id: {
-        title: 'Object',
-        columnType: 'identifier',
-        cellRenderer: (value: SqlValue, row) => {
-          const id = Number(value);
-          const cls = String(row.cls ?? '');
-          const display = `${shortClassName(cls)} ${fmtHex(id)}`;
-          return m(
-            'button',
-            {
-              class: 'pf-hde-link',
-              onclick: () => navigate('object', {id, label: display}),
-            },
-            display,
-          );
-        },
+    id: {
+      title: 'Object',
+      columnType: 'identifier',
+      cellRenderer: (value: SqlValue, row) => {
+        const id = Number(value);
+        const cls = String(row.cls ?? '');
+        const display = `${shortClassName(cls)} ${fmtHex(id)}`;
+        return m(
+          'button',
+          {
+            class: 'pf-hde-link',
+            onclick: () => navigate('object', {id, label: display}),
+          },
+          display,
+        );
       },
-      retained: {
-        title: colHeader('Retained', COL_INFO.retained),
-        titleString: 'Retained',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_native: {
-        title: colHeader('Retained Native', COL_INFO.retainedNative),
-        titleString: 'Retained Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      self_size: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      native_size: {
-        title: colHeader('Shallow Native', COL_INFO.shallowNative),
-        titleString: 'Shallow Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_count: {
-        title: colHeader('Retained Count', COL_INFO.retainedCount),
-        titleString: 'Retained Count',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      reachable_size: {
-        title: colHeader('Reachable', COL_INFO.reachable),
-        titleString: 'Reachable',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_native: {
-        title: colHeader('Reachable Native', COL_INFO.reachableNative),
-        titleString: 'Reachable Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_count: {
-        title: colHeader('Reachable Count', COL_INFO.reachableCount),
-        titleString: 'Reachable Count',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      heap: {
-        title: 'Heap',
-        columnType: 'text',
-      },
-      cls: {
-        title: 'Class',
-        columnType: 'text',
-      },
-      root_type: {
-        title: 'Root Type',
-        columnType: 'text',
-      },
+    },
+    retained: {
+      title: colHeader('Retained', COL_INFO.retained),
+      titleString: 'Retained',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_native: {
+      title: colHeader('Retained Native', COL_INFO.retainedNative),
+      titleString: 'Retained Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    self_size: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    native_size: {
+      title: colHeader('Shallow Native', COL_INFO.shallowNative),
+      titleString: 'Shallow Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_count: {
+      title: colHeader('Retained Count', COL_INFO.retainedCount),
+      titleString: 'Retained Count',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    reachable_size: {
+      title: colHeader('Reachable', COL_INFO.reachable),
+      titleString: 'Reachable',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_native: {
+      title: colHeader('Reachable Native', COL_INFO.reachableNative),
+      titleString: 'Reachable Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_count: {
+      title: colHeader('Reachable Count', COL_INFO.reachableCount),
+      titleString: 'Reachable Count',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    heap: {
+      title: 'Heap',
+      columnType: 'text',
+    },
+    cls: {
+      title: 'Class',
+      columnType: 'text',
+    },
+    root_type: {
+      title: 'Root Type',
+      columnType: 'text',
     },
   };
 }
@@ -156,8 +153,7 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
       const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
-        sqlSchema: createSimpleSchema(query),
-        rootSchemaName: 'query',
+        tableOrSubquery: query,
         preamble: SQL_PREAMBLE,
       });
       counter.init(engine, query, SQL_PREAMBLE);
@@ -171,7 +167,6 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
         m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Dominators')),
         m(DataGrid, {
           schema: makeUiSchema(navigate),
-          rootSchema: 'query',
           data: dataSource,
           fillHeight: true,
           initialColumns: [
