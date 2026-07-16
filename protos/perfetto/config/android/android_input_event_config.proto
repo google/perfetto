@@ -139,7 +139,8 @@ message AndroidInputEventConfig {
   // Trace hardware states sent to the Gestures library.
   optional bool trace_libgestures_hardware_states = 6;
 
-  // Trace all Gestures library events other than input hardware states (i.e. device
-  // additions, detected gestures, property value changes, and timer deadlines).
+  // Trace all Gestures library events other than input hardware states (i.e.
+  // device additions, detected gestures, property value changes, and timer
+  // deadlines).
   optional bool trace_libgestures_events = 7;
 }
