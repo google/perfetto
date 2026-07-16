@@ -106,6 +106,13 @@ const FORCE_FULL_SORT_FLAG = featureFlags.register({
     'Forces the trace processor into performing a full sort ignoring any windowing logic',
   defaultValue: false,
 });
+const KEEP_CURRENT_PAGE_ON_TRACE_LOAD_FLAG = featureFlags.register({
+  id: 'keepCurrentPageOnTraceLoad',
+  name: 'Keep current page on trace load',
+  description:
+    'When loading a new trace, stay on the current page instead of navigating to the default landing page',
+  defaultValue: false,
+});
 
 // TODO(stevegolton): Move this into some global "SQL extensions" file and
 // ensure it's only run once.
@@ -275,7 +282,7 @@ async function loadTraceIntoEngine(
 
   // Plugins may call trace.initialPage.suggest(...) during onTraceLoad to
   // request that the app navigate somewhere other than /viewer.
-  const initialRoute = trace.initialPage.getWinner() ?? '/viewer';
+  const initialRoute = getInitialRoute(trace);
   Router.navigate(`#!${initialRoute}?local_cache_key=${cacheUuid}`);
 
   decideTabs(trace);
@@ -374,6 +381,15 @@ async function loadTraceIntoEngine(
   }
 
   return trace;
+}
+
+function getInitialRoute(trace: TraceImpl) {
+  if (KEEP_CURRENT_PAGE_ON_TRACE_LOAD_FLAG.get()) {
+    const currentRoute = Router.getCurrentRoute();
+    return `${currentRoute.page}${currentRoute.subpage}`;
+  } else {
+    return trace.initialPage.getWinner() ?? '/viewer';
+  }
 }
 
 function showStartupCommandIssuesDialog(
