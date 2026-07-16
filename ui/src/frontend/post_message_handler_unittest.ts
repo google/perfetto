@@ -102,6 +102,17 @@ describe('parsePostedTrace', () => {
       expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
     });
 
+    test('file name is preserved and sanitized', () => {
+      const result = parsePostedTrace({
+        perfetto: {
+          buffer: new ArrayBuffer(),
+          title: 'foo',
+          fileName: 'my<trace>.pftrace',
+        },
+      });
+      expect(result?.fileName).toBe('my trace .pftrace');
+    });
+
     test('view is snipped to the view, not the underlying buffer', () => {
       // A 10-byte view starting at offset 2 of a 16-byte buffer.
       const underlying = new Uint8Array(16);
