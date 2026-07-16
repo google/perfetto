@@ -42,6 +42,17 @@ import {fmtHex} from './format';
 import {shortClassName, SQL_PREAMBLE} from './components';
 import {type time, Time} from '../../base/time';
 
+/**
+ * Reinterpret a SQL int64 as an unsigned 64-bit native pointer.
+ *
+ * SQLite has no unsigned integer type, so a pointer with bit 63 set arrives as
+ * a negative bigint. Normalize every pointer as it enters the plugin so they
+ * are consistently unsigned when compared, used as Map keys or displayed.
+ */
+function toNativePtr(v: bigint): bigint {
+  return BigInt.asUintN(64, v);
+}
+
 export interface HeapDump {
   readonly upid: number;
   readonly ts: time;
@@ -371,7 +382,7 @@ export async function getOverview(
         w: it.w,
         h: it.h,
         totalBytes: it.total_bytes,
-        nativePtr: it.native_ptr,
+        nativePtr: it.native_ptr === null ? null : toNativePtr(it.native_ptr),
       });
     }
   }
@@ -1453,7 +1464,7 @@ export async function getRawBitmapBlob(
   `);
   const fit = fieldRes.iter({long_value: LONG_NULL});
   if (!fit.valid() || fit.long_value === null) return null;
-  const nativePtr = fit.long_value;
+  const nativePtr = toNativePtr(fit.long_value);
 
   const dumpData = await loadBitmapDumpData(engine, activeDump);
   if (!dumpData) return null;
@@ -1583,7 +1594,9 @@ async function computeBitmapDumpData(
   const nativesIt = nativesRes.iter({data: STR_NULL});
   if (!nativesIt.valid() || nativesIt.data === null) return null;
   // Native pointers need BigInt for 64-bit precision in Map lookups.
-  const nativesPtrs = (JSON.parse(nativesIt.data) as string[]).map(BigInt);
+  const nativesPtrs = (JSON.parse(nativesIt.data) as string[]).map((s) =>
+    toNativePtr(BigInt(s)),
+  );
 
   // Step 6: Get buffers Object[] references — array index → byte[] object ID.
   const bufsRes = await engine.query(`
@@ -1652,7 +1665,7 @@ async function extractBitmapPixels(
     if (it.field_name.endsWith('mWidth')) width = it.int_value ?? 0;
     if (it.field_name.endsWith('mHeight')) height = it.int_value ?? 0;
     if (it.field_name.endsWith('mNativePtr')) {
-      nativePtr = it.long_value ?? 0n;
+      nativePtr = toNativePtr(it.long_value ?? 0n);
     }
   }
   if (width <= 0 || height <= 0 || nativePtr === 0n) return null;
@@ -1941,11 +1954,13 @@ export async function getBitmapList(
   ) {
     const w = it.width ?? 0;
     const h = it.height ?? 0;
+    const nativePtr =
+      it.native_ptr === null ? null : toNativePtr(it.native_ptr);
     let hasPixelData = false;
-    if (dumpData !== null && it.native_ptr !== null && w > 0 && h > 0) {
-      hasPixelData = dumpData.bufferMap.has(it.native_ptr);
+    if (dumpData !== null && nativePtr !== null && w > 0 && h > 0) {
+      hasPixelData = dumpData.bufferMap.has(nativePtr);
       if (hasPixelData) {
-        hashInputs.push({objectId: it.id, nativePtr: it.native_ptr});
+        hashInputs.push({objectId: it.id, nativePtr});
       }
     }
     rawRows.push({
@@ -1954,7 +1969,7 @@ export async function getBitmapList(
       h,
       hasPixelData,
       density: it.density ?? 0,
-      nativePtr: it.native_ptr,
+      nativePtr,
       bitmapId: it.bitmap_id,
       storageType: it.bitmap_storage_type,
       sourceId: it.source_id,
