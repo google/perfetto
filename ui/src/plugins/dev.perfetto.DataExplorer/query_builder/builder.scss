@@ -12,24 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "common";
-@import "./graph/graph.scss";
-@import "./graph/text_label.scss";
-@import "./help.scss";
-@import "./graph/node_box.scss";
-@import "./node_styling_widgets.scss";
-@import "./node_panel.scss";
-@import "./operations/operation_component.scss";
-@import "./nodes/sources/slices_source.scss";
-@import "./nodes/sources/table_source.scss";
-@import "./nodes/sources/timerange_source.scss";
-@import "./nodes/add_columns_node.scss";
-@import "./nodes/aggregation_node.scss";
-@import "./nodes/modify_columns_node.scss";
-@import "./table_list.scss";
-@import "./function_list.scss";
-@import "./widgets.scss";
-@import "./join_widgets.scss";
+@use "common" as *;
+@use "./graph/graph.scss" as *;
+@use "./graph/text_label.scss" as *;
+@use "./help.scss" as *;
+@use "./graph/node_box.scss" as *;
+@use "./node_styling_widgets.scss" as *;
+@use "./node_panel.scss" as *;
+@use "./operations/operation_component.scss" as *;
+@use "./nodes/sources/slices_source.scss" as *;
+@use "./nodes/sources/table_source.scss" as *;
+@use "./nodes/sources/timerange_source.scss" as *;
+@use "./nodes/add_columns_node.scss" as *;
+@use "./nodes/aggregation_node.scss" as *;
+@use "./nodes/modify_columns_node.scss" as *;
+@use "./table_list.scss" as *;
+@use "./function_list.scss" as *;
+@use "./widgets.scss" as *;
+@use "./join_widgets.scss" as *;
 
 .pf-query-builder-layout {
   // CSS variable for side panel width, used in both SCSS and TypeScript
