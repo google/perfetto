@@ -96,6 +96,6 @@ export default defineConfig({
     url: 'http://127.0.0.1:10000',
     reuseExistingServer: true,
     timeout: 5 * 60 * 1000,
-    stdout: 'pipe',
+    stdout: 'ignore',
   },
 });
