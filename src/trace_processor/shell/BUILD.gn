@@ -110,6 +110,7 @@ source_set("unittests") {
   sources = [
     "convert_helpers_unittest.cc",
     "find_subcommand_unittest.cc",
+    "shell_utils_unittest.cc",
     "subcommand_flags_unittest.cc",
   ]
   deps = [
@@ -118,6 +119,7 @@ source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../gn:protobuf_full",
+    "../../../gn:sqlite",
     "../../base",
   ]
 }
