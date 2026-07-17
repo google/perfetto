@@ -21570,6 +21570,7 @@ filegroup {
         "src/trace_redaction/prune_package_list_unittest.cc",
         "src/trace_redaction/redact_process_events_unittest.cc",
         "src/trace_redaction/redact_sched_events_unittest.cc",
+        "src/trace_redaction/trace_redactor_unittest.cc",
         "src/trace_redaction/verify_integrity_unittest.cc",
     ],
 }

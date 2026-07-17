@@ -254,4 +254,12 @@ TEST_F(ProcessThreadTimelineIsConnectedTest, PrematureDirectPidAndUid) {
   ASSERT_FALSE(timeline_.PidConnectsToUid(kTimeA, kPidA, kUidA));
 }
 
+TEST(ProcessThreadTimelineTest_Empty, EmptyTimeline) {
+  ProcessThreadTimeline timeline;
+  ASSERT_TRUE(timeline.empty());
+
+  timeline.Append(ProcessThreadTimeline::Event::Open(0, 1, 2));
+  ASSERT_FALSE(timeline.empty());
+}
+
 }  // namespace perfetto::trace_redaction

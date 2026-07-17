@@ -73,6 +73,12 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
 
   RETURN_IF_ERROR(Collect(context, whole_view));
 
+  if (!context->timeline || context->timeline->empty()) {
+    return base::ErrStatus(
+        "TraceRedactor: No process timeline found. Are sched_free or process "
+        "stats data sources missing");
+  }
+
   for (const auto& builder : builders_) {
     RETURN_IF_ERROR(builder->Build(context));
   }
