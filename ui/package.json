@@ -22,7 +22,7 @@
     "@protobufjs/utf8": "^1.1.1",
     "codemirror": "6.0.1",
     "color-convert": "^2.0.1",
-    "echarts": "^5.6.0",
+    "echarts": "^6.1.0",
     "events": "^3.3.0",
     "hsluv": "^0.1.0",
     "immer": "^10.1.1",
