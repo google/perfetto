@@ -846,8 +846,6 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   auto [insert_pos, recommit_chunk] = compute_insert_position();
 
-  // In the case of a re-commit we don't need to create a new chunk, we just
-  // want to overwrite the existing one.
   if (PERFETTO_UNLIKELY(recommit_chunk)) {
     const uint8_t recommit_flags = recommit_chunk->flags & kFlagsMask;
     if (all_frags_size < recommit_chunk->payload_size ||
@@ -859,6 +857,63 @@ void TraceBufferV2::CopyChunkUntrusted(
       PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
+
+    // If this commit completes a scraped chunk whose fragments have all been
+    // consumed already, don't rewrite it in place. The scraped copy sits at
+    // the buffer offset where it was copied at scraping time. For sporadic
+    // writers (that take a long time to fill a chunk) that offset can be
+    // arbitrarily stale, i.e. arbitrarily close to the write cursor in ring
+    // order. An in-place rewrite would put the never-read fragments right in
+    // the cursor's path, and an unrelated write could overwrite them before
+    // the next read pass. This is worst when the chunk ends with a kFragBegin:
+    // its continuation is still in the producer's SMB, so the eviction
+    // destroys the begin fragment and the continuation later surfaces as
+    // DATA_LOSS_ORPHAN_CONTINUATION.
+    // Instead, erase the stale copy and re-admit the chunk as if it were a
+    // new write: it gets a fresh slot at the write cursor and
+    // |previously_consumed_payload| makes it skip the fragments consumed
+    // already, like the re-admit of evicted chunks above.
+
+    // The existing copy in the buffer came from scraping.
+    const bool copy_is_scraped =
+        (recommit_chunk->flags & kChunkIncomplete) != 0;
+
+    // All its visible fragments have been read: nothing left that an erase
+    // could lose or that a fresh copy could duplicate.
+    const bool copy_fully_consumed = recommit_chunk->payload_avail == 0;
+
+    // This is the producer's final commit (not another scrape) and it brings
+    // fragments the buffer has never seen.
+    const bool commit_adds_new_data =
+        chunk_complete && all_frags_size > recommit_chunk->payload_size;
+
+    // EraseCurrentChunk() only supports erasing the first chunk of a
+    // sequence. The recommit target is the first chunk unless chunks were
+    // committed out of order, in which case we keep the in-place rewrite (the
+    // race needs a stale offset, which takes a long time to build up, while
+    // out-of-order commits resolve within one scrape cycle).
+    const bool copy_is_first_chunk_of_seq =
+        *chunk_list.begin() == OffsetOf(recommit_chunk);
+
+    const bool readmit_consumed_chunk =
+        copy_is_scraped && copy_fully_consumed && commit_adds_new_data &&
+        copy_is_first_chunk_of_seq;
+    if (PERFETTO_UNLIKELY(readmit_consumed_chunk)) {
+      TRACE_BUFFER_V2_DLOG("  Re-admitting consumed scraped chunk %u",
+                           chunk_id);
+      previously_consumed_payload = recommit_chunk->payload_size;
+      internal::ChunkSeqIterator(this, &seq).EraseCurrentChunk();
+      // From here on this is not a recommit anymore: the write path below
+      // creates a new chunk at the write cursor. |insert_pos| got invalidated
+      // by the erase; it is recomputed after DeleteNextChunksFor() because
+      // chunk_list.size() != chunk_list_size_before_remove.
+      recommit_chunk = nullptr;
+    }
+  }
+
+  // In the case of a re-commit we don't need to create a new chunk, we just
+  // want to overwrite the existing one.
+  if (PERFETTO_UNLIKELY(recommit_chunk)) {
     // Only clear kChunkIncomplete on real IPC recommits (chunk_complete=true).
     // During scraping the producer may still be writing, so the chunk should
     // remain incomplete until the producer explicitly commits it.

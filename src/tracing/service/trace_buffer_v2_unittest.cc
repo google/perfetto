@@ -1074,6 +1074,136 @@ TEST_F(TraceBufferV2Test, DataLoss_ReassemblyGap) {
       previous_packet_dropped);
 }
 
+// Covers the "stale recommit" race observed in long traces with sporadic
+// writers (e.g. system_server track_event categories):
+// 1. A writer's open SMB chunk is scraped (chunk_complete=false). The scraped
+//    copy drops the last fragment and is pinned in the buffer (incomplete
+//    chunks are never erased by reads). Its visible fragments get consumed by
+//    periodic reads.
+// 2. Much later the writer fills the chunk; the last packet fragments onto the
+//    next chunk. The producer commits the chunk while the write cursor, which
+//    by now has almost lapped the ring, sits right behind the pinned copy.
+// 3. If the commit were applied in place, the never-read fragments would sit
+//    at the stale offset and the next unrelated write would destroy them
+//    before any read pass, losing the kFragBegin whose continuation is still
+//    in the producer's SMB (DATA_LOSS_OVERWRITE, and later
+//    DATA_LOSS_ORPHAN_CONTINUATION when the continuation arrives).
+// CopyChunkUntrusted must instead re-admit the commit at the write cursor:
+// nothing is lost, consumed fragments are not duplicated and no gap is
+// reported.
+TEST_F(TraceBufferV2Test, ScrapedChunkRecommit_ReadmitAtWritePos) {
+  ResetBuffer(4096);
+  const auto& stats = trace_buffer()->stats();
+
+  // 1. Scrape of the writer's open chunk: two packets written so far, but the
+  // last one ('b') is dropped by the chunk_complete=false path. The full SMB
+  // chunk size (512) is reserved to allow future re-commits to grow.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a')
+      .AddPacket(32, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Other writers fill the rest of the buffer exactly up to the end and get
+  // drained: the write cursor is now right behind the pinned scraped copy in
+  // ring order.
+  for (ChunkID c = 0; c < 3; c++) {
+    CreateChunk(ProducerID(2), WriterID(2), c)
+        .AddPacket(1024 - 16, 'x')
+        .CopyIntoTraceBuffer();
+  }
+  CreateChunk(ProducerID(2), WriterID(2), ChunkID(3))
+      .AddPacket(512 - 16, 'y')
+      .CopyIntoTraceBuffer();
+  ASSERT_EQ(0u, size_to_end());
+  trace_buffer()->BeginRead();
+  while (!ReadPacket().empty()) {
+  }
+  EXPECT_EQ(0u, stats.readaheads_failed());
+  EXPECT_EQ(0u, stats.chunks_overwritten());
+
+  // 2. The producer finally commits ChunkID(0) for real: payload grew and the
+  // chunk now ends with a fragment that continues on the (still uncommitted)
+  // next chunk. The commit must be re-admitted at the write cursor, not
+  // rewritten at the stale offset.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a')
+      .AddPacket(32, 'b')
+      .AddPacket(64, 'c', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(0u, stats.chunks_rewritten());
+  EXPECT_EQ(1u, stats.write_wrap_count());
+
+  // 3. An unrelated write lands where the stale copy used to be. With the
+  // in-place rewrite this used to evict the re-committed fragments.
+  CreateChunk(ProducerID(2), WriterID(2), ChunkID(4))
+      .AddPacket(512 - 16, 'z')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(0u, stats.readaheads_failed());
+  EXPECT_EQ(0u, stats.chunks_overwritten());
+
+  // 4. The continuation chunk arrives at the next flush.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(32, 'd', kContFromPrevChunk)
+      .AddPacket(32, 'e')
+      .CopyIntoTraceBuffer();
+
+  // Everything is readable: 'b' and the reassembled c+d packet. The consumed
+  // 'a' is not duplicated and no data loss is reported on the sequence.
+  trace_buffer()->BeginRead();
+  uint32_t previous_packet_dropped = 0;
+  TraceBuffer::PacketSequenceProperties seq_props{};
+  ASSERT_THAT(ReadPacket(&seq_props, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'b')));
+  EXPECT_EQ(ProducerID(1), seq_props.producer_id_trusted);
+  EXPECT_EQ(0u, previous_packet_dropped);
+  ASSERT_THAT(
+      ReadPacket(nullptr, &previous_packet_dropped),
+      ElementsAre(FakePacketFragment(64, 'c'), FakePacketFragment(32, 'd')));
+  EXPECT_EQ(0u, previous_packet_dropped);
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(512 - 16, 'z')));
+  EXPECT_EQ(0u, previous_packet_dropped);
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'e')));
+  EXPECT_EQ(0u, previous_packet_dropped);
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  EXPECT_EQ(1u, stats.readaheads_succeeded());
+}
+
+// The re-admit must not kick in while the scraped copy still has unread
+// fragments: the in-place rewrite is the only way to grow the chunk without
+// re-ordering the unread payload. Also covers that no fragment is read twice.
+TEST_F(TraceBufferV2Test, ScrapedChunkRecommit_InPlaceWhenNotFullyConsumed) {
+  ResetBuffer(4096);
+  const auto& stats = trace_buffer()->stats();
+
+  // Scraped copy with one visible packet ('a'), never read.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a')
+      .AddPacket(32, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Final commit while 'a' is still unread: rewritten in place.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a')
+      .AddPacket(32, 'b')
+      .AddPacket(32, 'c')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(1u, stats.chunks_rewritten());
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'b')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'c')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
 // ---------------------
 // Malicious input tests
 // ---------------------
@@ -3085,8 +3215,10 @@ TEST_F(TraceBufferV2Test, Override_ReCommitIncompleteOnFullBuffer) {
 
   // Producer commits chunk 0 with the final payload from the same SMB slot.
   // Bytes 0..21 are still 'a' (an SMB invariant: producers never rewrite
-  // already-written bytes). The recommit must be detected and written in
-  // place — not turned into a fresh write that would re-emit 'a'.
+  // already-written bytes). The scraped copy is fully consumed, so the commit
+  // is re-admitted at the write cursor (see the readmit_consumed_chunk path in
+  // CopyChunkUntrusted) rather than rewritten at the stale offset. Either way
+  // it must not re-emit 'a'.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(20, 'a')
       .AddPacket(10, 'b')
@@ -3095,17 +3227,17 @@ TEST_F(TraceBufferV2Test, Override_ReCommitIncompleteOnFullBuffer) {
       .CopyIntoTraceBuffer(/*chunk_complete=*/true);
 
   // Expected: 'a' is not delivered again; 'b' and 'c' are the newly-recovered
-  // packets; 'x', 'y', 'z' from the filler sequence follow. No data loss is
-  // signalled.
+  // packets. They follow 'x', 'y', 'z' in buffer order because the re-admitted
+  // chunk now sits at the write cursor. No data loss is signalled.
   trace_buffer()->BeginRead();
   uint32_t dropped = 0;
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1024 - 16, 'x')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1024 - 16, 'y')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1024 - 16, 'z')));
   ASSERT_THAT(ReadPacket(nullptr, &dropped),
               ElementsAre(FakePacketFragment(10, 'b')));
   EXPECT_FALSE(dropped);
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(100, 'c')));
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1024 - 16, 'x')));
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1024 - 16, 'y')));
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1024 - 16, 'z')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
