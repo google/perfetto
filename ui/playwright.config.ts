@@ -67,7 +67,6 @@ export default defineConfig({
         viewport: {width: 1920, height: 1080},
         launchOptions: {
           args: [
-            '--headless',
             '--disable-accelerated-2d-canvas',
             '--disable-font-subpixel-positioning',
             '--ignore-gpu-blocklist', // Allow llvmpipe software rendering
