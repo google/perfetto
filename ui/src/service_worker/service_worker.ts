@@ -40,6 +40,7 @@
 // 6. The 'activate' handler is triggered. The old v1 cache is deleted at this
 //    point.
 
+
 declare let self: ServiceWorkerGlobalScope;
 export {};
 

@@ -19,7 +19,7 @@
 // Inputs are the same entry points the old rollup.config.js used, but read
 // directly from .ts source instead of from tsc's emit.
 
-import {defineConfig} from 'vite';
+import {defineConfig, build as viteBuild} from 'vite';
 import checker from 'vite-plugin-checker';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -212,27 +212,142 @@ function pluginGenWasmGlueEsm() {
   };
 }
 
+// Transforms `?worker` and `?serviceworker` query imports to instantiate workers via assetSrc(...),
+// and dynamically builds IIFE worker/service worker bundles via Vite during the build pass.
+function pluginPerfettoWorkerAssetSrc(isBuild) {
+  const builtWorkers = new Set();
+  return {
+    name: 'perfetto:worker-asset-src',
+    enforce: 'pre',
+    resolveId(id, importer) {
+      if (id.includes('?worker') || id.includes('?serviceworker')) {
+        const absPath = path.resolve(
+          importer ? path.dirname(importer) : SRC,
+          id,
+        );
+        return '\0' + absPath;
+      }
+      return null;
+    },
+    async load(id) {
+      if (id.startsWith('\0') && id.includes('?serviceworker')) {
+        const cleanId = id.slice(1).split('?', 1)[0];
+        if (isBuild && !builtWorkers.has('service_worker.js')) {
+          builtWorkers.add('service_worker.js');
+          await viteBuild({
+            configFile: false,
+            root: SRC,
+            publicDir: false,
+            build: {
+              commonjsOptions: {
+                transformMixedEsModules: true,
+                include: [/node_modules/, /\/gen\/.*\.js$/],
+                ignoreDynamicRequires: true,
+              },
+              outDir: path.join(OUT_SYMLINK, 'dist'),
+              emptyOutDir: false,
+              sourcemap: !NO_SOURCE_MAPS,
+              minify: MINIFY_JS ? 'terser' : false,
+              rollupOptions: {
+                input: {service_worker: cleanId},
+                output: {
+                  format: 'iife',
+                  entryFileNames: 'service_worker.js',
+                  inlineDynamicImports: true,
+                },
+              },
+            },
+            plugins: [pluginPerfettoVersion(), pluginGenRelativeImports()],
+          });
+        }
+        return `
+          export default function getSwUri(versionDir) {
+            return \`/service_worker.js?v=\${versionDir}\`;
+          }
+        `;
+      }
+      if (id.startsWith('\0') && id.includes('?worker')) {
+        const cleanId = id.slice(1).split('?', 1)[0];
+        let bundleName = 'worker_bundle.js';
+        if (cleanId.includes('traceconv')) {
+          bundleName = 'traceconv_bundle.js';
+        } else if (cleanId.includes('engine_bench')) {
+          bundleName = 'engine_bench_worker_bundle.js';
+        } else if (cleanId.includes('engine')) {
+          bundleName = 'engine_bundle.js';
+        }
+
+        if (isBuild && !builtWorkers.has(bundleName)) {
+          builtWorkers.add(bundleName);
+          await viteBuild({
+            configFile: false,
+            root: SRC,
+            publicDir: false,
+            build: {
+              commonjsOptions: {
+                transformMixedEsModules: true,
+                include: [/node_modules/, /\/gen\/.*\.js$/],
+                ignoreDynamicRequires: true,
+              },
+              outDir: path.join(OUT_SYMLINK, 'dist_version'),
+              emptyOutDir: false,
+              sourcemap: !NO_SOURCE_MAPS,
+              minify: MINIFY_JS ? 'terser' : false,
+              rollupOptions: {
+                input: {[bundleName.replace('.js', '')]: cleanId},
+                output: {
+                  format: 'iife',
+                  entryFileNames: bundleName,
+                  inlineDynamicImports: true,
+                },
+              },
+            },
+            plugins: [
+              pluginPerfettoVersion(),
+              lezer(),
+              pluginGenRelativeImports(),
+            ],
+          });
+        }
+
+        if (!isBuild) {
+          const relPath = '/' + path.relative(SRC, cleanId);
+          return `
+            export default function WorkerFactory() {
+              return new Worker(new URL(${JSON.stringify(relPath)}, import.meta.url), { type: 'module' });
+            }
+          `;
+        }
+
+        const assetsPath = path.resolve(SRC, 'base/assets.ts');
+        return `
+          import {assetSrc} from ${JSON.stringify(assetsPath)};
+          export default function WorkerFactory() {
+            return new Worker(assetSrc(${JSON.stringify(bundleName)}));
+          }
+        `;
+      }
+      return null;
+    },
+  };
+}
+
 // Per-bundle config: input file, output dir (relative to ui/out), and output
-// filename. Most bundles follow the standard convention; service_worker and
-// chrome_extension differ.
+// filename.
 const BUNDLE_CONFIGS = {
-  frontend: {dir: 'dist_version', entry: 'index.ts'},
-  engine: {dir: 'dist_version', entry: 'index.ts'},
+  frontend: {
+    dir: 'dist_version',
+    entry: 'index.ts',
+    tsconfig: 'ui/tsconfig.json',
+  },
   engine_bench: {dir: 'dist_version', entry: 'index.ts'},
   engine_bench_worker: {
     dir: 'dist_version',
     srcDir: 'engine_bench',
     entry: 'worker.ts',
   },
-  traceconv: {dir: 'dist_version', entry: 'index.ts'},
   bigtrace: {dir: 'dist_version/bigtrace', entry: 'index.ts'},
   open_perfetto_trace: {dir: 'dist/open_perfetto_trace', entry: 'index.ts'},
-  chrome_extension: {dir: 'chrome_extension', entry: 'index.ts'},
-  service_worker: {
-    dir: 'dist',
-    entry: 'service_worker.ts',
-    fileName: 'service_worker.js',
-  },
 };
 
 // When invoked as `vite build`, BUNDLE selects one entry per invocation
@@ -273,20 +388,17 @@ export default defineConfig(({command}) => {
       // it. Gated to the frontend bundle: build.mjs runs one `vite build` per
       // bundle, and frontend is both the only slow one (so there's something
       // to overlap with) and the only one that covers this tsconfig project.
-      ...(isBuild && BUNDLE === 'frontend'
-        ? [
-            checker({
-              typescript: {
-                tsconfigPath: path.join(ROOT_DIR, 'ui/tsconfig.json'),
-              },
-            }),
-          ]
-        : []),
+      checker({
+        typescript: {
+          tsconfigPath: path.join(ROOT_DIR, 'ui/tsconfig.json'),
+        },
+      }),
       pluginPerfettoVersion(),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),
       pluginGenRelativeImports(),
+      pluginPerfettoWorkerAssetSrc(isBuild),
       ...(isBuild ? [] : [pluginGenWasmGlueEsm()]),
       ...(NO_SOURCE_MAPS ? [] : [pluginEmbedMinimalSourceMap()]),
     ],

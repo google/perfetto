@@ -18,6 +18,7 @@
 // The actual service worker code is in src/service_worker.
 // Design doc: http://go/perfetto-offline.
 
+import getSwUri from '../service_worker/service_worker.ts?serviceworker';
 import {getServingRoot} from '../base/http_utils';
 import {reportError} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
@@ -125,7 +126,7 @@ export class ServiceWorkerController {
     // In production cases versionDir == VERSION. We use this here for ease of
     // testing (so we can have /v1.0.0a/ /v1.0.0b/ even if they have the same
     // version code).
-    const swUri = `/service_worker.js?v=${versionDir}`;
+    const swUri = getSwUri(versionDir);
     navigator.serviceWorker.register(swUri).then((registration) => {
       // At this point there are two options:
       // 1. This is the first time we visit the site (or cache was cleared) and
