@@ -476,23 +476,23 @@ UI_DEPS = [
         TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-linux-arm64-8.6.3',
-        'ac76e9ab6a770479f93c1a2bf978d72636dbcb02608554378cf30075a78a22ac',
+        'https://storage.googleapis.com/perfetto/pnpm-linux-arm64-10.34.5',
+        '22391362c31edf522fd698d0b43d38fe9228e28d5b5e32124ffd0038fb60f9f0',
         'linux', 'arm64'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-linux-x64-8.6.3',
-        '5a58ccd78d44faac138d901976a7a8917c0f2a2f83743cfdd895fcd0bb6aa135',
+        'https://storage.googleapis.com/perfetto/pnpm-linux-x64-10.34.5',
+        '69a535476f407fb0f64427913c2b592ca2ed6bf93f92e2cb82a32349e31f36eb',
         'linux', 'x64'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-macos-arm64-8.6.3',
-        'f527713d3183e30cfbfd7fd6403ceed730831c53649e50c979961eab3b2cf866',
+        'https://storage.googleapis.com/perfetto/pnpm-macos-arm64-10.34.5',
+        '888389e8dd5ed45279043c1d3383c0942a8248b3d29ce614b302f468191f7659',
         'darwin', 'arm64'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-macos-x64-8.6.3',
-        '6b425f7f0342341e9ee9427a9a2be2c89936c4a04efe6125f7af667eb02b10c1',
+        'https://storage.googleapis.com/perfetto/pnpm-macos-x64-10.34.5',
+        '4deaaaf1c0246fc4230f6450959f932dbc2abfd2686f8515dabf97b0717cb9b1',
         'darwin', 'x64'),
 ]
 
