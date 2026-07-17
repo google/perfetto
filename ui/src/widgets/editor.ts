@@ -21,8 +21,8 @@ import {
   type Transaction,
 } from '@codemirror/state';
 import {oneDark} from '@codemirror/theme-one-dark';
-import {keymap, tooltips} from '@codemirror/view';
-import {basicSetup, EditorView} from 'codemirror';
+import {EditorView, keymap, tooltips} from '@codemirror/view';
+import {basicSetup} from 'codemirror';
 import {javascript} from '@codemirror/lang-javascript';
 import m from 'mithril';
 import {removeFalsyValues} from '../base/array_utils';
