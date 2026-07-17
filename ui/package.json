@@ -27,6 +27,7 @@
     "immer": "^10.1.1",
     "jsbn-rsa": "^1.0.4",
     "markdown-it": "^14.2.0",
+    "mediabunny": "^1.50.9",
     "minisearch": "^7.2.0",
     "mithril": "^2.2.2",
     "noice-json-rpc": "^1.2.0",
@@ -72,5 +73,10 @@
     "build": "node build.mjs",
     "test": "node build.mjs --run-unittests",
     "lint": "npx eslint . --ext .js,.ts"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/dom-webcodecs": "0.1.18"
+    }
   }
 }

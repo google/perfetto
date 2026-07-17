@@ -15,6 +15,8 @@
 import m from 'mithril';
 import type {Trace} from '../../public/trace';
 import {BLOB, LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
+import {download, downloadUrl} from '../../base/download_utils';
+import {muxToMp4, trimMp4} from './mp4';
 
 // Max in-flight decoder inputs before the feed loop awaits, to bound the
 // decoder's queue and held-frame memory.
@@ -64,6 +66,7 @@ export class VideoFramePlayer {
   readonly trace: Trace;
   readonly trackUri: string;
   private readonly displayId: number;
+  private readonly displayName: string;
 
   // Stream metadata, filled by ensureFramesLoaded.
   frames: FrameInfo[] = [];
@@ -75,6 +78,7 @@ export class VideoFramePlayer {
   // the details panel. Empty = healthy.
   errors: string[] = [];
   private framesLoaded = false;
+  private framesLoadedPromise?: Promise<void>;
   private configId?: number;
   private codecString?: string;
   private setup?: Setup;
@@ -87,10 +91,121 @@ export class VideoFramePlayer {
   // Present iff currently playing.
   private playSession?: PlaySession;
 
-  constructor(trace: Trace, trackUri: string, displayId: number) {
+  constructor(
+    trace: Trace,
+    trackUri: string,
+    displayId: number,
+    displayName: string,
+  ) {
     this.trace = trace;
     this.trackUri = trackUri;
     this.displayId = displayId;
+    this.displayName = displayName;
+  }
+
+  // Download the currently shown frame as a PNG image.
+  async downloadFrameImage(): Promise<void> {
+    const frame = this.currentFrame;
+    if (frame === undefined) return;
+    const url = await this.decodeFrameImage(frame.id);
+    if (url === undefined) return;
+    downloadUrl({
+      fileName: `${this.displayName}-frame${frame.frameNumber}.png`,
+      url,
+    });
+  }
+
+  // Download the whole stream (from the first key frame) as an .mp4.
+  async downloadVideo(): Promise<void> {
+    await this.ensureFramesLoaded();
+    await this.downloadFrames(this.frames, '');
+  }
+
+  // Download the frames covering [start, end] as an .mp4, trimmed to exactly
+  // that window. The clip is extended back to the enclosing key frame so it can
+  // be decoded; when the requested start falls after that key frame, the extra
+  // lead-in frames are dropped by re-encoding from `start`.
+  async downloadRegion(start: bigint, end: bigint): Promise<void> {
+    await this.ensureFramesLoaded();
+    // The frame on screen at `start` is the last one that began at or before it
+    // (a capture stays up until the next frame), not the first one after.
+    let lo = 0;
+    while (lo + 1 < this.frames.length && this.frames[lo + 1].ts <= start) lo++;
+    // A clip only decodes from a key frame, so back up to the enclosing one.
+    let seed = lo;
+    while (seed > 0 && !this.frames[seed].isKey) seed--;
+    // Include every frame on screen through `end`.
+    let hi = lo + 1;
+    while (hi < this.frames.length && this.frames[hi].ts <= end) hi++;
+    // Lead-in frames [seed, lo) decode but fall before the window. Drop them by
+    // trimming to where frame `lo` begins -- measured in the clip's own clock,
+    // which the mux builds from pts relative to the seed key frame (clip time
+    // 0). With no lead-in -- start already on a key frame, or the enclosing key
+    // frame was evicted so none precedes it -- the clip is a lossless remux.
+    const trimStart =
+      this.frames[seed].isKey && seed < lo
+        ? (this.frames[lo].ptsUs - this.frames[seed].ptsUs) / 1e6
+        : undefined;
+    await this.downloadFrames(
+      this.frames.slice(seed, hi),
+      '-region',
+      trimStart,
+    );
+  }
+
+  // Mux the given frames (config + their access units) into an .mp4 and
+  // download it. trimStartSec, when set, drops the lead-in before that time by
+  // re-encoding (see trimMp4); it must fall on or after the first key frame.
+  private async downloadFrames(
+    sel: FrameInfo[],
+    suffix: string,
+    trimStartSec?: number,
+  ): Promise<void> {
+    // A clip must start on a key frame to decode; drop any leading delta frames.
+    const firstKey = sel.findIndex((f) => f.isKey);
+    if (firstKey < 0) return;
+    sel = sel.slice(firstKey);
+    const ids: number[] = [];
+    if (this.configId !== undefined) ids.push(this.configId);
+    ids.push(...sel.map((f) => f.id));
+    const chunks = await this.fetchAuData(ids);
+    let i = 0;
+    const config =
+      this.configId !== undefined ? chunks[i++] : new Uint8Array(0);
+    const frames = sel.map((f, k) => ({
+      data: chunks[i + k],
+      isKey: f.isKey,
+      pts: f.ptsUs,
+    }));
+    const {width, height} = await this.codedSize();
+    let mp4 = await muxToMp4(
+      this.codecString!,
+      config,
+      frames,
+      width,
+      height,
+      30,
+    );
+    if (trimStartSec !== undefined && trimStartSec > 0) {
+      mp4 = await trimMp4(mp4, trimStartSec);
+    }
+    await download({
+      content: mp4,
+      fileName: `${this.displayName}${suffix}.mp4`,
+    });
+  }
+
+  // The stream's coded dimensions, read from a decoded key frame (mediabunny
+  // needs them for the container). Throws if a key frame can't be decoded.
+  private async codedSize(): Promise<{width: number; height: number}> {
+    const keyIdx = this.frames.findIndex((f) => f.isKey);
+    const decoded = keyIdx < 0 ? undefined : await this.decodeUpTo(keyIdx);
+    if (decoded === undefined || decoded.outs.length === 0) {
+      throw new Error('cannot decode a key frame to size the video');
+    }
+    const {codedWidth: width, codedHeight: height} = decoded.outs[0];
+    for (const f of decoded.outs) f.close();
+    return {width, height};
   }
 
   // Whether this browser/context can decode frames. WebCodecs is absent in
@@ -122,8 +237,13 @@ export class VideoFramePlayer {
     this.stop();
   }
 
+  // Cache the load promise so concurrent callers (e.g. the details panel and a
+  // download firing together) share one load rather than doubling `frames`.
   async ensureFramesLoaded(): Promise<void> {
-    if (this.framesLoaded) return;
+    return (this.framesLoadedPromise ??= this.loadFrames());
+  }
+
+  private async loadFrames(): Promise<void> {
     const res = await this.trace.engine.query(`
       SELECT id, ts, frame_number AS frameNumber,
              COALESCE(is_key_frame, 0) AS isKey,

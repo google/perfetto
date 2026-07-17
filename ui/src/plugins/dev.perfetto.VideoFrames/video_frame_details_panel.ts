@@ -138,6 +138,21 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
           ),
         ),
       ),
+      m(Button, {
+        icon: 'photo_camera',
+        title: 'Download this frame as a PNG',
+        compact: true,
+        disabled: !p.webCodecsAvailable,
+        onclick: () => void p.downloadFrameImage(),
+      }),
+      m(Button, {
+        icon: 'movie',
+        title:
+          'Download the whole video for this display as an .mp4 ' +
+          '(select a time range on the track to download just that part)',
+        compact: true,
+        onclick: () => void p.downloadVideo(),
+      }),
     );
   }
 }

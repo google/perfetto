@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './video_frames.scss';
+import m from 'mithril';
+import {Icons} from '../../base/semantic_icons';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
+import {Button} from '../../widgets/button';
 import {VideoFramePlayer} from './video_frame_player';
 import {createVideoFramesTrack} from './video_frames_track';
 
@@ -55,9 +59,16 @@ export default class implements PerfettoPlugin {
       sortOrder: -55,
     });
 
+    const players = new Map<string, VideoFramePlayer>();
     for (const stream of streams) {
       const uri = `/video_frames/${stream.displayId}`;
-      const player = new VideoFramePlayer(ctx, uri, stream.displayId);
+      const player = new VideoFramePlayer(
+        ctx,
+        uri,
+        stream.displayId,
+        stream.displayName,
+      );
+      players.set(uri, player);
 
       ctx.tracks.registerTrack({
         uri,
@@ -67,5 +78,45 @@ export default class implements PerfettoPlugin {
     }
 
     ctx.defaultWorkspace.addChildInOrder(group);
+
+    // Select a time range over a video track to download just that region.
+    ctx.selection.registerAreaSelectionTab({
+      id: 'dev.perfetto.VideoFrames#region',
+      name: 'Video',
+      render(selection) {
+        // A selection may span one video track per display; download each.
+        const selected = selection.trackUris
+          .filter((u) => players.has(u))
+          .map((u) => players.get(u)!);
+        if (selected.length === 0) return undefined;
+        return {
+          isLoading: false,
+          content: m(
+            '.pf-video-region-download',
+            'Download the selected time range as an .mp4 per display.',
+          ),
+          buttons: m(Button, {
+            icon: Icons.Download,
+            label: 'Download region (.mp4)',
+            onclick: () => {
+              for (const player of selected) {
+                void player.downloadRegion(selection.start, selection.end);
+              }
+            },
+          }),
+        };
+      },
+    });
+
+    // The per-video panel downloads its own stream; this does every stream.
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.VideoFrames#DownloadAll',
+      name: 'Download all display videos',
+      callback: async () => {
+        for (const player of players.values()) {
+          await player.downloadVideo();
+        }
+      },
+    });
   }
 }

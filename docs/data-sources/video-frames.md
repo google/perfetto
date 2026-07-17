@@ -171,7 +171,48 @@ the speed selector to play back slower (down to 0.1×) or faster (up to
 
 ![Playing a display-video capture back with the video-frames track pinned at the top: in the details panel the decoded preview advances from the settings screen to the launcher while the frame number and timestamp update.](../images/video_frames/05-playback.gif)
 
+### Saving frames and clips
+
+Frames and clips can be saved from a trace in the browser, with no re-encoding.
+
+#### A single frame, or a whole display
+
+Click a frame to open its details. In the header, after the playback controls,
+the camera button saves the previewed frame as a `.png`, and the movie button
+saves that display's whole capture as an `.mp4`.
+
+![The video-frame details panel: after the playback controls, a camera button and a movie button, for saving the frame and the whole video.](../images/video_frames/06-download-buttons.png)
+
+#### A time range
+
+Drag across a video track to select a range. A **Video** tab appears in the
+details area with a **Download region (.mp4)** button. The clip is trimmed to the
+selected range: it decodes from the enclosing key frame but plays from exactly
+where the selection starts. A selection that spans several displays saves one
+`.mp4` per display.
+
+![An area selection over the video-frames track, with a "Video" tab showing a "Download region (.mp4)" button.](../images/video_frames/07-download-region.png)
+
+#### Every display at once
+
+Open the command palette (**Ctrl/Cmd-Shift-P**, or type `>` in the search box) and
+run **Download all display videos**. Each display's full capture is saved as its
+own `.mp4`.
+
+![The command palette filtered to the "Download all display videos" command.](../images/video_frames/08-download-all.png)
+
+The encoded video is copied as-is, not re-encoded, for both H.264 and HEVC. The
+one exception is a region whose selection starts partway through a group of
+pictures: trimming off the lead-in frames there requires re-encoding from the
+start point (a selection already on a key frame stays a plain copy). Exported
+files play at real time; the playback-speed selector only affects the in-UI
+preview. To change the speed, clip by query, or compare two traces, use
+the [command-line script](#exporting-to-an-mp4-from-the-command-line) below.
+
 ### Exporting to an .mp4 from the command line
+
+For saving from the UI instead, see [Saving frames and
+clips](#saving-frames-and-clips) above.
 
 `tools/trace_video_conv.py` pulls the captured video out of a trace into an
 `.mp4` using ffmpeg (the encoded frames are copied as-is, not re-encoded).

@@ -83,3 +83,9 @@
     }
   }
 }
+
+// The area-selection "Video" tab body: pad the explainer text so it isn't
+// flush against the panel edges.
+.pf-video-region-download {
+  padding: 8px 12px;
+}
