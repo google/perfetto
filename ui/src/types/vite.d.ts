@@ -20,3 +20,8 @@
 // latter is exclusive: setting it would disable auto-inclusion of every other
 // @types/* package (node, jest, chrome, mithril, ...) and break the build.
 /// <reference types="vite/client" />
+
+declare module '*?serviceworker' {
+  const getSwUri: (versionDir: string) => string;
+  export default getSwUri;
+}

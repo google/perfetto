@@ -219,8 +219,9 @@ Env-var overrides:
   parser.add_argument('--bigtrace', {action: 'store_true'});
   parser.add_argument('--enable-engine-bench', {
     action: 'store_true',
-    help: 'Build the engine startup benchmark page (engine_bench.html) and ' +
-          'its dedicated worker bundle. Off by default.',
+    help:
+      'Build the engine startup benchmark page (engine_bench.html) and ' +
+      'its dedicated worker bundle. Off by default.',
   });
   parser.add_argument('--open-perfetto-trace', {action: 'store_true'});
   parser.add_argument('--interactive', '-i', {action: 'store_true'});
@@ -229,9 +230,10 @@ Env-var overrides:
   parser.add_argument('--cross-origin-isolation', {action: 'store_true'});
   parser.add_argument('--allow-all-hosts', {
     action: 'store_true',
-    help: 'Accept requests for any Host header on the Vite dev server, so it ' +
-          'can sit behind an arbitrary reverse proxy. Disables Vite\'s ' +
-          'DNS-rebind host-check protection.',
+    help:
+      'Accept requests for any Host header on the Vite dev server, so it ' +
+      "can sit behind an arbitrary reverse proxy. Disables Vite's " +
+      'DNS-rebind host-check protection.',
   });
   parser.add_argument('--test-filter', '-f', {
     help: "filter Jest tests by regex, e.g. 'chrome_render'",
@@ -243,8 +245,9 @@ Env-var overrides:
   });
   parser.add_argument('--bundle', {
     action: 'store_true',
-    help: 'Serve the bundled frontend instead of the Vite HMR server ' +
-          '(fewer requests, better over a remote/SSH dev server)',
+    help:
+      'Serve the bundled frontend instead of the Vite HMR server ' +
+      '(fewer requests, better over a remote/SSH dev server)',
   });
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
@@ -424,21 +427,6 @@ Env-var overrides:
         transpileTsProject(prj, {noEmit: true});
       }
     } else {
-      // Vite owns TS transpile + bundling. tsc is invoked separately purely
-      // for type checking. In non-watch builds it runs synchronously and a
-      // type error fails the build. In watch mode tsc --watch runs async in
-      // the background and prints errors without killing the build.
-      for (const prj of tsProjects) {
-        if (cfg.watch) {
-          transpileTsProject(prj, {
-            watch: true,
-            noEmit: true,
-            noErrCheck: true,
-          });
-        } else {
-          transpileTsProject(prj, {noEmit: true});
-        }
-      }
       runVite();
       genServiceWorkerManifestJson();
 
@@ -457,13 +445,13 @@ Env-var overrides:
   }
   if (!args.no_build && !cfg.check) {
     const tStart = performance.now();
-    while (!isDistComplete()) {
-      const secs = Math.ceil((performance.now() - tStart) / 1000);
-      process.stdout.write(
-        `\t\tWaiting for first build to complete... ${secs} s\r`,
-      );
-      await new Promise((r) => setTimeout(r, 500));
-    }
+    // while (!isDistComplete()) {
+    //   const secs = Math.ceil((performance.now() - tStart) / 1000);
+    //   process.stdout.write(
+    //     `\t\tWaiting for first build to complete... ${secs} s\r`,
+    //   );
+    //   await new Promise((r) => setTimeout(r, 500));
+    // }
   }
   if (cfg.watch) console.log('\nFirst build completed!');
 
@@ -806,28 +794,38 @@ function transpileTsProject(project, options) {
 //
 // In watch+serve mode the frontend bundle is replaced by an in-process Vite
 // dev server (see startViteDevServer) — workers and the service worker still
-// go through `vite build --watch` because they're loaded as separate files by
+// go through `vite build --watch` because they're loaded as separate files byser
 // `new Worker(assetSrc(...))` / SW registration.
 function runVite() {
   const baseEnv = {
+    // vite-plugin-checker (see vite.config.mjs) spawns `tsc` through a shell,
+    // resolving it from PATH which it derives by walking up from the cwd. We
+    // run vite with cwd=cfg.outDir, which has no node_modules above it, so
+    // point PATH at the toolchain explicitly.
+    PATH: [
+      pjoin(ROOT_DIR, 'ui/node_modules/.bin'),
+      process.env.PATH ?? '',
+    ].join(path.delimiter),
     NO_SOURCE_MAPS: cfg.noSourceMaps ? 'true' : '',
     NO_TREESHAKE: cfg.noTreeshake ? 'true' : '',
     MINIFY_JS: cfg.minifyJs || '',
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
   };
-  const bundles = ['engine', 'traceconv', 'service_worker', 'chrome_extension'];
+  const bundles = [];
   if (!cfg.useHmr) bundles.unshift('frontend');
   if (cfg.bigtrace) bundles.push('bigtrace');
   if (cfg.engineBench) bundles.push('engine_bench', 'engine_bench_worker');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
   for (const bundle of bundles) {
-    const args = ['build', '--config', pjoin(ROOT_DIR, 'ui/vite.config.mjs')];
+    const configRelPath = 'ui/vite.config.mjs';
+    const args = ['build', '--config', pjoin(ROOT_DIR, configRelPath)];
     if (cfg.watch) args.push('--watch');
     if (!cfg.verbose) args.push('--logLevel', 'warn');
     addTask(execModule, [
       'vite',
       args,
       {
+        bundle: bundle,
         async: cfg.watch,
         env: {...baseEnv, BUNDLE: bundle},
       },

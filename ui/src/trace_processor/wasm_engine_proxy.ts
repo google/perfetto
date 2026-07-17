@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assetSrc} from '../base/assets';
+import EngineWorker from '../engine/index.ts?worker';
 import {ensureExists, assertTrue} from '../base/assert';
 import {EngineBase} from '../trace_processor/engine';
 import {traceProcessorWasmUrl} from './wasm_modules';
@@ -32,7 +32,7 @@ export function warmupWasmWorker() {
     );
   }
   if (idleWasmWorker === undefined) {
-    idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
+    idleWasmWorker = new EngineWorker();
   }
   return idleWasmWorker;
 }
@@ -63,7 +63,7 @@ export class WasmEngineProxy extends EngineBase implements Disposable {
     // around. The latency is hidden by the fact that the user usually takes few
     // seconds until they click on "open trace file" and pick a file.
     this.worker = warmupWasmWorker(); // Ensures the spare instance exists.
-    idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
+    idleWasmWorker = new EngineWorker();
 
     const worker = this.worker;
     // warmupWasmWorker() guarantees precompiledWasmModule is set.

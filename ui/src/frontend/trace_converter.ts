@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assetSrc} from '../base/assets';
 import {defer} from '../base/deferred';
 import {download} from '../base/download_utils';
 import type {ErrorDetails} from '../base/logging';
@@ -20,6 +19,7 @@ import {utf8Decode} from '../base/string_utils';
 import type {time} from '../base/time';
 import {AppImpl} from '../core/app_impl';
 import {maybeShowErrorDialog} from './error_dialog';
+import TraceconvWorker from '../traceconv/index.ts?worker'; // Vite replaces this with the traceconv bundle
 
 type Args =
   | UpdateStatusArgs
@@ -86,7 +86,7 @@ async function makeWorkerAndPost(
     }
   }
 
-  const worker = new Worker(assetSrc('traceconv_bundle.js'));
+  const worker = new TraceconvWorker();
   worker.onmessage = handleOnMessage;
   worker.postMessage(msg);
   return promise;
