@@ -13,7 +13,7 @@
 // limitations under the License.
 
 @use "sass:math";
-@import "../assets/theme";
+@use "../assets/theme" as *;
 
 .pf-track {
   --indent-size: 8px;

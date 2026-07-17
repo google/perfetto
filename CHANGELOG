@@ -34,7 +34,7 @@ Unreleased:
     * Add list of recently opened traces to the homepage.
     * Remap OpenCommandPalette command hotkey to F1 on Firefox.
     * Ftrace plugin: now handles area selections and multi-machine traces.
-    * Update node to v22.23.1.
+    * Update node to v22.23.1 and pnpm to 10.34.5.
     * Allow pivoting on arg values in slice aggregation table.
     * Bump vite to v7.3.6 and vitest to v4.1.10.
   SDK:
