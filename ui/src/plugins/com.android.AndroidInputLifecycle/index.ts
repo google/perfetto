@@ -28,6 +28,7 @@ import {
 import {AndroidInputLifecycleTab} from './tab';
 import type {QueryResult} from '../../base/query_slot';
 import type {InputLifecycleExtension, NavTarget} from './extensions/interface';
+import {PixelInputLifecycleExtension} from './extensions/pixel_extension';
 
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';
@@ -41,12 +42,14 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
 
-    const extensions: InputLifecycleExtension[] = [];
+    const extensions: InputLifecycleExtension[] = [
+      new PixelInputLifecycleExtension(),
+    ];
 
     const activeExtensions: InputLifecycleExtension[] = [];
     for (const ext of extensions) {
       if (await ext.isEligible(trace)) {
-        if (ext.requiredModules) {
+        if (ext.requiredModules !== undefined) {
           for (const mod of ext.requiredModules) {
             await trace.engine.query(`INCLUDE PERFETTO MODULE ${mod};`);
           }
