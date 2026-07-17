@@ -205,6 +205,9 @@ perfetto_cc_library(
         ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
     ],
+    defines = [
+        "PERFETTO_SDK_SHLIB_IMPLEMENTATION",
+    ],
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
                ":perfetto_ipc",
@@ -503,6 +506,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":src_trace_processor_plugins_sql_stats_table_sql_stats_table",
         ":src_trace_processor_plugins_stack_functions_stack_functions",
+        ":src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
+        ":src_trace_processor_plugins_stack_sample_importer_tables",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",
@@ -802,6 +807,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":src_trace_processor_plugins_sql_stats_table_sql_stats_table",
         ":src_trace_processor_plugins_stack_functions_stack_functions",
+        ":src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
+        ":src_trace_processor_plugins_stack_sample_importer_tables",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",
@@ -4165,6 +4172,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/std/thread:thread
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_std_thread_thread",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/std/thread/with_context.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/std/traceinfo:traceinfo
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_std_traceinfo_traceinfo",
@@ -4291,6 +4306,7 @@ perfetto_cpp_blob_header(
         ":src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
         ":src_trace_processor_perfetto_sql_stdlib_std_gpu_gpu",
         ":src_trace_processor_perfetto_sql_stdlib_std_metasql_metasql",
+        ":src_trace_processor_perfetto_sql_stdlib_std_thread_thread",
         ":src_trace_processor_perfetto_sql_stdlib_std_traceinfo_traceinfo",
         ":src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
         ":src_trace_processor_perfetto_sql_stdlib_time_time",
@@ -4867,6 +4883,33 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/stack_functions/stack_functions.cc",
         "src/trace_processor/plugins/stack_functions/stack_functions.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/stack_sample_importer:stack_sample_importer
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
+    srcs = [
+        "src/trace_processor/plugins/stack_sample_importer/module.cc",
+        "src/trace_processor/plugins/stack_sample_importer/module.h",
+        "src/trace_processor/plugins/stack_sample_importer/plugin.cc",
+        "src/trace_processor/plugins/stack_sample_importer/plugin.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/stack_sample_importer:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_plugins_stack_sample_importer_tables",
+    srcs = [
+        "src/trace_processor/plugins/stack_sample_importer/tables.py",
+    ],
+    deps = [
+        ":src_trace_processor_tables_tables_python",
+    ],
+    outs = [
+        "src/trace_processor/plugins/stack_sample_importer/all_tables_fwd.h",
+        "src/trace_processor/plugins/stack_sample_importer/tables_fwd.h",
+        "src/trace_processor/plugins/stack_sample_importer/tables_py.h",
     ],
 )
 
@@ -9488,6 +9531,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
+        "protos/perfetto/trace/profiling/stack_sample.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
@@ -11402,6 +11446,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":src_trace_processor_plugins_sql_stats_table_sql_stats_table",
         ":src_trace_processor_plugins_stack_functions_stack_functions",
+        ":src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
+        ":src_trace_processor_plugins_stack_sample_importer_tables",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",
@@ -11731,6 +11777,8 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":src_trace_processor_plugins_sql_stats_table_sql_stats_table",
         ":src_trace_processor_plugins_stack_functions_stack_functions",
+        ":src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
+        ":src_trace_processor_plugins_stack_sample_importer_tables",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",

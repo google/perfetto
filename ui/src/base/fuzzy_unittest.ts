@@ -22,12 +22,16 @@ describe('FuzzyFinder', () => {
     const result = finder.find('');
     // Expect all results are returned in original order.
     expect(result).toEqual([
-      {item: 'aaa', segments: [{matching: false, value: 'aaa'}]},
-      {item: 'aba', segments: [{matching: false, value: 'aba'}]},
-      {item: 'zzz', segments: [{matching: false, value: 'zzz'}]},
-      {item: 'c z d z e', segments: [{matching: false, value: 'c z d z e'}]},
-      {item: 'CAPS', segments: [{matching: false, value: 'CAPS'}]},
-      {item: 'ababc', segments: [{matching: false, value: 'ababc'}]},
+      {item: 'aaa', segments: [{matching: false, value: 'aaa'}], score: 1},
+      {item: 'aba', segments: [{matching: false, value: 'aba'}], score: 1},
+      {item: 'zzz', segments: [{matching: false, value: 'zzz'}], score: 1},
+      {
+        item: 'c z d z e',
+        segments: [{matching: false, value: 'c z d z e'}],
+        score: 1,
+      },
+      {item: 'CAPS', segments: [{matching: false, value: 'CAPS'}], score: 1},
+      {item: 'ababc', segments: [{matching: false, value: 'ababc'}], score: 1},
     ]);
   });
 
@@ -35,7 +39,10 @@ describe('FuzzyFinder', () => {
     const result = finder.find('aaa');
     expect(result).toEqual(
       expect.arrayContaining([
-        {item: 'aaa', segments: [{matching: true, value: 'aaa'}]},
+        expect.objectContaining({
+          item: 'aaa',
+          segments: [{matching: true, value: 'aaa'}],
+        }),
       ]),
     );
   });
@@ -45,22 +52,22 @@ describe('FuzzyFinder', () => {
     // Allow finding results in any order.
     expect(result).toEqual(
       expect.arrayContaining([
-        {
+        expect.objectContaining({
           item: 'aaa',
           // Either |aa|a or a|aa| is valid.
           segments: expect.arrayContaining([
             {matching: true, value: 'aa'},
             {matching: false, value: 'a'},
           ]),
-        },
-        {
+        }),
+        expect.objectContaining({
           item: 'aba',
           segments: [
             {matching: true, value: 'a'},
             {matching: false, value: 'b'},
             {matching: true, value: 'a'},
           ],
-        },
+        }),
       ]),
     );
   });
@@ -77,7 +84,10 @@ describe('FuzzyFinder', () => {
     const result = finder.find('caps');
     expect(result).toEqual(
       expect.arrayContaining([
-        {item: 'CAPS', segments: [{matching: true, value: 'CAPS'}]},
+        expect.objectContaining({
+          item: 'CAPS',
+          segments: [{matching: true, value: 'CAPS'}],
+        }),
       ]),
     );
   });

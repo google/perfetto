@@ -217,10 +217,14 @@ class ProcessTracker {
   // to the pid.
   UniquePid GetOrCreateProcessWithoutMainThread(int64_t pid);
 
-  // Returns the upid for a given pid.
-  std::optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
+  // Non-mutating lookup of the upid for |pid| (cf. GetThreadOrNull).
+  std::optional<UniquePid> GetProcessOrNull(int64_t pid) {
     auto* it = pids_.Find(pid);
     return it ? std::make_optional(*it) : std::nullopt;
+  }
+
+  std::optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
+    return GetProcessOrNull(pid);
   }
 
   // Returns the bounds of a range that includes all UniqueTids that have the

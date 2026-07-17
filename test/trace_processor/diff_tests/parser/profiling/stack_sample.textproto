@@ -1,0 +1,76 @@
+packet {
+  process_tree {
+    processes {
+      pid: 100
+      ppid: 1
+      cmdline: "myproc"
+      uid: 0
+    }
+  }
+}
+
+packet {
+  previous_packet_dropped: 1
+  incremental_state_cleared: true
+  trusted_packet_sequence_id: 1
+  timestamp: 500
+  trace_packet_defaults {
+    stack_sample_defaults {
+      source: "python.wall"
+      primary_descriptor {
+        name: "wall-time"
+        unit: UNIT_NANOSECONDS
+      }
+      follower_descriptors {
+        name: "instructions"
+        unit: UNIT_INSTRUCTIONS
+      }
+    }
+  }
+  interned_data {
+    mappings {
+      iid: 1
+    }
+    function_names {
+      iid: 1
+      str: "foo"
+    }
+    frames {
+      iid: 1
+      mapping_id: 1
+      rel_pc: 0x100
+      function_name_id: 1
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  stack_sample {
+    task_context {
+      pid: 100
+      tid: 101
+    }
+    execution_context {
+      cpu: 2
+      mode: MODE_USER
+    }
+    callstack {
+      frame_ids: 1
+    }
+    primary_weight: 1000000
+    follower_weights: 500
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 7000
+  stack_sample {
+    callstack {
+      frame_ids: 1
+    }
+    primary_weight: 7000000
+  }
+}

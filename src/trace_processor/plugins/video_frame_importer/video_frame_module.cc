@@ -175,6 +175,8 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
   info.emitted_bytes += static_cast<int64_t>(payload.size);
 
   auto id = table_->Insert(row).id.value;
+  // Signal frame output to trace doctor (see TraceStorage).
+  context_->storage->set_has_android_video_frames();
   // au_data is parallel to the table, indexed by row id.
   PERFETTO_DCHECK(id == au_data_->size());
   const TraceBlobView& packet = data.packet;

@@ -15,13 +15,9 @@
 import m from 'mithril';
 import type {time} from '../../base/time';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import type {
-  ColumnSchema,
-  SchemaRegistry,
-} from '../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
 import type {Column} from '../../components/widgets/datagrid/model';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../components/widgets/datagrid/sql_schema';
 import {asUpid} from '../../components/sql_utils/core_types';
 import {
   getProcessInfo,
@@ -34,8 +30,6 @@ import type {Engine} from '../../trace_processor/engine';
 import {NUM_NULL, type Row} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Spinner} from '../../widgets/spinner';
-
-const ROOT_SCHEMA = 'mapping';
 
 const COLUMNS: ReadonlyArray<{name: string; title: string}> = [
   {name: 'path', title: 'Path'},
@@ -54,15 +48,15 @@ const COLUMNS: ReadonlyArray<{name: string; title: string}> = [
   {name: 'locked_kb', title: 'Locked (KB)'},
 ];
 
-function buildGridSchema(): SchemaRegistry {
-  const mapping: ColumnSchema = {};
+function buildGridSchema(): ColumnSchema {
+  const schema: ColumnSchema = {};
   for (const col of COLUMNS) {
-    mapping[col.name] = {
+    schema[col.name] = {
       title: col.title,
       columnType: col.name === 'path' ? 'text' : 'quantitative',
     };
   }
-  return {[ROOT_SCHEMA]: mapping};
+  return schema;
 }
 
 // Datagrid schema with all possible underlying columns.
@@ -121,12 +115,11 @@ export class SmapsDetailsPanel implements TrackEventDetailsPanel {
     ).join(', ');
     this.dataSource = new SQLDataSource({
       engine: trace.engine,
-      sqlSchema: createSimpleSchema(`
+      tableOrSubquery: `
         SELECT ${selectCols}
         FROM process_memory_mappings
         WHERE upid = ${upid} AND ts = ${ts}
-      `),
-      rootSchemaName: 'query',
+      `,
     });
   }
 
@@ -162,7 +155,6 @@ export class SmapsDetailsPanel implements TrackEventDetailsPanel {
     return m(DataGrid, {
       fillHeight: true,
       schema: SMAPS_SCHEMA,
-      rootSchema: ROOT_SCHEMA,
       initialColumns,
       data: this.dataSource,
       showExportButton: true,

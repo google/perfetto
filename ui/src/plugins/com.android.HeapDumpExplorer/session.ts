@@ -36,12 +36,13 @@ import {
   METRIC_DOMINATED_OBJECT_SIZE,
   METRIC_OBJECT_SIZE,
 } from './views/flamegraph_view';
+import type {time} from '../../base/time';
 
 interface FlamegraphSelection {
   readonly pathHashes: string;
   readonly isDominator: boolean;
   readonly upid: number;
-  readonly ts: bigint;
+  readonly ts: time;
 }
 
 // A flamegraph drill-down tab: identity plus the title's object count (null

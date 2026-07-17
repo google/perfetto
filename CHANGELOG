@@ -36,13 +36,20 @@ Unreleased:
     * Ftrace plugin: now handles area selections and multi-machine traces.
     * Update node to v22.23.1.
     * Allow pivoting on arg values in slice aggregation table.
+    * Bump vite to v7.3.6 and vitest to v4.1.10.
   SDK:
     * Reworked the C SDK shared library export macros: static linking (the
-      default) no longer needs any macros; define PERFETTO_SDK_SHLIB to build
-      or consume the SDK, including the amalgamated one, as a shared library.
-      PERFETTO_SDK_DISABLE_SHLIB_EXPORT is removed and
-      PERFETTO_SHLIB_SDK_IMPLEMENTATION is renamed to
-      PERFETTO_SDK_SHLIB_IMPLEMENTATION.
+      default) no longer needs any macros. Define
+      PERFETTO_SDK_SHLIB_IMPLEMENTATION (renamed from
+      PERFETTO_SHLIB_SDK_IMPLEMENTATION) when building the SDK into a shared
+      library, and PERFETTO_SDK_SHLIB when consuming it as one. This applies
+      to the amalgamated SDK too. PERFETTO_SDK_DISABLE_SHLIB_EXPORT is
+      removed.
+    * Added PerfettoDsGetTimestamp() and PerfettoDsGetDefaultClockId() to
+      the C data source ABI. These return the current timestamp in the
+      preferred trace clock, so callers no longer need to pick the OS
+      specific clock themselves. Also added DataSourceTimestamp::now() in
+      the Rust SDK.
 
 v57.2 - 2026-07-07:
   Trace Processor:

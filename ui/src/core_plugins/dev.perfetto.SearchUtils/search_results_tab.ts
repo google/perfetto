@@ -19,7 +19,7 @@ import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import type {Row} from '../../trace_processor/query_result';
-import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
 
 interface TabAttrs {
   trace: Trace;
@@ -32,39 +32,37 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
     const searchResults = searchManager.searchResults;
     const searchText = searchManager.searchText;
 
-    const schema: SchemaRegistry = {
-      data: {
-        id: {
-          title: 'Event ID',
-          cellRenderer: (value, row) => {
-            if (typeof row.trackUri === 'string') {
-              return m(
-                Anchor,
-                {
-                  onclick: () => {
-                    trace.selection.selectTrackEvent(
-                      row.trackUri as string,
-                      value as number,
-                      {
-                        switchToCurrentSelectionTab: false,
-                        clearSearch: false,
-                        scrollToSelection: true,
-                      },
-                    );
-                  },
+    const schema: ColumnSchema = {
+      id: {
+        title: 'Event ID',
+        cellRenderer: (value, row) => {
+          if (typeof row.trackUri === 'string') {
+            return m(
+              Anchor,
+              {
+                onclick: () => {
+                  trace.selection.selectTrackEvent(
+                    row.trackUri as string,
+                    value as number,
+                    {
+                      switchToCurrentSelectionTab: false,
+                      clearSearch: false,
+                      scrollToSelection: true,
+                    },
+                  );
                 },
-                String(value),
-              );
-            }
-            return String(value);
-          },
+              },
+              String(value),
+            );
+          }
+          return String(value);
         },
-        ts: {
-          title: 'Timestamp',
-        },
-        trackUri: {
-          title: 'Track URI',
-        },
+      },
+      ts: {
+        title: 'Timestamp',
+      },
+      trackUri: {
+        title: 'Track URI',
       },
     };
 
@@ -97,7 +95,6 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
       },
       m(DataGrid, {
         schema,
-        rootSchema: 'data',
         initialColumns: [
           {id: 'id', field: 'id'},
           {id: 'ts', field: 'ts'},

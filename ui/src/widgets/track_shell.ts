@@ -84,6 +84,10 @@ export interface TrackShellAttrs extends HTMLAttrs {
   // Whether to highlight the track or not.
   readonly highlight?: boolean;
 
+  // Whether this track is part of the current selection - tints the shell
+  // subtly.
+  readonly selected?: boolean;
+
   // Whether the shell should be draggable and emit drag/drop events.
   readonly reorderable?: boolean;
 
@@ -194,6 +198,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       onMoveInside = () => {},
       buttons,
       highlight,
+      selected,
       lite,
       summary,
     } = attrs;
@@ -219,6 +224,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         className: classNames(
           collapsible && 'pf-track__shell--clickable',
           highlight && 'pf-track__shell--highlight',
+          selected && 'pf-track__shell--selected',
           lite && 'pf-track__shell--lite',
         ),
         onclick: () => {

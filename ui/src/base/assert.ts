@@ -139,7 +139,12 @@ export function assertUnreachable(value: never, optMsg?: string): never {
 export function assertIsArrayBufferView(
   view: ArrayBufferView,
 ): asserts view is ArrayBufferView<ArrayBuffer> {
-  if (view.buffer instanceof SharedArrayBuffer) {
+  // SharedArrayBuffer is only defined in cross-origin isolated contexts; if the
+  // global isn't there, the buffer can't possibly be one.
+  if (
+    typeof SharedArrayBuffer !== 'undefined' &&
+    view.buffer instanceof SharedArrayBuffer
+  ) {
     // Copy the underlying buffer into the array, trimming to the byte bounds of the view
     throw new Error(
       "Underlying view is a SAB. If this is a problem we could convert it but we're being defensive as this could be expensive",
