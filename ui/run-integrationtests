@@ -186,7 +186,7 @@ def run_in_docker(args):
   docker_cmd = [
       'docker', 'run',
       '--rm', # Remove the container after it exits
-      '--ipc=host', # Share host IPC/shared memory to prevent Chrome crashes with high worker counts
+      '--shm-size=2gb', # Provide ample shared memory without polluting host IPC namespace
       '-t', # Allocate a pseudo-TTY for better output formatting
       '-v', f'{REPO_ROOT}:{REPO_ROOT}', # Mount the repo root into the container
       '-w', f'{REPO_ROOT}/ui', # Set working directory to /ui
