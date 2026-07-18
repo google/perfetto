@@ -66,6 +66,28 @@ packet {
 
 packet {
   trusted_packet_sequence_id: 1
+  timestamp: 6000
+  interned_data {
+    [perfetto.protos.StackSampleInternedData.async_context_descriptors] {
+      iid: 7
+      name: "worker-1"
+      kind: "fiber"
+    }
+  }
+  stack_sample {
+    task_context {
+      pid: 100
+      async_id: 7
+    }
+    callstack {
+      frame_ids: 1
+    }
+    primary_weight: 4000000
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
   timestamp: 7000
   stack_sample {
     callstack {
