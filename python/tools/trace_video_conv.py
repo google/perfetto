@@ -51,14 +51,13 @@ import subprocess
 import sys
 import tempfile
 
-# Bootstrap the in-repo perfetto python library (same as the other tools/).
-PYTHON_DIR = os.path.join(
-    os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'python')
-sys.path.append(PYTHON_DIR)
+# Put the repo root on the path so the in-repo python package is importable.
+ROOT_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(ROOT_DIR)
 
-from perfetto.trace_processor import TraceProcessor
-from perfetto.trace_processor import TraceProcessorConfig
+from python.perfetto.trace_processor import TraceProcessor
+from python.perfetto.trace_processor import TraceProcessorConfig
 
 VIDEO_TABLE = '__intrinsic_video_frames'
 AU_FN = '__intrinsic_video_frame_au_data'
