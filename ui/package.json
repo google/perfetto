@@ -52,6 +52,7 @@
     "@types/w3c-web-usb": "^1.0.14",
     "@typescript-eslint/eslint-plugin": "^8.60.1",
     "@typescript-eslint/parser": "^8.60.1",
+    "@typescript/native": "npm:typescript@7.0.2",
     "argparse": "^2.0.1",
     "devtools-protocol": "0.0.1561482",
     "eslint": "^9.39.4",
@@ -65,7 +66,7 @@
     "sass": "^1.77.6",
     "source-map": "^0.7.6",
     "tslib": "^2.6.3",
-    "typescript": "5.9.3",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
   },

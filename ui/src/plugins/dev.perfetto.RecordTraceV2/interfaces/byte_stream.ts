@@ -23,6 +23,6 @@ export abstract class ByteStream {
   onClose: () => void = () => {};
 
   abstract get connected(): boolean;
-  abstract write(data: string | Uint8Array): Promise<void>;
+  abstract write(data: string | Uint8Array<ArrayBuffer>): Promise<void>;
   abstract close(): void;
 }
