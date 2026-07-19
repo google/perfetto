@@ -116,8 +116,7 @@ export interface DataExplorerState {
 
 type StateUpdateFn = (
   update:
-    | DataExplorerState
-    | ((current: DataExplorerState) => DataExplorerState),
+    DataExplorerState | ((current: DataExplorerState) => DataExplorerState),
 ) => void;
 
 interface DataExplorerAttrs {

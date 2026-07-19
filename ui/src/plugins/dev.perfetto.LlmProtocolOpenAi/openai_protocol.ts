@@ -191,7 +191,7 @@ class ToolCallAssembler {
       const key =
         tc.index !== undefined
           ? `i${tc.index}`
-          : tc.id ?? `seq${this.fallbackSeq++}`;
+          : (tc.id ?? `seq${this.fallbackSeq++}`);
       const cur = this.byKey.get(key) ?? {name: '', argsStr: ''};
 
       const rawArgs = tc.function?.arguments;
