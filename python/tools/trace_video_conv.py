@@ -14,13 +14,20 @@
 # limitations under the License.
 """Extract screen-recording video from a Perfetto trace into an .mp4.
 
-The android.display.video data source stores each captured frame as an H.264
-access unit in the trace. This reads those frames and muxes them into an .mp4
-with ffmpeg. With --compare it lays two traces' videos side by side, each
-captioned, so they can be lined up.
+The android.display.video data source stores each captured frame as a coded
+access unit in the trace, on screen from its own timestamp until the next frame
+(so the capture rate is variable). This reads those frames and remuxes them into
+an .mp4 with ffmpeg's libav (PyAV): the coded access units are copied verbatim
+(no re-encode) and each is given its real presentation time, so the output
+preserves the trace's exact, variable per-frame timing. A clip starts exactly at
+the requested timestamp and ends at the requested end. Works for H.264 and HEVC.
+With --compare it lays two traces' videos side by side, each captioned; the
+side-by-side composite is re-encoded, but each single-clip export is lossless.
 
-Requires ffmpeg on the PATH. trace_processor is downloaded automatically unless
---trace-processor points at a local build.
+Requires the PyAV package (`pip install av`). ffmpeg on the PATH is only needed
+for the re-encode paths (--compare, and clips that need a 'No video frames'
+card); a plain lossless export uses libav alone. trace_processor is downloaded
+automatically unless --trace-processor points at a local build.
 
 Examples:
   # whole video
@@ -51,21 +58,25 @@ import subprocess
 import sys
 import tempfile
 
-# Put the repo root on the path so the in-repo python package is importable.
+# `python.perfetto.*` needs the repo root on sys.path; that package's own
+# absolute `perfetto.*` imports need python/ on it too.
 ROOT_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(ROOT_DIR)
+sys.path.append(os.path.join(ROOT_DIR, 'python'))
 
 from python.perfetto.trace_processor import TraceProcessor
 from python.perfetto.trace_processor import TraceProcessorConfig
 
 VIDEO_TABLE = '__intrinsic_video_frames'
 AU_FN = '__intrinsic_video_frame_au_data'
-SPS_NAL_TYPE = 7  # H.264 sequence parameter set.
 
 Frame = collections.namedtuple('Frame', 'ts is_key is_config pts data')
 # A per-trace selection: which display, and how to clip it.
 Clip = collections.namedtuple('Clip', 'display_id start end query')
+# A loaded clip: config + selected frames, the requested [start, end] window (ns,
+# or None), the codec string, and the stream's last frame ts.
+Loaded = collections.namedtuple('Loaded', 'cfg sel start end codec last_ts')
 
 FONT_CANDIDATES = [
     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
@@ -147,15 +158,21 @@ def resolve_region(tp, clip):
 
 
 def select_range(frames, start_ts, end_ts):
-  """Frames within [start_ts, end_ts], extended back to a seeding key frame."""
+  """Frames whose on-screen interval intersects [start_ts, end_ts], extended
+  back to a seeding key frame."""
   if start_ts is None and end_ts is None:
     return frames
+  # A captured frame stays on screen until the next one is captured, so the
+  # frame shown at start_ts is the last one that begins at or before it, not
+  # the first one after. Snapping forward instead would drop the very frame
+  # the user asked for whenever start_ts falls between two frames.
   lo = 0
-  while lo < len(frames) and start_ts is not None and frames[lo].ts < start_ts:
-    lo += 1
+  if start_ts is not None:
+    while lo + 1 < len(frames) and frames[lo + 1].ts <= start_ts:
+      lo += 1
   # A clip can only be decoded starting from a key frame, so back up to the
-  # last one at or before the requested start.
-  seed = min(lo, len(frames) - 1)
+  # last one at or before the chosen start.
+  seed = lo
   while seed > 0 and not frames[seed].is_key:
     seed -= 1
   hi = len(frames)
@@ -166,44 +183,15 @@ def select_range(frames, start_ts, end_ts):
   return frames[seed:hi]
 
 
-def estimate_fps(frames):
-  """Median frame rate, from pts if present, otherwise from ts."""
-
-  def rate(values, per_second):
-    deltas = [b - a for a, b in zip(values, values[1:]) if b > a]
-    return per_second / statistics.median(deltas) if deltas else None
-
-  pts = [f.pts for f in frames]
-  fps = rate(pts, 1_000_000) if any(pts) else None
-  fps = fps or rate([f.ts for f in frames], 1_000_000_000)
-  return round(fps, 3) if fps else 30.0
-
-
 def build_stream(config, frames):
   # Frames are Annex-B access units (already start-code delimited), so the
   # elementary stream is the config (SPS/PPS) followed by the frames.
   return b''.join(f.data for f in config + frames)
 
 
-def has_nal(stream, nal_type):
-  """Whether the Annex-B stream contains a NAL unit of the given type."""
-  i = 0
-  while i + 3 < len(stream):
-    if stream[i:i + 3] == b'\x00\x00\x01':
-      head = i + 3
-    elif stream[i:i + 4] == b'\x00\x00\x00\x01':
-      head = i + 4
-    else:
-      i += 1
-      continue
-    if head < len(stream) and (stream[head] & 0x1F) == nal_type:
-      return True
-    i = head
-  return False
-
-
-def load_stream(bin_path, trace, clip):
-  """Open a trace and return (h264_bytes, fps, frame_count) for the clip."""
+def load_clip(bin_path, trace, clip):
+  """Open a trace and return the Loaded clip. sel is the selected frames (by ts,
+  seeded from a key frame), each carrying its real ts for exact timing."""
   if not os.path.exists(trace):
     die(f'No such trace: {trace}')
   config = TraceProcessorConfig(bin_path=bin_path)
@@ -212,36 +200,33 @@ def load_stream(bin_path, trace, clip):
     cfg_frames, frames = query_frames(tp, display_id)
     if not frames:
       die(f'No displayable frames for display {display_id} in {trace}.')
-    sel = select_range(frames, *resolve_region(tp, clip))
+    start_ts, end_ts = resolve_region(tp, clip)
+    sel = select_range(frames, start_ts, end_ts)
+    rows = tp.query(f'SELECT codec_string FROM {VIDEO_TABLE} '
+                    f'WHERE display_id = {display_id} '
+                    'AND codec_string IS NOT NULL LIMIT 1')
+    codec_string = next((r.codec_string for r in rows), None)
   if not sel:
     die(f'No frames in the requested range for {trace}.')
   if sum(len(f.data) for f in sel) == 0:
     die(f'Frames in {trace} carry no encoded data: the trace has frame rows '
         'but not the encoded payload, so there is nothing to mux. It was '
         'likely recorded without the video bytes.')
-  stream = build_stream(cfg_frames, sel)
-  if not has_nal(stream, SPS_NAL_TYPE):
-    print(
-        f'warning: {trace} has no SPS (H.264 params); ffmpeg may not be able '
-        'to decode it.',
-        file=sys.stderr)
-  return stream, estimate_fps(sel), len(sel)
+  # last_ts is the stream's final frame; an --end past it is a real gap (capture
+  # stopped), not the last frame simply staying on screen.
+  return Loaded(cfg_frames, sel, start_ts, end_ts, codec_string, frames[-1].ts)
 
 
 def find_font():
   return next((p for p in FONT_CANDIDATES if os.path.exists(p)), None)
 
 
-def probe_height(h264_path):
-  """The video height in a raw H.264 file (from its SPS), or None."""
-  proc = subprocess.run([
-      'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries',
-      'stream=height', '-of', 'csv=p=0', h264_path
-  ],
-                        capture_output=True,
-                        text=True)
-  h = proc.stdout.strip()
-  return int(h) if h.isdigit() else None
+def probe_dims(path):
+  """(width, height) of the video in a file, via libav."""
+  import av
+  with av.open(path) as c:
+    s = c.streams.video[0]
+    return s.width, s.height
 
 
 def write_temp(data, suffix):
@@ -252,28 +237,84 @@ def write_temp(data, suffix):
 
 
 def run_ffmpeg(in_out_args):
+  # Only the re-encode paths (cards, --compare) need the ffmpeg binary; a
+  # lossless single-clip export goes through libav alone.
+  if not shutil.which('ffmpeg'):
+    die('this needs ffmpeg on PATH (apt install ffmpeg / brew install ffmpeg).')
   cmd = ['ffmpeg', '-y', '-hide_banner', '-loglevel', 'error'] + in_out_args
   proc = subprocess.run(cmd, capture_output=True, text=True)
   if proc.returncode != 0:
     die(f'ffmpeg failed:\n{proc.stderr.strip()}')
 
 
-def mux(stream, fps, out_path):
-  raw = write_temp(stream, '.h264')
+def probe_duration(path):
+  """The video's duration in seconds, via libav (0.0 if unknown)."""
+  import av
+  with av.open(path) as c:
+    return c.duration / 1_000_000 if c.duration else 0.0  # duration is in us
+
+
+def codec_format(codec_string):
+  """The libav demuxer name for the trace's codec ('hevc' or 'h264')."""
+  cs = (codec_string or '').lower()
+  return 'hevc' if cs.startswith(('hvc', 'hev')) else 'h264'
+
+
+def mux(cfg_frames, sel, start_ts, end_ts, codec_string, speed, out_path):
+  """Wrap the coded frames in an .mp4 with their exact per-frame timing and no
+  re-encode, via ffmpeg's libav (PyAV): copy the coded access units and give each
+  its real presentation time. Pre-roll before start_ts is trimmed with an edit
+  list so playback begins exactly at start_ts, and the last frame is held to
+  end_ts. Works for any codec libav parses (H.264, HEVC)."""
+  import av
+  from fractions import Fraction
+
+  raw = write_temp(build_stream(cfg_frames, sel), '.bin')
+  rebase = start_ts if start_ts is not None else sel[0].ts
+  n = len(sel)
+  gaps = [
+      sel[i + 1].ts - sel[i].ts
+      for i in range(n - 1)
+      if sel[i + 1].ts > sel[i].ts
+  ]
+  # The last frame has no successor to bound it; hold it for the median gap.
+  nominal = int(statistics.median(gaps)) if gaps else 33_000_000
+  hi = end_ts if end_ts is not None else sel[-1].ts + nominal
+  # Microsecond timebase: matches pts_us exactly (ts are whole microseconds) and
+  # keeps values small enough for a multi-second held frame to fit the container.
+  tb = Fraction(1, 1_000_000)
+
+  def us(ns):
+    return round(ns / 1000 / speed)
+
   try:
-    # -r is an input option: it sets the raw H.264 demuxer's frame rate, which
-    # -c copy carries to the output timing. (-framerate is ignored here.)
-    run_ffmpeg([
-        '-r',
-        str(fps), '-f', 'h264', '-i', raw, '-c', 'copy', '-movflags',
-        '+faststart', out_path
-    ])
+    inp = av.open(raw, format=codec_format(codec_string))
+    src = inp.streams.video[0]
+    out = av.open(out_path, 'w')
+    dst = out.add_stream_from_template(src)  # copies codec params (avcC/hvcC)
+    dst.time_base = tb
+    packets = [p for p in inp.demux(src) if p.size > 0]
+    if len(packets) != n:
+      die(f'expected {n} frames but the stream demuxed {len(packets)}.')
+    for i, (f, p) in enumerate(zip(sel, packets)):
+      nxt = sel[i + 1].ts if i + 1 < n else hi
+      p.pts = p.dts = us(f.ts - rebase)
+      p.duration = max(1, us(min(nxt, hi) - f.ts))
+      p.time_base = tb
+      p.stream = dst
+      out.mux(p)
+    out.close()
+    inp.close()
   finally:
     os.unlink(raw)
+  return n
 
 
 # A thin dark header bar (Perfetto's chrome colour) with left-aligned text.
 HEADER_COLOR = '0x1A2633'
+
+# Shared grid the two sides are resampled onto for the (re-encoded) side-by-side.
+COMPARE_FPS = 60
 
 
 def caption(title_file, font, fontsize, band):
@@ -283,41 +324,106 @@ def caption(title_file, font, fontsize, band):
           f'fontsize={fontsize}:x=16:y=({band}-th)/2')
 
 
-def mux_compare(left, right, titles, out_path):
-  """Stack two videos side by side, each captioned. left/right are (stream, fps)."""
+def blank_card(font, fontsize, enable):
+  """A drawtext filter that centres 'No video frames' while `enable` holds. Drawn
+  in a translucent box so it reads over a frozen last frame as well as black."""
+  font_opt = f"fontfile='{font}':" if font else ''
+  return (f"drawtext={font_opt}text='No video frames':fontcolor=white:"
+          f"fontsize={fontsize}:x=(w-tw)/2:y=(h-th)/2:box=1:boxcolor=black@0.6:"
+          f"boxborderw={max(fontsize // 3, 8)}:enable='{enable}'")
+
+
+def fill_filters(font, height, lead, content_end, total):
+  """The ffmpeg filters that pad a clip's frameless window parts with a card: a
+  black lead-in before the first frame, the frozen last frame after the last.
+  Both pads go in one tpad (chaining two tpads drops part of the second)."""
+  cardsize = max(round(height * 0.05), 20)
+  tpad, cards = [], []
+  if lead > 1e-3:
+    tpad.append(f'start_mode=add:start_duration={lead:.3f}:color=black')
+    cards.append(blank_card(font, cardsize, f'lt(t,{lead:.3f})'))
+  if total - content_end > 1e-3:
+    tpad.append(f'stop_mode=clone:stop_duration={total - content_end:.3f}')
+    cards.append(blank_card(font, cardsize, f'gte(t,{content_end:.3f})'))
+  return [f'tpad={":".join(tpad)}'] + cards if tpad else []
+
+
+def fill_card(video, lead, content_end, total, out_path):
+  """Re-encode `video` with lead-in/tail cards filling its frameless window
+  parts. Runs only when the window reaches past the frames."""
+  dims = probe_dims(video)
+  filters = fill_filters(find_font(), dims[1] if dims else 720, lead,
+                         content_end, total)
+  run_ffmpeg([
+      '-i', video, '-vf', ','.join(filters), '-c:v', 'libx264', '-pix_fmt',
+      'yuv420p', '-movflags', '+faststart', out_path
+  ])
+
+
+def clip_span(clip, mp4, speed):
+  """Mux one clip's frames and describe how its requested window maps to output
+  seconds: (lead, content_end, window). `lead` is blank time before the first
+  frame; frames run [lead, content_end]; `window` is the full span to show, so
+  [content_end, window] is a frameless tail. When --end lands within the frames
+  the last frame is held to it (lossless); only an --end past the stream's last
+  frame leaves a real tail gap to card."""
+  cfg, sel, start, end, codec, last_ts = clip
+  lead = (sel[0].ts - start) / 1e9 / speed \
+      if start is not None and start < sel[0].ts else 0.0
+  tail_gap = end is not None and end > last_ts
+  mux(cfg, sel, None if lead else start, None if tail_gap else end, codec,
+      speed, mp4)
+  content_end = lead + probe_duration(mp4)
+  window = (end - start) / 1e9 / speed if start is not None and end is not None \
+      else content_end
+  return lead, content_end, max(window, content_end)
+
+
+def mux_compare(left, right, titles, speed, out_path):
+  """Stack two clips side by side, each captioned, over each side's requested
+  [start, end] window. Real frames play at their real times; any frameless part
+  of the window - before the first frame, or after the last - shows a 'No video
+  frames' card, so both sides fill the same span (e.g. two 5 s ranges both run
+  5 s even if one starts late and ends early)."""
   font = find_font()
-  # textfile= avoids escaping title text (paths, colons, quotes) in the graph.
-  files = [
-      write_temp(left[0], '.h264'),
-      write_temp(right[0], '.h264'),
-      write_temp(titles[0], '.txt'),
-      write_temp(titles[1], '.txt')
-  ]
-  raw_l, raw_r, title_l, title_r = files
+  tmp = tempfile.mkdtemp()
+  titlefiles = []
   try:
-    height = probe_height(raw_l) or 720
+    l_mp4 = os.path.join(tmp, 'l.mp4')
+    r_mp4 = os.path.join(tmp, 'r.mp4')
+    l_lead, l_end, l_win = clip_span(left, l_mp4, speed)
+    r_lead, r_end, r_win = clip_span(right, r_mp4, speed)
+    total = max(l_win, r_win)
+    # textfile= avoids escaping title text (paths, colons, quotes) in the graph.
+    title_l = write_temp(titles[0], '.txt')
+    title_r = write_temp(titles[1], '.txt')
+    titlefiles = [title_l, title_r]
+    dims = probe_dims(l_mp4)
+    height = dims[1] if dims else 720
     band = max(round(height * 0.045), 22)  # thin caption bar, in pixels
     fontsize = max(round(band * 0.55), 12)
 
-    def side(idx, title_file):
-      # Scale both to a common height, then add a thin header bar on top and
-      # draw the caption in it, so the title sits above the video, not over it.
-      return (f'[{idx}:v]scale=-2:{height},'
-              f'pad=iw:ih+{band}:0:{band}:{HEADER_COLOR},'
-              f'{caption(title_file, font, fontsize, band)}')
+    def side(idx, title_file, lead, content_end):
+      chain = [
+          f'[{idx}:v]fps={COMPARE_FPS}', f'scale=-2:{height}',
+          f'pad=iw:ih+{band}:0:{band}:{HEADER_COLOR}',
+          caption(title_file, font, fontsize, band)
+      ]
+      chain += fill_filters(font, height, lead, content_end, total)
+      return ','.join(chain)
 
-    graph = (f'{side(0, title_l)}[l];{side(1, title_r)}[r];'
+    graph = (f'{side(0, title_l, l_lead, l_end)}[l];'
+             f'{side(1, title_r, r_lead, r_end)}[r];'
              f'[l][r]hstack=inputs=2[v]')
     run_ffmpeg([
-        '-r',
-        str(left[1]), '-f', 'h264', '-i', raw_l, '-r',
-        str(right[1]), '-f', 'h264', '-i', raw_r, '-filter_complex', graph,
-        '-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags',
-        '+faststart', out_path
+        '-i', l_mp4, '-i', r_mp4, '-filter_complex', graph, '-map', '[v]',
+        '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+        out_path
     ])
   finally:
-    for f in files:
+    for f in titlefiles:
       os.unlink(f)
+    shutil.rmtree(tmp, ignore_errors=True)
 
 
 def parse_args():
@@ -339,7 +445,7 @@ def parse_args():
       type=float,
       default=1.0,
       help='playback speed: 2 = twice as fast, 0.5 = slow motion '
-      '(lossless, applies to both sides)')
+      '(applies to both sides)')
 
   g = ap.add_argument_group('clip (first trace)')
   g.add_argument(
@@ -369,9 +475,6 @@ def parse_args():
 
 def main():
   args = parse_args()
-  if not shutil.which('ffmpeg'):
-    die('ffmpeg not found on PATH. Install it (e.g. `apt install ffmpeg` or '
-        '`brew install ffmpeg`).')
   if args.trace_processor and not os.path.exists(args.trace_processor):
     die(f'No such trace_processor: {args.trace_processor}')
   if not os.path.exists(args.trace):
@@ -388,21 +491,37 @@ def main():
   if not args.output:
     die('-o/--output is required (or use --list).')
 
+  # PyAV is needed only to write the .mp4 (not for --list), so it is imported
+  # lazily and is not a dependency of the perfetto package.
+  try:
+    import av  # noqa: F401
+  except ImportError:
+    die('writing the .mp4 needs PyAV (ffmpeg bindings): pip install av')
+
   clip = Clip(args.display_id, args.start, args.end, args.query)
-  left = load_stream(args.trace_processor, args.trace, clip)
+  left = load_clip(args.trace_processor, args.trace, clip)
 
   if args.compare:
     clip2 = Clip(args.display_id2, args.start2, args.end2, args.query2)
-    right = load_stream(args.trace_processor, args.compare, clip2)
+    right = load_clip(args.trace_processor, args.compare, clip2)
     titles = (args.title or os.path.basename(args.trace), args.title2 or
               os.path.basename(args.compare))
-    mux_compare((left[0], left[1] * args.speed),
-                (right[0], right[1] * args.speed), titles, args.output)
-    print(f'Wrote {args.output}: {left[2]} + {right[2]} frames side by side '
-          f'({titles[0]} | {titles[1]})')
+    mux_compare(left, right, titles, args.speed, args.output)
+    print(
+        f'Wrote {args.output}: {len(left.sel)} + {len(right.sel)} frames side '
+        f'by side ({titles[0]} | {titles[1]})')
   else:
-    mux(left[0], left[1] * args.speed, args.output)
-    print(f'Wrote {args.output}: {left[2]} frames')
+    work = tempfile.mkdtemp()
+    try:
+      clip_mp4 = os.path.join(work, 'clip.mp4')
+      lead, content_end, total = clip_span(left, clip_mp4, args.speed)
+      if lead > 1e-3 or total - content_end > 1e-3:
+        fill_card(clip_mp4, lead, content_end, total, args.output)
+      else:
+        shutil.move(clip_mp4, args.output)  # no gaps: keep the lossless remux
+    finally:
+      shutil.rmtree(work, ignore_errors=True)
+    print(f'Wrote {args.output}: {len(left.sel)} frames')
   return 0
 
 
