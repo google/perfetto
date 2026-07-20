@@ -91,6 +91,25 @@ class StraceParser(TestSuite):
         "strace_parse_failure",3
         """))
 
+  def test_strace_unsupported_timestamp_format_counted(self):
+    # unsupported_timestamp.strace opens with a valid `-ttt` line (so the
+    # trace sniffs as strace format) followed by two `-t`/`-tt` lines and
+    # another valid `-ttt` line. The `-t`/`-tt` lines must be counted under
+    # the dedicated stat, not the generic strace_parse_failure one.
+    return DiffTestBlueprint(
+        trace=Path('unsupported_timestamp.strace'),
+        query="""
+        SELECT name, value
+        FROM stats
+        WHERE name IN ('strace_parse_failure',
+                        'strace_unsupported_timestamp_format');
+        """,
+        out=Csv("""
+        "name","value"
+        "strace_parse_failure",0
+        "strace_unsupported_timestamp_format",2
+        """))
+
   def test_strace_unfinished_resumed(self):
     return DiffTestBlueprint(
         trace=Path('unfinished_resumed.strace'),

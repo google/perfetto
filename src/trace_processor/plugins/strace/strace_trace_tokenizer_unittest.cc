@@ -40,8 +40,7 @@ TEST(StraceLineParserTest, CompleteCall) {
 }
 
 TEST(StraceLineParserTest, MicrosecondTimestamp) {
-  auto line =
-      ParseStraceLine(R"(1700000000.123456 read(3, "abc", 1024) = 3)");
+  auto line = ParseStraceLine(R"(1700000000.123456 read(3, "abc", 1024) = 3)");
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->epoch_ns, 1700000000LL * 1000 * 1000 * 1000 + 123456000);
 }
@@ -85,23 +84,20 @@ TEST(StraceLineParserTest, RejectsOverflowingTimestamp) {
 }
 
 TEST(StraceLineParserTest, RejectsOverflowingFractionalPart) {
-  EXPECT_FALSE(
-      ParseStraceLine(R"(1700000000.99999999999999999999 read(3) = 3)")
-          .has_value());
+  EXPECT_FALSE(ParseStraceLine(R"(1700000000.99999999999999999999 read(3) = 3)")
+                   .has_value());
 }
 
 TEST(StraceLineParserTest, RejectsNegativeFractionalPart) {
   // Malformed input with a '-' after the decimal point; StringToInt64 would
   // otherwise happily parse "-123456" as microseconds and move the
   // timestamp backwards.
-  EXPECT_FALSE(
-      ParseStraceLine(R"(1700000000.-123456 read(3, "abc", 1024) = 3)")
-          .has_value());
+  EXPECT_FALSE(ParseStraceLine(R"(1700000000.-123456 read(3, "abc", 1024) = 3)")
+                   .has_value());
 }
 
 TEST(StraceLineParserTest, Unfinished) {
-  auto line =
-      ParseStraceLine(R"(1700000000.000000 read(3,  <unfinished ...>)");
+  auto line = ParseStraceLine(R"(1700000000.000000 read(3,  <unfinished ...>)");
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->syscall, "read");
   EXPECT_TRUE(line->is_unfinished);
@@ -123,8 +119,7 @@ TEST(StraceLineParserTest, Resumed) {
 TEST(StraceLineParserTest, ResumedWithNoTrailingArgs) {
   // "<... syscall resumed>) = ret" — the original call had no args left to
   // print, so the resumed line collapses straight to the return value.
-  auto line =
-      ParseStraceLine(R"(1700000000.000500 <... futex resumed>)  = 0)");
+  auto line = ParseStraceLine(R"(1700000000.000500 <... futex resumed>)  = 0)");
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->syscall, "futex");
   EXPECT_TRUE(line->is_resumed);
@@ -175,14 +170,25 @@ TEST(StraceLineParserTest, RejectsLineWithoutTimestamp) {
 TEST(StraceLineParserTest, RejectsDashTTimeOfDayTimestamp) {
   // `-t`/`-tt` print wall-clock time-of-day with no date ("HH:MM:SS[.ffffff]"),
   // which can't be safely treated as an absolute point in time. Only `-ttt`
-  // (Unix epoch) is supported; see strace_trace_tokenizer.h.
-  EXPECT_FALSE(
-      ParseStraceLine(
-          R"(14:32:01 openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 3)")
-          .has_value());
-  EXPECT_FALSE(
-      ParseStraceLine(R"(14:32:01.123456 read(3, "abc", 1024) = 3)")
-          .has_value());
+  // (Unix epoch) is supported; see strace_trace_tokenizer.h. This case gets
+  // its own `unsupported_timestamp_format` flag (and a dedicated stat) since
+  // it's a syscall line, just in an unsupported format, unlike a generic
+  // non-syscall line.
+  auto dash_t = ParseStraceLine(
+      R"(14:32:01 openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 3)");
+  EXPECT_FALSE(dash_t.has_value());
+  EXPECT_TRUE(dash_t.unsupported_timestamp_format);
+
+  auto dash_tt = ParseStraceLine(R"(14:32:01.123456 read(3, "abc", 1024) = 3)");
+  EXPECT_FALSE(dash_tt.has_value());
+  EXPECT_TRUE(dash_tt.unsupported_timestamp_format);
+}
+
+TEST(StraceLineParserTest, NonSyscallLineIsNotUnsupportedTimestampFormat) {
+  // A line that's simply not a syscall at all (as opposed to a `-t`/`-tt`
+  // syscall line) must not be misclassified as the timestamp-format case.
+  EXPECT_FALSE(ParseStraceLine(R"(--- SIGCHLD {si_signo=SIGCHLD} ---)")
+                   .unsupported_timestamp_format);
 }
 
 TEST(StraceLineParserTest, IsStraceFormatTraceSniffing) {
@@ -200,9 +206,9 @@ TEST(StraceLineParserTest, IsStraceFormatTraceSniffing) {
   // since it's rejected by the same timestamp parsing as above.
   std::string dash_t_trace =
       "14:32:01 openat(AT_FDCWD, \"/etc/passwd\", O_RDONLY) = 3\n";
-  EXPECT_FALSE(IsStraceFormatTrace(
-      reinterpret_cast<const uint8_t*>(dash_t_trace.data()),
-      dash_t_trace.size()));
+  EXPECT_FALSE(
+      IsStraceFormatTrace(reinterpret_cast<const uint8_t*>(dash_t_trace.data()),
+                          dash_t_trace.size()));
 }
 
 }  // namespace

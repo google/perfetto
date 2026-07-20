@@ -19,7 +19,6 @@
 
 #include <cstdint>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/plugins/strace/strace_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -40,10 +39,6 @@ class StraceTraceParser
   StringPool::Id category_id_;
   StringPool::Id args_key_id_;
   StringPool::Id ret_key_id_;
-
-  // Tracks the SliceId of an in-flight "<unfinished ...>" call per tid, so
-  // the matching "<... syscall resumed>" line can close it.
-  base::FlatHashMap<uint32_t, SliceId> unfinished_by_tid_;
 };
 
 }  // namespace perfetto::trace_processor::strace_importer

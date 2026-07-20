@@ -747,16 +747,14 @@ namespace perfetto::trace_processor::stats {
       "Linux kernel documentation for causes of this and potential fixes."),   \
   F(strace_parse_failure,                       kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
       "A line in an strace trace could not be parsed as a syscall event "     \
-      "and was skipped. This is expected for non-syscall lines (signal "      \
-      "delivery, process exit banners), but can also indicate `strace -t` "   \
-      "or `-tt` output: only `-ttt` (Unix epoch timestamps) is supported, "   \
-      "since `-t`/`-tt` print wall-clock time-of-day with no date, which "    \
-      "cannot be safely treated as an absolute point in time."),              \
-  F(strace_unmatched_resume,                    kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,   \
-      "An strace \"<... syscall resumed>\" line was encountered with no "      \
-      "preceding \"<unfinished ...>\" line on the same tid. This can happen "  \
-      "if the trace was truncated before the syscall started, or if a tid "   \
-      "was reused across an unfinished/resumed pair."),                       \
+      "and was skipped. This is expected for non-syscall lines, such as "     \
+      "signal delivery or process exit banners."),                           \
+  F(strace_unsupported_timestamp_format,        kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A line in an strace trace looked like a syscall event, but used "      \
+      "`strace -t`/`-tt` wall-clock time-of-day timestamps rather than "      \
+      "`-ttt` Unix epoch timestamps, and was skipped: `-t`/`-tt` print no "   \
+      "date, so they cannot be safely treated as an absolute point in "       \
+      "time. Re-run strace with `-ttt` to fix this."),                       \
   F(simpleperf_missing_file_mapping,            kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,   \
       "One or more simpleperf samples were dropped because their callchain "   \
       "entries referenced a file_id that has no corresponding File record in " \

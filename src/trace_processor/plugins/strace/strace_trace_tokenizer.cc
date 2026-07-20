@@ -31,7 +31,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/plugins/strace/strace_event.h"
 #include "src/trace_processor/plugins/strace/strace_trace_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -104,7 +104,7 @@ std::optional<int64_t> ParseEpochTimestamp(std::string_view s) {
 
 }  // namespace
 
-std::optional<StraceLine> ParseStraceLine(std::string_view line) {
+ParseStraceLineResult ParseStraceLine(std::string_view line) {
   std::string_view rest = base::TrimWhitespace(line);
   if (rest.empty() || rest[0] == '-' /* "--- SIGCHLD ... ---" */ ||
       rest[0] == '+' /* "+++ exited with 0 +++" */) {
@@ -114,11 +114,17 @@ std::optional<StraceLine> ParseStraceLine(std::string_view line) {
   StraceLine out;
 
   // Optional leading pid (present with -f/-ff): "1234 1700000000.000000 ...".
+  // A bare digit run is ambiguous with an integral (no-fraction) `-ttt`
+  // timestamp like "1700000000 read(...)", so length disambiguates: Unix
+  // epoch seconds have been (and will remain, until the year 2286) 10
+  // digits, while Linux's pid_max tops out at 4194304 (7 digits) even at
+  // its highest configurable value. A 10+ digit run is therefore always the
+  // timestamp, never a pid, and is left for the block below.
   {
     size_t sp = rest.find(' ');
     if (sp != std::string_view::npos) {
       std::string_view head = rest.substr(0, sp);
-      bool all_digits = !head.empty();
+      bool all_digits = !head.empty() && head.size() < 10;
       for (char c : head) {
         if (!isdigit(static_cast<unsigned char>(c))) {
           all_digits = false;
@@ -144,8 +150,16 @@ std::optional<StraceLine> ParseStraceLine(std::string_view line) {
       return std::nullopt;
     std::string_view ts_tok = rest.substr(0, sp);
     auto ts = ParseEpochTimestamp(ts_tok);
-    if (!ts)
-      return std::nullopt;
+    if (!ts) {
+      // A `-t`/`-tt` timestamp ("HH:MM:SS[.ffffff]") is the one case worth
+      // distinguishing from "not a syscall line at all": it's a syscall
+      // line, just in an unsupported format, so it gets a specific,
+      // actionable stat rather than the generic parse-failure one.
+      ParseStraceLineResult result = std::nullopt;
+      result.unsupported_timestamp_format =
+          ts_tok.find(':') != std::string_view::npos;
+      return result;
+    }
     out.epoch_ns = *ts;
     rest = base::TrimWhitespace(rest.substr(sp + 1));
   }
@@ -215,7 +229,7 @@ bool IsStraceFormatTrace(const uint8_t* ptr, size_t size) {
   size_t nl = str.find('\n');
   std::string_view first_line =
       nl == std::string_view::npos ? str : str.substr(0, nl);
-  return ParseStraceLine(first_line).has_value();
+  return ParseStraceLine(first_line).line.has_value();
 }
 
 StraceTraceTokenizer::StraceTraceTokenizer(TraceProcessorContext* ctx)
@@ -236,37 +250,42 @@ base::Status StraceTraceTokenizer::Parse(TraceBlobView blob) {
     std::string_view line = ToStringView(*r);
     reader_.PopFrontUntil(it.file_offset());
 
-    std::optional<StraceLine> parsed = ParseStraceLine(line);
-    if (!parsed) {
+    ParseStraceLineResult result = ParseStraceLine(line);
+    if (!result.line) {
       // Not every line in an strace log is a syscall (signal delivery,
-      // process exit banners, a `-t`/`-tt` timestamp we intentionally don't
-      // support, etc). Count it and skip rather than treating the whole
-      // trace as invalid.
-      context_->stats_tracker->IncrementStats(stats::strace_parse_failure);
+      // process exit banners, etc). Log it and skip rather than treating
+      // the whole trace as invalid; a `-t`/`-tt` timestamp we intentionally
+      // don't support gets a more specific, actionable message.
+      context_->import_logs_tracker->RecordTokenizationError(
+          result.unsupported_timestamp_format
+              ? stats::strace_unsupported_timestamp_format
+              : stats::strace_parse_failure,
+          it.file_offset());
       continue;
     }
+    StraceLine& parsed = *result.line;
 
     std::optional<int64_t> trace_ts =
         context_->clock_tracker->ConvertDefaultClockToTraceTime(
-            parsed->epoch_ns);
+            parsed.epoch_ns);
     if (!trace_ts) {
       continue;
     }
 
     StraceEvent evt;
-    evt.tid = parsed->pid.value_or(1);
+    evt.tid = parsed.pid.value_or(1);
     evt.syscall_name_id =
-        context_->storage->InternString(base::StringView(parsed->syscall));
-    if (!parsed->args.empty()) {
+        context_->storage->InternString(base::StringView(parsed.syscall));
+    if (!parsed.args.empty()) {
       evt.args_id =
-          context_->storage->InternString(base::StringView(parsed->args));
+          context_->storage->InternString(base::StringView(parsed.args));
     }
-    if (parsed->return_value) {
+    if (parsed.return_value) {
       evt.return_value_id = context_->storage->InternString(
-          base::StringView(*parsed->return_value));
+          base::StringView(*parsed.return_value));
     }
-    evt.is_unfinished = parsed->is_unfinished;
-    evt.is_resumed = parsed->is_resumed;
+    evt.is_unfinished = parsed.is_unfinished;
+    evt.is_resumed = parsed.is_resumed;
 
     stream_->Push(*trace_ts, evt);
   }
