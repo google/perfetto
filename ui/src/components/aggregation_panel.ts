@@ -34,7 +34,11 @@ import type {
   CellRenderer,
   ColumnType,
 } from './widgets/datagrid/datagrid_schema';
-import type {DataSource} from './widgets/datagrid/data_source';
+import type {
+  DataSource,
+  DataSourceModel,
+  FlatModel,
+} from './widgets/datagrid/data_source';
 import {Icons} from '../base/semantic_icons';
 
 export interface AggregationPanelAttrs {
@@ -47,9 +51,22 @@ export interface AggregationPanelAttrs {
   readonly controls?: m.Children;
   readonly trace?: Trace;
   readonly query?: string;
+  /**
+   * Called when the grid is ready, providing the data source and a function
+   * to retrieve the current model (filters, sort, pagination, pivot state).
+   * Use this to build a query that reflects the current filtered result set,
+   * e.g. for creating a debug track from filtered data.
+   */
+  readonly onDataGridReady?: (
+    dataSource: DataSource,
+    getModel: () => DataSourceModel,
+  ) => void;
 }
 
 export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs> {
+  // Stores the getModel function from DataGridApi, set when the grid is ready.
+  private getModel?: () => DataSourceModel;
+
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
     const {
       dataSource,
@@ -61,6 +78,7 @@ export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs>
       controls,
       trace,
       query,
+      onDataGridReady,
     } = attrs;
 
     return m(Stack, {fillHeight: true, spacing: 'none'}, [
@@ -76,6 +94,7 @@ export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs>
           onClearGridState,
           trace,
           query,
+          onDataGridReady,
         ),
       ),
     ]);
@@ -90,9 +109,29 @@ export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs>
     onClearGridState?: () => void,
     trace?: Trace,
     query?: string,
+    onDataGridReady?: (
+      dataSource: DataSource,
+      getModel: () => DataSourceModel,
+    ) => void,
   ) {
+    // Use the filtered query if available, otherwise fall back to the static query.
+    const filteredQuery = query;
+
+    const gridModel = this.getModel?.();
+
+    const debugModel: FlatModel = {
+      mode: 'flat',
+      columns: gridModel.map((field) => ({
+        field,
+        alias: field,
+      })),
+      filters: gridModel?.filters,
+      pagination: undefined,
+      sort: undefined,
+    };
+
     const debugTrackButton =
-      trace && query
+      trace && filteredQuery
         ? m(
             Popup,
             {
@@ -104,7 +143,7 @@ export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs>
             },
             m(AddDebugTrackMenu, {
               trace,
-              query,
+              query: filteredQuery,
               availableColumns: getDefaultVisibleColumns(gridConfig.schema),
               onAdd: () => trace.navigate('#!/viewer'),
             }),
@@ -115,7 +154,11 @@ export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs>
       fillHeight: true,
       schema: gridConfig.schema,
       data: dataSource,
-      onReady,
+      onReady: (api: DataGridApi) => {
+        onReady?.(api);
+        this.getModel = api.getModel;
+        onDataGridReady?.(dataSource, api.getModel);
+      },
       // Spread controlled state props (columns, filters, pivot and callbacks)
       ...dataGridState,
       toolbarItemsLeft: [
