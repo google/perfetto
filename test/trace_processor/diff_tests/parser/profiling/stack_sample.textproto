@@ -68,7 +68,7 @@ packet {
   trusted_packet_sequence_id: 1
   timestamp: 6000
   interned_data {
-    [perfetto.protos.StackSampleInternedData.async_context_descriptors] {
+    stack_sample_async_context_descriptors {
       iid: 7
       name: "worker-1"
       kind: "fiber"

@@ -332,9 +332,10 @@ void StackSampleModule::ParseStackSample(
   std::optional<StringId> async_name;
   std::optional<StringId> async_kind;
   if (async_id) {
-    if (auto* desc = sequence_state->LookupInternedMessage<
-            InternedData::kStackSampleAsyncContextDescriptorsFieldNumber,
-            AsyncContextDescriptor>(*async_id)) {
+    if (auto* desc =
+            sequence_state->LookupInternedMessage<
+                InternedData::kStackSampleAsyncContextDescriptorsFieldNumber,
+                AsyncContextDescriptor>(*async_id)) {
       if (desc->name().size > 0) {
         async_name = context_->storage->InternString(desc->name());
       }
@@ -345,8 +346,7 @@ void StackSampleModule::ParseStackSample(
   }
   std::optional<tables::StackSampleTaskContextTable::Id> task_context_id;
   if (has_task && (utid || upid || async_name || async_kind)) {
-    task_context_id =
-        InternTaskContext(utid, upid, async_name, async_kind);
+    task_context_id = InternTaskContext(utid, upid, async_name, async_kind);
   }
 
   // Execution context: cpu + privilege mode at sample time.
