@@ -27,11 +27,12 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
-#include "perfetto/base/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -49,6 +50,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 
@@ -178,7 +180,6 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // resolved timestamp so that samples sort correctly with respect to all
   // other events; pid/tid resolution and callstack interning still happen at
   // parse time, via the sequence state carried by the event.
-  base::ignore_result(packet);
   auto* track_event = sequence_state->GetCustomState<TrackEventSequenceState>();
   auto packet_ts = track_event->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
@@ -191,13 +192,13 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   for (auto callstack_it = decoder.callstack_iid(); callstack_it;
        ++callstack_it, ++timestamp_it) {
     if (!timestamp_it) {
-      context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
-      PERFETTO_ELOG(
-          "StreamingProfilePacket has less callstack IDs than timestamps!");
+      context_->import_logs_tracker->RecordTokenizationError(
+          stats::stackprofile_parser_error, packet->offset());
       break;
     }
-    track_event->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
-    sample_ts += *timestamp_it * 1000;
+    int64_t delta_ns = *timestamp_it * 1000;
+    track_event->IncrementAndGetTrackEventTimeNs(delta_ns);
+    sample_ts += delta_ns;
     streaming_profile_stream_->Push(
         sample_ts, StreamingProfileSampleEvent{sequence_state, *callstack_it,
                                                decoder.process_priority()});
@@ -227,7 +228,12 @@ void ProfileModule::ParseStreamingProfileSample(
   auto opt_cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
       sequence_state, upid, event.callstack_iid);
   if (!opt_cs_id) {
-    context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
+    context_->import_logs_tracker->RecordParserError(
+        stats::stackprofile_parser_error, ts,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(context_->storage->InternString("callstack_iid"),
+                          Variadic::UnsignedInteger(event.callstack_iid));
+        });
     return;
   }
 
