@@ -76,7 +76,6 @@ function getTrackHeight(
 
   // Expanded summary tracks don't show any data, so make them a little more
   // compact to save space.
-  if (node.isSummary && node.expanded) return TRACK_HEIGHT_MIN_PX;
 
   const trackHeight = track?.getHeight?.();
   if (trackHeight === undefined) return TRACK_HEIGHT_MIN_PX;
@@ -113,8 +112,8 @@ export interface TrackViewAttrs {
 export class TrackView {
   readonly node: TrackNode;
   readonly renderer?: TrackWrapper;
-  readonly height: number;
-  readonly verticalBounds: VerticalBounds;
+  height: number;
+  verticalBounds: VerticalBounds;
 
   private readonly trace: TraceImpl;
   private readonly descriptor?: Track;
@@ -294,7 +293,6 @@ export class TrackView {
     // and we're golden.
     const {node, renderer: trackRenderer, verticalBounds} = this;
 
-    if (node.isSummary && node.expanded) return;
     if (trackRenderer?.getError()) return;
 
     const trackRect = new Rect2D({
