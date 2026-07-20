@@ -71,10 +71,23 @@ struct TraceManifestState {
     int64_t offset_ns = 0;
   };
 
+  // A user-supplied metric attached to a file via its `metrics` block. A metric
+  // is either numeric (|numeric_value| set, with an optional |unit|) or
+  // categorical (|string_value| set); never both. Stored into the
+  // trace_file_metric table when the file is parsed.
+  struct MetricEntry {
+    std::string key;
+    std::optional<double> numeric_value;
+    std::optional<std::string> string_value;
+    std::optional<std::string> unit;
+  };
+
   struct FileEntry {
     // Exact path of the member within the archive.
     std::string path;
     std::optional<ClockOverride> clock_override;
+    // User-supplied metrics from this file's `metrics` block (may be empty).
+    std::vector<MetricEntry> metrics;
     // The file's base machine: a synthetic raw id the reader allocates per
     // distinct |machine_name|, so files sharing a name land on one machine.
     std::optional<int64_t> machine_id;

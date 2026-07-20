@@ -585,6 +585,13 @@ class TraceStorage {
     return mutable_table<tables::TraceFileTable>();
   }
 
+  const tables::TraceFileMetricTable& trace_file_metric_table() const {
+    return table<tables::TraceFileMetricTable>();
+  }
+  tables::TraceFileMetricTable* mutable_trace_file_metric_table() {
+    return mutable_table<tables::TraceFileMetricTable>();
+  }
+
   const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
       const {
     return table<tables::CpuProfileStackSampleTable>();

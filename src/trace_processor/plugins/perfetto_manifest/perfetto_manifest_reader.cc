@@ -196,6 +196,57 @@ void ApplyAttributes(TraceProcessorContext* context,
   }
 }
 
+using MetricEntry = TraceManifestState::MetricEntry;
+
+// Parses a file's "metrics" block: an object mapping a metric name to either a
+// string (a categorical/label value), a bare number (numeric, no unit), or an
+// object {"value": <number>, "unit": "<str>"} (numeric with a unit). E.g.
+//   "metrics": {
+//     "rps":    {"value": 1240, "unit": "count"},
+//     "region": "us-east1"
+//   }
+// Tolerant by design: a metric whose value isn't a string, a number, or a
+// {"value": <number>[, "unit": <string>]} object is SKIPPED, not treated as an
+// error. Real manifests (esp. auto-generated from telemetry over hundreds of
+// files) routinely carry the odd null / boolean / missing field, and one of
+// those must never abort parsing of the whole trace. A non-object `metrics`
+// block, or an unusable unit, is likewise ignored rather than fatal.
+std::vector<MetricEntry> ParseMetrics(const json::Dom& metrics) {
+  std::vector<MetricEntry> result;
+  if (!metrics.IsObject()) {
+    return result;
+  }
+  for (const std::string& key : metrics.GetMemberNames()) {
+    if (key.empty()) {
+      continue;
+    }
+    const json::Dom& value = metrics[key];
+    MetricEntry entry;
+    entry.key = key;
+    if (value.IsString()) {
+      entry.string_value = value.AsString();
+    } else if (value.IsNumeric()) {
+      entry.numeric_value = value.IsDouble()
+                                ? value.AsDouble()
+                                : static_cast<double>(value.AsInt64());
+    } else if (value.IsObject() && value.HasMember("value") &&
+               value["value"].IsNumeric()) {
+      const json::Dom& num = value["value"];
+      entry.numeric_value =
+          num.IsDouble() ? num.AsDouble() : static_cast<double>(num.AsInt64());
+      if (value.HasMember("unit") && value["unit"].IsString()) {
+        entry.unit = value["unit"].AsString();
+      }
+    } else {
+      // Unsupported value (null, bool, array, malformed object) — skip this
+      // metric, keep the rest.
+      continue;
+    }
+    result.push_back(std::move(entry));
+  }
+  return result;
+}
+
 base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
   if (!file.IsObject() || !file["path"].IsString()) {
     return base::ErrStatus(
@@ -204,6 +255,9 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
   }
   FileEntry entry;
   entry.path = file["path"].AsString();
+  if (file.HasMember("metrics")) {
+    entry.metrics = ParseMetrics(file["metrics"]);
+  }
   if (file.HasMember("clocks")) {
     if (!file["clocks"].IsObject()) {
       return base::ErrStatus("perfetto_manifest: clocks must be an object");

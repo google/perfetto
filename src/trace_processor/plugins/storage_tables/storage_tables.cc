@@ -138,6 +138,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_spurious_sched_wakeup_table());
     AddDataframe(out, s->mutable_surfaceflinger_transaction_flag_table());
     AddDataframe(out, s->mutable_trace_file_table());
+    AddDataframe(out, s->mutable_trace_file_metric_table());
     AddDataframe(out, s->mutable_trace_import_logs_table());
     AddDataframe(out, s->mutable_v8_isolate_table());
     AddDataframe(out, s->mutable_v8_js_function_table());

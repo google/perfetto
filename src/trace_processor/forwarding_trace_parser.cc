@@ -132,6 +132,28 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   // If the perfetto_manifest file has an entry for this file (matched by
   // exact path), it overrides clock/machine handling below.
   TraceManifestState::FileEntry* manifest_entry = FindManifestEntry();
+
+  // User-supplied metrics attach to this file's row regardless of whether it
+  // forks a context (they are allowed on container files like gzipped pprofs,
+  // unlike clock/machine overrides). The row exists: StartParsing ran above.
+  if (manifest_entry && !manifest_entry->metrics.empty()) {
+    auto& storage = *input_context_->storage;
+    for (const auto& metric : manifest_entry->metrics) {
+      tables::TraceFileMetricTable::Row row;
+      row.trace_file_id = file_id_;
+      row.key = storage.InternString(base::StringView(metric.key));
+      row.numeric_value = metric.numeric_value;
+      if (metric.string_value) {
+        row.string_value =
+            storage.InternString(base::StringView(*metric.string_value));
+      }
+      if (metric.unit) {
+        row.unit = storage.InternString(base::StringView(*metric.unit));
+      }
+      storage.mutable_trace_file_metric_table()->Insert(row);
+    }
+  }
+
   if (manifest_entry &&
       (manifest_entry->clock_override || manifest_entry->machine_id) &&
       !desc->forks_context) {

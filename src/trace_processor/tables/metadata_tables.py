@@ -781,6 +781,57 @@ TRACE_FILE_TABLE = Table(
                 '''Whether the file is a container (e.g. zip, gzip)''',
         }))
 
+TRACE_FILE_METRIC_TABLE = Table(
+    python_module=__file__,
+    class_name='TraceFileMetricTable',
+    sql_name='__intrinsic_trace_file_metric',
+    columns=[
+        C(
+            'trace_file_id',
+            CppTableId(TRACE_FILE_TABLE),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C('key', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'numeric_value',
+            CppOptional(CppDouble()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'string_value',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'unit',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+    wrapping_sql_view=WrappingSqlView('trace_file_metric'),
+    tabledoc=TableDoc(
+        doc='''
+            User-supplied metrics associated with a trace file, sourced from the
+            per-file `metrics` block of a perfetto_manifest sidecar. Each row is
+            one (trace file, key) metric: numeric metrics populate
+            `numeric_value` (with an optional `unit`), categorical/label metrics
+            populate `string_value`.
+        ''',
+        group='Misc',
+        columns={
+            'trace_file_id':
+                '''The trace file this metric describes.''',
+            'key':
+                '''Metric name, e.g. "rps" or "region".''',
+            'numeric_value':
+                '''Numeric value for a quantitative metric, NULL otherwise.''',
+            'string_value':
+                '''String value for a categorical/label metric, NULL '''
+                '''otherwise.''',
+            'unit':
+                '''Unit of a numeric metric (e.g. "ms", "count"), if given.''',
+        }))
+
 STATS_TABLE = Table(
     python_module=__file__,
     class_name='StatsTable',
@@ -1158,4 +1209,5 @@ ALL_TABLES = [
     THREAD_TABLE,
     TRACE_DIAGNOSTICS_TABLE,
     TRACE_FILE_TABLE,
+    TRACE_FILE_METRIC_TABLE,
 ]
