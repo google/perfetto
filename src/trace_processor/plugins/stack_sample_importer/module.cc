@@ -113,19 +113,23 @@ ResolvedCounterDescriptor ResolveCounterDescriptor(
   return out;
 }
 
-// Resolves an inline callstack (a profile_common Callstack whose frame_ids are
-// interned frame iids).
+// Resolves a callstack that is either interned (callstack_iid) or inline (a
+// profile_common Callstack whose frame_ids are interned frame iids).
 std::optional<CallsiteId> ResolveCallstack(
     PacketSequenceStateGeneration* sequence_state,
     std::optional<UniquePid> upid,
     const protos::pbzero::StackSample::Decoder& sample) {
-  if (!sample.has_callstack()) {
-    return std::nullopt;
-  }
   auto* state = sequence_state->GetCustomState<StackProfileSequenceState>();
-  protos::pbzero::Callstack::Decoder callstack(sample.callstack());
-  return state->FindOrInsertCallstackFromFrames(sequence_state, upid,
-                                                callstack);
+  if (sample.has_callstack_iid()) {
+    return state->FindOrInsertCallstack(sequence_state, upid,
+                                        sample.callstack_iid());
+  }
+  if (sample.has_callstack()) {
+    protos::pbzero::Callstack::Decoder callstack(sample.callstack());
+    return state->FindOrInsertCallstackFromFrames(sequence_state, upid,
+                                                  callstack);
+  }
+  return std::nullopt;
 }
 
 }  // namespace

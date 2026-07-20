@@ -165,13 +165,14 @@ message StackSample {
     uint64 execution_context_iid = 4;
   }
 
-  // The captured callstack, bottom frame first.
+  // The captured callstack, bottom frame first. Give it inline via `callstack`
+  // or reference an interned Callstack via `callstack_iid`.
   oneof callstack_field {
-    // Inline callstack. The only supported form for now.
+    // Inline callstack.
     Callstack callstack = 5;
 
-    // Reserved: an interned callstack variant may be added later.
-    // uint64 callstack_iid = 6;
+    // Interned callstack, referencing InternedData.callstacks.
+    uint64 callstack_iid = 6;
   }
 
   // Set if stack unwinding was incomplete; describes the data, not producer
