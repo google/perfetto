@@ -583,7 +583,8 @@ message AndroidBroadcastEvent {
   optional PackageStoppedState package_stopped_state = 11;
 
   // The type of the broadcast. It's a mask of BroadcastType.
-  optional int32 broadcast_type = 12;
+  optional int32 broadcast_type = 12
+      [(perfetto.protos.flags_enum) = ".com.android.internal.BroadcastType"];
 
   // Delivery group policy set for the broadcast.
   optional BroadcastDeliveryGroupPolicy delivery_group_policy = 13;
