@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/shell/shell_utils.h"
 
+#include <sqlite3.h>
 #include <algorithm>
 #include <cinttypes>
 #include <cstdint>
@@ -54,17 +55,13 @@ bool StderrSupportsColors() {
 
 namespace {
 
-// The main trace processor connection is opened on the in-memory "memdb" VFS.
-// ATTACH DATABASE inherits the connection's VFS, so a plain path would create
-// the export database in memory too. Force the OS-backed VFS instead.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-constexpr char kExportVfs[] = "win32";
-#else
-constexpr char kExportVfs[] = "unix";
-#endif
-
 // Builds a SQLite "file:" URI for `path`, percent-encoding characters that are
 // not safe in a URI path.
+//
+// The main trace processor connection is opened on the in-memory "memdb" VFS.
+// ATTACH DATABASE inherits the connection's VFS, so a plain path would create
+// the export database in memory too. Pin the default VFS instead: it is the
+// OS-backed one, under a platform-dependent name ("unix", "win32", ...).
 std::string MakeExportFileUri(const std::string& path) {
   std::string normalized = path;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -82,8 +79,11 @@ std::string MakeExportFileUri(const std::string& path) {
       uri.append(escaped.c_str());
     }
   }
+  // Lookup default VFS.
+  sqlite3_vfs* vfs = sqlite3_vfs_find(nullptr);
+  PERFETTO_CHECK(vfs);
   uri.append("?vfs=");
-  uri.append(kExportVfs);
+  uri.append(vfs->zName);
   return uri;
 }
 
