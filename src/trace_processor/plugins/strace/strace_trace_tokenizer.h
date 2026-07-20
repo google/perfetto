@@ -68,13 +68,36 @@ struct StraceLine {
   bool is_resumed = false;
 };
 
-// Parses a single line (no trailing newline) of strace -ttt output. Returns
-// std::nullopt if the line doesn't look like strace -ttt output at all —
-// e.g. a signal delivery line like "--- SIGCHLD {...} ---", a process exit
-// line, or a `-t`/`-tt` timestamp (see StraceLine's comment on why those
-// are rejected rather than misinterpreted); callers should count such lines
-// via stats::strace_parse_failure rather than treat them as a hard error.
-std::optional<StraceLine> ParseStraceLine(std::string_view line);
+// Result of ParseStraceLine. `line` is unset if the line couldn't be parsed
+// as strace -ttt output; `unsupported_timestamp_format` distinguishes the
+// specific "looks like a syscall line, but its timestamp is `-t`/`-tt`
+// wall-clock time-of-day rather than `-ttt` Unix epoch" case from the
+// generic "not a syscall line at all" case (signal delivery, process exit
+// banners, etc.), so callers can report it with an actionable message
+// rather than a generic parse failure.
+struct ParseStraceLineResult {
+  ParseStraceLineResult() = default;
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  ParseStraceLineResult(std::nullopt_t) {}
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  ParseStraceLineResult(StraceLine l) : line(std::move(l)) {}
+
+  bool has_value() const { return line.has_value(); }
+  const StraceLine* operator->() const { return &*line; }
+  const StraceLine& operator*() const { return *line; }
+
+  std::optional<StraceLine> line;
+  bool unsupported_timestamp_format = false;
+};
+
+// Parses a single line (no trailing newline) of strace -ttt output. See
+// ParseStraceLineResult for how failure is reported. Non-syscall lines
+// (signal delivery, process exit banners) and `-t`/`-tt` timestamps are
+// both rejected rather than misinterpreted (see StraceLine's comment on
+// why); callers should count such lines via stats::strace_parse_failure
+// (or stats::strace_unsupported_timestamp_format, for the latter) rather
+// than treat them as a hard error.
+ParseStraceLineResult ParseStraceLine(std::string_view line);
 
 // Sniffs whether the first line of a (possibly truncated) buffer looks like
 // strace -ttt output, for trace-type auto-detection.

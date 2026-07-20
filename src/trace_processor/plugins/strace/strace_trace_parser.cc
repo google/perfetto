@@ -22,10 +22,8 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/plugins/strace/strace_event.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -67,23 +65,15 @@ void StraceTraceParser::Parse(int64_t ts, StraceEvent evt) {
   };
 
   if (evt.is_unfinished) {
-    std::optional<SliceId> id = context_->slice_tracker->Begin(
-        ts, track, category_id_, evt.syscall_name_id, args_cb);
-    if (id) {
-      unfinished_by_tid_.Insert(evt.tid, *id);
-    }
+    context_->slice_tracker->Begin(ts, track, category_id_, evt.syscall_name_id,
+                                   args_cb);
     return;
   }
 
   if (evt.is_resumed) {
-    // We don't strictly need the stored SliceId (End() closes the topmost
-    // open slice on the track), but tracking it lets us detect and count
-    // "resumed" lines with no matching "unfinished" line.
-    if (unfinished_by_tid_.Find(evt.tid) == nullptr) {
-      context_->stats_tracker->IncrementStats(stats::strace_unmatched_resume);
-    } else {
-      unfinished_by_tid_.Erase(evt.tid);
-    }
+    // End() closes the topmost open slice on the track and is a safe no-op
+    // if there isn't one (e.g. the "<unfinished ...>" line was truncated
+    // out of the trace), so no separate bookkeeping is needed here.
     context_->slice_tracker->End(ts, track, category_id_, evt.syscall_name_id,
                                  args_cb);
     return;
