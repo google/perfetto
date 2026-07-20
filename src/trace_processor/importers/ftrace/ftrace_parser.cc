@@ -755,6 +755,16 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
   }
   uint32_t pid = static_cast<uint32_t>(raw_pid);
 
+  // Extract common_flags from FtraceEvent if present. This field contains
+  // interrupt context information (TRACE_FLAG_HARDIRQ | TRACE_FLAG_SOFTIRQ).
+  // Note: the proto comment says "Not populated in actual traces", but some
+  // traces do include it. When absent, PushWakingEvent will try to pick up
+  // the flags from a preceding sched_waking event stored in the pending map.
+  std::optional<uint16_t> common_flags;
+  if (auto flags_field = decoder.FindField(FtraceEvent::kCommonFlagsFieldNumber)) {
+    common_flags = static_cast<uint16_t>(flags_field.as_uint64());
+  }
+
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
     bool is_metadata_field = fld.id() == FtraceEvent::kPidFieldNumber ||
                              fld.id() == FtraceEvent::kTimestampFieldNumber;
@@ -794,8 +804,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseSchedSwitch(cpu, ts, fld_bytes);
         break;
       }
-      case FtraceEvent::kSchedWakingFieldNumber: {
-        ParseSchedWaking(ts, pid, fld_bytes);
+      // Use sched_wakeup instead of sched_waking: sched_waking fires while
+      // the thread is still in Running state, causing spurious wakeup detection.
+      case FtraceEvent::kSchedWakeupFieldNumber: {
+        ParseSchedWakeup(ts, pid, fld_bytes, common_flags);
         break;
       }
       case FtraceEvent::kSchedProcessFreeFieldNumber: {
@@ -1674,17 +1686,19 @@ void FtraceParser::ParseKprobe(int64_t timestamp,
   }
 }
 
-void FtraceParser::ParseSchedWaking(int64_t timestamp,
+void FtraceParser::ParseSchedWakeup(int64_t timestamp,
                                     uint32_t pid,
-                                    ConstBytes blob) {
-  protos::pbzero::SchedWakingFtraceEvent::Decoder sw(blob);
+                                    ConstBytes blob,
+                                    std::optional<uint16_t> common_flags) {
+  protos::pbzero::SchedWakeupFtraceEvent::Decoder sw(blob);
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
   auto wakee_utid = context_->process_tracker->UpdateThreadName(
       wakee_pid, name_id, ThreadNamePriority::kFtrace);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(timestamp,
-                                                             wakee_utid, utid);
+                                                             wakee_utid, utid,
+                                                             common_flags);
 }
 
 void FtraceParser::ParseSchedProcessFree(int64_t timestamp, ConstBytes blob) {

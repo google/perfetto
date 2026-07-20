@@ -79,6 +79,12 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
     // in the |thread_state| table but we track in the |sched_wakeup| table.
     // The |thread_state_id| in |sched_wakeup| is the current running/runnable
     // event.
+    //
+    // Store common_flags so that a later sched_wakeup (which fires when the
+    // thread is actually blocked) can pick up the interrupt context.
+    if (common_flags.has_value()) {
+      pending_waking_common_flags_[utid] = *common_flags;
+    }
     std::optional<uint32_t> irq_context =
         common_flags
             ? std::make_optional(CommonFlagsToIrqContext(*common_flags))
@@ -90,9 +96,20 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
   }
 
   // Close the sleeping state and open runnable state.
+  // If common_flags was not provided (e.g. sched_wakeup from non-compact
+  // format), try to pick up the flags from a preceding sched_waking event
+  // that fired while the thread was still running.
+  std::optional<uint16_t> effective_common_flags = common_flags;
+  if (!common_flags.has_value()) {
+    auto it = pending_waking_common_flags_.find(utid);
+    if (it != pending_waking_common_flags_.end()) {
+      effective_common_flags = it->second;
+      pending_waking_common_flags_.erase(it);
+    }
+  }
   ClosePendingState(event_ts, utid, false);
   AddOpenState(event_ts, utid, runnable_string_id_, std::nullopt, waker_utid,
-               common_flags);
+               effective_common_flags);
 }
 
 void ThreadStateTracker::PushNewTaskEvent(int64_t event_ts,

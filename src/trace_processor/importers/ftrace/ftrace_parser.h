@@ -79,7 +79,10 @@ class FtraceParser {
                              PacketSequenceStateGeneration*);
   void ParseSchedSwitch(uint32_t cpu, int64_t timestamp, protozero::ConstBytes);
   void ParseKprobe(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
-  void ParseSchedWaking(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseSchedWakeup(int64_t timestamp,
+                        uint32_t pid,
+                        protozero::ConstBytes,
+                        std::optional<uint16_t> common_flags);
   void ParseSchedProcessFree(int64_t timestamp, protozero::ConstBytes);
   void ParseCpuFreq(int64_t timestamp, protozero::ConstBytes);
   void ParseCpuFreqThrottle(int64_t timestamp, protozero::ConstBytes);

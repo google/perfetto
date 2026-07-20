@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_THREAD_STATE_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_THREAD_STATE_TRACKER_H_
 
+#include <unordered_map>
+
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -101,6 +103,12 @@ class ThreadStateTracker : public Destructible {
   };
 
   std::vector<std::optional<RelatedRows>> prev_row_numbers_for_thread_;
+
+  // Pending common_flags from sched_waking events that fired while the thread
+  // was still Running. When sched_wakeup later fires and the thread is blocked,
+  // we use these stored common_flags to set irq_context on the R state.
+  // Entries are consumed (erased) when used, so the map stays bounded.
+  std::unordered_map<UniqueTid, uint16_t> pending_waking_common_flags_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
