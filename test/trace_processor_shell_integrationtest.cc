@@ -800,6 +800,36 @@ TEST(TraceProcessorShellIntegrationTest, QueryNoSqlError) {
   EXPECT_NE(result.exit_code, 0);
 }
 
+TEST(TraceProcessorShellIntegrationTest, QueryCommentsOnlyNoValidSql) {
+  // A query containing no executable statement (only comments/whitespace)
+  // must fail with the "No valid SQL to run" error, not silently succeed.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"query", trace.path(), "/* nothing to run */"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("No valid SQL to run"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySuppressedZeroRowStatement) {
+  // The suppress_query_output escape hatch must hold even when the
+  // suppressed statement matches zero rows: no header line may leak.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"query", trace.path(),
+                          "SELECT 1 AS suppress_query_output WHERE 0; "
+                          "SELECT 200 + 61 AS real_output"});
+  EXPECT_EQ(result.exit_code, 0) << result.out;
+  EXPECT_THAT(result.out, Not(HasSubstr("suppress_query_output")));
+  EXPECT_THAT(result.out, HasSubstr("261"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryZeroRowResultPrintsHeader) {
+  // A plain zero-row result set is not suppressed: its header still prints.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell(
+      {"query", trace.path(), "SELECT 1 AS empty_but_visible WHERE 0"});
+  EXPECT_EQ(result.exit_code, 0) << result.out;
+  EXPECT_THAT(result.out, HasSubstr("empty_but_visible"));
+}
+
 TEST(TraceProcessorShellIntegrationTest, QueryNoTraceError) {
   auto result = RunShell({"query"});
   EXPECT_NE(result.exit_code, 0);

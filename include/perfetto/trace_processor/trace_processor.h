@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -80,6 +81,9 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
 
   // Executes the SQL on the loaded portion of the trace.
   //
+  // Terminology: a *query* is a string of one or more semicolon-separated
+  // *statements*.
+  //
   // More than one SQL statement can be passed to this function; all but the
   // last will be fully executed by this function before retuning. The last
   // statement will be executed and will yield rows as the caller calls Next()
@@ -88,6 +92,30 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // See documentation of the Iterator class for an example on how to use
   // the returned iterator.
   virtual Iterator ExecuteQuery(const std::string& sql) = 0;
+
+  // ADVANCED: most users should use ExecuteQuery instead, which executes a
+  // whole query in one call. This function is only useful for the rare
+  // clients which need the result set of *every* statement in a query
+  // rather than just the last one (e.g. shells printing each result).
+  //
+  // Executes the next statement of |sql| starting at |*offset|, mirroring
+  // sqlite3_prepare_v2's pzTail model: callers loop, passing the same |sql|
+  // each time with |offset| carried over between calls. On success,
+  // |*offset| is advanced just past the executed statement and the returned
+  // Iterator yields the statement's rows. Returns std::nullopt once only
+  // whitespace/comments remain.
+  //
+  // |*offset| should be initialized to 0 and otherwise treated as an opaque
+  // cursor: pass values back unchanged rather than computing them. They are
+  // byte offsets into |sql| after the same normalization ExecuteQuery
+  // applies (e.g. non-breaking spaces replaced with spaces), so they may
+  // not correspond exactly to offsets into |sql| as passed.
+  //
+  // Errors are reported via the returned Iterator's Status(), with
+  // tracebacks referencing the full |sql| source; |*offset| is unchanged on
+  // error.
+  virtual std::optional<Iterator> ExecuteNextStatement(const std::string& sql,
+                                                       uint32_t* offset) = 0;
 
   // Registers SQL files with the associated path under the package named
   // |sql_package.name|.

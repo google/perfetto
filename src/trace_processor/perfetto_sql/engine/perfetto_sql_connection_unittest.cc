@@ -558,5 +558,207 @@ TEST_F(PerfettoSqlConnectionTest, FindPackageForModule_MultiLevel) {
   EXPECT_EQ(connection_->FindPackageForModule("other.bar"), nullptr);
 }
 
+// ExecuteNextStatement tests. These simulate the caller-side cursor loop:
+// pass the full SQL each time, substr'd at the offset from the previous call.
+
+TEST_F(PerfettoSqlConnectionTest, NextStatement_EveryResultSetReturned) {
+  std::string sql = "SELECT 1; SELECT 2";
+  auto src = SqlSource::FromExecuteQuery(sql);
+  auto size = static_cast<uint32_t>(sql.size());
+
+  uint32_t end = 0;
+  auto res = connection_->ExecuteNextStatement(src.Substr(0, size), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_FALSE((*res)->stmt.IsDone());
+  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 1);
+  ASSERT_FALSE((*res)->stmt.Step());
+  ASSERT_EQ((*res)->stats.statement_count, 1u);
+  ASSERT_GT(end, 0u);
+  ASSERT_LT(end, size);
+
+  uint32_t start = end;
+  end = 0;
+  res =
+      connection_->ExecuteNextStatement(src.Substr(start, size - start), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_FALSE((*res)->stmt.IsDone());
+  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 2);
+  ASSERT_FALSE((*res)->stmt.Step());
+  ASSERT_EQ(start + end, size);
+
+  res =
+      connection_->ExecuteNextStatement(SqlSource::FromExecuteQuery(""), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_FALSE(res->has_value());
+  ASSERT_EQ(end, 0u);
+}
+
+TEST_F(PerfettoSqlConnectionTest, NextStatement_StatePersistsAcrossCalls) {
+  std::string sql =
+      "CREATE PERFETTO MACRO life() RETURNS Expr AS 42;"
+      "CREATE PERFETTO TABLE t AS SELECT life!() AS x;"
+      "SELECT x FROM t";
+  auto src = SqlSource::FromExecuteQuery(sql);
+  auto size = static_cast<uint32_t>(sql.size());
+
+  uint32_t offset = 0;
+  for (int i = 0; i < 2; ++i) {
+    uint32_t end = 0;
+    auto res = connection_->ExecuteNextStatement(
+        src.Substr(offset, size - offset), &end);
+    ASSERT_TRUE(res.ok()) << res.status().c_message();
+    ASSERT_TRUE(res->has_value());
+    ASSERT_TRUE((*res)->stmt.IsDone());
+    offset += end;
+  }
+
+  uint32_t end = 0;
+  auto res = connection_->ExecuteNextStatement(
+      src.Substr(offset, size - offset), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_FALSE((*res)->stmt.IsDone());
+  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 42);
+}
+
+TEST_F(PerfettoSqlConnectionTest, NextStatement_CommentsOnly) {
+  std::string sql = "-- comment\n/* another */";
+  uint32_t end = 0;
+  auto res =
+      connection_->ExecuteNextStatement(SqlSource::FromExecuteQuery(sql), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_FALSE(res->has_value());
+  ASSERT_EQ(end, static_cast<uint32_t>(sql.size()));
+}
+
+TEST_F(PerfettoSqlConnectionTest, NextStatement_Include) {
+  connection_->RegisterPackage(
+      "foo", CreateTestPackage(
+                 {{"foo.foo", "CREATE PERFETTO TABLE foo AS SELECT 42 AS x"}}));
+
+  std::string sql = "INCLUDE PERFETTO MODULE foo.foo; SELECT x FROM foo";
+  auto src = SqlSource::FromExecuteQuery(sql);
+  auto size = static_cast<uint32_t>(sql.size());
+
+  uint32_t end = 0;
+  auto res = connection_->ExecuteNextStatement(src.Substr(0, size), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_TRUE((*res)->stmt.IsDone());
+  ASSERT_TRUE(connection_->database_for_testing()->IsModuleIncluded("foo.foo"));
+
+  uint32_t start = end;
+  res =
+      connection_->ExecuteNextStatement(src.Substr(start, size - start), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_FALSE((*res)->stmt.IsDone());
+  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 42);
+}
+
+TEST_F(PerfettoSqlConnectionTest, NextStatement_Error) {
+  uint32_t end = 0;
+  auto res = connection_->ExecuteNextStatement(
+      SqlSource::FromExecuteQuery("SELECT * FROM not_a_table; SELECT 1"), &end);
+  ASSERT_THAT(res, IsError());
+}
+
+TEST_F(PerfettoSqlConnectionTest, NextStatement_ErrorInLaterStatement) {
+  std::string sql = "SELECT 1; SELECT * FROM not_a_table";
+  auto src = SqlSource::FromExecuteQuery(sql);
+  auto size = static_cast<uint32_t>(sql.size());
+
+  uint32_t end = 0;
+  auto res = connection_->ExecuteNextStatement(src.Substr(0, size), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 1);
+
+  // The second statement fails to prepare; |end| must be left untouched.
+  uint32_t start = end;
+  end = 0xdeadbeef;
+  res =
+      connection_->ExecuteNextStatement(src.Substr(start, size - start), &end);
+  ASSERT_THAT(res, IsError());
+  ASSERT_EQ(end, 0xdeadbeef);
+
+  // The connection must remain usable after the mid-loop error.
+  end = 0;
+  res = connection_->ExecuteNextStatement(
+      SqlSource::FromExecuteQuery("SELECT 3"), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 3);
+}
+
+TEST_F(PerfettoSqlConnectionTest, NextStatement_TrailingSemicolon) {
+  std::string sql = "SELECT 1;";
+  auto src = SqlSource::FromExecuteQuery(sql);
+  auto size = static_cast<uint32_t>(sql.size());
+
+  uint32_t end = 0;
+  auto res = connection_->ExecuteNextStatement(src.Substr(0, size), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 1);
+
+  // The leftover tail (";" or "") must report exhaustion, not loop or error.
+  uint32_t start = end;
+  end = 0;
+  res =
+      connection_->ExecuteNextStatement(src.Substr(start, size - start), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_FALSE(res->has_value());
+  ASSERT_EQ(start + end, size);
+}
+
+TEST_F(PerfettoSqlConnectionTest, NextStatement_ZeroRowResultSet) {
+  std::string sql = "SELECT 1 AS a WHERE 0";
+  uint32_t end = 0;
+  auto res =
+      connection_->ExecuteNextStatement(SqlSource::FromExecuteQuery(sql), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+
+  // Zero rows is still a result set: the statement must be returned (not
+  // classified as no-statement) with its column intact.
+  ASSERT_TRUE(res->has_value());
+  ASSERT_TRUE((*res)->stmt.IsDone());
+  ASSERT_EQ((*res)->stats.column_count, 1u);
+  ASSERT_EQ(end, static_cast<uint32_t>(sql.size()));
+}
+
+TEST_F(PerfettoSqlConnectionTest, NextStatement_TrailingDummyStatement) {
+  std::string sql = "SELECT 1; CREATE PERFETTO TABLE u AS SELECT 2 AS x";
+  auto src = SqlSource::FromExecuteQuery(sql);
+  auto size = static_cast<uint32_t>(sql.size());
+
+  uint32_t end = 0;
+  auto res = connection_->ExecuteNextStatement(src.Substr(0, size), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 1);
+
+  // The trailing transpiled statement executes via a dummy: it must not leak
+  // the dummy's phantom column.
+  uint32_t start = end;
+  end = 0;
+  res =
+      connection_->ExecuteNextStatement(src.Substr(start, size - start), &end);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_TRUE((*res)->stmt.IsDone());
+  ASSERT_EQ((*res)->stats.column_count, 0u);
+  ASSERT_EQ(start + end, size);
+
+  uint32_t unused = 0;
+  res = connection_->ExecuteNextStatement(
+      SqlSource::FromExecuteQuery("SELECT x FROM u"), &unused);
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_TRUE(res->has_value());
+  ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 2);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor
