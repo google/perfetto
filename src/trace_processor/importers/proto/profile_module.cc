@@ -27,6 +27,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
+#include "perfetto/base/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -60,6 +61,19 @@
 namespace perfetto::trace_processor {
 
 namespace {
+
+class StreamingProfileSink
+    : public TraceSorter::Sink<StreamingProfileSampleEvent,
+                               StreamingProfileSink> {
+ public:
+  explicit StreamingProfileSink(ProfileModule* module) : module_(module) {}
+  void Parse(int64_t ts, StreamingProfileSampleEvent event) {
+    module_->ParseStreamingProfileSample(ts, std::move(event));
+  }
+
+ private:
+  ProfileModule* module_;
+};
 
 // Adds a counter set containing the given counter IDs.
 // Returns the set ID that can be stored in PerfSampleTable.
@@ -108,7 +122,9 @@ ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
                              TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_(context),
-      perf_sample_tracker_(context) {
+      perf_sample_tracker_(context),
+      streaming_profile_stream_(context->sorter->CreateStream(
+          std::make_unique<StreamingProfileSink>(this))) {
   RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber);
   RegisterForField(TracePacket::kPerfSampleFieldNumber);
   RegisterForField(TracePacket::kProfilePacketFieldNumber);
@@ -130,11 +146,6 @@ ModuleResult ProfileModule::TokenizePacket(const TokenizePacketArgs& args) {
 
 void ProfileModule::ParseField(const ParseFieldArgs& args) {
   switch (args.field.id()) {
-    case TracePacket::kStreamingProfilePacketFieldNumber:
-      ParseStreamingProfilePacket(
-          args.ts, args.data.sequence_state.get(),
-          args.field.Cast<TracePacket::kStreamingProfilePacket>());
-      return;
     case TracePacket::kPerfSampleFieldNumber:
       ParsePerfSample(args.ts, args.data.sequence_state.get(), args.decoder,
                       args.field);
@@ -159,15 +170,15 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   protos::pbzero::StreamingProfilePacket::Decoder decoder(
       streaming_profile_packet.data, streaming_profile_packet.size);
 
-  // We have to resolve the reference timestamp of a StreamingProfilePacket
-  // during tokenization. If we did this during parsing instead, the
-  // tokenization of a subsequent ThreadDescriptor with a new reference
-  // timestamp would cause us to later calculate timestamps based on the wrong
-  // reference value during parsing. Since StreamingProfilePackets only need to
-  // be sorted correctly with respect to process/thread metadata events (so that
-  // pid/tid are resolved correctly during parsing), we forward the packet as a
-  // whole through the sorter, using the "root" timestamp of the packet, i.e.
-  // the current timestamp of the packet sequence.
+  // We have to resolve the timestamps of a StreamingProfilePacket during
+  // tokenization. If we did this during parsing instead, the tokenization of a
+  // subsequent ThreadDescriptor with a new reference timestamp would cause us
+  // to later calculate timestamps based on the wrong reference value during
+  // parsing. Each sample is pushed through the sorter individually at its
+  // resolved timestamp so that samples sort correctly with respect to all
+  // other events; pid/tid resolution and callstack interning still happen at
+  // parse time, via the sequence state carried by the event.
+  base::ignore_result(packet);
   auto* track_event = sequence_state->GetCustomState<TrackEventSequenceState>();
   auto packet_ts = track_event->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
@@ -175,27 +186,35 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   if (trace_ts)
     packet_ts = *trace_ts;
 
-  // Increment the sequence's timestamp by all deltas.
-  for (auto timestamp_it = decoder.timestamp_delta_us(); timestamp_it;
-       ++timestamp_it) {
+  int64_t sample_ts = packet_ts;
+  auto timestamp_it = decoder.timestamp_delta_us();
+  for (auto callstack_it = decoder.callstack_iid(); callstack_it;
+       ++callstack_it, ++timestamp_it) {
+    if (!timestamp_it) {
+      context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
+      PERFETTO_ELOG(
+          "StreamingProfilePacket has less callstack IDs than timestamps!");
+      break;
+    }
+    track_event->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
+    sample_ts += *timestamp_it * 1000;
+    streaming_profile_stream_->Push(
+        sample_ts, StreamingProfileSampleEvent{sequence_state, *callstack_it,
+                                               decoder.process_priority()});
+  }
+  // Keep advancing the sequence clock over any trailing deltas so subsequent
+  // packets on this sequence resolve their reference timestamp correctly.
+  for (; timestamp_it; ++timestamp_it) {
     track_event->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
   }
-
-  module_context_->trace_packet_stream->Push(
-      packet_ts,
-      TracePacketData{std::move(*packet), std::move(sequence_state)});
   return ModuleResult::Handled();
 }
 
-void ProfileModule::ParseStreamingProfilePacket(
-    int64_t timestamp,
-    PacketSequenceStateGeneration* sequence_state,
-    ConstBytes streaming_profile_packet) {
-  protos::pbzero::StreamingProfilePacket::Decoder packet(
-      streaming_profile_packet.data, streaming_profile_packet.size);
-
+void ProfileModule::ParseStreamingProfileSample(
+    int64_t ts,
+    StreamingProfileSampleEvent event) {
+  PacketSequenceStateGeneration* sequence_state = event.sequence_state.get();
   ProcessTracker* procs = context_->process_tracker.get();
-  TraceStorage* storage = context_->storage.get();
   StackProfileSequenceState& stack_profile_sequence_state =
       *sequence_state->GetCustomState<StackProfileSequenceState>();
 
@@ -205,31 +224,17 @@ void ProfileModule::ParseStreamingProfilePacket(
   const UniqueTid utid = procs->UpdateThread(tid, pid);
   const UniquePid upid = procs->GetOrCreateProcess(pid);
 
-  // Iterate through timestamps and callstacks simultaneously.
-  auto timestamp_it = packet.timestamp_delta_us();
-  for (auto callstack_it = packet.callstack_iid(); callstack_it;
-       ++callstack_it, ++timestamp_it) {
-    if (!timestamp_it) {
-      context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
-      PERFETTO_ELOG(
-          "StreamingProfilePacket has less callstack IDs than timestamps!");
-      break;
-    }
-
-    auto opt_cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
-        sequence_state, upid, *callstack_it);
-    if (!opt_cs_id) {
-      context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
-      continue;
-    }
-
-    // Resolve the delta timestamps based on the packet's root timestamp.
-    timestamp += *timestamp_it * 1000;
-
-    tables::CpuProfileStackSampleTable::Row sample_row{
-        timestamp, *opt_cs_id, utid, packet.process_priority()};
-    storage->mutable_cpu_profile_stack_sample_table()->Insert(sample_row);
+  auto opt_cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
+      sequence_state, upid, event.callstack_iid);
+  if (!opt_cs_id) {
+    context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
+    return;
   }
+
+  tables::CpuProfileStackSampleTable::Row sample_row{
+      ts, *opt_cs_id, utid, event.process_priority};
+  context_->storage->mutable_cpu_profile_stack_sample_table()->Insert(
+      sample_row);
 }
 
 void ProfileModule::ParsePerfSample(
