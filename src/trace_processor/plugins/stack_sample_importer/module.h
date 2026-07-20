@@ -29,6 +29,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
+class DummyMemoryMapping;
 class PacketSequenceStateGeneration;
 class TraceProcessorContext;
 }  // namespace perfetto::trace_processor
@@ -84,6 +85,11 @@ class StackSampleModule : public ProtoImporterModule {
                         PacketSequenceStateGeneration* sequence_state,
                         protozero::ConstBytes blob);
 
+  std::optional<CallsiteId> ResolveCallstack(
+      PacketSequenceStateGeneration* sequence_state,
+      std::optional<UniquePid> upid,
+      const protos::pbzero::StackSample::Decoder& sample);
+
   TraceProcessorContext* const context_;
   tables::StackSampleTable* const table_;
   tables::StackSampleTaskContextTable* const task_context_table_;
@@ -97,6 +103,9 @@ class StackSampleModule : public ProtoImporterModule {
   base::FlatHashMap<uint64_t, tables::StackSampleExecutionContextTable::Id>
       exec_contexts_;
   base::FlatHashMap<uint64_t, tables::StackSampleCounterTable::Id> counters_;
+
+  // Lazily-created mapping that inline callstack frames are interned into.
+  DummyMemoryMapping* inline_callstack_mapping_ = nullptr;
 };
 
 }  // namespace perfetto::trace_processor::stack_sample_importer
