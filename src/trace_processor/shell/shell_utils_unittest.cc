@@ -66,16 +66,17 @@ std::string MakeAttachUri(const std::string& path) {
   return "file:" + normalized + "?vfs=" + vfs->zName;
 }
 
+// On Fuchsia the export fails to attach the on-disk database.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+#define DisableFuchsia(x) DISABLED_##x
+#else
+#define DisableFuchsia(x) x
+#endif
+
 // Verifies the export produces an on-disk SQLite database that can be read back
 // by a standalone SQLite connection and re-attached and queried by a trace
 // processor.
-TEST(ShellUtilsTest, ExportTraceToDatabaseWritesToDisk) {
-  // trace_processor_shell is not supported on Fuchsia, where attaching through
-  // the OS-backed SQLite VFS fails.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
-  GTEST_SKIP() << "on-disk SQLite databases are not supported";
-#endif
-
+TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToDatabaseWritesToDisk)) {
   base::TempDir dir = base::TempDir::Create();
   std::string output = dir.path() + "/export.db";
 
