@@ -41,11 +41,9 @@ TEST(TraceRedactorTest, EmptyTimelineReturnsError) {
 
   std::string serialized = trace.SerializeAsString();
 
-  auto fd = base::OpenFile(input_file.path(), O_RDWR | O_CREAT, 0666);
-  ASSERT_TRUE(fd);
-  ASSERT_EQ(base::WriteAll(fd.get(), serialized.data(), serialized.size()),
-            static_cast<ssize_t>(serialized.size()));
-  base::CloseFile(fd.release());
+  ASSERT_EQ(
+      base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+      static_cast<ssize_t>(serialized.size()));
 
   TraceRedactor::Config config;
   config.verify = false;
