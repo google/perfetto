@@ -34,8 +34,9 @@ Unreleased:
       Samples are parsed into the stack sample tables and share the existing
       stack_profile_* callstack tables.
     * Breaking change: the inline callstack message `TrackEvent.Callstack`
-      moved to the top-level `InlineCallstack` message in profile_common.proto,
-      so track events and stack samples share one inline callstack definition.
+      moved to the top-level `InlineCallstack` message in
+      trace/profiling/inline_callstack.proto, so track events and stack
+      samples share one inline callstack definition.
       The wire format is unchanged; code referencing the generated
       `TrackEvent.Callstack` / `TrackEvent::Callstack` types must switch to
       `InlineCallstack`.

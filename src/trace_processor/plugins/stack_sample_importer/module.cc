@@ -32,7 +32,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/profiling/inline_callstack.pbzero.h"
 #include "protos/perfetto/trace/profiling/stack_sample.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"

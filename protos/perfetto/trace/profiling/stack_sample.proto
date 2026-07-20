@@ -16,7 +16,7 @@
 
 syntax = "proto2";
 
-import "protos/perfetto/trace/profiling/profile_common.proto";
+import "protos/perfetto/trace/profiling/inline_callstack.proto";
 
 package perfetto.protos;
 

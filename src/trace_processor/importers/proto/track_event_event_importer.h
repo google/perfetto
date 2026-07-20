@@ -35,6 +35,7 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/public/compiler.h"
+#include "protos/perfetto/trace/profiling/inline_callstack.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"

@@ -16,7 +16,7 @@
 
 syntax = "proto2";
 
-import "protos/perfetto/trace/profiling/profile_common.proto";
+import "protos/perfetto/trace/profiling/inline_callstack.proto";
 import "protos/perfetto/trace/track_event/debug_annotation.proto";
 import "protos/perfetto/trace/track_event/log_message.proto";
 import "protos/perfetto/trace/track_event/task_execution.proto";
