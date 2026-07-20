@@ -58,11 +58,10 @@ std::string MakeAttachUri(const std::string& path) {
   std::string normalized = path;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   std::replace(normalized.begin(), normalized.end(), '\\', '/');
-  const char* vfs = "win32";
-#else
-  const char* vfs = "unix";
 #endif
-  return "file:" + normalized + "?vfs=" + vfs;
+  sqlite3_vfs* vfs = sqlite3_vfs_find(nullptr);
+  PERFETTO_CHECK(vfs);
+  return "file:" + normalized + "?vfs=" + vfs->zName;
 }
 
 // Verifies the export produces an on-disk SQLite database that can be read back
