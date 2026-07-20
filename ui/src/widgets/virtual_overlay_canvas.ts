@@ -133,9 +133,7 @@ function getScrollAxesFromOverflow(x: Overflow, y: Overflow) {
 // This mithril component acts as scrolling container for tall and/or wide
 // content. Adds a virtually scrolling canvas over the top of any child elements
 // rendered inside it.
-export class VirtualOverlayCanvas
-  implements m.ClassComponent<VirtualOverlayCanvasAttrs>
-{
+export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanvasAttrs> {
   readonly trash = new DisposableStack();
   private ctx?: CanvasRenderingContext2D;
   private virtualCanvas?: VirtualCanvas;

@@ -50,10 +50,7 @@ interface TableWithModule {
 
 // Type of match when searching for tables
 type MatchType =
-  | 'table-name'
-  | 'column-name'
-  | 'table-description'
-  | 'column-description';
+  'table-name' | 'column-name' | 'table-description' | 'column-description';
 
 // Helper function to get the display label for importance levels.
 function getImportanceLabel(
@@ -79,15 +76,12 @@ function isTimestampedTable(table: SqlTable): boolean {
 // Renders a search input bar.
 // This component is responsible for handling user input for searching
 // and communicating the query back to the parent component.
-class SearchBar
-  implements
-    m.ClassComponent<{
-      query: string;
-      onQueryChange: (query: string) => void;
-      autofocus?: boolean;
-      placeholder?: string;
-    }>
-{
+class SearchBar implements m.ClassComponent<{
+  query: string;
+  onQueryChange: (query: string) => void;
+  autofocus?: boolean;
+  placeholder?: string;
+}> {
   view({
     attrs,
   }: m.CVnode<{
@@ -128,17 +122,14 @@ function getMatchTypeLabel(matchType: MatchType): string | undefined {
 // Renders a single table card in the list.
 // This component displays the table name, its module, and description.
 // It also highlights the parts of the name that match the search query.
-class TableCard
-  implements
-    m.ClassComponent<{
-      tableWithModule: TableWithModule;
-      segments: FuzzySegment[];
-      matchType: MatchType;
-      onTableClick: (tableName: string, event: MouseEvent) => void;
-      sqlModules: SqlModules;
-      selectedTables?: Set<string>;
-    }>
-{
+class TableCard implements m.ClassComponent<{
+  tableWithModule: TableWithModule;
+  segments: FuzzySegment[];
+  matchType: MatchType;
+  onTableClick: (tableName: string, event: MouseEvent) => void;
+  sqlModules: SqlModules;
+  selectedTables?: Set<string>;
+}> {
   view({
     attrs,
   }: m.CVnode<{

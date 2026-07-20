@@ -243,11 +243,7 @@ export interface FlamegraphAttrs {
 }
 
 type FilterType =
-  | 'SHOW_STACK'
-  | 'HIDE_STACK'
-  | 'SHOW_FROM_FRAME'
-  | 'HIDE_FRAME'
-  | 'PIVOT';
+  'SHOW_STACK' | 'HIDE_STACK' | 'SHOW_FROM_FRAME' | 'HIDE_FRAME' | 'PIVOT';
 
 interface FilterTypeOption {
   readonly value: FilterType;

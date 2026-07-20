@@ -29,12 +29,7 @@ export class SettingImpl<T> implements Setting<T> {
   public readonly name: string;
   public readonly description: string;
   public readonly type:
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'enum'
-    | 'multi-select'
-    | 'string-array';
+    'string' | 'number' | 'boolean' | 'enum' | 'multi-select' | 'string-array';
   public readonly schema: z.ZodType<T>;
   public readonly defaultValue: T;
   public readonly category?: string;

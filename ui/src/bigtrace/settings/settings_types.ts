@@ -34,12 +34,7 @@ export interface SettingDescriptor<T> {
 
   // Defaults to 'string' if omitted.
   readonly type?:
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'enum'
-    | 'multi-select'
-    | 'string-array';
+    'string' | 'number' | 'boolean' | 'enum' | 'multi-select' | 'string-array';
 
   // Zod schema validating the value.
   readonly schema: z.ZodType<T>;

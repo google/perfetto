@@ -97,11 +97,7 @@ export type StopReason =
 
 // Normalised backend error categories. Surfaced to the user in the chat.
 export type ErrorKind =
-  | 'rate-limit'
-  | 'auth'
-  | 'context-length'
-  | 'network'
-  | 'unknown';
+  'rate-limit' | 'auth' | 'context-length' | 'network' | 'unknown';
 
 export interface Error {
   readonly kind: ErrorKind;

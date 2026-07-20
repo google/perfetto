@@ -102,9 +102,7 @@ export interface NavigationSidePanelAttrs {
   readonly onLoadRecentGraph?: (json: string) => void;
 }
 
-export class NavigationSidePanel
-  implements m.ClassComponent<NavigationSidePanelAttrs>
-{
+export class NavigationSidePanel implements m.ClassComponent<NavigationSidePanelAttrs> {
   view({attrs}: m.CVnode<NavigationSidePanelAttrs>) {
     const results: m.Children[] = [];
 
