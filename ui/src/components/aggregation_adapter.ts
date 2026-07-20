@@ -45,6 +45,7 @@ import type {DataGridApi} from './widgets/datagrid/datagrid';
 import {ExportButton} from '../widgets/export_button';
 import {SerialTaskQueue} from '../base/query_slot';
 import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
+import {ensureExists} from '../base/assert';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -325,6 +326,8 @@ export function createAggregationTab(
           dataSource,
           gridConfig: aggregator.getGridConfig(),
           barChartData: data?.barChartData,
+          trace,
+          query: `SELECT * FROM ${ensureExists(data).tableName}`,
           onReady: (api: DataGridApi) => {
             dataGridApi = api;
           },

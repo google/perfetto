@@ -14,8 +14,12 @@
 
 import m from 'mithril';
 import {Duration} from '../base/time';
+import type {Trace} from '../public/trace';
 import type {SqlValue} from '../trace_processor/query_result';
+import {AddDebugTrackMenu} from './tracks/add_debug_track_menu';
 import {Box} from '../widgets/box';
+import {Button} from '../widgets/button';
+import {Popup, PopupPosition} from '../widgets/popup';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
 import type {BarChartData} from './aggregation';
 import {
@@ -25,12 +29,12 @@ import {
 } from './widgets/datagrid/datagrid';
 import {defaultValueFormatter} from './widgets/datagrid/export_utils';
 import type {AggregatorGridConfig, DataGridState} from './aggregation_adapter';
+import {getDefaultVisibleColumns} from './widgets/datagrid/datagrid_schema';
 import type {
   CellRenderer,
   ColumnType,
 } from './widgets/datagrid/datagrid_schema';
 import type {DataSource} from './widgets/datagrid/data_source';
-import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
 
 export interface AggregationPanelAttrs {
@@ -41,6 +45,8 @@ export interface AggregationPanelAttrs {
   readonly dataGridState?: DataGridState;
   readonly onClearGridState?: () => void;
   readonly controls?: m.Children;
+  readonly trace?: Trace;
+  readonly query?: string;
 }
 
 export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs> {
@@ -53,6 +59,8 @@ export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs>
       dataGridState,
       onClearGridState,
       controls,
+      trace,
+      query,
     } = attrs;
 
     return m(Stack, {fillHeight: true, spacing: 'none'}, [
@@ -66,6 +74,8 @@ export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs>
           onReady,
           dataGridState,
           onClearGridState,
+          trace,
+          query,
         ),
       ),
     ]);
@@ -78,7 +88,29 @@ export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs>
     onReady?: (api: DataGridApi) => void,
     dataGridState?: DataGridState,
     onClearGridState?: () => void,
+    trace?: Trace,
+    query?: string,
   ) {
+    const debugTrackButton =
+      trace && query
+        ? m(
+            Popup,
+            {
+              trigger: m(Button, {
+                label: 'Add debug track',
+                icon: 'add_chart',
+              }),
+              position: PopupPosition.Top,
+            },
+            m(AddDebugTrackMenu, {
+              trace,
+              query,
+              availableColumns: getDefaultVisibleColumns(gridConfig.schema),
+              onAdd: () => trace.navigate('#!/viewer'),
+            }),
+          )
+        : undefined;
+
     return m(DataGrid, {
       fillHeight: true,
       schema: gridConfig.schema,
@@ -95,6 +127,7 @@ export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs>
             onclick: () => onClearGridState(),
           }),
       ],
+      toolbarItemsRight: [debugTrackButton],
     });
   }
 

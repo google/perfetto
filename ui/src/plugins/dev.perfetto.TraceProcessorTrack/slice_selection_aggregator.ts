@@ -137,6 +137,7 @@ export class SliceSelectionAggregator implements Aggregator {
           SELECT
             json_object('id', id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             name,
+            ts,
             dur,
             self_dur,
             arg_set_id
@@ -329,6 +330,10 @@ export class SliceSelectionAggregator implements Aggregator {
           title: 'Name',
           columnType: 'text',
         },
+        ts: {
+          title: 'Timestamp',
+          columnType: 'quantitative',
+        },
         dur: {
           title: 'Wall Duration',
           columnType: 'quantitative',
@@ -338,6 +343,10 @@ export class SliceSelectionAggregator implements Aggregator {
           title: 'Self Duration',
           columnType: 'quantitative',
           cellRenderer: formatDurationValue,
+        },
+        arg_set_id: {
+          title: 'Arg Set ID',
+          columnType: 'identifier',
         },
         args: {
           title: 'Args',
