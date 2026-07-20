@@ -666,6 +666,7 @@ class Profiling(TestSuite):
         out=Csv("""
         "ts","cpu","mode","weight","source","timebase_name","unit","frame_name"
         1000,2,"user",1000000,"python.wall","wall-time","ns","foo"
+        6000,"[NULL]","[NULL]",4000000,"python.wall","wall-time","ns","foo"
         7000,"[NULL]","[NULL]",7000000,"python.wall","wall-time","ns","foo"
         """))
 
@@ -691,7 +692,31 @@ class Profiling(TestSuite):
         out=Csv("""
         "ts","process_name","cpu","mode"
         1000,"myproc",2,"user"
+        6000,"myproc","[NULL]","[NULL]"
         7000,"[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_stack_sample_async(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample.textproto'),
+        query="""
+        -- The ts=6000 sample is attributed to an async context (async_id 7);
+        -- its descriptor name/kind fold onto the task context.
+        SELECT
+          ss.ts,
+          p.name AS process_name,
+          tc.async_name,
+          tc.async_kind
+        FROM __intrinsic_stack_sample ss
+        JOIN __intrinsic_stack_sample_task_context tc
+          ON ss.task_context_id = tc.id
+        LEFT JOIN process p ON tc.upid = p.upid
+        WHERE tc.async_name IS NOT NULL
+        ORDER BY ss.ts;
+        """,
+        out=Csv("""
+        "ts","process_name","async_name","async_kind"
+        6000,"myproc","worker-1","fiber"
         """))
 
   def test_stack_sample_followers(self):

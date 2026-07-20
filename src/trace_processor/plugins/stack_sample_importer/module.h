@@ -63,7 +63,9 @@ class StackSampleModule : public ProtoImporterModule {
  private:
   tables::StackSampleTaskContextTable::Id InternTaskContext(
       std::optional<uint32_t> utid,
-      std::optional<uint32_t> upid);
+      std::optional<uint32_t> upid,
+      std::optional<StringId> async_name,
+      std::optional<StringId> async_kind);
   tables::StackSampleExecutionContextTable::Id InternExecutionContext(
       std::optional<uint32_t> cpu,
       StringId mode);

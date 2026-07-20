@@ -57,8 +57,10 @@ message StackSample {
     UNIT_COUNT = 9;
   }
 
-  // The task an observation is attributed to. At least one of pid / tid should
-  // be set.
+  // The task an observation is attributed to. At least one of pid / tid /
+  // async_id should be set. async_id identifies a stackful async context
+  // (goroutine, fiber, ...) described by an AsyncContextDescriptor whose iid
+  // equals the async_id.
   message TaskContext {
     // Interning key, used when this context is emitted via
     // InternedData.stack_sample_task_contexts and referenced by
@@ -71,6 +73,24 @@ message StackSample {
     // OS thread id the sample belongs to. If only tid is set, the process is
     // inferred from thread association elsewhere in the trace.
     optional uint32 tid = 3;
+    optional uint64 async_id = 4;
+  }
+
+  // Describes an async context referenced by TaskContext.async_id: a stackful
+  // unit of execution that is not an OS thread (goroutine, fiber, coroutine).
+  message AsyncContextDescriptor {
+    // Interning key, equal to the TaskContext.async_id it describes. Starts
+    // from 1, 0 is the same as "not set".
+    optional uint64 iid = 1;
+
+    // A human-readable name for this specific context, e.g. "worker-7".
+    optional string name = 2;
+
+    // The kind of async context, e.g. "goroutine", "fiber".
+    optional string kind = 3;
+
+    // iid of the structural parent AsyncContextDescriptor, if any.
+    optional uint64 parent_iid = 4;
   }
 
   // The execution state a sample was taken in. All fields are optional: an

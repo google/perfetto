@@ -157,14 +157,20 @@ void StackSampleModule::ParseField(const ParseFieldArgs& args) {
 
 tables::StackSampleTaskContextTable::Id StackSampleModule::InternTaskContext(
     std::optional<uint32_t> utid,
-    std::optional<uint32_t> upid) {
-  uint64_t key = base::FnvHasher::Combine(OptUintKey(utid), OptUintKey(upid));
+    std::optional<uint32_t> upid,
+    std::optional<StringId> async_name,
+    std::optional<StringId> async_kind) {
+  uint64_t key = base::FnvHasher::Combine(OptUintKey(utid), OptUintKey(upid),
+                                          OptStringKey(async_name),
+                                          OptStringKey(async_kind));
   if (auto* id = task_contexts_.Find(key)) {
     return *id;
   }
   tables::StackSampleTaskContextTable::Row row;
   row.utid = utid;
   row.upid = upid;
+  row.async_name = async_name;
+  row.async_kind = async_kind;
   auto id = task_context_table_->Insert(row).id;
   task_contexts_.Insert(key, id);
   return id;
@@ -263,6 +269,7 @@ void StackSampleModule::ParseStackSample(
   using protos::pbzero::InternedData;
   using protos::pbzero::StackSample;
   using protos::pbzero::StackSampleDefaults;
+  using AsyncContextDescriptor = StackSample::AsyncContextDescriptor;
   using CounterDescriptor = StackSample::CounterDescriptor;
   using ExecutionContext = StackSample::ExecutionContext;
   using Mode = StackSample::Mode;
@@ -281,9 +288,10 @@ void StackSampleModule::ParseStackSample(
     source_id = context_->storage->InternString(defaults->source());
   }
 
-  // Task context: attributes the sample to a thread / process.
+  // Task context: attributes the sample to a thread / process / async context.
   std::optional<uint32_t> pid;
   std::optional<uint32_t> tid;
+  std::optional<uint64_t> async_id;
   bool has_task = false;
   auto extract_task = [&](const TaskContext::Decoder& t) {
     has_task = true;
@@ -292,6 +300,9 @@ void StackSampleModule::ParseStackSample(
     }
     if (t.has_tid()) {
       tid = t.tid();
+    }
+    if (t.has_async_id()) {
+      async_id = t.async_id();
     }
   };
   if (sample.has_task_context()) {
@@ -316,9 +327,26 @@ void StackSampleModule::ParseStackSample(
     utid =
         pid ? procs->UpdateThread(*tid, *pid) : procs->GetOrCreateThread(*tid);
   }
+  // async_id references an interned AsyncContextDescriptor; fold its name and
+  // kind onto the task context.
+  std::optional<StringId> async_name;
+  std::optional<StringId> async_kind;
+  if (async_id) {
+    if (auto* desc =
+            sequence_state->LookupInternedMessage<
+                InternedData::kStackSampleAsyncContextDescriptorsFieldNumber,
+                AsyncContextDescriptor>(*async_id)) {
+      if (desc->name().size > 0) {
+        async_name = context_->storage->InternString(desc->name());
+      }
+      if (desc->kind().size > 0) {
+        async_kind = context_->storage->InternString(desc->kind());
+      }
+    }
+  }
   std::optional<tables::StackSampleTaskContextTable::Id> task_context_id;
-  if (has_task && (utid || upid)) {
-    task_context_id = InternTaskContext(utid, upid);
+  if (has_task && (utid || upid || async_name || async_kind)) {
+    task_context_id = InternTaskContext(utid, upid, async_name, async_kind);
   }
 
   // Execution context: cpu + privilege mode at sample time.

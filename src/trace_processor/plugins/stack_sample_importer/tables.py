@@ -34,11 +34,14 @@ STACK_SAMPLE_TASK_CONTEXT_TABLE = Table(
     columns=[
         C('utid', CppOptional(CppUint32())),
         C('upid', CppOptional(CppUint32())),
+        C('async_name', CppOptional(CppString())),
+        C('async_kind', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
         doc='''
-          The task a stack sample is attributed to: a thread, a process, or (in
-          future) an async context. Deduplicated, one row per distinct task.
+          The task a stack sample is attributed to: a thread, a process, and/or
+          a stackful async context (goroutine, fiber, ...). Deduplicated, one
+          row per distinct task.
         ''',
         group='Callstack profilers',
         columns={
@@ -48,6 +51,11 @@ STACK_SAMPLE_TASK_CONTEXT_TABLE = Table(
             'upid':
                 '''The sampled process, if known. Joinable with
                    process.upid.''',
+            'async_name':
+                '''Name of the async context (from AsyncContextDescriptor), if
+                   the sample is attributed to one.''',
+            'async_kind':
+                '''Kind of the async context, e.g. "goroutine", "fiber".''',
         }))
 
 STACK_SAMPLE_EXECUTION_CONTEXT_TABLE = Table(

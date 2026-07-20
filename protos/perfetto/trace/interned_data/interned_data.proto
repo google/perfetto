@@ -113,6 +113,8 @@ message InternedData {
   repeated StackSample.TaskContext stack_sample_task_contexts = 48;
   repeated StackSample.ExecutionContext stack_sample_execution_contexts = 49;
   repeated StackSample.CounterDescriptor stack_sample_counter_descriptors = 50;
+  repeated StackSample.AsyncContextDescriptor
+      stack_sample_async_context_descriptors = 51;
 
   //
   // == UNSTABLE / CONTEXT-SPECIFIC FIELDS ==
