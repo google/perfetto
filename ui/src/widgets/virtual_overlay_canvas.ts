@@ -220,10 +220,17 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       if (webglCtx) {
         this.webglRenderer = new WebGLRenderer(this.ctx, webglCtx);
         // Fail loudly if we lose context
-        this.webglCanvas.addEventListener('webglcontextlost', (e) => {
+        const onContextLost = (e: Event) => {
           const statusMessage =
             (e as WebGLContextEvent).statusMessage || 'no status message';
           throw new Error(`WebGL context lost: ${statusMessage}`);
+        };
+        this.webglCanvas.addEventListener('webglcontextlost', onContextLost);
+        this.trash.defer(() => {
+          this.webglCanvas?.removeEventListener(
+            'webglcontextlost',
+            onContextLost,
+          );
         });
       }
     }
