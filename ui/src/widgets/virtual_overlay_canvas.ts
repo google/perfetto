@@ -133,9 +133,7 @@ function getScrollAxesFromOverflow(x: Overflow, y: Overflow) {
 // This mithril component acts as scrolling container for tall and/or wide
 // content. Adds a virtually scrolling canvas over the top of any child elements
 // rendered inside it.
-export class VirtualOverlayCanvas
-  implements m.ClassComponent<VirtualOverlayCanvasAttrs>
-{
+export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanvasAttrs> {
   readonly trash = new DisposableStack();
   private ctx?: CanvasRenderingContext2D;
   private virtualCanvas?: VirtualCanvas;
@@ -222,10 +220,17 @@ export class VirtualOverlayCanvas
       if (webglCtx) {
         this.webglRenderer = new WebGLRenderer(this.ctx, webglCtx);
         // Fail loudly if we lose context
-        this.webglCanvas.addEventListener('webglcontextlost', (e) => {
+        const onContextLost = (e: Event) => {
           const statusMessage =
             (e as WebGLContextEvent).statusMessage || 'no status message';
           throw new Error(`WebGL context lost: ${statusMessage}`);
+        };
+        this.webglCanvas.addEventListener('webglcontextlost', onContextLost);
+        this.trash.defer(() => {
+          this.webglCanvas?.removeEventListener(
+            'webglcontextlost',
+            onContextLost,
+          );
         });
       }
     }

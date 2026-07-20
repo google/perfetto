@@ -123,9 +123,7 @@ export interface AddColumnParamMenuItemAttrs {
  * the keys available in the data source. Keys are only fetched when the submenu
  * is opened.
  */
-export class AddColumnParamMenuItem
-  implements m.ClassComponent<AddColumnParamMenuItemAttrs>
-{
+export class AddColumnParamMenuItem implements m.ClassComponent<AddColumnParamMenuItemAttrs> {
   view({attrs}: m.Vnode<AddColumnParamMenuItemAttrs>) {
     const {pathPrefix, existingColumns, datasource, onSelect, label, icon} =
       attrs;

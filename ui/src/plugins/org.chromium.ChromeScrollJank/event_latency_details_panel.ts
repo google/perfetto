@@ -429,7 +429,7 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
 
     return m(
       Section,
-      {title: this.isJankStage ? `Jank Cause: ${name}` : name ?? '[null]'},
+      {title: this.isJankStage ? `Jank Cause: ${name}` : (name ?? '[null]')},
       childWidgets,
     );
   }

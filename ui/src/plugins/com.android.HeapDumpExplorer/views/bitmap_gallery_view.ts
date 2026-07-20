@@ -578,7 +578,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
                   pathData:
                     pathMode === 'none'
                       ? undefined
-                      : pathMaps[pathMode].get(r.row.id) ?? null,
+                      : (pathMaps[pathMode].get(r.row.id) ?? null),
                 }),
               ),
             )

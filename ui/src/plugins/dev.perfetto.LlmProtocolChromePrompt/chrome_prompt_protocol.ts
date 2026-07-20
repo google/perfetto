@@ -44,10 +44,7 @@ import type {Provider} from '../dev.perfetto.Llm/config';
 // These globals aren't in the TS DOM lib yet, so we declare the shapes we touch.
 
 type Availability =
-  | 'unavailable'
-  | 'downloadable'
-  | 'downloading'
-  | 'available';
+  'unavailable' | 'downloadable' | 'downloading' | 'available';
 
 interface LanguageModelMessage {
   readonly role: 'system' | 'user' | 'assistant';

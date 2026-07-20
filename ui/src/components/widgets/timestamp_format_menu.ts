@@ -22,9 +22,7 @@ interface TimestampFormatMenuItemAttrs {
   trace: Trace;
 }
 
-export class TimestampFormatMenuItem
-  implements m.ClassComponent<TimestampFormatMenuItemAttrs>
-{
+export class TimestampFormatMenuItem implements m.ClassComponent<TimestampFormatMenuItemAttrs> {
   view({attrs}: m.Vnode<TimestampFormatMenuItemAttrs>) {
     const timeline = attrs.trace.timeline;
     function renderMenuItem(value: TimestampFormat, label: string) {

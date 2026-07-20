@@ -673,7 +673,7 @@ function buildTreeQuery(
 
   // Determine expansion mode
   const useDenylist = collapsedGroups !== undefined;
-  const expansionPaths = useDenylist ? collapsedGroups : expandedGroups ?? [];
+  const expansionPaths = useDenylist ? collapsedGroups : (expandedGroups ?? []);
 
   // Build expansion check expressions using actual column comparisons
   // This properly handles nulls, empty strings, and blobs

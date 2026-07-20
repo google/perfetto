@@ -52,7 +52,7 @@ export const EngineStatusBadge: m.Component<EngineStatusBadgeAttrs> = {
       '.pf-sidebar__dbg-info-square',
       {className: modifier, title},
       m('div', label),
-      m('div', failed ? 'FAIL' : engine?.numRequestsPending ?? '-'),
+      m('div', failed ? 'FAIL' : (engine?.numRequestsPending ?? '-')),
     );
   },
 };

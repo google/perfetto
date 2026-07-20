@@ -42,12 +42,8 @@ function toSettingDescriptor(
   const {id = '', name = '', description = '', disabled, category} = option;
 
   let type:
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'enum'
-    | 'multi-select'
-    | 'string-array' = 'string';
+    'string' | 'number' | 'boolean' | 'enum' | 'multi-select' | 'string-array' =
+    'string';
   let schema: z.ZodType<unknown> = z.any();
   let defaultValue: unknown = undefined;
   let optionsList: {value: string; label: string}[] | undefined = undefined;

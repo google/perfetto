@@ -25,9 +25,7 @@ export interface FlowEventsAreaSelectedPanelAttrs {
   trace: TraceImpl;
 }
 
-export class FlowEventsAreaSelectedPanel
-  implements m.ClassComponent<FlowEventsAreaSelectedPanelAttrs>
-{
+export class FlowEventsAreaSelectedPanel implements m.ClassComponent<FlowEventsAreaSelectedPanelAttrs> {
   view({attrs}: m.CVnode<FlowEventsAreaSelectedPanelAttrs>) {
     const selection = attrs.trace.selection.selection;
     if (selection.kind !== 'area') {

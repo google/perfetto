@@ -304,7 +304,9 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
       baseTs !== undefined ? nearestByTs(data.dumps, baseTs) : undefined;
     const comparing = baseDump !== undefined && baseDump.ts !== cur.ts;
     const groups = data.groupsByTs.get(cur.ts) ?? [];
-    const baseGroups = comparing ? data.groupsByTs.get(baseDump.ts) ?? [] : [];
+    const baseGroups = comparing
+      ? (data.groupsByTs.get(baseDump.ts) ?? [])
+      : [];
 
     const totalCount = groups.reduce((s, g) => s + g.count, 0);
     const totalBytes = groups.reduce((s, g) => s + bytesOf(g), 0);
@@ -336,7 +338,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
     const javaRetainedPct =
       javaRetained > 0 ? (bitmapHeapNative / javaRetained) * 100 : 0;
     const baseJavaRetained = comparing
-      ? data.javaRetainedByTs.get(baseDump.ts) ?? 0
+      ? (data.javaRetainedByTs.get(baseDump.ts) ?? 0)
       : 0;
     const baseBitmapHeapNative = baseGroups.reduce(
       (s, g) => s + g.selfSize + g.nativeSize,

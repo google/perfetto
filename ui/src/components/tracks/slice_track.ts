@@ -1041,7 +1041,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       depths[i] = depth;
       patterns[i] = isIncomplete
         ? RECT_PATTERN_FADE_RIGHT
-        : this.attrs.slicePattern?.(it) ?? 0;
+        : (this.attrs.slicePattern?.(it) ?? 0);
       slices[i] = {
         id,
         title,

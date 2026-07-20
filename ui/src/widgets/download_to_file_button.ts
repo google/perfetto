@@ -27,9 +27,7 @@ export interface DownloadToFileButtonAttrs {
   readonly filePicker?: FilePickerOptions;
 }
 
-export class DownloadToFileButton
-  implements m.ClassComponent<DownloadToFileButtonAttrs>
-{
+export class DownloadToFileButton implements m.ClassComponent<DownloadToFileButtonAttrs> {
   private helper = new ActionButtonHelper();
 
   view({attrs}: m.Vnode<DownloadToFileButtonAttrs>): m.Children {

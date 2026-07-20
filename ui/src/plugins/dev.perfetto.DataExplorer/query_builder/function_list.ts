@@ -61,14 +61,11 @@ function getMatchTypeLabel(matchType: MatchType): string | undefined {
 }
 
 // Renders a search input bar
-class SearchBar
-  implements
-    m.ClassComponent<{
-      query: string;
-      onQueryChange: (query: string) => void;
-      autofocus?: boolean;
-    }>
-{
+class SearchBar implements m.ClassComponent<{
+  query: string;
+  onQueryChange: (query: string) => void;
+  autofocus?: boolean;
+}> {
   view({
     attrs,
   }: m.CVnode<{
@@ -92,16 +89,13 @@ class SearchBar
 }
 
 // Renders a single function card
-class FunctionCard
-  implements
-    m.ClassComponent<{
-      functionWithModule: FunctionWithModule;
-      segments: FuzzySegment[];
-      matchType: MatchType;
-      onFunctionClick: (fn: FunctionWithModule) => void;
-      isSelected: boolean;
-    }>
-{
+class FunctionCard implements m.ClassComponent<{
+  functionWithModule: FunctionWithModule;
+  segments: FuzzySegment[];
+  matchType: MatchType;
+  onFunctionClick: (fn: FunctionWithModule) => void;
+  isSelected: boolean;
+}> {
   view({
     attrs,
   }: m.CVnode<{

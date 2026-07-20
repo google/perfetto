@@ -42,9 +42,7 @@ export interface AddColumnsConfigurationModalAttrs {
   readonly onColumnAlias: (columnName: string, alias: string) => void;
 }
 
-export class AddColumnsConfigurationModal
-  implements m.ClassComponent<AddColumnsConfigurationModalAttrs>
-{
+export class AddColumnsConfigurationModal implements m.ClassComponent<AddColumnsConfigurationModalAttrs> {
   view({attrs}: m.Vnode<AddColumnsConfigurationModalAttrs>) {
     const {
       sourceCols,

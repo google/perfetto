@@ -192,9 +192,7 @@ export interface DistributionSummaryAttrs extends DistributionInputs {
 // Reusable left-half: histogram (with brush) + percentile stats. Materializes
 // the filtered dataset as a Perfetto table so the histogram and stats share
 // a single aggregation source.
-export class DistributionSummary
-  implements m.ClassComponent<DistributionSummaryAttrs>
-{
+export class DistributionSummary implements m.ClassComponent<DistributionSummaryAttrs> {
   private readonly tableSlot = new QuerySlot<DisposableSqlEntity>();
   private readonly boundsSlot = new QuerySlot<NiceBuckets>();
   private readonly statsSlot = new QuerySlot<DistributionStats>();
@@ -365,9 +363,7 @@ export interface DistributionPanelAttrs extends DistributionInputs {
 
 // Two-pane "value distribution" tab: instances grid + histogram summary,
 // both reading from a single materialized Perfetto table.
-export class DistributionPanel
-  implements m.ClassComponent<DistributionPanelAttrs>
-{
+export class DistributionPanel implements m.ClassComponent<DistributionPanelAttrs> {
   private readonly tableSlot = new QuerySlot<DisposableSqlEntity>();
 
   private dataSource?: SQLDataSource;
@@ -574,13 +570,11 @@ function buildGridSchema(
 function gridColumns(attrs: DistributionPanelAttrs): Column[] {
   return [
     {id: attrs.idColumn, field: attrs.idColumn},
-    ...attrs.displayColumns.map(
-      (field): Column => ({
-        id: field,
-        field,
-        sort: field === attrs.valueColumn ? 'DESC' : undefined,
-      }),
-    ),
+    ...attrs.displayColumns.map((field): Column => ({
+      id: field,
+      field,
+      sort: field === attrs.valueColumn ? 'DESC' : undefined,
+    })),
   ];
 }
 
