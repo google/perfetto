@@ -717,6 +717,36 @@ class Profiling(TestSuite):
         2000,2000000,"foo"
         """))
 
+  def test_stack_sample_inline_callstack(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample.textproto'),
+        query="""
+        -- The ts=1000 sample carries a fully-inline callstack: its frames are
+        -- interned from function name + source location alone.
+        WITH RECURSIVE cs AS (
+          SELECT spc.id, spc.parent_id, spc.depth, spc.frame_id
+          FROM __intrinsic_stack_sample ss
+          JOIN stack_profile_callsite spc ON ss.callsite_id = spc.id
+          WHERE ss.ts = 1000
+          UNION ALL
+          SELECT p.id, p.parent_id, p.depth, p.frame_id
+          FROM stack_profile_callsite p
+          JOIN cs ON cs.parent_id = p.id
+        )
+        SELECT cs.depth, spf.name AS frame_name, sym.source_file,
+          sym.line_number
+        FROM cs
+        JOIN stack_profile_frame spf ON cs.frame_id = spf.id
+        LEFT JOIN stack_profile_symbol sym
+          ON spf.symbol_set_id = sym.symbol_set_id
+        ORDER BY cs.depth;
+        """,
+        out=Csv("""
+        "depth","frame_name","source_file","line_number"
+        0,"main","/src/main.py",10
+        1,"foo","/src/foo.py",42
+        """))
+
   def test_stack_sample_async(self):
     return DiffTestBlueprint(
         trace=Path('stack_sample.textproto'),

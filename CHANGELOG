@@ -25,6 +25,20 @@ Unreleased:
       manifest into a merged-trace archive and sanity-checks the result.
     * Trace attributes can now also come from the trace config.
     * perfetto_manifest files can annotate an archive via `attributes`.
+    * Added a transport-neutral stack sampling format: the new
+      TracePacket.stack_sample attributes a callstack to a thread, process or
+      async context (goroutine, fiber, ...), measured against an explicit
+      counter timebase (wall-time, cycles, bytes, ...) with optional follower
+      counters. Callstacks can be interned or fully inline; per-sequence
+      StackSampleDefaults declare the profiler source and common counters.
+      Samples are parsed into the stack sample tables and share the existing
+      stack_profile_* callstack tables.
+    * Breaking change: the inline callstack message `TrackEvent.Callstack`
+      moved to the top-level `InlineCallstack` message in profile_common.proto,
+      so track events and stack samples share one inline callstack definition.
+      The wire format is unchanged; code referencing the generated
+      `TrackEvent.Callstack` / `TrackEvent::Callstack` types must switch to
+      `InlineCallstack`.
   UI:
     * Opening multiple trace files is now supported by default: the "Open
       multiple trace files" sidebar item (or multi-selecting / dropping

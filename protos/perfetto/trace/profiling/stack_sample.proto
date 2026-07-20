@@ -165,11 +165,14 @@ message StackSample {
     uint64 execution_context_iid = 4;
   }
 
-  // The captured callstack, bottom frame first. Give it inline via `callstack`
-  // or reference an interned Callstack via `callstack_iid`.
+  // The captured callstack, bottom frame first. Give it fully inline via
+  // `callstack` or reference an interned Callstack via `callstack_iid`.
   oneof callstack_field {
-    // Inline callstack.
-    Callstack callstack = 5;
+    // Fully-inline callstack: each frame carries its function name and source
+    // location directly, no interning. Simple but larger; prefer
+    // `callstack_iid` when callstacks repeat or frames need binary/library
+    // information (mappings, build ids, relative pcs).
+    InlineCallstack callstack = 5;
 
     // Interned callstack, referencing InternedData.callstacks.
     uint64 callstack_iid = 6;

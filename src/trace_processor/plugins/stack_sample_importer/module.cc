@@ -21,7 +21,11 @@
 #include <vector>
 
 #include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -113,25 +117,6 @@ ResolvedCounterDescriptor ResolveCounterDescriptor(
   return out;
 }
 
-// Resolves a callstack that is either interned (callstack_iid) or inline (a
-// profile_common Callstack whose frame_ids are interned frame iids).
-std::optional<CallsiteId> ResolveCallstack(
-    PacketSequenceStateGeneration* sequence_state,
-    std::optional<UniquePid> upid,
-    const protos::pbzero::StackSample::Decoder& sample) {
-  auto* state = sequence_state->GetCustomState<StackProfileSequenceState>();
-  if (sample.has_callstack_iid()) {
-    return state->FindOrInsertCallstack(sequence_state, upid,
-                                        sample.callstack_iid());
-  }
-  if (sample.has_callstack()) {
-    protos::pbzero::Callstack::Decoder callstack(sample.callstack());
-    return state->FindOrInsertCallstackFromFrames(sequence_state, upid,
-                                                  callstack);
-  }
-  return std::nullopt;
-}
-
 }  // namespace
 
 StackSampleModule::StackSampleModule(
@@ -214,6 +199,47 @@ tables::StackSampleCounterTable::Id StackSampleModule::InternCounter(
   auto id = counter_table_->Insert(row).id;
   counters_.Insert(key, id);
   return id;
+}
+
+// Resolves a callstack that is either interned (callstack_iid) or fully
+// inline (an InlineCallstack whose frames carry function names and source
+// locations directly). Inline frames are interned into a dummy mapping, like
+// TrackEvent inline callstacks.
+std::optional<CallsiteId> StackSampleModule::ResolveCallstack(
+    PacketSequenceStateGeneration* sequence_state,
+    std::optional<UniquePid> upid,
+    const protos::pbzero::StackSample::Decoder& sample) {
+  if (sample.has_callstack_iid()) {
+    auto* state = sequence_state->GetCustomState<StackProfileSequenceState>();
+    return state->FindOrInsertCallstack(sequence_state, upid,
+                                        sample.callstack_iid());
+  }
+  if (!sample.has_callstack()) {
+    return std::nullopt;
+  }
+  if (!inline_callstack_mapping_) {
+    inline_callstack_mapping_ =
+        &context_->mapping_tracker->CreateDummyMapping("stack_sample_inline");
+  }
+  protos::pbzero::InlineCallstack::Decoder callstack(sample.callstack());
+  std::optional<CallsiteId> callsite_id;
+  uint32_t depth = 0;
+  for (auto it = callstack.frames(); it; ++it, ++depth) {
+    protos::pbzero::InlineCallstack::Frame::Decoder frame(*it);
+    std::optional<base::StringView> source_file;
+    if (frame.has_source_file()) {
+      source_file = frame.source_file();
+    }
+    std::optional<uint32_t> line_number;
+    if (frame.has_line_number()) {
+      line_number = frame.line_number();
+    }
+    FrameId frame_id = inline_callstack_mapping_->InternDummyFrame(
+        frame.function_name(), source_file, line_number);
+    callsite_id = context_->stack_profile_tracker->InternCallsite(
+        callsite_id, frame_id, depth);
+  }
+  return callsite_id;
 }
 
 void StackSampleModule::ParseFollowers(
