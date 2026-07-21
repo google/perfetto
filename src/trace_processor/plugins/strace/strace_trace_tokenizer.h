@@ -55,8 +55,8 @@ struct StraceLine {
   int64_t epoch_ns = 0;
   // Present only when the trace was collected with `strace -f`/`-ff`.
   std::optional<uint32_t> pid;
-  // The syscall name, e.g. "openat". Empty for a "<... foo resumed>" line
-  // (the name is recovered from the matching unfinished call).
+  // The syscall name, e.g. "openat". For a "<... foo resumed>" line this is
+  // the name recovered from the resumed marker ("foo"), not empty.
   std::string syscall;
   // The raw text between the syscall name's parentheses (or, for a resumed
   // line, whatever text follows "resumed>").
@@ -64,8 +64,7 @@ struct StraceLine {
   // The text after "= " at the end of a *complete* call, e.g. "3" or "-1
   // ENOENT (No such file or directory)". Unset for unfinished calls.
   std::optional<std::string> return_value;
-  bool is_unfinished = false;
-  bool is_resumed = false;
+  StraceEventKind kind = StraceEventKind::kComplete;
 };
 
 // Result of ParseStraceLine. `line` is unset if the line couldn't be parsed
@@ -76,16 +75,6 @@ struct StraceLine {
 // banners, etc.), so callers can report it with an actionable message
 // rather than a generic parse failure.
 struct ParseStraceLineResult {
-  ParseStraceLineResult() = default;
-  // NOLINTNEXTLINE(google-explicit-constructor)
-  ParseStraceLineResult(std::nullopt_t) {}
-  // NOLINTNEXTLINE(google-explicit-constructor)
-  ParseStraceLineResult(StraceLine l) : line(std::move(l)) {}
-
-  bool has_value() const { return line.has_value(); }
-  const StraceLine* operator->() const { return &*line; }
-  const StraceLine& operator*() const { return *line; }
-
   std::optional<StraceLine> line;
   bool unsupported_timestamp_format = false;
 };

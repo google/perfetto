@@ -75,25 +75,25 @@ std::optional<int64_t> ParseEpochTimestamp(std::string_view s) {
   std::string_view frac =
       dot == std::string_view::npos ? std::string_view() : s.substr(dot + 1);
 
-  auto seconds = base::StringToInt64(std::string(whole));
-  // Reject negative and out-of-range values explicitly: base::StringToInt64
-  // happily parses a leading '-' (this is not a `-t`/`-tt` line, which is
-  // already excluded by the ':' check above, but garbage/adversarial input
-  // could still supply one), and it saturates to INT64_MAX on overflow
-  // rather than failing, so an absurdly long digit run would otherwise
-  // silently turn `*seconds * kNsPerSec` below into a signed integer
-  // overflow (undefined behaviour). A real strace timestamp is always a
-  // small, non-negative number of seconds since the epoch.
+  auto seconds = base::StringViewToInt64(base::StringView(whole));
+  // Reject negative and out-of-range values explicitly. StringViewToInt64
+  // parses a leading '-' (this is not a `-t`/`-tt` line, which is already
+  // excluded by the ':' check above, but garbage/adversarial input could
+  // still supply one), so a negative value must be rejected rather than
+  // fed into the multiplication below. A digit run long enough to overflow
+  // int64_t returns nullopt (caught by `!seconds`), but a value that fits
+  // in int64_t yet exceeds kMaxEpochSeconds would still overflow
+  // `*seconds * kNsPerSec` (undefined behaviour), so guard that too. A real
+  // strace timestamp is always a small, non-negative number of seconds.
   if (!seconds || *seconds < 0 || *seconds > kMaxEpochSeconds)
     return std::nullopt;
 
   int64_t ns = *seconds * kNsPerSec;
   if (!frac.empty()) {
-    auto us = base::StringToInt64(std::string(frac));
-    // Same reasoning as above: reject a negative fractional part (it would
-    // otherwise silently move the timestamp backwards) and one so long it
-    // could overflow when multiplied by kNsPerUs. strace only ever prints
-    // up to 6 digits of microseconds here.
+    auto us = base::StringViewToInt64(base::StringView(frac));
+    // Reject a negative fractional part (it would otherwise silently move
+    // the timestamp backwards) and one out of the microsecond range. strace
+    // only ever prints up to 6 digits of microseconds here.
     if (!us || *us < 0 || *us > 999999)
       return std::nullopt;
     // frac is microseconds regardless of how many digits strace prints.
@@ -108,7 +108,7 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
   std::string_view rest = base::TrimWhitespace(line);
   if (rest.empty() || rest[0] == '-' /* "--- SIGCHLD ... ---" */ ||
       rest[0] == '+' /* "+++ exited with 0 +++" */) {
-    return std::nullopt;
+    return {};
   }
 
   StraceLine out;
@@ -134,7 +134,7 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
       if (all_digits) {
         auto pid = base::StringToUInt32(std::string(head));
         if (!pid)
-          return std::nullopt;
+          return {};
         out.pid = *pid;
         rest = base::TrimWhitespace(rest.substr(sp + 1));
       }
@@ -147,7 +147,7 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
   {
     size_t sp = rest.find(' ');
     if (sp == std::string_view::npos)
-      return std::nullopt;
+      return {};
     std::string_view ts_tok = rest.substr(0, sp);
     auto ts = ParseEpochTimestamp(ts_tok);
     if (!ts) {
@@ -155,7 +155,7 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
       // distinguishing from "not a syscall line at all": it's a syscall
       // line, just in an unsupported format, so it gets a specific,
       // actionable stat rather than the generic parse-failure one.
-      ParseStraceLineResult result = std::nullopt;
+      ParseStraceLineResult result;
       result.unsupported_timestamp_format =
           ts_tok.find(':') != std::string_view::npos;
       return result;
@@ -165,23 +165,24 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
   }
 
   if (rest.empty())
-    return std::nullopt;
+    return {};
 
   // "<... syscall resumed> rest-of-args) = ret"
   constexpr std::string_view kResumedPrefix = "<... ";
+  bool resumed = false;
   if (rest.substr(0, kResumedPrefix.size()) == kResumedPrefix) {
     size_t name_start = kResumedPrefix.size();
     size_t name_end = rest.find(" resumed>", name_start);
     if (name_end == std::string_view::npos)
-      return std::nullopt;
+      return {};
     out.syscall = std::string(rest.substr(name_start, name_end - name_start));
-    out.is_resumed = true;
+    resumed = true;
     rest = base::TrimWhitespace(
         rest.substr(name_end + std::string_view(" resumed>").size()));
   } else {
     size_t paren = rest.find('(');
     if (paren == std::string_view::npos)
-      return std::nullopt;
+      return {};
     out.syscall = std::string(rest.substr(0, paren));
     rest = rest.substr(paren + 1);
   }
@@ -196,15 +197,22 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
     while (!out.args.empty() && (out.args.back() == ',')) {
       out.args.pop_back();
     }
-    out.is_unfinished = true;
-    return out;
+    // A line that is both resumed *and* unfinished ("<... foo resumed> args
+    // <unfinished ...>") ends the prior call and immediately begins another.
+    out.kind = resumed ? StraceEventKind::kResumedThenUnfinished
+                       : StraceEventKind::kUnfinished;
+    return ParseStraceLineResult{std::move(out)};
   }
 
-  // Otherwise this is a complete call: "...) = <return>". The return value
-  // itself may contain further parens (e.g. "-1 ENOENT (No such file or
-  // directory)"), so anchor on the literal ") = " marker that separates the
-  // call's own closing paren from its return value, rather than the last
-  // ')' in the line.
+  // Otherwise this call carries a return value and so is complete: either a
+  // resumed call's tail ("<... foo resumed> ...) = ret") or a plain
+  // single-line call ("foo(...) = ret").
+  out.kind = resumed ? StraceEventKind::kResumed : StraceEventKind::kComplete;
+
+  // The return value itself may contain further parens (e.g. "-1 ENOENT (No
+  // such file or directory)"), so anchor on the literal ") = " marker that
+  // separates the call's own closing paren from its return value, rather
+  // than the last ')' in the line.
   constexpr std::string_view kCloseEq = ") = ";
   size_t close_paren = rest.find(kCloseEq);
   if (close_paren == std::string_view::npos) {
@@ -213,15 +221,15 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
     // stripped the leading ")" as part of the resumed-prefix parsing above.
     size_t eq = rest.find('=');
     if (eq == std::string_view::npos)
-      return std::nullopt;
+      return {};
     out.return_value = std::string(base::TrimWhitespace(rest.substr(eq + 1)));
-    return out;
+    return ParseStraceLineResult{std::move(out)};
   }
 
   out.args = std::string(base::TrimWhitespace(rest.substr(0, close_paren)));
   out.return_value = std::string(
       base::TrimWhitespace(rest.substr(close_paren + kCloseEq.size())));
-  return out;
+  return ParseStraceLineResult{std::move(out)};
 }
 
 bool IsStraceFormatTrace(const uint8_t* ptr, size_t size) {
@@ -273,6 +281,10 @@ base::Status StraceTraceTokenizer::Parse(TraceBlobView blob) {
     }
 
     StraceEvent evt;
+    // Without `-f`/`-ff` strace prints no pid, so every syscall belongs to
+    // the one process being traced: collapse them onto a single synthetic
+    // thread. tid 1 is used as an arbitrary non-zero placeholder (0 is the
+    // idle/swapper thread on Linux and best avoided as a stand-in).
     evt.tid = parsed.pid.value_or(1);
     evt.syscall_name_id =
         context_->storage->InternString(base::StringView(parsed.syscall));
@@ -284,8 +296,7 @@ base::Status StraceTraceTokenizer::Parse(TraceBlobView blob) {
       evt.return_value_id = context_->storage->InternString(
           base::StringView(*parsed.return_value));
     }
-    evt.is_unfinished = parsed.is_unfinished;
-    evt.is_resumed = parsed.is_resumed;
+    evt.kind = parsed.kind;
 
     stream_->Push(*trace_ts, evt);
   }

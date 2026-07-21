@@ -745,7 +745,7 @@ namespace perfetto::trace_processor::stats {
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
       "Linux kernel documentation for causes of this and potential fixes."),   \
-  F(strace_parse_failure,                       kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+  F(strace_parse_failure,                       kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,   \
       "A line in an strace trace could not be parsed as a syscall event "     \
       "and was skipped. This is expected for non-syscall lines, such as "     \
       "signal delivery or process exit banners."),                           \

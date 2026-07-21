@@ -20,14 +20,17 @@
 #include <optional>
 #include <string>
 
+#include "src/trace_processor/plugins/strace/strace_event.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::strace_importer {
 namespace {
 
 TEST(StraceLineParserTest, CompleteCall) {
-  auto line = ParseStraceLine(
-      R"(1700000000.000000 openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 3)");
+  auto line =
+      ParseStraceLine(
+          R"(1700000000.000000 openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 3)")
+          .line;
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->epoch_ns, 1700000000LL * 1000 * 1000 * 1000);
   EXPECT_FALSE(line->pid.has_value());
@@ -35,25 +38,26 @@ TEST(StraceLineParserTest, CompleteCall) {
   EXPECT_EQ(line->args, R"(AT_FDCWD, "/etc/passwd", O_RDONLY)");
   ASSERT_TRUE(line->return_value.has_value());
   EXPECT_EQ(*line->return_value, "3");
-  EXPECT_FALSE(line->is_unfinished);
-  EXPECT_FALSE(line->is_resumed);
+  EXPECT_EQ(line->kind, StraceEventKind::kComplete);
 }
 
 TEST(StraceLineParserTest, MicrosecondTimestamp) {
-  auto line = ParseStraceLine(R"(1700000000.123456 read(3, "abc", 1024) = 3)");
+  auto line =
+      ParseStraceLine(R"(1700000000.123456 read(3, "abc", 1024) = 3)").line;
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->epoch_ns, 1700000000LL * 1000 * 1000 * 1000 + 123456000);
 }
 
 TEST(StraceLineParserTest, IntegerTimestampNoFraction) {
-  auto line = ParseStraceLine(R"(1700000000 read(3, "abc", 1024) = 3)");
+  auto line = ParseStraceLine(R"(1700000000 read(3, "abc", 1024) = 3)").line;
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->epoch_ns, 1700000000LL * 1000 * 1000 * 1000);
 }
 
 TEST(StraceLineParserTest, PidPrefixFromDashF) {
   auto line =
-      ParseStraceLine(R"(1234 1700000000.000000 read(3, "abc", 1024) = 3)");
+      ParseStraceLine(R"(1234 1700000000.000000 read(3, "abc", 1024) = 3)")
+          .line;
   ASSERT_TRUE(line.has_value());
   ASSERT_TRUE(line->pid.has_value());
   EXPECT_EQ(*line->pid, 1234u);
@@ -67,11 +71,12 @@ TEST(StraceLineParserTest, RejectsNegativeTimestampAfterPidPrefix) {
   // rejected once the pid prefix is stripped, rather than silently accepted
   // as a valid (nonsensical, pre-epoch) point in time.
   EXPECT_FALSE(
-      ParseStraceLine(R"(1234 -5 read(3, "abc", 1024) = 3)").has_value());
+      ParseStraceLine(R"(1234 -5 read(3, "abc", 1024) = 3)").line.has_value());
 }
 
 TEST(StraceLineParserTest, RejectsNegativeTimestampNoPidPrefix) {
-  EXPECT_FALSE(ParseStraceLine(R"(-5 read(3, "abc", 1024) = 3)").has_value());
+  EXPECT_FALSE(
+      ParseStraceLine(R"(-5 read(3, "abc", 1024) = 3)").line.has_value());
 }
 
 TEST(StraceLineParserTest, RejectsOverflowingTimestamp) {
@@ -80,38 +85,38 @@ TEST(StraceLineParserTest, RejectsOverflowingTimestamp) {
   // saturated/overflowed.
   EXPECT_FALSE(
       ParseStraceLine(R"(99999999999999999999 read(3, "abc", 1024) = 3)")
-          .has_value());
+          .line.has_value());
 }
 
 TEST(StraceLineParserTest, RejectsOverflowingFractionalPart) {
   EXPECT_FALSE(ParseStraceLine(R"(1700000000.99999999999999999999 read(3) = 3)")
-                   .has_value());
+                   .line.has_value());
 }
 
 TEST(StraceLineParserTest, RejectsNegativeFractionalPart) {
-  // Malformed input with a '-' after the decimal point; StringToInt64 would
+  // Malformed input with a '-' after the decimal point; the parser would
   // otherwise happily parse "-123456" as microseconds and move the
   // timestamp backwards.
   EXPECT_FALSE(ParseStraceLine(R"(1700000000.-123456 read(3, "abc", 1024) = 3)")
-                   .has_value());
+                   .line.has_value());
 }
 
 TEST(StraceLineParserTest, Unfinished) {
-  auto line = ParseStraceLine(R"(1700000000.000000 read(3,  <unfinished ...>)");
+  auto line =
+      ParseStraceLine(R"(1700000000.000000 read(3,  <unfinished ...>)").line;
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->syscall, "read");
-  EXPECT_TRUE(line->is_unfinished);
-  EXPECT_FALSE(line->is_resumed);
+  EXPECT_EQ(line->kind, StraceEventKind::kUnfinished);
   EXPECT_FALSE(line->return_value.has_value());
 }
 
 TEST(StraceLineParserTest, Resumed) {
   auto line = ParseStraceLine(
-      R"(1700000000.000000 <... read resumed> "abc", 1024) = 3)");
+                  R"(1700000000.000000 <... read resumed> "abc", 1024) = 3)")
+                  .line;
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->syscall, "read");
-  EXPECT_FALSE(line->is_unfinished);
-  EXPECT_TRUE(line->is_resumed);
+  EXPECT_EQ(line->kind, StraceEventKind::kResumed);
   ASSERT_TRUE(line->return_value.has_value());
   EXPECT_EQ(*line->return_value, "3");
 }
@@ -119,17 +124,34 @@ TEST(StraceLineParserTest, Resumed) {
 TEST(StraceLineParserTest, ResumedWithNoTrailingArgs) {
   // "<... syscall resumed>) = ret" — the original call had no args left to
   // print, so the resumed line collapses straight to the return value.
-  auto line = ParseStraceLine(R"(1700000000.000500 <... futex resumed>)  = 0)");
+  auto line =
+      ParseStraceLine(R"(1700000000.000500 <... futex resumed>)  = 0)").line;
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->syscall, "futex");
-  EXPECT_TRUE(line->is_resumed);
+  EXPECT_EQ(line->kind, StraceEventKind::kResumed);
   ASSERT_TRUE(line->return_value.has_value());
   EXPECT_EQ(*line->return_value, "0");
 }
 
+TEST(StraceLineParserTest, ResumedThenUnfinishedAgain) {
+  // A call resumed and then immediately interrupted again on the same line
+  // (e.g. nested signal delivery). It both ends the prior call and begins a
+  // new interrupted one, so it is neither a plain resume nor a plain start.
+  auto line =
+      ParseStraceLine(
+          R"(1700000000.000000 <... epoll_wait resumed> {}, 64, -1 <unfinished ...>)")
+          .line;
+  ASSERT_TRUE(line.has_value());
+  EXPECT_EQ(line->syscall, "epoll_wait");
+  EXPECT_EQ(line->kind, StraceEventKind::kResumedThenUnfinished);
+  EXPECT_FALSE(line->return_value.has_value());
+}
+
 TEST(StraceLineParserTest, ErrorReturnValue) {
-  auto line = ParseStraceLine(
-      R"(1700000000.000000 openat(AT_FDCWD, "/nope", O_RDONLY) = -1 ENOENT (No such file or directory))");
+  auto line =
+      ParseStraceLine(
+          R"(1700000000.000000 openat(AT_FDCWD, "/nope", O_RDONLY) = -1 ENOENT (No such file or directory))")
+          .line;
   ASSERT_TRUE(line.has_value());
   ASSERT_TRUE(line->return_value.has_value());
   EXPECT_EQ(*line->return_value, "-1 ENOENT (No such file or directory)");
@@ -140,8 +162,10 @@ TEST(StraceLineParserTest, ReturnValueContainingParens) {
   // than the last ')' in the line, so a parenthesised errno description
   // after the return value doesn't get truncated or misparsed as part of
   // the call's argument list.
-  auto line = ParseStraceLine(
-      R"(1700000000.000000 connect(3, {sa_family=AF_INET}, 16) = -1 ECONNREFUSED (Connection refused))");
+  auto line =
+      ParseStraceLine(
+          R"(1700000000.000000 connect(3, {sa_family=AF_INET}, 16) = -1 ECONNREFUSED (Connection refused))")
+          .line;
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->args, "3, {sa_family=AF_INET}, 16");
   ASSERT_TRUE(line->return_value.has_value());
@@ -149,22 +173,22 @@ TEST(StraceLineParserTest, ReturnValueContainingParens) {
 }
 
 TEST(StraceLineParserTest, SkipsSignalDeliveryLine) {
-  EXPECT_FALSE(
-      ParseStraceLine(R"(--- SIGCHLD {si_signo=SIGCHLD} ---)").has_value());
+  EXPECT_FALSE(ParseStraceLine(R"(--- SIGCHLD {si_signo=SIGCHLD} ---)")
+                   .line.has_value());
 }
 
 TEST(StraceLineParserTest, SkipsExitBanner) {
-  EXPECT_FALSE(ParseStraceLine("+++ exited with 0 +++").has_value());
+  EXPECT_FALSE(ParseStraceLine("+++ exited with 0 +++").line.has_value());
 }
 
 TEST(StraceLineParserTest, RejectsEmptyLine) {
-  EXPECT_FALSE(ParseStraceLine("").has_value());
-  EXPECT_FALSE(ParseStraceLine("   ").has_value());
+  EXPECT_FALSE(ParseStraceLine("").line.has_value());
+  EXPECT_FALSE(ParseStraceLine("   ").line.has_value());
 }
 
 TEST(StraceLineParserTest, RejectsLineWithoutTimestamp) {
-  EXPECT_FALSE(
-      ParseStraceLine(R"(openat(AT_FDCWD, "/etc/passwd") = 3)").has_value());
+  EXPECT_FALSE(ParseStraceLine(R"(openat(AT_FDCWD, "/etc/passwd") = 3)")
+                   .line.has_value());
 }
 
 TEST(StraceLineParserTest, RejectsDashTTimeOfDayTimestamp) {
@@ -176,11 +200,11 @@ TEST(StraceLineParserTest, RejectsDashTTimeOfDayTimestamp) {
   // non-syscall line.
   auto dash_t = ParseStraceLine(
       R"(14:32:01 openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 3)");
-  EXPECT_FALSE(dash_t.has_value());
+  EXPECT_FALSE(dash_t.line.has_value());
   EXPECT_TRUE(dash_t.unsupported_timestamp_format);
 
   auto dash_tt = ParseStraceLine(R"(14:32:01.123456 read(3, "abc", 1024) = 3)");
-  EXPECT_FALSE(dash_tt.has_value());
+  EXPECT_FALSE(dash_tt.line.has_value());
   EXPECT_TRUE(dash_tt.unsupported_timestamp_format);
 }
 

@@ -64,24 +64,33 @@ void StraceTraceParser::Parse(int64_t ts, StraceEvent evt) {
             evt.return_value_id);
   };
 
-  if (evt.is_unfinished) {
-    context_->slice_tracker->Begin(ts, track, category_id_, evt.syscall_name_id,
+  // End() closes the topmost open slice on the track and is a safe no-op if
+  // there isn't one (e.g. the "<unfinished ...>" line was truncated out of
+  // the trace), so no separate per-tid bookkeeping is needed to pair
+  // resumes with their unfinished starts.
+  switch (evt.kind) {
+    case StraceEventKind::kComplete:
+      context_->slice_tracker->Scoped(ts, track, category_id_,
+                                      evt.syscall_name_id, /*duration=*/0,
+                                      args_cb);
+      return;
+    case StraceEventKind::kUnfinished:
+      context_->slice_tracker->Begin(ts, track, category_id_,
+                                     evt.syscall_name_id, args_cb);
+      return;
+    case StraceEventKind::kResumed:
+      context_->slice_tracker->End(ts, track, category_id_, evt.syscall_name_id,
                                    args_cb);
-    return;
+      return;
+    case StraceEventKind::kResumedThenUnfinished:
+      // Ends the prior (now-resumed) call and immediately begins the next
+      // interrupted one, both at this timestamp.
+      context_->slice_tracker->End(ts, track, category_id_, evt.syscall_name_id,
+                                   args_cb);
+      context_->slice_tracker->Begin(ts, track, category_id_,
+                                     evt.syscall_name_id, args_cb);
+      return;
   }
-
-  if (evt.is_resumed) {
-    // End() closes the topmost open slice on the track and is a safe no-op
-    // if there isn't one (e.g. the "<unfinished ...>" line was truncated
-    // out of the trace), so no separate bookkeeping is needed here.
-    context_->slice_tracker->End(ts, track, category_id_, evt.syscall_name_id,
-                                 args_cb);
-    return;
-  }
-
-  // A complete, single-line call.
-  context_->slice_tracker->Scoped(ts, track, category_id_, evt.syscall_name_id,
-                                  /*duration=*/0, args_cb);
 }
 
 }  // namespace perfetto::trace_processor::strace_importer
