@@ -733,6 +733,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
    * initialize it with the first metric. Otherwise, it preserves the selected
    * metric if it still exists in the new metrics array, or falls back to the
    * first metric if it doesn't.
+   *
+   * Returns `state` unchanged (same reference) when it is already valid:
+   * callers rely on reference stability to avoid spurious data refetches.
    */
   static updateState(
     state: FlamegraphState | undefined,
@@ -744,13 +747,14 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const metricStillExists = metrics.some(
       (m) => metricId(m) === state.selectedMetricId,
     );
+    if (metricStillExists) {
+      return state;
+    }
     return {
       filters: state.filters,
       view: state.view,
       addedMetricIds: state.addedMetricIds,
-      selectedMetricId: metricStillExists
-        ? state.selectedMetricId
-        : metricId(metrics[0]),
+      selectedMetricId: metricId(metrics[0]),
     };
   }
 
