@@ -73,6 +73,11 @@ export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
       addedMetricIds,
     );
     const currentState = Flamegraph.updateState(state, metrics);
+    if (currentState !== state) {
+      // Persist so the state reference is stable on the next render:
+      // QueryFlamegraph refetches whenever the state identity changes.
+      this.setState(currentState);
+    }
     const added = new Set(addedMetricIds);
     const addableMetrics = metadata.data.availableArgs
       .map((name) => ({id: argMetricId(name), name}))
