@@ -16,7 +16,10 @@
 
 #include "src/trace_processor/shell/shell_utils.h"
 
+#include <sqlite3.h>
+#include <algorithm>
 #include <cinttypes>
+#include <cstdint>
 #include <cstdio>
 #include <string>
 
@@ -51,6 +54,38 @@ bool StderrSupportsColors() {
 }
 
 namespace {
+
+// Builds a SQLite "file:" URI for `path`, percent-encoding characters that are
+// not safe in a URI path.
+//
+// The main trace processor connection is opened on the in-memory "memdb" VFS.
+// ATTACH DATABASE inherits the connection's VFS, so a plain path would create
+// the export database in memory too. Pin the default VFS instead: it is the
+// OS-backed one, under a platform-dependent name ("unix", "win32", ...).
+std::string MakeExportFileUri(const std::string& path) {
+  std::string normalized = path;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  std::replace(normalized.begin(), normalized.end(), '\\', '/');
+#endif
+  std::string uri = "file:";
+  for (char c : normalized) {
+    bool unreserved = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                      (c >= '0' && c <= '9') || c == '-' || c == '.' ||
+                      c == '_' || c == '~' || c == '/' || c == ':';
+    if (unreserved) {
+      uri.push_back(c);
+    } else {
+      base::StackString<4> escaped("%%%02X", static_cast<uint8_t>(c));
+      uri.append(escaped.c_str());
+    }
+  }
+  // Lookup default VFS.
+  sqlite3_vfs* vfs = sqlite3_vfs_find(nullptr);
+  PERFETTO_CHECK(vfs);
+  uri.append("?vfs=");
+  uri.append(vfs->zName);
+  return uri;
+}
 
 base::Status PrintStatsSection(TraceProcessor* tp,
                                const char* header,
@@ -151,13 +186,24 @@ base::Status ExportTraceToDatabase(TraceProcessor* trace_processor,
     PERFETTO_CHECK(res == 0);
   }
 
-  std::string attach_sql =
-      "ATTACH DATABASE '" + output_name + "' AS perfetto_export";
+  std::string attach_sql = "ATTACH DATABASE '" +
+                           MakeExportFileUri(output_name) +
+                           "' AS perfetto_export";
   auto attach_it = trace_processor->ExecuteQuery(attach_sql);
   bool attach_has_more = attach_it.Next();
   PERFETTO_DCHECK(!attach_has_more);
 
   RETURN_IF_ERROR(attach_it.Status());
+
+  // The export database is written once and regenerated from the trace on
+  // failure, so trade durability for speed and lower I/O.
+  for (const char* pragma : {"PRAGMA perfetto_export.journal_mode=OFF",
+                             "PRAGMA perfetto_export.synchronous=OFF"}) {
+    auto pragma_it = trace_processor->ExecuteQuery(pragma);
+    while (pragma_it.Next()) {
+    }
+    RETURN_IF_ERROR(pragma_it.Status());
+  }
 
   // Export real and virtual tables.
   auto tables_it =
@@ -196,7 +242,7 @@ base::Status ExportTraceToDatabase(TraceProcessor* trace_processor,
 
   auto detach_it =
       trace_processor->ExecuteQuery("DETACH DATABASE perfetto_export");
-  bool detach_has_more = attach_it.Next();
+  bool detach_has_more = detach_it.Next();
   PERFETTO_DCHECK(!detach_has_more);
   return detach_it.Status();
 }

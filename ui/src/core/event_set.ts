@@ -192,9 +192,9 @@ export interface Sort {
 // Together this means in the minimal case subclasses only *have* to
 // implement the single abstract method: materialise(). Everything else
 // is handled for you.
-export abstract class OptimisingEventSet<P extends KeySet>
-  implements EventSet<P>
-{
+export abstract class OptimisingEventSet<
+  P extends KeySet,
+> implements EventSet<P> {
   abstract readonly keys: P;
 
   // OptimisingEventSet provides the synchronous refinement methods.

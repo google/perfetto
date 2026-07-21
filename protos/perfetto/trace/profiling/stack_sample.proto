@@ -16,7 +16,7 @@
 
 syntax = "proto2";
 
-import "protos/perfetto/trace/profiling/profile_common.proto";
+import "protos/perfetto/trace/profiling/inline_callstack.proto";
 
 package perfetto.protos;
 
@@ -57,8 +57,10 @@ message StackSample {
     UNIT_COUNT = 9;
   }
 
-  // The task an observation is attributed to. At least one of pid / tid should
-  // be set.
+  // The task an observation is attributed to. At least one of pid / tid /
+  // async_id should be set. async_id identifies a stackful async context
+  // (goroutine, fiber, ...) described by an AsyncContextDescriptor whose iid
+  // equals the async_id.
   message TaskContext {
     // Interning key, used when this context is emitted via
     // InternedData.stack_sample_task_contexts and referenced by
@@ -71,6 +73,24 @@ message StackSample {
     // OS thread id the sample belongs to. If only tid is set, the process is
     // inferred from thread association elsewhere in the trace.
     optional uint32 tid = 3;
+    optional uint64 async_id = 4;
+  }
+
+  // Describes an async context referenced by TaskContext.async_id: a stackful
+  // unit of execution that is not an OS thread (goroutine, fiber, coroutine).
+  message AsyncContextDescriptor {
+    // Interning key, equal to the TaskContext.async_id it describes. Starts
+    // from 1, 0 is the same as "not set".
+    optional uint64 iid = 1;
+
+    // A human-readable name for this specific context, e.g. "worker-7".
+    optional string name = 2;
+
+    // The kind of async context, e.g. "goroutine", "fiber".
+    optional string kind = 3;
+
+    // iid of the structural parent AsyncContextDescriptor, if any.
+    optional uint64 parent_iid = 4;
   }
 
   // The execution state a sample was taken in. All fields are optional: an
@@ -145,13 +165,17 @@ message StackSample {
     uint64 execution_context_iid = 4;
   }
 
-  // The captured callstack, bottom frame first.
+  // The captured callstack, bottom frame first. Give it fully inline via
+  // `callstack` or reference an interned Callstack via `callstack_iid`.
   oneof callstack_field {
-    // Inline callstack. The only supported form for now.
-    Callstack callstack = 5;
+    // Fully-inline callstack: each frame carries its function name and source
+    // location directly, no interning. Simple but larger; prefer
+    // `callstack_iid` when callstacks repeat or frames need binary/library
+    // information (mappings, build ids, relative pcs).
+    InlineCallstack callstack = 5;
 
-    // Reserved: an interned callstack variant may be added later.
-    // uint64 callstack_iid = 6;
+    // Interned callstack, referencing InternedData.callstacks.
+    uint64 callstack_iid = 6;
   }
 
   // Set if stack unwinding was incomplete; describes the data, not producer
@@ -183,10 +207,17 @@ message StackSample {
   // The value attributed to this sample for the primary counter (e.g. the
   // number of cycles or nanoseconds this sample represents).
   optional uint64 primary_weight = 11;
+
+  // Additional counters read at the same sample (e.g. instructions, cache
+  // misses read alongside a cycles timebase). follower_weights is positional
+  // with whichever of follower_descriptors / follower_descriptor_iids is set.
+  repeated CounterDescriptor follower_descriptors = 12;
+  repeated uint64 follower_descriptor_iids = 13 [packed = true];
+  repeated uint64 follower_weights = 14 [packed = true];
 }
 
 // Per-sequence defaults for StackSample. Lets a producer declare the source and
-// the common timebase once instead of on every sample.
+// the common timebase / followers once instead of on every sample.
 message StackSampleDefaults {
   // Identifies the profiler that produced these samples, e.g. "linux.perf",
   // "python.wall". Recorded once per sampling stream.
@@ -194,4 +225,7 @@ message StackSampleDefaults {
 
   // Default primary timebase for samples that omit their own.
   optional StackSample.CounterDescriptor primary_descriptor = 2;
+
+  // Default follower counters, positional with StackSample.follower_weights.
+  repeated StackSample.CounterDescriptor follower_descriptors = 3;
 }

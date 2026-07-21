@@ -18,6 +18,7 @@
 
 #include "src/base/test/status_matchers.h"
 #include "src/trace_redaction/broadphase_packet_filter.h"
+#include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "test/gtest_and_gmock.h"
@@ -34,6 +35,7 @@ class BroadphasePacketFilterIntegrationTest
   void SetUp() override {
     trace_redactor_.emplace_build<PopulateAllowlists>();
     trace_redactor_.emplace_transform<BroadphasePacketFilter>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
   }
 
   Context::TracePacketMask ScanPacketFields(const std::string& trace) {

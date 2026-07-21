@@ -16501,7 +16501,7 @@ class Callstack(_message.Message):
     def __init__(self, iid: _Optional[int] = ..., frame_ids: _Optional[_Iterable[int]] = ...) -> None: ...
 
 class StackSample(_message.Message):
-    __slots__ = ("task_context", "task_context_iid", "execution_context", "execution_context_iid", "callstack", "unwind_error", "unwind_error_iid", "primary_descriptor", "primary_descriptor_iid", "primary_weight")
+    __slots__ = ("task_context", "task_context_iid", "execution_context", "execution_context_iid", "callstack", "unwind_error", "unwind_error_iid", "primary_descriptor", "primary_descriptor_iid", "primary_weight", "follower_descriptors", "follower_descriptor_iids", "follower_weights")
     class Mode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         MODE_UNKNOWN: _ClassVar[StackSample.Mode]
@@ -16581,6 +16581,9 @@ class StackSample(_message.Message):
     PRIMARY_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
     PRIMARY_DESCRIPTOR_IID_FIELD_NUMBER: _ClassVar[int]
     PRIMARY_WEIGHT_FIELD_NUMBER: _ClassVar[int]
+    FOLLOWER_DESCRIPTORS_FIELD_NUMBER: _ClassVar[int]
+    FOLLOWER_DESCRIPTOR_IIDS_FIELD_NUMBER: _ClassVar[int]
+    FOLLOWER_WEIGHTS_FIELD_NUMBER: _ClassVar[int]
     task_context: StackSample.TaskContext
     task_context_iid: int
     execution_context: StackSample.ExecutionContext
@@ -16591,15 +16594,20 @@ class StackSample(_message.Message):
     primary_descriptor: StackSample.CounterDescriptor
     primary_descriptor_iid: int
     primary_weight: int
-    def __init__(self, task_context: _Optional[_Union[StackSample.TaskContext, _Mapping]] = ..., task_context_iid: _Optional[int] = ..., execution_context: _Optional[_Union[StackSample.ExecutionContext, _Mapping]] = ..., execution_context_iid: _Optional[int] = ..., callstack: _Optional[_Union[Callstack, _Mapping]] = ..., unwind_error: _Optional[str] = ..., unwind_error_iid: _Optional[int] = ..., primary_descriptor: _Optional[_Union[StackSample.CounterDescriptor, _Mapping]] = ..., primary_descriptor_iid: _Optional[int] = ..., primary_weight: _Optional[int] = ...) -> None: ...
+    follower_descriptors: _containers.RepeatedCompositeFieldContainer[StackSample.CounterDescriptor]
+    follower_descriptor_iids: _containers.RepeatedScalarFieldContainer[int]
+    follower_weights: _containers.RepeatedScalarFieldContainer[int]
+    def __init__(self, task_context: _Optional[_Union[StackSample.TaskContext, _Mapping]] = ..., task_context_iid: _Optional[int] = ..., execution_context: _Optional[_Union[StackSample.ExecutionContext, _Mapping]] = ..., execution_context_iid: _Optional[int] = ..., callstack: _Optional[_Union[Callstack, _Mapping]] = ..., unwind_error: _Optional[str] = ..., unwind_error_iid: _Optional[int] = ..., primary_descriptor: _Optional[_Union[StackSample.CounterDescriptor, _Mapping]] = ..., primary_descriptor_iid: _Optional[int] = ..., primary_weight: _Optional[int] = ..., follower_descriptors: _Optional[_Iterable[_Union[StackSample.CounterDescriptor, _Mapping]]] = ..., follower_descriptor_iids: _Optional[_Iterable[int]] = ..., follower_weights: _Optional[_Iterable[int]] = ...) -> None: ...
 
 class StackSampleDefaults(_message.Message):
-    __slots__ = ("source", "primary_descriptor")
+    __slots__ = ("source", "primary_descriptor", "follower_descriptors")
     SOURCE_FIELD_NUMBER: _ClassVar[int]
     PRIMARY_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
+    FOLLOWER_DESCRIPTORS_FIELD_NUMBER: _ClassVar[int]
     source: str
     primary_descriptor: StackSample.CounterDescriptor
-    def __init__(self, source: _Optional[str] = ..., primary_descriptor: _Optional[_Union[StackSample.CounterDescriptor, _Mapping]] = ...) -> None: ...
+    follower_descriptors: _containers.RepeatedCompositeFieldContainer[StackSample.CounterDescriptor]
+    def __init__(self, source: _Optional[str] = ..., primary_descriptor: _Optional[_Union[StackSample.CounterDescriptor, _Mapping]] = ..., follower_descriptors: _Optional[_Iterable[_Union[StackSample.CounterDescriptor, _Mapping]]] = ...) -> None: ...
 
 class HistogramName(_message.Message):
     __slots__ = ("iid", "name")

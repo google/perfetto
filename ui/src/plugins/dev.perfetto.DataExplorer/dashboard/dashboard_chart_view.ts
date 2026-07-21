@@ -235,9 +235,7 @@ class DashboardChartAdapter implements ChartColumnProvider {
  * If the table name is not yet available, this component triggers execution
  * via `source.requestExecution()` and waits for a redraw.
  */
-export class DashboardChartView
-  implements m.ClassComponent<DashboardChartViewAttrs>
-{
+export class DashboardChartView implements m.ClassComponent<DashboardChartViewAttrs> {
   /** Adapter class exposed for use by Dashboard's config popup. */
   static Adapter = DashboardChartAdapter;
 

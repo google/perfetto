@@ -48,7 +48,7 @@ There are three ways to turn on display-video capture, from the simplest
 to the most control. On `user` builds there is also a one-time-per-boot
 property to set first — see the prerequisite below.
 
-### Prerequisite on `user` builds
+### Prerequisite on `user` builds {#prerequisite-on-user-builds}
 
 On `userdebug` (debuggable) devices, display-video capture works out of
 the box, and you can skip this step. On `user` (production) builds it is
@@ -170,3 +170,46 @@ the speed selector to play back slower (down to 0.1×) or faster (up to
 2×).
 
 ![Playing a display-video capture back with the video-frames track pinned at the top: in the details panel the decoded preview advances from the settings screen to the launcher while the frame number and timestamp update.](../images/video_frames/05-playback.gif)
+
+### Exporting to an .mp4 from the command line
+
+`tools/trace_video_conv.py` pulls the captured video out of a trace into an
+`.mp4` using ffmpeg (the encoded frames are copied as-is, not re-encoded).
+It needs `ffmpeg` on the `PATH`; `trace_processor` is downloaded
+automatically, or pass `--trace-processor` to use a local build.
+
+```bash
+# List the video streams in a trace.
+tools/trace_video_conv.py TRACE.perfetto-trace --list
+
+# Convert the whole video to an .mp4.
+tools/trace_video_conv.py TRACE.perfetto-trace -o out.mp4
+
+# Clip to a time range (trace ts, ns), or to whatever a query selects
+# (the query returns a `ts` column, and optionally `dur`).
+tools/trace_video_conv.py TRACE.perfetto-trace -o clip.mp4 --start <ts> --end <ts>
+tools/trace_video_conv.py TRACE.perfetto-trace -o clip.mp4 \
+    --query "SELECT ts, dur FROM slice WHERE name = 'my_cuj'"
+
+# Slow motion (0.5x) or 2x faster.
+tools/trace_video_conv.py TRACE.perfetto-trace -o out.mp4 --speed 0.5
+
+# Two traces side by side, each captioned (defaults to the file names).
+tools/trace_video_conv.py before.perfetto-trace --compare after.perfetto-trace \
+    -o compare.mp4 --title Before --title2 After
+```
+
+| Option | Description |
+| --- | --- |
+| `-o, --output` | Output `.mp4` path. |
+| `--list` | List the trace's video streams and exit. |
+| `--display-id` | Which stream to use, for a trace with more than one display. |
+| `--start`, `--end` | Clip to a time range, in trace `ts` nanoseconds. |
+| `--query` | Clip to the region a SQL query selects (returns `ts`, optionally `dur`). |
+| `--speed` | Playback speed of the output: `2` = twice as fast, `0.5` = slow motion. |
+| `--compare` | A second trace, placed to the right for a side-by-side comparison. |
+| `--display-id2` | Which stream to use from the `--compare` trace. |
+| `--start2`, `--end2` | Clip the `--compare` trace to a time range. |
+| `--query2` | Clip the `--compare` trace to a SQL-selected region. |
+| `--title`, `--title2` | Captions for the first and second videos (default: the file names). |
+| `--trace-processor` | Path to a local `trace_processor` build (otherwise one is downloaded). |

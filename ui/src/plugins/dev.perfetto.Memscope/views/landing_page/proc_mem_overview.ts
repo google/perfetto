@@ -112,9 +112,7 @@ export interface ProcessMemDetailsAttrs {
   readonly upid: number;
 }
 
-export class ProcessMemDetails
-  implements m.ClassComponent<ProcessMemDetailsAttrs>
-{
+export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttrs> {
   // The capture-strip facts: process name + per-source sample counts. Its own
   // slot keyed by (trace, upid) so it reloads when the selected process changes.
   private readonly captureSlot = new QuerySlot<CaptureInfo>();
@@ -368,7 +366,7 @@ export class ProcessMemDetails
               m('span.pf-memscope-capture__label', s.label),
               m(
                 'span.pf-memscope-capture__facts',
-                loading ? '…' : s.facts ?? 'none',
+                loading ? '…' : (s.facts ?? 'none'),
               ),
             ],
           ),

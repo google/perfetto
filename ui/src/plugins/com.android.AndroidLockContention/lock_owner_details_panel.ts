@@ -321,9 +321,7 @@ interface MonitorContentionCardAttrs {
   readonly blockedFunctions: ReadonlyArray<ContentionBlockedFunction>;
 }
 
-class MonitorContentionCard
-  implements m.ClassComponent<MonitorContentionCardAttrs>
-{
+class MonitorContentionCard implements m.ClassComponent<MonitorContentionCardAttrs> {
   view({attrs}: m.Vnode<MonitorContentionCardAttrs>) {
     const {trace, plugin, row, threadStates, blockedFunctions} = attrs;
     const dur = row.dur;

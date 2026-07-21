@@ -60,7 +60,7 @@ export class HistogramSvg implements m.ClassComponent<HistogramAttrs> {
       if (this.hover === undefined || data === undefined) return false;
       const rawFmtX = attrs.formatXValue ?? ((v: number) => formatNumber(v));
       const fmtX =
-        attrs.integerDimension ?? false
+        (attrs.integerDimension ?? false)
           ? (v: number) => rawFmtX(Math.round(v))
           : rawFmtX;
       const fmtY = attrs.formatYValue ?? formatNumber;

@@ -98,9 +98,7 @@ export const JOURNALD_PRIORITIES = [
   'Debug',
 ];
 
-export class JournaldLogPanel
-  implements m.ClassComponent<JournaldLogPanelAttrs>
-{
+export class JournaldLogPanel implements m.ClassComponent<JournaldLogPanelAttrs> {
   private readonly trace: Trace;
   private readonly executor = new SerialTaskQueue();
   private readonly viewQuery = new QuerySlot<AsyncDisposable>(this.executor);

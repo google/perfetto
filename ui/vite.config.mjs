@@ -39,6 +39,21 @@ const ENABLE_OPEN_PERFETTO_TRACE =
   process.env.ENABLE_OPEN_PERFETTO_TRACE === 'true';
 const IS_MEMORY64_ONLY = process.env.IS_MEMORY64_ONLY === 'true';
 
+// Unlike Rollup, Rolldown does not polyfill import.meta.url in IIFE bundles.
+// Some dependencies use it at module initialization time, so provide the
+// browser equivalent explicitly. This works both in documents and workers.
+const IMPORT_META_URL = '__perfetto_import_meta_url__';
+const IMPORT_META_URL_INTRO = `
+var _documentCurrentScript =
+  typeof document !== 'undefined' ? document.currentScript : null;
+var ${IMPORT_META_URL} =
+  typeof document === 'undefined'
+    ? location.href
+    : (_documentCurrentScript &&
+       _documentCurrentScript.tagName.toUpperCase() === 'SCRIPT' &&
+       _documentCurrentScript.src) || document.baseURI;
+`;
+
 // IIFE bundles go to dist_version (the symlink to dist/v1.2.3). The service
 // worker and chrome extension go elsewhere; for the minimum migration we keep
 // them on the old rollup path until needed. (build.mjs still runs rollup for
@@ -334,13 +349,17 @@ export default defineConfig(({command}) => {
             MINIFY_JS === 'preserve_comments'
               ? {format: {comments: 'all'}}
               : undefined,
-          rollupOptions: {
+          rolldownOptions: {
             input: {[BUNDLE]: inputPath},
             treeshake: NO_TREESHAKE ? false : undefined,
+            transform: {
+              define: {'import.meta.url': IMPORT_META_URL},
+            },
             output: {
               format: 'iife',
               name: BUNDLE,
               entryFileNames,
+              intro: IMPORT_META_URL_INTRO,
               // With cssCodeSplit:false Vite emits the CSS as "style.css" by
               // default. Rename it to <bundle>.css so that index.html's preload
               // and the assetSrc('frontend.css') call match.
@@ -349,7 +368,6 @@ export default defineConfig(({command}) => {
                 if (name.endsWith('.css')) return `${BUNDLE}.css`;
                 return '[name][extname]';
               },
-              inlineDynamicImports: true,
             },
             onwarn(warning, warn) {
               if (warning.code === 'CIRCULAR_DEPENDENCY') {

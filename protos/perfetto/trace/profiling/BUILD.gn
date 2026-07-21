@@ -15,7 +15,10 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  deps = [ "../../common:@TYPE@" ]
+  deps = [
+    ":inline_callstack_@TYPE@",
+    "../../common:@TYPE@",
+  ]
   sources = [
     "art_process_metadata.proto",
     "deobfuscation.proto",
@@ -24,4 +27,10 @@ perfetto_proto_library("@TYPE@") {
     "smaps.proto",
     "stack_sample.proto",
   ]
+}
+
+# Kept dependency-free so that messages embedding InlineCallstack (e.g.
+# TrackEvent) do not pull in the rest of the profiling protos.
+perfetto_proto_library("inline_callstack_@TYPE@") {
+  sources = [ "inline_callstack.proto" ]
 }

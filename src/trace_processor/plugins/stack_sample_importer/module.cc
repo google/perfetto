@@ -18,16 +18,21 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/profiling/inline_callstack.pbzero.h"
 #include "protos/perfetto/trace/profiling/stack_sample.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
@@ -112,21 +117,6 @@ ResolvedCounterDescriptor ResolveCounterDescriptor(
   return out;
 }
 
-// Resolves an inline callstack (a profile_common Callstack whose frame_ids are
-// interned frame iids).
-std::optional<CallsiteId> ResolveCallstack(
-    PacketSequenceStateGeneration* sequence_state,
-    std::optional<UniquePid> upid,
-    const protos::pbzero::StackSample::Decoder& sample) {
-  if (!sample.has_callstack()) {
-    return std::nullopt;
-  }
-  auto* state = sequence_state->GetCustomState<StackProfileSequenceState>();
-  protos::pbzero::Callstack::Decoder callstack(sample.callstack());
-  return state->FindOrInsertCallstackFromFrames(sequence_state, upid,
-                                                callstack);
-}
-
 }  // namespace
 
 StackSampleModule::StackSampleModule(
@@ -135,13 +125,15 @@ StackSampleModule::StackSampleModule(
     tables::StackSampleTable* table,
     tables::StackSampleTaskContextTable* task_context_table,
     tables::StackSampleExecutionContextTable* exec_context_table,
-    tables::StackSampleTimebaseTable* timebase_table)
+    tables::StackSampleCounterTable* counter_table,
+    tables::StackSampleFollowerTable* follower_table)
     : ProtoImporterModule(module_context),
       context_(context),
       table_(table),
       task_context_table_(task_context_table),
       exec_context_table_(exec_context_table),
-      timebase_table_(timebase_table) {
+      counter_table_(counter_table),
+      follower_table_(follower_table) {
   RegisterForField(TracePacket::kStackSampleFieldNumber);
 }
 
@@ -154,14 +146,20 @@ void StackSampleModule::ParseField(const ParseFieldArgs& args) {
 
 tables::StackSampleTaskContextTable::Id StackSampleModule::InternTaskContext(
     std::optional<uint32_t> utid,
-    std::optional<uint32_t> upid) {
-  uint64_t key = base::FnvHasher::Combine(OptUintKey(utid), OptUintKey(upid));
+    std::optional<uint32_t> upid,
+    std::optional<StringId> async_name,
+    std::optional<StringId> async_kind) {
+  uint64_t key = base::FnvHasher::Combine(OptUintKey(utid), OptUintKey(upid),
+                                          OptStringKey(async_name),
+                                          OptStringKey(async_kind));
   if (auto* id = task_contexts_.Find(key)) {
     return *id;
   }
   tables::StackSampleTaskContextTable::Row row;
   row.utid = utid;
   row.upid = upid;
+  row.async_name = async_name;
+  row.async_kind = async_kind;
   auto id = task_context_table_->Insert(row).id;
   task_contexts_.Insert(key, id);
   return id;
@@ -182,25 +180,116 @@ StackSampleModule::InternExecutionContext(std::optional<uint32_t> cpu,
   return id;
 }
 
-tables::StackSampleTimebaseTable::Id StackSampleModule::InternTimebase(
+tables::StackSampleCounterTable::Id StackSampleModule::InternCounter(
     StringId source,
     const ResolvedCounterDescriptor& desc) {
   uint64_t key = base::FnvHasher::Combine(
       source.raw_id(), desc.name.raw_id(), OptStringKey(desc.unit),
       desc.unit_multiplier ? static_cast<uint64_t>(*desc.unit_multiplier) : 0,
       OptStringKey(desc.description));
-  if (auto* id = timebases_.Find(key)) {
+  if (auto* id = counters_.Find(key)) {
     return *id;
   }
-  tables::StackSampleTimebaseTable::Row row;
+  tables::StackSampleCounterTable::Row row;
   row.source = source;
   row.name = desc.name;
   row.unit = desc.unit;
   row.unit_multiplier = desc.unit_multiplier;
   row.description = desc.description;
-  auto id = timebase_table_->Insert(row).id;
-  timebases_.Insert(key, id);
+  auto id = counter_table_->Insert(row).id;
+  counters_.Insert(key, id);
   return id;
+}
+
+// Resolves a callstack that is either interned (callstack_iid) or fully
+// inline (an InlineCallstack whose frames carry function names and source
+// locations directly). Inline frames are interned into a dummy mapping, like
+// TrackEvent inline callstacks.
+std::optional<CallsiteId> StackSampleModule::ResolveCallstack(
+    PacketSequenceStateGeneration* sequence_state,
+    std::optional<UniquePid> upid,
+    const protos::pbzero::StackSample::Decoder& sample) {
+  if (sample.has_callstack_iid()) {
+    auto* state = sequence_state->GetCustomState<StackProfileSequenceState>();
+    return state->FindOrInsertCallstack(sequence_state, upid,
+                                        sample.callstack_iid());
+  }
+  if (!sample.has_callstack()) {
+    return std::nullopt;
+  }
+  if (!inline_callstack_mapping_) {
+    inline_callstack_mapping_ =
+        &context_->mapping_tracker->CreateDummyMapping("stack_sample_inline");
+  }
+  protos::pbzero::InlineCallstack::Decoder callstack(sample.callstack());
+  std::optional<CallsiteId> callsite_id;
+  uint32_t depth = 0;
+  for (auto it = callstack.frames(); it; ++it, ++depth) {
+    protos::pbzero::InlineCallstack::Frame::Decoder frame(*it);
+    std::optional<base::StringView> source_file;
+    if (frame.has_source_file()) {
+      source_file = frame.source_file();
+    }
+    std::optional<uint32_t> line_number;
+    if (frame.has_line_number()) {
+      line_number = frame.line_number();
+    }
+    FrameId frame_id = inline_callstack_mapping_->InternDummyFrame(
+        frame.function_name(), source_file, line_number);
+    callsite_id = context_->stack_profile_tracker->InternCallsite(
+        callsite_id, frame_id, depth);
+  }
+  return callsite_id;
+}
+
+void StackSampleModule::ParseFollowers(
+    tables::StackSampleTable::Id sample_id,
+    PacketSequenceStateGeneration* sequence_state,
+    StringId source,
+    const protos::pbzero::StackSample::Decoder& sample,
+    const std::optional<protos::pbzero::StackSampleDefaults::Decoder>&
+        defaults) {
+  using protos::pbzero::InternedData;
+  using CounterDescriptor = protos::pbzero::StackSample::CounterDescriptor;
+
+  std::vector<tables::StackSampleCounterTable::Id> counters;
+  for (auto it = sample.follower_descriptors(); it; ++it) {
+    CounterDescriptor::Decoder desc(*it);
+    counters.push_back(
+        InternCounter(source, ResolveCounterDescriptor(context_, desc)));
+  }
+  bool parse_error = false;
+  if (counters.empty()) {
+    for (auto it = sample.follower_descriptor_iids(&parse_error); it; ++it) {
+      auto* desc = sequence_state->LookupInternedMessage<
+          InternedData::kStackSampleCounterDescriptorsFieldNumber,
+          CounterDescriptor>(*it);
+      if (!desc) {
+        continue;
+      }
+      counters.push_back(
+          InternCounter(source, ResolveCounterDescriptor(context_, *desc)));
+    }
+  }
+  if (counters.empty() && defaults) {
+    for (auto it = defaults->follower_descriptors(); it; ++it) {
+      CounterDescriptor::Decoder desc(*it);
+      counters.push_back(
+          InternCounter(source, ResolveCounterDescriptor(context_, desc)));
+    }
+  }
+
+  size_t i = 0;
+  for (auto it = sample.follower_weights(&parse_error); it; ++it, ++i) {
+    if (i >= counters.size()) {
+      break;
+    }
+    tables::StackSampleFollowerTable::Row row;
+    row.stack_sample_id = sample_id;
+    row.counter_id = counters[i];
+    row.weight = static_cast<int64_t>(*it);
+    follower_table_->Insert(row);
+  }
 }
 
 void StackSampleModule::ParseStackSample(
@@ -210,6 +299,7 @@ void StackSampleModule::ParseStackSample(
   using protos::pbzero::InternedData;
   using protos::pbzero::StackSample;
   using protos::pbzero::StackSampleDefaults;
+  using AsyncContextDescriptor = StackSample::AsyncContextDescriptor;
   using CounterDescriptor = StackSample::CounterDescriptor;
   using ExecutionContext = StackSample::ExecutionContext;
   using Mode = StackSample::Mode;
@@ -228,9 +318,10 @@ void StackSampleModule::ParseStackSample(
     source_id = context_->storage->InternString(defaults->source());
   }
 
-  // Task context: attributes the sample to a thread / process.
+  // Task context: attributes the sample to a thread / process / async context.
   std::optional<uint32_t> pid;
   std::optional<uint32_t> tid;
+  std::optional<uint64_t> async_id;
   bool has_task = false;
   auto extract_task = [&](const TaskContext::Decoder& t) {
     has_task = true;
@@ -239,6 +330,9 @@ void StackSampleModule::ParseStackSample(
     }
     if (t.has_tid()) {
       tid = t.tid();
+    }
+    if (t.has_async_id()) {
+      async_id = t.async_id();
     }
   };
   if (sample.has_task_context()) {
@@ -263,9 +357,26 @@ void StackSampleModule::ParseStackSample(
     utid =
         pid ? procs->UpdateThread(*tid, *pid) : procs->GetOrCreateThread(*tid);
   }
+  // async_id references an interned AsyncContextDescriptor; fold its name and
+  // kind onto the task context.
+  std::optional<StringId> async_name;
+  std::optional<StringId> async_kind;
+  if (async_id) {
+    if (auto* desc =
+            sequence_state->LookupInternedMessage<
+                InternedData::kStackSampleAsyncContextDescriptorsFieldNumber,
+                AsyncContextDescriptor>(*async_id)) {
+      if (desc->name().size > 0) {
+        async_name = context_->storage->InternString(desc->name());
+      }
+      if (desc->kind().size > 0) {
+        async_kind = context_->storage->InternString(desc->kind());
+      }
+    }
+  }
   std::optional<tables::StackSampleTaskContextTable::Id> task_context_id;
-  if (has_task && (utid || upid)) {
-    task_context_id = InternTaskContext(utid, upid);
+  if (has_task && (utid || upid || async_name || async_kind)) {
+    task_context_id = InternTaskContext(utid, upid, async_name, async_kind);
   }
 
   // Execution context: cpu + privilege mode at sample time.
@@ -314,8 +425,8 @@ void StackSampleModule::ParseStackSample(
     CounterDescriptor::Decoder d(defaults->primary_descriptor());
     primary = ResolveCounterDescriptor(context_, d);
   }
-  tables::StackSampleTimebaseTable::Id timebase_id =
-      InternTimebase(source_id, primary);
+  tables::StackSampleCounterTable::Id timebase_id =
+      InternCounter(source_id, primary);
 
   std::optional<CallsiteId> cs_id =
       ResolveCallstack(sequence_state, upid, sample);
@@ -332,7 +443,9 @@ void StackSampleModule::ParseStackSample(
   row.timebase_id = timebase_id;
   row.callsite_id = cs_id;
   row.weight = weight;
-  table_->Insert(row);
+  tables::StackSampleTable::Id sample_id = table_->Insert(row).id;
+
+  ParseFollowers(sample_id, sequence_state, source_id, sample, defaults);
 }
 
 }  // namespace perfetto::trace_processor::stack_sample_importer

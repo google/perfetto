@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../assets/theme";
+@use "../assets/theme" as *;
 
 $border-1: 1px solid var(--pf-color-border);
 $border-2: 1px solid var(--pf-color-border-secondary);

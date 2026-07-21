@@ -22,8 +22,10 @@ import type {TrackMouseEvent} from '../../public/track';
 import {LONG, LONG_NULL, NUM} from '../../trace_processor/query_result';
 import {CounterDetailsPanel} from './counter_details_panel';
 
-export interface TraceProcessorCounterTrackAttrs
-  extends Omit<CounterTrackAttrs, 'sqlSource'> {
+export interface TraceProcessorCounterTrackAttrs extends Omit<
+  CounterTrackAttrs,
+  'sqlSource'
+> {
   /** The trace processor track id. */
   readonly trackId: number;
 

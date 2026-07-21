@@ -397,6 +397,9 @@ namespace perfetto::trace_processor::stats {
       "has already started flushing."),                                        \
   F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(process_tracker_parent_pid_changed,     kSingle, kInfo,   kAnalysis, Scope::kMachineAndTrace,         \
+      "A process was seen with a changed parent pid and was treated as the "   \
+      "same process being reparented rather than pid reuse."),                 \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A namespaced thread association was received but the corresponding "    \
       "process association was not found. This can happen due to data losses " \

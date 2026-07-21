@@ -35,6 +35,7 @@ source_set("stack_sample_importer") {
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/interned_data:zero",
+    "../../../../protos/perfetto/trace/profiling:inline_callstack_zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
     "../../../protozero",

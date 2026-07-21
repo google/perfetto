@@ -255,8 +255,7 @@ export default class implements PerfettoPlugin {
   private makeOnStateUpdate(tabId: string) {
     return (
       update:
-        | DataExplorerState
-        | ((current: DataExplorerState) => DataExplorerState),
+        DataExplorerState | ((current: DataExplorerState) => DataExplorerState),
     ) => {
       const tab = this.tabs.find((t) => t.id === tabId);
       if (!tab) return;

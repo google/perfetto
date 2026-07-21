@@ -16,6 +16,7 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/trace/profiling/inline_callstack.proto";
 import "protos/perfetto/trace/track_event/debug_annotation.proto";
 import "protos/perfetto/trace/track_event/log_message.proto";
 import "protos/perfetto/trace/track_event/task_execution.proto";
@@ -292,9 +293,10 @@ message TrackEvent {
   //
   // Only one of these fields should be set.
   oneof callstack_field {
-    // Inline callstack data. Use this for simplicity when interning is not
-    // needed (e.g., for unique callstacks or when trace size is not critical).
-    Callstack callstack = 55;
+    // Fully-inline callstack data. Use this for simplicity when interning is
+    // not needed (e.g., for unique callstacks or when trace size is not
+    // critical).
+    InlineCallstack callstack = 55;
 
     // Reference to interned Callstack (see InternedData.callstacks).
     // This is the efficient option when callstacks are repeated.
@@ -309,33 +311,6 @@ message TrackEvent {
   // Consumers can use sample count as a separate fallback measure when no
   // weighted occurrences are available.
   optional double callstack_weight = 57;
-
-  // Inline callstack for TrackEvents when interning is not needed.
-  // This is a simplified version of the profiling Callstack/Frame messages,
-  // designed for cases where trace size is not critical or callstacks are
-  // unique.
-  //
-  // Use this for simple callstacks with function names and source locations.
-  // For binary/library information (mappings, build IDs, relative PCs), use
-  // interned callstacks via callstack_iid instead.
-  message Callstack {
-    // Frame within an inline callstack.
-    message Frame {
-      // Function name, e.g., "malloc" or "std::vector<int>::push_back"
-      optional string function_name = 1;
-
-      // Optional: Source file path, e.g., "/src/foo.cc"
-      optional string source_file = 2;
-
-      // Optional: Line number in the source file
-      optional uint32 line_number = 3;
-    }
-
-    // Frames of this callstack, ordered from bottom (outermost) to top
-    // (innermost). For example, if main() calls foo() which calls bar(), the
-    // frames would be: [main, foo, bar]
-    repeated Frame frames = 1;
-  }
 
   // Debug annotations associated with this event. These are arbitrary key-value
   // pairs that can be used to attach additional information to the event.

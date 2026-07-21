@@ -335,9 +335,7 @@ export interface TraceDoctorDrawerAttrs {
   readonly onDiagnosticClick: (index: number) => void;
 }
 
-export class TraceDoctorDrawer
-  implements m.ClassComponent<TraceDoctorDrawerAttrs>
-{
+export class TraceDoctorDrawer implements m.ClassComponent<TraceDoctorDrawerAttrs> {
   view({attrs}: m.CVnode<TraceDoctorDrawerAttrs>): m.Children {
     return m(
       '.pf-trace-info-doctor-details-tab',

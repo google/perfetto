@@ -50,8 +50,11 @@ class StackSampleImporter : public Plugin<StackSampleImporter> {
     out.push_back({&exec_context_table_->dataframe(),
                    tables::StackSampleExecutionContextTable::Name(),
                    {}});
-    out.push_back({&timebase_table_->dataframe(),
-                   tables::StackSampleTimebaseTable::Name(),
+    out.push_back({&counter_table_->dataframe(),
+                   tables::StackSampleCounterTable::Name(),
+                   {}});
+    out.push_back({&follower_table_->dataframe(),
+                   tables::StackSampleFollowerTable::Name(),
                    {}});
   }
 
@@ -61,7 +64,8 @@ class StackSampleImporter : public Plugin<StackSampleImporter> {
     EnsureTables();
     module_context->modules.emplace_back(new StackSampleModule(
         module_context, trace_context, table_.get(), task_context_table_.get(),
-        exec_context_table_.get(), timebase_table_.get()));
+        exec_context_table_.get(), counter_table_.get(),
+        follower_table_.get()));
   }
 
   uint64_t GetBoundsMutationCount() override {
@@ -88,13 +92,15 @@ class StackSampleImporter : public Plugin<StackSampleImporter> {
         std::make_unique<tables::StackSampleTaskContextTable>(pool);
     exec_context_table_ =
         std::make_unique<tables::StackSampleExecutionContextTable>(pool);
-    timebase_table_ = std::make_unique<tables::StackSampleTimebaseTable>(pool);
+    counter_table_ = std::make_unique<tables::StackSampleCounterTable>(pool);
+    follower_table_ = std::make_unique<tables::StackSampleFollowerTable>(pool);
   }
 
   std::unique_ptr<tables::StackSampleTable> table_;
   std::unique_ptr<tables::StackSampleTaskContextTable> task_context_table_;
   std::unique_ptr<tables::StackSampleExecutionContextTable> exec_context_table_;
-  std::unique_ptr<tables::StackSampleTimebaseTable> timebase_table_;
+  std::unique_ptr<tables::StackSampleCounterTable> counter_table_;
+  std::unique_ptr<tables::StackSampleFollowerTable> follower_table_;
 };
 
 StackSampleImporter::~StackSampleImporter() = default;
