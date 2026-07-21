@@ -169,8 +169,7 @@ std::optional<TrackId> StackSampleModule::InternCounterTrack(
   // The timebase unit says what quantity the profiler sampled on; record it
   // on the session.
   if (is_timebase && unit_id != kNullStringId) {
-    auto session_row =
-        (*storage->mutable_profiler_session_table())[session_id];
+    auto session_row = (*storage->mutable_profiler_session_table())[session_id];
     if (!session_row.timebase_unit().has_value()) {
       session_row.set_timebase_unit(unit_id);
     }
@@ -463,7 +462,8 @@ void StackSampleModule::ParseStackSample(
   }
   row.cpu_mode = storage->InternString(StringifyStackSampleMode(mode));
   row.callsite_id = ResolveCallstack(sequence_state, upid, sample);
-  row.counter_set_id = context_->profiler_sample_tracker->AddCounterSet(counter_ids);
+  row.counter_set_id =
+      context_->profiler_sample_tracker->AddCounterSet(counter_ids);
   context_->profiler_sample_tracker->AddSample(row);
 }
 

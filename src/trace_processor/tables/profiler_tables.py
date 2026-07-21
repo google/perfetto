@@ -515,7 +515,8 @@ PROFILER_SESSION_TABLE = Table(
                 '''Unit of the quantity the profiler sampled on: the session's
                    primary (timebase) counter (e.g. "ns", "cycles",
                    "instructions", "count"). NULL if unknown.''',
-            'cmdline': '''Command line used to collect the data.''',
+            'cmdline':
+                '''Command line used to collect the data.''',
         }))
 
 PROFILER_COUNTER_SET_TABLE = Table(

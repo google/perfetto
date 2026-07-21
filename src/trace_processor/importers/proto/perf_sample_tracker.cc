@@ -97,8 +97,8 @@ const char* StringifyCounter(int32_t counter) {
 
 // Unit of the quantity a timebase counter counts. Returns nullptr if the
 // unit cannot be determined (e.g. raw PMU events).
-const char* TimebaseUnit(const protos::pbzero::PerfEvents::Timebase::Decoder&
-                             timebase) {
+const char* TimebaseUnit(
+    const protos::pbzero::PerfEvents::Timebase::Decoder& timebase) {
   using protos::pbzero::PerfEvents;
   if (timebase.has_counter()) {
     switch (timebase.counter()) {

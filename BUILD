@@ -509,7 +509,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_sql_stats_table_sql_stats_table",
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
-        ":src_trace_processor_plugins_stack_sample_importer_tables",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",
@@ -811,7 +810,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_sql_stats_table_sql_stats_table",
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
-        ":src_trace_processor_plugins_stack_sample_importer_tables",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",
@@ -2657,6 +2655,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/process_track_translation_table.h",
         "src/trace_processor/importers/common/process_tracker.cc",
         "src/trace_processor/importers/common/process_tracker.h",
+        "src/trace_processor/importers/common/profiler_sample_tracker.cc",
+        "src/trace_processor/importers/common/profiler_sample_tracker.h",
         "src/trace_processor/importers/common/registered_file_tracker.cc",
         "src/trace_processor/importers/common/registered_file_tracker.h",
         "src/trace_processor/importers/common/sched_event_state.h",
@@ -4904,22 +4904,6 @@ perfetto_filegroup(
         "src/trace_processor/plugins/stack_sample_importer/module.h",
         "src/trace_processor/plugins/stack_sample_importer/plugin.cc",
         "src/trace_processor/plugins/stack_sample_importer/plugin.h",
-    ],
-)
-
-# GN target: //src/trace_processor/plugins/stack_sample_importer:tables
-perfetto_cc_tp_tables(
-    name = "src_trace_processor_plugins_stack_sample_importer_tables",
-    srcs = [
-        "src/trace_processor/plugins/stack_sample_importer/tables.py",
-    ],
-    deps = [
-        ":src_trace_processor_tables_tables_python",
-    ],
-    outs = [
-        "src/trace_processor/plugins/stack_sample_importer/all_tables_fwd.h",
-        "src/trace_processor/plugins/stack_sample_importer/tables_fwd.h",
-        "src/trace_processor/plugins/stack_sample_importer/tables_py.h",
     ],
 )
 
@@ -11535,7 +11519,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_sql_stats_table_sql_stats_table",
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
-        ":src_trace_processor_plugins_stack_sample_importer_tables",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",
@@ -11867,7 +11850,6 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_sql_stats_table_sql_stats_table",
         ":src_trace_processor_plugins_stack_functions_stack_functions",
         ":src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
-        ":src_trace_processor_plugins_stack_sample_importer_tables",
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",

@@ -299,8 +299,10 @@ CREATE PERFETTO VIEW perf_session(
   cmdline STRING
 )
 AS
-SELECT id, id AS perf_session_id, cmdline FROM __intrinsic_profiler_session
-WHERE source = 'linux.perf';
+SELECT id, id AS perf_session_id, cmdline
+FROM __intrinsic_profiler_session
+WHERE
+  source = 'linux.perf';
 
 -- Log entries from all sources (Android logcat, systemd_journald, etc.).
 --

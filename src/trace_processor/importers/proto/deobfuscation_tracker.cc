@@ -485,9 +485,8 @@ void DeobfuscationTracker::GuessPackages(
     if (!sample.utid().has_value() || !sample.callsite_id().has_value()) {
       continue;
     }
-    auto thread =
-        context_->storage
-            ->thread_table()[tables::ThreadTable::Id(*sample.utid())];
+    auto thread = context_->storage
+                      ->thread_table()[tables::ThreadTable::Id(*sample.utid())];
     if (!thread.upid().has_value()) {
       continue;
     }

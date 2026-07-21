@@ -67,9 +67,8 @@ class PerfCounterExtractor {
 // Context constructor - defined here where PerfCounterExtractor is complete.
 PerfCounterForSampleFunction::Context::Context(TraceStorage* s)
     : storage(s),
-      extractor(
-          std::make_unique<PerfCounterExtractor>(s->profiler_counter_set_table())) {
-}
+      extractor(std::make_unique<PerfCounterExtractor>(
+          s->profiler_counter_set_table())) {}
 
 // Context destructor - must be defined here where PerfCounterExtractor is
 // complete.

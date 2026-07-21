@@ -65,7 +65,8 @@ SELECT
   session_id,
   counter_set_id
 FROM __intrinsic_profiler_sample
-WHERE callsite_id IS NOT NULL;
+WHERE
+  callsite_id IS NOT NULL;
 
 -- Samples from the traced_perf profiler and perf.data files. One row per perf
 -- sample, including counter-only samples which have no callstack.
@@ -103,4 +104,5 @@ SELECT
 FROM __intrinsic_profiler_sample AS ps
 LEFT JOIN __intrinsic_cpu AS c
   ON c.id = ps.ucpu
-WHERE ps.source = 'linux.perf';
+WHERE
+  ps.source = 'linux.perf';
