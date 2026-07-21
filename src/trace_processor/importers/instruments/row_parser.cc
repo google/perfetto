@@ -53,13 +53,13 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
 
   Thread* thread = data_.GetThread(row.thread);
   if (!thread) {
-    context_->import_logs_tracker->RecordParserError(
+    context_->import_logs_tracker->RecordParserLog(
         stats::instruments_row_missing_thread, ts);
     return;
   }
   Process* process = data_.GetProcess(thread->process);
   if (!process) {
-    context_->import_logs_tracker->RecordParserError(
+    context_->import_logs_tracker->RecordParserLog(
         stats::instruments_row_missing_process, ts);
     return;
   }
@@ -80,7 +80,7 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
 
   Backtrace* backtrace = data_.GetBacktrace(row.backtrace);
   if (!backtrace) {
-    context_->import_logs_tracker->RecordParserError(
+    context_->import_logs_tracker->RecordParserLog(
         stats::instruments_row_missing_backtrace, ts);
     return;
   }
@@ -91,7 +91,7 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
        ++it) {
     Frame* frame = data_.GetFrame(*it);
     if (!frame) {
-      context_->import_logs_tracker->RecordParserError(
+      context_->import_logs_tracker->RecordParserLog(
           stats::instruments_row_missing_frame, ts);
       continue;
     }

@@ -555,7 +555,7 @@ void JsonTraceTokenizer::RecordEventError(size_t stat_key,
     error_id = context_->storage->InternString(status.c_message());
   }
   StringId error_key = context_->storage->InternString("error");
-  context_->import_logs_tracker->RecordTokenizationError(
+  context_->import_logs_tracker->RecordTokenizationLog(
       stat_key, CurrentByteOffset(),
       [raw_key, raw_id, error_key,
        error_id](ArgsTracker::BoundInserter& inserter) {

@@ -89,7 +89,7 @@ ModuleResult GraphicsEventModule::TokenizePacket(
   // only flag/drop the packet when it actually carries samples. Returning a
   // non-Ignored result stops it from reaching the sorter.
   if (event.counters() && !args.decoder.has_timestamp()) {
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::gpu_counters_missing_timestamp, args.packet->offset());
     return ModuleResult::Handled();
   }
@@ -161,19 +161,19 @@ void GraphicsEventModule::TokenizeGpuCounterEvent(
     for (auto it = descriptor.specs(); it; ++it) {
       GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*it);
       if (!spec.has_counter_id()) {
-        context_->import_logs_tracker->RecordTokenizationError(
+        context_->import_logs_tracker->RecordTokenizationLog(
             stats::gpu_counters_invalid_spec, packet_offset);
         continue;
       }
       if (!spec.has_name()) {
-        context_->import_logs_tracker->RecordTokenizationError(
+        context_->import_logs_tracker->RecordTokenizationLog(
             stats::gpu_counters_invalid_spec, packet_offset);
         continue;
       }
 
       auto counter_id = spec.counter_id();
       if (legacy_gpu_counters_.Find(counter_id)) {
-        context_->import_logs_tracker->RecordTokenizationError(
+        context_->import_logs_tracker->RecordTokenizationLog(
             stats::gpu_counters_invalid_spec, packet_offset,
             [this, counter_id, &spec](ArgsTracker::BoundInserter& inserter) {
               inserter.AddArg(counter_id_key_id_,

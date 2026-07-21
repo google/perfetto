@@ -88,7 +88,7 @@ base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
     primespb::TraceEdge::Decoder edge_decoder(*edge);
     if (!edge_decoder.has_trace_start_offset()) {
       PERFETTO_ELOG("Edge missing trace_start_offset.");
-      context_->import_logs_tracker->RecordTokenizationError(
+      context_->import_logs_tracker->RecordTokenizationLog(
           stats::primes_malformed_timestamp, ts_decoder.read_offset());
       continue;
     }
