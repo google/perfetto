@@ -21,6 +21,10 @@ Unreleased:
       samples which captured a callstack, across sources. Per-sample
       counter values keep the perf counter-set model, generalized as
       __intrinsic_profiler_counter_set.
+    * Chrome streaming profiles, legacy V8 cpu profiles, gecko profiles,
+      simpleperf proto traces and perf script text now also populate
+      profiler_sample; cpu_profile_stack_sample keeps its schema as a
+      view over it.
     * The StackSample packet's counter descriptors now materialize as
       counter tracks (scoped per profiler session, or per session and
       cpu via the new CounterDescriptor.scope field, mirroring

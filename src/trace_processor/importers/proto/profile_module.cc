@@ -224,10 +224,18 @@ void ProfileModule::ParseStreamingProfileSample(
     return;
   }
 
-  tables::CpuProfileStackSampleTable::Row sample_row{ts, *opt_cs_id, utid,
-                                                     event.process_priority};
-  context_->storage->mutable_cpu_profile_stack_sample_table()->Insert(
-      sample_row);
+  tables::ProfilerSampleTable::Row row;
+  row.ts = ts;
+  row.source = context_->storage->InternString("chrome");
+  row.utid = utid;
+  row.upid = upid;
+  row.cpu_mode = context_->storage->InternString("");
+  row.callsite_id = *opt_cs_id;
+  auto sample_id = context_->profiler_sample_tracker->AddSample(row);
+  if (event.process_priority != 0) {
+    context_->storage->mutable_chrome_stack_sample_extras_table()->Insert(
+        {sample_id, event.process_priority});
+  }
 }
 
 void ProfileModule::ParsePerfSample(

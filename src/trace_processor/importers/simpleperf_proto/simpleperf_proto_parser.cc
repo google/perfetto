@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
@@ -103,15 +104,16 @@ void SimpleperfProtoParser::Parse(int64_t ts,
       depth++;
     }
 
-    // Insert into cpu_profile_stack_sample table with the leaf callsite
-    // (the last callsite created, which has the highest depth)
+    // Insert the leaf callsite (the last callsite created, which has the
+    // highest depth) as a profiler sample.
     if (callsite_id.has_value()) {
-      tables::CpuProfileStackSampleTable::Row row;
+      tables::ProfilerSampleTable::Row row;
       row.ts = ts;
-      row.callsite_id = *callsite_id;
+      row.source = context_->storage->InternString("simpleperf");
       row.utid = utid;
-      row.process_priority = 0;  // Default priority
-      context_->storage->mutable_cpu_profile_stack_sample_table()->Insert(row);
+      row.cpu_mode = context_->storage->InternString("");
+      row.callsite_id = *callsite_id;
+      context_->profiler_sample_tracker->AddSample(row);
     }
     return;
   }

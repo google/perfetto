@@ -441,47 +441,6 @@ STACK_PROFILE_CALLSITE_TABLE = Table(
                 '''Frame at this position in the callstack.'''
         }))
 
-CPU_PROFILE_STACK_SAMPLE_TABLE = Table(
-    python_module=__file__,
-    class_name='CpuProfileStackSampleTable',
-    sql_name='__intrinsic_cpu_profile_stack_sample',
-    wrapping_sql_view=WrappingSqlView('cpu_profile_stack_sample'),
-    columns=[
-        C(
-            'ts',
-            CppInt64(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
-            'callsite_id',
-            CppTableId(STACK_PROFILE_CALLSITE_TABLE),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
-            'utid',
-            CppUint32(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
-            'process_priority',
-            CppInt32(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-    ],
-    tabledoc=TableDoc(
-        doc='Table containing stack samples from CPU profiling.',
-        group='Callstack profilers',
-        columns={
-            'ts': '''timestamp of the sample.''',
-            'callsite_id': '''unwound callstack.''',
-            'utid': '''thread that was active when the sample was taken.''',
-            'process_priority': ''''''
-        }))
-
 PROFILER_SESSION_TABLE = Table(
     python_module=__file__,
     class_name='ProfilerSessionTable',
@@ -643,6 +602,36 @@ PROFILER_SAMPLE_TABLE = Table(
             'counter_set_id':
                 '''References the set of counter values recorded at this
                    sample point in __intrinsic_profiler_counter_set.''',
+        }))
+
+CHROME_STACK_SAMPLE_EXTRAS_TABLE = Table(
+    python_module=__file__,
+    class_name='ChromeStackSampleExtrasTable',
+    sql_name='__intrinsic_chrome_stack_sample_extras',
+    columns=[
+        C(
+            'profiler_sample_id',
+            CppTableId(PROFILER_SAMPLE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'process_priority',
+            CppInt32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''Chrome-specific attributes of a profiler sample. One row per
+               chrome streaming profile sample with a non-default process
+               priority.''',
+        group='Callstack profilers',
+        columns={
+            'profiler_sample_id':
+                '''The profiler sample these attributes belong to.''',
+            'process_priority':
+                '''Priority of the process when the sample was taken.''',
         }))
 
 HEAP_GRAPH_TABLE = Table(
@@ -1628,7 +1617,7 @@ EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
 ALL_TABLES = [
     AGGREGATE_PROFILE_TABLE,
     AGGREGATE_SAMPLE_TABLE,
-    CPU_PROFILE_STACK_SAMPLE_TABLE,
+    CHROME_STACK_SAMPLE_EXTRAS_TABLE,
     EXPERIMENTAL_FLAMEGRAPH_TABLE,
     GPU_CONTEXT_TABLE,
     GPU_COUNTER_GROUP_TABLE,

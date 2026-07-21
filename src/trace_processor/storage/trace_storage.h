@@ -585,12 +585,12 @@ class TraceStorage {
     return mutable_table<tables::TraceFileTable>();
   }
 
-  const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
+  const tables::ChromeStackSampleExtrasTable& chrome_stack_sample_extras_table()
       const {
-    return table<tables::CpuProfileStackSampleTable>();
+    return table<tables::ChromeStackSampleExtrasTable>();
   }
-  tables::CpuProfileStackSampleTable* mutable_cpu_profile_stack_sample_table() {
-    return mutable_table<tables::CpuProfileStackSampleTable>();
+  tables::ChromeStackSampleExtrasTable* mutable_chrome_stack_sample_extras_table() {
+    return mutable_table<tables::ChromeStackSampleExtrasTable>();
   }
 
   const tables::ProfilerSessionTable& profiler_session_table() const {

@@ -107,7 +107,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_modules_table());
     AddDataframe(out, s->mutable_clock_snapshot_table());
     AddDataframe(out, s->mutable_cpu_freq_table());
-    AddDataframe(out, s->mutable_cpu_profile_stack_sample_table());
+    AddDataframe(out, s->mutable_chrome_stack_sample_extras_table());
     AddDataframe(out, s->mutable_elf_file_table());
     AddDataframe(out, s->mutable_etm_v4_configuration_table());
     AddDataframe(out, s->mutable_etm_v4_session_table());
@@ -228,7 +228,6 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
            s.heap_graph_table().mutations() +
            s.instruments_sample_table().mutations() +
            s.state_table().mutations() +
-           s.cpu_profile_stack_sample_table().mutations() +
            s.profiler_sample_table().mutations();
   }
 
@@ -277,10 +276,6 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
       end_ns = std::max(it.ts(), end_ns);
     }
     for (auto it = s.instruments_sample_table().IterateRows(); it; ++it) {
-      start_ns = std::min(it.ts(), start_ns);
-      end_ns = std::max(it.ts(), end_ns);
-    }
-    for (auto it = s.cpu_profile_stack_sample_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
     }

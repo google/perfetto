@@ -21,6 +21,7 @@
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -77,12 +78,13 @@ void GeckoTraceParser::ParseThreadMetadata(
 
 void GeckoTraceParser::ParseStackSample(int64_t ts,
                                         const GeckoEvent::StackSample& sample) {
-  auto* ss = context_->storage->mutable_cpu_profile_stack_sample_table();
-  tables::CpuProfileStackSampleTable::Row row;
+  tables::ProfilerSampleTable::Row row;
   row.ts = ts;
-  row.callsite_id = sample.callsite_id;
+  row.source = context_->storage->InternString("gecko");
   row.utid = context_->process_tracker->GetOrCreateThread(sample.tid);
-  ss->Insert(row);
+  row.cpu_mode = context_->storage->InternString("");
+  row.callsite_id = sample.callsite_id;
+  context_->profiler_sample_tracker->AddSample(row);
 }
 
 void GeckoTraceParser::ParseMarker(int64_t ts,
