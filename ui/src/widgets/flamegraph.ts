@@ -15,6 +15,7 @@
 import './flamegraph.scss';
 import m from 'mithril';
 import {ensureExists, assertTrue, assertUnreachable} from '../base/assert';
+import {FuzzyFinder} from '../base/fuzzy';
 import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
 import {Chip} from './chip';
@@ -44,7 +45,7 @@ import {
   VirtualOverlayCanvas,
   type VirtualOverlayCanvasApi,
 } from './virtual_overlay_canvas';
-import {MenuItem, type MenuItemAttrs, PopupMenu} from './menu';
+import {MenuDivider, MenuItem, type MenuItemAttrs, PopupMenu} from './menu';
 import {type Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
 import {escapeRegex} from './flamegraph_regex';
@@ -218,7 +219,8 @@ export type FlamegraphView = z.infer<typeof FLAMEGRAPH_VIEW_SCHEMA>;
 
 export const FLAMEGRAPH_STATE_SCHEMA = z
   .object({
-    selectedMetricName: z.string().readonly(),
+    selectedMetricId: z.string().readonly(),
+    addedMetricIds: z.array(z.string()).default([]),
     filters: z.array(FLAMEGRAPH_FILTER_SCHEMA),
     view: FLAMEGRAPH_VIEW_SCHEMA,
   })
@@ -227,19 +229,31 @@ export const FLAMEGRAPH_STATE_SCHEMA = z
 export type FlamegraphState = z.infer<typeof FLAMEGRAPH_STATE_SCHEMA>;
 
 interface FlamegraphMetric {
+  // Stable identity used in persisted state. Defaults to `name`.
+  readonly id?: string;
   readonly name: string;
   readonly unit: string;
+  // Where the measure came from. Undefined is treated as ADDED so callers
+  // only need to mark the small set of built-in defaults.
+  readonly provenance?: 'DEFAULT' | 'ADDED';
   // Label for the name column in copy stack table and tooltip.
   // Examples: "Symbol", "Slice", "Class". Defaults to "Name".
   readonly nameColumnLabel?: string;
+}
+
+export interface FlamegraphAddableMetric {
+  readonly id: string;
+  readonly name: string;
 }
 
 export interface FlamegraphAttrs {
   readonly metrics: ReadonlyArray<FlamegraphMetric>;
   readonly state: FlamegraphState;
   readonly data: FlamegraphQueryData | undefined;
+  readonly addableMetrics?: ReadonlyArray<FlamegraphAddableMetric>;
 
   readonly onStateChange: (filters: FlamegraphState) => void;
+  readonly onAddMetric?: (metric: FlamegraphAddableMetric) => void;
 }
 
 type FilterType =
@@ -705,7 +719,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     metrics: ReadonlyArray<FlamegraphMetric>,
   ): FlamegraphState {
     return {
-      selectedMetricName: metrics[0].name,
+      selectedMetricId: metricId(metrics[0]),
+      addedMetricIds: [],
       filters: [],
       view: {kind: 'TOP_DOWN'},
     };
@@ -727,14 +742,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       return Flamegraph.createDefaultState(metrics);
     }
     const metricStillExists = metrics.some(
-      (m) => m.name === state.selectedMetricName,
+      (m) => metricId(m) === state.selectedMetricId,
     );
     return {
       filters: state.filters,
       view: state.view,
-      selectedMetricName: metricStillExists
-        ? state.selectedMetricName
-        : metrics[0].name,
+      addedMetricIds: state.addedMetricIds,
+      selectedMetricId: metricStillExists
+        ? state.selectedMetricId
+        : metricId(metrics[0]),
     };
   }
 
@@ -874,6 +890,59 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     return y >= this.viewportRect.top && y <= this.viewportRect.bottom;
   }
 
+  private renderMeasurePicker(attrs: FlamegraphAttrs) {
+    const selected = ensureExists(
+      attrs.metrics.find(
+        (metric) => metricId(metric) === attrs.state.selectedMetricId,
+      ),
+    );
+    const defaultMetrics = attrs.metrics.filter(
+      (metric) => metric.provenance === 'DEFAULT',
+    );
+    const otherMetrics = attrs.metrics.filter(
+      (metric) => metric.provenance !== 'DEFAULT',
+    );
+    const renderMetric = (metric: FlamegraphMetric) =>
+      m(MenuItem, {
+        label: metric.name,
+        rightIcon:
+          metricId(metric) === attrs.state.selectedMetricId
+            ? Icons.Check
+            : undefined,
+        onclick: () => {
+          attrs.onStateChange({
+            ...attrs.state,
+            selectedMetricId: metricId(metric),
+          });
+        },
+      });
+
+    return m(
+      PopupMenu,
+      {
+        trigger: m(Button, {
+          label: selected.name,
+          rightIcon: Icons.ExpandDown,
+        }),
+      },
+      defaultMetrics.map(renderMetric),
+      defaultMetrics.length > 0 && otherMetrics.length > 0 && m(MenuDivider),
+      otherMetrics.map(renderMetric),
+      attrs.addableMetrics !== undefined &&
+        attrs.addableMetrics.length > 0 && [
+          m(MenuDivider),
+          m(
+            MenuItem,
+            {label: 'Add measure...', icon: Icons.Add},
+            m(AddMetricMenu, {
+              metrics: attrs.addableMetrics,
+              onSelect: (metric) => attrs.onAddMetric?.(metric),
+            }),
+          ),
+        ],
+    );
+  }
+
   private renderFilterBar(attrs: FlamegraphAttrs) {
     const tags = toTags(this.attrs.state);
     const hasPivot = this.attrs.state.view.kind === 'PIVOT';
@@ -905,22 +974,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
     return m(
       '.filter-bar',
-      m(
-        Select,
-        {
-          value: attrs.state.selectedMetricName,
-          onchange: (e: Event) => {
-            const el = e.target as HTMLSelectElement;
-            attrs.onStateChange({
-              ...this.attrs.state,
-              selectedMetricName: el.value,
-            });
-          },
-        },
-        attrs.metrics.map((x) => {
-          return m('option', {value: x.name}, x.name);
-        }),
-      ),
+      this.renderMeasurePicker(attrs),
       m('.pf-flamegraph-filter-bar-separator'),
       m('span.pf-flamegraph-filter-label', 'Filters:'),
       // Tag input: chips + text input combined
@@ -1296,7 +1350,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private get selectedMetric() {
     return this.attrs.metrics.find(
-      (x) => x.name === this.attrs.state.selectedMetricName,
+      (x) => metricId(x) === this.attrs.state.selectedMetricId,
     );
   }
 
@@ -1726,6 +1780,84 @@ function isIntersecting(
     needleY >= y &&
     needleY < y + NODE_HEIGHT
   );
+}
+
+function metricId(metric: FlamegraphMetric): string {
+  return metric.id ?? metric.name;
+}
+
+interface AddMetricMenuAttrs {
+  readonly metrics: ReadonlyArray<FlamegraphAddableMetric>;
+  readonly onSelect: (metric: FlamegraphAddableMetric) => void;
+}
+
+class AddMetricMenu implements m.ClassComponent<AddMetricMenuAttrs> {
+  private static readonly MAX_VISIBLE_ITEMS = 100;
+  private searchQuery = '';
+
+  view({attrs}: m.CVnode<AddMetricMenuAttrs>) {
+    const results =
+      this.searchQuery === ''
+        ? attrs.metrics.map((metric) => ({
+            metric,
+            segments: [{matching: false, value: metric.name}],
+          }))
+        : new FuzzyFinder(attrs.metrics, (metric) => metric.name)
+            .find(this.searchQuery)
+            .map((result) => ({
+              metric: result.item,
+              segments: result.segments,
+            }));
+    const visible = results.slice(0, AddMetricMenu.MAX_VISIBLE_ITEMS);
+    const remaining = results.length - visible.length;
+
+    return m('.pf-distinct-values-menu', [
+      m(
+        '.pf-distinct-values-menu__search',
+        {
+          onclick: (event: MouseEvent) => event.stopPropagation(),
+        },
+        m(TextInput, {
+          placeholder: 'Search measures...',
+          value: this.searchQuery,
+          oninput: (event: InputEvent) => {
+            this.searchQuery = (event.target as HTMLInputElement).value;
+          },
+          onkeydown: (event: KeyboardEvent) => {
+            if (this.searchQuery !== '' && event.key === 'Escape') {
+              this.searchQuery = '';
+              event.stopPropagation();
+            }
+          },
+        }),
+      ),
+      m(
+        '.pf-distinct-values-menu__list',
+        visible.length > 0
+          ? [
+              visible.map(({metric, segments}) =>
+                m(MenuItem, {
+                  label: segments.map((segment) =>
+                    segment.matching
+                      ? m('strong.pf-fuzzy-match', segment.value)
+                      : segment.value,
+                  ),
+                  onclick: () => {
+                    attrs.onSelect(metric);
+                    this.searchQuery = '';
+                  },
+                }),
+              ),
+              remaining > 0 &&
+                m(MenuItem, {
+                  label: `...and ${remaining} more`,
+                  disabled: true,
+                }),
+            ]
+          : m(EmptyState, {title: 'No matches'}),
+      ),
+    ]);
+  }
 }
 
 function displaySize(totalSize: number, unit: string): string {

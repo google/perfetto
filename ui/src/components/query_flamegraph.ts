@@ -31,6 +31,7 @@ import {
 } from '../trace_processor/query_result';
 import {
   Flamegraph,
+  type FlamegraphAddableMetric,
   type FlamegraphPropertyDefinition,
   type FlamegraphQueryData,
   type FlamegraphState,
@@ -62,6 +63,9 @@ export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
 }
 
 export interface QueryFlamegraphMetric {
+  // Stable identity used in persisted state. Defaults to `name`.
+  readonly id?: string;
+
   // The human readable name of the metric: will be shown to the user to change
   // between metrics.
   readonly name: string;
@@ -69,6 +73,9 @@ export interface QueryFlamegraphMetric {
   // The human readable SI-style unit of `selfValue`. Values will be shown to
   // the user suffixed with this.
   readonly unit: string;
+
+  // Where the measure came from. Undefined is treated as ADDED.
+  readonly provenance?: 'DEFAULT' | 'ADDED';
 
   // Label for the name column in copy stack table and tooltip.
   // Examples: "Symbol", "Slice", "Class". Defaults to "Name".
@@ -124,9 +131,11 @@ export interface QueryFlamegraphMetric {
 export interface MetricsFromTableOrSubqueryOptions {
   readonly tableOrSubquery: string;
   readonly tableMetrics: ReadonlyArray<{
+    id?: string;
     name: string;
     unit: string;
     columnName: string;
+    provenance?: 'DEFAULT' | 'ADDED';
   }>;
   readonly dependencySql?: string;
   readonly unaggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>;
@@ -146,10 +155,12 @@ export function metricsFromTableOrSubquery(
   opts: MetricsFromTableOrSubqueryOptions,
 ): QueryFlamegraphMetric[] {
   const metrics = [];
-  for (const {name, unit, columnName} of opts.tableMetrics) {
+  for (const {id, name, unit, columnName, provenance} of opts.tableMetrics) {
     metrics.push({
+      id,
       name,
       unit,
+      provenance,
       nameColumnLabel: opts.nameColumnLabel,
       dependencySql: opts.dependencySql,
       statement: `
@@ -171,6 +182,9 @@ interface QueryFlamegraphAttrs {
 
   // The current state of the flamegraph (filters, view, selected metric, etc).
   readonly state?: FlamegraphState;
+
+  readonly addableMetrics?: ReadonlyArray<FlamegraphAddableMetric>;
+  readonly onAddMetric?: (metric: FlamegraphAddableMetric) => void;
 
   // Callback invoked when the flamegraph state changes (e.g., user changes
   // filters, selects a different metric, etc).
@@ -205,7 +219,7 @@ export class QueryFlamegraph implements AsyncDisposable {
   }
 
   render(attrs: QueryFlamegraphAttrs) {
-    const {metrics, state, onStateChange} = attrs;
+    const {metrics, state, addableMetrics, onAddMetric, onStateChange} = attrs;
     this.lastAttrs = attrs;
     if (this.monitor.ifStateChanged()) {
       this.data = undefined;
@@ -218,9 +232,12 @@ export class QueryFlamegraph implements AsyncDisposable {
       data: this.data,
       state: state ?? {
         view: {kind: 'TOP_DOWN'},
-        selectedMetricName: '',
+        selectedMetricId: '',
+        addedMetricIds: [],
         filters: [],
       },
+      addableMetrics,
+      onAddMetric,
       onStateChange,
     });
   }
@@ -230,7 +247,7 @@ export class QueryFlamegraph implements AsyncDisposable {
     state: FlamegraphState,
   ) {
     const metric = ensureExists(
-      metrics.find((x) => state.selectedMetricName === x.name),
+      metrics.find((x) => state.selectedMetricId === (x.id ?? x.name)),
     );
     const engine = this.trace.engine;
     this.queryLimiter.schedule(async () => {

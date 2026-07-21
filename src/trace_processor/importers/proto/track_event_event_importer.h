@@ -1520,6 +1520,9 @@ class TrackEventEventImporter {
     } else {
       row.callsite_id = *callsite_id_;
     }
+    if (event_.has_callstack_weight()) {
+      row.weight = event_.callstack_weight();
+    }
     table->Insert(row);
   }
 

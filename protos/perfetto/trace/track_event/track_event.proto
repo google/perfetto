@@ -305,6 +305,13 @@ message TrackEvent {
     uint64 callstack_iid = 56;
   }
 
+  // An optional additive value attributed to this callstack occurrence. When
+  // present, weighted callstack aggregations only include occurrences which
+  // have this field set; they do not mix weighted and unweighted samples.
+  // Consumers can use sample count as a separate fallback measure when no
+  // weighted occurrences are available.
+  optional double callstack_weight = 57;
+
   // Debug annotations associated with this event. These are arbitrary key-value
   // pairs that can be used to attach additional information to the event.
   // See DebugAnnotation message for details on supported value types.
