@@ -18,7 +18,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <vector>
 
 #include "perfetto/ext/base/string_view.h"
@@ -50,19 +49,17 @@ namespace {
 
 using perfetto::protos::pbzero::TracePacket;
 
-// Counter tracks model counter instances (see CounterDescriptor.Scope).
-// SCOPE_SESSION counters have one instance per profiler session; SCOPE_CPU
-// counters have one instance per (session, cpu). Custom scope_dimensions
-// further split instances; their canonical serialization is a dimension and
-// the individual pairs are surfaced as track args.
+// Counter tracks model counter instances (see CounterDescriptor.Scope),
+// keeping each profiler session's streams separate. SCOPE_GLOBAL counters
+// get one track per profiler session; SCOPE_CPU counters one track per
+// (session, cpu).
 constexpr auto kStackSampleSessionCounterBlueprint = tracks::CounterBlueprint(
     "stack_sample_session_counter",
     tracks::DynamicUnitBlueprint(),
     tracks::DimensionBlueprints(
         tracks::UintDimensionBlueprint("session_id"),
         tracks::StringDimensionBlueprint("source"),
-        tracks::StringDimensionBlueprint("counter_name"),
-        tracks::StringDimensionBlueprint("scope_dimensions")),
+        tracks::StringDimensionBlueprint("counter_name")),
     tracks::DynamicNameBlueprint());
 
 constexpr auto kStackSampleCpuCounterBlueprint = tracks::CounterBlueprint(
@@ -72,8 +69,7 @@ constexpr auto kStackSampleCpuCounterBlueprint = tracks::CounterBlueprint(
         tracks::kCpuDimensionBlueprint,
         tracks::UintDimensionBlueprint("session_id"),
         tracks::StringDimensionBlueprint("source"),
-        tracks::StringDimensionBlueprint("counter_name"),
-        tracks::StringDimensionBlueprint("scope_dimensions")),
+        tracks::StringDimensionBlueprint("counter_name")),
     tracks::DynamicNameBlueprint());
 
 const char* StringifyStackSampleMode(protos::pbzero::StackSample::Mode mode) {
@@ -180,19 +176,6 @@ std::optional<TrackId> StackSampleModule::InternCounterTrack(
     }
   }
 
-  // Canonical serialization of the custom scope dimensions; part of the
-  // track identity.
-  std::string scope_dimensions;
-  for (auto it = desc.scope_dimensions(); it; ++it) {
-    CounterDescriptor::ScopeDimension::Decoder dim(*it);
-    if (!scope_dimensions.empty()) {
-      scope_dimensions += ",";
-    }
-    scope_dimensions += dim.key().ToStdString();
-    scope_dimensions += "=";
-    scope_dimensions += dim.value().ToStdString();
-  }
-
   auto args_fn = [&, this](ArgsTracker::BoundInserter& inserter) {
     inserter.AddArg(context_->storage->InternString("is_timebase"),
                     Variadic::Boolean(is_timebase));
@@ -206,18 +189,11 @@ std::optional<TrackId> StackSampleModule::InternCounterTrack(
                       Variadic::String(
                           context_->storage->InternString(desc.description())));
     }
-    for (auto it = desc.scope_dimensions(); it; ++it) {
-      CounterDescriptor::ScopeDimension::Decoder dim(*it);
-      std::string key = "scope." + dim.key().ToStdString();
-      inserter.AddArg(
-          context_->storage->InternString(base::StringView(key)),
-          Variadic::String(context_->storage->InternString(dim.value())));
-    }
   };
 
   auto scope = desc.has_scope()
                    ? static_cast<CounterDescriptor::Scope>(desc.scope())
-                   : CounterDescriptor::Scope::SCOPE_SESSION;
+                   : CounterDescriptor::Scope::SCOPE_GLOBAL;
   if (scope == CounterDescriptor::Scope::SCOPE_CPU) {
     // Weights of a per-cpu counter instance cannot be attributed without
     // knowing which cpu the sample was taken on.
@@ -227,15 +203,13 @@ std::optional<TrackId> StackSampleModule::InternCounterTrack(
     return context_->track_tracker->InternTrack(
         kStackSampleCpuCounterBlueprint,
         tracks::Dimensions(*cpu, session_id.value, storage->GetString(source),
-                           storage->GetString(name_id),
-                           base::StringView(scope_dimensions)),
+                           storage->GetString(name_id)),
         tracks::DynamicName(name_id), args_fn, tracks::DynamicUnit(unit_id));
   }
   return context_->track_tracker->InternTrack(
       kStackSampleSessionCounterBlueprint,
       tracks::Dimensions(session_id.value, storage->GetString(source),
-                         storage->GetString(name_id),
-                         base::StringView(scope_dimensions)),
+                         storage->GetString(name_id)),
       tracks::DynamicName(name_id), args_fn, tracks::DynamicUnit(unit_id));
 }
 

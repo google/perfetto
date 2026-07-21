@@ -117,38 +117,27 @@ message StackSample {
     // The scope of a counter instance: which stream of values the per-sample
     // weights belong to. Counter instances accumulate independently, so
     // values from different instances must never be merged into one stream.
-    // This mirrors perf_event scoping, where an event is opened for a
-    // (task, cpu) target: a system-wide profiler has one counter instance
-    // per cpu, while an in-process sampler typically has a single instance
-    // for the whole sampling stream. Trace processor materializes one
-    // counter track per instance, so SCOPE_SESSION yields one track per
-    // sampling stream and SCOPE_CPU one track per (sampling stream, cpu).
-    //
-    // For instance identities not expressible here, use scope_dimensions.
-    // If neither fits your profiler, please file a bug at
-    // https://github.com/google/perfetto/issues so a well-known scope can be
-    // added. Append-only: never renumber or repurpose an existing value.
+    // Trace processor keeps sampling streams separate and materializes one
+    // counter track per instance within each stream: SCOPE_GLOBAL yields one
+    // track per sampling stream and SCOPE_CPU one track per
+    // (sampling stream, cpu).
     enum Scope {
-      // Treated as SCOPE_SESSION.
+      // Treated as SCOPE_GLOBAL.
       SCOPE_UNSPECIFIED = 0;
 
-      // One counter instance for the whole sampling stream (the packet
-      // sequence these samples are emitted on).
-      SCOPE_SESSION = 1;
+      // A single counter instance, not split by cpu, thread or anything
+      // else.
+      SCOPE_GLOBAL = 1;
 
       // One counter instance per cpu. Each sample's weight belongs to the
       // instance of the cpu in its ExecutionContext; samples without a cpu
       // cannot be attributed and their weights for this counter are dropped.
       SCOPE_CPU = 2;
-    }
 
-    // A custom dimension further scoping this counter's instances, e.g.
-    // {key: "device", value: "gpu0"}. Descriptors that differ in their scope
-    // dimensions are distinct counter instances (distinct tracks in trace
-    // processor, with the dimensions surfaced as track args).
-    message ScopeDimension {
-      optional string key = 1;
-      optional string value = 2;
+      // If your profiler needs a scope that is not listed here, please file
+      // a bug at https://github.com/google/perfetto/issues explaining what
+      // you are trying to record and which scope you would like added.
+      // Append-only: never renumber or repurpose an existing value.
     }
 
     // Interning key, used when this descriptor is emitted via
@@ -177,13 +166,8 @@ message StackSample {
     // Free-form description of what the counter measures.
     optional string description = 6;
 
-    // The scope of this counter's instances. Absent means SCOPE_SESSION.
+    // The scope of this counter's instances. Absent means SCOPE_GLOBAL.
     optional Scope scope = 7;
-
-    // Custom dimensions further scoping this counter's instances, combined
-    // with `scope`. Keep stable across samples: descriptors with different
-    // dimensions are different counter instances.
-    repeated ScopeDimension scope_dimensions = 8;
   }
 
   // The task (thread / process / async context) this sample is attributed to.
