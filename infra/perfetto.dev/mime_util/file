@@ -21,7 +21,7 @@ def main():
       '.html': 'text/html',
       '.css': 'text/css',
       '.js': 'text/javascript',
-      '.gz': 'application/gzip',
+      '.json': 'application/json',
       '.jpg': 'image/jpeg',
       '.png': 'image/png',
       '.svg': 'image/svg+xml',

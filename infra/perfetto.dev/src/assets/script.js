@@ -374,7 +374,7 @@ function initMermaid() {
 
 // ---------------------------------------------------------------------------
 // Client-side docs search. We ship a build-time full-text index
-// (assets/search_index.json.gz, built by src/gen_search_index.js) and rank it
+// (assets/search_index.json, built by src/gen_search_index.js) and rank it
 // locally with BM25. The old Google Custom Search Engine couldn't see a doc
 // until Googlebot crawled it, often weeks after it shipped.
 // ---------------------------------------------------------------------------
@@ -396,12 +396,9 @@ function searchTokenize(str) {
 }
 
 async function loadSearchIndex() {
-  const resp = await fetch("/assets/search_index.json.gz");
+  const resp = await fetch("/assets/search_index.json");
   if (!resp.ok) throw new Error(`search index HTTP ${resp.status}`);
-  // The server doesn't gzip this file, so it's gzipped at build time and
-  // decompressed here.
-  const stream = resp.body.pipeThrough(new DecompressionStream("gzip"));
-  const data = await new Response(stream).json();
+  const data = await resp.json();
 
   const postings = new Map();  // token -> Map(docIdx -> weight)
   for (let i = 0; i < data.terms.length; i++) {

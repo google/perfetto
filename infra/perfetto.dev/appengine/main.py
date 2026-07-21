@@ -57,11 +57,18 @@ def main(path=''):
   blob = bucket.get_blob(path[1:])
   if blob is None:
     return flask.abort(404)
-  data = blob.download_as_bytes()
+
+  content_encoding = blob.content_encoding
+  accepts_encoding = bool(
+      content_encoding and
+      flask.request.accept_encodings[content_encoding] > 0)
+  data = blob.download_as_bytes(raw_download=accepts_encoding)
   resp = flask.Response(data)
   resp.headers['Content-Type'] = blob.content_type
   resp.headers['Content-Length'] = len(data)
-  resp.headers['Content-Encoding'] = blob.content_encoding
+  if accepts_encoding:
+    resp.headers['Content-Encoding'] = content_encoding
+  resp.headers['Vary'] = 'Accept-Encoding'
   if os.path.splitext(path)[1] in ('.png', '.svg'):
     resp.headers['Cache-Control'] = 'public, max-age=86400'  # 1 Day
   else:

@@ -14,8 +14,8 @@
 
 "use strict";
 
-// Builds the client-side full-text search index (search_index.json.gz) consumed
-// by setupSearch() in assets/script.js.
+// Builds the client-side full-text search index (search_index.json) consumed by
+// setupSearch() in assets/script.js.
 //
 // Inputs (wired up in BUILD.gn):
 //   --full     <md>   Hand-written docs: title, headings and body are indexed.
@@ -28,7 +28,6 @@
 // README.md -> /docs/).
 
 const fs = require("fs");
-const zlib = require("zlib");
 const path = require("path");
 const marked = require("marked");
 const argv = require("yargs").argv;
@@ -260,11 +259,8 @@ function main() {
 
   docs.sort((a, b) => a.u.localeCompare(b.u)); // Deterministic output.
   const index = buildInvertedIndex(docs);
-  // The docs-site proxy serves this file uncompressed, so gzip it here and let
-  // script.js inflate it. Level 9: built once, so size wins over speed.
-  const json = JSON.stringify({docs, ...index});
   fs.mkdirSync(path.dirname(outFile), {recursive: true});
-  fs.writeFileSync(outFile, zlib.gzipSync(json, {level: 9}));
+  fs.writeFileSync(outFile, JSON.stringify({docs, ...index}));
 }
 
 main();
