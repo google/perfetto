@@ -22,6 +22,7 @@
 #include <fstream>
 #include <ios>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,6 +35,7 @@
 namespace perfetto::trace_processor::util {
 namespace {
 
+using perfetto::base::gtest_matchers::IsError;
 using testing::ElementsAre;
 using testing::HasSubstr;
 
@@ -220,7 +222,7 @@ TEST_F(TarWriterTest, DisableWindows(AddFileFromNonexistentPath)) {
 
   TarWriter writer(output_path_);
   auto status = writer.AddFileFromPath("archived.txt", nonexistent_path);
-  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status, IsError());
 }
 
 TEST_F(TarWriterTest, DisableWindows(AddLargeFile)) {
@@ -250,13 +252,11 @@ TEST_F(TarWriterTest, DisableWindows(ValidateFilenameConstraints)) {
   TarWriter writer(temp_file_.ReleaseFD());
 
   // Empty filename should fail
-  auto status1 = writer.AddFile("", "content");
-  EXPECT_FALSE(status1.ok());
+  EXPECT_THAT(writer.AddFile("", "content"), IsError());
 
   // Very long filename should fail (TAR limit is 99 chars for basic format)
   std::string long_name(100, 'a');
-  auto status2 = writer.AddFile(long_name, "content");
-  EXPECT_FALSE(status2.ok());
+  EXPECT_THAT(writer.AddFile(long_name, "content"), IsError());
 
   // Valid filename at boundary should work
   std::string boundary_name(99, 'b');
@@ -349,8 +349,7 @@ TEST_F(TarWriterTest, BufferSinkSingleFile) {
 
   std::vector<uint8_t> buffer;
   {
-    BufferTarWriterSink sink(&buffer);
-    TarWriter writer(&sink);
+    TarWriter writer(std::make_unique<BufferTarWriterSink>(&buffer));
     ASSERT_OK(writer.AddFile("inmem.txt", test_content));
   }
 
@@ -373,8 +372,7 @@ TEST_F(TarWriterTest, BufferSinkSingleFile) {
 TEST_F(TarWriterTest, BufferSinkMultipleFiles) {
   std::vector<uint8_t> buffer;
   {
-    BufferTarWriterSink sink(&buffer);
-    TarWriter writer(&sink);
+    TarWriter writer(std::make_unique<BufferTarWriterSink>(&buffer));
     ASSERT_OK(writer.AddFile("a.txt", "alpha"));
     ASSERT_OK(writer.AddFile("dir/b.txt", "bravo-content"));
   }
@@ -408,19 +406,19 @@ TEST_F(TarWriterTest, DisableWindows(AddFileRawBytes)) {
   EXPECT_EQ(memcmp(tar_content.data() + content_offset, data, sizeof(data)), 0);
 }
 
-TEST_F(TarWriterTest, DisableWindows(BeginFileStreamingRoundTrip)) {
+TEST_F(TarWriterTest, DisableWindows(StreamFileRoundTrip)) {
   const std::string part1 = "Hello, ";
   const std::string part2 = "streamed TAR world!";
   const std::string full_content = part1 + part2;
 
   {
     TarWriter writer(output_path_);
-    auto file_or = writer.BeginFile("streamed.txt", full_content.size());
+    auto file_or = writer.StreamFile("streamed.txt", full_content.size());
     ASSERT_OK(file_or.status());
     TarWriter::ScopedFileWriter file = std::move(file_or.value());
     ASSERT_OK(file.Write(part1.data(), part1.size()));
     ASSERT_OK(file.Write(part2.data(), part2.size()));
-    ASSERT_OK(file.Finish());
+    ASSERT_OK(file.Finalize());
   }
 
   std::string tar_content = ReadFile(output_path_);
@@ -445,12 +443,12 @@ TEST_F(TarWriterTest, DisableWindows(BeginFileStreamingRoundTrip)) {
   }
 }
 
-TEST_F(TarWriterTest, DisableWindows(BeginFileAutomaticFinish)) {
-  const std::string content = "no explicit Finish() call";
+TEST_F(TarWriterTest, DisableWindows(StreamFileAutomaticFinalize)) {
+  const std::string content = "no explicit Finalize() call";
 
   {
     TarWriter writer(output_path_);
-    auto file_or = writer.BeginFile("auto.txt", content.size());
+    auto file_or = writer.StreamFile("auto.txt", content.size());
     ASSERT_OK(file_or.status());
     TarWriter::ScopedFileWriter file = std::move(file_or.value());
     ASSERT_OK(file.Write(content.data(), content.size()));
@@ -465,82 +463,76 @@ TEST_F(TarWriterTest, DisableWindows(BeginFileAutomaticFinish)) {
   EXPECT_EQ(headers[0].size, content.size());
 }
 
-TEST_F(TarWriterTest, CallbackSinkAddFilePropagatesError) {
-  size_t bytes_seen = 0;
-  const size_t kFailAfter = 8;
-  CallbackTarWriterSink sink(
-      [&](const void* /*data*/, size_t len) -> base::Status {
-        if (bytes_seen >= kFailAfter) {
-          return base::ErrStatus("callback sink: simulated write failure");
-        }
-        bytes_seen += len;
-        return base::OkStatus();
-      });
-  TarWriter writer(&sink);
+// Accepts the first `fail_after` bytes, then fails every write.
+class FailAfterSink : public TarWriterSink {
+ public:
+  explicit FailAfterSink(size_t fail_after) : fail_after_(fail_after) {}
 
-  // The header write succeeds (0 < kFailAfter), but the subsequent content
-  // write pushes bytes_seen past kFailAfter and should surface the
-  // callback's error.
+  base::Status Write(const void*, size_t len) override {
+    if (bytes_seen_ + len > fail_after_) {
+      return base::ErrStatus("simulated write failure");
+    }
+    bytes_seen_ += len;
+    return base::OkStatus();
+  }
+
+  base::Status WriteFromFd(int, size_t) override {
+    return base::ErrStatus("simulated write failure");
+  }
+
+ private:
+  size_t fail_after_;
+  size_t bytes_seen_ = 0;
+};
+
+TEST_F(TarWriterTest, CustomSinkAddFilePropagatesError) {
+  // Allow the 512-byte header through; fail on the content write.
+  TarWriter writer(std::make_unique<FailAfterSink>(512));
+
   auto status = writer.AddFile("fails.txt", "some content");
-  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status, IsError());
   EXPECT_THAT(status.message(), HasSubstr("simulated write failure"));
+
+  // The failed write poisons the writer: finalization becomes a no-op, so
+  // the destructor does not crash.
+  EXPECT_OK(writer.Finalize());
 }
 
-TEST_F(TarWriterTest, CallbackSinkBeginFilePropagatesError) {
-  bool fail_next = false;
-  CallbackTarWriterSink sink(
-      [&](const void* /*data*/, size_t /*len*/) -> base::Status {
-        if (fail_next) {
-          return base::ErrStatus("callback sink: simulated write failure");
-        }
-        fail_next = true;
-        return base::OkStatus();
-      });
-  TarWriter writer(&sink);
+TEST_F(TarWriterTest, CustomSinkStreamFilePropagatesError) {
+  TarWriter writer(std::make_unique<FailAfterSink>(512));
 
-  // The header write (first callback invocation) succeeds; BeginFile()
-  // itself should thus succeed here.
-  auto file_or = writer.BeginFile("fails.txt", 5);
+  // The header write succeeds, so StreamFile() itself succeeds.
+  auto file_or = writer.StreamFile("fails.txt", 5);
   ASSERT_OK(file_or.status());
   TarWriter::ScopedFileWriter file = std::move(file_or.value());
   auto status = file.Write("hello", 5);
-  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status, IsError());
   EXPECT_THAT(status.message(), HasSubstr("simulated write failure"));
 
-  // Finish() should also propagate the failure without crashing.
-  auto finish_status = file.Finish();
-  EXPECT_FALSE(finish_status.ok());
+  // The failed write poisons both the entry and the writer: finalization
+  // becomes a no-op at both levels and teardown does not crash.
+  EXPECT_OK(file.Finalize());
+  EXPECT_OK(writer.Finalize());
 }
 
-TEST_F(TarWriterTest, CallbackSinkFinalizeErrorDoesNotCrash) {
-  CallbackTarWriterSink sink(
-      [&](const void* /*data*/, size_t /*len*/) -> base::Status {
-        return base::ErrStatus("callback sink: simulated write failure");
-      });
-
-  {
-    TarWriter writer(&sink);
-    auto status = writer.Finalize();
-    EXPECT_FALSE(status.ok());
-
-    // Idempotent: the second call is a no-op that reports success even
-    // though the underlying write never happened.
-    auto second_status = writer.Finalize();
-    EXPECT_TRUE(second_status.ok());
-  }  // Destructor calls Finalize() again; must not crash (logs instead).
+TEST_F(TarWriterTest, CustomSinkPoisonedTeardownDoesNotCrash) {
+  TarWriter writer(std::make_unique<FailAfterSink>(512));
+  auto file_or = writer.StreamFile("fails.txt", 5);
+  ASSERT_OK(file_or.status());
+  TarWriter::ScopedFileWriter file = std::move(file_or.value());
+  EXPECT_THAT(file.Write("hello", 5), IsError());
+  // No explicit Finalize() anywhere: the failed write poisons the entry and
+  // the writer, so both destructors must be no-ops.
 }
 
-TEST_F(TarWriterTest, CallbackSinkDestructorFinalizeFailureDoesNotCrash) {
-  CallbackTarWriterSink sink(
-      [&](const void* /*data*/, size_t /*len*/) -> base::Status {
-        return base::ErrStatus("callback sink: simulated write failure");
-      });
+TEST_F(TarWriterTest, CustomSinkFinalizeErrorPropagates) {
+  TarWriter writer(std::make_unique<FailAfterSink>(0));
 
-  // Never call Finalize() explicitly; the destructor's best-effort
-  // finalization must swallow the error (logging it) rather than crash.
-  {
-    TarWriter writer(&sink);
-  }
+  EXPECT_THAT(writer.Finalize(), IsError());
+
+  // Idempotent: the second call is a no-op that reports success even though
+  // the underlying write never happened; the destructor is likewise a no-op.
+  EXPECT_OK(writer.Finalize());
 }
 
 }  // namespace
