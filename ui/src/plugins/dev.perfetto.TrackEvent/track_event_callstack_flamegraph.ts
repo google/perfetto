@@ -259,7 +259,7 @@ function buildSamplesSql(
   trackIds: ReadonlyArray<number>,
 ): string {
   return `
-    WITH relevant_slices AS (
+    WITH relevant_slices AS MATERIALIZED (
       SELECT id
       FROM _interval_intersect_single!(
         ${selection.start},
