@@ -812,12 +812,14 @@ TEST(TraceProcessorShellIntegrationTest, QueryCommentsOnlyNoValidSql) {
 TEST(TraceProcessorShellIntegrationTest, QuerySuppressedZeroRowStatement) {
   // The suppress_query_output escape hatch must hold even when the
   // suppressed statement matches zero rows: no header line may leak.
+  // Match the CSV-quoted header: debug builds echo the raw query text in a
+  // log line, so the bare column name always appears in the output.
   auto trace = WriteSimpleSystrace();
   auto result = RunShell({"query", trace.path(),
                           "SELECT 1 AS suppress_query_output WHERE 0; "
                           "SELECT 200 + 61 AS real_output"});
   EXPECT_EQ(result.exit_code, 0) << result.out;
-  EXPECT_THAT(result.out, Not(HasSubstr("suppress_query_output")));
+  EXPECT_THAT(result.out, Not(HasSubstr("\"suppress_query_output\"")));
   EXPECT_THAT(result.out, HasSubstr("261"));
 }
 
