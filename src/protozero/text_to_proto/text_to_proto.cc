@@ -702,8 +702,8 @@ void Parse(std::string_view input, ParserDelegate* delegate) {
 
   auto emit_string = [&] {
     value.column++;
-    value.txt = perfetto::base::StringView(
-        input.data() + value.offset + 1, string_end - value.offset - 1);
+    value.txt = perfetto::base::StringView(input.data() + value.offset + 1,
+                                           string_end - value.offset - 1);
     saw_semicolon_for_this_value = false;
     state = kWaitingForKey;
     delegate->StringField(key, value);
