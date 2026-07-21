@@ -589,7 +589,8 @@ class TraceStorage {
       const {
     return table<tables::ChromeStackSampleExtrasTable>();
   }
-  tables::ChromeStackSampleExtrasTable* mutable_chrome_stack_sample_extras_table() {
+  tables::ChromeStackSampleExtrasTable*
+  mutable_chrome_stack_sample_extras_table() {
     return mutable_table<tables::ChromeStackSampleExtrasTable>();
   }
 

@@ -227,8 +227,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
            s.heap_graph_object_table().mutations() +
            s.heap_graph_table().mutations() +
            s.instruments_sample_table().mutations() +
-           s.state_table().mutations() +
-           s.profiler_sample_table().mutations();
+           s.state_table().mutations() + s.profiler_sample_table().mutations();
   }
 
   std::pair<int64_t, int64_t> GetTimestampBounds() override {

@@ -636,7 +636,8 @@ SELECT
 FROM __intrinsic_profiler_sample AS ps
 LEFT JOIN __intrinsic_chrome_stack_sample_extras AS x
   ON x.profiler_sample_id = ps.id
-WHERE ps.source IN ('chrome', 'legacy_v8', 'gecko', 'simpleperf', 'perf_text');
+WHERE
+  ps.source IN ('chrome', 'legacy_v8', 'gecko', 'simpleperf', 'perf_text');
 
 -- Samples from MacOS Instruments.
 CREATE PERFETTO VIEW instruments_sample(
