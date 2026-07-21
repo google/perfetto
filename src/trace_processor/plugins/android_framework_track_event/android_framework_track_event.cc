@@ -112,6 +112,9 @@ class Parser : public TrackEventExtensionParser {
     SetProcessMetadata(upid, data);
 
     auto row = GetOrInsertRow(upid);
+    if (evt.has_start_seq_id()) {
+      row.set_start_seq_id(evt.start_seq_id());
+    }
     if (!row.fw_start_ts().has_value()) {
       row.set_fw_start_ts(ts);
     }
