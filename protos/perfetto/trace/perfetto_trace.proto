@@ -13835,6 +13835,39 @@ message Callstack {
 
 // End of protos/perfetto/trace/profiling/profile_common.proto
 
+// Begin of protos/perfetto/trace/profiling/inline_callstack.proto
+
+// A fully-inline, self-contained callstack: each frame carries its function
+// name and source location directly, with no interning. This is the simple
+// alternative to Callstack (whose frames are interned Frame/Mapping
+// references): use it when trace size is not a concern or callstacks are
+// unique. For binary/library information (mappings, build ids, relative pcs)
+// or efficient repetition, use interned Callstacks instead.
+//
+// This lives in its own file (rather than profile_common.proto) so that
+// messages embedding it, like TrackEvent, do not pull in the rest of the
+// profiling protos and their transitive dependencies.
+message InlineCallstack {
+  // A frame within an inline callstack.
+  message Frame {
+    // Function name, e.g. "malloc" or "std::vector<int>::push_back".
+    optional string function_name = 1;
+
+    // Source file path, e.g. "/src/foo.cc".
+    optional string source_file = 2;
+
+    // Line number in the source file.
+    optional uint32 line_number = 3;
+  }
+
+  // Frames of this callstack, ordered from bottom (outermost) to top
+  // (innermost). For example, if main() calls foo() which calls bar(), the
+  // frames are: [main, foo, bar].
+  repeated Frame frames = 1;
+}
+
+// End of protos/perfetto/trace/profiling/inline_callstack.proto
+
 // Begin of protos/perfetto/trace/profiling/stack_sample.proto
 
 // A single stack sample: a callstack captured for a task, measured against a
@@ -13874,8 +13907,10 @@ message StackSample {
     UNIT_COUNT = 9;
   }
 
-  // The task an observation is attributed to. At least one of pid / tid should
-  // be set.
+  // The task an observation is attributed to. At least one of pid / tid /
+  // async_id should be set. async_id identifies a stackful async context
+  // (goroutine, fiber, ...) described by an AsyncContextDescriptor whose iid
+  // equals the async_id.
   message TaskContext {
     // Interning key, used when this context is emitted via
     // InternedData.stack_sample_task_contexts and referenced by
@@ -13888,6 +13923,24 @@ message StackSample {
     // OS thread id the sample belongs to. If only tid is set, the process is
     // inferred from thread association elsewhere in the trace.
     optional uint32 tid = 3;
+    optional uint64 async_id = 4;
+  }
+
+  // Describes an async context referenced by TaskContext.async_id: a stackful
+  // unit of execution that is not an OS thread (goroutine, fiber, coroutine).
+  message AsyncContextDescriptor {
+    // Interning key, equal to the TaskContext.async_id it describes. Starts
+    // from 1, 0 is the same as "not set".
+    optional uint64 iid = 1;
+
+    // A human-readable name for this specific context, e.g. "worker-7".
+    optional string name = 2;
+
+    // The kind of async context, e.g. "goroutine", "fiber".
+    optional string kind = 3;
+
+    // iid of the structural parent AsyncContextDescriptor, if any.
+    optional uint64 parent_iid = 4;
   }
 
   // The execution state a sample was taken in. All fields are optional: an
@@ -13962,13 +14015,17 @@ message StackSample {
     uint64 execution_context_iid = 4;
   }
 
-  // The captured callstack, bottom frame first.
+  // The captured callstack, bottom frame first. Give it fully inline via
+  // `callstack` or reference an interned Callstack via `callstack_iid`.
   oneof callstack_field {
-    // Inline callstack. The only supported form for now.
-    Callstack callstack = 5;
+    // Fully-inline callstack: each frame carries its function name and source
+    // location directly, no interning. Simple but larger; prefer
+    // `callstack_iid` when callstacks repeat or frames need binary/library
+    // information (mappings, build ids, relative pcs).
+    InlineCallstack callstack = 5;
 
-    // Reserved: an interned callstack variant may be added later.
-    // uint64 callstack_iid = 6;
+    // Interned callstack, referencing InternedData.callstacks.
+    uint64 callstack_iid = 6;
   }
 
   // Set if stack unwinding was incomplete; describes the data, not producer
@@ -15181,42 +15238,16 @@ message TrackEvent {
   //
   // Only one of these fields should be set.
   oneof callstack_field {
-    // Inline callstack data. Use this for simplicity when interning is not
-    // needed (e.g., for unique callstacks or when trace size is not critical).
-    Callstack callstack = 55;
+    // Fully-inline callstack data. Use this for simplicity when interning is
+    // not needed (e.g., for unique callstacks or when trace size is not
+    // critical).
+    InlineCallstack callstack = 55;
 
     // Reference to interned Callstack (see InternedData.callstacks).
     // This is the efficient option when callstacks are repeated.
     //
     // Note: iids *always* start from 1. A value of 0 is considered "not set".
     uint64 callstack_iid = 56;
-  }
-
-  // Inline callstack for TrackEvents when interning is not needed.
-  // This is a simplified version of the profiling Callstack/Frame messages,
-  // designed for cases where trace size is not critical or callstacks are
-  // unique.
-  //
-  // Use this for simple callstacks with function names and source locations.
-  // For binary/library information (mappings, build IDs, relative PCs), use
-  // interned callstacks via callstack_iid instead.
-  message Callstack {
-    // Frame within an inline callstack.
-    message Frame {
-      // Function name, e.g., "malloc" or "std::vector<int>::push_back"
-      optional string function_name = 1;
-
-      // Optional: Source file path, e.g., "/src/foo.cc"
-      optional string source_file = 2;
-
-      // Optional: Line number in the source file
-      optional uint32 line_number = 3;
-    }
-
-    // Frames of this callstack, ordered from bottom (outermost) to top
-    // (innermost). For example, if main() calls foo() which calls bar(), the
-    // frames would be: [main, foo, bar]
-    repeated Frame frames = 1;
   }
 
   // Debug annotations associated with this event. These are arbitrary key-value
@@ -15510,6 +15541,8 @@ message InternedData {
   repeated StackSample.TaskContext stack_sample_task_contexts = 48;
   repeated StackSample.ExecutionContext stack_sample_execution_contexts = 49;
   repeated StackSample.CounterDescriptor stack_sample_counter_descriptors = 50;
+  repeated StackSample.AsyncContextDescriptor
+      stack_sample_async_context_descriptors = 51;
 
   //
   // == UNSTABLE / CONTEXT-SPECIFIC FIELDS ==
