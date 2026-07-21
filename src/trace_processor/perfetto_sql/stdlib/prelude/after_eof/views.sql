@@ -270,7 +270,26 @@ SELECT
   END AS display_value
 FROM __intrinsic_args;
 
--- Contains the Linux perf sessions in the trace.
+-- Profiler sessions: one row per data source instance of a sampling profiler
+-- (a linux perf session, a StackSample packet stream, ...).
+CREATE PERFETTO VIEW profiler_session(
+  -- The id of the profiler session.
+  id ID,
+  -- The profiler that produced this session's samples (e.g. "linux.perf").
+  -- Matches profiler_sample.source.
+  source STRING,
+  -- Unit of the quantity the profiler sampled on: the session's primary
+  -- (timebase) counter (e.g. "ns", "cycles", "instructions", "count").
+  -- NULL if unknown.
+  timebase_unit STRING,
+  -- Command line used to collect the data, if known.
+  cmdline STRING
+)
+AS
+SELECT id, source, timebase_unit, cmdline FROM __intrinsic_profiler_session;
+
+-- Contains the Linux perf sessions in the trace. Compat view over
+-- profiler_session, constrained to sessions of the linux perf profiler.
 CREATE PERFETTO VIEW perf_session(
   -- The id of the perf session. Prefer using `perf_session_id` instead.
   id LONG,
@@ -280,7 +299,10 @@ CREATE PERFETTO VIEW perf_session(
   cmdline STRING
 )
 AS
-SELECT *, id AS perf_session_id FROM __intrinsic_perf_session;
+SELECT id, id AS perf_session_id, cmdline
+FROM __intrinsic_profiler_session
+WHERE
+  source = 'linux.perf';
 
 -- Log entries from all sources (Android logcat, systemd_journald, etc.).
 --

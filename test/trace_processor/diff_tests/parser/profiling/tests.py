@@ -323,6 +323,80 @@ class Profiling(TestSuite):
         3000,512.000000
         """))
 
+  def test_perf_sample_counter_only(self):
+    return DiffTestBlueprint(
+        trace=TextProto(R"""
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          timestamp: 1000
+          trace_packet_defaults {
+            perf_sample_defaults {
+              timebase {
+                name: "leader"
+                counter: SW_CPU_CLOCK
+                frequency: 1000
+              }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          perf_sample {
+            cpu: 0
+            pid: 1
+            tid: 42
+            timebase_count: 512
+            sample_skipped_reason: PROFILER_SKIP_NOT_IN_SCOPE
+          }
+        }
+        """),
+        query="""
+        -- A counter-only perf sample (no callstack) stays visible in
+        -- perf_sample with a null callsite and its counter values reachable
+        -- via the counter set; it is excluded from stack_sample.
+        SELECT
+          ps.ts,
+          ps.callsite_id,
+          psi.cpu_mode AS intrinsic_cpu_mode,
+          ps.cpu_mode AS perf_cpu_mode,
+          c.value,
+          (SELECT count(*) FROM stack_sample) AS stack_sample_count,
+          (SELECT timebase_unit FROM profiler_session) AS timebase_unit
+        FROM perf_sample AS ps
+        JOIN __intrinsic_profiler_sample AS psi
+          ON psi.id = ps.id
+        JOIN __intrinsic_profiler_counter_set AS pcs
+          ON psi.counter_set_id = pcs.counter_set_id
+        JOIN counter AS c
+          ON c.id = pcs.counter_id;
+        """,
+        out=Csv("""
+        "ts","callsite_id","intrinsic_cpu_mode","perf_cpu_mode","value","stack_sample_count","timebase_unit"
+        3000,"[NULL]","[NULL]","unknown",512.000000,0,"ns"
+        """))
+
+  def test_profiler_session_source(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample.textproto'),
+        query="""
+        -- StackSample streams allocate a profiler session tagged with the
+        -- stream's source and the unit of its timebase counter; they must not
+        -- leak into the perf_session view.
+        SELECT
+          (
+            SELECT count(*)
+            FROM profiler_session
+            WHERE source = 'python.wall' AND timebase_unit = 'ns'
+          ) AS stack_sample_sessions,
+          (SELECT count(*) FROM perf_session) AS perf_sessions;
+        """,
+        out=Csv("""
+        "stack_sample_sessions","perf_sessions"
+        1,0
+        """))
+
   def test_perf_sample_sc(self):
     return DiffTestBlueprint(
         trace=DataPath('perf_sample_sc.pb'),
@@ -621,17 +695,18 @@ class Profiling(TestSuite):
         }
         """),
         query="""
-        -- Test the counter_set_id on perf_sample and the
-        -- __intrinsic_perf_counter_set table.
+        -- Test the counter_set_id on profiler_sample and the
+        -- __intrinsic_profiler_counter_set table.
         select
           ps.id as sample_id,
-          ps.counter_set_id,
+          psi.counter_set_id,
           pcs.counter_id,
           c.value
         from
-          __intrinsic_perf_sample ps
-          join __intrinsic_perf_counter_set pcs
-            on ps.counter_set_id = pcs.perf_counter_set_id
+          perf_sample ps
+          join __intrinsic_profiler_sample psi on psi.id = ps.id
+          join __intrinsic_profiler_counter_set pcs
+            on psi.counter_set_id = pcs.counter_set_id
           join counter c on c.id = pcs.counter_id
         order by ps.id, pcs.counter_id
         """,
@@ -648,17 +723,18 @@ class Profiling(TestSuite):
         query="""
         SELECT
           ss.ts,
-          ec.cpu,
-          ec.mode,
-          ss.weight,
-          tb.source,
-          tb.name AS timebase_name,
-          tb.unit,
+          ss.ucpu AS cpu,
+          ss.cpu_mode AS mode,
+          CAST(c.value AS INTEGER) AS weight,
+          ss.source,
+          ct.name AS timebase_name,
+          ct.unit,
           spf.name AS frame_name
-        FROM __intrinsic_stack_sample ss
-        JOIN __intrinsic_stack_sample_counter tb ON ss.timebase_id = tb.id
-        LEFT JOIN __intrinsic_stack_sample_execution_context ec
-          ON ss.execution_context_id = ec.id
+        FROM stack_sample ss
+        JOIN __intrinsic_profiler_counter_set pcs
+          ON ss.counter_set_id = pcs.counter_set_id
+        JOIN counter c ON c.id = pcs.counter_id
+        JOIN counter_track ct ON c.track_id = ct.id AND ct.name = 'wall-time'
         JOIN stack_profile_callsite spc ON ss.callsite_id = spc.id
         JOIN stack_profile_frame spf ON spc.frame_id = spf.id
         ORDER BY ss.ts;
@@ -675,19 +751,15 @@ class Profiling(TestSuite):
     return DiffTestBlueprint(
         trace=Path('stack_sample.textproto'),
         query="""
-        -- The ts=1000 sample is attributed to a task and execution context; the
-        -- ts=7000 sample has neither, so both context ids are NULL.
+        -- The ts=1000 sample is attributed to a task and execution context;
+        -- the ts=7000 sample has neither, so its context columns are unset.
         SELECT
           ss.ts,
           p.name AS process_name,
-          ec.cpu,
-          ec.mode
-        FROM __intrinsic_stack_sample ss
-        LEFT JOIN __intrinsic_stack_sample_task_context tc
-          ON ss.task_context_id = tc.id
-        LEFT JOIN process p ON tc.upid = p.upid
-        LEFT JOIN __intrinsic_stack_sample_execution_context ec
-          ON ss.execution_context_id = ec.id
+          ss.ucpu AS cpu,
+          ss.cpu_mode AS mode
+        FROM stack_sample ss
+        LEFT JOIN process p ON ss.upid = p.upid
         ORDER BY ss.ts;
         """,
         out=Csv("""
@@ -705,16 +777,15 @@ class Profiling(TestSuite):
         -- The ts=2000 sample references its callstack via callstack_iid.
         SELECT
           ss.ts,
-          ss.weight,
           spf.name AS frame_name
-        FROM __intrinsic_stack_sample ss
+        FROM stack_sample ss
         JOIN stack_profile_callsite spc ON ss.callsite_id = spc.id
         JOIN stack_profile_frame spf ON spc.frame_id = spf.id
         WHERE ss.ts = 2000;
         """,
         out=Csv("""
-        "ts","weight","frame_name"
-        2000,2000000,"foo"
+        "ts","frame_name"
+        2000,"foo"
         """))
 
   def test_stack_sample_inline_callstack(self):
@@ -725,7 +796,7 @@ class Profiling(TestSuite):
         -- interned from function name + source location alone.
         WITH RECURSIVE cs AS (
           SELECT spc.id, spc.parent_id, spc.depth, spc.frame_id
-          FROM __intrinsic_stack_sample ss
+          FROM stack_sample ss
           JOIN stack_profile_callsite spc ON ss.callsite_id = spc.id
           WHERE ss.ts = 1000
           UNION ALL
@@ -752,17 +823,15 @@ class Profiling(TestSuite):
         trace=Path('stack_sample.textproto'),
         query="""
         -- The ts=6000 sample is attributed to an async context (async_id 7);
-        -- its descriptor name/kind fold onto the task context.
+        -- its descriptor name/kind fold onto the sample.
         SELECT
           ss.ts,
           p.name AS process_name,
-          tc.async_name,
-          tc.async_kind
-        FROM __intrinsic_stack_sample ss
-        JOIN __intrinsic_stack_sample_task_context tc
-          ON ss.task_context_id = tc.id
-        LEFT JOIN process p ON tc.upid = p.upid
-        WHERE tc.async_name IS NOT NULL
+          ss.async_name,
+          ss.async_kind
+        FROM stack_sample ss
+        LEFT JOIN process p ON ss.upid = p.upid
+        WHERE ss.async_name IS NOT NULL
         ORDER BY ss.ts;
         """,
         out=Csv("""
@@ -775,16 +844,20 @@ class Profiling(TestSuite):
         trace=Path('stack_sample.textproto'),
         query="""
         -- The ts=1000 sample has one follower ("instructions") with value 500;
-        -- the primary timebase and the follower share the counter table.
+        -- follower values are counter rows on their own counter track, linked
+        -- to the sample via its counter set.
         SELECT
           ss.ts,
-          c.name AS counter_name,
-          c.unit,
-          f.weight
-        FROM __intrinsic_stack_sample ss
-        JOIN __intrinsic_stack_sample_follower f ON f.stack_sample_id = ss.id
-        JOIN __intrinsic_stack_sample_counter c ON f.counter_id = c.id
-        ORDER BY ss.ts, f.id;
+          ct.name AS counter_name,
+          ct.unit,
+          CAST(c.value AS INTEGER) AS weight
+        FROM stack_sample ss
+        JOIN __intrinsic_profiler_counter_set pcs
+          ON ss.counter_set_id = pcs.counter_set_id
+        JOIN counter c ON c.id = pcs.counter_id
+        JOIN counter_track ct ON c.track_id = ct.id
+        WHERE ct.name = 'instructions'
+        ORDER BY ss.ts;
         """,
         out=Csv("""
         "ts","counter_name","unit","weight"

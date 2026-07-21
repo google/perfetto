@@ -62,6 +62,7 @@ class StateTracker;
 class SliceTranslationTable;
 class SparseCounterTracker;
 class StackProfileTracker;
+class ProfilerSampleTracker;
 class SymbolTracker;
 class TraceDiagnosticsTracker;
 class TraceFileTracker;
@@ -188,6 +189,7 @@ class TraceProcessorContext {
   GlobalPtr<TraceManifestState> trace_manifest_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
+  GlobalPtr<ProfilerSampleTracker> profiler_sample_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
   GlobalPtr<BlobPacketWriter> blob_packet_writer;
 

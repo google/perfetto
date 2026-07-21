@@ -479,15 +479,14 @@ void DeobfuscationTracker::GuessPackages(
                             frames_needing_package_guess);
   }
 
-  const auto& perf_sample_table = context_->storage->perf_sample_table();
-  for (auto sample = perf_sample_table.IterateRows(); sample; ++sample) {
-    auto thread = context_->storage
-                      ->thread_table()[tables::ThreadTable::Id(sample.utid())];
-    if (!thread.upid().has_value() || !sample.callsite_id().has_value()) {
+  const auto& profiler_sample_table =
+      context_->storage->profiler_sample_table();
+  for (auto sample = profiler_sample_table.IterateRows(); sample; ++sample) {
+    if (!sample.upid().has_value() || !sample.callsite_id().has_value()) {
       continue;
     }
     GuessPackageForCallsite(
-        java_frames_for_name, tables::ProcessTable::Id(*thread.upid()),
+        java_frames_for_name, tables::ProcessTable::Id(*sample.upid()),
         *sample.callsite_id(), frames_needing_package_guess);
   }
 

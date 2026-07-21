@@ -266,12 +266,13 @@ BuildFlamegraphTableHeapSizeAndCount(
 
 static std::unique_ptr<tables::ExperimentalFlamegraphTable>
 BuildFlamegraphTableCallstackSizeAndCount(
-    tables::PerfSampleTable::ConstCursor& cursor,
+    tables::ProfilerSampleTable::ConstCursor& cursor,
     std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl,
     const std::vector<uint32_t>& callsite_to_merged_callsite,
     const std::unordered_set<uint32_t>& utids) {
   for (; !cursor.Eof(); cursor.Next()) {
-    if (utids.find(cursor.utid()) == utids.end()) {
+    if (!cursor.utid().has_value() ||
+        utids.find(*cursor.utid()) == utids.end()) {
       continue;
     }
 
@@ -392,19 +393,19 @@ BuildNativeCallStackSamplingFlamegraph(
                      tc.op.index());
     }
     cs.emplace_back(dataframe::FilterSpec{
-        tables::PerfSampleTable::ColumnIndex::ts,
+        tables::ProfilerSampleTable::ColumnIndex::ts,
         i,
         tc.op,
         {},
     });
   }
   cs.push_back(dataframe::FilterSpec{
-      tables::PerfSampleTable::ColumnIndex::callsite_id,
+      tables::ProfilerSampleTable::ColumnIndex::callsite_id,
       static_cast<uint32_t>(time_constraints.size()),
       dataframe::IsNotNull{},
       {},
   });
-  auto cursor = storage->perf_sample_table().CreateCursor(std::move(cs));
+  auto cursor = storage->profiler_sample_table().CreateCursor(std::move(cs));
   for (uint32_t i = 0; i < time_constraints.size(); ++i) {
     cursor.SetFilterValueUnchecked(i, time_constraints[i].value);
   }

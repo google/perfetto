@@ -31,11 +31,13 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -76,21 +78,6 @@ class StreamingProfileSink
  private:
   ProfileModule* module_;
 };
-
-// Adds a counter set containing the given counter IDs.
-// Returns the set ID that can be stored in PerfSampleTable.
-uint32_t AddCounterSet(TraceProcessorContext* context,
-                       const std::vector<CounterId>& counter_ids) {
-  auto* table = context->storage->mutable_perf_counter_set_table();
-  uint32_t set_id = static_cast<uint32_t>(table->row_count());
-  for (CounterId counter_id : counter_ids) {
-    tables::PerfCounterSetTable::Row row;
-    row.perf_counter_set_id = set_id;
-    row.counter_id = counter_id;
-    table->Insert(row);
-  }
-  return set_id;
-}
 
 struct InternedSmapsPath {
   StringId path_id = kNullStringId;
@@ -331,11 +318,8 @@ void ProfileModule::ParsePerfSample(
     }
   }
 
-  // Create counter set if we have any counter IDs
-  std::optional<uint32_t> counter_set_id;
-  if (!counter_ids.empty()) {
-    counter_set_id = AddCounterSet(context_, counter_ids);
-  }
+  std::optional<uint32_t> counter_set_id =
+      context_->profiler_sample_tracker->AddCounterSet(counter_ids);
 
   const UniqueTid utid =
       context_->process_tracker->UpdateThread(sample.tid(), sample.pid());
@@ -355,8 +339,11 @@ void ProfileModule::ParsePerfSample(
   TraceStorage* storage = context_->storage.get();
 
   auto cpu_mode = static_cast<Profiling::CpuMode>(sample.cpu_mode());
-  StringPool::Id cpu_mode_id =
-      storage->InternString(ProfilePacketUtils::StringifyCpuMode(cpu_mode));
+  std::optional<StringPool::Id> cpu_mode_id;
+  if (cpu_mode != Profiling::MODE_UNKNOWN) {
+    cpu_mode_id =
+        storage->InternString(ProfilePacketUtils::StringifyCpuMode(cpu_mode));
+  }
 
   std::optional<StringPool::Id> unwind_error_id;
   if (sample.has_unwind_error()) {
@@ -365,10 +352,21 @@ void ProfileModule::ParsePerfSample(
     unwind_error_id = storage->InternString(
         ProfilePacketUtils::StringifyStackUnwindError(unwind_error));
   }
-  tables::PerfSampleTable::Row sample_row(
-      ts, utid, sample.cpu(), cpu_mode_id, cs_id, unwind_error_id,
-      sampling_stream.perf_session_id, counter_set_id);
-  context_->storage->mutable_perf_sample_table()->Insert(sample_row);
+
+  tables::ProfilerSampleTable::Row row;
+  row.ts = ts;
+  row.source = storage->InternString("linux.perf");
+  row.utid = utid;
+  row.upid = upid;
+  if (sample.has_cpu()) {
+    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(sample.cpu()).value;
+  }
+  row.cpu_mode = cpu_mode_id;
+  row.callsite_id = cs_id;
+  row.unwind_error = unwind_error_id;
+  row.session_id = sampling_stream.perf_session_id;
+  row.counter_set_id = counter_set_id;
+  context_->profiler_sample_tracker->AddSample(row);
 }
 
 void ProfileModule::ParseProfilePacket(

@@ -138,7 +138,7 @@ ClockTracker::ClockId ExtractClockId(const perf_event_attr& attr) {
 }  // namespace
 
 PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
-                             tables::PerfSessionTable::Id perf_session_id,
+                             tables::ProfilerSessionTable::Id perf_session_id,
                              perf_event_attr attr)
     : context_(context),
       clock_id_(ExtractClockId(attr)),

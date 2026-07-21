@@ -42,7 +42,7 @@ namespace perf_importer {
 class PerfEventAttr : public RefCounted {
  public:
   PerfEventAttr(TraceProcessorContext* context,
-                tables::PerfSessionTable::Id perf_session_id_,
+                tables::ProfilerSessionTable::Id perf_session_id_,
                 perf_event_attr attr);
   ~PerfEventAttr();
   uint32_t type() const { return attr_.type; }
@@ -90,7 +90,7 @@ class PerfEventAttr : public RefCounted {
     return id_offset_from_end_;
   }
 
-  tables::PerfSessionTable::Id perf_session_id() const {
+  tables::ProfilerSessionTable::Id perf_session_id() const {
     return perf_session_id_;
   }
 
@@ -116,7 +116,7 @@ class PerfEventAttr : public RefCounted {
 
   TraceProcessorContext* const context_;
   const ClockTracker::ClockId clock_id_;
-  tables::PerfSessionTable::Id perf_session_id_;
+  tables::ProfilerSessionTable::Id perf_session_id_;
   perf_event_attr attr_;
   std::optional<size_t> time_offset_from_start_;
   std::optional<size_t> time_offset_from_end_;

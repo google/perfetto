@@ -126,7 +126,9 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_mmap_record_table());
     AddDataframe(out, s->mutable_package_list_table());
     AddDataframe(out, s->mutable_user_list_table());
-    AddDataframe(out, s->mutable_perf_session_table());
+    AddDataframe(out, s->mutable_profiler_session_table());
+    AddDataframe(out, s->mutable_profiler_sample_table());
+    AddDataframe(out, s->mutable_profiler_counter_set_table());
     AddDataframe(out, s->mutable_process_memory_snapshot_table());
     AddDataframe(out, s->mutable_profiler_smaps_table());
     AddDataframe(out, s->mutable_protolog_table());
@@ -185,11 +187,9 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_heap_graph_class_table());
     AddDataframe(out, s->mutable_heap_profile_allocation_table());
     AddDataframe(out, s->mutable_heap_profile_table());
-    AddDataframe(out, s->mutable_perf_sample_table());
     AddDataframe(out, s->mutable_heap_graph_table());
     AddDataframe(out, s->mutable_heap_graph_thread_callsite_table());
     AddDataframe(out, s->mutable_heap_graph_java_oome_details_table());
-    AddDataframe(out, s->mutable_perf_counter_set_table());
     AddDataframe(out, s->mutable_stack_profile_mapping_table());
     AddDataframe(out, s->mutable_vulkan_memory_allocations_table());
     AddDataframe(out, s->mutable_chrome_raw_table());
@@ -226,10 +226,10 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
            s.thread_state_table().mutations() + s.log_table().mutations() +
            s.heap_graph_object_table().mutations() +
            s.heap_graph_table().mutations() +
-           s.perf_sample_table().mutations() +
            s.instruments_sample_table().mutations() +
            s.state_table().mutations() +
-           s.cpu_profile_stack_sample_table().mutations();
+           s.cpu_profile_stack_sample_table().mutations() +
+           s.profiler_sample_table().mutations();
   }
 
   std::pair<int64_t, int64_t> GetTimestampBounds() override {
@@ -276,10 +276,6 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
     }
-    for (auto it = s.perf_sample_table().IterateRows(); it; ++it) {
-      start_ns = std::min(it.ts(), start_ns);
-      end_ns = std::max(it.ts(), end_ns);
-    }
     for (auto it = s.instruments_sample_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
@@ -291,6 +287,12 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     for (auto it = s.state_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts() + it.dur(), end_ns);
+    }
+    // profiler_sample.ts is sorted: the first row holds the min, the last the
+    // max.
+    if (const auto& ps = s.profiler_sample_table(); ps.row_count() > 0) {
+      start_ns = std::min(ps[0].ts(), start_ns);
+      end_ns = std::max(ps[ps.row_count() - 1].ts(), end_ns);
     }
     return {start_ns, end_ns};
   }

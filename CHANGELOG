@@ -13,6 +13,19 @@ Unreleased:
     * Replaced TraceConfig.notes and `perfetto --add-note` with
       TraceConfig.trace_attributes and `--add-attribute`.
   Trace Processor:
+    * Introduced __intrinsic_profiler_sample, a generic sampler table
+      shared by all callstack profiler sources, replacing the per-source
+      perf_sample table. perf_sample and perf_session keep their exact
+      schemas as views (perf_session over the generalized
+      profiler_session table); a new stack_sample view exposes all
+      samples which captured a callstack, across sources. Per-sample
+      counter values keep the perf counter-set model, generalized as
+      __intrinsic_profiler_counter_set.
+    * The StackSample packet's counter descriptors now materialize as
+      counter tracks (scoped per profiler session, or per session and
+      cpu via the new CounterDescriptor.scope field, mirroring
+      perf_event scoping), with per-sample values as counter rows linked
+      through the counter set, exactly like linux perf counters.
     * Added a client-server mode to `trace_processor_shell`: start a server
       over a unix socket (`server unix`) or WebSocket (`server http`) and
       connect a thin client with `--remote`.
