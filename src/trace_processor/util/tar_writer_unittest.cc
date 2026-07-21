@@ -328,5 +328,220 @@ TEST_F(TarWriterTest, DisableWindows(AutomaticFinalization)) {
   EXPECT_EQ(headers[0].name, "test.txt");
 }
 
+TEST_F(TarWriterTest, DisableWindows(ExplicitFinalizeThenDestructorNoop)) {
+  {
+    TarWriter writer(output_path_);
+    ASSERT_OK(writer.AddFile("test.txt", "content"));
+    ASSERT_OK(writer.Finalize());
+    // A second explicit call is a no-op that still succeeds.
+    ASSERT_OK(writer.Finalize());
+
+    std::string tar_content_after_explicit = ReadFile(output_path_);
+    EXPECT_EQ(tar_content_after_explicit.size(), 2048u);
+  }  // Destructor calls Finalize() again; must be a no-op.
+
+  std::string tar_content = ReadFile(output_path_);
+  EXPECT_EQ(tar_content.size(), 2048u);
+}
+
+TEST_F(TarWriterTest, BufferSinkSingleFile) {
+  const std::string test_content = "In-memory TAR content";
+
+  std::vector<uint8_t> buffer;
+  {
+    BufferTarWriterSink sink(&buffer);
+    TarWriter writer(&sink);
+    ASSERT_OK(writer.AddFile("inmem.txt", test_content));
+  }
+
+  std::string tar_content(buffer.begin(), buffer.end());
+  auto headers = ParseTarFile(tar_content);
+
+  ASSERT_EQ(headers.size(), 1u);
+  EXPECT_EQ(headers[0].name, "inmem.txt");
+  EXPECT_EQ(headers[0].size, test_content.size());
+
+  size_t content_offset = 512;
+  std::string extracted =
+      tar_content.substr(content_offset, test_content.size());
+  EXPECT_EQ(extracted, test_content);
+
+  // Two 512-byte zero blocks for end of archive.
+  EXPECT_EQ(buffer.size(), 512u + 512u + 1024u);
+}
+
+TEST_F(TarWriterTest, BufferSinkMultipleFiles) {
+  std::vector<uint8_t> buffer;
+  {
+    BufferTarWriterSink sink(&buffer);
+    TarWriter writer(&sink);
+    ASSERT_OK(writer.AddFile("a.txt", "alpha"));
+    ASSERT_OK(writer.AddFile("dir/b.txt", "bravo-content"));
+  }
+
+  std::string tar_content(buffer.begin(), buffer.end());
+  auto headers = ParseTarFile(tar_content);
+
+  ASSERT_EQ(headers.size(), 2u);
+  EXPECT_EQ(headers[0].name, "a.txt");
+  EXPECT_EQ(headers[0].size, 5u);
+  EXPECT_EQ(headers[1].name, "dir/b.txt");
+  EXPECT_EQ(headers[1].size, 13u);
+}
+
+TEST_F(TarWriterTest, DisableWindows(AddFileRawBytes)) {
+  const uint8_t data[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x42};
+
+  {
+    TarWriter writer(output_path_);
+    ASSERT_OK(writer.AddFile("raw.bin", data, sizeof(data)));
+  }
+
+  std::string tar_content = ReadFile(output_path_);
+  auto headers = ParseTarFile(tar_content);
+
+  ASSERT_EQ(headers.size(), 1u);
+  EXPECT_EQ(headers[0].name, "raw.bin");
+  EXPECT_EQ(headers[0].size, sizeof(data));
+
+  size_t content_offset = 512;
+  EXPECT_EQ(memcmp(tar_content.data() + content_offset, data, sizeof(data)), 0);
+}
+
+TEST_F(TarWriterTest, DisableWindows(BeginFileStreamingRoundTrip)) {
+  const std::string part1 = "Hello, ";
+  const std::string part2 = "streamed TAR world!";
+  const std::string full_content = part1 + part2;
+
+  {
+    TarWriter writer(output_path_);
+    auto file_or = writer.BeginFile("streamed.txt", full_content.size());
+    ASSERT_OK(file_or.status());
+    TarWriter::ScopedFileWriter file = std::move(file_or.value());
+    ASSERT_OK(file.Write(part1.data(), part1.size()));
+    ASSERT_OK(file.Write(part2.data(), part2.size()));
+    ASSERT_OK(file.Finish());
+  }
+
+  std::string tar_content = ReadFile(output_path_);
+  auto headers = ParseTarFile(tar_content);
+
+  ASSERT_EQ(headers.size(), 1u);
+  EXPECT_EQ(headers[0].name, "streamed.txt");
+  EXPECT_EQ(headers[0].size, full_content.size());
+
+  size_t content_offset = 512;
+  std::string extracted =
+      tar_content.substr(content_offset, full_content.size());
+  EXPECT_EQ(extracted, full_content);
+
+  // Header (512) + content (27, padded to 512) + end markers (1024).
+  EXPECT_EQ(tar_content.size(), 512u + 512u + 1024u);
+
+  // Padding bytes after the content should be zero.
+  for (size_t i = content_offset + full_content.size(); i < 1024; i++) {
+    EXPECT_EQ(tar_content[i], '\0')
+        << "Padding byte at position " << i << " is not zero";
+  }
+}
+
+TEST_F(TarWriterTest, DisableWindows(BeginFileAutomaticFinish)) {
+  const std::string content = "no explicit Finish() call";
+
+  {
+    TarWriter writer(output_path_);
+    auto file_or = writer.BeginFile("auto.txt", content.size());
+    ASSERT_OK(file_or.status());
+    TarWriter::ScopedFileWriter file = std::move(file_or.value());
+    ASSERT_OK(file.Write(content.data(), content.size()));
+    // Destructor of `file` should write the padding.
+  }
+
+  std::string tar_content = ReadFile(output_path_);
+  auto headers = ParseTarFile(tar_content);
+
+  ASSERT_EQ(headers.size(), 1u);
+  EXPECT_EQ(headers[0].name, "auto.txt");
+  EXPECT_EQ(headers[0].size, content.size());
+}
+
+TEST_F(TarWriterTest, CallbackSinkAddFilePropagatesError) {
+  size_t bytes_seen = 0;
+  const size_t kFailAfter = 8;
+  CallbackTarWriterSink sink(
+      [&](const void* /*data*/, size_t len) -> base::Status {
+        if (bytes_seen >= kFailAfter) {
+          return base::ErrStatus("callback sink: simulated write failure");
+        }
+        bytes_seen += len;
+        return base::OkStatus();
+      });
+  TarWriter writer(&sink);
+
+  // The header write succeeds (0 < kFailAfter), but the subsequent content
+  // write pushes bytes_seen past kFailAfter and should surface the
+  // callback's error.
+  auto status = writer.AddFile("fails.txt", "some content");
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.message(), HasSubstr("simulated write failure"));
+}
+
+TEST_F(TarWriterTest, CallbackSinkBeginFilePropagatesError) {
+  bool fail_next = false;
+  CallbackTarWriterSink sink(
+      [&](const void* /*data*/, size_t /*len*/) -> base::Status {
+        if (fail_next) {
+          return base::ErrStatus("callback sink: simulated write failure");
+        }
+        fail_next = true;
+        return base::OkStatus();
+      });
+  TarWriter writer(&sink);
+
+  // The header write (first callback invocation) succeeds; BeginFile()
+  // itself should thus succeed here.
+  auto file_or = writer.BeginFile("fails.txt", 5);
+  ASSERT_OK(file_or.status());
+  TarWriter::ScopedFileWriter file = std::move(file_or.value());
+  auto status = file.Write("hello", 5);
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.message(), HasSubstr("simulated write failure"));
+
+  // Finish() should also propagate the failure without crashing.
+  auto finish_status = file.Finish();
+  EXPECT_FALSE(finish_status.ok());
+}
+
+TEST_F(TarWriterTest, CallbackSinkFinalizeErrorDoesNotCrash) {
+  CallbackTarWriterSink sink(
+      [&](const void* /*data*/, size_t /*len*/) -> base::Status {
+        return base::ErrStatus("callback sink: simulated write failure");
+      });
+
+  {
+    TarWriter writer(&sink);
+    auto status = writer.Finalize();
+    EXPECT_FALSE(status.ok());
+
+    // Idempotent: the second call is a no-op that reports success even
+    // though the underlying write never happened.
+    auto second_status = writer.Finalize();
+    EXPECT_TRUE(second_status.ok());
+  }  // Destructor calls Finalize() again; must not crash (logs instead).
+}
+
+TEST_F(TarWriterTest, CallbackSinkDestructorFinalizeFailureDoesNotCrash) {
+  CallbackTarWriterSink sink(
+      [&](const void* /*data*/, size_t /*len*/) -> base::Status {
+        return base::ErrStatus("callback sink: simulated write failure");
+      });
+
+  // Never call Finalize() explicitly; the destructor's best-effort
+  // finalization must swallow the error (logging it) rather than crash.
+  {
+    TarWriter writer(&sink);
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::util
