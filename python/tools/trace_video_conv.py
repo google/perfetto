@@ -184,9 +184,9 @@ def select_range(frames, start_ts, end_ts):
 
 
 def build_stream(config, frames):
-  # Frames are Annex-B access units (already start-code delimited), so the
-  # elementary stream is the config (SPS/PPS) followed by the frames.
-  return b''.join(f.data for f in config + frames)
+  # The config (SPS/PPS) is re-emitted before every key frame; one copy is
+  # enough, and stacking them all makes libav reject the stream.
+  return b''.join(f.data for f in config[:1] + frames)
 
 
 def load_clip(bin_path, trace, clip):
