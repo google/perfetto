@@ -19,8 +19,12 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <string_view>
 #include <vector>
+
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 
 namespace perfetto::trace_processor::util {
 
@@ -44,7 +48,7 @@ void FlatBufferWriter::GrowIfNeeded(uint32_t bytes) {
 
 void FlatBufferWriter::Align(uint32_t alignment) {
   min_align_ = std::max(min_align_, alignment);
-  uint32_t pad = (alignment - (GetSize() % alignment)) % alignment;
+  uint32_t pad = (alignment - (size() % alignment)) % alignment;
   GrowIfNeeded(pad);
   for (uint32_t i = 0; i < pad; i++) {
     buf_[--head_] = 0;
@@ -66,7 +70,7 @@ FlatBufferWriter::Offset FlatBufferWriter::WriteString(std::string_view s) {
   // sized so that the LENGTH PREFIX (not the string tail) ends up 4-byte
   // aligned once the terminator and characters have been prepended.
   auto n = static_cast<uint32_t>(s.size());
-  uint32_t pad = (4 - ((GetSize() + n + 1) % 4)) % 4;
+  uint32_t pad = (4 - ((size() + n + 1) % 4)) % 4;
   GrowIfNeeded(pad);
   for (uint32_t i = 0; i < pad; i++) {
     buf_[--head_] = 0;
@@ -74,7 +78,7 @@ FlatBufferWriter::Offset FlatBufferWriter::WriteString(std::string_view s) {
   Prepend<uint8_t>(0);
   PrependBytes(s.data(), n);
   Prepend<uint32_t>(n);
-  return Offset{GetSize()};
+  return Offset{size()};
 }
 
 // ---------------------------------------------------------------------------
@@ -88,11 +92,11 @@ FlatBufferWriter::Offset FlatBufferWriter::WriteVecOffsets(
   for (int32_t i = static_cast<int32_t>(count) - 1; i >= 0; i--) {
     Align(sizeof(uint32_t));
     // Relative offset: from the slot position to the target.
-    uint32_t stored = GetSize() + sizeof(uint32_t) - offsets[i].o;
+    uint32_t stored = size() + sizeof(uint32_t) - offsets[i].o;
     Prepend(stored);
   }
   Prepend<uint32_t>(count);
-  return Offset{GetSize()};
+  return Offset{size()};
 }
 
 FlatBufferWriter::Offset FlatBufferWriter::WriteVecStruct(const void* data,
@@ -102,7 +106,7 @@ FlatBufferWriter::Offset FlatBufferWriter::WriteVecStruct(const void* data,
   Align(elem_align);
   PrependBytes(data, elem_size * count);
   Prepend<uint32_t>(count);
-  return Offset{GetSize()};
+  return Offset{size()};
 }
 
 // ---------------------------------------------------------------------------
@@ -110,46 +114,46 @@ FlatBufferWriter::Offset FlatBufferWriter::WriteVecStruct(const void* data,
 // ---------------------------------------------------------------------------
 
 void FlatBufferWriter::StartTable() {
-  table_body_start_ = GetSize();
+  table_body_start_ = size();
   fields_.clear();
 }
 
 void FlatBufferWriter::FieldBool(uint32_t index, bool val) {
   Align(sizeof(uint8_t));
   Prepend<uint8_t>(val ? 1 : 0);
-  fields_.push_back({index, GetSize()});
+  fields_.push_back({index, size()});
 }
 
 void FlatBufferWriter::FieldU8(uint32_t index, uint8_t val) {
   Align(sizeof(uint8_t));
   Prepend(val);
-  fields_.push_back({index, GetSize()});
+  fields_.push_back({index, size()});
 }
 
 void FlatBufferWriter::FieldI16(uint32_t index, int16_t val) {
   Align(sizeof(int16_t));
   Prepend(val);
-  fields_.push_back({index, GetSize()});
+  fields_.push_back({index, size()});
 }
 
 void FlatBufferWriter::FieldI32(uint32_t index, int32_t val) {
   Align(sizeof(int32_t));
   Prepend(val);
-  fields_.push_back({index, GetSize()});
+  fields_.push_back({index, size()});
 }
 
 void FlatBufferWriter::FieldI64(uint32_t index, int64_t val) {
   Align(sizeof(int64_t));
   Prepend(val);
-  fields_.push_back({index, GetSize()});
+  fields_.push_back({index, size()});
 }
 
 void FlatBufferWriter::FieldOffset(uint32_t index, Offset off) {
   Align(sizeof(uint32_t));
   // Relative offset from the slot position to the target.
-  uint32_t stored = GetSize() + sizeof(uint32_t) - off.o;
+  uint32_t stored = size() + sizeof(uint32_t) - off.o;
   Prepend(stored);
-  fields_.push_back({index, GetSize()});
+  fields_.push_back({index, size()});
 }
 
 FlatBufferWriter::Offset FlatBufferWriter::EndTable() {
@@ -159,7 +163,7 @@ FlatBufferWriter::Offset FlatBufferWriter::EndTable() {
   // all data and invalidates absolute indices.
   Align(sizeof(int32_t));
   Prepend<int32_t>(0);
-  uint32_t table_off = GetSize();
+  uint32_t table_off = size();
 
   uint32_t max_index = 0;
   for (const auto& f : fields_) {
@@ -168,6 +172,15 @@ FlatBufferWriter::Offset FlatBufferWriter::EndTable() {
   uint32_t num_slots = fields_.empty() ? 0 : max_index + 1;
   uint32_t vtable_size = 4 + num_slots * 2;
   uint32_t table_size = table_off - table_body_start_;
+
+  // Every vtable entry below is bounded by table_size, so this single check
+  // covers all of them as well as the table_size entry itself.
+  if (PERFETTO_UNLIKELY(table_size > std::numeric_limits<uint16_t>::max())) {
+    PERFETTO_ELOG(
+        "FlatBufferWriter: table size %u overflows the 16-bit vtable "
+        "encoding; the resulting buffer will be corrupt",
+        table_size);
+  }
 
   // Each vtable entry is the byte offset from the table start (soffset
   // position) to the field data. 0 means "not present".
@@ -184,7 +197,7 @@ FlatBufferWriter::Offset FlatBufferWriter::EndTable() {
   }
   Prepend(static_cast<uint16_t>(table_size));
   Prepend(static_cast<uint16_t>(vtable_size));
-  uint32_t vtable_off = GetSize();
+  uint32_t vtable_off = size();
 
   // Patch soffset: signed offset from the table to its vtable, i.e. the
   // reader computes vtable = table - soffset.
@@ -204,13 +217,13 @@ void FlatBufferWriter::Finish(Offset root) {
   // alignment used. All element positions are aligned relative to the
   // buffer end; an aligned total size makes them aligned relative to the
   // buffer start as well.
-  uint32_t total = GetSize() + sizeof(uint32_t);
+  uint32_t total = size() + sizeof(uint32_t);
   uint32_t pad = (min_align_ - (total % min_align_)) % min_align_;
   GrowIfNeeded(pad);
   for (uint32_t i = 0; i < pad; i++) {
     buf_[--head_] = 0;
   }
-  uint32_t stored = GetSize() + sizeof(uint32_t) - root.o;
+  uint32_t stored = size() + sizeof(uint32_t) - root.o;
   Prepend(stored);
 }
 

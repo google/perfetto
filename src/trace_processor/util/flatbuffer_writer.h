@@ -111,10 +111,6 @@ class FlatBufferWriter {
     memcpy(&buf_[head_], &val, sizeof(T));
   }
 
-  uint32_t GetSize() const {
-    return static_cast<uint32_t>(buf_.size()) - head_;
-  }
-
   std::vector<uint8_t> buf_;
   uint32_t head_ = 0;
   // Largest alignment any element requested. Element positions are aligned

@@ -47,7 +47,7 @@ namespace perfetto::trace_processor::util {
 
 // A typed view over a vector of inline scalars (or packed structs) in a
 // flatbuffer. The whole extent [data, data + size * sizeof(T)) is validated
-// at creation, so operator[] needs no further checks.
+// at creation; out-of-range indices read back as a default-constructed T.
 template <typename T>
 class FlatBufferScalarVec {
  public:
@@ -58,8 +58,11 @@ class FlatBufferScalarVec {
   uint32_t size() const { return size_; }
 
   T operator[](uint32_t i) const {
+    if (PERFETTO_UNLIKELY(i >= size_)) {
+      return T{};
+    }
     T v;
-    memcpy(&v, data_ + i * sizeof(T), sizeof(T));
+    memcpy(&v, data_ + static_cast<uint64_t>(i) * sizeof(T), sizeof(T));
     return v;
   }
 

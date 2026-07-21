@@ -210,6 +210,65 @@ TEST(FlatBufferRoundTripTest, EmptyVec) {
   EXPECT_EQ(reader->VecScalar<int32_t>(0).size(), 0u);
 }
 
+TEST(FlatBufferRoundTripTest, VecIndexOutOfBoundsReturnsDefault) {
+  // Indexing any vector type at or past size() must return a default value,
+  // never read out of bounds. The last valid index still reads correctly.
+  int64_t i64s[] = {10, 20};
+  double f64s[] = {0.5, 1.5};
+  uint8_t u8s[] = {7};
+  FlatBufferWriter w;
+  auto i64_off = w.WriteVecStruct(i64s, sizeof(int64_t), 2, alignof(int64_t));
+  auto f64_off = w.WriteVecStruct(f64s, sizeof(double), 2, alignof(double));
+  auto u8_off = w.WriteVecStruct(u8s, sizeof(uint8_t), 1, alignof(uint8_t));
+  auto s0 = w.WriteString("only");
+  auto str_vec = w.WriteVecOffsets(&s0, 1);
+
+  w.StartTable();
+  w.FieldI32(0, 42);
+  auto c0 = w.EndTable();
+  auto tbl_vec = w.WriteVecOffsets(&c0, 1);
+
+  w.StartTable();
+  w.FieldOffset(0, i64_off);
+  w.FieldOffset(1, f64_off);
+  w.FieldOffset(2, u8_off);
+  w.FieldOffset(3, str_vec);
+  w.FieldOffset(4, tbl_vec);
+  auto root = w.EndTable();
+  auto buf = Build(root, w);
+
+  auto reader = GetRoot(buf);
+  ASSERT_TRUE(reader.has_value());
+
+  auto i64v = reader->VecScalar<int64_t>(0);
+  ASSERT_EQ(i64v.size(), 2u);
+  EXPECT_EQ(i64v[1], 20);
+  EXPECT_EQ(i64v[2], 0);
+  EXPECT_EQ(i64v[0xFFFFFFFF], 0);
+
+  auto f64v = reader->VecScalar<double>(1);
+  ASSERT_EQ(f64v.size(), 2u);
+  EXPECT_DOUBLE_EQ(f64v[1], 1.5);
+  EXPECT_DOUBLE_EQ(f64v[2], 0.0);
+
+  auto u8v = reader->VecScalar<uint8_t>(2);
+  ASSERT_EQ(u8v.size(), 1u);
+  EXPECT_EQ(u8v[0], 7);
+  EXPECT_EQ(u8v[1], 0);
+
+  auto strv = reader->VecString(3);
+  ASSERT_EQ(strv.size(), 1u);
+  EXPECT_EQ(strv[0], "only");
+  EXPECT_EQ(strv[1], "");
+  EXPECT_EQ(strv[0xFFFFFFFF], "");
+
+  auto tv = reader->VecTable(4);
+  ASSERT_EQ(tv.size(), 1u);
+  EXPECT_EQ(tv[0].Scalar<int32_t>(0), 42);
+  EXPECT_FALSE(tv[1]);
+  EXPECT_FALSE(tv[0xFFFFFFFF]);
+}
+
 TEST(FlatBufferRoundTripTest, GetRootTooSmall) {
   uint8_t tiny[] = {0, 0};
   EXPECT_FALSE(FlatBufferReader::GetRoot(tiny, sizeof(tiny)).has_value());
