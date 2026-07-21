@@ -273,8 +273,9 @@ async function loadRetainers(
     await trace.engine.query(
       'INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;',
     );
+    await trace.engine.query('INCLUDE PERFETTO MODULE graphs.scan;');
     const res = await trace.engine.query(`
-      WITH RECURSIVE
+      WITH
       last_ts AS (
         SELECT MAX(graph_sample_ts) AS ts
         FROM heap_graph_object WHERE upid = ${upid}
@@ -311,40 +312,68 @@ async function loadRetainers(
         JOIN ck ON ck.id = o.type_id
         WHERE o.upid = ${upid} AND o.reachable
       ),
-      walk(seed_id, owned_class, seed_size, anc_id, depth) AS (
-        SELECT ob.id, ob.class_name, ob.size, d.idom_id, 1
-        FROM obj ob
-        JOIN _raw_heap_graph_dominator_tree d ON d.id = ob.id
-        WHERE ob.is_app = 0
-        UNION ALL
-        SELECT w.seed_id, w.owned_class, w.seed_size, d.idom_id, w.depth + 1
-        FROM walk w
-        JOIN obj cur ON cur.id = w.anc_id
-        JOIN _raw_heap_graph_dominator_tree d ON d.id = w.anc_id
-        WHERE cur.is_app = 0 AND w.depth < 24
-      ),
-      -- Each rung is a dominator-tree ancestor of the seed. A NULL anc_id is
-      -- the rung above the topmost node: the synthetic super root, i.e. the
-      -- object is retained directly by the GC root set. The search terminates
-      -- at the nearest app-side ancestor, or at that root if the whole chain
-      -- up to it is library/system.
-      classified AS (
-        SELECT w.seed_id, w.owned_class, w.seed_size, w.depth,
-          CASE
-            WHEN w.anc_id IS NULL THEN 'GC root'
-            WHEN a.class_name GLOB 'java.lang.Class<*>'
-              THEN substr(a.class_name, 17, length(a.class_name) - 17)
-            ELSE a.class_name
-          END AS retainer,
-          CASE WHEN w.anc_id IS NULL THEN 1 ELSE a.is_app END AS terminal
-        FROM walk w
-        LEFT JOIN obj a ON a.id = w.anc_id
+      -- Traverse the dominator tree once, from roots to leaves, carrying the
+      -- nearest app-side ancestor. This avoids a separate upward walk (and the
+      -- same ancestor joins) for every library object.
+      ownership AS (
+        SELECT id, nearest_app_id
+        FROM _graph_scan!(
+          (
+            SELECT d.idom_id AS source_node_id, d.id AS dest_node_id
+            FROM _raw_heap_graph_dominator_tree d
+            JOIN obj ob ON ob.id = d.id
+            WHERE d.idom_id IS NOT NULL
+          ),
+          (
+            SELECT ob.id,
+              CASE WHEN ob.is_app = 1 THEN ob.id ELSE -1 END AS nearest_app_id
+            FROM obj ob
+            JOIN _raw_heap_graph_dominator_tree d ON d.id = ob.id
+            WHERE d.idom_id IS NULL
+          ),
+          (nearest_app_id),
+          (
+            SELECT t.id,
+              CASE WHEN child_ck.is_app = 1 THEN t.id
+                ELSE t.nearest_app_id END AS nearest_app_id
+            FROM $table t
+            JOIN heap_graph_object o ON o.id = t.id
+            JOIN (
+              SELECT id,
+                CASE WHEN cname GLOB "java.*" OR cname GLOB "javax.*"
+                  OR cname GLOB "kotlin.*" OR cname GLOB "kotlinx.*"
+                  OR cname GLOB "dalvik.*" OR cname GLOB "sun.*"
+                  OR cname GLOB "libcore.*" OR cname GLOB "android.*"
+                  OR cname GLOB "androidx.*" OR cname GLOB "com.android.*"
+                  OR cname GLOB "com.google.android.*"
+                  OR cname LIKE "%[]%"
+                  OR cname NOT GLOB "*.*"
+                  THEN 0 ELSE 1 END AS is_app
+              FROM (
+                SELECT c.id,
+                  CASE WHEN c.name GLOB "java.lang.Class<*>"
+                    THEN substr(c.name, 17, length(c.name) - 17)
+                    ELSE c.name END AS cname
+                FROM heap_graph_class c
+              )
+            ) child_ck ON child_ck.id = o.type_id
+          )
+        )
       ),
       hits AS (
-        SELECT seed_id, owned_class, seed_size, retainer,
-          ROW_NUMBER() OVER (PARTITION BY seed_id ORDER BY depth) AS rn
-        FROM classified
-        WHERE terminal = 1
+        SELECT ob.class_name AS owned_class, ob.size AS seed_size,
+          CASE
+            WHEN own.nearest_app_id = -1 THEN 'GC root'
+            WHEN retainer_ck.name GLOB 'java.lang.Class<*>'
+              THEN substr(retainer_ck.name, 17, length(retainer_ck.name) - 17)
+            ELSE retainer_ck.name
+          END AS retainer
+        FROM ownership own
+        JOIN obj ob ON ob.id = own.id
+        LEFT JOIN heap_graph_object retainer
+          ON retainer.id = own.nearest_app_id
+        LEFT JOIN ck retainer_ck ON retainer_ck.id = retainer.type_id
+        WHERE ob.is_app = 0
       ),
       -- Rank the distinct retainers of each class by attributed bytes, largest
       -- first, so the UI can show the few dominant owners instead of just one.
@@ -355,7 +384,7 @@ async function loadRetainers(
             PARTITION BY owned_class
             ORDER BY SUM(seed_size) DESC, (retainer = 'GC root') ASC
           ) AS rrn
-        FROM hits WHERE rn = 1
+        FROM hits
         GROUP BY owned_class, retainer
       )
       SELECT a.owned_class AS type_name, a.retainer AS retainer_name,
