@@ -237,8 +237,8 @@ void ProfileModule::ParseStreamingProfileSample(
     return;
   }
 
-  tables::CpuProfileStackSampleTable::Row sample_row{
-      ts, *opt_cs_id, utid, event.process_priority};
+  tables::CpuProfileStackSampleTable::Row sample_row{ts, *opt_cs_id, utid,
+                                                     event.process_priority};
   context_->storage->mutable_cpu_profile_stack_sample_table()->Insert(
       sample_row);
 }
