@@ -24,6 +24,24 @@
 
 namespace perfetto::trace_processor::strace_importer {
 
+// The shape of a single strace line, w.r.t. the "<unfinished ...>"/"<...
+// resumed>" markers strace prints when a syscall is interrupted (e.g. by a
+// signal) and later resumed. A single enum keeps the possible states
+// mutually exclusive; two independent bools could encode nonsensical
+// combinations.
+enum class StraceEventKind {
+  // A complete, single-line call: "foo(args) = ret".
+  kComplete,
+  // The start of an interrupted call: "foo(args <unfinished ...>".
+  kUnfinished,
+  // The tail of a resumed call: "<... foo resumed> args) = ret".
+  kResumed,
+  // A resumed call that is itself interrupted again on the same line:
+  // "<... foo resumed> args <unfinished ...>". This both ends the previous
+  // (now-resumed) call and begins a new interrupted one.
+  kResumedThenUnfinished,
+};
+
 // Pushed into the TraceSorter, one per strace line, in trace-timestamp
 // order. Strings are interned up front (in the tokenizer) so this stays
 // cheap to copy/sort.
@@ -32,8 +50,7 @@ struct alignas(8) StraceEvent {
   StringPool::Id syscall_name_id;
   std::optional<StringPool::Id> args_id;
   std::optional<StringPool::Id> return_value_id;
-  bool is_unfinished = false;
-  bool is_resumed = false;
+  StraceEventKind kind = StraceEventKind::kComplete;
 };
 
 }  // namespace perfetto::trace_processor::strace_importer

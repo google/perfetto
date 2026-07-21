@@ -123,3 +123,20 @@ class StraceParser(TestSuite):
         1700000052321000000,500000,"futex"
         1700000052321600000,0,"write"
         """))
+
+  def test_strace_resumed_then_unfinished(self):
+    # A call resumed and immediately interrupted again on the same line ends
+    # the prior interval and begins a new one, so a syscall interrupted
+    # twice produces two consecutive slices rather than one.
+    return DiffTestBlueprint(
+        trace=Path('resumed_then_unfinished.strace'),
+        query="""
+        SELECT ts, dur, name
+        FROM slice
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","name"
+        1700000052321000000,500000,"epoll_wait"
+        1700000052321500000,500000,"epoll_wait"
+        """))
