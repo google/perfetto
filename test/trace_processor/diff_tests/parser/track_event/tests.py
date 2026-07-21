@@ -1056,6 +1056,26 @@ class TrackEvent(TestSuite):
         "Interned Slice","FuncB","[NULL]",0,1
         """))
 
+  def test_track_event_callstack_weights(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_callstacks.textproto'),
+        query="""
+        SELECT
+          slice.name,
+          iif(callsite_id IS NOT NULL, 'begin', 'end') AS event_type,
+          weight
+        FROM __intrinsic_track_event_callstacks
+        JOIN slice USING (slice_id)
+        ORDER BY slice.name, event_type;
+        """,
+        out=Csv("""
+        "name","event_type","weight"
+        "Inline Slice 1","begin",2.500000
+        "Inline Slice 2","begin","[NULL]"
+        "Interned Slice","begin","[NULL]"
+        "Interned Slice","end",4.000000
+        """))
+
   def test_track_event_name_resolution_extended(self):
     return DiffTestBlueprint(
         trace=Path('track_event_name_resolution_extended.textproto'),

@@ -313,6 +313,13 @@ std::pair<int64_t, int64_t> AggregatePluginTimestampBounds(
   return {start_ns, end_ns};
 }
 
+// Normalization shared by ExecuteQuery and ExecuteNextStatement. The two must
+// never diverge: statement-cursor offsets (trace_processor.h) are defined
+// against this normalized form and are documented to match ExecuteQuery's.
+std::string NormalizeExecuteQuerySql(const std::string& sql) {
+  return base::ReplaceAll(sql, "\u00A0", " ");
+}
+
 }  // namespace
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
@@ -639,12 +646,64 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   uint32_t sql_stats_row =
       context()->storage->mutable_sql_stats()->RecordQueryBegin(
           sql, base::GetWallTimeNs().count());
-  std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
+  std::string non_breaking_sql = NormalizeExecuteQuerySql(sql);
   base::StatusOr<PerfettoSqlConnection::ExecutionResult> result =
       engine_->ExecuteUntilLastStatement(
           SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
   return Iterator(std::make_unique<SqliteIteratorImpl>(this, std::move(result),
                                                        sql_stats_row));
+}
+
+std::optional<Iterator> TraceProcessorImpl::ExecuteNextStatement(
+    const std::string& sql,
+    uint32_t* offset) {
+  PERFETTO_CHECK(offset);
+  PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_NEXT_STATEMENT",
+                    [&](metatrace::Record* r) { r->AddArg("query", sql); });
+
+  // Offsets are relative to the normalized SQL: since the normalization is
+  // deterministic, an offset returned by one call stays valid when the same
+  // |sql| is passed back.
+  std::string non_breaking_sql = NormalizeExecuteQuerySql(sql);
+  auto size = static_cast<uint32_t>(non_breaking_sql.size());
+  uint32_t start = *offset;
+
+  uint32_t sql_stats_row =
+      context()->storage->mutable_sql_stats()->RecordQueryBegin(
+          non_breaking_sql.substr(std::min(start, size)),
+          base::GetWallTimeNs().count());
+  // A soft error rather than a CHECK: over the RPC protocol the offset comes
+  // from an untrusted client, which must not be able to crash the server.
+  if (start > size) {
+    return Iterator(std::make_unique<SqliteIteratorImpl>(
+        this,
+        base::ErrStatus(
+            "ExecuteNextStatement: offset %u out of range (SQL size %u)", start,
+            size),
+        sql_stats_row));
+  }
+  SqlSource source = SqlSource::FromExecuteQuery(std::move(non_breaking_sql));
+
+  uint32_t end_offset = 0;
+  base::StatusOr<std::optional<PerfettoSqlConnection::ExecutionResult>> result =
+      engine_->ExecuteNextStatement(source.Substr(start, size - start),
+                                    &end_offset);
+  if (!result.ok()) {
+    return Iterator(std::make_unique<SqliteIteratorImpl>(this, result.status(),
+                                                         sql_stats_row));
+  }
+  if (!result->has_value()) {
+    // No iterator will be created to close the sql_stats entry; do it here.
+    int64_t now = base::GetWallTimeNs().count();
+    auto* sql_stats = context()->storage->mutable_sql_stats();
+    sql_stats->RecordQueryFirstNext(sql_stats_row, now);
+    sql_stats->RecordQueryEnd(sql_stats_row, now);
+    *offset = size;
+    return std::nullopt;
+  }
+  *offset = start + end_offset;
+  return Iterator(std::make_unique<SqliteIteratorImpl>(
+      this, std::move(**result), sql_stats_row));
 }
 
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {

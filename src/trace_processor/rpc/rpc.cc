@@ -37,6 +37,7 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -94,6 +95,95 @@ void Response::Send(Rpc::RpcResponseFunction send_fn) {
     auto range = slice.GetUsedRange();
     send_fn(range.begin, static_cast<uint32_t>(range.size()));
   }
+}
+
+// Statement-cursor metadata stamped on the first message of a
+// TPM_STATEMENT_STREAMING response; null for TPM_QUERY_STREAMING.
+struct StatementStreamHeader {
+  uint32_t tail_offset = 0;
+  bool statement_executed = false;
+};
+
+// Emits the StatementResult envelope of a TPM_STATEMENT_STREAMING reply,
+// stamping the cursor metadata when |header| is non-null. The single place
+// where the cursor fields are written.
+protos::pbzero::QueryResult* SetStatementResult(
+    Response& resp,
+    const StatementStreamHeader* header) {
+  auto* stmt_res = resp->set_statement_result();
+  if (header) {
+    stmt_res->set_tail_offset(header->tail_offset);
+    stmt_res->set_statement_executed(header->statement_executed);
+  }
+  return stmt_res->set_result();
+}
+
+// Returns the QueryResult submessage of |resp| for the endpoint being served:
+// the bare query_result for TPM_QUERY_STREAMING (|header| == nullptr) or the
+// one nested in a StatementResult for TPM_STATEMENT_STREAMING, stamping
+// |header| on the first message of the stream.
+protos::pbzero::QueryResult* SetResult(Response& resp,
+                                       const StatementStreamHeader* header,
+                                       bool first_message) {
+  if (!header)
+    return resp->set_query_result();
+  return SetStatementResult(resp, first_message ? header : nullptr);
+}
+
+// Streams every message of |serializer|'s result through |send_fn|, one
+// Response per message. Shared tail of TPM_QUERY_STREAMING and
+// TPM_STATEMENT_STREAMING.
+PERFETTO_NO_INLINE void StreamSerializerResponses(
+    QueryResultSerializer* serializer,
+    int req_type,
+    int64_t* tx_seq_id,
+    const Rpc::RpcResponseFunction& send_fn,
+    const StatementStreamHeader* header) {
+  for (bool has_more = true, first = true; has_more; first = false) {
+    const int64_t seq_id = (*tx_seq_id)++;
+    Response resp(seq_id, req_type);
+    has_more = serializer->Serialize(SetResult(resp, header, first));
+    const uint32_t resp_size = resp->Finalize();
+    if (resp_size < protozero::proto_utils::kMaxMessageLength) {
+      // This is the nominal case.
+      resp.Send(send_fn);
+      continue;
+    }
+    // In rare cases a query can end up with a batch which is too big.
+    // Normally batches are automatically split before hitting the limit,
+    // but one can come up with a query where a single cell is > 256MB.
+    // If this happens, just bail out gracefully rather than creating an
+    // unparsable proto which will cause a RPC framing error.
+    // If we hit this, we have to discard `resp` because it's
+    // unavoidably broken (due to have overflown the 4-bytes size) and
+    // can't be parsed. Instead create a new response with the error.
+    Response err_resp(seq_id, req_type);
+    auto* qres = SetResult(err_resp, header, first);
+    qres->add_batch()->set_is_last_batch(true);
+    qres->set_error("The query ended up with a response that is too big (" +
+                    std::to_string(resp_size) +
+                    " bytes). This usually happens when a single row is >= 256 "
+                    "MiB. See also WRITE_FILE for dealing with large rows.");
+    err_resp.Send(send_fn);
+    break;
+  }
+}
+
+// Sends the single-message TPM_STATEMENT_STREAMING replies which don't stream
+// a result set: errors detected before execution (|error| != nullptr) and the
+// no-statement-left case (|header| with statement_executed == false).
+PERFETTO_NO_INLINE void SendSingleStatementResponse(
+    int req_type,
+    int64_t* tx_seq_id,
+    const Rpc::RpcResponseFunction& send_fn,
+    const StatementStreamHeader* header,
+    const char* error) {
+  Response resp((*tx_seq_id)++, req_type);
+  auto* qres = SetStatementResult(resp, header);
+  if (error)
+    qres->set_error(error);
+  qres->add_batch()->set_is_last_batch(true);
+  resp.Send(send_fn);
 }
 
 }  // namespace
@@ -260,36 +350,60 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         auto it = trace_processor_->ExecuteQuery(sql);
 
         QueryResultSerializer serializer(std::move(it), t_start);
-        for (bool has_more = true; has_more;) {
-          const auto seq_id = tx_seq_id_++;
-          Response resp(seq_id, req_type);
-          has_more = serializer.Serialize(resp->set_query_result());
-          const uint32_t resp_size = resp->Finalize();
-          if (resp_size < protozero::proto_utils::kMaxMessageLength) {
-            // This is the nominal case.
-            resp.Send(rpc_response_fn_);
-            continue;
-          }
-          // In rare cases a query can end up with a batch which is too big.
-          // Normally batches are automatically split before hitting the limit,
-          // but one can come up with a query where a single cell is > 256MB.
-          // If this happens, just bail out gracefully rather than creating an
-          // unparsable proto which will cause a RPC framing error.
-          // If we hit this, we have to discard `resp` because it's
-          // unavoidably broken (due to have overflown the 4-bytes size) and
-          // can't be parsed. Instead create a new response with the error.
-          Response err_resp(seq_id, req_type);
-          auto* qres = err_resp->set_query_result();
-          qres->add_batch()->set_is_last_batch(true);
-          qres->set_error(
-              "The query ended up with a response that is too big (" +
-              std::to_string(resp_size) +
-              " bytes). This usually happens when a single row is >= 256 MiB. "
-              "See also WRITE_FILE for dealing with large rows.");
-          err_resp.Send(rpc_response_fn_);
-          break;
-        }
+        StreamSerializerResponses(&serializer, req_type, &tx_seq_id_,
+                                  rpc_response_fn_, /*header=*/nullptr);
       }
+      break;
+    }
+    case RpcProto::TPM_STATEMENT_STREAMING: {
+      if (!req.has_statement_args()) {
+        SendSingleStatementResponse(req_type, &tx_seq_id_, rpc_response_fn_,
+                                    /*header=*/nullptr, kErrFieldNotSet);
+        break;
+      }
+      protozero::ConstBytes args = req.statement_args();
+      protos::pbzero::StatementArgs::Decoder stmt_args(args.data, args.size);
+      std::string sql = stmt_args.sql().ToStdString();
+      uint32_t offset = stmt_args.start_offset();
+
+      PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_STATEMENT",
+                        [&](metatrace::Record* r) {
+                          r->AddArg("SQL", sql);
+                          r->AddArg("start_offset", std::to_string(offset));
+                          if (stmt_args.has_tag()) {
+                            r->AddArg("tag", stmt_args.tag());
+                          }
+                        });
+
+      const auto t_start = base::GetWallTimeNs();
+      // Offsets are defined against the server's normalized SQL, which is
+      // never longer than |sql| as sent, so this only rejects offsets that
+      // are invalid in both forms. Offsets in the gap between the two sizes
+      // are rejected by ExecuteNextStatement's own range check below.
+      if (offset > sql.size()) {
+        SendSingleStatementResponse(req_type, &tx_seq_id_, rpc_response_fn_,
+                                    /*header=*/nullptr,
+                                    "StatementArgs.start_offset out of range");
+        break;
+      }
+      std::optional<Iterator> it =
+          trace_processor_->ExecuteNextStatement(sql, &offset);
+      if (!it.has_value()) {
+        StatementStreamHeader header{offset, /*statement_executed=*/false};
+        SendSingleStatementResponse(req_type, &tx_seq_id_, rpc_response_fn_,
+                                    &header, /*error=*/nullptr);
+        break;
+      }
+
+      // A pre-execution failure (bad offset, statement failed to prepare)
+      // surfaces as an iterator carrying an error: nothing executed and
+      // |offset| is unchanged, so the header must not claim otherwise.
+      // Runtime errors (surfacing during serialization) did execute.
+      const bool statement_executed = it->Status().ok();
+      QueryResultSerializer serializer(std::move(*it), t_start);
+      StatementStreamHeader header{offset, statement_executed};
+      StreamSerializerResponses(&serializer, req_type, &tx_seq_id_,
+                                rpc_response_fn_, &header);
       break;
     }
     case RpcProto::TPM_COMPUTE_METRIC: {
