@@ -20,6 +20,7 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -42,7 +43,6 @@ base::StatusOr<QueryResult> ExtractQueryResult(Iterator* it, bool has_more) {
   QueryResult result;
 
   for (uint32_t c = 0; c < it->ColumnCount(); c++) {
-    fprintf(stderr, "column %u = %s\n", c, it->GetColumnName(c).c_str());
     result.column_names.push_back(it->GetColumnName(c));
   }
 
@@ -112,51 +112,83 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
                                       const std::string& sql_query,
                                       FILE* output) {
   PERFETTO_DLOG("Executing query: %s", sql_query.c_str());
-  auto query_start = std::chrono::steady_clock::now();
 
-  auto it = trace_processor->ExecuteQuery(sql_query);
-  RETURN_IF_ERROR(it.Status());
+  // Statements are executed one at a time and every statement's result set
+  // is printed as CSV, with consecutive result sets separated by a single
+  // blank line. Since our CSV writer quotes all strings, a blank line is
+  // unambiguously a boundary between result sets. Statements with no output
+  // print nothing, matching the sqlite3/duckdb shells.
+  std::chrono::nanoseconds exec_dur{0};
+  uint32_t offset = 0;
+  bool executed_any_statement = false;
+  bool printed_any_result = false;
+  for (;;) {
+    auto query_start = std::chrono::steady_clock::now();
+    std::optional<Iterator> it =
+        trace_processor->ExecuteNextStatement(sql_query, &offset);
+    if (!it.has_value()) {
+      break;
+    }
+    RETURN_IF_ERROR(it->Status());
+    executed_any_statement = true;
 
-  bool has_more = it.Next();
-  RETURN_IF_ERROR(it.Status());
+    bool has_more = it->Next();
+    RETURN_IF_ERROR(it->Status());
 
-  uint32_t prev_count = it.StatementCount() - 1;
-  uint32_t prev_with_output = has_more ? it.StatementWithOutputCount() - 1
-                                       : it.StatementWithOutputCount();
-  uint32_t prev_without_output_count = prev_count - prev_with_output;
-  if (prev_with_output > 0) {
-    return base::ErrStatus(
-        "Result rows were returned for multiples queries. Ensure that only the "
-        "final statement is a SELECT statement or use `suppress_query_output` "
-        "to prevent function invocations causing this "
-        "error (see "
-        "https://perfetto.dev/docs/contributing/"
-        "testing#trace-processor-diff-tests).");
+    // Statements without a result set (e.g. CREATE TABLE) print nothing.
+    if (it->ColumnCount() == 0) {
+      PERFETTO_DCHECK(!has_more);
+      exec_dur += std::chrono::steady_clock::now() - query_start;
+      continue;
+    }
+
+    // Statements with rows which nonetheless count as having no output are
+    // those whose output is explicitly ignored (a single column named
+    // `suppress_query_output`, void functions): step through them for their
+    // side effects but print nothing.
+    if (has_more && it->StatementWithOutputCount() == 0) {
+      for (; has_more; has_more = it->Next()) {
+      }
+      RETURN_IF_ERROR(it->Status());
+      exec_dur += std::chrono::steady_clock::now() - query_start;
+      continue;
+    }
+
+    // A zero-row result set still prints its header, with one exception: the
+    // `suppress_query_output` escape hatch must stay silent whether or not
+    // any row matched. (A zero-row void-function statement can't be detected
+    // here: its VOID marker lives on a row's value and there is no row.)
+    if (!has_more && it->ColumnCount() == 1 &&
+        it->GetColumnName(0) == "suppress_query_output") {
+      exec_dur += std::chrono::steady_clock::now() - query_start;
+      continue;
+    }
+
+    auto query_result = ExtractQueryResult(&*it, has_more);
+    RETURN_IF_ERROR(query_result.status());
+
+    // We want to include the query iteration time (as it's a part of
+    // executing SQL and can be non-trivial), and we want to exclude the time
+    // spent printing the result (which can be significant for large results),
+    // so we materialise the results first, then take the measurement, then
+    // print them.
+    exec_dur += std::chrono::steady_clock::now() - query_start;
+
+    if (printed_any_result) {
+      fprintf(output, "\n");
+    }
+    printed_any_result = true;
+    PrintQueryResultAsCsv(query_result.value(), output);
   }
-  for (uint32_t i = 0; i < prev_without_output_count; ++i) {
-    fprintf(output, "\n");
-  }
-  if (it.ColumnCount() == 0) {
-    PERFETTO_DCHECK(!has_more);
-    return base::OkStatus();
+  if (!executed_any_statement) {
+    return base::ErrStatus("No valid SQL to run");
   }
 
-  auto query_result = ExtractQueryResult(&it, has_more);
-  RETURN_IF_ERROR(query_result.status());
-
-  // We want to include the query iteration time (as it's a part of executing
-  // SQL and can be non-trivial), and we want to exclude the time spent printing
-  // the result (which can be significant for large results), so we materialise
-  // the results first, then take the measurement, then print them.
-  auto query_end = std::chrono::steady_clock::now();
-
-  PrintQueryResultAsCsv(query_result.value(), output);
-
-  auto dur = query_end - query_start;
   PERFETTO_ILOG(
       "Query execution time: %" PRIi64 " ms",
       static_cast<int64_t>(
-          std::chrono::duration_cast<std::chrono::milliseconds>(dur).count()));
+          std::chrono::duration_cast<std::chrono::milliseconds>(exec_dur)
+              .count()));
   return base::OkStatus();
 }
 

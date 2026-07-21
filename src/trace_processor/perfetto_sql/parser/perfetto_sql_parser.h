@@ -169,6 +169,11 @@ class PerfettoSqlParser {
     return *statement_sql_;
   }
 
+  // Returns the byte offset into the SQL passed to Reset() just past the end
+  // of the most recently parsed statement. This function *must not* be called
+  // unless |Next()| returned true.
+  uint32_t statement_end_offset() const;
+
   // Like |statement_sql()| but moves the SqlSource out, leaving the parser
   // with no current statement_sql. Callers must not call statement_sql()
   // after this until the next successful Next() call.

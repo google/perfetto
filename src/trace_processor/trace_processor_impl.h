@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -75,6 +76,9 @@ class TraceProcessorImpl : public TraceProcessor,
   // =================================================================
 
   Iterator ExecuteQuery(const std::string& sql) override;
+
+  std::optional<Iterator> ExecuteNextStatement(const std::string& sql,
+                                               uint32_t* offset) override;
 
   base::Status RegisterSqlPackage(SqlPackage) override;
 
