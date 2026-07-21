@@ -18,18 +18,26 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
-#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/inline_callstack.pbzero.h"
@@ -41,6 +49,32 @@ namespace perfetto::trace_processor::stack_sample_importer {
 namespace {
 
 using perfetto::protos::pbzero::TracePacket;
+
+// Counter tracks model counter instances (see CounterDescriptor.Scope).
+// SCOPE_SESSION counters have one instance per profiler session; SCOPE_CPU
+// counters have one instance per (session, cpu). Custom scope_dimensions
+// further split instances; their canonical serialization is a dimension and
+// the individual pairs are surfaced as track args.
+constexpr auto kStackSampleSessionCounterBlueprint = tracks::CounterBlueprint(
+    "stack_sample_session_counter",
+    tracks::DynamicUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::UintDimensionBlueprint("session_id"),
+        tracks::StringDimensionBlueprint("source"),
+        tracks::StringDimensionBlueprint("counter_name"),
+        tracks::StringDimensionBlueprint("scope_dimensions")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kStackSampleCpuCounterBlueprint = tracks::CounterBlueprint(
+    "stack_sample_cpu_counter",
+    tracks::DynamicUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::kCpuDimensionBlueprint,
+        tracks::UintDimensionBlueprint("session_id"),
+        tracks::StringDimensionBlueprint("source"),
+        tracks::StringDimensionBlueprint("counter_name"),
+        tracks::StringDimensionBlueprint("scope_dimensions")),
+    tracks::DynamicNameBlueprint());
 
 const char* StringifyStackSampleMode(protos::pbzero::StackSample::Mode mode) {
   using StackSample = protos::pbzero::StackSample;
@@ -88,117 +122,121 @@ const char* StringifyProfileUnit(protos::pbzero::StackSample::Unit unit) {
   return "";
 }
 
-uint64_t OptStringKey(std::optional<StringId> id) {
-  return id ? (uint64_t{1} << 32) | id->raw_id() : 0;
-}
-
-uint64_t OptUintKey(std::optional<uint32_t> v) {
-  return v ? (uint64_t{1} << 32) | *v : 0;
-}
-
-ResolvedCounterDescriptor ResolveCounterDescriptor(
-    TraceProcessorContext* context,
-    const protos::pbzero::StackSample::CounterDescriptor::Decoder& desc) {
-  using StackSample = protos::pbzero::StackSample;
-  ResolvedCounterDescriptor out;
-  out.name = context->storage->InternString(desc.name());
-  if (desc.has_unit() && desc.unit() != StackSample::Unit::UNIT_UNSPECIFIED) {
-    out.unit = context->storage->InternString(
-        StringifyProfileUnit(static_cast<StackSample::Unit>(desc.unit())));
-  } else if (desc.unit_str().size > 0) {
-    out.unit = context->storage->InternString(desc.unit_str());
-  }
-  if (desc.has_unit_multiplier()) {
-    out.unit_multiplier = static_cast<int64_t>(desc.unit_multiplier());
-  }
-  if (desc.description().size > 0) {
-    out.description = context->storage->InternString(desc.description());
-  }
-  return out;
-}
-
 }  // namespace
 
-StackSampleModule::StackSampleModule(
-    ProtoImporterModuleContext* module_context,
-    TraceProcessorContext* context,
-    tables::StackSampleTable* table,
-    tables::StackSampleTaskContextTable* task_context_table,
-    tables::StackSampleExecutionContextTable* exec_context_table,
-    tables::StackSampleCounterTable* counter_table,
-    tables::StackSampleFollowerTable* follower_table)
-    : ProtoImporterModule(module_context),
-      context_(context),
-      table_(table),
-      task_context_table_(task_context_table),
-      exec_context_table_(exec_context_table),
-      counter_table_(counter_table),
-      follower_table_(follower_table) {
+StackSampleModule::StackSampleModule(ProtoImporterModuleContext* module_context,
+                                     TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
   RegisterForField(TracePacket::kStackSampleFieldNumber);
 }
 
 void StackSampleModule::ParseField(const ParseFieldArgs& args) {
   if (args.field.id() == TracePacket::kStackSampleFieldNumber) {
-    ParseStackSample(args.ts, args.data.sequence_state.get(),
+    ParseStackSample(args.ts, args.decoder.trusted_packet_sequence_id(),
+                     args.data.sequence_state.get(),
                      args.field.Cast<TracePacket::kStackSample>());
   }
 }
 
-tables::StackSampleTaskContextTable::Id StackSampleModule::InternTaskContext(
-    std::optional<uint32_t> utid,
-    std::optional<uint32_t> upid,
-    std::optional<StringId> async_name,
-    std::optional<StringId> async_kind) {
-  uint64_t key = base::FnvHasher::Combine(OptUintKey(utid), OptUintKey(upid),
-                                          OptStringKey(async_name),
-                                          OptStringKey(async_kind));
-  if (auto* id = task_contexts_.Find(key)) {
+tables::ProfilerSessionTable::Id StackSampleModule::GetOrCreateSession(
+    uint32_t seq_id,
+    StringId source) {
+  if (auto* id = sessions_.Find(seq_id)) {
     return *id;
   }
-  tables::StackSampleTaskContextTable::Row row;
-  row.utid = utid;
-  row.upid = upid;
-  row.async_name = async_name;
-  row.async_kind = async_kind;
-  auto id = task_context_table_->Insert(row).id;
-  task_contexts_.Insert(key, id);
-  return id;
-}
-
-tables::StackSampleExecutionContextTable::Id
-StackSampleModule::InternExecutionContext(std::optional<uint32_t> cpu,
-                                          StringId mode) {
-  uint64_t key = base::FnvHasher::Combine(OptUintKey(cpu), mode.raw_id());
-  if (auto* id = exec_contexts_.Find(key)) {
-    return *id;
-  }
-  tables::StackSampleExecutionContextTable::Row row;
-  row.cpu = cpu;
-  row.mode = mode;
-  auto id = exec_context_table_->Insert(row).id;
-  exec_contexts_.Insert(key, id);
-  return id;
-}
-
-tables::StackSampleCounterTable::Id StackSampleModule::InternCounter(
-    StringId source,
-    const ResolvedCounterDescriptor& desc) {
-  uint64_t key = base::FnvHasher::Combine(
-      source.raw_id(), desc.name.raw_id(), OptStringKey(desc.unit),
-      desc.unit_multiplier ? static_cast<uint64_t>(*desc.unit_multiplier) : 0,
-      OptStringKey(desc.description));
-  if (auto* id = counters_.Find(key)) {
-    return *id;
-  }
-  tables::StackSampleCounterTable::Row row;
+  tables::ProfilerSessionTable::Row row;
   row.source = source;
-  row.name = desc.name;
-  row.unit = desc.unit;
-  row.unit_multiplier = desc.unit_multiplier;
-  row.description = desc.description;
-  auto id = counter_table_->Insert(row).id;
-  counters_.Insert(key, id);
+  auto id = context_->storage->mutable_profiler_session_table()->Insert(row).id;
+  sessions_.Insert(seq_id, id);
   return id;
+}
+
+std::optional<TrackId> StackSampleModule::InternCounterTrack(
+    tables::ProfilerSessionTable::Id session_id,
+    StringId source,
+    const protos::pbzero::StackSample::CounterDescriptor::Decoder& desc,
+    bool is_timebase,
+    std::optional<uint32_t> cpu) {
+  using StackSample = protos::pbzero::StackSample;
+  using CounterDescriptor = StackSample::CounterDescriptor;
+  TraceStorage* storage = context_->storage.get();
+
+  StringId name_id = storage->InternString(desc.name());
+  StringId unit_id = kNullStringId;
+  if (desc.has_unit() && desc.unit() != StackSample::Unit::UNIT_UNSPECIFIED) {
+    unit_id = storage->InternString(
+        StringifyProfileUnit(static_cast<StackSample::Unit>(desc.unit())));
+  } else if (desc.unit_str().size > 0) {
+    unit_id = storage->InternString(desc.unit_str());
+  }
+
+  // The timebase unit says what quantity the profiler sampled on; record it
+  // on the session.
+  if (is_timebase && unit_id != kNullStringId) {
+    auto session_row =
+        (*storage->mutable_profiler_session_table())[session_id];
+    if (!session_row.timebase_unit().has_value()) {
+      session_row.set_timebase_unit(unit_id);
+    }
+  }
+
+  // Canonical serialization of the custom scope dimensions; part of the
+  // track identity.
+  std::string scope_dimensions;
+  for (auto it = desc.scope_dimensions(); it; ++it) {
+    CounterDescriptor::ScopeDimension::Decoder dim(*it);
+    if (!scope_dimensions.empty()) {
+      scope_dimensions += ",";
+    }
+    scope_dimensions += dim.key().ToStdString();
+    scope_dimensions += "=";
+    scope_dimensions += dim.value().ToStdString();
+  }
+
+  auto args_fn = [&, this](ArgsTracker::BoundInserter& inserter) {
+    inserter.AddArg(context_->storage->InternString("is_timebase"),
+                    Variadic::Boolean(is_timebase));
+    if (desc.has_unit_multiplier()) {
+      inserter.AddArg(
+          context_->storage->InternString("unit_multiplier"),
+          Variadic::Integer(static_cast<int64_t>(desc.unit_multiplier())));
+    }
+    if (desc.description().size > 0) {
+      inserter.AddArg(context_->storage->InternString("description"),
+                      Variadic::String(
+                          context_->storage->InternString(desc.description())));
+    }
+    for (auto it = desc.scope_dimensions(); it; ++it) {
+      CounterDescriptor::ScopeDimension::Decoder dim(*it);
+      std::string key = "scope." + dim.key().ToStdString();
+      inserter.AddArg(
+          context_->storage->InternString(base::StringView(key)),
+          Variadic::String(context_->storage->InternString(dim.value())));
+    }
+  };
+
+  auto scope = desc.has_scope()
+                   ? static_cast<CounterDescriptor::Scope>(desc.scope())
+                   : CounterDescriptor::Scope::SCOPE_SESSION;
+  if (scope == CounterDescriptor::Scope::SCOPE_CPU) {
+    // Weights of a per-cpu counter instance cannot be attributed without
+    // knowing which cpu the sample was taken on.
+    if (!cpu) {
+      return std::nullopt;
+    }
+    return context_->track_tracker->InternTrack(
+        kStackSampleCpuCounterBlueprint,
+        tracks::Dimensions(*cpu, session_id.value, storage->GetString(source),
+                           storage->GetString(name_id),
+                           base::StringView(scope_dimensions)),
+        tracks::DynamicName(name_id), args_fn, tracks::DynamicUnit(unit_id));
+  }
+  return context_->track_tracker->InternTrack(
+      kStackSampleSessionCounterBlueprint,
+      tracks::Dimensions(session_id.value, storage->GetString(source),
+                         storage->GetString(name_id),
+                         base::StringView(scope_dimensions)),
+      tracks::DynamicName(name_id), args_fn, tracks::DynamicUnit(unit_id));
 }
 
 // Resolves a callstack that is either interned (callstack_iid) or fully
@@ -242,70 +280,108 @@ std::optional<CallsiteId> StackSampleModule::ResolveCallstack(
   return callsite_id;
 }
 
-void StackSampleModule::ParseFollowers(
-    tables::StackSampleTable::Id sample_id,
+std::vector<CounterId> StackSampleModule::ParseCounterValues(
+    int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
+    tables::ProfilerSessionTable::Id session_id,
     StringId source,
+    std::optional<uint32_t> cpu,
     const protos::pbzero::StackSample::Decoder& sample,
     const std::optional<protos::pbzero::StackSampleDefaults::Decoder>&
         defaults) {
   using protos::pbzero::InternedData;
   using CounterDescriptor = protos::pbzero::StackSample::CounterDescriptor;
 
-  std::vector<tables::StackSampleCounterTable::Id> counters;
+  std::vector<CounterId> counter_ids;
+
+  auto intern_track = [&](const CounterDescriptor::Decoder& desc,
+                          bool is_timebase) {
+    return InternCounterTrack(session_id, source, desc, is_timebase, cpu);
+  };
+
+  // Primary (timebase) descriptor: inline, interned, or from defaults.
+  std::optional<TrackId> timebase_track_id;
+  if (sample.has_primary_descriptor()) {
+    CounterDescriptor::Decoder desc(sample.primary_descriptor());
+    timebase_track_id = intern_track(desc, /*is_timebase=*/true);
+  } else if (sample.has_primary_descriptor_iid()) {
+    if (auto* desc = sequence_state->LookupInternedMessage<
+                     InternedData::kStackSampleCounterDescriptorsFieldNumber,
+                     CounterDescriptor>(sample.primary_descriptor_iid())) {
+      timebase_track_id = intern_track(*desc, /*is_timebase=*/true);
+    }
+  } else if (defaults && defaults->has_primary_descriptor()) {
+    CounterDescriptor::Decoder desc(defaults->primary_descriptor());
+    timebase_track_id = intern_track(desc, /*is_timebase=*/true);
+  }
+  if (timebase_track_id && sample.has_primary_weight()) {
+    auto counter_id = context_->event_tracker->PushCounter(
+        ts, static_cast<double>(sample.primary_weight()), *timebase_track_id);
+    if (counter_id) {
+      counter_ids.push_back(*counter_id);
+    }
+  }
+
+  // Follower descriptors: inline, interned, or from defaults. Followers whose
+  // counter instance cannot be identified (SCOPE_CPU without a cpu) keep a
+  // nullopt slot so the positional weight pairing stays intact.
+  std::vector<std::optional<TrackId>> follower_track_ids;
   for (auto it = sample.follower_descriptors(); it; ++it) {
     CounterDescriptor::Decoder desc(*it);
-    counters.push_back(
-        InternCounter(source, ResolveCounterDescriptor(context_, desc)));
+    follower_track_ids.push_back(intern_track(desc, /*is_timebase=*/false));
   }
   bool parse_error = false;
-  if (counters.empty()) {
+  if (follower_track_ids.empty()) {
     for (auto it = sample.follower_descriptor_iids(&parse_error); it; ++it) {
       auto* desc = sequence_state->LookupInternedMessage<
           InternedData::kStackSampleCounterDescriptorsFieldNumber,
           CounterDescriptor>(*it);
       if (!desc) {
+        follower_track_ids.push_back(std::nullopt);
         continue;
       }
-      counters.push_back(
-          InternCounter(source, ResolveCounterDescriptor(context_, *desc)));
+      follower_track_ids.push_back(intern_track(*desc, /*is_timebase=*/false));
     }
   }
-  if (counters.empty() && defaults) {
+  if (follower_track_ids.empty() && defaults) {
     for (auto it = defaults->follower_descriptors(); it; ++it) {
       CounterDescriptor::Decoder desc(*it);
-      counters.push_back(
-          InternCounter(source, ResolveCounterDescriptor(context_, desc)));
+      follower_track_ids.push_back(intern_track(desc, /*is_timebase=*/false));
     }
   }
 
   size_t i = 0;
   for (auto it = sample.follower_weights(&parse_error); it; ++it, ++i) {
-    if (i >= counters.size()) {
+    if (i >= follower_track_ids.size()) {
       break;
     }
-    tables::StackSampleFollowerTable::Row row;
-    row.stack_sample_id = sample_id;
-    row.counter_id = counters[i];
-    row.weight = static_cast<int64_t>(*it);
-    follower_table_->Insert(row);
+    if (!follower_track_ids[i]) {
+      continue;
+    }
+    auto counter_id = context_->event_tracker->PushCounter(
+        ts, static_cast<double>(*it), *follower_track_ids[i]);
+    if (counter_id) {
+      counter_ids.push_back(*counter_id);
+    }
   }
+  return counter_ids;
 }
 
 void StackSampleModule::ParseStackSample(
     int64_t ts,
+    uint32_t seq_id,
     PacketSequenceStateGeneration* sequence_state,
     protozero::ConstBytes blob) {
   using protos::pbzero::InternedData;
   using protos::pbzero::StackSample;
   using protos::pbzero::StackSampleDefaults;
   using AsyncContextDescriptor = StackSample::AsyncContextDescriptor;
-  using CounterDescriptor = StackSample::CounterDescriptor;
   using ExecutionContext = StackSample::ExecutionContext;
   using Mode = StackSample::Mode;
   using TaskContext = StackSample::TaskContext;
 
   StackSample::Decoder sample(blob.data, blob.size);
+  TraceStorage* storage = context_->storage.get();
 
   // Defaults carry the source and the fallback primary descriptor.
   std::optional<StackSampleDefaults::Decoder> defaults;
@@ -315,16 +391,14 @@ void StackSampleModule::ParseStackSample(
   }
   StringId source_id = kNullStringId;
   if (defaults && defaults->source().size > 0) {
-    source_id = context_->storage->InternString(defaults->source());
+    source_id = storage->InternString(defaults->source());
   }
 
   // Task context: attributes the sample to a thread / process / async context.
   std::optional<uint32_t> pid;
   std::optional<uint32_t> tid;
   std::optional<uint64_t> async_id;
-  bool has_task = false;
   auto extract_task = [&](const TaskContext::Decoder& t) {
-    has_task = true;
     if (t.has_pid()) {
       pid = t.pid();
     }
@@ -358,7 +432,7 @@ void StackSampleModule::ParseStackSample(
         pid ? procs->UpdateThread(*tid, *pid) : procs->GetOrCreateThread(*tid);
   }
   // async_id references an interned AsyncContextDescriptor; fold its name and
-  // kind onto the task context.
+  // kind onto the sample.
   std::optional<StringId> async_name;
   std::optional<StringId> async_kind;
   if (async_id) {
@@ -367,24 +441,18 @@ void StackSampleModule::ParseStackSample(
                 InternedData::kStackSampleAsyncContextDescriptorsFieldNumber,
                 AsyncContextDescriptor>(*async_id)) {
       if (desc->name().size > 0) {
-        async_name = context_->storage->InternString(desc->name());
+        async_name = storage->InternString(desc->name());
       }
       if (desc->kind().size > 0) {
-        async_kind = context_->storage->InternString(desc->kind());
+        async_kind = storage->InternString(desc->kind());
       }
     }
-  }
-  std::optional<tables::StackSampleTaskContextTable::Id> task_context_id;
-  if (has_task && (utid || upid || async_name || async_kind)) {
-    task_context_id = InternTaskContext(utid, upid, async_name, async_kind);
   }
 
   // Execution context: cpu + privilege mode at sample time.
   std::optional<uint32_t> cpu;
   Mode mode = StackSample::Mode::MODE_UNKNOWN;
-  bool has_exec = false;
   auto extract_exec = [&](const ExecutionContext::Decoder& e) {
-    has_exec = true;
     if (e.has_cpu()) {
       cpu = e.cpu();
     }
@@ -402,50 +470,27 @@ void StackSampleModule::ParseStackSample(
       extract_exec(*e);
     }
   }
-  std::optional<tables::StackSampleExecutionContextTable::Id>
-      execution_context_id;
-  if (has_exec) {
-    StringId mode_id =
-        context_->storage->InternString(StringifyStackSampleMode(mode));
-    execution_context_id = InternExecutionContext(cpu, mode_id);
-  }
 
-  // Primary (timebase) descriptor: inline, interned, or from defaults.
-  ResolvedCounterDescriptor primary;
-  if (sample.has_primary_descriptor()) {
-    CounterDescriptor::Decoder d(sample.primary_descriptor());
-    primary = ResolveCounterDescriptor(context_, d);
-  } else if (sample.has_primary_descriptor_iid()) {
-    if (auto* d = sequence_state->LookupInternedMessage<
-                  InternedData::kStackSampleCounterDescriptorsFieldNumber,
-                  CounterDescriptor>(sample.primary_descriptor_iid())) {
-      primary = ResolveCounterDescriptor(context_, *d);
-    }
-  } else if (defaults && defaults->has_primary_descriptor()) {
-    CounterDescriptor::Decoder d(defaults->primary_descriptor());
-    primary = ResolveCounterDescriptor(context_, d);
-  }
-  tables::StackSampleCounterTable::Id timebase_id =
-      InternCounter(source_id, primary);
+  tables::ProfilerSessionTable::Id session_id =
+      GetOrCreateSession(seq_id, source_id);
+  std::vector<CounterId> counter_ids = ParseCounterValues(
+      ts, sequence_state, session_id, source_id, cpu, sample, defaults);
 
-  std::optional<CallsiteId> cs_id =
-      ResolveCallstack(sequence_state, upid, sample);
-
-  std::optional<int64_t> weight;
-  if (sample.has_primary_weight()) {
-    weight = static_cast<int64_t>(sample.primary_weight());
-  }
-
-  tables::StackSampleTable::Row row;
+  tables::ProfilerSampleTable::Row row;
   row.ts = ts;
-  row.task_context_id = task_context_id;
-  row.execution_context_id = execution_context_id;
-  row.timebase_id = timebase_id;
-  row.callsite_id = cs_id;
-  row.weight = weight;
-  tables::StackSampleTable::Id sample_id = table_->Insert(row).id;
-
-  ParseFollowers(sample_id, sequence_state, source_id, sample, defaults);
+  row.source = source_id;
+  row.session_id = session_id;
+  row.utid = utid;
+  row.upid = upid;
+  row.async_name = async_name;
+  row.async_kind = async_kind;
+  if (cpu) {
+    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*cpu).value;
+  }
+  row.cpu_mode = storage->InternString(StringifyStackSampleMode(mode));
+  row.callsite_id = ResolveCallstack(sequence_state, upid, sample);
+  row.counter_set_id = context_->profiler_sample_tracker->AddCounterSet(counter_ids);
+  context_->profiler_sample_tracker->AddSample(row);
 }
 
 }  // namespace perfetto::trace_processor::stack_sample_importer

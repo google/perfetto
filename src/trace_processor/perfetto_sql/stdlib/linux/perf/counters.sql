@@ -69,8 +69,10 @@ SELECT
   pcs.counter_id,
   c.track_id,
   c.value AS counter_value
-FROM __intrinsic_perf_sample AS ps
-JOIN __intrinsic_perf_counter_set AS pcs
-  ON ps.counter_set_id = pcs.perf_counter_set_id
+FROM perf_sample AS ps
+JOIN __intrinsic_profiler_sample AS psi
+  ON psi.id = ps.id
+JOIN __intrinsic_profiler_counter_set AS pcs
+  ON psi.counter_set_id = pcs.counter_set_id
 JOIN counter AS c
   ON c.id = pcs.counter_id;

@@ -593,25 +593,11 @@ class TraceStorage {
     return mutable_table<tables::CpuProfileStackSampleTable>();
   }
 
-  const tables::PerfSessionTable& perf_session_table() const {
-    return table<tables::PerfSessionTable>();
+  const tables::ProfilerSessionTable& profiler_session_table() const {
+    return table<tables::ProfilerSessionTable>();
   }
-  tables::PerfSessionTable* mutable_perf_session_table() {
-    return mutable_table<tables::PerfSessionTable>();
-  }
-
-  const tables::PerfSampleTable& perf_sample_table() const {
-    return table<tables::PerfSampleTable>();
-  }
-  tables::PerfSampleTable* mutable_perf_sample_table() {
-    return mutable_table<tables::PerfSampleTable>();
-  }
-
-  const tables::PerfCounterSetTable& perf_counter_set_table() const {
-    return table<tables::PerfCounterSetTable>();
-  }
-  tables::PerfCounterSetTable* mutable_perf_counter_set_table() {
-    return mutable_table<tables::PerfCounterSetTable>();
+  tables::ProfilerSessionTable* mutable_profiler_session_table() {
+    return mutable_table<tables::ProfilerSessionTable>();
   }
 
   const tables::InstrumentsSampleTable& instruments_sample_table() const {
@@ -619,6 +605,20 @@ class TraceStorage {
   }
   tables::InstrumentsSampleTable* mutable_instruments_sample_table() {
     return mutable_table<tables::InstrumentsSampleTable>();
+  }
+
+  const tables::ProfilerSampleTable& profiler_sample_table() const {
+    return table<tables::ProfilerSampleTable>();
+  }
+  tables::ProfilerSampleTable* mutable_profiler_sample_table() {
+    return mutable_table<tables::ProfilerSampleTable>();
+  }
+
+  const tables::ProfilerCounterSetTable& profiler_counter_set_table() const {
+    return table<tables::ProfilerCounterSetTable>();
+  }
+  tables::ProfilerCounterSetTable* mutable_profiler_counter_set_table() {
+    return mutable_table<tables::ProfilerCounterSetTable>();
   }
 
   const tables::SymbolTable& symbol_table() const {

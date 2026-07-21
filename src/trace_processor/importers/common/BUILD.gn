@@ -58,6 +58,8 @@ source_set("common") {
     "process_track_translation_table.h",
     "process_tracker.cc",
     "process_tracker.h",
+    "profiler_sample_tracker.cc",
+    "profiler_sample_tracker.h",
     "registered_file_tracker.cc",
     "registered_file_tracker.h",
     "sched_event_state.h",

@@ -49,6 +49,38 @@ bool OffsetsMatch(const PerfEventAttr& attr, const PerfEventAttr& other) {
          (!attr.sample_id_all() ||
           attr.id_offset_from_end() == other.id_offset_from_end());
 }
+
+// Unit of the quantity the event counts. Returns nullptr if the unit cannot
+// be determined (e.g. raw PMU events).
+const char* TimebaseUnit(const perf_event_attr& attr) {
+  switch (attr.type) {
+    case PERF_TYPE_SOFTWARE:
+      switch (attr.config) {
+        case PERF_COUNT_SW_CPU_CLOCK:
+        case PERF_COUNT_SW_TASK_CLOCK:
+          return "ns";
+        default:
+          return "count";
+      }
+    case PERF_TYPE_HARDWARE:
+      switch (attr.config) {
+        case PERF_COUNT_HW_CPU_CYCLES:
+        case PERF_COUNT_HW_BUS_CYCLES:
+        case PERF_COUNT_HW_REF_CPU_CYCLES:
+          return "cycles";
+        case PERF_COUNT_HW_INSTRUCTIONS:
+          return "instructions";
+        default:
+          return "count";
+      }
+    case PERF_TYPE_TRACEPOINT:
+    case PERF_TYPE_HW_CACHE:
+    case PERF_TYPE_BREAKPOINT:
+      return "count";
+    default:
+      return nullptr;
+  }
+}
 }  // namespace
 
 base::StatusOr<RefPtr<PerfInvocation>> PerfInvocation::Builder::Build() {
@@ -64,8 +96,14 @@ base::StatusOr<RefPtr<PerfInvocation>> PerfInvocation::Builder::Build() {
     // recording was using leader sampling (this would require proper handling
     // of HEADER_GROUP_DESC). But this is fine since the samples will still be
     // attributed to the first counter in the group.
-    auto perf_session_id =
-        context_->storage->mutable_perf_session_table()->Insert({}).id;
+    tables::ProfilerSessionTable::Row session_row;
+    session_row.source = context_->storage->InternString("linux.perf");
+    if (const char* unit = TimebaseUnit(entry.attr); unit) {
+      session_row.timebase_unit = context_->storage->InternString(unit);
+    }
+    auto perf_session_id = context_->storage->mutable_profiler_session_table()
+                               ->Insert(session_row)
+                               .id;
     RefPtr<PerfEventAttr> attr(
         new PerfEventAttr(context_, perf_session_id, entry.attr));
     if (!first_attr) {
@@ -194,7 +232,7 @@ std::optional<BuildId> PerfInvocation::LookupBuildId(
 void PerfInvocation::SetCmdline(const std::vector<std::string>& args) {
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
     auto session_id = it.value()->perf_session_id();
-    (*context_->storage->mutable_perf_session_table())[session_id].set_cmdline(
+    (*context_->storage->mutable_profiler_session_table())[session_id].set_cmdline(
         context_->storage->InternString(
             base::StringView(base::Join(args, " "))));
   }

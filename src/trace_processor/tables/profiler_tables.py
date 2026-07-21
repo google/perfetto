@@ -482,11 +482,18 @@ CPU_PROFILE_STACK_SAMPLE_TABLE = Table(
             'process_priority': ''''''
         }))
 
-PERF_SESSION_TABLE = Table(
+PROFILER_SESSION_TABLE = Table(
     python_module=__file__,
-    class_name='PerfSessionTable',
-    sql_name='__intrinsic_perf_session',
+    class_name='ProfilerSessionTable',
+    sql_name='__intrinsic_profiler_session',
     columns=[
+        C('source', CppString()),
+        C(
+            'timebase_unit',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C(
             'cmdline',
             CppOptional(CppString()),
@@ -494,21 +501,30 @@ PERF_SESSION_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
-    wrapping_sql_view=WrappingSqlView('perf_session'),
+    wrapping_sql_view=WrappingSqlView('profiler_session'),
     tabledoc=TableDoc(
-        doc='''Perf sessions.''',
+        doc='''Profiler sessions: one row per data source instance of a
+               sampling profiler (a perf session, a StackSample stream, ...).
+            ''',
         group='Callstack profilers',
         columns={
+            'source':
+                '''The profiler that produced this session's samples (e.g.
+                   "linux.perf"). Matches profiler_sample.source.''',
+            'timebase_unit':
+                '''Unit of the quantity the profiler sampled on: the session's
+                   primary (timebase) counter (e.g. "ns", "cycles",
+                   "instructions", "count"). NULL if unknown.''',
             'cmdline': '''Command line used to collect the data.''',
         }))
 
-PERF_COUNTER_SET_TABLE = Table(
+PROFILER_COUNTER_SET_TABLE = Table(
     python_module=__file__,
-    class_name='PerfCounterSetTable',
-    sql_name='__intrinsic_perf_counter_set',
+    class_name='ProfilerCounterSetTable',
+    sql_name='__intrinsic_profiler_counter_set',
     columns=[
         C(
-            'perf_counter_set_id',
+            'counter_set_id',
             CppUint32(),
             flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
             sql_access=SqlAccess.HIGH_PERF,
@@ -524,23 +540,22 @@ PERF_COUNTER_SET_TABLE = Table(
         ),
     ],
     tabledoc=TableDoc(
-        doc='''Associates perf counter values with perf samples via set IDs.
-               Each set contains one or more counter values recorded at the
-               same sample point.''',
+        doc='''Associates counter values with profiler samples via set IDs.
+               Each set contains the counter values (timebase and followers)
+               recorded at a single sample point.''',
         group='Callstack profilers',
         columns={
-            'perf_counter_set_id':
+            'counter_set_id':
                 '''Set ID that groups counter values for a single sample.
                    Multiple rows share the same ID to form a set.''',
             'counter_id':
                 '''Reference to the counter value in the counter table.''',
         }))
 
-PERF_SAMPLE_TABLE = Table(
+PROFILER_SAMPLE_TABLE = Table(
     python_module=__file__,
-    class_name='PerfSampleTable',
-    wrapping_sql_view=WrappingSqlView('perf_sample'),
-    sql_name='__intrinsic_perf_sample',
+    class_name='ProfilerSampleTable',
+    sql_name='__intrinsic_profiler_sample',
     columns=[
         C(
             'ts',
@@ -549,13 +564,17 @@ PERF_SAMPLE_TABLE = Table(
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C('source', CppString()),
         C(
             'utid',
-            CppUint32(),
+            CppOptional(CppUint32()),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('cpu', CppOptional(CppUint32())),
+        C('upid', CppOptional(CppUint32())),
+        C('async_name', CppOptional(CppString())),
+        C('async_kind', CppOptional(CppString())),
+        C('ucpu', CppOptional(CppUint32())),
         C('cpu_mode', CppString()),
         C(
             'callsite_id',
@@ -564,7 +583,7 @@ PERF_SAMPLE_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('unwind_error', CppOptional(CppString())),
-        C('perf_session_id', CppTableId(PERF_SESSION_TABLE)),
+        C('session_id', CppOptional(CppTableId(PROFILER_SESSION_TABLE))),
         C(
             'counter_set_id',
             CppOptional(CppUint32()),
@@ -574,31 +593,50 @@ PERF_SAMPLE_TABLE = Table(
         ),
     ],
     tabledoc=TableDoc(
-        doc='''Samples from the traced_perf profiler.''',
+        doc='''The generic sampler table: one row per sample from any
+               profiler source (linux perf, chrome, macOS instruments, the
+               StackSample packet, ...). A sample usually carries a callstack;
+               samples without one (counter-only samples, or samples whose
+               stack could not be unwound) have a null callsite_id. Counter
+               values recorded at the sample point are linked via
+               counter_set_id. Public per-source views (perf_sample, ...) and
+               the stack_sample view are defined over this table.''',
         group='Callstack profilers',
         columns={
             'ts':
                 '''Timestamp of the sample.''',
+            'source':
+                '''The profiler that produced the sample (e.g. "linux.perf",
+                   "chrome", "instruments").''',
             'utid':
-                '''Sampled thread.''',
-            'cpu':
-                '''Core the sampled thread was running on.''',
+                '''The sampled thread, if known.''',
+            'upid':
+                '''The sampled process, if known.''',
+            'async_name':
+                '''Name of the stackful async context (goroutine, fiber,
+                   ...), if the sample is attributed to one.''',
+            'async_kind':
+                '''Kind of the async context, e.g. "goroutine".''',
+            'ucpu':
+                '''Unique core the sample was taken on, if known. Joinable
+                   with cpu.id.''',
             'cpu_mode':
-                '''Execution state (userspace/kernelspace) of the sampled
-                thread.''',
+                '''Privilege mode the sample was taken in (e.g. "user",
+                   "kernel"). Empty if unknown.''',
             'callsite_id':
-                '''If set, unwound callstack of the sampled thread.''',
+                '''If set, the captured callstack.''',
             'unwind_error':
                 '''If set, indicates that the unwinding for this sample
-                encountered an error. Such samples still reference the
-                best-effort result via the callsite_id, with a synthetic error
-                frame at the point where unwinding stopped.''',
-            'perf_session_id':
-                '''Distinguishes samples from different profiling
-                streams (i.e. multiple data sources).''',
+                   encountered an error. Such samples can still reference a
+                   best-effort callstack via callsite_id, with a synthetic
+                   error frame at the point where unwinding stopped.''',
+            'session_id':
+                '''The profiler session (data source instance) this sample
+                   came from. Distinguishes samples from concurrent sampling
+                   streams.''',
             'counter_set_id':
-                '''References the set of counter values associated with this
-                   sample in __intrinsic_perf_counter_set.'''
+                '''References the set of counter values recorded at this
+                   sample point in __intrinsic_profiler_counter_set.''',
         }))
 
 HEAP_GRAPH_TABLE = Table(
@@ -1600,9 +1638,9 @@ ALL_TABLES = [
     HEAP_PROFILE_ALLOCATION_TABLE,
     INSTRUMENTS_SAMPLE_TABLE,
     PACKAGE_LIST_TABLE,
-    PERF_COUNTER_SET_TABLE,
-    PERF_SAMPLE_TABLE,
-    PERF_SESSION_TABLE,
+    PROFILER_COUNTER_SET_TABLE,
+    PROFILER_SAMPLE_TABLE,
+    PROFILER_SESSION_TABLE,
     PROFILER_SMAPS_TABLE,
     STACK_PROFILE_CALLSITE_TABLE,
     STACK_PROFILE_FRAME_TABLE,

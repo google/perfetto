@@ -41,9 +41,9 @@ namespace perfetto::trace_processor {
 class PerfCounterExtractor {
  public:
   explicit PerfCounterExtractor(
-      const tables::PerfCounterSetTable& perf_counter_set_table)
+      const tables::ProfilerCounterSetTable& perf_counter_set_table)
       : cursor_(perf_counter_set_table.CreateCursor({dataframe::FilterSpec{
-            tables::PerfCounterSetTable::ColumnIndex::perf_counter_set_id, 0,
+            tables::ProfilerCounterSetTable::ColumnIndex::counter_set_id, 0,
             dataframe::Eq{}, std::nullopt}})) {}
 
   // Sets up the cursor for the given counter_set_id and executes the query.
@@ -56,19 +56,19 @@ class PerfCounterExtractor {
   void Next() { cursor_.Next(); }
 
   // Access to the underlying cursor for retrieving values.
-  const tables::PerfCounterSetTable::ConstCursor& cursor() const {
+  const tables::ProfilerCounterSetTable::ConstCursor& cursor() const {
     return cursor_;
   }
 
  private:
-  tables::PerfCounterSetTable::ConstCursor cursor_;
+  tables::ProfilerCounterSetTable::ConstCursor cursor_;
 };
 
 // Context constructor - defined here where PerfCounterExtractor is complete.
 PerfCounterForSampleFunction::Context::Context(TraceStorage* s)
     : storage(s),
       extractor(
-          std::make_unique<PerfCounterExtractor>(s->perf_counter_set_table())) {
+          std::make_unique<PerfCounterExtractor>(s->profiler_counter_set_table())) {
 }
 
 // Context destructor - must be defined here where PerfCounterExtractor is
@@ -107,13 +107,13 @@ void PerfCounterForSampleFunction::Step(sqlite3_context* ctx,
   auto* storage = user_data->storage;
 
   // Look up the sample to get counter_set_id.
-  const auto& perf_sample_table = storage->perf_sample_table();
-  if (sample_id >= perf_sample_table.row_count()) {
+  const auto& profiler_sample_table = storage->profiler_sample_table();
+  if (sample_id >= profiler_sample_table.row_count()) {
     return sqlite::result::Error(
         ctx, "__intrinsic_perf_counter_for_sample: invalid sample id");
   }
 
-  auto counter_set_id = perf_sample_table[sample_id].counter_set_id();
+  auto counter_set_id = profiler_sample_table[sample_id].counter_set_id();
   if (!counter_set_id.has_value()) {
     // No counter set for this sample.
     return;

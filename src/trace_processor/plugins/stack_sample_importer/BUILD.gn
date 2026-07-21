@@ -17,11 +17,6 @@ import("../../../../gn/perfetto_tp_tables.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-perfetto_tp_tables("tables") {
-  sources = [ "tables.py" ]
-  deps = [ "../../tables:tables_python" ]
-}
-
 source_set("stack_sample_importer") {
   sources = [
     "module.cc",
@@ -30,7 +25,6 @@ source_set("stack_sample_importer") {
     "plugin.h",
   ]
   deps = [
-    ":tables",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../../protos/perfetto/trace:zero",

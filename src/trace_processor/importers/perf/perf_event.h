@@ -18,6 +18,49 @@ enum perf_type_id {
 };
 
 /*
+ * Generalized performance event event_id types, used by the
+ * attr.event_id parameter of the sys_perf_event_open()
+ * syscall:
+ */
+enum perf_hw_id {
+  PERF_COUNT_HW_CPU_CYCLES = 0,
+  PERF_COUNT_HW_INSTRUCTIONS = 1,
+  PERF_COUNT_HW_CACHE_REFERENCES = 2,
+  PERF_COUNT_HW_CACHE_MISSES = 3,
+  PERF_COUNT_HW_BRANCH_INSTRUCTIONS = 4,
+  PERF_COUNT_HW_BRANCH_MISSES = 5,
+  PERF_COUNT_HW_BUS_CYCLES = 6,
+  PERF_COUNT_HW_STALLED_CYCLES_FRONTEND = 7,
+  PERF_COUNT_HW_STALLED_CYCLES_BACKEND = 8,
+  PERF_COUNT_HW_REF_CPU_CYCLES = 9,
+
+  PERF_COUNT_HW_MAX, /* non-ABI */
+};
+
+/*
+ * Special "software" events provided by the kernel, even if the hardware
+ * does not support performance events. These events measure various
+ * physical and sw events of the kernel (and allow the profiling of them as
+ * well):
+ */
+enum perf_sw_ids {
+  PERF_COUNT_SW_CPU_CLOCK = 0,
+  PERF_COUNT_SW_TASK_CLOCK = 1,
+  PERF_COUNT_SW_PAGE_FAULTS = 2,
+  PERF_COUNT_SW_CONTEXT_SWITCHES = 3,
+  PERF_COUNT_SW_CPU_MIGRATIONS = 4,
+  PERF_COUNT_SW_PAGE_FAULTS_MIN = 5,
+  PERF_COUNT_SW_PAGE_FAULTS_MAJ = 6,
+  PERF_COUNT_SW_ALIGNMENT_FAULTS = 7,
+  PERF_COUNT_SW_EMULATION_FAULTS = 8,
+  PERF_COUNT_SW_DUMMY = 9,
+  PERF_COUNT_SW_BPF_OUTPUT = 10,
+  PERF_COUNT_SW_CGROUP_SWITCHES = 11,
+
+  PERF_COUNT_SW_MAX, /* non-ABI */
+};
+
+/*
  * Hardware event_id to monitor via a performance monitoring event:
  *
  * @sample_max_stack: Max number of frame pointers in a callchain,

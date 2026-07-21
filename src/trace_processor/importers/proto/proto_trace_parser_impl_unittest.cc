@@ -49,6 +49,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -279,6 +280,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.clock_tracker = std::make_unique<ClockTracker>(
         &context_, primary_sync_.get(), /*is_primary=*/true);
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+    context_.profiler_sample_tracker =
+        std::make_unique<ProfilerSampleTracker>(&context_);
     context_.trace_diagnostics_tracker =
         std::make_unique<TraceDiagnosticsTracker>(&context_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);

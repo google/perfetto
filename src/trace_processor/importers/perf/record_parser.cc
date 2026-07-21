@@ -32,8 +32,10 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
@@ -51,6 +53,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
 
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
@@ -188,24 +191,25 @@ base::Status RecordParser::InternSample(Sample sample) {
   // Update counters and create counter set.
   ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids, UpdateCounters(sample));
 
-  std::optional<uint32_t> counter_set_id;
-  if (!counter_ids.empty()) {
-    auto* table = context_->storage->mutable_perf_counter_set_table();
-    counter_set_id = static_cast<uint32_t>(table->row_count());
-    for (CounterId counter_id : counter_ids) {
-      tables::PerfCounterSetTable::Row row;
-      row.perf_counter_set_id = *counter_set_id;
-      row.counter_id = counter_id;
-      table->Insert(row);
-    }
+  tables::ProfilerSampleTable::Row row;
+  row.ts = sample.trace_ts;
+  row.source = context_->storage->InternString("linux.perf");
+  row.utid = utid;
+  row.upid = upid;
+  if (sample.cpu.has_value()) {
+    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*sample.cpu).value;
   }
-
-  auto session_id = sample.attr->perf_session_id();
-  context_->storage->mutable_perf_sample_table()->Insert(
-      {sample.trace_ts, utid, sample.cpu,
-       context_->storage->InternString(
-           ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode)),
-       callsite_id, std::nullopt, session_id, counter_set_id});
+  row.cpu_mode =
+      sample.cpu_mode ==
+              protos::pbzero::perfetto_pbzero_enum_Profiling::MODE_UNKNOWN
+          ? context_->storage->InternString("")
+          : context_->storage->InternString(
+                ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode));
+  row.callsite_id = callsite_id;
+  row.session_id = sample.attr->perf_session_id();
+  row.counter_set_id =
+      context_->profiler_sample_tracker->AddCounterSet(counter_ids);
+  context_->profiler_sample_tracker->AddSample(row);
 
   return base::OkStatus();
 }
