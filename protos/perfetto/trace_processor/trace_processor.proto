@@ -114,6 +114,7 @@ message TraceProcessorRpc {
     TPM_UPDATE_SUMMARIZER_SPEC = 17;
     TPM_QUERY_SUMMARIZER = 18;
     TPM_DESTROY_SUMMARIZER = 19;
+    TPM_STATEMENT_STREAMING = 20;
   }
 
   oneof type {
@@ -157,6 +158,8 @@ message TraceProcessorRpc {
     QuerySummarizerArgs query_summarizer_args = 113;
     // For TPM_DESTROY_SUMMARIZER.
     DestroySummarizerArgs destroy_summarizer_args = 114;
+    // For TPM_STATEMENT_STREAMING.
+    StatementArgs statement_args = 115;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -185,6 +188,8 @@ message TraceProcessorRpc {
     QuerySummarizerResult query_summarizer_result = 217;
     // For TPM_DESTROY_SUMMARIZER.
     DestroySummarizerResult destroy_summarizer_result = 218;
+    // For TPM_STATEMENT_STREAMING.
+    StatementResult statement_result = 219;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
@@ -206,6 +211,25 @@ message QueryArgs {
   optional string sql_query = 1;
   // Was time_queued_ns
   reserved 2;
+  // Optional string to tag this query with for performance diagnostic purposes.
+  optional string tag = 3;
+}
+
+// Input for the TPM_STATEMENT_STREAMING endpoint: executes only the next
+// statement of a query, sqlite3_prepare_v2-style. A query is a string of one
+// or more statements; clients loop, passing the whole query each time with
+// |start_offset| set to the |tail_offset| returned by the previous call.
+// Sending the full query on every call keeps the endpoint stateless and lets
+// the server report errors with line numbers relative to the full source.
+message StatementArgs {
+  // The full SQL query. Required.
+  optional string sql = 1;
+  // Offset into |sql| at which to start executing: 0 for the first call,
+  // then the previous response's |tail_offset| verbatim. Treat as an opaque
+  // cursor: the server measures offsets against its normalized form of
+  // |sql|, so they may not correspond exactly to byte offsets into |sql| as
+  // sent.
+  optional uint32 start_offset = 2;
   // Optional string to tag this query with for performance diagnostic purposes.
   optional string tag = 3;
 }
@@ -275,6 +299,29 @@ message QueryResult {
   // milliseconds. If this query is comprised of multiple messages, this field
   // will contain the cumulative time taken so far.
   optional double elapsed_time_ms = 7;
+}
+
+// Output for the TPM_STATEMENT_STREAMING endpoint. Like TPM_QUERY_STREAMING,
+// the response is a stream of messages, terminated by the message whose
+// result contains a batch with |is_last_batch| set. The statement-cursor
+// fields (|tail_offset|, |statement_executed|) are set on the first message
+// of the stream.
+message StatementResult {
+  // The executed statement's result set; the cells of a single result may be
+  // spread over several messages' |result|.
+  optional QueryResult result = 1;
+
+  // Cursor just past the executed statement; pass it back verbatim as
+  // StatementArgs.start_offset to execute the next statement (see the
+  // caveats on that field).
+  optional uint32 tail_offset = 2;
+
+  // False when no statement was executed: either only whitespace/comments
+  // remained after StatementArgs.start_offset (the query is exhausted,
+  // |result| carries no error) or the statement failed before executing
+  // (|result.error| is set). In both cases |tail_offset| must not be used to
+  // continue iterating.
+  optional bool statement_executed = 3;
 }
 
 // Input for the /status endpoint.

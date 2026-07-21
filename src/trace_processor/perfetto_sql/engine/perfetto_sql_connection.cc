@@ -641,12 +641,29 @@ PerfettoSqlConnection::Transaction::~Transaction() {
 
 base::StatusOr<PerfettoSqlConnection::ExecutionResult>
 PerfettoSqlConnection::ExecuteUntilLastStatement(SqlSource sql_source) {
+  auto result =
+      ExecuteStatements(std::move(sql_source), /*end_offset=*/nullptr);
+  RETURN_IF_ERROR(result.status());
+  PERFETTO_CHECK(result->has_value());
+  return std::move(**result);
+}
+
+base::StatusOr<std::optional<PerfettoSqlConnection::ExecutionResult>>
+PerfettoSqlConnection::ExecuteNextStatement(SqlSource sql_source,
+                                            uint32_t* end_offset) {
+  PERFETTO_DCHECK(end_offset);
+  return ExecuteStatements(std::move(sql_source), end_offset);
+}
+
+base::StatusOr<std::optional<PerfettoSqlConnection::ExecutionResult>>
+PerfettoSqlConnection::ExecuteStatements(SqlSource sql_source,
+                                         uint32_t* end_offset) {
   // Save the current stack size to handle re-entrant Execute() calls.
   // Statement handlers like ExecuteCreateFunction may call Execute()
   // recursively, which would otherwise corrupt our stack state.
   size_t stack_base = execution_stack_.size();
 
-  auto result = ExecuteUntilLastStatementImpl(std::move(sql_source));
+  auto result = ExecuteStatementsImpl(std::move(sql_source), end_offset);
 
   // Unwind back to our entry point. For include frames on the error path,
   // poison the module so future INCLUDEs of the same key short-circuit, and
@@ -719,15 +736,22 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
   std::optional<SqliteConnection::PreparedStatement> current =
       std::move(execution_stack_[frame_idx].current_stmt);
   execution_stack_[frame_idx].current_stmt.reset();
+  const bool stop_after_statement =
+      execution_stack_[frame_idx].stop_after_statement;
   PerfettoSqlParser* const parser = execution_stack_[frame_idx].parser.get();
-  while (parser->Next()) {
+  // In stop-after-statement mode, an engaged |current| means the frame's
+  // single statement already executed (it pushed child frames and we are
+  // resuming after they completed): skip straight to frame completion.
+  while (!(stop_after_statement && current) && parser->Next()) {
     const auto& stmt = parser->statement();
 
     // Vanilla SQLite is inlined; PerfettoSQL extensions detour through
-    // ResolveExtensionStatement.
+    // ResolveExtensionStatement, which executes them and returns a dummy
+    // statement to prepare.
     std::optional<SqlSource> source_to_prepare;
-    if (PERFETTO_LIKELY(
-            std::holds_alternative<PerfettoSqlParser::SqliteSql>(stmt))) {
+    const bool is_dummy =
+        !std::holds_alternative<PerfettoSqlParser::SqliteSql>(stmt);
+    if (PERFETTO_LIKELY(!is_dummy)) {
       source_to_prepare = parser->TakeStatementSql();
     } else {
       ASSIGN_OR_RETURN(source_to_prepare, ResolveExtensionStatement(frame_idx));
@@ -756,6 +780,7 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
       RETURN_IF_ERROR(current->status());
     }
     current = std::move(*next_stmt);
+    execution_stack_[frame_idx].current_stmt_is_dummy = is_dummy;
 
     {
       PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "STMT_FIRST_STEP",
@@ -787,10 +812,18 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
   if (frame.type == FrameType::kRoot) {
     // Root frame completion - return result
     if (!frame.current_stmt) {
+      if (frame.stop_after_statement) {
+        return FrameResult::kNoStatement;
+      }
       return base::ErrStatus("No valid SQL to run");
     }
-    frame.accumulated_stats.column_count = static_cast<uint32_t>(
-        sqlite3_column_count(frame.current_stmt->sqlite_stmt()));
+    // Dummy statements of transpiled PerfettoSQL statements have no result
+    // set: don't leak the dummy's phantom column.
+    frame.accumulated_stats.column_count =
+        frame.current_stmt_is_dummy
+            ? 0u
+            : static_cast<uint32_t>(
+                  sqlite3_column_count(frame.current_stmt->sqlite_stmt()));
     return FrameResult::kReturnResult;
   }
 
@@ -843,8 +876,9 @@ base::StatusOr<SqlSource> PerfettoSqlConnection::ResolveExtensionStatement(
   return RewriteToDummySql(stmt_sql);
 }
 
-base::StatusOr<PerfettoSqlConnection::ExecutionResult>
-PerfettoSqlConnection::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
+base::StatusOr<std::optional<PerfettoSqlConnection::ExecutionResult>>
+PerfettoSqlConnection::ExecuteStatementsImpl(SqlSource sql_source,
+                                             uint32_t* end_offset) {
   // A SQL string can contain several statements. Some of them might be
   // comment only, e.g. "SELECT 1; /* comment */; SELECT 2;". Some statements
   // can also be PerfettoSQL statements which we need to transpile before
@@ -864,17 +898,23 @@ PerfettoSqlConnection::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
   //  - Once no further statements are encountered, we return the prepared
   //    statement for the last valid statement.
   //
+  // When |end_offset| is non-null, the root frame instead stops after the
+  // first statement (ExecuteNextStatement).
+  //
   // When an INCLUDE statement is encountered, the included module's SQL is
   // pushed onto the execution stack and processed before continuing with the
   // current SQL. This uses an explicit stack to avoid deep recursion.
 
+  auto source_size = static_cast<uint32_t>(sql_source.sql().size());
   auto root_parser = AcquireParser();
   root_parser->Reset(std::move(sql_source));
   execution_stack_.emplace_back(ExecutionFrame{FrameType::kRoot,
                                                std::move(root_parser),
                                                /*accumulated_stats=*/{},
                                                /*current_stmt=*/std::nullopt,
-                                               /*aux=*/nullptr});
+                                               /*aux=*/nullptr,
+                                               /*stop_after_statement=*/
+                                               end_offset != nullptr});
 
   while (!execution_stack_.empty()) {
     size_t frame_idx = execution_stack_.size() - 1;
@@ -889,13 +929,26 @@ PerfettoSqlConnection::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
         continue;
       case FrameResult::kReturnResult: {
         auto& frame = execution_stack_.back();
+        if (end_offset) {
+          *end_offset = frame.parser->statement_end_offset();
+        }
         ExecutionResult res{std::move(*frame.current_stmt),
                             frame.accumulated_stats};
         if (!cached_parser_) {
           cached_parser_ = std::move(frame.parser);
         }
         execution_stack_.pop_back();
-        return std::move(res);
+        return std::optional<ExecutionResult>(std::move(res));
+      }
+      case FrameResult::kNoStatement: {
+        auto& frame = execution_stack_.back();
+        PERFETTO_DCHECK(end_offset && frame.stop_after_statement);
+        *end_offset = source_size;
+        if (!cached_parser_) {
+          cached_parser_ = std::move(frame.parser);
+        }
+        execution_stack_.pop_back();
+        return std::optional<ExecutionResult>();
       }
     }
   }
