@@ -77,8 +77,8 @@ SliceTracker::~SliceTracker() {
 }
 
 void SliceTracker::RecordSliceNegativeDuration(int64_t timestamp) {
-  context_->import_logs_tracker->RecordParserError(
-      stats::slice_negative_duration, timestamp);
+  context_->import_logs_tracker->RecordParserLog(stats::slice_negative_duration,
+                                                 timestamp);
 }
 
 bool SliceTracker::PrepareStartSlice(TrackInfo& track_info,
@@ -109,7 +109,7 @@ void SliceTracker::LogMaxDepthExceeded(const SliceInfo& parent,
       parent.row.ToRowReference(slices).name().value_or(kNullStringId);
   StringId current_name_id = name.is_null() ? kNullStringId : name;
 
-  context_->import_logs_tracker->RecordParserError(
+  context_->import_logs_tracker->RecordParserLog(
       stats::slice_max_depth_exceeded, timestamp,
       [this, parent_name_id,
        current_name_id](ArgsTracker::BoundInserter& inserter) {
@@ -464,7 +464,7 @@ bool SliceTracker::MaybeCloseStack(TrackInfo& track_info,
         // Nobody can recover this slice, so drop it but log the offending
         // events (rather than only bumping a stat) so the user can find and fix
         // them.
-        context_->import_logs_tracker->RecordParserError(
+        context_->import_logs_tracker->RecordParserLog(
             stats::slice_drop_overlapping_complete_event, new_ts,
             [this, info](ArgsTracker::BoundInserter& inserter) {
               AddOverlapArgs(info, inserter);

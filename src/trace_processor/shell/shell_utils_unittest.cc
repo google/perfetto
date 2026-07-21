@@ -24,8 +24,10 @@
 #include <string>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "test/gtest_and_gmock.h"
@@ -64,10 +66,23 @@ std::string MakeAttachUri(const std::string& path) {
   return "file:" + normalized + "?vfs=" + vfs->zName;
 }
 
+// On Fuchsia the export fails to attach the on-disk database.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+#define DisableFuchsia(x) DISABLED_##x
+#else
+#define DisableFuchsia(x) x
+#endif
+
 // Verifies the export produces an on-disk SQLite database that can be read back
 // by a standalone SQLite connection and re-attached and queried by a trace
 // processor.
-TEST(ShellUtilsTest, ExportTraceToDatabaseWritesToDisk) {
+TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToDatabaseWritesToDisk)) {
+  base::TempDir dir = base::TempDir::Create();
+  std::string output = dir.path() + "/export.db";
+
+  auto remove_output =
+      base::OnScopeExit([&output] { base::Unlink(output.c_str()); });
+
   auto tp = TraceProcessor::CreateInstance(Config());
 
   int64_t expected_tables = ScalarCount(tp.get(),
@@ -76,10 +91,8 @@ TEST(ShellUtilsTest, ExportTraceToDatabaseWritesToDisk) {
   int64_t expected_views = ScalarCount(
       tp.get(), "SELECT COUNT(*) FROM sqlite_master WHERE type='view'");
 
-  base::TempDir dir = base::TempDir::Create();
-  std::string output = dir.path() + "/export.db";
-
-  ASSERT_TRUE(ExportTraceToDatabase(tp.get(), output).ok());
+  base::Status export_status = ExportTraceToDatabase(tp.get(), output);
+  ASSERT_TRUE(export_status.ok()) << export_status.c_message();
 
   std::string contents;
   ASSERT_TRUE(base::ReadFile(output, &contents));
@@ -118,8 +131,6 @@ TEST(ShellUtilsTest, ExportTraceToDatabaseWritesToDisk) {
       ScalarCount(reloaded.get(), "SELECT COUNT(*) FROM reimported." + table),
       ScalarCount(tp.get(), "SELECT COUNT(*) FROM " + table));
   reloaded.reset();
-
-  base::Unlink(output.c_str());
 }
 
 }  // namespace

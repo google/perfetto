@@ -163,7 +163,7 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
       max_stream_size_bytes_) {
     if (!info.size_cap_hit) {
       info.size_cap_hit = true;
-      context_->import_logs_tracker->RecordParserError(
+      context_->import_logs_tracker->RecordParserLog(
           stats::android_video_parse_size_cap_hit, ts,
           [this, display_id](ArgsTracker::BoundInserter& inserter) {
             inserter.AddArg(context_->storage->InternString("display_id"),
@@ -221,7 +221,7 @@ void VideoFrameModule::ParseVideoFrameError(protozero::ConstBytes bytes,
   }
   // Producer-reported failure: record to the import logs (which also bumps the
   // reason's stat), with the affected display as a queryable arg.
-  context_->import_logs_tracker->RecordCollectionError(
+  context_->import_logs_tracker->RecordCollectionLog(
       stat, ts, [this, display_id](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(context_->storage->InternString("display_id"),
                         Variadic::UnsignedInteger(display_id));

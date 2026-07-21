@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -132,6 +133,11 @@ void ProcessTracker::EndThread(int64_t timestamp, int64_t tid) {
 
   // If the process pid and thread tid are equal then, as is the main thread
   // of the process, we should also finish the process itself.
+  // Note: this works on linux because even if the leader thread exits before
+  // the rest of the thread-group, the kernel keeps the leader in a zombie state
+  // until the last group member exits. So sched_process_free for the main
+  // thread is deferred until the thread-group is fully dead (see
+  // delay_group_leader() in kernel sources).
   PERFETTO_DCHECK(*td.is_main_thread());
   ps.set_end_ts(timestamp);
   pids_.Erase(tid);
@@ -433,24 +439,28 @@ void ProcessTracker::AssociateCreatedProcessToParentThread(
   }
 }
 
-UniquePid ProcessTracker::UpdateProcessWithParent(UniquePid upid,
-                                                  UniquePid pupid,
-                                                  bool associate_main_thread) {
+void ProcessTracker::SetProcessParent(UniquePid upid,
+                                      UniquePid pupid,
+                                      std::optional<int64_t> timestamp) {
   auto& process_table = *context_->storage->mutable_process_table();
-
   auto prr = process_table[upid];
 
-  // If the previous and new parent pid don't match, the process must have
-  // died and the pid reused. Create a new process.
+  // A changed parent pid is treated as process reparenting, and we keep the
+  // original parent as that is usually more informative.
+  // Before perfetto v58, a changed parent pid was instead treated as a case of
+  // pid reuse.
   std::optional<UniquePid> prev_parent_upid = prr.parent_upid();
-  if (prev_parent_upid && *prev_parent_upid != pupid) {
-    upid = StartNewProcessInternal(std::nullopt, pupid, prr.pid(),
-                                   kNullStringId, ThreadNamePriority::kOther,
-                                   associate_main_thread);
-  } else {
+  if (!prev_parent_upid) {
     prr.set_parent_upid(pupid);
+  } else if (*prev_parent_upid != pupid) {
+    if (timestamp) {
+      context_->import_logs_tracker->RecordParserLog(
+          stats::process_tracker_parent_pid_changed, *timestamp);
+    } else {
+      context_->import_logs_tracker->RecordAnalysisLog(
+          stats::process_tracker_parent_pid_changed, {});
+    }
   }
-  return upid;
 }
 
 void ProcessTracker::SetProcessMetadata(UniquePid upid,

@@ -119,7 +119,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     parser_.ParseRailDescriptor(evt);
 
     if (!evt.has_energy_data()) {
-      context_->import_logs_tracker->RecordParserError(
+      context_->import_logs_tracker->RecordParserLog(
           stats::power_rail_empty_packet, args.ts);
       return ModuleResult::Handled();
     }

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_MODULE_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -27,6 +28,7 @@
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -46,15 +48,14 @@ class ProfileModule : public ProtoImporterModule {
 
   void OnEventsFullyExtracted() override;
 
+  // chrome stack sampling: sink callback for per-sample sorter events.
+  void ParseStreamingProfileSample(int64_t ts, StreamingProfileSampleEvent);
+
  private:
   // chrome stack sampling:
   ModuleResult TokenizeStreamingProfilePacket(
       RefPtr<PacketSequenceStateGeneration>,
       TraceBlobView* packet,
-      protozero::ConstBytes streaming_profile_packet);
-  void ParseStreamingProfilePacket(
-      int64_t timestamp,
-      PacketSequenceStateGeneration*,
       protozero::ConstBytes streaming_profile_packet);
 
   // perf event profiling:
@@ -93,6 +94,8 @@ class ProfileModule : public ProtoImporterModule {
 
   TraceProcessorContext* context_;
   PerfSampleTracker perf_sample_tracker_;
+  std::unique_ptr<TraceSorter::Stream<StreamingProfileSampleEvent>>
+      streaming_profile_stream_;
 
   // heap_profile rows already emitted, so the per-dump row is written once per
   // heap despite the dump header repeating across continued ProfilePackets.

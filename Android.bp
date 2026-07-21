@@ -88,6 +88,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_non_minimal_zero_gen",
         ":perfetto_protos_perfetto_trace_perfetto_zero_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -193,6 +195,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -392,6 +396,8 @@ cc_library_shared {
         ":perfetto_protos_perfetto_trace_non_minimal_zero_gen",
         ":perfetto_protos_perfetto_trace_perfetto_zero_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -505,6 +511,8 @@ cc_library_shared {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -631,6 +639,8 @@ cc_library_shared {
         ":perfetto_protos_perfetto_trace_non_minimal_zero_gen",
         ":perfetto_protos_perfetto_trace_perfetto_zero_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_cpp_gen",
@@ -765,6 +775,8 @@ cc_library_shared {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_cpp_gen_headers",
@@ -932,6 +944,8 @@ cc_library {
         ":perfetto_protos_perfetto_trace_non_minimal_zero_gen",
         ":perfetto_protos_perfetto_trace_perfetto_zero_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -1041,6 +1055,8 @@ cc_library {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -1164,6 +1180,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_non_minimal_zero_gen",
         ":perfetto_protos_perfetto_trace_perfetto_zero_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -1275,6 +1293,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -1342,6 +1362,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -1542,6 +1564,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_non_minimal_zero_gen",
         ":perfetto_protos_perfetto_trace_perfetto_zero_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -1638,6 +1662,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -1928,6 +1954,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_power_cpp_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_cpp_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
@@ -2101,6 +2129,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_power_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
@@ -2189,6 +2219,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_power_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
@@ -2313,6 +2345,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_power_cpp_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_cpp_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
@@ -2474,6 +2508,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_power_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
@@ -2561,6 +2597,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_power_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
@@ -2929,6 +2967,8 @@ cc_test {
         ":perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen",
         ":perfetto_protos_perfetto_trace_processor_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_cpp_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
@@ -3320,6 +3360,8 @@ cc_test {
         "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
@@ -3655,6 +3697,7 @@ filegroup {
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -8488,6 +8531,7 @@ genrule {
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -10008,6 +10052,7 @@ genrule {
         "protos/perfetto/trace/interned_data/interned_data.proto",
         "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -10069,6 +10114,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero",
         ":perfetto_protos_perfetto_trace_gpu_zero",
         ":perfetto_protos_perfetto_trace_interned_data_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
     ],
@@ -10093,6 +10139,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_zero",
         ":perfetto_protos_perfetto_trace_gpu_zero",
         ":perfetto_protos_perfetto_trace_interned_data_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
     ],
@@ -10115,6 +10162,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_descriptor",
     srcs: [
         "protos/perfetto/trace/gpu/gpu_track_event.proto",
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
         "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
@@ -10166,6 +10214,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
     srcs: [
         ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
     ],
     tools: [
@@ -10183,6 +10232,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
     srcs: [
         ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
     ],
     tools: [
@@ -10342,6 +10392,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_gpu_cpp",
         ":perfetto_protos_perfetto_trace_interned_data_cpp",
         ":perfetto_protos_perfetto_trace_profiling_cpp",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
         ":perfetto_protos_perfetto_trace_track_event_cpp",
     ],
     tools: [
@@ -10365,6 +10416,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_gpu_cpp",
         ":perfetto_protos_perfetto_trace_interned_data_cpp",
         ":perfetto_protos_perfetto_trace_profiling_cpp",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
         ":perfetto_protos_perfetto_trace_track_event_cpp",
     ],
     tools: [
@@ -10399,6 +10451,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_chrome_lite",
         ":perfetto_protos_perfetto_trace_gpu_lite",
         ":perfetto_protos_perfetto_trace_interned_data_lite",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
         ":perfetto_protos_perfetto_trace_profiling_lite",
         ":perfetto_protos_perfetto_trace_track_event_lite",
     ],
@@ -10421,6 +10474,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_chrome_lite",
         ":perfetto_protos_perfetto_trace_gpu_lite",
         ":perfetto_protos_perfetto_trace_interned_data_lite",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
         ":perfetto_protos_perfetto_trace_profiling_lite",
         ":perfetto_protos_perfetto_trace_track_event_lite",
     ],
@@ -10455,6 +10509,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_chrome_zero",
         ":perfetto_protos_perfetto_trace_gpu_zero",
         ":perfetto_protos_perfetto_trace_interned_data_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
     ],
@@ -10478,6 +10533,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_chrome_zero",
         ":perfetto_protos_perfetto_trace_gpu_zero",
         ":perfetto_protos_perfetto_trace_interned_data_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
     ],
@@ -10947,6 +11003,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_perfetto_cpp",
         ":perfetto_protos_perfetto_trace_power_cpp",
         ":perfetto_protos_perfetto_trace_profiling_cpp",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
         ":perfetto_protos_perfetto_trace_ps_cpp",
         ":perfetto_protos_perfetto_trace_statsd_cpp",
         ":perfetto_protos_perfetto_trace_sys_stats_cpp",
@@ -11010,6 +11067,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_perfetto_cpp",
         ":perfetto_protos_perfetto_trace_power_cpp",
         ":perfetto_protos_perfetto_trace_profiling_cpp",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
         ":perfetto_protos_perfetto_trace_ps_cpp",
         ":perfetto_protos_perfetto_trace_statsd_cpp",
         ":perfetto_protos_perfetto_trace_sys_stats_cpp",
@@ -11092,6 +11150,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_lite",
         ":perfetto_protos_perfetto_trace_perfetto_lite",
         ":perfetto_protos_perfetto_trace_power_lite",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
         ":perfetto_protos_perfetto_trace_profiling_lite",
         ":perfetto_protos_perfetto_trace_ps_lite",
         ":perfetto_protos_perfetto_trace_statsd_lite",
@@ -11154,6 +11213,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_lite",
         ":perfetto_protos_perfetto_trace_perfetto_lite",
         ":perfetto_protos_perfetto_trace_power_lite",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
         ":perfetto_protos_perfetto_trace_profiling_lite",
         ":perfetto_protos_perfetto_trace_ps_lite",
         ":perfetto_protos_perfetto_trace_statsd_lite",
@@ -11388,6 +11448,7 @@ filegroup {
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -11493,6 +11554,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -11556,6 +11618,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -12037,6 +12100,7 @@ genrule {
         ":perfetto_protos_perfetto_common_cpp",
         ":perfetto_protos_perfetto_protovm_cpp",
         ":perfetto_protos_perfetto_trace_profiling_cpp",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
     ],
     tools: [
         "aprotoc",
@@ -12060,6 +12124,7 @@ genrule {
         ":perfetto_protos_perfetto_common_cpp",
         ":perfetto_protos_perfetto_protovm_cpp",
         ":perfetto_protos_perfetto_trace_profiling_cpp",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
     ],
     tools: [
         "aprotoc",
@@ -12073,6 +12138,136 @@ genrule {
         "external/perfetto/protos/perfetto/trace/profiling/profile_packet.gen.h",
         "external/perfetto/protos/perfetto/trace/profiling/smaps.gen.h",
         "external/perfetto/protos/perfetto/trace/profiling/stack_sample.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //protos/perfetto/trace/profiling:inline_callstack_cpp
+filegroup {
+    name: "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
+    srcs: [
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
+    ],
+}
+
+// GN: //protos/perfetto/trace/profiling:inline_callstack_cpp
+genrule {
+    name: "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/profiling/inline_callstack.gen.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/profiling:inline_callstack_cpp
+genrule {
+    name: "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/profiling/inline_callstack.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //protos/perfetto/trace/profiling:inline_callstack_lite
+filegroup {
+    name: "perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
+    srcs: [
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
+    ],
+}
+
+// GN: //protos/perfetto/trace/profiling:inline_callstack_lite
+genrule {
+    name: "perfetto_protos_perfetto_trace_profiling_inline_callstack_lite_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_inline_callstack_lite)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/profiling/inline_callstack.pb.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/profiling:inline_callstack_lite
+genrule {
+    name: "perfetto_protos_perfetto_trace_profiling_inline_callstack_lite_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_inline_callstack_lite)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/profiling/inline_callstack.pb.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //protos/perfetto/trace/profiling:inline_callstack_zero
+filegroup {
+    name: "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
+    srcs: [
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
+    ],
+}
+
+// GN: //protos/perfetto/trace/profiling:inline_callstack_zero
+genrule {
+    name: "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_inline_callstack_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/profiling/inline_callstack.pbzero.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/profiling:inline_callstack_zero
+genrule {
+    name: "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_profiling_inline_callstack_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/profiling/inline_callstack.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -12099,6 +12294,7 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_common_lite",
         ":perfetto_protos_perfetto_protovm_lite",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
         ":perfetto_protos_perfetto_trace_profiling_lite",
     ],
     tools: [
@@ -12121,6 +12317,7 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_common_lite",
         ":perfetto_protos_perfetto_protovm_lite",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
         ":perfetto_protos_perfetto_trace_profiling_lite",
     ],
     tools: [
@@ -12160,6 +12357,7 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_common_zero",
         ":perfetto_protos_perfetto_protovm_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
     ],
     tools: [
@@ -12183,6 +12381,7 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_common_zero",
         ":perfetto_protos_perfetto_protovm_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
     ],
     tools: [
@@ -12929,6 +13128,7 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_cpp_gen",
     srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
         ":perfetto_protos_perfetto_trace_track_event_cpp",
     ],
     tools: [
@@ -12972,6 +13172,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
     srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp",
         ":perfetto_protos_perfetto_trace_track_event_cpp",
     ],
     tools: [
@@ -13019,6 +13220,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_descriptor",
     srcs: [
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
         "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
@@ -13096,6 +13298,7 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_lite_gen",
     srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
         ":perfetto_protos_perfetto_trace_track_event_lite",
     ],
     tools: [
@@ -13138,6 +13341,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_lite_gen_headers",
     srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite",
         ":perfetto_protos_perfetto_trace_track_event_lite",
     ],
     tools: [
@@ -13219,6 +13423,7 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_zero_gen",
     srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
     ],
     tools: [
@@ -13262,6 +13467,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
     srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
     ],
     tools: [
@@ -13642,6 +13848,7 @@ genrule {
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -13806,6 +14013,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -13862,6 +14070,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -13930,6 +14139,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -13986,6 +14196,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14070,6 +14281,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14126,6 +14338,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14194,6 +14407,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14251,6 +14465,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14289,6 +14504,7 @@ genrule {
     srcs: [
         ":libprotobuf-internal-descriptor-proto",
         ":perfetto_protos_perfetto_trace_field_options_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero",
     ],
@@ -14308,6 +14524,7 @@ genrule {
     srcs: [
         ":libprotobuf-internal-descriptor-proto",
         ":perfetto_protos_perfetto_trace_field_options_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero",
     ],
@@ -14370,6 +14587,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14426,6 +14644,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14494,6 +14713,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14550,6 +14770,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14634,6 +14855,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14707,6 +14929,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14824,6 +15047,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -14913,6 +15137,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -15014,6 +15239,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -15070,6 +15296,7 @@ genrule {
         ":perfetto_protos_perfetto_trace_non_minimal_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
         ":perfetto_protos_perfetto_trace_power_zero",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_profiling_zero",
         ":perfetto_protos_perfetto_trace_ps_zero",
         ":perfetto_protos_perfetto_trace_statsd_zero",
@@ -15097,6 +15324,7 @@ genrule {
 genrule {
     name: "perfetto_protos_third_party_chromium_descriptor",
     srcs: [
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
         "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
@@ -15167,6 +15395,7 @@ filegroup {
 genrule {
     name: "perfetto_protos_third_party_chromium_zero_gen",
     srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
         ":perfetto_protos_third_party_chromium_zero",
     ],
@@ -15185,6 +15414,7 @@ genrule {
 genrule {
     name: "perfetto_protos_third_party_chromium_zero_gen_headers",
     srcs: [
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero",
         ":perfetto_protos_perfetto_trace_track_event_zero",
         ":perfetto_protos_third_party_chromium_zero",
     ],
@@ -20670,6 +20900,7 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_power_zero_gen",
         ":perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen",
         ":perfetto_protos_perfetto_trace_processor_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -20929,6 +21160,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -21035,6 +21267,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -21281,6 +21514,22 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util:flatbuffer_reader
+filegroup {
+    name: "perfetto_src_trace_processor_util_flatbuffer_reader",
+    srcs: [
+        "src/trace_processor/util/flatbuffer_reader.cc",
+    ],
+}
+
+// GN: //src/trace_processor/util:flatbuffer_writer
+filegroup {
+    name: "perfetto_src_trace_processor_util_flatbuffer_writer",
+    srcs: [
+        "src/trace_processor/util/flatbuffer_writer.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util:galloping_search
 filegroup {
     name: "perfetto_src_trace_processor_util_galloping_search",
@@ -21492,6 +21741,7 @@ filegroup {
     srcs: [
         "src/trace_processor/util/bump_allocator_unittest.cc",
         "src/trace_processor/util/descriptors_unittest.cc",
+        "src/trace_processor/util/flatbuffer_reader_unittest.cc",
         "src/trace_processor/util/galloping_search_unittest.cc",
         "src/trace_processor/util/glob_unittest.cc",
         "src/trace_processor/util/gzip_decompressor_unittest.cc",
@@ -22756,6 +23006,7 @@ java_library {
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -22908,6 +23159,7 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_non_minimal_lite_gen",
         ":perfetto_protos_perfetto_trace_perfetto_lite_gen",
         ":perfetto_protos_perfetto_trace_power_lite_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite_gen",
         ":perfetto_protos_perfetto_trace_profiling_lite_gen",
         ":perfetto_protos_perfetto_trace_ps_lite_gen",
         ":perfetto_protos_perfetto_trace_statsd_lite_gen",
@@ -22955,6 +23207,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_non_minimal_lite_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_lite_gen_headers",
         "perfetto_protos_perfetto_trace_power_lite_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_lite_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_lite_gen_headers",
         "perfetto_protos_perfetto_trace_ps_lite_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_lite_gen_headers",
@@ -22997,6 +23250,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_non_minimal_lite_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_lite_gen_headers",
         "perfetto_protos_perfetto_trace_power_lite_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_lite_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_lite_gen_headers",
         "perfetto_protos_perfetto_trace_ps_lite_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_lite_gen_headers",
@@ -23225,6 +23479,7 @@ python_library_host {
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/art_process_metadata.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
+        "protos/perfetto/trace/profiling/inline_callstack.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -23441,6 +23696,9 @@ cc_test {
         ":perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen",
         ":perfetto_protos_perfetto_trace_processor_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_lite_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_lite_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_cpp_gen",
@@ -23763,6 +24021,8 @@ cc_test {
         ":perfetto_src_trace_processor_util_deobfuscation_unittests",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_elf_elf",
+        ":perfetto_src_trace_processor_util_flatbuffer_reader",
+        ":perfetto_src_trace_processor_util_flatbuffer_writer",
         ":perfetto_src_trace_processor_util_galloping_search",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_interned_message_view",
@@ -24009,6 +24269,9 @@ cc_test {
         "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_lite_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_lite_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_cpp_gen_headers",
@@ -24241,6 +24504,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_power_cpp_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_cpp_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
@@ -24402,6 +24667,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_power_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
@@ -24489,6 +24756,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_power_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
@@ -24677,6 +24946,7 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_power_zero_gen",
         ":perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen",
         ":perfetto_protos_perfetto_trace_processor_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -24917,6 +25187,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -25020,6 +25291,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -25216,6 +25488,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_non_minimal_zero_gen",
         ":perfetto_protos_perfetto_trace_perfetto_zero_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -25274,6 +25547,7 @@ cc_binary {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -25360,6 +25634,7 @@ cc_binary_host {
         ":perfetto_protos_perfetto_trace_power_zero_gen",
         ":perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen",
         ":perfetto_protos_perfetto_trace_processor_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -25612,6 +25887,7 @@ cc_binary_host {
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -25805,6 +26081,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_non_minimal_zero_gen",
         ":perfetto_protos_perfetto_trace_perfetto_zero_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -25932,6 +26210,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -26056,6 +26336,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_non_minimal_zero_gen",
         ":perfetto_protos_perfetto_trace_perfetto_zero_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -26145,6 +26427,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",
@@ -26278,6 +26562,8 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_non_minimal_zero_gen",
         ":perfetto_protos_perfetto_trace_perfetto_zero_gen",
         ":perfetto_protos_perfetto_trace_power_zero_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen",
+        ":perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen",
         ":perfetto_protos_perfetto_trace_profiling_zero_gen",
         ":perfetto_protos_perfetto_trace_ps_zero_gen",
         ":perfetto_protos_perfetto_trace_statsd_zero_gen",
@@ -26370,6 +26656,8 @@ cc_binary {
         "perfetto_protos_perfetto_trace_non_minimal_zero_gen_headers",
         "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
         "perfetto_protos_perfetto_trace_power_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_profiling_inline_callstack_zero_gen_headers",
         "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ps_zero_gen_headers",
         "perfetto_protos_perfetto_trace_statsd_zero_gen_headers",

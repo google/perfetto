@@ -61,7 +61,16 @@ packet {
       mode: MODE_USER
     }
     callstack {
-      frame_ids: 1
+      frames {
+        function_name: "main"
+        source_file: "/src/main.py"
+        line_number: 10
+      }
+      frames {
+        function_name: "foo"
+        source_file: "/src/foo.py"
+        line_number: 42
+      }
     }
     primary_weight: 1000000
     follower_weights: 500
@@ -101,7 +110,9 @@ packet {
       async_id: 7
     }
     callstack {
-      frame_ids: 1
+      frames {
+        function_name: "foo"
+      }
     }
     primary_weight: 4000000
   }
@@ -112,7 +123,9 @@ packet {
   timestamp: 7000
   stack_sample {
     callstack {
-      frame_ids: 1
+      frames {
+        function_name: "foo"
+      }
     }
     primary_weight: 7000000
   }
