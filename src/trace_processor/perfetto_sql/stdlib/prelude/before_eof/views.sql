@@ -38,7 +38,7 @@ CREATE PERFETTO VIEW stack_sample(
   async_kind STRING,
   -- Unique core the sample was taken on, if known.
   ucpu JOINID(cpu.id),
-  -- Privilege mode the sample was taken in (e.g. "user", "kernel"). Empty if
+  -- Privilege mode the sample was taken in (e.g. "user", "kernel"). NULL if
   -- unknown.
   cpu_mode STRING,
   -- The captured callstack.
@@ -97,7 +97,8 @@ SELECT
   ps.ts,
   ps.utid,
   c.cpu AS cpu,
-  CASE WHEN ps.cpu_mode = '' THEN 'unknown' ELSE ps.cpu_mode END AS cpu_mode,
+  -- Preserve perf_sample's legacy representation for an unknown CPU mode.
+  COALESCE(ps.cpu_mode, 'unknown') AS cpu_mode,
   ps.callsite_id,
   ps.unwind_error,
   ps.session_id AS perf_session_id

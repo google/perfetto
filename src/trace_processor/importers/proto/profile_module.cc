@@ -339,11 +339,11 @@ void ProfileModule::ParsePerfSample(
   TraceStorage* storage = context_->storage.get();
 
   auto cpu_mode = static_cast<Profiling::CpuMode>(sample.cpu_mode());
-  StringPool::Id cpu_mode_id =
-      cpu_mode == Profiling::MODE_UNKNOWN
-          ? storage->InternString("")
-          : storage->InternString(
-                ProfilePacketUtils::StringifyCpuMode(cpu_mode));
+  std::optional<StringPool::Id> cpu_mode_id;
+  if (cpu_mode != Profiling::MODE_UNKNOWN) {
+    cpu_mode_id =
+        storage->InternString(ProfilePacketUtils::StringifyCpuMode(cpu_mode));
+  }
 
   std::optional<StringPool::Id> unwind_error_id;
   if (sample.has_unwind_error()) {
@@ -358,7 +358,9 @@ void ProfileModule::ParsePerfSample(
   row.source = storage->InternString("linux.perf");
   row.utid = utid;
   row.upid = upid;
-  row.ucpu = context_->cpu_tracker->GetOrCreateCpu(sample.cpu()).value;
+  if (sample.has_cpu()) {
+    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(sample.cpu()).value;
+  }
   row.cpu_mode = cpu_mode_id;
   row.callsite_id = cs_id;
   row.unwind_error = unwind_error_id;

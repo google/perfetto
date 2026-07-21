@@ -76,7 +76,7 @@ const char* StringifyStackSampleMode(protos::pbzero::StackSample::Mode mode) {
   using StackSample = protos::pbzero::StackSample;
   switch (mode) {
     case StackSample::Mode::MODE_UNKNOWN:
-      return "";
+      return nullptr;
     case StackSample::Mode::MODE_USER:
       return "user";
     case StackSample::Mode::MODE_KERNEL:
@@ -88,7 +88,7 @@ const char* StringifyStackSampleMode(protos::pbzero::StackSample::Mode mode) {
     case StackSample::Mode::MODE_GUEST_KERNEL:
       return "guest_kernel";
   }
-  return "";
+  return nullptr;
 }
 
 const char* StringifyProfileUnit(protos::pbzero::StackSample::Unit unit) {
@@ -460,7 +460,9 @@ void StackSampleModule::ParseStackSample(
   if (cpu) {
     row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*cpu).value;
   }
-  row.cpu_mode = storage->InternString(StringifyStackSampleMode(mode));
+  if (const char* mode_string = StringifyStackSampleMode(mode)) {
+    row.cpu_mode = storage->InternString(mode_string);
+  }
   row.callsite_id = ResolveCallstack(sequence_state, upid, sample);
   row.counter_set_id =
       context_->profiler_sample_tracker->AddCounterSet(counter_ids);

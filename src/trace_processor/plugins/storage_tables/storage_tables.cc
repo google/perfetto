@@ -127,6 +127,8 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_package_list_table());
     AddDataframe(out, s->mutable_user_list_table());
     AddDataframe(out, s->mutable_profiler_session_table());
+    AddDataframe(out, s->mutable_profiler_sample_table());
+    AddDataframe(out, s->mutable_profiler_counter_set_table());
     AddDataframe(out, s->mutable_process_memory_snapshot_table());
     AddDataframe(out, s->mutable_profiler_smaps_table());
     AddDataframe(out, s->mutable_protolog_table());
@@ -134,8 +136,6 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_winscope_rect_table());
     AddDataframe(out, s->mutable_winscope_fill_region_table());
     AddDataframe(out, s->mutable_winscope_transform_table());
-    AddDataframe(out, s->mutable_profiler_sample_table());
-    AddDataframe(out, s->mutable_profiler_counter_set_table());
     AddDataframe(out, s->mutable_spe_record_table());
     AddDataframe(out, s->mutable_spurious_sched_wakeup_table());
     AddDataframe(out, s->mutable_surfaceflinger_transaction_flag_table());

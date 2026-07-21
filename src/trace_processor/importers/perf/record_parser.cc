@@ -100,7 +100,8 @@ RecordParser::RecordParser(TraceProcessorContext* context,
                            PerfTracker* perf_tracker)
     : context_(context),
       perf_tracker_(perf_tracker),
-      mapping_tracker_(context->mapping_tracker.get()) {}
+      mapping_tracker_(context->mapping_tracker.get()),
+      linux_perf_source_id_(context->storage->InternString("linux.perf")) {}
 
 RecordParser::~RecordParser() = default;
 
@@ -193,18 +194,17 @@ base::Status RecordParser::InternSample(Sample sample) {
 
   tables::ProfilerSampleTable::Row row;
   row.ts = sample.trace_ts;
-  row.source = context_->storage->InternString("linux.perf");
+  row.source = linux_perf_source_id_;
   row.utid = utid;
   row.upid = upid;
   if (sample.cpu.has_value()) {
     row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*sample.cpu).value;
   }
-  row.cpu_mode =
-      sample.cpu_mode ==
-              protos::pbzero::perfetto_pbzero_enum_Profiling::MODE_UNKNOWN
-          ? context_->storage->InternString("")
-          : context_->storage->InternString(
-                ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode));
+  if (sample.cpu_mode !=
+      protos::pbzero::perfetto_pbzero_enum_Profiling::MODE_UNKNOWN) {
+    row.cpu_mode = context_->storage->InternString(
+        ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode));
+  }
   row.callsite_id = callsite_id;
   row.session_id = sample.attr->perf_session_id();
   row.counter_set_id =

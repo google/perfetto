@@ -347,7 +347,6 @@ class Profiling(TestSuite):
             cpu: 0
             pid: 1
             tid: 42
-            cpu_mode: MODE_USER
             timebase_count: 512
             sample_skipped_reason: PROFILER_SKIP_NOT_IN_SCOPE
           }
@@ -360,6 +359,8 @@ class Profiling(TestSuite):
         SELECT
           ps.ts,
           ps.callsite_id,
+          psi.cpu_mode AS intrinsic_cpu_mode,
+          ps.cpu_mode AS perf_cpu_mode,
           c.value,
           (SELECT count(*) FROM stack_sample) AS stack_sample_count,
           (SELECT timebase_unit FROM profiler_session) AS timebase_unit
@@ -372,8 +373,8 @@ class Profiling(TestSuite):
           ON c.id = pcs.counter_id;
         """,
         out=Csv("""
-        "ts","callsite_id","value","stack_sample_count","timebase_unit"
-        3000,"[NULL]",512.000000,0,"ns"
+        "ts","callsite_id","intrinsic_cpu_mode","perf_cpu_mode","value","stack_sample_count","timebase_unit"
+        3000,"[NULL]","[NULL]","unknown",512.000000,0,"ns"
         """))
 
   def test_profiler_session_source(self):
@@ -742,8 +743,8 @@ class Profiling(TestSuite):
         "ts","cpu","mode","weight","source","timebase_name","unit","frame_name"
         1000,2,"user",1000000,"python.wall","wall-time","ns","foo"
         2000,2,"kernel",2000000,"python.wall","wall-time","ns","foo"
-        6000,"[NULL]","",4000000,"python.wall","wall-time","ns","foo"
-        7000,"[NULL]","",7000000,"python.wall","wall-time","ns","foo"
+        6000,"[NULL]","[NULL]",4000000,"python.wall","wall-time","ns","foo"
+        7000,"[NULL]","[NULL]",7000000,"python.wall","wall-time","ns","foo"
         """))
 
   def test_stack_sample_contexts(self):
@@ -765,8 +766,8 @@ class Profiling(TestSuite):
         "ts","process_name","cpu","mode"
         1000,"myproc",2,"user"
         2000,"myproc",2,"kernel"
-        6000,"myproc","[NULL]",""
-        7000,"[NULL]","[NULL]",""
+        6000,"myproc","[NULL]","[NULL]"
+        7000,"[NULL]","[NULL]","[NULL]"
         """))
 
   def test_stack_sample_interned_callstack(self):

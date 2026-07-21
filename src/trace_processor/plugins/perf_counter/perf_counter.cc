@@ -41,8 +41,8 @@ namespace perfetto::trace_processor {
 class PerfCounterExtractor {
  public:
   explicit PerfCounterExtractor(
-      const tables::ProfilerCounterSetTable& perf_counter_set_table)
-      : cursor_(perf_counter_set_table.CreateCursor({dataframe::FilterSpec{
+      const tables::ProfilerCounterSetTable& profiler_counter_set_table)
+      : cursor_(profiler_counter_set_table.CreateCursor({dataframe::FilterSpec{
             tables::ProfilerCounterSetTable::ColumnIndex::counter_set_id, 0,
             dataframe::Eq{}, std::nullopt}})) {}
 

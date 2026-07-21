@@ -572,11 +572,16 @@ PROFILER_SAMPLE_TABLE = Table(
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('upid', CppOptional(CppUint32())),
+        C(
+            'upid',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('async_name', CppOptional(CppString())),
         C('async_kind', CppOptional(CppString())),
         C('ucpu', CppOptional(CppUint32())),
-        C('cpu_mode', CppString()),
+        C('cpu_mode', CppOptional(CppString())),
         C(
             'callsite_id',
             CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
@@ -623,7 +628,7 @@ PROFILER_SAMPLE_TABLE = Table(
                    with cpu.id.''',
             'cpu_mode':
                 '''Privilege mode the sample was taken in (e.g. "user",
-                   "kernel"). Empty if unknown.''',
+                   "kernel"). NULL if unknown.''',
             'callsite_id':
                 '''If set, the captured callstack.''',
             'unwind_error':
