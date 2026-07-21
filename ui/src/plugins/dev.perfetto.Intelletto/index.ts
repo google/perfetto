@@ -31,6 +31,7 @@ import {ContextRegistry, registerCoreContextProviders} from './context';
 import {registerCoreTools} from './core_tools';
 import {registerTimelineTools} from './timeline_tools';
 import {ToolRegistry} from './tools';
+import {registerWebMCPTools} from './webmcp';
 
 const SIDE_PANEL_URI = 'dev.perfetto.Intelletto#Chat';
 
@@ -125,6 +126,12 @@ export default class IntellettoPlugin
 
     // Pull in the Data Explorer graph tools and selected-node context.
     registerDataExplorerTools(this.tools, this.context, trace);
+
+    // Register tools with Chrome's experimental WebMCP API so external agents
+    // (e.g. Chrome's built-in AI agent, MCP inspector extensions) can discover
+    // and call them. No-ops gracefully when the API is not available.
+    const webmcpController = registerWebMCPTools(this.tools);
+    trace.trash.defer(() => webmcpController?.abort());
   }
 }
 
