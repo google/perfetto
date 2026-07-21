@@ -82,7 +82,7 @@ class TrackEventTokenizer {
       PacketSequenceStateGeneration& state);
 
   // Helper to record tokenization errors with packet offset
-  void RecordTokenizationError(size_t stat_key, TraceBlobView* packet);
+  void RecordTokenizationLog(size_t stat_key, TraceBlobView* packet);
   // Helper to record tokenization errors with track_uuid arg
   void RecordTokenizationErrorWithTrackUuid(size_t stat_key,
                                             uint64_t track_uuid,

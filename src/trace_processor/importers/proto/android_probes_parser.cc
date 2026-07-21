@@ -775,7 +775,7 @@ StringId AndroidProbesParser::ToFlagTypeId(int32_t type) {
 void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
   protos::pbzero::AndroidAflags::Decoder decoder(blob.data, blob.size);
   if (decoder.has_error()) {
-    context_->import_logs_tracker->RecordCollectionError(
+    context_->import_logs_tracker->RecordCollectionLog(
         stats::android_aflags_errors, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
           inserter.AddArg(context_->storage->InternString("error"),

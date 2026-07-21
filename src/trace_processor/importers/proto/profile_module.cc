@@ -192,7 +192,7 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   for (auto callstack_it = decoder.callstack_iid(); callstack_it;
        ++callstack_it, ++timestamp_it) {
     if (!timestamp_it) {
-      context_->import_logs_tracker->RecordTokenizationError(
+      context_->import_logs_tracker->RecordTokenizationLog(
           stats::stackprofile_parser_error, packet->offset());
       break;
     }
@@ -228,7 +228,7 @@ void ProfileModule::ParseStreamingProfileSample(
   auto opt_cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
       sequence_state, upid, event.callstack_iid);
   if (!opt_cs_id) {
-    context_->import_logs_tracker->RecordParserError(
+    context_->import_logs_tracker->RecordParserLog(
         stats::stackprofile_parser_error, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
           inserter.AddArg(context_->storage->InternString("callstack_iid"),

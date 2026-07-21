@@ -112,8 +112,8 @@ ModuleResult TrackEventTokenizer::TokenizeRangeOfInterestPacket(
       args.field
           .Cast<protos::pbzero::TracePacket::kTrackEventRangeOfInterest>());
   if (!range_of_interest.has_start_us()) {
-    RecordTokenizationError(
-        stats::track_event_range_of_interest_missing_start_us, args.packet);
+    RecordTokenizationLog(stats::track_event_range_of_interest_missing_start_us,
+                          args.packet);
     return ModuleResult::Handled();
   }
   track_event_tracker_->set_range_of_interest_us(range_of_interest.start_us());
@@ -133,7 +133,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   Reservation reservation;
 
   if (!track.has_uuid()) {
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::track_descriptor_missing_uuid, args.packet->offset());
     return ModuleResult::Handled();
   }
@@ -157,7 +157,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         reservation.ordering = Reservation::ChildTracksOrdering::kExplicit;
         break;
       default:
-        context_->import_logs_tracker->RecordTokenizationError(
+        context_->import_logs_tracker->RecordTokenizationLog(
             stats::track_descriptor_invalid_child_ordering,
             args.packet->offset(),
             [this, &track](ArgsTracker::BoundInserter& inserter) {
@@ -245,7 +245,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     protos::pbzero::ThreadDescriptor::Decoder thread(track.thread());
 
     if (!thread.has_pid() || !thread.has_tid()) {
-      context_->import_logs_tracker->RecordTokenizationError(
+      context_->import_logs_tracker->RecordTokenizationLog(
           stats::track_descriptor_thread_missing_pid_tid, args.packet->offset(),
           [&](ArgsTracker::BoundInserter& inserter) {
             inserter.AddArg(track_uuid_key_id_,
@@ -283,7 +283,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     protos::pbzero::ProcessDescriptor::Decoder process(track.process());
 
     if (!process.has_pid()) {
-      context_->import_logs_tracker->RecordTokenizationError(
+      context_->import_logs_tracker->RecordTokenizationLog(
           stats::track_descriptor_process_missing_pid, args.packet->offset(),
           [&](ArgsTracker::BoundInserter& inserter) {
             inserter.AddArg(track_uuid_key_id_,
@@ -385,7 +385,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
 ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
     const TokenizePacketArgs& args) {
   if (PERFETTO_UNLIKELY(!args.decoder.has_trusted_packet_sequence_id())) {
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::thread_descriptor_missing_sequence_id, args.packet->offset());
     return ModuleResult::Handled();
   }
@@ -427,7 +427,7 @@ void TrackEventTokenizer::TokenizeThreadDescriptor(
 ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     const TokenizePacketArgs& args) {
   if (PERFETTO_UNLIKELY(!args.decoder.has_trusted_packet_sequence_id())) {
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::track_event_missing_sequence_id, args.packet->offset());
     return ModuleResult::Handled();
   }
@@ -477,7 +477,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   } else if (args.decoder.has_timestamp()) {
     timestamp = args.ts;
   } else {
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::track_event_missing_timestamp,
         data.trace_packet_data.packet.offset());
     return ModuleResult::Handled();
@@ -540,8 +540,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     } else if (defaults && defaults->has_track_uuid()) {
       track_uuid = defaults->track_uuid();
     } else {
-      RecordTokenizationError(stats::track_event_counter_missing_track_uuid,
-                              &data.trace_packet_data.packet);
+      RecordTokenizationLog(stats::track_event_counter_missing_track_uuid,
+                            &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
 
@@ -574,8 +574,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
 
   if (event.type() == protos::pbzero::TrackEvent::TYPE_STATE) {
     if (!event.has_track_uuid() && (!defaults || !defaults->has_track_uuid())) {
-      RecordTokenizationError(stats::track_event_state_missing_track_uuid,
-                              &data.trace_packet_data.packet);
+      RecordTokenizationLog(stats::track_event_state_missing_track_uuid,
+                            &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
   }
@@ -719,17 +719,17 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
   return base::OkStatus();
 }
 
-void TrackEventTokenizer::RecordTokenizationError(size_t stat_key,
-                                                  TraceBlobView* packet) {
-  context_->import_logs_tracker->RecordTokenizationError(stat_key,
-                                                         packet->offset());
+void TrackEventTokenizer::RecordTokenizationLog(size_t stat_key,
+                                                TraceBlobView* packet) {
+  context_->import_logs_tracker->RecordTokenizationLog(stat_key,
+                                                       packet->offset());
 }
 
 void TrackEventTokenizer::RecordTokenizationErrorWithTrackUuid(
     size_t stat_key,
     uint64_t track_uuid,
     TraceBlobView* packet) {
-  context_->import_logs_tracker->RecordTokenizationError(
+  context_->import_logs_tracker->RecordTokenizationLog(
       stat_key, packet->offset(),
       [this, track_uuid](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(track_uuid_key_id_,
@@ -741,7 +741,7 @@ void TrackEventTokenizer::RecordTokenizationErrorWithSeqId(
     size_t stat_key,
     uint32_t packet_sequence_id,
     TraceBlobView* packet) {
-  context_->import_logs_tracker->RecordTokenizationError(
+  context_->import_logs_tracker->RecordTokenizationLog(
       stat_key, packet->offset(),
       [this, packet_sequence_id](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(packet_sequence_id_key_id_,

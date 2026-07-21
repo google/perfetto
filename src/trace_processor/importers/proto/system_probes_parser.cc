@@ -821,7 +821,7 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
       }
       if (!context_->process_tracker->UpdateNamespacedThread(
               tgid, tid, std::move(nstid))) {
-        context_->import_logs_tracker->RecordParserError(
+        context_->import_logs_tracker->RecordParserLog(
             stats::namespaced_thread_missing_process, ts);
       }
     }

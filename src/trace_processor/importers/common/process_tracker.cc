@@ -454,10 +454,10 @@ void ProcessTracker::SetProcessParent(UniquePid upid,
     prr.set_parent_upid(pupid);
   } else if (*prev_parent_upid != pupid) {
     if (timestamp) {
-      context_->import_logs_tracker->RecordParserError(
+      context_->import_logs_tracker->RecordParserLog(
           stats::process_tracker_parent_pid_changed, *timestamp);
     } else {
-      context_->import_logs_tracker->RecordAnalysisError(
+      context_->import_logs_tracker->RecordAnalysisLog(
           stats::process_tracker_parent_pid_changed, {});
     }
   }
