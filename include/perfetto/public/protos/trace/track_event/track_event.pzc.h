@@ -198,6 +198,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   callstack_iid,
                   56);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
+                  FIXED64,
+                  double,
+                  callstack_weight,
+                  57);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   MSG,
                   perfetto_protos_DebugAnnotation,
                   debug_annotations,

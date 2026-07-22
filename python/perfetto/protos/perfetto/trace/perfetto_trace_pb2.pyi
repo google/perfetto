@@ -13571,14 +13571,44 @@ class SdeTracingMarkWriteFtraceEvent(_message.Message):
     def __init__(self, pid: _Optional[int] = ..., trace_name: _Optional[str] = ..., trace_type: _Optional[int] = ..., value: _Optional[int] = ..., trace_begin: _Optional[int] = ...) -> None: ...
 
 class SdeSdeEvtlogFtraceEvent(_message.Message):
-    __slots__ = ("evtlog_tag", "pid", "tag_id")
+    __slots__ = ("evtlog_tag", "pid", "tag_id", "d00", "d01", "d02", "d03", "d04", "d05", "d06", "d07", "d08", "d09", "d10", "d11", "d12", "d13", "d14")
     EVTLOG_TAG_FIELD_NUMBER: _ClassVar[int]
     PID_FIELD_NUMBER: _ClassVar[int]
     TAG_ID_FIELD_NUMBER: _ClassVar[int]
+    D00_FIELD_NUMBER: _ClassVar[int]
+    D01_FIELD_NUMBER: _ClassVar[int]
+    D02_FIELD_NUMBER: _ClassVar[int]
+    D03_FIELD_NUMBER: _ClassVar[int]
+    D04_FIELD_NUMBER: _ClassVar[int]
+    D05_FIELD_NUMBER: _ClassVar[int]
+    D06_FIELD_NUMBER: _ClassVar[int]
+    D07_FIELD_NUMBER: _ClassVar[int]
+    D08_FIELD_NUMBER: _ClassVar[int]
+    D09_FIELD_NUMBER: _ClassVar[int]
+    D10_FIELD_NUMBER: _ClassVar[int]
+    D11_FIELD_NUMBER: _ClassVar[int]
+    D12_FIELD_NUMBER: _ClassVar[int]
+    D13_FIELD_NUMBER: _ClassVar[int]
+    D14_FIELD_NUMBER: _ClassVar[int]
     evtlog_tag: str
     pid: int
     tag_id: int
-    def __init__(self, evtlog_tag: _Optional[str] = ..., pid: _Optional[int] = ..., tag_id: _Optional[int] = ...) -> None: ...
+    d00: int
+    d01: int
+    d02: int
+    d03: int
+    d04: int
+    d05: int
+    d06: int
+    d07: int
+    d08: int
+    d09: int
+    d10: int
+    d11: int
+    d12: int
+    d13: int
+    d14: int
+    def __init__(self, evtlog_tag: _Optional[str] = ..., pid: _Optional[int] = ..., tag_id: _Optional[int] = ..., d00: _Optional[int] = ..., d01: _Optional[int] = ..., d02: _Optional[int] = ..., d03: _Optional[int] = ..., d04: _Optional[int] = ..., d05: _Optional[int] = ..., d06: _Optional[int] = ..., d07: _Optional[int] = ..., d08: _Optional[int] = ..., d09: _Optional[int] = ..., d10: _Optional[int] = ..., d11: _Optional[int] = ..., d12: _Optional[int] = ..., d13: _Optional[int] = ..., d14: _Optional[int] = ...) -> None: ...
 
 class SdeSdePerfCalcCrtcFtraceEvent(_message.Message):
     __slots__ = ("bw_ctl_ebi", "bw_ctl_llcc", "bw_ctl_mnoc", "core_clk_rate", "crtc", "ib_ebi", "ib_llcc", "ib_mnoc")
@@ -16585,20 +16615,30 @@ class StackSample(_message.Message):
         mode: StackSample.Mode
         def __init__(self, iid: _Optional[int] = ..., cpu: _Optional[int] = ..., mode: _Optional[_Union[StackSample.Mode, str]] = ...) -> None: ...
     class CounterDescriptor(_message.Message):
-        __slots__ = ("iid", "name", "unit", "unit_str", "unit_multiplier", "description")
+        __slots__ = ("iid", "name", "unit", "unit_str", "unit_multiplier", "description", "scope")
+        class Scope(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+            __slots__ = ()
+            SCOPE_UNSPECIFIED: _ClassVar[StackSample.CounterDescriptor.Scope]
+            SCOPE_GLOBAL: _ClassVar[StackSample.CounterDescriptor.Scope]
+            SCOPE_CPU: _ClassVar[StackSample.CounterDescriptor.Scope]
+        SCOPE_UNSPECIFIED: StackSample.CounterDescriptor.Scope
+        SCOPE_GLOBAL: StackSample.CounterDescriptor.Scope
+        SCOPE_CPU: StackSample.CounterDescriptor.Scope
         IID_FIELD_NUMBER: _ClassVar[int]
         NAME_FIELD_NUMBER: _ClassVar[int]
         UNIT_FIELD_NUMBER: _ClassVar[int]
         UNIT_STR_FIELD_NUMBER: _ClassVar[int]
         UNIT_MULTIPLIER_FIELD_NUMBER: _ClassVar[int]
         DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+        SCOPE_FIELD_NUMBER: _ClassVar[int]
         iid: int
         name: str
         unit: StackSample.Unit
         unit_str: str
         unit_multiplier: int
         description: str
-        def __init__(self, iid: _Optional[int] = ..., name: _Optional[str] = ..., unit: _Optional[_Union[StackSample.Unit, str]] = ..., unit_str: _Optional[str] = ..., unit_multiplier: _Optional[int] = ..., description: _Optional[str] = ...) -> None: ...
+        scope: StackSample.CounterDescriptor.Scope
+        def __init__(self, iid: _Optional[int] = ..., name: _Optional[str] = ..., unit: _Optional[_Union[StackSample.Unit, str]] = ..., unit_str: _Optional[str] = ..., unit_multiplier: _Optional[int] = ..., description: _Optional[str] = ..., scope: _Optional[_Union[StackSample.CounterDescriptor.Scope, str]] = ...) -> None: ...
     TASK_CONTEXT_FIELD_NUMBER: _ClassVar[int]
     TASK_CONTEXT_IID_FIELD_NUMBER: _ClassVar[int]
     EXECUTION_CONTEXT_FIELD_NUMBER: _ClassVar[int]
@@ -17509,7 +17549,7 @@ class TaskExecution(_message.Message):
     def __init__(self, posted_from_iid: _Optional[int] = ...) -> None: ...
 
 class TrackEvent(_message.Message):
-    __slots__ = ("category_iids", "categories", "name_iid", "name", "type", "track_uuid", "counter_value", "double_counter_value", "extra_counter_track_uuids", "extra_counter_values", "extra_double_counter_track_uuids", "extra_double_counter_values", "flow_ids_old", "flow_ids", "terminating_flow_ids_old", "terminating_flow_ids", "correlation_id", "correlation_id_str", "correlation_id_str_iid", "callstack", "callstack_iid", "debug_annotations", "task_execution", "log_message", "cc_scheduler_state", "chrome_user_event", "chrome_keyed_service", "chrome_legacy_ipc", "chrome_histogram_sample", "chrome_latency_info", "chrome_frame_reporter", "chrome_application_state_info", "chrome_renderer_scheduler_state", "chrome_window_handle_event_info", "chrome_content_settings_event_info", "chrome_active_processes", "screenshot", "source_location", "source_location_iid", "chrome_message_pump", "chrome_mojo_event_info", "timestamp_delta_us", "timestamp_absolute_us", "thread_time_delta_us", "thread_time_absolute_us", "thread_instruction_count_delta", "thread_instruction_count_absolute", "legacy_event")
+    __slots__ = ("category_iids", "categories", "name_iid", "name", "type", "track_uuid", "counter_value", "double_counter_value", "extra_counter_track_uuids", "extra_counter_values", "extra_double_counter_track_uuids", "extra_double_counter_values", "flow_ids_old", "flow_ids", "terminating_flow_ids_old", "terminating_flow_ids", "correlation_id", "correlation_id_str", "correlation_id_str_iid", "callstack", "callstack_iid", "callstack_weight", "debug_annotations", "task_execution", "log_message", "cc_scheduler_state", "chrome_user_event", "chrome_keyed_service", "chrome_legacy_ipc", "chrome_histogram_sample", "chrome_latency_info", "chrome_frame_reporter", "chrome_application_state_info", "chrome_renderer_scheduler_state", "chrome_window_handle_event_info", "chrome_content_settings_event_info", "chrome_active_processes", "screenshot", "source_location", "source_location_iid", "chrome_message_pump", "chrome_mojo_event_info", "timestamp_delta_us", "timestamp_absolute_us", "thread_time_delta_us", "thread_time_absolute_us", "thread_instruction_count_delta", "thread_instruction_count_absolute", "legacy_event")
     Extensions: _python_message._ExtensionDict
     class Type(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
@@ -17601,6 +17641,7 @@ class TrackEvent(_message.Message):
     CORRELATION_ID_STR_IID_FIELD_NUMBER: _ClassVar[int]
     CALLSTACK_FIELD_NUMBER: _ClassVar[int]
     CALLSTACK_IID_FIELD_NUMBER: _ClassVar[int]
+    CALLSTACK_WEIGHT_FIELD_NUMBER: _ClassVar[int]
     DEBUG_ANNOTATIONS_FIELD_NUMBER: _ClassVar[int]
     TASK_EXECUTION_FIELD_NUMBER: _ClassVar[int]
     LOG_MESSAGE_FIELD_NUMBER: _ClassVar[int]
@@ -17649,6 +17690,7 @@ class TrackEvent(_message.Message):
     correlation_id_str_iid: int
     callstack: InlineCallstack
     callstack_iid: int
+    callstack_weight: float
     debug_annotations: _containers.RepeatedCompositeFieldContainer[DebugAnnotation]
     task_execution: TaskExecution
     log_message: LogMessage
@@ -17676,7 +17718,7 @@ class TrackEvent(_message.Message):
     thread_instruction_count_delta: int
     thread_instruction_count_absolute: int
     legacy_event: TrackEvent.LegacyEvent
-    def __init__(self, category_iids: _Optional[_Iterable[int]] = ..., categories: _Optional[_Iterable[str]] = ..., name_iid: _Optional[int] = ..., name: _Optional[str] = ..., type: _Optional[_Union[TrackEvent.Type, str]] = ..., track_uuid: _Optional[int] = ..., counter_value: _Optional[int] = ..., double_counter_value: _Optional[float] = ..., extra_counter_track_uuids: _Optional[_Iterable[int]] = ..., extra_counter_values: _Optional[_Iterable[int]] = ..., extra_double_counter_track_uuids: _Optional[_Iterable[int]] = ..., extra_double_counter_values: _Optional[_Iterable[float]] = ..., flow_ids_old: _Optional[_Iterable[int]] = ..., flow_ids: _Optional[_Iterable[int]] = ..., terminating_flow_ids_old: _Optional[_Iterable[int]] = ..., terminating_flow_ids: _Optional[_Iterable[int]] = ..., correlation_id: _Optional[int] = ..., correlation_id_str: _Optional[str] = ..., correlation_id_str_iid: _Optional[int] = ..., callstack: _Optional[_Union[InlineCallstack, _Mapping]] = ..., callstack_iid: _Optional[int] = ..., debug_annotations: _Optional[_Iterable[_Union[DebugAnnotation, _Mapping]]] = ..., task_execution: _Optional[_Union[TaskExecution, _Mapping]] = ..., log_message: _Optional[_Union[LogMessage, _Mapping]] = ..., cc_scheduler_state: _Optional[_Union[ChromeCompositorSchedulerState, _Mapping]] = ..., chrome_user_event: _Optional[_Union[ChromeUserEvent, _Mapping]] = ..., chrome_keyed_service: _Optional[_Union[ChromeKeyedService, _Mapping]] = ..., chrome_legacy_ipc: _Optional[_Union[ChromeLegacyIpc, _Mapping]] = ..., chrome_histogram_sample: _Optional[_Union[ChromeHistogramSample, _Mapping]] = ..., chrome_latency_info: _Optional[_Union[ChromeLatencyInfo, _Mapping]] = ..., chrome_frame_reporter: _Optional[_Union[ChromeFrameReporter, _Mapping]] = ..., chrome_application_state_info: _Optional[_Union[ChromeApplicationStateInfo, _Mapping]] = ..., chrome_renderer_scheduler_state: _Optional[_Union[ChromeRendererSchedulerState, _Mapping]] = ..., chrome_window_handle_event_info: _Optional[_Union[ChromeWindowHandleEventInfo, _Mapping]] = ..., chrome_content_settings_event_info: _Optional[_Union[ChromeContentSettingsEventInfo, _Mapping]] = ..., chrome_active_processes: _Optional[_Union[ChromeActiveProcesses, _Mapping]] = ..., screenshot: _Optional[_Union[Screenshot, _Mapping]] = ..., source_location: _Optional[_Union[SourceLocation, _Mapping]] = ..., source_location_iid: _Optional[int] = ..., chrome_message_pump: _Optional[_Union[ChromeMessagePump, _Mapping]] = ..., chrome_mojo_event_info: _Optional[_Union[ChromeMojoEventInfo, _Mapping]] = ..., timestamp_delta_us: _Optional[int] = ..., timestamp_absolute_us: _Optional[int] = ..., thread_time_delta_us: _Optional[int] = ..., thread_time_absolute_us: _Optional[int] = ..., thread_instruction_count_delta: _Optional[int] = ..., thread_instruction_count_absolute: _Optional[int] = ..., legacy_event: _Optional[_Union[TrackEvent.LegacyEvent, _Mapping]] = ...) -> None: ...
+    def __init__(self, category_iids: _Optional[_Iterable[int]] = ..., categories: _Optional[_Iterable[str]] = ..., name_iid: _Optional[int] = ..., name: _Optional[str] = ..., type: _Optional[_Union[TrackEvent.Type, str]] = ..., track_uuid: _Optional[int] = ..., counter_value: _Optional[int] = ..., double_counter_value: _Optional[float] = ..., extra_counter_track_uuids: _Optional[_Iterable[int]] = ..., extra_counter_values: _Optional[_Iterable[int]] = ..., extra_double_counter_track_uuids: _Optional[_Iterable[int]] = ..., extra_double_counter_values: _Optional[_Iterable[float]] = ..., flow_ids_old: _Optional[_Iterable[int]] = ..., flow_ids: _Optional[_Iterable[int]] = ..., terminating_flow_ids_old: _Optional[_Iterable[int]] = ..., terminating_flow_ids: _Optional[_Iterable[int]] = ..., correlation_id: _Optional[int] = ..., correlation_id_str: _Optional[str] = ..., correlation_id_str_iid: _Optional[int] = ..., callstack: _Optional[_Union[InlineCallstack, _Mapping]] = ..., callstack_iid: _Optional[int] = ..., callstack_weight: _Optional[float] = ..., debug_annotations: _Optional[_Iterable[_Union[DebugAnnotation, _Mapping]]] = ..., task_execution: _Optional[_Union[TaskExecution, _Mapping]] = ..., log_message: _Optional[_Union[LogMessage, _Mapping]] = ..., cc_scheduler_state: _Optional[_Union[ChromeCompositorSchedulerState, _Mapping]] = ..., chrome_user_event: _Optional[_Union[ChromeUserEvent, _Mapping]] = ..., chrome_keyed_service: _Optional[_Union[ChromeKeyedService, _Mapping]] = ..., chrome_legacy_ipc: _Optional[_Union[ChromeLegacyIpc, _Mapping]] = ..., chrome_histogram_sample: _Optional[_Union[ChromeHistogramSample, _Mapping]] = ..., chrome_latency_info: _Optional[_Union[ChromeLatencyInfo, _Mapping]] = ..., chrome_frame_reporter: _Optional[_Union[ChromeFrameReporter, _Mapping]] = ..., chrome_application_state_info: _Optional[_Union[ChromeApplicationStateInfo, _Mapping]] = ..., chrome_renderer_scheduler_state: _Optional[_Union[ChromeRendererSchedulerState, _Mapping]] = ..., chrome_window_handle_event_info: _Optional[_Union[ChromeWindowHandleEventInfo, _Mapping]] = ..., chrome_content_settings_event_info: _Optional[_Union[ChromeContentSettingsEventInfo, _Mapping]] = ..., chrome_active_processes: _Optional[_Union[ChromeActiveProcesses, _Mapping]] = ..., screenshot: _Optional[_Union[Screenshot, _Mapping]] = ..., source_location: _Optional[_Union[SourceLocation, _Mapping]] = ..., source_location_iid: _Optional[int] = ..., chrome_message_pump: _Optional[_Union[ChromeMessagePump, _Mapping]] = ..., chrome_mojo_event_info: _Optional[_Union[ChromeMojoEventInfo, _Mapping]] = ..., timestamp_delta_us: _Optional[int] = ..., timestamp_absolute_us: _Optional[int] = ..., thread_time_delta_us: _Optional[int] = ..., thread_time_absolute_us: _Optional[int] = ..., thread_instruction_count_delta: _Optional[int] = ..., thread_instruction_count_absolute: _Optional[int] = ..., legacy_event: _Optional[_Union[TrackEvent.LegacyEvent, _Mapping]] = ...) -> None: ...
 
 class TrackEventDefaults(_message.Message):
     __slots__ = ("track_uuid", "extra_counter_track_uuids", "extra_double_counter_track_uuids")

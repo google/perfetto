@@ -13979,6 +13979,32 @@ message StackSample {
   // (the sampling timebase) or observed alongside (a follower). Values live on
   // the sample as weights; this only describes their meaning.
   message CounterDescriptor {
+    // The scope of a counter instance: which stream of values the per-sample
+    // weights belong to. Counter instances accumulate independently, so
+    // values from different instances must never be merged into one stream.
+    // Trace processor keeps sampling streams separate and materializes one
+    // counter track per instance within each stream: SCOPE_GLOBAL yields one
+    // track per sampling stream and SCOPE_CPU one track per
+    // (sampling stream, cpu).
+    enum Scope {
+      // Treated as SCOPE_GLOBAL.
+      SCOPE_UNSPECIFIED = 0;
+
+      // A single counter instance, not split by cpu, thread or anything
+      // else.
+      SCOPE_GLOBAL = 1;
+
+      // One counter instance per cpu. Each sample's weight belongs to the
+      // instance of the cpu in its ExecutionContext; samples without a cpu
+      // cannot be attributed and their weights for this counter are dropped.
+      SCOPE_CPU = 2;
+
+      // If your profiler needs a scope that is not listed here, please file
+      // a bug at https://github.com/google/perfetto/issues explaining what
+      // you are trying to record and which scope you would like added.
+      // Append-only: never renumber or repurpose an existing value.
+    }
+
     // Interning key, used when this descriptor is emitted via
     // InternedData.stack_sample_counter_descriptors and referenced by
     // StackSample.primary_descriptor_iid. Starts from 1; 0 is the same as "not
@@ -14004,6 +14030,9 @@ message StackSample {
 
     // Free-form description of what the counter measures.
     optional string description = 6;
+
+    // The scope of this counter's instances. Absent means SCOPE_GLOBAL.
+    optional Scope scope = 7;
   }
 
   // The task (thread / process / async context) this sample is attributed to.
@@ -15264,6 +15293,13 @@ message TrackEvent {
     // Note: iids *always* start from 1. A value of 0 is considered "not set".
     uint64 callstack_iid = 56;
   }
+
+  // An optional additive value attributed to this callstack occurrence. When
+  // present, weighted callstack aggregations only include occurrences which
+  // have this field set; they do not mix weighted and unweighted samples.
+  // Consumers can use sample count as a separate fallback measure when no
+  // weighted occurrences are available.
+  optional double callstack_weight = 57;
 
   // Debug annotations associated with this event. These are arbitrary key-value
   // pairs that can be used to attach additional information to the event.
