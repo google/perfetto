@@ -521,6 +521,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_table_pointer_module_table_pointer_module",
         ":src_trace_processor_plugins_time_functions_time_functions",
         ":src_trace_processor_plugins_to_ftrace_to_ftrace",
+        ":src_trace_processor_plugins_trace_export_trace_export",
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
@@ -572,6 +573,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_sql_bundle",
         ":src_trace_processor_util_sql_module_doc_parser",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_tar_writer",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_zip_reader",
@@ -824,6 +826,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_table_pointer_module_table_pointer_module",
         ":src_trace_processor_plugins_time_functions_time_functions",
         ":src_trace_processor_plugins_to_ftrace_to_ftrace",
+        ":src_trace_processor_plugins_trace_export_trace_export",
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
@@ -5039,6 +5042,19 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/to_ftrace/to_ftrace.cc",
         "src/trace_processor/plugins/to_ftrace/to_ftrace.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/trace_export:trace_export
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_trace_export_trace_export",
+    srcs = [
+        "src/trace_processor/plugins/trace_export/perfetto_export_manifest.cc",
+        "src/trace_processor/plugins/trace_export/perfetto_export_manifest.h",
+        "src/trace_processor/plugins/trace_export/perfetto_export_reader.cc",
+        "src/trace_processor/plugins/trace_export/perfetto_export_reader.h",
+        "src/trace_processor/plugins/trace_export/trace_export.cc",
+        "src/trace_processor/plugins/trace_export/trace_export.h",
     ],
 )
 
@@ -11558,6 +11574,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_table_pointer_module_table_pointer_module",
         ":src_trace_processor_plugins_time_functions_time_functions",
         ":src_trace_processor_plugins_to_ftrace_to_ftrace",
+        ":src_trace_processor_plugins_trace_export_trace_export",
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
@@ -11608,6 +11625,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_sql_bundle",
         ":src_trace_processor_util_sql_module_doc_parser",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_tar_writer",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_zip_reader",
@@ -11701,6 +11719,7 @@ perfetto_cc_library(
                ":src_base_base",
                ":src_base_clock_snapshots",
                ":src_base_regex_regex",
+               ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_extension_descriptor",
@@ -11891,6 +11910,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_table_pointer_module_table_pointer_module",
         ":src_trace_processor_plugins_time_functions_time_functions",
         ":src_trace_processor_plugins_to_ftrace_to_ftrace",
+        ":src_trace_processor_plugins_trace_export_trace_export",
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
