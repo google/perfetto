@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
 import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
@@ -109,7 +110,7 @@ export function createActualFramesTrack(
       if (tag && tag !== 'No Jank' && tag !== 'None') {
         const elements: m.Vnode[] = [];
         elements.push(
-          m('div', {style: 'font-weight: bold; margin-bottom: 4px;'}, `${tag}`),
+          m('div', {class: 'pf-actual-frames-tooltip__header'}, tag),
         );
 
         if (jankType && jankType !== 'None' && jankType !== 'Unspecified') {
@@ -120,8 +121,12 @@ export function createActualFramesTrack(
           for (const reason of reasons) {
             const desc = JANK_TYPE_DESCRIPTIONS[reason];
             elements.push(
-              m('div', {style: 'margin-top: 4px;'}, [
-                m('span', {style: 'font-weight: 500;'}, `${reason}: `),
+              m('div', {class: 'pf-actual-frames-tooltip__reason'}, [
+                m(
+                  'span',
+                  {class: 'pf-actual-frames-tooltip__reason-name'},
+                  `${reason}: `,
+                ),
                 m('span', desc || 'Rendering performance delay.'),
               ]),
             );
