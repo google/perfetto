@@ -44,6 +44,9 @@ base::Status MergeProtoFiles(
     ProtoFile& out,
     const std::set<std::string>& allowlisted_options = {});
 
+void InlineExtensions(ProtoFile& base_file,
+                      std::vector<ProtoFile>& extension_files);
+
 }  // namespace proto_merger
 }  // namespace perfetto
 

@@ -640,6 +640,153 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
   EXPECT_THAT(out, HasSubstr("proto_filter_merge_passthrough) = true"));
 }
 
+TEST(ProtoFileSerializerTest, ExtensionsInlining) {
+  struct ScopedUnlink {
+    std::string path;
+    ~ScopedUnlink() { base::Unlink(path.c_str()); }
+  };
+
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string input_path = temp_dir.path() + "/input.proto";
+  std::string upstream_base_path = temp_dir.path() + "/upstream_base.proto";
+  std::string upstream_ext_path = temp_dir.path() + "/upstream_ext.proto";
+
+  ScopedUnlink unlink_input{input_path};
+  ScopedUnlink unlink_upstream_base{upstream_base_path};
+  ScopedUnlink unlink_upstream_ext{upstream_ext_path};
+
+  // Monolithic input has inlined fields, including a deleted one.
+  std::string input_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message BaseMessage {
+      optional string name = 1;
+      optional int64 cat_purr_frequency = 1001;
+      optional int32 old_field_deleted = 1002;
+      optional int32 file_level_extension = 1004;
+    }
+
+    message GpuCorrelation {
+      repeated uint64 render_stage_submission_event_ids = 1;
+    }
+  )";
+
+  // Upstream base has extension range.
+  std::string upstream_base_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message BaseMessage {
+      optional string name = 1;
+      extensions 1000 to 9999;
+    }
+  )";
+
+  // Upstream extension file has nested extend block, top-level extend block,
+  // and helper message GpuCorrelation.
+  std::string upstream_ext_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+    import "upstream_base.proto";
+
+    message GpuCorrelation {
+      repeated uint64 render_stage_submission_event_ids = 1;
+    }
+
+    message GpuTrackEvent {
+      extend BaseMessage {
+        optional int64 cat_purr_frequency = 1001;
+        optional GpuCorrelation gpu_correlation = 1003;
+      }
+    }
+
+    extend BaseMessage {
+      optional int32 file_level_extension = 1004;
+    }
+  )";
+
+  {
+    base::ScopedFile file(base::OpenFile(input_path, O_CREAT | O_WRONLY, 0600));
+    ASSERT_TRUE(file);
+    ASSERT_TRUE(
+        base::WriteAll(*file, input_content.c_str(), input_content.size()));
+  }
+  {
+    base::ScopedFile file(
+        base::OpenFile(upstream_base_path, O_CREAT | O_WRONLY, 0600));
+    ASSERT_TRUE(file);
+    ASSERT_TRUE(base::WriteAll(*file, upstream_base_content.c_str(),
+                               upstream_base_content.size()));
+  }
+  {
+    base::ScopedFile file(
+        base::OpenFile(upstream_ext_path, O_CREAT | O_WRONLY, 0600));
+    ASSERT_TRUE(file);
+    ASSERT_TRUE(base::WriteAll(*file, upstream_ext_content.c_str(),
+                               upstream_ext_content.size()));
+  }
+
+  protozero::MultiFileErrorCollectorImpl mfe;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", temp_dir.path());
+  dst.MapPath("", ".");
+  dst.MapPath("", "buildtools/protobuf/src");
+
+  google::protobuf::compiler::Importer importer_input(&dst, &mfe);
+  const auto* input_desc = importer_input.Import("input.proto");
+
+  google::protobuf::compiler::Importer importer_upstream(&dst, &mfe);
+  const auto* upstream_base_desc =
+      importer_upstream.Import("upstream_base.proto");
+  const auto* upstream_ext_desc =
+      importer_upstream.Import("upstream_ext.proto");
+
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_NE(upstream_base_desc, nullptr);
+  ASSERT_NE(upstream_ext_desc, nullptr);
+
+  ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
+  ProtoFile upstream_base_file =
+      ProtoFileFromDescriptor("", *upstream_base_desc);
+  ProtoFile upstream_ext_file = ProtoFileFromDescriptor("", *upstream_ext_desc);
+
+  std::vector<ProtoFile> extensions;
+  extensions.push_back(std::move(upstream_ext_file));
+
+  // Inline the extensions into the base file.
+  InlineExtensions(upstream_base_file, extensions);
+
+  Allowlist allowed;
+  // Allowlist new inlined extension field gpu_correlation (1003)
+  allowed.messages["BaseMessage"].fields.insert(1003);
+  // Allowlist GpuCorrelation recursively (so its fields are allowlisted)
+  allowed.messages["GpuCorrelation"].fields.insert(1);
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input_file, upstream_base_file, allowed, merged).ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+
+  // 1. Check that extensions range was removed
+  EXPECT_THAT(out, Not(HasSubstr("extensions 1000")));
+
+  // 2. Check that active inlined fields are output directly inside BaseMessage
+  EXPECT_THAT(out, HasSubstr("message BaseMessage"));
+  EXPECT_THAT(out, HasSubstr("int64 cat_purr_frequency = 1001;"));
+  EXPECT_THAT(out, HasSubstr("GpuCorrelation gpu_correlation = 1003;"));
+  EXPECT_THAT(out, HasSubstr("int32 file_level_extension = 1004;"));
+
+  // 3. Check that deleted field is commented out inside BaseMessage
+  EXPECT_THAT(out, HasSubstr("old_field_deleted = 1002;"));
+
+  // 4. Check helper types are moved (and empty GpuTrackEvent is removed since
+  // it's empty)
+  EXPECT_THAT(out, HasSubstr("message GpuCorrelation"));
+  EXPECT_THAT(out, Not(HasSubstr("message GpuTrackEvent")));
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto

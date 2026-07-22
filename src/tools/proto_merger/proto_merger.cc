@@ -379,14 +379,18 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
 
 // We call both of these just "Merge" so that |MergeRecursive| below can
 // reference them with the same name.
-base::Status Merge(const ProtoFile::Oneof& input,
+base::Status Merge(const Allowlist& root_allowlist,
+                   const std::string& package,
+                   const ProtoFile::Oneof& input,
                    const ProtoFile::Oneof& upstream,
                    const Allowlist::Oneof& allowlist,
                    const std::set<std::string>& known_enums,
                    const std::set<std::string>& allowlisted_options,
                    ProtoFile::Oneof& out);
 
-base::Status Merge(const ProtoFile::Message& input,
+base::Status Merge(const Allowlist& root_allowlist,
+                   const std::string& package,
+                   const ProtoFile::Message& input,
                    const ProtoFile::Message& upstream,
                    const Allowlist::Message& allowlist,
                    const std::set<std::string>& known_enums,
@@ -395,6 +399,8 @@ base::Status Merge(const ProtoFile::Message& input,
 
 template <typename T, typename AllowlistType>
 base::Status MergeRecursive(
+    const Allowlist& root_allowlist,
+    const std::string& package,
     const std::vector<T>& input,
     const std::vector<T>& upstream,
     const std::map<std::string, AllowlistType>& allowlist_map,
@@ -426,8 +432,8 @@ base::Status MergeRecursive(
 
     auto allowlist = opt_allowlist.value_or(AllowlistType{});
     T out_item;
-    auto status = Merge(input_or_fake, upstream_item, allowlist, known_enums,
-                        allowlisted_options, out_item);
+    auto status = Merge(root_allowlist, package, input_or_fake, upstream_item,
+                        allowlist, known_enums, allowlisted_options, out_item);
     if (!status.ok())
       return status;
     out.emplace_back(std::move(out_item));
@@ -435,7 +441,9 @@ base::Status MergeRecursive(
   return base::OkStatus();
 }
 
-base::Status Merge(const ProtoFile::Oneof& input,
+base::Status Merge(const Allowlist& /* root_allowlist */,
+                   const std::string& /* package */,
+                   const ProtoFile::Oneof& input,
                    const ProtoFile::Oneof& upstream,
                    const Allowlist::Oneof& allowlist,
                    const std::set<std::string>& known_enums,
@@ -457,7 +465,9 @@ base::Status Merge(const ProtoFile::Oneof& input,
                      allowlisted_options, out.fields);
 }
 
-base::Status Merge(const ProtoFile::Message& input,
+base::Status Merge(const Allowlist& root_allowlist,
+                   const std::string& package,
+                   const ProtoFile::Message& input,
                    const ProtoFile::Message& upstream,
                    const Allowlist::Message& allowlist,
                    const std::set<std::string>& known_enums,
@@ -483,21 +493,27 @@ base::Status Merge(const ProtoFile::Message& input,
                          allowlisted_options);
 
   // Merge any nested message types.
-  auto status = MergeRecursive(input.nested_messages, upstream.nested_messages,
-                               allowlist.nested_messages, known_enums,
-                               allowlisted_options, out.nested_messages);
+  auto status =
+      MergeRecursive(root_allowlist, package, input.nested_messages,
+                     upstream.nested_messages, allowlist.nested_messages,
+                     known_enums, allowlisted_options, out.nested_messages);
   if (!status.ok())
     return status;
 
   // Merge any oneofs.
-  status = MergeRecursive(input.oneofs, upstream.oneofs, allowlist.oneofs,
-                          known_enums, allowlisted_options, out.oneofs);
+  status = MergeRecursive(root_allowlist, package, input.oneofs,
+                          upstream.oneofs, allowlist.oneofs, known_enums,
+                          allowlisted_options, out.oneofs);
   if (!status.ok())
     return status;
 
   // Finish by merging the list of fields.
-  return MergeFields(input.fields, upstream.fields, allowlist.fields,
-                     known_enums, allowlisted_options, out.fields);
+  status = MergeFields(input.fields, upstream.fields, allowlist.fields,
+                       known_enums, allowlisted_options, out.fields);
+  if (!status.ok())
+    return status;
+
+  return base::OkStatus();
 }
 
 }  // namespace
@@ -510,6 +526,7 @@ base::Status MergeProtoFiles(const ProtoFile& input,
   // The preamble is taken directly from upstream. This allows private stuff
   // to be in the preamble without being present in upstream.
   out.preamble = input.preamble;
+  out.package = input.package;
 
   std::set<std::string> known_enums;
   for (const auto& en : upstream.enums) {
@@ -536,8 +553,136 @@ base::Status MergeProtoFiles(const ProtoFile& input,
                          allowlisted_options);
 
   // Finish by merging the top-level messages.
-  return MergeRecursive(input.messages, upstream.messages, allowlist.messages,
-                        known_enums, allowlisted_options, out.messages);
+  return MergeRecursive(allowlist, input.package, input.messages,
+                        upstream.messages, allowlist.messages, known_enums,
+                        allowlisted_options, out.messages);
+}
+
+namespace {
+
+std::string MinimizeFqType(const std::string& fq_type,
+                           const std::string& scope) {
+  if (base::StartsWith(fq_type, "map<")) {
+    size_t comma = fq_type.find(',');
+    if (comma == std::string::npos)
+      return fq_type;
+    std::string key = fq_type.substr(4, comma - 4);
+    std::string val = fq_type.substr(comma + 1, fq_type.size() - comma - 2);
+    return "map<" + MinimizeFqType(key, scope) + "," +
+           MinimizeFqType(val, scope) + ">";
+  }
+  if (base::StartsWith(fq_type, ".")) {
+    std::string type_without_dot = fq_type.substr(1);
+    auto opt = MinimizeType(type_without_dot, scope);
+    return opt.value_or(type_without_dot);
+  }
+  return fq_type;
+}
+
+ProtoFile::Message* FindMessageByFullName(ProtoFile& file,
+                                          const std::string& full_name) {
+  std::string relative_name = full_name;
+  if (base::StartsWith(relative_name, ".")) {
+    relative_name = relative_name.substr(1);
+  }
+  if (!file.package.empty() &&
+      base::StartsWith(relative_name, file.package + ".")) {
+    relative_name = relative_name.substr(file.package.size() + 1);
+  }
+
+  auto pieces = base::SplitString(relative_name, ".");
+  if (pieces.empty())
+    return nullptr;
+
+  ProtoFile::Message* current = nullptr;
+  for (auto& msg : file.messages) {
+    if (msg.name == pieces[0]) {
+      current = &msg;
+      break;
+    }
+  }
+  if (!current)
+    return nullptr;
+
+  for (size_t i = 1; i < pieces.size(); ++i) {
+    ProtoFile::Message* next = nullptr;
+    for (auto& nested : current->nested_messages) {
+      if (nested.name == pieces[i]) {
+        next = &nested;
+        break;
+      }
+    }
+    if (!next)
+      return nullptr;
+    current = next;
+  }
+  return current;
+}
+
+void InlineExtensionIntoMessage(ProtoFile::Message& target_msg,
+                                const ProtoFile::Extension& ext) {
+  for (const auto& ext_field : ext.fields) {
+    ProtoFile::Field inlined_field = ext_field;
+    inlined_field.type = MinimizeFqType(ext_field.fq_type, ext.full_extendee);
+    target_msg.fields.push_back(std::move(inlined_field));
+  }
+  target_msg.extension_ranges.clear();
+}
+
+bool IsMessageEmpty(const ProtoFile::Message& msg) {
+  return msg.fields.empty() && msg.nested_messages.empty() &&
+         msg.enums.empty() && msg.oneofs.empty() &&
+         msg.extension_ranges.empty() && msg.extensions.empty();
+}
+
+void ProcessMessageExtensions(ProtoFile::Message& msg, ProtoFile& base_file) {
+  auto it = msg.extensions.begin();
+  while (it != msg.extensions.end()) {
+    ProtoFile::Message* target =
+        FindMessageByFullName(base_file, it->full_extendee);
+    if (target) {
+      InlineExtensionIntoMessage(*target, *it);
+      it = msg.extensions.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  for (auto& nested : msg.nested_messages) {
+    ProcessMessageExtensions(nested, base_file);
+  }
+}
+
+}  // namespace
+
+void InlineExtensions(ProtoFile& base_file,
+                      std::vector<ProtoFile>& extension_files) {
+  for (auto& ext_file : extension_files) {
+    auto it = ext_file.extensions.begin();
+    while (it != ext_file.extensions.end()) {
+      ProtoFile::Message* target =
+          FindMessageByFullName(base_file, it->full_extendee);
+      if (target) {
+        InlineExtensionIntoMessage(*target, *it);
+        it = ext_file.extensions.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    for (auto& msg : ext_file.messages) {
+      ProcessMessageExtensions(msg, base_file);
+    }
+
+    for (auto& msg : ext_file.messages) {
+      if (!IsMessageEmpty(msg)) {
+        base_file.messages.push_back(std::move(msg));
+      }
+    }
+    for (auto& en : ext_file.enums) {
+      base_file.enums.push_back(std::move(en));
+    }
+  }
 }
 
 }  // namespace proto_merger
