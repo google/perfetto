@@ -50,6 +50,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -152,6 +153,7 @@ class JsonExporter {
     RETURN_IF_ERROR(ExportMetadata());
     RETURN_IF_ERROR(ExportStats());
     RETURN_IF_ERROR(ExportMemorySnapshots());
+    RETURN_IF_ERROR(ExportV8CpuProfile());
     return base::OkStatus();
   }
 
@@ -177,6 +179,10 @@ class JsonExporter {
         return;
 
       DoWriteEvent(event);
+    }
+
+    void SetMetadata(const char* key, Dom value) {
+      metadata_[key] = std::move(value);
     }
 
     void AddAsyncBeginEvent(Dom&& event) {
@@ -1581,6 +1587,344 @@ class JsonExporter {
     return base::OkStatus();
   }
 
+  // Synthesizes legacy DevTools "Profile" / "ProfileChunk" trace events from
+  // the generic profiler tables and V8 sidecars.
+  base::Status ExportV8CpuProfile() {
+    if (storage_->v8_cpu_profile_session_table().row_count() == 0) {
+      return base::OkStatus();
+    }
+    constexpr char kCategory[] = "disabled-by-default-v8.cpu_profiler";
+    constexpr char kPhase[] = "P";
+
+    struct SessionRow {
+      tables::V8CpuProfileSessionTable::Id id;
+      tables::ProfilerSessionTable::Id profiler_session_id;
+      int64_t start_ts;
+      std::optional<int64_t> end_ts;
+      std::optional<int64_t> start_time_us;
+      std::optional<int64_t> end_time_us;
+      std::optional<int64_t> start_thread_ts;
+      std::optional<int64_t> end_thread_ts;
+      std::optional<std::string> source;
+      std::optional<int64_t> pid;
+      std::optional<int64_t> tid;
+    };
+    struct NodeRow {
+      int64_t node_id;
+      std::optional<int64_t> parent_node_id;
+      std::string function_name;
+      std::optional<std::string> url;
+      std::optional<int64_t> line_number;
+      std::optional<int64_t> column_number;
+      std::optional<int64_t> script_id;
+      std::string code_type;
+      std::optional<std::string> deopt_reason;
+    };
+    struct SampleRow {
+      int64_t ts;
+      CallsiteId callsite_id;
+      std::optional<UniqueTid> utid;
+      int64_t node_id;
+      std::optional<int64_t> delta_us;
+      int64_t leaf_line;
+      int64_t leaf_column;
+    };
+
+    std::vector<SessionRow> sessions;
+    for (auto it = storage_->v8_cpu_profile_session_table().IterateRows(); it;
+         ++it) {
+      SessionRow row;
+      row.id = it.id();
+      row.profiler_session_id = it.profiler_session_id();
+      row.start_ts = it.start_ts();
+      row.end_ts = it.end_ts();
+      row.start_time_us = it.start_time_us();
+      row.end_time_us = it.end_time_us();
+      row.start_thread_ts = it.start_thread_ts();
+      row.end_thread_ts = it.end_thread_ts();
+      row.pid = it.pid();
+      row.tid = it.tid();
+      if (it.source())
+        row.source = storage_->GetString(*it.source()).ToStdString();
+      sessions.push_back(std::move(row));
+    }
+    if (!sessions.empty()) {
+      writer_.SetMetadata("dataOrigin", Dom("CPUProfile"));
+    }
+
+    uint64_t next_v8_profile_id = 1;
+    for (const auto& sr : sessions) {
+      std::map<uint32_t, CounterId> primary_counters;
+      for (auto it = storage_->profiler_counter_set_table().IterateRows(); it;
+           ++it) {
+        primary_counters.emplace(it.counter_set_id(), it.counter_id());
+      }
+
+      std::map<uint32_t, std::pair<int64_t, int64_t>> v8_samples;
+      for (auto it = storage_->v8_cpu_profile_sample_table().IterateRows(); it;
+           ++it) {
+        v8_samples.emplace(it.profiler_sample_id().value,
+                           std::make_pair(it.leaf_line().value_or(0),
+                                          it.leaf_column().value_or(0)));
+      }
+
+      std::vector<SampleRow> samples;
+      for (auto it = storage_->profiler_sample_table().IterateRows(); it;
+           ++it) {
+        if (!it.session_id() || *it.session_id() != sr.profiler_session_id ||
+            !it.callsite_id()) {
+          continue;
+        }
+        auto v8_sample = v8_samples.find(it.id().value);
+        if (v8_sample == v8_samples.end())
+          continue;
+        std::optional<int64_t> delta_us;
+        if (it.counter_set_id()) {
+          auto primary_counter = primary_counters.find(*it.counter_set_id());
+          if (primary_counter != primary_counters.end()) {
+            const auto counter =
+                storage_->counter_table()[primary_counter->second];
+            delta_us = static_cast<int64_t>(counter.value() / 1000.0);
+          }
+        }
+        SampleRow row{it.ts(),
+                      *it.callsite_id(),
+                      it.utid(),
+                      0,
+                      delta_us,
+                      v8_sample->second.first,
+                      v8_sample->second.second};
+        samples.push_back(row);
+      }
+      std::sort(
+          samples.begin(), samples.end(),
+          [](const SampleRow& a, const SampleRow& b) { return a.ts < b.ts; });
+      std::pair<int64_t, int64_t> pid_and_tid;
+      if (!samples.empty()) {
+        std::optional<UniqueTid> utid = samples.front().utid;
+        if (!utid)
+          continue;
+        pid_and_tid = UtidToPidAndTid(*utid);
+      } else {
+        if (!sr.pid || !sr.tid)
+          continue;
+        pid_and_tid = {*sr.pid, *sr.tid};
+      }
+      uint64_t session_id = next_v8_profile_id++;
+      int64_t start_ts = sr.start_ts;
+
+      std::map<uint32_t, uint32_t> node_ids;
+      std::function<void(CallsiteId)> add_callsite =
+          [&](CallsiteId callsite_id) {
+            if (node_ids.count(callsite_id.value))
+              return;
+            const auto callsite =
+                storage_->stack_profile_callsite_table()[callsite_id];
+            if (callsite.parent_id())
+              add_callsite(*callsite.parent_id());
+            node_ids.emplace(callsite_id.value,
+                             static_cast<uint32_t>(node_ids.size() + 1));
+          };
+      for (const auto& sample : samples)
+        add_callsite(sample.callsite_id);
+      for (auto& sample : samples)
+        sample.node_id = node_ids[sample.callsite_id.value];
+
+      Dom profile_event(Type::kObject);
+      profile_event["pid"] = static_cast<int>(pid_and_tid.first);
+      profile_event["tid"] = static_cast<int>(pid_and_tid.second);
+      profile_event["ts"] = start_ts / 1000;
+      if (sr.start_thread_ts)
+        profile_event["tts"] = *sr.start_thread_ts / 1000;
+      profile_event["ph"] = kPhase;
+      profile_event["cat"] = kCategory;
+      profile_event["name"] = "Profile";
+      profile_event["id"] = base::Uint64ToHexString(session_id);
+
+      Dom profile_data(Type::kObject);
+      if (sr.start_time_us)
+        profile_data["startTime"] = *sr.start_time_us;
+      if (sr.source)
+        profile_data["source"] = *sr.source;
+      Dom profile_args(Type::kObject);
+      profile_args["data"] = std::move(profile_data);
+      profile_event["args"] = std::move(profile_args);
+      writer_.WriteCommonEvent(profile_event);
+
+      if (!node_ids.empty()) {
+        Dom nodes_array(Type::kArray);
+        for (const auto& [callsite_value, node_id] : node_ids) {
+          CallsiteId callsite_id(callsite_value);
+          const auto callsite =
+              storage_->stack_profile_callsite_table()[callsite_id];
+          const auto frame =
+              storage_->stack_profile_frame_table()[callsite.frame_id()];
+          const auto mapping =
+              storage_->stack_profile_mapping_table()[frame.mapping()];
+          Dom node_dom(Type::kObject);
+          node_dom["id"] = static_cast<int64_t>(node_id);
+          if (callsite.parent_id()) {
+            node_dom["parent"] =
+                static_cast<int64_t>(node_ids[callsite.parent_id()->value]);
+          }
+          Dom call_frame(Type::kObject);
+          call_frame["functionName"] =
+              storage_->GetString(frame.name()).ToStdString();
+          call_frame["scriptId"] = static_cast<int64_t>(0);
+          if (mapping.name() != kNullStringId) {
+            call_frame["url"] =
+                storage_->GetString(mapping.name()).ToStdString();
+          }
+          if (frame.symbol_set_id()) {
+            for (auto symbol = storage_->symbol_table().IterateRows(); symbol;
+                 ++symbol) {
+              if (symbol.symbol_set_id() != *frame.symbol_set_id())
+                continue;
+              if (symbol.source_file()) {
+                call_frame["url"] =
+                    storage_->GetString(*symbol.source_file()).ToStdString();
+              }
+              if (symbol.line_number()) {
+                call_frame["lineNumber"] =
+                    static_cast<int64_t>(*symbol.line_number());
+              }
+              break;
+            }
+          }
+          call_frame["codeType"] = "other";
+          for (auto v8_frame =
+                   storage_->v8_stack_profile_frame_table().IterateRows();
+               v8_frame; ++v8_frame) {
+            if (v8_frame.frame_id() != callsite.frame_id())
+              continue;
+            call_frame["scriptId"] = v8_frame.script_id().value_or(0);
+            call_frame["columnNumber"] =
+                static_cast<int64_t>(v8_frame.column_number().value_or(0));
+            if (v8_frame.tier()) {
+              const auto tier = storage_->GetString(*v8_frame.tier());
+              if (tier == "IGNITION" || tier == "SPARKPLUG" ||
+                  tier == "MAGLEV" || tier == "TURBOFAN") {
+                call_frame["codeType"] = "JS";
+              }
+            }
+            if (v8_frame.deopt_reason())
+              node_dom["deoptReason"] =
+                  storage_->GetString(*v8_frame.deopt_reason()).ToStdString();
+            break;
+          }
+          node_dom["callFrame"] = std::move(call_frame);
+          nodes_array.Append(std::move(node_dom));
+        }
+
+        Dom samples_array(Type::kArray);
+        Dom deltas_array(Type::kArray);
+        Dom lines_array(Type::kArray);
+        Dom columns_array(Type::kArray);
+        bool has_non_zero_lines = false;
+        int64_t previous_ts = start_ts;
+        for (const auto& s : samples) {
+          samples_array.Append(s.node_id);
+          deltas_array.Append(s.delta_us.value_or((s.ts - previous_ts) / 1000));
+          previous_ts = s.ts;
+          if (s.leaf_line != 0)
+            has_non_zero_lines = true;
+          lines_array.Append(s.leaf_line);
+          columns_array.Append(s.leaf_column);
+        }
+
+        Dom cpu_profile(Type::kObject);
+        cpu_profile["nodes"] = std::move(nodes_array);
+        cpu_profile["samples"] = std::move(samples_array);
+
+        Dom devtools_cpu_profile = cpu_profile.Copy();
+        devtools_cpu_profile["startTime"] =
+            sr.start_time_us.value_or(start_ts / 1000);
+        if (sr.end_time_us) {
+          devtools_cpu_profile["endTime"] = *sr.end_time_us;
+        } else {
+          int64_t end_time_us = sr.start_time_us.value_or(start_ts / 1000);
+          for (const auto& sample : samples) {
+            end_time_us += sample.delta_us.value_or(0);
+          }
+          devtools_cpu_profile["endTime"] = end_time_us;
+        }
+        devtools_cpu_profile["timeDeltas"] = deltas_array.Copy();
+        if (has_non_zero_lines) {
+          devtools_cpu_profile["lines"] = lines_array.Copy();
+          devtools_cpu_profile["columns"] = columns_array.Copy();
+        }
+
+        Dom data(Type::kObject);
+        data["cpuProfile"] = std::move(cpu_profile);
+        if (has_non_zero_lines)
+          data["lines"] = std::move(lines_array);
+        if (has_non_zero_lines)
+          data["columns"] = std::move(columns_array);
+        if (sr.source)
+          data["source"] = *sr.source;
+        data["timeDeltas"] = std::move(deltas_array);
+
+        Dom args(Type::kObject);
+        args["data"] = std::move(data);
+        Dom chunk_event(Type::kObject);
+        chunk_event["pid"] = static_cast<int>(pid_and_tid.first);
+        chunk_event["tid"] = static_cast<int>(pid_and_tid.second);
+        chunk_event["ts"] = start_ts / 1000;
+        if (sr.start_thread_ts)
+          chunk_event["tts"] = *sr.start_thread_ts / 1000;
+        chunk_event["ph"] = kPhase;
+        chunk_event["cat"] = kCategory;
+        chunk_event["name"] = "ProfileChunk";
+        chunk_event["id"] = base::Uint64ToHexString(session_id);
+        chunk_event["args"] = std::move(args);
+        writer_.WriteCommonEvent(chunk_event);
+
+        // DevTools recognizes standalone CPU-profile files through this
+        // complete event.
+        Dom devtools_profile_event(Type::kObject);
+        devtools_profile_event["pid"] = static_cast<int>(pid_and_tid.first);
+        devtools_profile_event["tid"] = static_cast<int>(pid_and_tid.second);
+        devtools_profile_event["ts"] = start_ts / 1000;
+        devtools_profile_event["dur"] = static_cast<int64_t>(
+            sr.end_ts.value_or(start_ts) / 1000 - start_ts / 1000);
+        devtools_profile_event["ph"] = "X";
+        devtools_profile_event["cat"] = "disabled-by-default-devtools.timeline";
+        devtools_profile_event["name"] = "CpuProfile";
+        devtools_profile_event["id"] =
+            base::Uint64ToHexString(session_id | (uint64_t{1} << 63));
+        Dom devtools_args(Type::kObject);
+        devtools_args["data"]["cpuProfile"] = std::move(devtools_cpu_profile);
+        devtools_profile_event["args"] = std::move(devtools_args);
+        writer_.WriteCommonEvent(devtools_profile_event);
+      }
+
+      if (sr.end_ts) {
+        Dom end_event(Type::kObject);
+        end_event["pid"] = static_cast<int>(pid_and_tid.first);
+        end_event["tid"] = static_cast<int>(pid_and_tid.second);
+        end_event["ts"] = *sr.end_ts / 1000;
+        if (sr.end_thread_ts)
+          end_event["tts"] = *sr.end_thread_ts / 1000;
+        end_event["ph"] = kPhase;
+        end_event["cat"] = kCategory;
+        end_event["name"] = "ProfileChunk";
+        end_event["id"] = base::Uint64ToHexString(session_id);
+
+        Dom end_data(Type::kObject);
+        if (sr.end_time_us)
+          end_data["endTime"] = *sr.end_time_us;
+        if (sr.source)
+          end_data["source"] = *sr.source;
+
+        Dom end_args(Type::kObject);
+        end_args["data"] = std::move(end_data);
+        end_event["args"] = std::move(end_args);
+        writer_.WriteCommonEvent(end_event);
+      }
+    }
+    return base::OkStatus();
+  }
+
   int64_t UpidToPid(UniquePid upid) {
     auto pid_it = upids_to_exported_pids_.find(upid);
     PERFETTO_DCHECK(pid_it != upids_to_exported_pids_.end());
@@ -1709,16 +2053,15 @@ base::Status ExportJson(TraceProcessorStorage* tp,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
                         LabelFilterPredicate label_filter) {
-  const TraceStorage* storage = reinterpret_cast<TraceProcessorStorageImpl*>(tp)
-                                    ->context()
-                                    ->storage.get();
+  auto* impl = reinterpret_cast<TraceProcessorStorageImpl*>(tp);
+  const TraceStorage* storage = impl->context()->storage.get();
   return ExportJson(storage, output, std::move(argument_filter),
                     std::move(metadata_filter), std::move(label_filter));
 }
 
 base::Status ExportJson(const TraceStorage* storage, FILE* output) {
   FileWriter writer(output);
-  return ExportJson(storage, &writer, nullptr, nullptr, nullptr);
+  return ExportJson(storage, &writer);
 }
 
 }  // namespace perfetto::trace_processor::json

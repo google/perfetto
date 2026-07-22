@@ -153,6 +153,7 @@ export default class implements PerfettoPlugin {
           thread_slice_count + process_slice_count as sliceCount,
           perf_sample_count as perfSampleCount,
           instruments_sample_count as instrumentsSampleCount,
+          stack_sample_count as stackSampleCount,
           allocation_count as heapProfileAllocationCount,
           graph_object_count as heapGraphObjectCount,
           (
@@ -183,6 +184,7 @@ export default class implements PerfettoPlugin {
           slice_count as sliceCount,
           perf_sample_count as perfSampleCount,
           instruments_sample_count as instrumentsSampleCount,
+          stack_sample_count as stackSampleCount,
           ifnull(extract_arg(thread.arg_set_id, 'thread_sort_index_hint'), 0) as threadSortIndexHint,
           machine_id as machine
         from _thread_available_info_summary
@@ -208,6 +210,7 @@ export default class implements PerfettoPlugin {
           heapGraphObjectCount desc,
           perfSampleCount desc,
           instrumentsSampleCount desc,
+          stackSampleCount desc,
           sumRunningDur desc,
           sliceCount desc,
           processName asc,
@@ -230,6 +233,7 @@ export default class implements PerfettoPlugin {
           threadSortIndexHint asc,
           perfSampleCount desc,
           instrumentsSampleCount desc,
+          stackSampleCount desc,
           sumRunningDur desc,
           sliceCount desc,
           threadName asc,

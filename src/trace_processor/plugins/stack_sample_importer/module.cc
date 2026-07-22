@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/common/v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
@@ -118,6 +119,27 @@ const char* StringifyProfileUnit(protos::pbzero::StackSample::Unit unit) {
   return "";
 }
 
+std::optional<int32_t> GetV8SampleKind(protozero::ConstBytes blob) {
+  protozero::ProtoDecoder decoder(blob.data, blob.size);
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() == 1000)
+      return field.as_int32();
+  }
+  return std::nullopt;
+}
+
+std::optional<uint32_t> GetV8LeafPosition(protozero::ConstBytes blob,
+                                          uint32_t field_id) {
+  protozero::ProtoDecoder decoder(blob.data, blob.size);
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() == field_id)
+      return field.as_uint32();
+  }
+  return std::nullopt;
+}
+
 }  // namespace
 
 StackSampleModule::StackSampleModule(ProtoImporterModuleContext* module_context,
@@ -139,6 +161,11 @@ tables::ProfilerSessionTable::Id StackSampleModule::GetOrCreateSession(
     StringId source) {
   if (auto* id = sessions_.Find(seq_id)) {
     return *id;
+  }
+  if (auto v8_session =
+          context_->v8_cpu_profile_tracker->GetProfilerSession(seq_id)) {
+    sessions_.Insert(seq_id, *v8_session);
+    return *v8_session;
   }
   tables::ProfilerSessionTable::Row row;
   row.source = source;
@@ -446,6 +473,7 @@ void StackSampleModule::ParseStackSample(
 
   tables::ProfilerSessionTable::Id session_id =
       GetOrCreateSession(seq_id, source_id);
+  context_->v8_cpu_profile_tracker->OnProfilerSession(seq_id, session_id);
   std::vector<CounterId> counter_ids = ParseCounterValues(
       ts, sequence_state, session_id, source_id, cpu, sample, defaults);
 
@@ -466,7 +494,11 @@ void StackSampleModule::ParseStackSample(
   row.callsite_id = ResolveCallstack(sequence_state, upid, sample);
   row.counter_set_id =
       context_->profiler_sample_tracker->AddCounterSet(counter_ids);
-  context_->profiler_sample_tracker->AddSample(row);
+  auto sample_id = context_->profiler_sample_tracker->AddSample(row);
+  context_->v8_cpu_profile_tracker->OnProfilerSample(
+      seq_id, sample_id, GetV8SampleKind(blob),
+      GetV8LeafPosition(blob, /*field_id=*/1001),
+      GetV8LeafPosition(blob, /*field_id=*/1002));
 }
 
 }  // namespace perfetto::trace_processor::stack_sample_importer

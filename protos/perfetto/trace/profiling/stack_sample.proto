@@ -243,6 +243,8 @@ message StackSample {
   repeated CounterDescriptor follower_descriptors = 12;
   repeated uint64 follower_descriptor_iids = 13 [packed = true];
   repeated uint64 follower_weights = 14 [packed = true];
+
+  extensions 1000 to 9999;
 }
 
 // Per-sequence defaults for StackSample. Lets a producer declare the source and

@@ -1,0 +1,51 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Per-V8-CPU-profile-session metadata. Emitted twice per session: a
+// PHASE_START packet at StartProfiling time and a PHASE_END packet at
+// StopProfiling time.
+//
+// The bulk of the profile data flows through generic StackSample, Frame, and
+// Callstack messages plus the V8 extensions in v8_profile_extensions.proto.
+// This packet carries session scoped metadata that does not fit naturally in
+// those messages.
+message V8CpuProfileSession {
+  enum Phase {
+    PHASE_UNKNOWN = 0;
+    PHASE_START = 1;
+    PHASE_END = 2;
+  }
+
+  optional Phase phase = 1;
+
+  // Free-form origin string.
+  optional string source = 2;
+
+  // Wall-clock time in microseconds since CLOCK_MONOTONIC origin.
+  optional int64 wall_time_us = 3;
+
+  // Thread time in microseconds at the moment of START / END.
+  optional int64 thread_time_us = 4;
+
+  // OS process and thread that own this logical profile. These let exporters
+  // represent an empty profile, which has no StackSample task context.
+  optional int32 pid = 5;
+  optional int32 tid = 6;
+}

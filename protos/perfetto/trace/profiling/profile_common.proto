@@ -183,6 +183,10 @@ message Frame {
     Kind kind = 7;
     string kind_str = 8;
   }
+
+  // Range reserved for runtime-specific extensions to Frame (see e.g.
+  // protos/perfetto/trace/v8/v8_profile_extensions.proto).
+  extensions 1000 to 9999;
 }
 
 message Callstack {
@@ -190,4 +194,7 @@ message Callstack {
   optional uint64 iid = 1;
   // Frames of this callstack. Bottom frame first.
   repeated uint64 frame_ids = 2;
+
+  // Range reserved for runtime-specific extensions to Callstack.
+  extensions 1000 to 9999;
 }

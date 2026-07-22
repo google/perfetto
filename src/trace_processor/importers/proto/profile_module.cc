@@ -186,6 +186,7 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
     int64_t delta_ns = *timestamp_it * 1000;
     track_event->IncrementAndGetTrackEventTimeNs(delta_ns);
     sample_ts += delta_ns;
+
     streaming_profile_stream_->Push(
         sample_ts, StreamingProfileSampleEvent{sequence_state, *callstack_it,
                                                decoder.process_priority()});

@@ -22,9 +22,14 @@ export function createCpuProfileTrack(
   trace: Trace,
   uri: string,
   utid: number,
+  sessionId: number | undefined,
   detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
 ) {
+  const table =
+    sessionId === undefined ? 'cpu_profile_stack_sample' : 'stack_sample';
+  const sessionFilter =
+    sessionId === undefined ? '' : ` AND session_id = ${sessionId}`;
   return createProfilingTrack(
     trace,
     uri,
@@ -41,7 +46,8 @@ export function createCpuProfileTrack(
             ts,
             callsite_id AS callsiteId,
             utid
-          FROM cpu_profile_stack_sample
+          FROM ${table}
+          WHERE 1 = 1${sessionFilter}
         `,
         filter: {
           col: 'utid',
@@ -50,8 +56,8 @@ export function createCpuProfileTrack(
       }),
       callsiteQuery: (ts) => `
         SELECT callsite_id
-        FROM cpu_profile_stack_sample
-        WHERE ts = ${ts} AND utid = ${utid}
+        FROM ${table}
+        WHERE ts = ${ts} AND utid = ${utid}${sessionFilter}
       `,
       sqlModule: 'callstacks.stack_profile',
       metricName: 'CPU Profile Samples',

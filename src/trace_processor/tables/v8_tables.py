@@ -32,6 +32,8 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 
 from src.trace_processor.tables.jit_tables import JIT_CODE_TABLE
+from src.trace_processor.tables.profiler_tables import (
+    PROFILER_SAMPLE_TABLE, PROFILER_SESSION_TABLE, STACK_PROFILE_FRAME_TABLE)
 
 V8_ISOLATE = Table(
     python_module=__file__,
@@ -347,6 +349,121 @@ V8_REGEXP_CODE = Table(
     ),
 )
 
+V8_STACK_PROFILE_FRAME = Table(
+    python_module=__file__,
+    class_name='V8StackProfileFrameTable',
+    sql_name='__intrinsic_v8_stack_profile_frame',
+    columns=[
+        C('frame_id',
+          CppTableId(STACK_PROFILE_FRAME_TABLE),
+          cpp_access=CppAccess.READ),
+        C('tier', CppOptional(CppString()), cpp_access=CppAccess.READ),
+        C('is_inlined', CppOptional(CppBool()), cpp_access=CppAccess.READ),
+        C('column_number', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
+        C('deopt_reason', CppOptional(CppString()), cpp_access=CppAccess.READ),
+        C('script_id', CppOptional(CppInt32()), cpp_access=CppAccess.READ),
+    ],
+    tabledoc=TableDoc(
+        doc='''V8-specific attributes attached to a stack_profile_frame row.
+            One row per stack_profile_frame.id that originated from V8's CPU
+            profiler.''',
+        group='v8',
+        columns={
+            'frame_id':
+                ColumnDoc(
+                    doc='Stack profile frame this row attaches to.',
+                    joinable='__intrinsic_stack_profile_frame.id',
+                ),
+            'tier':
+                'Compilation tier (e.g. IGNITION, SPARKPLUG, TURBOFAN).',
+            'is_inlined':
+                'Whether this frame represents an inlined call site.',
+            'column_number':
+                'Source column for the frame, paired with frame line_number.',
+            'deopt_reason':
+                'Function deopt reason.',
+            'script_id':
+                'V8 script id for DevTools source mapping.',
+        },
+    ),
+)
+
+V8_CPU_PROFILE_SAMPLE = Table(
+    python_module=__file__,
+    class_name='V8CpuProfileSampleTable',
+    sql_name='__intrinsic_v8_cpu_profile_sample',
+    columns=[
+        C(
+            'profiler_sample_id',
+            CppTableId(PROFILER_SAMPLE_TABLE),
+            cpp_access=CppAccess.READ,
+        ),
+        C('sample_kind', CppOptional(CppString()), cpp_access=CppAccess.READ),
+        C('leaf_line', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
+        C('leaf_column', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
+    ],
+    tabledoc=TableDoc(
+        doc='''V8-specific attributes attached to a profiler_sample
+            row.''',
+        group='v8',
+        columns={
+            'profiler_sample_id':
+                ColumnDoc(
+                    doc='Profiler sample this row attaches to.',
+                    joinable='__intrinsic_profiler_sample.id',
+                ),
+            'sample_kind':
+                'Sample origin (NORMAL, PROGRAM, GC, IDLE, OTHER).',
+            'leaf_line':
+                'Per-sample leaf source line.',
+            'leaf_column':
+                'Per-sample leaf source column.',
+        },
+    ),
+)
+
+V8_CPU_PROFILE_SESSION = Table(
+    python_module=__file__,
+    class_name='V8CpuProfileSessionTable',
+    sql_name='__intrinsic_v8_cpu_profile_session',
+    columns=[
+        C('profiler_session_id',
+          CppTableId(PROFILER_SESSION_TABLE),
+          cpp_access=CppAccess.READ),
+        C('source', CppOptional(CppString()), cpp_access=CppAccess.READ),
+        C('pid', CppOptional(CppInt64()), cpp_access=CppAccess.READ),
+        C('tid', CppOptional(CppInt64()), cpp_access=CppAccess.READ),
+        C('start_ts', CppInt64(), cpp_access=CppAccess.READ),
+        C('end_ts',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('start_time_us', CppOptional(CppInt64()), cpp_access=CppAccess.READ),
+        C('end_time_us',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('start_thread_ts', CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ),
+        C('end_thread_ts',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+    ],
+    tabledoc=TableDoc(
+        doc='''Session-scoped metadata for a V8 CPU profile.''',
+        group='v8',
+        columns={
+            'pid': 'OS process that owns the profile.',
+            'tid': 'OS thread that owns the profile.',
+            'source': 'Source string.',
+            'start_ts': 'TraceProcessor timestamp (ns) of the session start.',
+            'end_ts': 'TraceProcessor timestamp (ns) of the session end.',
+            'start_time_us': 'V8 wall-clock startTime in microseconds.',
+            'end_time_us': 'V8 wall-clock endTime in microseconds.',
+            'start_thread_ts': 'Thread timestamp at start (ns).',
+            'end_thread_ts': 'Thread timestamp at end (ns).',
+        },
+    ),
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     V8_ISOLATE,
@@ -357,4 +474,7 @@ ALL_TABLES = [
     V8_INTERNAL_CODE,
     V8_WASM_CODE,
     V8_REGEXP_CODE,
+    V8_STACK_PROFILE_FRAME,
+    V8_CPU_PROFILE_SAMPLE,
+    V8_CPU_PROFILE_SESSION,
 ]

@@ -60,17 +60,22 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
     );
     const result = await ctx.engine.query(`
       with thread_cpu_sample as (
-        select distinct utid
+        select distinct utid, null as sessionId, 0 as isV8
         from cpu_profile_stack_sample
+        union all
+        select distinct utid, session_id as sessionId, 1 as isV8
+        from stack_sample
+        where source = 'v8.cpu_profiler'
       )
       select
         utid,
         tid,
         upid,
-        thread.name as threadName
+        thread.name as threadName,
+        sessionId,
+        isV8
       from thread_cpu_sample
       join thread using(utid)
-      where not is_idle
     `);
 
     const store = ensureExists(this.store);
@@ -78,23 +83,32 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
       utid: NUM,
       upid: NUM_NULL,
       threadName: STR_NULL,
+      sessionId: NUM_NULL,
+      isV8: NUM,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
       const upid = it.upid;
       const threadName = it.threadName;
-      const uri = `${getThreadUriPrefix(upid, utid)}_cpu_samples`;
+      const sessionId = it.sessionId;
+      const isV8 = it.isV8 === 1;
+      const uri =
+        sessionId === null
+          ? `${getThreadUriPrefix(upid, utid)}_cpu_samples`
+          : `${getThreadUriPrefix(upid, utid)}_v8_cpu_samples_${sessionId}`;
       ctx.tracks.registerTrack({
         uri,
         tags: {
           kinds: [CPU_PROFILE_TRACK_KIND],
           utid,
+          ...(sessionId !== null && {sessionId}),
           ...(exists(upid) && {upid}),
         },
         renderer: createCpuProfileTrack(
           ctx,
           uri,
           utid,
+          sessionId ?? undefined,
           store.state.detailsPanelFlamegraphState,
           (state) => {
             store.edit((draft) => {
@@ -108,7 +122,7 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
         .getGroupForThread(utid);
       const track = new TrackNode({
         uri,
-        name: `${threadName} (CPU Stack Samples)`,
+        name: `${threadName} (${isV8 ? 'V8 CPU' : 'CPU'} Stack Samples)`,
         sortOrder: -40,
       });
       group?.addChildInOrder(track);
@@ -180,8 +194,15 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
           source_file || ':' || line_number as source_location,
           self_count
         from _callstacks_for_callsites!((
-          select p.callsite_id
-          from cpu_profile_stack_sample p
+          select callsite_id
+          from (
+            select callsite_id, ts, utid
+            from cpu_profile_stack_sample
+            union all
+            select callsite_id, ts, utid
+            from stack_sample
+            where source = 'v8.cpu_profiler'
+          ) p
           where p.ts >= ${selection.start}
             and p.ts <= ${selection.end}
             and p.utid in (${utids.join(',')})
@@ -221,20 +242,35 @@ export default class CpuProfilePlugin implements PerfettoPlugin {
 
 async function selectCpuProfileCallsite(trace: Trace) {
   const profile = await ensureExists(trace.engine).query(`
-    select utid, upid
-    from cpu_profile_stack_sample
+    select utid, upid, session_id as sessionId
+    from (
+      select utid, callsite_id, null as session_id
+      from cpu_profile_stack_sample
+      union all
+      select utid, callsite_id, session_id
+      from stack_sample
+      where source = 'v8.cpu_profiler'
+    )
     join thread using(utid)
-    where callsite_id is not null and not is_idle
+    where callsite_id is not null
     order by ts desc
     limit 1
   `);
   if (profile.numRows() !== 1) return;
-  const {utid, upid} = profile.firstRow({utid: NUM, upid: NUM_NULL});
+  const {utid, upid, sessionId} = profile.firstRow({
+    utid: NUM,
+    upid: NUM_NULL,
+    sessionId: NUM_NULL,
+  });
+  const uri =
+    sessionId === null
+      ? `${getThreadUriPrefix(upid, utid)}_cpu_samples`
+      : `${getThreadUriPrefix(upid, utid)}_v8_cpu_samples_${sessionId}`;
 
   // Create an area selection over the first process with a perf samples track
   trace.selection.selectArea({
     start: trace.traceInfo.start,
     end: trace.traceInfo.end,
-    trackUris: [`${getThreadUriPrefix(upid, utid)}_cpu_samples`],
+    trackUris: [uri],
   });
 }

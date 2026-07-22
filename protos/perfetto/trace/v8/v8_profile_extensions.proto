@@ -1,0 +1,86 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+import public "protos/perfetto/trace/profiling/profile_common.proto";
+import public "protos/perfetto/trace/profiling/stack_sample.proto";
+
+// Compilation tier of a V8 frame.
+enum V8Tier {
+  V8_TIER_UNKNOWN = 0;
+  V8_TIER_IGNITION = 1;
+  V8_TIER_SPARKPLUG = 2;
+  V8_TIER_MAGLEV = 3;
+  V8_TIER_TURBOFAN = 4;
+  V8_TIER_BUILTIN = 5;
+  V8_TIER_REGEXP = 6;
+  V8_TIER_WASM = 7;
+  V8_TIER_OTHER = 8;
+}
+
+// Origin of a V8 CPU profile sample.
+enum V8SampleKind {
+  V8_SAMPLE_KIND_UNKNOWN = 0;
+  // Inside JS, V8 native code, or anything that resolves to a real frame.
+  V8_SAMPLE_KIND_NORMAL = 1;
+  // Synthetic "(program)" sample — V8 was running but no JS frame was on top.
+  V8_SAMPLE_KIND_PROGRAM = 2;
+  // Synthetic "(garbage collector)" sample — GC was running.
+  V8_SAMPLE_KIND_GC = 3;
+  // Synthetic "(idle)" sample.
+  V8_SAMPLE_KIND_IDLE = 4;
+  V8_SAMPLE_KIND_OTHER = 5;
+}
+
+// V8-specific extensions to generic profiling messages. These extend
+// StackSample and Frame so the trace processor sees V8 CPU profile data
+// uniformly with other sampling profilers.
+//
+// Only fields that are genuinely V8-specific live here.
+message V8FrameExtensions {
+  extend Frame {
+    // Compilation tier the function was running in when the frame was
+    // captured.
+    optional V8Tier v8_tier = 1000;
+
+    // Whether this frame represents an inlined call site.
+    optional bool v8_is_inlined = 1001;
+
+    // Source column for this frame, paired with Frame.line_number.
+    optional uint32 v8_column_number = 1002;
+
+    // iid into InternedData.function_names containing the deopt reason
+    // string.
+    optional uint64 v8_deopt_reason_iid = 1003;
+
+    // script id used by DevTools source mapping.
+    optional int32 v8_script_id = 1004;
+  }
+}
+
+message V8StackSampleExtensions {
+  extend StackSample {
+    // Origin of this V8 sample.
+    optional V8SampleKind v8_sample_kind = 1000;
+
+    // Per-sample leaf source position. Zero means unknown.
+    optional uint32 v8_leaf_line = 1001;
+    optional uint32 v8_leaf_column = 1002;
+  }
+}

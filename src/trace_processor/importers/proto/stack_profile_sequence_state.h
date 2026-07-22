@@ -86,6 +86,11 @@ class StackProfileSequenceState final
                                            std::optional<UniquePid> upid,
                                            uint64_t iid);
 
+  // Hook for runtime-specific (currently V8) extension fields on Frame.
+  void AttachRuntimeFrameExtensions(PacketSequenceStateGeneration* state,
+                                    FrameId frame_id,
+                                    uint64_t iid);
+
   TraceProcessorContext* const context_;
   DummyMemoryMapping* dummy_mapping_for_interned_frames_ = nullptr;
 

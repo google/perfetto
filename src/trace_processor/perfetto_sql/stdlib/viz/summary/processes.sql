@@ -41,7 +41,8 @@ SELECT
   sum(running_count) AS running_count,
   sum(slice_count) AS slice_count,
   sum(perf_sample_count) AS perf_sample_count,
-  sum(instruments_sample_count) AS instruments_sample_count
+  sum(instruments_sample_count) AS instruments_sample_count,
+  sum(stack_sample_count) AS stack_sample_count
 FROM _thread_available_info_summary
 JOIN thread USING (utid)
 WHERE
@@ -61,6 +62,7 @@ WITH
       t_summary.slice_count AS thread_slice_count,
       t_summary.perf_sample_count AS perf_sample_count,
       t_summary.instruments_sample_count AS instruments_sample_count,
+      t_summary.stack_sample_count AS stack_sample_count,
       (SELECT slice_count FROM _process_track_summary WHERE upid = p.upid) AS process_slice_count,
       (
         SELECT allocation_count
@@ -85,6 +87,7 @@ SELECT
   coalesce(thread_slice_count, 0) AS thread_slice_count,
   coalesce(perf_sample_count, 0) AS perf_sample_count,
   coalesce(instruments_sample_count, 0) AS instruments_sample_count,
+  coalesce(stack_sample_count, 0) AS stack_sample_count,
   coalesce(process_slice_count, 0) AS process_slice_count,
   coalesce(allocation_count, 0) AS allocation_count,
   coalesce(graph_object_count, 0) AS graph_object_count

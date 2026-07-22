@@ -156,6 +156,9 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_v8_internal_code_table());
     AddDataframe(out, s->mutable_v8_wasm_code_table());
     AddDataframe(out, s->mutable_v8_regexp_code_table());
+    AddDataframe(out, s->mutable_v8_stack_profile_frame_table());
+    AddDataframe(out, s->mutable_v8_cpu_profile_sample_table());
+    AddDataframe(out, s->mutable_v8_cpu_profile_session_table());
     AddDataframe(out, s->mutable_symbol_table());
     AddDataframe(out, s->mutable_jit_code_table());
     AddDataframe(out, s->mutable_jit_frame_table());

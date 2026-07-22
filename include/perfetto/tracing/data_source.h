@@ -336,6 +336,19 @@ class DataSource : public DataSourceBase {
       return tls_inst_->trace_writer->NewTracePacket();
     }
 
+    // Creates a new writer for this data source instance. The returned writer
+    // owns a distinct packet sequence and must be used and destroyed on the
+    // calling thread while this data source instance remains active.
+    std::unique_ptr<TraceWriterBase> CreateTraceWriter() {
+      auto* instance_state =
+          Helper::type().static_state()->TryGet(instance_index_);
+      if (!instance_state)
+        return nullptr;
+      return internal::TracingMuxer::Get()->CreateTraceWriter(
+          Helper::type().static_state(), instance_index_, instance_state,
+          instance_state->buffer_exhausted_policy);
+    }
+
     // Forces a commit of the thread-local tracing data written so far to the
     // service. This is almost never required (tracing data is periodically
     // committed as trace pages are filled up) and has a non-negligible

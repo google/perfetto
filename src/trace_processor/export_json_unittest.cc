@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
@@ -52,6 +53,10 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/v8_tables_py.h"
+#include "src/trace_processor/trace_processor_impl.h"
+#include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/json_value.h"
@@ -2083,6 +2088,448 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
       base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(node2_id.value)));
   EXPECT_EQ(graph[0]["importance"].AsUint(), kImportance);
   EXPECT_EQ(graph[0]["type"].AsString(), "ownership");
+}
+
+// Test that V8 CPU profile events exported via chrome_raw_table match the
+// JSON format expected by DevTools SamplesHandler:
+//   - Profile event: ph="P", cat="disabled-by-default-v8.cpu_profiler",
+//     name="Profile", id=hex, args.data.startTime, args.data.source
+//   - ProfileChunk event: ph="P", name="ProfileChunk", id=hex,
+//     args.data.cpuProfile.nodes[].{id, callFrame.{functionName, scriptId,
+//     ...}}, args.data.cpuProfile.samples[], args.data.timeDeltas[]
+TEST_F(ExportJsonTest, V8CpuProfileRawEvents) {
+  const int64_t kProfileTs = 10000000;
+  const int64_t kChunkTs = 20000000;
+  const uint32_t kPid = 42;
+  const uint32_t kTid = 100;
+  const uint64_t kSessionId = 1;
+
+  UniqueTid utid = context_.process_tracker->UpdateThread(kTid, kPid);
+
+  StringId raw_name_id =
+      context_.storage->InternString("track_event.legacy_event");
+  StringId cat_key = context_.storage->InternString("legacy_event.category");
+  StringId name_key = context_.storage->InternString("legacy_event.name");
+  StringId phase_key = context_.storage->InternString("legacy_event.phase");
+  StringId id_key = context_.storage->InternString("legacy_event.unscoped_id");
+  StringId cat_val =
+      context_.storage->InternString("disabled-by-default-v8.cpu_profiler");
+  StringId phase_p = context_.storage->InternString("P");
+
+  // Insert a "Profile" (session start) raw event.
+  {
+    StringId event_name = context_.storage->InternString("Profile");
+    auto raw_id = context_.storage->mutable_chrome_raw_table()
+                      ->Insert({kProfileTs, raw_name_id, utid, 0})
+                      .id;
+    ArgsTracker args(&context_);
+    auto inserter = args.AddArgsTo(raw_id);
+    inserter.AddArg(cat_key, Variadic::String(cat_val));
+    inserter.AddArg(name_key, Variadic::String(event_name));
+    inserter.AddArg(phase_key, Variadic::String(phase_p));
+    inserter.AddArg(id_key, Variadic::UnsignedInteger(kSessionId));
+    inserter.AddArg(context_.storage->InternString("data.startTime"),
+                    Variadic::Integer(10000));
+    inserter.AddArg(
+        context_.storage->InternString("data.source"),
+        Variadic::String(context_.storage->InternString("Inspector")));
+  }
+
+  // Insert a "ProfileChunk" raw event with nodes, samples, and timeDeltas.
+  {
+    StringId event_name = context_.storage->InternString("ProfileChunk");
+    auto raw_id = context_.storage->mutable_chrome_raw_table()
+                      ->Insert({kChunkTs, raw_name_id, utid, 0})
+                      .id;
+    ArgsTracker args(&context_);
+    auto inserter = args.AddArgsTo(raw_id);
+    inserter.AddArg(cat_key, Variadic::String(cat_val));
+    inserter.AddArg(name_key, Variadic::String(event_name));
+    inserter.AddArg(phase_key, Variadic::String(phase_p));
+    inserter.AddArg(id_key, Variadic::UnsignedInteger(kSessionId));
+
+    std::string json =
+        "{\"cpuProfile\":{\"nodes\":["
+        "{\"callFrame\":{\"functionName\":\"(root)\",\"scriptId\":0},"
+        "\"id\":1},"
+        "{\"callFrame\":{\"functionName\":\"foo\",\"url\":\"test.js\","
+        "\"scriptId\":1,\"lineNumber\":0,\"columnNumber\":9,"
+        "\"codeType\":\"JS\"},\"id\":2,\"parent\":1}"
+        "],\"samples\":[2,2,1]},\"timeDeltas\":[1000,1000,1000]}";
+    inserter.AddArg(
+        context_.storage->InternString("data"),
+        Variadic::Json(context_.storage->InternString(base::StringView(json))));
+  }
+
+  std::string output = ToJson();
+  Dom result = ToJsonValue(output);
+
+  const Dom* profile_event = nullptr;
+  const Dom* chunk_event = nullptr;
+  for (size_t i = 0; i < result["traceEvents"].size(); i++) {
+    const auto& e = result["traceEvents"][i];
+    if (e.HasMember("name") && e["name"].AsString() == "Profile")
+      profile_event = &e;
+    if (e.HasMember("name") && e["name"].AsString() == "ProfileChunk")
+      chunk_event = &e;
+  }
+
+  ASSERT_NE(profile_event, nullptr) << "Profile event not found in JSON";
+  ASSERT_NE(chunk_event, nullptr) << "ProfileChunk event not found in JSON";
+
+  // Validate Profile event format (DevTools SamplesHandler expectations).
+  EXPECT_EQ((*profile_event)["ph"].AsString(), "P");
+  EXPECT_EQ((*profile_event)["cat"].AsString(),
+            "disabled-by-default-v8.cpu_profiler");
+  EXPECT_TRUE((*profile_event).HasMember("id"));
+  EXPECT_EQ((*profile_event)["pid"].AsInt(), static_cast<int>(kPid));
+  EXPECT_EQ((*profile_event)["tid"].AsInt(), static_cast<int>(kTid));
+  // args.data must contain startTime and source.
+  const auto& profile_data = (*profile_event)["args"]["data"];
+  EXPECT_TRUE(profile_data.HasMember("startTime"));
+  EXPECT_TRUE(profile_data.HasMember("source"));
+  EXPECT_EQ(profile_data["source"].AsString(), "Inspector");
+
+  // Validate ProfileChunk event format.
+  EXPECT_EQ((*chunk_event)["ph"].AsString(), "P");
+  EXPECT_EQ((*chunk_event)["cat"].AsString(),
+            "disabled-by-default-v8.cpu_profiler");
+  EXPECT_EQ((*chunk_event)["name"].AsString(), "ProfileChunk");
+  EXPECT_TRUE((*chunk_event).HasMember("id"));
+  // Profile and ProfileChunk must share the same id.
+  EXPECT_EQ((*profile_event)["id"].AsString(), (*chunk_event)["id"].AsString());
+
+  // args.data must contain cpuProfile with nodes and samples.
+  const auto& chunk_data = (*chunk_event)["args"]["data"];
+  ASSERT_TRUE(chunk_data.HasMember("cpuProfile"));
+  const auto& cpu_profile = chunk_data["cpuProfile"];
+  ASSERT_TRUE(cpu_profile.HasMember("nodes"));
+  ASSERT_TRUE(cpu_profile.HasMember("samples"));
+  EXPECT_GE(cpu_profile["nodes"].size(), 2u);
+  EXPECT_GE(cpu_profile["samples"].size(), 3u);
+
+  // Validate node structure matches DevTools CallFrame format.
+  const auto& node0 = cpu_profile["nodes"][0];
+  EXPECT_TRUE(node0.HasMember("id"));
+  ASSERT_TRUE(node0.HasMember("callFrame"));
+  EXPECT_TRUE(node0["callFrame"].HasMember("functionName"));
+  EXPECT_TRUE(node0["callFrame"].HasMember("scriptId"));
+
+  const auto& node1 = cpu_profile["nodes"][1];
+  EXPECT_TRUE(node1.HasMember("parent"));
+  EXPECT_EQ(node1["callFrame"]["functionName"].AsString(), "foo");
+  EXPECT_EQ(node1["callFrame"]["url"].AsString(), "test.js");
+  EXPECT_TRUE(node1["callFrame"].HasMember("lineNumber"));
+  EXPECT_TRUE(node1["callFrame"].HasMember("columnNumber"));
+  EXPECT_EQ(node1["callFrame"]["codeType"].AsString(), "JS");
+
+  // args.data must contain timeDeltas array.
+  ASSERT_TRUE(chunk_data.HasMember("timeDeltas"));
+  EXPECT_EQ(chunk_data["timeDeltas"].size(), 3u);
+}
+
+TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
+  const int64_t kStartTs = 10000000;
+  const int64_t kSampleTs0 = 11000000;
+  const int64_t kSampleTs1 = 12000000;
+  const int64_t kEndTs = 13000000;
+  const uint32_t kPid = 42;
+  const uint32_t kTid = 100;
+  auto tp = TraceProcessor::CreateInstance(Config());
+  auto* impl = static_cast<TraceProcessorImpl*>(tp.get());
+  TraceStorage* storage = impl->context()->storage.get();
+
+  tables::ProcessTable::Row process_row;
+  process_row.pid = kPid;
+  auto upid = storage->mutable_process_table()->Insert(process_row).row;
+
+  tables::ThreadTable::Row thread_row;
+  thread_row.tid = kTid;
+  thread_row.upid = upid;
+  auto utid = storage->mutable_thread_table()->Insert(thread_row).row;
+
+  StringId fn_root = storage->InternString("(root)");
+  StringId fn_foo = storage->InternString("foo");
+  StringId url_test = storage->InternString("test.js");
+  StringId code_js = storage->InternString("TURBOFAN");
+
+  tables::StackProfileMappingTable::Row mapping_row;
+  mapping_row.name = url_test;
+  auto mapping_id =
+      storage->mutable_stack_profile_mapping_table()->Insert(mapping_row).id;
+
+  tables::StackProfileFrameTable::Row frame_row_root;
+  frame_row_root.name = fn_root;
+  frame_row_root.mapping = mapping_id;
+  auto frame_root =
+      storage->mutable_stack_profile_frame_table()->Insert(frame_row_root).id;
+  tables::StackProfileFrameTable::Row frame_row_foo;
+  frame_row_foo.name = fn_foo;
+  frame_row_foo.mapping = mapping_id;
+  uint32_t foo_symbol_set = 1;
+  frame_row_foo.symbol_set_id = foo_symbol_set;
+  auto frame_foo =
+      storage->mutable_stack_profile_frame_table()->Insert(frame_row_foo).id;
+  tables::SymbolTable::Row sym_row;
+  sym_row.symbol_set_id = foo_symbol_set;
+  sym_row.name = fn_foo;
+  sym_row.source_file = url_test;
+  sym_row.line_number = 42;
+  storage->mutable_symbol_table()->Insert(sym_row);
+
+  tables::StackProfileCallsiteTable::Row cs_root_row;
+  cs_root_row.depth = 0;
+  cs_root_row.frame_id = frame_root;
+  auto cs_root =
+      storage->mutable_stack_profile_callsite_table()->Insert(cs_root_row).id;
+  tables::StackProfileCallsiteTable::Row cs_foo_row;
+  cs_foo_row.depth = 1;
+  cs_foo_row.parent_id = cs_root;
+  cs_foo_row.frame_id = frame_foo;
+  auto cs_foo =
+      storage->mutable_stack_profile_callsite_table()->Insert(cs_foo_row).id;
+
+  tables::V8StackProfileFrameTable::Row v8_frame_foo;
+  v8_frame_foo.frame_id = frame_foo;
+  v8_frame_foo.tier = code_js;
+  v8_frame_foo.column_number = 9u;
+  v8_frame_foo.script_id = 123;
+  v8_frame_foo.deopt_reason = storage->InternString("not optimized");
+  storage->mutable_v8_stack_profile_frame_table()->Insert(v8_frame_foo);
+
+  tables::ProfilerSessionTable::Row profiler_session_row;
+  profiler_session_row.source = storage->InternString("v8.cpu_profiler");
+  auto profiler_session_id = storage->mutable_profiler_session_table()
+                                 ->Insert(profiler_session_row)
+                                 .id;
+
+  tables::V8CpuProfileSessionTable::Row session_row;
+  session_row.profiler_session_id = profiler_session_id;
+  session_row.start_ts = kStartTs;
+  session_row.start_time_us = 10000;
+  session_row.start_thread_ts = 5000000;  // 5000us tts
+  session_row.source = storage->InternString("Inspector");
+  session_row.pid = kPid;
+  session_row.tid = kTid;
+  session_row.end_ts = kEndTs;
+  session_row.end_time_us = 13000;
+  session_row.end_thread_ts = 8000000;  // 8000us tts
+  storage->mutable_v8_cpu_profile_session_table()->Insert(session_row);
+
+  auto counter0 = storage->mutable_counter_table()
+                      ->Insert({kSampleTs0, TrackId{}, 17000.0})
+                      .id;
+  auto counter1 = storage->mutable_counter_table()
+                      ->Insert({kSampleTs1, TrackId{}, 23000.0})
+                      .id;
+  tables::ProfilerCounterSetTable::Row counter_set0;
+  counter_set0.counter_set_id = 0;
+  counter_set0.counter_id = counter0;
+  storage->mutable_profiler_counter_set_table()->Insert(counter_set0);
+  tables::ProfilerCounterSetTable::Row counter_set1;
+  counter_set1.counter_set_id = 1;
+  counter_set1.counter_id = counter1;
+  storage->mutable_profiler_counter_set_table()->Insert(counter_set1);
+
+  // Two samples hitting cs_foo. Their timestamps intentionally differ from
+  // their primary wall-time weights.
+  tables::ProfilerSampleTable::Row sample_row0;
+  sample_row0.ts = kSampleTs0;
+  sample_row0.source = storage->InternString("v8.cpu_profiler");
+  sample_row0.utid = utid;
+  sample_row0.callsite_id = cs_foo;
+  sample_row0.session_id = profiler_session_id;
+  sample_row0.counter_set_id = 0;
+  auto sample0 =
+      storage->mutable_profiler_sample_table()->Insert(sample_row0).id;
+  tables::ProfilerSampleTable::Row sample_row1 = sample_row0;
+  sample_row1.ts = kSampleTs1;
+  sample_row1.counter_set_id = 1;
+  auto sample1 =
+      storage->mutable_profiler_sample_table()->Insert(sample_row1).id;
+  tables::V8CpuProfileSampleTable::Row v8_sample0;
+  v8_sample0.profiler_sample_id = sample0;
+  v8_sample0.leaf_line = 7u;
+  v8_sample0.leaf_column = 11u;
+  storage->mutable_v8_cpu_profile_sample_table()->Insert(v8_sample0);
+  tables::V8CpuProfileSampleTable::Row v8_sample1;
+  v8_sample1.profiler_sample_id = sample1;
+  storage->mutable_v8_cpu_profile_sample_table()->Insert(v8_sample1);
+
+  ASSERT_TRUE(tp->NotifyEndOfFile().ok());
+
+  StringOutputWriter writer;
+  base::Status status = ExportJson(storage, &writer);
+  ASSERT_TRUE(status.ok()) << status.message();
+  Dom result = ToJsonValue(writer.TakeStr());
+
+  const Dom* profile_event = nullptr;
+  const Dom* chunk_event = nullptr;
+  const Dom* end_event = nullptr;
+  const Dom* devtools_profile_event = nullptr;
+  for (size_t i = 0; i < result["traceEvents"].size(); i++) {
+    const auto& e = result["traceEvents"][i];
+    if (!e.HasMember("name") || !e.HasMember("cat"))
+      continue;
+    if (e["name"].AsString() == "CpuProfile" &&
+        e["cat"].AsString() == "disabled-by-default-devtools.timeline") {
+      devtools_profile_event = &e;
+    } else if (e["cat"].AsString() != "disabled-by-default-v8.cpu_profiler") {
+      continue;
+    } else if (e["name"].AsString() == "Profile") {
+      profile_event = &e;
+    } else if (e["name"].AsString() == "ProfileChunk") {
+      if (e["args"]["data"].HasMember("cpuProfile")) {
+        chunk_event = &e;
+      } else {
+        end_event = &e;
+      }
+    }
+  }
+
+  ASSERT_NE(profile_event, nullptr);
+  ASSERT_NE(chunk_event, nullptr);
+  ASSERT_NE(end_event, nullptr);
+  ASSERT_NE(devtools_profile_event, nullptr);
+  EXPECT_EQ(result["metadata"]["dataOrigin"].AsString(), "CPUProfile");
+
+  // Profile event.
+  EXPECT_EQ((*profile_event)["ph"].AsString(), "P");
+  EXPECT_EQ((*profile_event)["pid"].AsInt(), static_cast<int>(kPid));
+  EXPECT_EQ((*profile_event)["tid"].AsInt(), static_cast<int>(kTid));
+  EXPECT_FALSE((*profile_event).HasMember("dur"));
+  EXPECT_FALSE((*profile_event).HasMember("tdur"));
+  EXPECT_TRUE((*profile_event).HasMember("id"));
+  EXPECT_EQ((*profile_event)["id"].AsString(), (*chunk_event)["id"].AsString());
+  EXPECT_EQ((*profile_event)["id"].AsString(), (*end_event)["id"].AsString());
+  EXPECT_EQ((*profile_event)["id"].AsString(), "0x1");
+
+  const auto& pdata = (*profile_event)["args"]["data"];
+  EXPECT_EQ((*profile_event)["ts"].AsInt64(), 10000);
+  EXPECT_EQ(pdata["startTime"].AsInt64(), 10000);
+  EXPECT_EQ(pdata["source"].AsString(), "Inspector");
+  EXPECT_FALSE(pdata.HasMember("id"));
+  ASSERT_TRUE((*profile_event).HasMember("tts"));
+  EXPECT_EQ((*profile_event)["tts"].AsInt64(), 5000);
+
+  const auto& cdata = (*chunk_event)["args"]["data"];
+  EXPECT_EQ(cdata["source"].AsString(), "Inspector");
+  EXPECT_FALSE(cdata.HasMember("id"));
+  EXPECT_TRUE(cdata.HasMember("columns"));
+  ASSERT_TRUE((*chunk_event).HasMember("tts"));
+  EXPECT_EQ((*chunk_event)["ts"].AsInt64(), 10000);
+  EXPECT_EQ((*chunk_event)["tts"].AsInt64(), 5000);
+  ASSERT_TRUE(cdata.HasMember("cpuProfile"));
+  const auto& cp = cdata["cpuProfile"];
+  ASSERT_TRUE(cp.HasMember("nodes"));
+  ASSERT_TRUE(cp.HasMember("samples"));
+  EXPECT_EQ(cp["nodes"].size(), 2u);
+  EXPECT_EQ(cp["samples"].size(), 2u);
+
+  // Node 1: root (parent of foo).
+  const auto& node1 = cp["nodes"][0];
+  EXPECT_EQ(node1["id"].AsInt64(), 1);
+  EXPECT_FALSE(node1.HasMember("parent"));
+  EXPECT_EQ(node1["callFrame"]["functionName"].AsString(), "(root)");
+  EXPECT_TRUE(node1["callFrame"].HasMember("codeType"));
+
+  // Node 2: foo, parent=1.
+  const auto& node2 = cp["nodes"][1];
+  EXPECT_EQ(node2["id"].AsInt64(), 2);
+  EXPECT_EQ(node2["parent"].AsInt64(), 1);
+  EXPECT_EQ(node2["callFrame"]["functionName"].AsString(), "foo");
+  EXPECT_EQ(node2["callFrame"]["url"].AsString(), "test.js");
+  EXPECT_EQ(node2["callFrame"]["scriptId"].AsInt(), 123);
+  EXPECT_EQ(node2["callFrame"]["lineNumber"].AsInt(), 42);
+  EXPECT_EQ(node2["callFrame"]["columnNumber"].AsInt(), 9);
+  EXPECT_EQ(node2["callFrame"]["codeType"].AsString(), "JS");
+  EXPECT_EQ(node2["deoptReason"].AsString(), "not optimized");
+
+  // Samples reference node 2 (cs_foo).
+  EXPECT_EQ(cp["samples"][0].AsInt64(), 2);
+  EXPECT_EQ(cp["samples"][1].AsInt64(), 2);
+  ASSERT_TRUE(cdata.HasMember("timeDeltas"));
+  EXPECT_EQ(cdata["timeDeltas"].size(), 2u);
+  EXPECT_EQ(cdata["timeDeltas"][0].AsInt64(), 17);
+  EXPECT_EQ(cdata["timeDeltas"][1].AsInt64(), 23);
+  ASSERT_TRUE(cdata.HasMember("lines"));
+  ASSERT_TRUE(cdata.HasMember("columns"));
+  EXPECT_EQ(cdata["lines"][0].AsInt(), 7);
+  EXPECT_EQ(cdata["columns"][0].AsInt(), 11);
+
+  EXPECT_EQ((*devtools_profile_event)["ph"].AsString(), "X");
+  EXPECT_EQ((*devtools_profile_event)["pid"].AsInt(), static_cast<int>(kPid));
+  EXPECT_EQ((*devtools_profile_event)["tid"].AsInt(), static_cast<int>(kTid));
+  const auto& devtools_profile =
+      (*devtools_profile_event)["args"]["data"]["cpuProfile"];
+  EXPECT_EQ(devtools_profile["startTime"].AsInt64(), 10000);
+  EXPECT_EQ(devtools_profile["endTime"].AsInt64(), 13000);
+  EXPECT_EQ(devtools_profile["samples"].size(), 2u);
+  EXPECT_EQ(devtools_profile["timeDeltas"][0].AsInt64(), 17);
+  EXPECT_EQ(devtools_profile["timeDeltas"][1].AsInt64(), 23);
+
+  const auto& edata = (*end_event)["args"]["data"];
+  EXPECT_EQ(edata["endTime"].AsInt64(), 13000);
+  EXPECT_EQ(edata["source"].AsString(), "Inspector");
+  EXPECT_FALSE(edata.HasMember("id"));
+  ASSERT_TRUE((*end_event).HasMember("tts"));
+  EXPECT_EQ((*end_event)["tts"].AsInt64(), 8000);
+  EXPECT_FALSE(edata.HasMember("cpuProfile"));
+}
+
+TEST_F(ExportJsonTest, V8CpuProfileWithoutSamples) {
+  const int64_t kStartTs = 10000000;
+  const int64_t kEndTs = 13000000;
+  const uint32_t kPid = 42;
+  const uint32_t kTid = 100;
+
+  auto tp = TraceProcessor::CreateInstance(Config());
+  auto* impl = static_cast<TraceProcessorImpl*>(tp.get());
+  TraceStorage* storage = impl->context()->storage.get();
+
+  tables::ProfilerSessionTable::Row profiler_session_row;
+  profiler_session_row.source = storage->InternString("v8.cpu_profiler");
+  auto profiler_session_id = storage->mutable_profiler_session_table()
+                                 ->Insert(profiler_session_row)
+                                 .id;
+
+  tables::V8CpuProfileSessionTable::Row session_row;
+  session_row.profiler_session_id = profiler_session_id;
+  session_row.source = storage->InternString("Inspector");
+  session_row.pid = kPid;
+  session_row.tid = kTid;
+  session_row.start_ts = kStartTs;
+  session_row.start_time_us = 10000;
+  session_row.end_ts = kEndTs;
+  session_row.end_time_us = 13000;
+  storage->mutable_v8_cpu_profile_session_table()->Insert(session_row);
+
+  ASSERT_TRUE(tp->NotifyEndOfFile().ok());
+
+  StringOutputWriter writer;
+  ASSERT_TRUE(ExportJson(storage, &writer).ok());
+  Dom result = ToJsonValue(writer.TakeStr());
+
+  const Dom* profile_event = nullptr;
+  const Dom* end_event = nullptr;
+  for (size_t i = 0; i < result["traceEvents"].size(); ++i) {
+    const auto& event = result["traceEvents"][i];
+    if (event["cat"].AsString() != "disabled-by-default-v8.cpu_profiler")
+      continue;
+    if (event["name"].AsString() == "Profile") {
+      profile_event = &event;
+    } else if (event["name"].AsString() == "ProfileChunk") {
+      end_event = &event;
+    }
+  }
+  ASSERT_NE(profile_event, nullptr);
+  ASSERT_NE(end_event, nullptr);
+  EXPECT_EQ((*profile_event)["pid"].AsInt(), static_cast<int>(kPid));
+  EXPECT_EQ((*profile_event)["tid"].AsInt(), static_cast<int>(kTid));
+  EXPECT_EQ((*end_event)["pid"].AsInt(), static_cast<int>(kPid));
+  EXPECT_EQ((*end_event)["tid"].AsInt(), static_cast<int>(kTid));
+  EXPECT_EQ((*end_event)["args"]["data"]["endTime"].AsInt64(), 13000);
+  EXPECT_FALSE((*end_event)["args"]["data"].HasMember("cpuProfile"));
 }
 
 }  // namespace

@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
+#include "src/trace_processor/importers/proto/v8_cpu_profile_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -80,6 +81,8 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
   module_context->modules.emplace_back(
       new MetadataModule(module_context, context));
   module_context->modules.emplace_back(new V8Module(module_context, context));
+  module_context->modules.emplace_back(
+      new V8CpuProfileModule(module_context, context));
   module_context->modules.emplace_back(
       new PixelModemModule(module_context, context));
   module_context->modules.emplace_back(
