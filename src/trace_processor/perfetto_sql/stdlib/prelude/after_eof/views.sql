@@ -613,9 +613,11 @@ SELECT
   ps.id,
   ps.ts,
   ps.callsite_id,
-  ps.utid,
+  tc.utid,
   coalesce(x.process_priority, 0) AS process_priority
 FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
 LEFT JOIN __intrinsic_chrome_stack_sample_extras AS x
   ON x.profiler_sample_id = ps.id
 WHERE
@@ -635,10 +637,14 @@ CREATE PERFETTO VIEW instruments_sample(
   cpu LONG
 )
 AS
-SELECT ps.id, ps.ts, ps.utid, ps.callsite_id, c.cpu
+SELECT ps.id, ps.ts, tc.utid, ps.callsite_id, c.cpu
 FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_profiler_execution_context AS ec
+  ON ec.id = ps.execution_context_id
 LEFT JOIN __intrinsic_cpu AS c
-  ON c.id = ps.ucpu
+  ON c.id = ec.ucpu
 WHERE
   ps.source = 'instruments';
 

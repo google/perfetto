@@ -125,6 +125,9 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_mmap_record_table());
     AddDataframe(out, s->mutable_package_list_table());
     AddDataframe(out, s->mutable_user_list_table());
+    AddDataframe(out, s->mutable_profiler_async_context_table());
+    AddDataframe(out, s->mutable_profiler_task_context_table());
+    AddDataframe(out, s->mutable_profiler_execution_context_table());
     AddDataframe(out, s->mutable_profiler_session_table());
     AddDataframe(out, s->mutable_profiler_sample_table());
     AddDataframe(out, s->mutable_profiler_counter_set_table());

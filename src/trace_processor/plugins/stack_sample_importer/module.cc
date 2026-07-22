@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/plugins/stack_sample_importer/module.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -37,6 +38,7 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/interned_message_view.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/inline_callstack.pbzero.h"
@@ -340,6 +342,56 @@ std::vector<CounterId> StackSampleModule::ParseCounterValues(
   return counter_ids;
 }
 
+std::optional<tables::ProfilerAsyncContextTable::Id>
+StackSampleModule::ResolveAsyncContext(
+    PacketSequenceStateGeneration* sequence_state,
+    uint64_t iid) {
+  using protos::pbzero::InternedData;
+  using AsyncContextDescriptor =
+      protos::pbzero::StackSample::AsyncContextDescriptor;
+
+  std::vector<InternedMessageView*> unresolved;
+  std::optional<tables::ProfilerAsyncContextTable::Id> parent;
+  while (iid) {
+    InternedMessageView* view = sequence_state->GetInternedMessageView(
+        InternedData::kStackSampleAsyncContextDescriptorsFieldNumber, iid);
+    if (!view) {
+      break;
+    }
+    if (std::optional<uint32_t> cached = view->cached_value()) {
+      parent.emplace(*cached);
+      break;
+    }
+    if (std::find(unresolved.begin(), unresolved.end(), view) !=
+        unresolved.end()) {
+      break;
+    }
+    unresolved.push_back(view);
+    AsyncContextDescriptor::Decoder* desc =
+        view->GetOrCreateDecoder<AsyncContextDescriptor>();
+    iid = desc->has_parent_iid() ? desc->parent_iid() : 0;
+  }
+
+  for (auto it = unresolved.rbegin(); it != unresolved.rend(); ++it) {
+    AsyncContextDescriptor::Decoder* desc =
+        (*it)->GetOrCreateDecoder<AsyncContextDescriptor>();
+    tables::ProfilerAsyncContextTable::Row row;
+    if (desc->name().size > 0) {
+      row.name = context_->storage->InternString(desc->name());
+    }
+    if (desc->kind().size > 0) {
+      row.kind = context_->storage->InternString(desc->kind());
+    }
+    row.parent_id = parent;
+    auto id = context_->storage->mutable_profiler_async_context_table()
+                  ->Insert(row)
+                  .id;
+    (*it)->set_cached_value(id.value);
+    parent = id;
+  }
+  return parent;
+}
+
 void StackSampleModule::ParseStackSample(
     int64_t ts,
     uint32_t seq_id,
@@ -348,7 +400,6 @@ void StackSampleModule::ParseStackSample(
   using protos::pbzero::InternedData;
   using protos::pbzero::StackSample;
   using protos::pbzero::StackSampleDefaults;
-  using AsyncContextDescriptor = StackSample::AsyncContextDescriptor;
   using ExecutionContext = StackSample::ExecutionContext;
   using Mode = StackSample::Mode;
   using TaskContext = StackSample::TaskContext;
@@ -368,79 +419,65 @@ void StackSampleModule::ParseStackSample(
   }
 
   // Task context: attributes the sample to a thread / process / async context.
-  std::optional<uint32_t> pid;
-  std::optional<uint32_t> tid;
-  std::optional<uint64_t> async_id;
-  auto extract_task = [&](const TaskContext::Decoder& t) {
-    if (t.has_pid()) {
-      pid = t.pid();
+  std::optional<UniquePid> upid;
+  auto intern_task_context = [&](const TaskContext::Decoder& task) {
+    tables::ProfilerTaskContextTable::Row row;
+    if (task.has_pid()) {
+      upid = context_->process_tracker->GetOrCreateProcess(task.pid());
+      row.upid = upid;
     }
-    if (t.has_tid()) {
-      tid = t.tid();
+    if (task.has_tid()) {
+      row.utid =
+          task.has_pid()
+              ? context_->process_tracker->UpdateThread(task.tid(), task.pid())
+              : context_->process_tracker->GetOrCreateThread(task.tid());
     }
-    if (t.has_async_id()) {
-      async_id = t.async_id();
+    if (task.has_async_id()) {
+      row.async_context_id =
+          ResolveAsyncContext(sequence_state, task.async_id());
     }
+    return context_->profiler_sample_tracker->InternTaskContext(row);
   };
+
+  std::optional<tables::ProfilerTaskContextTable::Id> task_context_id;
   if (sample.has_task_context()) {
-    TaskContext::Decoder t(sample.task_context());
-    extract_task(t);
+    TaskContext::Decoder task(sample.task_context());
+    task_context_id = intern_task_context(task);
   } else if (sample.has_task_context_iid()) {
-    if (auto* t =
+    if (auto* task =
             sequence_state->LookupInternedMessage<
                 InternedData::kStackSampleTaskContextsFieldNumber, TaskContext>(
                 sample.task_context_iid())) {
-      extract_task(*t);
-    }
-  }
-
-  ProcessTracker* procs = context_->process_tracker.get();
-  std::optional<UniquePid> upid;
-  std::optional<uint32_t> utid;
-  if (pid) {
-    upid = procs->GetOrCreateProcess(*pid);
-  }
-  if (tid) {
-    utid =
-        pid ? procs->UpdateThread(*tid, *pid) : procs->GetOrCreateThread(*tid);
-  }
-  // async_id references an interned AsyncContextDescriptor; fold its name and
-  // kind onto the sample.
-  std::optional<StringId> async_name;
-  std::optional<StringId> async_kind;
-  if (async_id) {
-    if (auto* desc =
-            sequence_state->LookupInternedMessage<
-                InternedData::kStackSampleAsyncContextDescriptorsFieldNumber,
-                AsyncContextDescriptor>(*async_id)) {
-      if (desc->name().size > 0) {
-        async_name = storage->InternString(desc->name());
-      }
-      if (desc->kind().size > 0) {
-        async_kind = storage->InternString(desc->kind());
-      }
+      task_context_id = intern_task_context(*task);
     }
   }
 
   // Execution context: cpu + privilege mode at sample time.
   std::optional<uint32_t> cpu;
-  Mode mode = StackSample::Mode::MODE_UNKNOWN;
-  auto extract_exec = [&](const ExecutionContext::Decoder& e) {
-    if (e.has_cpu()) {
-      cpu = e.cpu();
+  auto intern_execution_context = [&](const ExecutionContext::Decoder& exec) {
+    tables::ProfilerExecutionContextTable::Row row;
+    if (exec.has_cpu()) {
+      cpu = exec.cpu();
+      row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*cpu).value;
     }
-    if (e.has_mode()) {
-      mode = static_cast<Mode>(e.mode());
+    if (exec.has_mode()) {
+      auto mode = static_cast<Mode>(exec.mode());
+      if (const char* mode_string = StringifyStackSampleMode(mode)) {
+        row.cpu_mode = storage->InternString(mode_string);
+      }
     }
+    return context_->profiler_sample_tracker->InternExecutionContext(row);
   };
+
+  std::optional<tables::ProfilerExecutionContextTable::Id> execution_context_id;
   if (sample.has_execution_context()) {
-    ExecutionContext::Decoder e(sample.execution_context());
-    extract_exec(e);
+    ExecutionContext::Decoder exec(sample.execution_context());
+    execution_context_id = intern_execution_context(exec);
   } else if (sample.has_execution_context_iid()) {
-    if (auto* e = sequence_state->LookupInternedMessage<
-                  InternedData::kStackSampleExecutionContextsFieldNumber,
-                  ExecutionContext>(sample.execution_context_iid())) {
-      extract_exec(*e);
+    if (auto* exec = sequence_state->LookupInternedMessage<
+                     InternedData::kStackSampleExecutionContextsFieldNumber,
+                     ExecutionContext>(sample.execution_context_iid())) {
+      execution_context_id = intern_execution_context(*exec);
     }
   }
 
@@ -453,16 +490,8 @@ void StackSampleModule::ParseStackSample(
   row.ts = ts;
   row.source = source_id;
   row.session_id = session_id;
-  row.utid = utid;
-  row.upid = upid;
-  row.async_name = async_name;
-  row.async_kind = async_kind;
-  if (cpu) {
-    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*cpu).value;
-  }
-  if (const char* mode_string = StringifyStackSampleMode(mode)) {
-    row.cpu_mode = storage->InternString(mode_string);
-  }
+  row.task_context_id = task_context_id;
+  row.execution_context_id = execution_context_id;
   row.callsite_id = ResolveCallstack(sequence_state, upid, sample);
   row.counter_set_id =
       context_->profiler_sample_tracker->AddCounterSet(counter_ids);

@@ -36,12 +36,13 @@ GROUP BY
   utid;
 
 CREATE PERFETTO TABLE _stack_sample_summary AS
-SELECT utid, count() AS sample_count
-FROM stack_sample
+SELECT tc.utid, count() AS sample_count
+FROM stack_sample AS ss
+JOIN stack_sample_task_context AS tc ON tc.id = ss.task_context_id
 WHERE
-  utid IS NOT NULL
+  tc.utid IS NOT NULL
 GROUP BY
-  utid;
+  tc.utid;
 
 CREATE PERFETTO TABLE _thread_available_info_summary AS
 WITH

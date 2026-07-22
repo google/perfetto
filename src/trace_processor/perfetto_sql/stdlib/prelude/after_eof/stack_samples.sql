@@ -34,11 +34,88 @@ SELECT s.id, s.source, s.timebase_unit, s.cmdline
 FROM __intrinsic_profiler_session AS s
 WHERE
   s.id IN (
-    SELECT session_id
+    SELECT DISTINCT session_id
     FROM __intrinsic_profiler_sample
     WHERE
       callsite_id IS NOT NULL
       AND session_id IS NOT NULL
+  );
+
+-- Stackful asynchronous execution contexts referenced by task contexts.
+CREATE PERFETTO TABLE stack_sample_async_context(
+  -- Unique identifier for this asynchronous context.
+  id ID,
+  -- Human-readable name of the context.
+  name STRING,
+  -- Kind of context, e.g. "goroutine", "fiber" or "coroutine".
+  kind STRING,
+  -- Structural parent of this asynchronous context, if any.
+  parent_id JOINID(stack_sample_async_context.id)
+)
+AS
+WITH RECURSIVE
+  referenced(id) AS (
+    SELECT tc.async_context_id
+    FROM __intrinsic_profiler_sample AS ps
+    JOIN __intrinsic_profiler_task_context AS tc
+      ON tc.id = ps.task_context_id
+    WHERE
+      ps.callsite_id IS NOT NULL
+      AND tc.async_context_id IS NOT NULL
+    UNION
+    SELECT ac.parent_id
+    FROM __intrinsic_profiler_async_context AS ac
+    JOIN referenced AS r
+      ON ac.id = r.id
+    WHERE
+      ac.parent_id IS NOT NULL
+  )
+SELECT id, name, kind, parent_id
+FROM __intrinsic_profiler_async_context
+WHERE
+  id IN (SELECT id FROM referenced);
+
+-- Tasks to which stack samples are attributed. A task can identify an OS
+-- process, an OS thread, a stackful asynchronous context, or a combination.
+CREATE PERFETTO TABLE stack_sample_task_context(
+  -- Unique identifier for this task context.
+  id ID,
+  -- Process the sample is attributed to, if known.
+  upid JOINID(process.id),
+  -- Thread the sample is attributed to, if known.
+  utid JOINID(thread.id),
+  -- Stackful asynchronous context the sample is attributed to, if any.
+  async_context_id JOINID(stack_sample_async_context.id)
+)
+AS
+SELECT id, upid, utid, async_context_id
+FROM __intrinsic_profiler_task_context
+WHERE
+  id IN (
+    SELECT DISTINCT task_context_id
+    FROM __intrinsic_profiler_sample
+    WHERE
+      callsite_id IS NOT NULL
+  );
+
+-- Execution states in which stack samples were captured.
+CREATE PERFETTO TABLE stack_sample_execution_context(
+  -- Unique identifier for this execution context.
+  id ID,
+  -- Unique core the sample was taken on, if known.
+  ucpu JOINID(cpu.id),
+  -- Privilege mode the sample was taken in (e.g. "user", "kernel").
+  cpu_mode STRING
+)
+AS
+SELECT id, ucpu, cpu_mode
+FROM __intrinsic_profiler_execution_context
+WHERE
+  id IN (
+    SELECT DISTINCT execution_context_id
+    FROM __intrinsic_profiler_sample
+    WHERE
+      callsite_id IS NOT NULL
   );
 
 -- Callstack samples from all profiler sources (linux perf, chrome, macOS
@@ -54,20 +131,11 @@ CREATE PERFETTO VIEW stack_sample(
   -- The profiler that produced the sample (e.g. "linux.perf", "chrome",
   -- "instruments").
   source STRING,
-  -- The sampled thread, if known.
-  utid JOINID(thread.id),
-  -- The sampled process, if known.
-  upid JOINID(process.id),
-  -- Name of the stackful async context (goroutine, fiber, ...), if the
-  -- sample is attributed to one.
-  async_name STRING,
-  -- Kind of the async context, e.g. "goroutine".
-  async_kind STRING,
-  -- Unique core the sample was taken on, if known.
-  ucpu JOINID(cpu.id),
-  -- Privilege mode the sample was taken in (e.g. "user", "kernel"). NULL if
-  -- unknown.
-  cpu_mode STRING,
+  -- Process, thread and/or stackful asynchronous context this sample is
+  -- attributed to, if known.
+  task_context_id JOINID(stack_sample_task_context.id),
+  -- CPU and privilege mode in which this sample was captured, if known.
+  execution_context_id JOINID(stack_sample_execution_context.id),
   -- The captured callstack.
   callsite_id JOINID(stack_profile_callsite.id),
   -- The sampling session this sample came from, if known.
@@ -78,12 +146,8 @@ SELECT
   id,
   ts,
   source,
-  utid,
-  upid,
-  async_name,
-  async_kind,
-  ucpu,
-  cpu_mode,
+  task_context_id,
+  execution_context_id,
   callsite_id,
   session_id
 FROM __intrinsic_profiler_sample
@@ -136,7 +200,7 @@ SELECT
 FROM counter_track AS ct
 WHERE
   ct.id IN (
-    SELECT c.track_id
+    SELECT DISTINCT c.track_id
     FROM __intrinsic_profiler_sample AS ps
     JOIN __intrinsic_profiler_counter_set AS pcs
       ON pcs.counter_set_id = ps.counter_set_id
