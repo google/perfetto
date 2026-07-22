@@ -25,7 +25,9 @@
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/instruments/row.h"
@@ -138,8 +140,16 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
     depth++;
   }
 
-  context_->storage->mutable_instruments_sample_table()->Insert(
-      {ts, utid, parent, row.core_id});
+  tables::ProfilerSampleTable::Row sample_row;
+  sample_row.ts = ts;
+  sample_row.source = context_->storage->InternString("instruments");
+  sample_row.utid = utid;
+  sample_row.upid = upid;
+  sample_row.ucpu =
+      context_->cpu_tracker->GetOrCreateCpu(row.core_id).value;
+  sample_row.cpu_mode = context_->storage->InternString("");
+  sample_row.callsite_id = parent;
+  context_->profiler_sample_tracker->AddSample(sample_row);
 }
 
 DummyMemoryMapping* RowParser::GetDummyMapping(UniquePid upid) {
