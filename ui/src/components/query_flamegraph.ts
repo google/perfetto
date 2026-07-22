@@ -40,6 +40,8 @@ import {
   type FlamegraphOptionalMarker,
 } from '../widgets/flamegraph';
 import type {Trace} from '../public/trace';
+import {FlamegraphTable, FlamegraphTreeDataSource} from './flamegraph_table';
+import type {IdBasedTree} from './widgets/datagrid/model';
 import {sqliteString} from '../base/string_utils';
 import {userFilterToRegex} from '../widgets/flamegraph_regex';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
@@ -195,6 +197,9 @@ interface QueryFlamegraphAttrs {
 // data for the widget by querying an `Engine`.
 export class QueryFlamegraph implements AsyncDisposable {
   private data?: FlamegraphQueryData;
+  private tableTree?: IdBasedTree;
+  private tableSource?: FlamegraphTreeDataSource;
+  private tableSourceData?: FlamegraphQueryData;
   private readonly queryLimiter = new AsyncLimiter();
   private readonly dependencies: ReadonlyArray<
     SharedAsyncDisposable<AsyncDisposable>
@@ -227,6 +232,9 @@ export class QueryFlamegraph implements AsyncDisposable {
         this.fetchData(metrics, state);
       }
     }
+    const unit =
+      metrics?.find((x) => state?.selectedMetricId === (x.id ?? x.name))
+        ?.unit ?? '';
     return m(Flamegraph, {
       metrics: metrics ?? [],
       data: this.data,
@@ -234,10 +242,26 @@ export class QueryFlamegraph implements AsyncDisposable {
         view: {kind: 'TOP_DOWN'},
         selectedMetricId: '',
         addedMetricIds: [],
+        displayMode: 'flamegraph',
         filters: [],
       },
       addableMetrics,
       onAddMetric,
+      renderTableView: (data) => {
+        if (this.tableSource === undefined || this.tableSourceData !== data) {
+          this.tableSourceData = data;
+          this.tableSource = new FlamegraphTreeDataSource(data);
+          this.tableTree = undefined;
+        }
+        return m(FlamegraphTable, {
+          source: this.tableSource,
+          unit,
+          tree: this.tableTree,
+          onTreeChanged: (tree) => {
+            this.tableTree = tree;
+          },
+        });
+      },
       onStateChange,
     });
   }

@@ -1,0 +1,193 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Layout-only styles; colours/typography come from Perfetto design tokens
+// (--pf-*). The interactive pieces are stock Perfetto widgets.
+.pf-aggregate-merge {
+  height: 100%;
+  width: 100%;
+
+  display: flex;
+  flex-direction: column;
+
+  // A full-width resizable row: height is set inline (drag-adjusted); the last
+  // row grows to fill.
+  &__row {
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+
+    &--grow {
+      flex: 1 1 0;
+      min-height: 160px;
+    }
+  }
+
+  // A collapsible drawer (charts / grid): header + body, height set inline. Can
+  // shrink to just its header; the resize handle below always stays draggable.
+  &__drawer {
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  &__drawer-head {
+    flex: 0 0 auto;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 4px 0 8px;
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+    border-bottom: 1px solid var(--pf-color-border);
+  }
+
+  &__drawer-buttons {
+    margin-left: auto;
+  }
+
+  &__drawer-body {
+    flex: 1 1 0;
+    min-height: 0;
+    width: 100%;
+  }
+
+  &__summary {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
+  // Charts flow horizontally within the row, wrapping onto new lines; the row
+  // scrolls vertically if there are more than fit.
+  &__charts {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 6px 10px;
+    padding: 6px 10px;
+    overflow-y: auto;
+  }
+
+  &__chart {
+    flex: 0 0 auto;
+    width: 210px;
+  }
+
+  &__chart-title {
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+    margin-bottom: 2px;
+  }
+
+  &__chart-na {
+    opacity: 0.7;
+    font-style: italic;
+  }
+
+  &__grid {
+    height: 100%;
+    width: 100%;
+  }
+
+  &__flame {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+  }
+
+  &__flame-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--pf-color-border);
+  }
+
+  // Prev/next profile navigation, pushed to the right edge of the flame header.
+  &__flame-nav {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  &__flame-pos {
+    min-width: 56px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
+  &__flame-body {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    // Whatever the body holds (merged flamegraph, single flamegraph, or empty
+    // state) fills the space — one flamegraph at a time, so no nested scroll.
+    & > * {
+      flex: 1 1 0;
+      min-height: 0;
+    }
+  }
+
+  // Un-merged: a single profile's flamegraph under a name label.
+  &__flame-single {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__flame-cell-title {
+    flex: 0 0 auto;
+    padding: 3px 10px;
+    font-family: var(--pf-font-monospace);
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+    background: var(--pf-color-background-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__flame-cell-body {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  // Profile cell: clicking navigates the un-merged flamegraph; the profile
+  // currently shown is accented.
+  &__profile {
+    cursor: pointer;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    &--current {
+      color: var(--pf-color-primary);
+      font-weight: 600;
+    }
+  }
+}

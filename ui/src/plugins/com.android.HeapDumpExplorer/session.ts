@@ -385,6 +385,7 @@ export class HeapDumpExplorerSession {
         ? METRIC_DOMINATED_OBJECT_SIZE
         : METRIC_OBJECT_SIZE,
       addedMetricIds: [],
+      displayMode: 'flamegraph',
       filters: [],
       view: {
         kind: 'PIVOT',
