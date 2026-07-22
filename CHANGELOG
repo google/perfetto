@@ -58,6 +58,10 @@ Unreleased:
       `TrackEvent.Callstack` / `TrackEvent::Callstack` types must switch to
       `InlineCallstack`.
   UI:
+    * Callstack sample tracks and flamegraphs now share one implementation
+      over the stack_sample table. Tracks and area-selection flamegraph tabs
+      remain separate per profiler source, while every source with recorded
+      counters supports counter-weighted flamegraphs.
     * Opening multiple trace files is now supported by default: the "Open
       multiple trace files" sidebar item (or multi-selecting / dropping
       several files) opens a dialog to configure how the traces merge onto
