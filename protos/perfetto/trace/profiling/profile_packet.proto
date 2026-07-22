@@ -248,10 +248,6 @@ message StreamingProfilePacket {
   // this with ClockSnapshot-based delta encoding instead.
   repeated int64 timestamp_delta_us = 2;
   optional int32 process_priority = 3;
-
-  // Range reserved for runtime-specific extensions (see e.g.
-  // protos/perfetto/trace/v8/v8_profile_extensions.proto).
-  extensions 1000 to 9999;
 }
 
 // Namespace for the contained enums.

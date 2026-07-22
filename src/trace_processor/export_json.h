@@ -24,21 +24,17 @@
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
-class PerfettoSqlConnection;
 namespace json {
 
 // Export trace to a file stream in json format.
-base::Status ExportJson(const TraceStorage*,
-                        FILE* output,
-                        PerfettoSqlConnection* engine = nullptr);
+base::Status ExportJson(const TraceStorage*, FILE* output);
 
 // For testing.
 base::Status ExportJson(const TraceStorage* storage,
                         OutputWriter*,
                         ArgumentFilterPredicate = nullptr,
                         MetadataFilterPredicate = nullptr,
-                        LabelFilterPredicate = nullptr,
-                        PerfettoSqlConnection* engine = nullptr);
+                        LabelFilterPredicate = nullptr);
 
 }  // namespace json
 }  // namespace perfetto::trace_processor

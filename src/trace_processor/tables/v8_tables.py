@@ -451,7 +451,6 @@ V8_CPU_PROFILE_SESSION = Table(
         doc='''Session-scoped metadata for a V8 CPU profile.''',
         group='v8',
         columns={
-            'session_id': 'V8-internal session id (stable across START/END).',
             'pid': 'OS process that owns the profile.',
             'tid': 'OS thread that owns the profile.',
             'source': 'Source string.',

@@ -2235,12 +2235,9 @@ TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
   const int64_t kEndTs = 13000000;
   const uint32_t kPid = 42;
   const uint32_t kTid = 100;
-  const uint64_t kSessionId = 7;
-
   auto tp = TraceProcessor::CreateInstance(Config());
   auto* impl = static_cast<TraceProcessorImpl*>(tp.get());
   TraceStorage* storage = impl->context()->storage.get();
-  PerfettoSqlConnection* engine = impl->engine();
 
   tables::ProcessTable::Row process_row;
   process_row.pid = kPid;
@@ -2362,8 +2359,7 @@ TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
   ASSERT_TRUE(tp->NotifyEndOfFile().ok());
 
   StringOutputWriter writer;
-  base::Status status =
-      ExportJson(storage, &writer, nullptr, nullptr, nullptr, engine);
+  base::Status status = ExportJson(storage, &writer);
   ASSERT_TRUE(status.ok()) << status.message();
   Dom result = ToJsonValue(writer.TakeStr());
 
@@ -2472,7 +2468,6 @@ TEST_F(ExportJsonTest, V8CpuProfileWithoutSamples) {
   auto tp = TraceProcessor::CreateInstance(Config());
   auto* impl = static_cast<TraceProcessorImpl*>(tp.get());
   TraceStorage* storage = impl->context()->storage.get();
-  PerfettoSqlConnection* engine = impl->engine();
 
   tables::ProfilerSessionTable::Row profiler_session_row;
   profiler_session_row.source = storage->InternString("v8.cpu_profiler");
@@ -2494,8 +2489,7 @@ TEST_F(ExportJsonTest, V8CpuProfileWithoutSamples) {
   ASSERT_TRUE(tp->NotifyEndOfFile().ok());
 
   StringOutputWriter writer;
-  ASSERT_TRUE(
-      ExportJson(storage, &writer, nullptr, nullptr, nullptr, engine).ok());
+  ASSERT_TRUE(ExportJson(storage, &writer).ok());
   Dom result = ToJsonValue(writer.TakeStr());
 
   const Dom* profile_event = nullptr;

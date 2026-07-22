@@ -18,8 +18,7 @@ perfetto_proto_library("@TYPE@") {
   sources = [ "v8_cpu_profile_session.proto" ]
 }
 
-# V8-specific extensions to the generic profiling messages
-# (Frame, Callstack, StreamingProfilePacket).
+# V8-specific extensions to the generic Frame and StackSample messages.
 perfetto_proto_library("v8_profile_extensions_@TYPE@") {
   sources = [ "v8_profile_extensions.proto" ]
   public_deps = [ "../profiling:@TYPE@" ]

@@ -134,10 +134,8 @@ class JsonExporter {
                OutputWriter* output,
                ArgumentFilterPredicate argument_filter,
                MetadataFilterPredicate metadata_filter,
-               LabelFilterPredicate label_filter,
-               PerfettoSqlConnection* engine)
+               LabelFilterPredicate label_filter)
       : storage_(storage),
-        engine_(engine),
         args_builder_(storage_),
         writer_(output,
                 std::move(argument_filter),
@@ -1979,7 +1977,6 @@ class JsonExporter {
   }
 
   const TraceStorage* storage_;
-  [[maybe_unused]] PerfettoSqlConnection* engine_;
   ArgsBuilder args_builder_;
   TraceFormatWriter writer_;
 
@@ -2007,11 +2004,9 @@ base::Status ExportJson(const TraceStorage* storage,
                         OutputWriter* output,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
-                        LabelFilterPredicate label_filter,
-                        PerfettoSqlConnection* engine) {
+                        LabelFilterPredicate label_filter) {
   JsonExporter exporter(storage, output, std::move(argument_filter),
-                        std::move(metadata_filter), std::move(label_filter),
-                        engine);
+                        std::move(metadata_filter), std::move(label_filter));
   return exporter.Export();
 }
 
@@ -2023,15 +2018,12 @@ base::Status ExportJson(TraceProcessorStorage* tp,
   auto* impl = reinterpret_cast<TraceProcessorStorageImpl*>(tp);
   const TraceStorage* storage = impl->context()->storage.get();
   return ExportJson(storage, output, std::move(argument_filter),
-                    std::move(metadata_filter), std::move(label_filter),
-                    impl->engine());
+                    std::move(metadata_filter), std::move(label_filter));
 }
 
-base::Status ExportJson(const TraceStorage* storage,
-                        FILE* output,
-                        PerfettoSqlConnection* engine) {
+base::Status ExportJson(const TraceStorage* storage, FILE* output) {
   FileWriter writer(output);
-  return ExportJson(storage, &writer, nullptr, nullptr, nullptr, engine);
+  return ExportJson(storage, &writer);
 }
 
 }  // namespace perfetto::trace_processor::json

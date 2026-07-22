@@ -175,10 +175,9 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
     packet_ts = *trace_ts;
 
   int64_t sample_ts = packet_ts;
-  size_t sample_index = 0;
   auto timestamp_it = decoder.timestamp_delta_us();
   for (auto callstack_it = decoder.callstack_iid(); callstack_it;
-       ++callstack_it, ++timestamp_it, ++sample_index) {
+       ++callstack_it, ++timestamp_it) {
     if (!timestamp_it) {
       context_->import_logs_tracker->RecordTokenizationLog(
           stats::stackprofile_parser_error, packet->offset());

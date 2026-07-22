@@ -22,12 +22,10 @@ package perfetto.protos;
 // PHASE_START packet at StartProfiling time and a PHASE_END packet at
 // StopProfiling time.
 //
-// The bulk of the profile data (ticks, callstacks, frames) flows through
-// generic StreamingProfilePacket / Frame / Callstack messages plus the
-// V8 extensions in v8_profile_extensions.proto. This packet only carries
-// the few session-scoped fields that don't fit naturally into the generic
-// streaming format: the session id used for correlating samples to a
-// single profiler invocation.
+// The bulk of the profile data flows through generic StackSample, Frame, and
+// Callstack messages plus the V8 extensions in v8_profile_extensions.proto.
+// This packet carries session scoped metadata that does not fit naturally in
+// those messages.
 message V8CpuProfileSession {
   enum Phase {
     PHASE_UNKNOWN = 0;
@@ -37,20 +35,17 @@ message V8CpuProfileSession {
 
   optional Phase phase = 1;
 
-  // V8-internal session id. Stable across the START/END pair.
-  optional uint64 session_id = 2;
-
   // Free-form origin string.
-  optional string source = 3;
+  optional string source = 2;
 
   // Wall-clock time in microseconds since CLOCK_MONOTONIC origin.
-  optional int64 wall_time_us = 4;
+  optional int64 wall_time_us = 3;
 
   // Thread time in microseconds at the moment of START / END.
-  optional int64 thread_time_us = 5;
+  optional int64 thread_time_us = 4;
 
   // OS process and thread that own this logical profile. These let exporters
   // represent an empty profile, which has no StackSample task context.
-  optional int32 pid = 6;
-  optional int32 tid = 7;
+  optional int32 pid = 5;
+  optional int32 tid = 6;
 }
