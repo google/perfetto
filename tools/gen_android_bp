@@ -197,6 +197,8 @@ proto_groups = {
 transitive_proto_filegroups = {
     'perfetto_protos_perfetto_trace_non_minimal_protos':
         '//protos/perfetto/trace:non_minimal_source_set',
+    'perfetto_protos_perfetto_trace_track_event_transitive_protos':
+        '//protos/perfetto/trace/track_event:cpp',
 }
 
 needs_libfts = [
