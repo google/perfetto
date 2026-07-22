@@ -1168,25 +1168,25 @@ public class PerfettoTraceTest {
         TrackEvent event = packet.getTrackEvent();
         if (event.hasCallstack()) {
           hasCallstack = true;
-          TrackEvent.Callstack callstack = event.getCallstack();
+          TrackEvent.InlineCallstack callstack = event.getCallstack();
           assertThat(callstack.getFramesCount()).isEqualTo(4);
 
-          TrackEvent.Callstack.Frame frame0 = callstack.getFrames(0);
+          TrackEvent.InlineCallstack.Frame frame0 = callstack.getFrames(0);
           assertThat(frame0.getFunctionName()).isEqualTo("ClassD.methodD");
           assertThat(frame0.getSourceFile()).isEqualTo("FileD.java");
           assertThat(frame0.getLineNumber()).isEqualTo(40);
 
-          TrackEvent.Callstack.Frame frame1 = callstack.getFrames(1);
+          TrackEvent.InlineCallstack.Frame frame1 = callstack.getFrames(1);
           assertThat(frame1.getFunctionName()).isEqualTo("ClassC.methodC");
           assertThat(frame1.getSourceFile()).isEqualTo("FileC.java");
           assertThat(frame1.getLineNumber()).isEqualTo(30);
 
-          TrackEvent.Callstack.Frame frame2 = callstack.getFrames(2);
+          TrackEvent.InlineCallstack.Frame frame2 = callstack.getFrames(2);
           assertThat(frame2.getFunctionName()).isEqualTo("ClassB.methodB");
           assertThat(frame2.getSourceFile()).isEqualTo("FileB.java");
           assertThat(frame2.getLineNumber()).isEqualTo(20);
 
-          TrackEvent.Callstack.Frame frame3 = callstack.getFrames(3);
+          TrackEvent.InlineCallstack.Frame frame3 = callstack.getFrames(3);
           assertThat(frame3.getFunctionName()).isEqualTo("ClassA.methodA");
           assertThat(frame3.getSourceFile()).isEqualTo("FileA.java");
           assertThat(frame3.getLineNumber()).isEqualTo(10);

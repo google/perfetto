@@ -294,7 +294,7 @@ message TrackEvent {
   oneof callstack_field {
     // Inline callstack data. Use this for simplicity when interning is not
     // needed (e.g., for unique callstacks or when trace size is not critical).
-    Callstack callstack = 55;
+    InlineCallstack callstack = 55;
 
     // Reference to interned Callstack (see InternedData.callstacks).
     // This is the efficient option when callstacks are repeated.
@@ -311,7 +311,7 @@ message TrackEvent {
   // Use this for simple callstacks with function names and source locations.
   // For binary/library information (mappings, build IDs, relative PCs), use
   // interned callstacks via callstack_iid instead.
-  message Callstack {
+  message InlineCallstack {
     // Frame within an inline callstack.
     message Frame {
       // Function name, e.g., "malloc" or "std::vector<int>::push_back"
