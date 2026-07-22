@@ -114,6 +114,10 @@ void ProcessMessagePassthrough(
     if (IsPassthrough(input_field->options())) {
       const auto* upstream_field =
           upstream_desc.FindFieldByNumber(input_field->number());
+      if (!upstream_field) {
+        upstream_field = upstream_desc.file()->pool()->FindExtensionByNumber(
+            &upstream_desc, input_field->number());
+      }
       if (upstream_field) {
         AllowlistField(*upstream_field, allowlist);
       }
@@ -141,6 +145,15 @@ base::Status AllowlistFromFieldList(
     const auto* current = &desc;
     for (size_t i = 0; i < pieces.size(); ++i) {
       const auto* field = current->FindFieldByName(pieces[i]);
+      if (!field) {
+        std::string pkg = std::string(current->file()->package());
+        std::string full_ext_name =
+            pkg.empty() ? pieces[i] : pkg + "." + pieces[i];
+        field = current->file()->pool()->FindExtensionByName(full_ext_name);
+        if (field && field->containing_type() != current) {
+          field = nullptr;
+        }
+      }
       if (!field) {
         return base::ErrStatus("Field %s in message %s not found.",
                                pieces[i].c_str(),
