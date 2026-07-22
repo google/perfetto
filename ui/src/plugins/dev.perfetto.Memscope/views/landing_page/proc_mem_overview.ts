@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {classNames} from '../../../../base/classnames';
 import {Gate} from '../../../../base/mithril_utils';
 import {AsyncMemo} from '../../../../base/async_memo';
 import {Time, type time} from '../../../../base/time';
@@ -54,6 +55,7 @@ interface CaptureInfo {
   readonly processName: string;
   readonly smaps: SourceFacts;
   readonly dumps: number;
+  readonly hasBitmaps: boolean;
   readonly native: SourceFacts;
 }
 
@@ -142,73 +144,128 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
       error = String(e);
     }
 
+    const smapsMissing = capture !== undefined && capture.smaps.samples === 0;
+    const activeTab = smapsMissing ? 'summary' : this.activeTab;
+
     // Both tab bodies stay mounted and are toggled with a Gate (display:none
     // when hidden) rather than conditionally rendered, so switching tabs doesn't
     // remount each tab's components and re-run their data loads.
     return [
       error !== undefined && m('p.pf-error', `Error: ${error}`),
       error === undefined && this.renderCaptureStrip(trace, capture),
-      error === undefined && this.renderTabs(),
+      error === undefined && this.renderTabs(activeTab, smapsMissing),
       error === undefined &&
         m(
           Gate,
-          {open: this.activeTab === 'summary'},
+          {open: activeTab === 'summary'},
           // SubPage gives its direct children the cascading fade-up entrance
           // animation (.pf-memscope-subpage > *), matching the rest of the page.
-          m(
-            SubPage,
-            m(TraceOverview, {trace, upid}),
-            m(CompositionTimeline, {
-              trace,
-              upid,
-              selection: this.selection,
-              onSelect: (s: MemSelection) => (this.selection = s),
-              belowChart: this.renderGrowthBar(
-                trace,
-                upid,
-                this.selection?.sel,
-                this.selection?.base,
-              ),
-            }),
-            m(MemoryMap, {
-              trace,
-              upid,
-              selTs: this.selection?.sel,
-              baseTs: this.selection?.base,
-            }),
-            m(JavaSection, {
-              trace,
-              upid,
-              selTs: this.selection?.sel,
-              baseTs: this.selection?.base,
-            }),
-            m(BitmapsSection, {
-              trace,
-              upid,
-              selTs: this.selection?.sel,
-              baseTs: this.selection?.base,
-            }),
-            m(NativeSection, {
-              trace,
-              upid,
-              selTs: this.selection?.sel,
-              baseTs: this.selection?.base,
-            }),
-          ),
+          m(SubPage, ...this.renderSummarySections(trace, upid, capture)),
         ),
       error === undefined &&
         m(
           Gate,
-          {open: this.activeTab === 'smaps'},
+          {open: activeTab === 'smaps'},
           m(SubPage, m(SmapsDetail, {trace, upid})),
         ),
     ];
   }
 
-  private renderTabs(): m.Children {
-    const tabs: {key: 'summary' | 'smaps'; label: string; icon: string}[] = [
+  private renderSummarySections(
+    trace: Trace,
+    upid: number,
+    capture?: CaptureInfo,
+  ): m.Child[] {
+    // Keep the headline billboards pinned to the top. Once the lightweight
+    // capture query completes, move empty detail sections below sections with
+    // data while preserving the normal order within each group. Keys ensure
+    // in-flight section queries and component state survive the reorder.
+    const smapsAvailable = capture === undefined || capture.smaps.samples > 0;
+    const dumpsAvailable = capture === undefined || capture.dumps > 0;
+    const bitmapsAvailable = capture === undefined || capture.hasBitmaps;
+    const nativeAvailable = capture === undefined || capture.native.samples > 0;
+    const sections = [
+      {
+        hasData: smapsAvailable,
+        content: m(CompositionTimeline, {
+          key: 'composition',
+          trace,
+          upid,
+          selection: this.selection,
+          onSelect: (s: MemSelection) => (this.selection = s),
+          belowChart: this.renderGrowthBar(
+            trace,
+            upid,
+            this.selection?.sel,
+            this.selection?.base,
+          ),
+        }),
+      },
+      {
+        hasData: smapsAvailable,
+        content: m(MemoryMap, {
+          key: 'memory-map',
+          trace,
+          upid,
+          selTs: this.selection?.sel,
+          baseTs: this.selection?.base,
+        }),
+      },
+      {
+        hasData: dumpsAvailable,
+        content: m(JavaSection, {
+          key: 'java',
+          trace,
+          upid,
+          selTs: this.selection?.sel,
+          baseTs: this.selection?.base,
+        }),
+      },
+      {
+        hasData: bitmapsAvailable,
+        content: m(BitmapsSection, {
+          key: 'bitmaps',
+          trace,
+          upid,
+          selTs: this.selection?.sel,
+          baseTs: this.selection?.base,
+        }),
+      },
+      {
+        hasData: nativeAvailable,
+        content: m(NativeSection, {
+          key: 'native',
+          trace,
+          upid,
+          selTs: this.selection?.sel,
+          baseTs: this.selection?.base,
+        }),
+      },
+    ];
+    sections.sort((a, b) => Number(b.hasData) - Number(a.hasData));
+    return [
+      m(TraceOverview, {key: 'trace-overview', trace, upid}),
+      ...sections.map((section) => section.content),
+    ];
+  }
+
+  private renderTabs(
+    activeTab: 'summary' | 'smaps',
+    smapsMissing: boolean,
+  ): m.Children {
+    const tabs: {
+      key: 'summary' | 'smaps';
+      label: string;
+      icon: string;
+      disabled?: boolean;
+    }[] = [
       {key: 'summary', label: 'Summary', icon: 'description'},
-      {key: 'smaps', label: 'Smaps Detail', icon: 'table_rows'},
+      {
+        key: 'smaps',
+        label: 'Smaps Detail',
+        icon: 'table_rows',
+        disabled: smapsMissing,
+      },
     ];
     return m(
       '.pf-memscope-tabs',
@@ -216,8 +273,14 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
         m(
           'button.pf-memscope-tab',
           {
-            className:
-              this.activeTab === t.key ? 'pf-memscope-tab--active' : undefined,
+            className: classNames(
+              activeTab === t.key && 'pf-memscope-tab--active',
+              t.disabled && 'pf-memscope-tab--disabled',
+            ),
+            disabled: t.disabled,
+            title: t.disabled
+              ? 'No smaps data available for this process'
+              : undefined,
             onclick: () => (this.activeTab = t.key),
           },
           [m(Icon, {icon: t.icon}), t.label],
@@ -376,51 +439,78 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
   }
 }
 
-// Runs a `(n, min_ts, max_ts)` aggregate and turns it into a SourceFacts: the
-// distinct-sample count and, when there's more than one, the wall-clock span
-// between the first and last sample.
-async function loadSourceFacts(
-  trace: Trace,
-  sql: string,
-): Promise<SourceFacts> {
-  const res = await trace.engine.query(sql);
-  const it = res.iter({n: NUM, min_ts: LONG_NULL, max_ts: LONG_NULL});
-  if (!it.valid() || it.n === 0) return {samples: 0};
+// Turns a `(count, min_ts, max_ts)` aggregate into the terse source facts used
+// by the capture strip.
+function makeSourceFacts(
+  samples: number,
+  minTs: bigint | null,
+  maxTs: bigint | null,
+): SourceFacts {
+  if (samples === 0) return {samples: 0};
   const spanS =
-    it.n > 1 && it.min_ts !== null && it.max_ts !== null
-      ? Number(it.max_ts - it.min_ts) / 1e9
+    samples > 1 && minTs !== null && maxTs !== null
+      ? Number(maxTs - minTs) / 1e9
       : undefined;
-  return {samples: it.n, spanS};
+  return {samples, spanS};
 }
 
+// Loads all source availability in one lightweight query. Besides powering the
+// capture strip, these facts let the summary put empty sections last without
+// waiting for every section's full data query.
 async function loadCaptureInfo(
   trace: Trace,
   upid: number,
 ): Promise<CaptureInfo> {
-  const nameRes = await trace.engine.query(`
-    SELECT coalesce(name, '<unknown>') AS pname FROM process WHERE upid = ${upid}
+  const res = await trace.engine.query(`
+    WITH
+    smaps AS (
+      SELECT COUNT(DISTINCT ts) AS n, MIN(ts) AS min_ts, MAX(ts) AS max_ts
+      FROM profiler_smaps WHERE upid = ${upid}
+    ),
+    native AS (
+      SELECT COUNT(DISTINCT ts) AS n, MIN(ts) AS min_ts, MAX(ts) AS max_ts
+      FROM heap_profile_allocation WHERE upid = ${upid}
+    )
+    SELECT
+      coalesce((SELECT name FROM process WHERE upid = ${upid}), '<unknown>')
+        AS pname,
+      smaps.n AS smaps_n,
+      smaps.min_ts AS smaps_min_ts,
+      smaps.max_ts AS smaps_max_ts,
+      (
+        SELECT COUNT(*) FROM heap_profile_events
+        WHERE upid = ${upid} AND type = 'java_heap_graph'
+      ) AS dumps,
+      EXISTS(
+        SELECT 1
+        FROM heap_graph_object o
+        JOIN heap_graph_class c ON c.id = o.type_id
+        WHERE o.upid = ${upid} AND o.reachable
+          AND (c.name = 'android.graphics.Bitmap'
+            OR c.deobfuscated_name = 'android.graphics.Bitmap')
+        LIMIT 1
+      ) AS has_bitmaps,
+      native.n AS native_n,
+      native.min_ts AS native_min_ts,
+      native.max_ts AS native_max_ts
+    FROM smaps, native
   `);
-  const nameIt = nameRes.iter({pname: STR});
-  const processName = nameIt.valid() ? nameIt.pname : '<unknown>';
-
-  const smaps = await loadSourceFacts(
-    trace,
-    `SELECT COUNT(DISTINCT ts) AS n, MIN(ts) AS min_ts, MAX(ts) AS max_ts
-     FROM profiler_smaps WHERE upid = ${upid}`,
-  );
-
-  const dumpRes = await trace.engine.query(`
-    SELECT COUNT(*) AS n FROM heap_profile_events
-    WHERE upid = ${upid} AND type = 'java_heap_graph'
-  `);
-  const dumpIt = dumpRes.iter({n: NUM});
-  const dumps = dumpIt.valid() ? dumpIt.n : 0;
-
-  const native = await loadSourceFacts(
-    trace,
-    `SELECT COUNT(DISTINCT ts) AS n, MIN(ts) AS min_ts, MAX(ts) AS max_ts
-     FROM heap_profile_allocation WHERE upid = ${upid}`,
-  );
-
-  return {processName, smaps, dumps, native};
+  const row = res.firstRow({
+    pname: STR,
+    smaps_n: NUM,
+    smaps_min_ts: LONG_NULL,
+    smaps_max_ts: LONG_NULL,
+    dumps: NUM,
+    has_bitmaps: NUM,
+    native_n: NUM,
+    native_min_ts: LONG_NULL,
+    native_max_ts: LONG_NULL,
+  });
+  return {
+    processName: row.pname,
+    smaps: makeSourceFacts(row.smaps_n, row.smaps_min_ts, row.smaps_max_ts),
+    dumps: row.dumps,
+    hasBitmaps: row.has_bitmaps !== 0,
+    native: makeSourceFacts(row.native_n, row.native_min_ts, row.native_max_ts),
+  };
 }
