@@ -864,6 +864,157 @@ class Profiling(TestSuite):
         1000,"instructions","instructions",500
         """))
 
+  def test_stack_sample_cpu_profiling_samples(self):
+    return DiffTestBlueprint(
+        trace=Path('stack_sample.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE stacks.cpu_profiling;
+
+        SELECT source, count(*) AS cnt
+        FROM cpu_profiling_samples
+        GROUP BY source;
+        """,
+        out=Csv("""
+        "source","cnt"
+        "python.wall",4
+        """))
+
+  def test_cpu_profiling_samples_timebase_filter(self):
+    return DiffTestBlueprint(
+        trace=TextProto(R"""
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          timestamp: 1000
+          trace_packet_defaults {
+            perf_sample_defaults {
+              timebase {
+                counter: SW_CPU_CLOCK
+                frequency: 100
+              }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          sequence_flags: 2
+          timestamp: 2000
+          interned_data {
+            build_ids { iid: 1 str: "" }
+            mapping_paths { iid: 1 str: "libfoo.so" }
+            mappings { iid: 1 build_id: 1 path_string_ids: 1 }
+            function_names { iid: 1 str: "on_cpu_func" }
+            frames { iid: 1 mapping_id: 1 function_name_id: 1 }
+            callstacks { iid: 1 frame_ids: 1 }
+          }
+          perf_sample {
+            cpu: 0
+            pid: 10
+            tid: 10
+            cpu_mode: MODE_USER
+            callstack_iid: 1
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          incremental_state_cleared: true
+          timestamp: 1000
+          trace_packet_defaults {
+            perf_sample_defaults {
+              timebase {
+                counter: SW_PAGE_FAULTS
+                frequency: 100
+              }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          sequence_flags: 2
+          timestamp: 3000
+          interned_data {
+            build_ids { iid: 1 str: "" }
+            mapping_paths { iid: 1 str: "libfoo.so" }
+            mappings { iid: 1 build_id: 1 path_string_ids: 1 }
+            function_names { iid: 1 str: "fault_func" }
+            frames { iid: 1 mapping_id: 1 function_name_id: 1 }
+            callstacks { iid: 1 frame_ids: 1 }
+          }
+          perf_sample {
+            cpu: 1
+            pid: 10
+            tid: 10
+            cpu_mode: MODE_USER
+            callstack_iid: 1
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE stacks.cpu_profiling;
+
+        -- Two perf sessions: one sampling on cpu-clock, one on page faults.
+        -- Both capture callstacks, but only the cpu-clock session's samples
+        -- are CPU profiling.
+        SELECT
+          (SELECT count(*) FROM stack_sample) AS stack_samples,
+          (SELECT count(*) FROM cpu_profiling_samples) AS profiling_samples,
+          (SELECT ts FROM cpu_profiling_samples) AS profiling_ts,
+          (
+            SELECT count(*) FROM profiler_session WHERE timebase_unit = 'ns'
+          ) AS ns_sessions,
+          (
+            SELECT count(*) FROM profiler_session WHERE timebase_unit = 'count'
+          ) AS count_sessions;
+        """,
+        out=Csv("""
+        "stack_samples","profiling_samples","profiling_ts","ns_sessions","count_sessions"
+        2,1,2000,1,1
+        """))
+
+  def test_cpu_profiling_samples_counter_only_excluded(self):
+    return DiffTestBlueprint(
+        trace=TextProto(R"""
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          timestamp: 1000
+          trace_packet_defaults {
+            perf_sample_defaults {
+              timebase {
+                name: "leader"
+                counter: SW_CPU_CLOCK
+                frequency: 1000
+              }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          perf_sample {
+            cpu: 0
+            pid: 1
+            tid: 42
+            cpu_mode: MODE_USER
+            timebase_count: 512
+            sample_skipped_reason: PROFILER_SKIP_NOT_IN_SCOPE
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE stacks.cpu_profiling;
+
+        -- Counter-only perf samples have no callstack: they show up in
+        -- perf_sample but not in cpu_profiling_samples.
+        SELECT
+          (SELECT count(*) FROM perf_sample) AS perf_samples,
+          (SELECT count(*) FROM cpu_profiling_samples) AS profiling_samples;
+        """,
+        out=Csv("""
+        "perf_samples","profiling_samples"
+        1,0
+        """))
+
   def test_frame_types(self):
     return DiffTestBlueprint(
         trace=Path('frame_types.textproto'),
