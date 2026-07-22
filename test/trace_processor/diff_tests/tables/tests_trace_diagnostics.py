@@ -342,62 +342,6 @@ class TraceDiagnostics(TestSuite):
         0
         """))
 
-  # atrace_apps: "*" combined with more than 3 atrace categories warns.
-  def test_atrace_wildcard_apps(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          trace_config {
-            data_sources {
-              config {
-                name: "linux.ftrace"
-                ftrace_config {
-                  atrace_apps: "*"
-                  atrace_categories: "sched"
-                  atrace_categories: "gfx"
-                  atrace_categories: "view"
-                  atrace_categories: "wm"
-                }
-              }
-            }
-          }
-        }
-        """),
-        query="""
-        SELECT key FROM __intrinsic_trace_diagnostics;
-        """,
-        out=Csv("""
-        "key"
-        "atrace_wildcard_apps"
-        """))
-
-  # ...but with 3 or fewer categories it is not heavy enough to warn.
-  def test_atrace_wildcard_apps_few_categories_ok(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          trace_config {
-            data_sources {
-              config {
-                name: "linux.ftrace"
-                ftrace_config {
-                  atrace_apps: "*"
-                  atrace_categories: "sched"
-                  atrace_categories: "gfx"
-                }
-              }
-            }
-          }
-        }
-        """),
-        query="""
-        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
-        """,
-        out=Csv("""
-        "n"
-        0
-        """))
-
   # A heapprofd sampling_interval_bytes below 100 KB warns.
   def test_heapprofd_sampling_interval_too_low(self):
     return DiffTestBlueprint(
