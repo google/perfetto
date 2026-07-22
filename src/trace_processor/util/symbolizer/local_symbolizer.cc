@@ -652,10 +652,13 @@ bool SkipJsonValue(const char*& it, const char* end) {
 
 std::optional<FoundBinary> IsCorrectFile(
     const std::string& symbol_file,
-    std::optional<std::string_view> build_id) {
+    std::optional<std::string_view> build_id,
+    BinaryPathError* error) {
   if (!base::FileExists(symbol_file)) {
+    *error = BinaryPathError::kFileNotFound;
     return std::nullopt;
   }
+  *error = BinaryPathError::kParseError;
   // Openfile opens the file with an exclusive lock on windows.
   std::optional<uint64_t> file_size = base::GetFileSize(symbol_file);
   if (!file_size.has_value()) {
@@ -677,8 +680,10 @@ std::optional<FoundBinary> IsCorrectFile(
   if (!binary_info->load_info)
     return std::nullopt;
   if (build_id && binary_info->build_id != *build_id) {
+    *error = BinaryPathError::kBuildIdMismatch;
     return std::nullopt;
   }
+  *error = BinaryPathError::kOk;
   return FoundBinary{symbol_file, *binary_info->load_info, binary_info->type};
 }
 
@@ -692,13 +697,14 @@ bool TryPath(const std::string& path,
     attempts.push_back({path, BinaryPathError::kFileNotFound});
     return false;
   }
-  std::optional<FoundBinary> found = IsCorrectFile(path, build_id);
+  BinaryPathError error;
+  std::optional<FoundBinary> found = IsCorrectFile(path, build_id, &error);
   if (found) {
     out_binary = std::move(found);
     attempts.push_back({path, BinaryPathError::kOk});
     return true;
   }
-  attempts.push_back({path, BinaryPathError::kBuildIdMismatch});
+  attempts.push_back({path, error});
   return false;
 }
 
@@ -795,13 +801,14 @@ std::optional<FoundBinary> FindKernelBinary(
       attempts.push_back({path, BinaryPathError::kFileNotFound});
       return std::nullopt;
     }
-    std::optional<FoundBinary> found = IsCorrectFile(path, std::nullopt);
+    BinaryPathError error;
+    std::optional<FoundBinary> found =
+        IsCorrectFile(path, std::nullopt, &error);
     if (found) {
       attempts.push_back({path, BinaryPathError::kOk});
       return found;
     }
-    // File exists but isn't a valid binary.
-    attempts.push_back({path, BinaryPathError::kBuildIdMismatch});
+    attempts.push_back({path, error});
     return std::nullopt;
   };
 
@@ -1001,6 +1008,8 @@ SymbolPathError ToSymbolPathError(BinaryPathError error) {
       return SymbolPathError::kFileNotFound;
     case BinaryPathError::kBuildIdMismatch:
       return SymbolPathError::kBuildIdMismatch;
+    case BinaryPathError::kParseError:
+      return SymbolPathError::kParseError;
     case BinaryPathError::kBuildIdNotInIndex:
       return SymbolPathError::kBuildIdNotInIndex;
   }
