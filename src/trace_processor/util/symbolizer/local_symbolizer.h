@@ -58,6 +58,8 @@ enum class BinaryPathError : uint8_t {
   kFileNotFound,
   // A file was found but had the wrong build ID.
   kBuildIdMismatch,
+  // A file was found but its binary metadata could not be parsed.
+  kParseError,
   // A directory was indexed but didn't contain a binary with the requested
   // build ID.
   kBuildIdNotInIndex,

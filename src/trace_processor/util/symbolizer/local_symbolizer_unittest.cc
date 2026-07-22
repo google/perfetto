@@ -222,6 +222,20 @@ TEST(LocalBinaryFinderTest, AbsolutePath) {
   EXPECT_EQ(result.binary->file_name, tmp.path() + "/root/dir/elf1.so");
 }
 
+TEST(LocalBinaryFinderTest, InvalidBinaryReportsParseError) {
+  base::TmpDirTree tmp;
+  tmp.AddFile("invalid.so", "not an ELF");
+
+  LocalBinaryFinder finder({});
+  BinaryLookupResult result = finder.FindBinary(
+      tmp.AbsolutePath("invalid.so"), "AAAAAAAAAAAAAAAAAAAA");
+
+  ASSERT_FALSE(result.ok());
+  ASSERT_EQ(result.attempts.size(), 1u);
+  EXPECT_EQ(result.attempts[0].path, tmp.AbsolutePath("invalid.so"));
+  EXPECT_EQ(result.attempts[0].error, BinaryPathError::kParseError);
+}
+
 TEST(LocalBinaryFinderTest, AbsolutePathWithoutBaseApk) {
   base::TmpDirTree tmp;
   tmp.AddDir("root");
