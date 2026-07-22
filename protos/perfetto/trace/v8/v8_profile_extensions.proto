@@ -19,7 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 import public "protos/perfetto/trace/profiling/profile_common.proto";
-import public "protos/perfetto/trace/profiling/profile_packet.proto";
+import public "protos/perfetto/trace/profiling/stack_sample.proto";
 
 // Compilation tier of a V8 frame.
 enum V8Tier {
@@ -48,10 +48,9 @@ enum V8SampleKind {
   V8_SAMPLE_KIND_OTHER = 5;
 }
 
-// V8-specific extensions to the generic profiling messages. These extend
-// existing Perfetto messages so the trace_processor stack_profile_*
-// pipeline sees V8 CPU profile data uniformly with all other sampling
-// profilers (heapprofd, traced_perf, the chromium signal-based sampler).
+// V8-specific extensions to generic profiling messages. These extend
+// StackSample and Frame so the trace processor sees V8 CPU profile data
+// uniformly with other sampling profilers.
 //
 // Only fields that are genuinely V8-specific live here.
 message V8FrameExtensions {
@@ -75,18 +74,13 @@ message V8FrameExtensions {
   }
 }
 
-message V8StreamingProfileExtensions {
-  extend StreamingProfilePacket {
-    // Per-sample sample kind.
-    repeated V8SampleKind v8_sample_kind = 1000;
+message V8StackSampleExtensions {
+  extend StackSample {
+    // Origin of this V8 sample.
+    optional V8SampleKind v8_sample_kind = 1000;
 
-    // Per-sample leaf source line. 0 means unknown.
-    repeated uint32 v8_leaf_line = 1001;
-
-    // Per-sample leaf source column. 0 means unknown.
-    repeated uint32 v8_leaf_column = 1002;
-
-    // CPU profile session owning each sample. Parallel to callstack_iid.
-    repeated uint64 v8_session_id = 1003 [packed = true];
+    // Per-sample leaf source position. Zero means unknown.
+    optional uint32 v8_leaf_line = 1001;
+    optional uint32 v8_leaf_column = 1002;
   }
 }

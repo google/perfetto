@@ -52,6 +52,7 @@
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/etw/file_io_tracker.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -194,6 +195,7 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
   context->profiler_sample_tracker =
       Ptr<ProfilerSampleTracker>::MakeRoot(context);
+  context->v8_cpu_profile_tracker = Ptr<V8CpuProfileTracker>::MakeRoot(context);
   context->deobfuscation_tracker = nullptr;
   context->blob_packet_writer = Ptr<BlobPacketWriter>::MakeRoot();
   context->register_additional_proto_modules = {};
@@ -237,6 +239,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->blob_packet_writer = source->blob_packet_writer.Fork();
   dest->stack_profile_tracker = source->stack_profile_tracker.Fork();
   dest->profiler_sample_tracker = source->profiler_sample_tracker.Fork();
+  dest->v8_cpu_profile_tracker = source->v8_cpu_profile_tracker.Fork();
 }
 
 }  // namespace

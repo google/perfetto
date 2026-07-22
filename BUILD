@@ -2701,6 +2701,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/tracks.h",
         "src/trace_processor/importers/common/tracks_common.h",
         "src/trace_processor/importers/common/tracks_internal.h",
+        "src/trace_processor/importers/common/v8_cpu_profile_tracker.cc",
+        "src/trace_processor/importers/common/v8_cpu_profile_tracker.h",
         "src/trace_processor/importers/common/virtual_memory_mapping.cc",
         "src/trace_processor/importers/common/virtual_memory_mapping.h",
     ],
@@ -4260,7 +4262,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_v8_v8",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/v8/cpu_profile.sql",
         "src/trace_processor/perfetto_sql/stdlib/v8/jit.sql",
     ],
 )

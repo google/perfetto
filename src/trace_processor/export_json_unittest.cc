@@ -2277,7 +2277,7 @@ TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
   sym_row.symbol_set_id = foo_symbol_set;
   sym_row.name = fn_foo;
   sym_row.source_file = url_test;
-  sym_row.line_number = 0;
+  sym_row.line_number = 42;
   storage->mutable_symbol_table()->Insert(sym_row);
 
   tables::StackProfileCallsiteTable::Row cs_root_row;
@@ -2300,34 +2300,63 @@ TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
   v8_frame_foo.deopt_reason = storage->InternString("not optimized");
   storage->mutable_v8_stack_profile_frame_table()->Insert(v8_frame_foo);
 
+  tables::ProfilerSessionTable::Row profiler_session_row;
+  profiler_session_row.source = storage->InternString("v8.cpu_profiler");
+  auto profiler_session_id = storage->mutable_profiler_session_table()
+                                 ->Insert(profiler_session_row)
+                                 .id;
+
   tables::V8CpuProfileSessionTable::Row session_row;
-  session_row.session_id = static_cast<int64_t>(kSessionId);
-  session_row.utid = utid;
+  session_row.profiler_session_id = profiler_session_id;
   session_row.start_ts = kStartTs;
   session_row.start_time_us = 10000;
   session_row.start_thread_ts = 5000000;  // 5000us tts
   session_row.source = storage->InternString("Inspector");
+  session_row.pid = kPid;
+  session_row.tid = kTid;
   session_row.end_ts = kEndTs;
   session_row.end_time_us = 13000;
   session_row.end_thread_ts = 8000000;  // 8000us tts
   storage->mutable_v8_cpu_profile_session_table()->Insert(session_row);
 
-  // Two samples hitting cs_foo.
-  auto sample0 = storage->mutable_cpu_profile_stack_sample_table()
-                     ->Insert({kSampleTs0, cs_foo, utid, 0})
-                     .id;
-  auto sample1 = storage->mutable_cpu_profile_stack_sample_table()
-                     ->Insert({kSampleTs1, cs_foo, utid, 0})
-                     .id;
+  auto counter0 = storage->mutable_counter_table()
+                      ->Insert({kSampleTs0, TrackId{}, 17000.0})
+                      .id;
+  auto counter1 = storage->mutable_counter_table()
+                      ->Insert({kSampleTs1, TrackId{}, 23000.0})
+                      .id;
+  tables::ProfilerCounterSetTable::Row counter_set0;
+  counter_set0.counter_set_id = 0;
+  counter_set0.counter_id = counter0;
+  storage->mutable_profiler_counter_set_table()->Insert(counter_set0);
+  tables::ProfilerCounterSetTable::Row counter_set1;
+  counter_set1.counter_set_id = 1;
+  counter_set1.counter_id = counter1;
+  storage->mutable_profiler_counter_set_table()->Insert(counter_set1);
+
+  // Two samples hitting cs_foo. Their timestamps intentionally differ from
+  // their primary wall-time weights.
+  tables::ProfilerSampleTable::Row sample_row0;
+  sample_row0.ts = kSampleTs0;
+  sample_row0.source = storage->InternString("v8.cpu_profiler");
+  sample_row0.utid = utid;
+  sample_row0.callsite_id = cs_foo;
+  sample_row0.session_id = profiler_session_id;
+  sample_row0.counter_set_id = 0;
+  auto sample0 =
+      storage->mutable_profiler_sample_table()->Insert(sample_row0).id;
+  tables::ProfilerSampleTable::Row sample_row1 = sample_row0;
+  sample_row1.ts = kSampleTs1;
+  sample_row1.counter_set_id = 1;
+  auto sample1 =
+      storage->mutable_profiler_sample_table()->Insert(sample_row1).id;
   tables::V8CpuProfileSampleTable::Row v8_sample0;
-  v8_sample0.cpu_profile_stack_sample_id = sample0;
-  v8_sample0.session_id = static_cast<int64_t>(kSessionId);
+  v8_sample0.profiler_sample_id = sample0;
   v8_sample0.leaf_line = 7u;
   v8_sample0.leaf_column = 11u;
   storage->mutable_v8_cpu_profile_sample_table()->Insert(v8_sample0);
   tables::V8CpuProfileSampleTable::Row v8_sample1;
-  v8_sample1.cpu_profile_stack_sample_id = sample1;
-  v8_sample1.session_id = static_cast<int64_t>(kSessionId);
+  v8_sample1.profiler_sample_id = sample1;
   storage->mutable_v8_cpu_profile_sample_table()->Insert(v8_sample1);
 
   ASSERT_TRUE(tp->NotifyEndOfFile().ok());
@@ -2408,6 +2437,7 @@ TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
   EXPECT_EQ(node2["callFrame"]["functionName"].AsString(), "foo");
   EXPECT_EQ(node2["callFrame"]["url"].AsString(), "test.js");
   EXPECT_EQ(node2["callFrame"]["scriptId"].AsInt(), 123);
+  EXPECT_EQ(node2["callFrame"]["lineNumber"].AsInt(), 42);
   EXPECT_EQ(node2["callFrame"]["columnNumber"].AsInt(), 9);
   EXPECT_EQ(node2["callFrame"]["codeType"].AsString(), "JS");
   EXPECT_EQ(node2["deoptReason"].AsString(), "not optimized");
@@ -2417,8 +2447,8 @@ TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
   EXPECT_EQ(cp["samples"][1].AsInt64(), 2);
   ASSERT_TRUE(cdata.HasMember("timeDeltas"));
   EXPECT_EQ(cdata["timeDeltas"].size(), 2u);
-  EXPECT_EQ(cdata["timeDeltas"][0].AsInt64(), 1000);
-  EXPECT_EQ(cdata["timeDeltas"][1].AsInt64(), 1000);
+  EXPECT_EQ(cdata["timeDeltas"][0].AsInt64(), 17);
+  EXPECT_EQ(cdata["timeDeltas"][1].AsInt64(), 23);
   ASSERT_TRUE(cdata.HasMember("lines"));
   ASSERT_TRUE(cdata.HasMember("columns"));
   EXPECT_EQ(cdata["lines"][0].AsInt(), 7);
@@ -2431,6 +2461,63 @@ TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
   ASSERT_TRUE((*end_event).HasMember("tts"));
   EXPECT_EQ((*end_event)["tts"].AsInt64(), 8000);
   EXPECT_FALSE(edata.HasMember("cpuProfile"));
+}
+
+TEST_F(ExportJsonTest, V8CpuProfileWithoutSamples) {
+  const int64_t kStartTs = 10000000;
+  const int64_t kEndTs = 13000000;
+  const uint32_t kPid = 42;
+  const uint32_t kTid = 100;
+
+  auto tp = TraceProcessor::CreateInstance(Config());
+  auto* impl = static_cast<TraceProcessorImpl*>(tp.get());
+  TraceStorage* storage = impl->context()->storage.get();
+  PerfettoSqlConnection* engine = impl->engine();
+
+  tables::ProfilerSessionTable::Row profiler_session_row;
+  profiler_session_row.source = storage->InternString("v8.cpu_profiler");
+  auto profiler_session_id = storage->mutable_profiler_session_table()
+                                 ->Insert(profiler_session_row)
+                                 .id;
+
+  tables::V8CpuProfileSessionTable::Row session_row;
+  session_row.profiler_session_id = profiler_session_id;
+  session_row.source = storage->InternString("Inspector");
+  session_row.pid = kPid;
+  session_row.tid = kTid;
+  session_row.start_ts = kStartTs;
+  session_row.start_time_us = 10000;
+  session_row.end_ts = kEndTs;
+  session_row.end_time_us = 13000;
+  storage->mutable_v8_cpu_profile_session_table()->Insert(session_row);
+
+  ASSERT_TRUE(tp->NotifyEndOfFile().ok());
+
+  StringOutputWriter writer;
+  ASSERT_TRUE(
+      ExportJson(storage, &writer, nullptr, nullptr, nullptr, engine).ok());
+  Dom result = ToJsonValue(writer.TakeStr());
+
+  const Dom* profile_event = nullptr;
+  const Dom* end_event = nullptr;
+  for (size_t i = 0; i < result["traceEvents"].size(); ++i) {
+    const auto& event = result["traceEvents"][i];
+    if (event["cat"].AsString() != "disabled-by-default-v8.cpu_profiler")
+      continue;
+    if (event["name"].AsString() == "Profile") {
+      profile_event = &event;
+    } else if (event["name"].AsString() == "ProfileChunk") {
+      end_event = &event;
+    }
+  }
+  ASSERT_NE(profile_event, nullptr);
+  ASSERT_NE(end_event, nullptr);
+  EXPECT_EQ((*profile_event)["pid"].AsInt(), static_cast<int>(kPid));
+  EXPECT_EQ((*profile_event)["tid"].AsInt(), static_cast<int>(kTid));
+  EXPECT_EQ((*end_event)["pid"].AsInt(), static_cast<int>(kPid));
+  EXPECT_EQ((*end_event)["tid"].AsInt(), static_cast<int>(kTid));
+  EXPECT_EQ((*end_event)["args"]["data"]["endTime"].AsInt64(), 13000);
+  EXPECT_FALSE((*end_event)["args"]["data"].HasMember("cpuProfile"));
 }
 
 }  // namespace

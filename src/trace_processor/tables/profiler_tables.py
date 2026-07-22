@@ -589,7 +589,11 @@ PROFILER_SAMPLE_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('unwind_error', CppOptional(CppString())),
-        C('session_id', CppOptional(CppTableId(PROFILER_SESSION_TABLE))),
+        C(
+            'session_id',
+            CppOptional(CppTableId(PROFILER_SESSION_TABLE)),
+            cpp_access=CppAccess.READ,
+        ),
         C(
             'counter_set_id',
             CppOptional(CppUint32()),

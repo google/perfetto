@@ -19,12 +19,9 @@
 #include <cstdint>
 #include <optional>
 #include <utility>
-#include <vector>
-
-#include "perfetto/base/logging.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/track_event_thread_descriptor.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -49,13 +46,6 @@ constexpr uint32_t kV8FrameColumn = 1002;
 constexpr uint32_t kV8FrameDeoptReasonIid = 1003;
 constexpr uint32_t kV8FrameScriptId = 1004;
 
-// Field numbers for V8StreamingProfileExtensions (extending
-// StreamingProfilePacket).
-constexpr uint32_t kV8SampleKind = 1000;
-constexpr uint32_t kV8SampleLeafLine = 1001;
-constexpr uint32_t kV8SampleLeafColumn = 1002;
-constexpr uint32_t kV8SampleSessionId = 1003;
-
 const char* TierToString(int32_t v) {
   switch (v) {
     case 1:
@@ -79,65 +69,6 @@ const char* TierToString(int32_t v) {
   }
 }
 
-const char* SampleKindToString(int32_t v) {
-  switch (v) {
-    case 1:
-      return "NORMAL";
-    case 2:
-      return "PROGRAM";
-    case 3:
-      return "GC";
-    case 4:
-      return "IDLE";
-    case 5:
-      return "OTHER";
-    default:
-      return "UNKNOWN";
-  }
-}
-
-void ReadRepeatedUint32(protozero::Field f, std::vector<uint32_t>* out) {
-  if (f.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
-    bool parse_error = false;
-    protozero::PackedRepeatedFieldIterator<
-        protozero::proto_utils::ProtoWireType::kVarInt, uint32_t>
-        it(f.data(), f.size(), &parse_error);
-    for (; it; ++it) {
-      out->push_back(*it);
-    }
-  } else {
-    out->push_back(f.as_uint32());
-  }
-}
-
-void ReadRepeatedUint64(protozero::Field f, std::vector<uint64_t>* out) {
-  if (f.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
-    bool parse_error = false;
-    protozero::PackedRepeatedFieldIterator<
-        protozero::proto_utils::ProtoWireType::kVarInt, uint64_t>
-        it(f.data(), f.size(), &parse_error);
-    for (; it; ++it) {
-      out->push_back(*it);
-    }
-  } else {
-    out->push_back(f.as_uint64());
-  }
-}
-
-void ReadRepeatedInt32(protozero::Field f, std::vector<int32_t>* out) {
-  if (f.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
-    bool parse_error = false;
-    protozero::PackedRepeatedFieldIterator<
-        protozero::proto_utils::ProtoWireType::kVarInt, int32_t>
-        it(f.data(), f.size(), &parse_error);
-    for (; it; ++it) {
-      out->push_back(*it);
-    }
-  } else {
-    out->push_back(f.as_int32());
-  }
-}
-
 }  // namespace
 
 V8CpuProfileModule::V8CpuProfileModule(
@@ -158,29 +89,16 @@ void V8CpuProfileModule::ParseField(const ParseFieldArgs& args) {
   if (args.field.id() != TracePacket::kV8CpuProfileSessionFieldNumber)
     return;
   ParseTracePacketData(args.field.Cast<TracePacket::kV8CpuProfileSession>(),
-                       args.ts, args.data);
+                       args.ts, args.decoder.trusted_packet_sequence_id());
 }
 
 void V8CpuProfileModule::ParseTracePacketData(protozero::ConstBytes bytes,
                                               int64_t ts,
-                                              const TracePacketData& data) {
+                                              uint32_t sequence_id) {
   V8CpuProfileSession::Decoder session(bytes);
 
-  uint64_t session_id = session.session_id();
   V8CpuProfileSession::Phase phase =
       static_cast<V8CpuProfileSession::Phase>(session.phase());
-
-  // Resolve utid from the sequence state's ThreadDescriptor.
-  auto* gen = data.sequence_state.get();
-  if (!gen)
-    return;
-  const auto& thread = gen->thread_descriptor();
-  if (!thread.valid())
-    return;
-
-  uint32_t pid = static_cast<uint32_t>(thread.pid());
-  uint32_t tid = static_cast<uint32_t>(thread.tid());
-  UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
 
   StringPool* pool = context_->storage->mutable_string_pool();
   std::optional<StringId> source;
@@ -189,31 +107,27 @@ void V8CpuProfileModule::ParseTracePacketData(protozero::ConstBytes bytes,
   }
 
   if (phase == V8CpuProfileSession::PHASE_START) {
-    tables::V8CpuProfileSessionTable::Row row;
-    row.session_id = static_cast<int64_t>(session_id);
-    row.utid = utid;
-    row.source = source;
-    row.start_ts = ts;
-    if (session.has_wall_time_us())
-      row.start_time_us = session.wall_time_us();
-    if (session.has_thread_time_us())
-      row.start_thread_ts = session.thread_time_us() * 1000;
-
-    auto id = context_->storage->mutable_v8_cpu_profile_session_table()
-                  ->Insert(row)
-                  .id;
-    open_sessions_.Insert({utid, static_cast<int64_t>(session_id)}, id);
+    context_->v8_cpu_profile_tracker->OnSessionStart(
+        sequence_id, ts, source,
+        session.has_wall_time_us()
+            ? std::optional<int64_t>(session.wall_time_us())
+            : std::nullopt,
+        session.has_thread_time_us()
+            ? std::optional<int64_t>(session.thread_time_us())
+            : std::nullopt,
+        session.has_pid() ? std::optional<int32_t>(session.pid())
+                          : std::nullopt,
+        session.has_tid() ? std::optional<int32_t>(session.tid())
+                          : std::nullopt);
   } else if (phase == V8CpuProfileSession::PHASE_END) {
-    auto* id = open_sessions_.Find({utid, static_cast<int64_t>(session_id)});
-    if (!id)
-      return;
-    auto rr = (*context_->storage->mutable_v8_cpu_profile_session_table())[*id];
-    rr.set_end_ts(ts);
-    if (session.has_wall_time_us())
-      rr.set_end_time_us(session.wall_time_us());
-    if (session.has_thread_time_us())
-      rr.set_end_thread_ts(session.thread_time_us() * 1000);
-    open_sessions_.Erase({utid, static_cast<int64_t>(session_id)});
+    context_->v8_cpu_profile_tracker->OnSessionEnd(
+        sequence_id, ts,
+        session.has_wall_time_us()
+            ? std::optional<int64_t>(session.wall_time_us())
+            : std::nullopt,
+        session.has_thread_time_us()
+            ? std::optional<int64_t>(session.thread_time_us())
+            : std::nullopt);
   }
 }
 
@@ -281,79 +195,6 @@ void V8CpuProfileModule::OnFrameInterned(TraceProcessorContext* context,
   if (script_id)
     row.script_id = *script_id;
   context->storage->mutable_v8_stack_profile_frame_table()->Insert(row);
-}
-
-V8CpuProfileModule::V8SampleExtensions
-V8CpuProfileModule::ParseStreamingProfileExtensions(const uint8_t* packet_bytes,
-                                                    size_t packet_size) {
-  V8SampleExtensions ext;
-  if (!packet_bytes || packet_size == 0)
-    return ext;
-
-  protozero::ProtoDecoder dec(packet_bytes, packet_size);
-  for (auto f = dec.ReadField(); f.valid(); f = dec.ReadField()) {
-    switch (f.id()) {
-      case kV8SampleKind:
-        ReadRepeatedInt32(f, &ext.sample_kind);
-        break;
-      case kV8SampleLeafLine:
-        ReadRepeatedUint32(f, &ext.leaf_line);
-        break;
-      case kV8SampleLeafColumn:
-        ReadRepeatedUint32(f, &ext.leaf_column);
-        break;
-      case kV8SampleSessionId:
-        ReadRepeatedUint64(f, &ext.session_id);
-        break;
-      default:
-        break;
-    }
-  }
-  return ext;
-}
-
-void V8CpuProfileModule::OnSampleInserted(
-    TraceProcessorContext* context,
-    tables::CpuProfileStackSampleTable::Id sample_id,
-    const V8SampleExtensions& exts,
-    size_t index) {
-  bool any = false;
-  std::optional<int32_t> kind;
-  std::optional<uint32_t> leaf_line;
-  std::optional<uint32_t> leaf_column;
-  std::optional<uint64_t> session_id;
-
-  if (index < exts.sample_kind.size()) {
-    kind = exts.sample_kind[index];
-    any = true;
-  }
-  if (index < exts.leaf_line.size()) {
-    leaf_line = exts.leaf_line[index];
-    any = true;
-  }
-  if (index < exts.leaf_column.size()) {
-    leaf_column = exts.leaf_column[index];
-    any = true;
-  }
-  if (index < exts.session_id.size()) {
-    session_id = exts.session_id[index];
-    any = true;
-  }
-  if (!any)
-    return;
-
-  StringPool* pool = context->storage->mutable_string_pool();
-  tables::V8CpuProfileSampleTable::Row row;
-  row.cpu_profile_stack_sample_id = sample_id;
-  if (kind)
-    row.sample_kind = pool->InternString(SampleKindToString(*kind));
-  if (leaf_line)
-    row.leaf_line = *leaf_line;
-  if (leaf_column)
-    row.leaf_column = *leaf_column;
-  if (session_id)
-    row.session_id = static_cast<int64_t>(*session_id);
-  context->storage->mutable_v8_cpu_profile_sample_table()->Insert(row);
 }
 
 }  // namespace perfetto::trace_processor

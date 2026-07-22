@@ -19,10 +19,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <vector>
-
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -48,50 +44,18 @@ class V8CpuProfileModule : public ProtoImporterModule {
 
   void ParseField(const ParseFieldArgs& args) override;
 
-  struct V8SampleExtensions {
-    std::vector<int32_t> sample_kind;
-    std::vector<uint32_t> leaf_line;
-    std::vector<uint32_t> leaf_column;
-    std::vector<uint64_t> session_id;
-  };
-
   static void OnFrameInterned(TraceProcessorContext* context,
                               PacketSequenceStateGeneration* state,
                               FrameId frame_id,
                               const uint8_t* frame_bytes,
                               size_t frame_size);
-  static V8SampleExtensions ParseStreamingProfileExtensions(
-      const uint8_t* packet_bytes,
-      size_t packet_size);
-  static void OnSampleInserted(TraceProcessorContext* context,
-                               tables::CpuProfileStackSampleTable::Id sample_id,
-                               const V8SampleExtensions& exts,
-                               size_t index);
 
  private:
-  struct SessionKey {
-    UniqueTid utid;
-    int64_t session_id;
-
-    bool operator==(const SessionKey& other) const {
-      return utid == other.utid && session_id == other.session_id;
-    }
-
-    template <typename H>
-    friend H PerfettoHashValue(H h, const SessionKey& key) {
-      return H::Combine(std::move(h), key.utid, key.session_id);
-    }
-  };
-
   void ParseTracePacketData(protozero::ConstBytes bytes,
                             int64_t ts,
-                            const TracePacketData& data);
+                            uint32_t sequence_id);
 
   TraceProcessorContext* const context_;
-  base::FlatHashMap<SessionKey,
-                    tables::V8CpuProfileSessionTable::Id,
-                    base::MurmurHash<SessionKey>>
-      open_sessions_;
 };
 
 }  // namespace perfetto::trace_processor

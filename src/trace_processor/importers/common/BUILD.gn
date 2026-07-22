@@ -94,6 +94,8 @@ source_set("common") {
     "tracks.h",
     "tracks_common.h",
     "tracks_internal.h",
+    "v8_cpu_profile_tracker.cc",
+    "v8_cpu_profile_tracker.h",
     "virtual_memory_mapping.cc",
     "virtual_memory_mapping.h",
   ]

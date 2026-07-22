@@ -48,4 +48,9 @@ message V8CpuProfileSession {
 
   // Thread time in microseconds at the moment of START / END.
   optional int64 thread_time_us = 5;
+
+  // OS process and thread that own this logical profile. These let exporters
+  // represent an empty profile, which has no StackSample task context.
+  optional int32 pid = 6;
+  optional int32 tid = 7;
 }

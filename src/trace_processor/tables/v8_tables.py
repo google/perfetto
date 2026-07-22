@@ -33,7 +33,7 @@ from python.generators.trace_processor_table.public import TableDoc
 
 from src.trace_processor.tables.jit_tables import JIT_CODE_TABLE
 from src.trace_processor.tables.profiler_tables import (
-    CPU_PROFILE_STACK_SAMPLE_TABLE, STACK_PROFILE_FRAME_TABLE)
+    PROFILER_SAMPLE_TABLE, PROFILER_SESSION_TABLE, STACK_PROFILE_FRAME_TABLE)
 
 V8_ISOLATE = Table(
     python_module=__file__,
@@ -394,24 +394,23 @@ V8_CPU_PROFILE_SAMPLE = Table(
     sql_name='__intrinsic_v8_cpu_profile_sample',
     columns=[
         C(
-            'cpu_profile_stack_sample_id',
-            CppTableId(CPU_PROFILE_STACK_SAMPLE_TABLE),
+            'profiler_sample_id',
+            CppTableId(PROFILER_SAMPLE_TABLE),
             cpp_access=CppAccess.READ,
         ),
         C('sample_kind', CppOptional(CppString()), cpp_access=CppAccess.READ),
         C('leaf_line', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
         C('leaf_column', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
-        C('session_id', CppOptional(CppInt64()), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
-        doc='''V8-specific attributes attached to a cpu_profile_stack_sample
+        doc='''V8-specific attributes attached to a profiler_sample
             row.''',
         group='v8',
         columns={
-            'cpu_profile_stack_sample_id':
+            'profiler_sample_id':
                 ColumnDoc(
-                    doc='cpu_profile_stack_sample this row attaches to.',
-                    joinable='__intrinsic_cpu_profile_stack_sample.id',
+                    doc='Profiler sample this row attaches to.',
+                    joinable='__intrinsic_profiler_sample.id',
                 ),
             'sample_kind':
                 'Sample origin (NORMAL, PROGRAM, GC, IDLE, OTHER).',
@@ -419,8 +418,6 @@ V8_CPU_PROFILE_SAMPLE = Table(
                 'Per-sample leaf source line.',
             'leaf_column':
                 'Per-sample leaf source column.',
-            'session_id':
-                'V8 CPU profile session owning this sample.',
         },
     ),
 )
@@ -430,9 +427,12 @@ V8_CPU_PROFILE_SESSION = Table(
     class_name='V8CpuProfileSessionTable',
     sql_name='__intrinsic_v8_cpu_profile_session',
     columns=[
-        C('session_id', CppInt64(), cpp_access=CppAccess.READ),
-        C('utid', CppUint32(), cpp_access=CppAccess.READ),
+        C('profiler_session_id',
+          CppTableId(PROFILER_SESSION_TABLE),
+          cpp_access=CppAccess.READ),
         C('source', CppOptional(CppString()), cpp_access=CppAccess.READ),
+        C('pid', CppOptional(CppInt64()), cpp_access=CppAccess.READ),
+        C('tid', CppOptional(CppInt64()), cpp_access=CppAccess.READ),
         C('start_ts', CppInt64(), cpp_access=CppAccess.READ),
         C('end_ts',
           CppOptional(CppInt64()),
@@ -452,7 +452,8 @@ V8_CPU_PROFILE_SESSION = Table(
         group='v8',
         columns={
             'session_id': 'V8-internal session id (stable across START/END).',
-            'utid': 'Thread the profiler ran on.',
+            'pid': 'OS process that owns the profile.',
+            'tid': 'OS thread that owns the profile.',
             'source': 'Source string.',
             'start_ts': 'TraceProcessor timestamp (ns) of the session start.',
             'end_ts': 'TraceProcessor timestamp (ns) of the session end.',

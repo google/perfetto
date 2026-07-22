@@ -47,7 +47,6 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_sequence_state.h"
-#include "src/trace_processor/importers/proto/v8_cpu_profile_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -159,9 +158,6 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
     ConstBytes streaming_profile_packet) {
   protos::pbzero::StreamingProfilePacket::Decoder decoder(
       streaming_profile_packet.data, streaming_profile_packet.size);
-  V8CpuProfileModule::V8SampleExtensions v8_exts =
-      V8CpuProfileModule::ParseStreamingProfileExtensions(
-          streaming_profile_packet.data, streaming_profile_packet.size);
 
   // We have to resolve the timestamps of a StreamingProfilePacket during
   // tokenization. If we did this during parsing instead, the tokenization of a
@@ -192,28 +188,9 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
     track_event->IncrementAndGetTrackEventTimeNs(delta_ns);
     sample_ts += delta_ns;
 
-    std::optional<int32_t> v8_sample_kind;
-    std::optional<uint32_t> v8_leaf_line;
-    std::optional<uint32_t> v8_leaf_column;
-    std::optional<uint64_t> v8_session_id;
-    if (sample_index < v8_exts.sample_kind.size()) {
-      v8_sample_kind = v8_exts.sample_kind[sample_index];
-    }
-    if (sample_index < v8_exts.leaf_line.size()) {
-      v8_leaf_line = v8_exts.leaf_line[sample_index];
-    }
-    if (sample_index < v8_exts.leaf_column.size()) {
-      v8_leaf_column = v8_exts.leaf_column[sample_index];
-    }
-    if (sample_index < v8_exts.session_id.size()) {
-      v8_session_id = v8_exts.session_id[sample_index];
-    }
-
     streaming_profile_stream_->Push(
         sample_ts, StreamingProfileSampleEvent{sequence_state, *callstack_it,
-                                               decoder.process_priority(),
-                                               v8_sample_kind, v8_leaf_line,
-                                               v8_leaf_column, v8_session_id});
+                                               decoder.process_priority()});
   }
   // Keep advancing the sequence clock over any trailing deltas so subsequent
   // packets on this sequence resolve their reference timestamp correctly.
@@ -251,20 +228,8 @@ void ProfileModule::ParseStreamingProfileSample(
 
   tables::CpuProfileStackSampleTable::Row sample_row{ts, *opt_cs_id, utid,
                                                      event.process_priority};
-  auto sample_id = context_->storage->mutable_cpu_profile_stack_sample_table()
-                       ->Insert(sample_row)
-                       .id;
-
-  V8CpuProfileModule::V8SampleExtensions v8_exts;
-  if (event.v8_sample_kind)
-    v8_exts.sample_kind.push_back(*event.v8_sample_kind);
-  if (event.v8_leaf_line)
-    v8_exts.leaf_line.push_back(*event.v8_leaf_line);
-  if (event.v8_leaf_column)
-    v8_exts.leaf_column.push_back(*event.v8_leaf_column);
-  if (event.v8_session_id)
-    v8_exts.session_id.push_back(*event.v8_session_id);
-  V8CpuProfileModule::OnSampleInserted(context_, sample_id, v8_exts, 0);
+  context_->storage->mutable_cpu_profile_stack_sample_table()->Insert(
+      sample_row);
 }
 
 void ProfileModule::ParsePerfSample(
