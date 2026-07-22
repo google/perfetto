@@ -238,19 +238,23 @@ TEST(ArrowSerializerTest, ValidatesPrepareWriteLifecycle) {
   auto sink = [](const uint8_t*, size_t) { return base::OkStatus(); };
 
   EXPECT_THAT(serializer.Write(source, pool, sink), IsError());
+  EXPECT_THAT(serializer.Prepare(source, pool), IsError());
+
+  source.Finalize();
+  other.Finalize();
   EXPECT_THAT(serializer.Prepare(source, other_pool), IsError());
   ASSERT_OK(serializer.Prepare(source, pool));
   EXPECT_THAT(serializer.Write(other, pool, sink), IsError());
   EXPECT_THAT(serializer.Write(source, other_pool, sink), IsError());
-
-  source.InsertUnchecked(kStringNonNull, std::monostate{}, value);
-  EXPECT_THAT(serializer.Write(source, pool, sink), IsError());
+  EXPECT_OK(serializer.Write(source, pool, sink));
 }
 
 TEST(ArrowSerializerTest, CanBeReused) {
   StringPool pool;
   auto first = MakeDataframe(kUint32NonNull, &pool, uint32_t{1});
   auto second = MakeDataframe(kUint32NonNull, &pool, uint32_t{2}, uint32_t{3});
+  first.Finalize();
+  second.Finalize();
   ArrowSerializer serializer;
   std::vector<uint8_t> first_bytes;
   std::vector<uint8_t> second_bytes;
@@ -276,6 +280,7 @@ TEST(ArrowSerializerTest, PropagatesWriteError) {
   StringPool pool;
   auto source = MakeDataframe(kUint32NonNull, &pool, uint32_t{1});
 
+  source.Finalize();
   ArrowSerializer serializer;
   ASSERT_OK(serializer.Prepare(source, pool));
   uint32_t calls = 0;

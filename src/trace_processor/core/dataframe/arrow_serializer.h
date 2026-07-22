@@ -39,15 +39,16 @@ namespace perfetto::trace_processor::core::dataframe {
 //
 // Dataframe Id columns are implicit row numbers and are omitted. Sparse columns
 // are expanded to Arrow's dense logical layout, and StringPool IDs are encoded
-// as Arrow Utf8 offset and data buffers.
+// as Arrow Utf8 offset and data buffers. Input dataframes must be finalized so
+// their column storage remains stable across the Prepare() and Write() passes.
 class ArrowSerializer {
  public:
   using WriteFn = std::function<base::Status(const uint8_t*, size_t)>;
 
-  // Computes Arrow buffer metadata and the exact output size. Arrow places
-  // buffer lengths before buffer contents, so variable-width strings must be
-  // measured here before Write() can stream the file. This retains only
-  // metadata; it does not copy or materialize column contents.
+  // Computes Arrow buffer metadata and the exact output size for a finalized
+  // dataframe. Arrow places buffer lengths before buffer contents, so
+  // variable-width strings must be measured here before Write() can stream the
+  // file. This retains only metadata; it does not materialize column contents.
   base::StatusOr<size_t> Prepare(const Dataframe&, const StringPool&);
 
   // Streams the dataframe prepared by the preceding Prepare() call using

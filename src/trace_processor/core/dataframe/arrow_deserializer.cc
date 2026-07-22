@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -369,18 +370,27 @@ base::StatusOr<RecordBatchMetadata> ReadRecordBatchMetadata(
 
 }  // namespace
 
-base::Status DeserializeFromArrow(const util::TraceBlobViewReader& data,
-                                  StringPool* pool,
-                                  Dataframe* dataframe) {
-  if (dataframe->finalized_ || dataframe->row_count_ ||
-      dataframe->string_pool_ != pool) {
-    return base::ErrStatus("Arrow target dataframe is incompatible");
+base::StatusOr<Dataframe> DeserializeFromArrow(
+    const util::TraceBlobViewReader& data,
+    StringPool* pool,
+    const DataframeSpec& spec) {
+  if (spec.column_names.size() != spec.column_specs.size() ||
+      spec.column_names.size() > std::numeric_limits<uint32_t>::max()) {
+    return base::ErrStatus("Invalid dataframe spec");
   }
-  // The target dataframe provides the schema. Derive the exact node and buffer
+  std::vector<const char*> column_names;
+  column_names.reserve(spec.column_names.size());
+  for (const std::string& name : spec.column_names) {
+    column_names.push_back(name.c_str());
+  }
+  Dataframe dataframe(pool, static_cast<uint32_t>(column_names.size()),
+                      column_names.data(), spec.column_specs.data());
+
+  // The dataframe spec supplies the schema. Derive the exact node and buffer
   // counts for the supported layout before parsing file metadata.
   uint32_t expected_nodes = 0;
   uint32_t expected_buffers = 0;
-  for (const auto& column : dataframe->columns_) {
+  for (const auto& column : dataframe.columns_) {
     if (!column->storage.type().Is<core::Id>()) {
       ++expected_nodes;
       expected_buffers += column->storage.type().Is<core::String>()
@@ -399,9 +409,9 @@ base::Status DeserializeFromArrow(const util::TraceBlobViewReader& data,
   // because they are implicit and therefore absent from Arrow.
   BodyReader reader(data, batch.body_offset, batch.buffers);
   uint32_t serialized_column = 0;
-  for (uint32_t column_index = 0; column_index < dataframe->column_count();
+  for (uint32_t column_index = 0; column_index < dataframe.column_count();
        ++column_index) {
-    auto& column = *dataframe->columns_[column_index];
+    auto& column = *dataframe.columns_[column_index];
     if (column.storage.type().Is<core::Id>()) {
       column.storage.unchecked_get<Id>().size = batch.rows;
       continue;
@@ -422,9 +432,10 @@ base::Status DeserializeFromArrow(const util::TraceBlobViewReader& data,
     }
     InstallValidity(nullability, std::move(validity), &column.null_storage);
   }
-  dataframe->row_count_ = batch.rows;
-  ++dataframe->non_column_mutations_;
-  return base::OkStatus();
+  dataframe.row_count_ = batch.rows;
+  ++dataframe.non_column_mutations_;
+  dataframe.Finalize();
+  return dataframe;
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe

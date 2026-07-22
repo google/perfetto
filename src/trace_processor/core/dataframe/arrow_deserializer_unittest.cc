@@ -30,6 +30,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/util/flatbuffer_reader.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 #include "test/gtest_and_gmock.h"
@@ -155,9 +156,9 @@ TEST(ArrowDeserializerTest, RoundTripChunkedInput) {
                            uint32_t{3}, uint32_t{4});
   std::vector<uint8_t> bytes = Serialize(src, pool);
 
-  auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
-  auto status = Deserialize(bytes, &pool, &dst, /*chunk_size=*/7);
-  ASSERT_OK(status);
+  auto dst_or = Deserialize(bytes, &pool, src.CreateSpec(), /*chunk_size=*/7);
+  ASSERT_OK(dst_or);
+  Dataframe dst = std::move(*dst_or);
   ASSERT_EQ(dst.row_count(), 4u);
   EXPECT_EQ((dst.GetCellUnchecked<1>(kUint32NonNull, 3)), 4u);
 }
@@ -177,9 +178,9 @@ TEST(ArrowDeserializerTest, RoundTripNonZeroStartOffset) {
       TraceBlobView(TraceBlob::CopyFrom(bytes.data(), bytes.size())));
   ASSERT_TRUE(reader.PopFrontUntil(padding.size()));
 
-  auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
-  auto status = DeserializeFromArrow(reader, &pool, &dst);
-  ASSERT_OK(status);
+  auto dst_or = DeserializeFromArrow(reader, &pool, src.CreateSpec());
+  ASSERT_OK(dst_or);
+  Dataframe dst = std::move(*dst_or);
   ASSERT_EQ(dst.row_count(), 1u);
   EXPECT_EQ((dst.GetCellUnchecked<1>(kUint32NonNull, 0)), 42u);
 }
@@ -266,13 +267,8 @@ TEST(ArrowDeserializerTest, RoundTripInt32SparseNullPopcountUntilFinalization) {
                            std::optional<int32_t>{99});
   auto dst = RoundTrip(kInt32SparseUntilFinalization, src, &pool);
 
-  ASSERT_EQ(dst.row_count(), 3u);
-  EXPECT_EQ((dst.GetCellUnchecked<1>(kInt32SparseUntilFinalization, 0)),
-            std::optional<int32_t>{-5});
-  EXPECT_EQ((dst.GetCellUnchecked<1>(kInt32SparseUntilFinalization, 1)),
-            std::optional<int32_t>{});
-  EXPECT_EQ((dst.GetCellUnchecked<1>(kInt32SparseUntilFinalization, 2)),
-            std::optional<int32_t>{99});
+  ASSERT_TRUE(dst.finalized());
+  EXPECT_EQ(Serialize(dst, pool), Serialize(src, pool));
 }
 
 inline constexpr auto kInt32Sparse = CreateTypedDataframeSpec(
@@ -286,8 +282,9 @@ TEST(ArrowDeserializerTest, RoundTripPlainSparseNull) {
       MakeDataframe(kInt32Sparse, &pool, std::optional<int32_t>{},
                     std::optional<int32_t>{-2}, std::optional<int32_t>{});
   std::vector<uint8_t> serialized = Serialize(src, pool);
-  auto dst = Dataframe::CreateFromTypedSpec(kInt32Sparse, &pool);
-  ASSERT_OK(Deserialize(serialized, &pool, &dst));
+  auto dst_or = Deserialize(serialized, &pool, src.CreateSpec());
+  ASSERT_OK(dst_or);
+  Dataframe dst = std::move(*dst_or);
 
   // Plain SparseNull deliberately has no random-access API. Serializing again
   // verifies its physical storage and validity bitmap instead.
@@ -352,9 +349,9 @@ TEST(ArrowDeserializerTest, RoundTripStringNonNull) {
   // Deserialize into a separate pool to prove strings travel by value.
   std::vector<uint8_t> bytes = Serialize(src, pool);
   StringPool other_pool;
-  auto dst = Dataframe::CreateFromTypedSpec(kStringNonNull, &other_pool);
-  auto status = Deserialize(bytes, &other_pool, &dst);
-  ASSERT_OK(status);
+  auto dst_or = Deserialize(bytes, &other_pool, src.CreateSpec());
+  ASSERT_OK(dst_or);
+  Dataframe dst = std::move(*dst_or);
 
   ASSERT_EQ(dst.row_count(), 3u);
   EXPECT_EQ(
@@ -384,9 +381,9 @@ TEST(ArrowDeserializerTest, RoundTripUnalignedInput) {
   ASSERT_TRUE(reader.PopFrontBytes(1));
 
   StringPool output_pool;
-  auto dst = Dataframe::CreateFromTypedSpec(kStringNonNull, &output_pool);
-  auto status = DeserializeFromArrow(reader, &output_pool, &dst);
-  ASSERT_OK(status);
+  auto dst_or = DeserializeFromArrow(reader, &output_pool, src.CreateSpec());
+  ASSERT_OK(dst_or);
+  Dataframe dst = std::move(*dst_or);
   EXPECT_EQ(
       output_pool.Get(dst.GetCellUnchecked<1>(kStringNonNull, 0)).ToStdString(),
       "unaligned");
@@ -490,23 +487,49 @@ TEST(ArrowDeserializerTest, RoundTripIdOnlyDataframe) {
 
 // --- Error handling on malformed input -------------------------------------
 
-TEST(ArrowDeserializerTest, RejectsNonEmptyTarget) {
+TEST(ArrowDeserializerTest, ReturnsFinalizedDataframe) {
   StringPool pool;
   auto src = MakeDataframe(kUint32NonNull, &pool, uint32_t{1});
   std::vector<uint8_t> bytes = Serialize(src, pool);
 
-  auto dst = MakeDataframe(kUint32NonNull, &pool, uint32_t{9});
-  EXPECT_THAT(Deserialize(bytes, &pool, &dst), IsError());
+  auto dst_or = Deserialize(bytes, &pool, src.CreateSpec());
+  ASSERT_OK(dst_or);
+  Dataframe dst = std::move(*dst_or);
+  EXPECT_TRUE(dst.finalized());
 }
 
-TEST(ArrowDeserializerTest, RejectsFinalizedTarget) {
+TEST(ArrowDeserializerTest, ReturnedDataframeSupportsIndexesAndCursors) {
+  StringPool pool;
+  auto src = MakeDataframe(kUint32NonNull, &pool, uint32_t{20}, uint32_t{10});
+  std::vector<uint8_t> bytes = Serialize(src, pool);
+  auto dst_or = Deserialize(bytes, &pool, src.CreateSpec());
+  ASSERT_OK(dst_or);
+  Dataframe dst = std::move(*dst_or);
+
+  uint32_t indexed_column = 1;
+  auto index = dst.BuildIndex(&indexed_column, &indexed_column + 1);
+  ASSERT_OK(index);
+  Dataframe indexed = dst.AddIndex(std::move(*index));
+  TypedCursor cursor(
+      &indexed, std::vector<FilterSpec>{},
+      std::vector<SortSpec>{{indexed_column, SortDirection::kAscending}});
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<1>(kUint32NonNull), 10u);
+  cursor.Next();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<1>(kUint32NonNull), 20u);
+  cursor.Next();
+  EXPECT_TRUE(cursor.Eof());
+}
+
+TEST(ArrowDeserializerTest, RejectsInvalidDataframeSpec) {
   StringPool pool;
   auto src = MakeDataframe(kUint32NonNull, &pool, uint32_t{1});
   std::vector<uint8_t> bytes = Serialize(src, pool);
+  DataframeSpec invalid_spec{{"only_a_name"}, {}};
 
-  auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
-  dst.Finalize();
-  EXPECT_THAT(Deserialize(bytes, &pool, &dst), IsError());
+  EXPECT_THAT(Deserialize(bytes, &pool, invalid_spec), IsError());
 }
 
 TEST(ArrowDeserializerTest, RejectsTruncatedInput) {
@@ -521,7 +544,7 @@ TEST(ArrowDeserializerTest, RejectsTruncatedInput) {
     std::vector<uint8_t> truncated(bytes.begin(),
                                    bytes.begin() + static_cast<ptrdiff_t>(len));
     auto dst = Dataframe::CreateFromTypedSpec(kStringSparse, &pool);
-    EXPECT_THAT(Deserialize(truncated, &pool, &dst), IsError())
+    EXPECT_THAT(Deserialize(truncated, &pool, dst.CreateSpec()), IsError())
         << "len " << len;
   }
 }
@@ -534,7 +557,7 @@ TEST(ArrowDeserializerTest, RejectsCorruptFooterSize) {
   uint32_t huge = 0x7FFFFFFF;
   memcpy(bytes.data() + bytes.size() - 10, &huge, 4);
   auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
-  EXPECT_THAT(Deserialize(bytes, &pool, &dst), IsError());
+  EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
 }
 
 TEST(ArrowDeserializerTest, RejectsInconsistentBlockLength) {
@@ -548,7 +571,7 @@ TEST(ArrowDeserializerTest, RejectsInconsistentBlockLength) {
   memcpy(MutableBlock(&bytes), &block, sizeof(block));
 
   auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
-  EXPECT_THAT(Deserialize(bytes, &pool, &dst), IsError());
+  EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
 }
 
 TEST(ArrowDeserializerTest, RejectsInconsistentFieldNode) {
@@ -564,7 +587,7 @@ TEST(ArrowDeserializerTest, RejectsInconsistentFieldNode) {
   memcpy(node_data, &node, sizeof(node));
 
   auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
-  EXPECT_THAT(Deserialize(bytes, &pool, &dst), IsError());
+  EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
 }
 
 TEST(ArrowDeserializerTest, RejectsInvalidEmptyValidityBufferOffset) {
@@ -581,7 +604,7 @@ TEST(ArrowDeserializerTest, RejectsInvalidEmptyValidityBufferOffset) {
   memcpy(buffer_data, &buffer, sizeof(buffer));
 
   auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
-  EXPECT_THAT(Deserialize(bytes, &pool, &dst), IsError());
+  EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
 }
 
 TEST(ArrowDeserializerTest, RejectsInvalidStringOffsets) {
@@ -602,7 +625,7 @@ TEST(ArrowDeserializerTest, RejectsInvalidStringOffsets) {
          &invalid_offset, sizeof(invalid_offset));
 
   auto dst = Dataframe::CreateFromTypedSpec(kStringNonNull, &pool);
-  EXPECT_THAT(Deserialize(bytes, &pool, &dst), IsError());
+  EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
 }
 
 TEST(ArrowDeserializerTest, RejectsSchemaShapeMismatch) {
@@ -613,24 +636,14 @@ TEST(ArrowDeserializerTest, RejectsSchemaShapeMismatch) {
   // A dataframe with a different column shape must be rejected via the
   // node/buffer count check.
   auto dst = Dataframe::CreateFromTypedSpec(kMultiColumn, &pool);
-  EXPECT_THAT(Deserialize(bytes, &pool, &dst), IsError());
+  EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
 }
 
 TEST(ArrowDeserializerTest, RejectsGarbageInput) {
   StringPool pool;
   std::vector<uint8_t> bytes(256, 0xCD);
   auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
-  EXPECT_THAT(Deserialize(bytes, &pool, &dst), IsError());
-}
-
-TEST(ArrowDeserializerTest, RejectsMismatchedDestinationStringPool) {
-  StringPool pool;
-  auto src = MakeDataframe(kUint32NonNull, &pool, uint32_t{1});
-  std::vector<uint8_t> bytes = Serialize(src, pool);
-
-  StringPool other_pool;
-  auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
-  EXPECT_THAT(Deserialize(bytes, &other_pool, &dst), IsError());
+  EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
 }
 
 }  // namespace

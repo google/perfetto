@@ -37,8 +37,9 @@
 
 namespace perfetto::trace_processor::core::dataframe::arrow_test {
 
-inline std::vector<uint8_t> Serialize(const Dataframe& dataframe,
+inline std::vector<uint8_t> Serialize(Dataframe& dataframe,
                                       const StringPool& pool) {
+  dataframe.Finalize();
   ArrowSerializer serializer;
   auto prepared_size = serializer.Prepare(dataframe, pool);
   EXPECT_OK(prepared_size);
@@ -71,12 +72,12 @@ inline util::TraceBlobViewReader MakeReader(const std::vector<uint8_t>& bytes,
   return reader;
 }
 
-inline base::Status Deserialize(const std::vector<uint8_t>& bytes,
-                                StringPool* pool,
-                                Dataframe* dataframe,
-                                size_t chunk_size = 0) {
+inline base::StatusOr<Dataframe> Deserialize(const std::vector<uint8_t>& bytes,
+                                             StringPool* pool,
+                                             const DataframeSpec& spec,
+                                             size_t chunk_size = 0) {
   util::TraceBlobViewReader reader = MakeReader(bytes, chunk_size);
-  return DeserializeFromArrow(reader, pool, dataframe);
+  return DeserializeFromArrow(reader, pool, spec);
 }
 
 template <typename Spec, typename... Values>
@@ -91,14 +92,12 @@ Dataframe MakeDataframe(const Spec& spec,
 }
 
 template <typename Spec>
-Dataframe RoundTrip(const Spec& spec,
-                    const Dataframe& source,
-                    StringPool* pool) {
+Dataframe RoundTrip(const Spec& spec, Dataframe& source, StringPool* pool) {
   std::vector<uint8_t> bytes = Serialize(source, *pool);
-  Dataframe destination = Dataframe::CreateFromTypedSpec(spec, pool);
-  base::Status status = Deserialize(bytes, pool, &destination);
-  EXPECT_OK(status);
-  return destination;
+  auto result = Deserialize(bytes, pool, source.CreateSpec());
+  EXPECT_OK(result);
+  return result.ok() ? std::move(*result)
+                     : Dataframe::CreateFromTypedSpec(spec, pool);
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe::arrow_test

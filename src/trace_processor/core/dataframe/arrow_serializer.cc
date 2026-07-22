@@ -536,6 +536,10 @@ base::Status ArrowSerializer::BuildFileFraming(const BodyPlan& plan) {
 base::StatusOr<size_t> ArrowSerializer::Prepare(const Dataframe& dataframe,
                                                 const StringPool& pool) {
   Reset();
+  if (!dataframe.finalized()) {
+    return base::ErrStatus(
+        "Arrow serialization requires a finalized dataframe");
+  }
   if (dataframe.string_pool_ != &pool) {
     return base::ErrStatus("String pool does not belong to dataframe");
   }
@@ -589,7 +593,8 @@ base::Status ArrowSerializer::Write(const Dataframe& dataframe,
                                     const StringPool& pool,
                                     const WriteFn& write) {
   if (!prepared_dataframe_ || prepared_dataframe_ != &dataframe ||
-      prepared_string_pool_ != &pool || dataframe.string_pool_ != &pool ||
+      !dataframe.finalized() || prepared_string_pool_ != &pool ||
+      dataframe.string_pool_ != &pool ||
       prepared_mutations_ != dataframe.mutations()) {
     return base::ErrStatus("Dataframe changed after Arrow Prepare");
   }

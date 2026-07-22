@@ -432,9 +432,10 @@ class Dataframe {
   friend struct QueryPlanImpl;
   friend class tree::TreeTransformer;
   friend class ArrowSerializer;
-  friend base::Status DeserializeFromArrow(const util::TraceBlobViewReader&,
-                                           StringPool*,
-                                           Dataframe*);
+  friend base::StatusOr<Dataframe> DeserializeFromArrow(
+      const util::TraceBlobViewReader&,
+      StringPool*,
+      const DataframeSpec&);
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.

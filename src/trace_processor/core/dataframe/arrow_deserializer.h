@@ -17,7 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_ARROW_DESERIALIZER_H_
 #define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_ARROW_DESERIALIZER_H_
 
-#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 
 namespace perfetto::trace_processor {
 class StringPool;
@@ -25,14 +26,17 @@ namespace util {
 class TraceBlobViewReader;
 }
 namespace core::dataframe {
-class Dataframe;
 
-// Reads the single-record-batch Arrow layout emitted by ArrowSerializer.
-// This deliberately validates only that supported layout; use a full Arrow
+// Reads the single-record-batch Arrow layout emitted by ArrowSerializer and
+// returns a newly constructed, finalized dataframe. |spec| supplies the full
+// dataframe schema, including properties which are not represented by Arrow,
+// such as null storage, sort, and duplicate state.
+//
+// This deliberately validates only the supported layout; use a full Arrow
 // implementation when diagnostics for arbitrary Arrow files are required.
-base::Status DeserializeFromArrow(const util::TraceBlobViewReader&,
-                                  StringPool*,
-                                  Dataframe*);
+base::StatusOr<Dataframe> DeserializeFromArrow(const util::TraceBlobViewReader&,
+                                               StringPool*,
+                                               const DataframeSpec&);
 
 }  // namespace core::dataframe
 }  // namespace perfetto::trace_processor
