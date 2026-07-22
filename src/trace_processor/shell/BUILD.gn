@@ -118,6 +118,7 @@ source_set("unittests") {
   deps = [
     ":shell",
     ":subcommands",
+    "..:local_file_system",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../gn:protobuf_full",
