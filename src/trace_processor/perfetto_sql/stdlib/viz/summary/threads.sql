@@ -57,13 +57,15 @@ WITH
         SELECT sample_cnt
         FROM _stack_sample_summary
         WHERE
-          utid = t.utid AND source = 'linux.perf'
+          utid = t.utid
+          AND source = 'linux.perf'
       ) AS perf_sample_count,
       (
         SELECT sample_cnt
         FROM _stack_sample_summary
         WHERE
-          utid = t.utid AND source = 'instruments'
+          utid = t.utid
+          AND source = 'instruments'
       ) AS instruments_sample_count
     FROM thread AS t
     LEFT JOIN _sched_summary AS ss USING (utid)

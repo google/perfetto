@@ -60,7 +60,8 @@ FROM stack_sample AS ss
 LEFT JOIN __intrinsic_profiler_session AS s
   ON s.id = ss.session_id
 LEFT JOIN thread AS t USING (utid)
-LEFT JOIN cpu AS c ON c.id = ss.ucpu
+LEFT JOIN cpu AS c
+  ON c.id = ss.ucpu
 WHERE
   s.timebase_unit IS NULL
   OR s.timebase_unit IN ('ns', 'cycles', 'instructions')
