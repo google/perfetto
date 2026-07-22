@@ -550,6 +550,8 @@ perfetto_cc_library(
         ":src_trace_processor_util_decompressor",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
+        ":src_trace_processor_util_flatbuffer_reader",
+        ":src_trace_processor_util_flatbuffer_writer",
         ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_interned_message_view",
@@ -860,6 +862,8 @@ perfetto_cc_library(
         ":src_trace_processor_util_decompressor",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
+        ":src_trace_processor_util_flatbuffer_reader",
+        ":src_trace_processor_util_flatbuffer_writer",
         ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_interned_message_view",
@@ -2435,6 +2439,11 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/core/dataframe/adhoc_dataframe_builder.cc",
         "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h",
+        "src/trace_processor/core/dataframe/arrow_deserializer.cc",
+        "src/trace_processor/core/dataframe/arrow_deserializer.h",
+        "src/trace_processor/core/dataframe/arrow_internal.h",
+        "src/trace_processor/core/dataframe/arrow_serializer.cc",
+        "src/trace_processor/core/dataframe/arrow_serializer.h",
         "src/trace_processor/core/dataframe/cursor.h",
         "src/trace_processor/core/dataframe/cursor_impl.h",
         "src/trace_processor/core/dataframe/dataframe.cc",
@@ -5868,6 +5877,24 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/descriptors.cc",
         "src/trace_processor/util/descriptors.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:flatbuffer_reader
+perfetto_filegroup(
+    name = "src_trace_processor_util_flatbuffer_reader",
+    srcs = [
+        "src/trace_processor/util/flatbuffer_reader.cc",
+        "src/trace_processor/util/flatbuffer_reader.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:flatbuffer_writer
+perfetto_filegroup(
+    name = "src_trace_processor_util_flatbuffer_writer",
+    srcs = [
+        "src/trace_processor/util/flatbuffer_writer.cc",
+        "src/trace_processor/util/flatbuffer_writer.h",
     ],
 )
 
@@ -11559,6 +11586,8 @@ perfetto_cc_library(
         ":src_trace_processor_util_decompressor",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
+        ":src_trace_processor_util_flatbuffer_reader",
+        ":src_trace_processor_util_flatbuffer_writer",
         ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_interned_message_view",
@@ -11890,6 +11919,8 @@ perfetto_cc_binary(
         ":src_trace_processor_util_decompressor",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_elf_elf",
+        ":src_trace_processor_util_flatbuffer_reader",
+        ":src_trace_processor_util_flatbuffer_writer",
         ":src_trace_processor_util_galloping_search",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_interned_message_view",
