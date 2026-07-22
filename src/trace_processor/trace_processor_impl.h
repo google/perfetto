@@ -135,6 +135,12 @@ class TraceProcessorImpl : public TraceProcessor,
 
   std::vector<uint8_t> GetMetricDescriptors() override;
 
+  // ================
+  // |    Export    |
+  // ================
+
+  base::Status Export(ExportFormat format, ExportOutput* output) override;
+
   // ===================
   // |   Summarizer    |
   // ===================

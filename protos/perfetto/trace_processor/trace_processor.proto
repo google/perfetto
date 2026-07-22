@@ -115,6 +115,7 @@ message TraceProcessorRpc {
     TPM_QUERY_SUMMARIZER = 18;
     TPM_DESTROY_SUMMARIZER = 19;
     TPM_STATEMENT_STREAMING = 20;
+    TPM_EXPORT = 21;
   }
 
   oneof type {
@@ -160,6 +161,8 @@ message TraceProcessorRpc {
     DestroySummarizerArgs destroy_summarizer_args = 114;
     // For TPM_STATEMENT_STREAMING.
     StatementArgs statement_args = 115;
+    // For TPM_EXPORT.
+    ExportArgs export_args = 116;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -190,6 +193,8 @@ message TraceProcessorRpc {
     DestroySummarizerResult destroy_summarizer_result = 218;
     // For TPM_STATEMENT_STREAMING.
     StatementResult statement_result = 219;
+    // For TPM_EXPORT.
+    ExportResult export_result = 220;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
@@ -541,4 +546,23 @@ message DestroySummarizerArgs {
 // Output for TPM_DESTROY_SUMMARIZER.
 message DestroySummarizerResult {
   optional string error = 1;
+}
+
+// Input for TPM_EXPORT.
+message ExportArgs {
+  enum Format {
+    FORMAT_UNSPECIFIED = 0;
+    PERFETTO = 1;
+    ARROW_TAR = 2;
+  }
+  optional Format format = 1;
+}
+
+// Output for TPM_EXPORT. Over RPC, one result is sent per output chunk,
+// followed by an empty result with has_more=false. The /export HTTP endpoint
+// streams the raw bytes without this wrapper.
+message ExportResult {
+  optional bytes data = 1;
+  optional string error = 2;
+  optional bool has_more = 3;
 }

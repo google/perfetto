@@ -1469,5 +1469,56 @@ TEST(TraceProcessorShellIntegrationTest, StdioSimpleRequestResponse) {
               ElementsAre(10852771242000, 3000));
 }
 
+TEST(TraceProcessorShellIntegrationTest, StdioExport) {
+  TraceProcessorRpcStream req;
+
+  auto* rpc = req.add_msg();
+  rpc->set_append_trace_data(kSimpleSystrace.data(), kSimpleSystrace.size());
+  rpc->set_request(TraceProcessorRpc::TPM_APPEND_TRACE_DATA);
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_FINALIZE_TRACE_DATA);
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_EXPORT);
+  rpc->mutable_export_args()->set_format(protos::gen::ExportArgs::PERFETTO);
+
+  base::Subprocess process(
+      {base::GetCurExecutableDir() + "/trace_processor_shell", "--stdiod"});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+
+  // Two responses for append/finalize, then one response per export chunk with
+  // a final has_more=false terminator.
+  ASSERT_GE(stream.msg_size(), 4);
+  ASSERT_EQ(stream.msg()[0].response(),
+            TraceProcessorRpc::TPM_APPEND_TRACE_DATA);
+  ASSERT_EQ(stream.msg()[1].response(),
+            TraceProcessorRpc::TPM_FINALIZE_TRACE_DATA);
+
+  std::string tar_bytes;
+  for (size_t i = 2; i < static_cast<size_t>(stream.msg_size()); ++i) {
+    const auto& msg = stream.msg()[i];
+    ASSERT_EQ(msg.response(), TraceProcessorRpc::TPM_EXPORT);
+    ASSERT_THAT(msg.export_result().error(), IsEmpty());
+    ASSERT_EQ(msg.export_result().has_more(),
+              i != static_cast<size_t>(stream.msg_size()) - 1);
+    tar_bytes += msg.export_result().data();
+  }
+
+  // The archive starts with the manifest entry name and has the ustar magic.
+  ASSERT_GT(tar_bytes.size(), 512u);
+  ASSERT_EQ(std::string(tar_bytes.data(), 22), "perfetto_manifest.json");
+  ASSERT_EQ(std::string(tar_bytes.data() + 257, 5), "ustar");
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

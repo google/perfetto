@@ -285,6 +285,24 @@ class TraceProcessor:
     metrics.ParseFromString(response.metrics)
     return metrics
 
+  def export(self, output_path: str, export_format: str):
+    """Exports the contents of Trace Processor.
+
+    The exact contents exported are defined by `export_format`. `arrow_tar` is
+    a tar of standard Arrow files with cross-version compatibility guarantees
+    for external consumers, but it cannot be loaded back into Trace Processor.
+    `perfetto` can be loaded by a fresh Trace Processor instance from the same
+    version. Loading it in a different version may work but is not guaranteed.
+    Output is streamed directly to
+    disk without materializing the complete archive in memory.
+
+    Args:
+      output_path: Path to write the export to.
+      export_format: Either `arrow_tar` or `perfetto`.
+    """
+    with open(output_path, 'wb') as f:
+      self.http.export(f, export_format)
+
   @property
   def metadata(self) -> Dict[str, str]:
     """Returns metadata associated with this trace.

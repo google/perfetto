@@ -136,6 +136,7 @@
 #include "src/trace_processor/plugins/table_pointer_module/table_pointer_module.h"
 #include "src/trace_processor/plugins/time_functions/time_functions.h"
 #include "src/trace_processor/plugins/to_ftrace/to_ftrace.h"
+#include "src/trace_processor/plugins/trace_export/trace_export.h"
 #include "src/trace_processor/plugins/tree_functions/tree_functions.h"
 #include "src/trace_processor/plugins/type_builder_functions/type_builder_functions.h"
 #include "src/trace_processor/plugins/utils_functions/utils_functions.h"
@@ -373,6 +374,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   stdlib_docs::RegisterPlugin();
   storage_tables::RegisterPlugin();
   string_functions::RegisterPlugin();
+  trace_export::RegisterPlugin();
   structural_tree_partition::RegisterPlugin();
   symbolize::RegisterPlugin();
   table_info::RegisterPlugin();
@@ -412,6 +414,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     }
     for (auto& p : plugins_) {
       p->RegisterDataframes(plugin_dataframes_);
+    }
+    for (auto& p : plugins_) {
+      p->OnDataframesRegistered(plugin_dataframes_);
     }
   }
   context()->register_additional_proto_modules =
@@ -1194,6 +1199,12 @@ base::Status TraceProcessorImpl::CreateSummarizer(
   *out = std::make_unique<summary::SummarizerImpl>(
       this, &metrics_descriptor_pool_, std::move(id));
   return base::OkStatus();
+}
+
+base::Status TraceProcessorImpl::Export(ExportFormat format,
+                                        ExportOutput* output) {
+  return trace_export::WriteExport(
+      plugin_dataframes_, context()->storage->string_pool(), format, output);
 }
 
 }  // namespace perfetto::trace_processor
