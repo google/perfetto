@@ -15,7 +15,10 @@
 import type {Setting} from '../../public/settings';
 import {ARM_TELEMETRY_CPU_SPEC_SCHEMA, getCpuId} from './arm_telemetry_spec';
 import type {ArmTelemetryCpuSpec} from './arm_telemetry_spec';
-import type {ArmTelemetrySpecManager} from './arm_telemetry_spec_manager';
+import type {
+  ArmTelemetrySpecManager,
+  ArmTelemetrySpecChangeCallback,
+} from './arm_telemetry_spec_manager';
 
 export function validateArmTelemetrySpec(
   cpuDesc: unknown,
@@ -87,9 +90,11 @@ export class ArmTelemetrySpecManagerImpl implements ArmTelemetrySpecManager {
   constructor(
     private readonly cpuSpecsSetting: Setting<ArmTelemetryCpuSpec[]>,
   ) {}
+  private readonly changeCallbacks = new Set<ArmTelemetrySpecChangeCallback>();
 
   add(desc: ArmTelemetryCpuSpec): void {
     this.cpuSpecsSetting.set([...this.cpuSpecsSetting.get(), desc]);
+    this.changeCallbacks.forEach((cb) => cb({kind: 'ADD', desc}));
   }
 
   update(desc: ArmTelemetryCpuSpec): void {
@@ -97,15 +102,17 @@ export class ArmTelemetrySpecManagerImpl implements ArmTelemetrySpecManager {
     const specs = [...this.cpuSpecsSetting.get()];
     const index = specs.findIndex((spec) => getCpuId(spec) === cpuid);
     if (index === -1) {
-      specs.push(desc);
+      this.add(desc);
     } else {
       specs[index] = desc;
+      this.cpuSpecsSetting.set(specs);
+      this.changeCallbacks.forEach((cb) => cb({kind: 'UPDATE', desc}));
     }
-    this.cpuSpecsSetting.set(specs);
   }
 
   clear(): void {
     this.cpuSpecsSetting.set([]);
+    this.changeCallbacks.forEach((cb) => cb({kind: 'CLEAR'}));
   }
 
   hasSpecs(): boolean {
@@ -124,5 +131,14 @@ export class ArmTelemetrySpecManagerImpl implements ArmTelemetrySpecManager {
       throw new Error(`No Arm telemetry spec registered for CPU ${cpuid}`);
     }
     return desc;
+  }
+
+  addOnChangeCallback(callback: ArmTelemetrySpecChangeCallback): Disposable {
+    this.changeCallbacks.add(callback);
+    return {
+      [Symbol.dispose]: () => {
+        this.changeCallbacks.delete(callback);
+      },
+    };
   }
 }
