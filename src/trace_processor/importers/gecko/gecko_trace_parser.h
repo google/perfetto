@@ -21,6 +21,7 @@
 
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::gecko_importer {
@@ -39,6 +40,7 @@ class GeckoTraceParser
   void ParseMarker(int64_t ts, const GeckoEvent::Marker&);
 
   TraceProcessorContext* const context_;
+  const StringPool::Id gecko_source_id_;
 };
 
 }  // namespace perfetto::trace_processor::gecko_importer

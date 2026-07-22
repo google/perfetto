@@ -64,7 +64,8 @@ constexpr auto kFirefoxMarkerBlueprint = tracks::SliceBlueprint(
 }  // namespace
 
 GeckoTraceParser::GeckoTraceParser(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      gecko_source_id_(context->storage->InternString("gecko")) {}
 
 GeckoTraceParser::~GeckoTraceParser() = default;
 
@@ -80,9 +81,8 @@ void GeckoTraceParser::ParseStackSample(int64_t ts,
                                         const GeckoEvent::StackSample& sample) {
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
-  row.source = context_->storage->InternString("gecko");
+  row.source = gecko_source_id_;
   row.utid = context_->process_tracker->GetOrCreateThread(sample.tid);
-  row.cpu_mode = context_->storage->InternString("");
   row.callsite_id = sample.callsite_id;
   context_->profiler_sample_tracker->AddSample(row);
 }

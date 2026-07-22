@@ -29,15 +29,15 @@
 namespace perfetto::trace_processor::perf_text_importer {
 
 PerfTextTraceParser::PerfTextTraceParser(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      perf_text_source_id_(context->storage->InternString("perf_text")) {}
 
 PerfTextTraceParser::~PerfTextTraceParser() = default;
 
 void PerfTextTraceParser::Parse(int64_t ts, PerfTextEvent evt) {
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
-  row.source = context_->storage->InternString("perf_text");
-  row.cpu_mode = context_->storage->InternString("");
+  row.source = perf_text_source_id_;
   row.callsite_id = evt.callsite_id;
   UniqueTid utid =
       evt.pid ? context_->process_tracker->UpdateThread(evt.tid, *evt.pid)

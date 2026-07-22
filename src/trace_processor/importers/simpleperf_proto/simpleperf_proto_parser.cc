@@ -39,7 +39,9 @@ namespace perfetto::trace_processor::simpleperf_proto_importer {
 
 SimpleperfProtoParser::SimpleperfProtoParser(TraceProcessorContext* context,
                                              SimpleperfProtoTracker* tracker)
-    : context_(context), tracker_(tracker) {}
+    : context_(context),
+      tracker_(tracker),
+      simpleperf_source_id_(context->storage->InternString("simpleperf")) {}
 
 SimpleperfProtoParser::~SimpleperfProtoParser() = default;
 
@@ -109,9 +111,8 @@ void SimpleperfProtoParser::Parse(int64_t ts,
     if (callsite_id.has_value()) {
       tables::ProfilerSampleTable::Row row;
       row.ts = ts;
-      row.source = context_->storage->InternString("simpleperf");
+      row.source = simpleperf_source_id_;
       row.utid = utid;
-      row.cpu_mode = context_->storage->InternString("");
       row.callsite_id = *callsite_id;
       context_->profiler_sample_tracker->AddSample(row);
     }

@@ -42,7 +42,8 @@ namespace perfetto::trace_processor {
 
 LegacyV8CpuProfileTracker::LegacyV8CpuProfileTracker(
     TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      legacy_v8_source_id_(context->storage->InternString("legacy_v8")) {}
 
 LegacyV8CpuProfileTracker::~LegacyV8CpuProfileTracker() = default;
 
@@ -187,10 +188,9 @@ base::Status LegacyV8CpuProfileTracker::AddSample(int64_t ts,
   UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
-  row.source = context_->storage->InternString("legacy_v8");
+  row.source = legacy_v8_source_id_;
   row.utid = utid;
   row.upid = context_->process_tracker->GetOrCreateProcess(pid);
-  row.cpu_mode = context_->storage->InternString("");
   row.callsite_id = *id;
   context_->profiler_sample_tracker->AddSample(row);
   return base::OkStatus();
