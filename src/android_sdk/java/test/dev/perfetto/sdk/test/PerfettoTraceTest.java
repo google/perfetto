@@ -1201,6 +1201,43 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testExpensiveDebugCallStackWithWeight() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    StackTraceElement[] stackTrace =
+        new StackTraceElement[] {
+          new StackTraceElement("ClassA", "methodA", "FileA.java", 10),
+          new StackTraceElement("ClassB", "methodB", "FileB.java", 20)
+        };
+
+    PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack", stackTrace, 1234.0)
+        .emit();
+
+    byte[] traceBytes = session.close();
+
+    Trace trace = Trace.parseFrom(traceBytes);
+
+    boolean hasWeightedCallstack = false;
+
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackEvent()) {
+        TrackEvent event = packet.getTrackEvent();
+        if (event.hasCallstack()) {
+          hasWeightedCallstack = true;
+          assertThat(event.getCallstack().getFramesCount()).isEqualTo(2);
+          assertThat(event.hasCallstackWeight()).isTrue();
+          assertThat(event.getCallstackWeight()).isEqualTo(1234.0);
+        }
+      }
+      collectInternedData(packet);
+    }
+
+    assertThat(hasWeightedCallstack).isTrue();
+  }
+
+  @Test
   public void testExpensiveDebugCallStackVariousStates() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
