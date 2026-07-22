@@ -368,14 +368,72 @@ ANDROID_AFLAGS_TABLE = Table(
     ),
 )
 
+ANDROID_PROCESS_STATE_DUMP_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidProcessStateDumpTable',
+    sql_name='__intrinsic_android_process_state_dump',
+    wrapping_sql_view=WrappingSqlView('android_process_state_dump'),
+    columns=[
+        C('ts', CppInt64()),
+        C('pid', CppUint32()),
+        C('uid', CppOptional(CppUint32())),
+        C('proc_state', CppOptional(CppInt32())),
+        C('oom_score', CppOptional(CppInt32())),
+        C('capability_flags', CppOptional(CppUint32())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Process state snapshot dumped by the android.process_state data source.
+        ''',
+        group='Android',
+        columns={
+            'ts': 'Timestamp of the snapshot dump.',
+            'pid': 'Process ID.',
+            'uid': 'Process UID.',
+            'proc_state': 'ActivityManager process state integer.',
+            'oom_score': 'OOM score adjustment integer.',
+            'capability_flags': 'Capability flags integer.',
+        },
+    ),
+)
+
+ANDROID_FREEZER_STATE_DUMP_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidFreezerStateDumpTable',
+    sql_name='__intrinsic_android_freezer_state_dump',
+    wrapping_sql_view=WrappingSqlView('android_freezer_state_dump'),
+    columns=[
+        C('ts', CppInt64()),
+        C('pid', CppUint32()),
+        C('process_name', CppOptional(CppString())),
+        C('freeze_unfreeze_time', CppOptional(CppInt64())),
+        C('is_freeze_sticky', CppOptional(CppUint32())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Freezer state snapshot dumped by the android.freezer_state data source.
+        ''',
+        group='Android',
+        columns={
+            'ts': 'Timestamp of the snapshot dump.',
+            'pid': 'Process ID.',
+            'process_name': 'Process name.',
+            'freeze_unfreeze_time': 'Last freeze or unfreeze timestamp.',
+            'is_freeze_sticky': 'Whether freeze state is sticky (1 or 0).',
+        },
+    ),
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANDROID_AFLAGS_TABLE,
     ANDROID_CPU_PER_UID_TRACK_TABLE,
     ANDROID_DUMPSTATE_TABLE,
+    ANDROID_FREEZER_STATE_DUMP_TABLE,
     ANDROID_GAME_INTERVENTION_LIST_TABLE,
     ANDROID_INPUT_EVENT_DISPATCH_TABLE,
     ANDROID_KEY_EVENTS_TABLE,
     ANDROID_MOTION_EVENTS_TABLE,
+    ANDROID_PROCESS_STATE_DUMP_TABLE,
     ANDROID_USER_LIST_TABLE,
 ]

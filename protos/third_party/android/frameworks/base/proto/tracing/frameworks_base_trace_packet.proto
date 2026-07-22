@@ -106,10 +106,34 @@ message VideoFrameError {
   optional Reason reason = 2;
 }
 
+message AndroidProcessStateSnapshot {
+  message Record {
+    optional int32 pid = 1;
+    optional int32 uid = 2;
+    optional int32 proc_state = 3;
+    optional int32 oom_score = 4;
+    optional int32 capability_flags = 5;
+  }
+  repeated Record record = 1;
+}
+
+message AndroidFreezerStateSnapshot {
+  message Record {
+    optional int32 pid = 1;
+    // Last time app was (un)frozen, 0 for never.
+    optional int64 freeze_unfreeze_time = 2;
+    optional string process_name = 3;
+    optional bool isFreezeSticky = 4;
+  }
+  repeated Record record = 1;
+}
+
 message FrameworksBaseTracePacket {
   extend perfetto.protos.TracePacket {
     optional AppWakelockBundle app_wakelock_bundle = 116;
     optional VideoFrame video_frame = 1000;
     optional VideoFrameError video_frame_error = 1001;
+    optional AndroidProcessStateSnapshot android_process_state = 1003;
+    optional AndroidFreezerStateSnapshot android_freezer_state = 1004;
   }
 }

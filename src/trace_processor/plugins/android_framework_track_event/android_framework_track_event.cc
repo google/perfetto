@@ -44,7 +44,10 @@ using AndroidProcessStartEvent =
     ::com::android::internal::pbzero::AndroidProcessStartEvent;
 using AndroidBinderDiedEvent =
     ::com::android::internal::pbzero::AndroidBinderDiedEvent;
+using AndroidFreezerEvent =
+    ::com::android::internal::pbzero::AndroidFreezerEvent;
 using AndroidTrackEventProcessTable = tables::AndroidTrackEventProcessTable;
+using AndroidTrackEventFreezerTable = tables::AndroidTrackEventFreezerTable;
 
 // Records AndroidProcessStartEvent and AndroidBinderDiedEvent into
 // __intrinsic_android_track_event_process.
@@ -52,12 +55,15 @@ class Parser : public TrackEventExtensionParser {
  public:
   Parser(TrackEventExtensionParserContext* extension_parser_context,
          TraceProcessorContext* context,
-         AndroidTrackEventProcessTable* table)
+         AndroidTrackEventProcessTable* process_table,
+         AndroidTrackEventFreezerTable* freezer_table)
       : TrackEventExtensionParser(extension_parser_context),
         trace_context_(context),
-        table_(table) {
+        process_table_(process_table),
+        freezer_table_(freezer_table) {
     RegisterTrackEventExtension(FBTE::kProcessStartEventFieldNumber);
     RegisterTrackEventExtension(FBTE::kBinderDiedEventFieldNumber);
+    RegisterTrackEventExtension(FBTE::kFreezerEventFieldNumber);
   }
   ~Parser() override = default;
 
@@ -70,6 +76,9 @@ class Parser : public TrackEventExtensionParser {
         break;
       case FBTE::kBinderDiedEventFieldNumber:
         HandleBinderDied(field.Cast<FBTE::kBinderDiedEvent>(), ts);
+        break;
+      case FBTE::kFreezerEventFieldNumber:
+        HandleFreezerEvent(field.Cast<FBTE::kFreezerEvent>(), ts);
         break;
       default:
         break;
@@ -97,9 +106,36 @@ class Parser : public TrackEventExtensionParser {
     if (it_and_ins.second) {
       AndroidTrackEventProcessTable::Row row;
       row.upid = upid;
-      *it_and_ins.first = table_->Insert(row).id;
+      *it_and_ins.first = process_table_->Insert(row).id;
     }
-    return (*table_)[*it_and_ins.first];
+    return (*process_table_)[*it_and_ins.first];
+  }
+
+  void HandleFreezerEvent(protozero::ConstBytes data, int64_t ts) {
+    AndroidFreezerEvent::Decoder evt(data);
+    tables::AndroidTrackEventFreezerTable::Row row;
+    row.ts = ts;
+    if (evt.has_pid()) {
+      row.pid = evt.pid();
+      std::optional<UniquePid> upid =
+          trace_context_->process_tracker->GetOrCreateProcess(
+              static_cast<uint32_t>(evt.pid()));
+      if (upid) {
+        row.upid = *upid;
+      }
+    }
+    if (evt.has_unfrozen_dur_ms()) {
+      row.unfrozen_dur_ms = evt.unfrozen_dur_ms();
+    }
+    if (evt.has_frozen_dur_ms()) {
+      row.frozen_dur_ms = evt.frozen_dur_ms();
+    }
+    if (evt.has_unfreeze_reason()) {
+      row.unfreeze_reason = InternEnum(
+          unfreeze_reason_cache_, ".com.android.internal.UnfreezeReason",
+          static_cast<int32_t>(evt.unfreeze_reason()));
+    }
+    freezer_table_->Insert(row);
   }
 
   void HandleProcessStart(protozero::ConstBytes data, int64_t ts) {
@@ -174,7 +210,9 @@ class Parser : public TrackEventExtensionParser {
   TraceProcessorContext* trace_context_;
   DescriptorPool::CachedDescriptor trigger_type_cache_;
   DescriptorPool::CachedDescriptor hosting_type_cache_;
-  AndroidTrackEventProcessTable* table_;
+  DescriptorPool::CachedDescriptor unfreeze_reason_cache_;
+  AndroidTrackEventProcessTable* process_table_;
+  AndroidTrackEventFreezerTable* freezer_table_;
   base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
 };
 
@@ -184,28 +222,37 @@ class AndroidFrameworkTrackEventPlugin
   ~AndroidFrameworkTrackEventPlugin() override;
 
   void RegisterDataframes(std::vector<PluginDataframe>& out) override {
-    EnsureTable();
-    out.push_back(
-        {&table_->dataframe(), AndroidTrackEventProcessTable::Name(), {}});
+    EnsureTables();
+    out.push_back({&process_table_->dataframe(),
+                   AndroidTrackEventProcessTable::Name(),
+                   {}});
+    out.push_back({&freezer_table_->dataframe(),
+                   AndroidTrackEventFreezerTable::Name(),
+                   {}});
   }
 
   void RegisterTrackEventExtensions(
       TrackEventExtensionParserContext* ctx,
       TraceProcessorContext* trace_context) override {
-    EnsureTable();
-    ctx->parsers.emplace_back(
-        std::make_unique<Parser>(ctx, trace_context, table_.get()));
+    EnsureTables();
+    ctx->parsers.emplace_back(std::make_unique<Parser>(
+        ctx, trace_context, process_table_.get(), freezer_table_.get()));
   }
 
  private:
-  void EnsureTable() {
-    if (!table_) {
-      table_ = std::make_unique<AndroidTrackEventProcessTable>(
+  void EnsureTables() {
+    if (!process_table_) {
+      process_table_ = std::make_unique<AndroidTrackEventProcessTable>(
+          trace_context_->storage->mutable_string_pool());
+    }
+    if (!freezer_table_) {
+      freezer_table_ = std::make_unique<AndroidTrackEventFreezerTable>(
           trace_context_->storage->mutable_string_pool());
     }
   }
 
-  std::unique_ptr<AndroidTrackEventProcessTable> table_;
+  std::unique_ptr<AndroidTrackEventProcessTable> process_table_;
+  std::unique_ptr<AndroidTrackEventFreezerTable> freezer_table_;
 };
 
 AndroidFrameworkTrackEventPlugin::~AndroidFrameworkTrackEventPlugin() = default;

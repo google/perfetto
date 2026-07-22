@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 
+#include <cstdint>
 #include <functional>
 #include <iostream>
 #include <memory>
