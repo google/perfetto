@@ -107,6 +107,7 @@ data_sources {
       scale: 0.5
       format: FORMAT_H264
       key_frame_interval_secs: 2
+      bitrate_bps: 8000000  # 8 Mbps
       max_stream_size_bytes: 67108864  # 64 MiB per display
     }
   }
@@ -118,6 +119,7 @@ data_sources {
 | `scale` | Factor applied to each display's resolution before capture, e.g. `0.5` for half size or `0.25` for quarter. Lower scale means less encoder load and a smaller trace, at the cost of detail. |
 | `format` | `FORMAT_H264` (the default) or `FORMAT_HEVC`. HEVC produces a smaller stream at the same quality, but the device must support HEVC encoding to capture it and the browser must support HEVC decoding to preview it. |
 | `key_frame_interval_secs` | How often a keyframe is emitted. Smaller values make seeking snappier but grow the trace; larger values are more compact but slower to scrub. |
+| `bitrate_bps` | Target encoder bitrate, in bits per second. Trace size is roughly bitrate × duration, so this trades quality against size at a fixed resolution (unlike `scale`, which lowers the resolution). Left unset, the device picks a default. |
 | `max_stream_size_bytes` | A per-display cap on emitted bytes. When a display hits it, its stream is torn down (a size-cap error) rather than growing without bound. Left unset, the device applies a default cap of 256 MiB per display. |
 
 ## Size limits
