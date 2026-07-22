@@ -29,8 +29,8 @@ perfetto_proto_library("@TYPE@") {
   ]
 }
 
-# Kept dependency-free so that messages embedding InlineCallstack (e.g.
-# TrackEvent) do not pull in the rest of the profiling protos.
+# Kept dependency-free so that messages embedding InlineCallstack do not pull
+# in the rest of the profiling protos.
 perfetto_proto_library("inline_callstack_@TYPE@") {
   sources = [ "inline_callstack.proto" ]
 }

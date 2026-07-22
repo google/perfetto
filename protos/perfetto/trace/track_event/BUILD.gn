@@ -15,7 +15,6 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  deps = [ "../profiling:inline_callstack_@TYPE@" ]
   sources = [
     "chrome_active_processes.proto",
     "chrome_application_state_info.proto",
