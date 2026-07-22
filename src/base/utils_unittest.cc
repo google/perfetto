@@ -364,6 +364,28 @@ TEST(UtilsTest, CopyFileContents) {
 #endif
 }
 
+TEST(UtilsTest, SeekFile) {
+  TempFile file = TempFile::Create();
+  ASSERT_EQ(WriteAll(*file, "abcdef", 6), 6);
+
+  ASSERT_TRUE(SeekFile(*file, 3));
+  char data[3] = {};
+  ASSERT_EQ(Read(*file, data, sizeof(data)), 3);
+  EXPECT_EQ(std::string(data, sizeof(data)), "def");
+}
+
+TEST(UtilsTest, TruncateFile) {
+  TempFile file = TempFile::Create();
+  ASSERT_EQ(WriteAll(*file, "abcdef", 6), 6);
+
+  ASSERT_TRUE(TruncateFile(*file, 3));
+  EXPECT_EQ(GetFileSize(*file), 3u);
+
+  std::string contents;
+  ASSERT_TRUE(ReadFile(file.path(), &contents));
+  EXPECT_EQ(contents, "abc");
+}
+
 TEST(UtilsTest, GetFileSize) {
   TempFile file = TempFile::Create();
   // Explicitly set the string size, we want to write all data to the file.

@@ -19,6 +19,7 @@
 
 #include <fcntl.h>  // For mode_t & O_RDONLY/RDWR. Exists also on Windows.
 #include <stddef.h>
+#include <stdint.h>
 
 #include <functional>
 #include <memory>
@@ -99,6 +100,16 @@ ScopedFstream OpenFstream(const std::string& path, const std::string& mode);
 int PERFETTO_EXPORT_COMPONENT CloseFile(int fd);
 
 bool FlushFile(int fd);
+
+// Moves the file offset to |offset| bytes from the beginning of the file.
+// Returns false if |offset| cannot be represented by the platform or the seek
+// fails.
+bool SeekFile(int fd, uint64_t offset);
+
+// Changes the size of an open file to |size| bytes.
+// Returns false if |size| cannot be represented by the platform or truncation
+// fails.
+bool TruncateFile(int fd, uint64_t size);
 
 // Returns true if mkdir succeeds, false if it fails (see errno in that case).
 // `mode` is the permission bits for the new directory; it is ignored on
