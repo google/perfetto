@@ -2366,13 +2366,17 @@ TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
   const Dom* profile_event = nullptr;
   const Dom* chunk_event = nullptr;
   const Dom* end_event = nullptr;
+  const Dom* devtools_profile_event = nullptr;
   for (size_t i = 0; i < result["traceEvents"].size(); i++) {
     const auto& e = result["traceEvents"][i];
     if (!e.HasMember("name") || !e.HasMember("cat"))
       continue;
-    if (e["cat"].AsString() != "disabled-by-default-v8.cpu_profiler")
+    if (e["name"].AsString() == "CpuProfile" &&
+        e["cat"].AsString() == "disabled-by-default-devtools.timeline") {
+      devtools_profile_event = &e;
+    } else if (e["cat"].AsString() != "disabled-by-default-v8.cpu_profiler") {
       continue;
-    if (e["name"].AsString() == "Profile") {
+    } else if (e["name"].AsString() == "Profile") {
       profile_event = &e;
     } else if (e["name"].AsString() == "ProfileChunk") {
       if (e["args"]["data"].HasMember("cpuProfile")) {
@@ -2386,16 +2390,19 @@ TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
   ASSERT_NE(profile_event, nullptr);
   ASSERT_NE(chunk_event, nullptr);
   ASSERT_NE(end_event, nullptr);
+  ASSERT_NE(devtools_profile_event, nullptr);
+  EXPECT_EQ(result["metadata"]["dataOrigin"].AsString(), "CPUProfile");
 
   // Profile event.
   EXPECT_EQ((*profile_event)["ph"].AsString(), "P");
   EXPECT_EQ((*profile_event)["pid"].AsInt(), static_cast<int>(kPid));
   EXPECT_EQ((*profile_event)["tid"].AsInt(), static_cast<int>(kTid));
-  EXPECT_EQ((*profile_event)["dur"].AsInt(), 0);
-  EXPECT_EQ((*profile_event)["tdur"].AsInt(), 0);
+  EXPECT_FALSE((*profile_event).HasMember("dur"));
+  EXPECT_FALSE((*profile_event).HasMember("tdur"));
   EXPECT_TRUE((*profile_event).HasMember("id"));
   EXPECT_EQ((*profile_event)["id"].AsString(), (*chunk_event)["id"].AsString());
   EXPECT_EQ((*profile_event)["id"].AsString(), (*end_event)["id"].AsString());
+  EXPECT_EQ((*profile_event)["id"].AsString(), "0x1");
 
   const auto& pdata = (*profile_event)["args"]["data"];
   EXPECT_EQ((*profile_event)["ts"].AsInt64(), 10000);
@@ -2449,6 +2456,17 @@ TEST_F(ExportJsonTest, V8CpuProfileFromTables) {
   ASSERT_TRUE(cdata.HasMember("columns"));
   EXPECT_EQ(cdata["lines"][0].AsInt(), 7);
   EXPECT_EQ(cdata["columns"][0].AsInt(), 11);
+
+  EXPECT_EQ((*devtools_profile_event)["ph"].AsString(), "X");
+  EXPECT_EQ((*devtools_profile_event)["pid"].AsInt(), static_cast<int>(kPid));
+  EXPECT_EQ((*devtools_profile_event)["tid"].AsInt(), static_cast<int>(kTid));
+  const auto& devtools_profile =
+      (*devtools_profile_event)["args"]["data"]["cpuProfile"];
+  EXPECT_EQ(devtools_profile["startTime"].AsInt64(), 10000);
+  EXPECT_EQ(devtools_profile["endTime"].AsInt64(), 13000);
+  EXPECT_EQ(devtools_profile["samples"].size(), 2u);
+  EXPECT_EQ(devtools_profile["timeDeltas"][0].AsInt64(), 17);
+  EXPECT_EQ(devtools_profile["timeDeltas"][1].AsInt64(), 23);
 
   const auto& edata = (*end_event)["args"]["data"];
   EXPECT_EQ(edata["endTime"].AsInt64(), 13000);

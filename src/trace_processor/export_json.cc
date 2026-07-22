@@ -181,6 +181,10 @@ class JsonExporter {
       DoWriteEvent(event);
     }
 
+    void SetMetadata(const char* key, Dom value) {
+      metadata_[key] = std::move(value);
+    }
+
     void AddAsyncBeginEvent(Dom&& event) {
       if (label_filter_ && !label_filter_("traceEvents"))
         return;
@@ -1644,7 +1648,11 @@ class JsonExporter {
         row.source = storage_->GetString(*it.source()).ToStdString();
       sessions.push_back(std::move(row));
     }
+    if (!sessions.empty()) {
+      writer_.SetMetadata("dataOrigin", Dom("CPUProfile"));
+    }
 
+    uint64_t next_v8_profile_id = 1;
     for (const auto& sr : sessions) {
       std::map<uint32_t, CounterId> primary_counters;
       for (auto it = storage_->profiler_counter_set_table().IterateRows(); it;
@@ -1702,7 +1710,7 @@ class JsonExporter {
           continue;
         pid_and_tid = {*sr.pid, *sr.tid};
       }
-      uint64_t session_id = sr.profiler_session_id.value;
+      uint64_t session_id = next_v8_profile_id++;
       int64_t start_ts = sr.start_ts;
 
       std::map<uint32_t, uint32_t> node_ids;
@@ -1731,8 +1739,6 @@ class JsonExporter {
       profile_event["ph"] = kPhase;
       profile_event["cat"] = kCategory;
       profile_event["name"] = "Profile";
-      profile_event["dur"] = static_cast<int64_t>(0);
-      profile_event["tdur"] = static_cast<int64_t>(0);
       profile_event["id"] = base::Uint64ToHexString(session_id);
 
       Dom profile_data(Type::kObject);
@@ -1830,6 +1836,24 @@ class JsonExporter {
         cpu_profile["nodes"] = std::move(nodes_array);
         cpu_profile["samples"] = std::move(samples_array);
 
+        Dom devtools_cpu_profile = cpu_profile.Copy();
+        devtools_cpu_profile["startTime"] =
+            sr.start_time_us.value_or(start_ts / 1000);
+        if (sr.end_time_us) {
+          devtools_cpu_profile["endTime"] = *sr.end_time_us;
+        } else {
+          int64_t end_time_us = sr.start_time_us.value_or(start_ts / 1000);
+          for (const auto& sample : samples) {
+            end_time_us += sample.delta_us.value_or(0);
+          }
+          devtools_cpu_profile["endTime"] = end_time_us;
+        }
+        devtools_cpu_profile["timeDeltas"] = deltas_array.Copy();
+        if (has_non_zero_lines) {
+          devtools_cpu_profile["lines"] = lines_array.Copy();
+          devtools_cpu_profile["columns"] = columns_array.Copy();
+        }
+
         Dom data(Type::kObject);
         data["cpuProfile"] = std::move(cpu_profile);
         if (has_non_zero_lines)
@@ -1851,11 +1875,27 @@ class JsonExporter {
         chunk_event["ph"] = kPhase;
         chunk_event["cat"] = kCategory;
         chunk_event["name"] = "ProfileChunk";
-        chunk_event["dur"] = static_cast<int64_t>(0);
-        chunk_event["tdur"] = static_cast<int64_t>(0);
         chunk_event["id"] = base::Uint64ToHexString(session_id);
         chunk_event["args"] = std::move(args);
         writer_.WriteCommonEvent(chunk_event);
+
+        // DevTools recognizes standalone CPU-profile files through this
+        // complete event.
+        Dom devtools_profile_event(Type::kObject);
+        devtools_profile_event["pid"] = static_cast<int>(pid_and_tid.first);
+        devtools_profile_event["tid"] = static_cast<int>(pid_and_tid.second);
+        devtools_profile_event["ts"] = start_ts / 1000;
+        devtools_profile_event["dur"] = static_cast<int64_t>(
+            sr.end_ts.value_or(start_ts) / 1000 - start_ts / 1000);
+        devtools_profile_event["ph"] = "X";
+        devtools_profile_event["cat"] = "disabled-by-default-devtools.timeline";
+        devtools_profile_event["name"] = "CpuProfile";
+        devtools_profile_event["id"] =
+            base::Uint64ToHexString(session_id | (uint64_t{1} << 63));
+        Dom devtools_args(Type::kObject);
+        devtools_args["data"]["cpuProfile"] = std::move(devtools_cpu_profile);
+        devtools_profile_event["args"] = std::move(devtools_args);
+        writer_.WriteCommonEvent(devtools_profile_event);
       }
 
       if (sr.end_ts) {
@@ -1868,8 +1908,6 @@ class JsonExporter {
         end_event["ph"] = kPhase;
         end_event["cat"] = kCategory;
         end_event["name"] = "ProfileChunk";
-        end_event["dur"] = static_cast<int64_t>(0);
-        end_event["tdur"] = static_cast<int64_t>(0);
         end_event["id"] = base::Uint64ToHexString(session_id);
 
         Dom end_data(Type::kObject);
