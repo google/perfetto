@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/plugins/perf_text/perf_text_event.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -28,23 +29,28 @@
 namespace perfetto::trace_processor::perf_text_importer {
 
 PerfTextTraceParser::PerfTextTraceParser(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      perf_text_source_id_(context->storage->InternString("perf_text")) {}
 
 PerfTextTraceParser::~PerfTextTraceParser() = default;
 
 void PerfTextTraceParser::Parse(int64_t ts, PerfTextEvent evt) {
-  auto* ss = context_->storage->mutable_cpu_profile_stack_sample_table();
-  tables::CpuProfileStackSampleTable::Row row;
+  tables::ProfilerSampleTable::Row row;
   row.ts = ts;
+  row.source = perf_text_source_id_;
   row.callsite_id = evt.callsite_id;
-  row.utid = evt.pid
-                 ? context_->process_tracker->UpdateThread(evt.tid, *evt.pid)
-                 : context_->process_tracker->GetOrCreateThread(evt.tid);
+  UniqueTid utid =
+      evt.pid ? context_->process_tracker->UpdateThread(evt.tid, *evt.pid)
+              : context_->process_tracker->GetOrCreateThread(evt.tid);
+  row.utid = utid;
+  if (evt.pid) {
+    row.upid = context_->process_tracker->GetOrCreateProcess(*evt.pid);
+  }
   if (evt.comm) {
     context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-        row.utid, *evt.comm, ThreadNamePriority::kOther);
+        utid, *evt.comm, ThreadNamePriority::kOther);
   }
-  ss->Insert(row);
+  context_->profiler_sample_tracker->AddSample(row);
 }
 
 }  // namespace perfetto::trace_processor::perf_text_importer

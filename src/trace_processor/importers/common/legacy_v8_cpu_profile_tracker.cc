@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -41,7 +42,8 @@ namespace perfetto::trace_processor {
 
 LegacyV8CpuProfileTracker::LegacyV8CpuProfileTracker(
     TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      legacy_v8_source_id_(context->storage->InternString("legacy_v8")) {}
 
 LegacyV8CpuProfileTracker::~LegacyV8CpuProfileTracker() = default;
 
@@ -184,8 +186,13 @@ base::Status LegacyV8CpuProfileTracker::AddSample(int64_t ts,
     return base::ErrStatus("v8 callsite id does not exist: cannot add sample");
   }
   UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
-  auto* samples = context_->storage->mutable_cpu_profile_stack_sample_table();
-  samples->Insert({ts, *id, utid, 0});
+  tables::ProfilerSampleTable::Row row;
+  row.ts = ts;
+  row.source = legacy_v8_source_id_;
+  row.utid = utid;
+  row.upid = context_->process_tracker->GetOrCreateProcess(pid);
+  row.callsite_id = *id;
+  context_->profiler_sample_tracker->AddSample(row);
   return base::OkStatus();
 }
 

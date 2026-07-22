@@ -2842,24 +2842,31 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  // Verify cpu_profile_samples.
-  const auto& samples = storage_->cpu_profile_stack_sample_table();
+  // Verify the profiler samples.
+  const auto& samples = storage_->profiler_sample_table();
   EXPECT_EQ(samples.row_count(), 3u);
 
   EXPECT_EQ(samples[0].ts(), 11000);
   EXPECT_EQ(samples[0].callsite_id(), CallsiteId{0});
   EXPECT_EQ(samples[0].utid(), 1u);
-  EXPECT_EQ(samples[0].process_priority(), 20);
 
   EXPECT_EQ(samples[1].ts(), 26000);
   EXPECT_EQ(samples[1].callsite_id(), CallsiteId{1});
   EXPECT_EQ(samples[1].utid(), 1u);
-  EXPECT_EQ(samples[1].process_priority(), 20);
 
   EXPECT_EQ(samples[2].ts(), 68000);
   EXPECT_EQ(samples[2].callsite_id(), CallsiteId{0});
   EXPECT_EQ(samples[2].utid(), 1u);
-  EXPECT_EQ(samples[2].process_priority(), 30);
+
+  // Process priorities land in the chrome extras table, keyed by sample.
+  const auto& extras = storage_->chrome_stack_sample_extras_table();
+  EXPECT_EQ(extras.row_count(), 3u);
+  EXPECT_EQ(extras[0].profiler_sample_id(), samples[0].id());
+  EXPECT_EQ(extras[0].process_priority(), 20);
+  EXPECT_EQ(extras[1].profiler_sample_id(), samples[1].id());
+  EXPECT_EQ(extras[1].process_priority(), 20);
+  EXPECT_EQ(extras[2].profiler_sample_id(), samples[2].id());
+  EXPECT_EQ(extras[2].process_priority(), 30);
 
   // Breakpad build_ids should not be modified/mangled.
   ASSERT_STREQ(
@@ -2929,7 +2936,7 @@ TEST_F(ProtoTraceParserTest, CPUProfileSamplesTimestampsAreClockMonotonic) {
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  const auto& samples = storage_->cpu_profile_stack_sample_table();
+  const auto& samples = storage_->profiler_sample_table();
   EXPECT_EQ(samples.row_count(), 1u);
 
   // Should have been translated to boottime, i.e. 10015 us absolute.

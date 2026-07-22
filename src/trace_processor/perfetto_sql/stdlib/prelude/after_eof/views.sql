@@ -615,7 +615,7 @@ SELECT * FROM __intrinsic_stack_profile_callsite;
 
 -- Table containing stack samples from CPU profiling.
 CREATE PERFETTO VIEW cpu_profile_stack_sample(
-  -- The id of the row.
+  -- The id of the row. Joinable with stack_sample.id.
   id ID,
   -- Timestamp of the sample.
   ts TIMESTAMP,
@@ -627,7 +627,17 @@ CREATE PERFETTO VIEW cpu_profile_stack_sample(
   process_priority LONG
 )
 AS
-SELECT * FROM __intrinsic_cpu_profile_stack_sample;
+SELECT
+  ps.id,
+  ps.ts,
+  ps.callsite_id,
+  ps.utid,
+  coalesce(x.process_priority, 0) AS process_priority
+FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_chrome_stack_sample_extras AS x
+  ON x.profiler_sample_id = ps.id
+WHERE
+  ps.source IN ('chrome', 'legacy_v8', 'gecko', 'simpleperf', 'perf_text');
 
 -- Samples from MacOS Instruments.
 CREATE PERFETTO VIEW instruments_sample(

@@ -93,6 +93,8 @@ class ProfileModule : public ProtoImporterModule {
   };
 
   TraceProcessorContext* context_;
+  const StringPool::Id chrome_source_id_;
+  const StringPool::Id linux_perf_source_id_;
   PerfSampleTracker perf_sample_tracker_;
   std::unique_ptr<TraceSorter::Stream<StreamingProfileSampleEvent>>
       streaming_profile_stream_;

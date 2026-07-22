@@ -111,6 +111,8 @@ ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
                              TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_(context),
+      chrome_source_id_(context->storage->InternString("chrome")),
+      linux_perf_source_id_(context->storage->InternString("linux.perf")),
       perf_sample_tracker_(context),
       streaming_profile_stream_(context->sorter->CreateStream(
           std::make_unique<StreamingProfileSink>(this))) {
@@ -224,10 +226,17 @@ void ProfileModule::ParseStreamingProfileSample(
     return;
   }
 
-  tables::CpuProfileStackSampleTable::Row sample_row{ts, *opt_cs_id, utid,
-                                                     event.process_priority};
-  context_->storage->mutable_cpu_profile_stack_sample_table()->Insert(
-      sample_row);
+  tables::ProfilerSampleTable::Row row;
+  row.ts = ts;
+  row.source = chrome_source_id_;
+  row.utid = utid;
+  row.upid = upid;
+  row.callsite_id = *opt_cs_id;
+  auto sample_id = context_->profiler_sample_tracker->AddSample(row);
+  if (event.process_priority != 0) {
+    context_->storage->mutable_chrome_stack_sample_extras_table()->Insert(
+        {sample_id, event.process_priority});
+  }
 }
 
 void ProfileModule::ParsePerfSample(
@@ -355,7 +364,7 @@ void ProfileModule::ParsePerfSample(
 
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
-  row.source = storage->InternString("linux.perf");
+  row.source = linux_perf_source_id_;
   row.utid = utid;
   row.upid = upid;
   if (sample.has_cpu()) {
