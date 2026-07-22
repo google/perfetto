@@ -244,6 +244,11 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   colorizer?(row: T): ColorScheme;
 
   /**
+   * Optional function returning a key for invalidating cached slice data frames when track attributes/modes change.
+   */
+  readonly getKey?: () => string;
+
+  /**
    * Override the text displayed on each event (title).
    */
   sliceName?(row: T): string;
@@ -825,6 +830,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         start: bounds.start,
         end: bounds.end,
         resolution: bounds.resolution,
+        key: this.attrs.getKey?.(),
       },
       queryFn: async (signal) => {
         const promise = (async () => {
