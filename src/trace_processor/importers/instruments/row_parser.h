@@ -43,6 +43,7 @@ class RowParser
 
   TraceProcessorContext* context_;
   RowDataTracker& data_;
+  const StringId instruments_source_id_;
 
   // Cache binary mappings by instruments binary pointers. These are already
   // de-duplicated in the instruments XML parsing.

@@ -747,39 +747,6 @@ HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE = Table(
         }),
 )
 
-INSTRUMENTS_SAMPLE_TABLE = Table(
-    python_module=__file__,
-    class_name='InstrumentsSampleTable',
-    sql_name='__intrinsic_instruments_sample',
-    wrapping_sql_view=WrappingSqlView('instruments_sample'),
-    columns=[
-        C(
-            'ts',
-            CppInt64(),
-            flags=ColumnFlag.SORTED,
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C('utid', CppUint32()),
-        C('callsite_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
-        C('cpu', CppOptional(CppUint32())),
-    ],
-    tabledoc=TableDoc(
-        doc='''
-          Samples from MacOS Instruments.
-        ''',
-        group='Callstack profilers',
-        columns={
-            'ts':
-                '''Timestamp of the sample.''',
-            'utid':
-                '''Sampled thread.''',
-            'callsite_id':
-                '''If set, unwound callstack of the sampled thread.''',
-            'cpu':
-                '''Core the sampled thread was running on.''',
-        }))
-
 SYMBOL_TABLE = Table(
     python_module=__file__,
     class_name='SymbolTable',
@@ -1631,7 +1598,6 @@ ALL_TABLES = [
     HEAP_GRAPH_THREAD_CALLSITE_TABLE,
     HEAP_PROFILE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
-    INSTRUMENTS_SAMPLE_TABLE,
     PACKAGE_LIST_TABLE,
     PROFILER_COUNTER_SET_TABLE,
     PROFILER_SAMPLE_TABLE,

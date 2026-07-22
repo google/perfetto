@@ -119,7 +119,6 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_gpu_context_table());
     AddDataframe(out, s->mutable_gpu_counter_group_table());
     AddDataframe(out, s->mutable_gpu_table());
-    AddDataframe(out, s->mutable_instruments_sample_table());
     AddDataframe(out, s->mutable_machine_table());
     AddDataframe(out, s->mutable_memory_snapshot_edge_table());
     AddDataframe(out, s->mutable_memory_snapshot_table());
@@ -225,9 +224,8 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
            s.profiler_smaps_table().mutations() +
            s.thread_state_table().mutations() + s.log_table().mutations() +
            s.heap_graph_object_table().mutations() +
-           s.heap_graph_table().mutations() +
-           s.instruments_sample_table().mutations() +
-           s.state_table().mutations() + s.profiler_sample_table().mutations();
+           s.heap_graph_table().mutations() + s.state_table().mutations() +
+           s.profiler_sample_table().mutations();
   }
 
   std::pair<int64_t, int64_t> GetTimestampBounds() override {
@@ -271,10 +269,6 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
       end_ns = std::max(it.graph_sample_ts(), end_ns);
     }
     for (auto it = s.heap_graph_table().IterateRows(); it; ++it) {
-      start_ns = std::min(it.ts(), start_ns);
-      end_ns = std::max(it.ts(), end_ns);
-    }
-    for (auto it = s.instruments_sample_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
     }
