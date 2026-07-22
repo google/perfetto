@@ -2,7 +2,11 @@
 
 **Authors:** @LalitMaganti
 
-**Status:** Draft
+**Status:** Partially Implemented
+
+The prelude reorganization and module-documentation support were implemented.
+The multi-page documentation and diagram work described below remains to be
+done.
 
 ## Overview
 

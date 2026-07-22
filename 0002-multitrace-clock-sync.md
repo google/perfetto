@@ -2,7 +2,10 @@
 
 **Authors:** @LalitMaganti
 
-**Status:** Draft
+**Status:** Superseded by [RFC-0016](0016-merged-trace-clock.md)
+
+RFC-0016 replaced this proposal with the per-file clock model and trace manifest
+which were ultimately implemented.
 
 ## Overview
 

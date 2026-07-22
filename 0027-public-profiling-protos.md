@@ -2,7 +2,7 @@
 
 **Authors:** @LalitMaganti
 
-**Status:** Draft
+**Status:** Implemented
 
 ## Problem
 
@@ -51,7 +51,12 @@ We need a new set of protos that:
 
 ## Decision
 
-Pending.
+Proceed with the transport-neutral `StackSample` proto described below. The
+stack-sampling proto and its Trace Processor importer have been implemented.
+
+The heap allocation and free protos are deferred until there is a concrete need
+for them. Their design below remains a proposal rather than an implemented or
+committed API.
 
 ## Design
 

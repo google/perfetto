@@ -2,9 +2,9 @@
 
 **Authors:** @LalitMaganti
 
-**Status:** Decided
+**Status:** Implemented
 
-**PR:** N/A
+**PR:** [#4579](https://github.com/google/perfetto/pull/4579)
 
 ## Problem
 

@@ -2,7 +2,14 @@
 
 **Authors:** @lalitm
 
-**Status:** Draft
+**Status:** Superseded
+
+For fast repeated queries, this proposal was replaced by
+[RFC-0031](0031-trace-processor-warm-sessions.md), which keeps a parsed trace
+warm for repeated queries, including workflows using multiple Trace Processor
+versions. For disk-based export and
+reimport, it was replaced by the opaque streaming table export format in
+[#6839](https://github.com/google/perfetto/pull/6839).
 
 ## Problem
 

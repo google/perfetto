@@ -2,7 +2,14 @@
 
 **Authors:** @LalitMaganti
 
-**Status:** Draft
+**Status:** Implemented
+
+Implemented by [#6248](https://github.com/google/perfetto/pull/6248),
+[#6286](https://github.com/google/perfetto/pull/6286),
+[#6289](https://github.com/google/perfetto/pull/6289),
+[#6303](https://github.com/google/perfetto/pull/6303), and follow-ups. The final
+CLI spells the management command `tp server kill` rather than the initially
+proposed `tp ctl kill-server`.
 
 ## Problem
 

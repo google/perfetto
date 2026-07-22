@@ -2,7 +2,14 @@
 
 **Authors:** @LalitMaganti
 
-**Status:** Draft
+**Status:** Implemented
+
+The release bundle, agent extension manifests, fallback installer and user
+documentation have landed. The implementation consolidated the original set of
+skills into one `perfetto` skill and supports agents through the manifests in
+`ai/extensions/` or `get.perfetto.dev/agents-install`. See the
+[current AI documentation](https://perfetto.dev/docs/getting-started/using-ai)
+for the authoritative installation instructions.
 
 ## Problem
 

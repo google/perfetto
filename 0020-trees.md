@@ -2,9 +2,10 @@
 
 **Authors:** @LalitMaganti
 
-**Status:** Prototyping
+**Status:** Deferred
 
-**PR:** N/A
+Some prototype tree operations were implemented, but work on this design is
+paused. It will be replaced by PerfettoSQL Next.
 
 ## Problem
 

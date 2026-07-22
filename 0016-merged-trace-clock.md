@@ -1,8 +1,20 @@
 # Clock Resolution in Merged Traces
 
 **Authors:** @LalitMaganti
-**Status:** Draft
-**PR:** N/A
+**Status:** Implemented
+
+**PRs:** [#4708](https://github.com/google/perfetto/pull/4708),
+[#4805](https://github.com/google/perfetto/pull/4805),
+[#4807](https://github.com/google/perfetto/pull/4807),
+[#6329](https://github.com/google/perfetto/pull/6329), and follow-ups
+
+The implementation evolved from this draft. Clock resolution now uses a unified
+cross-machine graph, and the sidecar is named `perfetto_manifest` rather than
+`perfetto_metadata`. See the
+[current trace-merging documentation](https://perfetto.dev/docs/analysis/merging-traces)
+and the
+[manifest reference](https://perfetto.dev/docs/reference/perfetto-manifest) for
+the authoritative behavior and schema.
 
 ## Problem
 
