@@ -5581,6 +5581,45 @@ TEST_P(PerfettoApiTest, CustomDataSource) {
   EXPECT_TRUE(found_for_testing);
 }
 
+TEST_P(PerfettoApiTest, CustomDataSourceCreatesDistinctTraceWriterSequences) {
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  cfg.add_data_sources()->mutable_config()->set_name("CustomDataSource");
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
+    auto first_writer = ctx.CreateTraceWriter();
+    auto second_writer = ctx.CreateTraceWriter();
+    ASSERT_NE(first_writer, nullptr);
+    ASSERT_NE(second_writer, nullptr);
+
+    auto first_packet = first_writer->NewTracePacket();
+    first_packet->set_for_testing()->set_str("First writer");
+    auto second_packet = second_writer->NewTracePacket();
+    second_packet->set_for_testing()->set_str("Second writer");
+  });
+
+  tracing_session->get()->StopBlocking();
+  auto bytes = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(bytes.data(), bytes.size()));
+
+  uint32_t first_sequence_id = 0;
+  uint32_t second_sequence_id = 0;
+  for (const auto& packet : parsed_trace.packet()) {
+    if (!packet.has_for_testing())
+      continue;
+    if (packet.for_testing().str() == "First writer")
+      first_sequence_id = packet.trusted_packet_sequence_id();
+    if (packet.for_testing().str() == "Second writer")
+      second_sequence_id = packet.trusted_packet_sequence_id();
+  }
+  EXPECT_NE(first_sequence_id, 0u);
+  EXPECT_NE(second_sequence_id, 0u);
+  EXPECT_NE(first_sequence_id, second_sequence_id);
+}
+
 TEST_P(PerfettoApiTest, QueryServiceState) {
   class QueryTestDataSource : public perfetto::DataSource<QueryTestDataSource> {
   };
