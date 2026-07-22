@@ -369,6 +369,24 @@ class TraceStorage {
     return mutable_table<tables::AndroidDumpstateTable>();
   }
 
+  const tables::AndroidProcessStateDumpTable& android_process_state_dump_table()
+      const {
+    return table<tables::AndroidProcessStateDumpTable>();
+  }
+  tables::AndroidProcessStateDumpTable*
+  mutable_android_process_state_dump_table() {
+    return mutable_table<tables::AndroidProcessStateDumpTable>();
+  }
+
+  const tables::AndroidFreezerStateDumpTable& android_freezer_state_dump_table()
+      const {
+    return table<tables::AndroidFreezerStateDumpTable>();
+  }
+  tables::AndroidFreezerStateDumpTable*
+  mutable_android_freezer_state_dump_table() {
+    return mutable_table<tables::AndroidFreezerStateDumpTable>();
+  }
+
   const tables::AndroidKeyEventsTable& android_key_events_table() const {
     return table<tables::AndroidKeyEventsTable>();
   }

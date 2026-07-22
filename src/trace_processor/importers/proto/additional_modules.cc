@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/proto/android_extension.descriptor.h"
 #include "src/trace_processor/importers/proto/android_kernel_wakelocks_module.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
+#include "src/trace_processor/importers/proto/android_process_dump_module.h"
 #include "src/trace_processor/importers/proto/app_wakelock_module.h"
 #include "src/trace_processor/importers/proto/concurrent_sessions_module.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
@@ -86,6 +87,8 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
       new ProfileModule(module_context, context));
   module_context->modules.emplace_back(
       new AppWakelockModule(module_context, context));
+  module_context->modules.emplace_back(
+      new AndroidProcessDumpModule(module_context, context));
   module_context->modules.emplace_back(
       new ConcurrentSessionsModule(module_context, context));
   module_context->modules.emplace_back(

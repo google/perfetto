@@ -101,6 +101,8 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_android_aflags_table());
     AddDataframe(out, s->mutable_android_cpu_per_uid_track_table());
     AddDataframe(out, s->mutable_android_dumpstate_table());
+    AddDataframe(out, s->mutable_android_process_state_dump_table());
+    AddDataframe(out, s->mutable_android_freezer_state_dump_table());
     AddDataframe(out, s->mutable_android_game_intervenion_list_table());
     AddDataframe(out, s->mutable_log_table());
     AddDataframe(out, s->mutable_build_flags_table());

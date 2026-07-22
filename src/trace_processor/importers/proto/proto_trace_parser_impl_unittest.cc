@@ -112,6 +112,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 #include "protos/third_party/chromium/chrome_enums.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -3132,15 +3133,83 @@ TEST_F(ProtoTraceParserTest, NonEmptyCpuInfo) {
   cpu->set_processor("ARMv8 Processor rev 0 (v8l)");
   cpu->set_capacity(1024);
   cpu->add_frequencies(1800000);
-
   ASSERT_TRUE(Tokenize().ok());
   context_.sorter->ExtractEventsForced();
-
   EXPECT_EQ(context_.stats_tracker->GetStats(stats::cpu_info_empty), 0);
   const auto& cpu_table = context_.storage->cpu_table();
   EXPECT_STREQ(context_.storage->GetString(cpu_table[0].processor()).c_str(),
                "ARMv8 Processor rev 0 (v8l)");
   EXPECT_EQ(cpu_table[0].capacity(), 1024u);
+}
+
+TEST_F(ProtoTraceParserTest, AndroidProcessStateSnapshot) {
+  using ::com::android::internal::pbzero::AndroidProcessStateSnapshot;
+  using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
+
+  auto* packet = trace_->add_packet();
+  packet->set_timestamp(100);
+  protozero::HeapBuffered<AndroidProcessStateSnapshot> snapshot;
+  auto* rec = snapshot->add_record();
+  rec->set_pid(1001);
+  rec->set_uid(10001);
+  rec->set_proc_state(2);  // PROCESS_STATE_PERSISTENT
+  rec->set_oom_score(-1000);
+  rec->set_capability_flags(4);  // PROCESS_CAPABILITY_FOREGROUND_CAMERA
+
+  std::vector<uint8_t> bytes = snapshot.SerializeAsArray();
+  packet->AppendBytes(
+      FrameworksBaseTracePacket::kAndroidProcessStateFieldNumber, bytes.data(),
+      bytes.size());
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  const auto& table = context_.storage->android_process_state_dump_table();
+  ASSERT_EQ(table.row_count(), 1u);
+  EXPECT_EQ(table[0].ts(), 100);
+  EXPECT_EQ(table[0].pid(), 1001u);
+  EXPECT_EQ(table[0].uid().value_or(0), 10001u);
+  EXPECT_EQ(table[0].proc_state().value_or(-1), 2);
+  EXPECT_EQ(table[0].oom_score().value_or(0), -1000);
+  EXPECT_EQ(table[0].capability_flags().value_or(0), 4u);
+}
+
+TEST_F(ProtoTraceParserTest, AndroidProcessStateSnapshotOmittedZeroValues) {
+  using ::com::android::internal::pbzero::AndroidProcessStateSnapshot;
+  using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
+
+  auto* packet = trace_->add_packet();
+  packet->set_timestamp(200);
+  protozero::HeapBuffered<AndroidProcessStateSnapshot> snapshot;
+  auto* rec = snapshot->add_record();
+  rec->set_pid(1002);
+  rec->set_uid(10002);
+  // proc_state (0 = PROCESS_STATE_UNKNOWN), oom_score (0 = FOREGROUND_APP_ADJ),
+  // and capability_flags (0 = PROCESS_CAPABILITY_NONE) omitted
+
+  std::vector<uint8_t> bytes = snapshot.SerializeAsArray();
+  packet->AppendBytes(
+      FrameworksBaseTracePacket::kAndroidProcessStateFieldNumber, bytes.data(),
+      bytes.size());
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  const auto& table = context_.storage->android_process_state_dump_table();
+  ASSERT_EQ(table.row_count(), 1u);
+  EXPECT_EQ(table[0].ts(), 200);
+  EXPECT_EQ(table[0].pid(), 1002u);
+  EXPECT_EQ(table[0].uid().value_or(0), 10002u);
+  // Default to 0 instead of std::nullopt (NULL)
+  auto proc_state = table[0].proc_state();
+  EXPECT_TRUE(proc_state.has_value());
+  EXPECT_EQ(proc_state.value(), 0);
+  auto oom_score = table[0].oom_score();
+  EXPECT_TRUE(oom_score.has_value());
+  EXPECT_EQ(oom_score.value(), 0);
+  auto capability_flags = table[0].capability_flags();
+  EXPECT_TRUE(capability_flags.has_value());
+  EXPECT_EQ(capability_flags.value(), 0u);
 }
 
 }  // namespace

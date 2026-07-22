@@ -80,4 +80,43 @@ ANDROID_TRACK_EVENT_PROCESS_TABLE = Table(
     ),
 )
 
-ALL_TABLES = [ANDROID_TRACK_EVENT_PROCESS_TABLE]
+ANDROID_TRACK_EVENT_FREEZER_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidTrackEventFreezerTable',
+    sql_name='__intrinsic_android_track_event_freezer',
+    columns=[
+        C('ts', CppInt64(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('upid',
+          CppOptional(CppTableId(PROCESS_TABLE)),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('pid',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('unfrozen_dur_ms',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('frozen_dur_ms',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('unfreeze_reason',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+    ],
+    tabledoc=TableDoc(
+        doc='Freezer TrackEvents emitted by Android framework.',
+        group='Android',
+        columns={
+            'ts': 'Timestamp of the freezer event.',
+            'upid': 'Unique process ID.',
+            'pid': 'Process ID.',
+            'unfrozen_dur_ms': 'Time since last unfrozen in milliseconds.',
+            'frozen_dur_ms': 'Time since last frozen in milliseconds.',
+            'unfreeze_reason': 'Reason for unfreezing.',
+        },
+    ),
+)
+
+ALL_TABLES = [
+    ANDROID_TRACK_EVENT_PROCESS_TABLE,
+    ANDROID_TRACK_EVENT_FREEZER_TABLE,
+]
