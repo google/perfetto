@@ -990,6 +990,211 @@ the following output:
 
 ![Interned Callstacks](/docs/images/synthetic-track-event-interned-callstack.png)
 
+### {#callstack-weights} Weighted Callstacks and Custom Measures
+
+By default, every callstack attached to an event counts once when aggregated
+into a flamegraph: this is the **Samples** measure. Often, though, each
+occurrence should contribute a different amount: the number of bytes allocated
+at that stack, the latency attributed to it, and so on.
+
+The `callstack_weight` field on `TrackEvent` attaches an optional additive
+value to the callstack recorded on that event. It works with both inline
+callstacks and interned callstacks (`callstack_iid`), on both begin and end
+events:
+
+```protobuf
+message TrackEvent {
+  // ...
+  oneof callstack_field {
+    InlineCallstack callstack = 55;
+    uint64 callstack_iid = 56;
+  }
+  optional double callstack_weight = 57;
+}
+```
+
+The key rule to keep in mind: **weighted aggregations only include events which
+set `callstack_weight`; weighted and unweighted samples are never mixed.** If
+some of your events set a weight and others do not, the "Weight" measure covers
+only the weighted events, while "Samples" continues to count all of them. To
+get meaningful weighted flamegraphs, set the weight on every event (on a given
+track) or on none of them.
+
+In addition to the weight, any **numeric argument** attached to events carrying
+callstacks can be used as an extra flamegraph measure in the UI. This includes
+both [debug annotations](/docs/getting-started/converting.md#debug-annotations)
+and integer/double fields from
+[proto extensions](#proto-extensions) — anything that ends up as a numeric
+entry in the `args` table. This lets a single stream of events carry several
+parallel measures: for example, an allocation profiler can use
+`callstack_weight` for bytes and an `objects` debug annotation for the number
+of objects.
+
+#### Python Example: Weighted Callstacks
+
+This example models a simple allocation profiler: each slice records the
+callstack of an allocation, with `callstack_weight` set to the number of bytes
+allocated and two extra per-event measures — an `objects` debug annotation
+counting the allocated objects, and an `alloc_stats.latency_us` proto
+extension field recording how long the allocation took.
+
+The extension uses the same two-file descriptor setup described in
+[Attaching Custom Typed Fields with Proto Extensions](#proto-extensions). If
+you only want the weight and debug annotation, skip the two `.proto` files and
+drop the extension-related lines from the Python code.
+
+**File 1 — `alloc_stats.proto`** (the data schema, compiled to Python
+bindings):
+
+```protobuf
+syntax = "proto2";
+package com.acme;
+
+message AcmeAllocStats {
+  optional double latency_us = 1;
+}
+```
+
+**File 2 — `alloc_stats_extension.proto`** (the extension hook, compiled to a
+descriptor set that is embedded in the trace):
+
+```protobuf
+syntax = "proto2";
+import "protos/perfetto/trace/perfetto_trace.proto";
+import "alloc_stats.proto";
+package com.acme;
+
+message AcmeAllocStatsExtension {
+  extend perfetto.protos.TrackEvent {
+    optional AcmeAllocStats alloc_stats = 9950;
+  }
+}
+```
+
+```bash
+protoc --python_out=. alloc_stats.proto
+protoc -I. --include_imports \
+       --descriptor_set_out=alloc_stats_extension.desc \
+       alloc_stats_extension.proto
+```
+
+Then copy the following Python code into the `populate_packets(builder)`
+function in your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    from alloc_stats_pb2 import AcmeAllocStats
+
+    ALLOC_TRACK_UUID = 24681357
+
+    # Field number declared in alloc_stats_extension.proto.
+    ALLOC_STATS_FIELD_NUMBER = 9950
+
+    def _varint(n):
+        out = bytearray()
+        while n >= 0x80:
+            out.append((n & 0x7f) | 0x80)
+            n >>= 7
+        out.append(n)
+        return bytes(out)
+
+    def set_alloc_stats(track_event, latency_us):
+        """Attach the alloc_stats extension field (wire type 2) to an event."""
+        stats = AcmeAllocStats(latency_us=latency_us)
+        tag = (ALLOC_STATS_FIELD_NUMBER << 3) | 2
+        payload = stats.SerializeToString()
+        track_event.MergeFromString(_varint(tag) + _varint(len(payload)) + payload)
+
+    def emit_alloc(ts, event_type, name=None, frames=None, alloc_bytes=None,
+                   objects=None, latency_us=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = ALLOC_TRACK_UUID
+        if name is not None:
+            packet.track_event.name = name
+        if frames:
+            for function in frames:
+                frame = packet.track_event.callstack.frames.add()
+                frame.function_name = function
+        if alloc_bytes is not None:
+            packet.track_event.callstack_weight = alloc_bytes
+        if objects is not None:
+            annotation = packet.track_event.debug_annotations.add()
+            annotation.name = "objects"
+            annotation.int_value = objects
+        if latency_us is not None:
+            set_alloc_stats(packet.track_event, latency_us)
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 1. Embed the descriptor set so Trace Processor can decode the extension.
+    desc_packet = builder.add_packet()
+    with open('alloc_stats_extension.desc', 'rb') as f:
+        desc_packet.extension_descriptor.extension_set.ParseFromString(f.read())
+
+    # 2. Define the track
+    packet = builder.add_packet()
+    packet.track_descriptor.uuid = ALLOC_TRACK_UUID
+    packet.track_descriptor.name = "Allocations"
+
+    # 3. Emit allocation slices. Each one carries:
+    #    - an inline callstack of where the allocation happened
+    #    - callstack_weight: the number of bytes allocated
+    #    - an "objects" debug annotation: how many objects were allocated
+    #    - an "alloc_stats.latency_us" extension field: allocation latency
+    allocations = [
+        (1000, 1400, ["main", "ParseInput", "AllocateBuffer"], 4096, 1, 12.5),
+        (1600, 2100, ["main", "ParseInput", "AllocateBuffer"], 8192, 2, 30.2),
+        (2300, 2600, ["main", "ParseInput", "DecodeString"], 256, 8, 5.1),
+        (2800, 3400, ["main", "RenderOutput", "AllocateBuffer"], 2048, 1, 15.7),
+        (3600, 3900, ["main", "RenderOutput", "FormatText"], 512, 16, 3.9),
+        (4100, 4500, ["main", "RenderOutput", "FormatText"], 1024, 32, 8.4),
+    ]
+    for begin_ts, end_ts, frames, alloc_bytes, objects, latency_us in allocations:
+        emit_alloc(
+            ts=begin_ts,
+            event_type=TrackEvent.TYPE_SLICE_BEGIN,
+            name=frames[-1],
+            frames=frames,
+            alloc_bytes=float(alloc_bytes),
+            objects=objects,
+            latency_us=latency_us,
+        )
+        emit_alloc(ts=end_ts, event_type=TrackEvent.TYPE_SLICE_END)
+```
+
+</details>
+
+After running the script, open the generated trace in the
+[Perfetto UI](https://ui.perfetto.dev) and do an area selection over the
+`Allocations` track. The flamegraph in the "Track Event Callstacks" tab
+defaults to the **Weight** measure whenever at least one selected sample has
+`callstack_weight` set, and falls back to **Samples** otherwise:
+
+![Weighted Callstacks](/docs/images/synthetic-track-event-callstack-weight.png)
+
+The measure picker (the dropdown at the top-left of the flamegraph) lets you
+switch between the built-in measures and add new ones. "Add measure..." opens a
+searchable list of every numeric argument found on the selected events. Debug
+annotations appear with a `debug.` prefix (`debug.objects` in this example),
+while proto extension fields appear under their field name
+(`alloc_stats.latency_us`):
+
+![Callstack Measure Picker](/docs/images/synthetic-track-event-callstack-measures.png)
+
+Selecting one adds it as a measure: the flamegraph then aggregates that
+argument's value across the selected callstacks, exactly like a weight. Here
+is the same selection measured by `debug.objects` — note how the shape of the
+flamegraph changes, as `RenderOutput` allocates many more objects than
+`ParseInput` despite allocating fewer bytes:
+
+![Callstacks by Objects](/docs/images/synthetic-track-event-callstack-objects.png)
+
+As with `callstack_weight`, only samples which actually have that argument are
+included in the measure.
+
 ### Linking Related Events with Correlation IDs
 
 Correlation IDs provide a way to visually link slices that are part of the same

@@ -899,7 +899,7 @@ WHERE track.name LIKE '%Request%' OR track.name LIKE '%Service%'
 ORDER BY slice.ts;
 ```
 
-## Adding Debug Annotations to Events
+## {#debug-annotations} Adding Debug Annotations to Events
 
 Debug annotations allow you to attach arbitrary key-value data to any
 `TrackEvent`. They appear in the Perfetto UI when you inspect individual
@@ -1230,6 +1230,10 @@ Note that you can also do an "area selection" (AKA box selection) to get a
 flamegraph of the callstacks:
 
 ![Inline Callstacks Area Select](/docs/images/inline-callstacks-flamegraph.png)
+
+By default each callstack counts once in the flamegraph. To attribute a value
+to each occurrence instead (e.g. bytes allocated), see
+[Weighted Callstacks and Custom Measures](/docs/reference/synthetic-track-event.md#callstack-weights).
 
 ## Adding Trace-Level Metadata
 
