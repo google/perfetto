@@ -112,17 +112,20 @@ class TarWriter {
     // Copies `len` bytes from `fd` into the archive.
     base::Status WriteFromFd(int fd, size_t len);
 
-    // Writes the 512-byte-boundary padding. Must be called once after
-    // exactly the `size` bytes passed to StreamFile() have been written.
+    // Validates that exactly the `size` bytes passed to StreamFile() were
+    // written, then writes the 512-byte-boundary padding.
     base::Status Finalize();
 
    private:
     friend class TarWriter;
     ScopedFileWriter(TarWriter* writer, size_t size);
 
+    base::Status CheckCanWrite(size_t len);
+
     // Null once the entry is finalized or moved-from.
     TarWriter* writer_;
     size_t size_;
+    size_t bytes_written_ = 0;
   };
 
   // Writes the TAR header for `filename` immediately and returns a writer

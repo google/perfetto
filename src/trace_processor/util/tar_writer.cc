@@ -280,7 +280,9 @@ TarWriter::ScopedFileWriter::ScopedFileWriter(TarWriter* writer, size_t size)
     : writer_(writer), size_(size) {}
 
 TarWriter::ScopedFileWriter::ScopedFileWriter(ScopedFileWriter&& other) noexcept
-    : writer_(other.writer_), size_(other.size_) {
+    : writer_(other.writer_),
+      size_(other.size_),
+      bytes_written_(other.bytes_written_) {
   other.writer_ = nullptr;
 }
 
@@ -301,14 +303,29 @@ TarWriter::ScopedFileWriter::~ScopedFileWriter() {
   PERFETTO_CHECK(status.ok());
 }
 
-base::Status TarWriter::ScopedFileWriter::Write(const void* data, size_t len) {
+base::Status TarWriter::ScopedFileWriter::CheckCanWrite(size_t len) {
   PERFETTO_CHECK(writer_);
-  return writer_->WriteToSink(data, len);
+  PERFETTO_DCHECK(bytes_written_ <= size_);
+  if (len > size_ - bytes_written_) {
+    return writer_->PoisonIfError(base::ErrStatus(
+        "Cannot write %zu bytes to TAR entry: only %zu bytes remain", len,
+        size_ - bytes_written_));
+  }
+  return base::OkStatus();
+}
+
+base::Status TarWriter::ScopedFileWriter::Write(const void* data, size_t len) {
+  RETURN_IF_ERROR(CheckCanWrite(len));
+  RETURN_IF_ERROR(writer_->WriteToSink(data, len));
+  bytes_written_ += len;
+  return base::OkStatus();
 }
 
 base::Status TarWriter::ScopedFileWriter::WriteFromFd(int fd, size_t len) {
-  PERFETTO_CHECK(writer_);
-  return writer_->WriteFromFdToSink(fd, len);
+  RETURN_IF_ERROR(CheckCanWrite(len));
+  RETURN_IF_ERROR(writer_->WriteFromFdToSink(fd, len));
+  bytes_written_ += len;
+  return base::OkStatus();
 }
 
 base::Status TarWriter::ScopedFileWriter::Finalize() {
@@ -320,6 +337,11 @@ base::Status TarWriter::ScopedFileWriter::Finalize() {
   }
   TarWriter* writer = writer_;
   writer_ = nullptr;
+  if (bytes_written_ != size_) {
+    return writer->PoisonIfError(base::ErrStatus(
+        "TAR entry expected %zu bytes, but only %zu were written", size_,
+        bytes_written_));
+  }
   size_t padding_needed = (512 - (size_ % 512)) % 512;
   if (padding_needed == 0) {
     return base::OkStatus();

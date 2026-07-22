@@ -463,6 +463,39 @@ TEST_F(TarWriterTest, DisableWindows(StreamFileAutomaticFinalize)) {
   EXPECT_EQ(headers[0].size, content.size());
 }
 
+TEST_F(TarWriterTest, StreamFileRejectsCumulativeOversize) {
+  std::vector<uint8_t> buffer;
+  TarWriter writer(std::make_unique<BufferTarWriterSink>(&buffer));
+  auto file_or = writer.StreamFile("oversize.txt", 5);
+  ASSERT_OK(file_or.status());
+  TarWriter::ScopedFileWriter file = std::move(file_or.value());
+
+  ASSERT_OK(file.Write("abc", 3));
+  auto status = file.Write("def", 3);
+  EXPECT_THAT(status, IsError());
+  EXPECT_THAT(status.message(), HasSubstr("only 2 bytes remain"));
+
+  // The rejected write poisons the writer, making finalization a no-op.
+  EXPECT_OK(file.Finalize());
+  EXPECT_OK(writer.Finalize());
+}
+
+TEST_F(TarWriterTest, StreamFileRejectsUndersizeOnFinalize) {
+  std::vector<uint8_t> buffer;
+  TarWriter writer(std::make_unique<BufferTarWriterSink>(&buffer));
+  auto file_or = writer.StreamFile("undersize.txt", 5);
+  ASSERT_OK(file_or.status());
+  TarWriter::ScopedFileWriter file = std::move(file_or.value());
+
+  ASSERT_OK(file.Write("data", 4));
+  auto status = file.Finalize();
+  EXPECT_THAT(status, IsError());
+  EXPECT_THAT(status.message(), HasSubstr("expected 5 bytes"));
+
+  // The incomplete entry poisons the writer, making finalization a no-op.
+  EXPECT_OK(writer.Finalize());
+}
+
 // Accepts the first `fail_after` bytes, then fails every write.
 class FailAfterSink : public TarWriterSink {
  public:
