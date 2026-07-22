@@ -363,7 +363,12 @@ class Profiling(TestSuite):
           ps.cpu_mode AS perf_cpu_mode,
           c.value,
           (SELECT count(*) FROM stack_sample) AS stack_sample_count,
-          (SELECT timebase_unit FROM profiler_session) AS timebase_unit
+          (SELECT count(*) FROM stack_sample_session)
+            AS stack_sample_session_count,
+          (SELECT count(*) FROM stack_sample_counter_track)
+            AS stack_sample_counter_track_count,
+          (SELECT count(*) FROM stack_sample_counter)
+            AS stack_sample_counter_count
         FROM perf_sample AS ps
         JOIN __intrinsic_profiler_sample AS psi
           ON psi.id = ps.id
@@ -373,11 +378,11 @@ class Profiling(TestSuite):
           ON c.id = pcs.counter_id;
         """,
         out=Csv("""
-        "ts","callsite_id","intrinsic_cpu_mode","perf_cpu_mode","value","stack_sample_count","timebase_unit"
-        3000,"[NULL]","[NULL]","unknown",512.000000,0,"ns"
+        "ts","callsite_id","intrinsic_cpu_mode","perf_cpu_mode","value","stack_sample_count","stack_sample_session_count","stack_sample_counter_track_count","stack_sample_counter_count"
+        3000,"[NULL]","[NULL]","unknown",512.000000,0,0,0,0
         """))
 
-  def test_profiler_session_source(self):
+  def test_stack_sample_session_source(self):
     return DiffTestBlueprint(
         trace=Path('stack_sample.textproto'),
         query="""
@@ -387,7 +392,7 @@ class Profiling(TestSuite):
         SELECT
           (
             SELECT count(*)
-            FROM profiler_session
+            FROM stack_sample_session
             WHERE source = 'python.wall' AND timebase_unit = 'ns'
           ) AS stack_sample_sessions,
           (SELECT count(*) FROM perf_session) AS perf_sessions;
@@ -731,10 +736,9 @@ class Profiling(TestSuite):
           ct.unit,
           spf.name AS frame_name
         FROM stack_sample ss
-        JOIN __intrinsic_profiler_counter_set pcs
-          ON ss.counter_set_id = pcs.counter_set_id
-        JOIN counter c ON c.id = pcs.counter_id
-        JOIN counter_track ct ON c.track_id = ct.id AND ct.name = 'wall-time'
+        JOIN stack_sample_counter c ON c.stack_sample_id = ss.id
+        JOIN stack_sample_counter_track ct
+          ON c.track_id = ct.id AND ct.name = 'wall-time'
         JOIN stack_profile_callsite spc ON ss.callsite_id = spc.id
         JOIN stack_profile_frame spf ON spc.frame_id = spf.id
         ORDER BY ss.ts;
@@ -852,10 +856,8 @@ class Profiling(TestSuite):
           ct.unit,
           CAST(c.value AS INTEGER) AS weight
         FROM stack_sample ss
-        JOIN __intrinsic_profiler_counter_set pcs
-          ON ss.counter_set_id = pcs.counter_set_id
-        JOIN counter c ON c.id = pcs.counter_id
-        JOIN counter_track ct ON c.track_id = ct.id
+        JOIN stack_sample_counter c ON c.stack_sample_id = ss.id
+        JOIN stack_sample_counter_track ct ON c.track_id = ct.id
         WHERE ct.name = 'instructions'
         ORDER BY ss.ts;
         """,
@@ -960,10 +962,10 @@ class Profiling(TestSuite):
           (SELECT count(*) FROM cpu_profiling_samples) AS profiling_samples,
           (SELECT ts FROM cpu_profiling_samples) AS profiling_ts,
           (
-            SELECT count(*) FROM profiler_session WHERE timebase_unit = 'ns'
+            SELECT count(*) FROM stack_sample_session WHERE timebase_unit = 'ns'
           ) AS ns_sessions,
           (
-            SELECT count(*) FROM profiler_session WHERE timebase_unit = 'count'
+            SELECT count(*) FROM stack_sample_session WHERE timebase_unit = 'count'
           ) AS count_sessions;
         """,
         out=Csv("""

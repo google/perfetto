@@ -57,7 +57,7 @@ SELECT
   ss.callsite_id,
   ss.source
 FROM stack_sample AS ss
-LEFT JOIN __intrinsic_profiler_session AS s
+LEFT JOIN stack_sample_session AS s
   ON s.id = ss.session_id
 LEFT JOIN thread AS t USING (utid)
 LEFT JOIN cpu AS c

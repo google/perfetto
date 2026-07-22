@@ -36,13 +36,12 @@ GROUP BY
   utid;
 
 CREATE PERFETTO TABLE _stack_sample_summary AS
-SELECT utid, source, count() AS sample_cnt
+SELECT utid, count() AS sample_count
 FROM stack_sample
 WHERE
   utid IS NOT NULL
 GROUP BY
-  utid,
-  source;
+  utid;
 
 CREATE PERFETTO TABLE _thread_available_info_summary AS
 WITH
@@ -53,20 +52,7 @@ WITH
       ss.sum_running_dur,
       ss.running_count,
       (SELECT slice_count FROM _thread_track_summary WHERE utid = t.utid) AS slice_count,
-      (
-        SELECT sample_cnt
-        FROM _stack_sample_summary
-        WHERE
-          utid = t.utid
-          AND source = 'linux.perf'
-      ) AS perf_sample_count,
-      (
-        SELECT sample_cnt
-        FROM _stack_sample_summary
-        WHERE
-          utid = t.utid
-          AND source = 'instruments'
-      ) AS instruments_sample_count
+      (SELECT sample_count FROM _stack_sample_summary WHERE utid = t.utid) AS stack_sample_count
     FROM thread AS t
     LEFT JOIN _sched_summary AS ss USING (utid)
   )
@@ -76,15 +62,13 @@ SELECT
   coalesce(sum_running_dur, 0) AS sum_running_dur,
   coalesce(running_count, 0) AS running_count,
   coalesce(slice_count, 0) AS slice_count,
-  coalesce(perf_sample_count, 0) AS perf_sample_count,
-  coalesce(instruments_sample_count, 0) AS instruments_sample_count
+  coalesce(stack_sample_count, 0) AS stack_sample_count
 FROM raw AS r
 WHERE
   NOT (r.max_running_dur IS NULL
   AND r.sum_running_dur IS NULL
   AND r.running_count IS NULL
   AND r.slice_count IS NULL
-  AND r.perf_sample_count IS NULL
-  AND r.instruments_sample_count IS NULL)
+  AND r.stack_sample_count IS NULL)
   OR utid IN (SELECT utid FROM _stack_sample_summary)
   OR utid IN (SELECT utid FROM thread_counter_track);

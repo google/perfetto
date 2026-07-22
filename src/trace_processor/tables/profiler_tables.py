@@ -460,7 +460,6 @@ PROFILER_SESSION_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
-    wrapping_sql_view=WrappingSqlView('profiler_session'),
     tabledoc=TableDoc(
         doc='''Profiler sessions: one row per data source instance of a
                sampling profiler (a perf session, a StackSample stream, ...).
