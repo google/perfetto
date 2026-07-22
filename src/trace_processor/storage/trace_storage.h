@@ -601,13 +601,6 @@ class TraceStorage {
     return mutable_table<tables::ProfilerSessionTable>();
   }
 
-  const tables::InstrumentsSampleTable& instruments_sample_table() const {
-    return table<tables::InstrumentsSampleTable>();
-  }
-  tables::InstrumentsSampleTable* mutable_instruments_sample_table() {
-    return mutable_table<tables::InstrumentsSampleTable>();
-  }
-
   const tables::ProfilerSampleTable& profiler_sample_table() const {
     return table<tables::ProfilerSampleTable>();
   }
