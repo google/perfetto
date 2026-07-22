@@ -653,16 +653,12 @@ CREATE PERFETTO VIEW instruments_sample(
   cpu LONG
 )
 AS
-SELECT
-  ps.id,
-  ps.ts,
-  ps.utid,
-  ps.callsite_id,
-  c.cpu
+SELECT ps.id, ps.ts, ps.utid, ps.callsite_id, c.cpu
 FROM __intrinsic_profiler_sample AS ps
 LEFT JOIN __intrinsic_cpu AS c
   ON c.id = ps.ucpu
-WHERE ps.source = 'instruments';
+WHERE
+  ps.source = 'instruments';
 
 -- Symbolization data for a frame.
 CREATE PERFETTO VIEW stack_profile_symbol(
