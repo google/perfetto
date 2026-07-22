@@ -148,6 +148,8 @@ class GlobalArgsTracker {
       combiner.Combine(arg.value.type);
       // We don't hash arg.flat_key because it's a subsequence of arg.key.
       switch (arg.value.type) {
+        case Variadic::Type::kUpid:
+        case Variadic::Type::kUtid:
         case Variadic::Type::kInt:
           combiner.Combine(arg.value.int_value);
           break;
@@ -192,6 +194,8 @@ class GlobalArgsTracker {
       row.flat_key = arg.flat_key;
       row.key = arg.key;
       switch (arg.value.type) {
+        case Variadic::Type::kUpid:
+        case Variadic::Type::kUtid:
         case Variadic::Type::kInt:
           row.int_value = arg.value.int_value;
           break;

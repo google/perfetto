@@ -137,6 +137,8 @@ inline Variadic GetArgValue(const TraceStorage& storage,
     case Variadic::Type::kBool:
       v.bool_value = static_cast<bool>(*cursor.int_value());
       break;
+    case Variadic::Type::kUpid:
+    case Variadic::Type::kUtid:
     case Variadic::Type::kInt:
       v.int_value = *cursor.int_value();
       break;
@@ -175,6 +177,8 @@ inline Variadic GetArgValue(const TraceStorage& storage, uint32_t row_index) {
     case Variadic::Type::kBool:
       v.bool_value = static_cast<bool>(*rr.int_value());
       break;
+    case Variadic::Type::kUpid:
+    case Variadic::Type::kUtid:
     case Variadic::Type::kInt:
       v.int_value = *rr.int_value();
       break;

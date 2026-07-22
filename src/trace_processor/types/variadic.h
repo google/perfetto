@@ -36,11 +36,14 @@ struct Variadic {
     kPointer,
     kBool,
     kJson,
+    kUpid,
+    kUtid,
     kNull,
     kMaxType = kNull,
   };
   static constexpr const char* const kTypeNames[] = {
-      "int", "uint", "string", "real", "pointer", "bool", "json", "null",
+      "int",  "uint", "string", "real", "pointer",
+      "bool", "json", "upid",   "utid", "null",
   };
 
   static constexpr Variadic Integer(int64_t int_value) {
@@ -93,6 +96,24 @@ struct Variadic {
     return variadic;
   }
 
+  // Marks an integer that is a upid (unique process id) so the UI can render
+  // it as a process reference. Produced from an (is_pid) field annotation;
+  // see field_options.proto.
+  static constexpr Variadic Upid(int64_t upid) {
+    Variadic variadic(Type::kUpid);
+    variadic.int_value = upid;
+    return variadic;
+  }
+
+  // Marks an integer that is a utid (unique thread id) so the UI can render
+  // it as a thread reference. Produced from an (is_tid) field annotation;
+  // see field_options.proto.
+  static constexpr Variadic Utid(int64_t utid) {
+    Variadic variadic(Type::kUtid);
+    variadic.int_value = utid;
+    return variadic;
+  }
+
   static constexpr Variadic Null() { return Variadic(Type::kNull); }
 
   // Used in tests.
@@ -113,6 +134,9 @@ struct Variadic {
           return bool_value == other.bool_value;
         case kJson:
           return json_value == other.json_value;
+        case kUpid:
+        case kUtid:
+          return int_value == other.int_value;
         case kNull:
           return true;
       }

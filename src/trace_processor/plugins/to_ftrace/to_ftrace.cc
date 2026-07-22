@@ -633,6 +633,8 @@ void ArgsSerializer::WriteArg(base::StringView key,
 
 void ArgsSerializer::WriteValue(const Variadic& value) {
   switch (value.type) {
+    case Variadic::kUpid:
+    case Variadic::kUtid:
     case Variadic::kInt:
       writer_->AppendInt(value.int_value);
       break;

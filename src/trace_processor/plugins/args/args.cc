@@ -73,6 +73,18 @@ void WriteVariadic(const Variadic& v,
       std::move(writer).WriteString(base::Uint64ToHexString(v.pointer_value));
       break;
     }
+    case Variadic::Type::kUpid:
+      std::move(writer).WriteDict([&](json::JsonDictSerializer& dict) {
+        dict.AddString("__ref", "process");
+        dict.AddInt("id", v.int_value);
+      });
+      break;
+    case Variadic::Type::kUtid:
+      std::move(writer).WriteDict([&](json::JsonDictSerializer& dict) {
+        dict.AddString("__ref", "thread");
+        dict.AddInt("id", v.int_value);
+      });
+      break;
     case Variadic::Type::kJson: {
       // For JSON values, we need to parse and reconstruct them properly
       // For now, just treat as string
@@ -180,6 +192,8 @@ void ExtractArgFunction::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     case Variadic::Type::kInt:
     case Variadic::Type::kUint:
     case Variadic::Type::kPointer:
+    case Variadic::Type::kUpid:
+    case Variadic::Type::kUtid:
       return sqlite::result::Long(ctx, *rr.int_value());
     case Variadic::Type::kJson:
     case Variadic::Type::kString: {

@@ -114,6 +114,8 @@ std::optional<SqlValue> GlobalMetadataTracker::GetMetadata(
         return SqlValue::String(storage_->GetString(*rr.str_value()).c_str());
       case Variadic::kNull:
         return SqlValue();
+      case Variadic::kUpid:
+      case Variadic::kUtid:
       case Variadic::kUint:
       case Variadic::kReal:
       case Variadic::kPointer:
@@ -200,6 +202,8 @@ void GlobalMetadataTracker::WriteValue(tables::MetadataTable::RowReference rr,
       rr.set_str_value(value.json_value);
       rr.set_int_value(std::nullopt);
       break;
+    case Variadic::Type::kUpid:
+    case Variadic::Type::kUtid:
     case Variadic::Type::kBool:
     case Variadic::Type::kPointer:
     case Variadic::Type::kUint:

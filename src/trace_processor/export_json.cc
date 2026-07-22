@@ -561,6 +561,8 @@ class JsonExporter {
    private:
     Dom VariadicToJson(Variadic variadic) {
       switch (variadic.type) {
+        case Variadic::kUpid:
+        case Variadic::kUtid:
         case Variadic::kInt:
           return Dom(variadic.int_value);
         case Variadic::kUint:
