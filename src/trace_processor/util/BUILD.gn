@@ -85,6 +85,22 @@ source_set("decompressor") {
   }
 }
 
+# One-shot compressors, the counterpart of ":decompressor". Kept separate so the
+# decompressor target stays decompression-only.
+source_set("compressor") {
+  sources = [
+    "zstd_compressor.cc",
+    "zstd_compressor.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+  if (enable_perfetto_zstd) {
+    deps += [ "../../../gn:zstd" ]
+  }
+}
+
 perfetto_component("build_id") {
   sources = [
     "build_id.cc",

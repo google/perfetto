@@ -185,6 +185,7 @@
 #include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.h"
 #include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h"
+#include "src/trace_processor/plugins/zstd_functions/zstd_functions.h"
 #endif
 
 namespace perfetto::trace_processor {
@@ -391,6 +392,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   winscope_importer::RegisterPlugin();
   winscope_proto_to_args_with_defaults::RegisterPlugin();
   winscope_surfaceflinger_hierarchy_paths::RegisterPlugin();
+  zstd_functions::RegisterPlugin();
 #endif
 
   // Initialize plugins using the statically pre-computed PluginSet.
