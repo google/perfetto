@@ -252,6 +252,7 @@ export async function getOverview(
   activeDump: HeapDump,
 ): Promise<OverviewData> {
   const dumpFilter = dumpFilterSql(activeDump, 'o');
+  const oomeInfo = await getOome(engine, activeDump);
   const countRes = await engine.query(`
     SELECT
       sum(iif(o.reachable, 1, 0)) AS reachable,
@@ -521,6 +522,7 @@ export async function getOverview(
     anonRssAndSwapSize,
     dmabufRssSize,
     processUptime,
+    oome: oomeInfo?.details,
   };
 }
 
@@ -529,14 +531,35 @@ export async function getOome(
   activeDump: HeapDump,
 ): Promise<OomeData | undefined> {
   const oomeRes = await engine.query(`
-    SELECT upid, ts
-    FROM heap_graph
-    WHERE upid = ${activeDump.upid} AND dump_reason = 'OOME'
+    INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;
+    SELECT
+      g.upid AS upid,
+      g.ts AS ts,
+      o.allocation_size_bytes AS allocationSizeBytes,
+      o.free_bytes_until_oom AS freeBytesUntilOom,
+      o.error_msg AS errorMsg
+    FROM heap_graph g
+    LEFT JOIN android_heap_graph_java_oome_details o ON o.heap_graph_id = g.id
+    WHERE g.upid = ${activeDump.upid} AND g.dump_reason = 'OOME'
     LIMIT 1
   `);
   if (oomeRes.numRows() > 0) {
-    const row = oomeRes.firstRow({upid: NUM, ts: LONG});
-    return {upid: row.upid, ts: Time.fromRaw(row.ts)};
+    const row = oomeRes.firstRow({
+      upid: NUM,
+      ts: LONG,
+      allocationSizeBytes: LONG_NULL,
+      freeBytesUntilOom: LONG_NULL,
+      errorMsg: STR_NULL,
+    });
+    return {
+      upid: row.upid,
+      ts: Time.fromRaw(row.ts),
+      details: {
+        allocationSizeBytes: row.allocationSizeBytes ?? undefined,
+        freeBytesUntilOom: row.freeBytesUntilOom ?? undefined,
+        errorMsg: row.errorMsg ?? undefined,
+      },
+    };
   }
   return undefined;
 }
