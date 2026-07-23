@@ -311,28 +311,80 @@ struct Glob : public sqlite::Function<Glob> {
   }
 };
 
+struct RegexpAuxData {
+  base::Regex regex;
+  bool case_insensitive;
+};
+
 struct Regexp : public sqlite::Function<Regexp> {
-  static constexpr char kName[] = "regexp";
+  static constexpr char kName[] = "__intrinsic_regexp";
   static constexpr int kArgCount = 2;
 
-  using AuxData = base::Regex;
+  using AuxData = RegexpAuxData;
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
-    const char* text =
+    const char* input =
         reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
     auto* aux = GetAuxData(ctx, 0);
-    if (PERFETTO_UNLIKELY(!aux || !text)) {
-      const char* pattern_str =
+    if (PERFETTO_UNLIKELY(!aux || !input)) {
+      const char* pattern =
           reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
-      if (!text || !pattern_str) {
+      if (!input || !pattern) {
         return;
       }
-      SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
-                              base::Regex::Create(pattern_str));
-      auto ptr = std::make_unique<AuxData>(std::move(regex));
+      SQLITE_ASSIGN_OR_RETURN(ctx, auto regex, base::Regex::Create(pattern));
+      auto ptr = std::make_unique<AuxData>(
+          AuxData{std::move(regex), /*case_insensitive=*/false});
       aux = ptr.get();
       SetAuxData(ctx, 0, std::move(ptr));
     }
-    return sqlite::result::Long(ctx, aux->PartialMatch(text));
+    return sqlite::result::Long(ctx, aux->regex.PartialMatch(input));
+  }
+};
+
+static base::StatusOr<bool> ParseRegexCaseInsensitive(const char* flags) {
+  bool case_insensitive = false;
+  for (const char* c = flags; *c; ++c) {
+    if (*c == 'i') {
+      case_insensitive = true;
+    } else if (*c == 'c') {
+      case_insensitive = false;
+    } else {
+      return base::ErrStatus("regexp: unknown flag '%c'", *c);
+    }
+  }
+  return case_insensitive;
+}
+
+struct RegexpWithFlags : public sqlite::Function<RegexpWithFlags> {
+  static constexpr char kName[] = "__intrinsic_regexp_with_flags";
+  static constexpr int kArgCount = 3;
+
+  using AuxData = RegexpAuxData;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
+    const char* pattern =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+    const char* input =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+    const char* flags =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[2]));
+    if (!input || !pattern || !flags) {
+      return;
+    }
+    SQLITE_ASSIGN_OR_RETURN(ctx, bool case_insensitive,
+                            ParseRegexCaseInsensitive(flags));
+    auto* aux = GetAuxData(ctx, 0);
+    if (PERFETTO_UNLIKELY(!aux || aux->case_insensitive != case_insensitive)) {
+      auto case_sensitivity = case_insensitive
+                                  ? base::Regex::CaseSensitivity::kInsensitive
+                                  : base::Regex::CaseSensitivity::kSensitive;
+      SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
+                              base::Regex::Create(pattern, case_sensitivity));
+      auto ptr = std::make_unique<AuxData>(
+          AuxData{std::move(regex), case_insensitive});
+      aux = ptr.get();
+      SetAuxData(ctx, 0, std::move(ptr));
+    }
+    return sqlite::result::Long(ctx, aux->regex.PartialMatch(input));
   }
 };
 
@@ -488,6 +540,7 @@ class UtilsFunctionsPlugin : public Plugin<UtilsFunctionsPlugin> {
     out.push_back(MakeFunctionRegistration<TablePtrBind>(nullptr));
     out.push_back(MakeFunctionRegistration<Glob>(nullptr));
     out.push_back(MakeFunctionRegistration<Regexp>(nullptr));
+    out.push_back(MakeFunctionRegistration<RegexpWithFlags>(nullptr));
     out.push_back(MakeFunctionRegistration<RegexpExtract>(nullptr));
     out.push_back(MakeFunctionRegistration<RegexpReplaceSimple>(nullptr));
     out.push_back(MakeFunctionRegistration<UnHex>(nullptr));
