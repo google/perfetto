@@ -77,19 +77,20 @@ StatusOr<RwProto::Cursor::RepeatedFieldIterator> Executor::IterateRepeatedField(
   return dst->IterateRepeatedField(field_id);
 }
 
-StatusOr<uint64_t> Executor::ReadRegister(uint8_t reg_id) const {
+StatusOr<uint64_t> Executor::ReadRegister(uint32_t reg_id) const {
   if (reg_id >= registers_.size()) {
-    PROTOVM_ABORT("Register (id = %d) is out of bounds", reg_id);
+    PROTOVM_ABORT("Register (id = %u) is out of bounds", reg_id);
   }
   if (!registers_[reg_id]) {
-    PROTOVM_ABORT("Register (id = %d) is not initialized)", reg_id);
+    PROTOVM_ABORT("Register (id = %u) is not initialized)", reg_id);
   }
   return StatusOr<uint64_t>{*registers_[reg_id]};
 }
 
-StatusOr<void> Executor::WriteRegister(const Cursors& cursors, uint8_t reg_id) {
+StatusOr<void> Executor::WriteRegister(const Cursors& cursors,
+                                       uint32_t reg_id) {
   if (reg_id >= registers_.size()) {
-    PROTOVM_ABORT("Register (id = %d) is out of bounds", reg_id);
+    PROTOVM_ABORT("Register (id = %u) is out of bounds", reg_id);
   }
 
   auto status_or_scalar = cursors.selected == CursorEnum::VM_CURSOR_SRC

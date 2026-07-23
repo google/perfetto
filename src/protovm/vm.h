@@ -123,7 +123,14 @@ class Vm {
           allocator{memory_limit_bytes},
           incremental_state{&allocator} {
       if (initial_incremental_state.data) {
-        incremental_state.GetRoot().SetBytes(initial_incremental_state);
+        auto status =
+            incremental_state.GetRoot().SetBytes(initial_incremental_state);
+        if (!status.IsOk()) {
+          PERFETTO_ELOG(
+              "ProtoVM: failed to set the initial incremental state "
+              "(%zu bytes). The VM starts with an empty state.",
+              initial_incremental_state.size);
+        }
       }
     }
 
@@ -144,9 +151,6 @@ class Vm {
   // Private to avoid unintended copies. It should be used only for
   // CloneReadOnly().
   Vm(const Vm&);
-
-  // Constructor used only for cloning
-  explicit Vm(std::string incremental_state);
 
   std::string SerializeIncrementalStateAsString() const;
 

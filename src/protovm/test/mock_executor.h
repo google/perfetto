@@ -49,9 +49,9 @@ class MockExecutor : public Executor {
       IterateRepeatedField,
       StatusOr<RwProto::Cursor::RepeatedFieldIterator>(RwProto::Cursor* src,
                                                        uint32_t field_id));
-  MOCK_CONST_METHOD1(ReadRegister, StatusOr<uint64_t>(uint8_t reg_id));
+  MOCK_CONST_METHOD1(ReadRegister, StatusOr<uint64_t>(uint32_t reg_id));
   MOCK_METHOD2(WriteRegister,
-               StatusOr<void>(const Cursors& cursors, uint8_t reg_id));
+               StatusOr<void>(const Cursors& cursors, uint32_t reg_id));
   MOCK_CONST_METHOD1(Delete, StatusOr<void>(RwProto::Cursor* dst));
   MOCK_CONST_METHOD2(Merge, StatusOr<void>(Cursors* cursors, uint32_t flags));
   MOCK_CONST_METHOD1(Set, StatusOr<void>(Cursors* cursors));

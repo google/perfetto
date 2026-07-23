@@ -319,6 +319,27 @@ TEST_F(ParserTest, AbortLevel_ABORT) {
   ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsAbort());
 }
 
+TEST_F(ParserTest, DeeplyNestedProgramAborts) {
+  // The parser recurses on nested instructions. A program (which is
+  // producer-supplied data) with unbounded nesting must be rejected instead
+  // of overflowing the stack.
+  perfetto::protos::VmProgram program;
+  auto* instruction = program.add_instructions();
+  instruction->mutable_reg_load()->set_dst_register(1);
+  for (int i = 0; i < 200; ++i) {
+    instruction = instruction->add_nested_instructions();
+    instruction->mutable_reg_load()->set_dst_register(1);
+  }
+
+  EXPECT_CALL(executor_, WriteRegister(testing::_, testing::_))
+      .WillRepeatedly(
+          [](const Cursors&, uint32_t) { return StatusOr<void>::Ok(); });
+
+  auto program_bytes = program.SerializeAsString();
+  Parser parser(AsConstBytes(program_bytes), &executor_);
+  ASSERT_TRUE(parser.Run(RoCursor{}, RwProto::Cursor{}).IsAbort());
+}
+
 }  // namespace test
 }  // namespace protovm
 }  // namespace perfetto

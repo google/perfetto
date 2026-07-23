@@ -297,6 +297,43 @@ TEST_F(RoCursorTest, GetBytes_Success) {
   }
 }
 
+TEST_F(RoCursorTest, EnterIndexedRepeatedField_ScalarElementPreservesType) {
+  protos::Patch patch;
+  patch.add_elements_to_delete(10);
+  patch.add_elements_to_delete(11);
+  auto proto = patch.SerializeAsString();
+
+  RoCursor cursor(AsConstBytes(proto));
+  ASSERT_TRUE(
+      cursor
+          .EnterRepeatedFieldAt(protos::Patch::kElementsToDeleteFieldNumber, 1)
+          .IsOk());
+  ASSERT_TRUE(cursor.IsScalar());
+  ASSERT_EQ(cursor.GetScalar().value(), Scalar::VarInt(11));
+}
+
+TEST_F(RoCursorTest, EnterField_MalformedDataAborts) {
+  // Field 1, length-delimited, declared payload length 5, but only 2 bytes
+  // follow. Malformed data must be distinguishable from "field not present".
+  const std::string malformed{"\x0a\x05\x01\x02", 4};
+  RoCursor cursor(AsConstBytes(malformed));
+  ASSERT_TRUE(cursor.EnterField(2).IsAbort());
+}
+
+TEST_F(RoCursorTest, EnterIndexedRepeatedField_MalformedDataAborts) {
+  const std::string malformed{"\x0a\x05\x01\x02", 4};
+  RoCursor cursor(AsConstBytes(malformed));
+  ASSERT_TRUE(cursor.EnterRepeatedFieldAt(2, 0).IsAbort());
+}
+
+TEST_F(RoCursorTest, IterateRepeatedField_MalformedDataAborts) {
+  // One valid submessage for field 1, then a truncated varint field. The
+  // malformed tail must not silently terminate the iteration.
+  const std::string malformed{"\x0a\x02\x08\x01\x08", 5};
+  RoCursor cursor(AsConstBytes(malformed));
+  ASSERT_TRUE(cursor.IterateRepeatedField(1).IsAbort());
+}
+
 }  // namespace test
 }  // namespace protovm
 }  // namespace perfetto

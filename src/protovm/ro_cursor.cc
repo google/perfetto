@@ -76,6 +76,14 @@ StatusOr<void> RoCursor::EnterField(uint32_t field_id) {
     }
   }
 
+  // The decoder stops both at the end of the message and at the first
+  // malformed field. Bytes left means malformed (untrusted) data, which must
+  // not be silently treated as "field not present".
+  if (decoder.bytes_left() > 0) {
+    PROTOVM_ABORT("Malformed proto data (%zu undecodable bytes)",
+                  decoder.bytes_left());
+  }
+
   return StatusOr<void>::Error();
 }
 
@@ -95,11 +103,18 @@ StatusOr<void> RoCursor::EnterRepeatedFieldAt(uint32_t field_id,
     }
 
     if (current_index == index) {
-      data_ = field.as_bytes();
+      // Store the field (not its payload bytes) to preserve the wire type:
+      // the element could be a scalar, not just a submessage.
+      data_ = field;
       return StatusOr<void>::Ok();
     }
 
     ++current_index;
+  }
+
+  if (decoder.bytes_left() > 0) {
+    PROTOVM_ABORT("Malformed proto data (%zu undecodable bytes)",
+                  decoder.bytes_left());
   }
 
   return StatusOr<void>::Error();
@@ -110,6 +125,18 @@ StatusOr<RoCursor::RepeatedFieldIterator> RoCursor::IterateRepeatedField(
   auto status_or_data = GetLengthDelimitedData();
   PROTOVM_RETURN_IF_NOT_OK(status_or_data);
   protozero::ProtoDecoder decoder(*status_or_data);
+
+  // Validate the whole message upfront: a malformed tail would otherwise
+  // silently terminate the iteration, making truncated (untrusted) data
+  // indistinguishable from a shorter valid message.
+  while (decoder.ReadField().valid()) {
+  }
+  if (decoder.bytes_left() > 0) {
+    PROTOVM_ABORT("Malformed proto data (%zu undecodable bytes)",
+                  decoder.bytes_left());
+  }
+  decoder.Reset();
+
   return RepeatedFieldIterator(decoder, field_id);
 }
 

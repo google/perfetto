@@ -17,6 +17,7 @@ import("perfetto.gni")
 perfetto_fuzzers_targets = [
   "gn:default_deps",
   "src/ipc:buffered_frame_deserializer_fuzzer",
+  "src/protovm:protovm_vm_fuzzer",
   "src/protozero:protozero_decoder_fuzzer",
   "src/protozero/filtering:protozero_bytecode_parser_fuzzer",
   "src/protozero/filtering:protozero_message_filter_fuzzer",

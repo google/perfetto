@@ -1298,7 +1298,7 @@ void TraceBufferV2::MaybeSetUpProtoVm(const std::string& data_source_name,
         program_bytes.size()};
 
     new_vm.instance = std::make_unique<protovm::Vm>(
-        program_bytes_view, new_vm.memory_limit_kb * 1024);
+        program_bytes_view, static_cast<size_t>(new_vm.memory_limit_kb) * 1024);
     if (!new_vm.instance) {
       PERFETTO_ELOG("Failed to allocate ProtoVM");
       return;

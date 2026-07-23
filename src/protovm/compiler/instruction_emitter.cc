@@ -77,6 +77,11 @@ base::StatusOr<InstructionEmitter::Scope> InstructionEmitter::Select(
   }
 
   for (const auto& field_name : relative_path) {
+    if (!*current_proto) {
+      return base::ErrStatus(
+          "Cannot resolve field '%s': the parent field is not a message",
+          std::string(field_name).c_str());
+    }
     ASSIGN_OR_RETURN(auto field, LookupProtoField(*current_proto, field_name));
     auto* path_component = select->add_relative_path();
     path_component->set_field_id(field.id);
@@ -106,14 +111,37 @@ base::StatusOr<InstructionEmitter::Scope> InstructionEmitter::SelectByKey(
   }
 
   for (const auto& field_name : dst_relative_path) {
+    if (!new_scope.dst_proto) {
+      return base::ErrStatus(
+          "Cannot resolve field '%s': the parent field is not a message",
+          std::string(field_name).c_str());
+    }
     ASSIGN_OR_RETURN(auto field,
                      LookupProtoField(new_scope.dst_proto, field_name));
     select->add_relative_path()->set_field_id(field.id);
     new_scope.dst_proto = field.proto;
   }
 
+  if (!new_scope.dst_proto) {
+    return base::ErrStatus(
+        "Cannot resolve key field '%s': the parent field is not a message",
+        std::string(key_field_name).c_str());
+  }
   ASSIGN_OR_RETURN(auto key_field,
                    LookupProtoField(new_scope.dst_proto, key_field_name));
+  // The VM matches keys by loading them into a numeric register, so anything
+  // else (messages, strings, repeated fields) can never match at runtime.
+  using FieldDescriptorProto = perfetto::protos::pbzero::FieldDescriptorProto;
+  bool is_numeric_scalar =
+      key_field.proto == nullptr &&
+      key_field.descriptor->type() != FieldDescriptorProto::TYPE_STRING &&
+      key_field.descriptor->type() != FieldDescriptorProto::TYPE_BYTES &&
+      key_field.descriptor->type() != FieldDescriptorProto::TYPE_GROUP;
+  if (!is_numeric_scalar || key_field.descriptor->is_repeated()) {
+    return base::ErrStatus(
+        "Key field '%s' must be a non-repeated numeric field",
+        std::string(key_field_name).c_str());
+  }
   auto* last_path_component = select->add_relative_path();
   last_path_component->set_map_key_field_id(key_field.id);
   last_path_component->set_register_to_match(register_id);
@@ -141,7 +169,8 @@ base::Status InstructionEmitter::Merge(
     const std::vector<std::string_view>& src_relative_path,
     const std::vector<std::string_view>& dst_relative_path,
     bool is_recursive,
-    AbortLevel abort_level) const {
+    AbortLevel abort_level,
+    int recursion_depth) const {
   ASSIGN_OR_RETURN(auto src, Select(scope, src_relative_path,
                                     Cursor::VM_CURSOR_SRC, false, abort_level));
   ASSIGN_OR_RETURN(auto dst,
@@ -150,8 +179,17 @@ base::Status InstructionEmitter::Merge(
 
   if (is_recursive) {
     const auto* proto = dst.src_proto;
-    PERFETTO_CHECK(dst.src_proto == dst.dst_proto);
-    PERFETTO_CHECK(proto);
+    if (!proto || dst.src_proto != dst.dst_proto) {
+      return base::ErrStatus(
+          "Recursive merge requires src and dst to be messages of the same "
+          "type");
+    }
+    if (recursion_depth >= kMaxRecursiveMergeDepth) {
+      return base::ErrStatus(
+          "Recursive merge exceeds the max nesting depth (%d): cyclic message "
+          "types are not supported",
+          kMaxRecursiveMergeDepth);
+    }
 
     for (const auto& [field_id, field_descriptor] : proto->fields()) {
       if (field_descriptor.type() !=
@@ -168,9 +206,9 @@ base::Status InstructionEmitter::Merge(
         // options to be included/skipped.
         continue;
       }
-      RETURN_IF_ERROR(Merge(dst, {field_descriptor.name()},
-                            {field_descriptor.name()}, true,
-                            AbortLevel::SKIP_CURRENT_INSTRUCTION));
+      RETURN_IF_ERROR(
+          Merge(dst, {field_descriptor.name()}, {field_descriptor.name()}, true,
+                AbortLevel::SKIP_CURRENT_INSTRUCTION, recursion_depth + 1));
     }
   }
 

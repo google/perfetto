@@ -55,6 +55,17 @@ perfetto_proto_library("test_messages_@TYPE@") {
   proto_path = perfetto_root_path
 }
 
+perfetto_fuzzer_test("protovm_vm_fuzzer") {
+  sources = [ "vm_fuzzer.cc" ]
+  deps = [
+    ":protovm",
+    "../../gn:default_deps",
+    "../../protos/perfetto/protovm:zero",
+    "../base",
+    "../protozero",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [

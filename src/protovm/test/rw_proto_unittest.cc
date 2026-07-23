@@ -1107,6 +1107,155 @@ TEST_F(RwProtoTest, AccessNonRootFieldAfterDeleteAborts) {
   ASSERT_TRUE(cursor.Delete().IsAbort());
 }
 
+TEST_F(RwProtoTest, Delete_RootReleasesMemory) {
+  Allocator allocator{10 * 1024 * 1024};
+  RwProto rw_proto{&allocator};
+
+  auto proto = SamplePackets::TraceEntryWithTwoElements().SerializeAsString();
+  {
+    auto cursor = rw_proto.GetRoot();
+    ASSERT_TRUE(cursor.SetBytes(AsConstBytes(proto)).IsOk());
+    // Force decomposition of the bytes blob into a node tree
+    ASSERT_TRUE(
+        cursor.EnterRepeatedFieldAt(protos::TraceEntry::kElementsFieldNumber, 0)
+            .IsOk());
+  }
+  ASSERT_GT(allocator.GetMemoryUsageBytes(), 0u);
+
+  ASSERT_TRUE(rw_proto.GetRoot().Delete().IsOk());
+  ASSERT_EQ(allocator.GetMemoryUsageBytes(), 0u);
+}
+
+TEST_F(RwProtoTest, Merge_OutOfMemoryIsReported) {
+  // Merge data with the same field id twice (repeated field promotion), so
+  // that the merge internally appends into an IndexedRepeatedField.
+  protozero::HeapBuffered<protozero::Message> merge_data;
+  merge_data->AppendBytes(/*field_id=*/5, "ab", 2);
+  merge_data->AppendBytes(/*field_id=*/5, "cd", 2);
+  auto merge_data_bytes = merge_data.SerializeAsString();
+
+  // Measure the exact memory footprint of a successful merge.
+  size_t full_usage_bytes = 0;
+  {
+    Allocator allocator{10 * 1024 * 1024};
+    RwProto rw_proto{&allocator};
+    ASSERT_TRUE(
+        rw_proto.GetRoot()
+            .Merge(AsConstBytes(merge_data_bytes), RwProto::Cursor::kNone)
+            .IsOk());
+    full_usage_bytes = allocator.GetMemoryUsageBytes();
+  }
+
+  // With a memory limit just below that, the last allocation performed by the
+  // merge (the map insertion of the second repeated element) fails. The error
+  // must be reported, not swallowed.
+  Allocator allocator{full_usage_bytes - 1};
+  RwProto rw_proto{&allocator};
+  ASSERT_FALSE(
+      rw_proto.GetRoot()
+          .Merge(AsConstBytes(merge_data_bytes), RwProto::Cursor::kNone)
+          .IsOk());
+}
+
+TEST_F(RwProtoTest, Merge_IntoMappedRepeatedFieldAbortsAndReleasesMemory) {
+  Allocator allocator{10 * 1024 * 1024};
+  RwProto rw_proto{&allocator};
+
+  // Make field 1 a mapped repeated field.
+  {
+    auto cursor = rw_proto.GetRoot();
+    ASSERT_TRUE(cursor.EnterRepeatedFieldByKey(1, 1, 5).IsOk());
+    ASSERT_TRUE(cursor.SetScalar(Scalar::VarInt(5)).IsOk());
+  }
+
+  // Merging data that contains field 1 is not supported and must abort
+  // without leaking the already-created node.
+  protozero::HeapBuffered<protozero::Message> merge_data;
+  merge_data->AppendBytes(/*field_id=*/1, "xx", 2);
+  auto merge_data_bytes = merge_data.SerializeAsString();
+  ASSERT_TRUE(rw_proto.GetRoot()
+                  .Merge(AsConstBytes(merge_data_bytes), RwProto::Cursor::kNone)
+                  .IsAbort());
+
+  ASSERT_TRUE(rw_proto.GetRoot().Delete().IsOk());
+  ASSERT_EQ(allocator.GetMemoryUsageBytes(), 0u);
+}
+
+TEST_F(RwProtoTest, EnterMappedRepeatedField_DuplicateKeysAbort) {
+  Allocator allocator{10 * 1024 * 1024};
+  RwProto rw_proto{&allocator};
+
+  // Two elements with the same id: the by-key lookup cannot form a valid map
+  // and must abort. Silently dropping one of the elements would corrupt the
+  // state.
+  protos::TraceEntry entry;
+  auto* element0 = entry.add_elements();
+  element0->set_id(7);
+  element0->set_value(10);
+  auto* element1 = entry.add_elements();
+  element1->set_id(7);
+  element1->set_value(11);
+  auto proto = entry.SerializeAsString();
+
+  auto cursor = rw_proto.GetRoot();
+  ASSERT_TRUE(cursor.SetBytes(AsConstBytes(proto)).IsOk());
+  ASSERT_TRUE(
+      cursor
+          .EnterRepeatedFieldByKey(protos::TraceEntry::kElementsFieldNumber,
+                                   protos::Element::kIdFieldNumber, 7)
+          .IsAbort());
+
+  ASSERT_TRUE(rw_proto.GetRoot().Delete().IsOk());
+  ASSERT_EQ(allocator.GetMemoryUsageBytes(), 0u);
+}
+
+TEST_F(RwProtoTest, EnterMappedRepeatedField_MissingKeyReleasesMemory) {
+  Allocator allocator{10 * 1024 * 1024};
+  RwProto rw_proto{&allocator};
+
+  // Second element has no id field: the conversion to a mapped repeated field
+  // fails while some elements have already been migrated. No memory must be
+  // leaked in the process.
+  protos::TraceEntry entry;
+  auto* element0 = entry.add_elements();
+  element0->set_id(7);
+  element0->set_value(10);
+  auto* element1 = entry.add_elements();
+  element1->set_value(11);
+  auto proto = entry.SerializeAsString();
+
+  auto cursor = rw_proto.GetRoot();
+  ASSERT_TRUE(cursor.SetBytes(AsConstBytes(proto)).IsOk());
+  ASSERT_FALSE(
+      cursor
+          .EnterRepeatedFieldByKey(protos::TraceEntry::kElementsFieldNumber,
+                                   protos::Element::kIdFieldNumber, 7)
+          .IsOk());
+
+  ASSERT_TRUE(rw_proto.GetRoot().Delete().IsOk());
+  ASSERT_EQ(allocator.GetMemoryUsageBytes(), 0u);
+}
+
+TEST_F(RwProtoTest, EnterField_MalformedBytesAborts) {
+  // Field 1, length-delimited, declared payload length 5, but only 2 bytes
+  // follow.
+  const std::string malformed{"\x0a\x05\x01\x02", 4};
+
+  auto cursor = data_empty_.GetRoot();
+  ASSERT_TRUE(cursor.SetBytes(AsConstBytes(malformed)).IsOk());
+  ASSERT_TRUE(cursor.EnterField(2).IsAbort());
+}
+
+TEST_F(RwProtoTest, Merge_MalformedBytesAborts) {
+  // One valid field followed by a truncated length-delimited field. The
+  // malformed tail must not be silently ignored (partial merge).
+  const std::string malformed{"\x08\x01\x0a\x05\x01", 5};
+
+  auto cursor = data_empty_.GetRoot();
+  ASSERT_TRUE(
+      cursor.Merge(AsConstBytes(malformed), RwProto::Cursor::kNone).IsAbort());
+}
+
 }  // namespace test
 }  // namespace protovm
 }  // namespace perfetto

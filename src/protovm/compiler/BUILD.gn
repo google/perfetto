@@ -78,6 +78,8 @@ perfetto_unittest_source_set("unittests") {
     ":gen_cc_vm_program_descriptor",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../protos/perfetto/common:zero",
+    "../../protozero",
     "../../protozero/text_to_proto",
     "../../trace_processor/util:descriptors",
     "../../trace_processor/util:protozero_to_text",

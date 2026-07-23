@@ -49,9 +49,15 @@ class Parser {
       protozero::RepeatedFieldIterator<protozero::ConstBytes>
           it_path_component);
 
+  // Generous bound for the mutual recursion of ParseInstruction(s) and
+  // ParseSelectRec, whose depth is controlled by the (producer-supplied)
+  // program. Real programs are a handful of levels deep.
+  static constexpr int kMaxRecursionDepth = 128;
+
   protos::pbzero::VmProgram::Decoder program_;
   Cursors cursors_;
   Executor* executor_;
+  int recursion_depth_ = 0;
 };
 
 }  // namespace protovm
