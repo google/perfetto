@@ -25,11 +25,7 @@ source_set("tree_functions") {
   sources = [
     "tree_conversion.cc",
     "tree_conversion.h",
-    "tree_filter.cc",
-    "tree_filter.h",
     "tree_functions.h",
-    "tree_propagate.cc",
-    "tree_propagate.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -41,10 +37,10 @@ source_set("tree_functions") {
     "../../core/dataframe",
     "../../core/plugin",
     "../../core/tree",
+    "../../core/util",
     "../../perfetto_sql/engine",
     "../../sqlite",
     "../../storage",
     "../../types",
-    "../../util:owned_sql_value",
   ]
 }
