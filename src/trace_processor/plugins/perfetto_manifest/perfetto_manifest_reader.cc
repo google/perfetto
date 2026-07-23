@@ -151,6 +151,43 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
   return result;
 }
 
+// Parses a file's internal `__exported_table_schema` block. Only the JSON
+// shape is checked here; the trace_export plugin owns its version and schema
+// semantics.
+base::StatusOr<TraceManifestState::PerfettoExportTable>
+ParsePerfettoExportTable(const json::Dom& table) {
+  if (!table.IsObject() || !table["format"].IsIntegral() ||
+      !table["name"].IsString() || !table["row_count"].IsIntegral() ||
+      !table["columns"].IsArray()) {
+    return base::ErrStatus(
+        "perfetto_manifest: __exported_table_schema needs an integer format, "
+        "a string name, an integer row_count and a columns array");
+  }
+  TraceManifestState::PerfettoExportTable result;
+  result.format = table["format"].AsInt64();
+  result.name = table["name"].AsString();
+  int64_t row_count = table["row_count"].AsInt64();
+  if (row_count < 0 || row_count > std::numeric_limits<uint32_t>::max()) {
+    return base::ErrStatus("perfetto_manifest: table '%s': invalid row_count",
+                           result.name.c_str());
+  }
+  result.row_count = static_cast<uint32_t>(row_count);
+  for (const json::Dom& col : table["columns"]) {
+    if (!col.IsObject() || !col["name"].IsString() || !col["type"].IsString() ||
+        !col["nullability"].IsString() || !col["sort"].IsString() ||
+        !col["duplicates"].IsString()) {
+      return base::ErrStatus(
+          "perfetto_manifest: table '%s': malformed column entry",
+          result.name.c_str());
+    }
+    result.columns.push_back({col["name"].AsString(), col["type"].AsString(),
+                              col["nullability"].AsString(),
+                              col["sort"].AsString(),
+                              col["duplicates"].AsString()});
+  }
+  return std::move(result);
+}
+
 using Attribute = std::pair<std::string, std::variant<int64_t, std::string>>;
 
 base::StatusOr<std::vector<Attribute>> ParseAttributes(
@@ -204,6 +241,19 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
   }
   FileEntry entry;
   entry.path = file["path"].AsString();
+  if (file.HasMember("__exported_table_schema")) {
+    if (file.HasMember("clocks") || file.HasMember("machine") ||
+        file.HasMember("machines")) {
+      return base::ErrStatus(
+          "perfetto_manifest: '%s': an exported table is not a trace, so "
+          "__exported_table_schema cannot be combined with "
+          "clocks/machine/machines",
+          entry.path.c_str());
+    }
+    ASSIGN_OR_RETURN(entry.exported_table_schema,
+                     ParsePerfettoExportTable(file["__exported_table_schema"]));
+    return std::move(entry);
+  }
   if (file.HasMember("clocks")) {
     if (!file["clocks"].IsObject()) {
       return base::ErrStatus("perfetto_manifest: clocks must be an object");
@@ -363,6 +413,32 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
     ASSIGN_OR_RETURN(std::vector<Attribute> attrs,
                      ParseAttributes(meta["attributes"]));
     ApplyAttributes(context_, attrs);
+  }
+
+  // Every member declared as a serialized table must be present: a missing
+  // one would otherwise silently yield an empty table. All archive members
+  // are added to the trace_file table before any is parsed, so this can be
+  // caught here, before any table is deserialized.
+  for (const FileEntry& entry : state->files) {
+    if (!entry.exported_table_schema) {
+      continue;
+    }
+    StringId name =
+        context_->storage->InternString(base::StringView(entry.path));
+    bool found = false;
+    for (auto it = context_->storage->trace_file_table().IterateRows(); it;
+         ++it) {
+      if (it.name() && *it.name() == name) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return base::ErrStatus(
+          "perfetto_manifest: table member '%s' is declared but not present "
+          "in the archive",
+          entry.path.c_str());
+    }
   }
   return ApplyManifest();
 }

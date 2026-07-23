@@ -89,6 +89,7 @@ class RemoteTraceProcessor : public TraceProcessor {
                                  MetricResultFormat format,
                                  std::string* metrics_string) override;
   std::vector<uint8_t> GetMetricDescriptors() override;
+  base::Status Export(ExportFormat format, ExportOutput* output) override;
   base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
 
  private:

@@ -253,6 +253,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/table_pointer_module",
       "plugins/time_functions",
       "plugins/to_ftrace",
+      "plugins/trace_export",
       "plugins/tree_functions",
       "plugins/type_builder_functions",
       "plugins/utils_functions",

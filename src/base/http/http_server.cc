@@ -544,16 +544,16 @@ void HttpServerConnection::SendResponseHeaders(
              resp_hdr.size());  // Send response headers.
 }
 
-void HttpServerConnection::SendResponseBody(const void* data, size_t len) {
+bool HttpServerConnection::SendResponseBody(const void* data, size_t len) {
   PERFETTO_CHECK(!is_websocket_);
   if (data == nullptr) {
     PERFETTO_DCHECK(len == 0);
-    return;
+    return true;
   }
   content_len_actual_ += len;
   PERFETTO_CHECK(content_len_actual_ <= content_len_headers_ ||
                  content_len_headers_ == kOmitContentLength);
-  sock->Send(data, len);
+  return sock->Send(data, len);
 }
 
 void HttpServerConnection::Close() {

@@ -268,6 +268,47 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
 
   // =================================================================
+  // |          EXPERIMENTAL: Export functionality starts here       |
+  // =================================================================
+  //
+  // WARNING: This API is under active development and may change without
+  // notice. Do not depend on this interface in production code.
+
+  enum class ExportFormat {
+    // A Perfetto-internal archive that can be loaded as input by a fresh Trace
+    // Processor instance from the same version. Loading it in a different
+    // version may work but is not guaranteed.
+    kPerfetto,
+
+    // A tar archive containing one standard Arrow file per statically
+    // registered table. Its representation has cross-version compatibility
+    // guarantees and is intended for external consumers, which should ignore
+    // unrecognized members. It cannot be loaded back into Trace Processor; use
+    // kPerfetto for that.
+    kArrowTar,
+  };
+
+  class PERFETTO_EXPORT_COMPONENT ExportOutput {
+   public:
+    ExportOutput();
+    virtual ~ExportOutput();
+
+    // Receives consecutive output chunks synchronously. A non-ok return aborts
+    // the export and is returned from Export().
+    virtual base::Status Write(const void* data, size_t size) = 0;
+
+    // An optional alternative to Write(). A format which needs random-access
+    // output may create or overwrite this file directly, in which case Write()
+    // is not called. Streaming formats may ignore this alternative.
+    virtual std::optional<std::string> GetFilePath() const;
+  };
+
+  // EXPERIMENTAL: Exports the contents of Trace Processor without
+  // materializing the complete output in memory. The exact contents exported
+  // are defined by |format|.
+  virtual base::Status Export(ExportFormat format, ExportOutput* output) = 0;
+
+  // =================================================================
   // |  EXPERIMENTAL: Summarizer related functionality starts here   |
   // =================================================================
   //
