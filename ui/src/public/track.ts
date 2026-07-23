@@ -254,6 +254,7 @@ export interface TrackRenderer {
   getSliceVerticalBounds?(depth: number): VerticalBounds | undefined;
   getHeight?(): number;
   getTrackShellButtons?(): m.Children;
+  readonly collapsed?: boolean;
   onMouseMove?(event: TrackMouseEvent): void;
   onMouseClick?(event: TrackMouseEvent): boolean;
   onMouseOut?(): void;
