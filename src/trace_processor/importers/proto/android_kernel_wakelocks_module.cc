@@ -25,6 +25,7 @@
 #include "src/kernel_utils/kernel_wakelock_errors.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/sparse_counter_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -55,15 +56,13 @@ AndroidKernelWakelocksModule::AndroidKernelWakelocksModule(
 
 AndroidKernelWakelocksModule::~AndroidKernelWakelocksModule() = default;
 
-void AndroidKernelWakelocksModule::ParseField(const ParseFieldArgs& args) {
+ModuleResult AndroidKernelWakelocksModule::TokenizePacket(
+    const TokenizePacketArgs& args) {
   if (args.field.id() != TracePacket::kKernelWakelockDataFieldNumber) {
-    return;
+    return ModuleResult::Ignored();
   }
 
-  std::unordered_set<std::string> names_with_value_this_packet;
-
-  auto* state =
-      args.data.sequence_state->GetCustomState<AndroidKernelWakelockState>();
+  auto* state = args.state->GetCustomState<AndroidKernelWakelockState>();
   protos::pbzero::KernelWakelockData::Decoder evt(
       args.field.Cast<TracePacket::kKernelWakelockData>());
   for (auto it = evt.wakelock(); it; ++it) {
@@ -93,14 +92,12 @@ void AndroidKernelWakelocksModule::ParseField(const ParseFieldArgs& args) {
     }
 
     const auto& name = data->name;
-    names_with_value_this_packet.insert(name);
 
     uint64_t delta = *time_it;
     auto [last_value, inserted] = state->wakelock_last_values.Insert(
         name, AndroidKernelWakelockState::LastValue{});
     last_value->value += delta;
     last_value->type = data->type;
-    UpdateCounter(args.ts, name, data->type, last_value->value);
   }
 
   uint64_t traced_errors = evt.error_flags();
@@ -117,14 +114,11 @@ void AndroidKernelWakelocksModule::ParseField(const ParseFieldArgs& args) {
         stats::kernel_wakelock_implausibly_large_value_reported);
   }
 
-  // Anything we knew about but didn't see in this packet must not have
-  // incremented.
   for (auto it = state->wakelock_last_values.GetIterator(); it; ++it) {
-    if (names_with_value_this_packet.count(it.key())) {
-      continue;
-    }
     UpdateCounter(args.ts, it.key(), it.value().type, it.value().value);
   }
+
+  return ModuleResult::Ignored();
 }
 
 void AndroidKernelWakelocksModule::UpdateCounter(
@@ -158,7 +152,7 @@ void AndroidKernelWakelocksModule::UpdateCounter(
       tracks::Dimensions(context_->storage->GetString(name_id),
                          context_->storage->GetString(type_id)),
       tracks::DynamicName(name_id));
-  context_->event_tracker->PushCounter(ts, 1e6 * double(value), track);
+  context_->sparse_counter_tracker->PushCounter(ts, track, 1e6 * double(value));
 }
 
 }  // namespace perfetto::trace_processor
