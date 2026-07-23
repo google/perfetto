@@ -124,6 +124,8 @@ std::optional<base::Status> MaybeParseSourceLocation(
   return base::OkStatus();
 }
 
+// TODO(sanathku): Remove this helper once legacy JobScheduler queries are
+// migrated to use the new stdlib table.
 std::optional<base::Status> MaybeParseAndroidJobName(
     StringId job_name_key,
     const protozero::Field& field,
@@ -293,6 +295,9 @@ TrackEventParser::TrackEventParser(
         return MaybeParseSourceLocation("chrome_memory_pressure_notification",
                                         field, delegate);
       });
+
+  // TODO(sanathku): Remove this override once legacy JobScheduler queries are
+  // migrated to use the new stdlib table.
   args_parser_.AddParsingOverrideForField(
       "job_scheduler_job.job_name_iid",
       [this](const protozero::Field& field,

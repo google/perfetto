@@ -28,6 +28,7 @@
 namespace perfetto::trace_processor {
 
 struct TrackEventExtensionParserContext;
+class PacketSequenceStateGeneration;
 
 // A single out-of-tree extension field (`extensions 1000 to 9999`) of a
 // TrackEvent, handed to plugins. The plugin decodes it with the generated field
@@ -56,13 +57,19 @@ class TrackEventExtensionParser {
   // Default to kIgnored so a plugin only overrides the kinds it handles.
   virtual Result OnTrackEventCounterExtension(
       const TrackEventExtensionField& field,
-      CounterId id);
+      CounterId id,
+      int64_t ts,
+      PacketSequenceStateGeneration* sequence_state);
   virtual Result OnTrackEventSliceExtension(
       const TrackEventExtensionField& field,
-      SliceId id);
+      SliceId id,
+      int64_t ts,
+      PacketSequenceStateGeneration* sequence_state);
   virtual Result OnTrackEventStateExtension(
       const TrackEventExtensionField& field,
-      StateId id);
+      StateId id,
+      int64_t ts,
+      PacketSequenceStateGeneration* sequence_state);
 
  protected:
   // Registers this plugin as the owner of |field_id| (CHECKs if already owned).

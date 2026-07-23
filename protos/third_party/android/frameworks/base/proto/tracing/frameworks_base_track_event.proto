@@ -119,6 +119,23 @@ message AndroidJobSchedulerJob {
   // JobService.onStopJob() was never called for the job.
   optional int32 public_stop_reason = 19;
   // Bitfield of boolean states of the job.
+  // Bits mapping:
+  // bit 0: has_charging_constraint
+  // bit 1: has_battery_not_low_constraint
+  // bit 2: has_storage_not_low_constraint
+  // bit 3: has_timing_delay_constraint
+  // bit 4: has_deadline_constraint
+  // bit 5: has_idle_constraint
+  // bit 6: has_connectivity_constraint
+  // bit 7: has_content_trigger_constraint
+  // bit 8: is_requested_expedited_job
+  // bit 9: is_running_as_expedited_job
+  // bit 10: is_prefetch
+  // bit 19: is_requested_as_user_initiated_job
+  // bit 20: is_running_as_user_initiated_job
+  // bit 21: is_periodic
+  // bit 22: has_flexibility_constraint
+  // bit 24: can_apply_transport_affinities
   optional int64 job_state_flags = 20;
   // Interned Job name.
   optional uint64 job_name_iid = 21;
