@@ -82,10 +82,10 @@ void ExpectTable(const core::dataframe::Dataframe& df,
 
 // Path -> (self, cumulative, sorted constituent names): everything a test
 // asserts on, independent of node and frame numbering.
-using TreeSummary =
-    std::map<std::string,
-             std::tuple<std::vector<double>, std::vector<double>,
-                        std::vector<std::string>>>;
+using TreeSummary = std::map<std::string,
+                             std::tuple<std::vector<double>,
+                                        std::vector<double>,
+                                        std::vector<std::string>>>;
 
 class FlamegraphTest : public ::testing::Test {
  protected:
@@ -98,8 +98,7 @@ class FlamegraphTest : public ::testing::Test {
       auto [it, inserted] = name_idx.insert(
           {fr.name, static_cast<uint32_t>(f.name_table.size())});
       if (inserted) {
-        f.name_table.push_back(
-            pool_.InternString(base::StringView(fr.name)));
+        f.name_table.push_back(pool_.InternString(base::StringView(fr.name)));
       }
       f.name.push_back(it->second);
       f.key.push_back(it->second);
@@ -127,9 +126,9 @@ class FlamegraphTest : public ::testing::Test {
     std::vector<std::string> path(tree.size());
     TreeSummary out;
     for (uint32_t i = 0; i < tree.size(); ++i) {
-      path[i] = (tree.parent[i] == kNoParent ? ""
-                                             : path[tree.parent[i]] + "/") +
-                NameOf(forest, tree.rep_frame[i]);
+      path[i] =
+          (tree.parent[i] == kNoParent ? "" : path[tree.parent[i]] + "/") +
+          NameOf(forest, tree.rep_frame[i]);
       std::vector<double> self(tree.self.data() + i * k,
                                tree.self.data() + (i + 1) * k);
       std::vector<double> cum(tree.cumulative.data() + i * k,
@@ -159,6 +158,8 @@ TEST_F(FlamegraphTest, TopDownMergesSiblingsByKey) {
   });
   Flamegraph fg = BuildOk(f, Config{});
   EXPECT_EQ(fg.up.size(), 0u);
+  ASSERT_EQ(fg.up.constituents_offset.size(), 1u);
+  EXPECT_EQ(fg.up.constituents_offset[0], 0u);
   TreeSummary s = Summarize(fg.down, f);
   ASSERT_EQ(s.size(), 3u);
   EXPECT_EQ(s["main"],
@@ -230,6 +231,8 @@ TEST_F(FlamegraphTest, BottomUp) {
   config.view = Config::View::kBottomUp;
   Flamegraph fg = BuildOk(f, config);
   EXPECT_EQ(fg.down.size(), 0u);
+  ASSERT_EQ(fg.down.constituents_offset.size(), 1u);
+  EXPECT_EQ(fg.down.constituents_offset[0], 0u);
   TreeSummary s = Summarize(fg.up, f);
   ASSERT_EQ(s.size(), 6u);
   EXPECT_EQ(std::get<1>(s["main"]), std::vector<double>{1});
@@ -422,6 +425,8 @@ TEST_F(FlamegraphTest, EmptyForest) {
   EXPECT_EQ(fg.up.size(), 0u);
   ASSERT_EQ(fg.down.constituents_offset.size(), 1u);
   EXPECT_EQ(fg.down.constituents_offset[0], 0u);
+  ASSERT_EQ(fg.up.constituents_offset.size(), 1u);
+  EXPECT_EQ(fg.up.constituents_offset[0], 0u);
 }
 
 TEST_F(FlamegraphTest, FiltersMatchExtraStrings) {
@@ -456,8 +461,7 @@ TEST_F(FlamegraphTest, ToDataframe) {
   auto df = ToDataframe(fg, f, &pool_);
   ASSERT_TRUE(df.ok());
   ExpectTable(
-      *df,
-      {"id", "parentId", "depth", "name", "selfValue", "cumulativeValue"},
+      *df, {"id", "parentId", "depth", "name", "selfValue", "cumulativeValue"},
       {
           {I(0), I(-1), I(1), S("main"), I(1), I(6)},
           {I(1), I(0), I(2), S("b"), I(5), I(5)},
@@ -477,8 +481,7 @@ TEST_F(FlamegraphTest, ToDataframeBottomUpAndDoubles) {
   auto df = ToDataframe(fg, f, &pool_);
   ASSERT_TRUE(df.ok());
   ExpectTable(
-      *df,
-      {"id", "parentId", "depth", "name", "selfValue", "cumulativeValue"},
+      *df, {"id", "parentId", "depth", "name", "selfValue", "cumulativeValue"},
       {
           {I(0), I(-1), I(-1), S("main"), D(1.5), D(1.5)},
           {I(1), I(-1), I(-1), S("a"), D(2), D(2)},

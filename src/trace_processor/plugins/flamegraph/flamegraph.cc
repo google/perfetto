@@ -129,7 +129,7 @@ base::StatusOr<Filters> CompileFilters(const Config& config) {
   f.show_stack_mask = (uint64_t(1) << f.show_stack.size()) - 1;
   f.show_from_mask = (uint64_t(1) << f.show_from.size()) - 1;
   f.impossible_bits = uint64_t(1) << f.show_stack.size();
-  return f;
+  return base::StatusOr<Filters>(std::move(f));
 }
 
 // Returns the frames in parents-before-children order, excluding frames
@@ -194,19 +194,20 @@ struct Trie {
   Trie(uint32_t metric_count, uint32_t expected_nodes)
       : k(metric_count),
         // 1.5x keeps the expected node count under the map's load limit.
-        map(NextPow2(expected_nodes + expected_nodes / 2)) {
+        map(NextPow2(uint64_t(expected_nodes) + expected_nodes / 2)) {
     parent.reserve(expected_nodes);
     rep_frame.reserve(expected_nodes);
     self.reserve(uint64_t(expected_nodes) * k);
     cumulative.reserve(uint64_t(expected_nodes) * k);
   }
 
-  static size_t NextPow2(uint32_t v) {
-    size_t p = 16;
+  static size_t NextPow2(uint64_t v) {
+    uint64_t p = 16;
     while (p < v) {
       p *= 2;
     }
-    return p;
+    PERFETTO_CHECK(p <= std::numeric_limits<size_t>::max());
+    return static_cast<size_t>(p);
   }
 
   uint32_t ChildOf(uint32_t node, uint32_t key, uint32_t frame) {
@@ -272,8 +273,7 @@ Tree PackTree(Trie trie, const FlexVector<uint64_t>& node_frame_pairs) {
     tree.parent = FlexVector<uint32_t>::CreateWithSize(packed);
     tree.rep_frame = FlexVector<uint32_t>::CreateWithSize(packed);
     tree.self = FlexVector<double>::CreateWithSize(uint64_t(packed) * k);
-    tree.cumulative =
-        FlexVector<double>::CreateWithSize(uint64_t(packed) * k);
+    tree.cumulative = FlexVector<double>::CreateWithSize(uint64_t(packed) * k);
     for (uint32_t i = 0; i < nodes; ++i) {
       if (!keep[i]) {
         continue;
@@ -287,8 +287,7 @@ Tree PackTree(Trie trie, const FlexVector<uint64_t>& node_frame_pairs) {
     }
   }
 
-  tree.constituents_offset =
-      FlexVector<uint32_t>::CreateFilled(packed + 1, 0);
+  tree.constituents_offset = FlexVector<uint32_t>::CreateFilled(packed + 1, 0);
   for (uint64_t pair : node_frame_pairs) {
     uint32_t node = remap[pair >> 32];
     if (node != kNoParent) {
@@ -326,12 +325,13 @@ class Builder {
         config_(config),
         pool_(pool),
         filters_(std::move(filters)),
-        n_(static_cast<uint32_t>(forest.size())),
-        k_(forest.metric_count),
+        frame_count_(static_cast<uint32_t>(forest.size())),
+        metric_count_(forest.metric_count),
         // Full top-down / bottom-up output has up to one node per frame;
         // pivot output is typically far smaller, so let that grow on
         // demand.
-        expected_nodes_(config.view == Config::View::kPivot ? 0 : n_) {}
+        expected_nodes_(config.view == Config::View::kPivot ? 0
+                                                            : frame_count_) {}
 
   Flamegraph Run() {
     EvaluateNameMasks();
@@ -339,8 +339,10 @@ class Builder {
     EvaluatePaths();
     SelectAnchors();
     Flamegraph result;
-    result.down.metric_count = k_;
-    result.up.metric_count = k_;
+    result.down.metric_count = metric_count_;
+    result.down.constituents_offset = FlexVector<uint32_t>::CreateFilled(1, 0);
+    result.up.metric_count = metric_count_;
+    result.up.constituents_offset = FlexVector<uint32_t>::CreateFilled(1, 0);
     if (config_.view != Config::View::kBottomUp) {
       result.down = BuildDown();
     }
@@ -369,12 +371,11 @@ class Builder {
   // Runs every filter regex against every distinct name once.
   void EvaluateNameMasks() {
     auto names = static_cast<uint32_t>(forest_.name_table.size());
-    masks_ = FlexVector<NameMasks>::CreateWithSize(names);
+    masks_ = FlexVector<NameMasks>::CreateFilled(names, {0, 0, true});
+    if (!filters_.any()) {
+      return;
+    }
     for (uint32_t t = 0; t < names; ++t) {
-      masks_[t] = {0, 0, true};
-      if (!filters_.any()) {
-        continue;
-      }
       NullTermStringView name = pool_.Get(forest_.name_table[t]);
       std::string_view view(name.data(), name.size());
       auto matches = [&](const base::Regex& re) {
@@ -387,8 +388,7 @@ class Builder {
         for (uint32_t s = forest_.match_offset[t];
              s < forest_.match_offset[t + 1]; ++s) {
           NullTermStringView extra = pool_.Get(forest_.match_strings[s]);
-          if (re.PartialMatch(std::string_view(extra.data(),
-                                               extra.size()))) {
+          if (re.PartialMatch(std::string_view(extra.data(), extra.size()))) {
             return true;
           }
         }
@@ -416,14 +416,15 @@ class Builder {
   // count), and its metrics with hidden frames' values folded into the
   // kept ancestor.
   void EvaluatePaths() {
-    kept_ = FlexVector<uint8_t>::CreateFilled(n_, 0);
-    counted_ = FlexVector<uint8_t>::CreateFilled(n_, 0);
-    ancestor_ = FlexVector<uint32_t>::CreateFilled(n_, kNoParent);
-    auto sb_path = FlexVector<uint64_t>::CreateWithSize(n_);
-    auto sf_path = FlexVector<uint64_t>::CreateWithSize(n_);
-    folded_ = FlexVector<double>::CreateWithSize(uint64_t(n_) * k_);
+    kept_ = FlexVector<uint8_t>::CreateFilled(frame_count_, 0);
+    counted_ = FlexVector<uint8_t>::CreateFilled(frame_count_, 0);
+    ancestor_ = FlexVector<uint32_t>::CreateFilled(frame_count_, kNoParent);
+    auto sb_path = FlexVector<uint64_t>::CreateWithSize(frame_count_);
+    auto sf_path = FlexVector<uint64_t>::CreateWithSize(frame_count_);
+    folded_ = FlexVector<double>::CreateWithSize(uint64_t(frame_count_) *
+                                                 metric_count_);
     memcpy(folded_.data(), forest_.metrics.data(),
-           uint64_t(n_) * k_ * sizeof(double));
+           uint64_t(frame_count_) * metric_count_ * sizeof(double));
     for (uint32_t i : order_) {
       uint32_t p = forest_.parent[i];
       bool has_parent = p != kNoParent;
@@ -436,7 +437,8 @@ class Builder {
           (has_parent ? sb_path[p] : 0) | (kept_[i] ? m.show_stack_bits : 0);
       counted_[i] = kept_[i] && sb_path[i] == filters_.show_stack_mask;
       if (!kept_[i] && ancestor_[i] != kNoParent) {
-        AddRow(&folded_[ancestor_[i] * k_], &forest_.metrics[i * k_], k_);
+        AddRow(&folded_[ancestor_[i] * metric_count_],
+               &forest_.metrics[i * metric_count_], metric_count_);
       }
     }
   }
@@ -445,7 +447,7 @@ class Builder {
   // the only place the views differ; every phase after this treats
   // anchors uniformly.
   void SelectAnchors() {
-    anchor_ = FlexVector<uint8_t>::CreateFilled(n_, 0);
+    anchor_ = FlexVector<uint8_t>::CreateFilled(frame_count_, 0);
     for (uint32_t i : order_) {
       switch (config_.view) {
         case Config::View::kTopDown:
@@ -469,8 +471,8 @@ class Builder {
   // merged roots; every other kept frame merges under its ancestor's
   // node.
   Tree BuildDown() {
-    Trie trie(k_, expected_nodes_);
-    auto trie_of = FlexVector<uint32_t>::CreateFilled(n_, kNoParent);
+    Trie trie(metric_count_, expected_nodes_);
+    auto trie_of = FlexVector<uint32_t>::CreateFilled(frame_count_, kNoParent);
     for (uint32_t i : order_) {
       if (!kept_[i]) {
         continue;
@@ -487,21 +489,23 @@ class Builder {
       trie_of[i] = node;
       // Self shows the merged frames' own values regardless of stack
       // filters; only cumulative is limited to counted stacks.
-      AddRow(&trie.self[node * k_], &folded_[i * k_], k_);
+      AddRow(&trie.self[node * metric_count_], &folded_[i * metric_count_],
+             metric_count_);
       if (counted_[i]) {
-        AddRow(&trie.cumulative[node * k_], &folded_[i * k_], k_);
+        AddRow(&trie.cumulative[node * metric_count_],
+               &folded_[i * metric_count_], metric_count_);
       }
     }
     // Cumulative: children were created after their parent, so one
     // reverse scan sums subtrees onto the counted bases.
     for (uint32_t i = static_cast<uint32_t>(trie.size()); i-- > 0;) {
       if (trie.parent[i] != kNoParent) {
-        AddRow(&trie.cumulative[trie.parent[i] * k_],
-               &trie.cumulative[i * k_], k_);
+        AddRow(&trie.cumulative[trie.parent[i] * metric_count_],
+               &trie.cumulative[i * metric_count_], metric_count_);
       }
     }
     FlexVector<uint64_t> pairs;
-    for (uint32_t i = 0; i < n_; ++i) {
+    for (uint32_t i = 0; i < frame_count_; ++i) {
       if (trie_of[i] != kNoParent) {
         pairs.push_back((uint64_t(trie_of[i]) << 32) | i);
       }
@@ -517,17 +521,20 @@ class Builder {
     // Unlike the downward half, the up tree is usually much smaller than
     // the input (distinct caller suffixes); growing on demand keeps the
     // map compact and cache-resident.
-    Trie trie(k_, 0);
+    Trie trie(metric_count_, 0);
     FlexVector<uint64_t> pairs;
     for (uint32_t i : order_) {
-      if (!anchor_[i] || !AnyNonZero(&weights[i * k_], k_)) {
+      if (!anchor_[i] ||
+          !AnyNonZero(&weights[i * metric_count_], metric_count_)) {
         continue;
       }
       uint32_t node = kNoParent;
       for (uint32_t f = i; f != kNoParent; f = ancestor_[f]) {
         node = trie.ChildOf(node, forest_.key[f], f);
-        AddRow(&trie.cumulative[node * k_], &weights[i * k_], k_);
-        AddRow(&trie.self[node * k_], &folded_[f * k_], k_);
+        AddRow(&trie.cumulative[node * metric_count_],
+               &weights[i * metric_count_], metric_count_);
+        AddRow(&trie.self[node * metric_count_], &folded_[f * metric_count_],
+               metric_count_);
         pairs.push_back((uint64_t(node) << 32) | f);
       }
     }
@@ -540,17 +547,20 @@ class Builder {
   // With bottom-up anchors, where every counted frame is an anchor, this
   // reduces to each frame's own values.
   FlexVector<double> AnchorWeights() {
-    auto weights = FlexVector<double>::CreateFilled(uint64_t(n_) * k_, 0);
+    auto weights = FlexVector<double>::CreateFilled(
+        uint64_t(frame_count_) * metric_count_, 0);
     for (uint32_t idx = static_cast<uint32_t>(order_.size()); idx-- > 0;) {
       uint32_t i = order_[idx];
       if (!kept_[i]) {
         continue;
       }
       if (counted_[i]) {
-        AddRow(&weights[i * k_], &folded_[i * k_], k_);
+        AddRow(&weights[i * metric_count_], &folded_[i * metric_count_],
+               metric_count_);
       }
       if (!anchor_[i] && ancestor_[i] != kNoParent) {
-        AddRow(&weights[ancestor_[i] * k_], &weights[i * k_], k_);
+        AddRow(&weights[ancestor_[i] * metric_count_],
+               &weights[i * metric_count_], metric_count_);
       }
     }
     return weights;
@@ -560,15 +570,15 @@ class Builder {
   const Config& config_;
   const StringPool& pool_;
   Filters filters_;
-  uint32_t n_;
-  uint32_t k_;
+  uint32_t frame_count_;
+  uint32_t metric_count_;
   uint32_t expected_nodes_;
 
   FlexVector<NameMasks> masks_;
-  FlexVector<uint32_t> order_;   // Topological, unreachable frames absent.
-  FlexVector<uint8_t> kept_;     // Survives hide-frame / show-from.
-  FlexVector<uint8_t> counted_;  // Kept and stack satisfies every filter.
-  FlexVector<uint8_t> anchor_;   // Roots the merged trees. SelectAnchors().
+  FlexVector<uint32_t> order_;     // Topological, unreachable frames absent.
+  FlexVector<uint8_t> kept_;       // Survives hide-frame / show-from.
+  FlexVector<uint8_t> counted_;    // Kept and stack satisfies every filter.
+  FlexVector<uint8_t> anchor_;     // Roots the merged trees. SelectAnchors().
   FlexVector<uint32_t> ancestor_;  // Nearest kept ancestor, or kNoParent.
   FlexVector<double> folded_;      // Metrics, hidden frames folded in.
 };
@@ -604,7 +614,7 @@ base::StatusOr<Flamegraph> Build(const Forest& forest,
     empty.down.constituents_offset = FlexVector<uint32_t>::CreateFilled(1, 0);
     empty.up.metric_count = k;
     empty.up.constituents_offset = FlexVector<uint32_t>::CreateFilled(1, 0);
-    return empty;
+    return base::StatusOr<Flamegraph>(std::move(empty));
   }
   return Builder(forest, config, pool, std::move(filters)).Run();
 }
@@ -641,12 +651,12 @@ base::StatusOr<core::dataframe::Dataframe> ToDataframe(
   for (const Tree* tree : {&flamegraph.down, &flamegraph.up}) {
     bool up = tree == &flamegraph.up;
     std::vector<int64_t> depth(tree->size());
-    for (uint32_t i = 0; i < tree->size(); ++i) {
+    for (uint32_t i = 0; ok && i < tree->size(); ++i) {
       bool root = tree->parent[i] == kNoParent;
       depth[i] = root ? 1 : depth[tree->parent[i]] + 1;
       ok = ok && builder.PushNonNull(0, base + i);
-      ok = ok && builder.PushNonNull(
-                     1, root ? int64_t(-1) : base + tree->parent[i]);
+      ok = ok &&
+           builder.PushNonNull(1, root ? int64_t(-1) : base + tree->parent[i]);
       ok = ok && builder.PushNonNull(2, up ? -depth[i] : depth[i]);
       ok = ok && builder.PushNonNull(
                      3, forest.name_table[forest.name[tree->rep_frame[i]]]);
@@ -654,10 +664,9 @@ base::StatusOr<core::dataframe::Dataframe> ToDataframe(
         double self = tree->self[i * k + m];
         double cumulative = tree->cumulative[i * k + m];
         if (integral[m]) {
-          ok = ok && builder.PushNonNull(4 + 2 * m,
-                                         static_cast<int64_t>(self));
-          ok = ok && builder.PushNonNull(5 + 2 * m,
-                                         static_cast<int64_t>(cumulative));
+          ok = ok && builder.PushNonNull(4 + 2 * m, static_cast<int64_t>(self));
+          ok = ok &&
+               builder.PushNonNull(5 + 2 * m, static_cast<int64_t>(cumulative));
         } else {
           ok = ok && builder.PushNonNull(4 + 2 * m, self);
           ok = ok && builder.PushNonNull(5 + 2 * m, cumulative);
@@ -669,10 +678,9 @@ base::StatusOr<core::dataframe::Dataframe> ToDataframe(
   if (!ok) {
     return builder.status();
   }
-  ASSIGN_OR_RETURN(core::dataframe::Dataframe df,
-                   std::move(builder).Build());
+  ASSIGN_OR_RETURN(core::dataframe::Dataframe df, std::move(builder).Build());
   df.Finalize();
-  return df;
+  return base::StatusOr<core::dataframe::Dataframe>(std::move(df));
 }
 
 }  // namespace perfetto::trace_processor::flamegraph

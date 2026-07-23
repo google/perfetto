@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PLUGINS_FLAMEGRAPH_FLAMEGRAPH_TREE_H_
-#define SRC_TRACE_PROCESSOR_PLUGINS_FLAMEGRAPH_FLAMEGRAPH_TREE_H_
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_FLAMEGRAPH_FLAMEGRAPH_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_FLAMEGRAPH_FLAMEGRAPH_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -114,10 +114,10 @@ struct Tree {
   // Metric sums, flattened like Forest::metrics: metric m of node n is
   // self[n * metric_count + m]. |self| sums the merged frames' own
   // values regardless of stack filters; |cumulative| sums the node's
-  // subtree counting only frames whose stack satisfies every filter. Going up (bottom-up /
-  // above-pivot), |cumulative| is instead the sum of the originating
-  // anchors' weights: the classic bottom-up "attributed to this caller
-  // chain" value.
+  // subtree counting only frames whose stack satisfies every filter. Going up
+  // (bottom-up / above-pivot), |cumulative| is instead the sum of the
+  // originating anchors' weights: the classic bottom-up "attributed to this
+  // caller chain" value.
   uint32_t metric_count = 1;
   core::FlexVector<double> self;
   core::FlexVector<double> cumulative;
@@ -161,4 +161,4 @@ base::StatusOr<core::dataframe::Dataframe> ToDataframe(
 
 }  // namespace perfetto::trace_processor::flamegraph
 
-#endif  // SRC_TRACE_PROCESSOR_PLUGINS_FLAMEGRAPH_FLAMEGRAPH_TREE_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_FLAMEGRAPH_FLAMEGRAPH_H_

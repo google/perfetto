@@ -160,8 +160,8 @@ class FlexVector {
       return;
     }
     uint64_t target = std::max(
-        new_capacity, static_cast<uint64_t>(static_cast<double>(capacity()) *
-                                            kGrowthFactor));
+        new_capacity,
+        static_cast<uint64_t>(static_cast<double>(capacity()) * kGrowthFactor));
     Slab<T> new_slab = Slab<T>::Alloc(base::AlignUp(target, kCapacityMultiple));
     if (size_ > 0) {
       memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));

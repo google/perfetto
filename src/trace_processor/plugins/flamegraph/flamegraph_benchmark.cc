@@ -61,18 +61,18 @@ BenchInput GenForest(StringPool* pool,
   Forest& forest = in.forest;
   forest.metric_count = metric_count;
   for (uint32_t t = 0; t < kNameCardinality; ++t) {
-    forest.name_table.push_back(pool->InternString(
-        base::StringView("frame_" + std::to_string(t))));
+    forest.name_table.push_back(
+        pool->InternString(base::StringView("frame_" + std::to_string(t))));
   }
   std::vector<StringPool::Id> mappings;
   for (uint32_t t = 0; t < kMappingCardinality && with_properties; ++t) {
-    mappings.push_back(pool->InternString(
-        base::StringView("mapping_" + std::to_string(t))));
+    mappings.push_back(
+        pool->InternString(base::StringView("mapping_" + std::to_string(t))));
   }
   std::vector<StringPool::Id> files;
   for (uint32_t t = 0; t < kSourceFileCardinality && with_properties; ++t) {
-    files.push_back(pool->InternString(
-        base::StringView("file_" + std::to_string(t))));
+    files.push_back(
+        pool->InternString(base::StringView("file_" + std::to_string(t))));
   }
   std::vector<uint32_t> stack;
   for (uint32_t i = 0; i < n; ++i) {
@@ -109,8 +109,8 @@ constexpr auto PropsRowSpec() {
   using core::dataframe::String;
   using core::dataframe::Unsorted;
   return core::dataframe::CreateTypedDataframeSpec(
-      {"id", "parentId", "depth", "name", "mapping", "sourceFile",
-       "selfValue", "cumulativeValue"},
+      {"id", "parentId", "depth", "name", "mapping", "sourceFile", "selfValue",
+       "cumulativeValue"},
       CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
       CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
       CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
