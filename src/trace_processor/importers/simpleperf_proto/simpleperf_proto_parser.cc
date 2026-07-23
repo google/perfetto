@@ -112,7 +112,10 @@ void SimpleperfProtoParser::Parse(int64_t ts,
       tables::ProfilerSampleTable::Row row;
       row.ts = ts;
       row.source = simpleperf_source_id_;
-      row.utid = utid;
+      tables::ProfilerTaskContextTable::Row task_context;
+      task_context.utid = utid;
+      row.task_context_id =
+          context_->profiler_sample_tracker->InternTaskContext(task_context);
       row.callsite_id = *callsite_id;
       context_->profiler_sample_tracker->AddSample(row);
     }

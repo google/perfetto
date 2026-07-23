@@ -266,7 +266,6 @@ perfetto_cc_library(
                ":protos_perfetto_trace_non_minimal_zero",
                ":protos_perfetto_trace_perfetto_zero",
                ":protos_perfetto_trace_power_zero",
-               ":protos_perfetto_trace_profiling_inline_callstack_cpp",
                ":protos_perfetto_trace_profiling_inline_callstack_zero",
                ":protos_perfetto_trace_profiling_zero",
                ":protos_perfetto_trace_ps_zero",
@@ -1163,7 +1162,6 @@ perfetto_cc_binary(
         ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
         ":protos_perfetto_trace_power_zero",
-        ":protos_perfetto_trace_profiling_inline_callstack_cpp",
         ":protos_perfetto_trace_profiling_inline_callstack_zero",
         ":protos_perfetto_trace_profiling_zero",
         ":protos_perfetto_trace_ps_zero",
@@ -1309,7 +1307,6 @@ perfetto_cc_library(
                ":protos_perfetto_trace_non_minimal_zero",
                ":protos_perfetto_trace_perfetto_zero",
                ":protos_perfetto_trace_power_zero",
-               ":protos_perfetto_trace_profiling_inline_callstack_cpp",
                ":protos_perfetto_trace_profiling_inline_callstack_zero",
                ":protos_perfetto_trace_profiling_zero",
                ":protos_perfetto_trace_ps_zero",
@@ -4099,6 +4096,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/gpu.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/memory.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/stack_samples.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/state.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/tracks.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/views.sql",
@@ -7235,7 +7233,6 @@ perfetto_proto_library(
     name = "chromium_proto",
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
-        ":protos_perfetto_trace_profiling_inline_callstack_protos",
         ":protos_perfetto_trace_track_event_protos",
         ":protos_third_party_chromium_protos",
     ],
@@ -9178,7 +9175,6 @@ perfetto_proto_library(
         PERFETTO_CONFIG.proto_library_visibility,
     ],
     deps = [
-        ":protos_perfetto_trace_profiling_inline_callstack_protos",
         ":protos_perfetto_trace_track_event_protos",
     ],
     exports = [
@@ -9191,7 +9187,6 @@ perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_gpu_gpu_track_event_zero",
     deps = [
         ":protos_perfetto_trace_gpu_gpu_track_event_protos",
-        ":protos_perfetto_trace_profiling_inline_callstack_zero",
         ":protos_perfetto_trace_track_event_zero",
     ],
 )
@@ -9558,14 +9553,6 @@ perfetto_cc_protozero_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/profiling:inline_callstack_cpp
-perfetto_cc_protocpp_library(
-    name = "protos_perfetto_trace_profiling_inline_callstack_cpp",
-    deps = [
-        ":protos_perfetto_trace_profiling_inline_callstack_protos",
-    ],
-)
-
 # GN target: //protos/perfetto/trace/profiling:inline_callstack_source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_profiling_inline_callstack_protos",
@@ -9808,7 +9795,6 @@ perfetto_cc_protozero_library(
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_trace_track_event_cpp",
     deps = [
-        ":protos_perfetto_trace_profiling_inline_callstack_cpp",
         ":protos_perfetto_trace_track_event_protos",
     ],
 )
@@ -9860,16 +9846,12 @@ perfetto_proto_library(
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
     ],
-    deps = [
-        ":protos_perfetto_trace_profiling_inline_callstack_protos",
-    ],
 )
 
 # GN target: //protos/perfetto/trace/track_event:zero
 perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_track_event_zero",
     deps = [
-        ":protos_perfetto_trace_profiling_inline_callstack_zero",
         ":protos_perfetto_trace_track_event_protos",
     ],
 )
@@ -10424,7 +10406,6 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_trace_field_options_protos",
-        ":protos_perfetto_trace_profiling_inline_callstack_protos",
         ":protos_perfetto_trace_track_event_protos",
     ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
     exports = [
@@ -10438,7 +10419,6 @@ perfetto_cc_protozero_library(
     name = "protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero",
     deps = [
         ":protos_perfetto_trace_field_options_zero",
-        ":protos_perfetto_trace_profiling_inline_callstack_zero",
         ":protos_perfetto_trace_track_event_zero",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
     ],
@@ -10667,7 +10647,6 @@ perfetto_proto_library(
         PERFETTO_CONFIG.proto_library_visibility,
     ],
     deps = [
-        ":protos_perfetto_trace_profiling_inline_callstack_protos",
         ":protos_perfetto_trace_track_event_protos",
     ],
     exports = [
@@ -11067,7 +11046,6 @@ perfetto_proto_library(
         PERFETTO_CONFIG.proto_library_visibility,
     ],
     deps = [
-        ":protos_perfetto_trace_profiling_inline_callstack_protos",
         ":protos_perfetto_trace_track_event_protos",
     ],
     exports = [
@@ -11079,7 +11057,6 @@ perfetto_proto_library(
 perfetto_cc_protozero_library(
     name = "protos_third_party_chromium_zero",
     deps = [
-        ":protos_perfetto_trace_profiling_inline_callstack_zero",
         ":protos_perfetto_trace_track_event_zero",
         ":protos_third_party_chromium_protos",
     ],
@@ -11297,7 +11274,6 @@ perfetto_cc_library(
                ":protos_perfetto_trace_non_minimal_zero",
                ":protos_perfetto_trace_perfetto_zero",
                ":protos_perfetto_trace_power_zero",
-               ":protos_perfetto_trace_profiling_inline_callstack_cpp",
                ":protos_perfetto_trace_profiling_inline_callstack_zero",
                ":protos_perfetto_trace_profiling_zero",
                ":protos_perfetto_trace_ps_zero",
@@ -11410,7 +11386,6 @@ perfetto_cc_binary(
         ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
         ":protos_perfetto_trace_power_zero",
-        ":protos_perfetto_trace_profiling_inline_callstack_cpp",
         ":protos_perfetto_trace_profiling_inline_callstack_zero",
         ":protos_perfetto_trace_profiling_zero",
         ":protos_perfetto_trace_ps_zero",

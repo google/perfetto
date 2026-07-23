@@ -229,8 +229,11 @@ void ProfileModule::ParseStreamingProfileSample(
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
   row.source = chrome_source_id_;
-  row.utid = utid;
-  row.upid = upid;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
+  task_context.upid = upid;
+  row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
   row.callsite_id = *opt_cs_id;
   auto sample_id = context_->profiler_sample_tracker->AddSample(row);
   if (event.process_priority != 0) {
@@ -365,12 +368,22 @@ void ProfileModule::ParsePerfSample(
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
   row.source = linux_perf_source_id_;
-  row.utid = utid;
-  row.upid = upid;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
+  task_context.upid = upid;
+  row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
+  tables::ProfilerExecutionContextTable::Row execution_context;
   if (sample.has_cpu()) {
-    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(sample.cpu()).value;
+    execution_context.ucpu =
+        context_->cpu_tracker->GetOrCreateCpu(sample.cpu()).value;
   }
-  row.cpu_mode = cpu_mode_id;
+  execution_context.cpu_mode = cpu_mode_id;
+  if (execution_context.ucpu || execution_context.cpu_mode) {
+    row.execution_context_id =
+        context_->profiler_sample_tracker->InternExecutionContext(
+            execution_context);
+  }
   row.callsite_id = cs_id;
   row.unwind_error = unwind_error_id;
   row.session_id = sampling_stream.perf_session_id;

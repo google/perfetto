@@ -54,6 +54,7 @@ import {
 } from './stack_sample_sources';
 
 export const STACK_SAMPLE_TRACK_KIND = 'StackSampleTrack';
+const LINUX_PERF_SOURCE = 'linux.perf';
 
 const STACK_SAMPLES_PLUGIN_STATE_SCHEMA = z
   .object({
@@ -133,9 +134,9 @@ export function createStackSampleTrack(
   const source = sqlValueToSqliteString(config.source);
   const constraints = [`ss.source = ${source}`];
   if (config.utid !== undefined) {
-    constraints.push(`ss.utid = ${config.utid}`);
+    constraints.push(`tc.utid = ${config.utid}`);
   } else if (config.upid !== undefined) {
-    constraints.push(`coalesce(ss.upid, t.upid) = ${config.upid}`);
+    constraints.push(`coalesce(tc.upid, t.upid) = ${config.upid}`);
   }
   if (config.sessionId === null) {
     constraints.push('ss.session_id is null');
@@ -168,9 +169,10 @@ export function createStackSampleTrack(
             callsiteId: NUM,
           },
           src: `
-            select ss.id, ss.ts, ss.callsite_id as callsiteId, ss.upid, ss.utid
+            select ss.id, ss.ts, ss.callsite_id as callsiteId
             from stack_sample ss
-            left join thread t using (utid)
+            left join stack_sample_task_context tc on tc.id = ss.task_context_id
+            left join thread t on t.utid = tc.utid
             where ${trackConstraints}
             order by ss.ts
           `,
@@ -178,7 +180,8 @@ export function createStackSampleTrack(
         callsiteQuery: (ts) => `
           select ss.callsite_id
           from stack_sample ss
-          left join thread t using (utid)
+          left join stack_sample_task_context tc on tc.id = ss.task_context_id
+          left join thread t on t.utid = tc.utid
           where ss.ts = ${ts} and ${trackConstraints}
         `,
         sqlModule: 'callstacks.stack_profile',
@@ -241,9 +244,9 @@ function computeFlamegraphMetrics(
     }
     const parts = [`p.source = ${sqlValueToSqliteString(config.source)}`];
     if (tags.utid !== undefined) {
-      parts.push(`p.utid = ${tags.utid}`);
+      parts.push(`tc.utid = ${tags.utid}`);
     } else if (tags.upid !== undefined) {
-      parts.push(`coalesce(p.upid, t.upid) = ${tags.upid}`);
+      parts.push(`coalesce(tc.upid, t.upid) = ${tags.upid}`);
     } else {
       continue;
     }
@@ -297,11 +300,10 @@ function computeFlamegraphMetrics(
         from _callstacks_for_callsites_weighted!((
           select p.callsite_id, c.value as value
           from stack_sample p
-          left join thread t using (utid)
-          join __intrinsic_profiler_counter_set pcs
-            on p.counter_set_id = pcs.counter_set_id
-          join counter c on c.id = pcs.counter_id
-          join counter_track ct on c.track_id = ct.id
+          join stack_sample_counter c on c.stack_sample_id = p.id
+          join stack_sample_counter_track ct on c.track_id = ct.id
+          left join stack_sample_task_context tc on tc.id = p.task_context_id
+          left join thread t on t.utid = tc.utid
           where ${timeFilter}
             and ct.name = ${sqlValueToSqliteString(counterName)}
             and (${contextFilter})
@@ -325,7 +327,8 @@ function computeFlamegraphMetrics(
           from _callstacks_for_callsites!((
             select p.callsite_id
             from stack_sample p
-            left join thread t using (utid)
+            left join stack_sample_task_context tc on tc.id = p.task_context_id
+            left join thread t on t.utid = tc.utid
             where ${timeFilter} and (${contextFilter})
           ))
         )
@@ -347,6 +350,22 @@ function computeFlamegraphMetrics(
   return metrics;
 }
 
+function getProcessTrackUris(trace: Trace, source: string): string[] {
+  return trace.tracks
+    .getAllTracks()
+    .filter((track) => {
+      const tags = track.tags;
+      return (
+        tags?.kinds?.includes(STACK_SAMPLE_TRACK_KIND) === true &&
+        tags.stackSampleSource === source &&
+        tags.upid !== undefined &&
+        tags.utid === undefined &&
+        tags.stackSampleSummary !== true
+      );
+    })
+    .map((track) => track.uri);
+}
+
 export default class StackSamplesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.StackSamples';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
@@ -365,7 +384,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
     const result = await trace.engine.query(`
       select distinct source
       from stack_sample
-      where source is not null and source != 'linux.perf'
+      where source is not null
       order by source
     `);
     const configs: StackSampleSourceSchema[] = [];
@@ -396,6 +415,20 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
       );
     }
 
+    if (configs.some((config) => config.source === LINUX_PERF_SOURCE)) {
+      trace.commands.registerCommand({
+        id: 'dev.perfetto.SelectAllPerfSamples',
+        name: 'Select all perf samples',
+        callback: () => {
+          trace.selection.selectArea({
+            start: trace.traceInfo.start,
+            end: trace.traceInfo.end,
+            trackUris: getProcessTrackUris(trace, LINUX_PERF_SOURCE),
+          });
+        },
+      });
+    }
+
     if (configs.length > 0) {
       trace.onTraceReady.addListener(async () => {
         const preferredOrder = configs[0].order;
@@ -413,15 +446,16 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
   ): Promise<void> {
     const result = await trace.engine.query(`
       select distinct
-        ss.utid,
-        coalesce(ss.upid, t.upid) as upid,
+        tc.utid,
+        coalesce(tc.upid, t.upid) as upid,
         t.tid,
         t.name as threadName,
         ss.session_id as sessionId
       from stack_sample ss
-      left join thread t using (utid)
+      join stack_sample_task_context tc on tc.id = ss.task_context_id
+      left join thread t on t.utid = tc.utid
       where ss.source = ${sqlValueToSqliteString(config.source)}
-        and (ss.utid is not null or ss.upid is not null)
+        and (tc.utid is not null or tc.upid is not null)
       order by ss.session_id
     `);
 
@@ -595,21 +629,19 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
   }
 
   private async cacheCounterNames(trace: Trace): Promise<void> {
+    await trace.engine.query('include perfetto module viz.summary.counters;');
     const result = await trace.engine.query(`
       select
-        ss.source,
-        ss.session_id as sessionId,
+        s.source,
+        ct.session_id as sessionId,
         ct.name,
-        max(coalesce(extract_arg(ct.source_arg_set_id, 'is_timebase'), 0))
-          as isTimebase
-      from stack_sample ss
-      join __intrinsic_profiler_counter_set pcs
-        on ss.counter_set_id = pcs.counter_set_id
-      join counter c on c.id = pcs.counter_id
-      join counter_track ct on ct.id = c.track_id
-      where ss.source is not null and ct.name is not null
-      group by ss.source, ss.session_id, ct.name
-      order by ss.source, ss.session_id, isTimebase desc, ct.name
+        max(ct.is_timebase) as isTimebase
+      from stack_sample_counter_track ct
+      join stack_sample_session s on s.id = ct.session_id
+      join _counter_track_summary summary on summary.id = ct.id
+      where s.source is not null and ct.name is not null
+      group by s.source, ct.session_id, ct.name
+      order by s.source, ct.session_id, isTimebase desc, ct.name
     `);
     for (
       const it = result.iter({
@@ -641,9 +673,10 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
     configs: readonly StackSampleSourceSchema[],
   ): Promise<void> {
     const result = await trace.engine.query(`
-      select ss.source, ss.utid, coalesce(ss.upid, t.upid) as upid
+      select ss.source, tc.utid, coalesce(tc.upid, t.upid) as upid
       from stack_sample ss
-      left join thread t using (utid)
+      left join stack_sample_task_context tc on tc.id = ss.task_context_id
+      left join thread t on t.utid = tc.utid
       where ss.source in (${configs
         .map((config) => sqlValueToSqliteString(config.source))
         .join(', ')})

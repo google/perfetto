@@ -42,10 +42,13 @@ void PerfTextTraceParser::Parse(int64_t ts, PerfTextEvent evt) {
   UniqueTid utid =
       evt.pid ? context_->process_tracker->UpdateThread(evt.tid, *evt.pid)
               : context_->process_tracker->GetOrCreateThread(evt.tid);
-  row.utid = utid;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
   if (evt.pid) {
-    row.upid = context_->process_tracker->GetOrCreateProcess(*evt.pid);
+    task_context.upid = context_->process_tracker->GetOrCreateProcess(*evt.pid);
   }
+  row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
   if (evt.comm) {
     context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
         utid, *evt.comm, ThreadNamePriority::kOther);

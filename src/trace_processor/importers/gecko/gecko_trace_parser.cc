@@ -82,7 +82,10 @@ void GeckoTraceParser::ParseStackSample(int64_t ts,
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
   row.source = gecko_source_id_;
-  row.utid = context_->process_tracker->GetOrCreateThread(sample.tid);
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = context_->process_tracker->GetOrCreateThread(sample.tid);
+  row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
   row.callsite_id = sample.callsite_id;
   context_->profiler_sample_tracker->AddSample(row);
 }

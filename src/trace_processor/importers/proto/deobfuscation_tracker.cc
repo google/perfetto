@@ -481,12 +481,18 @@ void DeobfuscationTracker::GuessPackages(
 
   const auto& profiler_sample_table =
       context_->storage->profiler_sample_table();
+  const auto& task_context_table =
+      context_->storage->profiler_task_context_table();
   for (auto sample = profiler_sample_table.IterateRows(); sample; ++sample) {
-    if (!sample.upid().has_value() || !sample.callsite_id().has_value()) {
+    if (!sample.task_context_id() || !sample.callsite_id()) {
+      continue;
+    }
+    auto task_context = task_context_table[*sample.task_context_id()];
+    if (!task_context.upid()) {
       continue;
     }
     GuessPackageForCallsite(
-        java_frames_for_name, tables::ProcessTable::Id(*sample.upid()),
+        java_frames_for_name, tables::ProcessTable::Id(*task_context.upid()),
         *sample.callsite_id(), frames_needing_package_guess);
   }
 

@@ -195,15 +195,25 @@ base::Status RecordParser::InternSample(Sample sample) {
   tables::ProfilerSampleTable::Row row;
   row.ts = sample.trace_ts;
   row.source = linux_perf_source_id_;
-  row.utid = utid;
-  row.upid = upid;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
+  task_context.upid = upid;
+  row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
+  tables::ProfilerExecutionContextTable::Row execution_context;
   if (sample.cpu.has_value()) {
-    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*sample.cpu).value;
+    execution_context.ucpu =
+        context_->cpu_tracker->GetOrCreateCpu(*sample.cpu).value;
   }
   if (sample.cpu_mode !=
       protos::pbzero::perfetto_pbzero_enum_Profiling::MODE_UNKNOWN) {
-    row.cpu_mode = context_->storage->InternString(
+    execution_context.cpu_mode = context_->storage->InternString(
         ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode));
+  }
+  if (execution_context.ucpu || execution_context.cpu_mode) {
+    row.execution_context_id =
+        context_->profiler_sample_tracker->InternExecutionContext(
+            execution_context);
   }
   row.callsite_id = callsite_id;
   row.session_id = sample.attr->perf_session_id();
