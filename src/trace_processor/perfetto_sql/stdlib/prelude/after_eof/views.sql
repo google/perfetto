@@ -270,26 +270,8 @@ SELECT
   END AS display_value
 FROM __intrinsic_args;
 
--- Profiler sessions: one row per data source instance of a sampling profiler
--- (a linux perf session, a StackSample packet stream, ...).
-CREATE PERFETTO VIEW profiler_session(
-  -- The id of the profiler session.
-  id ID,
-  -- The profiler that produced this session's samples (e.g. "linux.perf").
-  -- Matches profiler_sample.source.
-  source STRING,
-  -- Unit of the quantity the profiler sampled on: the session's primary
-  -- (timebase) counter (e.g. "ns", "cycles", "instructions", "count").
-  -- NULL if unknown.
-  timebase_unit STRING,
-  -- Command line used to collect the data, if known.
-  cmdline STRING
-)
-AS
-SELECT id, source, timebase_unit, cmdline FROM __intrinsic_profiler_session;
-
--- Contains the Linux perf sessions in the trace. Compat view over
--- profiler_session, constrained to sessions of the linux perf profiler.
+-- Contains all Linux perf sessions in the trace, including sessions which
+-- only recorded counters and did not capture any callstacks.
 CREATE PERFETTO VIEW perf_session(
   -- The id of the perf session. Prefer using `perf_session_id` instead.
   id LONG,
@@ -631,9 +613,11 @@ SELECT
   ps.id,
   ps.ts,
   ps.callsite_id,
-  ps.utid,
+  tc.utid,
   coalesce(x.process_priority, 0) AS process_priority
 FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
 LEFT JOIN __intrinsic_chrome_stack_sample_extras AS x
   ON x.profiler_sample_id = ps.id
 WHERE
@@ -653,10 +637,14 @@ CREATE PERFETTO VIEW instruments_sample(
   cpu LONG
 )
 AS
-SELECT ps.id, ps.ts, ps.utid, ps.callsite_id, c.cpu
+SELECT ps.id, ps.ts, tc.utid, ps.callsite_id, c.cpu
 FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_profiler_execution_context AS ec
+  ON ec.id = ps.execution_context_id
 LEFT JOIN __intrinsic_cpu AS c
-  ON c.id = ps.ucpu
+  ON c.id = ec.ucpu
 WHERE
   ps.source = 'instruments';
 

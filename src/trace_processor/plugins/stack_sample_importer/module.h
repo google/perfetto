@@ -88,6 +88,10 @@ class StackSampleModule : public ProtoImporterModule {
       std::optional<UniquePid> upid,
       const protos::pbzero::StackSample::Decoder& sample);
 
+  std::optional<tables::ProfilerAsyncContextTable::Id> ResolveAsyncContext(
+      PacketSequenceStateGeneration* sequence_state,
+      uint64_t iid);
+
   TraceProcessorContext* const context_;
 
   // One profiler session per packet sequence emitting StackSample packets.

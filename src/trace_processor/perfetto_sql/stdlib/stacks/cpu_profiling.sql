@@ -49,19 +49,24 @@ AS
 SELECT
   ss.id,
   ss.ts,
-  ss.utid,
+  tc.utid,
   t.tid,
   t.name AS thread_name,
-  ss.ucpu,
+  ec.ucpu,
   c.cpu,
   ss.callsite_id,
   ss.source
 FROM stack_sample AS ss
-LEFT JOIN __intrinsic_profiler_session AS s
+LEFT JOIN stack_sample_task_context AS tc
+  ON tc.id = ss.task_context_id
+LEFT JOIN stack_sample_execution_context AS ec
+  ON ec.id = ss.execution_context_id
+LEFT JOIN stack_sample_session AS s
   ON s.id = ss.session_id
-LEFT JOIN thread AS t USING (utid)
+LEFT JOIN thread AS t
+  ON t.utid = tc.utid
 LEFT JOIN cpu AS c
-  ON c.id = ss.ucpu
+  ON c.id = ec.ucpu
 WHERE
   s.timebase_unit IS NULL
   OR s.timebase_unit IN ('ns', 'cycles', 'instructions')

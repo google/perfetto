@@ -99,9 +99,15 @@ packet {
   timestamp: 6000
   interned_data {
     stack_sample_async_context_descriptors {
+      iid: 6
+      name: "worker-pool"
+      kind: "fiber"
+    }
+    stack_sample_async_context_descriptors {
       iid: 7
       name: "worker-1"
       kind: "fiber"
+      parent_iid: 6
     }
   }
   stack_sample {

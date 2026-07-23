@@ -594,6 +594,30 @@ class TraceStorage {
     return mutable_table<tables::ChromeStackSampleExtrasTable>();
   }
 
+  const tables::ProfilerAsyncContextTable& profiler_async_context_table()
+      const {
+    return table<tables::ProfilerAsyncContextTable>();
+  }
+  tables::ProfilerAsyncContextTable* mutable_profiler_async_context_table() {
+    return mutable_table<tables::ProfilerAsyncContextTable>();
+  }
+
+  const tables::ProfilerTaskContextTable& profiler_task_context_table() const {
+    return table<tables::ProfilerTaskContextTable>();
+  }
+  tables::ProfilerTaskContextTable* mutable_profiler_task_context_table() {
+    return mutable_table<tables::ProfilerTaskContextTable>();
+  }
+
+  const tables::ProfilerExecutionContextTable&
+  profiler_execution_context_table() const {
+    return table<tables::ProfilerExecutionContextTable>();
+  }
+  tables::ProfilerExecutionContextTable*
+  mutable_profiler_execution_context_table() {
+    return mutable_table<tables::ProfilerExecutionContextTable>();
+  }
+
   const tables::ProfilerSessionTable& profiler_session_table() const {
     return table<tables::ProfilerSessionTable>();
   }
