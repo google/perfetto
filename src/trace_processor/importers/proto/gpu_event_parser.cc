@@ -1029,13 +1029,35 @@ void GpuEventParser::ParseGpuUserAnnotation(
   }
 
   auto ugpu = context_->gpu_tracker->GetOrCreateGpu(gpu_id);
-  TrackId track_id = context_->track_compressor->InternScoped(
-      kUserAnnotationBlueprint, tracks::Dimensions(ugpu.value, gpu_id, upid),
-      ts, static_cast<int64_t>(event.duration()), tracks::DynamicName(name_id),
-      [](ArgsTracker::BoundInserter&) {});
+  std::optional<TrackId> track_id;
+  if (event.has_hw_queue_iid()) {
+    // With a hardware queue, place the annotation on that queue's render stage
+    // track, next to the events on the queue.
+    auto* spec = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kGpuSpecificationsFieldNumber,
+        protos::pbzero::InternedGpuRenderStageSpecification>(
+        event.hw_queue_iid());
+    if (spec) {
+      StringId hwqueue_name = context_->storage->InternString(spec->name());
+      track_id = context_->track_compressor->InternScoped(
+          kRenderStageBlueprint,
+          tracks::Dimensions(ugpu.value, gpu_id, base::StringView("iid"),
+                             static_cast<uint32_t>(event.hw_queue_iid()),
+                             hwqueue_name),
+          ts, static_cast<int64_t>(event.duration()),
+          tracks::DynamicName(hwqueue_name),
+          [](ArgsTracker::BoundInserter&) {});
+    }
+  }
+  if (!track_id) {
+    track_id = context_->track_compressor->InternScoped(
+        kUserAnnotationBlueprint, tracks::Dimensions(ugpu.value, gpu_id, upid),
+        ts, static_cast<int64_t>(event.duration()),
+        tracks::DynamicName(name_id), [](ArgsTracker::BoundInserter&) {});
+  }
 
   auto opt_slice_id = context_->slice_tracker->Scoped(
-      ts, track_id, kNullStringId, name_id,
+      ts, *track_id, kNullStringId, name_id,
       static_cast<int64_t>(event.duration()),
       [&](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(context_id_id_,

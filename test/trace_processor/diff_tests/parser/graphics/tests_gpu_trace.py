@@ -416,6 +416,61 @@ class GraphicsGpuTrace(TestSuite):
         "HostSubmit","annotation1"
         """))
 
+  def test_gpu_user_annotation_hw_queue(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 0
+          incremental_state_cleared: true
+          trusted_packet_sequence_id: 1
+          interned_data {
+            graphics_contexts { iid: 1 pid: 100 api: CUDA }
+            gpu_specifications { iid: 1 name: "queue0" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          gpu_render_stage_event {
+            event_id: 1
+            duration: 100
+            hw_queue_iid: 1
+            gpu_id: 0
+            context: 1
+            name: "kernelA"
+          }
+        }
+        packet {
+          timestamp: 1200
+          trusted_packet_sequence_id: 1
+          gpu_user_annotation_event {
+            name: "annotation1"
+            duration: 800
+            hw_queue_iid: 1
+            gpu_id: 0
+            context: 1
+            args { name: "device" int_value: 0 }
+            args { name: "stream" uint_value: 7 }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          COUNT(DISTINCT s.track_id) AS distinct_tracks,
+          SUM(t.type = 'gpu_render_stage') AS render_stage_slices,
+          MAX(CASE
+                WHEN s.name = 'annotation1'
+                THEN extract_arg(s.arg_set_id, 'stream')
+              END) AS annotation_stream
+        FROM gpu_slice s
+        JOIN track t ON t.id = s.track_id
+        WHERE s.name IN ('kernelA', 'annotation1');
+        """,
+        out=Csv("""
+        "distinct_tracks","render_stage_slices","annotation_stream"
+        1,2,7
+        """))
+
   def test_vulkan_api_events(self):
     return DiffTestBlueprint(
         trace=Path('vulkan_api_events.py'),
