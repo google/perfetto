@@ -34,6 +34,30 @@ source_set("flamegraph") {
   ]
 }
 
+# The SQL intrinsics exposing the computation to PerfettoSQL.
+source_set("intrinsics") {
+  sources = [
+    "flamegraph_intrinsics.cc",
+    "flamegraph_intrinsics.h",
+  ]
+  deps = [
+    ":flamegraph",
+    "../../../../gn:default_deps",
+    "../../../../gn:sqlite",
+    "../../../base",
+    "../../../base/regex",
+    "../../containers",
+    "../../core/dataframe",
+    "../../core/plugin",
+    "../../core/util",
+    "../../perfetto_sql/engine",
+    "../../perfetto_sql/intrinsics/types",
+    "../../sqlite",
+    "../../storage",
+    "../../types",
+  ]
+}
+
 if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
