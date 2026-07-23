@@ -412,7 +412,7 @@ function flamegraphMetrics(
             select
               id,
               parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
+              ifnull(name, 'unknown') as name,
               root_type,
               heap_type,
               self_size as value,
@@ -454,7 +454,7 @@ function flamegraphMetrics(
             select
               id,
               parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
+              ifnull(name, 'unknown') as name,
               root_type,
               heap_type,
               self_size,
@@ -491,7 +491,7 @@ function flamegraphMetrics(
             select
               id,
               parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
+              ifnull(name, 'unknown') as name,
               root_type,
               heap_type,
               self_size as value,
@@ -533,7 +533,7 @@ function flamegraphMetrics(
             select
               id,
               parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
+              ifnull(name, 'unknown') as name,
               root_type,
               heap_type,
               self_size,

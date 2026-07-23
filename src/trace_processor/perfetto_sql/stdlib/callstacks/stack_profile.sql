@@ -82,7 +82,7 @@ SELECT
     'V8: ' || v8c.function_name,
     'JIT: ' || jc.function_name,
     demangle(coalesce(s.name, f.deobfuscated_name, f.name)),
-    coalesce(s.name, f.deobfuscated_name, f.name, '[Unknown]')
+    coalesce(s.name, f.deobfuscated_name, f.name, 'unknown')
   ) AS name,
   f.mapping AS mapping_id,
   s.source_file,
