@@ -206,7 +206,12 @@ FROM slice AS s
 JOIN track AS t
   ON s.track_id = t.id
 WHERE
-  t.type IN ('gpu_render_stage', 'vulkan_events', 'gpu_log');
+  t.type IN (
+    'gpu_render_stage',
+    'vulkan_events',
+    'gpu_log',
+    'gpu_user_annotation'
+  );
 
 -- This table contains information on the expected timeline of either a display
 -- frame or a surface frame.
