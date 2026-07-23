@@ -41,7 +41,7 @@ import {
 } from '../widgets/flamegraph';
 import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
-import {userFilterToRegex} from '../widgets/flamegraph_regex';
+import {parseUserFilterRegex} from '../widgets/flamegraph_regex';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
 import {Monitor} from '../base/monitor';
 
@@ -290,9 +290,6 @@ async function computeFlamegraphTree(
   const hideStack = filters
     .filter((x) => x.kind === 'HIDE_STACK')
     .map((x) => x.filter);
-  const showFromFrame = filters
-    .filter((x) => x.kind === 'SHOW_FROM_FRAME')
-    .map((x) => x.filter);
   const hideFrame = filters
     .filter((x) => x.kind === 'HIDE_FRAME')
     .map((x) => x.filter);
@@ -309,11 +306,15 @@ async function computeFlamegraphTree(
   const unaggCols = unagg.map((x) => x.name);
 
   const matchingColumns = ['name', ...unaggCols];
-  // Filters match literally by default; `/…/` opts into a raw regex.
-  const matchExpr = (x: string) =>
-    matchingColumns.map(
-      (c) => `(IFNULL(${c}, '') REGEXP ${sqliteString(userFilterToRegex(x))})`,
+  // Bare filters are case-insensitive literals. `/…/` is a case-sensitive
+  // regex and `/…/i` is a case-insensitive regex.
+  const matchExpr = (filter: string) => {
+    const regex = parseUserFilterRegex(filter);
+    return matchingColumns.map(
+      (column) =>
+        `regexp(${sqliteString(regex.pattern)}, IFNULL(${column}, ''), ${sqliteString(regex.flags)})`,
     );
+  };
 
   const showStackFilter =
     showStackAndPivot.length === 0
@@ -332,12 +333,8 @@ async function computeFlamegraphTree(
           .join(' OR ');
 
   const showFromFrameFilter =
-    showFromFrame.length === 0
-      ? '0'
-      : showFromFrame
-          .map((x, i) => `((${matchExpr(x).join(' OR ')}) << ${i})`)
-          .join(' | ');
-  const showFromFrameBits = (1 << showFromFrame.length) - 1;
+    view.kind === 'FROM_FRAME' ? matchExpr(view.pattern).join(' OR ') : 'false';
+  const showFromFrameBits = view.kind === 'FROM_FRAME' ? 1 : 0;
 
   const hideFrameFilter =
     hideFrame.length === 0
