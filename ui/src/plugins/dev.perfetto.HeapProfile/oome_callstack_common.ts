@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import type {time} from '../../base/time';
 import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
 import type {Engine} from '../../trace_processor/engine';
-import {STR_NULL} from '../../trace_processor/query_result';
+import {LONG_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {formatFileSize} from '../../base/file_utils';
+import {removeFalsyValues} from '../../base/array_utils';
+import {Grid, GridCell, GridHeaderCell, type GridRow} from '../../widgets/grid';
 
 export function buildOomeCallstackMetrics(
   ts: time,
@@ -64,20 +68,86 @@ export function buildOomeCallstackMetrics(
   ];
 }
 
-export async function loadOomeErrorMsg(
+// Details of the OutOfMemoryError that triggered the heap dump.
+export interface OomeDetails {
+  readonly allocationSizeBytes?: bigint;
+  readonly freeBytesUntilOom?: bigint;
+  readonly errorMsg?: string;
+}
+
+export async function loadOomeDetails(
   engine: Engine,
   ts: time,
-): Promise<string | undefined> {
-  const errorMsgRes = await engine.query(`
+): Promise<OomeDetails | undefined> {
+  const res = await engine.query(`
       INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;
-      SELECT oome.error_msg 
+      SELECT
+        oome.allocation_size_bytes AS allocationSizeBytes,
+        oome.free_bytes_until_oom AS freeBytesUntilOom,
+        oome.error_msg AS errorMsg
       FROM heap_graph g
-      JOIN android_heap_graph_java_oome_details oome ON oome.heap_graph_id = g.id
+      JOIN android_heap_graph_java_oome_details oome
+        ON oome.heap_graph_id = g.id
       WHERE g.ts = ${ts}
       LIMIT 1
     `);
-  if (errorMsgRes.numRows() > 0) {
-    return errorMsgRes.firstRow({error_msg: STR_NULL}).error_msg ?? undefined;
+  if (res.numRows() === 0) {
+    return undefined;
   }
-  return undefined;
+  const row = res.firstRow({
+    allocationSizeBytes: LONG_NULL,
+    freeBytesUntilOom: LONG_NULL,
+    errorMsg: STR_NULL,
+  });
+  return {
+    allocationSizeBytes: row.allocationSizeBytes ?? undefined,
+    freeBytesUntilOom: row.freeBytesUntilOom ?? undefined,
+    errorMsg: row.errorMsg ?? undefined,
+  };
+}
+
+export const OOME_DETAILS_TITLE = 'Out of Memory Error';
+
+function oomeDetailRows(details: OomeDetails): GridRow[] {
+  const row = (property: string, value: string): GridRow => [
+    m(GridCell, property),
+    m(GridCell, value),
+  ];
+  return removeFalsyValues([
+    details.allocationSizeBytes !== undefined &&
+      row('Allocation size', formatFileSize(details.allocationSizeBytes)),
+    details.freeBytesUntilOom !== undefined &&
+      row('Free until OOM', formatFileSize(details.freeBytesUntilOom)),
+    details.errorMsg !== undefined && row('Error message', details.errorMsg),
+  ]);
+}
+
+// The OOME details as a Property/Value grid, without a heading.
+export function renderOomeDetailsGrid(details?: OomeDetails): m.Children {
+  if (details === undefined) {
+    return undefined;
+  }
+  const rowData = oomeDetailRows(details);
+  if (rowData.length === 0) {
+    return undefined;
+  }
+  return m(Grid, {
+    columns: [
+      {key: 'property', header: m(GridHeaderCell, 'Property')},
+      {key: 'value', header: m(GridHeaderCell, 'Value')},
+    ],
+    rowData,
+  });
+}
+
+// The OOME grid with a heading, for the flamegraph headers.
+export function renderOomeDetails(details?: OomeDetails): m.Children {
+  const grid = renderOomeDetailsGrid(details);
+  if (grid === undefined) {
+    return undefined;
+  }
+  return m('div', [
+    m('h3', {class: 'pf-hde-sub-heading'}, OOME_DETAILS_TITLE),
+    grid,
+  ]);
 }

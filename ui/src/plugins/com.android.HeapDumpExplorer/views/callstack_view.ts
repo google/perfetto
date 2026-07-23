@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import type {Trace} from '../../../public/trace';
-import type {time} from '../../../base/time';
 import type {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../../components/flamegraph_panel';
 import {Flamegraph, type FlamegraphState} from '../../../widgets/flamegraph';
@@ -23,7 +22,7 @@ import {EmptyState} from '../../../widgets/empty_state';
 
 import {
   buildOomeCallstackMetrics,
-  loadOomeErrorMsg,
+  renderOomeDetails,
 } from '../../dev.perfetto.HeapProfile/oome_callstack_common';
 import type {OomeData} from '../types';
 import {getOome} from '../queries';
@@ -44,14 +43,8 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
   private oomeDataLoaded = false;
   private cachedMetrics?: ReadonlyArray<QueryFlamegraphMetric>;
   private cachedKey?: string;
-  private errorMsg?: string;
   private readonly limiter = new AsyncLimiter();
   private monitor?: Monitor;
-
-  async loadErrorMsg(trace: Trace, ts: time) {
-    this.errorMsg = await loadOomeErrorMsg(trace.engine, ts);
-    m.redraw();
-  }
 
   view({attrs}: m.Vnode<CallstackViewAttrs>) {
     this.monitor ??= new Monitor([() => attrs.dump]);
@@ -105,8 +98,6 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
     if (this.cachedMetrics === undefined || key !== this.cachedKey) {
       this.cachedMetrics = buildOomeCallstackMetrics(ts);
       this.cachedKey = key;
-      this.errorMsg = undefined;
-      this.loadErrorMsg(attrs.trace, ts);
     }
     const metrics = this.cachedMetrics;
 
@@ -122,12 +113,7 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
       m(
         Stack,
         {orientation: 'vertical'},
-        this.errorMsg &&
-          m(
-            'div',
-            {style: {padding: '8px', fontSize: '14px', color: '#ff4081'}},
-            this.errorMsg,
-          ),
+        renderOomeDetails(this.oomeData?.details),
         m(FlamegraphPanel, {
           trace: attrs.trace,
           metrics,
