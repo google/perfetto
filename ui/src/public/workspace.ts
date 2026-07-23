@@ -607,14 +607,9 @@ export class Workspace {
    * Adds a track node to this workspace's pinned area.
    */
   pinTrack(track: TrackNode): void {
-    // Make a lightweight clone of this track - just the uri and the title.
-    const cloned = new TrackNode({
-      uri: track.uri,
-      name: track.name,
-      subtitle: track.subtitle,
-      removable: track.removable,
-      chips: track.chips,
-    });
+    const cloned = track.clone(true);
+    // Replace the name with the full path to help with lineage tracking.
+    cloned.name = track.fullPath.join(' > ');
     this.pinnedTracksNode.addChildLast(cloned);
   }
 
