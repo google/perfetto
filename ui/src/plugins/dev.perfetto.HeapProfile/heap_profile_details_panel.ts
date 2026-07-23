@@ -30,8 +30,8 @@ import type {
 } from '../../public/details_panel';
 import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
+import {Button} from '../../widgets/button';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {DetailsShell} from '../../widgets/details_shell';
 import {showModal} from '../../widgets/modal';
 import {incompleteFlamegraphModal} from './incomplete_flamegraph';
@@ -266,14 +266,23 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
             m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
             (type === ProfileType.NATIVE_HEAP_PROFILE ||
               type === ProfileType.JAVA_HEAP_SAMPLES) &&
-              m(Button, {
-                icon: 'file_download',
-                intent: Intent.Primary,
-                variant: ButtonVariant.Filled,
-                onclick: () => {
-                  downloadPprof(this.trace, this.upid, ts);
+              m(
+                PopupMenu,
+                {
+                  trigger: m(Button, {
+                    icon: 'file_download',
+                    label: 'Download',
+                    title: 'Download profile',
+                  }),
                 },
-              }),
+                m(MenuItem, {
+                  icon: 'file_download',
+                  label: 'Pprof profile',
+                  onclick: async () => {
+                    await downloadPprof(this.trace, this.upid, ts);
+                  },
+                }),
+              ),
           ]),
         },
         m(FlamegraphPanel, {
@@ -646,7 +655,7 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
   const blob = await trace.getTraceFile();
   // This is only reachable for heapprofd-based profiles (native heap and
   // Java heap samples), which are both allocator profiles for traceconv.
-  convertTraceToPprofAndDownload(
+  await convertTraceToPprofAndDownload(
     blob,
     'alloc',
     pid.firstRow({pid: NUM}).pid,
