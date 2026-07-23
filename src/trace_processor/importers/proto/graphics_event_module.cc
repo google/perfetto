@@ -58,6 +58,7 @@ GraphicsEventModule::GraphicsEventModule(
   RegisterForField(FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber);
   RegisterForField(TracePacket::kGpuCounterEventFieldNumber);
   RegisterForField(TracePacket::kGpuRenderStageEventFieldNumber);
+  RegisterForField(TracePacket::kGpuUserAnnotationEventFieldNumber);
   RegisterForField(TracePacket::kGpuLogFieldNumber);
   RegisterForField(TracePacket::kGpuMemTotalEventFieldNumber);
   RegisterForField(TracePacket::kGraphicsFrameEventFieldNumber);
@@ -237,6 +238,11 @@ void GraphicsEventModule::ParseField(const ParseFieldArgs& args) {
       parser_.ParseGpuRenderStageEvent(
           args.ts, args.data.sequence_state.get(),
           args.field.Cast<TracePacket::kGpuRenderStageEvent>());
+      return;
+    case TracePacket::kGpuUserAnnotationEventFieldNumber:
+      parser_.ParseGpuUserAnnotation(
+          args.ts, args.data.sequence_state.get(),
+          args.field.Cast<TracePacket::kGpuUserAnnotationEvent>());
       return;
     case TracePacket::kGpuLogFieldNumber:
       parser_.ParseGpuLog(args.ts, args.field.Cast<TracePacket::kGpuLog>());

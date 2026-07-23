@@ -102,6 +102,9 @@ class GpuEventParser {
   void ParseGpuRenderStageEvent(int64_t ts,
                                 PacketSequenceStateGeneration*,
                                 ConstBytes);
+  void ParseGpuUserAnnotation(int64_t ts,
+                              PacketSequenceStateGeneration*,
+                              ConstBytes);
   void ParseGraphicsFrameEvent(int64_t timestamp, ConstBytes);
   void ParseGpuLog(int64_t ts, ConstBytes);
 
@@ -188,6 +191,9 @@ class GpuEventParser {
   void ParseExtraComputeArg(PacketSequenceStateGeneration* sequence_state,
                             protozero::ConstBytes bytes,
                             ArgsTracker::BoundInserter* inserter);
+  void ParseExtraAnnotationArg(PacketSequenceStateGeneration* sequence_state,
+                               protozero::ConstBytes bytes,
+                               ArgsTracker::BoundInserter* inserter);
   void ParseComputeKernel(PacketSequenceStateGeneration* sequence_state,
                           uint64_t kernel_iid,
                           ArgsTracker::BoundInserter* inserter);

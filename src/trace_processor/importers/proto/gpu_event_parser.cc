@@ -57,9 +57,11 @@
 #include "protos/perfetto/trace/gpu/gpu_log.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
+#include "protos/perfetto/trace/gpu/gpu_user_annotation_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_api_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -127,6 +129,13 @@ constexpr auto kRenderStageBlueprint = TrackCompressor::SliceBlueprint(
         tracks::StringDimensionBlueprint("render_stage_source"),
         tracks::UintDimensionBlueprint("hwqueue_id"),
         tracks::StringIdDimensionBlueprint("hwqueue_name")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kUserAnnotationBlueprint = TrackCompressor::SliceBlueprint(
+    "gpu_user_annotation",
+    tracks::DimensionBlueprints(tracks::kUgpuDimensionBlueprint,
+                                tracks::kGpuIdDimensionBlueprint,
+                                tracks::kProcessDimensionBlueprint),
     tracks::DynamicNameBlueprint());
 
 }  // anonymous namespace
@@ -939,6 +948,108 @@ void GpuEventParser::ParseGpuRenderStageEvent(
         context_->gpu_tracker->AddEventWait(*it, slice_id);
       }
     }
+  }
+}
+
+void GpuEventParser::ParseExtraAnnotationArg(
+    PacketSequenceStateGeneration* sequence_state,
+    protozero::ConstBytes bytes,
+    ArgsTracker::BoundInserter* inserter) {
+  protos::pbzero::GpuUserAnnotationEvent_ExtraArg::Decoder arg(bytes);
+
+  StringId name_id = kNullStringId;
+  if (arg.has_name_iid()) {
+    auto* interned = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber,
+        protos::pbzero::DebugAnnotationName>(
+        static_cast<size_t>(arg.name_iid()));
+    if (interned) {
+      name_id = context_->storage->InternString(interned->name());
+    }
+  } else if (arg.has_name()) {
+    name_id = context_->storage->InternString(arg.name());
+  }
+
+  if (name_id == kNullStringId) {
+    return;
+  }
+
+  if (arg.has_int_value()) {
+    inserter->AddArg(name_id, Variadic::Integer(arg.int_value()));
+  } else if (arg.has_uint_value()) {
+    inserter->AddArg(name_id, Variadic::UnsignedInteger(arg.uint_value()));
+  } else if (arg.has_double_value()) {
+    inserter->AddArg(name_id, Variadic::Real(arg.double_value()));
+  } else if (arg.has_string_value_iid()) {
+    if (auto id = sequence_state->InternedStringId(
+            protos::pbzero::InternedData::
+                kDebugAnnotationStringValuesFieldNumber,
+            arg.string_value_iid())) {
+      inserter->AddArg(name_id, Variadic::String(*id));
+    }
+  } else if (arg.has_string_value()) {
+    inserter->AddArg(
+        name_id,
+        Variadic::String(context_->storage->InternString(arg.string_value())));
+  }
+}
+
+void GpuEventParser::ParseGpuUserAnnotation(
+    int64_t ts,
+    PacketSequenceStateGeneration* sequence_state,
+    ConstBytes blob) {
+  protos::pbzero::GpuUserAnnotationEvent::Decoder event(blob);
+
+  int32_t pid = 0;
+  uint32_t gpu_id =
+      event.has_gpu_id() ? static_cast<uint32_t>(event.gpu_id()) : 0;
+  if (event.has_context()) {
+    auto* decoder = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kGraphicsContextsFieldNumber,
+        protos::pbzero::InternedGraphicsContext>(event.context());
+    if (decoder) {
+      pid = decoder->pid();
+      InternGpuContext(event.context(), *decoder);
+    }
+  }
+  UniquePid upid =
+      context_->process_tracker->GetOrCreateProcess(static_cast<uint32_t>(pid));
+
+  StringId name_id = kNullStringId;
+  if (event.has_name_iid()) {
+    auto* event_name = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kEventNamesFieldNumber,
+        protos::pbzero::InternedComputeArgName>(
+        static_cast<size_t>(event.name_iid()));
+    if (event_name) {
+      name_id = context_->storage->InternString(event_name->name());
+    }
+  } else if (event.has_name()) {
+    name_id = context_->storage->InternString(event.name());
+  }
+
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(gpu_id);
+  TrackId track_id = context_->track_compressor->InternScoped(
+      kUserAnnotationBlueprint, tracks::Dimensions(ugpu.value, gpu_id, upid),
+      ts, static_cast<int64_t>(event.duration()), tracks::DynamicName(name_id),
+      [](ArgsTracker::BoundInserter&) {});
+
+  auto opt_slice_id = context_->slice_tracker->Scoped(
+      ts, track_id, kNullStringId, name_id,
+      static_cast<int64_t>(event.duration()),
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(context_id_id_,
+                         Variadic::UnsignedInteger(event.context()));
+        inserter->AddArg(upid_id_, Variadic::Integer(upid));
+        for (auto it = event.args(); it; ++it) {
+          ParseExtraAnnotationArg(sequence_state, *it, inserter);
+        }
+      });
+
+  // Register the slice by event_id so host track events can correlate to it.
+  if (opt_slice_id && event.has_event_id()) {
+    context_->gpu_tracker->AddGpuRenderStageSlice(event.event_id(),
+                                                  *opt_slice_id);
   }
 }
 

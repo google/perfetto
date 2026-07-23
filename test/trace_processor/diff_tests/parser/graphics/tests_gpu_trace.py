@@ -304,6 +304,118 @@ class GraphicsGpuTrace(TestSuite):
           "queue2","queue2 description",300,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
         '''))
 
+  def test_gpu_user_annotation_stream_scoped(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 0
+          incremental_state_cleared: true
+          trusted_packet_sequence_id: 1
+          interned_data {
+            graphics_contexts { iid: 1 pid: 100 api: CUDA }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          gpu_user_annotation_event {
+            name: "annotation1"
+            duration: 5000
+            gpu_id: 0
+            context: 1
+            args { name: "device" int_value: 0 }
+            args { name: "stream" uint_value: 7 }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.type AS track_type,
+          s.name,
+          s.ts,
+          s.dur,
+          s.context_id,
+          extract_arg(s.arg_set_id, 'device') AS device,
+          extract_arg(s.arg_set_id, 'stream') AS stream,
+          s.upid
+        FROM gpu_slice s
+        JOIN track t ON t.id = s.track_id
+        WHERE s.name = 'annotation1';
+        """,
+        out=Csv("""
+        "track_type","name","ts","dur","context_id","device","stream","upid"
+        "gpu_user_annotation","annotation1",1000,5000,1,0,7,1
+        """))
+
+  def test_gpu_user_annotation_event_flow(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          sequence_flags: 1
+          interned_data {
+            graphics_contexts { iid: 1 pid: 100 api: CUDA }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 0
+          sequence_flags: 1
+          interned_data {
+            event_categories { iid: 1 name: "gpu" }
+            event_names { iid: 1 name: "HostSubmit" }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 20
+          sequence_flags: 2
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            category_iids: 1
+            name_iid: 1
+            [perfetto.protos.GpuTrackEvent.gpu_correlation] {
+              render_stage_submission_event_ids: 42
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 22
+          sequence_flags: 2
+          track_event {
+            type: TYPE_SLICE_END
+            category_iids: 1
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 100
+          sequence_flags: 2
+          gpu_user_annotation_event {
+            event_id: 42
+            duration: 50
+            name: "annotation1"
+            gpu_id: 0
+            context: 1
+          }
+        }
+        """),
+        query="""
+        SELECT
+          slice_out.name AS source_slice,
+          slice_in.name AS dest_slice
+        FROM flow
+        JOIN slice AS slice_out ON flow.slice_out = slice_out.id
+        JOIN slice AS slice_in ON flow.slice_in = slice_in.id
+        ORDER BY slice_out.ts, slice_in.ts;
+        """,
+        out=Csv("""
+        "source_slice","dest_slice"
+        "HostSubmit","annotation1"
+        """))
+
   def test_vulkan_api_events(self):
     return DiffTestBlueprint(
         trace=Path('vulkan_api_events.py'),
