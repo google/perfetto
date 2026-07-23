@@ -50,6 +50,55 @@ interface PathPart {
   key: string;
 }
 
+type GpuSliceDataset = SourceDataset<{
+  id: number;
+  name: string;
+  ts: bigint;
+  dur: bigint;
+  depth: number;
+}>;
+
+// A GPU-by-process leaf can combine slices from multiple global GPU hardware
+// queue tracks. Slice depths are local to each global track, so using them
+// directly allows unrelated slices at the same depth to overlap in the merged
+// leaf. Relayout all source tracks together and use the resulting shared depth.
+//
+// experimental_slice_layout currently accepts track IDs rather than an
+// arbitrary slice query. It can therefore reserve rows for slices on source
+// tracks that the leaf filters out, but the result is always collision-free.
+// Keeping that conservative whitespace is preferable to rendering overlapping
+// slices.
+function createGpuSliceDataset(whereClause: string): GpuSliceDataset {
+  return new SourceDataset({
+    src: `(
+      WITH filtered AS (
+        SELECT id, name, ts, dur, track_id
+        FROM gpu_slice
+        WHERE ${whereClause}
+      ), relayout AS (
+        SELECT id, layout_depth AS depth
+        FROM experimental_slice_layout(COALESCE(
+          (SELECT group_concat(track_id) FROM (
+            SELECT DISTINCT track_id FROM filtered ORDER BY track_id
+          )),
+          ''
+        ))
+      )
+      SELECT id, name, ts, dur, depth
+      FROM filtered
+      JOIN relayout USING (id)
+      ORDER BY ts
+    )`,
+    schema: {
+      id: NUM,
+      name: STR,
+      ts: LONG,
+      dur: LONG,
+      depth: NUM,
+    },
+  });
+}
+
 interface LeafTrack {
   // The owning process.
   upid: number;
@@ -64,18 +113,8 @@ interface LeafTrack {
   leafSortOrder: number;
   // Stable URI suffix appended after the per-process URI prefix.
   uriSuffix: string;
-  // The dataset that drives the SliceTrack. Discoverers prefer
-  // src='gpu_slice' + a structured `filter` (so aggregation across tracks
-  // can merge them). When the constraint can't be expressed by the dataset
-  // Filter API (e.g. predicates on extract_arg() values), a custom
-  // subquery src is used instead.
-  dataset: SourceDataset<{
-    id: number;
-    name: string;
-    ts: bigint;
-    dur: bigint;
-    depth: number;
-  }>;
+  // The relaid-out dataset that drives the SliceTrack.
+  dataset: GpuSliceDataset;
 }
 
 // CUDA / HIP: events that carry both a "device" and "stream" launch arg get
@@ -205,16 +244,7 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
       leafName: `Stream #${r.stream}`,
       leafSortOrder: r.stream,
       uriSuffix: `${apiKey}_d${r.device}_c${r.context}_s${r.stream}`,
-      dataset: new SourceDataset({
-        src: `(SELECT id, name, ts, dur, depth FROM gpu_slice WHERE ${whereClause} ORDER BY ts)`,
-        schema: {
-          id: NUM,
-          name: STR,
-          ts: LONG,
-          dur: LONG,
-          depth: NUM,
-        },
-      }),
+      dataset: createGpuSliceDataset(whereClause),
     };
   });
 }
@@ -339,16 +369,7 @@ async function discoverFallbackTracks(
       leafName: row.trackName,
       leafSortOrder: row.hwqId,
       uriSuffix: `hwq_${row.hwqId}`,
-      dataset: new SourceDataset({
-        src: `(SELECT id, name, ts, dur, depth FROM gpu_slice WHERE ${whereClause} ORDER BY ts)`,
-        schema: {
-          id: NUM,
-          name: STR,
-          ts: LONG,
-          dur: LONG,
-          depth: NUM,
-        },
-      }),
+      dataset: createGpuSliceDataset(whereClause),
     };
   });
 }
