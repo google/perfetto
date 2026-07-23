@@ -280,22 +280,28 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     // Stream raw export bytes directly, using the same framing as /query.
     conn.SendResponseHeaders("200 OK", chunked_headers,
                              base::HttpServerConnection::kOmitContentLength);
-    auto on_chunk = [&](const uint8_t* buf, size_t len, bool has_more) {
+    auto on_chunk = [&](const uint8_t* buf, size_t len,
+                        bool has_more) -> base::Status {
       PERFETTO_DLOG("Sending export chunk, len=%zu eof=%d", len, !has_more);
       if (buf && len > 0) {
         base::StackString<32> chunk_hdr("%zx\r\n", len);
-        conn.SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len());
-        conn.SendResponseBody(buf, len);
-        conn.SendResponseBody("\r\n", 2);
+        if (!conn.SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len()) ||
+            !conn.SendResponseBody(buf, len) ||
+            !conn.SendResponseBody("\r\n", 2)) {
+          return base::ErrStatus("HTTP client disconnected during export");
+        }
       }
-      if (!has_more) {
-        conn.SendResponseBody("0\r\n\r\n", 5);
+      if (!has_more && !conn.SendResponseBody("0\r\n\r\n", 5)) {
+        return base::ErrStatus("HTTP client disconnected during export");
       }
+      return base::OkStatus();
     };
     base::Status status = global_trace_processor_rpc_.Export(*format, on_chunk);
     if (!status.ok()) {
-      return conn.SendResponseAndClose("500 Internal Server Error",
-                                       default_headers, status.c_message());
+      // The 200 response has already started, so a second HTTP response cannot
+      // be sent. Leave the chunked body incomplete to signal the failure.
+      PERFETTO_DLOG("Export failed: %s", status.c_message());
+      return conn.Close();
     }
     return;
   }

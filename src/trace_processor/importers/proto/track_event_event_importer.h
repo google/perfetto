@@ -35,7 +35,6 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/public/compiler.h"
-#include "protos/perfetto/trace/profiling/inline_callstack.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -1671,14 +1670,16 @@ class TrackEventEventImporter {
     // Handle inline callstack
     // Inline callstacks are simple: just function names and source locations
     if (event_.has_callstack()) {
-      protos::pbzero::InlineCallstack::Decoder callstack(event_.callstack());
+      protos::pbzero::TrackEvent::InlineCallstack::Decoder callstack(
+          event_.callstack());
       DummyMemoryMapping* dummy_mapping =
           parser_->GetOrCreateInlineCallstackDummyMapping();
 
       std::optional<CallsiteId> callsite_id;
       uint32_t depth = 0;
       for (auto frame_it = callstack.frames(); frame_it; ++frame_it, ++depth) {
-        protos::pbzero::InlineCallstack::Frame::Decoder frame(*frame_it);
+        protos::pbzero::TrackEvent::InlineCallstack::Frame::Decoder frame(
+            *frame_it);
         std::optional<base::StringView> source_file;
         if (frame.has_source_file()) {
           source_file = frame.source_file();

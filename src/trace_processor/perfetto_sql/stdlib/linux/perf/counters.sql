@@ -60,10 +60,10 @@ AS
 SELECT
   ps.id AS sample_id,
   ps.ts,
-  ps.utid,
+  tc.utid,
   cpu.cpu,
   -- Preserve perf_sample's legacy representation for an unknown CPU mode.
-  COALESCE(ps.cpu_mode, 'unknown') AS cpu_mode,
+  COALESCE(ec.cpu_mode, 'unknown') AS cpu_mode,
   ps.callsite_id,
   ps.unwind_error,
   ps.session_id AS perf_session_id,
@@ -71,11 +71,15 @@ SELECT
   c.track_id,
   c.value AS counter_value
 FROM __intrinsic_profiler_sample AS ps
-LEFT JOIN __intrinsic_cpu AS cpu
-  ON cpu.id = ps.ucpu
 JOIN __intrinsic_profiler_counter_set AS pcs
   ON ps.counter_set_id = pcs.counter_set_id
 JOIN counter AS c
   ON c.id = pcs.counter_id
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_profiler_execution_context AS ec
+  ON ec.id = ps.execution_context_id
+LEFT JOIN __intrinsic_cpu AS cpu
+  ON cpu.id = ec.ucpu
 WHERE
   ps.source = 'linux.perf';

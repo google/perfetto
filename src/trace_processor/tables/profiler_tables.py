@@ -441,6 +441,82 @@ STACK_PROFILE_CALLSITE_TABLE = Table(
                 '''Frame at this position in the callstack.'''
         }))
 
+PROFILER_ASYNC_CONTEXT_TABLE = Table(
+    python_module=__file__,
+    class_name='ProfilerAsyncContextTable',
+    sql_name='__intrinsic_profiler_async_context',
+    columns=[
+        C('name', CppOptional(CppString())),
+        C('kind', CppOptional(CppString())),
+        C('parent_id', CppOptional(CppSelfTableId())),
+    ],
+    tabledoc=TableDoc(
+        doc='''A stackful asynchronous execution context, such as a goroutine,
+               fiber or coroutine.''',
+        group='Callstack profilers',
+        columns={
+            'name':
+                '''Human-readable name of this asynchronous context.''',
+            'kind':
+                '''Kind of asynchronous context, e.g. goroutine or fiber.''',
+            'parent_id':
+                '''Structural parent of this asynchronous context.''',
+        }))
+
+PROFILER_TASK_CONTEXT_TABLE = Table(
+    python_module=__file__,
+    class_name='ProfilerTaskContextTable',
+    sql_name='__intrinsic_profiler_task_context',
+    columns=[
+        C(
+            'upid',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'utid',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'async_context_id',
+            CppOptional(CppTableId(PROFILER_ASYNC_CONTEXT_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''The task a profiler sample is attributed to: an OS process,
+               thread and/or stackful asynchronous context.''',
+        group='Callstack profilers',
+        columns={
+            'upid':
+                '''Process the sample is attributed to, if known.''',
+            'utid':
+                '''Thread the sample is attributed to, if known.''',
+            'async_context_id':
+                '''Stackful asynchronous context the sample is
+                                   attributed to, if any.''',
+        }))
+
+PROFILER_EXECUTION_CONTEXT_TABLE = Table(
+    python_module=__file__,
+    class_name='ProfilerExecutionContextTable',
+    sql_name='__intrinsic_profiler_execution_context',
+    columns=[
+        C('ucpu', CppOptional(CppUint32())),
+        C('cpu_mode', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''The execution state in which a profiler sample was captured.''',
+        group='Callstack profilers',
+        columns={
+            'ucpu': '''CPU the sample was captured on, if known.''',
+            'cpu_mode': '''Privilege mode at the sample point, if known.''',
+        }))
+
 PROFILER_SESSION_TABLE = Table(
     python_module=__file__,
     class_name='ProfilerSessionTable',
@@ -460,7 +536,6 @@ PROFILER_SESSION_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
-    wrapping_sql_view=WrappingSqlView('profiler_session'),
     tabledoc=TableDoc(
         doc='''Profiler sessions: one row per data source instance of a
                sampling profiler (a perf session, a StackSample stream, ...).
@@ -526,21 +601,17 @@ PROFILER_SAMPLE_TABLE = Table(
         ),
         C('source', CppString()),
         C(
-            'utid',
-            CppOptional(CppUint32()),
+            'task_context_id',
+            CppOptional(CppTableId(PROFILER_TASK_CONTEXT_TABLE)),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
-            'upid',
-            CppOptional(CppUint32()),
+            'execution_context_id',
+            CppOptional(CppTableId(PROFILER_EXECUTION_CONTEXT_TABLE)),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('async_name', CppOptional(CppString())),
-        C('async_kind', CppOptional(CppString())),
-        C('ucpu', CppOptional(CppUint32())),
-        C('cpu_mode', CppOptional(CppString())),
         C(
             'callsite_id',
             CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
@@ -573,21 +644,12 @@ PROFILER_SAMPLE_TABLE = Table(
             'source':
                 '''The profiler that produced the sample (e.g. "linux.perf",
                    "chrome", "instruments").''',
-            'utid':
-                '''The sampled thread, if known.''',
-            'upid':
-                '''The sampled process, if known.''',
-            'async_name':
-                '''Name of the stackful async context (goroutine, fiber,
-                   ...), if the sample is attributed to one.''',
-            'async_kind':
-                '''Kind of the async context, e.g. "goroutine".''',
-            'ucpu':
-                '''Unique core the sample was taken on, if known. Joinable
-                   with cpu.id.''',
-            'cpu_mode':
-                '''Privilege mode the sample was taken in (e.g. "user",
-                   "kernel"). NULL if unknown.''',
+            'task_context_id':
+                '''The process, thread and/or stackful asynchronous context
+                   this sample is attributed to.''',
+            'execution_context_id':
+                '''The CPU and privilege mode in which this sample was
+                   captured, if known.''',
             'callsite_id':
                 '''If set, the captured callstack.''',
             'unwind_error':
@@ -1599,10 +1661,13 @@ ALL_TABLES = [
     HEAP_PROFILE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
     PACKAGE_LIST_TABLE,
+    PROFILER_ASYNC_CONTEXT_TABLE,
     PROFILER_COUNTER_SET_TABLE,
+    PROFILER_EXECUTION_CONTEXT_TABLE,
     PROFILER_SAMPLE_TABLE,
     PROFILER_SESSION_TABLE,
     PROFILER_SMAPS_TABLE,
+    PROFILER_TASK_CONTEXT_TABLE,
     STACK_PROFILE_CALLSITE_TABLE,
     STACK_PROFILE_FRAME_TABLE,
     STACK_PROFILE_MAPPING_TABLE,

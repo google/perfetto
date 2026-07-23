@@ -97,7 +97,6 @@ source_set("minimal") {
     "../../../../protos/perfetto/trace/interned_data:zero",
     "../../../../protos/perfetto/trace/perfetto:zero",
     "../../../../protos/perfetto/trace/power:zero",
-    "../../../../protos/perfetto/trace/profiling:inline_callstack_zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../../protos/perfetto/trace/ps:zero",
     "../../../../protos/perfetto/trace/sys_stats:zero",

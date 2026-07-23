@@ -137,8 +137,10 @@ class Rpc {
   void Query(const uint8_t*, size_t, const QueryResultBatchCallback&);
 
   // Streams an export using the same callback pattern as Query(): called
-  // inline, once per chunk, with |has_more| false on the last call.
-  using ExportCallback = QueryResultBatchCallback;
+  // inline, once per chunk, with |has_more| false on the last call. Returning
+  // an error aborts the export.
+  using ExportCallback = std::function<
+      base::Status(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
   static std::optional<TraceProcessor::ExportFormat> ParseExportFormat(int32_t);
   base::Status Export(TraceProcessor::ExportFormat, const ExportCallback&);
 

@@ -359,25 +359,32 @@ class Profiling(TestSuite):
         SELECT
           ps.ts,
           ps.callsite_id,
-          psi.cpu_mode AS intrinsic_cpu_mode,
+          ec.cpu_mode AS intrinsic_cpu_mode,
           ps.cpu_mode AS perf_cpu_mode,
           c.value,
           (SELECT count(*) FROM stack_sample) AS stack_sample_count,
-          (SELECT timebase_unit FROM profiler_session) AS timebase_unit
+          (SELECT count(*) FROM stack_sample_session)
+            AS stack_sample_session_count,
+          (SELECT count(*) FROM stack_sample_counter_track)
+            AS stack_sample_counter_track_count,
+          (SELECT count(*) FROM stack_sample_counter)
+            AS stack_sample_counter_count
         FROM perf_sample AS ps
         JOIN __intrinsic_profiler_sample AS psi
           ON psi.id = ps.id
         JOIN __intrinsic_profiler_counter_set AS pcs
           ON psi.counter_set_id = pcs.counter_set_id
         JOIN counter AS c
-          ON c.id = pcs.counter_id;
+          ON c.id = pcs.counter_id
+        LEFT JOIN __intrinsic_profiler_execution_context AS ec
+          ON ec.id = psi.execution_context_id;
         """,
         out=Csv("""
-        "ts","callsite_id","intrinsic_cpu_mode","perf_cpu_mode","value","stack_sample_count","timebase_unit"
-        3000,"[NULL]","[NULL]","unknown",512.000000,0,"ns"
+        "ts","callsite_id","intrinsic_cpu_mode","perf_cpu_mode","value","stack_sample_count","stack_sample_session_count","stack_sample_counter_track_count","stack_sample_counter_count"
+        3000,"[NULL]","[NULL]","unknown",512.000000,0,0,0,0
         """))
 
-  def test_profiler_session_source(self):
+  def test_stack_sample_session_source(self):
     return DiffTestBlueprint(
         trace=Path('stack_sample.textproto'),
         query="""
@@ -387,7 +394,7 @@ class Profiling(TestSuite):
         SELECT
           (
             SELECT count(*)
-            FROM profiler_session
+            FROM stack_sample_session
             WHERE source = 'python.wall' AND timebase_unit = 'ns'
           ) AS stack_sample_sessions,
           (SELECT count(*) FROM perf_session) AS perf_sessions;
@@ -723,20 +730,21 @@ class Profiling(TestSuite):
         query="""
         SELECT
           ss.ts,
-          ss.ucpu AS cpu,
-          ss.cpu_mode AS mode,
+          ec.ucpu AS cpu,
+          ec.cpu_mode AS mode,
           CAST(c.value AS INTEGER) AS weight,
           ss.source,
           ct.name AS timebase_name,
           ct.unit,
           spf.name AS frame_name
         FROM stack_sample ss
-        JOIN __intrinsic_profiler_counter_set pcs
-          ON ss.counter_set_id = pcs.counter_set_id
-        JOIN counter c ON c.id = pcs.counter_id
-        JOIN counter_track ct ON c.track_id = ct.id AND ct.name = 'wall-time'
+        JOIN stack_sample_counter c ON c.stack_sample_id = ss.id
+        JOIN stack_sample_counter_track ct
+          ON c.track_id = ct.id AND ct.name = 'wall-time'
         JOIN stack_profile_callsite spc ON ss.callsite_id = spc.id
         JOIN stack_profile_frame spf ON spc.frame_id = spf.id
+        LEFT JOIN stack_sample_execution_context ec
+          ON ec.id = ss.execution_context_id
         ORDER BY ss.ts;
         """,
         out=Csv("""
@@ -756,10 +764,14 @@ class Profiling(TestSuite):
         SELECT
           ss.ts,
           p.name AS process_name,
-          ss.ucpu AS cpu,
-          ss.cpu_mode AS mode
+          ec.ucpu AS cpu,
+          ec.cpu_mode AS mode
         FROM stack_sample ss
-        LEFT JOIN process p ON ss.upid = p.upid
+        LEFT JOIN stack_sample_task_context tc
+          ON tc.id = ss.task_context_id
+        LEFT JOIN stack_sample_execution_context ec
+          ON ec.id = ss.execution_context_id
+        LEFT JOIN process p ON tc.upid = p.upid
         ORDER BY ss.ts;
         """,
         out=Csv("""
@@ -822,21 +834,27 @@ class Profiling(TestSuite):
     return DiffTestBlueprint(
         trace=Path('stack_sample.textproto'),
         query="""
-        -- The ts=6000 sample is attributed to an async context (async_id 7);
-        -- its descriptor name/kind fold onto the sample.
+        -- The ts=6000 sample is attributed to async context 7, whose parent
+        -- is async context 6.
         SELECT
           ss.ts,
           p.name AS process_name,
-          ss.async_name,
-          ss.async_kind
+          ac.name AS async_name,
+          ac.kind AS async_kind,
+          parent.name AS parent_name
         FROM stack_sample ss
-        LEFT JOIN process p ON ss.upid = p.upid
-        WHERE ss.async_name IS NOT NULL
+        JOIN stack_sample_task_context tc
+          ON tc.id = ss.task_context_id
+        JOIN stack_sample_async_context ac
+          ON ac.id = tc.async_context_id
+        LEFT JOIN stack_sample_async_context parent
+          ON parent.id = ac.parent_id
+        LEFT JOIN process p ON tc.upid = p.upid
         ORDER BY ss.ts;
         """,
         out=Csv("""
-        "ts","process_name","async_name","async_kind"
-        6000,"myproc","worker-1","fiber"
+        "ts","process_name","async_name","async_kind","parent_name"
+        6000,"myproc","worker-1","fiber","worker-pool"
         """))
 
   def test_stack_sample_followers(self):
@@ -852,10 +870,8 @@ class Profiling(TestSuite):
           ct.unit,
           CAST(c.value AS INTEGER) AS weight
         FROM stack_sample ss
-        JOIN __intrinsic_profiler_counter_set pcs
-          ON ss.counter_set_id = pcs.counter_set_id
-        JOIN counter c ON c.id = pcs.counter_id
-        JOIN counter_track ct ON c.track_id = ct.id
+        JOIN stack_sample_counter c ON c.stack_sample_id = ss.id
+        JOIN stack_sample_counter_track ct ON c.track_id = ct.id
         WHERE ct.name = 'instructions'
         ORDER BY ss.ts;
         """,
@@ -960,10 +976,10 @@ class Profiling(TestSuite):
           (SELECT count(*) FROM cpu_profiling_samples) AS profiling_samples,
           (SELECT ts FROM cpu_profiling_samples) AS profiling_ts,
           (
-            SELECT count(*) FROM profiler_session WHERE timebase_unit = 'ns'
+            SELECT count(*) FROM stack_sample_session WHERE timebase_unit = 'ns'
           ) AS ns_sessions,
           (
-            SELECT count(*) FROM profiler_session WHERE timebase_unit = 'count'
+            SELECT count(*) FROM stack_sample_session WHERE timebase_unit = 'count'
           ) AS count_sessions;
         """,
         out=Csv("""

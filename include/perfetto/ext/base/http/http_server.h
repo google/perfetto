@@ -91,8 +91,8 @@ class HttpServerConnection {
                            std::initializer_list<const char*> headers = {},
                            size_t content_length = 0);
 
-  // Works also for websockets.
-  void SendResponseBody(const void* content, size_t content_length);
+  // Works also for websockets. Returns false if the data could not be sent.
+  bool SendResponseBody(const void* content, size_t content_length);
   void Close();
 
   // All the above in one shot.

@@ -25,12 +25,12 @@ import {Select} from '../../widgets/select';
 import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
-import {FuzzyFinder} from '../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {Intent} from '../../widgets/common';
 import {Anchor} from '../../widgets/anchor';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
-import {GateDetector} from '../../base/mithril_utils';
+import {GateDetector, renderSegments} from '../../base/mithril_utils';
 import {findRef} from '../../base/dom_utils';
 
 const SEARCH_BOX_REF = 'flags-search-box';
@@ -45,7 +45,7 @@ interface FlagOption {
 
 interface SelectWidgetAttrs {
   readonly id: string;
-  readonly label: string;
+  readonly label: m.Children;
   readonly description: m.Children;
   readonly options: FlagOption[];
   readonly selected: string;
@@ -82,6 +82,8 @@ class SelectWidget implements m.ClassComponent<SelectWidgetAttrs> {
 
 interface FlagWidgetAttrs {
   readonly flag: Flag;
+  readonly nameSegments?: readonly FuzzySegment[] | string;
+  readonly descriptionSegments?: readonly FuzzySegment[] | string;
   readonly focused: boolean;
 }
 
@@ -91,9 +93,11 @@ class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
     const defaultState = flag.defaultValue ? 'Enabled' : 'Disabled';
 
     return m(SelectWidget, {
-      label: flag.name,
+      label: renderSegments(attrs.nameSegments ?? flag.name),
       id: flag.id,
-      description: flag.description.trim(),
+      description: renderSegments(
+        attrs.descriptionSegments ?? flag.description.trim(),
+      ),
       options: [
         {id: OverrideState.DEFAULT, name: `Default (${defaultState})`},
         {id: OverrideState.TRUE, name: 'Enabled'},
@@ -157,8 +161,23 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
       .allFlags()
       .filter((p) => !p.id.startsWith('plugin_'));
 
-    const finder = new FuzzyFinder(flags, (x) => x.name);
-    const filteredFlags = finder.find(this.filterText);
+    const filteredFlags = isFiltering
+      ? fuzzySearch(
+          flags,
+          [(f: Flag) => f.name, (f: Flag) => f.id, (f: Flag) => f.description],
+          this.filterText,
+        ).map((res) => ({
+          item: res.item,
+          nameSegments: res.segments[0],
+          idSegments: res.segments[1],
+          descriptionSegments: res.segments[2],
+        }))
+      : flags.map((flag) => ({
+          item: flag,
+          nameSegments: flag.name,
+          idSegments: flag.id,
+          descriptionSegments: flag.description.trim(),
+        }));
     const needsReload = channelChanged();
 
     const subpage = decodeURIComponent(attrs.subpage ?? '');
@@ -267,11 +286,14 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
           ? this.renderEmptyState(isFiltering)
           : m(
               CardStack,
-              filteredFlags.map((flag) =>
-                m(FlagWidget, {
-                  flag: flag.item,
-                  focused: attrs.subpage === `/${flag.item.id}`,
-                }),
+              filteredFlags.map(
+                ({item: flag, nameSegments, descriptionSegments}) =>
+                  m(FlagWidget, {
+                    flag,
+                    nameSegments,
+                    descriptionSegments,
+                    focused: attrs.subpage === `/${flag.id}`,
+                  }),
               ),
             ),
         m(

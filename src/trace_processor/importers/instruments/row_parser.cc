@@ -145,9 +145,17 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   tables::ProfilerSampleTable::Row sample_row;
   sample_row.ts = ts;
   sample_row.source = instruments_source_id_;
-  sample_row.utid = utid;
-  sample_row.upid = upid;
-  sample_row.ucpu = context_->cpu_tracker->GetOrCreateCpu(row.core_id).value;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
+  task_context.upid = upid;
+  sample_row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
+  tables::ProfilerExecutionContextTable::Row execution_context;
+  execution_context.ucpu =
+      context_->cpu_tracker->GetOrCreateCpu(row.core_id).value;
+  sample_row.execution_context_id =
+      context_->profiler_sample_tracker->InternExecutionContext(
+          execution_context);
   sample_row.callsite_id = parent;
   context_->profiler_sample_tracker->AddSample(sample_row);
 }

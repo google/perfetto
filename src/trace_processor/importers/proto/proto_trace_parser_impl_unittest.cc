@@ -2846,17 +2846,18 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   const auto& samples = storage_->profiler_sample_table();
   EXPECT_EQ(samples.row_count(), 3u);
 
+  const auto& task_contexts = storage_->profiler_task_context_table();
   EXPECT_EQ(samples[0].ts(), 11000);
   EXPECT_EQ(samples[0].callsite_id(), CallsiteId{0});
-  EXPECT_EQ(samples[0].utid(), 1u);
+  EXPECT_EQ(task_contexts[*samples[0].task_context_id()].utid(), 1u);
 
   EXPECT_EQ(samples[1].ts(), 26000);
   EXPECT_EQ(samples[1].callsite_id(), CallsiteId{1});
-  EXPECT_EQ(samples[1].utid(), 1u);
+  EXPECT_EQ(task_contexts[*samples[1].task_context_id()].utid(), 1u);
 
   EXPECT_EQ(samples[2].ts(), 68000);
   EXPECT_EQ(samples[2].callsite_id(), CallsiteId{0});
-  EXPECT_EQ(samples[2].utid(), 1u);
+  EXPECT_EQ(task_contexts[*samples[2].task_context_id()].utid(), 1u);
 
   // Process priorities land in the chrome extras table, keyed by sample.
   const auto& extras = storage_->chrome_stack_sample_extras_table();
@@ -2942,7 +2943,9 @@ TEST_F(ProtoTraceParserTest, CPUProfileSamplesTimestampsAreClockMonotonic) {
   // Should have been translated to boottime, i.e. 10015 us absolute.
   EXPECT_EQ(samples[0].ts(), 10015000);
   EXPECT_EQ(samples[0].callsite_id(), CallsiteId{0});
-  EXPECT_EQ(samples[0].utid(), 1u);
+  auto task_context =
+      storage_->profiler_task_context_table()[*samples[0].task_context_id()];
+  EXPECT_EQ(task_context.utid(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, ConfigUuid) {

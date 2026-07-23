@@ -201,6 +201,31 @@ TEST(FlexVectorTest, ResizeShrink) {
   }
 }
 
+TEST(FlexVectorTest, CreateFilled) {
+  auto vec = FlexVector<uint32_t>::CreateFilled(100, 0xffffffffu);
+  ASSERT_EQ(vec.size(), 100u);
+  for (uint64_t i = 0; i < vec.size(); ++i) {
+    EXPECT_EQ(vec[i], 0xffffffffu);
+  }
+}
+
+TEST(FlexVectorTest, Reserve) {
+  FlexVector<int> vec;
+  vec.push_back(1);
+  vec.push_back(2);
+
+  vec.reserve(1000);
+  EXPECT_GE(vec.capacity(), 1000u);
+  EXPECT_EQ(vec.size(), 2u);
+  EXPECT_EQ(vec[0], 1);
+  EXPECT_EQ(vec[1], 2);
+
+  // Reserving less than the current capacity is a no-op.
+  uint64_t capacity = vec.capacity();
+  vec.reserve(10);
+  EXPECT_EQ(vec.capacity(), capacity);
+}
+
 // Test resize to grow
 TEST(FlexVectorTest, ResizeGrow) {
   auto vec = FlexVector<int>::CreateWithCapacity(64);

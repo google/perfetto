@@ -189,8 +189,11 @@ base::Status LegacyV8CpuProfileTracker::AddSample(int64_t ts,
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
   row.source = legacy_v8_source_id_;
-  row.utid = utid;
-  row.upid = context_->process_tracker->GetOrCreateProcess(pid);
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
+  task_context.upid = context_->process_tracker->GetOrCreateProcess(pid);
+  row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
   row.callsite_id = *id;
   context_->profiler_sample_tracker->AddSample(row);
   return base::OkStatus();

@@ -25,9 +25,8 @@ package perfetto.protos;
 // unique. For binary/library information (mappings, build ids, relative pcs)
 // or efficient repetition, use interned Callstacks instead.
 //
-// This lives in its own file (rather than profile_common.proto) so that
-// messages embedding it, like TrackEvent, do not pull in the rest of the
-// profiling protos and their transitive dependencies.
+// Used by StackSample as the inline (non-interned) variant of its callstack
+// field.
 message InlineCallstack {
   // A frame within an inline callstack.
   message Frame {

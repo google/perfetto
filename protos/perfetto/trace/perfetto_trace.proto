@@ -1022,6 +1022,12 @@ message DisplayVideoConfig {
   // Per-display cap on emitted bytes. On reaching it the stream is torn
   // down with a VideoFrameError (SIZE_CAP_HIT).
   optional uint64 max_stream_size_bytes = 4;
+
+  // Target video encoder bitrate in bits per second. Controls quality vs
+  // trace size at a fixed resolution (unlike `scale`, which changes the
+  // resolution). Unset lets the producer pick a default from the (scaled)
+  // resolution and frame rate. Maps to MediaFormat.KEY_BIT_RATE.
+  optional uint32 bitrate_bps = 5;
 }
 
 // End of protos/perfetto/config/android/display_video_config.proto
@@ -13859,9 +13865,8 @@ message Callstack {
 // unique. For binary/library information (mappings, build ids, relative pcs)
 // or efficient repetition, use interned Callstacks instead.
 //
-// This lives in its own file (rather than profile_common.proto) so that
-// messages embedding it, like TrackEvent, do not pull in the rest of the
-// profiling protos and their transitive dependencies.
+// Used by StackSample as the inline (non-interned) variant of its callstack
+// field.
 message InlineCallstack {
   // A frame within an inline callstack.
   message Frame {
@@ -13979,6 +13984,32 @@ message StackSample {
   // (the sampling timebase) or observed alongside (a follower). Values live on
   // the sample as weights; this only describes their meaning.
   message CounterDescriptor {
+    // The scope of a counter instance: which stream of values the per-sample
+    // weights belong to. Counter instances accumulate independently, so
+    // values from different instances must never be merged into one stream.
+    // Trace processor keeps sampling streams separate and materializes one
+    // counter track per instance within each stream: SCOPE_GLOBAL yields one
+    // track per sampling stream and SCOPE_CPU one track per
+    // (sampling stream, cpu).
+    enum Scope {
+      // Treated as SCOPE_GLOBAL.
+      SCOPE_UNSPECIFIED = 0;
+
+      // A single counter instance, not split by cpu, thread or anything
+      // else.
+      SCOPE_GLOBAL = 1;
+
+      // One counter instance per cpu. Each sample's weight belongs to the
+      // instance of the cpu in its ExecutionContext; samples without a cpu
+      // cannot be attributed and their weights for this counter are dropped.
+      SCOPE_CPU = 2;
+
+      // If your profiler needs a scope that is not listed here, please file
+      // a bug at https://github.com/google/perfetto/issues explaining what
+      // you are trying to record and which scope you would like added.
+      // Append-only: never renumber or repurpose an existing value.
+    }
+
     // Interning key, used when this descriptor is emitted via
     // InternedData.stack_sample_counter_descriptors and referenced by
     // StackSample.primary_descriptor_iid. Starts from 1; 0 is the same as "not
@@ -14004,6 +14035,9 @@ message StackSample {
 
     // Free-form description of what the counter measures.
     optional string description = 6;
+
+    // The scope of this counter's instances. Absent means SCOPE_GLOBAL.
+    optional Scope scope = 7;
   }
 
   // The task (thread / process / async context) this sample is attributed to.
@@ -15253,9 +15287,8 @@ message TrackEvent {
   //
   // Only one of these fields should be set.
   oneof callstack_field {
-    // Fully-inline callstack data. Use this for simplicity when interning is
-    // not needed (e.g., for unique callstacks or when trace size is not
-    // critical).
+    // Inline callstack data. Use this for simplicity when interning is not
+    // needed (e.g., for unique callstacks or when trace size is not critical).
     InlineCallstack callstack = 55;
 
     // Reference to interned Callstack (see InternedData.callstacks).
@@ -15264,6 +15297,40 @@ message TrackEvent {
     // Note: iids *always* start from 1. A value of 0 is considered "not set".
     uint64 callstack_iid = 56;
   }
+
+  // Inline callstack for TrackEvents when interning is not needed.
+  // This is a simplified version of the profiling Callstack/Frame messages,
+  // designed for cases where trace size is not critical or callstacks are
+  // unique.
+  //
+  // Use this for simple callstacks with function names and source locations.
+  // For binary/library information (mappings, build IDs, relative PCs), use
+  // interned callstacks via callstack_iid instead.
+  message InlineCallstack {
+    // Frame within an inline callstack.
+    message Frame {
+      // Function name, e.g., "malloc" or "std::vector<int>::push_back"
+      optional string function_name = 1;
+
+      // Optional: Source file path, e.g., "/src/foo.cc"
+      optional string source_file = 2;
+
+      // Optional: Line number in the source file
+      optional uint32 line_number = 3;
+    }
+
+    // Frames of this callstack, ordered from bottom (outermost) to top
+    // (innermost). For example, if main() calls foo() which calls bar(), the
+    // frames would be: [main, foo, bar]
+    repeated Frame frames = 1;
+  }
+
+  // An optional additive value attributed to this callstack occurrence. When
+  // present, weighted callstack aggregations only include occurrences which
+  // have this field set; they do not mix weighted and unweighted samples.
+  // Consumers can use sample count as a separate fallback measure when no
+  // weighted occurrences are available.
+  optional double callstack_weight = 57;
 
   // Debug annotations associated with this event. These are arbitrary key-value
   // pairs that can be used to attach additional information to the event.

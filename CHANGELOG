@@ -13,14 +13,13 @@ Unreleased:
     * Replaced TraceConfig.notes and `perfetto --add-note` with
       TraceConfig.trace_attributes and `--add-attribute`.
   Trace Processor:
-    * Introduced __intrinsic_profiler_sample, a generic sampler table
-      shared by all callstack profiler sources, replacing the per-source
-      perf_sample table. perf_sample and perf_session keep their exact
-      schemas as views (perf_session over the generalized
-      profiler_session table); a new stack_sample view exposes all
-      samples which captured a callstack, across sources. Per-sample
-      counter values keep the perf counter-set model, generalized as
-      __intrinsic_profiler_counter_set.
+    * Introduced common stack_sample, stack_sample_session,
+      stack_sample_task_context, stack_sample_execution_context,
+      stack_sample_async_context, stack_sample_counter_track and
+      stack_sample_counter tables shared by all callstack profiler sources.
+      Async contexts preserve their structural parent relationships. The Linux
+      perf-specific perf_sample, perf_session and perf_counter_track tables
+      continue to expose all perf data, including counter-only samples.
     * Chrome streaming profiles, legacy V8 cpu profiles, gecko profiles,
       simpleperf proto traces, perf script text and macOS Instruments
       traces now also populate profiler_sample; cpu_profile_stack_sample
@@ -58,6 +57,10 @@ Unreleased:
       `TrackEvent.Callstack` / `TrackEvent::Callstack` types must switch to
       `InlineCallstack`.
   UI:
+    * Callstack sample tracks and flamegraphs now share one implementation
+      over the stack_sample table. Tracks and area-selection flamegraph tabs
+      remain separate per profiler source, while every source with recorded
+      counters supports counter-weighted flamegraphs.
     * Opening multiple trace files is now supported by default: the "Open
       multiple trace files" sidebar item (or multi-selecting / dropping
       several files) opens a dialog to configure how the traces merge onto

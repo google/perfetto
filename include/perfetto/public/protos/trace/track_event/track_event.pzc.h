@@ -40,11 +40,12 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeRendererSchedulerState);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeUserEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeWindowHandleEventInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DebugAnnotation);
-PERFETTO_PB_MSG_DECL(perfetto_protos_InlineCallstack);
 PERFETTO_PB_MSG_DECL(perfetto_protos_LogMessage);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Screenshot);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SourceLocation);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TaskExecution);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEvent_InlineCallstack);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEvent_InlineCallstack_Frame);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEvent_LegacyEvent);
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackEvent, Type){
@@ -189,7 +190,7 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   54);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   MSG,
-                  perfetto_protos_InlineCallstack,
+                  perfetto_protos_TrackEvent_InlineCallstack,
                   callstack,
                   55);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
@@ -197,6 +198,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   uint64_t,
                   callstack_iid,
                   56);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
+                  FIXED64,
+                  double,
+                  callstack_weight,
+                  57);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   MSG,
                   perfetto_protos_DebugAnnotation,
@@ -414,5 +420,29 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent_LegacyEvent,
                   int32_t,
                   tid_override,
                   19);
+
+PERFETTO_PB_MSG(perfetto_protos_TrackEvent_InlineCallstack);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent_InlineCallstack,
+                  MSG,
+                  perfetto_protos_TrackEvent_InlineCallstack_Frame,
+                  frames,
+                  1);
+
+PERFETTO_PB_MSG(perfetto_protos_TrackEvent_InlineCallstack_Frame);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent_InlineCallstack_Frame,
+                  STRING,
+                  const char*,
+                  function_name,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent_InlineCallstack_Frame,
+                  STRING,
+                  const char*,
+                  source_file,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent_InlineCallstack_Frame,
+                  VARINT,
+                  uint32_t,
+                  line_number,
+                  3);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_TRACK_EVENT_TRACK_EVENT_PZC_H_

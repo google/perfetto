@@ -34,8 +34,7 @@ namespace perfetto::trace_processor::core::tree {
 // parent array (row indices, kNullParent for roots).
 //
 // This is intentionally minimal: no sort state, no sparse nulls, no
-// shared ownership. Built by TreeColumnsBuilder, consumed by
-// TreeTransformer.
+// shared ownership. Built from columnar data and consumed by tree operators.
 struct TreeColumns {
   struct Column {
     StorageType type = StorageType(Int64{});

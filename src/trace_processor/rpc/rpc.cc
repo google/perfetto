@@ -192,8 +192,8 @@ class RpcExportOutput : public TraceProcessor::ExportOutput {
       : callback_(callback) {}
 
   base::Status Write(const void* data, size_t size) override {
-    callback_(static_cast<const uint8_t*>(data), size, /*has_more=*/true);
-    return base::OkStatus();
+    return callback_(static_cast<const uint8_t*>(data), size,
+                     /*has_more=*/true);
   }
 
  private:
@@ -602,6 +602,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
                             }
                             result->set_has_more(has_more);
                             resp.Send(rpc_response_fn_);
+                            return base::OkStatus();
                           })
                  : base::ErrStatus("Export format is required");
       if (!status.ok()) {
@@ -807,8 +808,7 @@ base::Status Rpc::Export(TraceProcessor::ExportFormat format,
                          const ExportCallback& callback) {
   RpcExportOutput output(callback);
   RETURN_IF_ERROR(trace_processor_->Export(format, &output));
-  callback(nullptr, 0, /*has_more=*/false);
-  return base::OkStatus();
+  return callback(nullptr, 0, /*has_more=*/false);
 }
 
 void Rpc::RestoreInitialTables() {
