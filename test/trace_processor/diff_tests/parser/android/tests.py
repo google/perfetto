@@ -295,13 +295,13 @@ class AndroidParser(TestSuite):
     return DiffTestBlueprint(
         trace=Path('android_framework_track_event.textproto'),
         query="""
-        SELECT p.pid, p.name, p.uid, t.fw_start_ts, t.fw_end_ts
+        SELECT p.pid, p.name, p.uid, t.start_seq_id, t.fw_start_ts, t.fw_end_ts
         FROM __intrinsic_android_track_event_process t
         JOIN process p USING (upid);
         """,
         out=Csv("""
-          "pid","name","uid","fw_start_ts","fw_end_ts"
-          100,"com.example.app",10001,2000,5000
+          "pid","name","uid","start_seq_id","fw_start_ts","fw_end_ts"
+          100,"com.example.app",10001,42,2000,5000
         """))
 
   def test_android_framework_track_event_enum(self):
