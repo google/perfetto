@@ -41,8 +41,8 @@ void FlatBufferWriter::GrowIfNeeded(uint32_t bytes) {
   // Shift existing data to the end of the new buffer.
   uint32_t data_len = old_size - head_;
   uint32_t new_head = new_size - data_len;
-  memmove(&buf_[new_head], &buf_[head_], data_len);
-  memset(&buf_[head_], 0, new_head - head_);
+  memmove(buf_.data() + new_head, buf_.data() + head_, data_len);
+  memset(buf_.data() + head_, 0, new_head - head_);
   head_ = new_head;
 }
 
@@ -56,6 +56,9 @@ void FlatBufferWriter::Align(uint32_t alignment) {
 }
 
 void FlatBufferWriter::PrependBytes(const void* src, uint32_t len) {
+  if (len == 0) {
+    return;
+  }
   GrowIfNeeded(len);
   head_ -= len;
   memcpy(&buf_[head_], src, len);
