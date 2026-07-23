@@ -1,0 +1,70 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// A user-defined annotation describing a named span on the GPU timeline.
+// next id: 9
+message GpuUserAnnotationEvent {
+  // optional. Unique ID for the event, used to correlate host and GPU work.
+  optional uint64 event_id = 1;
+
+  // optional. Duration of the annotation in nanoseconds. If unset, this is a
+  // single time point event.
+  optional uint64 duration = 2;
+
+  // optional. Name for this annotation.
+  oneof name_field {
+    string name = 3;
+    // Interned annotation name. Refers to EventName in InternedData.
+    uint64 name_iid = 4;
+  }
+
+  // optional. Identifier for GPU in a multi-gpu device.
+  optional int32 gpu_id = 5;
+
+  // required. Graphics context for the annotation.
+  optional uint64 context = 6;
+
+  // optional. ID to a hardware queue description in the specifications.
+  // InternedGpuRenderStageSpecification
+  optional uint64 hw_queue_iid = 7;
+
+  // Typed key/value argument for extending an annotation with custom data.
+  message ExtraArg {
+    // Name of the argument.
+    oneof name_field {
+      // Interned name. Refers to DebugAnnotationName in InternedData.
+      uint64 name_iid = 1;
+      string name = 2;
+    }
+    // Value of the argument.
+    oneof value {
+      int64 int_value = 3;
+      uint64 uint_value = 4;
+      double double_value = 5;
+      string string_value = 6;
+      // Interned string. Refers to InternedString in
+      // debug_annotation_string_values.
+      uint64 string_value_iid = 7;
+    }
+  }
+
+  // Additional typed arguments for the annotation.
+  repeated ExtraArg args = 8;
+}

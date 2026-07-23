@@ -57,6 +57,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_GpuInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuLog);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuMemTotalEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuRenderStageEvent);
+PERFETTO_PB_MSG_DECL(perfetto_protos_GpuUserAnnotationEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GraphicsFrameEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InitialDisplayState);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InodeFileMap);
@@ -316,6 +317,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_GpuRenderStageEvent,
                   gpu_render_stage_event,
                   53);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_GpuUserAnnotationEvent,
+                  gpu_user_annotation_event,
+                  136);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_StreamingProfilePacket,

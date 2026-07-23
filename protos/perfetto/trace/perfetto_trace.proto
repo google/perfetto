@@ -13553,6 +13553,61 @@ message InternedComputeArgName {
 
 // End of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
 
+// Begin of protos/perfetto/trace/gpu/gpu_user_annotation_event.proto
+
+// A user-defined annotation describing a named span on the GPU timeline.
+// next id: 9
+message GpuUserAnnotationEvent {
+  // optional. Unique ID for the event, used to correlate host and GPU work.
+  optional uint64 event_id = 1;
+
+  // optional. Duration of the annotation in nanoseconds. If unset, this is a
+  // single time point event.
+  optional uint64 duration = 2;
+
+  // optional. Name for this annotation.
+  oneof name_field {
+    string name = 3;
+    // Interned annotation name. Refers to EventName in InternedData.
+    uint64 name_iid = 4;
+  }
+
+  // optional. Identifier for GPU in a multi-gpu device.
+  optional int32 gpu_id = 5;
+
+  // required. Graphics context for the annotation.
+  optional uint64 context = 6;
+
+  // optional. ID to a hardware queue description in the specifications.
+  // InternedGpuRenderStageSpecification
+  optional uint64 hw_queue_iid = 7;
+
+  // Typed key/value argument for extending an annotation with custom data.
+  message ExtraArg {
+    // Name of the argument.
+    oneof name_field {
+      // Interned name. Refers to DebugAnnotationName in InternedData.
+      uint64 name_iid = 1;
+      string name = 2;
+    }
+    // Value of the argument.
+    oneof value {
+      int64 int_value = 3;
+      uint64 uint_value = 4;
+      double double_value = 5;
+      string string_value = 6;
+      // Interned string. Refers to InternedString in
+      // debug_annotation_string_values.
+      uint64 string_value_iid = 7;
+    }
+  }
+
+  // Additional typed arguments for the annotation.
+  repeated ExtraArg args = 8;
+}
+
+// End of protos/perfetto/trace/gpu/gpu_user_annotation_event.proto
+
 // Begin of protos/perfetto/trace/gpu/vulkan_api_event.proto
 
 // Message for recording the Vulkan call.
@@ -18160,7 +18215,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 136.
+// Next id: 137.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18248,6 +18303,7 @@ message TracePacket {
     ChromeMetadataPacket chrome_metadata = 51;
     GpuCounterEvent gpu_counter_event = 52;
     GpuRenderStageEvent gpu_render_stage_event = 53;
+    GpuUserAnnotationEvent gpu_user_annotation_event = 136;
     StreamingProfilePacket streaming_profile_packet = 54;
     ArtProcessMetadata art_process_metadata = 131;
     GraphicsFrameEvent graphics_frame_event = 57;
