@@ -57,9 +57,9 @@ class StraceParser(TestSuite):
         """))
 
   def test_strace_dash_f_pid(self):
-    # The "1234 <ts> write(...)" line in basic.strace was collected with
-    # `strace -f`; its leading pid becomes the slice's thread, distinct
-    # from the other (unprefixed, tid-1) syscalls in the same trace.
+    # Each line's leading `-f` pid becomes the slice's thread: the
+    # "1234 <ts> write(...)" line lands on a different thread than the
+    # pid-1000 syscalls in the same trace.
     return DiffTestBlueprint(
         trace=Path('basic.strace'),
         query="""
@@ -67,10 +67,12 @@ class StraceParser(TestSuite):
         FROM slice s
         JOIN thread_track tt ON s.track_id = tt.id
         JOIN thread t USING (utid)
-        WHERE s.name = 'write';
+        WHERE s.name IN ('close', 'write')
+        ORDER BY s.ts;
         """,
         out=Csv("""
         "name","tid"
+        "close",1000
         "write",1234
         """))
 
@@ -108,6 +110,25 @@ class StraceParser(TestSuite):
         "name","value"
         "strace_parse_failure",0
         "strace_unsupported_timestamp_format",2
+        """))
+
+  def test_strace_missing_pid_rejected(self):
+    # missing_pid.strace mixes `-f` lines (leading pid) with two pid-less
+    # syscall lines, as produced by strace without `-f`. Pid-less lines
+    # can't be attributed to a thread that survives trace merging, so they
+    # are skipped under a dedicated actionable stat while the `-f` lines
+    # still import.
+    return DiffTestBlueprint(
+        trace=Path('missing_pid.strace'),
+        query="""
+        SELECT
+          (SELECT COUNT(*) FROM slice) AS slices,
+          (SELECT value FROM stats
+            WHERE name = 'strace_missing_pid') AS missing_pid;
+        """,
+        out=Csv("""
+        "slices","missing_pid"
+        2,2
         """))
 
   def test_strace_unfinished_resumed(self):

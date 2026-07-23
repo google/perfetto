@@ -33,6 +33,11 @@ TEST(StraceLineParserTest, CompleteCall) {
           .line;
   ASSERT_TRUE(line.has_value());
   EXPECT_EQ(line->epoch_ns, 1700000000LL * 1000 * 1000 * 1000);
+  // A pid-less line must stay *parseable* (pid == nullopt) rather than
+  // becoming a parse failure: format sniffing relies on it so that a trace
+  // collected without `-f` is still recognised as strace and rejected with
+  // the actionable strace_missing_pid stat, not a generic unknown-format
+  // error.
   EXPECT_FALSE(line->pid.has_value());
   EXPECT_EQ(line->syscall, "openat");
   EXPECT_EQ(line->args, R"(AT_FDCWD, "/etc/passwd", O_RDONLY)");
