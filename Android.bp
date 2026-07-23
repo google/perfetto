@@ -19828,6 +19828,22 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/plugins/flamegraph:flamegraph
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
+    srcs: [
+        "src/trace_processor/plugins/flamegraph/flamegraph.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/flamegraph:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_flamegraph_unittests",
+    srcs: [
+        "src/trace_processor/plugins/flamegraph/flamegraph_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/plugins/graph_scan:graph_scan
 filegroup {
     name: "perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
@@ -23879,6 +23895,8 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_experimental_flat_slice_unittests",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_unittests",
+        ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
+        ":perfetto_src_trace_processor_plugins_flamegraph_unittests",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
