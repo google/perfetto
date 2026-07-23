@@ -60,6 +60,8 @@ import {Cpu} from '../../components/cpu';
 import {ThreadStateByCpuAggregator} from './thread_state_by_cpu_aggregator';
 import type {App} from '../../public/app';
 import type {Flag} from '../../public/feature_flag';
+import type {Setting} from '../../public/settings';
+import {z} from 'zod';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -78,6 +80,7 @@ export default class SchedPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Sched';
   static readonly dependencies = [ProcessThreadGroupsPlugin, ThreadPlugin];
   static threadStateByCpuFlag: Flag;
+  static taskColorModeSetting: Setting<'process' | 'priority'>;
 
   static onActivate(app: App) {
     SchedPlugin.threadStateByCpuFlag = app.featureFlags.register({
@@ -86,6 +89,26 @@ export default class SchedPlugin implements PerfettoPlugin {
       description:
         'Add a new area selection aggregation tab showing thread states broken down by CPU.',
       defaultValue: true,
+    });
+
+    SchedPlugin.taskColorModeSetting = app.settings.register({
+      id: 'dev.perfetto.Sched#taskColorMode',
+      name: 'Task slice color mode',
+      description:
+        'Color scheme used for task (CPU scheduling) slices: by process/thread or by priority (realtime & niceness).',
+      schema: z.enum(['process', 'priority']),
+      defaultValue: 'process',
+    });
+
+    app.commands.registerCommand({
+      id: 'dev.perfetto.Sched#toggleTaskColorMode',
+      name: 'Toggle task slice color mode (Process vs Priority)',
+      defaultHotkey: 'Shift+C',
+      callback: () => {
+        const current = SchedPlugin.taskColorModeSetting.get();
+        const next = current === 'process' ? 'priority' : 'process';
+        SchedPlugin.taskColorModeSetting.set(next);
+      },
     });
   }
 
