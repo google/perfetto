@@ -230,7 +230,7 @@ class RecordPopup implements m.ClassComponent<RecordPopupAttrs> {
               visibleResults.map(
                 (result: {
                   key: string;
-                  segments: {matching: boolean; value: string}[];
+                  segments: readonly {matching: boolean; value: string}[];
                 }) => {
                   const keyPath = `${pathPrefix}.${result.key}`;
                   const isKeyAlreadyVisible = existingColumns.includes(keyPath);

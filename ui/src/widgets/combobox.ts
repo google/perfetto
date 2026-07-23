@@ -257,7 +257,7 @@ function SuggestionItem(): m.Component<SuggestionItemAttrs> {
   };
 }
 
-function formatSegments(segments: FuzzySegment[]): m.Children {
+function formatSegments(segments: readonly FuzzySegment[]): m.Children {
   return segments.map(({matching, value}) =>
     matching ? m('b', value) : value,
   );

@@ -127,12 +127,12 @@ export class Omnibox implements m.ClassComponent {
     );
 
     const options = sorted.map(({recentsIndex, cmd}): OmniboxOption => {
-      const {segments, id, defaultHotkey, source} = cmd;
+      const {segments, sourceSegments, id, defaultHotkey} = cmd;
       return {
         key: id,
         displayName: segments,
         tag: recentsIndex !== -1 ? 'recently used' : undefined,
-        source,
+        source: sourceSegments,
         rightContent: defaultHotkey && m(HotkeyGlyphs, {hotkey: defaultHotkey}),
       };
     });
@@ -293,11 +293,11 @@ export class Omnibox implements m.ClassComponent {
 // ---------------------------------------------------------------------------
 
 interface OmniboxOptionRowAttrs extends HTMLAttrs {
-  readonly displayName: FuzzySegment[] | string;
+  readonly displayName: readonly FuzzySegment[] | string;
   readonly highlighted: boolean;
   readonly rightContent?: m.Children;
   readonly label?: string;
-  readonly source?: string;
+  readonly source?: readonly FuzzySegment[] | string;
 }
 
 class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
@@ -318,10 +318,10 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
         class: classNames(highlighted && 'pf-highlighted'),
         ...htmlAttrs,
       },
-      source &&
+      exists(source) &&
         m(Chip, {
           className: 'pf-omnibox__source',
-          label: source,
+          label: this.renderTitle(source),
           rounded: true,
           compact: true,
           intent: Intent.Primary,
@@ -332,7 +332,7 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
     );
   }
 
-  private renderTitle(title: FuzzySegment[] | string): m.Children {
+  private renderTitle(title: readonly FuzzySegment[] | string): m.Children {
     if (isString(title)) {
       return title;
     } else {
@@ -354,9 +354,9 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
 
 interface OmniboxOption {
   readonly key: string;
-  readonly displayName: FuzzySegment[] | string;
+  readonly displayName: readonly FuzzySegment[] | string;
   readonly tag?: string;
-  readonly source?: string;
+  readonly source?: readonly FuzzySegment[] | string;
   readonly rightContent?: m.Children;
 }
 
@@ -596,9 +596,21 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
 function fuzzyFilterCommands(
   commands: readonly Command[],
   searchTerm: string,
-): Array<Command & {segments: FuzzySegment[]}> {
-  const finder = new FuzzyFinder(commands, ({name}) => name);
+): Array<
+  Command & {
+    segments: readonly FuzzySegment[];
+    sourceSegments?: readonly FuzzySegment[];
+  }
+> {
+  const finder = new FuzzyFinder(commands, [
+    (c: Command) => c.name,
+    (c: Command) => c.source ?? '',
+  ]);
   return finder.find(searchTerm).map((result) => {
-    return {segments: result.segments, ...result.item};
+    return {
+      segments: result.segments[0],
+      sourceSegments: result.item.source ? result.segments[1] : undefined,
+      ...result.item,
+    };
   });
 }

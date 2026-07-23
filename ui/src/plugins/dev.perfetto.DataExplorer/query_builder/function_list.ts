@@ -91,7 +91,7 @@ class SearchBar implements m.ClassComponent<{
 // Renders a single function card
 class FunctionCard implements m.ClassComponent<{
   functionWithModule: FunctionWithModule;
-  segments: FuzzySegment[];
+  segments: readonly FuzzySegment[];
   matchType: MatchType;
   onFunctionClick: (fn: FunctionWithModule) => void;
   isSelected: boolean;
@@ -100,7 +100,7 @@ class FunctionCard implements m.ClassComponent<{
     attrs,
   }: m.CVnode<{
     functionWithModule: FunctionWithModule;
-    segments: FuzzySegment[];
+    segments: readonly FuzzySegment[];
     matchType: MatchType;
     onFunctionClick: (fn: FunctionWithModule) => void;
     isSelected: boolean;
@@ -197,7 +197,7 @@ export class FunctionList implements m.ClassComponent<FunctionListAttrs> {
       query: string,
     ): Array<{
       item: FunctionWithModule;
-      segments: FuzzySegment[];
+      segments: readonly FuzzySegment[];
       matchType: MatchType;
     }> => {
       if (query.trim() === '') {

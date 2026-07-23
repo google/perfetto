@@ -30,7 +30,7 @@ import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
+import {FuzzyFinder, renderSegments, type FuzzySegment} from '../../base/fuzzy';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
 import {Icons} from '../../base/semantic_icons';
@@ -161,26 +161,41 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   }
 
   private getAllSettingsGrouped(settingsManager: SettingsManagerImpl) {
-    return settingsManager
-      .getAllSettings()
-      .map((item) => ({item, segments: []}));
+    return settingsManager.getAllSettings().map((item) => ({
+      item,
+      nameSegments: item.name,
+      descriptionSegments: item.description.trim(),
+    }));
   }
 
   private getFilteredSettingsGrouped(settingsManager: SettingsManagerImpl) {
     const allSettings = settingsManager.getAllSettings();
-    const finder = new FuzzyFinder(allSettings, (s) => {
-      return `${s.name} ${s.description ?? ''}`;
-    });
-    return finder.find(this.filterText);
+    const finder = new FuzzyFinder(allSettings, [
+      (s: SettingImpl<unknown>) => s.name,
+      (s: SettingImpl<unknown>) => s.description ?? '',
+    ]);
+    return finder.find(this.filterText).map((res) => ({
+      item: res.item,
+      nameSegments: res.segments[0],
+      descriptionSegments: res.segments[1],
+    }));
   }
 
   private groupSettingsByPlugin(
-    settings: Array<{item: SettingImpl<unknown>; segments: FuzzySegment[]}>,
+    settings: Array<{
+      item: SettingImpl<unknown>;
+      nameSegments: readonly FuzzySegment[] | string;
+      descriptionSegments: readonly FuzzySegment[] | string;
+    }>,
   ) {
     const app = AppImpl.instance;
     const grouped = new Map<
       string,
-      Array<{item: Setting<unknown>; segments: FuzzySegment[]}>
+      {
+        item: Setting<unknown>;
+        nameSegments: readonly FuzzySegment[] | string;
+        descriptionSegments: readonly FuzzySegment[] | string;
+      }[]
     >();
     for (const result of settings) {
       const setting = result.item;
@@ -199,7 +214,11 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
 
   private renderPluginSection(
     pluginId: string,
-    settings: Array<{item: Setting<unknown>; segments: FuzzySegment[]}>,
+    settings: readonly {
+      item: Setting<unknown>;
+      nameSegments: readonly FuzzySegment[] | string;
+      descriptionSegments: readonly FuzzySegment[] | string;
+    }[],
     subpage: string,
   ) {
     return m(
@@ -208,8 +227,13 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       m('h2.pf-settings-page__plugin-title', pluginId),
       m(
         CardStack,
-        settings.map(({item}) => {
-          return this.renderSettingCard(item, subpage);
+        settings.map(({item, nameSegments, descriptionSegments}) => {
+          return this.renderSettingCard(
+            item,
+            subpage,
+            nameSegments,
+            descriptionSegments,
+          );
         }),
       ),
     );
@@ -240,11 +264,18 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     }
   }
 
-  private renderSettingCard(setting: Setting<unknown>, subpage: string) {
+  private renderSettingCard(
+    setting: Setting<unknown>,
+    subpage: string,
+    nameSegments?: readonly FuzzySegment[] | string,
+    descriptionSegments?: readonly FuzzySegment[] | string,
+  ) {
     return m(SettingsCard, {
       id: setting.id,
-      title: setting.name,
-      description: setting.description.trim(),
+      title: renderSegments(nameSegments ?? setting.name),
+      description: renderSegments(
+        descriptionSegments ?? setting.description.trim(),
+      ),
       focused: subpage === `/${setting.id}`,
       controls: m('.pf-settings-page__controls', [
         !setting.isDefault &&

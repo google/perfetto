@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FuzzyFinder, fuzzyMatch} from './fuzzy';
+import {FuzzyFinder} from './fuzzy';
 
 describe('FuzzyFinder', () => {
   const items = ['aaa', 'aba', 'zzz', 'c z d z e', 'CAPS', 'ababc'];
@@ -123,27 +123,78 @@ describe('FuzzyFinder camelCase tokenization', () => {
       ]),
     );
   });
+
+  it('finds GpuCompute with gpucompute', () => {
+    const finder = new FuzzyFinder(['GpuCompute'], (x) => x);
+    const result = finder.find('gpucompute');
+    expect(result).toEqual([
+      {
+        item: 'GpuCompute',
+        segments: [{matching: true, value: 'GpuCompute'}],
+        score: expect.any(Number),
+      },
+    ]);
+  });
+
+  interface ExpectFuzzyOptions {
+    readonly items: readonly string[];
+    readonly searchTerm: string;
+    readonly toReturn: readonly string[];
+  }
+
+  // Helper function to assert that finding |searchTerm| in |items| returns |toReturn| item names.
+  function expectFuzzy({items, searchTerm, toReturn}: ExpectFuzzyOptions) {
+    const finder = new FuzzyFinder(items, (x) => x);
+    const result = finder.find(searchTerm).map((r) => r.item);
+    expect(result).toEqual(toReturn);
+  }
+
+  test('sanity check', () => {
+    expectFuzzy({
+      items: ['GpuCompute'],
+      searchTerm: 'gpucompute',
+      toReturn: ['GpuCompute'],
+    });
+
+    expectFuzzy({
+      items: ['GpuCompute'],
+      searchTerm: 'gpu compute',
+      toReturn: ['GpuCompute'],
+    });
+
+    expectFuzzy({
+      items: ['GpuCompute'],
+      searchTerm: 'compute gpu',
+      toReturn: ['GpuCompute'],
+    });
+  });
 });
 
-test('fuzzyMatch', () => {
-  expect(fuzzyMatch('foo bar baz', 'foo')).toEqual({
-    matches: true,
-    segments: [
-      {matching: true, value: 'foo'},
-      {matching: false, value: ' bar baz'},
-    ],
-  });
+describe('FuzzyFinder multi-key lookup', () => {
+  interface CommandItem {
+    name: string;
+    source: string;
+  }
 
-  expect(fuzzyMatch('foo bar baz', 'qux')).toEqual({
-    matches: false,
-    segments: [],
-  });
+  const items: CommandItem[] = [
+    {name: 'Table List', source: 'DataExplorer'},
+    {name: 'Record Trace', source: 'Core'},
+  ];
 
-  expect(fuzzyMatch('bar baz', 'foo', 'bar')).toEqual({
-    matches: true,
-    segments: [
-      {matching: true, value: 'bar'},
-      {matching: false, value: ' baz'},
-    ],
+  it('matches across multiple keys', () => {
+    const finder = new FuzzyFinder(items, [
+      (x: CommandItem) => x.source,
+      (x: CommandItem) => x.name,
+    ]);
+    const result = finder.find('Data');
+    expect(result.length).toBe(1);
+    expect(result[0].item.name).toBe('Table List');
+    expect(result[0].segments[0]).toEqual([
+      {matching: true, value: 'Data'},
+      {matching: false, value: 'Explorer'},
+    ]);
+    expect(result[0].segments[1]).toEqual([
+      {matching: false, value: 'Table List'},
+    ]);
   });
 });

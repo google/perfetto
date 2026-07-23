@@ -27,8 +27,8 @@ import {
 import {EmptyState} from '../../widgets/empty_state';
 
 interface FilteredTable {
-  table: SqlTable;
-  segments: FuzzySegment[];
+  readonly table: SqlTable;
+  readonly segments: readonly FuzzySegment[];
 }
 
 // Single source so run-query, title, and Copy text stay in sync.
@@ -36,7 +36,7 @@ function includeStatement(includeKey: string): string {
   return `INCLUDE PERFETTO MODULE ${includeKey};`;
 }
 
-function renderHighlightedName(segments: FuzzySegment[]): m.Children {
+function renderHighlightedName(segments: readonly FuzzySegment[]): m.Children {
   return segments.map(({matching, value}) =>
     matching ? m('span.pf-bt-simple-table-list__highlight', value) : value,
   );

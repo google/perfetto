@@ -30,11 +30,11 @@ import {
 import {EmptyState} from '../../widgets/empty_state';
 
 interface FilteredTable {
-  table: SqlTable;
-  segments: FuzzySegment[];
+  readonly table: SqlTable;
+  readonly segments: readonly FuzzySegment[];
 }
 
-function renderHighlightedName(segments: FuzzySegment[]): m.Children {
+function renderHighlightedName(segments: readonly FuzzySegment[]): m.Children {
   return segments.map(({matching, value}) =>
     matching ? m('span.pf-simple-table-list__highlight', value) : value,
   );
@@ -54,7 +54,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
 
     // Filter tables using fuzzy search (results ordered by relevance)
     const searchTerm = this.searchQuery.trim();
-    let filteredTables: FilteredTable[];
+    let filteredTables: readonly FilteredTable[];
     if (searchTerm === '') {
       filteredTables = tables.map((table) => ({
         table,
