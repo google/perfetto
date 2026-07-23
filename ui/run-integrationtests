@@ -99,6 +99,23 @@ def needs_sudo_for_docker():
     return True
 
 
+def is_docker_rootless(use_sudo):
+  """Check whether the Docker daemon uses rootless user namespacing."""
+  cmd = ['docker', 'info', '--format', '{{json .SecurityOptions}}']
+  if use_sudo:
+    cmd = ['sudo'] + cmd
+  try:
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    return result.returncode == 0 and 'name=rootless' in result.stdout
+  except (subprocess.TimeoutExpired, FileNotFoundError):
+    return False
+
+
 def run_build(args):
   """Run the build script to ensure we have something to test."""
   build_args = []
@@ -148,6 +165,7 @@ def run_native(args):
 def run_in_docker(args):
   """Run tests inside a Docker container with pre-installed Chrome."""
   use_sudo = needs_sudo_for_docker()
+  rootless = is_docker_rootless(use_sudo)
 
   # Get the Playwright version and build/use matching Docker image
   try:
@@ -183,6 +201,10 @@ def run_in_docker(args):
   if dev_server_args:
     env_args += ['-e', f'DEV_SERVER_ARGS={" ".join(dev_server_args)}']
 
+  # With rootless Docker, container root maps to the host user. Running as the
+  # host's numeric uid instead would map to an unrelated subordinate uid and
+  # make owner-only build dependencies inaccessible inside the container.
+  user_args = [] if rootless else ['-u', f'{os.getuid()}:{os.getgid()}']
   docker_cmd = [
       'docker', 'run',
       '--rm', # Remove the container after it exits
@@ -190,7 +212,7 @@ def run_in_docker(args):
       '-t', # Allocate a pseudo-TTY for better output formatting
       '-v', f'{REPO_ROOT}:{REPO_ROOT}', # Mount the repo root into the container
       '-w', f'{REPO_ROOT}/ui', # Set working directory to /ui
-      '-u', f'{os.getuid()}:{os.getgid()}', # Run as current user to avoid permission issues
+      *user_args,
       '-e', 'HOME=/tmp', # Chrome needs a writable home for crashpad
       *env_args,
       image,
