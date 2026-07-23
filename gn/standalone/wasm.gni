@@ -47,7 +47,9 @@ template("wasm_lib") {
       _environment = "worker"
     }
     if (_enable_fs) {
-      _exports = "['ccall', 'callMain', 'addFunction', 'FS', 'HEAPU8']"
+      _exports = "['ccall', 'callMain', 'addFunction', 'FS', 'FS_mkdir', " +
+                 "'FS_mount', 'FS_lookupPath', 'FS_unlink', 'WORKERFS', " +
+                 "'HEAPU8']"
     } else {
       _exports = "['ccall', 'callMain', 'addFunction', 'HEAPU8']"
     }
