@@ -2491,13 +2491,9 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_core_tree_tree",
     srcs = [
-        "src/trace_processor/core/tree/propagate_spec.cc",
-        "src/trace_processor/core/tree/propagate_spec.h",
         "src/trace_processor/core/tree/tree_columns.h",
-        "src/trace_processor/core/tree/tree_columns_builder.cc",
-        "src/trace_processor/core/tree/tree_columns_builder.h",
-        "src/trace_processor/core/tree/tree_transformer.cc",
-        "src/trace_processor/core/tree/tree_transformer.h",
+        "src/trace_processor/core/tree/tree_columns_from_dataframe.cc",
+        "src/trace_processor/core/tree/tree_columns_from_dataframe.h",
     ],
 )
 
@@ -4210,8 +4206,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/std/trees/filter.sql",
-        "src/trace_processor/perfetto_sql/stdlib/std/trees/propagate.sql",
         "src/trace_processor/perfetto_sql/stdlib/std/trees/table_conversion.sql",
     ],
 )
@@ -5046,11 +5040,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/tree_functions/tree_conversion.cc",
         "src/trace_processor/plugins/tree_functions/tree_conversion.h",
-        "src/trace_processor/plugins/tree_functions/tree_filter.cc",
-        "src/trace_processor/plugins/tree_functions/tree_filter.h",
         "src/trace_processor/plugins/tree_functions/tree_functions.h",
-        "src/trace_processor/plugins/tree_functions/tree_propagate.cc",
-        "src/trace_processor/plugins/tree_functions/tree_propagate.h",
     ],
 )
 
