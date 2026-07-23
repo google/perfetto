@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {
-  FuzzyFinder,
+  fuzzySearch,
   type FuzzyResult,
   type FuzzySegment,
 } from '../../../base/fuzzy';
@@ -246,8 +246,11 @@ export function searchTables(
   const matchedTableNames = new Set<string>();
 
   // 1. Search by table name (highest priority)
-  const tableFinder = new FuzzyFinder(tables, (item) => item.table.name);
-  const tableNameResults = tableFinder.find(query).map((result) => {
+  const tableNameResults = fuzzySearch(
+    tables,
+    (item) => item.table.name,
+    query,
+  ).map((result) => {
     matchedTableNames.add(result.item.table.name);
     return {
       ...result,

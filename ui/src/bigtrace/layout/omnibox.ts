@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {findRef} from '../../base/dom_utils';
-import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {ensureExists, assertUnreachable} from '../../base/assert';
 import {isString} from '../../base/object_utils';
 import {exists} from '../../base/utils';
@@ -69,11 +69,11 @@ export class Omnibox implements m.ClassComponent {
     let options: OmniboxOption[] | undefined = undefined;
 
     if (prompt.options) {
-      const fuzzy = new FuzzyFinder(
+      const result = fuzzySearch(
         prompt.options,
         ({displayName}) => displayName,
+        omnibox.text,
       );
-      const result = fuzzy.find(omnibox.text);
       options = result.map((result) => {
         return {
           key: result.item.key,
@@ -602,11 +602,11 @@ function fuzzyFilterCommands(
     sourceSegments?: readonly FuzzySegment[];
   }
 > {
-  const finder = new FuzzyFinder(commands, [
-    (c: Command) => c.name,
-    (c: Command) => c.source ?? '',
-  ]);
-  return finder.find(searchTerm).map((result) => {
+  return fuzzySearch(
+    commands,
+    [(c: Command) => c.name, (c: Command) => c.source ?? ''],
+    searchTerm,
+  ).map((result) => {
     return {
       segments: result.segments[0],
       sourceSegments: result.item.source ? result.segments[1] : undefined,

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {Accordion, AccordionSection} from '../../widgets/accordion';
 import {Button} from '../../widgets/button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
@@ -61,11 +61,12 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
         segments: [{matching: false, value: table.name}],
       }));
     } else {
-      const finder = new FuzzyFinder(tables, (t) => t.name);
-      filteredTables = finder.find(searchTerm).map((result) => ({
-        table: result.item,
-        segments: result.segments,
-      }));
+      filteredTables = fuzzySearch(tables, (t) => t.name, searchTerm).map(
+        (result) => ({
+          table: result.item,
+          segments: result.segments,
+        }),
+      );
     }
 
     return m(

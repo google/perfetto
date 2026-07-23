@@ -13,20 +13,10 @@
 // limitations under the License.
 
 import fuzzysort from 'fuzzysort';
-import m from 'mithril';
 
 export interface FuzzySegment {
   readonly matching: boolean;
   readonly value: string;
-}
-
-export function renderSegments(
-  text: readonly FuzzySegment[] | string,
-): m.Children {
-  if (typeof text === 'string') {
-    return text;
-  }
-  return text.map(({matching, value}) => (matching ? m('b', value) : value));
 }
 
 export interface FuzzyResult<T> {
@@ -47,140 +37,87 @@ export interface FuzzyMultiResult<T> {
 
 export type KeyLookup<T> = (x: T) => string;
 
-export interface IFuzzyFinderConstructor {
-  new <T>(
-    items: readonly T[],
-    keyLookups: readonly KeyLookup<T>[],
-  ): FuzzyFinder<T, FuzzyMultiResult<T>>;
-  new <T>(
-    items: readonly T[],
-    keyLookup: KeyLookup<T>,
-  ): FuzzyFinder<T, FuzzyResult<T>>;
-}
-
-// Finds approx matching in arbitrary lists of items.
-// Uses fuzzysort for character-subsequence fuzzy matching and highlight segments.
-class FuzzyFinderImpl<
-  T,
-  R extends FuzzyResult<T> | FuzzyMultiResult<T> = FuzzyResult<T>,
-> {
-  private readonly keyLookups: readonly KeyLookup<T>[];
-  private readonly isMulti: boolean;
-
-  constructor(
-    private readonly items: readonly T[],
-    keyLookup: KeyLookup<T> | readonly KeyLookup<T>[],
-  ) {
-    if (Array.isArray(keyLookup)) {
-      this.keyLookups = keyLookup;
-      this.isMulti = true;
-    } else {
-      this.keyLookups = [keyLookup as KeyLookup<T>];
-      this.isMulti = false;
-    }
-  }
-
-  // Return a list of items that match the search term.
-  find(searchTerm: string): R[] {
-    if (searchTerm === '') {
-      if (this.isMulti) {
-        const res: FuzzyMultiResult<T>[] = this.items.map((item) => {
-          const segments = this.keyLookups.map((lookup) => [
-            {matching: false, value: lookup(item)},
-          ]);
-          return {item, segments, score: 1};
-        });
-        return res as R[];
-      } else {
-        const res: FuzzyResult<T>[] = this.items.map((item) => {
-          const text = this.keyLookups[0](item);
-          return {item, segments: [{matching: false, value: text}], score: 1};
-        });
-        return res as R[];
-      }
-    }
-
-    if (this.isMulti) {
-      const results = fuzzysort.go(searchTerm, this.items, {
-        keys: this.keyLookups,
-      });
-
-      const res: FuzzyMultiResult<T>[] = results.map((result) => {
-        const segments = this.keyLookups.map((lookup, i) => {
-          const text = lookup(result.obj);
-          const keyMatch = result[i];
-          const indexes =
-            keyMatch?.indexes !== undefined
-              ? Array.from(keyMatch.indexes).sort((a, b) => a - b)
-              : [];
-          return indiciesToSegments(indexes, text);
-        });
-        return {
-          item: result.obj,
-          segments,
-          score: result.score,
-        };
-      });
-      return res as R[];
-    } else {
-      const results = fuzzysort.go(searchTerm, this.items, {
-        key: this.keyLookups[0],
-      });
-
-      const res: FuzzyResult<T>[] = results.map((result) => {
-        const text = this.keyLookups[0](result.obj);
-        return {
-          item: result.obj,
-          segments: indiciesToSegments(
-            Array.from(result.indexes).sort((a, b) => a - b),
-            text,
-          ),
-          score: result.score,
-        };
-      });
-      return res as R[];
-    }
+/**
+ * Performs character-subsequence fuzzy matching over a list of items using
+ * fuzzysort.
+ *
+ * Accepts either a single key lookup function or an array of key lookup
+ * functions. When multiple key lookups are provided, matches across any key
+ * will be returned with per-key highlight segments and a unified match score.
+ *
+ * An empty `searchTerm` returns all items in original order with uniform scores
+ * of 1.
+ *
+ * @param items List of candidate items to search through.
+ * @param keyLookup Single key extraction function or array of key extraction
+ * functions.
+ * @param searchTerm Search query text to match against item keys.
+ * @returns Array of matching items ordered by relevance score, with highlight
+ * segments and match scores.
+ */
+export function fuzzySearch<T>(
+  items: readonly T[],
+  keyLookup: readonly KeyLookup<T>[],
+  searchTerm: string,
+): FuzzyMultiResult<T>[];
+export function fuzzySearch<T>(
+  items: readonly T[],
+  keyLookup: KeyLookup<T>,
+  searchTerm: string,
+): FuzzyResult<T>[];
+export function fuzzySearch<T>(
+  items: readonly T[],
+  keyLookup: KeyLookup<T> | readonly KeyLookup<T>[],
+  searchTerm: string,
+): FuzzyMultiResult<T>[] | FuzzyResult<T>[] {
+  if (typeof keyLookup === 'function') {
+    // Single key: delegate to multi-key search and unwrap segments.
+    const result = fuzzySearchMultiKey(items, [keyLookup], searchTerm);
+    return result.map((res) => ({
+      item: res.item,
+      segments: res.segments[0],
+      score: res.score,
+    }));
+  } else {
+    // Multi-key: return multi-key search results directly.
+    return fuzzySearchMultiKey(items, keyLookup, searchTerm);
   }
 }
 
-export const FuzzyFinder: IFuzzyFinderConstructor = FuzzyFinderImpl;
-export type FuzzyFinder<
-  T,
-  R extends FuzzyResult<T> | FuzzyMultiResult<T> = FuzzyResult<T>,
-> = FuzzyFinderImpl<T, R>;
-
-// Given a query (possibly multi-word) and candidate text, compute highlight
-// segments using fuzzysort matching.
-export function computeHighlightSegments(
-  query: string,
-  text: string,
-): readonly FuzzySegment[] {
-  if (!query) {
-    return [{matching: false, value: text}];
+function fuzzySearchMultiKey<T>(
+  items: readonly T[],
+  keyLookup: readonly KeyLookup<T>[],
+  searchTerm: string,
+): FuzzyMultiResult<T>[] {
+  if (searchTerm === '') {
+    return items.map((item) => {
+      const segments = keyLookup.map((lookup) => [
+        {matching: false, value: lookup(item)},
+      ]);
+      return {item, segments, score: 1};
+    });
   }
 
-  const res = fuzzysort.single(query, text);
-  if (res) {
-    const sortedIndexes = Array.from(res.indexes).sort((a, b) => a - b);
-    return indiciesToSegments(sortedIndexes, text);
-  }
+  const results = fuzzysort.go(searchTerm, items, {
+    keys: keyLookup,
+  });
 
-  // Fallback for multi-word queries where words are separated by spaces.
-  const tokens = query.split(/\s+/).filter(Boolean);
-  const highlightedIndices: number[] = [];
-  for (const token of tokens) {
-    const tokenRes = fuzzysort.single(token, text);
-    if (tokenRes) {
-      highlightedIndices.push(...tokenRes.indexes);
-    }
-  }
-
-  if (highlightedIndices.length > 0) {
-    const unique = [...new Set(highlightedIndices)].sort((a, b) => a - b);
-    return indiciesToSegments(unique, text);
-  }
-
-  return [{matching: false, value: text}];
+  return results.map((result) => {
+    const segments = keyLookup.map((lookup, i) => {
+      const text = lookup(result.obj);
+      const keyMatch = result[i];
+      const indexes =
+        keyMatch?.indexes !== undefined
+          ? keyMatch.indexes.toSorted((a, b) => a - b)
+          : [];
+      return indiciesToSegments(indexes, text);
+    });
+    return {
+      item: result.obj,
+      segments,
+      score: result.score,
+    };
+  });
 }
 
 // Given a list of indicies of matching chars, and the original value, produce

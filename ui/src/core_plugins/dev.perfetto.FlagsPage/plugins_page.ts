@@ -25,7 +25,7 @@ import {Intent} from '../../widgets/common';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
-import {FuzzyFinder, renderSegments, type FuzzySegment} from '../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
 import {EmptyState} from '../../widgets/empty_state';
@@ -34,7 +34,7 @@ import {Box} from '../../widgets/box';
 import {Anchor} from '../../widgets/anchor';
 import {Icon} from '../../widgets/icon';
 import {Icons} from '../../base/semantic_icons';
-import {GateDetector} from '../../base/mithril_utils';
+import {GateDetector, renderSegments} from '../../base/mithril_utils';
 import {findRef} from '../../base/dom_utils';
 import {Callout} from '../../widgets/callout';
 
@@ -138,12 +138,15 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
     const sorted = sortPlugins(registeredPlugins);
 
     const isFiltering = this.filterText !== '';
-    const finder = new FuzzyFinder(sorted, [
-      (p: PluginWrapper) => p.desc.id,
-      (p: PluginWrapper) => p.desc.description ?? '',
-    ]);
     const filteredPlugins = isFiltering
-      ? finder.find(this.filterText).map((res) => ({
+      ? fuzzySearch(
+          sorted,
+          [
+            (p: PluginWrapper) => p.desc.id,
+            (p: PluginWrapper) => p.desc.description ?? '',
+          ],
+          this.filterText,
+        ).map((res) => ({
           item: res.item,
           idSegments: res.segments[0],
           descriptionSegments: res.segments[1],

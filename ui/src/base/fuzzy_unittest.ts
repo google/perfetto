@@ -12,189 +12,196 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FuzzyFinder} from './fuzzy';
+import {fuzzySearch} from './fuzzy';
 
-describe('FuzzyFinder', () => {
-  const items = ['aaa', 'aba', 'zzz', 'c z d z e', 'CAPS', 'ababc'];
-  const finder = new FuzzyFinder(items, (x) => x);
+describe('fuzzySearch', () => {
+  describe('check relevant results are matched', () => {
+    function chkFuzz(
+      items: readonly string[],
+      searchTerm: string,
+      expectedToMatch: readonly string[],
+    ) {
+      const results = fuzzySearch(items, (x) => x, searchTerm).map(
+        (r) => r.item,
+      );
+      expect(results).toEqual(expect.arrayContaining([...expectedToMatch]));
+      expect(results.length).toBe(expectedToMatch.length);
+    }
 
-  it('finds all for empty search term', () => {
-    const result = finder.find('');
-    // Expect all results are returned in original order.
-    expect(result).toEqual([
-      {item: 'aaa', segments: [{matching: false, value: 'aaa'}], score: 1},
-      {item: 'aba', segments: [{matching: false, value: 'aba'}], score: 1},
-      {item: 'zzz', segments: [{matching: false, value: 'zzz'}], score: 1},
-      {
-        item: 'c z d z e',
-        segments: [{matching: false, value: 'c z d z e'}],
-        score: 1,
-      },
-      {item: 'CAPS', segments: [{matching: false, value: 'CAPS'}], score: 1},
-      {item: 'ababc', segments: [{matching: false, value: 'ababc'}], score: 1},
-    ]);
-  });
+    it('matches uris', () => {
+      const plugins = [
+        'dev.perfetto.RecordTraceV2',
+        'com.android.XMLParser',
+        'com.meta.GpuCompute',
+      ];
 
-  it('finds exact match', () => {
-    const result = finder.find('aaa');
-    expect(result).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          item: 'aaa',
-          segments: [{matching: true, value: 'aaa'}],
-        }),
-      ]),
-    );
-  });
+      chkFuzz(plugins, 'gpucompute', ['com.meta.GpuCompute']);
+      chkFuzz(plugins, 'gpu', ['com.meta.GpuCompute']);
+      chkFuzz(plugins, 'compute', ['com.meta.GpuCompute']);
+      chkFuzz(plugins, 'gpu compute', ['com.meta.GpuCompute']);
+      chkFuzz(plugins, 'compute gpu', ['com.meta.GpuCompute']);
+      chkFuzz(plugins, 'com meta gpucompute', ['com.meta.GpuCompute']);
+      chkFuzz(plugins, 'GpuCompute', ['com.meta.GpuCompute']);
+      chkFuzz(plugins, 'com.meta.GpuCompute', ['com.meta.GpuCompute']);
 
-  it('finds approx matches', () => {
-    const result = finder.find('aa');
-    // Allow finding results in any order.
-    expect(result).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          item: 'aaa',
-          // Either |aa|a or a|aa| is valid.
-          segments: expect.arrayContaining([
-            {matching: true, value: 'aa'},
-            {matching: false, value: 'a'},
-          ]),
-        }),
-        expect.objectContaining({
-          item: 'aba',
-          segments: [
-            {matching: true, value: 'a'},
-            {matching: false, value: 'b'},
-            {matching: true, value: 'a'},
-          ],
-        }),
-      ]),
-    );
-  });
+      chkFuzz(plugins, 'record', ['dev.perfetto.RecordTraceV2']);
+      chkFuzz(plugins, 'v2', ['dev.perfetto.RecordTraceV2']);
+      chkFuzz(plugins, 'perfetto recordtrace', ['dev.perfetto.RecordTraceV2']);
+      chkFuzz(plugins, 'perfetto record trace', ['dev.perfetto.RecordTraceV2']);
+      chkFuzz(plugins, 'trace record', ['dev.perfetto.RecordTraceV2']);
+      chkFuzz(plugins, 'dev perfetto record trace v2', [
+        'dev.perfetto.RecordTraceV2',
+      ]);
+      chkFuzz(plugins, 'dev.perfetto.RecordTraceV2', [
+        'dev.perfetto.RecordTraceV2',
+      ]);
 
-  it('does not find completely unrelated items', () => {
-    // |zzz| looks nothing like |aa| and should not be returned.
-    const result = finder.find('aa');
-    expect(result).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({item: 'zzz'})]),
-    );
-  });
-
-  it('finds caps match when search term is in lower case', () => {
-    const result = finder.find('caps');
-    expect(result).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          item: 'CAPS',
-          segments: [{matching: true, value: 'CAPS'}],
-        }),
-      ]),
-    );
-  });
-});
-
-describe('FuzzyFinder camelCase tokenization', () => {
-  const items = [
-    'dev.perfetto.LiveMemory',
-    'dev.perfetto.RecordTraceV2',
-    'com.android.XMLParser',
-  ];
-  const finder = new FuzzyFinder(items, (x) => x);
-
-  it('finds camelCase sub-word', () => {
-    const result = finder.find('memory');
-    expect(result).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({item: 'dev.perfetto.LiveMemory'}),
-      ]),
-    );
-  });
-
-  it('finds dotted segment', () => {
-    const result = finder.find('perfetto');
-    expect(result.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it('finds uppercase acronym split', () => {
-    const result = finder.find('parser');
-    expect(result).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({item: 'com.android.XMLParser'}),
-      ]),
-    );
-  });
-
-  it('finds GpuCompute with gpucompute', () => {
-    const finder = new FuzzyFinder(['GpuCompute'], (x) => x);
-    const result = finder.find('gpucompute');
-    expect(result).toEqual([
-      {
-        item: 'GpuCompute',
-        segments: [{matching: true, value: 'GpuCompute'}],
-        score: expect.any(Number),
-      },
-    ]);
-  });
-
-  interface ExpectFuzzyOptions {
-    readonly items: readonly string[];
-    readonly searchTerm: string;
-    readonly toReturn: readonly string[];
-  }
-
-  // Helper function to assert that finding |searchTerm| in |items| returns |toReturn| item names.
-  function expectFuzzy({items, searchTerm, toReturn}: ExpectFuzzyOptions) {
-    const finder = new FuzzyFinder(items, (x) => x);
-    const result = finder.find(searchTerm).map((r) => r.item);
-    expect(result).toEqual(toReturn);
-  }
-
-  test('sanity check', () => {
-    expectFuzzy({
-      items: ['GpuCompute'],
-      searchTerm: 'gpucompute',
-      toReturn: ['GpuCompute'],
-    });
-
-    expectFuzzy({
-      items: ['GpuCompute'],
-      searchTerm: 'gpu compute',
-      toReturn: ['GpuCompute'],
-    });
-
-    expectFuzzy({
-      items: ['GpuCompute'],
-      searchTerm: 'compute gpu',
-      toReturn: ['GpuCompute'],
+      chkFuzz(plugins, 'xml parser', ['com.android.XMLParser']);
+      chkFuzz(plugins, 'com android xml parser', ['com.android.XMLParser']);
+      chkFuzz(plugins, 'com.android.XMLParser', ['com.android.XMLParser']);
     });
   });
-});
 
-describe('FuzzyFinder multi-key lookup', () => {
-  interface CommandItem {
-    name: string;
-    source: string;
-  }
+  describe('sort order ranking', () => {
+    it('ranks exact and substring matches higher than loose fuzzy matches', () => {
+      const items = [
+        't_r_a_c_e_scattered',
+        'trace_processor',
+        'trace',
+        'record_trace',
+      ];
+      const results = fuzzySearch(items, (x) => x, 'trace').map((r) => r.item);
+      expect(results[0]).toBe('trace');
+      expect(results.indexOf('trace_processor')).toBeLessThan(
+        results.indexOf('t_r_a_c_e_scattered'),
+      );
+    });
 
-  const items: CommandItem[] = [
-    {name: 'Table List', source: 'DataExplorer'},
-    {name: 'Record Trace', source: 'Core'},
-  ];
+    it('ranks exact match above partial matches', () => {
+      const items = ['foobar', 'foo', 'barfoo'];
+      const results = fuzzySearch(items, (x) => x, 'foo').map((r) => r.item);
+      expect(results[0]).toBe('foo');
+    });
+  });
 
-  it('matches across multiple keys', () => {
-    const finder = new FuzzyFinder(items, [
-      (x: CommandItem) => x.source,
+  describe('score ordering', () => {
+    it('returns results sorted by score in non-increasing order', () => {
+      const items = [
+        'trace',
+        'trace_processor',
+        'record_trace',
+        're_trace_action',
+        't_r_a_c_e',
+      ];
+      const results = fuzzySearch(items, (x) => x, 'trace');
+      for (let i = 0; i < results.length - 1; i++) {
+        expect(results[i].score).toBeGreaterThanOrEqual(results[i + 1].score);
+      }
+    });
+
+    it('returns uniform score of 1 for empty search term in original item order', () => {
+      const items = ['c', 'a', 'b'];
+      const results = fuzzySearch(items, (x) => x, '');
+      expect(results.map((r) => r.item)).toEqual(['c', 'a', 'b']);
+      expect(results.every((r) => r.score === 1)).toBe(true);
+    });
+  });
+
+  describe('highlight segments integrity and accuracy', () => {
+    it('reconstructs original text when joining segment values', () => {
+      const items = [
+        'dev.perfetto.LiveMemory',
+        'gpu_compute_task',
+        'exact_match',
+      ];
+      const results = fuzzySearch(items, (x) => x, 'memory');
+      for (const res of results) {
+        const reconstructed = res.segments.map((s) => s.value).join('');
+        expect(reconstructed).toBe(res.item);
+      }
+    });
+
+    it('produces valid matching segments for exact match', () => {
+      const results = fuzzySearch(['foo'], (x) => x, 'foo');
+      expect(results[0].segments).toEqual([{matching: true, value: 'foo'}]);
+    });
+
+    it('produces non-matching single segment for empty search term', () => {
+      const results = fuzzySearch(['foo'], (x) => x, '');
+      expect(results[0].segments).toEqual([{matching: false, value: 'foo'}]);
+    });
+
+    it('correctly splits matching and non-matching segments', () => {
+      const results = fuzzySearch(['ababc'], (x) => x, 'abc');
+      expect(results.length).toBe(1);
+      const reconstructed = results[0].segments.map((s) => s.value).join('');
+      expect(reconstructed).toBe('ababc');
+      const matchedText = results[0].segments
+        .filter((s) => s.matching)
+        .map((s) => s.value)
+        .join('');
+      expect(matchedText).toBe('abc');
+    });
+  });
+
+  describe('multi-key lookup', () => {
+    interface CommandItem {
+      name: string;
+      source: string;
+    }
+
+    const items: CommandItem[] = [
+      {name: 'Table List', source: 'DataExplorer'},
+      {name: 'Record Trace', source: 'Core'},
+      {name: 'Data Engine', source: 'BigTrace'},
+    ];
+
+    const keyLookups = [
       (x: CommandItem) => x.name,
-    ]);
-    const result = finder.find('Data');
-    expect(result.length).toBe(1);
-    expect(result[0].item.name).toBe('Table List');
-    expect(result[0].segments[0]).toEqual([
-      {matching: true, value: 'Data'},
-      {matching: false, value: 'Explorer'},
-    ]);
-    expect(result[0].segments[1]).toEqual([
-      {matching: false, value: 'Table List'},
-    ]);
+      (x: CommandItem) => x.source,
+    ];
+
+    it('matches on primary or secondary keys', () => {
+      const nameResults = fuzzySearch(items, keyLookups, 'Table');
+      expect(nameResults.map((r) => r.item.name)).toEqual(['Table List']);
+
+      const sourceResults = fuzzySearch(items, keyLookups, 'BigTrace');
+      expect(sourceResults.map((r) => r.item.name)).toEqual(['Data Engine']);
+    });
+
+    it('returns per-key segments that reconstruct original key texts', () => {
+      const results = fuzzySearch(items, keyLookups, 'Data');
+      expect(results.length).toBeGreaterThan(0);
+      for (const res of results) {
+        expect(res.segments[0].map((s) => s.value).join('')).toBe(
+          res.item.name,
+        );
+        expect(res.segments[1].map((s) => s.value).join('')).toBe(
+          res.item.source,
+        );
+      }
+    });
+
+    it('handles empty search query for multi-key lookup', () => {
+      const results = fuzzySearch(items, keyLookups, '');
+      expect(results.length).toBe(items.length);
+      for (let i = 0; i < items.length; i++) {
+        expect(results[i].item).toEqual(items[i]);
+        expect(results[i].score).toBe(1);
+        expect(results[i].segments[0]).toEqual([
+          {matching: false, value: items[i].name},
+        ]);
+        expect(results[i].segments[1]).toEqual([
+          {matching: false, value: items[i].source},
+        ]);
+      }
+    });
+
+    it('orders multi-key results by overall match score', () => {
+      const results = fuzzySearch(items, keyLookups, 'Data');
+      for (let i = 0; i < results.length - 1; i++) {
+        expect(results[i].score).toBeGreaterThanOrEqual(results[i + 1].score);
+      }
+    });
   });
 });

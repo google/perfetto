@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder, type FuzzySegment} from '../../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../../base/fuzzy';
 import type {
   SqlModules,
   SqlFunction,
@@ -212,8 +212,11 @@ export class FunctionList implements m.ClassComponent<FunctionListAttrs> {
       const lowerQuery = query.toLowerCase();
 
       // 1. Search by function name (fuzzy)
-      const nameFinder = new FuzzyFinder(functions, (item) => item.fn.name);
-      const nameResults = nameFinder.find(query).map((result) => {
+      const nameResults = fuzzySearch(
+        functions,
+        (item) => item.fn.name,
+        query,
+      ).map((result) => {
         matchedNames.add(result.item.fn.name);
         return {
           ...result,

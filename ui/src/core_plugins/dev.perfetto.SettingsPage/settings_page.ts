@@ -30,11 +30,11 @@ import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {FuzzyFinder, renderSegments, type FuzzySegment} from '../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
 import {Icons} from '../../base/semantic_icons';
-import {GateDetector} from '../../base/mithril_utils';
+import {GateDetector, renderSegments} from '../../base/mithril_utils';
 import {findRef} from '../../base/dom_utils';
 
 const SEARCH_BOX_REF = 'settings-search-box';
@@ -170,11 +170,14 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
 
   private getFilteredSettingsGrouped(settingsManager: SettingsManagerImpl) {
     const allSettings = settingsManager.getAllSettings();
-    const finder = new FuzzyFinder(allSettings, [
-      (s: SettingImpl<unknown>) => s.name,
-      (s: SettingImpl<unknown>) => s.description ?? '',
-    ]);
-    return finder.find(this.filterText).map((res) => ({
+    return fuzzySearch(
+      allSettings,
+      [
+        (s: SettingImpl<unknown>) => s.name,
+        (s: SettingImpl<unknown>) => s.description ?? '',
+      ],
+      this.filterText,
+    ).map((res) => ({
       item: res.item,
       nameSegments: res.segments[0],
       descriptionSegments: res.segments[1],

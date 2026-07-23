@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder, type FuzzySegment} from '../../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../../base/fuzzy';
 import {TextInput} from '../../../widgets/text_input';
 import {Checkbox} from '../../../widgets/checkbox';
 import {Card, CardStack} from '../../../widgets/card';
@@ -179,11 +179,11 @@ export function renderFuzzyDemo(): m.Children {
   if (isSearching) {
     const startTime = performance.now();
     if (includeTag) {
-      const finder = new FuzzyFinder(SAMPLE_ITEMS, [
-        (item: SampleItem) => item.name,
-        (item: SampleItem) => item.category,
-      ]);
-      const searchResults = finder.find(searchTerm);
+      const searchResults = fuzzySearch(
+        SAMPLE_ITEMS,
+        [(item: SampleItem) => item.name, (item: SampleItem) => item.category],
+        searchTerm,
+      );
       results = searchResults.map((res) => ({
         item: res.item,
         nameSegments: res.segments[0],
@@ -191,8 +191,11 @@ export function renderFuzzyDemo(): m.Children {
         score: res.score,
       }));
     } else {
-      const finder = new FuzzyFinder(SAMPLE_ITEMS, (item) => item.name);
-      const searchResults = finder.find(searchTerm);
+      const searchResults = fuzzySearch(
+        SAMPLE_ITEMS,
+        (item) => item.name,
+        searchTerm,
+      );
       results = searchResults.map((res) => ({
         item: res.item,
         nameSegments: res.segments,

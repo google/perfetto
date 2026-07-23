@@ -25,12 +25,12 @@ import {Select} from '../../widgets/select';
 import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
-import {FuzzyFinder, renderSegments, type FuzzySegment} from '../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {Intent} from '../../widgets/common';
 import {Anchor} from '../../widgets/anchor';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
-import {GateDetector} from '../../base/mithril_utils';
+import {GateDetector, renderSegments} from '../../base/mithril_utils';
 import {findRef} from '../../base/dom_utils';
 
 const SEARCH_BOX_REF = 'flags-search-box';
@@ -161,13 +161,12 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
       .allFlags()
       .filter((p) => !p.id.startsWith('plugin_'));
 
-    const finder = new FuzzyFinder(flags, [
-      (f: Flag) => f.name,
-      (f: Flag) => f.id,
-      (f: Flag) => f.description,
-    ]);
     const filteredFlags = isFiltering
-      ? finder.find(this.filterText).map((res) => ({
+      ? fuzzySearch(
+          flags,
+          [(f: Flag) => f.name, (f: Flag) => f.id, (f: Flag) => f.description],
+          this.filterText,
+        ).map((res) => ({
           item: res.item,
           nameSegments: res.segments[0],
           idSegments: res.segments[1],
