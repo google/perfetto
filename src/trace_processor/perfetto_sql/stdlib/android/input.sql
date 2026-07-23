@@ -110,16 +110,16 @@ FROM _send_message_events;
 
 CREATE PERFETTO TABLE _clean_android_frames AS
 SELECT
-  f.ts,
-  f.dur,
+  do_frame_slice.ts,
+  do_frame_slice.dur,
   do_frame_slice.id AS do_frame_id,
   do_frame_slice.ts AS do_frame_ts,
   do_frame_slice.dur AS do_frame_dur,
   cast_int!(ui_thread_utid) AS utid,
   frame_id
-FROM android_frames AS f
+FROM android_frames_choreographer_do_frame AS f
 JOIN slice AS do_frame_slice
-  ON f.do_frame_id = do_frame_slice.id;
+  ON f.id = do_frame_slice.id;
 
 CREATE PERFETTO TABLE _clean_deliver_events AS
 SELECT
