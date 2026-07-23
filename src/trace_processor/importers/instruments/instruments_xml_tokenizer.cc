@@ -171,8 +171,8 @@ class InstrumentsXmlTokenizer::Impl {
       if (!parser_) {
         return base::ErrStatus("Failed to create XML parser");
       }
-      if (!XML_SetHashSalt(
-              parser_, static_cast<unsigned long>(base::Uuidv4().lsb()))) {
+      if (!XML_SetHashSalt(parser_,
+                           static_cast<unsigned long>(base::Uuidv4().lsb()))) {
         return base::ErrStatus("Failed to set XML parser hash salt");
       }
       XML_SetElementHandler(parser_, ElementStart, ElementEnd);
