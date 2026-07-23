@@ -16,6 +16,7 @@ import {
   type Aggregation,
   type Aggregator,
   type AggregatorGridConfig,
+  createAggregationData,
   createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
@@ -25,6 +26,7 @@ import type {SQLTableSchema} from '../../components/widgets/datagrid/sql_schema'
 import type {AreaSelection} from '../../public/selection';
 import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
@@ -55,20 +57,22 @@ export class FrameSelectionAggregator implements Aggregator {
           area.start,
           area.end,
         );
-        await engine.query(`
-          create or replace perfetto table ${this.id} as
-          select
-            f.jank_type,
-            f.dur,
-            f.track_id,
-            process_track.upid
-          from (${iiTable.name}) f
-          left join process_track on (f.track_id = process_track.id)
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            select
+              f.jank_type,
+              f.dur,
+              f.track_id,
+              process_track.upid,
+              process.name as process_name
+            from ${iiTable.name} f
+            left join process_track on (f.track_id = process_track.id)
+            left join process on (process_track.upid = process.upid)
+          `,
+        });
 
-        return {
-          tableName: this.id,
-        };
+        return createAggregationData(table);
       },
     };
   }
@@ -110,8 +114,8 @@ export class FrameSelectionAggregator implements Aggregator {
 
     return {
       schema,
-      sqlConfig: ({tableName}): SQLTableSchema => ({
-        tableOrSubquery: tableName,
+      sqlConfig: ({sqlTable}): SQLTableSchema => ({
+        tableOrSubquery: sqlTable.get().name,
         columns: {
           process: {
             foreignKey: 'upid',
