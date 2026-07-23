@@ -297,7 +297,7 @@ export function buildKernelQuery(
 // =============================================================================
 
 // Intermediate grouping of a kernel's launch args and counter metrics.
-type KernelGroup = {
+export type KernelGroup = {
   kernelId: number;
   kernelName: string;
   launchTs: number;
@@ -510,29 +510,41 @@ function buildMetricSectionData(
   };
 }
 
+// Fetches raw kernel metric groups without applying terminology or unit humanization.
+// Keyed strictly by sliceId for QuerySlot caching.
+export async function fetchRawKernelMetricGroups(
+  ctx: GpuComputeContext,
+  engine: QueryCapable,
+  sliceId: number,
+): Promise<KernelGroup[]> {
+  const kernelQuery = buildKernelQuery(ctx, sliceId);
+  const kernelResult = await engine.query(kernelQuery);
+  const groups = reduceKernelRows(ctx, kernelResult.iter({}));
+  return Array.from(groups.values()).sort((a, b) => a.launchTs - b.launchTs);
+}
+
+// Materializes KernelMetricData from a raw KernelGroup using current context formatting.
+export function buildKernelMetricDataFromGroup(
+  ctx: GpuComputeContext,
+  group: KernelGroup,
+): KernelMetricData {
+  return buildMetricSectionData(
+    ctx,
+    group.kernelId,
+    group.kernelName,
+    group.metricsKV,
+    group.launchDur,
+  );
+}
+
 // Loads the full metric data for a single kernel slice.
-//
-// Executes the kernel query, reduces the rows, and builds
-// {@link KernelMetricData} for each kernel group (sorted by launch time).
 export async function fetchSelectedKernelMetricData(
   ctx: GpuComputeContext,
   engine: QueryCapable,
   sliceId: number,
 ): Promise<KernelMetricData[] | undefined> {
-  const kernelQuery = buildKernelQuery(ctx, sliceId);
-  const kernelResult = await engine.query(kernelQuery);
-  const groups = reduceKernelRows(ctx, kernelResult.iter({}));
-  return Array.from(groups.values())
-    .sort((a, b) => a.launchTs - b.launchTs)
-    .map((g) =>
-      buildMetricSectionData(
-        ctx,
-        g.kernelId,
-        g.kernelName,
-        g.metricsKV,
-        g.launchDur,
-      ),
-    );
+  const groups = await fetchRawKernelMetricGroups(ctx, engine, sliceId);
+  return groups.map((g) => buildKernelMetricDataFromGroup(ctx, g));
 }
 
 // =============================================================================
@@ -747,10 +759,11 @@ export function renderFormattedCell(
 // =============================================================================
 
 // Attrs accepted by the top-level {@link KernelMetricsSection} component.
-export interface KernelMetricsSectionSettings {
+export interface KernelMetricsSectionSettings extends m.Attributes {
   ctx: GpuComputeContext;
   engine: QueryCapable;
   sliceId?: number;
+  data: KernelMetricData[];
   renderKernel?: (
     kernel: KernelMetricData,
     renderCtx: {engine: QueryCapable},
@@ -759,90 +772,14 @@ export interface KernelMetricsSectionSettings {
   analysisCache?: AnalysisCache;
 }
 
-// Internal state for {@link KernelMetricsSection}.
-type DataState = {
-  kernelTableData?: KernelMetricData[];
-  loadedSliceId?: number;
-  loadedTerminologyId?: string;
-};
-
-function loadMetricData(
-  attrs: KernelMetricsSectionSettings,
-  state: DataState,
-): void {
-  state.loadedSliceId = attrs.sliceId;
-  state.loadedTerminologyId = attrs.ctx.terminologyId;
-
-  const findFirstWithMetrics = async (): Promise<KernelMetricData[]> => {
-    const sql = `
-      SELECT s.id
-      FROM gpu_slice s
-      INNER JOIN gpu_track tr ON tr.id = s.track_id
-      INNER JOIN counter c ON c.ts >= s.ts AND c.ts < s.ts + s.dur
-        AND c.track_id IN (
-          SELECT gc_tc.id FROM gpu_counter_track gc_tc
-          INNER JOIN gpu_counter_group gc ON gc.track_id = gc_tc.id
-            AND gc.group_id = ${COMPUTE_COUNTER_GROUP_ID}
-        )
-      WHERE s.render_stage_category = ${COMPUTE_RENDER_STAGE_CATEGORY}
-      LIMIT 1;
-    `;
-    const result = await attrs.engine.query(sql);
-    const iter = result.iter({});
-    if (!iter.valid()) return [];
-    const firstId = Number(iter.get('id'));
-    return (
-      (await fetchSelectedKernelMetricData(attrs.ctx, attrs.engine, firstId)) ??
-      []
-    );
-  };
-
-  const load = async () => {
-    let data: KernelMetricData[] = [];
-    if (attrs.sliceId != null) {
-      data =
-        (await fetchSelectedKernelMetricData(
-          attrs.ctx,
-          attrs.engine,
-          attrs.sliceId,
-        )) ?? [];
-      if (data.length === 0) {
-        data = await findFirstWithMetrics();
-      }
-    } else {
-      data = await findFirstWithMetrics();
-    }
-    state.kernelTableData = data;
-  };
-
-  load();
-}
-
 // Top-level Mithril component for the "Details" tab.
 //
-// Loads the metric data for the selected slice (or finds the first
+// Displays the metric data for the selected slice (or finds the first
 // kernel with metrics), builds section collapse state, and renders
-// the full metric table tree. Re-fetches when sliceId or terminology
-// changes.
-export const KernelMetricsSection: m.Component<
-  KernelMetricsSectionSettings,
-  DataState
-> = {
-  oninit: ({attrs, state}) => {
-    loadMetricData(attrs, state);
-  },
-
-  onbeforeupdate: ({attrs, state}) => {
-    if (
-      attrs.sliceId !== state.loadedSliceId ||
-      attrs.ctx.terminologyId !== state.loadedTerminologyId
-    ) {
-      loadMetricData(attrs, state);
-    }
-  },
-
-  view: ({attrs, state}) => {
-    if (!state.kernelTableData) return null;
+// the full metric table tree.
+export const KernelMetricsSection: m.Component<KernelMetricsSectionSettings> = {
+  view({attrs}) {
+    const kernelTableData = attrs.data;
 
     const baselineLookup:
       Map<string, {unit: string; value: number | string}> | undefined = (() => {
@@ -905,16 +842,13 @@ export const KernelMetricsSection: m.Component<
       );
     };
 
-    if (state.kernelTableData.length === 0) {
+    if (kernelTableData.length === 0) {
       return m(
         '.pf-gpu-compute__pad',
         m('p', 'No kernel compute metrics for this trace.'),
       );
     }
 
-    return m(
-      '.pf-gpu-compute__pad',
-      renderSingleTable(state.kernelTableData[0]),
-    );
+    return m('.pf-gpu-compute__pad', renderSingleTable(kernelTableData[0]));
   },
 };
