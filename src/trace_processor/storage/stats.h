@@ -755,6 +755,12 @@ namespace perfetto::trace_processor::stats {
       "`-ttt` Unix epoch timestamps, and was skipped: `-t`/`-tt` print no "   \
       "date, so they cannot be safely treated as an absolute point in "       \
       "time. Re-run strace with `-ttt` to fix this."),                       \
+  F(strace_missing_pid,                         kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A syscall line in an strace trace had no leading pid and was "         \
+      "skipped: without one there is no way to attribute the event to a "     \
+      "thread that stays meaningful when traces are merged. strace only "     \
+      "prints pids when following processes, so re-run strace with `-f` "     \
+      "to fix this."),                                                       \
   F(simpleperf_missing_file_mapping,            kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,   \
       "One or more simpleperf samples were dropped because their callchain "   \
       "entries referenced a file_id that has no corresponding File record in " \

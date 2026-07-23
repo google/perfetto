@@ -280,12 +280,18 @@ base::Status StraceTraceTokenizer::Parse(TraceBlobView blob) {
       continue;
     }
 
+    // Without `-f`/`-ff` strace prints no pid, so there is nothing to
+    // attribute the event to: any synthetic tid we invent here would
+    // collide with real threads when traces are merged. Reject the line
+    // with an actionable error instead of guessing.
+    if (!parsed.pid) {
+      context_->import_logs_tracker->RecordTokenizationError(
+          stats::strace_missing_pid, it.file_offset());
+      continue;
+    }
+
     StraceEvent evt;
-    // Without `-f`/`-ff` strace prints no pid, so every syscall belongs to
-    // the one process being traced: collapse them onto a single synthetic
-    // thread. tid 1 is used as an arbitrary non-zero placeholder (0 is the
-    // idle/swapper thread on Linux and best avoided as a stand-in).
-    evt.tid = parsed.pid.value_or(1);
+    evt.tid = *parsed.pid;
     evt.syscall_name_id =
         context_->storage->InternString(base::StringView(parsed.syscall));
     if (!parsed.args.empty()) {

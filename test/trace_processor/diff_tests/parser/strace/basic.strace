@@ -1,7 +1,7 @@
-1700000052.321000 openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 3
-1700000052.321100 read(3, "root:x:0:0"..., 1024) = 312
-1700000052.321200 close(3)                = 0
-1700000052.321300 openat(AT_FDCWD, "/nope", O_RDONLY) = -1 ENOENT (No such file or directory)
+1000 1700000052.321000 openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 3
+1000 1700000052.321100 read(3, "root:x:0:0"..., 1024) = 312
+1000 1700000052.321200 close(3)                = 0
+1000 1700000052.321300 openat(AT_FDCWD, "/nope", O_RDONLY) = -1 ENOENT (No such file or directory)
 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED} ---
 1234 1700000052.321400 write(1, "hi", 2) = 2
 +++ exited with 0 +++
