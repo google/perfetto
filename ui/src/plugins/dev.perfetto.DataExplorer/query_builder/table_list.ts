@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder, type FuzzySegment} from '../../../base/fuzzy';
+import {
+  fuzzySearch,
+  type FuzzyResult,
+  type FuzzySegment,
+} from '../../../base/fuzzy';
 import {
   type SqlModules,
   type SqlTable,
@@ -124,7 +128,7 @@ function getMatchTypeLabel(matchType: MatchType): string | undefined {
 // It also highlights the parts of the name that match the search query.
 class TableCard implements m.ClassComponent<{
   tableWithModule: TableWithModule;
-  segments: FuzzySegment[];
+  segments: readonly FuzzySegment[];
   matchType: MatchType;
   onTableClick: (tableName: string, event: MouseEvent) => void;
   sqlModules: SqlModules;
@@ -134,7 +138,7 @@ class TableCard implements m.ClassComponent<{
     attrs,
   }: m.CVnode<{
     tableWithModule: TableWithModule;
-    segments: FuzzySegment[];
+    segments: readonly FuzzySegment[];
     matchType: MatchType;
     onTableClick: (tableName: string, event: MouseEvent) => void;
     sqlModules: SqlModules;
@@ -219,13 +223,8 @@ class TableCard implements m.ClassComponent<{
   }
 }
 
-interface SearchResult {
-  item: TableWithModule;
-  segments: FuzzySegment[];
-  matchType: MatchType;
-  // Fuzzy relevance score for table-name matches, higher is better. Unused for
-  // the other (substring-based) match types.
-  score: number;
+interface SearchResult extends FuzzyResult<TableWithModule> {
+  readonly matchType: MatchType;
 }
 
 // Searches tables by query. Returns results in priority order: table name,
@@ -247,8 +246,11 @@ export function searchTables(
   const matchedTableNames = new Set<string>();
 
   // 1. Search by table name (highest priority)
-  const tableFinder = new FuzzyFinder(tables, (item) => item.table.name);
-  const tableNameResults = tableFinder.find(query).map((result) => {
+  const tableNameResults = fuzzySearch(
+    tables,
+    (item) => item.table.name,
+    query,
+  ).map((result) => {
     matchedTableNames.add(result.item.table.name);
     return {
       ...result,
@@ -339,7 +341,7 @@ export function searchTables(
 // in the same bucket are treated as equally relevant and are then ordered by
 // importance. Larger buckets let importance decide more matches; smaller buckets
 // let fuzzy relevance dominate.
-const FUZZY_SCORE_BUCKET = 0.5;
+const FUZZY_SCORE_BUCKET = 0.1;
 
 function fuzzyBucket(score: number): number {
   return Math.round(score / FUZZY_SCORE_BUCKET);

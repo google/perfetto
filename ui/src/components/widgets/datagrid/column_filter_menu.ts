@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder} from '../../../base/fuzzy';
+import {fuzzySearch} from '../../../base/fuzzy';
 import {isEmptyVnodes} from '../../../base/mithril_utils';
 import {Icons} from '../../../base/semantic_icons';
 import type {SqlValue} from '../../../trace_processor/query_result';
@@ -83,10 +83,11 @@ export class DistinctValuesSubmenu implements m.ClassComponent<DistinctValuesSub
         }));
       } else {
         // Fuzzy search with highlighting
-        const finder = new FuzzyFinder(distinctValues, (v) =>
-          valueFormatter(v),
-        );
-        return finder.find(this.searchQuery).map((result) => ({
+        return fuzzySearch(
+          distinctValues,
+          (v) => valueFormatter(v),
+          this.searchQuery,
+        ).map((result) => ({
           value: result.item,
           segments: result.segments,
         }));
