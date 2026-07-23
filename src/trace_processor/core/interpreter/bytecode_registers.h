@@ -128,7 +128,6 @@ using RegValue = std::variant<Empty,
                               const BitVector*,
                               Span<const uint32_t>,
                               BitVector,
-                              std::unique_ptr<TreeState>,
                               NullBitvector>;
 
 }  // namespace perfetto::trace_processor::core::interpreter

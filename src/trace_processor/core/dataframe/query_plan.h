@@ -212,7 +212,7 @@ struct QueryPlanImpl {
   }
 
   // Converts a RegisterInit spec to the actual register value for execution.
-  // Used by Cursor and TreeTransformer to initialize registers before
+  // Used by Cursor and tree operators to initialize registers before
   // bytecode execution.
   static interpreter::RegValue GetRegisterInitValue(
       const RegisterInit& init,

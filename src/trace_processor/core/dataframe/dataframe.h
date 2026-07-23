@@ -39,10 +39,6 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
-namespace perfetto::trace_processor::core::tree {
-class TreeTransformer;
-}  // namespace perfetto::trace_processor::core::tree
-
 namespace perfetto::trace_processor::util {
 class TraceBlobViewReader;
 }  // namespace perfetto::trace_processor::util
@@ -430,7 +426,6 @@ class Dataframe {
   friend class TypedCursor;
   friend class QueryPlanBuilder;
   friend struct QueryPlanImpl;
-  friend class tree::TreeTransformer;
   friend class ArrowSerializer;
   friend base::StatusOr<Dataframe> DeserializeFromArrow(
       const util::TraceBlobViewReader&,

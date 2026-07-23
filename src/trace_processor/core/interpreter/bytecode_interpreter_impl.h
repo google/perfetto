@@ -41,7 +41,6 @@
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_state.h"
@@ -1720,17 +1719,6 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
   *indices.b = best_idx;
   indices.e = indices.b + 1;
 }
-
-// Reparents and compacts a tree based on pre-filtered indices.
-// Also compacts all column storage and null bitvectors registered in
-// the TreeState, and resets the indices span to [0..new_row_count-1].
-void FilterTreeState(InterpreterState& state, const struct FilterTreeState& bc);
-
-// Propagates column values from roots toward leaves using BFS.
-// For each parent→child edge, applies the aggregate operation from
-// TreeState::propagate_down_specs.
-void PropagateTreeDown(InterpreterState& state,
-                       const struct PropagateTreeDown& bc);
 
 }  // namespace ops
 

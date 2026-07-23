@@ -36,7 +36,7 @@ namespace perfetto::trace_processor::core::interpreter {
 // - Raw opcode emission
 //
 // Higher-level builders (like QueryPlanBuilder for dataframes or
-// TreeTransformer for trees) use this class internally and add their own
+// tree operators) use this class internally and add their own
 // domain-specific logic.
 class BytecodeBuilder {
  public:
