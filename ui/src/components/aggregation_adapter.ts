@@ -27,7 +27,12 @@ import {
 import type {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
+import {
+  AggregationDrilldownPanel,
+  type DataGridModel,
+} from './aggregation_drilldown_panel';
 import {AggregationPanel} from './aggregation_panel';
+import {addEphemeralTab} from './details/add_ephemeral_tab';
 import type {Column, Filter, Pivot} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import type {SQLTableSchema} from './widgets/datagrid/sql_schema';
@@ -43,10 +48,23 @@ import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
 import {Memo} from '../base/memo';
 import {assertExists} from '../base/assert';
 import {Button, ButtonGroup} from '../widgets/button';
+import {SharedAsyncDisposable} from '../base/shared_disposable';
 
-export interface AggregationData {
-  readonly tableName: string;
+export interface AggregationData extends AsyncDisposable {
+  readonly sqlTable: SharedAsyncDisposable<DisposableSqlEntity>;
   readonly barChartData?: ReadonlyArray<BarChartData>;
+}
+
+export function createAggregationData(
+  table: DisposableSqlEntity,
+  barChartData?: ReadonlyArray<BarChartData>,
+): AggregationData {
+  const sharedTable = SharedAsyncDisposable.wrap(table);
+  return {
+    sqlTable: sharedTable,
+    barChartData,
+    [Symbol.asyncDispose]: () => sharedTable[Symbol.asyncDispose](),
+  };
 }
 
 export interface AggregatorGridPreset {
@@ -215,12 +233,6 @@ export async function createIITable<
   });
 }
 
-interface DataGridModel {
-  readonly columns?: readonly Column[];
-  readonly pivot?: Pivot;
-  readonly filters: readonly Filter[];
-}
-
 export function getPresetDisplayName(preset: AggregatorGridPreset): string {
   if ('displayName' in preset && typeof preset.displayName === 'string') {
     return preset.displayName;
@@ -261,6 +273,12 @@ export function getActiveGridConfig(
   return getPresetConfig(configOrPresets[idx]);
 }
 
+interface PreparedAggregation extends AsyncDisposable {
+  readonly data: AggregationData;
+  readonly dataSource: SQLDataSource;
+  readonly sharedTable: SharedAsyncDisposable<DisposableSqlEntity>;
+}
+
 /**
  * Creates an adapter that adapts an old style aggregation to a new area
  * selection sub-tab.
@@ -271,7 +289,6 @@ export function createAggregationTab(
   priority: number = 0,
 ): AreaSelectionTab {
   const queue = new AtomicTaskQueue();
-  let data: AggregationData | undefined;
   let dataGridApi: DataGridApi | undefined;
   function createInitialState(config: AggregatorGridConfig): DataGridModel {
     return {
@@ -282,7 +299,9 @@ export function createAggregationTab(
   }
 
   const aggregationMemo = new Memo<Aggregation | undefined>();
-  const dataMemo = new AsyncMemo<SQLDataSource>();
+  const preparedAggregationSlot = new AsyncMemo<
+    PreparedAggregation | undefined
+  >(queue);
 
   // Mutable datagrid model state - initialized the first time we get a config,
   // and only ever modified by the user so that the config is retained over
@@ -333,24 +352,33 @@ export function createAggregationTab(
         selectedPresetIndex,
       );
 
-      const {data: datasource} = dataMemo.use({
+      const preparedAggregation = preparedAggregationSlot.use({
         key: {...selectionKey, presetIndex: selectedPresetIndex},
         compute: async () => {
           const data = await aggregation.prepareData(trace.engine);
+          const sharedTable = data.sqlTable.clone();
           const sqlConfig = activeGridConfig.sqlConfig?.(data) ?? {
-            tableOrSubquery: data.tableName,
+            tableOrSubquery: sharedTable.get().name,
           };
-          const datasource = new SQLDataSource({
+          const dataSource = new SQLDataSource({
             queue,
             engine: trace.engine,
             ...sqlConfig,
           });
 
-          return datasource;
+          return {
+            data,
+            dataSource,
+            sharedTable,
+            [Symbol.asyncDispose]: async () => {
+              dataSource.dispose();
+              await sharedTable[Symbol.asyncDispose]();
+            },
+          };
         },
-      });
+      }).data;
 
-      if (!datasource) {
+      if (!preparedAggregation) {
         // Datasource is still loading...
         return {
           isLoading: true,
@@ -366,7 +394,9 @@ export function createAggregationTab(
         };
       }
 
-      // This shouid exist by now...
+      const {data, dataSource, sharedTable} = preparedAggregation;
+
+      // This should exist by now...
       assertExists(dataModel);
 
       const dataGridState: DataGridState = {
@@ -376,8 +406,32 @@ export function createAggregationTab(
         onColumnsChanged: (c) => {
           dataModel = {...dataModel!, columns: c};
         },
-        onPivotChanged: (p) => {
-          dataModel = {...dataModel!, pivot: p};
+        onPivotChanged: (pivot) => {
+          const isEnteringDrilldown =
+            dataModel!.pivot?.drillDown === undefined &&
+            pivot?.drillDown !== undefined;
+          if (isEnteringDrilldown) {
+            // Keep the source grid in pivot mode and open the requested
+            // drill-down model in an independent tab.
+            const initialDataModel: DataGridModel = {
+              ...dataModel!,
+              pivot,
+            };
+            addEphemeralTab(trace, `aggregation_drilldown_${aggregator.id}`, {
+              getTitle: () => `${aggregator.getTabName()} drill-down`,
+              render: () =>
+                m(AggregationDrilldownPanel, {
+                  trace,
+                  aggregator,
+                  gridConfig: activeGridConfig,
+                  aggregationData: data,
+                  sharedTable,
+                  initialDataModel,
+                }),
+            });
+          } else {
+            dataModel = {...dataModel!, pivot};
+          }
         },
         onFiltersChanged: (f) => {
           dataModel = {...dataModel!, filters: f};
@@ -408,7 +462,7 @@ export function createAggregationTab(
         content: m(AggregationPanel, {
           controls: [presetButtons, aggregator.renderTopbarControls?.()],
           key: aggregator.id,
-          dataSource: datasource,
+          dataSource,
           gridConfig: activeGridConfig,
           barChartData: data?.barChartData,
           onReady: (api: DataGridApi) => {
