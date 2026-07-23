@@ -14,14 +14,9 @@
 
 import './aggregation_adapter.scss';
 import m from 'mithril';
-import {AsyncLimiter} from '../base/async_limiter';
 import {type time, Time} from '../base/time';
 import {exists} from '../base/utils';
-import {
-  type AreaSelection,
-  areaSelectionsEqual,
-  type AreaSelectionTab,
-} from '../public/selection';
+import type {AreaSelection, AreaSelectionTab} from '../public/selection';
 import type {Trace} from '../public/trace';
 import type {Track} from '../public/track';
 import {
@@ -32,9 +27,20 @@ import {
 import type {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
+import {
+  AggregationDrilldownPanel,
+  createAggregationDataSource,
+  type DataGridModel,
+} from './aggregation_drilldown_panel';
 import {AggregationPanel} from './aggregation_panel';
-import type {Column, Filter, Pivot} from './widgets/datagrid/model';
-import {SQLDataSource} from './widgets/datagrid/sql_data_source';
+import {addEphemeralTab} from './details/add_ephemeral_tab';
+import {
+  type Column,
+  type Filter,
+  getPivotDrillDownFilters,
+  type Pivot,
+} from './widgets/datagrid/model';
+import type {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import type {SQLTableSchema} from './widgets/datagrid/sql_schema';
 import type {BarChartData} from './aggregation';
 import {
@@ -43,7 +49,8 @@ import {
 } from '../trace_processor/sql_utils';
 import type {DataGridApi} from './widgets/datagrid/datagrid';
 import {ExportButton} from '../widgets/export_button';
-import {AtomicTaskQueue} from '../base/async_memo';
+import {AsyncMemo, AtomicTaskQueue} from '../base/async_memo';
+import {Memo} from '../base/memo';
 import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
 
 export interface AggregationData {
@@ -112,9 +119,10 @@ export interface Aggregator {
   // Returns the name of this aggregation tag. Called every render cycle.
   getTabName(): string;
 
-  // Return the grid configuration for this aggregation panel. Called every
-  // render cycle.
-  getGridConfig(): AggregatorGridConfig;
+  // Return the grid configuration for this aggregation panel. |data| is the
+  // result prepared for this panel, or undefined before data has loaded. Called
+  // every render cycle.
+  getGridConfig(data?: AggregationData): AggregatorGridConfig;
 
   // Optional controls to render in the top bar of the aggregation panel.
   renderTopbarControls?(): m.Children;
@@ -210,10 +218,9 @@ export async function createIITable<
   });
 }
 
-interface DataGridModel {
-  readonly columns?: readonly Column[];
-  readonly pivot?: Pivot;
-  readonly filters: readonly Filter[];
+interface PreparedAggregation extends AsyncDisposable {
+  readonly data: AggregationData;
+  readonly dataSource: SQLDataSource;
 }
 
 /**
@@ -225,12 +232,17 @@ export function createAggregationTab(
   aggregator: Aggregator,
   priority: number = 0,
 ): AreaSelectionTab {
-  const limiter = new AsyncLimiter();
+  // Make all data loading and subsequent DataGrid loading tasks atomic. This
+  // means that if a task makes more than one async call, it won't be preempted
+  // by another task on this queue. This is imperative to avoid the case where
+  // the underlying table gets removed while the DataGrid is running a
+  // multi-query task.
   const queue = new AtomicTaskQueue();
-  let currentSelection: AreaSelection | undefined;
-  let aggregation: Aggregation | undefined;
-  let data: AggregationData | undefined;
-  let dataSource: SQLDataSource | undefined;
+
+  const aggregationMemo = new Memo<Aggregation | undefined>();
+  const preparedAggregationSlot = new AsyncMemo<
+    PreparedAggregation | undefined
+  >(queue);
   let dataGridApi: DataGridApi | undefined;
 
   function createInitialState(): DataGridModel {
@@ -251,43 +263,41 @@ export function createAggregationTab(
     name: aggregator.getTabName(),
     priority,
     render(selection: AreaSelection) {
-      if (
-        currentSelection === undefined ||
-        !areaSelectionsEqual(selection, currentSelection)
-      ) {
-        // Every time the selection changes, probe the aggregator to see if it
-        // supports this selection.
-        currentSelection = selection;
-        aggregation = aggregator.probe(selection);
+      const selectionKey = {
+        start: selection.start,
+        end: selection.end,
+        trackUris: selection.trackUris,
+      };
+      const currentAggregation = aggregationMemo.use({
+        key: selectionKey,
+        compute: () => aggregator.probe(selection),
+      });
+      const preparedAggregation = preparedAggregationSlot.use({
+        key: selectionKey,
+        compute: async () => {
+          if (!currentAggregation) return undefined;
 
-        // Kick off a new load of the data
-        limiter.schedule(async () => {
-          // Clear previous data to prevent queries against a stale or partially
-          // updated table/view while `prepareData` is running.
-          dataSource?.dispose();
-          dataSource = undefined;
-          data = undefined;
-          if (aggregation) {
-            data = await aggregation?.prepareData(trace.engine);
-            const gridConfig = aggregator.getGridConfig();
-            const sqlConfig = gridConfig.sqlConfig?.(data) ?? {
-              tableOrSubquery: data.tableName,
-            };
-            dataSource = new SQLDataSource({
-              queue,
-              engine: trace.engine,
-              ...sqlConfig,
-            });
-          }
-        });
-      }
+          const data = await currentAggregation.prepareData(trace.engine);
+          const dataSource = createAggregationDataSource(
+            trace,
+            aggregator,
+            data,
+            queue,
+          );
+          return {
+            data,
+            dataSource,
+            [Symbol.asyncDispose]: async () => dataSource.dispose(),
+          };
+        },
+      }).data;
 
-      if (!aggregation) {
-        // Hides the tab
+      if (!currentAggregation) {
+        // Hides the tab.
         return undefined;
       }
 
-      if (!dataSource) {
+      if (!preparedAggregation) {
         return {
           isLoading: true,
           content: m(
@@ -302,6 +312,8 @@ export function createAggregationTab(
         };
       }
 
+      const {data, dataSource} = preparedAggregation;
+
       const dataGridState: DataGridState = {
         columns: dataModel.columns,
         pivot: dataModel.pivot,
@@ -309,8 +321,41 @@ export function createAggregationTab(
         onColumnsChanged: (c) => {
           dataModel = {...dataModel, columns: c};
         },
-        onPivotChanged: (p) => {
-          dataModel = {...dataModel, pivot: p};
+        onPivotChanged: (pivot) => {
+          const isEnteringDrilldown =
+            dataModel.pivot?.drillDown === undefined &&
+            pivot?.drillDown !== undefined;
+          if (isEnteringDrilldown) {
+            // Keep the source grid in pivot mode and open the requested
+            // drill-down model in an independent tab.
+            const initialDataModel: DataGridModel = {
+              ...dataModel,
+              filters: [
+                ...dataModel.filters,
+                ...getPivotDrillDownFilters(pivot),
+              ],
+              pivot: undefined,
+            };
+            const drilldownSelection: AreaSelection = {
+              ...selection,
+              trackUris: [...selection.trackUris],
+              tracks: [...selection.tracks],
+            };
+            addEphemeralTab(trace, `aggregation_drilldown_${aggregator.id}`, {
+              getTitle: () => `${aggregator.getTabName()} drill-down`,
+              render: () =>
+                m(AggregationDrilldownPanel, {
+                  trace,
+                  aggregator,
+                  aggregation: currentAggregation,
+                  selection: drilldownSelection,
+                  queue,
+                  initialDataModel,
+                }),
+            });
+          } else {
+            dataModel = {...dataModel, pivot};
+          }
         },
         onFiltersChanged: (f) => {
           dataModel = {...dataModel, filters: f};
@@ -323,7 +368,7 @@ export function createAggregationTab(
           controls: aggregator.renderTopbarControls?.(),
           key: aggregator.id,
           dataSource,
-          gridConfig: aggregator.getGridConfig(),
+          gridConfig: aggregator.getGridConfig(data),
           barChartData: data?.barChartData,
           onReady: (api: DataGridApi) => {
             dataGridApi = api;

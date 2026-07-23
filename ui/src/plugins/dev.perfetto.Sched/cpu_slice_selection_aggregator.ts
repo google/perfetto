@@ -16,6 +16,7 @@ import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {
   type Aggregation,
+  type AggregationData,
   type Aggregator,
   type AggregatorGridConfig,
   createIITable,
@@ -24,12 +25,7 @@ import type {AreaSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import type {Track} from '../../public/track';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {
-  type Dataset,
-  type DatasetSchema,
-  SourceDataset,
-  UnionDatasetWithLineage,
-} from '../../trace_processor/dataset';
+import {SourceDataset} from '../../trace_processor/dataset';
 import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
@@ -42,6 +38,11 @@ import {
   formatDurationValue,
   formatPercentValue,
 } from '../../components/aggregation_panel';
+import {
+  createTrackLineage,
+  resolveTrackFromLineage,
+  type TrackLineageAggregationData,
+} from './selection_aggregation_utils';
 
 const CPU_SLICE_SPEC = {
   id: NUM,
@@ -55,8 +56,6 @@ export class CpuSliceSelectionAggregator implements Aggregator {
   readonly id = 'cpu_aggregation';
 
   private readonly trace: Trace;
-  private trackDatasetMap?: Map<Dataset, Track>;
-  private unionDataset?: UnionDatasetWithLineage<DatasetSchema>;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -78,19 +77,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        // Build track-to-dataset mapping
-        this.trackDatasetMap = new Map();
-        const datasets: Dataset[] = [];
-        for (const track of cpuTracks) {
-          const dataset = track.renderer.getDataset?.();
-          if (dataset) {
-            datasets.push(dataset);
-            this.trackDatasetMap.set(dataset, track);
-          }
-        }
-
-        // Create union dataset with lineage tracking
-        this.unionDataset = UnionDatasetWithLineage.create(datasets);
+        const lineage = createTrackLineage(cpuTracks);
 
         // Query with needed columns for II table
         const iiQuerySchema = {
@@ -98,7 +85,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           __groupid: NUM,
           __partition: UNKNOWN,
         };
-        const sql = this.unionDataset.query(iiQuerySchema);
+        const sql = lineage.unionDataset.query(iiQuerySchema);
 
         // Create interval-intersect table for time filtering
         await using iiTable = await createIITable(
@@ -128,6 +115,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
 
         return {
           tableName: this.id,
+          ...lineage,
         };
       },
     };
@@ -137,7 +125,8 @@ export class CpuSliceSelectionAggregator implements Aggregator {
     return `CPU by thread`;
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  getGridConfig(data?: AggregationData): AggregatorGridConfig {
+    const lineage = data as TrackLineageAggregationData | undefined;
     return {
       schema: {
         id_with_lineage: {
@@ -157,7 +146,8 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             const {id, groupid, partition} = parsed;
 
             // Resolve track from lineage
-            const track = this.resolveTrack(groupid, partition);
+            const track =
+              lineage && resolveTrackFromLineage(lineage, groupid, partition);
             if (!track) {
               return String(id);
             }
@@ -215,37 +205,5 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         ],
       },
     };
-  }
-
-  /**
-   * Resolve a track from lineage information.
-   */
-  private resolveTrack(
-    groupId: number,
-    partition: SqlValue,
-  ): Track | undefined {
-    if (!this.trackDatasetMap || !this.unionDataset) return undefined;
-
-    // Ensure partition is a valid SqlValue
-    const partitionValue =
-      partition === null ||
-      typeof partition === 'number' ||
-      typeof partition === 'bigint' ||
-      typeof partition === 'string' ||
-      partition instanceof Uint8Array
-        ? partition
-        : null;
-
-    const datasets = this.unionDataset.resolveLineage({
-      __groupid: groupId,
-      __partition: partitionValue,
-    });
-
-    for (const dataset of datasets) {
-      const track = this.trackDatasetMap.get(dataset);
-      if (track) return track;
-    }
-
-    return undefined;
   }
 }
