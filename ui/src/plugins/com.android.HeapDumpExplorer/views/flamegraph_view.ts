@@ -89,7 +89,7 @@ function buildMetric(
       select
         id,
         parent_id as parentId,
-        ifnull(name, '[Unknown]') as name,
+        ifnull(name, 'unknown') as name,
         root_type,
         heap_type,
         ${valueColumn} as value,

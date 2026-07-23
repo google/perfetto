@@ -123,11 +123,11 @@ export function topTable(opts: {
   ]);
 }
 
-// Link to the Heap Dump Explorer's object list, filtered to one class. The HDE
-// page (com.android.HeapDumpExplorer) parses `cls` out of the query string, so
-// the value is URI-encoded the same way the explorer's own links are.
+// Link to the Heap Dump Explorer's objects list, filtered to one class. The
+// filter goes in the path, not the query (the router drops query params); this
+// matches the explorer's own objects_<class> links.
 export function heapDumpClassHref(cls: string): string {
-  return `#!/heapdump/objects?cls=${encodeURIComponent(cls)}`;
+  return `#!/heapdump/objects_${encodeURIComponent(cls)}`;
 }
 
 // A class-name cell. The class name links to that class's instances in the Heap

@@ -29,6 +29,31 @@ namespace perfetto::trace_processor {
 ProfilerSampleTracker::ProfilerSampleTracker(TraceProcessorContext* context)
     : context_(context) {}
 
+tables::ProfilerTaskContextTable::Id ProfilerSampleTracker::InternTaskContext(
+    const tables::ProfilerTaskContextTable::Row& row) {
+  TaskContextKey key{row.upid, row.utid, row.async_context_id};
+  auto [id, inserted] = task_contexts_.Insert(key, {});
+  if (inserted) {
+    *id = context_->storage->mutable_profiler_task_context_table()
+              ->Insert(row)
+              .id;
+  }
+  return *id;
+}
+
+tables::ProfilerExecutionContextTable::Id
+ProfilerSampleTracker::InternExecutionContext(
+    const tables::ProfilerExecutionContextTable::Row& row) {
+  ExecutionContextKey key{row.ucpu, row.cpu_mode};
+  auto [id, inserted] = execution_contexts_.Insert(key, {});
+  if (inserted) {
+    *id = context_->storage->mutable_profiler_execution_context_table()
+              ->Insert(row)
+              .id;
+  }
+  return *id;
+}
+
 tables::ProfilerSampleTable::Id ProfilerSampleTracker::AddSample(
     const tables::ProfilerSampleTable::Row& row) {
   PERFETTO_DCHECK(row.ts >= last_ts_);

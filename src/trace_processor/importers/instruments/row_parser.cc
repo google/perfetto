@@ -23,9 +23,11 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/instruments/row.h"
@@ -42,7 +44,9 @@
 namespace perfetto::trace_processor::instruments_importer {
 
 RowParser::RowParser(TraceProcessorContext* context, RowDataTracker& data)
-    : context_(context), data_(data) {}
+    : context_(context),
+      data_(data),
+      instruments_source_id_(context->storage->InternString("instruments")) {}
 
 RowParser::~RowParser() = default;
 
@@ -138,8 +142,22 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
     depth++;
   }
 
-  context_->storage->mutable_instruments_sample_table()->Insert(
-      {ts, utid, parent, row.core_id});
+  tables::ProfilerSampleTable::Row sample_row;
+  sample_row.ts = ts;
+  sample_row.source = instruments_source_id_;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
+  task_context.upid = upid;
+  sample_row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
+  tables::ProfilerExecutionContextTable::Row execution_context;
+  execution_context.ucpu =
+      context_->cpu_tracker->GetOrCreateCpu(row.core_id).value;
+  sample_row.execution_context_id =
+      context_->profiler_sample_tracker->InternExecutionContext(
+          execution_context);
+  sample_row.callsite_id = parent;
+  context_->profiler_sample_tracker->AddSample(sample_row);
 }
 
 DummyMemoryMapping* RowParser::GetDummyMapping(UniquePid upid) {

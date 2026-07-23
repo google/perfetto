@@ -56,7 +56,8 @@ function stateToParts(state: NavState): {path: string; query: string} {
     case 'dominators':
       return {path: 'dominators', query: ''};
     case 'objects':
-      return {path: 'objects', query: queryParam('cls', state.params.cls)};
+      // Class filter in the path, not the query: the router drops query params.
+      return {path: pathSegment('objects', state.params.cls), query: ''};
     case 'object':
       return {
         path: pathSegment('object', `0x${state.params.id.toString(16)}`),
@@ -135,7 +136,7 @@ export function subpageToState(subpage: string | undefined): NavState {
     case 'dominators':
       return {view: 'dominators', params: {}};
     case 'objects': {
-      const cls = sp.get('cls') ?? undefined;
+      const cls = param ? decodeURIComponent(param) : undefined;
       return {view: 'objects', params: cls ? {cls} : {}};
     }
     case 'object': {

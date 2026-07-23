@@ -446,6 +446,7 @@ perfetto_unittest_source_set("unittests") {
       "plugins/descendant:unittests",
       "plugins/experimental_flat_slice:unittests",
       "plugins/experimental_slice_layout:unittests",
+      "plugins/flamegraph:unittests",
       "plugins/span_join_operator:unittests",
       "plugins/string_functions:unittests",
       "plugins/video_frame_importer:unittests",

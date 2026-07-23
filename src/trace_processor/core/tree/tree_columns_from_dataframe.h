@@ -14,31 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_TREE_PROPAGATE_SPEC_H_
-#define SRC_TRACE_PROCESSOR_CORE_TREE_PROPAGATE_SPEC_H_
-
-#include <string>
+#ifndef SRC_TRACE_PROCESSOR_CORE_TREE_TREE_COLUMNS_FROM_DATAFRAME_H_
+#define SRC_TRACE_PROCESSOR_CORE_TREE_TREE_COLUMNS_FROM_DATAFRAME_H_
 
 #include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/core/common/tree_types.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
+#include "src/trace_processor/core/tree/tree_columns.h"
 
 namespace perfetto::trace_processor::core::tree {
 
-struct PropagateSpec {
-  PropagateAggOp agg_op;
-  std::string source_col_name;
-  std::string output_col_name;
-};
-
-// Parses a propagate spec string of the form 'AGG(source_col) AS output_col'.
-// Case-insensitive for the aggregate function name and AS keyword.
-// Whitespace-resilient.
-base::StatusOr<PropagateSpec> ParsePropagateSpec(const std::string& spec);
+// Converts columns collected in an AdhocDataframeBuilder into TreeColumns.
+// The first two columns must be integer id and parent_id columns. This
+// validates their relationships and normalizes parent ids to row indices.
+base::StatusOr<TreeColumns> BuildTreeColumns(
+    dataframe::AdhocDataframeBuilder&& builder);
 
 }  // namespace perfetto::trace_processor::core::tree
 
-namespace perfetto::trace_processor {
-namespace tree = core::tree;
-}  // namespace perfetto::trace_processor
-
-#endif  // SRC_TRACE_PROCESSOR_CORE_TREE_PROPAGATE_SPEC_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_TREE_TREE_COLUMNS_FROM_DATAFRAME_H_

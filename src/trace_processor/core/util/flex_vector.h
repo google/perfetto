@@ -100,6 +100,13 @@ class FlexVector {
     return FlexVector(base::AlignUp(size, kCapacityMultiple), size);
   }
 
+  // Allocates a new FlexVector with `size` elements, all set to `value`.
+  static FlexVector<T> CreateFilled(uint64_t size, T value) {
+    FlexVector<T> v = CreateWithSize(size);
+    std::fill_n(v.data(), size, value);
+    return v;
+  }
+
   // Adds `value` to the end of the vector.
   PERFETTO_ALWAYS_INLINE void push_back(T value) {
     PERFETTO_DCHECK(capacity() % kCapacityMultiple == 0);
@@ -143,6 +150,24 @@ class FlexVector {
 
   // Clears the vector, resetting its size to zero.
   void clear() { size_ = 0; }
+
+  // Ensures capacity for at least `new_capacity` elements. Growth stays
+  // amortized: when reallocating, the capacity at least multiplies by
+  // `kGrowthFactor`, so interleaving reserve calls with push_backs cannot
+  // degrade to quadratic copying.
+  void reserve(uint64_t new_capacity) {
+    if (new_capacity <= capacity()) {
+      return;
+    }
+    uint64_t target = std::max(
+        new_capacity,
+        static_cast<uint64_t>(static_cast<double>(capacity()) * kGrowthFactor));
+    Slab<T> new_slab = Slab<T>::Alloc(base::AlignUp(target, kCapacityMultiple));
+    if (size_ > 0) {
+      memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
+    }
+    slab_ = std::move(new_slab);
+  }
 
   // Resizes the vector to the specified size. If growing, new elements are
   // uninitialized.

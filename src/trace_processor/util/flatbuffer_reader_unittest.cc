@@ -210,6 +210,21 @@ TEST(FlatBufferRoundTripTest, EmptyVec) {
   EXPECT_EQ(reader->VecScalar<int32_t>(0).size(), 0u);
 }
 
+TEST(FlatBufferRoundTripTest, EmptyVecStruct) {
+  // A zero-element struct vector is the first thing written, so the writer's
+  // buffer is still empty when the (empty) element payload is prepended.
+  FlatBufferWriter w;
+  auto vec = w.WriteVecStruct(nullptr, sizeof(int32_t), 0, alignof(int32_t));
+  w.StartTable();
+  w.FieldOffset(0, vec);
+  auto root = w.EndTable();
+  auto buf = Build(root, w);
+
+  auto reader = GetRoot(buf);
+  ASSERT_TRUE(reader.has_value());
+  EXPECT_EQ(reader->VecScalar<int32_t>(0).size(), 0u);
+}
+
 TEST(FlatBufferRoundTripTest, VecIndexOutOfBoundsReturnsDefault) {
   // Indexing any vector type at or past size() must return a default value,
   // never read out of bounds. The last valid index still reads correctly.

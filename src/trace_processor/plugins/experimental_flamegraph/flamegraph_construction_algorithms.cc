@@ -266,13 +266,19 @@ BuildFlamegraphTableHeapSizeAndCount(
 
 static std::unique_ptr<tables::ExperimentalFlamegraphTable>
 BuildFlamegraphTableCallstackSizeAndCount(
+    const TraceStorage& storage,
     tables::ProfilerSampleTable::ConstCursor& cursor,
     std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl,
     const std::vector<uint32_t>& callsite_to_merged_callsite,
     const std::unordered_set<uint32_t>& utids) {
   for (; !cursor.Eof(); cursor.Next()) {
-    if (!cursor.utid().has_value() ||
-        utids.find(*cursor.utid()) == utids.end()) {
+    if (!cursor.task_context_id()) {
+      continue;
+    }
+    auto task_context =
+        storage.profiler_task_context_table()[*cursor.task_context_id()];
+    if (!task_context.utid() ||
+        utids.find(*task_context.utid()) == utids.end()) {
       continue;
     }
 
@@ -434,7 +440,7 @@ BuildNativeCallStackSamplingFlamegraph(
                                         default_timestamp,
                                         storage->InternString("perf"));
   return BuildFlamegraphTableCallstackSizeAndCount(
-      cursor, std::move(table_and_callsites.tbl),
+      *storage, cursor, std::move(table_and_callsites.tbl),
       table_and_callsites.callsite_to_merged_callsite, utids);
 }
 

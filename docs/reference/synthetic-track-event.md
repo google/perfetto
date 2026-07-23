@@ -15,12 +15,19 @@ We assume you are familiar with:
   traces, and that the Python examples provided here are intended to be used
   within its `populate_packets(builder)` function.
 
-This guide will currently focus on advanced `TrackEvent` features, such as:
+This guide covers advanced `TrackEvent` features, grouped into the following
+areas:
 
-- Associating your timeline data with operating system (OS) processes and
-  threads for richer integration.
-- Explicit track sorting and data interning for optimizing trace size and
-  detail.
+- **Associating tracks with OS concepts:** attaching your timeline data to
+  operating system (OS) processes and threads for richer integration.
+- **Customizing track display:** controlling how the UI sorts, merges and
+  presents your tracks.
+- **Interning:** reducing trace size by deduplicating frequently repeated
+  strings and callstacks.
+- **Enriching events with additional data:** callstack weights, correlation
+  IDs, and custom typed fields via proto extensions.
+- **Handling large traces:** streaming packets to disk to keep memory usage
+  low.
 
 While `TrackEvent` is a primary method for representing timeline data,
 `TracePacket` is a versatile container. In the future, this guide may expand to
@@ -67,7 +74,7 @@ Unlike with "global" tracks, these track types may interact with other data
 sources and as such having a timestamp makes sure that Trace Processor can
 accurately sort the descriptor into the right place.
 
-#### Python Example
+#### Python Example: Process-Scoped Counter
 
 Let's say you want to emit a custom counter (e.g. "Active DB Connections") and
 have it appear under a specific process named "MyDatabaseService" with PID 1234.
@@ -128,9 +135,6 @@ your `trace_converter_template.py` script.
 
 </details>
 
-If you only have symbolized function names, call `add_frame(...)` with just the
-interned function name ID: e.g. `add_frame(packet.interned_data, FRAME_MAIN, FUNC_MAIN)`.
-
 ![Associating Tracks with Processes](/docs/images/synthetic-track-event-process-counter.png)
 
 You can query process-associated counter data using SQL in the Perfetto UI's Query tab or with [Trace Processor](/docs/analysis/getting-started.md):
@@ -189,7 +193,7 @@ information from the kernel). Unlike with "global" tracks, these track types may
 interact with other data sources and as such having a timestamp makes sure that
 Trace Processor can accurately sort the descriptor into the right place.
 
-**Python Example: Thread-Specific Slices**
+#### Python Example: Thread-Specific Slices
 
 This example defines a thread "MainWorkLoop" (TID 5678) belonging to process
 "MyApplication" (PID 1234). It then emits a couple of slices directly onto this
@@ -282,10 +286,12 @@ WHERE tid = 5678;
 For details on how to explicitly control the display order of threads within a process, see
 [Controlling Track Sorting Order](#controlling-track-sorting-order).
 
-## Advanced Track Customization
+## Customizing Track Display
 
 Beyond associating tracks with OS concepts, Perfetto offers ways to fine-tune
-how your tracks are presented and how data is encoded.
+how your tracks are presented in the UI: how sibling tracks are sorted and
+merged, how counters share their scale, and how tracks are described to the
+user.
 
 ### Controlling Track Sorting Order
 
@@ -295,7 +301,7 @@ you might want to explicitly define the order in which tracks appear. This
 sorting behavior differs depending on whether you are ordering standard custom
 child tracks, processes, or threads within a process.
 
-#### Non-OS Scoped (Child Tracks) Sorting
+#### Child Track Sorting
 
 For standard custom tracks that are parented to another custom track using `parent_uuid`,
 you can configure child ordering on the parent track.
@@ -348,7 +354,7 @@ orderings, there are contexts in which the UI reserves the right _not_ to show
 them in this order; generally this would be if the user explicitly requested
 this or if the UI has some special handling for these tracks.
 
-**Python Example: Demonstrating All Sorting Types**
+#### Python Example: Demonstrating All Sorting Types
 
 This example defines three parent tracks demonstrating different `child_ordering` modes,
 as well as configuring explicit process and thread ordering on the root track.
@@ -492,6 +498,133 @@ your `trace_converter_template.py` script.
 
 ![Controlling Track Sorting Order](/docs/images/synthetic-track-event-sorting.png)
 
+### {#controlling-track-merging} Controlling Track Merging
+
+By default, the Perfetto UI merges tracks that share the same name. This is
+often the desired behavior for grouping related asynchronous events. However,
+there are scenarios where you need more explicit control. You can override this
+default merging logic using the `sibling_merge_behavior` and `sibling_merge_key`
+fields in the `TrackDescriptor`.
+
+This allows you to:
+
+- **Prevent merging**: Force tracks, even with the same name, to always be
+  displayed separately.
+- **Merge by key**: Force tracks to merge based on a custom key, regardless of
+  their names.
+
+The `sibling_merge_behavior` field can be set to one of the following values:
+
+- `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME` (the default): Merges sibling tracks
+  that have the same `name`.
+- `SIBLING_MERGE_BEHAVIOR_NONE`: Prevents the track from being merged with any
+  of its siblings.
+- `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`: Merges sibling tracks that have
+  the same `sibling_merge_key` string.
+
+#### Python Example: Preventing Merging
+
+In this example, we create two tracks with the same name. By setting their
+`sibling_merge_behavior` to `SIBLING_MERGE_BEHAVIOR_NONE`, we ensure they are
+always displayed as distinct tracks in the UI.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9003
+
+    # --- Define Track UUIDs ---
+    track1_uuid = 1
+    track2_uuid = 2
+
+    # Helper to define a TrackDescriptor
+    def define_custom_track(track_uuid, name):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+        desc.sibling_merge_behavior = TrackDescriptor.SIBLING_MERGE_BEHAVIOR_NONE
+
+    # 1. Define the tracks
+    define_custom_track(track1_uuid, "My Separate Track")
+    define_custom_track(track2_uuid, "My Separate Track")
+
+    # Helper to add a slice event
+    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = event_track_uuid
+        if name:
+            packet.track_event.name = name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 2. Add events to the tracks
+    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track1_uuid, name="Slice 1")
+    add_slice_event(ts=1100, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track1_uuid)
+
+    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track2_uuid, name="Slice 2")
+    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track2_uuid)
+```
+
+</details>
+
+![Preventing Merging](/docs/images/synthetic-track-event-no-merge.png)
+
+#### Python Example: Merging by Key
+
+In this example, we create two tracks with different names but the same
+`sibling_merge_key`. By setting their `sibling_merge_behavior` to
+`SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`, we instruct the UI to merge them
+into a single visual track. The name of the merged group will be taken from one
+of the tracks (usually the one with the lower UUID).
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9004
+
+    # --- Define Track UUIDs ---
+    track1_uuid = 1
+    track2_uuid = 2
+
+    # Helper to define a TrackDescriptor
+    def define_custom_track(track_uuid, name, merge_key):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+        desc.sibling_merge_behavior = TrackDescriptor.SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY
+        desc.sibling_merge_key = merge_key
+
+    # 1. Define the tracks with the same merge key
+    define_custom_track(track1_uuid, "HTTP GET", "conn-123")
+    define_custom_track(track2_uuid, "HTTP POST", "conn-123")
+
+    # Helper to add a slice event
+    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = event_track_uuid
+        if name:
+            packet.track_event.name = name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 2. Add events to the tracks
+    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track1_uuid, name="GET /data")
+    add_slice_event(ts=1100, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track1_uuid)
+
+    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track2_uuid, name="POST /submit")
+    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track2_uuid)
+```
+
+</details>
+
+![Merging by Key](/docs/images/synthetic-track-event-merge-by-key.png)
+
 ### Sharing Y-Axis Between Counters
 
 When visualizing multiple counter tracks, it is often useful to have them share
@@ -502,7 +635,7 @@ supports this feature through the `y_axis_share_key` field in the
 All counter tracks that have the same `y_axis_share_key` and the same parent
 track will share their Y-axis range in the UI.
 
-**Python Example: Sharing Y-Axis**
+#### Python Example: Sharing Y-Axis
 
 In this example, we create two counter tracks with the same `y_axis_share_key`.
 This will cause them to be rendered with the same Y-axis range in the Perfetto
@@ -563,7 +696,7 @@ it should be interpreted, especially in complex custom traces.
 To add a description, you simply set the optional `description` field in the
 track's `TrackDescriptor`.
 
-#### Python Example
+#### Python Example: Track Descriptions
 
 This example defines two tracks: one with a `description` field set and one
 without, to illustrate the difference in the UI.
@@ -624,12 +757,7 @@ your `trace_converter_template.py` script.
 
 ![Adding a Track Description](/docs/images/synthetic-track-event-description.png)
 
-## Advanced Event Writing
-
-This section covers advanced TrackEvent features for specialized use cases,
-including data optimization techniques and event linking mechanisms.
-
-### Interning Data for Trace Size Optimization
+## Interning Data for Trace Size Optimization
 
 Interning is a technique used to reduce the size of trace files by emitting
 frequently repeated strings (like event names or categories) only once in the
@@ -665,7 +793,7 @@ events that share the same name or other string-based attributes.
     to the existing valid dictionary) will set
     `TracePacket.SEQ_NEEDS_INCREMENTAL_STATE`.
 
-**Python Example: Interning Event Names**
+#### Python Example: Interning Event Names
 
 This example shows how to define an interned string for an event name and then
 use it multiple times.
@@ -990,6 +1118,218 @@ the following output:
 
 ![Interned Callstacks](/docs/images/synthetic-track-event-interned-callstack.png)
 
+## Enriching Events with Additional Data
+
+Beyond a name and a timestamp, each event can carry extra data: weights that
+change how callstacks aggregate into flamegraphs, correlation IDs that link
+related events together, and fully custom typed fields defined by your own
+protobuf schema.
+
+### {#callstack-weights} Weighted Callstacks and Custom Measures
+
+By default, every callstack attached to an event counts once when aggregated
+into a flamegraph: this is the **Samples** measure. Often, though, each
+occurrence should contribute a different amount: the number of bytes allocated
+at that stack, the latency attributed to it, and so on.
+
+The `callstack_weight` field on `TrackEvent` attaches an optional additive
+value to the callstack recorded on that event. It works with both inline
+callstacks and interned callstacks (`callstack_iid`), on both begin and end
+events:
+
+```protobuf
+message TrackEvent {
+  // ...
+  oneof callstack_field {
+    InlineCallstack callstack = 55;
+    uint64 callstack_iid = 56;
+  }
+  optional double callstack_weight = 57;
+}
+```
+
+The key rule to keep in mind: **weighted aggregations only include events which
+set `callstack_weight`; weighted and unweighted samples are never mixed.** If
+some of your events set a weight and others do not, the "Weight" measure covers
+only the weighted events, while "Samples" continues to count all of them. To
+get meaningful weighted flamegraphs, set the weight on every event (on a given
+track) or on none of them.
+
+In addition to the weight, any **numeric argument** attached to events carrying
+callstacks can be used as an extra flamegraph measure in the UI. This includes
+both [debug annotations](/docs/getting-started/converting.md#debug-annotations)
+and integer/double fields from
+[proto extensions](#proto-extensions) — anything that ends up as a numeric
+entry in the `args` table. This lets a single stream of events carry several
+parallel measures: for example, an allocation profiler can use
+`callstack_weight` for bytes and an `objects` debug annotation for the number
+of objects.
+
+#### Python Example: Weighted Callstacks
+
+This example models a simple allocation profiler: each slice records the
+callstack of an allocation, with `callstack_weight` set to the number of bytes
+allocated and two extra per-event measures — an `objects` debug annotation
+counting the allocated objects, and an `alloc_stats.latency_us` proto
+extension field recording how long the allocation took.
+
+The extension uses the same two-file descriptor setup described in
+[Attaching Custom Typed Fields with Proto Extensions](#proto-extensions). If
+you only want the weight and debug annotation, skip the two `.proto` files and
+drop the extension-related lines from the Python code.
+
+**File 1 — `alloc_stats.proto`** (the data schema, compiled to Python
+bindings):
+
+```protobuf
+syntax = "proto2";
+package com.acme;
+
+message AcmeAllocStats {
+  optional double latency_us = 1;
+}
+```
+
+**File 2 — `alloc_stats_extension.proto`** (the extension hook, compiled to a
+descriptor set that is embedded in the trace):
+
+```protobuf
+syntax = "proto2";
+import "protos/perfetto/trace/perfetto_trace.proto";
+import "alloc_stats.proto";
+package com.acme;
+
+message AcmeAllocStatsExtension {
+  extend perfetto.protos.TrackEvent {
+    optional AcmeAllocStats alloc_stats = 9950;
+  }
+}
+```
+
+```bash
+protoc --python_out=. alloc_stats.proto
+protoc -I. --include_imports \
+       --descriptor_set_out=alloc_stats_extension.desc \
+       alloc_stats_extension.proto
+```
+
+Then copy the following Python code into the `populate_packets(builder)`
+function in your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    from alloc_stats_pb2 import AcmeAllocStats
+
+    ALLOC_TRACK_UUID = 24681357
+
+    # Field number declared in alloc_stats_extension.proto.
+    ALLOC_STATS_FIELD_NUMBER = 9950
+
+    def _varint(n):
+        out = bytearray()
+        while n >= 0x80:
+            out.append((n & 0x7f) | 0x80)
+            n >>= 7
+        out.append(n)
+        return bytes(out)
+
+    def set_alloc_stats(track_event, latency_us):
+        """Attach the alloc_stats extension field (wire type 2) to an event."""
+        stats = AcmeAllocStats(latency_us=latency_us)
+        tag = (ALLOC_STATS_FIELD_NUMBER << 3) | 2
+        payload = stats.SerializeToString()
+        track_event.MergeFromString(_varint(tag) + _varint(len(payload)) + payload)
+
+    def emit_alloc(ts, event_type, name=None, frames=None, alloc_bytes=None,
+                   objects=None, latency_us=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = ALLOC_TRACK_UUID
+        if name is not None:
+            packet.track_event.name = name
+        if frames:
+            for function in frames:
+                frame = packet.track_event.callstack.frames.add()
+                frame.function_name = function
+        if alloc_bytes is not None:
+            packet.track_event.callstack_weight = alloc_bytes
+        if objects is not None:
+            annotation = packet.track_event.debug_annotations.add()
+            annotation.name = "objects"
+            annotation.int_value = objects
+        if latency_us is not None:
+            set_alloc_stats(packet.track_event, latency_us)
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 1. Embed the descriptor set so Trace Processor can decode the extension.
+    desc_packet = builder.add_packet()
+    with open('alloc_stats_extension.desc', 'rb') as f:
+        desc_packet.extension_descriptor.extension_set.ParseFromString(f.read())
+
+    # 2. Define the track
+    packet = builder.add_packet()
+    packet.track_descriptor.uuid = ALLOC_TRACK_UUID
+    packet.track_descriptor.name = "Allocations"
+
+    # 3. Emit allocation slices. Each one carries:
+    #    - an inline callstack of where the allocation happened
+    #    - callstack_weight: the number of bytes allocated
+    #    - an "objects" debug annotation: how many objects were allocated
+    #    - an "alloc_stats.latency_us" extension field: allocation latency
+    allocations = [
+        (1000, 1400, ["main", "ParseInput", "AllocateBuffer"], 4096, 1, 12.5),
+        (1600, 2100, ["main", "ParseInput", "AllocateBuffer"], 8192, 2, 30.2),
+        (2300, 2600, ["main", "ParseInput", "DecodeString"], 256, 8, 5.1),
+        (2800, 3400, ["main", "RenderOutput", "AllocateBuffer"], 2048, 1, 15.7),
+        (3600, 3900, ["main", "RenderOutput", "FormatText"], 512, 16, 3.9),
+        (4100, 4500, ["main", "RenderOutput", "FormatText"], 1024, 32, 8.4),
+    ]
+    for begin_ts, end_ts, frames, alloc_bytes, objects, latency_us in allocations:
+        emit_alloc(
+            ts=begin_ts,
+            event_type=TrackEvent.TYPE_SLICE_BEGIN,
+            name=frames[-1],
+            frames=frames,
+            alloc_bytes=float(alloc_bytes),
+            objects=objects,
+            latency_us=latency_us,
+        )
+        emit_alloc(ts=end_ts, event_type=TrackEvent.TYPE_SLICE_END)
+```
+
+</details>
+
+After running the script, open the generated trace in the
+[Perfetto UI](https://ui.perfetto.dev) and do an area selection over the
+`Allocations` track. The flamegraph in the "Track Event Callstacks" tab
+defaults to the **Weight** measure whenever at least one selected sample has
+`callstack_weight` set, and falls back to **Samples** otherwise:
+
+![Weighted Callstacks](/docs/images/synthetic-track-event-callstack-weight.png)
+
+The measure picker (the dropdown at the top-left of the flamegraph) lets you
+switch between the built-in measures and add new ones. "Add measure..." opens a
+searchable list of every numeric argument found on the selected events. Debug
+annotations appear with a `debug.` prefix (`debug.objects` in this example),
+while proto extension fields appear under their field name
+(`alloc_stats.latency_us`):
+
+![Callstack Measure Picker](/docs/images/synthetic-track-event-callstack-measures.png)
+
+Selecting one adds it as a measure: the flamegraph then aggregates that
+argument's value across the selected callstacks, exactly like a weight. Here
+is the same selection measured by `debug.objects` — note how the shape of the
+flamegraph changes, as `RenderOutput` allocates many more objects than
+`ParseInput` despite allocating fewer bytes:
+
+![Callstacks by Objects](/docs/images/synthetic-track-event-callstack-objects.png)
+
+As with `callstack_weight`, only samples which actually have that argument are
+included in the measure.
+
 ### Linking Related Events with Correlation IDs
 
 Correlation IDs provide a way to visually link slices that are part of the same
@@ -1028,7 +1368,7 @@ Perfetto supports three types of correlation identifiers:
   [Interning Data for Trace Size Optimization](#interning-data-for-trace-size-optimization)
   above for details on interning)
 
-#### Python Example
+#### Python Example: Correlation IDs
 
 This example demonstrates correlation IDs using integer identifiers by
 simulating different stages of processing for two separate requests across
@@ -1172,7 +1512,7 @@ protoc -I. --include_imports \
        acme_extension.proto
 ```
 
-#### Python Example
+#### Python Example: Setting Extension Fields
 
 The extension payload is written as protobuf wire bytes onto the
 `TrackEvent` — a length-delimited field (wire type 2) whose value is the
@@ -1254,133 +1594,6 @@ SELECT
 FROM slice
 WHERE EXTRACT_ARG(slice.arg_set_id, 'request_metadata.request_id') IS NOT NULL;
 ```
-
-## {#controlling-track-merging} Controlling Track Merging
-
-By default, the Perfetto UI merges tracks that share the same name. This is
-often the desired behavior for grouping related asynchronous events. However,
-there are scenarios where you need more explicit control. You can override this
-default merging logic using the `sibling_merge_behavior` and `sibling_merge_key`
-fields in the `TrackDescriptor`.
-
-This allows you to:
-
-- **Prevent merging**: Force tracks, even with the same name, to always be
-  displayed separately.
-- **Merge by key**: Force tracks to merge based on a custom key, regardless of
-  their names.
-
-The `sibling_merge_behavior` field can be set to one of the following values:
-
-- `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME` (the default): Merges sibling tracks
-  that have the same `name`.
-- `SIBLING_MERGE_BEHAVIOR_NONE`: Prevents the track from being merged with any
-  of its siblings.
-- `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`: Merges sibling tracks that have
-  the same `sibling_merge_key` string.
-
-### Python Example: Preventing Merging
-
-In this example, we create two tracks with the same name. By setting their
-`sibling_merge_behavior` to `SIBLING_MERGE_BEHAVIOR_NONE`, we ensure they are
-always displayed as distinct tracks in the UI.
-
-<details>
-<summary><b>Click to expand/collapse Python code</b></summary>
-
-```python
-    TRUSTED_PACKET_SEQUENCE_ID = 9003
-
-    # --- Define Track UUIDs ---
-    track1_uuid = 1
-    track2_uuid = 2
-
-    # Helper to define a TrackDescriptor
-    def define_custom_track(track_uuid, name):
-        packet = builder.add_packet()
-        desc = packet.track_descriptor
-        desc.uuid = track_uuid
-        desc.name = name
-        desc.sibling_merge_behavior = TrackDescriptor.SIBLING_MERGE_BEHAVIOR_NONE
-
-    # 1. Define the tracks
-    define_custom_track(track1_uuid, "My Separate Track")
-    define_custom_track(track2_uuid, "My Separate Track")
-
-    # Helper to add a slice event
-    def add_slice_event(ts, event_type, event_track_uuid, name=None):
-        packet = builder.add_packet()
-        packet.timestamp = ts
-        packet.track_event.type = event_type
-        packet.track_event.track_uuid = event_track_uuid
-        if name:
-            packet.track_event.name = name
-        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
-
-    # 2. Add events to the tracks
-    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track1_uuid, name="Slice 1")
-    add_slice_event(ts=1100, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track1_uuid)
-
-    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track2_uuid, name="Slice 2")
-    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track2_uuid)
-```
-
-</details>
-
-![Preventing Merging](/docs/images/synthetic-track-event-no-merge.png)
-
-### Python Example: Merging by Key
-
-In this example, we create two tracks with different names but the same
-`sibling_merge_key`. By setting their `sibling_merge_behavior` to
-`SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`, we instruct the UI to merge them
-into a single visual track. The name of the merged group will be taken from one
-of the tracks (usually the one with the lower UUID).
-
-<details>
-<summary><b>Click to expand/collapse Python code</b></summary>
-
-```python
-    TRUSTED_PACKET_SEQUENCE_ID = 9004
-
-    # --- Define Track UUIDs ---
-    track1_uuid = 1
-    track2_uuid = 2
-
-    # Helper to define a TrackDescriptor
-    def define_custom_track(track_uuid, name, merge_key):
-        packet = builder.add_packet()
-        desc = packet.track_descriptor
-        desc.uuid = track_uuid
-        desc.name = name
-        desc.sibling_merge_behavior = TrackDescriptor.SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY
-        desc.sibling_merge_key = merge_key
-
-    # 1. Define the tracks with the same merge key
-    define_custom_track(track1_uuid, "HTTP GET", "conn-123")
-    define_custom_track(track2_uuid, "HTTP POST", "conn-123")
-
-    # Helper to add a slice event
-    def add_slice_event(ts, event_type, event_track_uuid, name=None):
-        packet = builder.add_packet()
-        packet.timestamp = ts
-        packet.track_event.type = event_type
-        packet.track_event.track_uuid = event_track_uuid
-        if name:
-            packet.track_event.name = name
-        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
-
-    # 2. Add events to the tracks
-    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track1_uuid, name="GET /data")
-    add_slice_event(ts=1100, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track1_uuid)
-
-    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track2_uuid, name="POST /submit")
-    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track2_uuid)
-```
-
-</details>
-
-![Merging by Key](/docs/images/synthetic-track-event-merge-by-key.png)
 
 ## {#handling-large-traces-with-streaming} Handling Large Traces with Streaming
 

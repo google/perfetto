@@ -15,7 +15,7 @@
 import './flamegraph.scss';
 import m from 'mithril';
 import {ensureExists, assertTrue, assertUnreachable} from '../base/assert';
-import {FuzzyFinder} from '../base/fuzzy';
+import {fuzzySearch} from '../base/fuzzy';
 import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
 import {Chip} from './chip';
@@ -1806,12 +1806,14 @@ class AddMetricMenu implements m.ClassComponent<AddMetricMenuAttrs> {
             metric,
             segments: [{matching: false, value: metric.name}],
           }))
-        : new FuzzyFinder(attrs.metrics, (metric) => metric.name)
-            .find(this.searchQuery)
-            .map((result) => ({
-              metric: result.item,
-              segments: result.segments,
-            }));
+        : fuzzySearch(
+            attrs.metrics,
+            (metric) => metric.name,
+            this.searchQuery,
+          ).map((result) => ({
+            metric: result.item,
+            segments: result.segments,
+          }));
     const visible = results.slice(0, AddMetricMenu.MAX_VISIBLE_ITEMS);
     const remaining = results.length - visible.length;
 

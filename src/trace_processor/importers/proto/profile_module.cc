@@ -111,6 +111,8 @@ ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
                              TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_(context),
+      chrome_source_id_(context->storage->InternString("chrome")),
+      linux_perf_source_id_(context->storage->InternString("linux.perf")),
       perf_sample_tracker_(context),
       streaming_profile_stream_(context->sorter->CreateStream(
           std::make_unique<StreamingProfileSink>(this))) {
@@ -224,10 +226,20 @@ void ProfileModule::ParseStreamingProfileSample(
     return;
   }
 
-  tables::CpuProfileStackSampleTable::Row sample_row{ts, *opt_cs_id, utid,
-                                                     event.process_priority};
-  context_->storage->mutable_cpu_profile_stack_sample_table()->Insert(
-      sample_row);
+  tables::ProfilerSampleTable::Row row;
+  row.ts = ts;
+  row.source = chrome_source_id_;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
+  task_context.upid = upid;
+  row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
+  row.callsite_id = *opt_cs_id;
+  auto sample_id = context_->profiler_sample_tracker->AddSample(row);
+  if (event.process_priority != 0) {
+    context_->storage->mutable_chrome_stack_sample_extras_table()->Insert(
+        {sample_id, event.process_priority});
+  }
 }
 
 void ProfileModule::ParsePerfSample(
@@ -355,13 +367,23 @@ void ProfileModule::ParsePerfSample(
 
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
-  row.source = storage->InternString("linux.perf");
-  row.utid = utid;
-  row.upid = upid;
+  row.source = linux_perf_source_id_;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
+  task_context.upid = upid;
+  row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
+  tables::ProfilerExecutionContextTable::Row execution_context;
   if (sample.has_cpu()) {
-    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(sample.cpu()).value;
+    execution_context.ucpu =
+        context_->cpu_tracker->GetOrCreateCpu(sample.cpu()).value;
   }
-  row.cpu_mode = cpu_mode_id;
+  execution_context.cpu_mode = cpu_mode_id;
+  if (execution_context.ucpu || execution_context.cpu_mode) {
+    row.execution_context_id =
+        context_->profiler_sample_tracker->InternExecutionContext(
+            execution_context);
+  }
   row.callsite_id = cs_id;
   row.unwind_error = unwind_error_id;
   row.session_id = sampling_stream.perf_session_id;

@@ -1,0 +1,2033 @@
+{
+    "$schema": "v1.0.schema.json",
+    "document": {
+        "timestamp": "08 Aug 10:54:03 2025",
+        "copyright": "Copyright 2022-2025 Arm Ltd.",
+        "confidential": false,
+        "quality": "Release",
+        "license": "Apache-2.0",
+        "description": "Telemetry Specification (PMU Events, Metrics and Methodology) for Neoverse N1 processor",
+        "sha1": "6687b72762c41b45420d90c8a1e8f015c9f1ff7a"
+    },
+    "product_configuration": {
+        "product_name": "Neoverse N1",
+        "part_num": "0xd0c",
+        "major_revision": "4",
+        "minor_revision": "1",
+        "implementer": "0x41",
+        "architecture": "armv8.2",
+        "pmu_architecture": "pmu_v3",
+        "num_slots": 5,
+        "num_bus_slots": 0
+    },
+    "events": {
+        "SW_INCR": {
+            "code": "0x0000",
+            "title": "Instruction architecturally executed, Condition code check pass, software increment",
+            "description": "Counts software writes to the PMSWINC_EL0 (software PMU increment) register. The PMSWINC_EL0 register is a manually updated counter for use by application software.\n\nThis event could be used to measure any user program event, such as accesses to a particular data structure (by writing to the PMSWINC_EL0 register each time the data structure is accessed).\n\nTo use the PMSWINC_EL0 register and event, developers must insert instructions that write to the PMSWINC_EL0 register into the source code.\n\nSince the SW_INCR event records writes to the PMSWINC_EL0 register, there is no need to do a read/increment/write sequence to the PMSWINC_EL0 register.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1I_CACHE_REFILL": {
+            "code": "0x0001",
+            "title": "Level 1 instruction cache refill",
+            "description": "Counts cache line refills in the level 1 instruction cache caused by a missed instruction fetch. Instruction fetches may include accessing multiple instructions, but the single cache line allocation is counted once.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1I_TLB_REFILL": {
+            "code": "0x0002",
+            "title": "Level 1 instruction TLB refill",
+            "description": "Counts level 1 instruction TLB refills from any Instruction fetch. If there are multiple misses in the TLB that are resolved by the refill, then this event only counts once. This event will not count if the translation table walk results in a fault (such as a translation or access fault), since there is no new translation created for the TLB.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_REFILL": {
+            "code": "0x0003",
+            "title": "Level 1 data cache refill",
+            "description": "Counts level 1 data cache refills caused by speculatively executed load or store operations that missed in the level 1 data cache. This event only counts one event per cache line. This event does not count cache line allocations from preload instructions or from hardware cache prefetching.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE": {
+            "code": "0x0004",
+            "title": "Level 1 data cache access",
+            "description": "Counts level 1 data cache accesses from any load/store operations. Atomic operations that resolve in the CPUs caches (near atomic operations) counts as both a write access and read access. Each access to a cache line is counted including the multiple accesses caused by single instructions such as LDM or STM. Each access to other level 1 data or unified memory structures, for example refill buffers, write buffers, and write-back buffers, are also counted.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_TLB_REFILL": {
+            "code": "0x0005",
+            "title": "Level 1 data TLB refill",
+            "description": "Counts level 1 data TLB accesses that resulted in TLB refills. If there are multiple misses in the TLB that are resolved by the refill, then this event only counts once. This event counts for refills caused by preload instructions or hardware prefetch accesses. This event counts regardless of whether the miss hits in L2 or results in a translation table walk. This event will not count if the translation table walk results in a fault (such as a translation or access fault), since there is no new translation created for the TLB. This event will not count on an access from an AT(address translation) instruction.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "INST_RETIRED": {
+            "code": "0x0008",
+            "title": "Instruction architecturally executed",
+            "description": "Counts instructions that have been architecturally executed.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_TAKEN": {
+            "code": "0x0009",
+            "title": "Exception taken",
+            "description": "Counts any taken architecturally visible exceptions such as IRQ, FIQ, SError, and other synchronous exceptions. Exceptions are counted whether or not they are taken locally.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_RETURN": {
+            "code": "0x000A",
+            "title": "Instruction architecturally executed, Condition code check pass, exception return",
+            "description": "Counts any architecturally executed exception return instructions. For example: AArch64: ERET",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "CID_WRITE_RETIRED": {
+            "code": "0x000B",
+            "title": "Instruction architecturally executed, Condition code check pass, write to CONTEXTIDR",
+            "description": "Counts architecturally executed writes to the CONTEXTIDR_EL1 register, which usually contain the kernel PID and can be output with hardware trace.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BR_MIS_PRED": {
+            "code": "0x0010",
+            "title": "Branch instruction speculatively executed, mispredicted or not predicted",
+            "description": "Counts branches which are speculatively executed and mispredicted.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "CPU_CYCLES": {
+            "code": "0x0011",
+            "title": "Cycle",
+            "description": "Counts CPU clock cycles (not timer cycles). The clock measured by this event is defined as the physical clock driving the CPU logic.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BR_PRED": {
+            "code": "0x0012",
+            "title": "Predictable branch instruction speculatively executed",
+            "description": "Counts all speculatively executed branches.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "MEM_ACCESS": {
+            "code": "0x0013",
+            "title": "Data memory access",
+            "description": "Counts memory accesses issued by the CPU load store unit, where those accesses are issued due to load or store operations. This event counts memory accesses no matter whether the data is received from any level of cache hierarchy or external memory. If memory accesses are broken up into smaller transactions than what were specified in the load or store instructions, then the event counts those smaller memory transactions.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1I_CACHE": {
+            "code": "0x0014",
+            "title": "Level 1 instruction cache access",
+            "description": "Counts instruction fetches which access the level 1 instruction cache. Instruction cache accesses caused by cache maintenance operations are not counted.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_WB": {
+            "code": "0x0015",
+            "title": "Level 1 data cache write-back",
+            "description": "Counts write-backs of dirty data from the L1 data cache to the L2 cache. This occurs when either a dirty cache line is evicted from L1 data cache and allocated in the L2 cache or dirty data is written to the L2 and possibly to the next level of cache. This event counts both victim cache line evictions and cache write-backs from snoops or cache maintenance operations. The following cache operations are not counted:\n\n1. Invalidations which do not result in data being transferred out of the L1 (such as evictions of clean data),\n2. Full line writes which write to L2 without writing L1, such as write streaming mode.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE": {
+            "code": "0x0016",
+            "title": "Level 2 data cache access",
+            "description": "Counts level 2 cache accesses. Level 2 cache is a unified cache for data and instruction accesses. Accesses are for misses in the first level caches or translation resolutions due to accesses. This event also counts write back of dirty data from level 1 data cache to the L2 cache. This CPU includes instruction cache accesses in this counter as L2I equivalent event was not implemented.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE_REFILL": {
+            "code": "0x0017",
+            "title": "Level 2 data cache refill",
+            "description": "Counts cache line refills into the level 2 cache. Level 2 cache is a unified cache for data and instruction accesses. Accesses are for misses in the level 1 caches or translation resolutions due to accesses. This CPU includes instruction cache refills in this counter as L2I equivalent event was not implemented.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE_WB": {
+            "code": "0x0018",
+            "title": "Level 2 data cache write-back",
+            "description": "Counts write-backs of data from the L2 cache to outside the CPU. This includes snoops to the L2 (from other CPUs) which return data even if the snoops cause an invalidation. L2 cache line invalidations which do not write data outside the CPU and snoops which return data from an L1 cache are not counted. Data would not be written outside the cache when invalidating a clean cache line.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BUS_ACCESS": {
+            "code": "0x0019",
+            "title": "Bus access",
+            "description": "Counts memory transactions issued by the CPU to the external bus, including snoop requests and snoop responses. Each beat of data is counted individually.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "MEMORY_ERROR": {
+            "code": "0x001A",
+            "title": "Local memory error",
+            "description": "Counts any detected correctable or uncorrectable physical memory errors (ECC or parity) in protected CPUs RAMs. On the core, this event counts errors in the caches (including data and tag rams). Any detected memory error (from either a speculative and abandoned access, or an architecturally executed access) is counted. Note that errors are only detected when the actual protected memory is accessed by an operation.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "INST_SPEC": {
+            "code": "0x001B",
+            "title": "Operation speculatively executed",
+            "description": "Counts operations that have been speculatively executed.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "TTBR_WRITE_RETIRED": {
+            "code": "0x001C",
+            "title": "Instruction architecturally executed, Condition code check pass, write to TTBR",
+            "description": "Counts architectural writes to TTBR0/1_EL1. If virtualization host extensions are enabled (by setting the HCR_EL2.E2H bit to 1), then accesses to TTBR0/1_EL1 that are redirected to TTBR0/1_EL2, or accesses to TTBR0/1_EL12, are counted. TTBRn registers are typically updated when the kernel is swapping user-space threads or applications.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BUS_CYCLES": {
+            "code": "0x001D",
+            "title": "Bus cycle",
+            "description": "Counts bus cycles in the CPU. Bus cycles represent a clock cycle in which a transaction could be sent or received on the interface from the CPU to the external bus. Since that interface is driven at the same clock speed as the CPU, this event is a duplicate of CPU_CYCLES.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "CHAIN": {
+            "code": "0x001E",
+            "title": "Chain a pair of event counters",
+            "description": "For odd-numbered counters, this event increments the count by one for each overflow of the preceding even-numbered counter. For even-numbered counters, there is no increment. This event is used when the even/odd pairs of registers are used as a single counter.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE_ALLOCATE": {
+            "code": "0x0020",
+            "title": "Level 2 data cache allocation without refill",
+            "description": "Counts level 2 cache line allocates that do not fetch data from outside the level 2 data or unified cache.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BR_RETIRED": {
+            "code": "0x0021",
+            "title": "Instruction architecturally executed, branch",
+            "description": "Counts architecturally executed branches, whether the branch is taken or not. Instructions that explicitly write to the PC are also counted. Note that exception generating instructions, exception return instructions and context synchronization instructions are not counted.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BR_MIS_PRED_RETIRED": {
+            "code": "0x0022",
+            "title": "Branch instruction architecturally executed, mispredicted",
+            "description": "Counts branches counted by BR_RETIRED which were mispredicted and caused a pipeline flush.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "STALL_FRONTEND": {
+            "code": "0x0023",
+            "title": "No operation sent for execution due to the frontend",
+            "description": "Counts cycles when frontend could not send any micro-operations to the rename stage because of frontend resource stalls caused by fetch memory latency or branch prediction flow stalls. STALL_FRONTEND_SLOTS counts SLOTS during the cycle when this event counts.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "STALL_BACKEND": {
+            "code": "0x0024",
+            "title": "No operation sent for execution due to the backend",
+            "description": "Counts cycles whenever the rename unit is unable to send any micro-operations to the backend of the pipeline because of backend resource constraints. Backend resource constraints can include issue stage fullness, execution stage fullness, or other internal pipeline resource fullness. All the backend slots were empty during the cycle when this event counts.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_TLB": {
+            "code": "0x0025",
+            "title": "Level 1 data TLB access",
+            "description": "Counts level 1 data TLB accesses caused by any memory load or store operation. Note that load or store instructions can be broken up into multiple memory operations. This event does not count TLB maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1I_TLB": {
+            "code": "0x0026",
+            "title": "Level 1 instruction TLB access",
+            "description": "Counts level 1 instruction TLB accesses, whether the access hits or misses in the TLB. This event counts both demand accesses and prefetch or preload generated accesses.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L3D_CACHE_ALLOCATE": {
+            "code": "0x0029",
+            "title": "Level 3 data cache allocation without refill",
+            "description": "Counts level 3 cache line allocates that do not fetch data from outside the level 3 data or unified cache. For example, allocates due to streaming stores.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L3D_CACHE_REFILL": {
+            "code": "0x002A",
+            "title": "Level 3 data cache refill",
+            "description": "Counts level 3 accesses that receive data from outside the L3 cache.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L3D_CACHE": {
+            "code": "0x002B",
+            "title": "Level 3 data cache access",
+            "description": "Counts level 3 cache accesses. Level 3 cache is a unified cache for data and instruction accesses. Accesses are for misses in the lower level caches or translation resolutions due to accesses.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_TLB_REFILL": {
+            "code": "0x002D",
+            "title": "Level 2 data TLB refill",
+            "description": "Counts level 2 TLB refills caused by memory operations from both data and instruction fetch, except for those caused by TLB maintenance operations and hardware prefetches.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_TLB": {
+            "code": "0x002F",
+            "title": "Level 2 data TLB access",
+            "description": "Counts level 2 TLB accesses except those caused by TLB maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "REMOTE_ACCESS": {
+            "code": "0x0031",
+            "title": "Access to another socket in a multi-socket system",
+            "description": "Counts accesses to another chip, which is implemented as a different CMN mesh in the system. If the CHI bus response back to the core indicates that the data source is from another chip (mesh), then the counter is updated. If no data is returned, even if the system snoops another chip/mesh, then the counter is not updated.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "DTLB_WALK": {
+            "code": "0x0034",
+            "title": "Data TLB access with at least one translation table walk",
+            "description": "Counts number of demand data translation table walks caused by a miss in the L2 TLB and performing at least one memory access. Translation table walks are counted even if the translation ended up taking a translation fault for reasons different than EPD, E0PD and NFD. Note that partial translations that cause a translation table walk are also counted. Also note that this event counts walks triggered by software preloads, but not walks triggered by hardware prefetchers, and that this event does not count walks triggered by TLB maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "ITLB_WALK": {
+            "code": "0x0035",
+            "title": "Instruction TLB access with at least one translation table walk",
+            "description": "Counts number of instruction translation table walks caused by a miss in the L2 TLB and performing at least one memory access. Translation table walks are counted even if the translation ended up taking a translation fault for reasons different than EPD, E0PD and NFD. Note that partial translations that cause a translation table walk are also counted. Also note that this event does not count walks triggered by TLB maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "LL_CACHE_RD": {
+            "code": "0x0036",
+            "title": "Last level cache access, read",
+            "description": "Counts read transactions that were returned from outside the core cluster. This event counts for external last level cache  when the system register CPUECTLR.EXTLLC bit is set. This event counts read transactions returned from outside the core if those transactions are either hit in the system level cache or missed in the SLC and are returned from any other external sources.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "LL_CACHE_MISS_RD": {
+            "code": "0x0037",
+            "title": "Last level cache miss, read",
+            "description": "Counts read transactions that were returned from outside the core cluster but missed in the system level cache. This event counts for external last level cache when the system register CPUECTLR.EXTLLC bit is set. This event counts read transactions returned from outside the core if those transactions are missed in the System level Cache. The data source of the transaction is indicated by a field in the CHI transaction returning to the CPU. This event does not count reads caused by cache maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_RD": {
+            "code": "0x0040",
+            "title": "Level 1 data cache access, read",
+            "description": "Counts level 1 data cache accesses from any load operation. Atomic load operations that resolve in the CPUs caches counts as both a write access and read access.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_WR": {
+            "code": "0x0041",
+            "title": "Level 1 data cache access, write",
+            "description": "Counts level 1 data cache accesses generated by store operations. This event also counts accesses caused by a DC ZVA (data cache zero, specified by virtual address) instruction. Near atomic operations that resolve in the CPUs caches count as a write access and read access.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_REFILL_RD": {
+            "code": "0x0042",
+            "title": "Level 1 data cache refill, read",
+            "description": "Counts level 1 data cache refills caused by speculatively executed load instructions where the memory read operation misses in the level 1 data cache. This event only counts one event per cache line.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_REFILL_WR": {
+            "code": "0x0043",
+            "title": "Level 1 data cache refill, write",
+            "description": "Counts level 1 data cache refills caused by speculatively executed store instructions where the memory write operation misses in the level 1 data cache. This event only counts one event per cache line.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_REFILL_INNER": {
+            "code": "0x0044",
+            "title": "Level 1 data cache refill, inner",
+            "description": "Counts level 1 data cache refills where the cache line data came from caches inside the immediate cluster of the core.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_REFILL_OUTER": {
+            "code": "0x0045",
+            "title": "Level 1 data cache refill, outer",
+            "description": "Counts level 1 data cache refills for which the cache line data came from outside the immediate cluster of the core, like an SLC in the system interconnect or DRAM.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_WB_VICTIM": {
+            "code": "0x0046",
+            "title": "Level 1 data cache write-back, victim",
+            "description": "Counts dirty cache line evictions from the level 1 data cache caused by a new cache line allocation. This event does not count evictions caused by cache maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_WB_CLEAN": {
+            "code": "0x0047",
+            "title": "Level 1 data cache write-back, cleaning and coherency",
+            "description": "Counts write-backs from the level 1 data cache that are a result of a coherency operation made by another CPU. Event count includes cache maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_CACHE_INVAL": {
+            "code": "0x0048",
+            "title": "Level 1 data cache invalidate",
+            "description": "Counts each explicit invalidation of a cache line in the level 1 data cache caused by:\n\n- Cache Maintenance Operations (CMO) that operate by a virtual address.\n- Broadcast cache coherency operations from another CPU in the system.\n\nThis event does not count for the following conditions:\n\n1. A cache refill invalidates a cache line.\n2. A CMO which is executed on that CPU and invalidates a cache line specified by set/way.\n\nNote that CMOs that operate by set/way cannot be broadcast from one CPU to another.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_TLB_REFILL_RD": {
+            "code": "0x004C",
+            "title": "Level 1 data TLB refill, read",
+            "description": "Counts level 1 data TLB refills caused by memory read operations. If there are multiple misses in the TLB that are resolved by the refill, then this event only counts once. This event counts for refills caused by preload instructions or hardware prefetch accesses. This event counts regardless of whether the miss hits in L2 or results in a translation table walk. This event will not count if the translation table walk results in a fault (such as a translation or access fault), since there is no new translation created for the TLB. This event will not count on an access from an Address Translation (AT) instruction.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_TLB_REFILL_WR": {
+            "code": "0x004D",
+            "title": "Level 1 data TLB refill, write",
+            "description": "Counts level 1 data TLB refills caused by data side memory write operations. If there are multiple misses in the TLB that are resolved by the refill, then this event only counts once. This event counts for refills caused by preload instructions or hardware prefetch accesses. This event counts regardless of whether the miss hits in L2 or results in a translation table walk. This event will not count if the table walk results in a fault (such as a translation or access fault), since there is no new translation created for the TLB. This event will not count with an access from an Address Translation (AT) instruction.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_TLB_RD": {
+            "code": "0x004E",
+            "title": "Level 1 data TLB access, read",
+            "description": "Counts level 1 data TLB accesses caused by memory read operations. This event counts whether the access hits or misses in the TLB. This event does not count TLB maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L1D_TLB_WR": {
+            "code": "0x004F",
+            "title": "Level 1 data TLB access, write",
+            "description": "Counts any L1 data side TLB accesses caused by memory write operations. This event counts whether the access hits or misses in the TLB. This event does not count TLB maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE_RD": {
+            "code": "0x0050",
+            "title": "Level 2 data cache access, read",
+            "description": "Counts level 2 cache accesses due to memory read operations. Level 2 cache is a unified cache for data and instruction accesses, accesses are for misses in the level 1 caches or translation resolutions due to accesses. This CPU includes instruction cache accesses in this counter as L2I equivalent event was not implemented.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE_WR": {
+            "code": "0x0051",
+            "title": "Level 2 data cache access, write",
+            "description": "Counts level 2 cache accesses due to memory write operations. Level 2 cache is a unified cache for data and instruction accesses, accesses are for misses in the level 1 caches or translation resolutions due to accesses.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE_REFILL_RD": {
+            "code": "0x0052",
+            "title": "Level 2 data cache refill, read",
+            "description": "Counts refills for memory accesses due to memory read operation counted by L2D_CACHE_RD. Level 2 cache is a unified cache for data and instruction accesses, accesses are for misses in the level 1 caches or translation resolutions due to accesses. This CPU includes instruction cache refills in this counter as L2I equivalent event was not implemented.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE_REFILL_WR": {
+            "code": "0x0053",
+            "title": "Level 2 data cache refill, write",
+            "description": "Counts refills for memory accesses due to memory write operation counted by L2D_CACHE_WR. Level 2 cache is a unified cache for data and instruction accesses, accesses are for misses in the level 1 caches or translation resolutions due to accesses.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE_WB_VICTIM": {
+            "code": "0x0056",
+            "title": "Level 2 data cache write-back, victim",
+            "description": "Counts evictions from the level 2 cache because of a line being allocated into the L2 cache.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE_WB_CLEAN": {
+            "code": "0x0057",
+            "title": "Level 2 data cache write-back, cleaning and coherency",
+            "description": "Counts write-backs from the level 2 cache that are a result of either:\n\n1. Cache maintenance operations,\n\n2. Snoop responses or,\n\n3. Direct cache transfers to another CPU due to a forwarding snoop request.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_CACHE_INVAL": {
+            "code": "0x0058",
+            "title": "Level 2 data cache invalidate",
+            "description": "Counts each explicit invalidation of a cache line in the level 2 cache by cache maintenance operations that operate by a virtual address, or by external coherency operations. This event does not count if either:\n\n1. A cache refill invalidates a cache line or,\n2. A Cache Maintenance Operation (CMO), which invalidates a cache line specified by set/way, is executed on that CPU.\n\nCMOs that operate by set/way cannot be broadcast from one CPU to another.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_TLB_REFILL_RD": {
+            "code": "0x005C",
+            "title": "Level 2 data TLB refill, read",
+            "description": "Counts level 2 TLB refills caused by memory read operations from both data and instruction fetch except for those caused by TLB maintenance operations or hardware prefetches.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_TLB_REFILL_WR": {
+            "code": "0x005D",
+            "title": "Level 2 data TLB refill, write",
+            "description": "Counts level 2 TLB refills caused by memory write operations from both data and instruction fetch except for those caused by TLB maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_TLB_RD": {
+            "code": "0x005E",
+            "title": "Level 2 data TLB access, read",
+            "description": "Counts level 2 TLB accesses caused by memory read operations from both data and instruction fetch except for those caused by TLB maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L2D_TLB_WR": {
+            "code": "0x005F",
+            "title": "Level 2 data TLB access, write",
+            "description": "Counts level 2 TLB accesses caused by memory write operations from both data and instruction fetch except for those caused by TLB maintenance operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BUS_ACCESS_RD": {
+            "code": "0x0060",
+            "title": "Bus access, read",
+            "description": "Counts memory read transactions seen on the external bus. Each beat of data is counted individually.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BUS_ACCESS_WR": {
+            "code": "0x0061",
+            "title": "Bus access, write",
+            "description": "Counts memory write transactions seen on the external bus. Each beat of data is counted individually.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "MEM_ACCESS_RD": {
+            "code": "0x0066",
+            "title": "Data memory access, read",
+            "description": "Counts memory accesses issued by the CPU due to load operations. The event counts any memory load access, no matter whether the data is received from any level of cache hierarchy or external memory. The event also counts atomic load operations. If memory accesses are broken up by the load/store unit into smaller transactions that are issued by the bus interface, then the event counts those smaller transactions.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "MEM_ACCESS_WR": {
+            "code": "0x0067",
+            "title": "Data memory access, write",
+            "description": "Counts memory accesses issued by the CPU due to store operations. The event counts any memory store access, no matter whether the data is located in any level of cache or external memory. The event also counts atomic load and store operations. If memory accesses are broken up by the load/store unit into smaller transactions that are issued by the bus interface, then the event counts those smaller transactions.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "UNALIGNED_LD_SPEC": {
+            "code": "0x0068",
+            "title": "Unaligned access, read",
+            "description": "Counts unaligned memory read operations issued by the CPU. This event counts unaligned accesses (as defined by the actual instruction), even if they are subsequently issued as multiple aligned accesses. The event does not count preload operations (PLD, PLI).",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "UNALIGNED_ST_SPEC": {
+            "code": "0x0069",
+            "title": "Unaligned access, write",
+            "description": "Counts unaligned memory write operations issued by the CPU. This event counts unaligned accesses (as defined by the actual instruction), even if they are subsequently issued as multiple aligned accesses.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "UNALIGNED_LDST_SPEC": {
+            "code": "0x006A",
+            "title": "Unaligned access",
+            "description": "Counts unaligned memory operations issued by the CPU. This event counts unaligned accesses (as defined by the actual instruction), even if they are subsequently issued as multiple aligned accesses.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "LDREX_SPEC": {
+            "code": "0x006C",
+            "title": "Exclusive operation speculatively executed, Load-Exclusive",
+            "description": "Counts Load-Exclusive operations that have been speculatively executed. For example: LDREX, LDX",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "STREX_PASS_SPEC": {
+            "code": "0x006D",
+            "title": "Exclusive operation speculatively executed, Store-Exclusive pass",
+            "description": "Counts store-exclusive operations that have been speculatively executed and have successfully completed the store operation.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "STREX_FAIL_SPEC": {
+            "code": "0x006E",
+            "title": "Exclusive operation speculatively executed, Store-Exclusive fail",
+            "description": "Counts store-exclusive operations that have been speculatively executed and have not successfully completed the store operation.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "STREX_SPEC": {
+            "code": "0x006F",
+            "title": "Exclusive operation speculatively executed, Store-Exclusive",
+            "description": "Counts store-exclusive operations that have been speculatively executed.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "LD_SPEC": {
+            "code": "0x0070",
+            "title": "Operation speculatively executed, load",
+            "description": "Counts speculatively executed load operations including Single Instruction Multiple Data (SIMD) load operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "ST_SPEC": {
+            "code": "0x0071",
+            "title": "Operation speculatively executed, store",
+            "description": "Counts speculatively executed store operations including Single Instruction Multiple Data (SIMD) store operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "DP_SPEC": {
+            "code": "0x0073",
+            "title": "Operation speculatively executed, integer data processing",
+            "description": "Counts speculatively executed logical or arithmetic instructions such as MOV/MVN operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "ASE_SPEC": {
+            "code": "0x0074",
+            "title": "Operation speculatively executed, Advanced SIMD data processing",
+            "description": "Counts speculatively executed Advanced SIMD operations excluding load, store and move micro-operations that move data to or from SIMD (vector) registers.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "VFP_SPEC": {
+            "code": "0x0075",
+            "title": "Operation speculatively executed, scalar floating-point",
+            "description": "Counts speculatively executed floating point operations. This event does not count operations that move data to or from floating point (vector) registers.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "PC_WRITE_SPEC": {
+            "code": "0x0076",
+            "title": "Operation speculatively executed, Software change of the PC",
+            "description": "Counts speculatively executed operations which cause software changes of the PC. Those operations include all taken branch operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "CRYPTO_SPEC": {
+            "code": "0x0077",
+            "title": "Operation speculatively executed, Cryptographic instruction",
+            "description": "Counts speculatively executed cryptographic operations except for PMULL and VMULL operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BR_IMMED_SPEC": {
+            "code": "0x0078",
+            "title": "Branch speculatively executed, immediate branch",
+            "description": "Counts direct branch operations which are speculatively executed.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BR_RETURN_SPEC": {
+            "code": "0x0079",
+            "title": "Branch speculatively executed, procedure return",
+            "description": "Counts procedure return operations (RET, RETAA and RETAB) which are speculatively executed.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "BR_INDIRECT_SPEC": {
+            "code": "0x007A",
+            "title": "Branch speculatively executed, indirect branch",
+            "description": "Counts indirect branch operations including procedure returns, which are speculatively executed. This includes operations that force a software change of the PC, other than exception-generating operations and direct branch instructions. Some examples of the instructions counted by this event include BR Xn, RET, etc...",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "ISB_SPEC": {
+            "code": "0x007C",
+            "title": "Barrier speculatively executed, ISB",
+            "description": "Counts ISB operations that are executed.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "DSB_SPEC": {
+            "code": "0x007D",
+            "title": "Barrier speculatively executed, DSB",
+            "description": "Counts DSB operations that are speculatively issued to Load/Store unit in the CPU.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "DMB_SPEC": {
+            "code": "0x007E",
+            "title": "Barrier speculatively executed, DMB",
+            "description": "Counts DMB operations that are speculatively issued to the Load/Store unit in the CPU. This event does not count implied barriers from load acquire/store release operations.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_UNDEF": {
+            "code": "0x0081",
+            "title": "Exception taken, other synchronous",
+            "description": "Counts the number of synchronous exceptions which are taken locally that are due to attempting to execute an instruction that is UNDEFINED. Attempting to execute instruction bit patterns that have not been allocated. Attempting to execute instructions when they are disabled. Attempting to execute instructions at an inappropriate Exception level. Attempting to execute an instruction when the value of PSTATE.IL is 1.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_SVC": {
+            "code": "0x0082",
+            "title": "Exception taken, Supervisor Call",
+            "description": "Counts SVC exceptions taken locally.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_PABORT": {
+            "code": "0x0083",
+            "title": "Exception taken, Instruction Abort",
+            "description": "Counts synchronous exceptions that are taken locally and caused by Instruction Aborts.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_DABORT": {
+            "code": "0x0084",
+            "title": "Exception taken, Data Abort or SError",
+            "description": "Counts exceptions that are taken locally and are caused by data aborts or SErrors. Conditions that could cause those exceptions are attempting to read or write memory where the MMU generates a fault, attempting to read or write memory with a misaligned address, interrupts from the nSEI inputs and internally generated SErrors.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_IRQ": {
+            "code": "0x0086",
+            "title": "Exception taken, IRQ",
+            "description": "Counts IRQ exceptions including the virtual IRQs that are taken locally.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_FIQ": {
+            "code": "0x0087",
+            "title": "Exception taken, FIQ",
+            "description": "Counts FIQ exceptions including the virtual FIQs that are taken locally.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_SMC": {
+            "code": "0x0088",
+            "title": "Exception taken, Secure Monitor Call",
+            "description": "Counts SMC exceptions take to EL3.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_HVC": {
+            "code": "0x008A",
+            "title": "Exception taken, Hypervisor Call",
+            "description": "Counts HVC exceptions taken to EL2.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_TRAP_PABORT": {
+            "code": "0x008B",
+            "title": "Exception taken, Instruction Abort not Taken locally",
+            "description": "Counts exceptions which are traps not taken locally and are caused by Instruction Aborts. For example, attempting to execute an instruction with a misaligned PC.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_TRAP_DABORT": {
+            "code": "0x008C",
+            "title": "Exception taken, Data Abort or SError not Taken locally",
+            "description": "Counts exceptions which are traps not taken locally and are caused by Data Aborts or SError interrupts. Conditions that could cause those exceptions are:\n\n1. Attempting to read or write memory where the MMU generates a fault,\n2. Attempting to read or write memory with a misaligned address,\n3. Interrupts from the SEI input.\n4. internally generated SErrors.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_TRAP_OTHER": {
+            "code": "0x008D",
+            "title": "Exception taken, other traps not Taken locally",
+            "description": "Counts the number of synchronous trap exceptions which are not taken locally and are not SVC, SMC, HVC, data aborts, Instruction Aborts, or interrupts.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_TRAP_IRQ": {
+            "code": "0x008E",
+            "title": "Exception taken, IRQ not Taken locally",
+            "description": "Counts IRQ exceptions including the virtual IRQs that are not taken locally.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "EXC_TRAP_FIQ": {
+            "code": "0x008F",
+            "title": "Exception taken, FIQ not Taken locally",
+            "description": "Counts FIQs which are not taken locally but taken from EL0, EL1,\n or EL2 to EL3 (which would be the normal behavior for FIQs when not executing\n in EL3).",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "RC_LD_SPEC": {
+            "code": "0x0090",
+            "title": "Release consistency operation speculatively executed, Load-Acquire",
+            "description": "Counts any load acquire operations that are speculatively executed. For example: LDAR, LDARH, LDARB",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "RC_ST_SPEC": {
+            "code": "0x0091",
+            "title": "Release consistency operation speculatively executed, Store-Release",
+            "description": "Counts any store release operations that are speculatively executed. For example: STLR, STLRH, STLRB",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "L3D_CACHE_RD": {
+            "code": "0x00A0",
+            "title": "Level 3 data cache access, read",
+            "description": "Counts level 3 cache accesses caused by any memory read operation. Level 3 cache is a unified cache for data and instruction accesses. Accesses are for misses in the lower level caches or translation resolutions due to accesses.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "SAMPLE_POP": {
+            "code": "0x4000",
+            "title": "Statistical Profiling sample population",
+            "description": "Counts statistical profiling sample population, the count of all operations that could be sampled but may or may not be chosen for sampling.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "SAMPLE_FEED": {
+            "code": "0x4001",
+            "title": "Statistical Profiling sample taken",
+            "description": "Counts statistical profiling samples taken for sampling.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "SAMPLE_FILTRATE": {
+            "code": "0x4002",
+            "title": "Statistical Profiling sample taken and not removed by filtering",
+            "description": "Counts statistical profiling samples taken which are not removed by filtering.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        },
+        "SAMPLE_COLLISION": {
+            "code": "0x4003",
+            "title": "Statistical Profiling sample collided with previous sample",
+            "description": "Counts statistical profiling samples that have collided with a previous sample and so therefore not taken.",
+            "accesses": [
+                "PMU",
+                "ETE"
+            ],
+            "architecture_defined": true,
+            "product_defined": false
+        }
+    },
+    "metrics": {
+        "backend_stalled_cycles": {
+            "title": "Backend Stalled Cycles",
+            "formula": "STALL_BACKEND / CPU_CYCLES * 100",
+            "description": "This metric is the percentage of cycles that were stalled due to resource constraints in the backend unit of the processor.",
+            "units": "percent of cycles",
+            "events": [
+                "CPU_CYCLES",
+                "STALL_BACKEND"
+            ],
+            "sample_events": [
+                "STALL_BACKEND"
+            ]
+        },
+        "branch_misprediction_ratio": {
+            "title": "Branch Misprediction Ratio",
+            "formula": "BR_MIS_PRED_RETIRED / BR_RETIRED",
+            "description": "This metric measures the ratio of branches mispredicted to the total number of branches architecturally executed. This gives an indication of the effectiveness of the branch prediction unit.",
+            "units": "per branch",
+            "events": [
+                "BR_MIS_PRED_RETIRED",
+                "BR_RETIRED"
+            ],
+            "sample_events": [
+                "BR_MIS_PRED_RETIRED"
+            ]
+        },
+        "branch_mpki": {
+            "title": "Branch MPKI",
+            "formula": "BR_MIS_PRED_RETIRED / INST_RETIRED * 1000",
+            "description": "This metric measures the number of branch mispredictions per thousand instructions executed.",
+            "units": "MPKI",
+            "events": [
+                "BR_MIS_PRED_RETIRED",
+                "INST_RETIRED"
+            ],
+            "sample_events": [
+                "BR_MIS_PRED_RETIRED"
+            ]
+        },
+        "branch_percentage": {
+            "title": "Branch Operations Percentage",
+            "formula": "(BR_IMMED_SPEC + BR_INDIRECT_SPEC) / INST_SPEC * 100",
+            "description": "This metric measures branch operations as a percentage of operations speculatively executed.",
+            "units": "percent of operations",
+            "events": [
+                "BR_IMMED_SPEC",
+                "BR_INDIRECT_SPEC",
+                "INST_SPEC"
+            ],
+            "sample_events": [
+                "BR_IMMED_SPEC",
+                "BR_INDIRECT_SPEC"
+            ]
+        },
+        "crypto_percentage": {
+            "title": "Crypto Operations Percentage",
+            "formula": "CRYPTO_SPEC / INST_SPEC * 100",
+            "description": "This metric measures crypto operations as a percentage of operations speculatively executed.",
+            "units": "percent of operations",
+            "events": [
+                "CRYPTO_SPEC",
+                "INST_SPEC"
+            ],
+            "sample_events": [
+                "CRYPTO_SPEC"
+            ]
+        },
+        "dtlb_mpki": {
+            "title": "DTLB MPKI",
+            "formula": "DTLB_WALK / INST_RETIRED * 1000",
+            "description": "This metric measures the number of data TLB Walks per thousand instructions executed.",
+            "units": "MPKI",
+            "events": [
+                "DTLB_WALK",
+                "INST_RETIRED"
+            ],
+            "sample_events": [
+                "DTLB_WALK"
+            ]
+        },
+        "dtlb_walk_ratio": {
+            "title": "DTLB Walk Ratio",
+            "formula": "DTLB_WALK / L1D_TLB",
+            "description": "This metric measures the ratio of data TLB Walks to the total number of data TLB accesses. This gives an indication of the effectiveness of the data TLB accesses.",
+            "units": "per TLB access",
+            "events": [
+                "DTLB_WALK",
+                "L1D_TLB"
+            ],
+            "sample_events": [
+                "DTLB_WALK"
+            ]
+        },
+        "frontend_stalled_cycles": {
+            "title": "Frontend Stalled Cycles",
+            "formula": "STALL_FRONTEND / CPU_CYCLES * 100",
+            "description": "This metric is the percentage of cycles that were stalled due to resource constraints in the frontend unit of the processor.",
+            "units": "percent of cycles",
+            "events": [
+                "CPU_CYCLES",
+                "STALL_FRONTEND"
+            ],
+            "sample_events": [
+                "STALL_FRONTEND"
+            ]
+        },
+        "integer_dp_percentage": {
+            "title": "Integer Operations Percentage",
+            "formula": "DP_SPEC / INST_SPEC * 100",
+            "description": "This metric measures scalar integer operations as a percentage of operations speculatively executed.",
+            "units": "percent of operations",
+            "events": [
+                "DP_SPEC",
+                "INST_SPEC"
+            ],
+            "sample_events": [
+                "DP_SPEC"
+            ]
+        },
+        "ipc": {
+            "title": "Instructions Per Cycle",
+            "formula": "INST_RETIRED / CPU_CYCLES",
+            "description": "This metric measures the number of instructions retired per cycle.",
+            "units": "per cycle",
+            "events": [
+                "CPU_CYCLES",
+                "INST_RETIRED"
+            ],
+            "sample_events": [
+                "INST_RETIRED"
+            ]
+        },
+        "itlb_mpki": {
+            "title": "ITLB MPKI",
+            "formula": "ITLB_WALK / INST_RETIRED * 1000",
+            "description": "This metric measures the number of instruction TLB Walks per thousand instructions executed.",
+            "units": "MPKI",
+            "events": [
+                "INST_RETIRED",
+                "ITLB_WALK"
+            ],
+            "sample_events": [
+                "ITLB_WALK"
+            ]
+        },
+        "itlb_walk_ratio": {
+            "title": "ITLB Walk Ratio",
+            "formula": "ITLB_WALK / L1I_TLB",
+            "description": "This metric measures the ratio of instruction TLB Walks to the total number of instruction TLB accesses. This gives an indication of the effectiveness of the instruction TLB accesses.",
+            "units": "per TLB access",
+            "events": [
+                "ITLB_WALK",
+                "L1I_TLB"
+            ],
+            "sample_events": [
+                "ITLB_WALK"
+            ]
+        },
+        "l1d_cache_miss_ratio": {
+            "title": "L1D Cache Miss Ratio",
+            "formula": "L1D_CACHE_REFILL / L1D_CACHE",
+            "description": "This metric measures the ratio of level 1 data cache accesses missed to the total number of level 1 data cache accesses. This gives an indication of the effectiveness of the level 1 data cache.",
+            "units": "per cache access",
+            "events": [
+                "L1D_CACHE",
+                "L1D_CACHE_REFILL"
+            ],
+            "sample_events": [
+                "L1D_CACHE_REFILL"
+            ]
+        },
+        "l1d_cache_mpki": {
+            "title": "L1D Cache MPKI",
+            "formula": "L1D_CACHE_REFILL / INST_RETIRED * 1000",
+            "description": "This metric measures the number of level 1 data cache accesses missed per thousand instructions executed.",
+            "units": "MPKI",
+            "events": [
+                "INST_RETIRED",
+                "L1D_CACHE_REFILL"
+            ],
+            "sample_events": [
+                "L1D_CACHE_REFILL"
+            ]
+        },
+        "l1d_tlb_miss_ratio": {
+            "title": "L1 Data TLB Miss Ratio",
+            "formula": "L1D_TLB_REFILL / L1D_TLB",
+            "description": "This metric measures the ratio of level 1 data TLB accesses missed to the total number of level 1 data TLB accesses. This gives an indication of the effectiveness of the level 1 data TLB.",
+            "units": "per TLB access",
+            "events": [
+                "L1D_TLB",
+                "L1D_TLB_REFILL"
+            ],
+            "sample_events": [
+                "L1D_TLB_REFILL"
+            ]
+        },
+        "l1d_tlb_mpki": {
+            "title": "L1 Data TLB MPKI",
+            "formula": "L1D_TLB_REFILL / INST_RETIRED * 1000",
+            "description": "This metric measures the number of level 1 data TLB accesses missed per thousand instructions executed.",
+            "units": "MPKI",
+            "events": [
+                "INST_RETIRED",
+                "L1D_TLB_REFILL"
+            ],
+            "sample_events": [
+                "L1D_TLB_REFILL"
+            ]
+        },
+        "l1i_cache_miss_ratio": {
+            "title": "L1I Cache Miss Ratio",
+            "formula": "L1I_CACHE_REFILL / L1I_CACHE",
+            "description": "This metric measures the ratio of level 1 instruction cache accesses missed to the total number of level 1 instruction cache accesses. This gives an indication of the effectiveness of the level 1 instruction cache.",
+            "units": "per cache access",
+            "events": [
+                "L1I_CACHE",
+                "L1I_CACHE_REFILL"
+            ],
+            "sample_events": [
+                "L1I_CACHE_REFILL"
+            ]
+        },
+        "l1i_cache_mpki": {
+            "title": "L1I Cache MPKI",
+            "formula": "L1I_CACHE_REFILL / INST_RETIRED * 1000",
+            "description": "This metric measures the number of level 1 instruction cache accesses missed per thousand instructions executed.",
+            "units": "MPKI",
+            "events": [
+                "INST_RETIRED",
+                "L1I_CACHE_REFILL"
+            ],
+            "sample_events": [
+                "L1I_CACHE_REFILL"
+            ]
+        },
+        "l1i_tlb_miss_ratio": {
+            "title": "L1 Instruction TLB Miss Ratio",
+            "formula": "L1I_TLB_REFILL / L1I_TLB",
+            "description": "This metric measures the ratio of level 1 instruction TLB accesses missed to the total number of level 1 instruction TLB accesses. This gives an indication of the effectiveness of the level 1 instruction TLB.",
+            "units": "per TLB access",
+            "events": [
+                "L1I_TLB",
+                "L1I_TLB_REFILL"
+            ],
+            "sample_events": [
+                "L1I_TLB_REFILL"
+            ]
+        },
+        "l1i_tlb_mpki": {
+            "title": "L1 Instruction TLB MPKI",
+            "formula": "L1I_TLB_REFILL / INST_RETIRED * 1000",
+            "description": "This metric measures the number of level 1 instruction TLB accesses missed per thousand instructions executed.",
+            "units": "MPKI",
+            "events": [
+                "INST_RETIRED",
+                "L1I_TLB_REFILL"
+            ],
+            "sample_events": [
+                "L1I_TLB_REFILL"
+            ]
+        },
+        "l2_cache_miss_ratio": {
+            "title": "L2 Cache Miss Ratio",
+            "formula": "L2D_CACHE_REFILL / L2D_CACHE",
+            "description": "This metric measures the ratio of level 2 cache accesses missed to the total number of level 2 cache accesses. This gives an indication of the effectiveness of the level 2 cache, which is a unified cache that stores both data and instruction. Note that cache accesses in this cache are either data memory access or instruction fetch as this is a unified cache.",
+            "units": "per cache access",
+            "events": [
+                "L2D_CACHE",
+                "L2D_CACHE_REFILL"
+            ],
+            "sample_events": [
+                "L2D_CACHE_REFILL"
+            ]
+        },
+        "l2_cache_mpki": {
+            "title": "L2 Cache MPKI",
+            "formula": "L2D_CACHE_REFILL / INST_RETIRED * 1000",
+            "description": "This metric measures the number of level 2 unified cache accesses missed per thousand instructions executed. Note that cache accesses in this cache are either data memory access or instruction fetch as this is a unified cache.",
+            "units": "MPKI",
+            "events": [
+                "INST_RETIRED",
+                "L2D_CACHE_REFILL"
+            ],
+            "sample_events": [
+                "L2D_CACHE_REFILL"
+            ]
+        },
+        "l2_tlb_miss_ratio": {
+            "title": "L2 Unified TLB Miss Ratio",
+            "formula": "L2D_TLB_REFILL / L2D_TLB",
+            "description": "This metric measures the ratio of level 2 unified TLB accesses missed to the total number of level 2 unified TLB accesses. This gives an indication of the effectiveness of the level 2 TLB.",
+            "units": "per TLB access",
+            "events": [
+                "L2D_TLB",
+                "L2D_TLB_REFILL"
+            ],
+            "sample_events": [
+                "L2D_TLB_REFILL"
+            ]
+        },
+        "l2_tlb_mpki": {
+            "title": "L2 Unified TLB MPKI",
+            "formula": "L2D_TLB_REFILL / INST_RETIRED * 1000",
+            "description": "This metric measures the number of level 2 unified TLB accesses missed per thousand instructions executed.",
+            "units": "MPKI",
+            "events": [
+                "INST_RETIRED",
+                "L2D_TLB_REFILL"
+            ],
+            "sample_events": [
+                "L2D_TLB_REFILL"
+            ]
+        },
+        "ll_cache_read_hit_ratio": {
+            "title": "LL Cache Read Hit Ratio",
+            "formula": "(LL_CACHE_RD - LL_CACHE_MISS_RD) / LL_CACHE_RD",
+            "description": "This metric measures the ratio of last level cache read accesses hit in the cache to the total number of last level cache accesses. This gives an indication of the effectiveness of the last level cache for read traffic. Note that cache accesses in this cache are either data memory access or instruction fetch as this is a system level cache.",
+            "units": "per cache access",
+            "events": [
+                "LL_CACHE_MISS_RD",
+                "LL_CACHE_RD"
+            ],
+            "sample_events": [
+                "LL_CACHE_MISS_RD"
+            ]
+        },
+        "ll_cache_read_miss_ratio": {
+            "title": "LL Cache Read Miss Ratio",
+            "formula": "LL_CACHE_MISS_RD / LL_CACHE_RD",
+            "description": "This metric measures the ratio of last level cache read accesses missed to the total number of last level cache accesses. This gives an indication of the effectiveness of the last level cache for read traffic. Note that cache accesses in this cache are either data memory access or instruction fetch as this is a system level cache.",
+            "units": "per cache access",
+            "events": [
+                "LL_CACHE_MISS_RD",
+                "LL_CACHE_RD"
+            ],
+            "sample_events": [
+                "LL_CACHE_MISS_RD"
+            ]
+        },
+        "ll_cache_read_mpki": {
+            "title": "LL Cache Read MPKI",
+            "formula": "LL_CACHE_MISS_RD / INST_RETIRED * 1000",
+            "description": "This metric measures the number of last level cache read accesses missed per thousand instructions executed.",
+            "units": "MPKI",
+            "events": [
+                "INST_RETIRED",
+                "LL_CACHE_MISS_RD"
+            ],
+            "sample_events": [
+                "LL_CACHE_MISS_RD"
+            ]
+        },
+        "load_percentage": {
+            "title": "Load Operations Percentage",
+            "formula": "LD_SPEC / INST_SPEC * 100",
+            "description": "This metric measures load operations as a percentage of operations speculatively executed.",
+            "units": "percent of operations",
+            "events": [
+                "INST_SPEC",
+                "LD_SPEC"
+            ],
+            "sample_events": [
+                "LD_SPEC"
+            ]
+        },
+        "scalar_fp_percentage": {
+            "title": "Floating Point Operations Percentage",
+            "formula": "VFP_SPEC / INST_SPEC * 100",
+            "description": "This metric measures scalar floating point operations as a percentage of operations speculatively executed.",
+            "units": "percent of operations",
+            "events": [
+                "INST_SPEC",
+                "VFP_SPEC"
+            ],
+            "sample_events": [
+                "VFP_SPEC"
+            ]
+        },
+        "simd_percentage": {
+            "title": "Advanced SIMD Operations Percentage",
+            "formula": "ASE_SPEC / INST_SPEC * 100",
+            "description": "This metric measures advanced SIMD operations as a percentage of total operations speculatively executed.",
+            "units": "percent of operations",
+            "events": [
+                "ASE_SPEC",
+                "INST_SPEC"
+            ],
+            "sample_events": [
+                "ASE_SPEC"
+            ]
+        },
+        "store_percentage": {
+            "title": "Store Operations Percentage",
+            "formula": "ST_SPEC / INST_SPEC * 100",
+            "description": "This metric measures store operations as a percentage of operations speculatively executed.",
+            "units": "percent of operations",
+            "events": [
+                "INST_SPEC",
+                "ST_SPEC"
+            ],
+            "sample_events": [
+                "ST_SPEC"
+            ]
+        }
+    },
+    "groups": {
+        "function": {
+            "Bus": {
+                "title": "BUS",
+                "description": "Bus transaction related events",
+                "events": [
+                    "BUS_ACCESS",
+                    "BUS_ACCESS_RD",
+                    "BUS_ACCESS_WR",
+                    "BUS_CYCLES"
+                ]
+            },
+            "Chain": {
+                "title": "CHAIN",
+                "description": "Chain related events",
+                "events": [
+                    "CHAIN"
+                ]
+            },
+            "Exception": {
+                "title": "EXCEPTION",
+                "description": "Exception related events",
+                "events": [
+                    "EXC_DABORT",
+                    "EXC_FIQ",
+                    "EXC_HVC",
+                    "EXC_IRQ",
+                    "EXC_PABORT",
+                    "EXC_RETURN",
+                    "EXC_SMC",
+                    "EXC_SVC",
+                    "EXC_TAKEN",
+                    "EXC_TRAP_DABORT",
+                    "EXC_TRAP_FIQ",
+                    "EXC_TRAP_IRQ",
+                    "EXC_TRAP_OTHER",
+                    "EXC_TRAP_PABORT",
+                    "EXC_UNDEF"
+                ]
+            },
+            "L1D_Cache": {
+                "title": "L1D CACHE",
+                "description": "L1 data cache related events",
+                "events": [
+                    "L1D_CACHE",
+                    "L1D_CACHE_INVAL",
+                    "L1D_CACHE_RD",
+                    "L1D_CACHE_REFILL",
+                    "L1D_CACHE_REFILL_INNER",
+                    "L1D_CACHE_REFILL_OUTER",
+                    "L1D_CACHE_REFILL_RD",
+                    "L1D_CACHE_REFILL_WR",
+                    "L1D_CACHE_WB",
+                    "L1D_CACHE_WB_CLEAN",
+                    "L1D_CACHE_WB_VICTIM",
+                    "L1D_CACHE_WR"
+                ]
+            },
+            "L1I_Cache": {
+                "title": "L1I CACHE",
+                "description": "L1 instruction cache related events",
+                "events": [
+                    "L1I_CACHE",
+                    "L1I_CACHE_REFILL"
+                ]
+            },
+            "L2_Cache": {
+                "title": "L2 CACHE",
+                "description": "L2 unified cache related events",
+                "events": [
+                    "L2D_CACHE",
+                    "L2D_CACHE_ALLOCATE",
+                    "L2D_CACHE_INVAL",
+                    "L2D_CACHE_RD",
+                    "L2D_CACHE_REFILL",
+                    "L2D_CACHE_REFILL_RD",
+                    "L2D_CACHE_REFILL_WR",
+                    "L2D_CACHE_WB",
+                    "L2D_CACHE_WB_CLEAN",
+                    "L2D_CACHE_WB_VICTIM",
+                    "L2D_CACHE_WR"
+                ]
+            },
+            "L3_Cache": {
+                "title": "L3 CACHE",
+                "description": "L3 unified cache related events",
+                "events": [
+                    "L3D_CACHE",
+                    "L3D_CACHE_ALLOCATE",
+                    "L3D_CACHE_RD",
+                    "L3D_CACHE_REFILL"
+                ]
+            },
+            "LL_Cache": {
+                "title": "LL CACHE",
+                "description": "Last Level Cache related events",
+                "events": [
+                    "LL_CACHE_MISS_RD",
+                    "LL_CACHE_RD"
+                ]
+            },
+            "Memory": {
+                "title": "MEMORY",
+                "description": "Memory system related events",
+                "events": [
+                    "MEMORY_ERROR",
+                    "MEM_ACCESS",
+                    "MEM_ACCESS_RD",
+                    "MEM_ACCESS_WR",
+                    "REMOTE_ACCESS"
+                ]
+            },
+            "Retired": {
+                "title": "RETIRED",
+                "description": "Retired instruction and operation events",
+                "events": [
+                    "BR_MIS_PRED_RETIRED",
+                    "BR_RETIRED",
+                    "CID_WRITE_RETIRED",
+                    "INST_RETIRED",
+                    "SW_INCR",
+                    "TTBR_WRITE_RETIRED"
+                ]
+            },
+            "SPE": {
+                "title": "SPE",
+                "description": "SPE related events",
+                "events": [
+                    "SAMPLE_COLLISION",
+                    "SAMPLE_FEED",
+                    "SAMPLE_FILTRATE",
+                    "SAMPLE_POP"
+                ]
+            },
+            "Spec_Operation": {
+                "title": "SPEC OPERATION",
+                "description": "Speculatively executed operations related events",
+                "events": [
+                    "ASE_SPEC",
+                    "BR_IMMED_SPEC",
+                    "BR_INDIRECT_SPEC",
+                    "BR_MIS_PRED",
+                    "BR_PRED",
+                    "BR_RETURN_SPEC",
+                    "CRYPTO_SPEC",
+                    "DMB_SPEC",
+                    "DP_SPEC",
+                    "DSB_SPEC",
+                    "INST_SPEC",
+                    "ISB_SPEC",
+                    "LDREX_SPEC",
+                    "LD_SPEC",
+                    "PC_WRITE_SPEC",
+                    "RC_LD_SPEC",
+                    "RC_ST_SPEC",
+                    "STREX_FAIL_SPEC",
+                    "STREX_PASS_SPEC",
+                    "STREX_SPEC",
+                    "ST_SPEC",
+                    "UNALIGNED_LDST_SPEC",
+                    "UNALIGNED_LD_SPEC",
+                    "UNALIGNED_ST_SPEC",
+                    "VFP_SPEC"
+                ]
+            },
+            "Stall": {
+                "title": "STALL",
+                "description": "Stall related events",
+                "events": [
+                    "STALL_BACKEND",
+                    "STALL_FRONTEND"
+                ]
+            },
+            "General": {
+                "title": "GENERAL",
+                "description": "General CPU related events",
+                "events": [
+                    "CPU_CYCLES"
+                ]
+            },
+            "TLB": {
+                "title": "TLB",
+                "description": "TLB and MMU related events",
+                "events": [
+                    "DTLB_WALK",
+                    "ITLB_WALK",
+                    "L1D_TLB",
+                    "L1D_TLB_RD",
+                    "L1D_TLB_REFILL",
+                    "L1D_TLB_REFILL_RD",
+                    "L1D_TLB_REFILL_WR",
+                    "L1D_TLB_WR",
+                    "L1I_TLB",
+                    "L1I_TLB_REFILL",
+                    "L2D_TLB",
+                    "L2D_TLB_RD",
+                    "L2D_TLB_REFILL",
+                    "L2D_TLB_REFILL_RD",
+                    "L2D_TLB_REFILL_WR",
+                    "L2D_TLB_WR"
+                ]
+            }
+        },
+        "metrics": {
+            "Cycle_Accounting": {
+                "title": "Cycle Accounting",
+                "description": "This metric group contains a set of metrics that measure the percentage of processor cycles stalled in either frontend or backend of the processor.",
+                "metrics": [
+                    "frontend_stalled_cycles",
+                    "backend_stalled_cycles"
+                ]
+            },
+            "General": {
+                "title": "General",
+                "description": "This metric group contains general CPU metrics for performance analysis.",
+                "metrics": [
+                    "ipc"
+                ]
+            },
+            "MPKI": {
+                "title": "Misses Per Kilo Instructions",
+                "description": "This metric group contains metrics for different CPU resources that can be measured as misses per kilo instructions.",
+                "metrics": [
+                    "branch_mpki",
+                    "itlb_mpki",
+                    "dtlb_mpki",
+                    "l1i_tlb_mpki",
+                    "l1d_tlb_mpki",
+                    "l2_tlb_mpki",
+                    "l1i_cache_mpki",
+                    "l1d_cache_mpki",
+                    "l2_cache_mpki",
+                    "ll_cache_read_mpki"
+                ]
+            },
+            "Miss_Ratio": {
+                "title": "Miss Ratio",
+                "description": "This metric group contains metrics to measure miss ratios of different processor resources.",
+                "metrics": [
+                    "branch_misprediction_ratio",
+                    "itlb_walk_ratio",
+                    "dtlb_walk_ratio",
+                    "l1i_tlb_miss_ratio",
+                    "l1d_tlb_miss_ratio",
+                    "l2_tlb_miss_ratio",
+                    "l1i_cache_miss_ratio",
+                    "l1d_cache_miss_ratio",
+                    "l2_cache_miss_ratio",
+                    "ll_cache_read_miss_ratio"
+                ]
+            },
+            "Branch_Effectiveness": {
+                "title": "Branch Effectiveness",
+                "description": "This metric group contains metrics to evaluate the effectiveness of branch instruction execution on this processor.",
+                "metrics": [
+                    "branch_mpki",
+                    "branch_misprediction_ratio"
+                ]
+            },
+            "ITLB_Effectiveness": {
+                "title": "Instruction TLB Effectiveness",
+                "description": "This metric group contains metrics to evaluate the effectiveness of instruction TLB on this processor.",
+                "metrics": [
+                    "itlb_mpki",
+                    "itlb_walk_ratio",
+                    "l1i_tlb_mpki",
+                    "l1i_tlb_miss_ratio",
+                    "l2_tlb_mpki",
+                    "l2_tlb_miss_ratio"
+                ]
+            },
+            "DTLB_Effectiveness": {
+                "title": "Data TLB Effectiveness",
+                "description": "This metric group contains metrics to evaluate the effectiveness of data TLB on this processor.",
+                "metrics": [
+                    "dtlb_mpki",
+                    "dtlb_walk_ratio",
+                    "l1d_tlb_mpki",
+                    "l1d_tlb_miss_ratio",
+                    "l2_tlb_mpki",
+                    "l2_tlb_miss_ratio"
+                ]
+            },
+            "L1I_Cache_Effectiveness": {
+                "title": "L1 Instruction Cache Effectiveness",
+                "description": "This metric group contains metrics to evaluate the effectiveness of L1 Instruction cache on this processor.",
+                "metrics": [
+                    "l1i_cache_mpki",
+                    "l1i_cache_miss_ratio"
+                ]
+            },
+            "L1D_Cache_Effectiveness": {
+                "title": "L1 Data Cache Effectiveness",
+                "description": "This metric group contains metrics to evaluate the effectiveness of L1 Data Cache on this processor.",
+                "metrics": [
+                    "l1d_cache_mpki",
+                    "l1d_cache_miss_ratio"
+                ]
+            },
+            "L2_Cache_Effectiveness": {
+                "title": "L2 Unified Cache Effectiveness",
+                "description": "This metric group contains metrics to evaluate the effectiveness of L2 Unified Cache on this processor.",
+                "metrics": [
+                    "l2_cache_mpki",
+                    "l2_cache_miss_ratio"
+                ]
+            },
+            "LL_Cache_Effectiveness": {
+                "title": "Last Level Cache Effectiveness",
+                "description": "This metric group contains metrics to evaluate the effectiveness of Last Level Cache on this processor.",
+                "metrics": [
+                    "ll_cache_read_mpki",
+                    "ll_cache_read_miss_ratio",
+                    "ll_cache_read_hit_ratio"
+                ]
+            },
+            "Operation_Mix": {
+                "title": "Speculative Operation Mix",
+                "description": "This metric group provides the distribution of micro-operation types executed for the program.",
+                "metrics": [
+                    "load_percentage",
+                    "store_percentage",
+                    "integer_dp_percentage",
+                    "simd_percentage",
+                    "scalar_fp_percentage",
+                    "branch_percentage",
+                    "crypto_percentage"
+                ]
+            }
+        }
+    },
+    "methodologies": {
+        "topdown_methodology": {
+            "title": "Topdown Methodology",
+            "description": "Topdown Performance Analysis Methodology",
+            "metric_grouping": {
+                "stage_1": [
+                    "Cycle_Accounting"
+                ],
+                "stage_2": [
+                    "General",
+                    "MPKI",
+                    "Miss_Ratio",
+                    "Branch_Effectiveness",
+                    "ITLB_Effectiveness",
+                    "DTLB_Effectiveness",
+                    "L1I_Cache_Effectiveness",
+                    "L1D_Cache_Effectiveness",
+                    "L2_Cache_Effectiveness",
+                    "LL_Cache_Effectiveness",
+                    "Operation_Mix"
+                ]
+            },
+            "decision_tree": {
+                "root_nodes": [
+                    "frontend_stalled_cycles",
+                    "backend_stalled_cycles"
+                ],
+                "metrics": [
+                    {
+                        "name": "frontend_stalled_cycles",
+                        "group": "Cycle_Accounting",
+                        "next_items": [
+                            "Branch_Effectiveness",
+                            "ITLB_Effectiveness",
+                            "L1I_Cache_Effectiveness",
+                            "L2_Cache_Effectiveness",
+                            "LL_Cache_Effectiveness"
+                        ],
+                        "sample_events": [
+                            "STALL_FRONTEND"
+                        ]
+                    },
+                    {
+                        "name": "backend_stalled_cycles",
+                        "group": "Cycle_Accounting",
+                        "next_items": [
+                            "DTLB_Effectiveness",
+                            "L1D_Cache_Effectiveness",
+                            "L2_Cache_Effectiveness",
+                            "LL_Cache_Effectiveness",
+                            "Operation_Mix"
+                        ],
+                        "sample_events": [
+                            "STALL_BACKEND"
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}

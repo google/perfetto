@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/tree/tree_columns_builder.h"
+#include "src/trace_processor/core/tree/tree_columns_from_dataframe.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -83,47 +86,107 @@ TreeColumns::Column ConvertRawColumn(
   return tc;
 }
 
+base::StatusOr<TreeColumns> BuildFromRawColumns(
+    std::vector<dataframe::AdhocDataframeBuilder::RawColumn> raw_cols);
+
 }  // namespace
 
-TreeColumnsBuilder::TreeColumnsBuilder(std::vector<std::string> names,
-                                       StringPool* pool)
-    : builder_(std::move(names),
-               pool,
-               {{}, dataframe::NullabilityType::kDenseNull}) {}
+base::StatusOr<TreeColumns> BuildTreeColumns(
+    dataframe::AdhocDataframeBuilder&& builder) {
+  ASSIGN_OR_RETURN(auto raw_cols, std::move(builder).BuildRaw());
+  return BuildFromRawColumns(std::move(raw_cols));
+}
 
-TreeColumnsBuilder::~TreeColumnsBuilder() = default;
-TreeColumnsBuilder::TreeColumnsBuilder(TreeColumnsBuilder&&) noexcept = default;
-TreeColumnsBuilder& TreeColumnsBuilder::operator=(
-    TreeColumnsBuilder&&) noexcept = default;
+namespace {
 
-base::StatusOr<TreeColumns> TreeColumnsBuilder::Build() && {
-  ASSIGN_OR_RETURN(auto raw_cols, std::move(builder_).BuildRaw());
-
+base::StatusOr<TreeColumns> BuildFromRawColumns(
+    std::vector<dataframe::AdhocDataframeBuilder::RawColumn> raw_cols) {
   // Columns 0 and 1 are id and parent_id.
   if (raw_cols.size() < 2) {
     return base::ErrStatus("tree: need at least id and parent_id columns");
   }
 
-  // Extract id values from column 0.
+  // Extract id values from column 0. A column without storage and without a
+  // null bitmap means the builder has no rows; preserve the column names so
+  // consumers can still expose the schema of an empty tree.
   auto& id_rc = raw_cols[0];
-  if (!id_rc.storage || !id_rc.storage->type().Is<Int64>()) {
-    return base::ErrStatus("tree: id column must be integer");
+  uint32_t row_count = 0;
+  const FlexVector<int64_t>* id_vec_ptr = nullptr;
+  if (!id_rc.storage) {
+    if (id_rc.null_bv.size() != 0) {
+      return base::ErrStatus("tree: id column must be integer");
+    }
+  } else {
+    if (!id_rc.storage->type().Is<Int64>()) {
+      return base::ErrStatus("tree: id column must be integer");
+    }
+    id_vec_ptr = &id_rc.storage->unchecked_get<Int64>();
+    if (id_vec_ptr->size() >= kNullParent) {
+      return base::ErrStatus("tree: too many rows");
+    }
+    row_count = static_cast<uint32_t>(id_vec_ptr->size());
   }
-  const auto& id_vec = id_rc.storage->unchecked_get<Int64>();
-  uint32_t row_count = static_cast<uint32_t>(id_vec.size());
+  FlexVector<int64_t> empty_ids;
+  const auto& id_vec = id_vec_ptr ? *id_vec_ptr : empty_ids;
 
   TreeColumns result;
   result.row_count = row_count;
 
-  if (row_count == 0) {
-    return std::move(result);
-  }
-
-  // Build id→row map.
-  base::FlatHashMap<int64_t, uint32_t> id_to_row;
+  // Prefer indexes which avoid hashing. Identity ids need no storage; a
+  // reasonably dense uint32 range uses direct indexing; arbitrary int64 ids
+  // fall back to a hash map.
+  bool identity_ids = true;
+  bool uint32_ids = true;
+  uint32_t max_id = 0;
   for (uint32_t i = 0; i < row_count; ++i) {
-    id_to_row[id_vec[i]] = i;
+    int64_t id = id_vec[i];
+    identity_ids = identity_ids && id == i;
+    if (id < 0 ||
+        static_cast<uint64_t>(id) > std::numeric_limits<uint32_t>::max()) {
+      uint32_ids = false;
+    } else {
+      max_id = std::max(max_id, static_cast<uint32_t>(id));
+    }
   }
+  bool dense_ids = !identity_ids && uint32_ids &&
+                   uint64_t(max_id) + 1 <= uint64_t(row_count) * 2;
+  std::vector<uint32_t> dense_index;
+  base::FlatHashMap<int64_t, uint32_t> hash_index;
+  if (dense_ids) {
+    dense_index.resize(uint64_t(max_id) + 1, kNullParent);
+    for (uint32_t i = 0; i < row_count; ++i) {
+      uint32_t id = static_cast<uint32_t>(id_vec[i]);
+      if (dense_index[id] != kNullParent) {
+        return base::ErrStatus("tree: duplicate id");
+      }
+      dense_index[id] = i;
+    }
+  } else if (!identity_ids) {
+    for (uint32_t i = 0; i < row_count; ++i) {
+      auto [row, inserted] = hash_index.Insert(id_vec[i], i);
+      base::ignore_result(row);
+      if (!inserted) {
+        return base::ErrStatus("tree: duplicate id");
+      }
+    }
+  }
+  auto find_id = [&](int64_t id) -> std::optional<uint32_t> {
+    if (identity_ids) {
+      if (id < 0 || static_cast<uint64_t>(id) >= row_count) {
+        return std::nullopt;
+      }
+      return static_cast<uint32_t>(id);
+    }
+    if (dense_ids) {
+      if (id < 0 || static_cast<uint64_t>(id) >= dense_index.size()) {
+        return std::nullopt;
+      }
+      uint32_t row = dense_index[static_cast<uint32_t>(id)];
+      return row == kNullParent ? std::nullopt : std::make_optional(row);
+    }
+    const uint32_t* row = hash_index.Find(id);
+    return row ? std::make_optional(*row) : std::nullopt;
+  };
 
   // Normalize parent_id (column 1) to row indices.
   auto& pid_rc = raw_cols[1];
@@ -141,7 +204,7 @@ base::StatusOr<TreeColumns> TreeColumnsBuilder::Build() && {
       if (pid_rc.null_bv.size() > 0 && !pid_rc.null_bv.is_set(i)) {
         result.parent[i] = kNullParent;
       } else {
-        auto* row = id_to_row.Find(pid_vec[i]);
+        std::optional<uint32_t> row = find_id(pid_vec[i]);
         if (PERFETTO_UNLIKELY(!row)) {
           return base::ErrStatus("tree: parent_id not found in id column");
         }
@@ -159,5 +222,7 @@ base::StatusOr<TreeColumns> TreeColumnsBuilder::Build() && {
   }
   return std::move(result);
 }
+
+}  // namespace
 
 }  // namespace perfetto::trace_processor::core::tree

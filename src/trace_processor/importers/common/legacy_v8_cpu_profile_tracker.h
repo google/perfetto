@@ -88,6 +88,7 @@ class LegacyV8CpuProfileTracker
       state_by_session_and_pid_;
 
   TraceProcessorContext* const context_;
+  const StringPool::Id legacy_v8_source_id_;
 };
 
 }  // namespace perfetto::trace_processor

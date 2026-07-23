@@ -585,12 +585,37 @@ class TraceStorage {
     return mutable_table<tables::TraceFileTable>();
   }
 
-  const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
+  const tables::ChromeStackSampleExtrasTable& chrome_stack_sample_extras_table()
       const {
-    return table<tables::CpuProfileStackSampleTable>();
+    return table<tables::ChromeStackSampleExtrasTable>();
   }
-  tables::CpuProfileStackSampleTable* mutable_cpu_profile_stack_sample_table() {
-    return mutable_table<tables::CpuProfileStackSampleTable>();
+  tables::ChromeStackSampleExtrasTable*
+  mutable_chrome_stack_sample_extras_table() {
+    return mutable_table<tables::ChromeStackSampleExtrasTable>();
+  }
+
+  const tables::ProfilerAsyncContextTable& profiler_async_context_table()
+      const {
+    return table<tables::ProfilerAsyncContextTable>();
+  }
+  tables::ProfilerAsyncContextTable* mutable_profiler_async_context_table() {
+    return mutable_table<tables::ProfilerAsyncContextTable>();
+  }
+
+  const tables::ProfilerTaskContextTable& profiler_task_context_table() const {
+    return table<tables::ProfilerTaskContextTable>();
+  }
+  tables::ProfilerTaskContextTable* mutable_profiler_task_context_table() {
+    return mutable_table<tables::ProfilerTaskContextTable>();
+  }
+
+  const tables::ProfilerExecutionContextTable&
+  profiler_execution_context_table() const {
+    return table<tables::ProfilerExecutionContextTable>();
+  }
+  tables::ProfilerExecutionContextTable*
+  mutable_profiler_execution_context_table() {
+    return mutable_table<tables::ProfilerExecutionContextTable>();
   }
 
   const tables::ProfilerSessionTable& profiler_session_table() const {
@@ -598,13 +623,6 @@ class TraceStorage {
   }
   tables::ProfilerSessionTable* mutable_profiler_session_table() {
     return mutable_table<tables::ProfilerSessionTable>();
-  }
-
-  const tables::InstrumentsSampleTable& instruments_sample_table() const {
-    return table<tables::InstrumentsSampleTable>();
-  }
-  tables::InstrumentsSampleTable* mutable_instruments_sample_table() {
-    return mutable_table<tables::InstrumentsSampleTable>();
   }
 
   const tables::ProfilerSampleTable& profiler_sample_table() const {

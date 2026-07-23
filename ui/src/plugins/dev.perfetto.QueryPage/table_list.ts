@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {Accordion, AccordionSection} from '../../widgets/accordion';
 import {Button} from '../../widgets/button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
@@ -30,11 +30,11 @@ import {
 import {EmptyState} from '../../widgets/empty_state';
 
 interface FilteredTable {
-  table: SqlTable;
-  segments: FuzzySegment[];
+  readonly table: SqlTable;
+  readonly segments: readonly FuzzySegment[];
 }
 
-function renderHighlightedName(segments: FuzzySegment[]): m.Children {
+function renderHighlightedName(segments: readonly FuzzySegment[]): m.Children {
   return segments.map(({matching, value}) =>
     matching ? m('span.pf-simple-table-list__highlight', value) : value,
   );
@@ -54,18 +54,19 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
 
     // Filter tables using fuzzy search (results ordered by relevance)
     const searchTerm = this.searchQuery.trim();
-    let filteredTables: FilteredTable[];
+    let filteredTables: readonly FilteredTable[];
     if (searchTerm === '') {
       filteredTables = tables.map((table) => ({
         table,
         segments: [{matching: false, value: table.name}],
       }));
     } else {
-      const finder = new FuzzyFinder(tables, (t) => t.name);
-      filteredTables = finder.find(searchTerm).map((result) => ({
-        table: result.item,
-        segments: result.segments,
-      }));
+      filteredTables = fuzzySearch(tables, (t) => t.name, searchTerm).map(
+        (result) => ({
+          table: result.item,
+          segments: result.segments,
+        }),
+      );
     }
 
     return m(
