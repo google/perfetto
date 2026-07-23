@@ -350,17 +350,26 @@ function computeFlamegraphMetrics(
   return metrics;
 }
 
-function getProcessTrackUris(trace: Trace, source: string): string[] {
+function getScopedTrackUris(
+  trace: Trace,
+  source: string,
+  scope: {readonly upid?: number; readonly utid?: number},
+): string[] {
   return trace.tracks
     .getAllTracks()
     .filter((track) => {
       const tags = track.tags;
+      const matchesScope =
+        scope.utid !== undefined
+          ? tags?.utid === scope.utid
+          : tags?.upid !== undefined &&
+            (scope.upid === undefined || tags.upid === scope.upid) &&
+            tags.utid === undefined;
       return (
         tags?.kinds?.includes(STACK_SAMPLE_TRACK_KIND) === true &&
         tags.stackSampleSource === source &&
-        tags.upid !== undefined &&
-        tags.utid === undefined &&
-        tags.stackSampleSummary !== true
+        tags.stackSampleSummary !== true &&
+        matchesScope
       );
     })
     .map((track) => track.uri);
@@ -423,7 +432,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
           trace.selection.selectArea({
             start: trace.traceInfo.start,
             end: trace.traceInfo.end,
-            trackUris: getProcessTrackUris(trace, LINUX_PERF_SOURCE),
+            trackUris: getScopedTrackUris(trace, LINUX_PERF_SOURCE, {}),
           });
         },
       });
@@ -689,17 +698,17 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
       utid: NUM_NULL,
       upid: NUM_NULL,
     });
-    let uri: string | undefined;
+    let trackUris: string[] = [];
     if (row.upid !== null) {
-      uri = processStackSampleTrackUri(row.source, row.upid);
+      trackUris = getScopedTrackUris(trace, row.source, {upid: row.upid});
     } else if (row.utid !== null) {
-      uri = threadStackSampleTrackUri(row.source, undefined, row.utid);
+      trackUris = getScopedTrackUris(trace, row.source, {utid: row.utid});
     }
-    if (uri === undefined || trace.tracks.getTrack(uri) === undefined) return;
+    if (trackUris.length === 0) return;
     trace.selection.selectArea({
       start: trace.traceInfo.start,
       end: trace.traceInfo.end,
-      trackUris: [uri],
+      trackUris,
     });
   }
 }
