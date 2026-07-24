@@ -42,6 +42,41 @@ test('basic query execution', async () => {
   expect(queryFn).toHaveBeenCalledTimes(1);
 });
 
+test('uses compute function passed to constructor', async () => {
+  const queryFn = vi.fn().mockResolvedValue(42);
+  const slot = new AsyncMemo<number>(queryFn);
+
+  slot.use({key: {id: 1}});
+  await flushPromises();
+
+  const result = slot.use({key: {id: 1}});
+  expect(result.data).toBe(42);
+  expect(result.isPending).toBe(false);
+  expect(queryFn).toHaveBeenCalledTimes(1);
+});
+
+test('use compute function overrides constructor function', async () => {
+  const defaultQueryFn = vi.fn().mockResolvedValue(1);
+  const overrideQueryFn = vi.fn().mockResolvedValue(2);
+  const slot = new AsyncMemo<number>(defaultQueryFn);
+
+  slot.use({key: {id: 1}, compute: overrideQueryFn});
+  await flushPromises();
+
+  const result = slot.use({key: {id: 1}});
+  expect(result.data).toBe(2);
+  expect(defaultQueryFn).not.toHaveBeenCalled();
+  expect(overrideQueryFn).toHaveBeenCalledTimes(1);
+});
+
+test('throws when no compute function is provided', () => {
+  const slot = new AsyncMemo<number>();
+
+  expect(() => slot.use({key: {id: 1}})).toThrow(
+    'AsyncMemo requires a compute function in its constructor or use()',
+  );
+});
+
 test('cached result is returned without re-query', async () => {
   const slot = new AsyncMemo<number>();
 

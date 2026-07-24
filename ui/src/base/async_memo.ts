@@ -91,6 +91,10 @@ export const TASK_CANCELLED = Symbol('TASK_CANCELLED');
 // Simple alias for a function that returns a Promise of type T.
 type AsyncFunc<T> = () => Promise<T>;
 
+export type AsyncMemoCompute<T> = (
+  signal: CancellationSignal,
+) => Promise<T | typeof TASK_CANCELLED>;
+
 /**
  * Runs async functions one at a time with cancellation support.
  *
@@ -145,10 +149,9 @@ export class AtomicTaskQueue {
 
 export interface AsyncMemoOptions<T, K extends JSONCompatible<K>> {
   readonly key: K;
-  // Function to call when the key changes to fetch the memo data.
-  readonly compute: (
-    signal: CancellationSignal,
-  ) => Promise<T | typeof TASK_CANCELLED>;
+  // Function to call when the key changes to fetch the memo data. Overrides
+  // the compute function passed to the constructor, if present.
+  readonly compute?: AsyncMemoCompute<T>;
   // If provided, compute() only runs when this is truthy.
   readonly enabled?: boolean;
   // Keep returning the previous memo while the new one loads as long as only
@@ -182,6 +185,8 @@ interface Cache<T> {
  * results before running a new compute and when the memo is disposed.
  */
 export class AsyncMemo<T> {
+  private readonly queue: AtomicTaskQueue;
+  private readonly defaultCompute?: AsyncMemoCompute<T>;
   private cache?: Cache<T>;
   private pendingKey?: object;
   private disposed = false;
@@ -189,9 +194,22 @@ export class AsyncMemo<T> {
   // Stores error keyed by keyStr - thrown on next use() with same key
   private error?: {keyStr: string; error: Error};
 
+  constructor();
+  constructor(compute: AsyncMemoCompute<T>);
+  constructor(queue: AtomicTaskQueue, compute?: AsyncMemoCompute<T>);
   constructor(
-    private readonly queue: AtomicTaskQueue = new AtomicTaskQueue(),
-  ) {}
+    queueOrCompute:
+      AtomicTaskQueue | AsyncMemoCompute<T> = new AtomicTaskQueue(),
+    compute?: AsyncMemoCompute<T>,
+  ) {
+    if (typeof queueOrCompute === 'function') {
+      this.queue = new AtomicTaskQueue();
+      this.defaultCompute = queueOrCompute;
+    } else {
+      this.queue = queueOrCompute;
+      this.defaultCompute = compute;
+    }
+  }
 
   /**
    * Call every render cycle to get the current memoized result.
@@ -204,7 +222,8 @@ export class AsyncMemo<T> {
     if (this.disposed) {
       throw new Error('AsyncMemo.use() called after dispose()');
     }
-    const {key, compute, enabled, retainOn = []} = options;
+    const {key, enabled, retainOn = []} = options;
+    const compute = options.compute ?? this.defaultCompute;
     const keyStr = stringifyJsonWithBigints(key);
 
     // If we have a stored error for this key, throw it
@@ -226,6 +245,12 @@ export class AsyncMemo<T> {
     const canRun = enabled === undefined || enabled;
 
     if (isKeyDifferentFromPending && isKeyDifferentFromCache && canRun) {
+      if (compute === undefined) {
+        throw new Error(
+          'AsyncMemo requires a compute function in its constructor or use()',
+        );
+      }
+
       // Cancel any in-flight task
       if (this.currentSignal) {
         this.currentSignal.cancelled = true;
