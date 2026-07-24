@@ -29,6 +29,14 @@ namespace perfetto {
 namespace proto_merger {
 namespace {
 
+ProtoFile::Field FieldFromDescriptor(
+    const google::protobuf::Descriptor& parent,
+    const google::protobuf::FieldDescriptor& desc);
+
+ProtoFile::Field FieldFromDescriptor(
+    const google::protobuf::FileDescriptor& file,
+    const google::protobuf::FieldDescriptor& desc);
+
 const char* const
     kTypeToName[google::protobuf::FieldDescriptor::Type::MAX_TYPE + 1] = {
         "ERROR",  // 0 is reserved for errors
@@ -53,22 +61,8 @@ const char* const
         "sint64",    // TYPE_SINT64
 };
 
-std::optional<std::string> MinimizeType(const std::string& a,
-                                        const std::string& b) {
-  auto a_pieces = base::SplitString(a, ".");
-  auto b_pieces = base::SplitString(b, ".");
-
-  size_t skip = 0;
-  for (size_t i = 0; i < std::min(a_pieces.size(), b_pieces.size()); ++i) {
-    if (a_pieces[i] != b_pieces[i])
-      return a.substr(skip);
-    skip += a_pieces[i].size() + 1;
-  }
-  return std::nullopt;
-}
-
-std::string SimpleFieldTypeFromDescriptor(
-    const google::protobuf::Descriptor& parent,
+std::string SimpleFieldTypeInScope(
+    const std::string& scope_full_name,
     const google::protobuf::FieldDescriptor& desc,
     bool packageless_type) {
   switch (desc.type()) {
@@ -79,7 +73,7 @@ std::string SimpleFieldTypeFromDescriptor(
             std::string(desc.message_type()->file()->package()) + ".");
       } else {
         return MinimizeType(std::string(desc.message_type()->full_name()),
-                            std::string(parent.full_name()))
+                            scope_full_name)
             .value_or(std::string(desc.message_type()->name()));
       }
     case google::protobuf::FieldDescriptor::TYPE_ENUM:
@@ -89,7 +83,7 @@ std::string SimpleFieldTypeFromDescriptor(
             std::string(desc.enum_type()->file()->package()) + ".");
       } else {
         return MinimizeType(std::string(desc.enum_type()->full_name()),
-                            std::string(parent.full_name()))
+                            scope_full_name)
             .value_or(std::string(desc.enum_type()->name()));
       }
     default:
@@ -97,22 +91,65 @@ std::string SimpleFieldTypeFromDescriptor(
   }
 }
 
-std::string FieldTypeFromDescriptor(
-    const google::protobuf::Descriptor& parent,
-    const google::protobuf::FieldDescriptor& desc,
-    bool packageless_type) {
+std::string FieldTypeInScope(const std::string& scope_full_name,
+                             const google::protobuf::FieldDescriptor& desc,
+                             bool packageless_type) {
   if (!desc.is_map())
-    return SimpleFieldTypeFromDescriptor(parent, desc, packageless_type);
+    return SimpleFieldTypeInScope(scope_full_name, desc, packageless_type);
 
   std::string field_type;
   field_type += "map<";
-  field_type += FieldTypeFromDescriptor(parent, *desc.message_type()->field(0),
-                                        packageless_type);
+  field_type += FieldTypeInScope(
+      scope_full_name, *desc.message_type()->field(0), packageless_type);
   field_type += ",";
-  field_type += FieldTypeFromDescriptor(parent, *desc.message_type()->field(1),
-                                        packageless_type);
+  field_type += FieldTypeInScope(
+      scope_full_name, *desc.message_type()->field(1), packageless_type);
   field_type += ">";
   return field_type;
+}
+
+std::string MinimizeExtendee(const std::string& target_full_name,
+                             const std::string& scope_full_name,
+                             const std::string& target_name) {
+  return MinimizeType(target_full_name, scope_full_name).value_or(target_name);
+}
+
+template <typename DescriptorType>
+std::vector<ProtoFile::Extension> ParseExtensions(
+    const DescriptorType& desc,
+    const std::string& scope_name) {
+  std::map<std::string, ProtoFile::Extension> extensions_map;
+  for (int i = 0; i < desc.extension_count(); ++i) {
+    const auto* ext_desc = desc.extension(i);
+    std::string extendee = MinimizeExtendee(
+        std::string(ext_desc->containing_type()->full_name()), scope_name,
+        std::string(ext_desc->containing_type()->name()));
+    auto& ext = extensions_map[extendee];
+    ext.extendee = extendee;
+    ext.full_extendee = ext_desc->containing_type()->full_name();
+    ext.fields.push_back(FieldFromDescriptor(desc, *ext_desc));
+  }
+
+  std::vector<ProtoFile::Extension> extensions;
+  extensions.reserve(extensions_map.size());
+  for (auto& pair : extensions_map) {
+    extensions.push_back(std::move(pair.second));
+  }
+  return extensions;
+}
+
+std::vector<ProtoFile::Message::ExtensionRange> ParseExtensionRanges(
+    const google::protobuf::Descriptor& desc) {
+  std::vector<ProtoFile::Message::ExtensionRange> ranges;
+  ranges.reserve(static_cast<size_t>(desc.extension_range_count()));
+  for (int i = 0; i < desc.extension_range_count(); ++i) {
+    const auto* range = desc.extension_range(i);
+    ProtoFile::Message::ExtensionRange r{};
+    r.start = range->start_number();
+    r.end = range->end_number();
+    ranges.push_back(r);
+  }
+  return ranges;
 }
 
 std::unique_ptr<google::protobuf::Message> NormalizeOptionsMessage(
@@ -190,13 +227,31 @@ Output InitFromDescriptor(const Descriptor& desc) {
   return out;
 }
 
-ProtoFile::Field FieldFromDescriptor(
-    const google::protobuf::Descriptor& parent,
+std::string FullyQualifiedFieldType(
     const google::protobuf::FieldDescriptor& desc) {
+  if (desc.is_map()) {
+    return "map<" + FullyQualifiedFieldType(*desc.message_type()->field(0)) +
+           "," + FullyQualifiedFieldType(*desc.message_type()->field(1)) + ">";
+  }
+  switch (desc.type()) {
+    case google::protobuf::FieldDescriptor::TYPE_MESSAGE:
+      return "." + std::string(desc.message_type()->full_name());
+    case google::protobuf::FieldDescriptor::TYPE_ENUM:
+      return "." + std::string(desc.enum_type()->full_name());
+    default:
+      return kTypeToName[desc.type()];
+  }
+}
+
+ProtoFile::Field FieldFromDescriptorHelper(
+    const google::protobuf::FieldDescriptor& desc,
+    std::string type,
+    std::string packageless_type) {
   auto field = InitFromDescriptor<ProtoFile::Field>(desc);
   field.is_repeated = desc.is_repeated();
-  field.packageless_type = FieldTypeFromDescriptor(parent, desc, true);
-  field.type = FieldTypeFromDescriptor(parent, desc, false);
+  field.packageless_type = std::move(packageless_type);
+  field.type = std::move(type);
+  field.fq_type = FullyQualifiedFieldType(desc);
   field.name = desc.name();
   field.number = desc.number();
   field.options = OptionsFromMessage(*desc.file()->pool(), desc.options());
@@ -213,6 +268,22 @@ ProtoFile::Field FieldFromDescriptor(
   }
 
   return field;
+}
+
+ProtoFile::Field FieldFromDescriptor(
+    const google::protobuf::Descriptor& parent,
+    const google::protobuf::FieldDescriptor& desc) {
+  return FieldFromDescriptorHelper(
+      desc, FieldTypeInScope(std::string(parent.full_name()), desc, false),
+      FieldTypeInScope(std::string(parent.full_name()), desc, true));
+}
+
+ProtoFile::Field FieldFromDescriptor(
+    const google::protobuf::FileDescriptor& file,
+    const google::protobuf::FieldDescriptor& desc) {
+  return FieldFromDescriptorHelper(
+      desc, FieldTypeInScope(std::string(file.package()), desc, false),
+      FieldTypeInScope(std::string(file.package()), desc, true));
 }
 
 ProtoFile::Enum::Value EnumValueFromDescriptor(
@@ -265,6 +336,8 @@ ProtoFile::Message MessageFromDescriptor(
       continue;
     message.fields.emplace_back(FieldFromDescriptor(desc, *field));
   }
+  message.extension_ranges = ParseExtensionRanges(desc);
+  message.extensions = ParseExtensions(desc, std::string(desc.full_name()));
   return message;
 }
 
@@ -275,13 +348,29 @@ ProtoFile ProtoFileFromDescriptor(
     const google::protobuf::FileDescriptor& desc) {
   ProtoFile file;
   file.preamble = std::move(preamble);
+  file.package = desc.package();
   for (int i = 0; i < desc.enum_type_count(); ++i) {
     file.enums.push_back(EnumFromDescriptor(*desc.enum_type(i)));
   }
   for (int i = 0; i < desc.message_type_count(); ++i) {
     file.messages.push_back(MessageFromDescriptor(*desc.message_type(i)));
   }
+  file.extensions = ParseExtensions(desc, std::string(desc.package()));
   return file;
+}
+
+std::optional<std::string> MinimizeType(const std::string& a,
+                                        const std::string& b) {
+  auto a_pieces = base::SplitString(a, ".");
+  auto b_pieces = base::SplitString(b, ".");
+
+  size_t skip = 0;
+  for (size_t i = 0; i < std::min(a_pieces.size(), b_pieces.size()); ++i) {
+    if (a_pieces[i] != b_pieces[i])
+      return a.substr(skip);
+    skip += a_pieces[i].size() + 1;
+  }
+  return std::nullopt;
 }
 
 }  // namespace proto_merger

@@ -114,6 +114,10 @@ void ProcessMessagePassthrough(
     if (IsPassthrough(input_field->options())) {
       const auto* upstream_field =
           upstream_desc.FindFieldByNumber(input_field->number());
+      if (!upstream_field) {
+        upstream_field = upstream_desc.file()->pool()->FindExtensionByNumber(
+            &upstream_desc, input_field->number());
+      }
       if (upstream_field) {
         AllowlistField(*upstream_field, allowlist);
       }

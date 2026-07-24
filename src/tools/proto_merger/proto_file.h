@@ -52,9 +52,15 @@ struct ProtoFile {
     bool is_repeated;
     std::string packageless_type;
     std::string type;
+    std::string fq_type;
     std::string name;
     int number;
     std::vector<Option> options;
+  };
+  struct Extension : Member {
+    std::string extendee;
+    std::string full_extendee;
+    std::vector<Field> fields;
   };
   struct Oneof : Member {
     std::string name;
@@ -63,30 +69,43 @@ struct ProtoFile {
     std::vector<Field> deleted_fields;
   };
   struct Message : Member {
+    struct ExtensionRange : Member {
+      int start;
+      int end;
+    };
     std::string name;
     std::vector<Enum> enums;
     std::vector<Message> nested_messages;
     std::vector<Oneof> oneofs;
     std::vector<Field> fields;
+    std::vector<ExtensionRange> extension_ranges;
+    std::vector<Extension> extensions;
 
     std::vector<Enum> deleted_enums;
     std::vector<Message> deleted_nested_messages;
     std::vector<Oneof> deleted_oneofs;
     std::vector<Field> deleted_fields;
+    std::vector<Extension> deleted_extensions;
   };
 
   std::string preamble;
+  std::string package;
 
   std::vector<Message> messages;
   std::vector<Enum> enums;
+  std::vector<Extension> extensions;
 
   std::vector<Message> deleted_messages;
   std::vector<Enum> deleted_enums;
+  std::vector<Extension> deleted_extensions;
 };
 
 // Creates a ProtoFile struct from a libprotobuf-full descriptor clas.
 ProtoFile ProtoFileFromDescriptor(std::string preamble,
                                   const google::protobuf::FileDescriptor&);
+
+std::optional<std::string> MinimizeType(const std::string& a,
+                                        const std::string& b);
 
 }  // namespace proto_merger
 }  // namespace perfetto

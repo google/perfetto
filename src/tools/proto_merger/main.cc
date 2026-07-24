@@ -72,6 +72,7 @@ const char kUsage[] =
                               the input proto.
 -U, --upstream-include:      Root directory from which includes for --upstream
                               proto should be searched.
+-E, --extension-file:        Path to an upstream extension .proto file (can be repeated).
 -a, --allowlist:             Allowlist file which is used to add new fields in
                               the upstream proto to the input proto.
 -r, --upstream-root-message: Root message in the upstream proto for which new
@@ -88,6 +89,7 @@ Example usage:
     -U . \
     -i <path to logs proto>/perfetto_log.proto \
     -I . \
+    --extension-file third_party/perfetto/protos/perfetto/trace/gpu/gpu_track_event.proto \
     --allowlist /tmp/allowlist.txt \
     -r perfetto.protos.Trace \
     --output /tmp/output.proto
@@ -101,6 +103,7 @@ int Main(int argc, char** argv) {
       {"input-include", required_argument, nullptr, 'I'},
       {"upstream", required_argument, nullptr, 'u'},
       {"upstream-include", required_argument, nullptr, 'U'},
+      {"extension-file", required_argument, nullptr, 'E'},
       {"allowlist", required_argument, nullptr, 'a'},
       {"upstream-root-message", required_argument, nullptr, 'r'},
       {"output", required_argument, nullptr, 'o'},
@@ -111,6 +114,7 @@ int Main(int argc, char** argv) {
   std::string input_include;
   std::string upstream;
   std::string upstream_include;
+  std::vector<std::string> extension_files;
   std::string allowlist;
   std::string upstream_root_message;
   std::string output;
@@ -118,7 +122,7 @@ int Main(int argc, char** argv) {
 
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hvi:I:u:U:a:r:o:O:", long_options, nullptr);
+        getopt_long(argc, argv, "hvi:I:u:U:E:a:r:o:O:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -145,6 +149,11 @@ int Main(int argc, char** argv) {
 
     if (option == 'U') {
       upstream_include = optarg;
+      continue;
+    }
+
+    if (option == 'E') {
+      extension_files.push_back(optarg);
       continue;
     }
 
@@ -232,6 +241,18 @@ int Main(int argc, char** argv) {
   ImportResult upstream_proto = ImportProto(upstream, upstream_include);
   ProtoFile upstream_file =
       ProtoFileFromDescriptor("", *upstream_proto.file_descriptor);
+
+  std::vector<ProtoFile> extension_proto_files;
+  for (const auto& ext_path : extension_files) {
+    const auto* ext_desc = upstream_proto.importer->Import(ext_path);
+    if (!ext_desc) {
+      PERFETTO_ELOG("Failed to import extension proto: %s", ext_path.c_str());
+      return 1;
+    }
+    extension_proto_files.push_back(ProtoFileFromDescriptor("", *ext_desc));
+  }
+
+  InlineExtensions(upstream_file, extension_proto_files);
 
   Allowlist allowed;
   if (!allowlist.empty()) {
