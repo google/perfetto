@@ -19,7 +19,7 @@
 
 import m from 'mithril';
 import {Icons} from '../../../../../base/semantic_icons';
-import {QuerySlot} from '../../../../../base/query_slot';
+import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
@@ -423,7 +423,7 @@ export interface JavaSectionAttrs {
 }
 
 export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
-  private readonly slot = new QuerySlot<JavaData>();
+  private readonly slot = new AsyncMemo<JavaData>();
 
   onremove() {
     this.slot.dispose();
@@ -433,7 +433,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
     const {trace, upid, selTs, baseTs} = attrs;
     const data = this.slot.use({
       key: {traceId: trace.traceInfo.uuid, upid},
-      queryFn: () => loadJavaData(trace, upid),
+      compute: () => loadJavaData(trace, upid),
       // Emulate no data available
       // queryFn: async () => ({
       //   dumps: [],

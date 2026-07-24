@@ -18,7 +18,7 @@
 // Self-contained: owns its query slots and loading.
 
 import m from 'mithril';
-import {QuerySlot} from '../../../../base/query_slot';
+import {AsyncMemo} from '../../../../base/async_memo';
 import type {Trace} from '../../../../public/trace';
 import {LONG, NUM, STR} from '../../../../trace_processor/query_result';
 import {Button} from '../../../../widgets/button';
@@ -228,8 +228,8 @@ export interface SmapsDetailAttrs {
 }
 
 export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
-  private readonly slot = new QuerySlot<SmapsPathRow[]>();
-  private readonly snapshotsSlot = new QuerySlot<SmapsSnapshotInfo[]>();
+  private readonly slot = new AsyncMemo<SmapsPathRow[]>();
+  private readonly snapshotsSlot = new AsyncMemo<SmapsSnapshotInfo[]>();
   // View state.
   private smapsFlat = false;
   private smapsAllCols = false;
@@ -249,7 +249,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
     const snapshots =
       this.snapshotsSlot.use({
         key: {traceId: trace.traceInfo.uuid, upid},
-        queryFn: () => loadSmapsSnapshots(trace, upid),
+        compute: () => loadSmapsSnapshots(trace, upid),
       }).data ?? [];
     const rows = this.slot.use({
       key: {
@@ -257,7 +257,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
         upid,
         ts: this.selectedTs?.toString() ?? 'latest',
       },
-      queryFn: () => loadSmapsPaths(trace, upid, this.selectedTs),
+      compute: () => loadSmapsPaths(trace, upid, this.selectedTs),
     }).data;
     if (rows === undefined) {
       return m(

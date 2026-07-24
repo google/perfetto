@@ -37,7 +37,7 @@ import {
 } from './config';
 import {Checkbox} from '../../widgets/checkbox';
 import {assertIsInstance} from '../../base/assert';
-import {QuerySlot} from '../../base/query_slot';
+import {AsyncMemo} from '../../base/async_memo';
 
 type ModelFetchResult =
   | {readonly status: 'done'; readonly models: readonly string[]}
@@ -143,7 +143,7 @@ interface ProviderEditorAttrs {
 }
 
 function ProviderEditor(): m.Component<ProviderEditorAttrs> {
-  const modelsSlot = new QuerySlot<ModelFetchResult>();
+  const modelsSlot = new AsyncMemo<ModelFetchResult>();
 
   return {
     view({attrs}: m.Vnode<ProviderEditorAttrs>) {
@@ -155,7 +155,7 @@ function ProviderEditor(): m.Component<ProviderEditorAttrs> {
         // TODO: wire the QuerySlot's CancellationSignal through to
         // fetchAvailableModels' AbortSignal so in-flight fetches are actually
         // cancelled when the key changes.
-        queryFn: () => fetchAvailableModels(gateway, provider),
+        compute: () => fetchAvailableModels(gateway, provider),
       });
 
       let status: m.Children = null;

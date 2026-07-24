@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Gate} from '../../../../base/mithril_utils';
-import {QuerySlot} from '../../../../base/query_slot';
+import {AsyncMemo} from '../../../../base/async_memo';
 import {Time, type time} from '../../../../base/time';
 import {ProportionBar} from '../../../../components/widgets/charts/proportion_bar';
 import type {Trace} from '../../../../public/trace';
@@ -115,10 +115,10 @@ export interface ProcessMemDetailsAttrs {
 export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttrs> {
   // The capture-strip facts: process name + per-source sample counts. Its own
   // slot keyed by (trace, upid) so it reloads when the selected process changes.
-  private readonly captureSlot = new QuerySlot<CaptureInfo>();
+  private readonly captureSlot = new AsyncMemo<CaptureInfo>();
   // Whole-trace per-snapshot smaps breakdown for the growth bar (keyed by
   // upid; independent of the page's snapshot selection).
-  private readonly growthSlot = new QuerySlot<GrowthSnapshot[]>();
+  private readonly growthSlot = new AsyncMemo<GrowthSnapshot[]>();
   private activeTab: 'summary' | 'smaps' = 'summary';
   // The page-wide snapshot selection, driven by the composition timeline and
   // shared with the other summary sections as they're added.
@@ -136,7 +136,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
     try {
       capture = this.captureSlot.use({
         key: {traceId: trace.traceInfo.uuid, upid},
-        queryFn: () => loadCaptureInfo(trace, upid),
+        compute: () => loadCaptureInfo(trace, upid),
       }).data;
     } catch (e) {
       error = String(e);
@@ -238,7 +238,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
   ): m.Children {
     const snaps = this.growthSlot.use({
       key: {traceId: trace.traceInfo.uuid, upid},
-      queryFn: () => loadGrowthData(trace, upid),
+      compute: () => loadGrowthData(trace, upid),
     }).data;
     if (snaps === undefined || snaps.length < 2) return undefined;
     const firstSnap = snaps[0];

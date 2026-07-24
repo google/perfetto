@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {QueryResult, SerialTaskQueue} from '../../../../base/query_slot';
+import type {
+  AsyncMemoResult,
+  AtomicTaskQueue,
+} from '../../../../base/async_memo';
 import type {Engine} from '../../../../trace_processor/engine';
 import type {Row} from '../../../../trace_processor/query_result';
 import type {DataSourceRows, PivotModel} from '../data_source';
@@ -27,7 +30,7 @@ export class SQLDataSourcePivot {
 
   constructor(
     uuid: string,
-    queue: SerialTaskQueue,
+    queue: AtomicTaskQueue,
     engine: Engine,
     sqlSchema: SQLTableSchema,
   ) {
@@ -43,7 +46,7 @@ export class SQLDataSourcePivot {
     }
   }
 
-  getSummaries(model: PivotModel): QueryResult<Row> {
+  getSummaries(model: PivotModel): AsyncMemoResult<Row> {
     if (model.groupDisplay === 'tree') {
       return this.tree.getSummaries(model);
     } else {

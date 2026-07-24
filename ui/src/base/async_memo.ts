@@ -13,28 +13,31 @@
 // limitations under the License.
 
 /**
- * QuerySlot: Declarative async data fetching for synchronous render cycles.
+ * AsyncMemo: Declarative async data fetching for synchronous render cycles.
  *
  * ## Why it exists
  *
  * UI components (Mithril views, canvas tracks) render synchronously but need
- * async data from SQL queries. QuerySlot bridges this gap:
+ * async data e.g. from SQL queries. Manually tracking state changes and
+ * handling stale queries is difficult and error prone.
+ *
+ * AsyncMemo bridges this gap:
  * - Call `use()` every render cycle with the current parameters
  * - Get back whatever data is available (cached, stale, or undefined)
- * - New queries are scheduled automatically when parameters change
- * - Serial execution prevents race conditions with shared resources (temp tables)
+ * - New tasks are scheduled automatically when parameters change
+ * - Serial execution prevents race conditions with shared resources (temp
+ *   tables)
  *
- * ## Usage
+ * ## Example usage:
  *
- * ```typescript
+ * ```ts
  * class MyPanel implements m.ClassComponent<Attrs> {
- *   private readonly taskQueue = new SerialTaskQueue();
- *   private readonly dataSlot = new QuerySlot<MyData>(this.taskQueue);
+ *   private readonly memo = new AsyncMemo<MyData>();
  *
  *   view({attrs}: m.CVnode<Attrs>) {
- *     const result = this.dataSlot.use({
+ *     const result = this.memo.use({
  *       key: {filters: attrs.filters, pagination: this.pagination},
- *       queryFn: () => fetchData(attrs.filters, this.pagination),
+ *       compute: () => fetchData(attrs.filters, this.pagination),
  *       retainOn: ['pagination'],  // Show stale data during pagination changes
  *     });
  *
@@ -42,36 +45,37 @@
  *   }
  *
  *   onremove() {
- *     // Cancel pending queries and cleanup resources
- *     this.dataSlot.dispose();
+ *     // Cancel pending tasks and cleanup resources
+ *     this.memo.dispose();
  *   }
  * }
  * ```
  *
  * ## Key concepts
  *
- * - **key**: Object identifying the query. Changes trigger re-fetch.
+ * - **key**: Object identifying the memo. Changes trigger re-fetch.
  * - **retainOn**: Key fields that allow showing previous data while fetching.
- *   E.g., `retainOn: ['pagination']` shows old data during scroll for smoothness,
- *   but `filters` changing would show loading state.
- * - **enabled**: Truthy value required before query runs. Use for dependencies
+ *   E.g., `retainOn: ['pagination']` shows old data during scroll for
+ *   smoothness, but `filters` changing would show loading state.
+ * - **enabled**: Truthy value required before task runs. Use for dependencies
  *   like `enabled: tableResult.data` to wait for a temp table to be created.
  *
  * ## Behavior
  *
  * - Tasks within a queue run serially (no interleaving)
- * - Only the latest pending task per slot is kept (intermediates dropped)
- * - Each slot has a single-entry cache (most recent result)
- * - If queryFn returns an AsyncDisposable, it is automatically disposed before
- *   running the next query and when the slot is disposed. Disposal runs through
- *   the queue to stay synchronized with in-flight queries.
+ * - Only the latest pending task per memo is kept (intermediates dropped)
+ * - Each memo has a single-entry cache (most recent result)
+ * - If compute() returns an AsyncDisposable, it is automatically disposed
+ *   before running the next task and when the memo is disposed. Disposal runs
+ *   through the queue to stay synchronized with in-flight tasks.
  */
 
 import m from 'mithril';
-import {stringifyJsonWithBigints} from './json_utils';
+import {isAsyncDisposable} from './disposable';
+import {type JSONCompatible, stringifyJsonWithBigints} from './json_utils';
 
 /**
- * Signal passed to queryFn to check if the query has been cancelled.
+ * Signal passed to compute() to check if the task has been cancelled.
  * Check this periodically during long-running operations to bail out early.
  */
 export interface CancellationSignal {
@@ -79,54 +83,25 @@ export interface CancellationSignal {
 }
 
 /**
- * Special return value from queryFn indicating the query was cancelled.
+ * Special return value from compute() indicating the task was cancelled.
  * When returned, the result is not cached.
  */
-export const QUERY_CANCELLED = Symbol('QUERY_CANCELLED');
-
-function isAsyncDisposable(value: unknown): value is AsyncDisposable {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    Symbol.asyncDispose in value &&
-    typeof (value as AsyncDisposable)[Symbol.asyncDispose] === 'function'
-  );
-}
+export const TASK_CANCELLED = Symbol('TASK_CANCELLED');
 
 // Simple alias for a function that returns a Promise of type T.
 type AsyncFunc<T> = () => Promise<T>;
 
-// TODO(stevegolton): Eventually these types should be moved to json_utils.ts
-// and used in the definitions for stringifyJsonWithBigints and friends, but
-// there are too many dependencies that depend on these functions using 'any'
-// right now. They should instead use zod to narrow the types properly.
-type JSONPrimitive = string | number | boolean | null | undefined | bigint;
-
-type JSONObject = {
-  [key: string]: JSONValue;
-};
-type JSONValue = JSONPrimitive | JSONValue[] | JSONObject;
-
-type JSONCompatible<T> = unknown extends T
-  ? never
-  : {
-      [P in keyof T]: T[P] extends JSONValue
-        ? T[P]
-        : T[P] extends NotAssignableToJson
-          ? never
-          : JSONCompatible<T[P]>;
-    };
-
-type NotAssignableToJson = symbol | Function;
-
 /**
- * Runs async tasks one at a time with cancellation support.
+ * Runs async functions one at a time with cancellation support.
  *
- * Tasks are keyed by an object reference. If a new task is scheduled with
- * the same key, it replaces any pending task for that key ("latest wins").
- * Tasks that have already started running cannot be cancelled.
+ * Compelling use case - to avoid interlaving queries in async functions that
+ * run more than one query.
+ *
+ * Tasks are keyed by an object reference. If a new task is scheduled with the
+ * same key, it replaces any pending task for that key ("latest wins"). Tasks
+ * that have already started running cannot be cancelled.
  */
-export class SerialTaskQueue {
+export class AtomicTaskQueue {
   private pending = new Map<object, AsyncFunc<void>>();
   private running = false;
 
@@ -168,34 +143,46 @@ export class SerialTaskQueue {
   }
 }
 
-export interface QueryOptions<T, K extends JSONCompatible<K>> {
-  key: K;
-  // Query function receives a cancellation signal. Check signal.isCancelled
-  // periodically during long operations and return QUERY_CANCELLED to bail out.
-  queryFn: (signal: CancellationSignal) => Promise<T | typeof QUERY_CANCELLED>;
-  // If provided, query only runs when this is truthy
-  // e.g., enabled: viewResult.data
-  enabled?: boolean;
-  retainOn?: (keyof K)[];
+export interface AsyncMemoOptions<T, K extends JSONCompatible<K>> {
+  readonly key: K;
+  // Function to call when the key changes to fetch the memo data.
+  readonly compute: (
+    signal: CancellationSignal,
+  ) => Promise<T | typeof TASK_CANCELLED>;
+  // If provided, compute() only runs when this is truthy.
+  readonly enabled?: boolean;
+  // Keep returning the previous memo while the new one loads as long as only
+  // keys in this set have changed.
+  readonly retainOn?: (keyof K)[];
 }
 
-export interface QueryResult<T> {
-  data: T | undefined;
-  isPending: boolean;
-  isFresh: boolean;
+export type AsyncMemoResult<T> =
+  | {
+      readonly isPending: true;
+      readonly data?: T; // Stale data may be available.
+    }
+  | {
+      readonly isPending: false;
+      readonly data: T;
+    };
+
+interface Cache<T> {
+  readonly key: object;
+  readonly keyStr: string;
+  readonly data: T;
 }
 
 /**
- * A single query slot with a single-entry cache.
+ * A single async memo with a single-entry cache.
  *
- * Created once per query on a component. Multiple slots share a
- * SerialTaskQueue for serialized execution.
+ * Created once per piece of data you want to memoize on a component. Multiple
+ * memos should share a SerialTaskQueue for atomic compute task execution.
  *
- * If T is an AsyncDisposable, the slot will automatically dispose of
- * previous results before running a new query and when the slot is disposed.
+ * If T is an AsyncDisposable, the memo will automatically dispose of previous
+ * results before running a new compute and when the memo is disposed.
  */
-export class QuerySlot<T> {
-  private cache?: {key: object; keyStr: string; data: T};
+export class AsyncMemo<T> {
+  private cache?: Cache<T>;
   private pendingKey?: object;
   private disposed = false;
   private currentSignal?: {cancelled: boolean};
@@ -203,20 +190,21 @@ export class QuerySlot<T> {
   private error?: {keyStr: string; error: Error};
 
   constructor(
-    private readonly queue: SerialTaskQueue = new SerialTaskQueue(),
+    private readonly queue: AtomicTaskQueue = new AtomicTaskQueue(),
   ) {}
 
   /**
-   * Call every render cycle to get the current query result.
+   * Call every render cycle to get the current memoized result.
+   *
    * @throws Error if called after dispose()
    */
   use<K extends JSONCompatible<K>>(
-    options: QueryOptions<T, K>,
-  ): QueryResult<T> {
+    options: AsyncMemoOptions<T, K>,
+  ): AsyncMemoResult<T> {
     if (this.disposed) {
-      throw new Error('QuerySlot.use() called after dispose()');
+      throw new Error('AsyncMemo.use() called after dispose()');
     }
-    const {key, queryFn, enabled, retainOn = []} = options;
+    const {key, compute, enabled, retainOn = []} = options;
     const keyStr = stringifyJsonWithBigints(key);
 
     // If we have a stored error for this key, throw it
@@ -224,7 +212,7 @@ export class QuerySlot<T> {
       throw this.error.error;
     }
 
-    // Check if we need to schedule a new query
+    // Check if we need to schedule a new task
     const pendingKeyStr = this.pendingKey
       ? stringifyJsonWithBigints(this.pendingKey)
       : undefined;
@@ -238,31 +226,31 @@ export class QuerySlot<T> {
     const canRun = enabled === undefined || enabled;
 
     if (isKeyDifferentFromPending && isKeyDifferentFromCache && canRun) {
-      // Cancel any in-flight query
+      // Cancel any in-flight task
       if (this.currentSignal) {
         this.currentSignal.cancelled = true;
       }
 
-      // Create new signal for this query
+      // Create new signal for this task
       const signal = {cancelled: false};
       this.currentSignal = signal;
 
       this.pendingKey = key;
       this.queue.schedule(this, async () => {
         try {
-          // Dispose of previous result before running new query
+          // Dispose of previous result before running new task
           await this.disposeCache();
-          const result = await queryFn({
+          const result = await compute({
             get isCancelled() {
               return signal.cancelled;
             },
           });
 
-          this.finaliseQuery(key, result);
+          this.finaliseTask(key, result);
         } catch (e) {
-          // Support both throwing and returning QUERY_CANCELLED
-          if (e === QUERY_CANCELLED) {
-            this.finaliseQuery(key, QUERY_CANCELLED);
+          // Support both throwing and returning TASK_CANCELLED
+          if (e === TASK_CANCELLED) {
+            this.finaliseTask(key, TASK_CANCELLED);
           } else {
             this.finaliseError(key, e);
           }
@@ -276,13 +264,16 @@ export class QuerySlot<T> {
     const isPending = this.pendingKey !== undefined;
 
     if (!this.cache) {
-      return {data: undefined, isPending, isFresh: false};
+      // Without cached data, the result remains pending. This also covers a
+      // memo blocked by `enabled`, whose dependency has not resolved yet.
+      return {data: undefined, isPending: true};
     }
 
-    // Check if we can use stale data
-    const isFresh = this.cache.keyStr === keyStr;
-    if (isFresh) {
-      return {data: this.cache.data, isPending, isFresh: true};
+    // Check if we can use cached data
+    if (this.cache.keyStr === keyStr) {
+      return isPending
+        ? {data: this.cache.data, isPending: true}
+        : {data: this.cache.data, isPending: false};
     }
 
     // Key differs - can we use stale data?
@@ -292,18 +283,20 @@ export class QuerySlot<T> {
       retainOn as string[],
     );
     if (canUseStale) {
-      return {data: this.cache.data, isPending, isFresh: false};
+      return isPending
+        ? {data: this.cache.data, isPending: true}
+        : {data: this.cache.data, isPending: false};
     }
 
     // Can't use stale data
-    return {data: undefined, isPending, isFresh: false};
+    return {data: undefined, isPending: true};
   }
 
   /**
-   * Called when a query completes. Clears the pending state and optionally
+   * Called when a task completes. Clears the pending state and optionally
    * caches the result (if not cancelled).
    */
-  private finaliseQuery(key: object, result: T | typeof QUERY_CANCELLED): void {
+  private finaliseTask(key: object, result: T | typeof TASK_CANCELLED): void {
     const keyStr = stringifyJsonWithBigints(key);
 
     // Clear pending if it matches
@@ -315,14 +308,14 @@ export class QuerySlot<T> {
     }
 
     // Cache the result (unless cancelled)
-    if (result !== QUERY_CANCELLED) {
+    if (result !== TASK_CANCELLED) {
       this.cache = {key, keyStr, data: result};
     }
   }
 
   /**
-   * Called when a query fails with an error. Stores the error keyed by the
-   * query key - next use() with the same key will throw this error.
+   * Called when a task fails with an error. Stores the error keyed by the key -
+   * next use() with the same key will throw this error.
    */
   private finaliseError(key: object, e: unknown): void {
     const keyStr = stringifyJsonWithBigints(key);
@@ -331,7 +324,8 @@ export class QuerySlot<T> {
       error: e instanceof Error ? e : new Error(String(e)),
     };
 
-    // Clear pending if it matches (don't clear if a different query was scheduled)
+    // Clear pending if it matches (don't clear if a different task was
+    // scheduled)
     if (
       this.pendingKey &&
       stringifyJsonWithBigints(this.pendingKey) === keyStr
@@ -350,15 +344,15 @@ export class QuerySlot<T> {
   }
 
   /**
-   * Clear the cached result and any stored error, forcing the next use()
-   * with any key to re-run its queryFn. Unlike dispose(), the slot remains
-   * usable. Cancels any in-flight query and disposes cached AsyncDisposable
+   * Clear the cached result and any stored error, forcing the next use() with
+   * any key to re-run its compute function. Unlike dispose(), the memo remains
+   * usable. Cancels any in-flight task and disposes cached AsyncDisposable
    * data through the queue to stay synchronized with pending work.
    */
   invalidate(): void {
     if (this.disposed) return;
 
-    // Cancel any in-flight query and clear pending state so the next use()
+    // Cancel any in-flight task and clear pending state so the next use()
     // reschedules from scratch.
     if (this.currentSignal) {
       this.currentSignal.cancelled = true;
@@ -368,7 +362,7 @@ export class QuerySlot<T> {
     this.error = undefined;
 
     // Schedule cache disposal/clearing through the queue so it runs after any
-    // in-flight query settles.
+    // in-flight task settles.
     this.queue.schedule(this, async () => {
       await this.disposeCache();
       this.cache = undefined;
@@ -376,9 +370,9 @@ export class QuerySlot<T> {
   }
 
   /**
-   * Dispose this slot. Cancels pending work and disposes any cached
+   * Dispose this memo. Cancels pending work and disposes any cached
    * AsyncDisposable through the queue to maintain synchronization.
-   * Call this in component's onremove() to prevent orphaned queries.
+   * Call this in component's onremove() to prevent orphaned tasks.
    */
   dispose(): void {
     if (this.disposed) return;
@@ -388,7 +382,7 @@ export class QuerySlot<T> {
     this.pendingKey = undefined;
 
     // Schedule cache disposal through the queue. This runs after any
-    // in-flight query completes, ensuring we dispose whatever ends up
+    // in-flight task completes, ensuring we dispose whatever ends up
     // in the cache (either existing data or newly fetched data).
     this.queue.schedule(this, async () => {
       await this.disposeCache();

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, type QueryResult} from '../../../base/query_slot';
+import {AsyncMemo, type AsyncMemoResult} from '../../../base/async_memo';
 import type {Engine} from '../../../trace_processor/engine';
 import {
   NUM,
@@ -70,7 +70,7 @@ export class SQLHeatmapLoader {
   private readonly xColumn: string;
   private readonly yColumn: string;
   private readonly valueColumn: string;
-  private readonly querySlot = new QuerySlot<HeatmapData>();
+  private readonly querySlot = new AsyncMemo<HeatmapData>();
 
   constructor(opts: SQLHeatmapLoaderOpts) {
     validateColumnName(opts.xColumn);
@@ -83,7 +83,7 @@ export class SQLHeatmapLoader {
     this.valueColumn = opts.valueColumn;
   }
 
-  use(config: HeatmapLoaderConfig): QueryResult<HeatmapData> {
+  use(config: HeatmapLoaderConfig): AsyncMemoResult<HeatmapData> {
     const agg = config.aggregation ?? 'SUM';
     const xLimit = config.xLimit ?? 20;
     const yLimit = config.yLimit ?? 20;
@@ -122,7 +122,7 @@ ORDER BY _x, _y`.trim();
     return this.querySlot.use({
       key: {sql},
       retainOn: ['sql'],
-      queryFn: async () => {
+      compute: async () => {
         const queryResult = await this.engine.query(sql);
         return parseHeatmapResult(queryResult);
       },

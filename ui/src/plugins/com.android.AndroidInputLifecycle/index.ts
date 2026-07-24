@@ -26,7 +26,7 @@ import {
   type InputChainRow,
 } from './android_input_event_source';
 import {AndroidInputLifecycleTab} from './tab';
-import type {QueryResult} from '../../base/query_slot';
+import type {AsyncMemoResult} from '../../base/async_memo';
 import type {InputLifecycleExtension, NavTarget} from './extensions/interface';
 import {PixelInputLifecycleExtension} from './extensions/pixel_extension';
 
@@ -111,11 +111,11 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   private useRowState(
     trace: Trace,
     source: AndroidInputEventSource,
-  ): QueryResult<InputChainRow[]> {
+  ): AsyncMemoResult<InputChainRow[]> {
     const selection = trace.selection.selection;
 
     if (selection.kind !== 'track_event') {
-      return {data: [], isPending: false, isFresh: true};
+      return {data: [], isPending: false};
     }
 
     return source.use(selection.eventId);
