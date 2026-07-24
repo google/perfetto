@@ -221,6 +221,7 @@ export const FLAMEGRAPH_STATE_SCHEMA = z
   .object({
     selectedMetricId: z.string().readonly(),
     addedMetricIds: z.array(z.string()).default([]),
+    displayMode: z.enum(['flamegraph', 'table']).default('flamegraph'),
     filters: z.array(FLAMEGRAPH_FILTER_SCHEMA),
     view: FLAMEGRAPH_VIEW_SCHEMA,
   })
@@ -251,6 +252,11 @@ export interface FlamegraphAttrs {
   readonly state: FlamegraphState;
   readonly data: FlamegraphQueryData | undefined;
   readonly addableMetrics?: ReadonlyArray<FlamegraphAddableMetric>;
+
+  // When provided, a Flame/Table toggle is shown and 'table' display mode
+  // renders this instead of the canvas. The data is the post-filter,
+  // post-view-mode tree, so both modes always show the same information.
+  readonly renderTableView?: (data: FlamegraphQueryData) => m.Children;
 
   readonly onStateChange: (filters: FlamegraphState) => void;
   readonly onAddMetric?: (metric: FlamegraphAddableMetric) => void;
@@ -556,6 +562,13 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         ),
       );
     }
+    if (attrs.state.displayMode === 'table' && attrs.renderTableView) {
+      return m(
+        '.pf-flamegraph',
+        this.renderFilterBar(attrs),
+        m('.pf-flamegraph-table', attrs.renderTableView(attrs.data)),
+      );
+    }
     const {minDepth, maxDepth} = attrs.data;
     const canvasHeight =
       Math.max(maxDepth - minDepth + PADDING_NODE_COUNT, PADDING_NODE_COUNT) *
@@ -721,6 +734,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     return {
       selectedMetricId: metricId(metrics[0]),
       addedMetricIds: [],
+      displayMode: 'flamegraph',
       filters: [],
       view: {kind: 'TOP_DOWN'},
     };
@@ -754,6 +768,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       filters: state.filters,
       view: state.view,
       addedMetricIds: state.addedMetricIds,
+      displayMode: state.displayMode,
       selectedMetricId: metricId(metrics[0]),
     };
   }
@@ -1077,6 +1092,25 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           m(RadioGroup.Button, {value: 'bottom-up'}, 'Bottom Up'),
         ],
       ),
+      attrs.renderTableView !== undefined && [
+        m('.pf-flamegraph-filter-bar-separator'),
+        m(
+          RadioGroup,
+          {
+            selectedValue: this.attrs.state.displayMode,
+            onValueChange: (value) => {
+              this.attrs.onStateChange({
+                ...this.attrs.state,
+                displayMode: value as 'flamegraph' | 'table',
+              });
+            },
+          },
+          [
+            m(RadioGroup.Button, {value: 'flamegraph'}, 'Flame'),
+            m(RadioGroup.Button, {value: 'table'}, 'Table'),
+          ],
+        ),
+      ],
       attrs.data !== undefined &&
         attrs.data.nodes.length > 0 && [
           m('.pf-flamegraph-filter-bar-separator'),
@@ -1867,7 +1901,10 @@ class AddMetricMenu implements m.ClassComponent<AddMetricMenuAttrs> {
   }
 }
 
-function displaySize(totalSize: number, unit: string): string {
+// Formats a value in the metric's unit ('B' and 'ns' are human-scaled with
+// 1024/1000 steps, 'count' and '' verbatim, anything else K/M/G-prefixed).
+// Exported so other views showing flamegraph metrics can format identically.
+export function displaySize(totalSize: number, unit: string): string {
   if (unit === '' || unit === 'count') return totalSize.toLocaleString();
   if (totalSize === 0) return `0 ${unit}`;
   let step: number;
@@ -1911,7 +1948,9 @@ function getUnitDisplayName(unit: string | undefined): string {
   return unit;
 }
 
-function toTags(state: FlamegraphState): ReadonlyArray<string> {
+// Chip labels for a state's active filters (e.g. 'Show Stack: main').
+// Exported so other views can mirror the flamegraph's filter chips.
+export function toTags(state: FlamegraphState): ReadonlyArray<string> {
   const toString = (x: FlamegraphFilter) => {
     switch (x.kind) {
       case 'HIDE_FRAME':

@@ -96,6 +96,11 @@
   .pf-virtual-canvas {
     height: 100%;
   }
+
+  .pf-flamegraph-table {
+    height: 100%;
+    overflow: hidden;
+  }
 }
 
 .pf-flamegraph-tooltip-popup {

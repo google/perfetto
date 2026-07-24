@@ -29,6 +29,7 @@ import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {ensureExists} from '../../base/assert';
+import {traceHasTimelineData} from '../../components/trace_utils';
 import {
   isProfileDescriptor,
   type ProfileDescriptor,
@@ -446,18 +447,4 @@ function matchingTracks(
     }
     return false;
   });
-}
-
-export async function traceHasTimelineData(ctx: Trace): Promise<boolean> {
-  // We treat a small number of slices as not having timeline data cos
-  // there are some inevitable slices like trace triggers on oom etc.
-  const res = await ctx.engine.query(`
-    SELECT
-      (SELECT count(id) FROM slice) > 50 OR
-      EXISTS(SELECT 1 FROM sched) OR
-      EXISTS(SELECT 1 FROM heap_profile_allocation) OR
-      EXISTS(SELECT 1 FROM perf_sample)
-      AS res
-  `);
-  return res.firstRow({res: NUM}).res > 0;
 }

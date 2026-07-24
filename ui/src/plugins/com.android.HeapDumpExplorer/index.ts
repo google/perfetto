@@ -18,9 +18,8 @@ import {z} from 'zod';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
-import HeapProfilePlugin, {
-  traceHasTimelineData,
-} from '../dev.perfetto.HeapProfile';
+import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
+import {traceHasTimelineData} from '../../components/trace_utils';
 import {HeapDumpPage} from './heap_dump_page';
 import {HeapDumpExplorerSession} from './session';
 import {migrateHdeState} from './persisted_state';
