@@ -25,7 +25,7 @@ import {
   getTrackUriForTrackId,
   enrichDepths,
 } from '../../components/related_events/utils';
-import {QuerySlot, type QueryResult} from '../../base/query_slot';
+import {AsyncMemo, type AsyncMemoResult} from '../../base/async_memo';
 import type {
   InputLifecycleExtension,
   CellData,
@@ -50,17 +50,17 @@ interface InputLifecycleSpec extends Row {
 }
 
 export class AndroidInputEventSource {
-  private readonly dataSlot = new QuerySlot<InputChainRow[]>();
+  private readonly dataSlot = new AsyncMemo<InputChainRow[]>();
 
   constructor(
     private readonly trace: Trace,
     private readonly activeExtensions: ReadonlyArray<InputLifecycleExtension>,
   ) {}
 
-  use(sliceId: number): QueryResult<InputChainRow[]> {
+  use(sliceId: number): AsyncMemoResult<InputChainRow[]> {
     return this.dataSlot.use({
       key: {sliceId},
-      queryFn: async () => {
+      compute: async () => {
         const resolvedSliceId = await this.resolveSliceId(sliceId);
         const rows = await this.fetchRows(resolvedSliceId);
         await this.enrichAllDepths(rows);

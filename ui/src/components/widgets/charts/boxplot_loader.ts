@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, type QueryResult} from '../../../base/query_slot';
+import {AsyncMemo, type AsyncMemoResult} from '../../../base/async_memo';
 import type {Engine} from '../../../trace_processor/engine';
 import {NUM, STR} from '../../../trace_processor/query_result';
 import type {BoxplotData} from './boxplot';
@@ -58,7 +58,7 @@ export class SQLBoxplotLoader {
   private readonly query: string;
   private readonly categoryColumn: string;
   private readonly valueColumn: string;
-  private readonly querySlot = new QuerySlot<BoxplotData>();
+  private readonly querySlot = new AsyncMemo<BoxplotData>();
 
   constructor(opts: SQLBoxplotLoaderOpts) {
     validateColumnName(opts.categoryColumn);
@@ -69,7 +69,7 @@ export class SQLBoxplotLoader {
     this.valueColumn = opts.valueColumn;
   }
 
-  use(config: BoxplotLoaderConfig): QueryResult<BoxplotData> {
+  use(config: BoxplotLoaderConfig): AsyncMemoResult<BoxplotData> {
     const limit = config.limit ?? 20;
     const cat = this.categoryColumn;
     const val = this.valueColumn;
@@ -124,7 +124,7 @@ LIMIT ${limit}`.trim();
     return this.querySlot.use({
       key: {sql},
       retainOn: ['sql'],
-      queryFn: async () => {
+      compute: async () => {
         const queryResult = await this.engine.query(sql);
         const items = [];
 

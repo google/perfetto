@@ -22,10 +22,10 @@ import type {Point2D} from '../../base/geom';
 import {formatNumber} from '../../base/number_format';
 import {
   type CancellationSignal,
-  QUERY_CANCELLED,
-  QuerySlot,
-  SerialTaskQueue,
-} from '../../base/query_slot';
+  TASK_CANCELLED,
+  AsyncMemo,
+  AtomicTaskQueue,
+} from '../../base/async_memo';
 import {Icons} from '../../base/semantic_icons';
 import type {duration, time} from '../../base/time';
 import type {TimeScale} from '../../base/time_scale';
@@ -268,10 +268,10 @@ export interface CounterTrackAttrs {
 
 export class CounterTrack implements TrackRenderer {
   // QuerySlot infrastructure
-  private readonly queue = new SerialTaskQueue();
-  private readonly initSlot = new QuerySlot<AsyncDisposable | void>(this.queue);
-  private readonly tableSlot = new QuerySlot<MipmapTableResult>(this.queue);
-  private readonly dataSlot = new QuerySlot<DataFrame>(this.queue);
+  private readonly queue = new AtomicTaskQueue();
+  private readonly initSlot = new AsyncMemo<AsyncDisposable | void>(this.queue);
+  private readonly tableSlot = new AsyncMemo<MipmapTableResult>(this.queue);
+  private readonly dataSlot = new AsyncMemo<DataFrame>(this.queue);
 
   // Buffered bounds tracking
   private readonly bufferedBounds = new BufferedBounds();
@@ -649,7 +649,7 @@ export class CounterTrack implements TrackRenderer {
     // Step 0: Call onInit with a constant key
     const initResult = this.initSlot.use({
       key: {init: true},
-      queryFn: () => this.onInitFn?.() ?? Promise.resolve(),
+      compute: () => this.onInitFn?.() ?? Promise.resolve(),
     });
 
     if (initResult.isPending) {
@@ -665,7 +665,7 @@ export class CounterTrack implements TrackRenderer {
         yMode,
         yDisplay,
       },
-      queryFn: () => this.createMipmapTable(),
+      compute: () => this.createMipmapTable(),
     });
 
     const table = tableResult.data;
@@ -691,7 +691,7 @@ export class CounterTrack implements TrackRenderer {
         yMode,
         yDisplay,
       },
-      queryFn: async (signal) => {
+      compute: async (signal) => {
         return await this.trace.taskTracker.track(
           this.fetchCounterData(
             table.tableName,
@@ -908,7 +908,7 @@ export class CounterTrack implements TrackRenderer {
       );
     `);
 
-    if (signal.isCancelled) throw QUERY_CANCELLED;
+    if (signal.isCancelled) throw TASK_CANCELLED;
 
     const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
       ? 'background'
@@ -932,7 +932,7 @@ export class CounterTrack implements TrackRenderer {
     let max = 0;
 
     for (let row = 0; it.valid(); it.next(), row++) {
-      if (signal.isCancelled) throw QUERY_CANCELLED;
+      if (signal.isCancelled) throw TASK_CANCELLED;
       if (row % 50 === 0 && task.shouldYield()) {
         await task.yield();
       }

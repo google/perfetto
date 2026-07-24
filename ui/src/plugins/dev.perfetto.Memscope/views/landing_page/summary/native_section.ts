@@ -18,7 +18,7 @@
 // loading logic.
 
 import m from 'mithril';
-import {QuerySlot} from '../../../../../base/query_slot';
+import {AsyncMemo} from '../../../../../base/async_memo';
 import type {time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import {
@@ -315,7 +315,7 @@ export interface NativeSectionAttrs {
 }
 
 export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
-  private readonly slot = new QuerySlot<NativeData>();
+  private readonly slot = new AsyncMemo<NativeData>();
 
   onremove() {
     this.slot.dispose();
@@ -330,7 +330,7 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
         sel: selTs !== undefined ? selTs.toString() : null,
         base: baseTs !== undefined ? baseTs.toString() : null,
       },
-      queryFn: () => loadNativeData(trace, upid, selTs, baseTs),
+      compute: () => loadNativeData(trace, upid, selTs, baseTs),
       // Keep the previous window's data while the new one loads, so the panel
       // doesn't flash empty on every snapshot change.
       retainOn: ['sel', 'base'],

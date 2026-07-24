@@ -43,7 +43,7 @@ import {
 } from '../trace_processor/sql_utils';
 import type {DataGridApi} from './widgets/datagrid/datagrid';
 import {ExportButton} from '../widgets/export_button';
-import {SerialTaskQueue} from '../base/query_slot';
+import {AtomicTaskQueue} from '../base/async_memo';
 import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
 
 export interface AggregationData {
@@ -226,7 +226,7 @@ export function createAggregationTab(
   priority: number = 0,
 ): AreaSelectionTab {
   const limiter = new AsyncLimiter();
-  const queue = new SerialTaskQueue();
+  const queue = new AtomicTaskQueue();
   let currentSelection: AreaSelection | undefined;
   let aggregation: Aggregation | undefined;
   let data: AggregationData | undefined;

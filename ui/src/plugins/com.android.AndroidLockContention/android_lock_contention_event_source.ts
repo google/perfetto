@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {
-  type QueryResult,
-  QuerySlot,
-  SerialTaskQueue,
-} from '../../base/query_slot';
+  type AsyncMemoResult,
+  AsyncMemo,
+  AtomicTaskQueue,
+} from '../../base/async_memo';
 import {type duration, Duration, type time, Time} from '../../base/time';
 import {getTrackUriForTrackId} from '../../components/related_events/utils';
 import type {Trace} from '../../public/trace';
@@ -97,14 +97,14 @@ export interface LockContentionDetails {
 }
 
 export class AndroidLockContentionEventSource {
-  private readonly queue = new SerialTaskQueue();
-  private readonly dataSlot = new QuerySlot<LockContentionDetails | null>(
+  private readonly queue = new AtomicTaskQueue();
+  private readonly dataSlot = new AsyncMemo<LockContentionDetails | null>(
     this.queue,
   );
-  private readonly mergedDataSlot = new QuerySlot<LockContentionDetails[]>(
+  private readonly mergedDataSlot = new AsyncMemo<LockContentionDetails[]>(
     this.queue,
   );
-  private readonly allDetailsSlot = new QuerySlot<{
+  private readonly allDetailsSlot = new AsyncMemo<{
     details: LockContentionDetails[];
     threadStates: Map<number, ReadonlyArray<ContentionState>>;
     blockedFunctions: Map<number, ReadonlyArray<ContentionBlockedFunction>>;
@@ -112,21 +112,21 @@ export class AndroidLockContentionEventSource {
 
   constructor(private readonly trace: Trace) {}
 
-  useMerged(mergedId: number): QueryResult<LockContentionDetails[]> {
+  useMerged(mergedId: number): AsyncMemoResult<LockContentionDetails[]> {
     return this.mergedDataSlot.use({
       key: {mergedId},
-      queryFn: async () => this.fetchMergedDetails(mergedId),
+      compute: async () => this.fetchMergedDetails(mergedId),
     });
   }
 
-  useAllDetails(mergedId: number): QueryResult<{
+  useAllDetails(mergedId: number): AsyncMemoResult<{
     details: LockContentionDetails[];
     threadStates: Map<number, ReadonlyArray<ContentionState>>;
     blockedFunctions: Map<number, ReadonlyArray<ContentionBlockedFunction>>;
   }> {
     return this.allDetailsSlot.use({
       key: {mergedId},
-      queryFn: async () => this.fetchAllDetails(mergedId),
+      compute: async () => this.fetchAllDetails(mergedId),
     });
   }
 
@@ -313,10 +313,10 @@ export class AndroidLockContentionEventSource {
   use(
     eventId: number,
     trackUri: string,
-  ): QueryResult<LockContentionDetails | null> {
+  ): AsyncMemoResult<LockContentionDetails | null> {
     return this.dataSlot.use({
       key: {eventId, trackUri},
-      queryFn: async () => this.fetchDetails(eventId, trackUri),
+      compute: async () => this.fetchDetails(eventId, trackUri),
     });
   }
 

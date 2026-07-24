@@ -14,7 +14,7 @@
 
 import './distribution_panel.scss';
 import m from 'mithril';
-import {QuerySlot} from '../base/query_slot';
+import {AsyncMemo} from '../base/async_memo';
 import {Icons} from '../base/semantic_icons';
 import type {Trace} from '../public/trace';
 import type {Dataset, DatasetSchema} from '../trace_processor/dataset';
@@ -193,9 +193,9 @@ export interface DistributionSummaryAttrs extends DistributionInputs {
 // the filtered dataset as a Perfetto table so the histogram and stats share
 // a single aggregation source.
 export class DistributionSummary implements m.ClassComponent<DistributionSummaryAttrs> {
-  private readonly tableSlot = new QuerySlot<DisposableSqlEntity>();
-  private readonly boundsSlot = new QuerySlot<NiceBuckets>();
-  private readonly statsSlot = new QuerySlot<DistributionStats>();
+  private readonly tableSlot = new AsyncMemo<DisposableSqlEntity>();
+  private readonly boundsSlot = new AsyncMemo<NiceBuckets>();
+  private readonly statsSlot = new AsyncMemo<DistributionStats>();
 
   private histogramLoader?: SQLHistogramLoader;
   private histogramLoaderTableName?: string;
@@ -208,11 +208,11 @@ export class DistributionSummary implements m.ClassComponent<DistributionSummary
     const tableName = tableEntity.name;
     const bounds = this.boundsSlot.use({
       key: {tableName, valueColumn: attrs.valueColumn},
-      queryFn: () => fetchBounds(attrs, tableName),
+      compute: () => fetchBounds(attrs, tableName),
     });
     const stats = this.statsSlot.use({
       key: {tableName, brush: attrs.brush},
-      queryFn: () => fetchStats(attrs, tableName),
+      compute: () => fetchStats(attrs, tableName),
       retainOn: ['brush'],
     });
     const histogram = this.useHistogramLoader(attrs, tableName, bounds.data);
@@ -238,7 +238,7 @@ export class DistributionSummary implements m.ClassComponent<DistributionSummary
     const sourceQuery = buildSourceQuery(attrs, [attrs.valueColumn]);
     return this.tableSlot.use({
       key: {sourceQuery},
-      queryFn: () =>
+      compute: () =>
         createPerfettoTable({engine: attrs.trace.engine, as: sourceQuery}),
     }).data;
   }
@@ -364,7 +364,7 @@ export interface DistributionPanelAttrs extends DistributionInputs {
 // Two-pane "value distribution" tab: instances grid + histogram summary,
 // both reading from a single materialized Perfetto table.
 export class DistributionPanel implements m.ClassComponent<DistributionPanelAttrs> {
-  private readonly tableSlot = new QuerySlot<DisposableSqlEntity>();
+  private readonly tableSlot = new AsyncMemo<DisposableSqlEntity>();
 
   private dataSource?: SQLDataSource;
   private dataSourceTableName?: string;
@@ -441,7 +441,7 @@ export class DistributionPanel implements m.ClassComponent<DistributionPanelAttr
     ]);
     return this.tableSlot.use({
       key: {sourceQuery},
-      queryFn: () =>
+      compute: () =>
         createPerfettoTable({engine: attrs.trace.engine, as: sourceQuery}),
     }).data;
   }

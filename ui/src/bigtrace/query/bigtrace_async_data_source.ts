@@ -19,7 +19,7 @@ import type {
 } from '../../components/widgets/datagrid/data_source';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {Row, SqlValue} from '../../trace_processor/query_result';
-import type {QueryResult} from '../../base/query_slot';
+import type {AsyncMemoResult} from '../../base/async_memo';
 import {
   type BigtraceQueryClient,
   BigtraceHttpError,
@@ -239,22 +239,22 @@ export class BigtraceAsyncDataSource implements DataSource {
     return this.columns;
   }
 
-  useAggregateSummaries(_model: DataSourceModel): QueryResult<Row> {
-    return {data: undefined, isPending: false, isFresh: true};
+  useAggregateSummaries(_model: DataSourceModel): AsyncMemoResult<Row> {
+    return {data: {}, isPending: false};
   }
 
   useDistinctValues(
     _column: string | undefined,
-  ): QueryResult<readonly SqlValue[]> {
+  ): AsyncMemoResult<readonly SqlValue[]> {
     // `data: []` (not `undefined`) avoids a permanent "Loading…" in the
     // column-filter "Equals" submenu. Cell-context menu filtering still works.
-    return {data: [], isPending: false, isFresh: true};
+    return {data: [], isPending: false};
   }
 
   useParameterKeys(
     _prefix: string | undefined,
-  ): QueryResult<readonly string[]> {
-    return {data: undefined, isPending: false, isFresh: true};
+  ): AsyncMemoResult<readonly string[]> {
+    return {data: [], isPending: false};
   }
 
   async exportData(_model: DataSourceModel): Promise<readonly Row[]> {

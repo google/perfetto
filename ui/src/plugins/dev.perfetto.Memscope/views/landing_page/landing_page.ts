@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {assertIsInstance} from '../../../../base/assert';
-import {QuerySlot} from '../../../../base/query_slot';
+import {AsyncMemo} from '../../../../base/async_memo';
 import type {Trace} from '../../../../public/trace';
 import type {Engine} from '../../../../trace_processor/engine';
 import {
@@ -48,7 +48,7 @@ export interface MemoryOverviewPageAttrs {
 type ProcWithMem = readonly ProcMemStat[];
 
 export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> {
-  private readonly slot = new QuerySlot<ProcWithMem>();
+  private readonly slot = new AsyncMemo<ProcWithMem>();
 
   view({attrs}: m.Vnode<MemoryOverviewPageAttrs>) {
     const {trace, subpage, onSubpageChange} = attrs;
@@ -72,7 +72,7 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
   ) {
     const procsWithMemResult = this.slot.use({
       key: '',
-      queryFn: () => loadProcessMemoryStats(trace.engine),
+      compute: () => loadProcessMemoryStats(trace.engine),
     });
 
     const procs = procsWithMemResult.data;

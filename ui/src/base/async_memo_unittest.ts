@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue, QUERY_CANCELLED} from './query_slot';
+import {AsyncMemo, AtomicTaskQueue, TASK_CANCELLED} from './async_memo';
 
 // Helper to wait for pending promises to resolve
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 test('basic query execution', async () => {
-  const slot = new QuerySlot<number>();
+  const slot = new AsyncMemo<number>();
 
   const queryFn = vi.fn().mockImplementation(async () => 42);
 
   const result1 = slot.use({
     key: {id: 1},
-    queryFn,
+    compute: queryFn,
   });
 
   expect(result1.data).toBeUndefined();
@@ -34,7 +34,7 @@ test('basic query execution', async () => {
 
   const result2 = slot.use({
     key: {id: 1},
-    queryFn,
+    compute: queryFn,
   });
 
   expect(result2.data).toBe(42);
@@ -43,38 +43,37 @@ test('basic query execution', async () => {
 });
 
 test('cached result is returned without re-query', async () => {
-  const slot = new QuerySlot<number>();
+  const slot = new AsyncMemo<number>();
 
   const queryFn = vi.fn().mockResolvedValue(42);
 
-  slot.use({key: {id: 1}, queryFn});
+  slot.use({key: {id: 1}, compute: queryFn});
   await flushPromises();
 
   // Call use() again with same key - should return cached, not re-query
-  const result = slot.use({key: {id: 1}, queryFn});
+  const result = slot.use({key: {id: 1}, compute: queryFn});
 
   expect(result.data).toBe(42);
-  expect(result.isFresh).toBe(true);
   expect(queryFn).toHaveBeenCalledTimes(1); // Still just once
 });
 
 test('dispose cancels queued work across render cycles', async () => {
-  const executor = new SerialTaskQueue();
+  const executor = new AtomicTaskQueue();
 
   // Simulate first component mounting and starting a long query
-  const slot1 = new QuerySlot<number>(executor);
+  const slot1 = new AsyncMemo<number>(executor);
   let query1Resolved = false;
   const queryFn1 = vi.fn().mockImplementation(async () => {
     await flushPromises(); // Simulate some async work
     query1Resolved = true;
     return 1;
   });
-  slot1.use({key: {id: 1}, queryFn: queryFn1});
+  slot1.use({key: {id: 1}, compute: queryFn1});
 
   // Simulate second component mounting while first query is in-flight
-  const slot2 = new QuerySlot<number>(executor);
+  const slot2 = new AsyncMemo<number>(executor);
   const queryFn2 = vi.fn().mockResolvedValue(2);
-  slot2.use({key: {id: 2}, queryFn: queryFn2});
+  slot2.use({key: {id: 2}, compute: queryFn2});
 
   // Second component unmounts before its query runs (it's queued behind first)
   slot2.dispose();
@@ -90,9 +89,9 @@ test('dispose cancels queued work across render cycles', async () => {
 });
 
 test('multiple slots same executor run serially', async () => {
-  const executor = new SerialTaskQueue();
-  const slot1 = new QuerySlot<number>(executor);
-  const slot2 = new QuerySlot<number>(executor);
+  const executor = new AtomicTaskQueue();
+  const slot1 = new AsyncMemo<number>(executor);
+  const slot2 = new AsyncMemo<number>(executor);
 
   const order: number[] = [];
 
@@ -106,8 +105,8 @@ test('multiple slots same executor run serially', async () => {
     return 2;
   });
 
-  slot1.use({key: {id: 1}, queryFn: queryFn1});
-  slot2.use({key: {id: 2}, queryFn: queryFn2});
+  slot1.use({key: {id: 1}, compute: queryFn1});
+  slot2.use({key: {id: 2}, compute: queryFn2});
 
   await flushPromises();
   await flushPromises();
@@ -118,7 +117,7 @@ test('multiple slots same executor run serially', async () => {
 });
 
 test('rapid key changes on same slot only runs first and last', async () => {
-  const slot = new QuerySlot<number>();
+  const slot = new AsyncMemo<number>();
 
   const queryFn1 = vi.fn().mockResolvedValue(1);
   const queryFn2 = vi.fn().mockResolvedValue(2);
@@ -126,9 +125,9 @@ test('rapid key changes on same slot only runs first and last', async () => {
 
   // Schedule three different queries rapidly on the same slot
   // First one starts immediately, subsequent ones replace in pending queue
-  slot.use({key: {id: 1}, queryFn: queryFn1});
-  slot.use({key: {id: 2}, queryFn: queryFn2});
-  slot.use({key: {id: 3}, queryFn: queryFn3});
+  slot.use({key: {id: 1}, compute: queryFn1});
+  slot.use({key: {id: 2}, compute: queryFn2});
+  slot.use({key: {id: 3}, compute: queryFn3});
 
   await flushPromises();
   await flushPromises();
@@ -140,14 +139,14 @@ test('rapid key changes on same slot only runs first and last', async () => {
 });
 
 test('retainOn allows showing previous data during compatible changes', async () => {
-  const slot = new QuerySlot<number>();
+  const slot = new AsyncMemo<number>();
 
   const queryFn1 = vi.fn().mockResolvedValue(100);
 
   // First query
   slot.use({
     key: {filter: 'a', page: 1},
-    queryFn: queryFn1,
+    compute: queryFn1,
     retainOn: ['page'],
   });
 
@@ -156,29 +155,27 @@ test('retainOn allows showing previous data during compatible changes', async ()
   // Verify first result cached
   const result1 = slot.use({
     key: {filter: 'a', page: 1},
-    queryFn: queryFn1,
+    compute: queryFn1,
     retainOn: ['page'],
   });
   expect(result1.data).toBe(100);
-  expect(result1.isFresh).toBe(true);
 
   // Change only page (in retainOn) - should show stale data
   const queryFn2 = vi.fn().mockResolvedValue(200);
   const result2 = slot.use({
     key: {filter: 'a', page: 2},
-    queryFn: queryFn2,
+    compute: queryFn2,
     retainOn: ['page'],
   });
 
   expect(result2.data).toBe(100); // Stale data shown
-  expect(result2.isFresh).toBe(false);
   expect(result2.isPending).toBe(true);
 
   // Change filter (not in retainOn) - should NOT show stale data
   const queryFn3 = vi.fn().mockResolvedValue(300);
   const result3 = slot.use({
     key: {filter: 'b', page: 2},
-    queryFn: queryFn3,
+    compute: queryFn3,
     retainOn: ['page'],
   });
 
@@ -187,14 +184,14 @@ test('retainOn allows showing previous data during compatible changes', async ()
 });
 
 test('enabled prevents query from running', async () => {
-  const slot = new QuerySlot<number>();
+  const slot = new AsyncMemo<number>();
 
   const queryFn = vi.fn().mockResolvedValue(42);
 
   // Query with enabled=false
   slot.use({
     key: {id: 1},
-    queryFn,
+    compute: queryFn,
     enabled: false,
   });
 
@@ -205,7 +202,7 @@ test('enabled prevents query from running', async () => {
   // Now enable it
   slot.use({
     key: {id: 1},
-    queryFn,
+    compute: queryFn,
     enabled: true,
   });
 
@@ -213,7 +210,7 @@ test('enabled prevents query from running', async () => {
 
   const result = slot.use({
     key: {id: 1},
-    queryFn,
+    compute: queryFn,
     enabled: true,
   });
 
@@ -222,35 +219,35 @@ test('enabled prevents query from running', async () => {
 });
 
 test('use after dispose throws', async () => {
-  const slot = new QuerySlot<number>();
+  const slot = new AsyncMemo<number>();
 
   const queryFn = vi.fn().mockResolvedValue(42);
 
-  slot.use({key: {id: 1}, queryFn});
+  slot.use({key: {id: 1}, compute: queryFn});
   await flushPromises();
 
   slot.dispose();
 
-  expect(() => slot.use({key: {id: 1}, queryFn})).toThrow(
-    'QuerySlot.use() called after dispose()',
+  expect(() => slot.use({key: {id: 1}, compute: queryFn})).toThrow(
+    'AsyncMemo.use() called after dispose()',
   );
 });
 
 test('queued work is cancelled when slot is disposed', async () => {
-  const executor = new SerialTaskQueue();
-  const slot1 = new QuerySlot<number>(executor);
-  const slot2 = new QuerySlot<number>(executor);
+  const executor = new AtomicTaskQueue();
+  const slot1 = new AsyncMemo<number>(executor);
+  const slot2 = new AsyncMemo<number>(executor);
 
   // Start a slow query on slot1
   const queryFn1 = vi.fn().mockImplementation(async () => {
     await flushPromises();
     return 1;
   });
-  slot1.use({key: {id: 1}, queryFn: queryFn1});
+  slot1.use({key: {id: 1}, compute: queryFn1});
 
   // Queue work on slot2
   const queryFn2 = vi.fn().mockResolvedValue(2);
-  slot2.use({key: {id: 2}, queryFn: queryFn2});
+  slot2.use({key: {id: 2}, compute: queryFn2});
 
   // Dispose slot2 while its work is still queued
   slot2.dispose();
@@ -264,7 +261,7 @@ test('queued work is cancelled when slot is disposed', async () => {
 });
 
 test('AsyncDisposable is disposed before running next queryFn', async () => {
-  const slot = new QuerySlot<AsyncDisposable>();
+  const slot = new AsyncMemo<AsyncDisposable>();
 
   const events: string[] = [];
 
@@ -291,13 +288,13 @@ test('AsyncDisposable is disposed before running next queryFn', async () => {
   });
 
   // First query
-  slot.use({key: {id: 1}, queryFn: queryFn1});
+  slot.use({key: {id: 1}, compute: queryFn1});
   await flushPromises();
 
   expect(events).toEqual(['query1']);
 
   // Second query with different key - should dispose first before running second
-  slot.use({key: {id: 2}, queryFn: queryFn2});
+  slot.use({key: {id: 2}, compute: queryFn2});
   await flushPromises();
 
   expect(events).toEqual(['query1', 'dispose1', 'query2']);
@@ -305,7 +302,7 @@ test('AsyncDisposable is disposed before running next queryFn', async () => {
 });
 
 test('slot dispose calls AsyncDisposable dispose after in-flight task completes', async () => {
-  const slot = new QuerySlot<AsyncDisposable>();
+  const slot = new AsyncMemo<AsyncDisposable>();
 
   const events: string[] = [];
   let resolveQuery: () => void;
@@ -327,7 +324,7 @@ test('slot dispose calls AsyncDisposable dispose after in-flight task completes'
   });
 
   // Start query
-  slot.use({key: {id: 1}, queryFn});
+  slot.use({key: {id: 1}, compute: queryFn});
   await flushPromises();
 
   expect(events).toEqual(['query-start']);
@@ -351,7 +348,7 @@ test('slot dispose calls AsyncDisposable dispose after in-flight task completes'
 });
 
 test('cancellation signal is set when new query is scheduled', async () => {
-  const slot = new QuerySlot<number>();
+  const slot = new AsyncMemo<number>();
 
   const events: string[] = [];
   let query1Signal: {isCancelled: boolean} | undefined;
@@ -366,7 +363,7 @@ test('cancellation signal is set when new query is scheduled', async () => {
     await query1Promise;
     events.push(`query1-end (cancelled=${signal.isCancelled})`);
     if (Boolean(signal.isCancelled)) {
-      return QUERY_CANCELLED;
+      return TASK_CANCELLED;
     }
     return 1;
   });
@@ -377,14 +374,14 @@ test('cancellation signal is set when new query is scheduled', async () => {
   });
 
   // Start first query
-  slot.use({key: {id: 1}, queryFn: queryFn1});
+  slot.use({key: {id: 1}, compute: queryFn1});
   await flushPromises();
 
   expect(events).toEqual(['query1-start']);
   expect(query1Signal?.isCancelled).toBe(false);
 
   // Schedule second query while first is in-flight
-  slot.use({key: {id: 2}, queryFn: queryFn2});
+  slot.use({key: {id: 2}, compute: queryFn2});
 
   // First query's signal should now be cancelled
   expect(query1Signal?.isCancelled).toBe(true);
@@ -403,21 +400,21 @@ test('cancellation signal is set when new query is scheduled', async () => {
   ]);
 
   // Final result should be from query2
-  const result = slot.use({key: {id: 2}, queryFn: queryFn2});
+  const result = slot.use({key: {id: 2}, compute: queryFn2});
   expect(result.data).toBe(2);
 });
 
 test('QUERY_CANCELLED result is not cached', async () => {
-  const slot = new QuerySlot<number>();
+  const slot = new AsyncMemo<number>();
 
   // Query that always returns QUERY_CANCELLED
-  const queryFn = vi.fn().mockImplementation(async () => QUERY_CANCELLED);
+  const queryFn = vi.fn().mockImplementation(async () => TASK_CANCELLED);
 
-  slot.use({key: {id: 1}, queryFn});
+  slot.use({key: {id: 1}, compute: queryFn});
   await flushPromises();
 
   // Result should be undefined since QUERY_CANCELLED was returned
-  const result = slot.use({key: {id: 1}, queryFn});
+  const result = slot.use({key: {id: 1}, compute: queryFn});
   expect(result.data).toBeUndefined();
 
   // Wait for the second query to execute

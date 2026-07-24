@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {
-  type QueryResult,
-  QuerySlot,
-  type SerialTaskQueue,
-} from '../../../../base/query_slot';
+  type AsyncMemoResult,
+  AsyncMemo,
+  type AtomicTaskQueue,
+} from '../../../../base/async_memo';
 import type {Engine} from '../../../../trace_processor/engine';
 import {
   NUM,
@@ -97,27 +97,27 @@ function buildPathCondition(
 
 // Rollup tree datasource - uses pure SQL with UNION ALL and window functions.
 export class SQLDataSourceRollupTree {
-  private readonly rowCountSlot: QuerySlot<number>;
-  private readonly rowsSlot: QuerySlot<{
+  private readonly rowCountSlot: AsyncMemo<number>;
+  private readonly rowsSlot: AsyncMemo<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
   }>;
-  private readonly rollupTableSlot: QuerySlot<DisposableSqlEntity>;
-  private readonly summariesSlot: QuerySlot<Row>;
+  private readonly rollupTableSlot: AsyncMemo<DisposableSqlEntity>;
+  private readonly summariesSlot: AsyncMemo<Row>;
 
   constructor(
     private readonly uuid: string,
-    queue: SerialTaskQueue,
+    queue: AtomicTaskQueue,
     private readonly engine: Engine,
     private readonly sqlSchema: SQLTableSchema,
   ) {
-    this.rowCountSlot = new QuerySlot<number>(queue);
-    this.rowsSlot = new QuerySlot<{
+    this.rowCountSlot = new AsyncMemo<number>(queue);
+    this.rowsSlot = new AsyncMemo<{
       readonly rows: readonly Row[];
       readonly rowOffset: number;
     }>(queue);
-    this.rollupTableSlot = new QuerySlot<DisposableSqlEntity>(queue);
-    this.summariesSlot = new QuerySlot<Row>(queue);
+    this.rollupTableSlot = new AsyncMemo<DisposableSqlEntity>(queue);
+    this.summariesSlot = new AsyncMemo<Row>(queue);
   }
 
   getRows(model: PivotModel): DataSourceRows {
@@ -132,7 +132,7 @@ export class SQLDataSourceRollupTree {
     } = model;
 
     const rollupTableResult = this.useRollupTable(model);
-    if (rollupTableResult.isPending || !rollupTableResult.data) {
+    if (rollupTableResult.isPending) {
       return {isPending: true};
     }
 
@@ -170,7 +170,7 @@ export class SQLDataSourceRollupTree {
         sortDirection,
       },
       retainOn: ['expandedGroups', 'collapsedGroups'],
-      queryFn: async () => {
+      compute: async () => {
         const query = buildTreeQuery(rollupTableName, {
           expandedGroups,
           collapsedGroups,
@@ -200,7 +200,7 @@ export class SQLDataSourceRollupTree {
         'sortColumn',
         'sortDirection',
       ],
-      queryFn: async () => {
+      compute: async () => {
         const query = buildTreeQuery(rollupTableName, {
           expandedGroups,
           collapsedGroups,
@@ -227,12 +227,12 @@ export class SQLDataSourceRollupTree {
     };
   }
 
-  getSummaries(model: PivotModel): QueryResult<Row> {
+  getSummaries(model: PivotModel): AsyncMemoResult<Row> {
     const {groupBy, aggregates, filters = []} = model;
 
     const rollupTableResult = this.useRollupTable(model);
-    if (rollupTableResult.isPending || !rollupTableResult.data) {
-      return {isPending: true, data: undefined, isFresh: false};
+    if (rollupTableResult.isPending) {
+      return {isPending: true};
     }
 
     const rollupTableName = rollupTableResult.data.name;
@@ -245,7 +245,7 @@ export class SQLDataSourceRollupTree {
         aggregates,
         filters: serializeFilters(filters),
       },
-      queryFn: async () => {
+      compute: async () => {
         const query = buildTreeQuery(rollupTableName, {
           maxDepth: 0,
           columnAliases,
@@ -256,7 +256,9 @@ export class SQLDataSourceRollupTree {
     });
   }
 
-  private useRollupTable(model: PivotModel): QueryResult<DisposableSqlEntity> {
+  private useRollupTable(
+    model: PivotModel,
+  ): AsyncMemoResult<DisposableSqlEntity> {
     const {groupBy, aggregates, filters = []} = model;
 
     const sourceQuery = this.buildSourceQuery(filters);
@@ -269,7 +271,7 @@ export class SQLDataSourceRollupTree {
         groupByColumns,
         aggregateExprs,
       },
-      queryFn: async () => {
+      compute: async () => {
         return await createRollupTable(this.engine, {
           sourceTable: sourceQuery,
           groupByColumns,
