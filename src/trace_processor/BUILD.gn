@@ -231,6 +231,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/graph_traversal",
       "plugins/import",
       "plugins/interval_intersect",
+      "plugins/interval_self_intersect",
       "plugins/layout_functions",
       "plugins/math_functions",
       "plugins/metadata",
