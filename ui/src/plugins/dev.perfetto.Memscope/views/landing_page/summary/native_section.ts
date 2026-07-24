@@ -19,12 +19,11 @@
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
-import type {time} from '../../../../../base/time';
+import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import {
   LONG_NULL,
   NUM,
-  NUM_NULL,
   STR,
   STR_NULL,
 } from '../../../../../trace_processor/query_result';
@@ -34,7 +33,7 @@ import {Intent} from '../../../../../widgets/common';
 import {deltaText, formatBytes, formatDelta, statCard} from '../mem_format';
 import {Ratio} from '../../../components/ratio';
 import {ShareBar} from '../../../components/share_bar';
-import {findProcessTrack, showInTimelineLink} from '../process_links';
+import {findProcessTrack, showAreaInTimelineLink} from '../process_links';
 import {emptyPanel, loadingPanel, topTable} from '../section_widgets';
 import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
@@ -69,9 +68,10 @@ interface NativeData {
   // Thread-stack footprint (rss+swap) at the selected smaps snapshot.
   readonly stackBytes: number;
   readonly threads?: number;
-  // HeapProfile track event id (MIN object id) at the heapprofd dump nearest
-  // the selection — the target for "show in timeline". -1 when no profile.
-  readonly eventId: number;
+  // First and last native-profile snapshot included in the displayed window.
+  // These become the timeline area selection for the aggregated flamegraph.
+  readonly rangeStart?: time;
+  readonly rangeEnd?: time;
 }
 
 // heapprofd data is incremental (per-dump deltas), so a window sum is "what
@@ -96,7 +96,6 @@ async function loadNativeData(
       seen: 0,
       nativeRss: 0,
       stackBytes: 0,
-      eventId: -1,
     };
   }
 
@@ -141,25 +140,9 @@ async function loadNativeData(
   );
   const threads = threadsRes.firstRow({n: NUM}).n;
 
-  // HeapProfile track event id (MIN object id) at the heapprofd dump nearest
-  // the selection, so "show in timeline" jumps to the right point on the
-  // heapprofd track. heapprofd is continuous (not snapshot-based), so this is
-  // the closest dump to the selected window end rather than an exact match.
-  const eventRes = await trace.engine.query(`
-    SELECT MIN(a.id) AS event_id
-    FROM heap_profile_allocation a
-    WHERE a.upid = ${upid}
-      AND a.ts = (
-        SELECT ts FROM heap_profile_allocation
-        WHERE upid = ${upid}
-        ORDER BY ${snapTs !== null ? `ABS(ts - ${snapTs})` : 'ts'}
-        LIMIT 1
-      )
-  `);
-  const eventId = eventRes.firstRow({event_id: NUM_NULL}).event_id ?? -1;
-
-  // Call-stacks over the window (baseTs, selTs].
-  const {stacks, profileTotal} = await loadNativeStacks(
+  // Call-stacks and the exact native-snapshot range over the window
+  // (baseTs, selTs].
+  const {stacks, profileTotal, rangeStart, rangeEnd} = await loadNativeStacks(
     trace,
     upid,
     baseTs,
@@ -175,7 +158,8 @@ async function loadNativeData(
     nativeRss,
     stackBytes,
     threads: threads > 0 ? threads : undefined,
-    eventId,
+    rangeStart,
+    rangeEnd,
   };
 }
 
@@ -201,7 +185,12 @@ async function loadNativeStacks(
   upid: number,
   fromTs: time | undefined,
   toTs: bigint | null,
-): Promise<{stacks: NativeStack[]; profileTotal: number}> {
+): Promise<{
+  stacks: NativeStack[];
+  profileTotal: number;
+  rangeStart?: time;
+  rangeEnd?: time;
+}> {
   const window =
     (fromTs !== undefined ? ` AND a.ts > ${fromTs}` : '') +
     (toTs !== null ? ` AND a.ts <= ${toTs}` : '');
@@ -282,11 +271,30 @@ async function loadNativeStacks(
 
   const totRes = await trace.engine.query(`
     WITH ${unrelCte}
-    SELECT CAST(ifnull(SUM(unreleased), 0) AS INT) AS total FROM unrel
+    SELECT
+      CAST(ifnull(SUM(unreleased), 0) AS INT) AS total,
+      (SELECT MIN(a.ts) FROM heap_profile_allocation a
+        WHERE a.upid = ${upid}${window}) AS range_start,
+      (SELECT MAX(a.ts) FROM heap_profile_allocation a
+        WHERE a.upid = ${upid}${window}) AS range_end
+    FROM unrel
   `);
-  const profileTotal = totRes.firstRow({total: NUM}).total;
+  const totals = totRes.firstRow({
+    total: NUM,
+    range_start: LONG_NULL,
+    range_end: LONG_NULL,
+  });
 
-  return {stacks, profileTotal};
+  return {
+    stacks,
+    profileTotal: totals.total,
+    rangeStart:
+      totals.range_start !== null
+        ? Time.fromRaw(totals.range_start)
+        : undefined,
+    rangeEnd:
+      totals.range_end !== null ? Time.fromRaw(totals.range_end) : undefined,
+  };
 }
 
 // True when a frame's mapping belongs to the app under test rather than a
@@ -375,11 +383,12 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
       m(Panel.Header, {
         title: TITLE,
         subtitle: SUBTITLE,
-        controls: showInTimelineLink(
+        controls: showAreaInTimelineLink(
           trace,
           findProcessTrack(trace, upid, (k) => k.startsWith('heap_profile:'))
             ?.uri,
-          data.eventId,
+          data.rangeStart,
+          data.rangeEnd,
         ),
       }),
       m(
