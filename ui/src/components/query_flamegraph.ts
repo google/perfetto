@@ -60,6 +60,14 @@ export interface QueryFlamegraphColumn {
 export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
   // The aggregation to be run when nodes are merged together in the flamegraph.
   readonly mergeAggregation: 'ONE_OR_SUMMARY' | 'SUM' | 'CONCAT_WITH_COMMA';
+
+  // When true, the column can be targeted by filters and pivots (it joins
+  // `name` and the unaggregatable columns in `matchingColumns`) without
+  // becoming part of frame identity. Filters are evaluated per source row, so a
+  // pivot still matches an individual row's value even though merged nodes
+  // aggregate it. Use for an identifier you want to pivot on but must not let
+  // fragment the flamegraph, e.g. a per-path hash.
+  readonly isMatchable?: boolean;
 }
 
 export interface QueryFlamegraphMetric {
@@ -308,7 +316,11 @@ async function computeFlamegraphTree(
   const unagg = unaggregatableProperties ?? [];
   const unaggCols = unagg.map((x) => x.name);
 
-  const matchingColumns = ['name', ...unaggCols];
+  const matchingColumns = [
+    'name',
+    ...unaggCols,
+    ...agg.filter((x) => x.isMatchable).map((x) => x.name),
+  ];
   // Filters match literally by default; `/…/` opts into a raw regex.
   const matchExpr = (x: string) =>
     matchingColumns.map(
