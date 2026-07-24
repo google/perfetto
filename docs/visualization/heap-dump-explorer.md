@@ -404,10 +404,9 @@ pivoted, and removing the chip returns to Top Down.
 
 The object tab integrates with pivot directly: the
 _Shortest Path from GC Root_ and _Dominator Tree Path_ sections each
-have a _View in Flamegraph_ button that opens this tab pivoted on
-that specific instance's path (the chip reads
-`ClassName (this instance)`), using the _Object Size_ or
-_Dominated Object Size_ metric respectively.
+have a _View class in Flamegraph_ button that opens this tab pivoted
+on the object's class (the chip reads `ClassName`), using the
+_Object Size_ or _Dominated Object Size_ metric respectively.
 
 ### Node actions
 

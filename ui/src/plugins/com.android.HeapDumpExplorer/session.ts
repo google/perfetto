@@ -19,7 +19,8 @@ import type {Setting} from '../../public/settings';
 import type {Store} from '../../base/store';
 import {NUM} from '../../trace_processor/query_result';
 
-import {SQL_PREAMBLE} from './components';
+import {SQL_PREAMBLE, shortClassName} from './components';
+import {escapeRegex} from '../../widgets/flamegraph_regex';
 import {flamegraphQuery} from './views/flamegraph_objects_view';
 import * as queries from './queries';
 import {
@@ -376,12 +377,8 @@ export class HeapDumpExplorerSession {
     });
   };
 
-  // Open the flamegraph pivoted at `pathHash`. The metric matches the tree the
-  // hash came from. The chip shows `<label> (this instance)` since the raw hash
-  // regex is unreadable.
-  readonly openFlamegraphPivotedAt = (
-    pathHash: string,
-    label: string,
+  readonly openFlamegraphPivotedOnClass = (
+    className: string,
     isDominator: boolean,
   ): void => {
     this.setFlamegraphPanelState({
@@ -392,8 +389,8 @@ export class HeapDumpExplorerSession {
       filters: [],
       view: {
         kind: 'PIVOT',
-        pivot: `/^${pathHash}$/`,
-        displayLabel: `${label} (this instance)`,
+        pivot: `/^${escapeRegex(className)}$/`,
+        displayLabel: shortClassName(className),
       },
     });
     this.navigate('flamegraph');
