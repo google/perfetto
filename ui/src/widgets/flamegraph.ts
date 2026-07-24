@@ -895,11 +895,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   }
 
   private renderMeasurePicker(attrs: FlamegraphAttrs) {
-    const selected = ensureExists(
-      attrs.metrics.find(
-        (metric) => metricId(metric) === attrs.state.selectedMetricId,
-      ),
+    const selected = attrs.metrics.find(
+      (metric) => metricId(metric) === attrs.state.selectedMetricId,
     );
+    if (selected === undefined) {
+      return undefined;
+    }
     const defaultMetrics = attrs.metrics.filter(
       (metric) => metric.provenance === 'DEFAULT',
     );
