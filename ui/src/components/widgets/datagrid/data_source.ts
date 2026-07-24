@@ -60,6 +60,14 @@ export interface DataSource {
    * Returns a promise that resolves to all filtered and sorted rows.
    */
   exportData(model: DataSourceModel): Promise<readonly Row[]>;
+
+  /**
+   * Returns the SQL query that would be executed for the given model,
+   * without running it. Useful for debugging or passing to external tools
+   * (e.g., creating a debug track from the filtered result set).
+   * Optional — only SQL-backed data sources implement this.
+   */
+  getQuery?(model: DataSourceModel): string;
 }
 
 // Common fields shared across all data source modes

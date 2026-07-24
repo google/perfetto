@@ -108,6 +108,7 @@ export class AddDebugTrackMenu implements m.ClassComponent<AddDebugTrackMenuAttr
         onSubmit: () => {
           attrs.onAdd?.();
           this.createTracks(attrs);
+          console.log(attrs.query);
         },
         submitLabel: 'Add Track',
         cancelLabel: 'Cancel',
