@@ -13,14 +13,16 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import type {
-  Aggregation,
-  Aggregator,
-  AggregatorGridConfig,
+import {
+  type Aggregation,
+  type Aggregator,
+  type AggregatorGridConfig,
+  createAggregationData,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
 export class CounterSelectionAggregator implements Aggregator {
   readonly id = 'counter_aggregation';
@@ -46,7 +48,6 @@ export class CounterSelectionAggregator implements Aggregator {
         if (trackIds.length === 1) {
           // Optimized query for the special case where there is only 1 track id.
           query = `
-            CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
             WITH
               res AS (
                 select c.*
@@ -80,7 +81,6 @@ export class CounterSelectionAggregator implements Aggregator {
         } else {
           // Slower, but general purspose query that can aggregate multiple tracks
           query = `
-            CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
             WITH
               res AS (
                 select c.*
@@ -120,11 +120,8 @@ export class CounterSelectionAggregator implements Aggregator {
               track_id = counter_track.id
             GROUP BY track_id`;
         }
-        await engine.query(query);
-
-        return {
-          tableName: this.id,
-        };
+        const table = await createPerfettoTable({engine, as: query});
+        return createAggregationData(table);
       },
     };
   }

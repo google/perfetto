@@ -18,21 +18,19 @@ import {Duration} from '../../base/time';
 import type {BarChartData} from '../../components/aggregation';
 import {
   type Aggregation,
+  type AggregationData,
   type Aggregator,
   type AggregatorGridConfig,
+  createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import type {Track} from '../../public/track';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {
-  type Dataset,
-  type DatasetSchema,
-  SourceDataset,
-  UnionDatasetWithLineage,
-} from '../../trace_processor/dataset';
+import {SourceDataset} from '../../trace_processor/dataset';
 import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {
   LONG,
   NUM,
@@ -48,6 +46,11 @@ import {
   formatDurationValue,
   formatPercentValue,
 } from '../../components/aggregation_panel';
+import {
+  createTrackLineage,
+  resolveTrackFromLineage,
+  type TrackLineageAggregationData,
+} from './selection_aggregation_utils';
 
 const THREAD_STATE_SPEC = {
   id: NUM,
@@ -62,8 +65,6 @@ export class ThreadStateSelectionAggregator implements Aggregator {
   readonly id = 'thread_state_aggregation';
 
   private readonly trace: Trace;
-  private trackDatasetMap?: Map<Dataset, Track>;
-  private unionDataset?: UnionDatasetWithLineage<DatasetSchema>;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -85,19 +86,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        // Build track-to-dataset mapping
-        this.trackDatasetMap = new Map();
-        const datasets: Dataset[] = [];
-        for (const track of threadStateTracks) {
-          const dataset = track.renderer.getDataset?.();
-          if (dataset) {
-            datasets.push(dataset);
-            this.trackDatasetMap.set(dataset, track);
-          }
-        }
-
-        // Create union dataset with lineage tracking
-        this.unionDataset = UnionDatasetWithLineage.create(datasets);
+        const lineage = createTrackLineage(threadStateTracks);
 
         // Query with needed columns for II table
         const iiQuerySchema = {
@@ -105,7 +94,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           __groupid: NUM,
           __partition: UNKNOWN,
         };
-        const sql = this.unionDataset.query(iiQuerySchema);
+        const sql = lineage.unionDataset.query(iiQuerySchema);
 
         // Create interval-intersect table for time filtering
         await using iiTable = await createIITable(
@@ -115,27 +104,28 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           area.end,
         );
 
-        await engine.query(`
-          include perfetto module android.cpu.cluster_type;
-
-          create or replace perfetto table ${this.id} as
-          select
-            json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
-            process.name as process_name,
-            process.pid as pid,
-            thread.name as thread_name,
-            thread.tid as tid,
-            tstate.state as state,
-            utid,
-            ucpu,
-            dur,
-            dur * 1.0 / sum(dur) OVER () as fraction_of_total,
-            android_cpu_cluster_mapping.cluster_type as cluster_type
-          from ${iiTable.name} tstate
-          join thread using (utid)
-          left join process using (upid)
-          left join android_cpu_cluster_mapping using(ucpu)
-        `);
+        await engine.query(`INCLUDE PERFETTO MODULE android.cpu.cluster_type`);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
+              process.name as process_name,
+              process.pid as pid,
+              thread.name as thread_name,
+              thread.tid as tid,
+              tstate.state as state,
+              utid,
+              ucpu,
+              dur,
+              dur * 1.0 / sum(dur) OVER () as fraction_of_total,
+              android_cpu_cluster_mapping.cluster_type as cluster_type
+            FROM ${iiTable.name} tstate
+            JOIN thread USING (utid)
+            LEFT JOIN process USING (upid)
+            LEFT JOIN android_cpu_cluster_mapping USING (ucpu)
+          `,
+        });
 
         const query = `
           select
@@ -163,14 +153,16 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         }
 
         return {
-          tableName: this.id,
+          ...createAggregationData(table),
           barChartData: states,
+          ...lineage,
         };
       },
     };
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  getGridConfig(data?: AggregationData): AggregatorGridConfig {
+    const lineage = data as TrackLineageAggregationData | undefined;
     return {
       schema: {
         id_with_lineage: {
@@ -190,7 +182,8 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             const {id, groupid, partition} = parsed;
 
             // Resolve track from lineage
-            const track = this.resolveTrack(groupid, partition);
+            const track =
+              lineage && resolveTrackFromLineage(lineage, groupid, partition);
             if (!track) {
               return String(id);
             }
@@ -254,37 +247,5 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
   getTabName() {
     return 'Thread States';
-  }
-
-  /**
-   * Resolve a track from lineage information.
-   */
-  private resolveTrack(
-    groupId: number,
-    partition: SqlValue,
-  ): Track | undefined {
-    if (!this.trackDatasetMap || !this.unionDataset) return undefined;
-
-    // Ensure partition is a valid SqlValue
-    const partitionValue =
-      partition === null ||
-      typeof partition === 'number' ||
-      typeof partition === 'bigint' ||
-      typeof partition === 'string' ||
-      partition instanceof Uint8Array
-        ? partition
-        : null;
-
-    const datasets = this.unionDataset.resolveLineage({
-      __groupid: groupId,
-      __partition: partitionValue,
-    });
-
-    for (const dataset of datasets) {
-      const track = this.trackDatasetMap.get(dataset);
-      if (track) return track;
-    }
-
-    return undefined;
   }
 }

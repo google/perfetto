@@ -15,10 +15,11 @@
 import m from 'mithril';
 import {exists} from '../../base/utils';
 import {addWattsonThreadTrack} from './wattson_thread_utils';
-import type {
-  Aggregation,
-  Aggregator,
-  AggregatorGridConfig,
+import {
+  type Aggregation,
+  type Aggregator,
+  type AggregatorGridConfig,
+  createAggregationData,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -26,6 +27,7 @@ import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
 import {Intent} from '../../widgets/common';
 import type {SqlValue} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {RadioGroup} from '../../widgets/radio_group';
 import type {Trace} from '../../public/trace';
 import {WATTSON_THREAD_TRACK_KIND} from './track_kinds';
@@ -54,7 +56,6 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        await engine.query(`drop view if exists ${this.id};`);
         const duration = area.end - area.start;
         const filters = [];
         if (selectedCpus.length > 0) {
@@ -100,29 +101,31 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
             wattson_plugin_ui_selection_window,
             _wattson_ui_selected_cpus
           );
-
-          CREATE PERFETTO VIEW ${this.id} AS
-          WITH base AS (
-            SELECT
-              ROUND(estimated_mw, 3) as active_mw,
-              ROUND(estimated_mws, 3) as active_mws,
-              ROUND(idle_transitions_mws, 3) as idle_cost_mws,
-              ROUND(total_mws, 3) as total_mws,
-              thread_name,
-              utid,
-              tid,
-              pid
-            FROM wattson_plugin_thread_summary
-          )
-          SELECT
-            *,
-            total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
-          FROM base;
         `);
 
-        return {
-          tableName: this.id,
-        };
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            WITH base AS (
+              SELECT
+                ROUND(estimated_mw, 3) as active_mw,
+                ROUND(estimated_mws, 3) as active_mws,
+                ROUND(idle_transitions_mws, 3) as idle_cost_mws,
+                ROUND(total_mws, 3) as total_mws,
+                thread_name,
+                utid,
+                tid,
+                pid
+              FROM wattson_plugin_thread_summary
+            )
+            SELECT
+              *,
+              total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
+            FROM base
+          `,
+        });
+
+        return createAggregationData(table);
       },
     };
   }

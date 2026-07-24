@@ -79,6 +79,8 @@ import {
   type Column,
   DEFAULT_GROUP_DISPLAY,
   type Filter,
+  getPivotDrillDownFilters,
+  type GroupDisplay,
   type GroupPath,
   type IdBasedTree,
   type Pivot,
@@ -111,6 +113,33 @@ function groupPathsEqual(a: GroupPath, b: GroupPath): boolean {
     if (!sqlValuesEqual(a[i], b[i])) return false;
   }
   return true;
+}
+
+function getPivotGroupDisplay(pivot: Pivot): GroupDisplay {
+  // A single grouping level has no hierarchy to display as a tree.
+  if (pivot.groupBy.length <= 1) return 'flat';
+  return pivot.groupDisplay ?? DEFAULT_GROUP_DISPLAY;
+}
+
+function getPivotDrillDownColumns(
+  pivot: Pivot,
+  flatColumns: readonly Column[],
+): readonly Column[] {
+  const columns: Column[] = [];
+  const fields = new Set<string>();
+
+  const addColumn = ({id, field, sort}: Column) => {
+    if (fields.has(field)) return;
+    fields.add(field);
+    columns.push({id, field, sort});
+  };
+
+  flatColumns.forEach(addColumn);
+  pivot.groupBy.forEach(addColumn);
+  for (const aggregate of pivot.aggregates) {
+    if ('field' in aggregate) addColumn(aggregate);
+  }
+  return columns;
 }
 
 export interface AggregationCellAttrs extends m.Attributes {
@@ -731,11 +760,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (this.pivot && this.pivot.drillDown) {
       // DrillDown mode: use FlatModel with drilldown conditions as filters
       // This shows raw rows filtered to specific group values
-      const drillDownFilters: Filter[] = this.pivot.drillDown.map((dd) => ({
-        field: dd.field,
-        op: dd.value === null ? 'is null' : '=',
-        value: dd.value === null ? undefined : dd.value,
-      })) as Filter[];
+      const drillDownFilters = getPivotDrillDownFilters(this.pivot);
 
       const flatModel: FlatModel = {
         ...baseModel,
@@ -778,7 +803,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             }
           })
           .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0)),
-        groupDisplay: this.pivot.groupDisplay ?? DEFAULT_GROUP_DISPLAY,
+        groupDisplay: getPivotGroupDisplay(this.pivot),
         expandedGroups: this.pivot.expandedGroups,
         collapsedGroups: this.pivot.collapsedGroups,
       };
@@ -988,6 +1013,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     attrs: DataGridAttrs,
   ): void {
     if (!this.pivot) return;
+
+    // Drill-down shows raw rows, so retain the flat columns and add any fields
+    // introduced by the pivot. Multiple aggregates over the same field map to
+    // one raw column.
+    const newColumns = getPivotDrillDownColumns(this.pivot, this.columns);
+    this.columns = newColumns;
+    attrs.onColumnsChanged?.(newColumns);
 
     const newPivot: Pivot = {...this.pivot, drillDown};
     this.pivot = newPivot;
@@ -1315,12 +1347,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
   /**
    * Renders the pivot toolbar items (expand/collapse buttons and flat/tree toggle).
-   * Only shown when in pivot mode and not drilling down.
+   * Only shown for multi-level pivots that are not drilling down.
    */
   private renderPivotToolbarItems(attrs: DataGridAttrs): m.Children {
-    if (!this.pivot || this.pivot.drillDown) return null;
+    if (!this.pivot || this.pivot.drillDown || this.pivot.groupBy.length <= 1) {
+      return null;
+    }
 
-    const mode = this.pivot.groupDisplay ?? DEFAULT_GROUP_DISPLAY;
+    const mode = getPivotGroupDisplay(this.pivot);
     const isFlat = mode === 'flat';
 
     return [
@@ -2028,7 +2062,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const aggregates = pivot.aggregates ?? [];
     const numGroupBy = pivot.groupBy.length;
     // In flat mode, don't use multi-level UI (no chevrons, no indent)
-    const isMultiLevel = numGroupBy > 1 && pivot.groupDisplay === 'tree';
+    const isMultiLevel =
+      numGroupBy > 1 && getPivotGroupDisplay(pivot) === 'tree';
 
     return rowIndices
       .map((index) => {

@@ -13,15 +13,17 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import type {
-  Aggregation,
-  Aggregator,
-  AggregatorGridConfig,
+import {
+  type Aggregation,
+  type Aggregator,
+  type AggregatorGridConfig,
+  createAggregationData,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
 export class PowerCounterSelectionAggregator implements Aggregator {
   readonly id = 'power_counter_aggregation';
@@ -52,31 +54,31 @@ export class PowerCounterSelectionAggregator implements Aggregator {
         const duration = area.end - area.start;
         const durationSec = Duration.toSeconds(duration);
 
-        const query = `INCLUDE PERFETTO MODULE android.power_rails;
-          CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-          WITH  aggregated AS (
-            SELECT track_id,
-              COUNT(1) AS count,
-              value_at_max_ts(-ts, value) AS first,
-              value_at_max_ts(ts, value) AS last
-            FROM counter
-            WHERE counter.track_id in (${trackIds})
-              AND ts BETWEEN ${area.start} AND ${area.end}
+        await engine.query(`INCLUDE PERFETTO MODULE android.power_rails`);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            WITH aggregated AS (
+              SELECT track_id,
+                COUNT(1) AS count,
+                value_at_max_ts(-ts, value) AS first,
+                value_at_max_ts(ts, value) AS last
+              FROM counter
+              WHERE counter.track_id in (${trackIds})
+                AND ts BETWEEN ${area.start} AND ${area.end}
+              GROUP BY track_id
+            )
+            SELECT
+              COALESCE(friendly_name, raw_power_rail_name) AS name,
+              count,
+              (last - first) / 1000 AS delta_value,
+              ROUND((last - first)/${durationSec} / 1000, 2) AS rate
+            FROM aggregated JOIN android_power_rails_metadata USING (track_id)
             GROUP BY track_id
-          )
-          SELECT
-            COALESCE(friendly_name, raw_power_rail_name) AS name,
-            count,
-            (last - first) / 1000 AS delta_value,
-            ROUND((last - first)/${durationSec} / 1000, 2) AS rate
-          FROM aggregated JOIN android_power_rails_metadata USING (track_id)
-          GROUP BY track_id
-        `;
-        await engine.query(query);
+          `,
+        });
 
-        return {
-          tableName: this.id,
-        };
+        return createAggregationData(table);
       },
     };
   }
