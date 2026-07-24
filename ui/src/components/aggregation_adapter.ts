@@ -53,17 +53,26 @@ import {AsyncMemo, AtomicTaskQueue} from '../base/async_memo';
 import {Memo} from '../base/memo';
 import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
 
-export interface AggregationData {
+export interface AggregationData extends AsyncDisposable {
   readonly tableName: string;
   readonly barChartData?: ReadonlyArray<BarChartData>;
 }
 
+export function createAggregationData(
+  table: DisposableSqlEntity,
+): AggregationData {
+  return {
+    tableName: table.name,
+    [Symbol.asyncDispose]: () => table[Symbol.asyncDispose](),
+  };
+}
+
 export interface Aggregation {
   /**
-   * Creates a view for the aggregated data corresponding to the selected area.
+   * Creates the aggregated data corresponding to the selected area.
    *
-   * The dataset provided will be filtered based on the `trackKind` and `schema`
-   * if these properties are defined.
+   * Each invocation returns independently owned data which remains valid until
+   * it is disposed.
    *
    * @param engine - The query engine used to execute queries.
    */
@@ -287,7 +296,10 @@ export function createAggregationTab(
           return {
             data,
             dataSource,
-            [Symbol.asyncDispose]: async () => dataSource.dispose(),
+            [Symbol.asyncDispose]: async () => {
+              dataSource.dispose();
+              await data[Symbol.asyncDispose]();
+            },
           };
         },
       }).data;

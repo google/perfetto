@@ -14,15 +14,17 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import type {
-  Aggregation,
-  Aggregator,
-  AggregatorGridConfig,
+import {
+  type Aggregation,
+  type Aggregator,
+  type AggregatorGridConfig,
+  createAggregationData,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
 
 export class AndroidLogSelectionAggregator implements Aggregator {
@@ -48,25 +50,27 @@ export class AndroidLogSelectionAggregator implements Aggregator {
           whereClause += ` AND al.utid IN (${utids.join(', ')})`;
         }
 
-        await engine.query(`
-          CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-          SELECT
-            al.id,
-            al.ts,
-            al.prio,
-            al.tag,
-            al.msg,
-            t.tid,
-            t.name AS thread_name,
-            p.pid,
-            p.name AS process_name
-          FROM android_logs al
-          LEFT JOIN thread t ON al.utid = t.utid
-          LEFT JOIN process p ON t.upid = p.upid
-          WHERE ${whereClause}
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              al.id,
+              al.ts,
+              al.prio,
+              al.tag,
+              al.msg,
+              t.tid,
+              t.name AS thread_name,
+              p.pid,
+              p.name AS process_name
+            FROM android_logs al
+            LEFT JOIN thread t ON al.utid = t.utid
+            LEFT JOIN process p ON t.upid = p.upid
+            WHERE ${whereClause}
+          `,
+        });
 
-        return {tableName: this.id};
+        return createAggregationData(table);
       },
     };
   }

@@ -19,6 +19,7 @@ import {
   type AggregationData,
   type Aggregator,
   type AggregatorGridConfig,
+  createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -27,6 +28,7 @@ import type {Track} from '../../public/track';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SourceDataset} from '../../trace_processor/dataset';
 import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {
   LONG,
   NUM,
@@ -95,26 +97,28 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           area.end,
         );
 
-        await engine.query(`
-          create or replace perfetto table ${this.id} as
-          select
-            json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
-            utid,
-            process.name as process_name,
-            pid,
-            thread.name as thread_name,
-            tid,
-            sched.dur,
-            sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
-            sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
-            ucpu
-          from ${iiTable.name} as sched
-          join thread using (utid)
-          left join process using (upid)
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
+              utid,
+              process.name as process_name,
+              pid,
+              thread.name as thread_name,
+              tid,
+              sched.dur,
+              sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
+              sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
+              ucpu
+            FROM ${iiTable.name} AS sched
+            JOIN thread USING (utid)
+            LEFT JOIN process USING (upid)
+          `,
+        });
 
         return {
-          tableName: this.id,
+          ...createAggregationData(table),
           ...lineage,
         };
       },

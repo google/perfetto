@@ -13,13 +13,15 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import type {
-  Aggregator,
-  AggregatorGridConfig,
+import {
+  type Aggregator,
+  type AggregatorGridConfig,
+  createAggregationData,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {formatPercentValue} from '../../components/aggregation_panel';
 
 export class EntityStateResidencySelectionAggregator implements Aggregator {
@@ -45,9 +47,12 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
         const duration = area.end - area.start;
         const durationSec = Duration.toSeconds(duration);
 
-        const query = `
-          INCLUDE PERFETTO MODULE android.entity_state_residency;
-          CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
+        await engine.query(
+          `INCLUDE PERFETTO MODULE android.entity_state_residency`,
+        );
+        const table = await createPerfettoTable({
+          engine,
+          as: `
             WITH aggregated AS (
               SELECT
                 track_id,
@@ -69,12 +74,10 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
               (last - first)/(${durationSec} * 1e9) AS rate_percent
             FROM aggregated
             GROUP BY track_id, entity_name, state_name
-        `;
-        await engine.query(query);
+          `,
+        });
 
-        return {
-          tableName: this.id,
-        };
+        return createAggregationData(table);
       },
     };
   }

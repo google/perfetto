@@ -21,6 +21,7 @@ import {
   type AggregationData,
   type Aggregator,
   type AggregatorGridConfig,
+  createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -29,6 +30,7 @@ import type {Track} from '../../public/track';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {SourceDataset} from '../../trace_processor/dataset';
 import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {
   LONG,
   NUM,
@@ -102,27 +104,28 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           area.end,
         );
 
-        await engine.query(`
-          include perfetto module android.cpu.cluster_type;
-
-          create or replace perfetto table ${this.id} as
-          select
-            json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
-            process.name as process_name,
-            process.pid as pid,
-            thread.name as thread_name,
-            thread.tid as tid,
-            tstate.state as state,
-            utid,
-            ucpu,
-            dur,
-            dur * 1.0 / sum(dur) OVER () as fraction_of_total,
-            android_cpu_cluster_mapping.cluster_type as cluster_type
-          from ${iiTable.name} tstate
-          join thread using (utid)
-          left join process using (upid)
-          left join android_cpu_cluster_mapping using(ucpu)
-        `);
+        await engine.query(`INCLUDE PERFETTO MODULE android.cpu.cluster_type`);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              json_object('id', tstate.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
+              process.name as process_name,
+              process.pid as pid,
+              thread.name as thread_name,
+              thread.tid as tid,
+              tstate.state as state,
+              utid,
+              ucpu,
+              dur,
+              dur * 1.0 / sum(dur) OVER () as fraction_of_total,
+              android_cpu_cluster_mapping.cluster_type as cluster_type
+            FROM ${iiTable.name} tstate
+            JOIN thread USING (utid)
+            LEFT JOIN process USING (upid)
+            LEFT JOIN android_cpu_cluster_mapping USING (ucpu)
+          `,
+        });
 
         const query = `
           select
@@ -150,7 +153,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         }
 
         return {
-          tableName: this.id,
+          ...createAggregationData(table),
           barChartData: states,
           ...lineage,
         };

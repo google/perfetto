@@ -19,6 +19,7 @@ import {
   type AggregationData,
   type Aggregator,
   type AggregatorGridConfig,
+  createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -27,6 +28,7 @@ import type {Track} from '../../public/track';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SourceDataset} from '../../trace_processor/dataset';
 import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {
   LONG,
   NUM,
@@ -93,22 +95,24 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
           area.start,
           area.end,
         );
-        await engine.query(`
-          create or replace perfetto table ${this.id} as
-          select
-            json_object('id', cpu_slice.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
-            process.name as process_name,
-            process.pid,
-            dur,
-            dur * 1.0 / sum(dur) OVER () as fraction_of_total,
-            dur * 1.0 / ${area.end - area.start} as fraction_of_selection
-          from ${iiTable.name} AS cpu_slice
-          join thread USING (utid)
-          join process USING (upid)
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              json_object('id', cpu_slice.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
+              process.name as process_name,
+              process.pid,
+              dur,
+              dur * 1.0 / sum(dur) OVER () as fraction_of_total,
+              dur * 1.0 / ${area.end - area.start} as fraction_of_selection
+            FROM ${iiTable.name} AS cpu_slice
+            JOIN thread USING (utid)
+            JOIN process USING (upid)
+          `,
+        });
 
         return {
-          tableName: this.id,
+          ...createAggregationData(table),
           ...lineage,
         };
       },

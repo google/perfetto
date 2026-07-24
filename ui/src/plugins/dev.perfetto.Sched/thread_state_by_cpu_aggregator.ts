@@ -18,12 +18,14 @@ import {
   type Aggregation,
   type Aggregator,
   type AggregatorGridConfig,
+  createAggregationData,
   createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {
   LONG,
   NUM,
@@ -68,22 +70,24 @@ export class ThreadStateByCpuAggregator implements Aggregator {
           area.end,
         );
 
-        await engine.query(`
-          create or replace perfetto table ${this.id} as
-          select
-            process.name as process_name,
-            process.pid,
-            thread.name as thread_name,
-            thread.tid,
-            tstate.state as state,
-            utid,
-            ucpu,
-            dur,
-            dur * 1.0 / sum(dur) OVER () as fraction_of_total
-          from (${iiTable.name}) tstate
-          join thread using (utid)
-          left join process using (upid)
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              process.name as process_name,
+              process.pid,
+              thread.name as thread_name,
+              thread.tid,
+              tstate.state as state,
+              utid,
+              ucpu,
+              dur,
+              dur * 1.0 / sum(dur) OVER () as fraction_of_total
+            FROM ${iiTable.name} tstate
+            JOIN thread USING (utid)
+            LEFT JOIN process USING (upid)
+          `,
+        });
 
         const query = `
           select
@@ -111,7 +115,7 @@ export class ThreadStateByCpuAggregator implements Aggregator {
         }
 
         return {
-          tableName: this.id,
+          ...createAggregationData(table),
           barChartData: states,
         };
       },

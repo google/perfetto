@@ -20,6 +20,7 @@ import {
   type AggregationData,
   type Aggregator,
   type AggregatorGridConfig,
+  createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -146,20 +147,22 @@ export class SliceSelectionAggregator implements Aggregator {
           }
         }
 
-        await engine.query(`
-          CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-          SELECT
-            json_object('id', id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
-            ts,
-            name,
-            dur,
-            self_dur,
-            arg_set_id
-          FROM (${unionQueries.join(' UNION ALL ')})
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              json_object('id', id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
+              ts,
+              name,
+              dur,
+              self_dur,
+              arg_set_id
+            FROM (${unionQueries.join(' UNION ALL ')})
+        `,
+        });
 
         return {
-          tableName: this.id,
+          ...createAggregationData(table),
           trackDatasetMap,
           sliceUnionDataset,
           slicelikeUnionDataset,

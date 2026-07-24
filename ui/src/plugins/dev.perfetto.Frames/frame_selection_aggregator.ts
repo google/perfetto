@@ -16,12 +16,14 @@ import {
   type Aggregation,
   type Aggregator,
   type AggregatorGridConfig,
+  createAggregationData,
   createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {formatDurationValue} from '../../components/aggregation_panel';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
@@ -51,17 +53,17 @@ export class FrameSelectionAggregator implements Aggregator {
           area.start,
           area.end,
         );
-        await engine.query(`
-          create or replace perfetto table ${this.id} as
-          select
-            jank_type,
-            dur
-          from (${iiTable.name})
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              jank_type,
+              dur
+            FROM ${iiTable.name}
+          `,
+        });
 
-        return {
-          tableName: this.id,
-        };
+        return createAggregationData(table);
       },
     };
   }

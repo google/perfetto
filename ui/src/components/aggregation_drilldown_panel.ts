@@ -16,7 +16,6 @@ import m from 'mithril';
 import {AsyncMemo, type AtomicTaskQueue} from '../base/async_memo';
 import type {AreaSelection} from '../public/selection';
 import type {Trace} from '../public/trace';
-import {createPerfettoTable} from '../trace_processor/sql_utils';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {EmptyState} from '../widgets/empty_state';
@@ -93,26 +92,19 @@ export class AggregationDrilldownPanel implements m.ClassComponent<AggregationDr
         trackUris: selection.trackUris,
       },
       compute: async () => {
-        // Reload the aggregation from the datasets captured by probe(), then
-        // snapshot its table so future area selections cannot replace it.
         const data = await aggregation.prepareData(trace.engine);
-        const snapshot = await createPerfettoTable({
-          engine: trace.engine,
-          as: `SELECT * FROM ${data.tableName}`,
-        });
-        const snapshotData = {...data, tableName: snapshot.name};
         const dataSource = createAggregationDataSource(
           trace,
           aggregator,
-          snapshotData,
+          data,
           queue,
         );
         return {
-          data: snapshotData,
+          data,
           dataSource,
           [Symbol.asyncDispose]: async () => {
             dataSource.dispose();
-            await snapshot[Symbol.asyncDispose]();
+            await data[Symbol.asyncDispose]();
           },
         };
       },
