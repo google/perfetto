@@ -32,7 +32,7 @@
     align-items: center;
     flex-wrap: wrap;
 
-    .pf-tag-input {
+    > .pf-tag-input {
       flex-grow: 1;
     }
 
@@ -49,7 +49,7 @@
     flex-wrap: wrap;
     gap: 6px;
 
-    // Override the inner Stack to allow wrapping and add gaps
+    // Override the inner Stack to allow wrapping and add gaps.
     .pf-stack {
       flex-wrap: wrap;
       gap: 6px;
@@ -65,42 +65,25 @@
     }
   }
 
-  .pf-flamegraph-filter-controls {
+  .pf-flamegraph-secondary-row {
+    flex: 1 0 100%;
+    min-width: 0;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 6px;
-    flex: 1 1 420px;
-    min-width: 320px;
-
-    .pf-tag-input {
-      flex: 1 1 280px;
-      min-width: 240px;
-    }
   }
 
-  .pf-flamegraph-filter-bar-separator {
-    width: 1px;
-    height: 24px;
-    background: var(--pf-color-border);
-    flex-shrink: 0;
-    margin: 0 4px;
-    align-self: center;
-  }
-
-  .pf-flamegraph-filter-label {
+  .pf-flamegraph-control-label {
     font-weight: 500;
     flex-shrink: 0;
-  }
-
-  .pf-flamegraph-view-picker {
-    max-width: 220px;
   }
 
   .pf-flamegraph-highlight-search {
     display: flex;
     align-items: center;
-    gap: 4px;
-    flex: 0 1 320px;
+    gap: 6px;
+    flex: 0 1 416px;
     min-width: 280px;
 
     .pf-text-input {
@@ -171,11 +154,6 @@
   }
 }
 
-.pf-flamegraph-pattern-view-menu {
-  min-width: 300px;
-  padding: 12px;
-}
-
 .pf-filter-builder {
   &.pf-popup {
     min-width: 300px;
@@ -190,19 +168,11 @@
   }
   &__tip {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 4px;
     font-size: smaller;
     color: var(--pf-color-text-muted);
     padding-bottom: 8px;
-  }
-  &__tip-text {
-    min-width: 0;
-    line-height: 1.5;
-
-    code {
-      white-space: nowrap;
-    }
   }
   &__help {
     font-size: 13px;

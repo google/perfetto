@@ -57,8 +57,8 @@ Unreleased:
       `TrackEvent.Callstack` / `TrackEvent::Callstack` types must switch to
       `InlineCallstack`.
   UI:
-    * Improved flamegraphs with frame highlighting and case-insensitive
-      regular expression filtering.
+    * Improved flamegraphs with clearer direction and filter controls, frame
+      highlighting, and case-insensitive regular expression filtering.
     * Callstack sample tracks and flamegraphs now share one implementation
       over the stack_sample table. Tracks and area-selection flamegraph tabs
       remain separate per profiler source, while every source with recorded
