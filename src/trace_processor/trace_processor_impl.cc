@@ -129,6 +129,7 @@
 #include "src/trace_processor/plugins/stack_sample_importer/plugin.h"
 #include "src/trace_processor/plugins/stdlib_docs/stdlib_docs.h"
 #include "src/trace_processor/plugins/storage_tables/storage_tables.h"
+#include "src/trace_processor/plugins/strace/strace.h"
 #include "src/trace_processor/plugins/string_functions/string_functions.h"
 #include "src/trace_processor/plugins/structural_tree_partition/structural_tree_partition.h"
 #include "src/trace_processor/plugins/symbolize/symbolize.h"
@@ -373,6 +374,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   stack_sample_importer::RegisterPlugin();
   stdlib_docs::RegisterPlugin();
   storage_tables::RegisterPlugin();
+  strace_importer::RegisterPlugin();
   string_functions::RegisterPlugin();
   trace_export::RegisterPlugin();
   structural_tree_partition::RegisterPlugin();

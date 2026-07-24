@@ -755,6 +755,22 @@ namespace perfetto::trace_processor::stats {
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
       "Linux kernel documentation for causes of this and potential fixes."),   \
+  F(strace_parse_failure,                       kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,   \
+      "A line in an strace trace could not be parsed as a syscall event "     \
+      "and was skipped. This is expected for non-syscall lines, such as "     \
+      "signal delivery or process exit banners."),                           \
+  F(strace_unsupported_timestamp_format,        kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A line in an strace trace looked like a syscall event, but used "      \
+      "`strace -t`/`-tt` wall-clock time-of-day timestamps rather than "      \
+      "`-ttt` Unix epoch timestamps, and was skipped: `-t`/`-tt` print no "   \
+      "date, so they cannot be safely treated as an absolute point in "       \
+      "time. Re-run strace with `-ttt` to fix this."),                       \
+  F(strace_missing_pid,                         kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A syscall line in an strace trace had no leading pid and was "         \
+      "skipped: without one there is no way to attribute the event to a "     \
+      "thread that stays meaningful when traces are merged. strace only "     \
+      "prints pids when following processes, so re-run strace with `-f` "     \
+      "to fix this."),                                                       \
   F(simpleperf_missing_file_mapping,            kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,   \
       "One or more simpleperf samples were dropped because their callchain "   \
       "entries referenced a file_id that has no corresponding File record in " \
