@@ -19,6 +19,7 @@ import {
   STR_NULL,
   type Row,
   type SqlValue,
+  type QueryResult as DbQueryResult,
 } from '../../trace_processor/query_result';
 import {type duration, Time, Duration} from '../../base/time';
 import {
@@ -146,7 +147,86 @@ export class AndroidInputEventSource {
     `;
 
     const result = await this.trace.engine.query(sql);
+    return this.mapResultToRows(result);
+  }
 
+  async getRowsForApp(
+    processName?: string,
+    excludeSpeculative = false,
+  ): Promise<InputChainRow[]> {
+    const processFilter = processName ? `'${processName}'` : 'NULL';
+    const speculativeFilter = excludeSpeculative ? '1' : '0';
+
+    const baseQuery = `
+      SELECT
+        e.input_event_id AS input_id,
+        e.event_channel AS channel,
+        e.end_to_end_latency_dur AS total_latency,
+        e.event_time AS event_time,
+        e.read_time AS ts_reader,
+        e.dispatch_ts AS ts_dispatch,
+        e.receive_ts AS ts_receive,
+        s_cons.ts AS ts_consume,
+        s_frame.ts AS ts_frame,
+        s_read.id AS id_reader,
+        s_read.track_id AS track_reader,
+        s_read.dur AS dur_reader,
+        s_disp.id AS id_dispatch,
+        e.dispatch_track_id AS track_dispatch,
+        s_disp.dur AS dur_dispatch,
+        s_recv.id AS id_receive,
+        e.receive_track_id AS track_receive,
+        s_recv.dur AS dur_receive,
+        s_cons.id AS id_consume,
+        s_cons.track_id AS track_consume,
+        s_cons.dur AS dur_consume,
+        s_frame.id AS id_frame,
+        s_frame.track_id AS track_frame,
+        s_frame.dur AS dur_frame,
+        e.is_speculative_frame
+      FROM android_input_events AS e
+      LEFT JOIN slice AS s_read
+        ON s_read.ts = e.read_time
+        AND s_read.track_id != 0
+        AND s_read.name GLOB 'UnwantedInteractionBlocker::notifyMotion*'
+      LEFT JOIN slice AS s_disp
+        ON s_disp.ts = e.dispatch_ts
+        AND s_disp.track_id = e.dispatch_track_id
+      LEFT JOIN slice AS s_recv
+        ON s_recv.ts = e.receive_ts
+        AND s_recv.track_id = e.receive_track_id
+      LEFT JOIN _input_consumers_lookup AS s_cons
+        ON s_cons.cookie = e.event_seq
+      LEFT JOIN _frame_choreographer_lookup AS s_frame
+        ON s_frame.frame_id = CAST(e.frame_id AS LONG)
+      WHERE e.event_channel LIKE '%/%'
+        AND (e.process_name = ${processFilter} OR ${processFilter} IS NULL)
+        AND (${speculativeFilter} = 0 OR e.is_speculative_frame = 0 OR e.is_speculative_frame IS NULL)
+    `;
+
+    let selectCols = 'a_evt.*';
+    let joinSql = '';
+
+    for (const ext of this.activeExtensions) {
+      const spec = ext.getSqlJoinSpec();
+      const alias = spec.tableAlias ?? spec.tableName;
+      selectCols += `, ${alias}.*`;
+      joinSql += ` LEFT JOIN ${spec.tableName}${spec.tableAlias ? ` AS ${spec.tableAlias}` : ''} ON ${spec.joinOn}`;
+    }
+
+    const sql = `
+      SELECT ${selectCols}
+      FROM (${baseQuery}) a_evt
+      ${joinSql}
+    `;
+
+    const result = await this.trace.engine.query(sql);
+    const rows = this.mapResultToRows(result);
+    await this.enrichAllDepths(rows);
+    return rows;
+  }
+
+  private mapResultToRows(result: DbQueryResult): InputChainRow[] {
     const rows: InputChainRow[] = [];
     let index = 0;
 
