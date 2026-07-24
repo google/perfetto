@@ -28,9 +28,11 @@
     margin: 6px 8px;
     display: flex;
     column-gap: 6px;
-    align-items: baseline;
+    row-gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
 
-    .pf-tag-input {
+    > .pf-tag-input {
       flex-grow: 1;
     }
 
@@ -47,7 +49,7 @@
     flex-wrap: wrap;
     gap: 6px;
 
-    // Override the inner Stack to allow wrapping and add gaps
+    // Override the inner Stack to allow wrapping and add gaps.
     .pf-stack {
       flex-wrap: wrap;
       gap: 6px;
@@ -63,18 +65,37 @@
     }
   }
 
-  .pf-flamegraph-filter-bar-separator {
-    width: 1px;
-    height: 24px;
-    background: var(--pf-color-border);
-    flex-shrink: 0;
-    margin: 0 4px;
-    align-self: center;
+  .pf-flamegraph-secondary-row {
+    flex: 1 0 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
   }
 
-  .pf-flamegraph-filter-label {
+  .pf-flamegraph-control-label {
     font-weight: 500;
     flex-shrink: 0;
+  }
+
+  .pf-flamegraph-highlight-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 1 416px;
+    min-width: 280px;
+
+    .pf-text-input {
+      min-width: 180px;
+      width: 100%;
+    }
+  }
+
+  .pf-flamegraph-highlight-search__count {
+    flex-shrink: 0;
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
   }
 
   .popup-anchor {
