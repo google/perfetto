@@ -44,12 +44,14 @@ const SUBTITLE =
   "Aggregated by allocation callstack — the clearest signal when it's " +
   'available.';
 
-// One top-unreleased heapprofd callsite with its app-only frame chain
-// (leaf → root).
+// One top-unreleased heapprofd callsite. App-owned frames are kept as the
+// preferred snippet; when there are none, fallbackFrame is the nearest useful
+// framework/library caller above the allocator plumbing.
 interface NativeStack {
   unreleased: number;
   allocs: number;
   frames: string[];
+  fallbackFrame?: string;
 }
 
 interface NativeData {
@@ -179,7 +181,8 @@ async function cumulativeUnreleased(
 }
 
 // Loads the top native allocation call-stacks for one process over the window
-// (fromTs, toTs]. Frame chains are filtered to app frames.
+// (fromTs, toTs]. Prefer app frames, but retain the nearest meaningful
+// framework/library frame as a fallback when a stack has no app frames.
 async function loadNativeStacks(
   trace: Trace,
   upid: number,
@@ -262,9 +265,12 @@ async function loadNativeStacks(
       };
       stacks.push(cur);
     }
-    // Keep only frames from the app under test; drop system/runtime libraries.
-    if (isAppMapping(it.mapping_name ?? undefined)) {
-      cur.frames.push(it.frame_name);
+    if (isAllocatorPlumbing(it.frame_name)) continue;
+    const mapping = it.mapping_name ?? undefined;
+    if (isAppMapping(mapping)) {
+      cur.frames.push(frameLabel(it.frame_name, mapping));
+    } else if (cur.fallbackFrame === undefined) {
+      cur.fallbackFrame = frameLabel(it.frame_name, mapping);
     }
   }
   stacks.sort((a, b) => b.unreleased - a.unreleased);
@@ -304,9 +310,37 @@ function isAppMapping(mapping?: string): boolean {
   return /^\/data\/(app|data)\//.test(mapping);
 }
 
-// Shrinks an (already app-only) frame chain (leaf → root) to a short snippet.
-function stackSnippet(frames: string[]): string[] {
-  if (frames.length === 0) return ['(no app frames)'];
+// Removes low-level allocation entry points which identify how memory was
+// allocated, but not which component requested it.
+function isAllocatorPlumbing(name: string): boolean {
+  const n = name.toLowerCase();
+  return (
+    /(^|::|__)(malloc|calloc|realloc|memalign|aligned_alloc|posix_memalign)(@.*|\(.*\))?$/.test(
+      n,
+    ) ||
+    /(^|::)operator new(\[\])?(\(.*\))?$/.test(n) ||
+    n.includes('malloc_hook') ||
+    n.includes('heapprofd') ||
+    n.includes('scudo::') ||
+    n.includes('jemalloc') ||
+    /^je_(malloc|calloc|realloc|memalign)/.test(n)
+  );
+}
+
+// Prefix non-app frames with their binary name so a framework/library fallback
+// remains useful even when its function name is ambiguous or unavailable.
+function frameLabel(name: string, mapping?: string): string {
+  if (mapping === undefined || isAppMapping(mapping)) return name;
+  const binary = mapping.slice(mapping.lastIndexOf('/') + 1);
+  return name === '<unknown>' ? binary : `${binary} · ${name}`;
+}
+
+// Shrinks an app frame chain (leaf → root) to a short snippet, or shows the
+// nearest meaningful framework/library caller when no app frame was captured.
+function stackSnippet(frames: string[], fallbackFrame?: string): string[] {
+  if (frames.length === 0) {
+    return [fallbackFrame ?? '(allocation origin unresolved)'];
+  }
   if (frames.length <= 7) return frames;
   const leaf = frames[0];
   const middle = frames.slice(1, -2).slice(0, 4);
@@ -365,12 +399,8 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
     const stackRows = data.stacks.slice(0, 5).map((s) => [
       m(
         '.pf-memscope-stack',
-        stackSnippet(s.frames).map((f) =>
-          m(
-            '.pf-memscope-stack__frame',
-            {title: f},
-            f.length > 60 ? `${f.slice(0, 58)}…` : f,
-          ),
+        stackSnippet(s.frames, s.fallbackFrame).map((f) =>
+          m('.pf-memscope-stack__frame', {title: f}, f),
         ),
       ),
       formatBytes(s.unreleased),
@@ -463,10 +493,11 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
                 title: 'Top allocation call-stacks',
                 subtitle: comparing
                   ? 'unreleased between baseline and selected snapshot · ' +
-                    'app frames only'
+                    'app frames preferred'
                   : selTs !== undefined
-                    ? 'unreleased up to the selected snapshot · app frames only'
-                    : 'unreleased over the whole trace · app frames only',
+                    ? 'unreleased up to the selected snapshot · ' +
+                      'app frames preferred'
+                    : 'unreleased over the whole trace · app frames preferred',
                 cols: [
                   {label: 'Call-stack snippet'},
                   {label: comparing ? 'Δ unreleased' : 'Unreleased', num: true},
@@ -478,8 +509,8 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
             : m(
                 '.pf-memscope-placeholder',
                 comparing
-                  ? 'No app allocations captured between these snapshots.'
-                  : 'No app allocations captured by the profiler here.',
+                  ? 'No unreleased allocations between these snapshots.'
+                  : 'No unreleased allocations captured by the profiler here.',
               ),
         ]),
       ),
