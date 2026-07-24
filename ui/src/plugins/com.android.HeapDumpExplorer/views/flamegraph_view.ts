@@ -42,25 +42,31 @@ interface FlamegraphViewAttrs {
   readonly onShowObjects: (pathHashes: string, isDominator: boolean) => void;
 }
 
-// path_hash_stable is exposed unaggregatable (and CAST to TEXT in SQL,
-// since the stdlib emits it as INT64 and the flamegraph reads
-// unaggregatable columns as STR_NULL) so it lands in `matchingColumns`
-// — that's what lets a PIVOT filter target a specific node by its hash.
-// Hidden from the tooltip via `isVisible: false`.
 const UNAGG_PROPS = [
   {name: 'root_type', displayName: 'Root Type'},
   {name: 'heap_type', displayName: 'Heap Type'},
-  {
-    name: 'path_hash_stable',
-    displayName: 'Path Hash',
-    isVisible: () => false,
-  },
 ];
 
 const SELF_COUNT_AGG_PROP = {
   name: 'self_count',
   displayName: 'Self Count',
   mergeAggregation: 'SUM' as const,
+};
+
+// path_hash_stable identifies a node's reference path. It is aggregatable so it
+// is NOT part of frame identity: otherwise bottom-up would refuse to merge two
+// same-class frames that sit on different paths. `isMatchable` still puts it in
+// `matchingColumns`, so the object tab's "View in Flamegraph" can pivot on a
+// single instance's path (`/^<hash>$/`, matched per source row). Merged nodes
+// carry the comma-joined list of their paths' hashes, which is what the
+// "Show objects" drill-down reads. CAST to TEXT since the stdlib emits INT64.
+// Hidden from the tooltip via `isVisible: false`.
+const PATH_HASH_AGG_PROP = {
+  name: 'path_hash_stable',
+  displayName: 'Path Hash',
+  mergeAggregation: 'CONCAT_WITH_COMMA' as const,
+  isMatchable: true,
+  isVisible: () => false,
 };
 
 // Build a JAVA_HEAP_GRAPH metric for the BFS or dominator class tree,
@@ -100,7 +106,9 @@ function buildMetric(
     `,
     unaggregatableProperties: UNAGG_PROPS,
     aggregatableProperties:
-      valueColumn === 'self_size' ? [SELF_COUNT_AGG_PROP] : [],
+      valueColumn === 'self_size'
+        ? [SELF_COUNT_AGG_PROP, PATH_HASH_AGG_PROP]
+        : [PATH_HASH_AGG_PROP],
     optionalNodeActions: [showObjectsAction],
   };
 }
