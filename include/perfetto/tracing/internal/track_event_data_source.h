@@ -282,6 +282,8 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
       std::move(inner_stop_args.async_stop_closure)();
   }
 
+  void OnFlush(const DataSourceBase::FlushArgs& args) override;
+
   void WillClearIncrementalState(
       const DataSourceBase::ClearIncrementalStateArgs& args) override {
     TrackEventInternal::WillClearIncrementalState(args);
