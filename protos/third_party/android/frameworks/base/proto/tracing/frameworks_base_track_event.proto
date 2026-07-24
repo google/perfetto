@@ -234,7 +234,7 @@ enum ProcessCapabilityEnum {
 // Bitmask representing various process state flags.
 // See com.android.server.am.psc.ProcStateController.Tracer.TraceFlags for
 // definition. It is used at the flags field of the AndroidProcStateUpdateEvent
-// message. LINT.IfChange(ProcStateControllerTraceFlags)
+// message.
 enum ProcStateControllerTraceFlags {
   PROC_STATE_CONTROLLER_TRACE_FLAG_NONE = 0;
   PROC_STATE_CONTROLLER_TRACE_FLAG_IS_RUNNING = 0x1;                 // 1 << 0
@@ -264,14 +264,11 @@ enum ProcStateControllerTraceFlags {
   PROC_STATE_CONTROLLER_TRACE_FLAG_CLIENT_ACTIVITIES = 0x1000000;    // 1 << 24
   PROC_STATE_CONTROLLER_TRACE_FLAG_RECENT_TASKS = 0x2000000;         // 1 << 25
 }
-// LINT.ThenChange(
-//     /services/core/java/com/android/server/am/psc/ProcStateController.java:TraceFlags)
 
 // Bitmask representing known inconsistent behaviors.
 // See com.android.server.am.psc.ProcStateController.Tracer.InconsistentBehavior
 // for definition. It is used at the known_inconsistent_behavior field of the
 // AndroidProcStateUpdateEvent message.
-// LINT.IfChange(ProcStateControllerInconsistentBehavior)
 enum ProcStateControllerInconsistentBehavior {
   PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_NONE = 0;
   PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_OTHER_ACTIVITY = 0x1;  // 1 << 0
@@ -285,8 +282,6 @@ enum ProcStateControllerInconsistentBehavior {
   PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_INITIALIZATION_IF_ELSE =
       0x40;  // 1 << 6
 }
-// LINT.ThenChange(
-//     /services/core/java/com/android/server/am/psc/ProcStateController.java:InconsistentBehavior)
 
 enum AppExitReasonCode {
   APP_EXIT_REASON_UNKNOWN = 0;
@@ -927,7 +922,7 @@ message AndroidProcStateUpdateEvent {
   optional OomChangeReasonEnum reason = 2;
 
   // Pid of the process.
-  optional int32 pid = 3;
+  optional int32 pid = 3 [(perfetto.protos.is_pid) = true];
 
   // The process state computed by ProcStateController.
   optional ProcessStateEnum proc_state = 4;
