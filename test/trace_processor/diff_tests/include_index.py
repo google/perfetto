@@ -187,6 +187,7 @@ from diff_tests.stdlib.trees.table_conversion_tests import TreeRoundtrip
 from diff_tests.stdlib.viz.tests import Viz
 from diff_tests.stdlib.wattson.tests import WattsonStdlib
 from diff_tests.syntax.filtering_tests import PerfettoFiltering
+from diff_tests.syntax.flamegraph_tests import PerfettoFlamegraph
 from diff_tests.syntax.function_tests import PerfettoFunction
 from diff_tests.syntax.include_tests import PerfettoInclude
 from diff_tests.syntax.macro_tests import PerfettoMacro
@@ -378,6 +379,7 @@ def fetch_all_diff_tests(
 
   syntax_tests = [
       PerfettoFiltering,
+      PerfettoFlamegraph,
       PerfettoFunction,
       PerfettoInclude,
       PerfettoMacro,

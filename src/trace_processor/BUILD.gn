@@ -225,6 +225,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/etm_iterate_range",
       "plugins/experimental_annotated_stack",
       "plugins/experimental_flamegraph",
+      "plugins/flamegraph:intrinsics",
       "plugins/experimental_flat_slice",
       "plugins/experimental_slice_layout",
       "plugins/graph_scan",
