@@ -17,7 +17,12 @@ import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import type {Engine} from '../../trace_processor/engine';
-import {KernelMetricsSection, fetchSelectedKernelMetricData} from './details';
+import {
+  KernelMetricsSection,
+  type KernelGroup,
+  fetchRawKernelMetricGroups,
+  buildKernelMetricDataFromGroup,
+} from './details';
 import type {TrackEventSelection} from '../../public/selection';
 import {renderToolbar} from './toolbar';
 import type {InfoTab} from './toolbar';
@@ -42,7 +47,9 @@ import {
   type AnalysisProvider,
   AnalysisProviderHolder,
 } from './analysis';
-import {AtomicTaskQueue, AsyncMemo} from '../../base/async_memo';
+import type {Tab} from '../../public/tab';
+import {maybeUndefined} from '../../base/utils';
+import {AsyncMemo} from '../../base/async_memo';
 
 export interface GpuComputeContext {
   humanizeMetrics: boolean;
@@ -53,47 +60,20 @@ export interface GpuComputeContext {
   readonly analysisProviderHolder: AnalysisProviderHolder;
 }
 
-class Compute {
-  readonly ctx: GpuComputeContext;
-
-  constructor(
-    private readonly engine: Engine,
-    private readonly trace: Trace,
-    private readonly tabUri: string,
-    terminologyRegistry: TerminologyRegistry,
-    sectionRegistry: SectionRegistry,
-    analysisProviderHolder: AnalysisProviderHolder,
-  ) {
-    this.ctx = {
-      humanizeMetrics: true,
-      activeInfoTab: 'summary',
-      terminologyId: 'cuda',
-      terminologyRegistry,
-      sectionRegistry,
-      analysisProviderHolder,
-    };
-  }
-
-  private sliceId: number | undefined = -1;
-  private options: KernelLaunchOption[] = [];
-  private summaryRows: SummaryRow[] = [];
-  private knownKernelIds = new Set<number>();
+class ComputeTab implements Tab {
+  private readonly ctx: GpuComputeContext;
+  private readonly knownKernelIds = new Set<number>();
 
   // Selection-driven metric fetching via QuerySlot. Selection changes
   // trigger mithril redraws; render() reads the current selection and
   // polls the QuerySlot which handles deduplication, background
   // fetching, and race-condition prevention.
-  private readonly taskQueue = new AtomicTaskQueue();
-  private readonly selectionSlot = new AsyncMemo<{
-    hasMetrics: boolean;
-    toolbar?: ToolbarInfo;
-  }>(this.taskQueue);
-  private hadSelection = false;
-  private appliedSelectionSliceId: number | undefined;
+  private readonly selectionSlot = new AsyncMemo<KernelGroup[]>();
+  private readonly baselineSlot = new AsyncMemo<KernelGroup[]>();
 
-  private baselineSliceId: number | undefined = undefined;
-  private baselineToolbarInfo?: ToolbarInfo;
-  private baselineData?: KernelMetricData;
+  private selectedKernelId?: number;
+  private baselineKernelId?: number;
+  private prevTimelineSelectionId?: number;
 
   // Cache for storing analysis results by sliceId
   private readonly kernelAnalysisCache = new Map<
@@ -134,225 +114,195 @@ class Compute {
     },
   };
 
-  public getTitle() {
+  constructor(
+    private readonly engine: Engine,
+    private readonly trace: Trace,
+    private readonly tabUri: string,
+    terminologyRegistry: TerminologyRegistry,
+    sectionRegistry: SectionRegistry,
+    analysisProviderHolder: AnalysisProviderHolder,
+    private readonly summaryRows: readonly SummaryRow[],
+    private readonly options: readonly KernelLaunchOption[],
+  ) {
+    this.ctx = {
+      humanizeMetrics: true,
+      activeInfoTab: 'summary',
+      terminologyId: 'cuda',
+      terminologyRegistry,
+      sectionRegistry,
+      analysisProviderHolder,
+    };
+    this.knownKernelIds = new Set(options.map((o) => o.id));
+
+    // Initially select the first kernel (if we have one)
+    this.selectedKernelId = maybeUndefined(this.options[0])?.id;
+  }
+
+  // Fetch and process all kernel-related performance metric data from the trace
+  // If a slice is selected, we pass sliceId so the component shows only the
+  // selected kernel compute metrics if they are available
+  render(): m.Children {
+    this.maybeSyncTimelineSelection();
+
+    const {toolbar: toolbarInfo, data: selectionData} = this.getSelectionData();
+    const {toolbar: baselineToolbarInfo, data: baselineData} =
+      this.getBaselineData();
+
+    return m('', [
+      renderToolbar({
+        ctx: this.ctx,
+        options: this.options,
+        sliceId: this.selectedKernelId,
+        onChange: (id, suppress) => this.setSliceId(id, suppress),
+        toolbarInfo,
+        baselineId: this.baselineKernelId,
+        baselineInfo: baselineToolbarInfo,
+        baselineEnabled: this.baselineKernelId !== undefined,
+        onToggleBaseline: (enabled: boolean) => this.setBaselineId(enabled),
+      }),
+      this.renderBody(selectionData, baselineData),
+    ]);
+  }
+
+  getTitle() {
     return 'GPU Compute';
   }
 
-  // Updates which kernel is shown from the dropdown. Fetches toolbar
-  // metrics for the selected kernel and switches to the appropriate tab.
-  public async setSliceId(sliceId: number, suppressAutoDetails = false) {
-    const firstId = this.options[0]?.id ?? -1;
-    this.sliceId = sliceId !== -1 ? sliceId : firstId;
-    const requestedSliceId = this.sliceId;
-
-    if (this.sliceId === -1) {
-      this.setToolbarInfo(undefined);
-      this.ctx.activeInfoTab = 'summary';
-      return;
+  // Fetch and process all kernel-related performance metric data from the trace
+  private renderBody(
+    selectionData?: KernelMetricData[],
+    baselineData?: KernelMetricData,
+  ): m.Children {
+    if (this.ctx.activeInfoTab === 'summary') {
+      return m(KernelSummarySection, {
+        ctx: this.ctx,
+        engine: this.engine,
+        sliceId: this.selectedKernelId,
+        openSliceInDetail: (id: number) => this.setSliceId(id),
+        prefetchedRows: this.summaryRows,
+      });
     }
 
-    try {
-      const data = await fetchSelectedKernelMetricData(
-        this.ctx,
-        this.engine,
-        this.sliceId,
-      );
-      // Guard against stale async completions: if the sliceId changed
-      // while the query was in flight, discard the result.
-      if (this.sliceId !== requestedSliceId) return;
-      const hasMetrics = Array.isArray(data) && data.length > 0;
-      this.setToolbarInfo(hasMetrics ? data[0].toolbar : undefined);
-      if (!hasMetrics) {
-        this.sliceId = firstId;
-        this.ctx.activeInfoTab = 'summary';
-      } else if (!suppressAutoDetails) {
-        this.ctx.activeInfoTab = 'details';
+    if (selectionData === undefined) {
+      return null;
+    }
+
+    if (this.ctx.activeInfoTab === 'analysis') {
+      const provider = this.ctx.analysisProviderHolder.get();
+      if (provider) {
+        return provider.renderAnalysisTab({
+          engine: this.engine,
+          sliceId: this.selectedKernelId,
+          analysisCache: this.analysisCache,
+        });
       }
-    } catch (e) {
-      console.warn('GpuCompute: failed to fetch toolbar metrics:', e);
-      this.setToolbarInfo(undefined);
+      return m('.pf-gpu-compute__pad', 'Analysis plugin not enabled.');
+    }
+
+    return m(KernelMetricsSection, {
+      ctx: this.ctx,
+      engine: this.engine,
+      sliceId: this.selectedKernelId,
+      data: selectionData,
+      baseline: baselineData,
+      analysisCache: this.analysisCache,
+    });
+  }
+
+  // Updates which kernel is shown from the dropdown or summary section.
+  private setSliceId(sliceId: number, suppressAutoDetails = false) {
+    this.selectedKernelId = sliceId;
+    if (!suppressAutoDetails) {
+      this.ctx.activeInfoTab = 'details';
     }
   }
 
-  private async setBaselineId(useCurrent: boolean) {
-    // If not using current, clear baseline state
-    if (!useCurrent) {
-      this.baselineSliceId = undefined;
-      this.baselineToolbarInfo = undefined;
-      this.baselineData = undefined;
+  private setBaselineId(enabled: boolean) {
+    // If not enabled, clear baseline state
+    if (!enabled) {
+      this.baselineKernelId = undefined;
       return;
     }
 
     // Setting the baseline id to the current selection, otherwise fallback to the first kernel launch metrics
-    const id =
-      this.sliceId != null && this.sliceId !== -1
-        ? this.sliceId
-        : this.options[0]?.id;
-    if (id == null) return;
-    this.baselineSliceId = id;
-
-    // Fetching baseline metrics to populate the toolbar info with baselineData
-    try {
-      const data = await fetchSelectedKernelMetricData(
-        this.ctx,
-        this.engine,
-        id,
-      );
-      this.baselineToolbarInfo = data?.[0]?.toolbar;
-      this.baselineData = data?.[0];
-    } catch {
-      this.baselineToolbarInfo = undefined;
-      this.baselineData = undefined;
-    }
+    const id = this.selectedKernelId ?? this.options[0]?.id;
+    if (id === undefined) return;
+    this.baselineKernelId = id;
   }
 
-  private async refreshBaseline() {
-    if (this.baselineSliceId == null) return;
+  private getSelectionData(): {
+    toolbar?: ToolbarInfo;
+    data?: KernelMetricData[];
+  } {
+    const sliceId = this.selectedKernelId;
+    if (sliceId === undefined) return {};
 
-    try {
-      const data = await fetchSelectedKernelMetricData(
-        this.ctx,
-        this.engine,
-        this.baselineSliceId,
-      );
-      this.baselineToolbarInfo = data?.[0]?.toolbar;
-      this.baselineData = data?.[0];
-    } catch {
-      this.baselineToolbarInfo = undefined;
-      this.baselineData = undefined;
-    }
+    const selectionResult = this.selectionSlot.use({
+      key: {sliceId},
+      retainOn: ['sliceId'],
+      compute: async () => {
+        return fetchRawKernelMetricGroups(this.ctx, this.engine, sliceId);
+      },
+    });
+
+    const groups = selectionResult.data;
+    if (!groups) return {};
+
+    const data = groups.map((g) => buildKernelMetricDataFromGroup(this.ctx, g));
+    return {
+      toolbar: data[0]?.toolbar,
+      data,
+    };
   }
 
-  // Updates the "Results" dropdown with new launch options
-  public setOptions(opts: KernelLaunchOption[]) {
-    this.options = opts;
-    this.knownKernelIds = new Set(opts.map((o) => o.id));
-  }
-
-  public setSummaryRows(rows: SummaryRow[]) {
-    this.summaryRows = rows;
-  }
-
-  // Populating the toolbar with the correct kernel's launch info
-  private toolbarInfo?: ToolbarInfo;
-  public setToolbarInfo(info?: ToolbarInfo) {
-    this.toolbarInfo = info;
-  }
-
-  // Used to re-fetch the same items so both toolbar + tables reflect new mode
-  private async refresh() {
-    if (this.sliceId != null && this.sliceId !== -1) {
-      await this.setSliceId(this.sliceId);
+  private getBaselineData(): {
+    toolbar?: ToolbarInfo;
+    data?: KernelMetricData;
+  } {
+    if (this.baselineKernelId === undefined) {
+      return {};
     }
 
-    // If there's an active baseline, re-fetch it for the same sliceId (don't overwrite it with current!)
-    if (this.baselineSliceId != null) {
-      await this.refreshBaseline();
-    }
+    const baselineResult = this.baselineSlot.use({
+      key: {sliceId: this.baselineKernelId},
+      retainOn: ['sliceId'],
+      compute: async () => {
+        return fetchRawKernelMetricGroups(
+          this.ctx,
+          this.engine,
+          this.baselineKernelId!,
+        );
+      },
+    });
+
+    const groups = baselineResult.data;
+    if (!groups || groups.length === 0) return {};
+
+    const data = buildKernelMetricDataFromGroup(this.ctx, groups[0]);
+    return {
+      toolbar: data.toolbar,
+      data,
+    };
   }
 
-  // Fetch and process all kernel-related performance metric data from the trace
-  // If a slice is selected, we pass sliceId so the component shows only the selected kernel compute metrics if they are available
-  render(): m.Children {
+  private maybeSyncTimelineSelection(): void {
     const sel = this.trace.selection.selection;
     const selSliceId =
       sel.kind === 'track_event'
         ? (sel as TrackEventSelection).eventId
         : undefined;
 
-    if (selSliceId !== undefined) {
-      this.hadSelection = true;
-      const id = selSliceId;
-      const isKnownKernel = this.knownKernelIds.has(id);
-
-      // Show the tab immediately for known kernels so the user doesn't
-      // see a flicker to the "Current Selection" tab while the async
-      // metric query is in flight.
-      if (isKnownKernel && this.appliedSelectionSliceId !== selSliceId) {
-        this.sliceId = selSliceId;
+    if (
+      selSliceId !== undefined &&
+      selSliceId !== this.prevTimelineSelectionId
+    ) {
+      this.prevTimelineSelectionId = selSliceId;
+      if (this.knownKernelIds.has(selSliceId)) {
+        this.selectedKernelId = selSliceId;
         this.ctx.activeInfoTab = 'details';
         this.trace.tabs.showTab(this.tabUri);
       }
-
-      const result = this.selectionSlot.use({
-        key: {sliceId: id},
-        compute: async () => {
-          const data = await fetchSelectedKernelMetricData(
-            this.ctx,
-            this.engine,
-            id,
-          );
-          const hasMetrics = Array.isArray(data) && data.length > 0;
-          return {
-            hasMetrics,
-            toolbar: hasMetrics ? data[0].toolbar : undefined,
-          };
-        },
-      });
-
-      if (result.data && this.appliedSelectionSliceId !== selSliceId) {
-        this.appliedSelectionSliceId = selSliceId;
-        if (result.data.hasMetrics) {
-          this.sliceId = selSliceId;
-          this.setToolbarInfo(result.data.toolbar);
-        } else if (!isKnownKernel) {
-          this.sliceId = this.options[0]?.id ?? -1;
-          this.setToolbarInfo(undefined);
-          this.ctx.activeInfoTab = 'summary';
-        }
-      }
-    } else if (this.hadSelection) {
-      this.hadSelection = false;
-      this.appliedSelectionSliceId = undefined;
     }
-
-    const toolbar = renderToolbar({
-      ctx: this.ctx,
-      options: this.options,
-      sliceId: this.sliceId ?? undefined,
-      onChange: (id, suppress) => this.setSliceId(id ?? -1, suppress),
-      toolbarInfo: this.toolbarInfo,
-      baselineId: this.baselineSliceId,
-      baselineInfo: this.baselineToolbarInfo,
-      baselineEnabled: this.baselineSliceId != null,
-      onHumanizeChanged: () => this.refresh(),
-      onToggleBaseline: (enabled: boolean) => this.setBaselineId(enabled),
-      onTerminologyChanged: () => this.refresh(),
-    });
-
-    const effectiveSliceId = this.sliceId ?? -1;
-    let body: m.Children;
-
-    if (this.ctx.activeInfoTab === 'summary') {
-      body = m(KernelSummarySection, {
-        ctx: this.ctx,
-        engine: this.engine,
-        sliceId: effectiveSliceId,
-        openSliceInDetail: (id: number) => this.setSliceId(id),
-        prefetchedRows: this.summaryRows,
-      });
-    } else if (this.ctx.activeInfoTab === 'analysis') {
-      const provider = this.ctx.analysisProviderHolder.get();
-      if (provider) {
-        body = provider.renderAnalysisTab({
-          engine: this.engine,
-          sliceId: effectiveSliceId,
-          analysisCache: this.analysisCache,
-        });
-      } else {
-        body = m('.pf-gpu-compute__pad', 'Analysis plugin not enabled.');
-      }
-    } else {
-      body = m(KernelMetricsSection, {
-        ctx: this.ctx,
-        engine: this.engine,
-        sliceId: effectiveSliceId,
-        baseline: this.baselineData,
-        analysisCache: this.analysisCache,
-      });
-    }
-
-    return m('div', [toolbar, body]);
   }
 }
 
@@ -397,39 +347,54 @@ export default class GpuComputePlugin implements PerfettoPlugin {
 
   async onTraceLoad(trace: Trace): Promise<void> {
     const tabUri = `${GpuComputePlugin.id}#Compute`;
-    trace.commands.registerCommand({
-      id: `${GpuComputePlugin.id}#ShowComputeTab`,
-      name: 'Show Compute Tab',
-      callback: () => trace.tabs.showTab(tabUri),
-    });
 
-    const content = new Compute(
+    const rows = await this.fetchSummaryRows(trace);
+    const options = rows.map((r) => ({id: r.id, label: r.demangledName}));
+
+    if (options.length === 0) {
+      // No kernels - don't show the tab
+      return;
+    }
+
+    const content = new ComputeTab(
       trace.engine,
       trace,
       tabUri,
       this.terminologyRegistry,
       this.sectionRegistry,
       this.analysisProviderHolder,
+      rows,
+      options,
     );
+
+    trace.commands.registerCommand({
+      id: `${GpuComputePlugin.id}#ShowComputeTab`,
+      name: 'Show Compute Tab',
+      callback: () => trace.tabs.showTab(tabUri),
+    });
+
     trace.tabs.registerTab({
       isEphemeral: false,
       uri: tabUri,
       content: content,
     });
 
+    if (options.length > 0) {
+      trace.tabs.showTab(tabUri);
+    }
+  }
+
+  private async fetchSummaryRows(trace: Trace) {
     try {
       const rows = await fetchKernelSummaryRows(
         this.getContext(),
         trace.engine,
       );
-      content.setSummaryRows(rows);
-      content.setOptions(rows.map((r) => ({id: r.id, label: r.demangledName})));
-      if (rows.length > 0) {
-        trace.tabs.showTab(tabUri);
-      }
+      rows.sort((a, b) => a.id - b.id);
+      return rows;
     } catch (e) {
       console.warn('GpuCompute: failed to fetch kernel launch list:', e);
-      content.setOptions([]);
+      return [];
     }
   }
 }
