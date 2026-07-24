@@ -16,6 +16,7 @@
 
 import m from 'mithril';
 import {Icons} from '../../../../base/semantic_icons';
+import type {time} from '../../../../base/time';
 import type {Trace} from '../../../../public/trace';
 import {Anchor} from '../../../../widgets/anchor';
 
@@ -53,6 +54,37 @@ export function showInTimelineLink(
           clearSearch: true,
           scrollToSelection: true,
         });
+        trace.navigate('#!/viewer');
+      },
+    },
+    'Show in timeline',
+  );
+}
+
+// "Show in timeline" link for data aggregated over several track events.
+// Creates an area selection so timeline aggregation tabs (e.g. the native heap
+// flamegraph) combine every event in the displayed range.
+export function showAreaInTimelineLink(
+  trace: Trace,
+  uri: string | undefined,
+  start: time | undefined,
+  end: time | undefined,
+): m.Child {
+  const disabled =
+    uri === undefined || start === undefined || end === undefined;
+  return m(
+    Anchor,
+    {
+      disabled,
+      icon: Icons.UpdateSelection,
+      onclick: () => {
+        if (uri === undefined || start === undefined || end === undefined) {
+          return;
+        }
+        trace.selection.selectArea(
+          {start, end, trackUris: [uri]},
+          {clearSearch: true, scrollToSelection: true},
+        );
         trace.navigate('#!/viewer');
       },
     },
