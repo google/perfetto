@@ -15,6 +15,7 @@ INCLUDE PERFETTO MODULE slices.with_context;
 --   * STEP_RECEIVE_BEGIN_FRAME_DISCARD
 --   * STEP_DID_NOT_PRODUCE_FRAME
 --   * STEP_DID_NOT_PRODUCE_COMPOSITOR_FRAME
+-- @importance mid
 CREATE PERFETTO TABLE chrome_graphics_pipeline_surface_frame_steps (
   -- Slice Id of the `Graphics.Pipeline` slice.
   id LONG,
@@ -67,6 +68,7 @@ FROM raw_data;
 --   * STEP_BUFFER_SWAP_POST_SUBMIT
 --   * STEP_FINISH_BUFFER_SWAP
 --   * STEP_SWAP_BUFFERS_ACK
+-- @importance mid
 CREATE PERFETTO TABLE chrome_graphics_pipeline_display_frame_steps (
   -- Slice Id of the `Graphics.Pipeline` slice.
   id LONG,

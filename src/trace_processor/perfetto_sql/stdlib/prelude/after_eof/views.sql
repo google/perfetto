@@ -16,6 +16,7 @@
 INCLUDE PERFETTO MODULE prelude.after_eof.casts;
 
 -- Counters are values put into tracks during parsing of the trace.
+-- @importance core
 CREATE PERFETTO VIEW counter(
   -- Unique id of a counter value
   id ID,
@@ -54,6 +55,7 @@ SELECT id, ts, dur, track_id, category, value, arg_set_id FROM __intrinsic_state
 
 -- Contains slices from userspace which explains what threads were doing
 -- during the trace.
+-- @importance core
 CREATE PERFETTO VIEW slice(
   -- The id of the slice.
   id ID,
@@ -118,6 +120,7 @@ AS
 SELECT ts, track_id, name, arg_set_id FROM slice WHERE dur = 0;
 
 -- Alternative alias of table `slice`.
+-- @importance low
 CREATE PERFETTO VIEW slices(
   -- Alias of `slice.id`.
   id JOINID(slice.id),
@@ -154,6 +157,7 @@ AS
 SELECT * FROM slice;
 
 -- Contains information of threads seen during the trace.
+-- @importance core
 CREATE PERFETTO VIEW thread(
   -- The id of the thread. Prefer using `utid` instead.
   id ID,
@@ -190,6 +194,7 @@ AS
 SELECT id AS utid, * FROM __intrinsic_thread;
 
 -- Contains information of processes seen during the trace.
+-- @importance core
 CREATE PERFETTO VIEW process(
   -- The id of the process. Prefer using `upid` instead.
   id ID,
@@ -596,6 +601,7 @@ AS
 SELECT * FROM __intrinsic_stack_profile_callsite;
 
 -- Table containing stack samples from CPU profiling.
+-- @importance high
 CREATE PERFETTO VIEW cpu_profile_stack_sample(
   -- The id of the row. Joinable with stack_sample.id.
   id ID,

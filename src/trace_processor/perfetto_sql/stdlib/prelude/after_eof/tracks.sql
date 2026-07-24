@@ -25,6 +25,7 @@ INCLUDE PERFETTO MODULE prelude.after_eof.views;
 -- "timeline" for events of the same type and with the same context. See
 -- https://perfetto.dev/docs/analysis/trace-processor#tracks for a more
 -- detailed explanation, with examples.
+-- @importance core
 CREATE PERFETTO VIEW track(
   -- Unique identifier for this track. Identical to |track_id|, prefer using
   -- |track_id| instead.
@@ -206,6 +207,7 @@ WHERE
 -- other track tables (e.g. not having a GPU column, mixing a bunch of different
 -- tracks which are barely related). Please use the track table directly
 -- instead.
+-- @importance low
 CREATE PERFETTO TABLE gpu_track(
   -- Unique identifier for this cpu track.
   id ID(track.id),

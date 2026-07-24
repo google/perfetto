@@ -69,6 +69,51 @@ CREATE PERFETTO VIEW my_view(
   EXPECT_EQ(m.table_views[0].description, "A sample view.");
 }
 
+TEST(SqlModuleDocParserTest, Importance) {
+  auto m = Parse(R"(
+-- A sample table.
+-- @importance high
+CREATE PERFETTO TABLE my_table(
+  -- The id.
+  id LONG
+) AS SELECT 1;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.table_views.size(), 1u);
+  EXPECT_EQ(m.table_views[0].importance, "high");
+  // The annotation must not leak into the description.
+  EXPECT_EQ(m.table_views[0].description, "A sample table.");
+}
+
+TEST(SqlModuleDocParserTest, ImportanceAbsent) {
+  auto m = Parse(R"(
+-- A sample table.
+CREATE PERFETTO TABLE my_table(
+  -- The id.
+  id LONG
+) AS SELECT 1;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.table_views.size(), 1u);
+  EXPECT_EQ(m.table_views[0].importance, "");
+}
+
+TEST(SqlModuleDocParserTest, ImportanceInvalid) {
+  auto m = Parse(R"(
+-- A sample table.
+-- @importance vital
+CREATE PERFETTO TABLE my_table(
+  -- The id.
+  id LONG
+) AS SELECT 1;
+)");
+  EXPECT_FALSE(m.errors.empty());
+  ASSERT_EQ(m.table_views.size(), 1u);
+  EXPECT_EQ(m.table_views[0].importance, "");
+  // The bad annotation is dropped, not folded into the description.
+  EXPECT_EQ(m.table_views[0].description, "A sample table.");
+}
+
 TEST(SqlModuleDocParserTest, ScalarFunction) {
   auto m = Parse(R"(
 -- Computes the sum.
