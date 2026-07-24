@@ -34,6 +34,7 @@ export function emptyPanel(opts: {
 }): m.Child {
   return m(
     Panel,
+    {className: 'pf-memscope-panel--empty'},
     m(Panel.Header, {title: opts.title, subtitle: opts.subtitle}),
     m(
       Panel.Body,
