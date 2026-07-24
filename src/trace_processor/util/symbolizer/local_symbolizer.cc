@@ -89,7 +89,6 @@ template <typename E>
 typename E::Phdr* FindFirstExecutableSegment(void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
     return nullptr;
   }
   // Note debug-symbols-only ELF files might not have any program header at all,
@@ -100,7 +99,6 @@ typename E::Phdr* FindFirstExecutableSegment(void* mem, size_t size) {
   for (size_t i = 0; i < ehdr->e_phnum; ++i) {
     typename E::Phdr* phdr = GetPhdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, phdr, sizeof(typename E::Phdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
       return nullptr;
     }
     if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
@@ -114,13 +112,11 @@ template <typename E>
 std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
     return std::nullopt;
   }
   for (size_t i = 0; i < ehdr->e_shnum; ++i) {
     typename E::Shdr* shdr = GetShdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, shdr, sizeof(typename E::Shdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
       return std::nullopt;
     }
 
@@ -133,13 +129,11 @@ std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
           reinterpret_cast<typename E::Nhdr*>(static_cast<char*>(mem) + offset);
 
       if (!InRange(mem, size, nhdr, sizeof(typename E::Nhdr))) {
-        PERFETTO_ELOG("Corrupted ELF.");
         return std::nullopt;
       }
       if (nhdr->n_type == NT_GNU_BUILD_ID && nhdr->n_namesz == 4) {
         char* name = reinterpret_cast<char*>(nhdr) + sizeof(*nhdr);
         if (!InRange(mem, size, name, 4)) {
-          PERFETTO_ELOG("Corrupted ELF.");
           return std::nullopt;
         }
         if (memcmp(name, "GNU", 3) == 0) {
@@ -147,7 +141,6 @@ std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
                               base::AlignUp<4>(nhdr->n_namesz);
 
           if (!InRange(mem, size, value, nhdr->n_descsz)) {
-            PERFETTO_ELOG("Corrupted ELF.");
             return std::nullopt;
           }
           return std::string(value, nhdr->n_descsz);
@@ -590,10 +583,13 @@ bool SkipJsonValue(const char*& it, const char* end) {
 
 std::optional<FoundBinary> IsCorrectFile(
     const std::string& symbol_file,
-    std::optional<std::string_view> build_id) {
+    std::optional<std::string_view> build_id,
+    BinaryPathError* error) {
   if (!base::FileExists(symbol_file)) {
+    *error = BinaryPathError::kFileNotFound;
     return std::nullopt;
   }
+  *error = BinaryPathError::kParseError;
   // Openfile opens the file with an exclusive lock on windows.
   std::optional<uint64_t> file_size = base::GetFileSize(symbol_file);
   if (!file_size.has_value()) {
@@ -615,8 +611,10 @@ std::optional<FoundBinary> IsCorrectFile(
   if (!binary_info->load_info)
     return std::nullopt;
   if (build_id && binary_info->build_id != *build_id) {
+    *error = BinaryPathError::kBuildIdMismatch;
     return std::nullopt;
   }
+  *error = BinaryPathError::kOk;
   return FoundBinary{symbol_file, *binary_info->load_info, binary_info->type};
 }
 
@@ -630,13 +628,14 @@ bool TryPath(const std::string& path,
     attempts.push_back({path, BinaryPathError::kFileNotFound});
     return false;
   }
-  std::optional<FoundBinary> found = IsCorrectFile(path, build_id);
+  BinaryPathError error;
+  std::optional<FoundBinary> found = IsCorrectFile(path, build_id, &error);
   if (found) {
     out_binary = std::move(found);
     attempts.push_back({path, BinaryPathError::kOk});
     return true;
   }
-  attempts.push_back({path, BinaryPathError::kBuildIdMismatch});
+  attempts.push_back({path, error});
   return false;
 }
 
@@ -733,13 +732,14 @@ std::optional<FoundBinary> FindKernelBinary(
       attempts.push_back({path, BinaryPathError::kFileNotFound});
       return std::nullopt;
     }
-    std::optional<FoundBinary> found = IsCorrectFile(path, std::nullopt);
+    BinaryPathError error;
+    std::optional<FoundBinary> found =
+        IsCorrectFile(path, std::nullopt, &error);
     if (found) {
       attempts.push_back({path, BinaryPathError::kOk});
       return found;
     }
-    // File exists but isn't a valid binary.
-    attempts.push_back({path, BinaryPathError::kBuildIdMismatch});
+    attempts.push_back({path, error});
     return std::nullopt;
   };
 
@@ -939,6 +939,8 @@ SymbolPathError ToSymbolPathError(BinaryPathError error) {
       return SymbolPathError::kFileNotFound;
     case BinaryPathError::kBuildIdMismatch:
       return SymbolPathError::kBuildIdMismatch;
+    case BinaryPathError::kParseError:
+      return SymbolPathError::kParseError;
     case BinaryPathError::kBuildIdNotInIndex:
       return SymbolPathError::kBuildIdNotInIndex;
   }
