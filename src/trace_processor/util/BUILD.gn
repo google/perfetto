@@ -95,6 +95,7 @@ source_set("compressor") {
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base:base",
   ]
   if (enable_perfetto_zstd) {
     deps += [ "../../../gn:zstd" ]
