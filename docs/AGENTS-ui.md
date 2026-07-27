@@ -147,6 +147,52 @@ export class MyComponent implements m.ClassComponent<MyComponentAttrs> {
 - Prefer using the existing widget library (`ui/src/widgets/`) over creating new components.
 - Use `readonly` for attrs properties to prevent accidental mutation. We like things to be immutable.
 
+### Async Data Fetching with AsyncMemo
+
+Use `AsyncMemo` (from `ui/src/base/async_memo.ts`) for async data fetching in synchronous render cycles. It handles caching, deduplication, cancellation, and race-condition prevention automatically.
+
+```typescript
+import {AsyncMemo} from '../../base/async_memo';
+
+class MyComponent implements m.ClassComponent<MyAttrs> {
+  // One memo per piece of async data. Create in the class body.
+  private readonly dataMemo = new AsyncMemo<MyData>();
+
+  view({attrs}: m.CVnode<MyAttrs>): m.Children {
+    // Call `use()` every render cycle with current parameters.
+    const result = this.dataMemo.use({
+      // Key identifies the request. Changes trigger a re-fetch.
+      key: {sliceId: attrs.sliceId, filters: attrs.filters},
+      // Async function that fetches the data.
+      compute: async () => fetchData(attrs.sliceId, attrs.filters),
+      // Optional: show stale data while fetching for these key fields.
+      // E.g., pagination changes show old data immediately; filter
+      // changes show loading state.
+      retainOn: ['pagination'],
+    });
+
+    if (result.data === undefined) {
+      return m('div', 'Loading...');
+    }
+    return renderData(result.data);
+  }
+
+  onremove() {
+    // Cancel pending tasks and cleanup resources.
+    this.dataMemo.dispose();
+  }
+}
+```
+
+**Key concepts:**
+
+- **key**: Object identifying the memo. Changes trigger a re-fetch.
+- **retainOn**: Key fields that allow showing previous data while fetching. Only fields listed here can differ while stale data is retained.
+- **enabled**: Truthy value required before the task runs. Use for dependencies like `enabled: otherMemo.data` to wait for another query to complete.
+- **dispose()**: Call in `onremove()` to cancel pending tasks and prevent orphaned work.
+
+**Prefer AsyncMemo over manual state tracking** for async data in components. It serializes tasks, prevents race conditions, and handles cancellation automatically.
+
 **Conditional Rendering with State Preservation:**
 Use the `Gate` component when you need to conditionally show/hide content while preserving component state:
 ```typescript
@@ -226,6 +272,47 @@ async onTraceLoad(trace: Trace): Promise<void> {
 }
 ```
 
+### Running Queries
+
+Always use the typed query extractor.
+
+```ts
+const iter = result.iter({ id: NUM, ts: LONG, dur: LONG, name: STR_NULL });
+iter.id; // number
+iter.ts; // bigint
+iter.dur; // bigint
+iter.name; // string | null
+```
+
+Types can be found in `ui/src/trace_processor/query_result.ts`.
+
+Avoid pulling out columns by name if you know the fields up front.
+
+```ts
+// !!! AVOID !!!
+iter.get("id") as number;
+iter.get("ts") as bigint;
+iter.get("dur") as bigint;
+iter.get("name") as string | null;
+```
+
+Timestamps and durations have special tagged types — e.g. `time` and `duration`.
+They also have helper classes loaded with static functions `Time` and
+`Duration`, see `ui/src/base/time.ts`.
+
+Use the dedicated `.fromRaw()` converters to convert from bigints from queries
+to times and duration types instead of type assertions.
+
+```ts
+// DO THIS!
+Time.fromRaw(iter.ts);
+Duration.fromRaw(iter.dur);
+
+// !!! AVOID !!!
+iter.ts as time;
+iter.dur as duration;
+```
+
 ## Track creation
 
 Rarely you need to create a new Track from scratch.
@@ -274,6 +361,23 @@ function process(items: string[]): void { ... }
 
 // Good
 function process(items: readonly string[]): void { ... }
+```
+
+**Avoid `!` non-null assertions by binding to local variables before closures:**
+TypeScript doesn't carry control-flow narrowing across closure boundaries. Instead of using `!`, extract the value to a local `const` in the guarded scope:
+```typescript
+// Bad - TypeScript can't narrow `this` properties or object fields across closures
+if (this.baselineKernelId === undefined) return;
+const result = memo.use({
+  compute: async () => fetch(this.baselineKernelId!), // needs `!`
+});
+
+// Good - local const is narrowed by the guard and visible inside the closure
+if (this.baselineKernelId === undefined) return;
+const baselineKernelId = this.baselineKernelId;
+const result = memo.use({
+  compute: async () => fetch(baselineKernelId), // no `!` needed
+});
 ```
 
 **Use `classNames()` utility for building CSS class strings:**

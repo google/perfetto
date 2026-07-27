@@ -23,7 +23,6 @@ import {
   fetchRawKernelMetricGroups,
   buildKernelMetricDataFromGroup,
 } from './details';
-import type {TrackEventSelection} from '../../public/selection';
 import {renderToolbar} from './toolbar';
 import type {InfoTab} from './toolbar';
 import type {
@@ -68,8 +67,8 @@ class ComputeTab implements Tab {
   // trigger mithril redraws; render() reads the current selection and
   // polls the QuerySlot which handles deduplication, background
   // fetching, and race-condition prevention.
-  private readonly selectionSlot = new AsyncMemo<KernelGroup[]>();
-  private readonly baselineSlot = new AsyncMemo<KernelGroup[]>();
+  private readonly selectionMemo = new AsyncMemo<KernelGroup[]>();
+  private readonly baselineMemo = new AsyncMemo<KernelGroup[]>();
 
   private selectedKernelId?: number;
   private baselineKernelId?: number;
@@ -231,13 +230,13 @@ class ComputeTab implements Tab {
   }
 
   private getSelectionData(): {
-    toolbar?: ToolbarInfo;
-    data?: KernelMetricData[];
+    readonly toolbar?: ToolbarInfo;
+    readonly data?: KernelMetricData[];
   } {
     const sliceId = this.selectedKernelId;
     if (sliceId === undefined) return {};
 
-    const selectionResult = this.selectionSlot.use({
+    const selectionResult = this.selectionMemo.use({
       key: {sliceId},
       retainOn: ['sliceId'],
       compute: async () => {
@@ -256,21 +255,22 @@ class ComputeTab implements Tab {
   }
 
   private getBaselineData(): {
-    toolbar?: ToolbarInfo;
-    data?: KernelMetricData;
+    readonly toolbar?: ToolbarInfo;
+    readonly data?: KernelMetricData;
   } {
     if (this.baselineKernelId === undefined) {
       return {};
     }
 
-    const baselineResult = this.baselineSlot.use({
-      key: {sliceId: this.baselineKernelId},
+    const baselineKernelId = this.baselineKernelId;
+    const baselineResult = this.baselineMemo.use({
+      key: {sliceId: baselineKernelId},
       retainOn: ['sliceId'],
       compute: async () => {
         return fetchRawKernelMetricGroups(
           this.ctx,
           this.engine,
-          this.baselineKernelId!,
+          baselineKernelId,
         );
       },
     });
@@ -285,12 +285,12 @@ class ComputeTab implements Tab {
     };
   }
 
+  // If the current selection has changed, and it looks like the user has
+  // selected a kernel slice id, set the current selected kernel slice id to
+  // this one.
   private maybeSyncTimelineSelection(): void {
     const sel = this.trace.selection.selection;
-    const selSliceId =
-      sel.kind === 'track_event'
-        ? (sel as TrackEventSelection).eventId
-        : undefined;
+    const selSliceId = sel.kind === 'track_event' ? sel.eventId : undefined;
 
     if (
       selSliceId !== undefined &&

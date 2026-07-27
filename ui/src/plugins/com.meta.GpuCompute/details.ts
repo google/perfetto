@@ -151,40 +151,40 @@ export function renderPercentBar(
 
 // A single row of metric data (label + unit + value).
 export type MetricRow = {
-  metric_id: string;
-  metric_label: string;
-  metric_unit: string;
-  metric_value: number | string | null;
+  readonly metric_id: string;
+  readonly metric_label: string;
+  readonly metric_unit: string;
+  readonly metric_value: number | string | null;
 };
 
 // A table within a section (description + rows).
 export type MetricTable = {
-  table_desc: string | null;
-  data: MetricRow[];
+  readonly table_desc: string | null;
+  readonly data: MetricRow[];
 };
 
 // A titled group of metric tables (one per registered Section).
 export type MetricSection = {
-  section: string;
-  tables: MetricTable[];
+  readonly section: string;
+  readonly tables: MetricTable[];
 };
 
 // Summary text shown in the toolbar card for the selected kernel.
 export type ToolbarInfo = {
-  sizeText: string;
-  timeText: string;
-  cyclesText: string;
-  archText: string;
-  smFrequencyText: string;
-  processText: string;
+  readonly sizeText: string;
+  readonly timeText: string;
+  readonly cyclesText: string;
+  readonly archText: string;
+  readonly smFrequencyText: string;
+  readonly processText: string;
 };
 
 // Full metric payload for a single kernel launch.
 export type KernelMetricData = {
-  id: number;
-  kernelName: string;
-  sections: MetricSection[];
-  toolbar?: ToolbarInfo;
+  readonly id: number;
+  readonly kernelName: string;
+  readonly sections: MetricSection[];
+  readonly toolbar?: ToolbarInfo;
 };
 
 // Callback signature for rendering a percent-bar cell.
@@ -298,11 +298,11 @@ export function buildKernelQuery(
 
 // Intermediate grouping of a kernel's launch args and counter metrics.
 export type KernelGroup = {
-  kernelId: number;
-  kernelName: string;
-  launchTs: number;
-  launchDur: number;
-  metricsKV: Record<string, number | string>;
+  readonly kernelId: number;
+  readonly kernelName: string;
+  readonly launchTs: number;
+  readonly launchDur: number;
+  readonly metricsKV: Record<string, number | string>;
 };
 
 // Reduces the SQL result iterator into a `kernelId → KernelGroup` map.
@@ -819,14 +819,15 @@ export const KernelMetricsSection: m.Component<KernelMetricsSectionSettings> = {
           attrs.renderKernel(kernel, {engine: attrs.engine})) ??
         (() => {
           const analysisProvider = attrs.ctx.analysisProviderHolder.get();
+          const analysisCache = attrs.analysisCache;
           const renderFooter =
-            attrs.analysisCache && analysisProvider
+            analysisCache && analysisProvider
               ? (sec: MetricSection) =>
                   analysisProvider.renderSectionAnalysis({
                     section: sec,
                     kernelData: kernel,
                     sliceId: kernel.id,
-                    analysisCache: attrs.analysisCache!,
+                    analysisCache,
                   })
               : undefined;
           const sections = attrs.ctx.sectionRegistry.getSections();
