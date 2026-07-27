@@ -64,9 +64,6 @@ if (enable_perfetto_benchmarks) {
       "../../../../gn:default_deps",
       "../../../base",
     ]
-    sources = [
-      "ops_benchmark.cc",
-      "sort_benchmark.cc",
-    ]
+    sources = [ "sort_benchmark.cc" ]
   }
 }

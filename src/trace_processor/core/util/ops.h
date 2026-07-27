@@ -19,44 +19,11 @@
 
 #include <cstdint>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::ops {
-
-// Copies rows selected by |source_rows| into a dense output. Exact in-place
-// operation is supported when source_rows[i] >= i. Partial overlap is not
-// supported. Keep this pure-copy loop in the header: function and alias-check
-// overhead is measurable when Dataframe gathers small columns.
-template <typename T>
-void GatherRows(Span<const T> source,
-                Span<T> output,
-                Span<const uint32_t> source_rows) {
-  PERFETTO_DCHECK(output.size() >= source_rows.size());
-  const bool in_place = source.b == output.b;
-  for (uint32_t row = 0; row < source_rows.size(); ++row) {
-    PERFETTO_DCHECK(source_rows[row] < source.size());
-    PERFETTO_DCHECK(!in_place || source_rows[row] >= row);
-    output[row] = source[source_rows[row]];
-  }
-}
-
-// Gathers bits through the same kind of row map. Exact in-place operation is
-// supported when source_rows[i] >= i.
-inline void GatherBits(const BitVector& source,
-                       BitVector* output,
-                       Span<const uint32_t> source_rows) {
-  PERFETTO_DCHECK(output->size() >= source_rows.size());
-  const bool in_place = &source == output;
-  for (uint32_t row = 0; row < source_rows.size(); ++row) {
-    PERFETTO_DCHECK(source_rows[row] < source.size());
-    PERFETTO_DCHECK(!in_place || source_rows[row] >= row);
-    output->change(row, source.is_set(source_rows[row]));
-  }
-}
 
 // Estimates the number of distinct values using a bounded strided sample.
 template <typename T>

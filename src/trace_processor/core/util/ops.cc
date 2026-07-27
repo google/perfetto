@@ -115,6 +115,7 @@ uint32_t EstimateDistinctCount(base::FlatHashMap<int64_t, uint32_t>* counts,
 void DistinctRows(Span<const uint8_t> row_layout,
                   uint32_t row_stride,
                   Span<uint32_t>* indices) {
+  PERFETTO_DCHECK(indices);
   if (indices->empty()) {
     return;
   }
@@ -136,6 +137,7 @@ void DistinctRows(Span<const uint8_t> row_layout,
 void SortRowLayout(Span<const uint8_t> row_layout,
                    uint32_t row_stride,
                    Span<uint32_t>* indices) {
+  PERFETTO_DCHECK(indices);
   const uint32_t rows = static_cast<uint32_t>(indices->size());
   if (rows <= 1) {
     return;

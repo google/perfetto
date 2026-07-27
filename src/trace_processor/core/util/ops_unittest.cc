@@ -19,36 +19,11 @@
 #include <cstdint>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::ops {
 namespace {
-
-TEST(OpsTest, GatherRows) {
-  const int64_t source[] = {10, 20, 30, 40};
-  const uint32_t rows[] = {3, 1};
-  int64_t output[2];
-  GatherRows(MakeSpan(source), MakeMutableSpan(output), MakeSpan(rows));
-  EXPECT_THAT(output, testing::ElementsAre(40, 20));
-}
-
-TEST(OpsTest, GatherRowsAndBitsInPlace) {
-  int64_t values[] = {10, 20, 30, 40};
-  const uint32_t rows[] = {1, 3};
-  GatherRows(MakeSpan(values), MakeMutableSpan(values), MakeSpan(rows));
-  EXPECT_EQ(values[0], 20);
-  EXPECT_EQ(values[1], 40);
-
-  BitVector bits = BitVector::CreateWithSize(4, false);
-  bits.set(1);
-  bits.set(2);
-  GatherBits(bits, &bits, MakeSpan(rows));
-  bits.resize(2);
-  EXPECT_TRUE(bits.is_set(0));
-  EXPECT_FALSE(bits.is_set(1));
-}
 
 TEST(OpsTest, EstimateDistinctCount) {
   base::FlatHashMap<int64_t, uint32_t> counts;
