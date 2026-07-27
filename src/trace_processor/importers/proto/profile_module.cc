@@ -194,8 +194,7 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
       break;
     }
     int64_t delta_ns = base::SaturatingMultiply(*timestamp_it, 1000);
-    int64_t timestamp =
-        track_event->IncrementAndGetTrackEventTimeNs(delta_ns);
+    int64_t timestamp = track_event->IncrementAndGetTrackEventTimeNs(delta_ns);
     if (PERFETTO_UNLIKELY(timestamp < 0)) {
       context_->import_logs_tracker->RecordTokenizationLog(
           stats::streaming_profile_invalid_timestamp, packet->offset());
