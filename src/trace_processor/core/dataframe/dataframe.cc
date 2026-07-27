@@ -37,77 +37,18 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_to_string.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/ops.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 namespace {
 
 template <typename T>
-void GatherInPlace(T& storage, const uint32_t* indices, uint32_t count) {
-  // Since indices are sorted, indices[i] >= i, so we can gather in-place
-  // without overwriting unread data.
-  for (uint32_t i = 0; i < count; ++i) {
-    storage[i] = storage[indices[i]];
-  }
-  storage.resize(count);
-}
-
-void GatherBitsInPlace(core::BitVector& bv,
-                       const uint32_t* indices,
-                       uint32_t count) {
-  // Since indices are sorted, indices[i] >= i, so we can gather in-place.
-  for (uint32_t i = 0; i < count; ++i) {
-    bv.change(i, bv.is_set(indices[i]));
-  }
-  bv.resize(count);
-}
-
-// Rows sampled when estimating a column's distinct-value count. Sampling
-// caps both the work and the hash-map size at finalization, independent of
-// how large the column is.
-constexpr uint32_t kDistinctSampleRows = 10000;
-
-// Estimates the distinct-value count of `data` from a strided sample using the
-// Haas-Stokes estimator (as used by Postgres ANALYZE): from a sample of
-// `sample` rows with `d` distinct values, `f1` of which occur exactly once,
-//   D = sample*d / (sample - f1 + f1*sample/total)
-// projected to `total` rows. Exact when the whole column fits in the sample.
-template <typename T, typename KeyFn>
-uint32_t CountDistinct(base::FlatHashMap<int64_t, uint32_t>& counts,
-                       const core::FlexVector<T>& data,
-                       KeyFn key) {
-  uint64_t total = data.size();
-  if (total == 0) {
-    return 0;
-  }
-  uint64_t stride =
-      total <= kDistinctSampleRows ? 1 : total / kDistinctSampleRows;
-  counts.Clear();
-  uint64_t sample = 0;
-  uint64_t f1 = 0;  // distinct values seen exactly once so far
-  for (uint64_t i = 0; i < total; i += stride) {
-    auto [count, inserted] = counts.Insert(key(data[i]), 1u);
-    if (inserted) {
-      ++f1;
-    } else if (++*count == 2) {
-      --f1;
-    }
-    ++sample;
-  }
-  uint64_t d = counts.size();
-  double denom = static_cast<double>(sample - f1) +
-                 static_cast<double>(f1) * static_cast<double>(sample) /
-                     static_cast<double>(total);
-  double est =
-      denom > 0 ? static_cast<double>(sample) * static_cast<double>(d) / denom
-                : static_cast<double>(d);
-  auto result = static_cast<uint64_t>(est + 0.5);
-  if (result < d) {
-    result = d;
-  }
-  if (result > total) {
-    result = total;
-  }
-  return static_cast<uint32_t>(result);
+void GatherInPlace(core::FlexVector<T>* storage,
+                   core::Span<const uint32_t> rows) {
+  // Since rows are sorted, rows[i] >= i, so the shared gather kernel can
+  // operate in-place without overwriting unread data.
+  core::ops::GatherRows(storage->span(), storage->mutable_span(), rows);
+  storage->resize(static_cast<uint32_t>(rows.size()));
 }
 
 // Estimates the distinct-value count of a finalized column, or 0 if unknown.
@@ -119,19 +60,22 @@ uint32_t EstimateDistinct(base::FlatHashMap<int64_t, uint32_t>& counts,
     return 0;
   }
   switch (c.storage.type().index()) {
-    case StorageType::GetTypeIndex<Uint32>():
-      return CountDistinct(counts, c.storage.unchecked_get<Uint32>(),
-                           [](uint32_t v) { return static_cast<int64_t>(v); });
-    case StorageType::GetTypeIndex<Int32>():
-      return CountDistinct(counts, c.storage.unchecked_get<Int32>(),
-                           [](int32_t v) { return static_cast<int64_t>(v); });
-    case StorageType::GetTypeIndex<Int64>():
-      return CountDistinct(counts, c.storage.unchecked_get<Int64>(),
-                           [](int64_t v) { return v; });
-    case StorageType::GetTypeIndex<String>():
-      return CountDistinct(
-          counts, c.storage.unchecked_get<String>(),
-          [](StringPool::Id v) { return static_cast<int64_t>(v.raw_id()); });
+    case StorageType::GetTypeIndex<Uint32>(): {
+      const auto& values = c.storage.unchecked_get<Uint32>();
+      return core::ops::EstimateDistinctCount(&counts, values.span());
+    }
+    case StorageType::GetTypeIndex<Int32>(): {
+      const auto& values = c.storage.unchecked_get<Int32>();
+      return core::ops::EstimateDistinctCount(&counts, values.span());
+    }
+    case StorageType::GetTypeIndex<Int64>(): {
+      const auto& values = c.storage.unchecked_get<Int64>();
+      return core::ops::EstimateDistinctCount(&counts, values.span());
+    }
+    case StorageType::GetTypeIndex<String>(): {
+      const auto& values = c.storage.unchecked_get<String>();
+      return core::ops::EstimateDistinctCount(&counts, values.span());
+    }
     case StorageType::GetTypeIndex<Double>():
     case StorageType::GetTypeIndex<Id>():
       return 0;
@@ -469,20 +413,21 @@ Dataframe Dataframe::SelectRows(const uint32_t* indices, uint32_t count) && {
   for (uint32_t i = 1; i < count; ++i) {
     PERFETTO_DCHECK(indices[i - 1] < indices[i]);
   }
+  const core::Span<const uint32_t> rows(indices, indices + count);
   for (auto& col : columns_) {
     auto type = col->storage.type();
     if (type.Is<Id>()) {
       col->storage.unchecked_get<Id>().size = count;
     } else if (type.Is<Uint32>()) {
-      GatherInPlace(col->storage.unchecked_get<Uint32>(), indices, count);
+      GatherInPlace(&col->storage.unchecked_get<Uint32>(), rows);
     } else if (type.Is<Int32>()) {
-      GatherInPlace(col->storage.unchecked_get<Int32>(), indices, count);
+      GatherInPlace(&col->storage.unchecked_get<Int32>(), rows);
     } else if (type.Is<Int64>()) {
-      GatherInPlace(col->storage.unchecked_get<Int64>(), indices, count);
+      GatherInPlace(&col->storage.unchecked_get<Int64>(), rows);
     } else if (type.Is<Double>()) {
-      GatherInPlace(col->storage.unchecked_get<Double>(), indices, count);
+      GatherInPlace(&col->storage.unchecked_get<Double>(), rows);
     } else if (type.Is<String>()) {
-      GatherInPlace(col->storage.unchecked_get<String>(), indices, count);
+      GatherInPlace(&col->storage.unchecked_get<String>(), rows);
     } else {
       PERFETTO_FATAL("Invalid storage type");
     }
@@ -490,11 +435,13 @@ Dataframe Dataframe::SelectRows(const uint32_t* indices, uint32_t count) && {
     if (nullability.Is<NonNull>()) {
       // Nothing to do.
     } else if (nullability.Is<DenseNull>()) {
-      GatherBitsInPlace(col->null_storage.unchecked_get<DenseNull>().bit_vector,
-                        indices, count);
+      auto& bits = col->null_storage.unchecked_get<DenseNull>().bit_vector;
+      core::ops::GatherBits(bits, &bits, rows);
+      bits.resize(count);
     } else {
       auto& sparse = col->null_storage.unchecked_get<SparseNull>();
-      GatherBitsInPlace(sparse.bit_vector, indices, count);
+      core::ops::GatherBits(sparse.bit_vector, &sparse.bit_vector, rows);
+      sparse.bit_vector.resize(count);
       if (nullability.Is<SparseNullWithPopcountAlways>()) {
         sparse.prefix_popcount_for_cell_get =
             sparse.bit_vector.PrefixPopcountFlexVector();

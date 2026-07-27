@@ -52,6 +52,20 @@ source_set("dataframe") {
   ]
 }
 
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "dataframe_benchmark.cc" ]
+    deps = [
+      ":dataframe",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../containers",
+      "../common",
+    ]
+  }
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [

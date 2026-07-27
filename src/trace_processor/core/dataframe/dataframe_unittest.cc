@@ -1968,4 +1968,25 @@ TEST(DataframeTest, SelectRows) {
   EXPECT_EQ(result.row_count(), 2u);
 }
 
+TEST(DataframeTest, SelectRowsDenseNullInPlace) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"value"}, CreateTypedColumnSpec(Int64(), DenseNull(), Unsorted()));
+  StringPool pool;
+  Dataframe dataframe = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  dataframe.InsertUnchecked(kSpec, std::make_optional(int64_t{10}));
+  dataframe.InsertUnchecked(kSpec, std::nullopt);
+  dataframe.InsertUnchecked(kSpec, std::make_optional(int64_t{30}));
+  dataframe.InsertUnchecked(kSpec, std::nullopt);
+  dataframe.Finalize();
+
+  const uint32_t indices[] = {1, 2};
+  Dataframe result =
+      std::move(dataframe).SelectRows(indices, std::size(indices));
+
+  ASSERT_EQ(result.row_count(), 2u);
+  EXPECT_EQ(result.GetCellUnchecked<0>(kSpec, 0), std::nullopt);
+  EXPECT_EQ(result.GetCellUnchecked<0>(kSpec, 1),
+            std::make_optional(int64_t{30}));
+}
+
 }  // namespace perfetto::trace_processor::core::dataframe

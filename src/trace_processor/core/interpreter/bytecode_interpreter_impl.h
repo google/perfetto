@@ -104,23 +104,11 @@ struct StringLessInvert {
 
 namespace ops {
 
-// Outlined implementation of SortRowLayout bytecode.
-// Sorts indices based on row layout data in buffer.
-void SortRowLayoutImpl(const Slab<uint8_t>& buffer,
-                       uint32_t stride,
-                       Span<uint32_t>& indices);
-
 // Outlined implementation of FinalizeRanksInMap bytecode.
 // Sorts string IDs and assigns ranks in the map.
 void FinalizeRanksInMapImpl(
     const StringPool* string_pool,
     std::unique_ptr<base::FlatHashMap<StringPool::Id, uint32_t>>& rank_map_ptr);
-
-// Outlined implementation of Distinct bytecode.
-// Removes duplicate rows based on row layout data.
-void DistinctImpl(const Slab<uint8_t>& buffer,
-                  uint32_t stride,
-                  Span<uint32_t>& indices);
 
 // Outlined implementation of glob filtering for strings.
 // Returns pointer past last written output index.
