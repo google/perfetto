@@ -1367,3 +1367,52 @@ class TrackEvent(TestSuite):
         "id","ts","value","track_name"
         0,1000,"High","Priority"
         """))
+
+  # A sentinel/uninitialized microsecond timestamp near INT64_MIN must not
+  # wrap to a large positive value when converted to nanoseconds (x1000).
+  # SaturatingMultiply keeps it negative so the trace sorter's ts < 0 guard
+  # drops the event instead of poisoning trace_bounds (which previously
+  # produced a ~INT64_MAX end_ts and crashed the mipmap operator in the UI).
+  def test_track_event_absolute_timestamp_us_overflow(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "track"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 1
+            type: TYPE_INSTANT
+            name: "good"
+            timestamp_absolute_us: 1000
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 1
+            type: TYPE_INSTANT
+            name: "sentinel"
+            timestamp_absolute_us: -9223372036854776
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (SELECT count(*) FROM slice) AS slice_count,
+          (SELECT name FROM slice) AS slice_name,
+          (SELECT ts FROM slice) AS slice_ts,
+          (SELECT value FROM stats
+           WHERE name = 'trace_sorter_negative_timestamp_dropped')
+            AS dropped;
+        """,
+        out=Csv("""
+        "slice_count","slice_name","slice_ts","dropped"
+        1,"good",1000000,1
+        """))
