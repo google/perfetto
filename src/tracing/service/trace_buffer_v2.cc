@@ -739,9 +739,13 @@ void TraceBufferV2::CopyChunkUntrusted(
     std::optional<Frag> maybe_frag = frag_iter.NextFragmentInChunk();
     if (!maybe_frag.has_value()) {
       // Either we found less fragments than what the header said, or some
-      // fragment is out of bounds.
-      stats_.set_abi_violations(stats_.abi_violations() + 1);
-      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
+      // fragment is out of bounds. The exception is a TraceWriter that
+      // deliberately aborted the packet (kPacketSizeDropPacket), which is not
+      // an ABI violation and is accounted via trace_writer_packet_loss.
+      if (!frag_iter.trace_writer_data_drop()) {
+        stats_.set_abi_violations(stats_.abi_violations() + 1);
+        PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
+      }
       break;
     }
     Frag& f = *maybe_frag;
