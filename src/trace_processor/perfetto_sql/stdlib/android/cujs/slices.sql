@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE android.cujs.boundaries;
 
+INCLUDE PERFETTO MODULE android.cujs.threads;
+
 -- Slices overlapping with the CUJ boundaries in the app processes.
 CREATE PERFETTO TABLE _android_jank_cuj_slice(
   -- Unique incremental ID for each CUJ.
@@ -191,5 +193,74 @@ JOIN slice
   -- This is to be able to query slices that delayed start of a frame
   AND slice.ts + slice.dur >= boundary.ts
   AND slice.ts <= boundary.ts_end
+WHERE
+  slice.dur > 0;
+
+-- Slices overlapping with the SF CUJ boundaries in SurfaceFlinger.
+CREATE PERFETTO TABLE _android_jank_cuj_sf_slice(
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- Process ID of the process.
+  upid JOINID(process.id),
+  -- Name of the process.
+  process_name STRING,
+  -- Thread ID of the thread.
+  utid JOINID(thread.id),
+  -- Name of the thread.
+  thread_name STRING,
+  -- Slice id.
+  id ID(slice.id),
+  -- Timestamp of the slice.
+  ts TIMESTAMP,
+  -- Duration of the slice.
+  dur LONG,
+  -- Track id of the slice.
+  track_id JOINID(track.id),
+  -- Name of the slice.
+  name STRING,
+  -- Depth of the slice in the stack.
+  depth LONG,
+  -- Parent slice id.
+  parent_id LONG,
+  -- Arg set id.
+  arg_set_id LONG,
+  -- Thread timestamp.
+  thread_ts TIMESTAMP,
+  -- Thread duration.
+  thread_dur LONG,
+  -- Legacy slice id alias.
+  slice_id LONG,
+  -- End timestamp of the slice.
+  ts_end TIMESTAMP
+)
+AS
+SELECT
+  cuj_id,
+  upid,
+  sf_process.name AS process_name,
+  thread.utid,
+  thread.name AS thread_name,
+  slice.id,
+  slice.ts,
+  slice.dur,
+  slice.track_id,
+  slice.name,
+  slice.depth,
+  slice.parent_id,
+  slice.arg_set_id,
+  slice.thread_ts,
+  slice.thread_dur,
+  slice.slice_id,
+  slice.ts + slice.dur AS ts_end
+FROM _android_jank_cuj_sf_boundary AS sf_boundary
+JOIN _android_jank_cuj_sf_process AS sf_process
+JOIN thread USING (upid)
+JOIN thread_track USING (utid)
+JOIN slice
+  ON slice.track_id = thread_track.id
+  -- Take slices which overlap even they started before the boundaries
+  -- This is to be able to query slices that delayed start of a frame
+  AND slice.ts + slice.dur >= sf_boundary.ts
+  AND slice.ts <= sf_boundary.ts_end
 WHERE
   slice.dur > 0;
