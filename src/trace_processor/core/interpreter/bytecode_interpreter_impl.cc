@@ -18,13 +18,11 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <cstring>
 #include <limits>
 #include <memory>
 #include <numeric>
 #include <optional>
 #include <string_view>
-#include <unordered_set>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -32,6 +30,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/sort.h"
 #include "src/trace_processor/core/util/span.h"
@@ -41,22 +40,10 @@ namespace perfetto::trace_processor::core::interpreter::ops {
 
 namespace {
 
-struct SortToken {
-  uint32_t index;
-  uint32_t buf_offset;
-};
-
 struct StringSortToken {
   std::string_view str_view;
   StringPool::Id id;
 };
-
-// Crossover point where our custom RadixSort starts becoming faster than
-// std::stable_sort.
-//
-// Empirically chosen by looking at the crossover point of benchmarks
-// BM_DataframeSortLsdRadix and BM_DataframeSortLsdStd.
-constexpr uint32_t kStableSortCutoff = 4096;
 
 struct GlobComparator {
   bool operator()(StringPool::Id lhs, const util::GlobMatcher& m) const {
@@ -78,50 +65,13 @@ struct RegexComparator {
   const StringPool* pool;
 };
 
+struct StringSortKey {
+  std::string_view operator()(const StringSortToken& token) const {
+    return token.str_view;
+  }
+};
+
 }  // namespace
-
-void SortRowLayoutImpl(const Slab<uint8_t>& buffer,
-                       uint32_t stride,
-                       Span<uint32_t>& indices) {
-  auto num_indices = static_cast<size_t>(indices.e - indices.b);
-
-  // Single element is always sorted.
-  if (num_indices <= 1) {
-    return;
-  }
-
-  const uint8_t* buf = buffer.data();
-
-  // Initially do *not* default initialize the array for performance.
-  std::unique_ptr<SortToken[]> p(new SortToken[num_indices]);
-  std::unique_ptr<SortToken[]> q;
-  for (uint32_t i = 0; i < num_indices; ++i) {
-    p[i] = {indices.b[i], i * stride};
-  }
-
-  SortToken* res;
-  if (num_indices < kStableSortCutoff) {
-    std::stable_sort(p.get(), p.get() + num_indices,
-                     [buf, stride](const SortToken& a, const SortToken& b) {
-                       return memcmp(buf + a.buf_offset, buf + b.buf_offset,
-                                     stride) < 0;
-                     });
-    res = p.get();
-  } else {
-    // We declare q above and populate it here because res might point to q
-    // so we need to make sure that q outlives the end of this block.
-    // Initially do *not* default initialize the arrays for performance.
-    q.reset(new SortToken[num_indices]);
-    std::unique_ptr<uint32_t[]> counts(new uint32_t[1 << 16]);
-    res = core::RadixSort(
-        p.get(), p.get() + num_indices, q.get(), counts.get(), stride,
-        [buf](const SortToken& token) { return buf + token.buf_offset; });
-  }
-
-  for (uint32_t i = 0; i < num_indices; ++i) {
-    indices.b[i] = res[i].index;
-  }
-}
 
 void FinalizeRanksInMapImpl(
     const StringPool* string_pool,
@@ -143,35 +93,14 @@ void FinalizeRanksInMapImpl(
         it.key(),
     };
   }
-  auto* sorted = core::MsdRadixSort(
-      ids_to_sort.get(), ids_to_sort.get() + rank_map.size(), scratch.get(),
-      [](const StringSortToken& token) { return token.str_view; });
+  auto* sorted =
+      core::MsdRadixSort(ids_to_sort.get(), ids_to_sort.get() + rank_map.size(),
+                         scratch.get(), StringSortKey{});
   for (uint32_t rank = 0; rank < rank_map.size(); ++rank) {
     auto* it = rank_map.Find(sorted[rank].id);
     PERFETTO_DCHECK(it);
     *it = rank;
   }
-}
-
-void DistinctImpl(const Slab<uint8_t>& buffer,
-                  uint32_t stride,
-                  Span<uint32_t>& indices) {
-  if (indices.empty()) {
-    return;
-  }
-
-  const uint8_t* row_ptr = buffer.data();
-
-  std::unordered_set<std::string_view> seen_rows;
-  seen_rows.reserve(indices.size());
-  uint32_t* write_ptr = indices.b;
-  for (const uint32_t* it = indices.b; it != indices.e; ++it) {
-    std::string_view row_view(reinterpret_cast<const char*>(row_ptr), stride);
-    *write_ptr = *it;
-    write_ptr += seen_rows.insert(row_view).second;
-    row_ptr += stride;
-  }
-  indices.e = write_ptr;
 }
 
 uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
@@ -302,7 +231,7 @@ void Distinct(InterpreterState& state, const struct Distinct& bytecode) {
   const auto& buffer =
       state.ReadFromRegister(bytecode.arg<B::buffer_register>());
   uint32_t stride = bytecode.arg<B::total_row_stride>();
-  DistinctImpl(buffer, stride, indices);
+  core::ops::DistinctRows(buffer, stride, &indices);
 }
 
 void SortRowLayout(InterpreterState& state,
@@ -316,7 +245,7 @@ void SortRowLayout(InterpreterState& state,
   const auto& buffer =
       state.ReadFromRegister(bytecode.arg<B::buffer_register>());
   uint32_t stride = bytecode.arg<B::total_row_stride>();
-  SortRowLayoutImpl(buffer, stride, indices);
+  core::ops::SortRowLayout(buffer, stride, &indices);
 }
 
 void TranslateSparseNullIndices(
