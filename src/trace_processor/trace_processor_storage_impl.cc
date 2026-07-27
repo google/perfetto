@@ -74,8 +74,10 @@ base::Status WrapParseError(const base::Status& status) {
 
 }  // namespace
 
-TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
-    : context_(TraceProcessorContext::CreateRootContext(cfg)) {
+TraceProcessorStorageImpl::TraceProcessorStorageImpl(
+    const Config& cfg,
+    TraceProcessor_PlatformInterface* platform)
+    : context_(TraceProcessorContext::CreateRootContext(cfg, platform)) {
   context()->reader_registry->Register(CreateProtoImporter());
   context()->reader_registry->Register(CreateSymbolsImporter());
 }

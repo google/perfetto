@@ -53,7 +53,7 @@ class SqliteIteratorImpl;
 class TraceProcessorImpl : public TraceProcessor,
                            public TraceProcessorStorageImpl {
  public:
-  explicit TraceProcessorImpl(const Config&);
+  TraceProcessorImpl(const Config&, TraceProcessor::PlatformInterface*);
 
   TraceProcessorImpl(const TraceProcessorImpl&) = delete;
   TraceProcessorImpl& operator=(const TraceProcessorImpl&) = delete;
