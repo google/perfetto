@@ -181,9 +181,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
                 pinningManager.unpinTracks(this.pinnedTrackUris);
 
                 const rows = await source.getRowsForApp(selectedApp);
-                this.pinnedTrackUris = Array.from(
-                  new Set(rows.flatMap((r) => r.allTrackUris)),
-                );
+                this.pinnedTrackUris = source.getTrackUrisSortedByStage(rows);
                 pinningManager.pinTracks(this.pinnedTrackUris);
 
                 if (this.activeExcludeSpeculative !== undefined) {

@@ -124,6 +124,24 @@ export class AndroidInputEventSource {
     return AndroidInputEventSource.getStageSpecs(this.activeExtensions);
   }
 
+  /**
+   * Given a list of input lifecycle rows, extracts all track URIs and orders
+   * them chronologically according to stage sequence numbers.
+   */
+  getTrackUrisSortedByStage(rows: InputChainRow[]): string[] {
+    const specs = this.getStageSpecs();
+    const trackUris: string[] = [];
+    for (const spec of specs) {
+      for (const row of rows) {
+        const stageData = row.stagesData.get(spec.key);
+        if (stageData?.nav?.trackUri) {
+          trackUris.push(stageData.nav.trackUri);
+        }
+      }
+    }
+    return Array.from(new Set(trackUris));
+  }
+
   private async fetchRows(sliceId: number): Promise<InputChainRow[]> {
     const baseQuery = `SELECT * FROM _android_input_lifecycle_by_slice_id(${sliceId})`;
 
@@ -202,6 +220,7 @@ export class AndroidInputEventSource {
       WHERE e.event_channel LIKE '%/%'
         AND (e.process_name = ${processFilter} OR ${processFilter} IS NULL)
         AND (${speculativeFilter} = 0 OR e.is_speculative_frame = 0 OR e.is_speculative_frame IS NULL)
+      ORDER BY e.event_time ASC
     `;
 
     let selectCols = 'a_evt.*';
