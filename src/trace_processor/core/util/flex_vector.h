@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
@@ -226,6 +227,14 @@ class FlexVector {
 
   // Returns the current capacity (maximum size without reallocation).
   PERFETTO_ALWAYS_INLINE uint64_t capacity() const { return slab_.size(); }
+
+  // Transfers the backing allocation with its logical size. Any spare capacity
+  // remains allocated but is no longer part of the returned slab's size.
+  Slab<T> TakeSlab() && {
+    slab_.Truncate(size_);
+    size_ = 0;
+    return std::move(slab_);
+  }
 
  private:
   // Constructor used by Alloc.
