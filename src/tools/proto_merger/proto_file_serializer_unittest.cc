@@ -641,88 +641,40 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
 }
 
 TEST(ProtoFileSerializerTest, MessageToMessageTypeTransitionAllowed) {
-  struct ScopedUnlink {
-    std::string path;
-    ~ScopedUnlink() { base::Unlink(path.c_str()); }
-  };
-
-  base::TempDir temp_dir = base::TempDir::Create();
-  std::string input_path = temp_dir.path() + "/input.proto";
-  std::string upstream_path = temp_dir.path() + "/upstream.proto";
-
-  ScopedUnlink unlink_input{input_path};
-  ScopedUnlink unlink_upstream{upstream_path};
-
-  // Input has field 'callstack' of type InlineCallstack.
-  std::string input_content = R"(
-    syntax = "proto2";
-    package perfetto.protos;
-
-    message InlineCallstack {
-      optional string entry = 1;
-    }
-
-    message TrackEvent {
-      optional InlineCallstack callstack = 55;
-    }
-  )";
-
-  // Upstream has field 'callstack' of type TrackEvent.Callstack (message
-  // renamed).
-  std::string upstream_content = R"(
-    syntax = "proto2";
-    package perfetto.protos;
-
-    message TrackEvent {
-      message Callstack {
-        optional string entry = 1;
-      }
-      optional Callstack callstack = 55;
-    }
-  )";
-
+  ProtoFile input;
   {
-    base::ScopedFile file(base::OpenFile(input_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(
-        base::WriteAll(*file, input_content.c_str(), input_content.size()));
-  }
-  {
-    base::ScopedFile file(
-        base::OpenFile(upstream_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(base::WriteAll(*file, upstream_content.c_str(),
-                               upstream_content.size()));
+    ProtoFile::Message message{};
+    message.name = "TrackEvent";
+    message.fields.push_back(MakeField("InlineCallstack", "callstack", 55));
+    input.messages.push_back(message);
+
+    ProtoFile::Message callstack_msg{};
+    callstack_msg.name = "InlineCallstack";
+    callstack_msg.fields.push_back(MakeField("string", "entry", 1));
+    input.messages.push_back(callstack_msg);
   }
 
-  protozero::MultiFileErrorCollectorImpl mfe;
-  google::protobuf::compiler::DiskSourceTree dst;
-  dst.MapPath("", temp_dir.path());
-  dst.MapPath("", ".");
-  dst.MapPath("", "buildtools/protobuf/src");
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "TrackEvent";
+    message.fields.push_back(MakeField("Callstack", "callstack", 55));
 
-  google::protobuf::compiler::Importer importer_input(&dst, &mfe);
-  const auto* input_desc = importer_input.Import("input.proto");
+    ProtoFile::Message callstack_msg{};
+    callstack_msg.name = "Callstack";
+    callstack_msg.fields.push_back(MakeField("string", "entry", 1));
+    message.nested_messages.push_back(callstack_msg);
 
-  google::protobuf::compiler::Importer importer_upstream(&dst, &mfe);
-  const auto* upstream_desc = importer_upstream.Import("upstream.proto");
-
-  ASSERT_NE(input_desc, nullptr);
-  ASSERT_NE(upstream_desc, nullptr);
-
-  Allowlist allowed;
-
-  ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
-  ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
+    upstream.messages.push_back(message);
+  }
 
   ProtoFile merged;
-  // This should succeed because transitioning from one message type to another
-  // is allowed.
-  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged).ok());
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  ASSERT_TRUE(status.ok()) << status.c_message();
 
   std::string out = ProtoFileToDotProto(merged);
   // Expect output to use the new upstream type name.
-  EXPECT_THAT(out, HasSubstr("Callstack callstack = 55;"));
+  EXPECT_THAT(out, HasSubstr("  Callstack callstack = 55;"));
 }
 
 }  // namespace
