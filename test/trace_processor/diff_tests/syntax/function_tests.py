@@ -23,17 +23,17 @@ from google.protobuf import text_format
 
 class PerfettoFunction(TestSuite):
 
-  # Usage of __intrinsic_zstd: a string/blob compresses to a zstd frame (asserted
-  # via the version-stable frame magic 0x28b52ffd rather than exact bytes), and
-  # NULL passes through as NULL.
-  def test_zstd(self):
+  # Usage of __intrinsic_zstd_compress: a string/blob compresses to a zstd frame
+  # (asserted via the version-stable frame magic 0x28b52ffd rather than exact
+  # bytes), and NULL passes through as NULL.
+  def test_zstd_compress(self):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
         SELECT
-          hex(substr(__intrinsic_zstd('hello, hello, hello'), 1, 4)) AS magic,
-          length(__intrinsic_zstd('hello, hello, hello')) > 0 AS has_output,
-          __intrinsic_zstd(NULL) IS NULL AS null_passthrough;
+          hex(substr(__intrinsic_zstd_compress('hello, hello, hello'), 1, 4)) AS magic,
+          length(__intrinsic_zstd_compress('hello, hello, hello')) > 0 AS has_output,
+          __intrinsic_zstd_compress(NULL) IS NULL AS null_passthrough;
       """,
         out=Csv("""
         "magic","has_output","null_passthrough"

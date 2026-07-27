@@ -29,6 +29,7 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/zstd_compressor.h"
 
 namespace perfetto::trace_processor {
@@ -39,10 +40,10 @@ namespace {
 // is meant to store.
 constexpr int kLevel = 9;
 
-// __intrinsic_zstd(X) -> zstd(X) as a BLOB. X is a string or blob; NULL yields
-// NULL.
-struct Zstd : public sqlite::Function<Zstd> {
-  static constexpr char kName[] = "__intrinsic_zstd";
+// __intrinsic_zstd_compress(X) -> zstd(X) as a BLOB. X is a string or blob;
+// NULL yields NULL.
+struct ZstdCompress : public sqlite::Function<ZstdCompress> {
+  static constexpr char kName[] = "__intrinsic_zstd_compress";
   static constexpr int kArgCount = 1;
 
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
@@ -65,12 +66,15 @@ struct Zstd : public sqlite::Function<Zstd> {
         break;
     }
 
+    if (!util::IsZstdSupported()) {
+      return sqlite::utils::SetError(
+          ctx, "ZSTD: zstd is not compiled into this build");
+    }
     size_t out_size = 0;
     auto out =
         util::ZstdCompressor::CompressFully(src, src_size, &out_size, kLevel);
     if (!out) {
-      return sqlite::utils::SetError(
-          ctx, "ZSTD: compression failed (is zstd compiled in?)");
+      return sqlite::utils::SetError(ctx, "ZSTD: compression failed");
     }
     return sqlite::result::RawBytes(ctx, out.release(),
                                     static_cast<int>(out_size), free);
@@ -89,7 +93,7 @@ class ZstdFunctionsPlugin : public Plugin<ZstdFunctionsPlugin> {
   ~ZstdFunctionsPlugin() override;
   void RegisterFunctions(PerfettoSqlConnection*,
                          std::vector<FunctionRegistration>& out) override {
-    out.push_back(MakeFunctionRegistration<Zstd>(nullptr));
+    out.push_back(MakeFunctionRegistration<ZstdCompress>(nullptr));
   }
 };
 ZstdFunctionsPlugin::~ZstdFunctionsPlugin() = default;

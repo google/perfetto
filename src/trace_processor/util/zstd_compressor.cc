@@ -41,6 +41,10 @@ std::unique_ptr<uint8_t, base::FreeDeleter> ZstdCompressor::CompressFully(
   size_t bound = ZSTD_compressBound(len);
   std::unique_ptr<uint8_t, base::FreeDeleter> out(
       static_cast<uint8_t*>(malloc(bound)));
+  // ZSTD_compress allocates and frees a ZSTD_CCtx internally on every call.
+  // That is fine for the handful of blobs this is used on; if it is ever placed
+  // on a hot per-row path, reuse a ZSTD_compressCCtx with a (thread_local)
+  // context to avoid the per-call allocation.
   size_t n = ZSTD_compress(out.get(), bound, data, len, level);
   if (ZSTD_isError(n)) {
     return nullptr;
