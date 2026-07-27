@@ -1387,3 +1387,199 @@ class TrackEvent(TestSuite):
         "id","ts","value","track_name"
         0,1000,"High","Priority"
         """))
+
+  # A sentinel/uninitialized microsecond timestamp near INT64_MIN must not
+  # wrap to a large positive value when converted to nanoseconds (x1000).
+  # SaturatingMultiply keeps it negative so the trace sorter's ts < 0 guard
+  # drops the event instead of poisoning trace_bounds (which previously
+  # produced a ~INT64_MAX end_ts and crashed the mipmap operator in the UI).
+  def test_track_event_absolute_timestamp_us_overflow(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          clock_snapshot {
+            primary_trace_clock: 4  # BUILTIN_CLOCK_MONOTONIC_RAW
+            clocks {
+              clock_id: 3  # BUILTIN_CLOCK_MONOTONIC
+              timestamp: 1
+            }
+            clocks {
+              clock_id: 4  # BUILTIN_CLOCK_MONOTONIC_RAW
+              timestamp: 0
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "track"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 1
+            type: TYPE_INSTANT
+            name: "good"
+            timestamp_absolute_us: 1000
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 1
+            type: TYPE_INSTANT
+            name: "sentinel"
+            timestamp_absolute_us: -9223372036854776
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (SELECT count(*) FROM slice) AS slice_count,
+          (SELECT name FROM slice) AS slice_name,
+          (SELECT ts FROM slice) AS slice_ts,
+          (SELECT value FROM stats
+           WHERE name = 'track_event_invalid_timestamp') AS errors;
+        """,
+        out=Csv("""
+        "slice_count","slice_name","slice_ts","errors"
+        1,"good",999999,1
+        """))
+
+  # Streaming profile timestamp deltas use the same TrackEvent sequence state.
+  # Their microsecond-to-nanosecond conversion must saturate before updating
+  # that state so a subsequent TrackEvent cannot observe a wrapped timestamp.
+  def test_streaming_profile_timestamp_delta_overflow(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          clock_snapshot {
+            primary_trace_clock: 4  # BUILTIN_CLOCK_MONOTONIC_RAW
+            clocks {
+              clock_id: 3  # BUILTIN_CLOCK_MONOTONIC
+              timestamp: 0
+            }
+            clocks {
+              clock_id: 4  # BUILTIN_CLOCK_MONOTONIC_RAW
+              timestamp: 1
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "track"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 1
+            type: TYPE_INSTANT
+            name: "good"
+            timestamp_absolute_us: 1000
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          thread_descriptor {
+            reference_timestamp_us: 0
+            reference_thread_time_us: 0
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          streaming_profile_packet {
+            timestamp_delta_us: -9223372036854776
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          streaming_profile_packet {
+            timestamp_delta_us: 0
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 1
+            type: TYPE_INSTANT
+            name: "sentinel"
+            timestamp_delta_us: 0
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (SELECT count(*) FROM slice) AS slice_count,
+          (SELECT name FROM slice) AS slice_name,
+          (SELECT ts FROM slice) AS slice_ts,
+          (SELECT value FROM stats
+           WHERE name = 'track_event_invalid_timestamp') AS track_errors,
+          (SELECT value FROM stats
+           WHERE name = 'streaming_profile_invalid_timestamp')
+            AS profile_errors;
+        """,
+        out=Csv("""
+        "slice_count","slice_name","slice_ts","track_errors","profile_errors"
+        1,"good",1000001,1,2
+        """))
+
+  # Adding a negative delta to a reference timestamp near INT64_MIN must also
+  # saturate instead of wrapping to a large positive timestamp.
+  def test_track_event_delta_timestamp_addition_overflow(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "track"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 1
+            type: TYPE_INSTANT
+            name: "good"
+            timestamp_absolute_us: 1000
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          thread_descriptor {
+            reference_timestamp_us: -9223372036854775
+            reference_thread_time_us: 0
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 1
+            type: TYPE_INSTANT
+            name: "sentinel"
+            timestamp_delta_us: -1
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (SELECT count(*) FROM slice) AS slice_count,
+          (SELECT name FROM slice) AS slice_name,
+          (SELECT ts FROM slice) AS slice_ts,
+          (SELECT value FROM stats
+           WHERE name = 'track_event_invalid_timestamp') AS errors;
+        """,
+        out=Csv("""
+        "slice_count","slice_name","slice_ts","errors"
+        1,"good",1000000,1
+        """))

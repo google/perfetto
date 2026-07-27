@@ -28,6 +28,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -419,8 +420,8 @@ void TrackEventTokenizer::TokenizeThreadDescriptor(
   // tracks and delta timestamps.
   state.thread_descriptor().Set(thread, use_synthetic_tid);
   state.GetCustomState<TrackEventSequenceState>()->SetReferenceTimestamps(
-      thread.reference_timestamp_us() * 1000,
-      thread.reference_thread_time_us() * 1000,
+      base::SaturatingMultiply(thread.reference_timestamp_us(), 1000),
+      base::SaturatingMultiply(thread.reference_thread_time_us(), 1000),
       thread.reference_thread_instruction_count());
 }
 
@@ -438,6 +439,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       args.state->GetTrackEventDefaults();
 
   int64_t timestamp;
+  bool timestamp_needs_clock_conversion = false;
   TrackEventData data(std::move(*args.packet), args.state);
   auto* track_event = args.state->GetCustomState<TrackEventSequenceState>();
 
@@ -456,24 +458,12 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       return ModuleResult::Handled();
     }
     timestamp = track_event->IncrementAndGetTrackEventTimeNs(
-        event.timestamp_delta_us() * 1000);
-
-    // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
-    // trace time if we have a clock snapshot.
-    std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), timestamp);
-    if (trace_ts)
-      timestamp = *trace_ts;
+        base::SaturatingMultiply(event.timestamp_delta_us(), 1000));
+    timestamp_needs_clock_conversion = true;
   } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
     // One-off absolute timestamps don't affect delta computation.
-    timestamp = ts_absolute_us * 1000;
-
-    // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
-    // trace time if we have a clock snapshot.
-    std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), timestamp);
-    if (trace_ts)
-      timestamp = *trace_ts;
+    timestamp = base::SaturatingMultiply(ts_absolute_us, 1000);
+    timestamp_needs_clock_conversion = true;
   } else if (args.decoder.has_timestamp()) {
     timestamp = args.ts;
   } else {
@@ -481,6 +471,24 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
         stats::track_event_missing_timestamp,
         data.trace_packet_data.packet.offset());
     return ModuleResult::Handled();
+  }
+
+  // Drop malformed negative timestamps before clock conversion, where an
+  // offset could otherwise make them overflow back to positive.
+  if (PERFETTO_UNLIKELY(timestamp < 0)) {
+    context_->import_logs_tracker->RecordTokenizationLog(
+        stats::track_event_invalid_timestamp,
+        data.trace_packet_data.packet.offset());
+    return ModuleResult::Handled();
+  }
+
+  // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
+  // trace time if we have a clock snapshot.
+  if (timestamp_needs_clock_conversion) {
+    std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), timestamp);
+    if (trace_ts)
+      timestamp = *trace_ts;
   }
 
   // Handle legacy sample events which might have timestamps embedded inside.
@@ -507,10 +515,11 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       return ModuleResult::Handled();
     }
     data.thread_timestamp = track_event->IncrementAndGetTrackEventThreadTimeNs(
-        event.thread_time_delta_us() * 1000);
+        base::SaturatingMultiply(event.thread_time_delta_us(), 1000));
   } else if (event.has_thread_time_absolute_us()) {
     // One-off absolute timestamps don't affect delta computation.
-    data.thread_timestamp = event.thread_time_absolute_us() * 1000;
+    data.thread_timestamp =
+        base::SaturatingMultiply(event.thread_time_absolute_us(), 1000);
   }
 
   if (event.has_thread_instruction_count_delta()) {

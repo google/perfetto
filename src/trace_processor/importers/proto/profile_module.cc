@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -170,7 +171,14 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // other events; pid/tid resolution and callstack interning still happen at
   // parse time, via the sequence state carried by the event.
   auto* track_event = sequence_state->GetCustomState<TrackEventSequenceState>();
-  auto packet_ts = track_event->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
+  int64_t packet_ts =
+      track_event->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
+  if (PERFETTO_UNLIKELY(packet_ts < 0)) {
+    context_->import_logs_tracker->RecordTokenizationLog(
+        stats::streaming_profile_invalid_timestamp, packet->offset());
+    return ModuleResult::Handled();
+  }
+
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
       ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), packet_ts);
   if (trace_ts)
@@ -185,9 +193,14 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
           stats::stackprofile_parser_error, packet->offset());
       break;
     }
-    int64_t delta_ns = *timestamp_it * 1000;
-    track_event->IncrementAndGetTrackEventTimeNs(delta_ns);
-    sample_ts += delta_ns;
+    int64_t delta_ns = base::SaturatingMultiply(*timestamp_it, 1000);
+    int64_t timestamp = track_event->IncrementAndGetTrackEventTimeNs(delta_ns);
+    if (PERFETTO_UNLIKELY(timestamp < 0)) {
+      context_->import_logs_tracker->RecordTokenizationLog(
+          stats::streaming_profile_invalid_timestamp, packet->offset());
+      return ModuleResult::Handled();
+    }
+    sample_ts = base::SaturatingAdd(sample_ts, delta_ns);
     streaming_profile_stream_->Push(
         sample_ts, StreamingProfileSampleEvent{sequence_state, *callstack_it,
                                                decoder.process_priority()});
@@ -195,7 +208,13 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // Keep advancing the sequence clock over any trailing deltas so subsequent
   // packets on this sequence resolve their reference timestamp correctly.
   for (; timestamp_it; ++timestamp_it) {
-    track_event->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
+    int64_t timestamp = track_event->IncrementAndGetTrackEventTimeNs(
+        base::SaturatingMultiply(*timestamp_it, 1000));
+    if (PERFETTO_UNLIKELY(timestamp < 0)) {
+      context_->import_logs_tracker->RecordTokenizationLog(
+          stats::streaming_profile_invalid_timestamp, packet->offset());
+      return ModuleResult::Handled();
+    }
   }
   return ModuleResult::Handled();
 }
