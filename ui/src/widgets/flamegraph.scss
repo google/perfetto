@@ -39,6 +39,10 @@
     .pf-select {
       flex-shrink: 0;
     }
+
+    .pf-radio-group__button {
+      padding-block: 1px;
+    }
   }
 
   .pf-tag-input {
