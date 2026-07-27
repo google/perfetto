@@ -33,9 +33,9 @@ import {Form, FormLabel} from './form';
 import {Icon} from './icon';
 import {MiddleEllipsis} from './middle_ellipsis';
 import {Popup, PopupPosition} from './popup';
+import {RadioGroup} from './radio_group';
 import {Select} from './select';
 import {Spinner} from './spinner';
-import {RadioGroup} from './radio_group';
 import {TagInput} from './tag_input';
 import {TextInput} from './text_input';
 import {Tooltip} from './tooltip';
@@ -48,7 +48,7 @@ import {
 import {MenuDivider, MenuItem, type MenuItemAttrs, PopupMenu} from './menu';
 import {type Color, HSLColor} from '../base/color';
 import {hash} from '../base/hash';
-import {escapeRegex} from './flamegraph_regex';
+import {escapeRegex, parseUserFilterRegex} from './flamegraph_regex';
 import type {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 
@@ -191,7 +191,6 @@ const FLAMEGRAPH_FILTER_SCHEMA = z
       .union([
         z.literal('SHOW_STACK').readonly(),
         z.literal('HIDE_STACK').readonly(),
-        z.literal('SHOW_FROM_FRAME').readonly(),
         z.literal('HIDE_FRAME').readonly(),
         z.literal('OPTIONS').readonly(),
       ])
@@ -206,6 +205,11 @@ const FLAMEGRAPH_VIEW_SCHEMA = z
   .discriminatedUnion('kind', [
     z.object({kind: z.literal('TOP_DOWN').readonly()}),
     z.object({kind: z.literal('BOTTOM_UP').readonly()}),
+    z.object({
+      kind: z.literal('FROM_FRAME').readonly(),
+      pattern: z.string().readonly(),
+      displayLabel: z.string().optional().readonly(),
+    }),
     z.object({
       kind: z.literal('PIVOT').readonly(),
       pivot: z.string().readonly(),
@@ -258,6 +262,7 @@ export interface FlamegraphAttrs {
 
 type FilterType =
   'SHOW_STACK' | 'HIDE_STACK' | 'SHOW_FROM_FRAME' | 'HIDE_FRAME' | 'PIVOT';
+type PatternViewKind = 'FROM_FRAME' | 'PIVOT';
 
 interface FilterTypeOption {
   readonly value: FilterType;
@@ -268,7 +273,7 @@ interface FilterTypeOption {
   readonly icon: string;
   readonly category: ActionCategory;
   readonly description: string;
-  // Example regular expression used in tips for this filter type.
+  // Example pattern used in tips for this filter type.
   readonly example: string;
   // Name used by other profilers, if any; surfaced in the node menu.
   readonly aka?: string;
@@ -280,7 +285,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     label: 'Show Stack',
     friendlyLabel: 'Keep stacks matching name',
     shortLabel: 'SS',
-    example: 'main',
+    example: 'HandleRequest',
     icon: 'visibility',
     category: 'FILTER',
     description:
@@ -301,13 +306,13 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
   {
     value: 'SHOW_FROM_FRAME',
     label: 'Show From Frame',
-    friendlyLabel: 'Focus on matching subtrees',
+    friendlyLabel: 'Show from matching frame',
     shortLabel: 'SFF',
-    example: 'main',
+    example: 'HandleRequest',
     icon: 'center_focus_strong',
     category: 'FOCUS',
     description:
-      'Show only frames whose name matches and their descendants, dropping ancestors.',
+      'Re-root at matching frames and show their descendants, dropping ancestors.',
     aka: 'Focus on subtree',
   },
   {
@@ -315,7 +320,7 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     label: 'Hide Frame',
     friendlyLabel: 'Merge matching frames into caller',
     shortLabel: 'HF',
-    example: '/alloc.*/',
+    example: '/.*alloc.*/i',
     icon: 'call_merge',
     category: 'FILTER',
     description:
@@ -327,17 +332,17 @@ const FILTER_TYPES: ReadonlyArray<FilterTypeOption> = [
     label: 'Pivot',
     friendlyLabel: 'Pivot on matching frames',
     shortLabel: 'P',
-    example: '/std::.*/',
+    example: '/.*alloc.*/i',
     icon: 'account_tree',
     category: 'FOCUS',
     description:
-      'Re-root the flamegraph at frames whose name matches: callers above, callees below.',
+      'Re-root at matching frames with callers above and callees below.',
   },
 ];
 
 interface FilterBuilderAttrs {
-  onAdd: (filters: Array<{type: FilterType; value: string}>) => void;
-  hasPivot?: boolean;
+  readonly activePatternView?: PatternViewKind;
+  readonly onAdd: (filters: Array<{type: FilterType; value: string}>) => void;
 }
 
 class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
@@ -345,8 +350,11 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
   private filter = '';
 
   view({attrs}: m.CVnode<FilterBuilderAttrs>) {
-    const {onAdd, hasPivot} = attrs;
+    const {onAdd} = attrs;
     const opt = FILTER_TYPES.find((o) => o.value === this.type);
+    const replacesPatternView =
+      (this.type === 'SHOW_FROM_FRAME' || this.type === 'PIVOT') &&
+      attrs.activePatternView !== undefined;
 
     return m(
       Form,
@@ -374,25 +382,33 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
       m(FormLabel, 'Filter'),
       m(TextInput, {
         autofocus: true,
-        placeholder: 'e.g. main, or /alloc.*/',
+        placeholder: 'e.g. malloc',
         value: this.filter,
-        onInput: (v) => {
-          this.filter = v;
+        onInput: (value) => {
+          this.filter = value;
         },
       }),
       m(
         '.pf-filter-builder__hint',
-        'Matched literally as a substring (e.g. ',
+        'Bare text matches literally and case-insensitively (e.g. ',
         m('code', 'malloc'),
-        '); wrap in ',
+        '). Use ',
         m('code', '/…/'),
-        ' for a regex (e.g. ',
-        m('code', '/alloc.*/'),
+        ' for a case-sensitive regex (e.g. ',
+        m('code', '/.*Alloc.*/'),
+        '), or append ',
+        m('code', 'i'),
+        ' for a case-insensitive regex (e.g. ',
+        m('code', '/.*alloc.*/i'),
         ').',
       ),
-      hasPivot &&
-        this.type === 'PIVOT' &&
-        m('.pf-filter-builder__warn', 'Replaces current pivot'),
+      replacesPatternView &&
+        m(
+          '.pf-filter-builder__warn',
+          `Replaces the current ${
+            attrs.activePatternView === 'PIVOT' ? 'Pivot' : 'Show From Frame'
+          } filter.`,
+        ),
       m('.pf-filter-builder__separator'),
       opt &&
         m(
@@ -408,8 +424,8 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
               '.pf-filter-builder__help',
               m(
                 '.pf-filter-builder__help-title',
-                'Filter bar syntax (bare text matches literally; wrap in ' +
-                  '/…/ for a regex):',
+                'Filter bar syntax (bare text is case-insensitive; /…/ is a ' +
+                  'case-sensitive regex and /…/i is case-insensitive):',
               ),
               FILTER_TYPES.map((o) =>
                 m(
@@ -421,8 +437,8 @@ class FilterBuilder implements m.ClassComponent<FilterBuilderAttrs> {
               ),
               m(
                 '.pf-filter-builder__help-row',
-                'Combine filters by separating with spaces, e.g. ',
-                m('code', 'SS: main HF: /alloc.*/'),
+                'Combine operations by separating them with spaces, e.g. ',
+                m('code', 'SS: HandleRequest HF: /.*alloc.*/i'),
               ),
             ),
           ),
@@ -466,6 +482,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   private showFilterBuilder: boolean = false;
   private quickAddValue: string = '';
+  private showHighlightSearch = false;
+  private highlightPattern = '';
+  private highlightRegex?: RegExp;
 
   private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
@@ -539,6 +558,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }
     }
     if (attrs.data === undefined) {
+      this.canvasApi = undefined;
       return m(
         '.pf-flamegraph',
         this.renderFilterBar(attrs),
@@ -575,6 +595,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           overflowY: 'auto',
           onMount: (api) => {
             this.canvasApi = api;
+            this.flushPendingScroll();
           },
           onscroll: (e: MithrilEvent<Event>) => {
             // Only redraw if popup visibility would change
@@ -813,6 +834,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     if (this.labelCharWidth === 0) {
       this.labelCharWidth = ctx.measureText('_').width;
     }
+    const highlightColor = getComputedStyle(ctx.canvas)
+      .getPropertyValue('--pf-color-accent')
+      .trim();
 
     for (let i = 0; i < this.renderNodes.length; i++) {
       const node = this.renderNodes[i];
@@ -839,6 +863,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         name = nodes[source.queryIdx].name;
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       }
+      const highlighted =
+        source.kind === 'NODE' && this.highlightRegex?.test(name) === true;
       const bgColor = hover ? colorScheme.variant : colorScheme.base;
       const textColor = hover ? colorScheme.textVariant : colorScheme.textBase;
       ctx.fillStyle = bgColor.cssString;
@@ -869,6 +895,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           y + (NODE_HEIGHT - 1) / 2,
           widthNoPadding,
         );
+      }
+      if (highlighted) {
+        const highlightWidth = Math.max(0, width - 3);
+        const highlightHeight = NODE_HEIGHT - 3;
+        ctx.fillStyle = highlightColor || textColor.cssString;
+        ctx.fillRect(x + 1, y + 1, highlightWidth, 2);
+        ctx.fillRect(x + 1, y + NODE_HEIGHT - 3, highlightWidth, 2);
+        ctx.fillRect(x + 1, y + 1, 2, highlightHeight);
+        ctx.fillRect(x + width - 3, y + 1, 2, highlightHeight);
       }
       if (this.lastClickedNode?.x === x && this.lastClickedNode?.y === y) {
         ctx.strokeStyle = 'blue';
@@ -948,10 +983,59 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     );
   }
 
+  private setHighlightPattern(pattern: string) {
+    this.highlightPattern = pattern;
+    if (pattern === '') {
+      this.highlightRegex = undefined;
+      return;
+    }
+    try {
+      const regex = parseUserFilterRegex(pattern);
+      this.highlightRegex = new RegExp(regex.pattern, regex.flags);
+    } catch {
+      this.highlightRegex = undefined;
+    }
+  }
+
+  private renderHighlightSearch(attrs: FlamegraphAttrs) {
+    const matchCount =
+      this.highlightRegex === undefined
+        ? 0
+        : (attrs.data?.nodes.filter((node) =>
+            this.highlightRegex?.test(node.name),
+          ).length ?? 0);
+    return m(
+      '.pf-flamegraph-highlight-search',
+      m(TextInput, {
+        autofocus: true,
+        leftIcon: Icons.Search,
+        placeholder: 'Name, /Regex/, or /regex/i…',
+        value: this.highlightPattern,
+        onInput: (value) => this.setHighlightPattern(value),
+        onkeydown: (event: KeyboardEvent) => {
+          if (event.key === 'Escape') {
+            this.setHighlightPattern('');
+          }
+        },
+      }),
+      this.highlightPattern !== '' &&
+        m(
+          'span.pf-flamegraph-highlight-search__count',
+          this.highlightRegex === undefined
+            ? 'Invalid regex'
+            : `${matchCount} ${matchCount === 1 ? 'match' : 'matches'}`,
+        ),
+    );
+  }
+
   private renderFilterBar(attrs: FlamegraphAttrs) {
     const tags = toTags(this.attrs.state);
-    const hasPivot = this.attrs.state.view.kind === 'PIVOT';
     const hasFilters = tags.length > 0;
+    const activePatternView =
+      attrs.state.view.kind === 'FROM_FRAME' ||
+      attrs.state.view.kind === 'PIVOT'
+        ? attrs.state.view.kind
+        : undefined;
 
     const removeTag = (i: number) => {
       if (i === this.attrs.state.filters.length) {
@@ -968,7 +1052,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const addFilterFn = (filters: Array<{type: FilterType; value: string}>) => {
       let newState = this.attrs.state;
       for (const {type, value} of filters) {
-        if (type === 'PIVOT') {
+        if (type === 'SHOW_FROM_FRAME') {
+          newState = {...newState, view: {kind: 'FROM_FRAME', pattern: value}};
+        } else if (type === 'PIVOT') {
           newState = {...newState, view: {kind: 'PIVOT', pivot: value}};
         } else {
           newState = addFilter(newState, {kind: type, filter: value});
@@ -979,10 +1065,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
     return m(
       '.filter-bar',
+      m('span.pf-flamegraph-control-label', 'Measure:'),
       this.renderMeasurePicker(attrs),
-      m('.pf-flamegraph-filter-bar-separator'),
-      m('span.pf-flamegraph-filter-label', 'Filters:'),
-      // Tag input: chips + text input combined
+      m('span.pf-flamegraph-control-label', 'Filters:'),
       m(TagInput, {
         tags,
         value: this.quickAddValue,
@@ -1013,7 +1098,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             onRemove,
           }),
       }),
-      // [+] button opens guided form dialog
       m(
         Popup,
         {
@@ -1034,7 +1118,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           closeOnEscape: true,
           className: 'pf-filter-builder',
         },
-        m(FilterBuilder, {onAdd: addFilterFn, hasPivot}),
+        m(FilterBuilder, {
+          activePatternView,
+          onAdd: addFilterFn,
+        }),
       ),
       m(CopyToClipboardButton(), {
         textToCopy: () => tags.join(' '),
@@ -1050,41 +1137,67 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             ...this.attrs.state,
             filters: [],
             view:
-              this.attrs.state.view.kind === 'PIVOT'
-                ? {kind: 'TOP_DOWN'}
-                : this.attrs.state.view,
+              activePatternView === undefined
+                ? this.attrs.state.view
+                : {kind: 'TOP_DOWN'},
           });
         },
       }),
-      m('.pf-flamegraph-filter-bar-separator'),
       m(
         RadioGroup,
         {
           selectedValue:
-            this.attrs.state.view.kind === 'TOP_DOWN'
+            attrs.state.view.kind === 'TOP_DOWN'
               ? 'top-down'
-              : 'bottom-up',
+              : attrs.state.view.kind === 'BOTTOM_UP'
+                ? 'bottom-up'
+                : undefined,
           onValueChange: (value) => {
-            this.attrs.onStateChange({
-              ...this.attrs.state,
+            attrs.onStateChange({
+              ...attrs.state,
               view: {kind: value === 'top-down' ? 'TOP_DOWN' : 'BOTTOM_UP'},
             });
           },
-          disabled: this.attrs.state.view.kind === 'PIVOT',
         },
         [
           m(RadioGroup.Button, {value: 'top-down'}, 'Top Down'),
           m(RadioGroup.Button, {value: 'bottom-up'}, 'Bottom Up'),
         ],
       ),
+      m(Button, {
+        icon: Icons.Search,
+        label: 'Highlight',
+        active: this.showHighlightSearch || this.highlightPattern !== '',
+        onclick: () => {
+          this.showHighlightSearch = !this.showHighlightSearch;
+        },
+      }),
       attrs.data !== undefined &&
-        attrs.data.nodes.length > 0 && [
-          m('.pf-flamegraph-filter-bar-separator'),
-          m(ExportButton, {
-            fileBaseName: 'flamegraph',
-            onExportData: async (format) => this.buildExportString(format),
+        attrs.data.nodes.length > 0 &&
+        m(ExportButton, {
+          fileBaseName: 'flamegraph',
+          onExportData: async (format) => this.buildExportString(format),
+        }),
+      this.showHighlightSearch &&
+        m(
+          '.pf-flamegraph-secondary-row',
+          m('span.pf-flamegraph-control-label', 'Highlight:'),
+          this.renderHighlightSearch(attrs),
+          this.highlightPattern !== '' &&
+            m(Button, {
+              icon: Icons.Close,
+              compact: true,
+              title: 'Clear highlight',
+              onclick: () => this.setHighlightPattern(''),
+            }),
+          m(Button, {
+            label: 'Hide',
+            compact: true,
+            onclick: () => {
+              this.showHighlightSearch = false;
+            },
           }),
-        ],
+        ),
     );
   }
 
@@ -1324,15 +1437,38 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           this.zoomRegion = source;
         },
       },
-      filterAction('SHOW_FROM_FRAME', () =>
-        addF('SHOW_FROM_FRAME', exactNameRegex),
-      ),
-      filterAction('PIVOT', () =>
-        applyState({
-          ...this.attrs.state,
-          view: {kind: 'PIVOT', pivot: exactNameRegex},
-        }),
-      ),
+      {
+        label: 'Show from this frame',
+        icon: 'center_focus_strong',
+        category: 'FOCUS',
+        description:
+          'Re-root at this frame and show its descendants, dropping ancestors.',
+        execute: () =>
+          applyState({
+            ...this.attrs.state,
+            view: {
+              kind: 'FROM_FRAME',
+              pattern: exactNameRegex,
+              displayLabel: name,
+            },
+          }),
+      },
+      {
+        label: 'Pivot on this frame',
+        icon: 'account_tree',
+        category: 'FOCUS',
+        description:
+          'Re-root at this frame with callers above and callees below.',
+        execute: () =>
+          applyState({
+            ...this.attrs.state,
+            view: {
+              kind: 'PIVOT',
+              pivot: exactNameRegex,
+              displayLabel: name,
+            },
+          }),
+      },
       filterAction('SHOW_STACK', () => addF('SHOW_STACK', exactNameRegex)),
       filterAction('HIDE_STACK', () => addF('HIDE_STACK', exactNameRegex)),
       filterAction('HIDE_FRAME', () => addF('HIDE_FRAME', exactNameRegex)),
@@ -1463,7 +1599,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     }
 
     const shouldReverse =
-      view.kind === 'TOP_DOWN' || (view.kind === 'PIVOT' && node.depth > 0);
+      view.kind === 'TOP_DOWN' ||
+      view.kind === 'FROM_FRAME' ||
+      (view.kind === 'PIVOT' && node.depth > 0);
     if (shouldReverse) {
       stack.reverse();
     }
@@ -1918,8 +2056,6 @@ function toTags(state: FlamegraphState): ReadonlyArray<string> {
         return 'Hide Frame: ' + x.filter;
       case 'HIDE_STACK':
         return 'Hide Stack: ' + x.filter;
-      case 'SHOW_FROM_FRAME':
-        return 'Show From Frame: ' + x.filter;
       case 'SHOW_STACK':
         return 'Show Stack: ' + x.filter;
       case 'OPTIONS':
@@ -1927,11 +2063,21 @@ function toTags(state: FlamegraphState): ReadonlyArray<string> {
     }
   };
   const filters = state.filters.map((x) => toString(x));
-  return filters.concat(
-    state.view.kind === 'PIVOT'
-      ? ['Pivot: ' + (state.view.displayLabel ?? state.view.pivot)]
-      : [],
-  );
+  switch (state.view.kind) {
+    case 'FROM_FRAME':
+      return filters.concat([
+        'Show From Frame: ' + (state.view.displayLabel ?? state.view.pattern),
+      ]);
+    case 'PIVOT':
+      return filters.concat([
+        'Pivot: ' + (state.view.displayLabel ?? state.view.pivot),
+      ]);
+    case 'TOP_DOWN':
+    case 'BOTTOM_UP':
+      return filters;
+    default:
+      assertUnreachable(state.view);
+  }
 }
 
 function addFilter(
