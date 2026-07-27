@@ -1159,7 +1159,8 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   }
 
   if (cpu_infos.empty()) {
-    context_->stats_tracker->IncrementStats(stats::cpu_info_empty);
+    context_->import_logs_tracker->RecordAnalysisLog(
+        stats::cpu_info_empty, [](ArgsTracker::BoundInserter&) {});
     return;
   }
 
@@ -1256,8 +1257,9 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     // Bits beyond the allowlist come from a recorder newer than this
     // version of trace_processor; they stay queryable via the raw bitmap.
     if ((cpu_info.features >> base::ArraySize(base::kCpuInfoFeatures)) != 0) {
-      context_->stats_tracker->IncrementStats(
-          stats::cpu_info_unknown_cpu_features);
+      context_->import_logs_tracker->RecordAnalysisLog(
+          stats::cpu_info_unknown_cpu_features,
+          [](ArgsTracker::BoundInserter&) {});
     }
   }
 }

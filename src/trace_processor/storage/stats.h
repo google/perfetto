@@ -194,7 +194,10 @@ namespace perfetto::trace_processor::stats {
        "ETW Disk IO tracker encountered an event with an opcode for which it " \
         "didn't have a name."),                                                \
   F(cpu_info_empty,                       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
-       "CpuInfo packet contains no CPUs."),                                    \
+       "CpuInfo packet in the trace contained no CPUs. This usually happens "  \
+       "when /proc/cpuinfo is unreadable or empty in the environment (e.g. "   \
+       "sandbox or container) where tracing occurred. Metadata in the cpu "    \
+       "table will be missing."),                                              \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
