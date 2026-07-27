@@ -80,9 +80,10 @@ Tree::Column MoveRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc) {
     } else {
       PERFETTO_FATAL("Unexpected storage type in raw column");
     }
+  } else {
+    // Columns which never saw a value have no storage and no value type.
+    tc.type = Tree::Column::Type(Null{});
   }
-  // All-null columns keep the default Int64 type with no payload; null_bv
-  // flags every row as null so the data is never read.
   tc.null_bv = std::move(rc.null_bv);
   return tc;
 }
@@ -96,8 +97,8 @@ Tree::Column GatherRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc,
   const BitVector* source_non_null =
       rc.null_bv.size() > 0 ? &rc.null_bv : nullptr;
   if (!rc.storage) {
-    // All-null column: keep the default Int64 type with no payload; null_bv
-    // flags every row as null so the data is never read.
+    // Columns which never saw a value have no storage and no value type.
+    tc.type = Tree::Column::Type(Null{});
     tc.null_bv = BitVector::CreateWithSize(row_count);
     return tc;
   }

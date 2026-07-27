@@ -33,13 +33,6 @@ void UpdateRowHashes(const Tree::Column&,
 // its type and nullability.
 Tree::Column Gather(const Tree::Column&, Span<const uint32_t> rows);
 
-// Concatenates selected rows from two same-typed columns into a new dense
-// column while preserving nullability.
-Tree::Column GatherConcat(const Tree::Column& first,
-                          Span<const uint32_t> first_rows,
-                          const Tree::Column& second,
-                          Span<const uint32_t> second_rows);
-
 }  // namespace perfetto::trace_processor::core::tree_ops
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_TREE_TREE_COLUMN_OPS_H_
