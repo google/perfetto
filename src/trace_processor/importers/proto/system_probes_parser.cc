@@ -1158,6 +1158,11 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     cpu_infos.push_back(current_cpu_info);
   }
 
+  if (cpu_infos.empty()) {
+    context_->stats_tracker->IncrementStats(stats::cpu_info_empty);
+    return;
+  }
+
   // Calculate cluster ids
   // We look to use capacities as it is an ARM provided metric which is designed
   // to measure the heterogeneity of CPU clusters however we fallback on the

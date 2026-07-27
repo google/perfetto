@@ -98,6 +98,7 @@
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
+#include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_uuid.pbzero.h"
@@ -3116,6 +3117,30 @@ TEST_F(ProtoTraceParserTest, TraceAttributesLastValueWins) {
                "trace_attribute.key");
   EXPECT_FALSE(metadata_table[0].str_value().has_value());
   EXPECT_EQ(metadata_table[0].int_value(), 42);
+}
+
+TEST_F(ProtoTraceParserTest, EmptyCpuInfo) {
+  trace_->add_packet()->set_cpu_info();
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+  EXPECT_EQ(context_.stats_tracker->GetStats(stats::cpu_info_empty), 1);
+}
+
+TEST_F(ProtoTraceParserTest, NonEmptyCpuInfo) {
+  auto* cpu_info = trace_->add_packet()->set_cpu_info();
+  auto* cpu = cpu_info->add_cpus();
+  cpu->set_processor("ARMv8 Processor rev 0 (v8l)");
+  cpu->set_capacity(1024);
+  cpu->add_frequencies(1800000);
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(context_.stats_tracker->GetStats(stats::cpu_info_empty), 0);
+  const auto& cpu_table = context_.storage->cpu_table();
+  EXPECT_STREQ(context_.storage->GetString(cpu_table[0].processor()).c_str(),
+               "ARMv8 Processor rev 0 (v8l)");
+  EXPECT_EQ(cpu_table[0].capacity(), 1024u);
 }
 
 }  // namespace

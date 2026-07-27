@@ -193,6 +193,8 @@ namespace perfetto::trace_processor::stats {
   F(missing_disk_io_event_name,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "ETW Disk IO tracker encountered an event with an opcode for which it " \
         "didn't have a name."),                                                \
+  F(cpu_info_empty,                       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+       "CpuInfo packet contains no CPUs."),                                    \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
