@@ -73,6 +73,25 @@ constexpr size_t ArraySize(const T (&)[TSize]) {
   return TSize;
 }
 
+// Adds `a` and `b`, clamping to INT64_MIN / INT64_MAX on overflow instead of
+// wrapping (which is UB and can flip the sign of the result).
+inline int64_t SaturatingAdd(int64_t a, int64_t b) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+#if defined(__clang__) || defined(__GNUC__)
+  int64_t result;
+  if (PERFETTO_UNLIKELY(__builtin_add_overflow(a, b, &result)))
+    return a < 0 ? kMin : kMax;
+  return result;
+#else
+  if (b > 0 && a > kMax - b)
+    return kMax;
+  if (b < 0 && a < kMin - b)
+    return kMin;
+  return a + b;
+#endif
+}
+
 // Multiplies `a` by `b`, clamping to INT64_MIN / INT64_MAX on overflow instead
 // of wrapping (which is UB and can flip the sign of the result).
 inline int64_t SaturatingMultiply(int64_t a, int64_t b) {

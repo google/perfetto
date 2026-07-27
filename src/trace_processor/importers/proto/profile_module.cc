@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -31,6 +32,7 @@
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -169,16 +171,30 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // whole through the sorter, using the "root" timestamp of the packet, i.e.
   // the current timestamp of the packet sequence.
   auto* track_event = sequence_state->GetCustomState<TrackEventSequenceState>();
-  auto packet_ts = track_event->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
+  int64_t packet_ts =
+      track_event->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
+  if (PERFETTO_UNLIKELY(packet_ts < 0)) {
+    context_->import_logs_tracker->RecordTokenizationError(
+        stats::streaming_profile_invalid_timestamp, packet->offset());
+    return ModuleResult::Handled();
+  }
+
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
       ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), packet_ts);
   if (trace_ts)
     packet_ts = *trace_ts;
 
-  // Increment the sequence's timestamp by all deltas.
+  // Increment the sequence's timestamp by all deltas, dropping the packet as
+  // soon as one produces an invalid timestamp.
   for (auto timestamp_it = decoder.timestamp_delta_us(); timestamp_it;
        ++timestamp_it) {
-    track_event->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
+    int64_t timestamp = track_event->IncrementAndGetTrackEventTimeNs(
+        base::SaturatingMultiply(*timestamp_it, 1000));
+    if (PERFETTO_UNLIKELY(timestamp < 0)) {
+      context_->import_logs_tracker->RecordTokenizationError(
+          stats::streaming_profile_invalid_timestamp, packet->offset());
+      return ModuleResult::Handled();
+    }
   }
 
   module_context_->trace_packet_stream->Push(
@@ -224,7 +240,8 @@ void ProfileModule::ParseStreamingProfilePacket(
     }
 
     // Resolve the delta timestamps based on the packet's root timestamp.
-    timestamp += *timestamp_it * 1000;
+    timestamp = base::SaturatingAdd(
+        timestamp, base::SaturatingMultiply(*timestamp_it, 1000));
 
     tables::CpuProfileStackSampleTable::Row sample_row{
         timestamp, *opt_cs_id, utid, packet.process_priority()};

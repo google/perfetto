@@ -418,6 +418,23 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
 }
 #endif
 
+TEST(UtilsTest, SaturatingAdd) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+
+  EXPECT_EQ(SaturatingAdd(0, 0), 0);
+  EXPECT_EQ(SaturatingAdd(123, 456), 579);
+  EXPECT_EQ(SaturatingAdd(-123, -456), -579);
+  EXPECT_EQ(SaturatingAdd(kMax, 0), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin, 0), kMin);
+  EXPECT_EQ(SaturatingAdd(kMax - 1, 1), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin + 1, -1), kMin);
+  EXPECT_EQ(SaturatingAdd(kMax, 1), kMax);
+  EXPECT_EQ(SaturatingAdd(kMax - 1, 2), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin, -1), kMin);
+  EXPECT_EQ(SaturatingAdd(kMin + 1, -2), kMin);
+}
+
 TEST(UtilsTest, SaturatingMultiply) {
   constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
   constexpr int64_t kMin = std::numeric_limits<int64_t>::min();

@@ -804,6 +804,14 @@ namespace perfetto::trace_processor::stats {
       "be dropped. This indicates a bug in the trace producer or trace "       \
       "conversion tool, or data corruption. Ensure all events have valid "     \
       "timestamps."),                                                          \
+  F(track_event_invalid_timestamp,              kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackEvent packet resolved to a negative timestamp and was dropped. " \
+      "This indicates a bug in the trace producer or trace conversion tool, " \
+      "or data corruption."),                                                  \
+  F(streaming_profile_invalid_timestamp,        kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A StreamingProfilePacket resolved to a negative timestamp and was "    \
+      "dropped. This indicates a bug in the trace producer or data "           \
+      "corruption."),                                                          \
   F(thread_descriptor_missing_sequence_id,      kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A ThreadDescriptor packet was received without a "                      \
       "trusted_packet_sequence_id field. This field is required to associate " \
