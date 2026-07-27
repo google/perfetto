@@ -424,8 +424,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   let recenterApi: (() => void) | null = null;
   let resetZoom: (() => void) | null = null;
   let findPlacementForNodeApi:
-    | ((newNode: Omit<Node, 'x' | 'y'>) => Position)
-    | null = null;
+    ((newNode: Omit<Node, 'x' | 'y'>) => Position) | null = null;
 
   const handleMouseMove = (e: PointerEvent) => {
     m.redraw();

@@ -22,7 +22,7 @@ import {
   type FlamegraphState,
   type FlamegraphOptionalAction,
 } from '../../../widgets/flamegraph';
-import {QuerySlot} from '../../../base/query_slot';
+import {AsyncMemo} from '../../../base/async_memo';
 import {
   isHeapGraphIncomplete,
   incompleteFlamegraphModal,
@@ -89,7 +89,7 @@ function buildMetric(
       select
         id,
         parent_id as parentId,
-        ifnull(name, '[Unknown]') as name,
+        ifnull(name, 'unknown') as name,
         root_type,
         heap_type,
         ${valueColumn} as value,
@@ -170,7 +170,7 @@ function buildHeapGraphMetrics(
   );
 }
 
-const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
+export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
   let cachedMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
   let cachedKey: string | undefined;
 
@@ -178,7 +178,7 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
   // the flamegraph behind a dismissible warning modal. Keyed by dump so it
   // re-arms when the dump changes; the check runs (and the modal is shown) only
   // when this view is rendered, i.e. when the flamegraph tab is active.
-  const incompleteSlot = new QuerySlot<{
+  const incompleteSlot = new AsyncMemo<{
     isIncomplete: boolean;
     dismissed: boolean;
   }>();
@@ -198,7 +198,7 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
 
       const incomplete = incompleteSlot.use({
         key: {upid: attrs.upid, ts: attrs.ts},
-        queryFn: async () => ({
+        compute: async () => ({
           isIncomplete: await isHeapGraphIncomplete(attrs.trace),
           dismissed: false,
         }),
@@ -231,6 +231,4 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
       );
     },
   };
-};
-
-export default FlamegraphView;
+}

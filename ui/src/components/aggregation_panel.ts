@@ -28,7 +28,6 @@ import type {AggregatorGridConfig, DataGridState} from './aggregation_adapter';
 import type {
   CellRenderer,
   ColumnType,
-  SchemaRegistry,
 } from './widgets/datagrid/datagrid_schema';
 import type {DataSource} from './widgets/datagrid/data_source';
 import {Button} from '../widgets/button';
@@ -44,9 +43,7 @@ export interface AggregationPanelAttrs {
   readonly controls?: m.Children;
 }
 
-export class AggregationPanel
-  implements m.ClassComponent<AggregationPanelAttrs>
-{
+export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs> {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
     const {
       dataSource,
@@ -82,12 +79,9 @@ export class AggregationPanel
     dataGridState?: DataGridState,
     onClearGridState?: () => void,
   ) {
-    const schema: SchemaRegistry = {data: gridConfig.schema};
-
     return m(DataGrid, {
       fillHeight: true,
-      schema,
-      rootSchema: 'data',
+      schema: gridConfig.schema,
       data: dataSource,
       onReady,
       // Spread controlled state props (columns, filters, pivot and callbacks)

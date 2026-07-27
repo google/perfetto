@@ -442,10 +442,33 @@ source_set("tar_writer") {
   ]
 }
 
+source_set("flatbuffer_writer") {
+  sources = [
+    "flatbuffer_writer.cc",
+    "flatbuffer_writer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
+source_set("flatbuffer_reader") {
+  sources = [
+    "flatbuffer_reader.cc",
+    "flatbuffer_reader.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
     "descriptors_unittest.cc",
+    "flatbuffer_reader_unittest.cc",
     "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
@@ -469,6 +492,8 @@ source_set("unittests") {
     ":bump_allocator",
     ":decompressor",
     ":descriptors",
+    ":flatbuffer_reader",
+    ":flatbuffer_writer",
     ":galloping_search",
     ":glob",
     ":json_parser",

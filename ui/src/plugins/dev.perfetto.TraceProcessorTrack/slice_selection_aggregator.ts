@@ -40,7 +40,7 @@ import {
   UNKNOWN,
 } from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
-import type {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
+import type {SQLTableSchema} from '../../components/widgets/datagrid/sql_schema';
 import {Anchor} from '../../widgets/anchor';
 import {formatDurationValue} from '../../components/aggregation_panel';
 
@@ -344,25 +344,23 @@ export class SliceSelectionAggregator implements Aggregator {
           parameterized: true,
         },
       },
-      // The aggregation table always has an `arg_set_id` column, so we can
-      // expose a parameterized `args.*` column to the data grid.
-      sqlConfig: ({tableName}): SQLSchemaRegistry => ({
-        query: {
-          table: tableName,
-          columns: {
-            args: {
-              expression: (alias, key) =>
-                `extract_arg(${alias}.arg_set_id, '${key}')`,
-              parameterized: true,
-              parameterKeysQuery: (baseTable, baseAlias) => `
+      // The aggregation table has an `arg_set_id` column, so we can expose a
+      // parameterized `args.*` column to the datagrid.
+      sqlConfig: ({tableName}): SQLTableSchema => ({
+        tableOrSubquery: tableName,
+        columns: {
+          args: {
+            expression: (alias, key) =>
+              `extract_arg(${alias}.arg_set_id, '${key}')`,
+            parameterized: true,
+            parameterKeysQuery: (tableOrSubquery, alias) => `
                 SELECT DISTINCT args.key
-                FROM ${baseTable} AS ${baseAlias}
-                JOIN args ON args.arg_set_id = ${baseAlias}.arg_set_id
+                FROM (${tableOrSubquery}) AS ${alias}
+                JOIN args ON args.arg_set_id = ${alias}.arg_set_id
                 WHERE args.key IS NOT NULL
                 ORDER BY args.key
                 LIMIT 1000
               `,
-            },
           },
         },
       }),

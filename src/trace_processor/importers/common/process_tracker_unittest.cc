@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -49,6 +50,8 @@ class ProcessTrackerTest : public ::testing::Test {
         TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
             TraceProcessorContext::TraceState{TraceId{0}});
     context.stats_tracker = std::make_unique<StatsTracker>(&context);
+    context.import_logs_tracker.reset(
+        new ImportLogsTracker(&context, TraceId{1}));
     context.process_tracker = std::make_unique<ProcessTracker>(&context);
     context.event_tracker = std::make_unique<EventTracker>(&context);
   }
@@ -97,27 +100,18 @@ TEST_F(ProcessTrackerTest, StartNewProcessWithoutMainThread_withUpdateThread) {
   ASSERT_TRUE(context.process_tracker->GetThreadOrNull(12345).has_value());
 }
 
-TEST_F(ProcessTrackerTest, UpdateProcessWithParent) {
-  UniquePid cur_upid;
-  std::optional<UniquePid> cur_pupid;
+TEST_F(ProcessTrackerTest, SetProcessParent) {
   UniquePid pupid1 = context.process_tracker->GetOrCreateProcess(123);
   UniquePid pupid2 = context.process_tracker->GetOrCreateProcess(234);
   UniquePid upid = context.process_tracker->GetOrCreateProcess(345);
 
-  cur_upid =
-      context.process_tracker->UpdateProcessWithParent(upid, pupid1, true);
-  cur_pupid = context.storage->process_table()[cur_upid].parent_upid();
+  context.process_tracker->SetProcessParent(upid, pupid1);
+  ASSERT_EQ(pupid1, context.storage->process_table()[upid].parent_upid());
 
-  ASSERT_EQ(upid, cur_upid);
-  ASSERT_EQ(pupid1, *cur_pupid);
-
-  // Must create new process
-  cur_upid =
-      context.process_tracker->UpdateProcessWithParent(upid, pupid2, true);
-  cur_pupid = context.storage->process_table()[cur_upid].parent_upid();
-
-  ASSERT_NE(upid, cur_upid);
-  ASSERT_EQ(pupid2, *cur_pupid);
+  // A changed parent is treated as the same process being reparented: the
+  // original parent is kept.
+  context.process_tracker->SetProcessParent(upid, pupid2);
+  ASSERT_EQ(pupid1, context.storage->process_table()[upid].parent_upid());
 }
 
 TEST_F(ProcessTrackerTest, SetProcessMetadata) {

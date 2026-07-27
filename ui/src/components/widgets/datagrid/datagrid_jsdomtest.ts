@@ -17,7 +17,7 @@ import {afterEach, beforeEach, describe, expect, test} from 'vitest';
 import {prettyDOM, queryAllByRole} from '@testing-library/dom';
 import {DataGrid, type DataGridAttrs} from './datagrid';
 import {InMemoryDataSource} from './in_memory_data_source';
-import type {SchemaRegistry} from './datagrid_schema';
+import type {ColumnSchema} from './datagrid_schema';
 import type {Column, Filter} from './model';
 
 // These tests render a DataGrid into a jsdom element and query the DOM to
@@ -38,11 +38,9 @@ import type {Column, Filter} from './model';
 // same showFilterControls signal as the column-header one, so nothing goes
 // untested.
 
-const SCHEMA: SchemaRegistry = {
-  root: {
-    name: {title: 'Name', columnType: 'text'},
-    value: {title: 'Value', columnType: 'quantitative'},
-  },
+const SCHEMA: ColumnSchema = {
+  name: {title: 'Name', columnType: 'text'},
+  value: {title: 'Value', columnType: 'quantitative'},
 };
 
 const DATA = [
@@ -81,7 +79,6 @@ afterEach(() => {
 function renderDataGrid(attrs: Partial<DataGridAttrs>) {
   const fullAttrs = {
     schema: SCHEMA,
-    rootSchema: 'root',
     data: new InMemoryDataSource(DATA),
     ...attrs,
   };

@@ -177,7 +177,7 @@ void TrackEventTracker::ReserveDescriptorTrack(
     uint64_t uuid,
     const DescriptorTrackReservation& reservation) {
   if (uuid == kDefaultDescriptorTrackUuid && reservation.parent_uuid) {
-    context_->import_logs_tracker->RecordAnalysisError(
+    context_->import_logs_tracker->RecordAnalysisLog(
         stats::track_descriptor_default_track_with_parent,
         [&](ArgsTracker::BoundInserter& inserter) {
           inserter.AddArg(parent_uuid_key_id_,
@@ -736,7 +736,7 @@ bool TrackEventTracker::IsTrackHierarchyValid(uint64_t uuid) {
 }
 
 void TrackEventTracker::RecordTrackError(size_t stat_key, uint64_t track_uuid) {
-  context_->import_logs_tracker->RecordAnalysisError(
+  context_->import_logs_tracker->RecordAnalysisLog(
       stat_key, [this, track_uuid](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(track_uuid_key_id_,
                         Variadic::UnsignedInteger(track_uuid));

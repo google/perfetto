@@ -137,7 +137,7 @@ export class JoinNode implements QueryNode {
           name: col.name,
           type: col.type,
           description: col.description,
-          checked: isFirstInit ? false : oldCol?.checked ?? false,
+          checked: isFirstInit ? false : (oldCol?.checked ?? false),
           alias: oldCol?.alias,
           typeUserModified: oldCol?.typeUserModified,
         };

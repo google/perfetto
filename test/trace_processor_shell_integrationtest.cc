@@ -800,6 +800,38 @@ TEST(TraceProcessorShellIntegrationTest, QueryNoSqlError) {
   EXPECT_NE(result.exit_code, 0);
 }
 
+TEST(TraceProcessorShellIntegrationTest, QueryCommentsOnlyNoValidSql) {
+  // A query containing no executable statement (only comments/whitespace)
+  // must fail with the "No valid SQL to run" error, not silently succeed.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"query", trace.path(), "/* nothing to run */"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("No valid SQL to run"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySuppressedZeroRowStatement) {
+  // The suppress_query_output escape hatch must hold even when the
+  // suppressed statement matches zero rows: no header line may leak.
+  // Match the CSV-quoted header: debug builds echo the raw query text in a
+  // log line, so the bare column name always appears in the output.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"query", trace.path(),
+                          "SELECT 1 AS suppress_query_output WHERE 0; "
+                          "SELECT 200 + 61 AS real_output"});
+  EXPECT_EQ(result.exit_code, 0) << result.out;
+  EXPECT_THAT(result.out, Not(HasSubstr("\"suppress_query_output\"")));
+  EXPECT_THAT(result.out, HasSubstr("261"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryZeroRowResultPrintsHeader) {
+  // A plain zero-row result set is not suppressed: its header still prints.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell(
+      {"query", trace.path(), "SELECT 1 AS empty_but_visible WHERE 0"});
+  EXPECT_EQ(result.exit_code, 0) << result.out;
+  EXPECT_THAT(result.out, HasSubstr("empty_but_visible"));
+}
+
 TEST(TraceProcessorShellIntegrationTest, QueryNoTraceError) {
   auto result = RunShell({"query"});
   EXPECT_NE(result.exit_code, 0);
@@ -1435,6 +1467,57 @@ TEST(TraceProcessorShellIntegrationTest, StdioSimpleRequestResponse) {
   ASSERT_THAT(stream.msg()[2].query_result().batch(), SizeIs(1));
   ASSERT_THAT(stream.msg()[2].query_result().batch()[0].varint_cells(),
               ElementsAre(10852771242000, 3000));
+}
+
+TEST(TraceProcessorShellIntegrationTest, StdioExport) {
+  TraceProcessorRpcStream req;
+
+  auto* rpc = req.add_msg();
+  rpc->set_append_trace_data(kSimpleSystrace.data(), kSimpleSystrace.size());
+  rpc->set_request(TraceProcessorRpc::TPM_APPEND_TRACE_DATA);
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_FINALIZE_TRACE_DATA);
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_EXPORT);
+  rpc->mutable_export_args()->set_format(protos::gen::ExportArgs::PERFETTO);
+
+  base::Subprocess process(
+      {base::GetCurExecutableDir() + "/trace_processor_shell", "--stdiod"});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+
+  // Two responses for append/finalize, then one response per export chunk with
+  // a final has_more=false terminator.
+  ASSERT_GE(stream.msg_size(), 4);
+  ASSERT_EQ(stream.msg()[0].response(),
+            TraceProcessorRpc::TPM_APPEND_TRACE_DATA);
+  ASSERT_EQ(stream.msg()[1].response(),
+            TraceProcessorRpc::TPM_FINALIZE_TRACE_DATA);
+
+  std::string tar_bytes;
+  for (size_t i = 2; i < static_cast<size_t>(stream.msg_size()); ++i) {
+    const auto& msg = stream.msg()[i];
+    ASSERT_EQ(msg.response(), TraceProcessorRpc::TPM_EXPORT);
+    ASSERT_THAT(msg.export_result().error(), IsEmpty());
+    ASSERT_EQ(msg.export_result().has_more(),
+              i != static_cast<size_t>(stream.msg_size()) - 1);
+    tar_bytes += msg.export_result().data();
+  }
+
+  // The archive starts with the manifest entry name and has the ustar magic.
+  ASSERT_GT(tar_bytes.size(), 512u);
+  ASSERT_EQ(std::string(tar_bytes.data(), 22), "perfetto_manifest.json");
+  ASSERT_EQ(std::string(tar_bytes.data() + 257, 5), "ustar");
 }
 
 }  // namespace

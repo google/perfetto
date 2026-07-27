@@ -40,7 +40,7 @@ class AndroidKernelWakelocksModule : public ProtoImporterModule {
 
   ~AndroidKernelWakelocksModule() override;
 
-  void ParseField(const ParseFieldArgs& args) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
  private:
   void UpdateCounter(int64_t ts,

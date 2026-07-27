@@ -42,9 +42,7 @@ interface MultiParagraphTextAttrs {
   className?: string;
 }
 
-export class MultiParagraphText
-  implements m.ClassComponent<MultiParagraphTextAttrs>
-{
+export class MultiParagraphText implements m.ClassComponent<MultiParagraphTextAttrs> {
   view({attrs, children}: m.Vnode<MultiParagraphTextAttrs>): m.Children {
     const {className = ''} = attrs;
 

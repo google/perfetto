@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -38,9 +39,9 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
-namespace perfetto::trace_processor::core::tree {
-class TreeTransformer;
-}  // namespace perfetto::trace_processor::core::tree
+namespace perfetto::trace_processor::util {
+class TraceBlobViewReader;
+}  // namespace perfetto::trace_processor::util
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -425,7 +426,11 @@ class Dataframe {
   friend class TypedCursor;
   friend class QueryPlanBuilder;
   friend struct QueryPlanImpl;
-  friend class tree::TreeTransformer;
+  friend class ArrowSerializer;
+  friend base::StatusOr<Dataframe> DeserializeFromArrow(
+      const util::TraceBlobViewReader&,
+      StringPool*,
+      const DataframeSpec&);
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.

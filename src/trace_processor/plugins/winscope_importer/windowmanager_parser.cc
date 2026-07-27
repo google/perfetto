@@ -82,7 +82,8 @@ tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(row_id);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
+                    *trace_processor_context->process_tracker);
   base::Status status =
       args_parser_.ParseMessage(pruned_proto_bytes,
                                 *util::winscope_proto_mapping::GetProtoName(
@@ -197,7 +198,8 @@ void WindowManagerParser::InsertWindowContainerArgs(
 
   auto inserter = tracker.AddArgsTo(row_id);
   ArgsParser writer(timestamp, inserter,
-                    *context_->trace_processor_context_->storage);
+                    *context_->trace_processor_context_->storage,
+                    *context_->trace_processor_context_->process_tracker);
 
   base::Status status = args_parser_.ParseMessage(
       bytes, proto_name, nullptr /* parse all fields */, writer);

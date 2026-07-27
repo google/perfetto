@@ -36,9 +36,9 @@ import {Time} from '../../base/time';
  * - Common slice fields (name, ts, dur) with appropriate formatting
  * - All other dataset columns as readable strings
  */
-export class SliceTrackDetailsPanel<T extends RowSchema>
-  implements TrackEventDetailsPanel
-{
+export class SliceTrackDetailsPanel<
+  T extends RowSchema,
+> implements TrackEventDetailsPanel {
   constructor(
     private readonly trace: Trace,
     private readonly dataset: SourceDataset<T>,

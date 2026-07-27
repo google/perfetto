@@ -15,10 +15,10 @@
 import m from 'mithril';
 import type {QueryResponse} from '../../../components/query_table/queries';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
+import {escapePath} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {
   CellRenderer,
   ColumnSchema,
-  SchemaRegistry,
 } from '../../../components/widgets/datagrid/datagrid_schema';
 import type {Column} from '../../../components/widgets/datagrid/model';
 import {Button, ButtonVariant} from '../../../widgets/button';
@@ -433,8 +433,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
           : null;
 
       // Build schema directly
-      const columnSchema: ColumnSchema = {};
-      const schema: SchemaRegistry = {data: columnSchema};
+      const schema: ColumnSchema = {};
 
       // Get sqlModules from attrs (centralized, not from node state)
       const {sqlModules} = attrs;
@@ -476,7 +475,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
           }
         }
 
-        columnSchema[c] = {cellRenderer, columnType};
+        schema[escapePath(c)] = {cellRenderer, columnType};
       }
 
       // Build menu items for joinid columns (add columns from related tables)
@@ -579,15 +578,14 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
       const sortDir = this.columns.find((c) => c.sort)?.sort;
       this.columns = attrs.response.columns.map((col) => ({
         id: col,
-        field: col,
-        ...(col === sortedColId ? {sort: sortDir} : {}),
+        field: escapePath(col),
+        ...(escapePath(col) === sortedColId ? {sort: sortDir} : {}),
       }));
 
       return [
         warning,
         m(DataGrid, {
           schema,
-          rootSchema: 'data',
           columns: this.columns,
           fillHeight: true,
           data: attrs.dataSource,
