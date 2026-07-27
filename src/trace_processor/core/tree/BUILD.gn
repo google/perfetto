@@ -16,17 +16,31 @@ import("../../../../gn/test.gni")
 
 source_set("tree") {
   sources = [
-    "tree_columns.h",
-    "tree_columns_from_dataframe.cc",
-    "tree_columns_from_dataframe.h",
+    "tree.h",
+    "tree_from_dataframe.cc",
+    "tree_from_dataframe.h",
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../base",
     "../../containers",
     "../common",
     "../dataframe",
     "../util",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "tree_algorithms_unittest.cc" ]
+  deps = [
+    ":tree",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../include/perfetto/ext/base",
+    "../../containers",
+    "../dataframe",
   ]
 }
