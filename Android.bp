@@ -17582,8 +17582,10 @@ filegroup {
     srcs: [
         "src/trace_processor/core/util/bit_vector_unittest.cc",
         "src/trace_processor/core/util/flex_vector_unittest.cc",
+        "src/trace_processor/core/util/ops_unittest.cc",
         "src/trace_processor/core/util/slab_unittest.cc",
         "src/trace_processor/core/util/sort_unittest.cc",
+        "src/trace_processor/core/util/span_unittest.cc",
         "src/trace_processor/core/util/type_set_unittest.cc",
     ],
 }
@@ -17591,6 +17593,9 @@ filegroup {
 // GN: //src/trace_processor/core/util:util
 filegroup {
     name: "perfetto_src_trace_processor_core_util_util",
+    srcs: [
+        "src/trace_processor/core/util/ops.cc",
+    ],
 }
 
 // GN: //src/trace_processor:demangle
