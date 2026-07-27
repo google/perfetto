@@ -177,6 +177,19 @@ TEST(StraceLineParserTest, ReturnValueContainingParens) {
   EXPECT_EQ(*line->return_value, "-1 ECONNREFUSED (Connection refused)");
 }
 
+TEST(StraceLineParserTest, ReturnValueColumnAlignedWithSpaces) {
+  // strace right-aligns the '=' column across a trace with padding spaces
+  // (so short calls like "close(2)" don't need to match the width of the
+  // longest call name), so the gap between ')' and '=' is not always
+  // exactly one space.
+  auto line = ParseStraceLine(R"(1700000000.000000 close(2)        = 0)").line;
+  ASSERT_TRUE(line.has_value());
+  EXPECT_EQ(line->syscall, "close");
+  EXPECT_EQ(line->args, "2");
+  ASSERT_TRUE(line->return_value.has_value());
+  EXPECT_EQ(*line->return_value, "0");
+}
+
 TEST(StraceLineParserTest, SkipsSignalDeliveryLine) {
   EXPECT_FALSE(ParseStraceLine(R"(--- SIGCHLD {si_signo=SIGCHLD} ---)")
                    .line.has_value());

@@ -132,7 +132,7 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
         }
       }
       if (all_digits) {
-        auto pid = base::StringToUInt32(std::string(head));
+        auto pid = base::StringViewToNumber<uint32_t>(base::StringView(head));
         if (!pid)
           return {};
         out.pid = *pid;
@@ -210,11 +210,22 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
   out.kind = resumed ? StraceEventKind::kResumed : StraceEventKind::kComplete;
 
   // The return value itself may contain further parens (e.g. "-1 ENOENT (No
-  // such file or directory)"), so anchor on the literal ") = " marker that
-  // separates the call's own closing paren from its return value, rather
-  // than the last ')' in the line.
-  constexpr std::string_view kCloseEq = ") = ";
-  size_t close_paren = rest.find(kCloseEq);
+  // such file or directory)"), so anchor on a ')' followed by whitespace and
+  // then '=' — not the last ')' in the line — to separate the call's own
+  // closing paren from its return value. strace right-aligns the '=' column
+  // with spaces (e.g. "close(2)        = 0"), so the gap between ')' and '='
+  // cannot be assumed to be exactly one space.
+  size_t close_paren = std::string_view::npos;
+  for (size_t pos = rest.find(')'); pos != std::string_view::npos;
+       pos = rest.find(')', pos + 1)) {
+    size_t after = pos + 1;
+    while (after < rest.size() && base::IsSpace(rest[after]))
+      ++after;
+    if (after < rest.size() && rest[after] == '=') {
+      close_paren = pos;
+      break;
+    }
+  }
   if (close_paren == std::string_view::npos) {
     // A resumed line whose original call had no args left, e.g.
     // "<... read resumed>) = 3" collapses to just "= 3" after we've already
@@ -227,8 +238,8 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
   }
 
   out.args = std::string(base::TrimWhitespace(rest.substr(0, close_paren)));
-  out.return_value = std::string(
-      base::TrimWhitespace(rest.substr(close_paren + kCloseEq.size())));
+  size_t eq = rest.find('=', close_paren + 1);
+  out.return_value = std::string(base::TrimWhitespace(rest.substr(eq + 1)));
   return ParseStraceLineResult{std::move(out)};
 }
 
