@@ -30,10 +30,12 @@
 namespace perfetto::trace_processor {
 
 class ForwardingTraceParser;
+class TraceProcessor_PlatformInterface;
 
 class TraceProcessorStorageImpl : public TraceProcessorStorage {
  public:
-  explicit TraceProcessorStorageImpl(const Config&);
+  TraceProcessorStorageImpl(const Config&,
+                            TraceProcessor_PlatformInterface* = nullptr);
   ~TraceProcessorStorageImpl() override;
 
   base::Status Parse(TraceBlobView) override;

@@ -16,7 +16,9 @@
 
 #include "src/trace_processor/shell/common_flags.h"
 
+#include <functional>
 #include <initializer_list>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -25,6 +27,8 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/trace_processor/trace_processor_shell.h"
+#include "perfetto/trace_processor/io.h"
 #include "src/trace_processor/shell/bundle_subcommand.h"
 #include "src/trace_processor/shell/convert_subcommand.h"
 #include "src/trace_processor/shell/subcommand.h"
@@ -104,8 +108,37 @@ struct OutputPath {
   }  // TempDir needs an empty dir.
 };
 
+class TestFileSystem final : public io::FileSystem {
+ public:
+  base::Status OpenFile(const std::string&,
+                        std::unique_ptr<io::File>* file) override {
+    file->reset();
+    return base::ErrStatus("not implemented");
+  }
+};
+
 // A subcommand with a representative mix of flags for exercising ParseFlags:
 // a boolean flag, a string flag (both with short forms), and a repeatable flag.
+class TestPlatform : public TraceProcessorShell_PlatformInterface {
+ public:
+  Config DefaultConfig() const override { return {}; }
+
+  io::FileSystem* GetFileSystem() const override { return &file_system_; }
+
+  base::Status OnTraceProcessorCreated(TraceProcessor*) override {
+    return base::OkStatus();
+  }
+
+  base::Status LoadTrace(TraceProcessor*,
+                         const std::string&,
+                         std::function<void(size_t)>) override {
+    return base::OkStatus();
+  }
+
+ private:
+  mutable TestFileSystem file_system_;
+};
+
 class FlagTestSubcommand : public Subcommand {
  public:
   bool flag_a = false;
@@ -197,8 +230,8 @@ TEST_F(ParseFlagsTest, OnlyPositionals) {
 }
 
 TEST_F(ParseFlagsTest, GlobalFlagsMergedWithSubcommandFlags) {
-  ASSERT_TRUE(Parse({"prog", "--dev", "--flag-a"}).ok());
-  EXPECT_TRUE(global_.dev);
+  ASSERT_TRUE(Parse({"prog", "--allow-sql-file-access", "--flag-a"}).ok());
+  EXPECT_TRUE(global_.allow_sql_file_access);
   EXPECT_TRUE(cmd_.flag_a);
 }
 
@@ -211,6 +244,26 @@ TEST_F(ParseFlagsTest, UnknownFlagFailsAndMarksPrinted) {
   base::Status s = Parse({"prog", "--unknown-xyz"});
   EXPECT_FALSE(s.ok());
   EXPECT_TRUE(s.GetPayload("perfetto.dev/has_printed_error").has_value());
+}
+
+TEST(BuildConfigTest, FileSystemRequiresAllowSqlFileAccess) {
+  TestPlatform platform;
+  GlobalOptions options;
+
+  EXPECT_FALSE(platform.DefaultConfig().enable_sql_file_access);
+  auto default_config = BuildConfig(options, &platform);
+  ASSERT_TRUE(default_config.ok());
+  EXPECT_FALSE(default_config->enable_sql_file_access);
+
+  options.dev = true;
+  auto dev_config = BuildConfig(options, &platform);
+  ASSERT_TRUE(dev_config.ok());
+  EXPECT_FALSE(dev_config->enable_sql_file_access);
+
+  options.allow_sql_file_access = true;
+  auto io_config = BuildConfig(options, &platform);
+  ASSERT_TRUE(io_config.ok());
+  EXPECT_TRUE(io_config->enable_sql_file_access);
 }
 
 // --- FormatSubcommandUsage ---
@@ -228,6 +281,8 @@ TEST(FormatSubcommandUsageTest, ContainsAllSections) {
   EXPECT_THAT(out, HasSubstr("--rep"));
   EXPECT_THAT(out, HasSubstr("Global flags:"));
   EXPECT_THAT(out, HasSubstr("--help"));
+  EXPECT_THAT(out, HasSubstr("--allow-sql-file-access"));
+  EXPECT_THAT(out, HasSubstr("Do not enable this for untrusted SQL"));
 }
 
 // Regression test: the bundle subcommand used to list its flags both in a

@@ -121,6 +121,8 @@ source_set("unittests") {
     "../../../gn:gtest_and_gmock",
     "../../../gn:protobuf_full",
     "../../../gn:sqlite",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../../include/perfetto/trace_processor:io",
     "../../base",
   ]
 }
