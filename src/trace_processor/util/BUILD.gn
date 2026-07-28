@@ -300,9 +300,12 @@ source_set("json_parser") {
   ]
 }
 
-# Header-only JSON streaming parser. No external dependencies.
-source_set("simple_json_parser") {
-  sources = [ "simple_json_parser.h" ]
+# JSON streaming parser.
+perfetto_component("simple_json_parser") {
+  sources = [
+    "simple_json_parser.cc",
+    "simple_json_parser.h",
+  ]
   public_deps = [ ":json_parser" ]
   deps = [
     "../../../gn:default_deps",
