@@ -6002,7 +6002,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_util_simple_json_parser",
     srcs = [
-        "src/trace_processor/util/simple_json_parser.cc",
         "src/trace_processor/util/simple_json_parser.h",
     ],
 )
