@@ -42,6 +42,8 @@ namespace {
 using FBTE = ::com::android::internal::pbzero::FrameworksBaseTrackEvent;
 using AndroidProcessStartEvent =
     ::com::android::internal::pbzero::AndroidProcessStartEvent;
+using AndroidProcessDiedEvent =
+    ::com::android::internal::pbzero::AndroidProcessDiedEvent;
 using AndroidBinderDiedEvent =
     ::com::android::internal::pbzero::AndroidBinderDiedEvent;
 using AndroidFreezerEvent =
@@ -49,8 +51,8 @@ using AndroidFreezerEvent =
 using AndroidTrackEventProcessTable = tables::AndroidTrackEventProcessTable;
 using AndroidTrackEventFreezerTable = tables::AndroidTrackEventFreezerTable;
 
-// Records AndroidProcessStartEvent and AndroidBinderDiedEvent into
-// __intrinsic_android_track_event_process.
+// Records AndroidProcessStartEvent, AndroidProcessDiedEvent and
+// AndroidBinderDiedEvent into __intrinsic_android_track_event_process.
 class Parser : public TrackEventExtensionParser {
  public:
   Parser(TrackEventExtensionParserContext* extension_parser_context,
@@ -62,6 +64,7 @@ class Parser : public TrackEventExtensionParser {
         process_table_(process_table),
         freezer_table_(freezer_table) {
     RegisterTrackEventExtension(FBTE::kProcessStartEventFieldNumber);
+    RegisterTrackEventExtension(FBTE::kProcessDiedEventFieldNumber);
     RegisterTrackEventExtension(FBTE::kBinderDiedEventFieldNumber);
     RegisterTrackEventExtension(FBTE::kFreezerEventFieldNumber);
   }
@@ -73,6 +76,9 @@ class Parser : public TrackEventExtensionParser {
     switch (field.id()) {
       case FBTE::kProcessStartEventFieldNumber:
         HandleProcessStart(field.Cast<FBTE::kProcessStartEvent>(), ts);
+        break;
+      case FBTE::kProcessDiedEventFieldNumber:
+        HandleProcessDied(field.Cast<FBTE::kProcessDiedEvent>(), ts);
         break;
       case FBTE::kBinderDiedEventFieldNumber:
         HandleBinderDied(field.Cast<FBTE::kBinderDiedEvent>(), ts);
@@ -100,15 +106,43 @@ class Parser : public TrackEventExtensionParser {
     }
   }
 
-  AndroidTrackEventProcessTable::RowReference GetOrInsertRow(UniquePid upid) {
-    auto it_and_ins =
-        upid_to_row_.Insert(upid, AndroidTrackEventProcessTable::Id{0});
-    if (it_and_ins.second) {
-      AndroidTrackEventProcessTable::Row row;
-      row.upid = upid;
-      *it_and_ins.first = process_table_->Insert(row).id;
+  std::optional<AndroidTrackEventProcessTable::RowReference> GetOrInsertRow(
+      std::optional<UniquePid> upid,
+      std::optional<int64_t> start_seq_id) {
+    if (start_seq_id.has_value()) {
+      auto* id_ptr = start_seq_id_to_row_.Find(*start_seq_id);
+      if (id_ptr) {
+        return (*process_table_)[*id_ptr];
+      }
     }
-    return (*process_table_)[*it_and_ins.first];
+
+    if (!upid.has_value()) {
+      return std::nullopt;
+    }
+
+    auto* upid_id_ptr = upid_to_row_.Find(*upid);
+    if (upid_id_ptr) {
+      auto row = (*process_table_)[*upid_id_ptr];
+      if (start_seq_id.has_value() && !row.start_seq_id().has_value()) {
+        row.set_start_seq_id(*start_seq_id);
+        start_seq_id_to_row_.Insert(*start_seq_id, *upid_id_ptr);
+      }
+      if (!start_seq_id.has_value() || row.start_seq_id() == *start_seq_id) {
+        return row;
+      }
+    }
+
+    AndroidTrackEventProcessTable::Row row;
+    row.upid = *upid;
+    if (start_seq_id.has_value()) {
+      row.start_seq_id = *start_seq_id;
+    }
+    auto id = process_table_->Insert(row).id;
+    upid_to_row_.Insert(*upid, id);
+    if (start_seq_id.has_value()) {
+      start_seq_id_to_row_.Insert(*start_seq_id, id);
+    }
+    return (*process_table_)[id];
   }
 
   void HandleFreezerEvent(protozero::ConstBytes data, int64_t ts) {
@@ -147,32 +181,36 @@ class Parser : public TrackEventExtensionParser {
         static_cast<uint32_t>(evt.pid()));
     SetProcessMetadata(upid, data);
 
-    auto row = GetOrInsertRow(upid);
+    std::optional<int64_t> start_seq_id;
     if (evt.has_start_seq_id()) {
-      row.set_start_seq_id(evt.start_seq_id());
+      start_seq_id = evt.start_seq_id();
     }
-    if (!row.fw_start_ts().has_value()) {
-      row.set_fw_start_ts(ts);
+    auto row = GetOrInsertRow(upid, start_seq_id);
+    if (!row) {
+      return;
+    }
+    if (!row->fw_start_ts().has_value()) {
+      row->set_fw_start_ts(ts);
     }
     if (evt.has_trigger_type()) {
-      row.set_trigger_type(
+      row->set_trigger_type(
           InternEnum(trigger_type_cache_, ".com.android.internal.TriggerType",
                      static_cast<int32_t>(evt.trigger_type())));
     }
     if (evt.has_hosting_type()) {
-      row.set_hosting_type(
+      row->set_hosting_type(
           InternEnum(hosting_type_cache_, ".com.android.internal.HostingTypeId",
                      static_cast<int32_t>(evt.hosting_type())));
     }
     if (evt.has_hosting_name()) {
-      row.set_hosting_name(
+      row->set_hosting_name(
           trace_context_->storage->InternString(evt.hosting_name()));
     }
     if (evt.has_bind_application_delay_ms()) {
-      row.set_bind_application_delay_ms(evt.bind_application_delay_ms());
+      row->set_bind_application_delay_ms(evt.bind_application_delay_ms());
     }
     if (evt.has_process_start_delay_ms()) {
-      row.set_process_start_delay_ms(evt.process_start_delay_ms());
+      row->set_process_start_delay_ms(evt.process_start_delay_ms());
     }
   }
 
@@ -182,20 +220,60 @@ class Parser : public TrackEventExtensionParser {
       return;
     }
 
+    std::optional<UniquePid> upid;
     std::optional<UniqueTid> utid =
         trace_context_->process_tracker->GetThreadOrNull(
             static_cast<uint32_t>(evt.pid()));
-    if (!utid) {
-      return;
+    if (utid) {
+      upid = trace_context_->storage->thread_table()[*utid].upid();
     }
-    std::optional<UniquePid> upid =
-        trace_context_->storage->thread_table()[*utid].upid();
-    if (!upid) {
-      return;
+
+    std::optional<int64_t> start_seq_id;
+    if (evt.has_start_seq_id()) {
+      start_seq_id = evt.start_seq_id();
     }
-    GetOrInsertRow(*upid).set_fw_end_ts(ts);
+
+    auto row = GetOrInsertRow(upid, start_seq_id);
+    if (row) {
+      row->set_fw_end_ts(ts);
+    }
     trace_context_->process_tracker->EndThread(
         ts, static_cast<uint32_t>(evt.pid()));
+  }
+
+  void HandleProcessDied(protozero::ConstBytes data, int64_t /*ts*/) {
+    AndroidProcessDiedEvent::Decoder evt(data);
+    if (!evt.has_pid()) {
+      return;
+    }
+
+    std::optional<UniquePid> upid;
+    std::optional<UniqueTid> utid =
+        trace_context_->process_tracker->GetThreadOrNull(
+            static_cast<uint32_t>(evt.pid()));
+    if (utid) {
+      upid = trace_context_->storage->thread_table()[*utid].upid();
+    }
+
+    std::optional<int64_t> start_seq_id;
+    if (evt.has_start_seq_id()) {
+      start_seq_id = evt.start_seq_id();
+    }
+
+    auto row = GetOrInsertRow(upid, start_seq_id);
+    if (!row) {
+      return;
+    }
+    if (evt.has_reason()) {
+      row->set_exit_reason(InternEnum(exit_reason_cache_,
+                                      ".com.android.internal.AppExitReasonCode",
+                                      static_cast<int32_t>(evt.reason())));
+    }
+    if (evt.has_sub_reason()) {
+      row->set_exit_sub_reason(InternEnum(
+          exit_sub_reason_cache_, ".com.android.internal.AppExitSubReasonCode",
+          static_cast<int32_t>(evt.sub_reason())));
+    }
   }
 
   StringId InternEnum(DescriptorPool::CachedDescriptor& cache,
@@ -211,9 +289,13 @@ class Parser : public TrackEventExtensionParser {
   DescriptorPool::CachedDescriptor trigger_type_cache_;
   DescriptorPool::CachedDescriptor hosting_type_cache_;
   DescriptorPool::CachedDescriptor unfreeze_reason_cache_;
+  DescriptorPool::CachedDescriptor exit_reason_cache_;
+  DescriptorPool::CachedDescriptor exit_sub_reason_cache_;
   AndroidTrackEventProcessTable* process_table_;
   AndroidTrackEventFreezerTable* freezer_table_;
   base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
+  base::FlatHashMap<int64_t, AndroidTrackEventProcessTable::Id>
+      start_seq_id_to_row_;
 };
 
 class AndroidFrameworkTrackEventPlugin
