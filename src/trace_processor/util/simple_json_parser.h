@@ -194,52 +194,16 @@ class SimpleJsonParser {
   }
 
   // Convenience: collect all uint32 values from an array into a vector.
-  base::StatusOr<std::vector<uint32_t>> CollectUint32Array() {
-    std::vector<uint32_t> result;
-    RETURN_IF_ERROR(ForEachArrayElement([&]() {
-      if (auto v = GetUint32()) {
-        result.push_back(*v);
-      }
-      return base::OkStatus();
-    }));
-    return result;
-  }
+  base::StatusOr<std::vector<uint32_t>> CollectUint32Array();
 
   // Convenience: collect all int64 values from an array into a vector.
-  base::StatusOr<std::vector<int64_t>> CollectInt64Array() {
-    std::vector<int64_t> result;
-    RETURN_IF_ERROR(ForEachArrayElement([&]() {
-      if (auto v = GetInt64()) {
-        result.push_back(*v);
-      }
-      return base::OkStatus();
-    }));
-    return result;
-  }
+  base::StatusOr<std::vector<int64_t>> CollectInt64Array();
 
   // Convenience: collect all string values from an array into a vector.
-  base::StatusOr<std::vector<std::string>> CollectStringArray() {
-    std::vector<std::string> result;
-    RETURN_IF_ERROR(ForEachArrayElement([&]() {
-      if (auto v = GetString()) {
-        result.push_back(std::string(*v));
-      }
-      return base::OkStatus();
-    }));
-    return result;
-  }
+  base::StatusOr<std::vector<std::string>> CollectStringArray();
 
   // Convenience: collect all double values from an array into a vector.
-  base::StatusOr<std::vector<double>> CollectDoubleArray() {
-    std::vector<double> result;
-    RETURN_IF_ERROR(ForEachArrayElement([&]() {
-      if (auto v = GetDouble()) {
-        result.push_back(*v);
-      }
-      return base::OkStatus();
-    }));
-    return result;
-  }
+  base::StatusOr<std::vector<double>> CollectDoubleArray();
 
   // When the current value is an Object or Array (just entered via the most
   // recent ForEachField/ForEachArrayElement step), captures its raw JSON
