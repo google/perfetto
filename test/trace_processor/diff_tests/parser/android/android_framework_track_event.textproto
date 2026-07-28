@@ -57,6 +57,26 @@ packet {
       uid: 10001
       pid: 100
       process_name: "com.example.app"
+      start_seq_id: 42
     }
   }
 }
+# Process died: records exit_reason and exit_sub_reason for the process.
+packet {
+  timestamp: 6000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "process_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+      uid: 10001
+      pid: 100
+      process_name: "com.example.app"
+      start_seq_id: 42
+      reason: APP_EXIT_REASON_ANR
+      sub_reason: APP_EXIT_SUBREASON_ANR_TYPE_BROADCAST_OF_INTENT
+    }
+  }
+}
+
