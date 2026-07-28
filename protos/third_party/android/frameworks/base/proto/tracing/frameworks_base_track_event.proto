@@ -231,6 +231,58 @@ enum ProcessCapabilityEnum {
   PROCESS_CAPABILITY_IMPLICIT_CPU_TIME = 0x100;        // 1 << 8
 }
 
+// Bitmask representing various process state flags.
+// See com.android.server.am.psc.ProcStateController.Tracer.TraceFlags for
+// definition. It is used at the flags field of the AndroidProcStateUpdateEvent
+// message.
+enum ProcStateControllerTraceFlags {
+  PROC_STATE_CONTROLLER_TRACE_FLAG_NONE = 0;
+  PROC_STATE_CONTROLLER_TRACE_FLAG_IS_RUNNING = 0x1;                 // 1 << 0
+  PROC_STATE_CONTROLLER_TRACE_FLAG_SYSTEM_PROCESS = 0x2;             // 1 << 1
+  PROC_STATE_CONTROLLER_TRACE_FLAG_PENDING_FINISH_ATTACH = 0x4;      // 1 << 2
+  PROC_STATE_CONTROLLER_TRACE_FLAG_RUNNING_REMOTE_ANIMATION = 0x8;   // 1 << 3
+  PROC_STATE_CONTROLLER_TRACE_FLAG_HAS_ACTIVITIES = 0x10;            // 1 << 4
+  PROC_STATE_CONTROLLER_TRACE_FLAG_ACTIVITY_VISIBLE = 0x20;          // 1 << 5
+  PROC_STATE_CONTROLLER_TRACE_FLAG_ACTIVITY_PAUSED = 0x40;           // 1 << 6
+  PROC_STATE_CONTROLLER_TRACE_FLAG_ACTIVITY_STOPPING = 0x80;         // 1 << 7
+  PROC_STATE_CONTROLLER_TRACE_FLAG_ACTIVE_INSTRUMENTATION = 0x100;   // 1 << 8
+  PROC_STATE_CONTROLLER_TRACE_FLAG_FOREGROUND_SERVICES = 0x200;      // 1 << 9
+  PROC_STATE_CONTROLLER_TRACE_FLAG_NON_SHORT_FGS = 0x400;            // 1 << 10
+  PROC_STATE_CONTROLLER_TRACE_FLAG_EXTERNAL_PROCESS_HANDLE = 0x800;  // 1 << 11
+  PROC_STATE_CONTROLLER_TRACE_FLAG_OVERLAY_UI = 0x1000;              // 1 << 12
+  PROC_STATE_CONTROLLER_TRACE_FLAG_FORCED_TO_IMPORTANT = 0x2000;     // 1 << 13
+  PROC_STATE_CONTROLLER_TRACE_FLAG_TOAST_ACTIVE = 0x4000;            // 1 << 14
+  PROC_STATE_CONTROLLER_TRACE_FLAG_BACKUP_PROCESS = 0x8000;          // 1 << 15
+  PROC_STATE_CONTROLLER_TRACE_FLAG_STARTED_SERVICES = 0x10000;       // 1 << 16
+  PROC_STATE_CONTROLLER_TRACE_FLAG_EXECUTING_SERVICES = 0x20000;     // 1 << 17
+  PROC_STATE_CONTROLLER_TRACE_FLAG_RECEIVING_BROADCAST = 0x40000;    // 1 << 18
+  PROC_STATE_CONTROLLER_TRACE_FLAG_HEAVY_WEIGHT_PROCESS = 0x80000;   // 1 << 19
+  PROC_STATE_CONTROLLER_TRACE_FLAG_HOME_PROCESS = 0x100000;          // 1 << 20
+  PROC_STATE_CONTROLLER_TRACE_FLAG_PROVIDER_RETAIN_TIME = 0x200000;  // 1 << 21
+  PROC_STATE_CONTROLLER_TRACE_FLAG_PREVIOUS_PROCESS = 0x400000;      // 1 << 22
+  PROC_STATE_CONTROLLER_TRACE_FLAG_TREAT_LIKE_ACTIVITY = 0x800000;   // 1 << 23
+  PROC_STATE_CONTROLLER_TRACE_FLAG_CLIENT_ACTIVITIES = 0x1000000;    // 1 << 24
+  PROC_STATE_CONTROLLER_TRACE_FLAG_RECENT_TASKS = 0x2000000;         // 1 << 25
+}
+
+// Bitmask representing known inconsistent behaviors.
+// See com.android.server.am.psc.ProcStateController.Tracer.InconsistentBehavior
+// for definition. It is used at the known_inconsistent_behavior field of the
+// AndroidProcStateUpdateEvent message.
+enum ProcStateControllerInconsistentBehavior {
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_NONE = 0;
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_OTHER_ACTIVITY = 0x1;  // 1 << 0
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_ATTACHING_TOP = 0x2;   // 1 << 1
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_FORCE_IMP = 0x4;       // 1 << 2
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_BACKUP = 0x8;          // 1 << 3
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_CLIENT_ACT_TREAT_LIKE_ACT =
+      0x10;  // 1 << 4
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_PERSISTENT_POLICY =
+      0x20;  // 1 << 5
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_INITIALIZATION_IF_ELSE =
+      0x40;  // 1 << 6
+}
+
 enum AppExitReasonCode {
   APP_EXIT_REASON_UNKNOWN = 0;
   APP_EXIT_REASON_EXIT_SELF = 1;
@@ -848,9 +900,68 @@ message AndroidCapabilityUpdateEvent {
                                  ".com.android.internal.CapabilityUpdateFlag"];
 }
 
+// Trace event representing a summary of a process state update run.
+// It's sent by
+// com.android.server.am.psc.ProcStateController.Tracer.emitUpdateSummary().
+message AndroidProcStateSummaryEvent {
+  // Whether the update is a full update.
+  optional bool is_full_update = 1;
+
+  // Reason for the OOM adjustment.
+  optional OomChangeReasonEnum reason = 2;
+
+  // The total number of processes evaluated during the update.
+  optional int32 total_processes = 3;
+
+  // The number of processes with discrepancies.
+  optional int32 discrepant_processes = 4;
+
+  // The number of processes with known/expected discrepancies.
+  optional int32 known_discrepant_processes = 5;
+}
+
+// Trace event representing a process state update discrepancy for a specific
+// process. It's sent by
+// com.android.server.am.psc.ProcStateController.Tracer.emitNodeUpdate().
+message AndroidProcStateUpdateEvent {
+  // Whether the update is a full update.
+  optional bool is_full_update = 1;
+
+  // Reason for the OOM adjustment.
+  optional OomChangeReasonEnum reason = 2;
+
+  // Pid of the process.
+  optional int32 pid = 3 [(perfetto.protos.is_pid) = true];
+
+  // The process state computed by ProcStateController.
+  optional ProcessStateEnum proc_state = 4;
+
+  // The process state computed by the legacy OomAdjuster.
+  optional ProcessStateEnum legacy_proc_state = 5;
+
+  // The OOM adjustment score.
+  optional int32 oom_adj = 6;
+
+  // Bitfield representing various process state flags.
+  // See com.android.server.am.psc.ProcStateController.Tracer.TraceFlags for
+  // definition. Also see the ProcStateControllerTraceFlags enum proto.
+  optional int32 flags = 7
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcStateControllerTraceFlags"];
+
+  // Bitfield representing known inconsistent behaviors.
+  // See
+  // com.android.server.am.psc.ProcStateController.Tracer.InconsistentBehavior
+  // for definition. Also see the ProcStateControllerInconsistentBehavior enum
+  // proto.
+  optional int32 known_inconsistent_behavior = 8
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcStateControllerInconsistentBehavior"];
+}
+
 message FrameworksBaseTrackEvent {
-  // Usable range: [2004, 2006], [2008, 2099].
-  // Next id: 2019.
+  // Usable range: [2004, 2006], [2008, 2099]
+  // Next id: 2021
   extend perfetto.protos.TrackEvent {
     // MessageQueue messages.
     optional AndroidMessageQueue message_queue = 2004;
@@ -885,5 +996,9 @@ message FrameworksBaseTrackEvent {
     optional AndroidCapabilitySummaryEvent capability_summary_event = 2017;
     // Capability update event.
     optional AndroidCapabilityUpdateEvent capability_update_event = 2018;
+    // ProcState summary event.
+    optional AndroidProcStateSummaryEvent proc_state_summary_event = 2019;
+    // ProcState update event.
+    optional AndroidProcStateUpdateEvent proc_state_update_event = 2020;
   }
 }
