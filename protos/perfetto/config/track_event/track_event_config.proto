@@ -18,8 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-message TrackEventConfig {
-  // The following fields define the set of enabled trace categories. Each list
+// The following fields define the set of enabled trace categories. Each list
   // item is a glob.
   //
   // To determine if category is enabled, it is checked against the filters in
@@ -55,7 +54,7 @@ message TrackEventConfig {
   //
   //       disabled_tags: "*"
   //       enabled_tags: "my_tag"
-  //
+message TrackEventConfig {
 
   // Default: []
   repeated string disabled_categories = 1;

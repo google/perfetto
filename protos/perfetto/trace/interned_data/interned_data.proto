@@ -55,21 +55,20 @@ package perfetto.protos;
 // refers to them (since the last reset of interning state). They may also be
 // emitted proactively in advance of referring to them in later packets.
 //
+// TODO(eseckler): Replace iid fields inside interned messages with
+// map<iid, message> type fields in InternedData.
+//
+// Each field's message type needs to specify an |iid| field, which is the ID
+// of the entry in the field's interning index. Each field constructs its own
+// index, thus interning IDs are scoped to the tracing session and field
+// (usually as a counter for efficient var-int encoding), and optionally to
+// the incremental state generation of the packet sequence.
+//
+// Note: field IDs up to 15 should be used for frequent data only.
+//
 // Next reserved id: 8 (up to 15).
 // Next id: 51.
 message InternedData {
-  // TODO(eseckler): Replace iid fields inside interned messages with
-  // map<iid, message> type fields in InternedData.
-
-  // Each field's message type needs to specify an |iid| field, which is the ID
-  // of the entry in the field's interning index. Each field constructs its own
-  // index, thus interning IDs are scoped to the tracing session and field
-  // (usually as a counter for efficient var-int encoding), and optionally to
-  // the incremental state generation of the packet sequence.
-  //
-  // Note: field IDs up to 15 should be used for frequent data only.
-
-  //
   // == STABLE PUBLIC API: TrackEvent ==
   //
   // Interning for the stable TrackEvent API (see trace_packet.proto and

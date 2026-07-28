@@ -535,11 +535,12 @@ message TraceConfig {
   // incident. This field is read by perfetto_cmd, rather than the tracing
   // service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  //
+  // In this message, either:
+  //  * all of |destination_package|, |destination_class| and |privacy_level|
+  //    must be set.
+  //  * |skip_incidentd| must be explicitly set to true.
   message IncidentReportConfig {
-    // In this message, either:
-    //  * all of |destination_package|, |destination_class| and |privacy_level|
-    //    must be set.
-    //  * |skip_incidentd| must be explicitly set to true.
 
     optional string destination_package = 1;
     optional string destination_class = 2;

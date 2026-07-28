@@ -28,13 +28,14 @@ message TracingServiceEvent {
     }
     repeated DataSource data_source = 1;
   }
-  oneof event_type {
-    // When each of the following booleans are set to true, they report the
-    // point in time (through TracePacket's timestamp) where the condition
-    // they describe happened.
-    // The order of the booleans below matches the timestamp ordering
-    // they would generally be expected to have.
 
+  // When each of the following booleans are set to true, they report the
+  // point in time (through TracePacket's timestamp) where the condition
+  // they describe happened.
+  // The order of the booleans below matches the timestamp ordering
+  // they would generally be expected to have.
+  oneof event_type {
+    
     // Emitted when we start tracing and specifically, this will be before any
     // producer is notified about the existence of this trace. This is always
     // emitted before the all_data_sources_started event. This event is also
