@@ -42,7 +42,7 @@ import {
   type AnalysisProvider,
   AnalysisProviderHolder,
 } from './analysis';
-import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
+import {AtomicTaskQueue, AsyncMemo} from '../../base/async_memo';
 
 export interface GpuComputeContext {
   humanizeMetrics: boolean;
@@ -83,8 +83,8 @@ class Compute {
   // trigger mithril redraws; render() reads the current selection and
   // polls the QuerySlot which handles deduplication, background
   // fetching, and race-condition prevention.
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly selectionSlot = new QuerySlot<{
+  private readonly taskQueue = new AtomicTaskQueue();
+  private readonly selectionSlot = new AsyncMemo<{
     hasMetrics: boolean;
     toolbar?: ToolbarInfo;
   }>(this.taskQueue);
@@ -276,7 +276,7 @@ class Compute {
 
       const result = this.selectionSlot.use({
         key: {sliceId: id},
-        queryFn: async () => {
+        compute: async () => {
           const data = await fetchSelectedKernelMetricData(
             this.ctx,
             this.engine,

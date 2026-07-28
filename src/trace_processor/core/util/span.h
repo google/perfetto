@@ -18,6 +18,8 @@
 #define SRC_TRACE_PROCESSOR_CORE_UTIL_SPAN_H_
 
 #include <cstddef>
+#include <cstdint>
+#include <vector>
 
 namespace perfetto::trace_processor::core {
 
@@ -36,9 +38,37 @@ struct Span {
 
   T* begin() const { return b; }
   T* end() const { return e; }
+  T* data() const { return b; }
   size_t size() const { return static_cast<size_t>(e - b); }
   bool empty() const { return b == e; }
+  T& operator[](size_t index) const { return b[index]; }
 };
+
+template <typename T, size_t N>
+Span<T> MakeMutableSpan(T (&values)[N]) {
+  return Span<T>(values, values + N);
+}
+
+template <typename T, size_t N>
+Span<const T> MakeSpan(const T (&values)[N]) {
+  return Span<const T>(values, values + N);
+}
+
+template <typename T>
+Span<T> MakeMutableSpan(std::vector<T>& values) {
+  return Span<T>(values.data(), values.data() + values.size());
+}
+
+template <typename T>
+Span<const T> MakeSpan(const std::vector<T>& values) {
+  return Span<const T>(values.data(), values.data() + values.size());
+}
+
+template <typename T>
+Span<const uint8_t> AsBytes(Span<T> values) {
+  const auto* begin = reinterpret_cast<const uint8_t*>(values.begin());
+  return Span<const uint8_t>(begin, begin + values.size() * sizeof(T));
+}
 
 }  // namespace perfetto::trace_processor::core
 

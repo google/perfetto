@@ -15,7 +15,7 @@
 import protos from '../protos';
 import {fetchWithTimeout} from '../base/http_utils';
 import {reportError} from '../base/logging';
-import {ensureExists} from '../base/assert';
+import {assertIsArrayBufferView, ensureExists} from '../base/assert';
 import {EngineBase} from '../trace_processor/engine';
 
 const RPC_CONNECT_TIMEOUT_MS = 2000;
@@ -29,7 +29,7 @@ export interface HttpRpcState {
 export class HttpRpcEngine extends EngineBase {
   readonly mode = 'HTTP_RPC';
   readonly id: string;
-  private requestQueue = new Array<Uint8Array>();
+  private requestQueue = new Array<Uint8Array<ArrayBuffer>>();
   private websocket?: WebSocket;
   private connected = false;
   private disposed = false;
@@ -45,6 +45,7 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   rpcSendRequestBytes(data: Uint8Array): void {
+    assertIsArrayBufferView(data);
     if (this.websocket === undefined) {
       if (this.disposed) return;
       const wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket`;

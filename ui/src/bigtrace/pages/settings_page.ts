@@ -92,9 +92,7 @@ interface BigTraceSettingsCardAttrs extends m.Attributes {
   onReset?: () => void;
 }
 
-class BigTraceSettingsCard
-  implements m.ClassComponent<BigTraceSettingsCardAttrs>
-{
+class BigTraceSettingsCard implements m.ClassComponent<BigTraceSettingsCardAttrs> {
   view(vnode: m.Vnode<BigTraceSettingsCardAttrs>) {
     const {
       id,

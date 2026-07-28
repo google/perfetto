@@ -43,9 +43,7 @@ export interface AggregationPanelAttrs {
   readonly controls?: m.Children;
 }
 
-export class AggregationPanel
-  implements m.ClassComponent<AggregationPanelAttrs>
-{
+export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs> {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
     const {
       dataSource,

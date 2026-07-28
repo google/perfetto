@@ -844,3 +844,55 @@ class Tables(TestSuite):
         10,"android.os.usertype.full.SECONDARY" 
         11,"android.os.usertype.full.GUEST"
         """))
+
+  # trace start and end time
+  def test_trace_bounds(self):
+    return DiffTestBlueprint(
+        trace=Path('../common/synth_1.py'),
+        query="""
+        SELECT * FROM trace_bounds;
+        """,
+        out=Csv("""
+        "start_ts","end_ts"
+        1,400
+        """))
+
+  # trace start and end time
+  def test_trace_bounds_unfinished_end(self):
+    return DiffTestBlueprint(
+        trace=TextProto("""
+          packet {
+            timestamp: 1000
+            trusted_packet_sequence_id: 1
+            track_event {
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 1
+              name: "foo"
+            }
+          }
+          packet {
+            timestamp: 2000
+            trusted_packet_sequence_id: 1
+            track_event {
+              type: TYPE_SLICE_END
+              track_uuid: 1
+              name: "foo"
+            }
+          }
+          packet {
+            timestamp: 3000
+            trusted_packet_sequence_id: 1
+            track_event {
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 1
+              name: "foo"
+            }
+          }
+        """),
+        query="""
+        SELECT * FROM trace_bounds;
+        """,
+        out=Csv("""
+        "start_ts","end_ts"
+        1000,3000
+        """))

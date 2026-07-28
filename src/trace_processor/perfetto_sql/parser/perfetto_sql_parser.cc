@@ -698,6 +698,14 @@ const PerfettoSqlParser::Statement& PerfettoSqlParser::statement() const {
   return *impl_->current_statement;
 }
 
+uint32_t PerfettoSqlParser::statement_end_offset() const {
+  PERFETTO_DCHECK(impl_->current_statement.has_value());
+  uint32_t doc_offset = 0;
+  uint32_t len = 0;
+  syntaqlite_parser_text(impl_->synq, &doc_offset, &len);
+  return doc_offset + len;
+}
+
 const base::Status& PerfettoSqlParser::status() const {
   return impl_->status;
 }

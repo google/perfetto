@@ -137,13 +137,13 @@ export function assertUnreachable(value: never, optMsg?: string): never {
  * @see https://github.com/microsoft/TypeScript/issues/60579
  */
 export function assertIsArrayBufferView(
-  view: ArrayBufferView,
-): asserts view is ArrayBufferView<ArrayBuffer> {
+  view: Uint8Array<ArrayBufferLike>,
+): asserts view is Uint8Array<ArrayBuffer> {
   // SharedArrayBuffer is only defined in cross-origin isolated contexts; if the
   // global isn't there, the buffer can't possibly be one.
   if (
-    typeof SharedArrayBuffer !== 'undefined' &&
-    view.buffer instanceof SharedArrayBuffer
+    typeof globalThis.SharedArrayBuffer !== 'undefined' &&
+    view.buffer instanceof globalThis.SharedArrayBuffer
   ) {
     // Copy the underlying buffer into the array, trimming to the byte bounds of the view
     throw new Error(

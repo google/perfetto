@@ -71,6 +71,28 @@ struct TraceManifestState {
     int64_t offset_ns = 0;
   };
 
+  // A file's internal `__exported_table_schema` block declares a member of the
+  // version-coupled Perfetto export format. The manifest reader verifies the
+  // member is present; the trace_export plugin validates its version and
+  // schema. Column specs remain strings so this header stays free of dataframe
+  // types.
+  struct PerfettoExportTableColumn {
+    std::string name;
+    std::string type;
+    std::string nullability;
+    std::string sort;
+    std::string duplicates;
+  };
+  struct PerfettoExportTable {
+    // Version of the internal table serialization format, owned and validated
+    // by the trace_export plugin.
+    int64_t format = 0;
+    // SQL name of the trace processor table.
+    std::string name;
+    uint32_t row_count = 0;
+    std::vector<PerfettoExportTableColumn> columns;
+  };
+
   struct FileEntry {
     // Exact path of the member within the archive.
     std::string path;
@@ -85,6 +107,9 @@ struct TraceManifestState {
     // to place remote machines.
     std::vector<std::pair<uint32_t, std::string>> machine_mappings;
     base::FlatHashMap<uint32_t, int64_t> machine_remap;
+    // Set when the entry has an internal `__exported_table_schema` block
+    // (mutually exclusive with the trace-configuration blocks above).
+    std::optional<PerfettoExportTable> exported_table_schema;
   };
 
   // True once a perfetto_manifest file has been parsed; a second one is an

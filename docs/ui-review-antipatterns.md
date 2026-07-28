@@ -99,8 +99,7 @@ How to use it:
   clicks faster than queries run. Use a `QuerySlot` (declare a key, poll it each
   render, render stale data with `retainOn`), or load inside
   `TrackEventDetailsPanel.load()`, which auto-cancels obsolete loads. Guard
-  concurrency with `AsyncLimiter.isRunning` rather than a bespoke flag. (Note:
-  `isFresh` is always `true` unless you use `retainOn` keys.)
+  concurrency with `AsyncLimiter.isRunning` rather than a bespoke flag.
   *(#4464, #4582, #4737, #5436, #4192)*
 
 - **❌ Keeping derived state that must be manually kept in sync → ✅ derive it from

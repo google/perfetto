@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -54,6 +55,25 @@ namespace perfetto::trace_redaction {
 using Trace = protos::pbzero::Trace;
 using TracePacket = protos::pbzero::TracePacket;
 
+namespace {
+
+base::StatusOr<trace_processor::TraceBlob> LoadTrace(const std::string& path) {
+#if PERFETTO_HAS_MMAP()
+  base::ScopedMmap mapped = base::ReadMmapWholeFile(path);
+  if (mapped.IsValid()) {
+    return trace_processor::TraceBlob::FromMmap(std::move(mapped));
+  }
+#endif
+  std::string contents;
+  if (!base::ReadFile(path, &contents)) {
+    return base::ErrStatus("TraceRedactor: failed to read trace (%s)",
+                           path.c_str());
+  }
+  return trace_processor::TraceBlob::CopyFrom(contents.data(), contents.size());
+}
+
+}  // namespace
+
 TraceRedactor::TraceRedactor() = default;
 
 TraceRedactor::~TraceRedactor() = default;
@@ -62,14 +82,9 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
                                    std::string_view dest_filename,
                                    Context* context) const {
   const std::string source_filename_str(source_filename);
-  base::ScopedMmap mapped = base::ReadMmapWholeFile(source_filename_str);
-  if (!mapped.IsValid()) {
-    return base::ErrStatus("TraceRedactor: failed to map pages for trace (%s)",
-                           source_filename_str.c_str());
-  }
-
-  trace_processor::TraceBlobView whole_view(
-      trace_processor::TraceBlob::FromMmap(std::move(mapped)));
+  ASSIGN_OR_RETURN(trace_processor::TraceBlob blob,
+                   LoadTrace(source_filename_str));
+  trace_processor::TraceBlobView whole_view(std::move(blob));
 
   RETURN_IF_ERROR(Collect(context, whole_view));
 
