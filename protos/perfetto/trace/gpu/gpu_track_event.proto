@@ -16,6 +16,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import public "protos/perfetto/trace/track_event/track_descriptor.proto";
 import public "protos/perfetto/trace/track_event/track_event.proto";
 
 // GPU API type for tagging track events.
@@ -47,5 +48,19 @@ message GpuTrackEvent {
 
     // GPU API that this track event represents a call to.
     optional GpuApi gpu_api = 3001;
+  }
+}
+
+// Marks a TrackDescriptor as belonging to a GPU timeline.
+message GpuTrackDescriptor {
+  // Optional identifier for the GPU in a multi-GPU device. This uses the same
+  // namespace as GpuRenderStageEvent.gpu_id.
+  optional int32 gpu_id = 1;
+}
+
+message GpuTrackDescriptorExtension {
+  extend TrackDescriptor {
+    // Associates this track, and by inheritance its descendants, with a GPU.
+    optional GpuTrackDescriptor gpu_track = 3000;
   }
 }

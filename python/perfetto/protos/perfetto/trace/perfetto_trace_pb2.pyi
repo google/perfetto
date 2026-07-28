@@ -19240,6 +19240,7 @@ class StateDescriptor(_message.Message):
 
 class TrackDescriptor(_message.Message):
     __slots__ = ("uuid", "parent_uuid", "name", "static_name", "atrace_name", "description", "process", "chrome_process", "thread", "chrome_thread", "counter", "state", "disallow_merging_with_system_tracks", "child_ordering", "sibling_order_rank", "sibling_merge_behavior", "sibling_merge_key", "sibling_merge_key_int", "process_ordering", "thread_ordering")
+    Extensions: _python_message._ExtensionDict
     class ChildTracksOrdering(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         UNKNOWN: _ClassVar[TrackDescriptor.ChildTracksOrdering]

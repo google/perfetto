@@ -381,4 +381,8 @@ message TrackDescriptor {
     THREAD_ORDERING_EXPLICIT = 1;
   }
   optional ThreadOrdering thread_ordering = 20;
+
+  // Extension range for domain-specific track descriptors. See
+  // protos/perfetto/trace/extensions.json for the allocation registry.
+  extensions 1000 to 9999;
 }
