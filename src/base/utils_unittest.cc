@@ -418,6 +418,56 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
 }
 #endif
 
+TEST(UtilsTest, SaturatingAdd) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+
+  EXPECT_EQ(SaturatingAdd(0, 0), 0);
+  EXPECT_EQ(SaturatingAdd(123, 456), 579);
+  EXPECT_EQ(SaturatingAdd(-123, -456), -579);
+  EXPECT_EQ(SaturatingAdd(kMax, 0), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin, 0), kMin);
+  EXPECT_EQ(SaturatingAdd(kMax - 1, 1), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin + 1, -1), kMin);
+  EXPECT_EQ(SaturatingAdd(kMax, 1), kMax);
+  EXPECT_EQ(SaturatingAdd(kMax - 1, 2), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin, -1), kMin);
+  EXPECT_EQ(SaturatingAdd(kMin + 1, -2), kMin);
+}
+
+TEST(UtilsTest, SaturatingMultiply) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+
+  // No overflow: behaves like a normal multiply.
+  EXPECT_EQ(SaturatingMultiply(0, 1000), 0);
+  EXPECT_EQ(SaturatingMultiply(1000, 0), 0);
+  EXPECT_EQ(SaturatingMultiply(123, 1000), 123000);
+  EXPECT_EQ(SaturatingMultiply(-123, 1000), -123000);
+  EXPECT_EQ(SaturatingMultiply(123, -1000), -123000);
+  EXPECT_EQ(SaturatingMultiply(-123, -1000), 123000);
+  EXPECT_EQ(SaturatingMultiply(kMax, 1), kMax);
+  EXPECT_EQ(SaturatingMultiply(kMin, 1), kMin);
+
+  // Positive overflow saturates to kMax (same-sign operands).
+  EXPECT_EQ(SaturatingMultiply(kMax, 1000), kMax);
+  EXPECT_EQ(SaturatingMultiply(kMax, 2), kMax);
+  EXPECT_EQ(SaturatingMultiply(kMin, -1), kMax);
+  EXPECT_EQ(SaturatingMultiply(-kMax, -2), kMax);
+
+  // Just-in-range products near kMin are not saturated.
+  EXPECT_EQ(SaturatingMultiply(kMin / 1000, 1000), -9223372036854775000);
+
+  // Negative overflow saturates to kMin (opposite-sign operands). Notably a
+  // value near INT64_MIN scaled by a positive factor must stay negative rather
+  // than wrapping to a large positive value.
+  EXPECT_EQ(SaturatingMultiply(kMin, 1000), kMin);
+  EXPECT_EQ(SaturatingMultiply(kMin, 2), kMin);
+  EXPECT_EQ(SaturatingMultiply(kMax, -2), kMin);
+  EXPECT_EQ(SaturatingMultiply(-9223372036854776, 1000), kMin);
+  EXPECT_EQ(SaturatingMultiply(1000, -9223372036854776), kMin);
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

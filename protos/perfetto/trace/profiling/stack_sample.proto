@@ -16,7 +16,7 @@
 
 syntax = "proto2";
 
-import "protos/perfetto/trace/profiling/profile_common.proto";
+import "protos/perfetto/trace/profiling/inline_callstack.proto";
 
 package perfetto.protos;
 
@@ -57,8 +57,10 @@ message StackSample {
     UNIT_COUNT = 9;
   }
 
-  // The task an observation is attributed to. At least one of pid / tid should
-  // be set.
+  // The task an observation is attributed to. At least one of pid / tid /
+  // async_id should be set. async_id identifies a stackful async context
+  // (goroutine, fiber, ...) described by an AsyncContextDescriptor whose iid
+  // equals the async_id.
   message TaskContext {
     // Interning key, used when this context is emitted via
     // InternedData.stack_sample_task_contexts and referenced by
@@ -71,6 +73,24 @@ message StackSample {
     // OS thread id the sample belongs to. If only tid is set, the process is
     // inferred from thread association elsewhere in the trace.
     optional uint32 tid = 3;
+    optional uint64 async_id = 4;
+  }
+
+  // Describes an async context referenced by TaskContext.async_id: a stackful
+  // unit of execution that is not an OS thread (goroutine, fiber, coroutine).
+  message AsyncContextDescriptor {
+    // Interning key, equal to the TaskContext.async_id it describes. Starts
+    // from 1, 0 is the same as "not set".
+    optional uint64 iid = 1;
+
+    // A human-readable name for this specific context, e.g. "worker-7".
+    optional string name = 2;
+
+    // The kind of async context, e.g. "goroutine", "fiber".
+    optional string kind = 3;
+
+    // iid of the structural parent AsyncContextDescriptor, if any.
+    optional uint64 parent_iid = 4;
   }
 
   // The execution state a sample was taken in. All fields are optional: an
@@ -94,6 +114,32 @@ message StackSample {
   // (the sampling timebase) or observed alongside (a follower). Values live on
   // the sample as weights; this only describes their meaning.
   message CounterDescriptor {
+    // The scope of a counter instance: which stream of values the per-sample
+    // weights belong to. Counter instances accumulate independently, so
+    // values from different instances must never be merged into one stream.
+    // Trace processor keeps sampling streams separate and materializes one
+    // counter track per instance within each stream: SCOPE_GLOBAL yields one
+    // track per sampling stream and SCOPE_CPU one track per
+    // (sampling stream, cpu).
+    enum Scope {
+      // Treated as SCOPE_GLOBAL.
+      SCOPE_UNSPECIFIED = 0;
+
+      // A single counter instance, not split by cpu, thread or anything
+      // else.
+      SCOPE_GLOBAL = 1;
+
+      // One counter instance per cpu. Each sample's weight belongs to the
+      // instance of the cpu in its ExecutionContext; samples without a cpu
+      // cannot be attributed and their weights for this counter are dropped.
+      SCOPE_CPU = 2;
+
+      // If your profiler needs a scope that is not listed here, please file
+      // a bug at https://github.com/google/perfetto/issues explaining what
+      // you are trying to record and which scope you would like added.
+      // Append-only: never renumber or repurpose an existing value.
+    }
+
     // Interning key, used when this descriptor is emitted via
     // InternedData.stack_sample_counter_descriptors and referenced by
     // StackSample.primary_descriptor_iid. Starts from 1; 0 is the same as "not
@@ -119,6 +165,9 @@ message StackSample {
 
     // Free-form description of what the counter measures.
     optional string description = 6;
+
+    // The scope of this counter's instances. Absent means SCOPE_GLOBAL.
+    optional Scope scope = 7;
   }
 
   // The task (thread / process / async context) this sample is attributed to.
@@ -145,13 +194,17 @@ message StackSample {
     uint64 execution_context_iid = 4;
   }
 
-  // The captured callstack, bottom frame first.
+  // The captured callstack, bottom frame first. Give it fully inline via
+  // `callstack` or reference an interned Callstack via `callstack_iid`.
   oneof callstack_field {
-    // Inline callstack. The only supported form for now.
-    Callstack callstack = 5;
+    // Fully-inline callstack: each frame carries its function name and source
+    // location directly, no interning. Simple but larger; prefer
+    // `callstack_iid` when callstacks repeat or frames need binary/library
+    // information (mappings, build ids, relative pcs).
+    InlineCallstack callstack = 5;
 
-    // Reserved: an interned callstack variant may be added later.
-    // uint64 callstack_iid = 6;
+    // Interned callstack, referencing InternedData.callstacks.
+    uint64 callstack_iid = 6;
   }
 
   // Set if stack unwinding was incomplete; describes the data, not producer

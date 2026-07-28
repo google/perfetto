@@ -238,9 +238,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
 
 // The same multi-select component that functions as a drop-down instead of
 // a list.
-export class PopupMultiSelect
-  implements m.ClassComponent<PopupMultiSelectAttrs>
-{
+export class PopupMultiSelect implements m.ClassComponent<PopupMultiSelectAttrs> {
   view({attrs}: m.CVnode<PopupMultiSelectAttrs>) {
     const {
       icon,

@@ -136,6 +136,7 @@
 #include "src/trace_processor/plugins/table_pointer_module/table_pointer_module.h"
 #include "src/trace_processor/plugins/time_functions/time_functions.h"
 #include "src/trace_processor/plugins/to_ftrace/to_ftrace.h"
+#include "src/trace_processor/plugins/trace_export/trace_export.h"
 #include "src/trace_processor/plugins/tree_functions/tree_functions.h"
 #include "src/trace_processor/plugins/type_builder_functions/type_builder_functions.h"
 #include "src/trace_processor/plugins/utils_functions/utils_functions.h"
@@ -184,6 +185,7 @@
 #include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.h"
 #include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h"
+#include "src/trace_processor/plugins/zstd_functions/zstd_functions.h"
 #endif
 
 namespace perfetto::trace_processor {
@@ -313,6 +315,13 @@ std::pair<int64_t, int64_t> AggregatePluginTimestampBounds(
   return {start_ns, end_ns};
 }
 
+// Normalization shared by ExecuteQuery and ExecuteNextStatement. The two must
+// never diverge: statement-cursor offsets (trace_processor.h) are defined
+// against this normalized form and are documented to match ExecuteQuery's.
+std::string NormalizeExecuteQuerySql(const std::string& sql) {
+  return base::ReplaceAll(sql, "\u00A0", " ");
+}
+
 }  // namespace
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
@@ -366,6 +375,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   stdlib_docs::RegisterPlugin();
   storage_tables::RegisterPlugin();
   string_functions::RegisterPlugin();
+  trace_export::RegisterPlugin();
   structural_tree_partition::RegisterPlugin();
   symbolize::RegisterPlugin();
   table_info::RegisterPlugin();
@@ -382,6 +392,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   winscope_importer::RegisterPlugin();
   winscope_proto_to_args_with_defaults::RegisterPlugin();
   winscope_surfaceflinger_hierarchy_paths::RegisterPlugin();
+  zstd_functions::RegisterPlugin();
 #endif
 
   // Initialize plugins using the statically pre-computed PluginSet.
@@ -405,6 +416,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     }
     for (auto& p : plugins_) {
       p->RegisterDataframes(plugin_dataframes_);
+    }
+    for (auto& p : plugins_) {
+      p->OnDataframesRegistered(plugin_dataframes_);
     }
   }
   context()->register_additional_proto_modules =
@@ -639,12 +653,64 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   uint32_t sql_stats_row =
       context()->storage->mutable_sql_stats()->RecordQueryBegin(
           sql, base::GetWallTimeNs().count());
-  std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
+  std::string non_breaking_sql = NormalizeExecuteQuerySql(sql);
   base::StatusOr<PerfettoSqlConnection::ExecutionResult> result =
       engine_->ExecuteUntilLastStatement(
           SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
   return Iterator(std::make_unique<SqliteIteratorImpl>(this, std::move(result),
                                                        sql_stats_row));
+}
+
+std::optional<Iterator> TraceProcessorImpl::ExecuteNextStatement(
+    const std::string& sql,
+    uint32_t* offset) {
+  PERFETTO_CHECK(offset);
+  PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_NEXT_STATEMENT",
+                    [&](metatrace::Record* r) { r->AddArg("query", sql); });
+
+  // Offsets are relative to the normalized SQL: since the normalization is
+  // deterministic, an offset returned by one call stays valid when the same
+  // |sql| is passed back.
+  std::string non_breaking_sql = NormalizeExecuteQuerySql(sql);
+  auto size = static_cast<uint32_t>(non_breaking_sql.size());
+  uint32_t start = *offset;
+
+  uint32_t sql_stats_row =
+      context()->storage->mutable_sql_stats()->RecordQueryBegin(
+          non_breaking_sql.substr(std::min(start, size)),
+          base::GetWallTimeNs().count());
+  // A soft error rather than a CHECK: over the RPC protocol the offset comes
+  // from an untrusted client, which must not be able to crash the server.
+  if (start > size) {
+    return Iterator(std::make_unique<SqliteIteratorImpl>(
+        this,
+        base::ErrStatus(
+            "ExecuteNextStatement: offset %u out of range (SQL size %u)", start,
+            size),
+        sql_stats_row));
+  }
+  SqlSource source = SqlSource::FromExecuteQuery(std::move(non_breaking_sql));
+
+  uint32_t end_offset = 0;
+  base::StatusOr<std::optional<PerfettoSqlConnection::ExecutionResult>> result =
+      engine_->ExecuteNextStatement(source.Substr(start, size - start),
+                                    &end_offset);
+  if (!result.ok()) {
+    return Iterator(std::make_unique<SqliteIteratorImpl>(this, result.status(),
+                                                         sql_stats_row));
+  }
+  if (!result->has_value()) {
+    // No iterator will be created to close the sql_stats entry; do it here.
+    int64_t now = base::GetWallTimeNs().count();
+    auto* sql_stats = context()->storage->mutable_sql_stats();
+    sql_stats->RecordQueryFirstNext(sql_stats_row, now);
+    sql_stats->RecordQueryEnd(sql_stats_row, now);
+    *offset = size;
+    return std::nullopt;
+  }
+  *offset = start + end_offset;
+  return Iterator(std::make_unique<SqliteIteratorImpl>(
+      this, std::move(**result), sql_stats_row));
 }
 
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
@@ -1135,6 +1201,12 @@ base::Status TraceProcessorImpl::CreateSummarizer(
   *out = std::make_unique<summary::SummarizerImpl>(
       this, &metrics_descriptor_pool_, std::move(id));
   return base::OkStatus();
+}
+
+base::Status TraceProcessorImpl::Export(ExportFormat format,
+                                        ExportOutput* output) {
+  return trace_export::WriteExport(
+      plugin_dataframes_, context()->storage->string_pool(), format, output);
 }
 
 }  // namespace perfetto::trace_processor

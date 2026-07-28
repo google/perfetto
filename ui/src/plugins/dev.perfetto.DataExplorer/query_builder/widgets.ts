@@ -73,9 +73,7 @@ export interface ResultsPanelEmptyStateAttrs {
   readonly variant?: ResultsPanelEmptyStateVariant;
 }
 
-export class ResultsPanelEmptyState
-  implements m.ClassComponent<ResultsPanelEmptyStateAttrs>
-{
+export class ResultsPanelEmptyState implements m.ClassComponent<ResultsPanelEmptyStateAttrs> {
   view({attrs, children}: m.CVnode<ResultsPanelEmptyStateAttrs>) {
     const {icon, title, variant = 'default'} = attrs;
 
@@ -284,9 +282,7 @@ export interface TableDescriptionAttrs {
   table: SqlTable;
 }
 
-export class TableDescription
-  implements m.ClassComponent<TableDescriptionAttrs>
-{
+export class TableDescription implements m.ClassComponent<TableDescriptionAttrs> {
   view({attrs}: m.Vnode<TableDescriptionAttrs>) {
     const {table} = attrs;
 
@@ -322,9 +318,7 @@ export interface AdvancedModeChangeButtonAttrs {
   onclick: () => void;
 }
 
-export class AdvancedModeChangeButton
-  implements m.ClassComponent<AdvancedModeChangeButtonAttrs>
-{
+export class AdvancedModeChangeButton implements m.ClassComponent<AdvancedModeChangeButtonAttrs> {
   view({attrs}: m.Vnode<AdvancedModeChangeButtonAttrs>) {
     const {label, icon, onclick} = attrs;
 
@@ -487,9 +481,7 @@ export interface OutlinedFieldReadOnlyAttrs {
   className?: string;
 }
 
-export class OutlinedFieldReadOnly
-  implements m.ClassComponent<OutlinedFieldReadOnlyAttrs>
-{
+export class OutlinedFieldReadOnly implements m.ClassComponent<OutlinedFieldReadOnlyAttrs> {
   view({attrs}: m.Vnode<OutlinedFieldReadOnlyAttrs>) {
     const {label, value, className} = attrs;
 
@@ -512,9 +504,7 @@ export interface OutlinedMultiSelectAttrs {
   compact?: boolean;
 }
 
-export class OutlinedMultiSelect
-  implements m.ClassComponent<OutlinedMultiSelectAttrs>
-{
+export class OutlinedMultiSelect implements m.ClassComponent<OutlinedMultiSelectAttrs> {
   view({attrs}: m.Vnode<OutlinedMultiSelectAttrs>) {
     return m('.pf-outlined-multiselect', m(PopupMultiSelect, attrs));
   }
@@ -528,9 +518,7 @@ export interface AddItemPlaceholderAttrs {
   onclick?: () => void;
 }
 
-export class AddItemPlaceholder
-  implements m.ClassComponent<AddItemPlaceholderAttrs>
-{
+export class AddItemPlaceholder implements m.ClassComponent<AddItemPlaceholderAttrs> {
   view({attrs}: m.Vnode<AddItemPlaceholderAttrs>) {
     const {label, icon, onclick} = attrs;
 
@@ -565,9 +553,9 @@ export interface InlineEditListAttrs<T> {
   emptyItem: () => T; // Factory function to create a new empty item
 }
 
-export class InlineEditList<T>
-  implements m.ClassComponent<InlineEditListAttrs<T>>
-{
+export class InlineEditList<T> implements m.ClassComponent<
+  InlineEditListAttrs<T>
+> {
   view({attrs}: m.Vnode<InlineEditListAttrs<T>>) {
     const {
       items,
@@ -808,9 +796,7 @@ export interface ResizableSqlEditorAttrs {
   autofocus?: boolean;
 }
 
-export class ResizableSqlEditor
-  implements m.ClassComponent<ResizableSqlEditorAttrs>
-{
+export class ResizableSqlEditor implements m.ClassComponent<ResizableSqlEditorAttrs> {
   private editorHeight: number = 0;
   private editorElement?: HTMLElement;
 

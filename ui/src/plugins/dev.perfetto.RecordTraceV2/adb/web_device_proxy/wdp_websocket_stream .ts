@@ -52,7 +52,7 @@ export class WdpWebSocketStream extends ByteStream {
     return this.sock.readyState === WebSocket.OPEN;
   }
 
-  async write(data: string | Uint8Array): Promise<void> {
+  async write(data: string | Uint8Array<ArrayBuffer>): Promise<void> {
     this.sock.send(data);
   }
 

@@ -451,8 +451,19 @@ size_t HttpServer::ParseOneWebsocketFrame(HttpServerConnection* conn) {
     return 0;  // Not enough data to read the payload.
   uint8_t* const payload_start = rd;
 
-  // Unmask the payload.
-  for (uint32_t i = 0; i < payload_len; ++i)
+  // Unmask the payload, one 4-byte mask period per iteration.
+  // Deliberately NOT written as the more natural `payload[i] ^= mask[i % 4]`:
+  // clang's arm64 autovectorizer has been observed to miscompile that form
+  // (widening the 4-byte mask to an 8-byte vector whose upper half is read
+  // from uninitialized stack), corrupting every payload >= 8 bytes.
+  size_t unmasked = 0;
+  for (; unmasked + sizeof(mask) <= payload_len; unmasked += sizeof(mask)) {
+    payload_start[unmasked + 0] ^= mask[0];
+    payload_start[unmasked + 1] ^= mask[1];
+    payload_start[unmasked + 2] ^= mask[2];
+    payload_start[unmasked + 3] ^= mask[3];
+  }
+  for (size_t i = unmasked; i < payload_len; ++i)
     payload_start[i] ^= mask[i % sizeof(mask)];
 
   if (opcode == kOpcodePing) {
@@ -533,16 +544,16 @@ void HttpServerConnection::SendResponseHeaders(
              resp_hdr.size());  // Send response headers.
 }
 
-void HttpServerConnection::SendResponseBody(const void* data, size_t len) {
+bool HttpServerConnection::SendResponseBody(const void* data, size_t len) {
   PERFETTO_CHECK(!is_websocket_);
   if (data == nullptr) {
     PERFETTO_DCHECK(len == 0);
-    return;
+    return true;
   }
   content_len_actual_ += len;
   PERFETTO_CHECK(content_len_actual_ <= content_len_headers_ ||
                  content_len_headers_ == kOmitContentLength);
-  sock->Send(data, len);
+  return sock->Send(data, len);
 }
 
 void HttpServerConnection::Close() {

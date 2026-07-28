@@ -25,6 +25,7 @@
 
 #include <atomic>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -70,6 +71,54 @@ inline uint32_t GetSysPageSize() {
 template <typename T, size_t TSize>
 constexpr size_t ArraySize(const T (&)[TSize]) {
   return TSize;
+}
+
+// Adds `a` and `b`, clamping to INT64_MIN / INT64_MAX on overflow instead of
+// wrapping (which is UB and can flip the sign of the result).
+inline int64_t SaturatingAdd(int64_t a, int64_t b) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+#if defined(__clang__) || defined(__GNUC__)
+  int64_t result;
+  if (PERFETTO_UNLIKELY(__builtin_add_overflow(a, b, &result)))
+    return a < 0 ? kMin : kMax;
+  return result;
+#else
+  if (b > 0 && a > kMax - b)
+    return kMax;
+  if (b < 0 && a < kMin - b)
+    return kMin;
+  return a + b;
+#endif
+}
+
+// Multiplies `a` by `b`, clamping to INT64_MIN / INT64_MAX on overflow instead
+// of wrapping (which is UB and can flip the sign of the result).
+inline int64_t SaturatingMultiply(int64_t a, int64_t b) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+#if defined(__clang__) || defined(__GNUC__)
+  int64_t result;
+  if (PERFETTO_UNLIKELY(__builtin_mul_overflow(a, b, &result))) {
+    // On overflow the true product's sign is the XOR of the operands' signs.
+    // Neither operand can be zero here (0 never overflows).
+    return ((a < 0) == (b < 0)) ? kMax : kMin;
+  }
+  return result;
+#else
+  // Portable fallback (e.g. MSVC cl.exe): detect overflow *before* multiplying
+  // by dividing a limit by one operand, which never itself overflows.
+  if (a == 0 || b == 0)
+    return 0;
+  if ((a < 0) == (b < 0)) {  // Same sign: product is positive.
+    if (a > 0 ? (a > kMax / b) : (a < kMax / b))
+      return kMax;
+  } else {  // Opposite signs: product is negative.
+    if (a > 0 ? (b < kMin / a) : (a < kMin / b))
+      return kMin;
+  }
+  return a * b;
+#endif
 }
 
 // Function object which invokes 'free' on its parameter, which must be

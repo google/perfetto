@@ -35,7 +35,7 @@ import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {formatFileSize} from '../../base/file_utils';
-import {QuerySlot} from '../../base/query_slot';
+import {AsyncMemo} from '../../base/async_memo';
 import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
 
 interface V8JsScript {
@@ -105,7 +105,7 @@ const TAB_FUNCTIONS = 'functions';
 
 export class V8SourcesTab implements Tab {
   private currentTab = TAB_SOURCE;
-  private readonly slot = new QuerySlot<ScriptResults | undefined>();
+  private readonly slot = new AsyncMemo<ScriptResults | undefined>();
   private selectedScriptId: number | undefined = undefined;
   private trace: Trace;
   private dataSource: SQLDataSource;
@@ -273,7 +273,7 @@ export class V8SourcesTab implements Tab {
     const {data: scriptResult} = this.slot.use({
       key: {id: selectedId},
       retainOn: ['id'],
-      queryFn: () => this.selectScript(selectedId),
+      compute: () => this.selectScript(selectedId),
     });
 
     const v8JsScriptUiSchema: ColumnSchema = {

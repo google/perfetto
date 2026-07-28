@@ -47,9 +47,7 @@ import {nextNodeId, type QueryNode} from '../query_node';
  * Builder methods accept nodes or structured queries and extract/use them internally.
  */
 export type QuerySource =
-  | QueryNode
-  | protos.PerfettoSqlStructuredQuery
-  | undefined;
+  QueryNode | protos.PerfettoSqlStructuredQuery | undefined;
 
 /**
  * Helper function to extract a structured query from a QuerySource.

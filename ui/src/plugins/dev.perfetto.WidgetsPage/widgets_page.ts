@@ -33,6 +33,7 @@ import {renderDrawerPanel} from './demos/drawer_panel_demo';
 import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
 import {renderForm} from './demos/form_demo';
+import {renderFuzzyDemo} from './demos/fuzzy_demo';
 import {renderGrid} from './demos/grid_demo';
 import {renderCharts} from './demos/charts_demo';
 import {renderHotkey} from './demos/hotkey_demo';
@@ -98,6 +99,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'editor', label: 'Editor', view: renderEditor},
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},
   {id: 'form', label: 'Form', view: renderForm},
+  {id: 'fuzzy-search', label: 'Fuzzy Search', view: renderFuzzyDemo},
   {id: 'grid', label: 'Grid', view: renderGrid},
   {id: 'hotkey', label: 'Hotkey', view: renderHotkey},
   {id: 'icon', label: 'Icon', view: renderIcon},

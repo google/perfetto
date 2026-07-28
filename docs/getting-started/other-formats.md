@@ -439,7 +439,7 @@ stacks, timestamps, process/thread identifiers, CPU number, and event names.
   - The primary focus of this importer is on **CPU samples and their associated
     call stacks**.
   - When such data is parsed, it populates Perfetto's standard profiling tables
-    (e.g., `cpu_profile_stack_sample_table` for the samples, and
+    (e.g., `cpu_profile_stack_sample` for the samples, and
     `stack_profile_callsite`, `stack_profile_frame`, `stack_profile_mapping` for
     the call stack information).
   - This allows the CPU profile data from the `perf script` output to be

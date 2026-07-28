@@ -14,24 +14,12 @@
 
 type Priority = 'user-blocking' | 'user-visible' | 'background';
 
-// Type declaration for the Scheduler API (not yet in TypeScript's lib.dom.d.ts)
-declare global {
-  interface Scheduler {
-    yield(): Promise<void>;
-    postTask(
-      callback: (args: void) => void,
-      options?: {priority?: Priority},
-    ): Promise<void>;
-  }
-  var scheduler: Scheduler | undefined;
-}
-
 // Polyfill for scheduler.postTask()
 export function postTask(
   callback: (args: void) => void,
   options?: {priority?: Priority},
 ): void {
-  if (globalThis.scheduler?.postTask) {
+  if ('scheduler' in globalThis) {
     globalThis.scheduler.postTask(callback, options);
   } else {
     setTimeout(() => callback(), 0);
@@ -40,7 +28,7 @@ export function postTask(
 
 // Polyfill for scheduler.yield()
 export function yieldTask(): Promise<void> {
-  if (globalThis.scheduler?.yield) {
+  if ('scheduler' in globalThis) {
     return globalThis.scheduler.yield();
   } else {
     return new Promise<void>((r) => setTimeout(() => r(), 0));

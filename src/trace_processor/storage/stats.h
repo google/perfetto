@@ -193,6 +193,11 @@ namespace perfetto::trace_processor::stats {
   F(missing_disk_io_event_name,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "ETW Disk IO tracker encountered an event with an opcode for which it " \
         "didn't have a name."),                                                \
+  F(cpu_info_empty,                       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+       "CpuInfo packet in the trace contained no CPUs. This usually happens "  \
+       "when /proc/cpuinfo is unreadable or empty in the environment (e.g. "   \
+       "sandbox or container) where tracing occurred. Metadata in the cpu "    \
+       "table will be missing."),                                              \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
@@ -397,6 +402,9 @@ namespace perfetto::trace_processor::stats {
       "has already started flushing."),                                        \
   F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(process_tracker_parent_pid_changed,     kSingle, kInfo,   kAnalysis, Scope::kMachineAndTrace,         \
+      "A process was seen with a changed parent pid and was treated as the "   \
+      "same process being reparented rather than pid reuse."),                 \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A namespaced thread association was received but the corresponding "    \
       "process association was not found. This can happen due to data losses " \
@@ -804,6 +812,14 @@ namespace perfetto::trace_processor::stats {
       "be dropped. This indicates a bug in the trace producer or trace "       \
       "conversion tool, or data corruption. Ensure all events have valid "     \
       "timestamps."),                                                          \
+  F(track_event_invalid_timestamp,              kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackEvent packet resolved to a negative timestamp and was dropped. " \
+      "This indicates a bug in the trace producer or trace conversion tool, " \
+      "or data corruption."),                                                  \
+  F(streaming_profile_invalid_timestamp,        kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A StreamingProfilePacket resolved to a negative timestamp and was "    \
+      "dropped. This indicates a bug in the trace producer or data "           \
+      "corruption."),                                                          \
   F(thread_descriptor_missing_sequence_id,      kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A ThreadDescriptor packet was received without a "                      \
       "trusted_packet_sequence_id field. This field is required to associate " \

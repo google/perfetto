@@ -25,6 +25,7 @@ packet {
       uid: 10001
       pid: 100
       process_name: "com.example.app"
+      start_seq_id: 42
     }
   }
 }

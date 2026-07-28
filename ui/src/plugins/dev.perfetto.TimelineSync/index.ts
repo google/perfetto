@@ -478,10 +478,7 @@ interface MsgSessionStop {
 
 // In case of new messages, they should be "or-ed" here.
 type SyncMessages =
-  | MsgSetViewport
-  | MsgAdvertise
-  | MsgSessionStart
-  | MsgSessionStop;
+  MsgSetViewport | MsgAdvertise | MsgSessionStart | MsgSessionStop;
 
 interface SyncMessage {
   perfettoSync: SyncMessages;

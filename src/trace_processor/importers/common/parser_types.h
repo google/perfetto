@@ -195,6 +195,15 @@ struct alignas(8) LegacyV8CpuProfileEvent {
 };
 static_assert(sizeof(LegacyV8CpuProfileEvent) % 8 == 0);
 
+// A single Chrome StreamingProfilePacket sample, pushed through the sorter at
+// its resolved per-sample timestamp.
+struct alignas(8) StreamingProfileSampleEvent {
+  RefPtr<PacketSequenceStateGeneration> sequence_state;
+  uint64_t callstack_iid;
+  int32_t process_priority;
+};
+static_assert(sizeof(StreamingProfileSampleEvent) % 8 == 0);
+
 }  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PARSER_TYPES_H_

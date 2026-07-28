@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -52,6 +53,7 @@
 namespace perfetto::trace_processor {
 namespace {
 
+using base::gtest_matchers::IsError;
 using testing::Eq;
 using testing::HasSubstr;
 
@@ -1002,6 +1004,216 @@ TEST_F(TraceProcessorIntegrationTest, PackageSameNameOverride) {
   // Re-registering "foo" with override should succeed
   pkg2.allow_override = true;
   ASSERT_OK(Processor()->RegisterSqlPackage(pkg2));
+}
+
+class StringExportOutput : public TraceProcessor::ExportOutput {
+ public:
+  base::Status Write(const void* data, size_t size) override {
+    bytes.append(static_cast<const char*>(data), size);
+    return base::OkStatus();
+  }
+
+  std::string bytes;
+};
+
+std::string ExportToString(TraceProcessor* tp,
+                           TraceProcessor::ExportFormat format) {
+  StringExportOutput output;
+  EXPECT_OK(tp->Export(format, &output));
+  return std::move(output.bytes);
+}
+
+base::Status ParsePerfettoExport(TraceProcessor* tp, const std::string& bytes) {
+  constexpr size_t kChunk = 4096;
+  for (size_t i = 0; i < bytes.size(); i += kChunk) {
+    size_t len = std::min(kChunk, bytes.size() - i);
+    auto buf = std::make_unique<uint8_t[]>(len);
+    memcpy(buf.get(), bytes.data() + i, len);
+    auto status = tp->Parse(std::move(buf), len);
+    if (!status.ok()) {
+      return status;
+    }
+  }
+  return tp->NotifyEndOfFile();
+}
+
+int64_t QuerySingleInt(TraceProcessor* tp, const std::string& sql) {
+  auto it = tp->ExecuteQuery(sql);
+  EXPECT_TRUE(it.Next()) << sql;
+  int64_t value = it.Get(0).long_value;
+  EXPECT_FALSE(it.Next());
+  EXPECT_OK(it.Status());
+  return value;
+}
+
+std::string QuerySingleString(TraceProcessor* tp, const std::string& sql) {
+  auto it = tp->ExecuteQuery(sql);
+  EXPECT_TRUE(it.Next()) << sql;
+  std::string value = it.Get(0).string_value;
+  EXPECT_FALSE(it.Next());
+  EXPECT_OK(it.Status());
+  return value;
+}
+
+struct TarMember {
+  std::string name;
+  size_t data_offset;
+  size_t size;
+};
+
+std::vector<TarMember> ReadTarMembers(const std::string& tar) {
+  std::vector<TarMember> members;
+  for (size_t offset = 0; offset + 512 <= tar.size();) {
+    if (tar[offset] == '\0') {
+      break;
+    }
+    std::string name(tar.data() + offset, strnlen(tar.data() + offset, 100));
+    size_t size = 0;
+    for (size_t i = 0; i < 11; ++i) {
+      char c = tar[offset + 124 + i];
+      if (c < '0' || c > '7') {
+        break;
+      }
+      size = size * 8 + static_cast<size_t>(c - '0');
+    }
+    size_t data_offset = offset + 512;
+    if (data_offset + size > tar.size()) {
+      return {};
+    }
+    members.push_back({std::move(name), data_offset, size});
+    offset = data_offset + ((size + 511) / 512) * 512;
+  }
+  return members;
+}
+
+TEST_F(TraceProcessorIntegrationTest, ExportPerfetto) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+
+  // The archive must start with the manifest entry: a tar file begins with
+  // the first entry's 100-byte name field.
+  ASSERT_GT(tar.size(), 1024u);
+  ASSERT_EQ(std::string(tar.data(), 22), "perfetto_manifest.json");
+  ASSERT_EQ(std::string(tar.data() + 257, 5), "ustar");
+
+  std::vector<TarMember> members = ReadTarMembers(tar);
+  ASSERT_GT(members.size(), 2u);
+  EXPECT_EQ(members[0].name, "perfetto_manifest.json");
+  for (size_t i = 1; i < members.size(); ++i) {
+    const TarMember& member = members[i];
+    EXPECT_TRUE(base::EndsWith(member.name, ".arrow")) << member.name;
+    ASSERT_GE(member.size, 6u);
+    EXPECT_EQ(tar.substr(member.data_offset, 6), "ARROW1") << member.name;
+  }
+}
+
+TEST_F(TraceProcessorIntegrationTest, ExportArrowTar) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+  auto runtime_table = Processor()->ExecuteQuery(
+      "CREATE PERFETTO TABLE runtime_export_test AS "
+      "SELECT 1 AS value");
+  EXPECT_FALSE(runtime_table.Next());
+  ASSERT_OK(runtime_table.Status());
+
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kArrowTar);
+  std::vector<TarMember> members = ReadTarMembers(tar);
+  ASSERT_FALSE(members.empty());
+  for (const TarMember& member : members) {
+    EXPECT_TRUE(base::EndsWith(member.name, ".arrow")) << member.name;
+    ASSERT_GE(member.size, 6u);
+    EXPECT_EQ(tar.substr(member.data_offset, 6), "ARROW1") << member.name;
+    EXPECT_NE(member.name, "runtime_export_test.arrow");
+  }
+  EXPECT_EQ(tar.find("perfetto_manifest.json"), std::string::npos);
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  EXPECT_THAT(ParsePerfettoExport(reimport.get(), tar), IsError());
+}
+
+TEST_F(TraceProcessorIntegrationTest, PerfettoExportRoundTrip) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+
+  int64_t thread_count =
+      QuerySingleInt(Processor(), "SELECT count() FROM thread");
+  int64_t slice_count =
+      QuerySingleInt(Processor(), "SELECT count() FROM slice");
+  int64_t slice_dur_sum =
+      QuerySingleInt(Processor(), "SELECT sum(dur) FROM slice");
+  std::string first_thread_name = QuerySingleString(
+      Processor(),
+      "SELECT name FROM thread WHERE name IS NOT NULL ORDER BY name LIMIT 1");
+  ASSERT_GT(thread_count, 0);
+  ASSERT_GT(slice_count, 0);
+
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(ParsePerfettoExport(reimport.get(), tar));
+
+  EXPECT_EQ(QuerySingleInt(reimport.get(), "SELECT count() FROM thread"),
+            thread_count);
+  EXPECT_EQ(QuerySingleInt(reimport.get(), "SELECT count() FROM slice"),
+            slice_count);
+  EXPECT_EQ(QuerySingleInt(reimport.get(), "SELECT sum(dur) FROM slice"),
+            slice_dur_sum);
+  EXPECT_EQ(QuerySingleString(
+                reimport.get(),
+                "SELECT name FROM thread WHERE name IS NOT NULL ORDER BY name "
+                "LIMIT 1"),
+            first_thread_name);
+}
+
+TEST_F(TraceProcessorIntegrationTest, PerfettoExportSchemaMismatchRejected) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+
+  // Corrupt the manifest: flip a column type. Same-length replacement keeps
+  // the tar structure intact.
+  size_t pos = tar.find("\"type\":\"int64\"");
+  ASSERT_NE(pos, std::string::npos);
+  tar.replace(pos, 14, "\"type\":\"int32\"");
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  auto status = ParsePerfettoExport(reimport.get(), tar);
+  EXPECT_THAT(status, IsError());
+  EXPECT_NE(status.message().find("schema mismatch"), std::string::npos)
+      << status.message();
+}
+
+TEST_F(TraceProcessorIntegrationTest, PerfettoExportVersionMismatchRejected) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+
+  size_t pos = tar.find("\"format\":1");
+  ASSERT_NE(pos, std::string::npos);
+  tar.replace(pos, 10, "\"format\":9");
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  auto status = ParsePerfettoExport(reimport.get(), tar);
+  EXPECT_THAT(status, IsError());
+  EXPECT_NE(status.message().find("format"), std::string::npos)
+      << status.message();
+}
+
+TEST_F(TraceProcessorIntegrationTest, PerfettoExportRowCountMismatchRejected) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kPerfetto);
+
+  size_t pos = tar.find("\"row_count\":");
+  ASSERT_NE(pos, std::string::npos);
+  char& digit = tar[pos + 12];
+  ASSERT_TRUE(digit >= '0' && digit <= '9');
+  digit = digit == '9' ? '8' : static_cast<char>(digit + 1);
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  EXPECT_THAT(ParsePerfettoExport(reimport.get(), tar), IsError());
 }
 
 TEST_F(TraceProcessorIntegrationTest, MultiLevelPackageInclude) {

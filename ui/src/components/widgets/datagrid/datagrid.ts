@@ -693,7 +693,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               title:
                 this.filters.length > 0
                   ? 'No results match your filters'
-                  : emptyStateMessage ?? 'No data available',
+                  : (emptyStateMessage ?? 'No data available'),
               fillHeight: true,
             },
             this.filters.length > 0 &&
@@ -1514,7 +1514,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             canAdd: attrs.canAddColumns ?? true,
             canRemove: this.columns.length > 1,
             onRemove:
-              attrs.canRemoveColumns ?? true
+              (attrs.canRemoveColumns ?? true)
                 ? () => this.removeColumn(colId, attrs)
                 : undefined,
             schema,
@@ -1681,9 +1681,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             GridCell,
             {
               actionButtons: colInfo?.actions?.(value, row),
-              align: isRich ? rendered.align ?? 'left' : getAligment(value),
+              align: isRich ? (rendered.align ?? 'left') : getAligment(value),
               nullish: isRich
-                ? rendered.nullish ?? value === null
+                ? (rendered.nullish ?? value === null)
                 : value === null,
               chevron,
               onChevronClick,
@@ -2103,9 +2103,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             m(
               GridCell,
               {
-                align: isRich ? rendered.align ?? 'left' : getAligment(value),
+                align: isRich ? (rendered.align ?? 'left') : getAligment(value),
                 nullish: isRich
-                  ? rendered.nullish ?? value === null
+                  ? (rendered.nullish ?? value === null)
                   : value === null,
                 className: classNames(
                   'pf-data-grid__groupby-column',
@@ -2195,9 +2195,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               GridCell,
               {
                 // Default to 'right' for aggregates, but allow override
-                align: isRich ? rendered.align ?? 'left' : getAligment(value),
+                align: isRich ? (rendered.align ?? 'left') : getAligment(value),
                 nullish: isRich
-                  ? rendered.nullish ?? value === null
+                  ? (rendered.nullish ?? value === null)
                   : value === null,
               },
               isRich ? rendered.content : rendered,
