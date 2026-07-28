@@ -184,6 +184,7 @@
 "traced_buf_chunks_discarded",0,"info","trace",0
 "traced_buf_chunks_overwritten",0,"info","trace",0
 "traced_buf_chunks_read",0,"info","trace",0
+"traced_buf_chunks_relocated",0,"info","trace",0
 "traced_buf_chunks_rewritten",0,"info","trace",0
 "traced_buf_chunks_written",0,"info","trace",4603
 "traced_buf_padding_bytes_cleared",0,"info","trace",0
