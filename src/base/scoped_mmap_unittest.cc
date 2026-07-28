@@ -24,6 +24,7 @@
 #endif
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "src/base/test/tmp_dir_tree.h"
 #include "test/gtest_and_gmock.h"
 
@@ -66,6 +67,19 @@ TEST_F(ScopedMmapTest, WholeOneByteFile) {
   ASSERT_TRUE(mapped.IsValid());
   ASSERT_NE(mapped.data(), nullptr);
   ASSERT_EQ(mapped.length(), 1u);
+  EXPECT_EQ(*static_cast<char*>(mapped.data()), 'c');
+}
+
+// base::TempFile keeps the file open for writing, which used to make the
+// mapping fail on Windows.
+TEST_F(ScopedMmapTest, WholeFileHeldOpenForWriting) {
+  TempFile file = TempFile::Create();
+  ASSERT_EQ(WriteAll(file.fd(), "ccccc", 5), 5);
+
+  ScopedMmap mapped = ReadMmapWholeFile(file.path());
+
+  ASSERT_TRUE(mapped.IsValid());
+  ASSERT_EQ(mapped.length(), 5u);
   EXPECT_EQ(*static_cast<char*>(mapped.data()), 'c');
 }
 

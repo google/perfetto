@@ -153,6 +153,28 @@ class ProcessTracking(TestSuite):
         20,10
         """))
 
+  # Changed parent pid is treated as reparenting, keeping the original parent pid (pid 200 -> one process)
+  # Pid reuse detection now relies on sched_process_free, as that ends the lifetime of the previous process (pid 300 -> two processes).
+  def test_process_reparent_and_reuse(self):
+    return DiffTestBlueprint(
+        trace=Path('process_reparent_and_reuse.py'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          parent.pid AS parent_pid
+        FROM process p
+        LEFT JOIN process parent ON p.parent_upid = parent.upid
+        WHERE p.pid IN (200, 300)
+        ORDER BY p.pid, p.name;
+        """,
+        out=Csv("""
+        "pid","name","parent_pid"
+        200,"child_a",100
+        300,"orig_b",1
+        300,"reused_b",2000
+        """))
+
   # Tracking thread reuse
   def test_process_tracking_reused_thread_print(self):
     return DiffTestBlueprint(

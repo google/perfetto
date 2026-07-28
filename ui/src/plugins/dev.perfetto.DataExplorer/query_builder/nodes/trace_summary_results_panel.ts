@@ -166,9 +166,7 @@ export interface TraceSummaryResultsPanelAttrs {
   readonly onchange?: () => void;
 }
 
-export class TraceSummaryResultsPanel
-  implements m.ClassComponent<TraceSummaryResultsPanelAttrs>
-{
+export class TraceSummaryResultsPanel implements m.ClassComponent<TraceSummaryResultsPanelAttrs> {
   private executionState: ExecutionState = {kind: 'idle'};
   private activeTab?: string;
   private prevSpecHash?: string;

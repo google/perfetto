@@ -257,12 +257,12 @@ creating and managing pull requests, follow that and skip this section.
 When creating a pull request, follow these steps:
 
 1.  **Create a new branch:**
-    Use the command `git new-branch dev/$USER$/<name-of-branch>` to create a new branch for your pull request.
+    Use the command `git checkout -b dev/$USER/<name-of-branch>` to create a new branch for your pull request.
 
 2.  **Create a stacked/dependent pull request:**
-    To create a pull request that depends on another, use the command `git new-branch --parent <name-of-parent-branch> dev/lalitm/<name-of-branch>`.
+    To create a pull request that depends on another, use the command `git checkout -b dev/$USER/<name-of-branch> <name-of-parent-branch>`.
 
-**Note:** The `git new-branch` command only creates and switches to a new branch. The normal `git add` and `git commit` workflow should be used to add changes to the branch.
+**Note:** The `git checkout` command only creates and switches to a new branch. The normal `git add` and `git commit` workflow should be used to add changes to the branch.
 
 ## Commit Messages
 

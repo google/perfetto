@@ -218,7 +218,7 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
         reinterpret_cast<const uint8_t*>(raw_bytes.data()), raw_bytes.size(),
         {}, true);
     if (!status.ok()) {
-      context_->import_logs_tracker->RecordAnalysisError(
+      context_->import_logs_tracker->RecordAnalysisLog(
           stats::extra_parsing_descriptors_error,
           [&](ArgsTracker::BoundInserter& ins) {
             ins.AddArg(context_->storage->InternString("message"),
@@ -402,7 +402,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         PacketAnalyzer::Get(context_)->ProcessPacket(packet, annotation);
       }
       scoped_state->needs_incremental_state_skipped++;
-      context_->import_logs_tracker->RecordTokenizationError(
+      context_->import_logs_tracker->RecordTokenizationLog(
           stats::packet_skipped_seq_needs_incremental_state_invalid,
           packet.offset(),
           [this, seq_id](ArgsTracker::BoundInserter& inserter) {
@@ -447,7 +447,7 @@ ProtoTraceReader::ClockResolution ProtoTraceReader::ResolveTimestampToTraceTime(
   }
 
   // Cannot defer: record the error and drop the packet.
-  context_->import_logs_tracker->RecordTokenizationError(
+  context_->import_logs_tracker->RecordTokenizationLog(
       stats::clock_sync_failure_undeferrable_packet_loss, packet->offset());
   return ClockResolution::kDropped;
 }
@@ -581,7 +581,7 @@ void ProtoTraceReader::HandleIncrementalStateCleared(
     const protos::pbzero::TracePacket::Decoder& packet_decoder,
     const TraceBlobView& packet) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::incremental_state_cleared_missing_sequence_id, packet.offset());
     return;
   }
@@ -625,7 +625,7 @@ void ProtoTraceReader::HandlePreviousPacketDropped(
     const protos::pbzero::TracePacket::Decoder& packet_decoder,
     const TraceBlobView& packet) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::previous_packet_dropped_missing_sequence_id, packet.offset());
     return;
   }
@@ -661,7 +661,7 @@ void ProtoTraceReader::ParseTracePacketDefaults(
     const protos::pbzero::TracePacket_Decoder& packet_decoder,
     TraceBlobView trace_packet_defaults) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::trace_packet_defaults_missing_sequence_id,
         trace_packet_defaults.offset());
     return;
@@ -676,7 +676,7 @@ void ProtoTraceReader::ParseInternedData(
     const protos::pbzero::TracePacket::Decoder& packet_decoder,
     TraceBlobView interned_data) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::interned_data_missing_sequence_id, interned_data.offset());
     return;
   }
@@ -688,7 +688,7 @@ void ProtoTraceReader::ParseInternedData(
   // they could otherwise be associated with the wrong generation in the state.
   if (!state->IsIncrementalStateValid()) {
     uint32_t seq_id = packet_decoder.trusted_packet_sequence_id();
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::interned_data_skipped_incremental_state_invalid,
         interned_data.offset(),
         [this, seq_id](ArgsTracker::BoundInserter& inserter) {

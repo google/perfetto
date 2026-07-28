@@ -754,9 +754,7 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
     UniquePid pupid = context_->process_tracker->GetOrCreateProcess(ppid);
     UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
 
-    upid = context_->process_tracker->UpdateProcessWithParent(
-        upid, pupid, /*associate_main_thread=*/true);
-
+    context_->process_tracker->SetProcessParent(upid, pupid, ts);
     context_->process_tracker->SetProcessMetadata(upid, argv0, joined_cmdline);
 
     // perfetto v50+: additionally, if we know that the "cmdline" contents are
@@ -823,7 +821,7 @@ void SystemProbesParser::ParseProcessTree(int64_t ts, ConstBytes blob) {
       }
       if (!context_->process_tracker->UpdateNamespacedThread(
               tgid, tid, std::move(nstid))) {
-        context_->import_logs_tracker->RecordParserError(
+        context_->import_logs_tracker->RecordParserLog(
             stats::namespaced_thread_missing_process, ts);
       }
     }
@@ -1160,6 +1158,12 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     cpu_infos.push_back(current_cpu_info);
   }
 
+  if (cpu_infos.empty()) {
+    context_->import_logs_tracker->RecordAnalysisLog(
+        stats::cpu_info_empty, [](ArgsTracker::BoundInserter&) {});
+    return;
+  }
+
   // Calculate cluster ids
   // We look to use capacities as it is an ARM provided metric which is designed
   // to measure the heterogeneity of CPU clusters however we fallback on the
@@ -1253,8 +1257,9 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     // Bits beyond the allowlist come from a recorder newer than this
     // version of trace_processor; they stay queryable via the raw bitmap.
     if ((cpu_info.features >> base::ArraySize(base::kCpuInfoFeatures)) != 0) {
-      context_->stats_tracker->IncrementStats(
-          stats::cpu_info_unknown_cpu_features);
+      context_->import_logs_tracker->RecordAnalysisLog(
+          stats::cpu_info_unknown_cpu_features,
+          [](ArgsTracker::BoundInserter&) {});
     }
   }
 }

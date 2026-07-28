@@ -38,6 +38,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -169,6 +170,10 @@ class InstrumentsXmlTokenizer::Impl {
       parser_ = XML_ParserCreate(nullptr);
       if (!parser_) {
         return base::ErrStatus("Failed to create XML parser");
+      }
+      if (!XML_SetHashSalt(parser_,
+                           static_cast<unsigned long>(base::Uuidv4().lsb()))) {
+        return base::ErrStatus("Failed to set XML parser hash salt");
       }
       XML_SetElementHandler(parser_, ElementStart, ElementEnd);
       XML_SetCharacterDataHandler(parser_, CharacterData);

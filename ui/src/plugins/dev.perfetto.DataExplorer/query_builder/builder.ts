@@ -402,7 +402,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: 'info',
             title: `${attrs.selectedNodes.size} nodes selected`,
           })
-        : selectedNode?.customResultsPanel?.() ??
+        : (selectedNode?.customResultsPanel?.() ??
           (selectedNode
             ? m(ResultsPanel, {
                 trace: this.trace,
@@ -447,7 +447,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             : m(ResultsPanelEmptyState, {
                 icon: 'info',
                 title: 'Select a node to see the data',
-              })),
+              }))),
       mainContent: [
         m(
           '.pf-qb-node-graph',

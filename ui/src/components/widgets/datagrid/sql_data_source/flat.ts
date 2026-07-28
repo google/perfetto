@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {
-  type QueryResult,
-  QuerySlot,
-  type SerialTaskQueue,
-} from '../../../../base/query_slot';
+  type AsyncMemoResult,
+  AsyncMemo,
+  type AtomicTaskQueue,
+} from '../../../../base/async_memo';
 import type {Engine} from '../../../../trace_processor/engine';
 import {NUM, type Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
@@ -25,30 +25,30 @@ import {type SQLTableSchema, SQLSchemaResolver} from '../sql_schema';
 import {filterToSql, quoteIdentifier} from '../sql_utils';
 
 export class SQLDataSourceFlat {
-  private readonly rowCountSlot: QuerySlot<number>;
-  private readonly rowsSlot: QuerySlot<{
+  private readonly rowCountSlot: AsyncMemo<number>;
+  private readonly rowsSlot: AsyncMemo<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
   }>;
-  private readonly summariesSlot: QuerySlot<Row>;
+  private readonly summariesSlot: AsyncMemo<Row>;
 
   constructor(
-    queue: SerialTaskQueue,
+    queue: AtomicTaskQueue,
     private readonly engine: Engine,
     private readonly sqlSchema: SQLTableSchema,
   ) {
-    this.rowCountSlot = new QuerySlot<number>(queue);
-    this.rowsSlot = new QuerySlot<{
+    this.rowCountSlot = new AsyncMemo<number>(queue);
+    this.rowsSlot = new AsyncMemo<{
       readonly rows: readonly Row[];
       readonly rowOffset: number;
     }>(queue);
-    this.summariesSlot = new QuerySlot<Row>(queue);
+    this.summariesSlot = new AsyncMemo<Row>(queue);
   }
 
   /**
    * Returns aggregate summaries for columns that have an aggregate function defined.
    */
-  getSummaries(model: FlatModel): QueryResult<Row> {
+  getSummaries(model: FlatModel): AsyncMemoResult<Row> {
     const {columns, filters = []} = model;
 
     // Find columns with aggregate functions
@@ -56,7 +56,7 @@ export class SQLDataSourceFlat {
 
     // If no aggregate columns, return empty result
     if (aggColumns.length === 0) {
-      return {data: undefined, isPending: false, isFresh: true};
+      return {data: {}, isPending: false};
     }
 
     return this.summariesSlot.use({
@@ -64,7 +64,7 @@ export class SQLDataSourceFlat {
         columns: aggColumns,
         filters: serializeFilters(filters),
       },
-      queryFn: async () => {
+      compute: async () => {
         const resolver = new SQLSchemaResolver(this.sqlSchema);
 
         // Build aggregate expressions
@@ -98,7 +98,7 @@ export class SQLDataSourceFlat {
         columns,
         filters: serializeFilters(filters),
       },
-      queryFn: async () => {
+      compute: async () => {
         const query = buildQuery(this.sqlSchema, {
           mode: 'flat',
           columns,
@@ -119,7 +119,7 @@ export class SQLDataSourceFlat {
         sort,
       },
       retainOn: ['pagination', 'sort'],
-      queryFn: async () => {
+      compute: async () => {
         const query = buildQuery(this.sqlSchema, model);
         const result = await runQueryForQueryTable(query, this.engine);
         const rows = result.rows;

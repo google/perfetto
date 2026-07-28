@@ -646,3 +646,49 @@ class TestApi(unittest.TestCase):
           '_path': example_android_trace_path()
       }
       self.assertEqual(tp.metadata, expected_metadata)
+
+  def test_export_perfetto(self):
+    import json
+    import tarfile
+    with create_tp(trace=example_android_trace_path()) as tp:
+      with tempfile.NamedTemporaryFile(suffix='.tar', delete=False) as f:
+        output_path = f.name
+      try:
+        tp.export(output_path, 'perfetto')
+
+        # Verify the output is a valid tar archive.
+        self.assertTrue(tarfile.is_tarfile(output_path))
+
+        with tarfile.open(output_path) as tf:
+          names = tf.getnames()
+
+          # The manifest must be the first member of the archive.
+          self.assertEqual(names[0], 'perfetto_manifest.json')
+
+          arrow_names = [n for n in names if n.endswith('.arrow')]
+          self.assertGreater(len(arrow_names), 0)
+
+          # Verify arrow files have the ARROW1 magic bytes.
+          for name in arrow_names:
+            member = tf.extractfile(name)
+            self.assertIsNotNone(member)
+            data = member.read()
+            self.assertEqual(data[:6], b'ARROW1',
+                             f'{name} missing ARROW1 header')
+
+          # Verify the manifest contents match the archived arrow files.
+          manifest_member = tf.extractfile('perfetto_manifest.json')
+          self.assertIsNotNone(manifest_member)
+          manifest = json.loads(manifest_member.read())['perfetto_manifest']
+          self.assertEqual(manifest['version'], 1)
+
+          table_files = [
+              f for f in manifest['files'] if '__exported_table_schema' in f
+          ]
+          self.assertGreater(len(table_files), 0)
+          for f in table_files:
+            self.assertEqual(f['__exported_table_schema']['format'], 1)
+          manifest_paths = {f['path'] for f in table_files}
+          self.assertEqual(manifest_paths, set(arrow_names))
+      finally:
+        os.unlink(output_path)

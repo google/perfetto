@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -191,6 +192,8 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->track_group_idx_state =
       Ptr<TrackCompressorGroupIdxState>::MakeRoot();
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
+  context->profiler_sample_tracker =
+      Ptr<ProfilerSampleTracker>::MakeRoot(context);
   context->deobfuscation_tracker = nullptr;
   context->blob_packet_writer = Ptr<BlobPacketWriter>::MakeRoot();
   context->register_additional_proto_modules = {};
@@ -233,6 +236,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->deobfuscation_tracker = source->deobfuscation_tracker.Fork();
   dest->blob_packet_writer = source->blob_packet_writer.Fork();
   dest->stack_profile_tracker = source->stack_profile_tracker.Fork();
+  dest->profiler_sample_tracker = source->profiler_sample_tracker.Fork();
 }
 
 }  // namespace

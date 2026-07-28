@@ -23,6 +23,7 @@
 
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core {
 
@@ -76,6 +77,14 @@ class Slab {
 
   // Returns the number of elements in the slab.
   PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
+  PERFETTO_ALWAYS_INLINE Span<T> mutable_span() {
+    return Span<T>(data(), data() + size());
+  }
+  PERFETTO_ALWAYS_INLINE Span<const T> span() const {
+    return Span<const T>(data(), data() + size());
+  }
+  PERFETTO_ALWAYS_INLINE operator Span<T>() { return mutable_span(); }
+  PERFETTO_ALWAYS_INLINE operator Span<const T>() const { return span(); }
 
   // Returns iterators for range-based for loops.
   PERFETTO_ALWAYS_INLINE T* begin() const { return data_.get(); }

@@ -262,12 +262,9 @@ function autoAdjustGridSpacing(
       const labels = collectYAxisLabels(opt);
       if (labels.length > 0) {
         const axisLabel = yAxis.axisLabel as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const formatter = axisLabel?.formatter as
-          | LabelFormatter
-          | string
-          | undefined;
+          LabelFormatter | string | undefined;
         let maxWidth = 0;
         for (const l of labels) {
           const text = formatLabel(l, formatter);
@@ -309,8 +306,7 @@ function themeHash(colors: ChartThemeColors): string {
 export interface EChartBrushEndParams {
   readonly areas?: ReadonlyArray<{
     readonly coordRange?:
-      | [number, number]
-      | [[number, number], [number, number]];
+      [number, number] | [[number, number], [number, number]];
   }>;
 }
 

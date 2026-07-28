@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {
-  type QueryResult,
-  QuerySlot,
-  type SerialTaskQueue,
-} from '../../../../base/query_slot';
+  type AsyncMemoResult,
+  AsyncMemo,
+  type AtomicTaskQueue,
+} from '../../../../base/async_memo';
 import {shortUuid} from '../../../../base/uuid';
 import type {Engine} from '../../../../trace_processor/engine';
 import {NUM, type Row} from '../../../../trace_processor/query_result';
@@ -40,21 +40,21 @@ import {filterToSql, quoteIdentifier, sqlValue} from '../sql_utils';
  */
 export class SQLDataSourceTree {
   private readonly uuid = shortUuid();
-  private readonly treeTableSlot: QuerySlot<DisposableSqlEntity>;
-  private readonly rowCountSlot: QuerySlot<number>;
-  private readonly rowsSlot: QuerySlot<{
+  private readonly treeTableSlot: AsyncMemo<DisposableSqlEntity>;
+  private readonly rowCountSlot: AsyncMemo<number>;
+  private readonly rowsSlot: AsyncMemo<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
   }>;
 
   constructor(
-    queue: SerialTaskQueue,
+    queue: AtomicTaskQueue,
     private readonly engine: Engine,
     private readonly sqlSchema: SQLTableSchema,
   ) {
-    this.treeTableSlot = new QuerySlot<DisposableSqlEntity>(queue);
-    this.rowCountSlot = new QuerySlot<number>(queue);
-    this.rowsSlot = new QuerySlot<{
+    this.treeTableSlot = new AsyncMemo<DisposableSqlEntity>(queue);
+    this.rowCountSlot = new AsyncMemo<number>(queue);
+    this.rowsSlot = new AsyncMemo<{
       readonly rows: readonly Row[];
       readonly rowOffset: number;
     }>(queue);
@@ -65,7 +65,7 @@ export class SQLDataSourceTree {
 
     // First, ensure the base table is materialized
     const treeTableResult = this.useTreeTable(model);
-    if (treeTableResult.isPending || !treeTableResult.data) {
+    if (treeTableResult.isPending) {
       return {isPending: true};
     }
 
@@ -106,7 +106,7 @@ export class SQLDataSourceTree {
         sortDirection,
       },
       retainOn: ['expandedIds', 'collapsedIds'],
-      queryFn: async () => {
+      compute: async () => {
         const query = buildTreeQuery(treeTableName, {
           expandedIds: tree.expandedIds,
           collapsedIds: tree.collapsedIds,
@@ -135,7 +135,7 @@ export class SQLDataSourceTree {
         'sortColumn',
         'sortDirection',
       ],
-      queryFn: async () => {
+      compute: async () => {
         const query = buildTreeQuery(treeTableName, {
           expandedIds: tree.expandedIds,
           collapsedIds: tree.collapsedIds,
@@ -163,8 +163,8 @@ export class SQLDataSourceTree {
   /**
    * Tree mode doesn't support aggregate summaries.
    */
-  getSummaries(_model: TreeModel): QueryResult<Row> {
-    return {data: undefined, isPending: false, isFresh: true};
+  getSummaries(_model: TreeModel): AsyncMemoResult<Row> {
+    return {data: {}, isPending: false};
   }
 
   /**
@@ -279,7 +279,7 @@ export class SQLDataSourceTree {
    * and all user columns. This is cached and only rebuilt when columns or
    * filters change.
    */
-  private useTreeTable(model: TreeModel): QueryResult<DisposableSqlEntity> {
+  private useTreeTable(model: TreeModel): AsyncMemoResult<DisposableSqlEntity> {
     const {columns, filters = [], tree} = model;
     const sourceQuery = this.buildSourceQuery(model);
 
@@ -290,7 +290,7 @@ export class SQLDataSourceTree {
         idColumn: tree.idField,
         parentIdColumn: tree.parentIdField,
       },
-      queryFn: async () => {
+      compute: async () => {
         return await createTreeTable(this.engine, {
           sourceQuery,
           tableName: this.treeTableName,

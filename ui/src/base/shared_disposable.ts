@@ -51,9 +51,9 @@ import {assertFalse} from './assert';
  * }
  * ```
  */
-export class SharedAsyncDisposable<T extends AsyncDisposable>
-  implements AsyncDisposable
-{
+export class SharedAsyncDisposable<
+  T extends AsyncDisposable,
+> implements AsyncDisposable {
   // A shared core which is referenced by al instances of this class used to
   // store the reference count
   private readonly sharedCore: {refCount: number};

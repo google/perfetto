@@ -70,6 +70,13 @@ packet {
       rel_pc: 0x400
       function_name_id: 4
     }
+    callstacks {
+      iid: 1
+      frame_ids: 1
+      frame_ids: 2
+      frame_ids: 3
+      frame_ids: 4
+    }
   }
 }
 
@@ -81,12 +88,7 @@ packet {
       pid: 100
       tid: 101
     }
-    callstack {
-      frame_ids: 1
-      frame_ids: 2
-      frame_ids: 3
-      frame_ids: 4
-    }
+    callstack_iid: 1
     primary_weight: 1000000
   }
 }

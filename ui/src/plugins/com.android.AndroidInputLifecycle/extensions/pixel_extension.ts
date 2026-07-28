@@ -90,6 +90,6 @@ export class PixelInputLifecycleExtension implements InputLifecycleExtension {
     `;
     const result = await trace.engine.query(query);
     const it = result.iter({input_id: STR_NULL});
-    return it.valid() ? it.input_id ?? undefined : undefined;
+    return it.valid() ? (it.input_id ?? undefined) : undefined;
   }
 }
