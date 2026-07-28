@@ -68,6 +68,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
   ];
 
   private parentTrackNodes = new Map<string, TrackNode>();
+  private trackIdToTrackNode = new Map<number, TrackNode>();
   private store?: Store<TrackEventPluginState>;
 
   private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
@@ -92,6 +93,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         select
           ifnull(g.upid, t.upid) as upid,
           g.utid,
+          g.scope,
           g.parent_id as parentId,
           g.is_counter AS isCounter,
           g.is_state AS isState,
@@ -135,6 +137,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     const it = res.iter({
       upid: NUM_NULL,
       utid: NUM_NULL,
+      scope: STR_NULL,
       parentId: NUM_NULL,
       isCounter: NUM,
       isState: NUM,
@@ -156,8 +159,6 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     const processGroupsPlugin = ctx.plugins.getPlugin(
       ProcessThreadGroupsPlugin,
     );
-    const trackIdToTrackNode = new Map<number, TrackNode>();
-
     // Get CPU count and threads for summary tracks
     const cpuCountResult = await ctx.engine.query(`
       SELECT COUNT(*) as cpu_count FROM cpu WHERE machine_id = 0
@@ -169,6 +170,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       const {
         upid,
         utid,
+        scope,
         parentId,
         isCounter,
         isState,
@@ -312,10 +314,11 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       const parent = this.findParentTrackNode(
         ctx,
         processGroupsPlugin,
-        trackIdToTrackNode,
+        this.trackIdToTrackNode,
         parentId ?? undefined,
         upid ?? undefined,
         utid ?? undefined,
+        scope !== null,
         hasChildren,
       );
       const isGlobalRoot = parentId === null && upid === null && utid === null;
@@ -326,7 +329,9 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         uri,
       });
       parent.addChildInOrder(node);
-      trackIdToTrackNode.set(trackIds[0], node);
+      for (const trackId of trackIds) {
+        this.trackIdToTrackNode.set(trackId, node);
+      }
     }
 
     const store = ensureExists(this.store);
@@ -343,6 +348,12 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     );
   }
 
+  // Allows a custom-scope owner plugin to reparent a descriptor subtree after
+  // the generic TrackEvent renderers and TrackNodes have been registered.
+  getTrackNode(trackId: number): TrackNode | undefined {
+    return this.trackIdToTrackNode.get(trackId);
+  }
+
   private findParentTrackNode(
     ctx: Trace,
     processGroupsPlugin: ProcessThreadGroupsPlugin,
@@ -350,6 +361,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     parentId: number | undefined,
     upid: number | undefined,
     utid: number | undefined,
+    isCustomScoped: boolean,
     hasChildren: number,
   ): TrackNode {
     if (parentId !== undefined) {
@@ -361,6 +373,12 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     if (upid !== undefined) {
       return ensureExists(processGroupsPlugin.getGroupForProcess(upid));
     }
+    // Custom scopes are placed temporarily at the workspace root. Their owner
+    // plugin can reparent the complete descriptor subtree after this plugin
+    // has registered its renderers and TrackNodes.
+    if (isCustomScoped) {
+      return ctx.defaultWorkspace.tracks;
+    }
     if (hasChildren) {
       return ctx.defaultWorkspace.tracks;
     }
@@ -370,6 +388,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       node = new TrackNode({
         name: 'Global Track Events',
         isSummary: true,
+        sortOrder: 10,
       });
       ctx.defaultWorkspace.addChildInOrder(node);
       this.parentTrackNodes.set(id, node);

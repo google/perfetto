@@ -16,7 +16,11 @@ import {Gpu} from '../../components/gpu';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {getMachineCount, getTrackName} from '../../public/utils';
+import {
+  getMachineCount,
+  getTrackName,
+  maybeMachineLabel,
+} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
@@ -24,6 +28,7 @@ import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
+import TrackEventPlugin from '../dev.perfetto.TrackEvent';
 
 // GPU frequency track that converts kHz values to Hz so that the generic
 // counter renderer produces correct SI-prefixed labels (e.g. "2 GHz").
@@ -158,6 +163,7 @@ export default class GpuPlugin implements PerfettoPlugin {
   static readonly dependencies = [
     StandardGroupsPlugin,
     TraceProcessorTrackPlugin,
+    TrackEventPlugin,
   ];
 
   private groups = new Map<string, TrackNode>();
@@ -171,9 +177,119 @@ export default class GpuPlugin implements PerfettoPlugin {
     this.gpuCount = gpuCountResult.firstRow({cnt: NUM}).cnt;
     this.numMachines = await getMachineCount(ctx.engine);
 
+    await this.addTrackEvents(ctx);
     await this.addGpuFreq(ctx);
     await this.addCounters(ctx);
     await this.addSlices(ctx);
+  }
+
+  private async addTrackEvents(ctx: Trace) {
+    const result = await ctx.engine.query(`
+      select
+        tracks.min_track_id as minTrackId,
+        tracks.machine_id as machineId,
+        tracks.ugpu,
+        tracks.gpu_id as gpuId,
+        gpu.name as gpuName,
+        machine.name as machineName,
+        machine.label_index as machineLabelIndex
+      from _track_event_tracks_ordered_groups tracks
+      left join gpu on gpu.id = tracks.ugpu
+      left join machine on machine.id = tracks.machine_id
+      where tracks.scope = 'gpu' and tracks.parent_id is null
+      order by lower(tracks.name), tracks.machine_id, tracks.gpu_id, tracks.order_id
+    `);
+    const it = result.iter({
+      minTrackId: NUM,
+      machineId: NUM,
+      ugpu: NUM_NULL,
+      gpuId: NUM_NULL,
+      gpuName: STR_NULL,
+      machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
+    });
+    const trackEventPlugin = ctx.plugins.getPlugin(TrackEventPlugin);
+    for (; it.valid(); it.next()) {
+      const node = trackEventPlugin.getTrackNode(it.minTrackId);
+      if (node === undefined) {
+        continue;
+      }
+      this.addTrackEventToGpuGroup(
+        ctx,
+        node,
+        it.ugpu ?? undefined,
+        it.gpuId ?? undefined,
+        it.gpuName ?? undefined,
+        it.machineId,
+        it.machineName ?? undefined,
+        it.machineLabelIndex ?? undefined,
+      );
+    }
+  }
+
+  private addTrackEventToGpuGroup(
+    ctx: Trace,
+    node: TrackNode,
+    ugpu: number | undefined,
+    gpuId: number | undefined,
+    gpuName: string | undefined,
+    machineId: number,
+    machineName: string | undefined,
+    machineLabelIndex: number | undefined,
+  ) {
+    const gpuGroup = this.getGpuGroup(ctx);
+    const groupName = node.name;
+    const gpu =
+      ugpu !== undefined && gpuId !== undefined
+        ? new Gpu(
+            ugpu,
+            gpuId,
+            machineId,
+            gpuName,
+            machineName,
+            machineLabelIndex,
+            this.numMachines,
+          )
+        : undefined;
+
+    // Match other GPU sections: group by logical track name first, then show
+    // one concrete GPU track beneath it when the trace has multiple GPUs or
+    // machines. The TrackEvent root itself acts as the per-GPU summary node, so
+    // moving it preserves the producer-authored descendants without adding an
+    // extra hierarchy level.
+    if (gpu !== undefined && (this.gpuCount > 1 || this.numMachines > 1)) {
+      const parent = this.getGroupByName(
+        gpuGroup,
+        groupName,
+        null,
+        SUMMARY_GROUP_SORT_BASE,
+      );
+      const gpuLabel = `${gpu.displayName}${gpu.maybeMachineLabel()}`;
+      node.name = `${gpuLabel} ${groupName}`;
+      node.sortOrder = gpu.sortOrder;
+      parent.addChildInOrder(node);
+      return;
+    }
+
+    if (gpu === undefined && this.numMachines > 1) {
+      const parent = this.getGroupByName(
+        gpuGroup,
+        groupName,
+        null,
+        SUMMARY_GROUP_SORT_BASE,
+      );
+      const label = maybeMachineLabel(
+        machineLabelIndex,
+        machineName,
+        this.numMachines,
+      );
+      node.name = `GPU${label} ${groupName}`;
+      node.sortOrder = Gpu.machineSortOrder(machineId);
+      parent.addChildInOrder(node);
+      return;
+    }
+
+    gpuGroup.addChildInOrder(node);
   }
 
   private async addGpuFreq(ctx: Trace) {

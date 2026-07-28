@@ -818,6 +818,10 @@ namespace perfetto::trace_processor::stats {
       "will be dropped. This indicates a bug in the trace producer or trace "  \
       "conversion tool. Ensure ProcessDescriptor packets include a valid "     \
       "pid field."),                                                           \
+  F(track_descriptor_invalid_gpu_id,             kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace, \
+      "A GpuTrackDescriptor specified a negative gpu_id. The GPU association " \
+      "is ignored and the track is imported as a regular TrackEvent track. "   \
+      "This is a bug in the trace producer."),                                 \
   F(track_event_missing_sequence_id,            kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A TrackEvent packet was received without a trusted_packet_sequence_id " \
       "field. This field is required for tracking incremental state (interned "\
@@ -900,6 +904,11 @@ namespace perfetto::trace_processor::stats {
       "descriptor for the same uuid. Track descriptors for the same uuid "     \
       "must be consistent (same type, same parent, etc.). The conflicting "    \
       "descriptor is ignored. This is a bug in the trace producer."),          \
+  F(track_descriptor_conflicting_gpu_id,         kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace, \
+      "A GpuTrackDescriptor specified a concrete gpu_id that differs from "    \
+      "its GPU-associated parent. The track is preserved as a new GPU root "   \
+      "instead of being nested under the conflicting parent. This is a bug "  \
+      "in the trace producer."),                                               \
   F(track_event_range_of_interest_missing_start_us, kSingle, kError, kAnalysis, Scope::kMachineAndTrace,\
       "A TrackEventRangeOfInterest packet was received without the required "  \
       "start_us field. The packet is ignored. This is a bug in the trace "     \

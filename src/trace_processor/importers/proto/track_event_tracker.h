@@ -90,6 +90,11 @@ class TrackEventTracker {
     bool use_synthetic_tid = false;
     bool is_state = false;
 
+    // Whether this descriptor carries the GpuTrackDescriptor extension. A
+    // present extension with no gpu_id marks a machine-wide GPU track.
+    bool is_gpu_track = false;
+    std::optional<uint32_t> gpu_id;
+
     // For counter tracks.
     std::optional<CounterDetails> counter_details;
 
@@ -113,11 +118,11 @@ class TrackEventTracker {
           !counter_details->IsForSameTrack(*other.counter_details)) {
         return false;
       }
-      return std::tie(parent_uuid, pid, tid, is_counter, is_state,
-                      sibling_merge_behavior, sibling_merge_key) ==
+      return std::tie(parent_uuid, pid, tid, is_counter, is_state, is_gpu_track,
+                      gpu_id, sibling_merge_behavior, sibling_merge_key) ==
              std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
-                      other.is_state, other.sibling_merge_behavior,
-                      other.sibling_merge_key);
+                      other.is_state, other.is_gpu_track, other.gpu_id,
+                      other.sibling_merge_behavior, other.sibling_merge_key);
     }
   };
 
@@ -131,6 +136,8 @@ class TrackEventTracker {
       kThread,
       // This track is associated with a process.
       kProcess,
+      // This track is associated with a GPU or the machine-wide GPU scope.
+      kGpu,
       // This track is global.
       kGlobal,
     };
@@ -145,6 +152,14 @@ class TrackEventTracker {
                                           bool is_counter,
                                           bool is_state,
                                           bool is_root);
+
+    // Creates a GPU-scoped resolved descriptor track. |gpu_id| and |ugpu| are
+    // absent for a machine-wide GPU track.
+    static ResolvedDescriptorTrack Gpu(std::optional<uint32_t> gpu_id,
+                                       std::optional<uint32_t> ugpu,
+                                       bool is_counter,
+                                       bool is_state,
+                                       bool is_root);
 
     // Creates a global-scoped resolved descriptor track.
     static ResolvedDescriptorTrack Global(bool is_counter, bool is_state);
@@ -172,6 +187,17 @@ class TrackEventTracker {
       return upid_;
     }
 
+    // The producer-local GPU id and trace-global GPU row id. Only valid when
+    // |scope| == |Scope::kGpu|. Both are absent for a machine-wide GPU track.
+    std::optional<uint32_t> gpu_id() const {
+      PERFETTO_DCHECK(scope() == Scope::kGpu);
+      return gpu_id_;
+    }
+    std::optional<uint32_t> ugpu() const {
+      PERFETTO_DCHECK(scope() == Scope::kGpu);
+      return ugpu_;
+    }
+
     // Whether this is a "root" track in its scope.
     // For example, a track for a given pid/tid is a root track but a track
     // which has a parent track is not.
@@ -192,6 +218,11 @@ class TrackEventTracker {
 
     // Only set when |scope| == |Scope::kProcess|.
     UniquePid upid_;
+
+    // Only set when |scope| == |Scope::kGpu|. Both are absent for a
+    // machine-wide GPU track.
+    std::optional<uint32_t> gpu_id_;
+    std::optional<uint32_t> ugpu_;
   };
 
   explicit TrackEventTracker(TraceProcessorContext*);

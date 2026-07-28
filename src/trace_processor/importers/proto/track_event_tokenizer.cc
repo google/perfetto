@@ -33,6 +33,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/trace/gpu/gpu_track_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -128,10 +129,29 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     const TokenizePacketArgs& args) {
   using TrackDescriptorProto = protos::pbzero::TrackDescriptor;
   using Reservation = TrackEventTracker::DescriptorTrackReservation;
-  TrackDescriptorProto::Decoder track(
-      args.field.Cast<protos::pbzero::TracePacket::kTrackDescriptor>());
+  protozero::ConstBytes track_bytes =
+      args.field.Cast<protos::pbzero::TracePacket::kTrackDescriptor>();
+  TrackDescriptorProto::Decoder track(track_bytes);
 
   Reservation reservation;
+
+  protozero::Field gpu_track =
+      protozero::ProtoDecoder(track_bytes.data, track_bytes.size)
+          .FindField(protos::pbzero::GpuTrackDescriptorExtension::
+                         kGpuTrackFieldNumber);
+  if (gpu_track.valid()) {
+    protos::pbzero::GpuTrackDescriptor::Decoder gpu(gpu_track.as_bytes());
+    reservation.is_gpu_track = true;
+    if (gpu.has_gpu_id()) {
+      if (gpu.gpu_id() < 0) {
+        context_->import_logs_tracker->RecordTokenizationLog(
+            stats::track_descriptor_invalid_gpu_id, args.packet->offset());
+        reservation.is_gpu_track = false;
+      } else {
+        reservation.gpu_id = static_cast<uint32_t>(gpu.gpu_id());
+      }
+    }
+  }
 
   if (!track.has_uuid()) {
     context_->import_logs_tracker->RecordTokenizationLog(
