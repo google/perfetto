@@ -5656,8 +5656,6 @@ perfetto_filegroup(
 perfetto_cc_library(
     name = "src_trace_processor_util_deobfuscation_deobfuscator",
     srcs = [
-        ":src_trace_processor_util_json_parser",
-        ":src_trace_processor_util_simple_json_parser",
         "src/trace_processor/util/deobfuscation/deobfuscator.cc",
     ],
     hdrs = [
@@ -5710,6 +5708,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_track_event_zero",
         ":protos_perfetto_trace_translation_zero",
         ":protozero",
+        ":src_trace_processor_util_simple_json_parser",
     ],
     linkstatic = True,
 )
