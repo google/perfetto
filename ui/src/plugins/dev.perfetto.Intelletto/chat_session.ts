@@ -71,8 +71,6 @@ export class ChatSession {
    * @param context - The registry supplying per-turn context items and, at
    *     construction, the payload-format descriptions folded into the system
    *     prompt.
-   * @param selectedModelSetting - Persisted setting for the user's model
-   *     choice. Read on init, written on setModel().
    */
   constructor(
     gateway: LlmGateway,

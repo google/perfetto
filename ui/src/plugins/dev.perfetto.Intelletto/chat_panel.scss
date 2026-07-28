@@ -44,6 +44,19 @@
     padding: 1rem;
     display: flex;
     flex-direction: column;
+    position: relative;
+  }
+
+  &__working {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9em;
+    color: var(--pf-color-text-muted);
+    margin-top: 10px;
+    margin-left: 6px;
+    margin-bottom: 10px;
   }
 
   &__msg {

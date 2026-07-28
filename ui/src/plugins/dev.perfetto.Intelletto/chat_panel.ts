@@ -38,6 +38,7 @@ import type {ContextItem, ContextRegistry} from './context';
 import {maybeUndefined} from '../../base/utils';
 import type {Setting} from '../../public/settings';
 import {assertExists} from '../../base/assert';
+import {Spinner} from '../../widgets/spinner';
 
 // Attrs for the ChatPanel component.
 export interface ChatPanelAttrs {
@@ -161,6 +162,12 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
                 ),
               );
             }),
+        session.loading &&
+          m(
+            '.pf-intelletto__working',
+            m(Spinner, {easing: true}),
+            'Working...',
+          ),
       ),
       this.renderContextStrip(attrs),
       currentModel &&
@@ -192,6 +199,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
                 icon: 'stop',
                 title: 'Cancel',
                 onclick: () => session.cancel(),
+                variant: ButtonVariant.Filled,
                 intent: Intent.Danger,
               })
             : m(Button, {
@@ -199,6 +207,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
                 title: 'Send',
                 onclick: () => session.send(currentModel),
                 variant: ButtonVariant.Filled,
+                rounded: true,
                 intent: Intent.Primary,
               }),
         ),
