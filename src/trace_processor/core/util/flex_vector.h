@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/util/slab.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core {
 
@@ -201,6 +202,12 @@ class FlexVector {
   PERFETTO_ALWAYS_INLINE const T* data() const { return slab_.data(); }
   PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
   PERFETTO_ALWAYS_INLINE bool empty() const { return size() == 0; }
+  PERFETTO_ALWAYS_INLINE Span<T> mutable_span() {
+    return Span<T>(data(), data() + size());
+  }
+  PERFETTO_ALWAYS_INLINE Span<const T> span() const {
+    return Span<const T>(data(), data() + size());
+  }
 
   // Iterators for range-based for loops.
   PERFETTO_ALWAYS_INLINE const T* begin() const { return slab_.data(); }
