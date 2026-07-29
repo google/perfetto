@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import type {Trace} from '../../public/trace';
+import type {TrackRenderer} from '../../public/track';
 import type {PerfettoPlugin} from '../../public/plugin';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
@@ -27,8 +28,9 @@ import {
 import {TrackNode} from '../../public/workspace';
 import {ensureExists, assertTrue} from '../../base/assert';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
-import {createTraceProcessorStateTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_state_track';
+import {createTraceProcessorSliceTrack, getDataset} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
+import {createTraceProcessorStateTrack, getStateDataset} from '../dev.perfetto.TraceProcessorTrack/trace_processor_state_track';
+import type {SourceDataset} from '../../trace_processor/dataset';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
@@ -214,6 +216,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         pid,
       });
       const uri = `/track_event_${trackIds[0]}`;
+      let summaryTrack: GroupSummaryTrack | undefined = undefined;
       if (hasData && isCounter) {
         // Don't show any builtin counter.
         if (builtinCounterType !== null) {
@@ -245,57 +248,97 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             trackName,
           }),
         });
-      } else if (hasData && isState === 1) {
-        ctx.tracks.registerTrack({
-          uri,
-          description: description ?? undefined,
-          tags: {
-            kinds: [kind],
-            trackIds: trackIds,
-            upid: upid ?? undefined,
-            utid: utid ?? undefined,
-            trackEvent: true,
-            hasCallstacks: hasCallstacks === 1,
-          },
-          renderer: await createTraceProcessorStateTrack({
-            trace: ctx,
+      } else if (hasData && hasChildren === 0) {
+        if (isState === 1) {
+          ctx.tracks.registerTrack({
             uri,
-            trackId: trackIds[0],
-            trackName,
-          }),
-        });
-      } else if (hasData) {
-        ctx.tracks.registerTrack({
-          uri,
-          description: description ?? undefined,
-          tags: {
-            kinds: [kind],
-            trackIds: trackIds,
-            upid: upid ?? undefined,
-            utid: utid ?? undefined,
-            trackEvent: true,
-            hasCallstacks: hasCallstacks === 1,
-          },
-          renderer: await createTraceProcessorSliceTrack({
-            trace: ctx,
+            description: description ?? undefined,
+            tags: {
+              kinds: [kind],
+              trackIds: trackIds,
+              upid: upid ?? undefined,
+              utid: utid ?? undefined,
+              trackEvent: true,
+              hasCallstacks: hasCallstacks === 1,
+            },
+            renderer: await createTraceProcessorStateTrack({
+              trace: ctx,
+              uri,
+              trackId: trackIds[0],
+              trackName,
+            }),
+          });
+        } else {
+          ctx.tracks.registerTrack({
             uri,
-            trackIds,
-            detailsPanel: createTrackEventDetailsPanel(ctx),
-            depthTableName:
+            description: description ?? undefined,
+            tags: {
+              kinds: [kind],
+              trackIds: trackIds,
+              upid: upid ?? undefined,
+              utid: utid ?? undefined,
+              trackEvent: true,
+              hasCallstacks: hasCallstacks === 1,
+            },
+            renderer: await createTraceProcessorSliceTrack({
+              trace: ctx,
+              uri,
+              trackIds,
+              detailsPanel: createTrackEventDetailsPanel(ctx),
+              depthTableName:
+                trackIds.length > 1
+                  ? '__trackevent_track_layout_depth'
+                  : undefined,
+            }),
+          });
+        }
+      } else if (hasChildren === 1) {
+        let parentDataset: SourceDataset | undefined = undefined;
+        let delegateTrack: TrackRenderer | undefined = undefined;
+        if (hasData) {
+          if (isState === 1) {
+            parentDataset = getStateDataset(trackIds[0]);
+            delegateTrack = await createTraceProcessorStateTrack({
+              trace: ctx,
+              uri,
+              trackId: trackIds[0],
+              trackName,
+            });
+          } else {
+            parentDataset = await getDataset(
+              ctx.engine,
+              trackIds,
               trackIds.length > 1
                 ? '__trackevent_track_layout_depth'
                 : undefined,
-          }),
-        });
-      } else {
-        // Summary track with no data but has children - use SliceTrackSummary
+            );
+            delegateTrack = await createTraceProcessorSliceTrack({
+              trace: ctx,
+              uri,
+              trackIds,
+              detailsPanel: createTrackEventDetailsPanel(ctx),
+              depthTableName:
+                trackIds.length > 1
+                  ? '__trackevent_track_layout_depth'
+                  : undefined,
+            });
+          }
+        }
+
         const config: SliceTrackSummaryConfig = {
           pidForColor: pid ?? 0,
           upid: upid ?? null,
           utid: utid ?? null,
+          trackIds: hasData ? trackIds : undefined,
+          depthTableName:
+            hasData && trackIds.length > 1
+              ? '__trackevent_track_layout_depth'
+              : undefined,
+          parentDataset,
+          delegateTrack,
         };
 
-        const track = new GroupSummaryTrack(
+        summaryTrack = new GroupSummaryTrack(
           ctx,
           config,
           cpuCount,
@@ -312,7 +355,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             utid: utid ?? undefined,
             trackEvent: true,
           },
-          renderer: track,
+          renderer: summaryTrack,
         });
       }
       const parent = this.findParentTrackNode(
@@ -328,11 +371,14 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       const node = new TrackNode({
         name: trackName,
         sortOrder: isGlobalRoot ? 0 : orderId,
-        isSummary: hasData === 0,
+        isSummary: hasData === 0 && hasChildren === 1,
         uri,
       });
       parent.addChildInOrder(node);
       trackIdToTrackNode.set(trackIds[0], node);
+      if (summaryTrack !== undefined) {
+        summaryTrack.setTrackNode(node);
+      }
     }
 
     // Register area selection tab for callstack flamegraph

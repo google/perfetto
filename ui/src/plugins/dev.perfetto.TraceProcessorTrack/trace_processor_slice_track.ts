@@ -102,7 +102,7 @@ export async function createTraceProcessorSliceTrack({
   });
 }
 
-async function getDataset(
+export async function getDataset(
   engine: Engine,
   trackIds: ReadonlyArray<number>,
   depthTableName?: string,
