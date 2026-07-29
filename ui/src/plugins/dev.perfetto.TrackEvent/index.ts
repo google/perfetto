@@ -324,13 +324,14 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           delegateTrack,
         };
 
-        summaryTrack = new GroupSummaryTrack(
+        const track = new GroupSummaryTrack(
           ctx,
           config,
           cpuCount,
           threads,
           false,
         );
+        summaryTrack = track;
         ctx.tracks.registerTrack({
           uri,
           description: description ?? undefined,
@@ -341,7 +342,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             utid: utid ?? undefined,
             trackEvent: true,
           },
-          renderer: summaryTrack,
+          renderer: track,
         });
       }
       const parent = this.findParentTrackNode(

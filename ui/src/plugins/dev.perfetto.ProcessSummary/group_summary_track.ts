@@ -111,13 +111,17 @@ function computeHover(
   timescale: TimeScale,
   data: Data,
   threads: ThreadMap,
-  hasParent: boolean,
+  delegateTrack?: TrackRenderer,
 ): GroupSummaryHover | undefined {
   if (pos === undefined) return undefined;
 
   const {x, y} = pos;
-  const actualYStart = hasParent ? 21 : 0;
-  const actualSummaryDrawHeight = hasParent ? 19 : RECT_HEIGHT;
+  const parentHeight = delegateTrack?.getHeight?.() ?? 0;
+  const hasParent = delegateTrack !== undefined;
+  const actualYStart = parentHeight;
+  const actualSummaryDrawHeight = hasParent
+    ? TRACK_HEIGHT - parentHeight
+    : RECT_HEIGHT;
   const actualMarginTop = hasParent ? 1 : MARGIN_TOP;
 
   const relativeY = y - actualYStart;
@@ -279,19 +283,14 @@ export class GroupSummaryTrack implements TrackRenderer {
     };
   }
 
-  private async fetchDatasetsFromSliceTracks(
+  private fetchDatasetsFromSliceTracks(
     trackNode: TrackNode,
-    expanded: boolean,
-  ): Promise<Array<{uri: string; dataset: Dataset}>> {
+  ): Array<{uri: string; dataset: Dataset}> {
     assertTrue(
       this.mode === 'slices',
       'Can only collect slice tracks in slice mode',
     );
     const sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
-
-    if (expanded) {
-      return sliceTracks;
-    }
 
     const stack: TrackNode[] = [...trackNode.children];
     while (stack.length > 0 && sliceTracks.length < 8) {
@@ -325,10 +324,7 @@ export class GroupSummaryTrack implements TrackRenderer {
 
   private async createSlicesMipmap(trackNode: TrackNode): Promise<MipmapTable> {
     // Fetch datasets from child tracks
-    const sliceTracks = await this.fetchDatasetsFromSliceTracks(
-      trackNode,
-      false,
-    );
+    const sliceTracks = this.fetchDatasetsFromSliceTracks(trackNode);
 
     if (sliceTracks.length === 0) {
       // No valid slice tracks found - create empty table
@@ -590,9 +586,9 @@ export class GroupSummaryTrack implements TrackRenderer {
       return;
     }
 
+    const parentHeight = this.config.delegateTrack?.getHeight?.() ?? 0;
     const hasParent = this.config.delegateTrack !== undefined;
-    const parentHeight = 21;
-    const summaryHeight = 19;
+    const summaryHeight = TRACK_HEIGHT - parentHeight;
 
     if (hasParent) {
       using _clip = renderer.clip(0, 0, size.width, parentHeight);
@@ -659,8 +655,8 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
-    const actualSummaryHeight = hasParent ? 19 : RECT_HEIGHT;
-    const actualYStart = hasParent ? 21 : 0;
+    const actualSummaryHeight = hasParent ? summaryHeight : RECT_HEIGHT;
+    const actualYStart = hasParent ? parentHeight : 0;
     checkerboardExcept(
       ctx,
       actualSummaryHeight,
@@ -673,7 +669,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
-    const actualSummaryDrawHeight = hasParent ? 19 : RECT_HEIGHT;
+    const actualSummaryDrawHeight = hasParent ? summaryHeight : RECT_HEIGHT;
     const actualMarginTop = hasParent ? 1 : MARGIN_TOP;
     const laneHeight = Math.floor(
       (actualSummaryDrawHeight - actualMarginTop * 2) / data.maxLanes,
@@ -767,7 +763,13 @@ export class GroupSummaryTrack implements TrackRenderer {
     const data = this.data;
     if (data === undefined) return;
 
-    this.hover = computeHover({x, y}, timescale, data, this.threads, hasParent);
+    this.hover = computeHover(
+      {x, y},
+      timescale,
+      data,
+      this.threads,
+      this.config.delegateTrack,
+    );
     if (this.hoverMonitor.ifStateChanged()) {
       if (this.mode === 'sched') {
         this.trace.timeline.hoveredUtid = this.hover?.utid;
