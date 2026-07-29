@@ -39,25 +39,6 @@ const schema = {
   category: STR_NULL,
 };
 
-export function getStateDataset(trackId: number) {
-  return new SourceDataset({
-    schema,
-    select: {
-      id: 'id',
-      ts: 'ts',
-      dur: 'dur',
-      depth: '0',
-      value: 'value',
-      category: 'category',
-    },
-    src: "(SELECT * FROM state WHERE value != '')",
-    filter: {
-      col: 'track_id',
-      eq: trackId,
-    },
-  });
-}
-
 export async function createTraceProcessorStateTrack({
   trace,
   uri,
@@ -68,7 +49,22 @@ export async function createTraceProcessorStateTrack({
   return SliceTrack.create({
     trace,
     uri,
-    dataset: getStateDataset(trackId),
+    dataset: new SourceDataset({
+      schema,
+      select: {
+        id: 'id',
+        ts: 'ts',
+        dur: 'dur',
+        depth: '0',
+        value: 'value',
+        category: 'category',
+      },
+      src: "(SELECT * FROM state WHERE value != '')",
+      filter: {
+        col: 'track_id',
+        eq: trackId,
+      },
+    }),
     sliceName: (row) => (row.value === null ? '[null]' : row.value),
     initialMaxDepth: 0,
     rootTableName: 'state',

@@ -28,8 +28,8 @@ import {
 import {TrackNode} from '../../public/workspace';
 import {ensureExists, assertTrue} from '../../base/assert';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {createTraceProcessorSliceTrack, getDataset} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
-import {createTraceProcessorStateTrack, getStateDataset} from '../dev.perfetto.TraceProcessorTrack/trace_processor_state_track';
+import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
+import {createTraceProcessorStateTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_state_track';
 import type {SourceDataset} from '../../trace_processor/dataset';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
@@ -248,70 +248,61 @@ export default class TrackEventPlugin implements PerfettoPlugin {
             trackName,
           }),
         });
+      } else if (hasData && isState === 1 && hasChildren === 0) {
+        ctx.tracks.registerTrack({
+          uri,
+          description: description ?? undefined,
+          tags: {
+            kinds: [kind],
+            trackIds: trackIds,
+            upid: upid ?? undefined,
+            utid: utid ?? undefined,
+            trackEvent: true,
+            hasCallstacks: hasCallstacks === 1,
+          },
+          renderer: await createTraceProcessorStateTrack({
+            trace: ctx,
+            uri,
+            trackId: trackIds[0],
+            trackName,
+          }),
+        });
       } else if (hasData && hasChildren === 0) {
-        if (isState === 1) {
-          ctx.tracks.registerTrack({
+        ctx.tracks.registerTrack({
+          uri,
+          description: description ?? undefined,
+          tags: {
+            kinds: [kind],
+            trackIds: trackIds,
+            upid: upid ?? undefined,
+            utid: utid ?? undefined,
+            trackEvent: true,
+            hasCallstacks: hasCallstacks === 1,
+          },
+          renderer: await createTraceProcessorSliceTrack({
+            trace: ctx,
             uri,
-            description: description ?? undefined,
-            tags: {
-              kinds: [kind],
-              trackIds: trackIds,
-              upid: upid ?? undefined,
-              utid: utid ?? undefined,
-              trackEvent: true,
-              hasCallstacks: hasCallstacks === 1,
-            },
-            renderer: await createTraceProcessorStateTrack({
-              trace: ctx,
-              uri,
-              trackId: trackIds[0],
-              trackName,
-            }),
-          });
-        } else {
-          ctx.tracks.registerTrack({
-            uri,
-            description: description ?? undefined,
-            tags: {
-              kinds: [kind],
-              trackIds: trackIds,
-              upid: upid ?? undefined,
-              utid: utid ?? undefined,
-              trackEvent: true,
-              hasCallstacks: hasCallstacks === 1,
-            },
-            renderer: await createTraceProcessorSliceTrack({
-              trace: ctx,
-              uri,
-              trackIds,
-              detailsPanel: createTrackEventDetailsPanel(ctx),
-              depthTableName:
-                trackIds.length > 1
-                  ? '__trackevent_track_layout_depth'
-                  : undefined,
-            }),
-          });
-        }
+            trackIds,
+            detailsPanel: createTrackEventDetailsPanel(ctx),
+            depthTableName:
+              trackIds.length > 1
+                ? '__trackevent_track_layout_depth'
+                : undefined,
+          }),
+        });
       } else if (hasChildren === 1) {
         let parentDataset: SourceDataset | undefined = undefined;
         let delegateTrack: TrackRenderer | undefined = undefined;
         if (hasData) {
           if (isState === 1) {
-            parentDataset = getStateDataset(trackIds[0]);
             delegateTrack = await createTraceProcessorStateTrack({
               trace: ctx,
               uri,
               trackId: trackIds[0],
               trackName,
             });
+            parentDataset = delegateTrack.getDataset?.();
           } else {
-            parentDataset = await getDataset(
-              ctx.engine,
-              trackIds,
-              trackIds.length > 1
-                ? '__trackevent_track_layout_depth'
-                : undefined,
-            );
             delegateTrack = await createTraceProcessorSliceTrack({
               trace: ctx,
               uri,
@@ -322,6 +313,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
                   ? '__trackevent_track_layout_depth'
                   : undefined,
             });
+            parentDataset = delegateTrack.getDataset?.();
           }
         }
 
