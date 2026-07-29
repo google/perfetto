@@ -82,10 +82,13 @@ export class CompositionTimeline implements m.ClassComponent<CompositionTimeline
     }
 
     const snaps = data.snapshots;
-    if (snaps.length === 0 || data.chart === undefined) {
+    if (snaps.length < 2 || data.chart === undefined) {
       return emptyPanel({
         title: 'Composition over time',
-        message: 'No smaps snapshots in this trace for this process.',
+        message:
+          snaps.length === 1
+            ? 'Only one smaps snapshot; no point in showing the timeline.'
+            : 'No smaps snapshots in this trace for this process.',
       });
     }
 

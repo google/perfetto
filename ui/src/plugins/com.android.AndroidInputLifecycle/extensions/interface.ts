@@ -62,6 +62,7 @@ export interface CellData {
  */
 export interface InputLifecycleExtension {
   readonly id: string;
+  readonly name: string;
   readonly requiredModules?: string[];
   isEligible(trace: Trace): Promise<boolean>;
 
