@@ -16,7 +16,14 @@ import {TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
 import type {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
+import type {App} from './app';
 import type {Trace} from './trace';
+
+export function getBugReportUrl(app: App): string {
+  return app.isInternalUser
+    ? 'https://goto.google.com/perfetto-ui-bug'
+    : 'https://github.com/google/perfetto/issues/new';
+}
 
 // Number of machines in the trace. Used to decide whether tracks should be
 // disambiguated with a "(machine N)" label: with a single machine there's no

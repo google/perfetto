@@ -129,6 +129,28 @@
   }
 }
 
+// Explains the default-page change and groups the available actions without
+// forcing the message and controls onto one line on narrow screens.
+.pf-memscope-default-page-callout__body {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.pf-memscope-default-page-callout__message {
+  flex: 1;
+  min-width: 280px;
+}
+
+.pf-memscope-default-page-callout__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 // Process picker at the top of the overview page.
 .pf-memscope-process-select {
   display: flex;

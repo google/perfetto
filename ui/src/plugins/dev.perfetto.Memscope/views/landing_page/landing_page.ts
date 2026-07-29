@@ -15,17 +15,23 @@
 import m from 'mithril';
 import {assertIsInstance} from '../../../../base/assert';
 import {AsyncMemo} from '../../../../base/async_memo';
+import type {Setting} from '../../../../public/settings';
 import type {Trace} from '../../../../public/trace';
+import {getBugReportUrl} from '../../../../public/utils';
 import type {Engine} from '../../../../trace_processor/engine';
 import {
   materializeRows,
   NUM,
   STR,
 } from '../../../../trace_processor/query_result';
-import {Select} from '../../../../widgets/select';
-import './landing_page.scss';
+import {Anchor} from '../../../../widgets/anchor';
+import {Button, ButtonVariant} from '../../../../widgets/button';
+import {Intent} from '../../../../widgets/common';
 import {EmptyState} from '../../../../widgets/empty_state';
+import {Select} from '../../../../widgets/select';
+import {Callout} from '../../components/callout';
 import {Page} from '../../components/page';
+import './landing_page.scss';
 import {ProcessMemDetails} from './proc_mem_overview';
 
 // Per-process memory-capture counts, used to populate and score the process
@@ -42,6 +48,9 @@ interface ProcMemStat {
 export interface MemoryOverviewPageAttrs {
   readonly trace: Trace;
   readonly subpage: string | undefined;
+  readonly autoNavigated: boolean;
+  readonly openByDefault: Setting<boolean>;
+  readonly hideDefaultChangedHint: Setting<boolean>;
   readonly onSubpageChange: (subpage: string) => void;
 }
 
@@ -51,7 +60,14 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
   private readonly slot = new AsyncMemo<ProcWithMem>();
 
   view({attrs}: m.Vnode<MemoryOverviewPageAttrs>) {
-    const {trace, subpage, onSubpageChange} = attrs;
+    const {
+      trace,
+      subpage,
+      autoNavigated,
+      openByDefault,
+      hideDefaultChangedHint,
+      onSubpageChange,
+    } = attrs;
 
     return m(
       Page,
@@ -61,7 +77,70 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
         'Memory triage: smaps owns the total, the native and Java ' +
           'profilers explain what is inside.',
       ),
+      this.renderDefaultChangedHint(
+        trace,
+        autoNavigated,
+        openByDefault,
+        hideDefaultChangedHint,
+      ),
       this.renderPageContent(trace, subpage, onSubpageChange),
+    );
+  }
+
+  private renderDefaultChangedHint(
+    trace: Trace,
+    autoNavigated: boolean,
+    openByDefault: Setting<boolean>,
+    hideDefaultChangedHint: Setting<boolean>,
+  ): m.Children {
+    if (
+      !autoNavigated ||
+      !openByDefault.get() ||
+      hideDefaultChangedHint.get()
+    ) {
+      return undefined;
+    }
+
+    return m(
+      Callout,
+      {
+        className: 'pf-memscope-default-page-callout',
+        icon: 'info',
+        intent: Intent.Primary,
+      },
+      m('.pf-memscope-default-page-callout__body', [
+        m(
+          'span.pf-memscope-default-page-callout__message',
+          'Memory Overview is now the default page when opening traces with ' +
+            'smaps snapshots.',
+        ),
+        m('.pf-memscope-default-page-callout__actions', [
+          m(Button, {
+            label: "Don't open by default",
+            icon: 'timeline',
+            compact: true,
+            variant: ButtonVariant.Outlined,
+            onclick: () => {
+              openByDefault.set(false);
+              trace.navigate('#!/viewer');
+            },
+          }),
+          m(Button, {
+            label: 'Dismiss forever',
+            compact: true,
+            onclick: () => hideDefaultChangedHint.set(true),
+          }),
+          m(
+            Anchor,
+            {
+              href: getBugReportUrl(trace),
+              target: '_blank',
+              icon: 'open_in_new',
+            },
+            'Report a bug',
+          ),
+        ]),
+      ]),
     );
   }
 

@@ -18,12 +18,10 @@
 // loading logic.
 
 import m from 'mithril';
-import {Icons} from '../../../../../base/semantic_icons';
 import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
-import {Anchor} from '../../../../../widgets/anchor';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
 import {Intent} from '../../../../../widgets/common';
