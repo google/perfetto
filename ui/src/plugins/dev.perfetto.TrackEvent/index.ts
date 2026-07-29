@@ -321,7 +321,6 @@ export default class TrackEventPlugin implements PerfettoPlugin {
 
         const track = new GroupSummaryTrack(
           ctx,
-          uri,
           config,
           cpuCount,
           threads,

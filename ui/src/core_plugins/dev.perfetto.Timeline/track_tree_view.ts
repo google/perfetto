@@ -371,7 +371,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const track = trackNode.uri
       ? this.trace.tracks.getTrack(trackNode.uri)
       : undefined;
-    const tooltipNodes = track?.renderer.renderTooltip?.();
+    const tooltipNodes = track?.renderer.renderTooltip?.(trackNode);
     if (!Boolean(tooltipNodes)) {
       return;
     }

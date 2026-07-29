@@ -109,12 +109,13 @@ function computeHover(
   timescale: TimeScale,
   data: Data,
   threads: ThreadMap,
+  trackNode: TrackNode,
   delegateTrack?: TrackRenderer,
 ): GroupSummaryHover | undefined {
   if (pos === undefined) return undefined;
 
   const {x, y} = pos;
-  const parentHeight = delegateTrack?.getHeight?.() ?? 0;
+  const parentHeight = delegateTrack?.getHeight?.(trackNode) ?? 0;
   const hasParent = delegateTrack !== undefined;
   const actualYStart = parentHeight;
   const actualSummaryDrawHeight = hasParent
@@ -158,10 +159,6 @@ export class GroupSummaryTrack implements TrackRenderer {
   private hover?: GroupSummaryHover;
   private readonly mode: Mode;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
-  private getTrackNode(): TrackNode | undefined {
-    return this.trace.workspaces.currentWorkspace.getTrackByUri(this.uri);
-  }
-
   // Cached color scheme for 'slices' mode (constant for track lifetime).
   private readonly slicesModeColor: ColorScheme;
 
@@ -186,7 +183,6 @@ export class GroupSummaryTrack implements TrackRenderer {
 
   constructor(
     private readonly trace: Trace,
-    private readonly uri: string,
     private readonly config: Config,
     private readonly cpuCount: number,
     private readonly threads: ThreadMap,
@@ -502,11 +498,11 @@ export class GroupSummaryTrack implements TrackRenderer {
     return this.config.parentDataset;
   }
 
-  getHeight(): number {
-    const parentHeight = this.config.delegateTrack?.getHeight?.() ?? 0;
+  getHeight(trackNode: TrackNode): number {
+    const parentHeight = this.config.delegateTrack?.getHeight?.(trackNode) ?? 0;
     const hasParent = this.config.delegateTrack !== undefined;
     if (hasParent) {
-      if (this.getTrackNode()?.expanded) {
+      if (trackNode.expanded) {
         return parentHeight;
       }
       return parentHeight + COLLAPSED_SUMMARY_HEIGHT;
@@ -514,15 +510,12 @@ export class GroupSummaryTrack implements TrackRenderer {
     return TRACK_HEIGHT;
   }
 
-  renderTooltip(): m.Children {
-    if (
-      this.getTrackNode()?.expanded &&
-      this.config.delegateTrack?.renderTooltip
-    ) {
-      return this.config.delegateTrack.renderTooltip();
+  renderTooltip(trackNode: TrackNode): m.Children {
+    if (trackNode.expanded && this.config.delegateTrack?.renderTooltip) {
+      return this.config.delegateTrack.renderTooltip(trackNode);
     }
     if (this.config.delegateTrack?.renderTooltip) {
-      const tooltip = this.config.delegateTrack.renderTooltip();
+      const tooltip = this.config.delegateTrack.renderTooltip(trackNode);
       if (tooltip !== undefined) {
         return tooltip;
       }
@@ -592,7 +585,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       return;
     }
 
-    const parentHeight = this.config.delegateTrack?.getHeight?.() ?? 0;
+    const parentHeight = this.config.delegateTrack?.getHeight?.(trackNode) ?? 0;
     const hasParent = this.config.delegateTrack !== undefined;
     const summaryHeight = COLLAPSED_SUMMARY_HEIGHT;
 
@@ -754,15 +747,15 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  onMouseMove({x, y, timescale}: TrackMouseEvent) {
+  onMouseMove({x, y, timescale}: TrackMouseEvent, trackNode: TrackNode) {
     const hasParent = this.config.delegateTrack !== undefined;
 
     if (
-      this.getTrackNode()?.expanded &&
+      trackNode.expanded &&
       hasParent &&
       this.config.delegateTrack?.onMouseMove
     ) {
-      this.config.delegateTrack.onMouseMove({x, y, timescale});
+      this.config.delegateTrack.onMouseMove({x, y, timescale}, trackNode);
       return;
     }
 
@@ -774,6 +767,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       timescale,
       data,
       this.threads,
+      trackNode,
       this.config.delegateTrack,
     );
     if (this.hoverMonitor.ifStateChanged()) {
@@ -785,14 +779,14 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  onMouseOut() {
+  onMouseOut(trackNode: TrackNode) {
     const hasParent = this.config.delegateTrack !== undefined;
     if (
-      this.getTrackNode()?.expanded &&
+      trackNode.expanded &&
       hasParent &&
       this.config.delegateTrack?.onMouseOut
     ) {
-      this.config.delegateTrack.onMouseOut();
+      this.config.delegateTrack.onMouseOut(trackNode);
       return;
     }
     this.hover = undefined;
@@ -805,9 +799,9 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  onMouseClick(event: TrackMouseEvent): boolean {
+  onMouseClick(event: TrackMouseEvent, trackNode: TrackNode): boolean {
     if (this.config.delegateTrack?.onMouseClick) {
-      return this.config.delegateTrack.onMouseClick(event);
+      return this.config.delegateTrack.onMouseClick(event, trackNode);
     }
     return false;
   }

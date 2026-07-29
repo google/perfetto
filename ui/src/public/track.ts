@@ -252,11 +252,11 @@ export interface TrackRenderer {
    * track uses.
    */
   getSliceVerticalBounds?(depth: number): VerticalBounds | undefined;
-  getHeight?(): number;
+  getHeight?(node: TrackNode): number;
   getTrackShellButtons?(): m.Children;
-  onMouseMove?(event: TrackMouseEvent): void;
-  onMouseClick?(event: TrackMouseEvent): boolean;
-  onMouseOut?(): void;
+  onMouseMove?(event: TrackMouseEvent, node: TrackNode): void;
+  onMouseClick?(event: TrackMouseEvent, node: TrackNode): boolean;
+  onMouseOut?(node: TrackNode): void;
 
   /**
    * Optional: Returns a dataset that represents the events displayed on this
@@ -276,7 +276,7 @@ export interface TrackRenderer {
 
   // Optional: Returns tooltip content if available. If the return value is
   // falsy, no tooltip is rendered.
-  renderTooltip?(): m.Children;
+  renderTooltip?(node: TrackNode): m.Children;
 
   /**
    * Optional: Find the nearest snap point to the given time.
