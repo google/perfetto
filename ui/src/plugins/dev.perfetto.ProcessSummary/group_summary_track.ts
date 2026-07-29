@@ -131,7 +131,8 @@ function computeHover(
   }
 
   const laneHeight = Math.floor(
-    (actualSummaryDrawHeight - actualMarginTop * 2) / data.maxLanes,
+    (actualSummaryDrawHeight - (hasParent ? actualMarginTop * 2 : 0)) /
+      data.maxLanes,
   );
   const lane = Math.floor((relativeY - actualMarginTop) / (laneHeight + 1));
   const t = timescale.pxToHpTime(x).toTime('floor');
@@ -505,10 +506,13 @@ export class GroupSummaryTrack implements TrackRenderer {
   getHeight(): number {
     const parentHeight = this.config.delegateTrack?.getHeight?.() ?? 0;
     const hasParent = this.config.delegateTrack !== undefined;
-    if (this.trackNode?.expanded) {
-      return parentHeight;
+    if (hasParent) {
+      if (this.trackNode?.expanded) {
+        return parentHeight;
+      }
+      return parentHeight + COLLAPSED_SUMMARY_HEIGHT;
     }
-    return hasParent ? parentHeight + COLLAPSED_SUMMARY_HEIGHT : TRACK_HEIGHT;
+    return TRACK_HEIGHT;
   }
 
   renderTooltip(): m.Children {
@@ -671,7 +675,8 @@ export class GroupSummaryTrack implements TrackRenderer {
     const actualSummaryDrawHeight = hasParent ? summaryHeight : RECT_HEIGHT;
     const actualMarginTop = hasParent ? 1 : MARGIN_TOP;
     const laneHeight = Math.floor(
-      (actualSummaryDrawHeight - actualMarginTop * 2) / data.maxLanes,
+      (actualSummaryDrawHeight - (hasParent ? actualMarginTop * 2 : 0)) /
+        data.maxLanes,
     );
     const timeline = this.trace.timeline;
     const count = data.length;
