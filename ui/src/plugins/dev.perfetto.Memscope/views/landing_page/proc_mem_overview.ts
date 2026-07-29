@@ -181,28 +181,27 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
     // data while preserving the normal order within each group. Keys ensure
     // in-flight section queries and component state survive the reorder.
     const smapsAvailable = capture === undefined || capture.smaps.samples > 0;
-    const timelineViable = capture === undefined || capture.smaps.samples > 1;
+    const timelineAvailable =
+      capture === undefined || capture.smaps.samples > 1;
     const dumpsAvailable = capture === undefined || capture.dumps > 0;
     const bitmapsAvailable = capture === undefined || capture.hasBitmaps;
     const nativeAvailable = capture === undefined || capture.native.samples > 0;
     const sections = [
       {
-        hasData: smapsAvailable,
-        content:
-          timelineViable &&
-          m(CompositionTimeline, {
-            key: 'composition',
+        hasData: timelineAvailable,
+        content: m(CompositionTimeline, {
+          key: 'composition',
+          trace,
+          upid,
+          selection: this.selection,
+          onSelect: (s: MemSelection) => (this.selection = s),
+          belowChart: this.renderGrowthBar(
             trace,
             upid,
-            selection: this.selection,
-            onSelect: (s: MemSelection) => (this.selection = s),
-            belowChart: this.renderGrowthBar(
-              trace,
-              upid,
-              this.selection?.sel,
-              this.selection?.base,
-            ),
-          }),
+            this.selection?.sel,
+            this.selection?.base,
+          ),
+        }),
       },
       {
         hasData: smapsAvailable,
@@ -244,7 +243,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           baseTs: this.selection?.base,
         }),
       },
-    ].filter((section) => Boolean(section.content));
+    ];
     sections.sort((a, b) => Number(b.hasData) - Number(a.hasData));
     return [
       m(TraceOverview, {key: 'trace-overview', trace, upid}),

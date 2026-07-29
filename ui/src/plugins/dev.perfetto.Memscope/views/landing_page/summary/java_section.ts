@@ -684,17 +684,6 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
             findProcessTrack(trace, upid, (k) => k === 'java_heap_graph')?.uri,
             cur.eventId,
           ),
-          m(
-            Anchor,
-            {
-              disabled: true,
-              title:
-                'Direct linking to specific heap dumps in HDE is not yet ' +
-                'supported',
-              icon: Icons.ExternalLink,
-            },
-            'Show in Heap Dump Explorer',
-          ),
         ],
       }),
       m(
