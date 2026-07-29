@@ -315,11 +315,6 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           pidForColor: pid ?? 0,
           upid: upid ?? null,
           utid: utid ?? null,
-          trackIds: hasData ? trackIds : undefined,
-          depthTableName:
-            hasData && trackIds.length > 1
-              ? '__trackevent_track_layout_depth'
-              : undefined,
           parentDataset,
           delegateTrack,
         };

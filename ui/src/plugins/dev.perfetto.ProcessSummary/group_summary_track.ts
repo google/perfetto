@@ -91,8 +91,6 @@ export interface Config {
   pidForColor: bigint | number;
   upid: number | null;
   utid: number | null;
-  readonly trackIds?: number[];
-  readonly depthTableName?: string;
   readonly parentDataset?: SourceDataset;
   readonly delegateTrack?: TrackRenderer;
 }
