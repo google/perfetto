@@ -51,6 +51,11 @@ constexpr char TYPE_FLAG_REGULAR = '0';
 constexpr char TYPE_FLAG_AREGULAR = '\0';
 constexpr char TYPE_FLAG_GNU_LONG_NAME = 'L';
 constexpr char TYPE_FLAG_DIR = '5';
+// PAX extended headers ('x' applies to the next entry, 'g' to the whole
+// archive). Emitted by e.g. macOS/BSD tar. We rely on the plain ustar header
+// fields, so the PAX payload is consumed and ignored.
+constexpr char TYPE_FLAG_PAX_EXTENDED = 'x';
+constexpr char TYPE_FLAG_PAX_GLOBAL = 'g';
 
 template <size_t Size>
 base::StatusOr<uint64_t> ParseBase256(const char (&ptr)[Size]) {
@@ -82,8 +87,15 @@ base::StatusOr<uint64_t> ParseBase256(const char (&ptr)[Size]) {
 
 template <size_t Size>
 base::StatusOr<uint64_t> ParseOctal(const char (&ptr)[Size]) {
+  // POSIX allows numeric fields to be padded with leading spaces and to be
+  // terminated by either a NUL or a space. GNU tar NUL-terminates, but
+  // macOS/BSD tar terminates with a trailing space, so both must be tolerated.
+  size_t i = 0;
+  while (i < Size && ptr[i] == ' ') {
+    ++i;
+  }
   uint64_t value = 0;
-  for (size_t i = 0; i < Size && ptr[i] != 0; ++i) {
+  for (; i < Size && ptr[i] != 0 && ptr[i] != ' '; ++i) {
     if (ptr[i] > '7' || ptr[i] < '0') {
       return base::ErrStatus("Invalid octal digit in size field.");
     }
@@ -300,6 +312,8 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {
     case TYPE_FLAG_REGULAR:
     case TYPE_FLAG_AREGULAR:
     case TYPE_FLAG_GNU_LONG_NAME:
+    case TYPE_FLAG_PAX_EXTENDED:
+    case TYPE_FLAG_PAX_GLOBAL:
       state_ = State::kContent;
       break;
 
@@ -323,11 +337,21 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseContent() {
     return ParseResult::kNeedsMoreData;
   }
 
-  if (metadata_->type_flag == TYPE_FLAG_GNU_LONG_NAME) {
+  if (metadata_->type_flag == TYPE_FLAG_PAX_EXTENDED ||
+      metadata_->type_flag == TYPE_FLAG_PAX_GLOBAL) {
+    // PAX extended headers carry metadata (long names, large sizes, ...) for
+    // the following entry, or the whole archive for the global variant. We
+    // read names and sizes from the plain ustar header of each entry, so the
+    // PAX payload is skipped by falling through to the PopFrontBytes below.
+  } else if (metadata_->type_flag == TYPE_FLAG_GNU_LONG_NAME) {
     TraceBlobView data =
         *buffer_.SliceOff(buffer_.start_offset(), metadata_->size);
     long_name_ = std::string(reinterpret_cast<const char*>(data.data()),
                              metadata_->size);
+  } else if (IsHiddenArchivePath(metadata_->name)) {
+    // Ignore hidden files/directories (e.g. macOS "._" resource forks and
+    // ".DS_Store"). The content bytes are still consumed via PopFrontBytes
+    // below so parsing stays aligned to the next header.
   } else {
     AddFile(*metadata_,
             *buffer_.SliceOff(

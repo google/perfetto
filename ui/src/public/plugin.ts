@@ -17,6 +17,14 @@ import type {App} from './app';
 import type {RouteArgs} from './route_schema';
 
 /**
+ * Indicates the maturity/stability of a plugin.
+ *
+ * - 'experimental': The plugin is in development and may contain unstable or
+ *   incomplete features. Users will see a warning when enabling such plugins.
+ */
+export type PluginStatus = 'experimental';
+
+/**
  * This interface defines the shape of the plugins's class constructor (i.e. the
  * the constructor and all static members of the plugin's class.
  *
@@ -28,6 +36,13 @@ import type {RouteArgs} from './route_schema';
 export interface PerfettoPluginStatic<T extends PerfettoPlugin> {
   readonly id: string;
   readonly description?: string;
+  /**
+   * Optional status flag indicating the maturity of this plugin.
+   * When set to 'experimental', users will see a warning that enabling
+   * this plugin may expose experimental or unstable features.
+   * Defaults to stable (no warning) when not specified.
+   */
+  readonly status?: PluginStatus;
   readonly dependencies?: ReadonlyArray<PerfettoPluginStatic<PerfettoPlugin>>;
   onActivate?(app: App, args: RouteArgs): void;
   new (trace: Trace): T;

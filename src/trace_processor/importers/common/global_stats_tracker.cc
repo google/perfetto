@@ -33,6 +33,7 @@ GlobalStatsTracker::GlobalStatsTracker(TraceStorage* storage)
     description_ids_[i] = storage->InternString(stats::kDescriptions[i]);
   }
   severity_ids_[stats::kInfo] = storage->InternString("info");
+  severity_ids_[stats::kNotice] = storage->InternString("notice");
   severity_ids_[stats::kDataLoss] = storage->InternString("data_loss");
   severity_ids_[stats::kError] = storage->InternString("error");
   source_ids_[stats::kTrace] = storage->InternString("trace");

@@ -348,7 +348,9 @@ ABI_TO_ARCH = {
     'x86_64': 'x64',
 }
 
-MAX_ADB_FAILURES = 15  # 2 seconds between retries, 30 seconds total.
+# We support disconnecting a device after starting a trace, and proceeding after
+# reconnection if this script keeps running. Put a 24h timeout on the wait.
+MAX_ADB_FAILURE_TIME_SEC = 24 * 60 * 60  # 24h
 
 devnull = open(os.devnull, 'rb')
 adb_path = None
@@ -672,38 +674,83 @@ def start_trace(args, print_log=True):
   logcat = adb('logcat', log_level, 'brief', '-s', 'perfetto', '-b', 'main',
                '-T', '1')
 
+  # We want to wait until the "perfetto" process terminates. However it
+  # daemonized and therefore cannot be "wait"ed on (as it's not a child of the
+  # adbd's shell). We also want to avoid spawning new processes (including
+  # subshells for e.g. "sleep") as that pollutes the trace.
+  #
+  # Given the limitation's of android's mksh and toybox, we:
+  # * use the "read -t" builtin as a sleeping mechanism
+  # * use a never-written-to stdin pipe (forwarded by adbd) to give "read"
+  #   something to block on
+  # * poll the existence of /proc/pid to check that the process has exited
+  #
+  # On older Android devices adbd doesn't propagate the exit code. Hence
+  # the following command prints RUN once, and TERM when the process finishes.
+  # On an error/disconnect the pipe closes without TERM.
+  wait_cmd = (
+      'echo RUN; while [ -d /proc/%s ]; do read -t 1 scratch_var; done; echo TERM'
+      % bg_pid)
+
   ctrl_c_count = 0
   adb_failure_count = 0
+  adb_failure_time = 0
+  last_adb_error = None
   while ctrl_c_count < 2:
+    poll = None
     try:
-      # On older Android devices adbd doesn't propagate the exit code. Hence
-      # the RUN/TERM parts.
+      # stderr is merged into stdout so that we can suppress identical adb
+      # error messages while waiting for reconnection.
       poll = adb(
           'shell',
-          'test -d /proc/%s && echo RUN || echo TERM' % bg_pid,
-          stdout=subprocess.PIPE)
-      poll_res = poll.communicate()[0].decode().strip()
-      if poll_res == 'TERM':
-        break  # Process terminated
-      if poll_res == 'RUN':
-        # The 'perfetto' cmdline client is still running. If previously we had
-        # an ADB error, tell the user now it's all right again.
-        if adb_failure_count > 0:
-          adb_failure_count = 0
-          prt('ADB connection re-established, the trace is still ongoing',
-              ANSI.BLUE)
-        time.sleep(0.5)
-        continue
-      # Some ADB error happened. This can happen when tracing soon after boot,
-      # before logging in, when adb gets restarted.
+          wait_cmd,
+          stdin=subprocess.PIPE,
+          stdout=subprocess.PIPE,
+          stderr=subprocess.STDOUT)
+      terminated = False
+      while True:
+        line = poll.stdout.readline()
+        if not line:
+          break  # EOF: the shell exited, i.e. some adb error/disconnect.
+        token = line.decode().strip()
+        if token == 'TERM':
+          terminated = True
+          break
+        if token == 'RUN':
+          if adb_failure_count > 0:
+            # We had lost the connection and just got it back.
+            adb_failure_count = 0
+            last_adb_error = None
+            prt('ADB connection re-established, the trace is still ongoing',
+                ANSI.BLUE)
+          continue
+        # Anything else is an adb/shell message or error. Forward it, deduping
+        # the same error repeated across retries.
+        if token and token != last_adb_error:
+          last_adb_error = token
+          sys.stderr.write(token + '\n')
+          sys.stderr.flush()
+      poll.stdout.close()
+      if poll.stdin:
+        poll.stdin.close()
+      poll.wait()
+      if terminated:
+        break
+      # adb error, possibly disconnect.
       adb_failure_count += 1
-      if adb_failure_count >= MAX_ADB_FAILURES:
+      if adb_failure_count == 1:
+        adb_failure_time = time.time()
+        prt('ADB connection lost, will keep retrying while the trace continues',
+            ANSI.BLUE)
+      if time.time() - adb_failure_time > MAX_ADB_FAILURE_TIME_SEC:
         prt('Too many unrecoverable ADB failures, bailing out', ANSI.RED)
         sys.exit(1)
       time.sleep(2)
     except (KeyboardInterrupt, SignalException):
       sig = 'TERM' if ctrl_c_count == 0 else 'KILL'
       ctrl_c_count += 1
+      if poll:
+        poll.kill()  # Tear down the blocking wait shell.
       if print_log:
         prt('Stopping the trace (SIG%s)' % sig, ANSI.BLACK + ANSI.BG_YELLOW)
       adb('shell', 'kill -%s %s' % (sig, bg_pid)).wait()

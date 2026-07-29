@@ -69,6 +69,12 @@ class PluginBase {
       TrackEventExtensionParserContext* context,
       TraceProcessorContext* trace_context);
   virtual void RegisterDataframes(std::vector<PluginDataframe>& tables);
+  // Called once after every plugin's RegisterDataframes has run, with the
+  // complete list. Plugins that need to look up other plugins' dataframes
+  // (e.g. the Perfetto export importer) may retain a pointer: the list
+  // outlives all plugins.
+  virtual void OnDataframesRegistered(
+      const std::vector<PluginDataframe>& dataframes);
   virtual void RegisterStaticTableFunctions(
       PerfettoSqlConnection* connection,
       std::vector<std::unique_ptr<StaticTableFunction>>& fns);

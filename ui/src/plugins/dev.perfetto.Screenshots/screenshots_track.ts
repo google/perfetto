@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QuerySlot} from '../../base/query_slot';
+import {AsyncMemo} from '../../base/async_memo';
 import {materialColorScheme} from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {Trace} from '../../public/trace';
@@ -22,7 +22,7 @@ import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {ScreenshotDetailsPanel} from './screenshot_panel';
 
 export function createScreenshotsTrack(trace: Trace, uri: string) {
-  const imageSlot = new QuerySlot<string>();
+  const imageSlot = new AsyncMemo<string>();
 
   // Screenshot slices are instants (0 dur), but we want the tooltip to show up
   // not only when hovering over the instant event exactly, but also when
@@ -72,7 +72,7 @@ export function createScreenshotsTrack(trace: Trace, uri: string) {
       const screenshot = imageSlot.use({
         key: {id: data.id},
         retainOn: ['id'],
-        queryFn: async () => {
+        compute: async () => {
           const result = await trace.engine.query(`
             select extract_arg(arg_set_id, 'screenshot.jpg_image') as image_data
             from slice

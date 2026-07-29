@@ -60,7 +60,9 @@ class SchedEventTracker;
 class SliceTracker;
 class StateTracker;
 class SliceTranslationTable;
+class SparseCounterTracker;
 class StackProfileTracker;
+class ProfilerSampleTracker;
 class SymbolTracker;
 class TraceDiagnosticsTracker;
 class TraceFileTracker;
@@ -187,6 +189,7 @@ class TraceProcessorContext {
   GlobalPtr<TraceManifestState> trace_manifest_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
+  GlobalPtr<ProfilerSampleTracker> profiler_sample_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
   GlobalPtr<BlobPacketWriter> blob_packet_writer;
 
@@ -262,6 +265,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
   PerTraceAndMachinePtr<MetadataTracker> metadata_tracker;
   PerTraceAndMachinePtr<StatsTracker> stats_tracker;
+  PerTraceAndMachinePtr<SparseCounterTracker> sparse_counter_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass

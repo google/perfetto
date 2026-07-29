@@ -14,11 +14,11 @@
 
 import m from 'mithril';
 import {exists} from '../../base/utils';
-import type {ColumnDef} from '../../components/aggregation';
 import {addWattsonThreadTrack} from './wattson_thread_utils';
 import type {
   Aggregation,
   Aggregator,
+  AggregatorGridConfig,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -29,6 +29,7 @@ import type {SqlValue} from '../../trace_processor/query_result';
 import {RadioGroup} from '../../widgets/radio_group';
 import type {Trace} from '../../public/trace';
 import {WATTSON_THREAD_TRACK_KIND} from './track_kinds';
+import {formatPercentValue} from '../../components/aggregation_panel';
 
 export class WattsonThreadSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_thread_aggregation';
@@ -143,10 +144,6 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
     );
   }
 
-  private powerUnits(): string {
-    return this.scaleNumericData ? 'µW' : 'mW';
-  }
-
   private renderMilliwatts(value: SqlValue): m.Children {
     if (this.scaleNumericData && typeof value === 'number') {
       return value * 1000;
@@ -167,59 +164,57 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
     });
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Track',
-        columnId: 'utid',
-        cellRenderer: this.renderShowButton.bind(this),
+  getGridConfig(): AggregatorGridConfig {
+    const powerUnits = this.scaleNumericData ? 'µW' : 'mW';
+    const energyUnits = this.scaleNumericData ? 'µWs' : 'mWs';
+
+    return {
+      schema: {
+        utid: {
+          title: 'Track',
+          cellRenderer: (v) => this.renderShowButton(v),
+        },
+        thread_name: {title: 'Thread Name', columnType: 'text'},
+        tid: {title: 'TID', columnType: 'identifier'},
+        pid: {title: 'PID', columnType: 'identifier'},
+        active_mw: {
+          title: `Active power (estimated ${powerUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        active_mws: {
+          title: `Active energy (estimated ${energyUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        idle_cost_mws: {
+          title: `Idle transitions overhead (estimated ${energyUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        total_mws: {
+          title: `Total energy (estimated ${energyUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        percent_of_total_energy: {
+          title: '% of total energy',
+          columnType: 'quantitative',
+          cellRenderer: formatPercentValue,
+        },
       },
-      {
-        title: 'Thread Name',
-        columnId: 'thread_name',
-      },
-      {
-        title: 'TID',
-        columnId: 'tid',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'PID',
-        columnId: 'pid',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: `Active power (estimated ${this.powerUnits()})`,
-        columnId: 'active_mw',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-      {
-        title: `Active energy (estimated ${this.powerUnits()}s)`,
-        columnId: 'active_mws',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-        sort: 'DESC',
-      },
-      {
-        title: `Idle transitions overhead (estimated ${this.powerUnits()}s)`,
-        columnId: 'idle_cost_mws',
-        sum: false,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-      {
-        title: `Total energy (estimated ${this.powerUnits()}s)`,
-        columnId: 'total_mws',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-      {
-        title: '% of total energy',
-        formatHint: 'PERCENT',
-        columnId: 'percent_of_total_energy',
-        sum: false,
-      },
-    ];
+      initialColumns: [
+        {id: 'utid', field: 'utid'},
+        {id: 'thread_name', field: 'thread_name'},
+        {id: 'tid', field: 'tid'},
+        {id: 'pid', field: 'pid'},
+        {id: 'active_mw', field: 'active_mw', aggregate: 'SUM'},
+        {id: 'active_mws', field: 'active_mws', aggregate: 'SUM', sort: 'DESC'},
+        {id: 'idle_cost_mws', field: 'idle_cost_mws'},
+        {id: 'total_mws', field: 'total_mws', aggregate: 'SUM'},
+        {id: 'percent_of_total_energy', field: 'percent_of_total_energy'},
+      ],
+    };
   }
 
   getTabName() {

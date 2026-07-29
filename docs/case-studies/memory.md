@@ -491,7 +491,8 @@ This can be viewed using https://ui.perfetto.dev.
 ```
 
 We can also collect a snapshot of the object graph when allocations start
-failing with [java.lang.OutOfMemoryError](/docs/case-studies/android-outofmemoryerror.md).
+failing with
+[java.lang.OutOfMemoryError](/docs/getting-started/local-android-trace-recording.md#oom-heap-dump).
 
 ### Viewing the Data
 

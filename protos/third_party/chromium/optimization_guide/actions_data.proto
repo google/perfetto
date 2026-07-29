@@ -366,7 +366,7 @@ message AttemptFormFillingAction {
 
 // Attempts to fill One-Time Password (OTP) /verification codes in the tab. This
 // action is used for OTP filling, which is different from the general form
-// filling action above. Next ID: 4
+// filling action above. Next ID: 5
 message AttemptOtpFillingAction {
   // The tab ID in which to attempt OTP filling.
   int32 tab_id = 1 [features = { field_presence: EXPLICIT }];
@@ -379,6 +379,19 @@ message AttemptOtpFillingAction {
   // filling the OTP/verification code. A dialog is shown only when
   // `for_signin` is false.
   bool for_signin = 3 [features = { field_presence: EXPLICIT }];
+
+  // The type of the OTP.
+  OtpType predicted_otp_type = 4 [features = { field_presence: EXPLICIT }];
+
+  enum OtpType {
+    OTP_TYPE_UNSPECIFIED = 0;
+
+    OTP_TYPE_SMS = 1;
+
+    OTP_TYPE_EMAIL = 2;
+
+    OTP_TYPE_AUTHENTICATOR_APP = 3;
+  }
 }
 
 // Scrolls the DOM element into viewport.
@@ -691,7 +704,7 @@ message TabObservation {
 
 // All relevant state in chrome after the actions are taken or an error has
 // occurred.
-// Next ID: 8
+// Next ID: 9
 message ActionsResult {
   // The result of the actions. See
   // https://source.chromium.org/chromium/chromium/src/+/main:chrome/common/actor.mojom
@@ -704,6 +717,13 @@ message ActionsResult {
 
   // A human-readable error message from first failed action, if any.
   string error_message = 7 [features = { field_presence: EXPLICIT }];
+
+  // Human-readable extra information of operations that succeeded. If `n`
+  // actions were sent for actuation, `extra_information` will return for up to
+  // `n` entries. Entry `idx` corresponds to the returned message of action
+  // `idx`. Actions that did not return a message are represented by empty
+  // strings. Error messages are always stored in `error_message`.
+  repeated string extra_information = 8;
 
   // Observations after all actions are finished or an error has occurred. The
   // client will determine the relevant windows and tabs.

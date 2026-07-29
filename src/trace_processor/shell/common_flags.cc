@@ -30,6 +30,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
@@ -70,6 +71,17 @@ void AppendFlagList(std::string* out, const std::vector<FlagSpec>& flags) {
     }
     *out += buf;
   }
+}
+
+base::StatusOr<std::string> ReadFileContents(const std::string& filename) {
+  if (!base::FileExists(filename)) {
+    return base::ErrStatus("File %s does not exist", filename.c_str());
+  }
+  std::string data;
+  if (!base::ReadFile(filename, &data)) {
+    return base::ErrStatus("Cannot read file '%s'", filename.c_str());
+  }
+  return std::move(data);
 }
 
 }  // namespace
@@ -283,8 +295,9 @@ base::Status ParseFlags(Subcommand* cmd,
   return base::OkStatus();
 }
 
-Config BuildConfig(const GlobalOptions& opts,
-                   TraceProcessorShell_PlatformInterface* platform) {
+base::StatusOr<Config> BuildConfig(
+    const GlobalOptions& opts,
+    TraceProcessorShell_PlatformInterface* platform) {
   Config config = platform->DefaultConfig();
   config.sorting_mode = opts.force_full_sort ? SortingMode::kForceFullSort
                                              : SortingMode::kDefaultHeuristics;
@@ -307,6 +320,16 @@ Config BuildConfig(const GlobalOptions& opts,
         PERFETTO_ELOG("Ignoring unknown dev flag format %s", flag_pair.c_str());
         continue;
       }
+
+      if (kv[0] == "extra_parsing_descriptors") {
+        auto files = base::SplitString(kv[1], ";");
+        for (const auto& filepath : files) {
+          ASSIGN_OR_RETURN(std::string data, ReadFileContents(filepath));
+          config.extra_parsing_descriptors.push_back(std::move(data));
+        }
+        continue;
+      }
+
       config.dev_flags.emplace(kv[0], kv[1]);
     }
   }
@@ -563,7 +586,7 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
     return base::ErrStatus("--remote not supported in this build");
 #endif
   }
-  Config config = BuildConfig(opts, platform);
+  ASSIGN_OR_RETURN(Config config, BuildConfig(opts, platform));
   ASSIGN_OR_RETURN(auto tp, SetupTraceProcessor(opts, config, platform));
   ASSIGN_OR_RETURN(base::TimeNanos t_load,
                    LoadTraceFile(tp.get(), platform, trace_file));

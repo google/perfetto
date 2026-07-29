@@ -17,10 +17,12 @@
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -31,6 +33,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -577,14 +580,36 @@ base::Status ProtoToArgsParser::ParseSimpleField(
   switch (descriptor.type()) {
     case FieldDescriptorProto::TYPE_INT32:
     case FieldDescriptorProto::TYPE_SFIXED32:
+      if (auto idx = descriptor.flags_enum_descriptor_idx()) {
+        // Zero-extend so the mask stays 32-bit (bit 31 is 0x80000000, not a
+        // sign-extended int64).
+        return AddFlags(
+            *idx, static_cast<int64_t>(static_cast<uint32_t>(field.as_int32())),
+            delegate);
+      }
       delegate.AddInteger(fk, k, field.as_int32());
+      if (descriptor.is_pid()) {
+        AddPid(field.as_int32(), delegate);
+      }
+      if (descriptor.is_tid()) {
+        AddTid(field.as_int32(), delegate);
+      }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT32:
       delegate.AddInteger(fk, k, field.as_sint32());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_SFIXED64:
+      if (auto idx = descriptor.flags_enum_descriptor_idx()) {
+        return AddFlags(*idx, field.as_int64(), delegate);
+      }
       delegate.AddInteger(fk, k, field.as_int64());
+      if (descriptor.is_pid()) {
+        AddPid(field.as_int64(), delegate);
+      }
+      if (descriptor.is_tid()) {
+        AddTid(field.as_int64(), delegate);
+      }
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT64:
       delegate.AddInteger(fk, k, field.as_sint64());
@@ -750,6 +775,58 @@ base::Status ProtoToArgsParser::AddEnum(const FieldDescriptor& descriptor,
       fk, k,
       protozero::ConstChars{opt_enum_string->data(), opt_enum_string->size()});
   return base::OkStatus();
+}
+
+base::Status ProtoToArgsParser::AddFlags(uint32_t enum_descriptor_idx,
+                                         int64_t value,
+                                         Delegate& delegate) {
+  flag_views_.clear();
+  int64_t unmatched =
+      pool_.FlagSetToViews(enum_descriptor_idx, value, &flag_views_);
+
+  const StringPool::Id fk = key_prefix_.flat_key_id;
+  auto emit = [&](size_t i, protozero::ConstChars chars) {
+    ScopedNestedKeyContext ctx = EnterArray(i);
+    StringPool::Id k = delegate.InternString(
+        base::StringView(key_prefix_.key.data(), key_prefix_.key.size()));
+    delegate.AddString(fk, k, chars);
+  };
+  size_t i = 0;
+  for (; i < flag_views_.size(); ++i) {
+    emit(i,
+         protozero::ConstChars{flag_views_[i].data(), flag_views_[i].size()});
+  }
+  if (unmatched != 0) {
+    base::StackString<20> hex("0x%" PRIx64, static_cast<uint64_t>(unmatched));
+    emit(i, protozero::ConstChars{hex.c_str(), hex.len()});
+  }
+  return base::OkStatus();
+}
+
+std::pair<StringPool::Id, StringPool::Id> ProtoToArgsParser::InternSuffixedKeys(
+    Delegate& delegate,
+    std::string_view from,
+    std::string_view to) {
+  auto intern = [&](const std::string& key) {
+    const bool matched = base::StringView(key).EndsWith(from);
+    suffixed_key_scratch_.assign(
+        key, 0, matched ? key.size() - from.size() : key.size());
+    if (!matched)
+      suffixed_key_scratch_.push_back('_');
+    suffixed_key_scratch_.append(to);
+    return delegate.InternString(base::StringView(suffixed_key_scratch_));
+  };
+  return {intern(key_prefix_.flat_key), intern(key_prefix_.key)};
+}
+
+void ProtoToArgsParser::AddPid(int64_t pid, Delegate& delegate) {
+  auto [fk, k] = InternSuffixedKeys(delegate, "pid", "upid");
+  delegate.AddUpid(fk, k, pid);
+}
+
+void ProtoToArgsParser::AddTid(int64_t tid, Delegate& delegate) {
+  auto [fk, k] = InternSuffixedKeys(delegate, "tid", "utid");
+  delegate.AddUtid(fk, k, tid);
 }
 
 // ===========================================================================

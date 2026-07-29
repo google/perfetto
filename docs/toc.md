@@ -21,11 +21,10 @@
 
   - [Cookbooks](#)
 
+    - [Local Android Recording](getting-started/local-android-trace-recording.md) {.tag-android}
     - [Analysing Android Traces](getting-started/android-trace-analysis.md) {.tag-android}
     - [Linux Tracing Recipes](getting-started/linux-cookbook.md) {.tag-linux}
     - [Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
-    - [Boot Tracing](case-studies/android-boot-tracing.md) {.tag-android}
-    - [OutOfMemoryError](case-studies/android-outofmemoryerror.md) {.tag-android}
     - [Using AI with Perfetto](getting-started/using-ai.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
 
   - [Case Studies](#)

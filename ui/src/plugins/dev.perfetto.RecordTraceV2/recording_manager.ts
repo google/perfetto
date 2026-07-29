@@ -57,7 +57,7 @@ export class RecordingManager {
   savedConfigs: SavedSessionSchema[] = [];
   selectedConfigId?: string; // ID of currently selected preset or saved config
   selectedConfigName?: string; // Human-readable name of selected config
-  private loadedConfigGeneration = 0;
+  private loadedConfigSnapshot = '';
   private initiallyConfigModified = false;
   autoOpenTraceWhenTracingEnds = true;
   private _customTraceConfig?: protos.TraceConfig;
@@ -185,8 +185,18 @@ export class RecordingManager {
   get isConfigModified() {
     return (
       this.initiallyConfigModified ||
-      this.recordConfig.generation !== this.loadedConfigGeneration
+      this.snapshotSession() !== this.loadedConfigSnapshot
     );
+  }
+
+  // A canonical, comparable snapshot of the whole session (probes, their
+  // settings and session-page state like buffer sizes). Used to detect whether
+  // the config diverged from the loaded preset/saved config. Comparing the
+  // serialized config, rather than a hand-bumped counter, makes change
+  // detection robust to any setting change without each widget having to
+  // remember to signal it.
+  private snapshotSession(): string {
+    return JSON.stringify(this.serializeSession());
   }
 
   saveConfig(name: string): SavedSessionSchema {
@@ -221,7 +231,7 @@ export class RecordingManager {
     this.loadSession(config);
     this.selectedConfigId = configId;
     this.selectedConfigName = configName;
-    this.loadedConfigGeneration = this.recordConfig.generation;
+    this.loadedConfigSnapshot = this.snapshotSession();
     this.initiallyConfigModified = configModified;
     this.app.raf.scheduleFullRedraw();
   }
@@ -243,7 +253,7 @@ export class RecordingManager {
   clearSelectedConfig() {
     this.selectedConfigId = undefined;
     this.selectedConfigName = undefined;
-    this.loadedConfigGeneration = this.recordConfig.generation;
+    this.loadedConfigSnapshot = this.snapshotSession();
     this.initiallyConfigModified = false;
   }
 
@@ -357,7 +367,9 @@ export class RecordingManager {
   clearSession() {
     this.clearCustomTraceConfig();
     const emptySession = PROBES_SESSION_SCHEMA.parse({});
-    return this.loadSession(emptySession);
+    this.loadSession(emptySession);
+    // A cleared session is the new baseline, so it reads as unmodified.
+    this.loadedConfigSnapshot = this.snapshotSession();
   }
 }
 

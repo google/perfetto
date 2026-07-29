@@ -248,7 +248,7 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     trace_file = ctx.positional_args[1];
   }
 
-  auto config = BuildConfig(*ctx.global, ctx.platform);
+  ASSIGN_OR_RETURN(Config config, BuildConfig(*ctx.global, ctx.platform));
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
 

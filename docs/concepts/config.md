@@ -267,6 +267,98 @@ For a complete example of a working trace config in long-tracing mode see
 Summary: to capture a long trace just set `write_into_file:true`, set a long
 `duration_ms` and use an in-memory buffer size of 32MB or more.
 
+## {#compression} Compressing the trace
+
+The tracing service can compress the trace as it is written out. This
+substantially reduces the size of the file on disk (and of the data pulled off a
+device), at the cost of some extra CPU while tracing. Compression is off by
+default and is opted into from the TraceConfig.
+
+Perfetto readers decompress transparently: a compressed trace opens directly in
+the [Perfetto UI](/docs/visualization/perfetto-ui.md) and Trace Processor, no
+manual step required.
+
+### Selecting a codec
+
+Set the `compression` field, choosing a codec by which sub-message you fill in:
+
+- **zstd** — recommended. Smaller traces than deflate at a similar speed.
+- **deflate** (zlib) — the older codec, kept for compatibility.
+
+<?tabs>
+
+TAB: zstd (recommended)
+
+```protobuf
+# Rest of the trace config (buffers, data_sources, ...) omitted.
+
+compression {
+  zstd {}
+}
+```
+
+TAB: deflate
+
+```protobuf
+# Rest of the trace config (buffers, data_sources, ...) omitted.
+
+compression {
+  deflate {}
+}
+```
+
+</tabs?>
+
+### Tuning the zstd level
+
+zstd exposes a compression level, trading CPU for a smaller file:
+
+```protobuf
+compression {
+  zstd {
+    level: 9
+  }
+}
+```
+
+- The range is `1` (fastest) to `22` (smallest). Levels above the maximum are
+  clamped.
+- `0` or unset uses zstd's default (`3`), a good balance for most traces.
+- Negative levels are valid and select faster, lower-ratio modes.
+
+### Compatibility across service versions
+
+`compression` was added in Perfetto v58 (Android 26Q3+). A service reads only the
+codecs it knows and picks the one with the **highest field number**, so a single
+config can target old and new services: set both, and v58+ uses `zstd` (field 2)
+while older services fall back to `deflate` (field 1).
+
+```protobuf
+compression {
+  deflate {}
+  zstd {}
+}
+```
+
+Services predating `compression` used the now-deprecated `compression_type`
+(deflate only). It is still honored, but `compression` takes precedence when both
+are set.
+
+NOTE: A codec is only compiled in when its build flag is enabled
+(`enable_perfetto_zlib`, `enable_perfetto_zstd`). Builds without it — notably the
+in-process SDK backend — ignore the request and emit an uncompressed trace. See
+[the SDK build flags](/docs/instrumentation/tracing-sdk.md) to enable compression
+when writing traces directly from an app.
+
+### Reading a compressed trace outside Perfetto
+
+If you need the raw, uncompressed protobuf (e.g. for a non-Perfetto tool), use
+`traceconv` to expand the compressed packets:
+
+```bash
+./traceconv decompress_packets trace.perfetto-trace trace.decompressed
+```
+
 ## Data-source specific config
 
 Alongside the trace-wide configuration parameters, the trace config also defines

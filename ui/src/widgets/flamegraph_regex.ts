@@ -13,44 +13,30 @@
 // limitations under the License.
 
 // Regex helpers for flamegraph filters. Frame names routinely contain regex
-// metacharacters (`byte[]`, `operator()`, Java lambda `$` names), which
-// break or silently mis-match when interpolated into REGEXP patterns.
+// metacharacters (`byte[]`, `operator()`, `MyClass$Nested`), so filters match
+// literally by default and opt into regex with `/…/`.
 
 // Escapes all regex metacharacters so the result matches |str| literally
-// when embedded in a regular expression. Used when a known-literal frame
-// name is turned into a filter (e.g. via the node menu).
+// when embedded in a regular expression.
 export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Rewrites every bare `[]` in a user-typed filter into `\[\]`.
+export interface UserFilterRegex {
+  readonly pattern: string;
+  readonly flags: '' | 'i';
+}
+
+// Interprets a user-typed flamegraph filter as a regular expression.
 //
-// Filters like `byte[]` or `.*Object[]` are common for Java heap dumps, but
-// an empty character class is either a compile error (RE2, PCRE2) or matches
-// nothing (ECMAScript). No working pattern can contain a bare `[]`, so this
-// rewrite only revives dead patterns and never changes a valid one.
-export function escapeRegexEmptyBrackets(pattern: string): string {
-  let res = '';
-  let inClass = false;
-  for (let i = 0; i < pattern.length; i++) {
-    const c = pattern[i];
-    if (c === '\\' && i + 1 < pattern.length) {
-      res += c + pattern[i + 1];
-      i++;
-    } else if (!inClass && c === '[') {
-      if (pattern[i + 1] === ']') {
-        res += '\\[\\]';
-        i++;
-      } else {
-        inClass = true;
-        res += c;
-      }
-    } else {
-      if (inClass && c === ']') {
-        inClass = false;
-      }
-      res += c;
-    }
+// Bare text is escaped and matched case-insensitively. `/…/` opts into a
+// case-sensitive raw regex, while `/…/i` opts into a case-insensitive regex.
+export function parseUserFilterRegex(filter: string): UserFilterRegex {
+  if (filter.length >= 3 && filter.startsWith('/') && filter.endsWith('/i')) {
+    return {pattern: filter.slice(1, -2), flags: 'i'};
   }
-  return res;
+  if (filter.length >= 2 && filter.startsWith('/') && filter.endsWith('/')) {
+    return {pattern: filter.slice(1, -1), flags: ''};
+  }
+  return {pattern: escapeRegex(filter), flags: 'i'};
 }

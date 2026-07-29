@@ -302,6 +302,21 @@ unsafe extern "C" {
 }
 pub type PerfettoDsTracerOnFlushCb =
     ::std::option::Option<unsafe extern "C" fn(user_arg: *mut ::std::os::raw::c_void)>;
+pub const PerfettoDsClockId_PERFETTO_DS_CLOCK_MONOTONIC: PerfettoDsClockId = 3;
+pub const PerfettoDsClockId_PERFETTO_DS_CLOCK_BOOTTIME: PerfettoDsClockId = 6;
+pub type PerfettoDsClockId = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub fn PerfettoDsGetDefaultClockId() -> u32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PerfettoDsTimestamp {
+    pub clock_id: u32,
+    pub value: u64,
+}
+unsafe extern "C" {
+    pub fn PerfettoDsGetTimestamp() -> PerfettoDsTimestamp;
+}
 unsafe extern "C" {
     pub fn PerfettoDsTracerImplFlush(
         tracer: *mut PerfettoDsTracerImpl,

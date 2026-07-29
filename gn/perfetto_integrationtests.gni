@@ -19,6 +19,8 @@ perfetto_integrationtests_targets = [
   "src/shared_lib/test:integrationtests",
 ]
 
+perfetto_integrationtests_data_targets = []
+
 if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
   perfetto_integrationtests_targets += [
     "src/tracing/test:tracing_integration_test",
@@ -48,6 +50,8 @@ if (enable_perfetto_trace_processor && perfetto_build_standalone &&
   perfetto_integrationtests_targets +=
       [ "src/trace_processor:integrationtests" ]
   perfetto_integrationtests_targets += [ "src/traceconv:integrationtests" ]
+  perfetto_integrationtests_data_targets +=
+      [ "protos/perfetto/trace:test_extensions_slim_descriptor" ]
 }
 
 # This test requires traces that are not available on Android builds.

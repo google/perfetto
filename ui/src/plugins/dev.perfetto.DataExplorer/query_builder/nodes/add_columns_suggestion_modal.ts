@@ -55,9 +55,7 @@ export interface AddColumnsSuggestionModalAttrs {
   readonly onColumnAlias: (columnName: string, alias: string) => void;
 }
 
-export class AddColumnsSuggestionModal
-  implements m.ClassComponent<AddColumnsSuggestionModalAttrs>
-{
+export class AddColumnsSuggestionModal implements m.ClassComponent<AddColumnsSuggestionModalAttrs> {
   oncreate({attrs}: m.VnodeDOM<AddColumnsSuggestionModalAttrs>) {
     // Auto-select if there's only one suggestion and nothing is selected yet
     if (attrs.suggestions.length === 1 && !attrs.selectedTable) {

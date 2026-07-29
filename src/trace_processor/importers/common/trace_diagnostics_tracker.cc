@@ -215,40 +215,6 @@ void RuleSyscallsWithoutFilter(const TraceConfigDecoder& config,
   });
 }
 
-// Sched_switch is enabled without compact_sched. compact_sched substantially
-// shrinks scheduling data with no real downside, so there is no good reason
-// to leave it off.
-void RuleSchedSwitchWithoutCompactSched(const TraceConfigDecoder& config,
-                                        TraceDiagnosticsHelper* helper) {
-  helper->ForEachFtraceConfig(config, [&](const FtraceConfigDecoder& ftrace) {
-    bool has_sched_switch = false;
-    for (auto it = ftrace.ftrace_events(); it; ++it) {
-      if (base::StringView(it->as_string()).EndsWith("sched_switch")) {
-        has_sched_switch = true;
-        break;
-      }
-    }
-    if (!has_sched_switch)
-      return;
-
-    bool compact_enabled = false;
-    if (ftrace.has_compact_sched()) {
-      protos::pbzero::FtraceConfig::CompactSchedConfig::Decoder compact(
-          ftrace.compact_sched());
-      compact_enabled = compact.enabled();
-    }
-    if (compact_enabled)
-      return;
-
-    helper->AddTraceDiagnostic(
-        "sched_switch_without_compact_sched", "compact_sched not enabled",
-        "sched/sched_switch is enabled without compact_sched; compact_sched "
-        "significantly reduces the size of scheduling data at no real "
-        "downside.",
-        "Enable compact_sched (compact_sched { enabled: true }).", 0.6);
-  });
-}
-
 // An ftrace event whose payload is a kernel symbol address is enabled but
 // symbolize_ksyms is not set, so those addresses can never be resolved to
 // names. These symbols cannot be added after the fact.
@@ -356,64 +322,6 @@ void RuleDiscardBufferForStreaming(const TraceConfigDecoder& config,
   }
 }
 
-// atrace_apps: "*" (capture userspace atrace from every app) combined
-// with many atrace categories (or the "*" category) generates a lot of traffic.
-// The base confidence scales with how many categories are captured, and is
-// bumped when the trace actually recorded data loss, since then this is a good
-// candidate for the cause.
-void RuleAtraceWildcardApps(const TraceConfigDecoder& config,
-                            TraceDiagnosticsHelper* helper) {
-  helper->ForEachFtraceConfig(config, [&](const FtraceConfigDecoder& ftrace) {
-    bool wildcard_apps = false;
-    for (auto it = ftrace.atrace_apps(); it; ++it) {
-      if (it->as_std_string() == "*") {
-        wildcard_apps = true;
-        break;
-      }
-    }
-    if (!wildcard_apps)
-      return;
-
-    size_t category_count = 0;
-    bool wildcard_category = false;
-    for (auto it = ftrace.atrace_categories(); it; ++it) {
-      ++category_count;
-      if (it->as_std_string() == "*")
-        wildcard_category = true;
-    }
-
-    // atrace_apps: "*" only generates heavy traffic when combined with many
-    // categories. Base confidence scales with the category count: 0.1 at 4
-    // categories, ramping to 0.5 (saturated) at 10. The "*" category means all
-    // categories, i.e. maximally heavy.
-    double confidence;
-    if (wildcard_category) {
-      confidence = 0.5;
-    } else if (category_count > 3) {
-      double t = static_cast<double>(category_count - 4) / (10 - 4);
-      if (t > 1.0)
-        t = 1.0;
-      confidence = 0.1 + t * (0.5 - 0.1);
-    } else {
-      return;  // <= 3 categories: not heavy enough to warn.
-    }
-
-    // Recorded ftrace or tracing-service data loss makes this a good candidate
-    // for the cause: bump the confidence.
-    if (helper->HasFtraceCpuDataLoss() || helper->HasTracedDataLoss())
-      confidence += 0.3;
-
-    helper->AddTraceDiagnostic(
-        "atrace_wildcard_apps", "Wildcard atrace_apps",
-        "atrace_apps: \"*\" captures userspace atrace from every app; combined "
-        "with this many atrace categories it generates a lot of ftrace "
-        "traffic.",
-        "Restrict atrace_apps to the specific apps you care about instead of "
-        "\"*\", or reduce the number of atrace categories.",
-        confidence);
-  });
-}
-
 // Heapprofd sampling_interval_bytes is very small. Below ~100 KB it
 // rarely improves accuracy while adding overhead. Baseline 0.3, bumped to 0.9
 // if the trace recorded any heapprofd error.
@@ -449,17 +357,49 @@ void RuleHeapprofdSamplingIntervalTooLow(const TraceConfigDecoder& config,
       });
 }
 
+// android.display.video was configured but produced no frames, on a user
+// build with no producer error — the most likely cause is that the
+// debug.tracing_video_allowed system property was not enabled (it gates
+// display-video capture on user builds and resets on reboot).
+void RuleDisplayVideoNotEnabled(const TraceConfigDecoder& config,
+                                TraceDiagnosticsHelper* helper) {
+  bool has_display_video = false;
+  helper->ForEachDataSourceConfig(
+      config, [&](const protos::pbzero::DataSourceConfig::Decoder& ds_cfg) {
+        if (ds_cfg.name().ToStdStringView() == "android.display.video")
+          has_display_video = true;
+      });
+  if (!has_display_video)
+    return;
+  // userdebug/eng builds capture out of the box; only fire on user builds.
+  if (!helper->IsAndroidUserBuild())
+    return;
+  if (helper->HasVideoFrames())
+    return;
+  // Producer reported a failure: video ran but failed for another reason.
+  if (helper->HasVideoErrorStats())
+    return;
+  helper->AddTraceDiagnostic(
+      "display_video_not_enabled", "Display video not captured",
+      "The trace config requested android.display.video, but no frames were "
+      "captured and the producer reported no errors. On user (production) "
+      "builds display video is disabled until the debug.tracing_video_allowed "
+      "system property is set; it resets on reboot.",
+      "Enable it over ADB before recording, then record again (re-run after "
+      "each reboot): adb shell setprop debug.tracing_video_allowed true",
+      0.7);
+}
+
 constexpr RuleFn kRules[] = {
-    &RulePreserveFtraceBufferLateStart,
-    &RuleTinyFtraceBuffer,
-    &RuleLowFtraceDrainBandwidth,
-    &RuleExtremeFtraceDrainPeriod,
-    &RuleSyscallsWithoutFilter,
-    &RuleSchedSwitchWithoutCompactSched,
-    &RuleEventsRequireSymbolizeKsyms,
-    &RuleDiscardBufferForStreaming,
-    &RuleAtraceWildcardApps,
-    &RuleHeapprofdSamplingIntervalTooLow,
+    &RulePreserveFtraceBufferLateStart,    //
+    &RuleTinyFtraceBuffer,                 //
+    &RuleLowFtraceDrainBandwidth,          //
+    &RuleExtremeFtraceDrainPeriod,         //
+    &RuleSyscallsWithoutFilter,            //
+    &RuleEventsRequireSymbolizeKsyms,      //
+    &RuleDiscardBufferForStreaming,        //
+    &RuleHeapprofdSamplingIntervalTooLow,  //
+    &RuleDisplayVideoNotEnabled,           //
 };
 
 }  // namespace

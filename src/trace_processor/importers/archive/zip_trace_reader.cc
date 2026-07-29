@@ -76,6 +76,12 @@ base::Status ZipTraceReader::OnPushDataToSorter() {
   std::map<ArchiveEntry, File> ordered_files;
   for (size_t i = 0; i < files.size(); ++i) {
     util::ZipFile& zip_file = files[i];
+    // Ignore hidden files/directories (e.g. macOS "__MACOSX/._" resource forks
+    // and ".DS_Store"). They are never traces and would otherwise fail the
+    // whole archive with an "unknown trace type" error.
+    if (IsHiddenArchivePath(zip_file.name())) {
+      continue;
+    }
     auto id = context_->trace_file_tracker->AddFile(zip_file.name());
     context_->trace_file_tracker->SetSize(id, zip_file.compressed_size());
     RETURN_IF_ERROR(files[i].Decompress(&buffer));

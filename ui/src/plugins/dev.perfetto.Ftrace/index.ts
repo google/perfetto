@@ -189,14 +189,18 @@ export default class implements PerfettoPlugin {
  * Get the list of unique cpus in the ftrace_event table.
  */
 async function getFtraceCpus(ctx: Trace, numMachines: number): Promise<Cpu[]> {
+  // Compute the DISTINCT set of cpus first (a full scan of ftrace_event, but
+  // only touching the ucpu column) and then join the handful of resulting rows
+  // against cpu/machine. Joining before the DISTINCT would run the joins for
+  // every ftrace event.
   const queryRes = await ctx.engine.query(`
-    SELECT DISTINCT
+    SELECT
       ucpu,
       cpu.machine_id AS machine_id,
       cpu.cpu AS cpu,
       machine.name AS machine_name,
       machine.label_index AS machine_label_index
-    FROM ftrace_event
+    FROM (SELECT DISTINCT ucpu FROM ftrace_event)
     JOIN cpu USING (ucpu)
     LEFT JOIN machine ON machine.id = cpu.machine_id
     ORDER BY ucpu

@@ -14,13 +14,13 @@
 
 import {
   filterToSql,
+  quoteIdentifier,
   sqlAggregateExpr,
   sqlPathMatch,
   sqlPathNotMatch,
   sqlPathsIn,
   sqlPathsNotIn,
   sqlValue,
-  toAlias,
 } from './sql_utils';
 
 describe('sqlValue', () => {
@@ -57,13 +57,13 @@ describe('sqlValue', () => {
   });
 });
 
-describe('toAlias', () => {
+describe('quoteIdentifier', () => {
   test('simple identifier', () => {
-    expect(toAlias('foo')).toBe('"foo"');
+    expect(quoteIdentifier('foo')).toBe('"foo"');
   });
 
   test('identifier with spaces', () => {
-    expect(toAlias('foo bar')).toBe('"foo bar"');
+    expect(quoteIdentifier('foo bar')).toBe('"foo bar"');
   });
 });
 

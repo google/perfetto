@@ -24,8 +24,7 @@ namespace perfetto::trace_processor::stats {
 // Compile time list of parsing and processing stats.
 // clang-format off
 #define PERFETTO_TP_STATS(F)                                                   \
-  /* TODO(b/512786856): Restore severity to kError after flag rollout. */    \
-  F(android_aflags_errors,               kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,          \
+  F(android_aflags_errors,               kSingle,  kError,     kTrace, Scope::kMachineAndTrace,         \
        "Errors occurred during the collection of Android aconfig flags by the "\
        "android.aflags data source. This typically happens if the aflags tool "\
        "fails or its output is malformed."),                                   \
@@ -110,9 +109,9 @@ namespace perfetto::trace_processor::stats {
        "The number of kretprobe missed events encountered during the "         \
        "collection of the trace. A value greater than zero is due to the "     \
        "maxactive parameter for the kretprobe being too small"),               \
-  F(ftrace_setup_errors,                  kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,         \
+  F(ftrace_setup_errors,                  kSingle,  kNotice,   kTrace, Scope::kMachineAndTrace,         \
        "One or more atrace/ftrace categories were not found or failed to "     \
-       "enable. See ftrace_setup_errors in the metadata table for details."),  \
+       "enable. See the trace import logs for the specific categories."),      \
   F(ftrace_abi_errors_skipped_zero_data_length,                                \
                                           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(ftrace_generic_descriptor_errors,     kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
@@ -178,6 +177,14 @@ namespace perfetto::trace_processor::stats {
        "Parsing packed repeated field. Should never happen."),                 \
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "Interning ID not found. Should never happen."),                        \
+  F(concurrent_session_event_unknown_state,                                    \
+                                          kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+       "ConcurrentSessionEvent packet with an unspecified or unknown "         \
+       "state, likely emitted by a newer version of the tracing service. "     \
+       "The event was dropped, so the session's state track is missing a "     \
+       "transition. Retry with a trace_processor version at least as new as "  \
+       "the traced that recorded the trace; the raw state value is in the "    \
+       "trace import logs."),                                                  \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(cpu_info_unknown_cpu_features,        kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
        "CpuInfo contained CPU feature bits not known to this version of "      \
@@ -186,6 +193,11 @@ namespace perfetto::trace_processor::stats {
   F(missing_disk_io_event_name,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "ETW Disk IO tracker encountered an event with an opcode for which it " \
         "didn't have a name."),                                                \
+  F(cpu_info_empty,                       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+       "CpuInfo packet in the trace contained no CPUs. This usually happens "  \
+       "when /proc/cpuinfo is unreadable or empty in the environment (e.g. "   \
+       "sandbox or container) where tracing occurred. Metadata in the cpu "    \
+       "table will be missing."),                                              \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
@@ -390,6 +402,9 @@ namespace perfetto::trace_processor::stats {
       "has already started flushing."),                                        \
   F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(process_tracker_parent_pid_changed,     kSingle, kInfo,   kAnalysis, Scope::kMachineAndTrace,         \
+      "A process was seen with a changed parent pid and was treated as the "   \
+      "same process being reparented rather than pid reuse."),                 \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A namespaced thread association was received but the corresponding "    \
       "process association was not found. This can happen due to data losses " \
@@ -797,6 +812,14 @@ namespace perfetto::trace_processor::stats {
       "be dropped. This indicates a bug in the trace producer or trace "       \
       "conversion tool, or data corruption. Ensure all events have valid "     \
       "timestamps."),                                                          \
+  F(track_event_invalid_timestamp,              kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackEvent packet resolved to a negative timestamp and was dropped. " \
+      "This indicates a bug in the trace producer or trace conversion tool, " \
+      "or data corruption."),                                                  \
+  F(streaming_profile_invalid_timestamp,        kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A StreamingProfilePacket resolved to a negative timestamp and was "    \
+      "dropped. This indicates a bug in the trace producer or data "           \
+      "corruption."),                                                          \
   F(thread_descriptor_missing_sequence_id,      kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A ThreadDescriptor packet was received without a "                      \
       "trusted_packet_sequence_id field. This field is required to associate " \
@@ -899,14 +922,14 @@ namespace perfetto::trace_processor::stats {
       "A TrackEvent specified an invalid track_uuid in "                       \
       "extra_counter_track_uuids that could not be resolved. The event is "    \
       "dropped. This is a bug in the trace producer."),                        \
-  F(thread_descriptor_skipped_incremental_state_invalid, kSingle, kError,      \
+  F(thread_descriptor_skipped_incremental_state_invalid, kSingle, kNotice,     \
       kAnalysis, Scope::kMachineAndTrace,                                                               \
       "A ThreadDescriptor packet was skipped because incremental state is "    \
       "invalid. ThreadDescriptors are ignored until incremental state is "     \
       "cleared to prevent incorrect delta-encoded timestamp calculations. "    \
       "Root cause: packet loss in the trace (check packet loss stats) or a "   \
       "bug in the trace producer (missing incremental_state_cleared)."),       \
-  F(track_event_skipped_timestamp_delta_without_valid_state, kSingle, kError,  \
+  F(track_event_skipped_timestamp_delta_without_valid_state, kSingle, kNotice, \
       kAnalysis, Scope::kMachineAndTrace,                                                               \
       "A TrackEvent with timestamp_delta_us was skipped because no valid "     \
       "ThreadDescriptor baseline was available. Delta timestamps require a "   \
@@ -914,27 +937,27 @@ namespace perfetto::trace_processor::stats {
       "the trace (check packet loss stats) or a bug in the trace producer "    \
       "(missing ThreadDescriptor)."),                                          \
   F(track_event_skipped_thread_time_delta_without_valid_state, kSingle,        \
-      kError, kAnalysis, Scope::kMachineAndTrace,                                                       \
+      kNotice, kAnalysis, Scope::kMachineAndTrace,                                                      \
       "A TrackEvent with thread_time_delta_us was skipped because no valid "   \
       "ThreadDescriptor baseline was available. Delta timestamps require a "   \
       "ThreadDescriptor to establish a baseline. Root cause: packet loss in "  \
       "the trace (check packet loss stats) or a bug in the trace producer "    \
       "(missing ThreadDescriptor)."),                                          \
   F(track_event_skipped_thread_instruction_delta_without_valid_state, kSingle, \
-      kError, kAnalysis, Scope::kMachineAndTrace,                                                       \
+      kNotice, kAnalysis, Scope::kMachineAndTrace,                                                      \
       "A TrackEvent with thread_instruction_count_delta was skipped because "  \
       "no valid ThreadDescriptor baseline was available. Delta counts "        \
       "require a ThreadDescriptor to establish a baseline. Root cause: "       \
       "packet loss in the trace (check packet loss stats) or a bug in the "    \
       "trace producer (missing ThreadDescriptor)."),                           \
-  F(packet_skipped_seq_needs_incremental_state_invalid, kSingle, kInfo,        \
+  F(packet_skipped_seq_needs_incremental_state_invalid, kSingle, kNotice,      \
       kAnalysis, Scope::kMachineAndTrace,                                                               \
       "A packet with SEQ_NEEDS_INCREMENTAL_STATE flag was skipped because "    \
       "incremental state is invalid. Packets that depend on incremental "      \
       "state cannot be processed until state is reestablished. Root cause: "   \
       "packet loss in the trace (check packet loss stats) or a bug in the "    \
       "trace producer (missing incremental_state_cleared packet)."),           \
-  F(interned_data_skipped_incremental_state_invalid, kSingle, kInfo,           \
+  F(interned_data_skipped_incremental_state_invalid, kSingle, kNotice,         \
       kAnalysis, Scope::kMachineAndTrace,                                                               \
       "An InternedData packet was skipped because incremental state is "       \
       "invalid. InternedData must be associated with the correct state "       \
@@ -968,7 +991,10 @@ namespace perfetto::trace_processor::stats {
       "actual patch format."),                                                 \
   F(protovm_registration_error, kSingle,  kError, kAnalysis, Scope::kMachineAndTrace,                   \
     "Failed to find the sequence IDs corresponding to a ProtoVM's producer "   \
-    "ID. Such mapping should be provided by the TraceProvenance packet.")
+    "ID. Such mapping should be provided by the TraceProvenance packet."),     \
+  F(extra_parsing_descriptors_error, kSingle,  kError, kAnalysis, Scope::kGlobal,                       \
+    "Failed to parse a FileDescriptorSet passed as TraceProcessor "            \
+    "configuration parameter")
 // clang-format on
 
 enum Type {
@@ -978,6 +1004,9 @@ enum Type {
 
 enum Severity {
   kInfo,      // Diagnostic counters
+  kNotice,    // Normal but noteworthy condition worth surfacing to the user,
+              // e.g. requested ftrace categories that failed to enable. Not a
+              // bug and not data loss.
   kDataLoss,  // Correct operation that still resulted in data loss
   kError,     // If any kError counter is > 0 trace_processor_shell will
               // raise an error. This is also surfaced in the web UI.

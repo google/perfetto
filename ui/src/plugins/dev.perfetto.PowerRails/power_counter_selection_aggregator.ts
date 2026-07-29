@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import type {ColumnDef} from '../../components/aggregation';
 import type {
   Aggregation,
   Aggregator,
+  AggregatorGridConfig,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -81,32 +81,21 @@ export class PowerCounterSelectionAggregator implements Aggregator {
     };
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Rail Name',
-        columnId: 'name',
-        sort: 'DESC',
+  getGridConfig(): AggregatorGridConfig {
+    return {
+      schema: {
+        name: {title: 'Rail Name', columnType: 'text'},
+        delta_value: {title: 'Delta energy (mJ)', columnType: 'quantitative'},
+        rate: {title: 'Avg Power (mW)', columnType: 'quantitative'},
+        count: {title: 'Sample Count', columnType: 'quantitative'},
       },
-      {
-        title: 'Delta energy (mJ)',
-        columnId: 'delta_value',
-        sum: true,
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Avg Power (mW)',
-        columnId: 'rate',
-        sum: true,
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Sample Count',
-        columnId: 'count',
-        sum: true,
-        formatHint: 'NUMERIC',
-      },
-    ];
+      initialColumns: [
+        {id: 'name', field: 'name', sort: 'DESC'},
+        {id: 'delta_value', field: 'delta_value', aggregate: 'SUM'},
+        {id: 'rate', field: 'rate', aggregate: 'SUM'},
+        {id: 'count', field: 'count', aggregate: 'SUM'},
+      ],
+    };
   }
 
   getTabName() {

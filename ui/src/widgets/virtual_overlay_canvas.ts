@@ -133,9 +133,7 @@ function getScrollAxesFromOverflow(x: Overflow, y: Overflow) {
 // This mithril component acts as scrolling container for tall and/or wide
 // content. Adds a virtually scrolling canvas over the top of any child elements
 // rendered inside it.
-export class VirtualOverlayCanvas
-  implements m.ClassComponent<VirtualOverlayCanvasAttrs>
-{
+export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanvasAttrs> {
   readonly trash = new DisposableStack();
   private ctx?: CanvasRenderingContext2D;
   private virtualCanvas?: VirtualCanvas;
@@ -221,6 +219,19 @@ export class VirtualOverlayCanvas
       });
       if (webglCtx) {
         this.webglRenderer = new WebGLRenderer(this.ctx, webglCtx);
+        // Fail loudly if we lose context
+        const onContextLost = (e: Event) => {
+          const statusMessage =
+            (e as WebGLContextEvent).statusMessage || 'no status message';
+          throw new Error(`WebGL context lost: ${statusMessage}`);
+        };
+        this.webglCanvas.addEventListener('webglcontextlost', onContextLost);
+        this.trash.defer(() => {
+          this.webglCanvas?.removeEventListener(
+            'webglcontextlost',
+            onContextLost,
+          );
+        });
       }
     }
 
@@ -298,6 +309,14 @@ export class VirtualOverlayCanvas
     const virtualCanvas = ensureExists(this.virtualCanvas);
     const attrs = ensureExists(this.attrs);
     const containerElement = ensureExists(this.dom);
+    const canvasSize = virtualCanvas.size;
+
+    // If the canavs size is 0, just don't render anything. This either means
+    // the canavs element is hidden (has no layout) or it genuinely is 0. Either
+    // way - there's nothing to be gained from rendering to it.
+    if (canvasSize.height <= 0 || canvasSize.width <= 0) {
+      return;
+    }
 
     // Create the appropriate renderer: WebGLRenderer if available, otherwise
     // Canvas2DRenderer as fallback.

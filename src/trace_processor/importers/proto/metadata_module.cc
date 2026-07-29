@@ -193,7 +193,7 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
   }
 
   MetadataTracker* metadata = context_->metadata_tracker.get();
-  metadata->SetDynamicMetadata(
+  metadata->AppendDynamicMetadataLegacy(
       context_->storage->InternString("cr-triggered_rule_name_hash"),
       Variadic::Integer(trigger.trigger_name_hash()));
 }
