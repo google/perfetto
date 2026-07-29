@@ -60,7 +60,7 @@ export const SLICE_TRACK_SUMMARY_KIND = 'SliceTrackSummary';
 const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
-
+const COLLAPSED_SUMMARY_HEIGHT = 19;
 interface Data {
   start: time;
   end: time;
@@ -118,7 +118,7 @@ function computeHover(
   const hasParent = delegateTrack !== undefined;
   const actualYStart = parentHeight;
   const actualSummaryDrawHeight = hasParent
-    ? TRACK_HEIGHT - parentHeight
+    ? COLLAPSED_SUMMARY_HEIGHT
     : RECT_HEIGHT;
   const actualMarginTop = hasParent ? 1 : MARGIN_TOP;
 
@@ -503,10 +503,12 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   getHeight(): number {
-    if (this.trackNode?.expanded && this.config.delegateTrack?.getHeight) {
-      return this.config.delegateTrack.getHeight();
+    const parentHeight = this.config.delegateTrack?.getHeight?.() ?? 0;
+    const hasParent = this.config.delegateTrack !== undefined;
+    if (this.trackNode?.expanded) {
+      return parentHeight;
     }
-    return TRACK_HEIGHT;
+    return hasParent ? parentHeight + COLLAPSED_SUMMARY_HEIGHT : TRACK_HEIGHT;
   }
 
   renderTooltip(): m.Children {
@@ -586,10 +588,9 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     const parentHeight = this.config.delegateTrack?.getHeight?.() ?? 0;
     const hasParent = this.config.delegateTrack !== undefined;
-    const summaryHeight = TRACK_HEIGHT - parentHeight;
+    const summaryHeight = COLLAPSED_SUMMARY_HEIGHT;
 
     if (hasParent) {
-      using _clip = renderer.clip(0, 0, size.width, parentHeight);
       this.config.delegateTrack!.render({
         ctx,
         size: {width: size.width, height: parentHeight},
@@ -798,12 +799,7 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   onMouseClick(event: TrackMouseEvent): boolean {
-    const hasParent = this.config.delegateTrack !== undefined;
-    if (
-      this.trackNode?.expanded &&
-      hasParent &&
-      this.config.delegateTrack?.onMouseClick
-    ) {
+    if (this.config.delegateTrack?.onMouseClick) {
       return this.config.delegateTrack.onMouseClick(event);
     }
     return false;
