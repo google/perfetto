@@ -881,9 +881,9 @@ void TraceBufferV2::CopyChunkUntrusted(
     const bool commit_adds_new_data =
         chunk_complete && all_frags_size > recommit_chunk->payload_size;
 
-    // EraseCurrentChunk() only supports the first chunk of a sequence. Chunks
-    // committed out of order keep the in-place rewrite: the race needs a stale
-    // offset, while out-of-order commits resolve within one scrape cycle.
+    // EraseCurrentChunk() only supports the first chunk of a sequence. Later
+    // chunks may stay physically ahead of the relocated one, which is fine:
+    // reads follow chunk_list, which is ordered by ChunkID and not by offset.
     const bool copy_is_first_chunk_of_seq =
         *chunk_list.begin() == OffsetOf(recommit_chunk);
 
@@ -924,7 +924,7 @@ void TraceBufferV2::CopyChunkUntrusted(
     stats_.set_chunks_relocated(stats_.chunks_relocated() + 1);
     previously_consumed_payload = recommit_chunk->payload_size;
     internal::ChunkSeqIterator(this, &seq).EraseCurrentChunk();
-  }
+  }  // if (recommit_chunk)
 
   // If there isn't enough room from the given write position: write a padding
   // record to clear the end of the buffer, wrap and start at offset 0.
