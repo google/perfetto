@@ -210,7 +210,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         pid,
       });
       const uri = `/track_event_${trackIds[0]}`;
-      let summaryTrack: GroupSummaryTrack | undefined = undefined;
+
       if (hasData && isCounter) {
         // Don't show any builtin counter.
         if (builtinCounterType !== null) {
@@ -321,12 +321,13 @@ export default class TrackEventPlugin implements PerfettoPlugin {
 
         const track = new GroupSummaryTrack(
           ctx,
+          uri,
           config,
           cpuCount,
           threads,
           false,
         );
-        summaryTrack = track;
+
         ctx.tracks.registerTrack({
           uri,
           description: description ?? undefined,
@@ -358,9 +359,6 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       });
       parent.addChildInOrder(node);
       trackIdToTrackNode.set(trackIds[0], node);
-      if (summaryTrack !== undefined) {
-        summaryTrack.setTrackNode(node);
-      }
     }
 
     const store = ensureExists(this.store);

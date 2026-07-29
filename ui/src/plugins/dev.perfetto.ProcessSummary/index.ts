@@ -152,6 +152,7 @@ export default class implements PerfettoPlugin {
       };
       const track = new GroupSummaryTrack(
         ctx,
+        uri,
         config,
         cpuCount,
         threads,

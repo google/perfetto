@@ -158,10 +158,8 @@ export class GroupSummaryTrack implements TrackRenderer {
   private hover?: GroupSummaryHover;
   private readonly mode: Mode;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
-  private trackNode?: TrackNode;
-
-  setTrackNode(node: TrackNode) {
-    this.trackNode = node;
+  private getTrackNode(): TrackNode | undefined {
+    return this.trace.workspaces.currentWorkspace.getTrackByUri(this.uri);
   }
 
   // Cached color scheme for 'slices' mode (constant for track lifetime).
@@ -188,6 +186,7 @@ export class GroupSummaryTrack implements TrackRenderer {
 
   constructor(
     private readonly trace: Trace,
+    private readonly uri: string,
     private readonly config: Config,
     private readonly cpuCount: number,
     private readonly threads: ThreadMap,
@@ -507,7 +506,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     const parentHeight = this.config.delegateTrack?.getHeight?.() ?? 0;
     const hasParent = this.config.delegateTrack !== undefined;
     if (hasParent) {
-      if (this.trackNode?.expanded) {
+      if (this.getTrackNode()?.expanded) {
         return parentHeight;
       }
       return parentHeight + COLLAPSED_SUMMARY_HEIGHT;
@@ -516,7 +515,10 @@ export class GroupSummaryTrack implements TrackRenderer {
   }
 
   renderTooltip(): m.Children {
-    if (this.trackNode?.expanded && this.config.delegateTrack?.renderTooltip) {
+    if (
+      this.getTrackNode()?.expanded &&
+      this.config.delegateTrack?.renderTooltip
+    ) {
       return this.config.delegateTrack.renderTooltip();
     }
     if (this.config.delegateTrack?.renderTooltip) {
@@ -756,7 +758,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     const hasParent = this.config.delegateTrack !== undefined;
 
     if (
-      this.trackNode?.expanded &&
+      this.getTrackNode()?.expanded &&
       hasParent &&
       this.config.delegateTrack?.onMouseMove
     ) {
@@ -786,7 +788,7 @@ export class GroupSummaryTrack implements TrackRenderer {
   onMouseOut() {
     const hasParent = this.config.delegateTrack !== undefined;
     if (
-      this.trackNode?.expanded &&
+      this.getTrackNode()?.expanded &&
       hasParent &&
       this.config.delegateTrack?.onMouseOut
     ) {
