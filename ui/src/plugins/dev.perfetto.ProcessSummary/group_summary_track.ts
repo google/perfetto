@@ -291,7 +291,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     );
     const sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
 
-    const stack: TrackNode[] = [...trackNode.children];
+    const stack: TrackNode[] = [...trackNode.children].reverse();
     while (stack.length > 0 && sliceTracks.length < 8) {
       const node = stack.pop()!;
 
