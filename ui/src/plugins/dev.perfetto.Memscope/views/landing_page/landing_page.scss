@@ -151,6 +151,18 @@
   gap: 4px;
 }
 
+.pf-memscope-default-page-callout__split-button {
+  .pf-button.pf-button--filled {
+    font-weight: 600;
+  }
+
+  // ButtonGroup normally removes this shared border. Keep a subtle divider so
+  // the overflow control remains visibly distinct from the navigation action.
+  .pf-button.pf-button--filled:not(:last-child) {
+    border-right: 1px solid var(--pf-color-border);
+  }
+}
+
 // Process picker at the top of the overview page.
 .pf-memscope-process-select {
   display: flex;

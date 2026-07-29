@@ -24,10 +24,11 @@ import {
   NUM,
   STR,
 } from '../../../../trace_processor/query_result';
-import {Anchor} from '../../../../widgets/anchor';
-import {Button, ButtonVariant} from '../../../../widgets/button';
+import {Button, ButtonGroup, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {EmptyState} from '../../../../widgets/empty_state';
+import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
+import {PopupPosition} from '../../../../widgets/popup';
 import {Select} from '../../../../widgets/select';
 import {Callout} from '../../components/callout';
 import {Page} from '../../components/page';
@@ -49,6 +50,7 @@ export interface MemoryOverviewPageAttrs {
   readonly trace: Trace;
   readonly subpage: string | undefined;
   readonly autoNavigated: boolean;
+  readonly hdeAvailable: boolean;
   readonly openByDefault: Setting<boolean>;
   readonly hideDefaultChangedHint: Setting<boolean>;
   readonly onSubpageChange: (subpage: string) => void;
@@ -64,6 +66,7 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
       trace,
       subpage,
       autoNavigated,
+      hdeAvailable,
       openByDefault,
       hideDefaultChangedHint,
       onSubpageChange,
@@ -80,6 +83,7 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
       this.renderDefaultChangedHint(
         trace,
         autoNavigated,
+        hdeAvailable,
         openByDefault,
         hideDefaultChangedHint,
       ),
@@ -90,6 +94,7 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
   private renderDefaultChangedHint(
     trace: Trace,
     autoNavigated: boolean,
+    hdeAvailable: boolean,
     openByDefault: Setting<boolean>,
     hideDefaultChangedHint: Setting<boolean>,
   ): m.Children {
@@ -114,32 +119,51 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
           'Memory Overview is now the default page when opening traces with ' +
             'smaps snapshots.',
         ),
-        m('.pf-memscope-default-page-callout__actions', [
-          m(Button, {
-            label: "Don't open by default",
-            icon: 'timeline',
-            compact: true,
-            variant: ButtonVariant.Outlined,
-            onclick: () => {
-              openByDefault.set(false);
-              trace.navigate('#!/viewer');
-            },
-          }),
-          m(Button, {
-            label: 'Dismiss forever',
-            compact: true,
-            onclick: () => hideDefaultChangedHint.set(true),
-          }),
+        m(
+          '.pf-memscope-default-page-callout__actions',
           m(
-            Anchor,
-            {
-              href: getBugReportUrl(trace),
-              target: '_blank',
-              icon: 'open_in_new',
-            },
-            'Report a bug',
+            ButtonGroup,
+            {className: 'pf-memscope-default-page-callout__split-button'},
+            m(Button, {
+              label: 'Back to Heapdump Explorer',
+              icon: 'arrow_back',
+              variant: ButtonVariant.Filled,
+              disabled: !hdeAvailable,
+              title: hdeAvailable
+                ? undefined
+                : 'No Java heap dumps are available in this trace',
+              onclick: () => trace.navigate('#!/heapdump'),
+            }),
+            m(
+              PopupMenu,
+              {
+                trigger: m(Button, {
+                  icon: 'arrow_drop_down',
+                  variant: ButtonVariant.Filled,
+                  title: 'More options',
+                }),
+                position: PopupPosition.BottomEnd,
+              },
+              m(MenuItem, {
+                label: 'Never open this page by default',
+                icon: 'timeline',
+                onclick: () => openByDefault.set(false),
+              }),
+              m(MenuItem, {
+                label: 'Dismiss forever',
+                icon: 'close',
+                onclick: () => hideDefaultChangedHint.set(true),
+              }),
+              m(MenuDivider),
+              m(MenuItem, {
+                label: 'Submit feedback',
+                icon: 'bug_report',
+                onclick: () =>
+                  window.open(getBugReportUrl(trace), '_blank', 'noopener'),
+              }),
+            ),
           ),
-        ]),
+        ),
       ]),
     );
   }

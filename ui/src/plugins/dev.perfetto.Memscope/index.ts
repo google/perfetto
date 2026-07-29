@@ -88,7 +88,8 @@ export default class implements PerfettoPlugin {
       defaultValue: false,
       headless: true,
     });
-    let autoNavigated = false;
+    const availability = await this.getMemoryOverviewAvailability(trace);
+    const autoNavigated = openByDefault.get() && availability.hasSmapsSnapshots;
 
     trace.pages.registerPage({
       route: pageRoot,
@@ -97,6 +98,7 @@ export default class implements PerfettoPlugin {
           trace,
           subpage,
           autoNavigated,
+          hdeAvailable: availability.hasHeapDumps,
           openByDefault,
           hideDefaultChangedHint,
           onSubpageChange: (subpage) => {
@@ -113,17 +115,28 @@ export default class implements PerfettoPlugin {
       icon: 'memory',
     });
 
-    if (openByDefault.get() && (await this.hasSmapsSnapshots(trace))) {
-      autoNavigated = true;
+    if (autoNavigated) {
       // Make this page appear before the heap dump explorer page.
       trace.initialPage.suggest(pageRoot, 500);
     }
   }
 
-  private async hasSmapsSnapshots(trace: Trace): Promise<boolean> {
+  private async getMemoryOverviewAvailability(trace: Trace): Promise<{
+    readonly hasSmapsSnapshots: boolean;
+    readonly hasHeapDumps: boolean;
+  }> {
     const result = await trace.engine.query(`
-      SELECT count(DISTINCT ts) AS smapsSnapshots FROM profiler_smaps
+      SELECT
+        EXISTS(SELECT 1 FROM profiler_smaps) AS hasSmapsSnapshots,
+        EXISTS(SELECT 1 FROM heap_graph_object) AS hasHeapDumps
     `);
-    return result.firstRow({smapsSnapshots: NUM}).smapsSnapshots > 0;
+    const row = result.firstRow({
+      hasSmapsSnapshots: NUM,
+      hasHeapDumps: NUM,
+    });
+    return {
+      hasSmapsSnapshots: row.hasSmapsSnapshots !== 0,
+      hasHeapDumps: row.hasHeapDumps !== 0,
+    };
   }
 }
