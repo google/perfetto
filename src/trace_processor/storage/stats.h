@@ -257,6 +257,11 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_chunks_discarded,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_overwritten,        kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_read,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_chunks_relocated,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "TraceBufferV2 only. Num. chunks that we moved to the write cursor "       \
+    "instead of rewriting in place. We do this for scraped chunks that have "  \
+    "been fully read, as their old position can be too close to the write "    \
+    "cursor to be safe."),                                                     \
   F(traced_buf_chunks_rewritten,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_written,            kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_committed_out_of_order,                                  \
