@@ -72,6 +72,15 @@ class TraceRedactor {
     return ptr;
   }
 
+  // T must be derived from trace_redaction::AugmentReducePrimitive.
+  template <typename T>
+  T* emplace_augment_reduce() {
+    auto uptr = std::make_unique<T>();
+    auto* ptr = uptr.get();
+    augment_reducers_.push_back(std::move(uptr));
+    return ptr;
+  }
+
   struct Config {
     // Controls whether or not the verify primitive is added to the pipeline.
     // This should always be enabled unless you know that your test content
@@ -114,9 +123,16 @@ class TraceRedactor {
                          const trace_processor::TraceBlobView& view,
                          const std::string& dest_file) const;
 
+  // Runs all augment reducers: collect on each packet, augment trace, and
+  // reduce each packet.
+  base::Status AugmentReduce(const Context* context,
+                             const std::string& source_file,
+                             const std::string& dest_file) const;
+
   std::vector<std::unique_ptr<CollectPrimitive>> collectors_;
   std::vector<std::unique_ptr<BuildPrimitive>> builders_;
   std::vector<std::unique_ptr<TransformPrimitive>> transformers_;
+  std::vector<std::unique_ptr<AugmentReducePrimitive>> augment_reducers_;
 };
 
 }  // namespace perfetto::trace_redaction
