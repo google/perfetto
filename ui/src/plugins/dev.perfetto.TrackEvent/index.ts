@@ -69,6 +69,12 @@ export default class TrackEventPlugin implements PerfettoPlugin {
 
   private parentTrackNodes = new Map<string, TrackNode>();
   private trackIdToTrackNode = new Map<number, TrackNode>();
+
+  // Returns the workspace node representing a Trace Processor track. Sibling
+  // tracks can map to the same node when they are visually merged.
+  getTrackNode(trackId: number): TrackNode | undefined {
+    return this.trackIdToTrackNode.get(trackId);
+  }
   private store?: Store<TrackEventPluginState>;
 
   private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
@@ -95,6 +101,10 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           g.utid,
           g.scope,
           g.parent_id as parentId,
+          g.gpu_id as gpuId,
+          extract_arg(parent.dimension_arg_set_id, 'gpu') as parentGpuId,
+          g.gpu_hw_queue_iid as gpuHwQueueIid,
+          g.gpu_logical_queue_id as gpuLogicalQueueId,
           g.is_counter AS isCounter,
           g.is_state AS isState,
           g.name,
@@ -114,6 +124,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           ifnull(p.name, tp.name) as processName,
           (length(g.track_ids) - length(replace(g.track_ids, ',', '')) + 1) as trackCount
         from _track_event_tracks_ordered_groups g
+        left join track parent on parent.id = g.parent_id
         left join process p using (upid)
         left join thread t using (utid)
         left join process tp on tp.upid = t.upid
@@ -139,6 +150,10 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       utid: NUM_NULL,
       scope: STR_NULL,
       parentId: NUM_NULL,
+      gpuId: NUM_NULL,
+      parentGpuId: NUM_NULL,
+      gpuHwQueueIid: LONG_NULL,
+      gpuLogicalQueueId: LONG_NULL,
       isCounter: NUM,
       isState: NUM,
       name: STR_NULL,
@@ -172,6 +187,10 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         utid,
         scope,
         parentId,
+        gpuId,
+        parentGpuId,
+        gpuHwQueueIid,
+        gpuLogicalQueueId,
         isCounter,
         isState,
         name,
@@ -192,7 +211,13 @@ export default class TrackEventPlugin implements PerfettoPlugin {
 
       // Don't add track_event tracks which don't have any data and don't have
       // any children.
-      if (!hasData && !hasChildren) {
+      const isEmptyGlobalPlacementAnchor =
+        scope === 'gpu' &&
+        upid === null &&
+        gpuHwQueueIid === null &&
+        gpuLogicalQueueId === null &&
+        (parentId === null || gpuId !== parentGpuId);
+      if (!hasData && !hasChildren && !isEmptyGlobalPlacementAnchor) {
         continue;
       }
 
@@ -348,12 +373,6 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     );
   }
 
-  // Allows a custom-scope owner plugin to reparent a descriptor subtree after
-  // the generic TrackEvent renderers and TrackNodes have been registered.
-  getTrackNode(trackId: number): TrackNode | undefined {
-    return this.trackIdToTrackNode.get(trackId);
-  }
-
   private findParentTrackNode(
     ctx: Trace,
     processGroupsPlugin: ProcessThreadGroupsPlugin,
@@ -373,9 +392,8 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     if (upid !== undefined) {
       return ensureExists(processGroupsPlugin.getGroupForProcess(upid));
     }
-    // Custom scopes are placed temporarily at the workspace root. Their owner
-    // plugin can reparent the complete descriptor subtree after this plugin
-    // has registered its renderers and TrackNodes.
+    // Global custom scopes keep their producer-authored roots at the workspace
+    // root. Process-associated custom scopes were handled above.
     if (isCustomScoped) {
       return ctx.defaultWorkspace.tracks;
     }

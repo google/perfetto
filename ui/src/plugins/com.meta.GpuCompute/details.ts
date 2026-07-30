@@ -277,7 +277,11 @@ export function buildKernelQuery(
 ): string {
   const whereFilter = `
     WHERE s.render_stage_category = ${COMPUTE_RENDER_STAGE_CATEGORY}
-      AND s.id = ${sliceIdFilter}
+      AND s.id = coalesce((
+        SELECT extract_arg(arg_set_id, 'gpu_render_stage_canonical_slice_id')
+        FROM slice
+        WHERE id = ${sliceIdFilter}
+      ), ${sliceIdFilter})
     GROUP BY kernel_id, metric_label
   `;
 

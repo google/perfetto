@@ -28,6 +28,7 @@ import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_det
 import {Gpu} from '../../components/gpu';
 import {getMachineCount} from '../../public/utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
+import TrackEventPlugin from '../dev.perfetto.TrackEvent';
 
 function getProcessDisplayName(
   name: string | null,
@@ -147,6 +148,11 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
     JOIN process p USING (upid)
     LEFT JOIN gpu_context gc ON gc.context_id = s.context_id
     WHERE s.upid IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM __gpu_by_process_bound_canonical_slices bound
+        WHERE bound.canonical_slice_id = s.id
+      )
       AND s.context_id IS NOT NULL
       AND extract_arg(s.arg_set_id, 'device') IS NOT NULL
       AND extract_arg(s.arg_set_id, 'stream') IS NOT NULL
@@ -235,7 +241,12 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
       `upid = ${r.upid}` +
       ` AND extract_arg(arg_set_id, 'device') = ${r.device}` +
       ` AND context_id = ${r.context}` +
-      ` AND extract_arg(arg_set_id, 'stream') = ${r.stream}`;
+      ` AND extract_arg(arg_set_id, 'stream') = ${r.stream}` +
+      ` AND NOT EXISTS (` +
+      `   SELECT 1` +
+      `   FROM __gpu_by_process_bound_canonical_slices bound` +
+      `   WHERE bound.canonical_slice_id = gpu_slice.id` +
+      ` )`;
     return {
       upid: r.upid,
       pid: r.pid,
@@ -277,6 +288,11 @@ async function discoverFallbackTracks(
     LEFT JOIN gpu g ON extract_arg(t.dimension_arg_set_id, 'ugpu') = g.id
     LEFT JOIN machine m ON m.id = t.machine_id
     WHERE s.upid IS NOT NULL AND s.hw_queue_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM __gpu_by_process_bound_canonical_slices bound
+        WHERE bound.canonical_slice_id = s.id
+      )
       AND (extract_arg(s.arg_set_id, 'device') IS NULL
            OR extract_arg(s.arg_set_id, 'stream') IS NULL)
     GROUP BY s.upid, s.hw_queue_id
@@ -360,7 +376,12 @@ async function discoverFallbackTracks(
       `upid = ${row.upid}` +
       ` AND hw_queue_id = ${row.hwqId}` +
       ` AND (extract_arg(arg_set_id, 'device') IS NULL` +
-      ` OR extract_arg(arg_set_id, 'stream') IS NULL)`;
+      ` OR extract_arg(arg_set_id, 'stream') IS NULL)` +
+      ` AND NOT EXISTS (` +
+      `   SELECT 1` +
+      `   FROM __gpu_by_process_bound_canonical_slices bound` +
+      `   WHERE bound.canonical_slice_id = gpu_slice.id` +
+      ` )`;
     return {
       upid: row.upid,
       pid: row.pid,
@@ -386,9 +407,30 @@ async function discoverApiTracks(ctx: Trace): Promise<LeafTrack[]> {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.GpuByProcess';
-  static readonly dependencies = [ProcessThreadGroupsPlugin];
+  static readonly dependencies = [ProcessThreadGroupsPlugin, TrackEventPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    await ctx.engine.query(`
+      DROP TABLE IF EXISTS __gpu_by_process_authored_upids;
+      DROP TABLE IF EXISTS __gpu_by_process_authored_logical_queues;
+      DROP TABLE IF EXISTS __gpu_by_process_bound_canonical_slices;
+      CREATE PERFETTO TABLE __gpu_by_process_bound_canonical_slices AS
+      SELECT DISTINCT extract_arg(
+        projected.arg_set_id,
+        'gpu_render_stage_canonical_slice_id'
+      ) AS canonical_slice_id
+      FROM slice projected
+      JOIN track projected_track ON projected_track.id = projected.track_id
+      WHERE projected_track.type GLOB 'gpu*_track_event'
+        AND extract_arg(projected.arg_set_id,
+                        'gpu_render_stage_canonical_slice_id') IS NOT NULL
+        AND coalesce(
+          extract_arg(projected_track.dimension_arg_set_id, 'upid'),
+          extract_arg(projected_track.source_arg_set_id, 'gpu_process_upid')
+        ) IS NOT NULL;
+      CREATE PERFETTO INDEX __gpu_by_process_bound_canonical_slices_idx
+      ON __gpu_by_process_bound_canonical_slices(canonical_slice_id);
+    `);
     const numMachines = await getMachineCount(ctx.engine);
     const apiTracks = await discoverApiTracks(ctx);
     const fallbackTracks = await discoverFallbackTracks(ctx, numMachines);
