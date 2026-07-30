@@ -19,27 +19,30 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 perfetto_tp_tables("tables") {
   sources = [ "tables.py" ]
-  deps = [ "../../tables:tables_python" ]
 }
 
-source_set("android_framework_track_event") {
+source_set("android_process_state") {
   sources = [
-    "android_framework_track_event.cc",
-    "android_framework_track_event.h",
+    "android_process_state.cc",
+    "android_process_state.h",
+    "android_process_state_module.cc",
+    "android_process_state_module.h",
   ]
+  public_deps = [ ":tables" ]
   deps = [
-    ":tables",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base:base",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_zero",
     "../../../base",
     "../../../protozero",
     "../../core/plugin",
     "../../importers/common",
+    "../../importers/common:parser_types",
     "../../importers/proto:minimal",
+    "../../importers/proto:proto_importer_module",
     "../../storage",
-    "../../tables",
     "../../types",
     "../../util:descriptors",
-    "../android_process_state",
   ]
 }
