@@ -196,7 +196,10 @@ export default class GpuPlugin implements PerfettoPlugin {
       from _track_event_tracks_ordered_groups tracks
       left join gpu on gpu.id = tracks.ugpu
       left join machine on machine.id = tracks.machine_id
-      where tracks.scope = 'gpu' and tracks.parent_id is null
+      -- Process-associated generic GPU tracks are owned by GpuByProcess.
+      where tracks.scope = 'gpu'
+        and tracks.upid is null
+        and tracks.parent_id is null
       order by lower(tracks.name), tracks.machine_id, tracks.gpu_id, tracks.order_id
     `);
     const it = result.iter({

@@ -101,7 +101,10 @@ WITH
     SELECT id, order_id FROM chronological
   )
 SELECT
-  extract_arg(track.dimension_arg_set_id, 'upid') AS upid,
+  coalesce(
+    extract_arg(track.dimension_arg_set_id, 'upid'),
+    min(extract_arg(track.source_arg_set_id, 'gpu_process_upid'))
+  ) AS upid,
   extract_arg(track.dimension_arg_set_id, 'utid') AS utid,
   min(track.machine_id) AS machine_id,
   min(extract_arg(track.dimension_arg_set_id, 'ugpu')) AS ugpu,

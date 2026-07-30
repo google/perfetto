@@ -178,10 +178,32 @@ constexpr auto kGpuTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
         tracks::StringIdDimensionBlueprint("merge_key_value")),
     tracks::DynamicNameBlueprint());
 
+constexpr auto kProcessGpuTrackMergedBlueprint =
+    TrackCompressor::SliceBlueprint(
+        "gpu_merged_track_event",
+        tracks::DimensionBlueprints(
+            tracks::kUgpuDimensionBlueprint,
+            tracks::kGpuIdDimensionBlueprint,
+            tracks::kProcessDimensionBlueprint,
+            tracks::LongDimensionBlueprint("parent_track_uuid"),
+            tracks::UintDimensionBlueprint("merge_key_type"),
+            tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::DynamicNameBlueprint());
+
 constexpr auto kUnspecifiedGpuTrackMergedBlueprint =
     TrackCompressor::SliceBlueprint(
         "gpu_unspecified_merged_track_event",
         tracks::DimensionBlueprints(
+            tracks::LongDimensionBlueprint("parent_track_uuid"),
+            tracks::UintDimensionBlueprint("merge_key_type"),
+            tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::DynamicNameBlueprint());
+
+constexpr auto kProcessUnspecifiedGpuTrackMergedBlueprint =
+    TrackCompressor::SliceBlueprint(
+        "gpu_unspecified_merged_track_event",
+        tracks::DimensionBlueprints(
+            tracks::kProcessDimensionBlueprint,
             tracks::LongDimensionBlueprint("parent_track_uuid"),
             tracks::UintDimensionBlueprint("merge_key_type"),
             tracks::StringIdDimensionBlueprint("merge_key_value")),
@@ -229,6 +251,8 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       y_axis_share_key_(context->storage->InternString("y_axis_share_key")),
       track_uuid_key_id_(context->storage->InternString("track_uuid")),
       parent_uuid_key_id_(context->storage->InternString("parent_uuid")),
+      gpu_process_upid_key_id_(
+          context->storage->InternString("gpu_process_upid")),
       context_(context) {}
 
 void TrackEventTracker::ReserveDescriptorTrack(
@@ -431,6 +455,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
       parent_resolved_track->scope() == ResolvedDescriptorTrack::Scope::kGpu) {
     std::optional<uint32_t> gpu_id = parent_resolved_track->gpu_id();
     std::optional<uint32_t> ugpu = parent_resolved_track->ugpu();
+    std::optional<UniquePid> process_upid =
+        parent_resolved_track->gpu_process_upid();
     if (reservation.gpu_id) {
       if (gpu_id && *gpu_id != *reservation.gpu_id) {
         // A track cannot be nested under one concrete GPU while identifying
@@ -439,29 +465,35 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
         RecordTrackError(stats::track_descriptor_conflicting_gpu_id, uuid);
         auto id = context_->gpu_tracker->GetOrCreateGpu(*reservation.gpu_id);
         return ResolvedDescriptorTrack::Gpu(
-            reservation.gpu_id, id.value, reservation.is_counter,
+            reservation.gpu_id, id.value, process_upid, reservation.is_counter,
             reservation.is_state, true /* is_root */);
       }
       gpu_id = reservation.gpu_id;
       auto id = context_->gpu_tracker->GetOrCreateGpu(*gpu_id);
       ugpu = id.value;
     }
-    return ResolvedDescriptorTrack::Gpu(gpu_id, ugpu, reservation.is_counter,
-                                        reservation.is_state,
-                                        false /* is_root */);
+    return ResolvedDescriptorTrack::Gpu(
+        gpu_id, ugpu, process_upid, reservation.is_counter,
+        reservation.is_state, false /* is_root */);
   }
 
-  // An explicit GPU descriptor starts a GPU subtree. Its descendants inherit
-  // the association through the branch above. Process and thread descriptors
-  // take precedence, matching TrackDescriptor's existing scope semantics.
+  // An explicit GPU descriptor starts a GPU subtree. A process parent supplies
+  // process ownership but is not retained as the GPU track's visual parent.
   if (reservation.is_gpu_track) {
     std::optional<uint32_t> ugpu;
     if (reservation.gpu_id) {
       ugpu = context_->gpu_tracker->GetOrCreateGpu(*reservation.gpu_id).value;
     }
-    return ResolvedDescriptorTrack::Gpu(
-        reservation.gpu_id, ugpu, reservation.is_counter, reservation.is_state,
-        !parent_resolved_track /* is_root */);
+    std::optional<UniquePid> process_upid;
+    bool is_root = !parent_resolved_track;
+    if (parent_resolved_track && parent_resolved_track->scope() ==
+                                     ResolvedDescriptorTrack::Scope::kProcess) {
+      process_upid = parent_resolved_track->upid();
+      is_root = true;
+    }
+    return ResolvedDescriptorTrack::Gpu(reservation.gpu_id, ugpu, process_upid,
+                                        reservation.is_counter,
+                                        reservation.is_state, is_root);
   }
 
   if (parent_resolved_track) {
@@ -508,21 +540,28 @@ TrackEventTracker::InternDescriptorTrackImpl(
     parent_resolved_track = ResolveDescriptorTrack(reservation->parent_uuid);
   }
 
+  std::optional<UniquePid> gpu_process_upid =
+      resolved->scope() == ResolvedDescriptorTrack::Scope::kGpu
+          ? resolved->gpu_process_upid()
+          : std::nullopt;
+
   // Don't capture anything by reference in these functions as they are
   // persisted in the case of merged tracks.
   TrackTracker::SetArgsCallback args_fn_root =
-      [this, uuid, packet_sequence_id](ArgsTracker::BoundInserter& inserter) {
+      [this, uuid, packet_sequence_id,
+       gpu_process_upid](ArgsTracker::BoundInserter& inserter) {
         State* state = descriptor_tracks_state_.Find(uuid);
         PERFETTO_CHECK(state);
         AddTrackArgs(uuid, packet_sequence_id, state->reservation,
-                     true /* is_root*/, inserter);
+                     gpu_process_upid, true /* is_root*/, inserter);
       };
   TrackTracker::SetArgsCallback args_fn_non_root =
-      [this, uuid, packet_sequence_id](ArgsTracker::BoundInserter& inserter) {
+      [this, uuid, packet_sequence_id,
+       gpu_process_upid](ArgsTracker::BoundInserter& inserter) {
         State* state = descriptor_tracks_state_.Find(uuid);
         PERFETTO_CHECK(state);
         AddTrackArgs(uuid, packet_sequence_id, state->reservation,
-                     false /* is_root*/, inserter);
+                     gpu_process_upid, false /* is_root*/, inserter);
       };
   StringId name = reservation->name.is_null() ? event_name : reservation->name;
   using M = TrackEventTracker::DescriptorTrackReservation::SiblingMergeBehavior;
@@ -564,6 +603,14 @@ TrackEventTracker::InternDescriptorTrackImpl(
             dimensions, tracks::DynamicName(name), args_fn));
       }
       auto [type, key] = GetMergeKey(*reservation, name);
+      if (resolved->gpu_process_upid()) {
+        return context_->track_compressor->CreateTrackFactory(
+            kProcessGpuTrackMergedBlueprint,
+            tracks::Dimensions(*resolved->ugpu(), *resolved->gpu_id(),
+                               *resolved->gpu_process_upid(), parent_uuid, type,
+                               key),
+            tracks::DynamicName(name), args_fn, std::move(on_new_track));
+      }
       return context_->track_compressor->CreateTrackFactory(
           kGpuTrackMergedBlueprint,
           tracks::Dimensions(*resolved->ugpu(), *resolved->gpu_id(),
@@ -585,6 +632,13 @@ TrackEventTracker::InternDescriptorTrackImpl(
           dimensions, tracks::DynamicName(name), args_fn));
     }
     auto [type, key] = GetMergeKey(*reservation, name);
+    if (resolved->gpu_process_upid()) {
+      return context_->track_compressor->CreateTrackFactory(
+          kProcessUnspecifiedGpuTrackMergedBlueprint,
+          tracks::Dimensions(*resolved->gpu_process_upid(), parent_uuid, type,
+                             key),
+          tracks::DynamicName(name), args_fn, std::move(on_new_track));
+    }
     return context_->track_compressor->CreateTrackFactory(
         kUnspecifiedGpuTrackMergedBlueprint,
         tracks::Dimensions(parent_uuid, type, key), tracks::DynamicName(name),
@@ -822,11 +876,15 @@ void TrackEventTracker::AddTrackArgs(
     uint64_t uuid,
     std::optional<uint32_t> packet_sequence_id,
     const DescriptorTrackReservation& reservation,
+    std::optional<UniquePid> gpu_process_upid,
     bool is_root_in_scope,
     ArgsTracker::BoundInserter& args) {
   args.AddArg(source_key_, Variadic::String(descriptor_source_))
       .AddArg(source_id_key_, Variadic::Integer(static_cast<int64_t>(uuid)))
       .AddArg(is_root_in_scope_key_, Variadic::Boolean(is_root_in_scope));
+  if (gpu_process_upid) {
+    args.AddArg(gpu_process_upid_key_id_, Variadic::Integer(*gpu_process_upid));
+  }
   if (reservation.counter_details) {
     if (!reservation.counter_details->category.is_null()) {
       args.AddArg(category_key_,
@@ -938,11 +996,13 @@ TrackEventTracker::ResolvedDescriptorTrack::Thread(UniqueTid utid,
 }
 
 TrackEventTracker::ResolvedDescriptorTrack
-TrackEventTracker::ResolvedDescriptorTrack::Gpu(std::optional<uint32_t> gpu_id,
-                                                std::optional<uint32_t> ugpu,
-                                                bool is_counter,
-                                                bool is_state,
-                                                bool is_root) {
+TrackEventTracker::ResolvedDescriptorTrack::Gpu(
+    std::optional<uint32_t> gpu_id,
+    std::optional<uint32_t> ugpu,
+    std::optional<UniquePid> process_upid,
+    bool is_counter,
+    bool is_state,
+    bool is_root) {
   PERFETTO_DCHECK(gpu_id.has_value() == ugpu.has_value());
   ResolvedDescriptorTrack track;
   track.scope_ = Scope::kGpu;
@@ -951,6 +1011,7 @@ TrackEventTracker::ResolvedDescriptorTrack::Gpu(std::optional<uint32_t> gpu_id,
   track.is_root_ = is_root;
   track.gpu_id_ = gpu_id;
   track.ugpu_ = ugpu;
+  track.gpu_process_upid_ = process_upid;
   return track;
 }
 

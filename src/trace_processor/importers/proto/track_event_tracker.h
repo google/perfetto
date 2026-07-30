@@ -157,6 +157,7 @@ class TrackEventTracker {
     // absent for a machine-wide GPU track.
     static ResolvedDescriptorTrack Gpu(std::optional<uint32_t> gpu_id,
                                        std::optional<uint32_t> ugpu,
+                                       std::optional<UniquePid> process_upid,
                                        bool is_counter,
                                        bool is_state,
                                        bool is_root);
@@ -198,6 +199,13 @@ class TrackEventTracker {
       return ugpu_;
     }
 
+    // The process association inherited by this GPU track. Absent for
+    // process-independent GPU tracks.
+    std::optional<UniquePid> gpu_process_upid() const {
+      PERFETTO_DCHECK(scope() == Scope::kGpu);
+      return gpu_process_upid_;
+    }
+
     // Whether this is a "root" track in its scope.
     // For example, a track for a given pid/tid is a root track but a track
     // which has a parent track is not.
@@ -223,6 +231,7 @@ class TrackEventTracker {
     // machine-wide GPU track.
     std::optional<uint32_t> gpu_id_;
     std::optional<uint32_t> ugpu_;
+    std::optional<UniquePid> gpu_process_upid_;
   };
 
   explicit TrackEventTracker(TraceProcessorContext*);
@@ -439,6 +448,7 @@ class TrackEventTracker {
   void AddTrackArgs(uint64_t uuid,
                     std::optional<uint32_t> packet_sequence_id,
                     const DescriptorTrackReservation&,
+                    std::optional<UniquePid> gpu_process_upid,
                     bool,
                     ArgsTracker::BoundInserter&);
 
@@ -471,6 +481,7 @@ class TrackEventTracker {
   const StringId y_axis_share_key_;
   const StringId track_uuid_key_id_;
   const StringId parent_uuid_key_id_;
+  const StringId gpu_process_upid_key_id_;
 
   std::optional<int64_t> range_of_interest_start_us_;
   TraceProcessorContext* const context_;

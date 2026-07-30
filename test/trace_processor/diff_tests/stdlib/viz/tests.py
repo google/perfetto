@@ -72,6 +72,55 @@ class Viz(TestSuite):
         "GPU Root","[NULL]","gpu",0,2,1
         """))
 
+  def test_process_associated_gpu_track_event_summary(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor {
+            uuid: 900
+            process { pid: 42 }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 901
+            parent_uuid: 900
+            name: "CUDA"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {}
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 902
+            parent_uuid: 901
+            name: "Stream #7"
+          }
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 902
+            name: "kernel"
+            type: TYPE_INSTANT
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE viz.summary.track_event;
+
+        SELECT tracks.name, scope, process.pid
+        FROM _track_event_tracks_ordered_groups tracks
+        LEFT JOIN process USING (upid)
+        WHERE scope = 'gpu'
+        ORDER BY tracks.name;
+        """,
+        out=Csv("""
+        "name","scope","pid"
+        "CUDA","gpu",42
+        "Stream #7","gpu",42
+        """))
+
   chronological_trace = TextProto(r"""
         packet {
           track_descriptor {
