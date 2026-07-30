@@ -60,6 +60,8 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":protovm",
     ":test_messages_lite",
+    "../../protos/perfetto/trace/android:winscope_regular_lite",
+    "../../protos/perfetto/trace/android:winscope_regular_zero",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/protovm:lite",
@@ -80,5 +82,6 @@ perfetto_unittest_source_set("unittests") {
     "test/utils.cc",
     "test/utils.h",
     "test/vm_unittest.cc",
+    "test/vm_surfaceflinger_test.cc",
   ]
 }
