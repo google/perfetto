@@ -94,6 +94,8 @@ class TrackEventTracker {
     // present extension with no gpu_id marks a machine-wide GPU track.
     bool is_gpu_track = false;
     std::optional<uint32_t> gpu_id;
+    std::optional<uint64_t> gpu_hw_queue_iid;
+    std::optional<uint64_t> gpu_logical_queue_id;
 
     // For counter tracks.
     std::optional<CounterDetails> counter_details;
@@ -119,9 +121,11 @@ class TrackEventTracker {
         return false;
       }
       return std::tie(parent_uuid, pid, tid, is_counter, is_state, is_gpu_track,
-                      gpu_id, sibling_merge_behavior, sibling_merge_key) ==
+                      gpu_id, gpu_hw_queue_iid, gpu_logical_queue_id,
+                      sibling_merge_behavior, sibling_merge_key) ==
              std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
                       other.is_state, other.is_gpu_track, other.gpu_id,
+                      other.gpu_hw_queue_iid, other.gpu_logical_queue_id,
                       other.sibling_merge_behavior, other.sibling_merge_key);
     }
   };
@@ -241,6 +245,11 @@ class TrackEventTracker {
   // reservation for the same |uuid| already exists, verifies that the present
   // reservation matches the new one.
   void ReserveDescriptorTrack(uint64_t uuid, const DescriptorTrackReservation&);
+
+  // Materializes and registers a GPU descriptor which binds a render-stage
+  // queue to a producer-authored TrackEvent sibling group.
+  void InternGpuRenderStageQueueDescriptor(uint64_t uuid,
+                                           uint32_t packet_sequence_id);
 
   // Resolves a descriptor track UUID to a `ResolvedDescriptorTrack` object.
   // This object contains information about the track's scope (global, process,
@@ -393,6 +402,7 @@ class TrackEventTracker {
     std::optional<ResolvedDescriptorTrack> resolved = std::nullopt;
     std::optional<std::variant<TrackId, TrackCompressor::TrackFactory>>
         track_id_or_factory = std::nullopt;
+    std::optional<TrackCompressor::TrackFactory> gpu_render_stage_factory;
   };
 
   std::optional<TrackId> InternDescriptorTrackForParent(
@@ -482,6 +492,8 @@ class TrackEventTracker {
   const StringId track_uuid_key_id_;
   const StringId parent_uuid_key_id_;
   const StringId gpu_process_upid_key_id_;
+  const StringId gpu_hw_queue_iid_key_id_;
+  const StringId gpu_logical_queue_id_key_id_;
 
   std::optional<int64_t> range_of_interest_start_us_;
   TraceProcessorContext* const context_;

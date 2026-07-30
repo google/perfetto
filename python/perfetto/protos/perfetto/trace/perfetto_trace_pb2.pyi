@@ -16135,7 +16135,7 @@ class GpuMemTotalEvent(_message.Message):
     def __init__(self, gpu_id: _Optional[int] = ..., pid: _Optional[int] = ..., size: _Optional[int] = ...) -> None: ...
 
 class GpuRenderStageEvent(_message.Message):
-    __slots__ = ("event_id", "duration", "hw_queue_iid", "stage_iid", "gpu_id", "context", "render_target_handle", "submission_id", "extra_data", "render_pass_handle", "render_pass_instance_id", "render_subpass_index_mask", "command_buffer_handle", "name", "name_iid", "event_wait_ids", "kernel_iid", "launch", "specifications", "hw_queue_id", "stage_id")
+    __slots__ = ("event_id", "duration", "hw_queue_iid", "stage_iid", "gpu_id", "context", "render_target_handle", "submission_id", "extra_data", "render_pass_handle", "render_pass_instance_id", "render_subpass_index_mask", "command_buffer_handle", "name", "name_iid", "event_wait_ids", "kernel_iid", "launch", "logical_queue_id", "specifications", "hw_queue_id", "stage_id")
     Extensions: _python_message._ExtensionDict
     class ExtraData(_message.Message):
         __slots__ = ("name", "value")
@@ -16220,6 +16220,7 @@ class GpuRenderStageEvent(_message.Message):
     EVENT_WAIT_IDS_FIELD_NUMBER: _ClassVar[int]
     KERNEL_IID_FIELD_NUMBER: _ClassVar[int]
     LAUNCH_FIELD_NUMBER: _ClassVar[int]
+    LOGICAL_QUEUE_ID_FIELD_NUMBER: _ClassVar[int]
     SPECIFICATIONS_FIELD_NUMBER: _ClassVar[int]
     HW_QUEUE_ID_FIELD_NUMBER: _ClassVar[int]
     STAGE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -16241,10 +16242,11 @@ class GpuRenderStageEvent(_message.Message):
     event_wait_ids: _containers.RepeatedScalarFieldContainer[int]
     kernel_iid: int
     launch: GpuRenderStageEvent.ComputeKernelLaunch
+    logical_queue_id: int
     specifications: GpuRenderStageEvent.Specifications
     hw_queue_id: int
     stage_id: int
-    def __init__(self, event_id: _Optional[int] = ..., duration: _Optional[int] = ..., hw_queue_iid: _Optional[int] = ..., stage_iid: _Optional[int] = ..., gpu_id: _Optional[int] = ..., context: _Optional[int] = ..., render_target_handle: _Optional[int] = ..., submission_id: _Optional[int] = ..., extra_data: _Optional[_Iterable[_Union[GpuRenderStageEvent.ExtraData, _Mapping]]] = ..., render_pass_handle: _Optional[int] = ..., render_pass_instance_id: _Optional[int] = ..., render_subpass_index_mask: _Optional[_Iterable[int]] = ..., command_buffer_handle: _Optional[int] = ..., name: _Optional[str] = ..., name_iid: _Optional[int] = ..., event_wait_ids: _Optional[_Iterable[int]] = ..., kernel_iid: _Optional[int] = ..., launch: _Optional[_Union[GpuRenderStageEvent.ComputeKernelLaunch, _Mapping]] = ..., specifications: _Optional[_Union[GpuRenderStageEvent.Specifications, _Mapping]] = ..., hw_queue_id: _Optional[int] = ..., stage_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, event_id: _Optional[int] = ..., duration: _Optional[int] = ..., hw_queue_iid: _Optional[int] = ..., stage_iid: _Optional[int] = ..., gpu_id: _Optional[int] = ..., context: _Optional[int] = ..., render_target_handle: _Optional[int] = ..., submission_id: _Optional[int] = ..., extra_data: _Optional[_Iterable[_Union[GpuRenderStageEvent.ExtraData, _Mapping]]] = ..., render_pass_handle: _Optional[int] = ..., render_pass_instance_id: _Optional[int] = ..., render_subpass_index_mask: _Optional[_Iterable[int]] = ..., command_buffer_handle: _Optional[int] = ..., name: _Optional[str] = ..., name_iid: _Optional[int] = ..., event_wait_ids: _Optional[_Iterable[int]] = ..., kernel_iid: _Optional[int] = ..., launch: _Optional[_Union[GpuRenderStageEvent.ComputeKernelLaunch, _Mapping]] = ..., logical_queue_id: _Optional[int] = ..., specifications: _Optional[_Union[GpuRenderStageEvent.Specifications, _Mapping]] = ..., hw_queue_id: _Optional[int] = ..., stage_id: _Optional[int] = ...) -> None: ...
 
 class InternedGraphicsContext(_message.Message):
     __slots__ = ("iid", "pid", "api")

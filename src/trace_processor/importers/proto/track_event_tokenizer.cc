@@ -38,6 +38,7 @@
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -150,6 +151,12 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       } else {
         reservation.gpu_id = static_cast<uint32_t>(gpu.gpu_id());
       }
+    }
+    if (reservation.is_gpu_track && gpu.has_hw_queue_iid()) {
+      reservation.gpu_hw_queue_iid = gpu.hw_queue_iid();
+    }
+    if (reservation.is_gpu_track && gpu.has_logical_queue_id()) {
+      reservation.gpu_logical_queue_id = gpu.logical_queue_id();
     }
   }
 
@@ -398,6 +405,15 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   }
 
   track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+  if (reservation.gpu_hw_queue_iid || reservation.gpu_logical_queue_id) {
+    uint64_t uuid = track.uuid();
+    uint32_t packet_sequence_id = args.decoder.trusted_packet_sequence_id();
+    context_->gpu_tracker->AddPendingRenderStageQueue(
+        [this, uuid, packet_sequence_id] {
+          track_event_tracker_->InternGpuRenderStageQueueDescriptor(
+              uuid, packet_sequence_id);
+        });
+  }
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();

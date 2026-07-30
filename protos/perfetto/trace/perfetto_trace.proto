@@ -13475,6 +13475,10 @@ message GpuRenderStageEvent {
   // optional. Compute kernel launch parameters for this event.
   optional ComputeKernelLaunch launch = 21;
 
+  // Optional producer-defined logical queue identifier. This identifier is
+  // scoped to the process associated with the event's graphics context.
+  optional uint64 logical_queue_id = 22;
+
   // DEPRECATED
 
   // Deprecated.  Use InternedGpuRenderStageSpecification instead.

@@ -173,6 +173,8 @@ CREATE PERFETTO VIEW gpu_slice(
   hw_queue_id LONG,
   -- The id of the process.
   upid JOINID(process.id),
+  -- The producer-defined process-scoped logical queue ID.
+  logical_queue_id LONG,
   -- Render subpasses.
   render_subpasses STRING,
   -- Render stage category (0=OTHER, 1=GRAPHICS, 2=COMPUTE).
@@ -200,6 +202,7 @@ SELECT
   extract_arg(s.arg_set_id, 'submission_id') AS submission_id,
   extract_arg(s.arg_set_id, 'hw_queue_id') AS hw_queue_id,
   extract_arg(s.arg_set_id, 'upid') AS upid,
+  extract_arg(s.arg_set_id, 'logical_queue_id') AS logical_queue_id,
   extract_arg(s.arg_set_id, 'render_subpasses') AS render_subpasses,
   extract_arg(s.arg_set_id, 'render_stage_category') AS render_stage_category
 FROM slice AS s

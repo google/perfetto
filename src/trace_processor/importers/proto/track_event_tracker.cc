@@ -253,6 +253,10 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       parent_uuid_key_id_(context->storage->InternString("parent_uuid")),
       gpu_process_upid_key_id_(
           context->storage->InternString("gpu_process_upid")),
+      gpu_hw_queue_iid_key_id_(
+          context->storage->InternString("gpu_hw_queue_iid")),
+      gpu_logical_queue_id_key_id_(
+          context->storage->InternString("gpu_logical_queue_id")),
       context_(context) {}
 
 void TrackEventTracker::ReserveDescriptorTrack(
@@ -268,7 +272,9 @@ void TrackEventTracker::ReserveDescriptorTrack(
     return;
   }
 
-  auto [it, inserted] = descriptor_tracks_state_.Insert(uuid, {reservation});
+  State state;
+  state.reservation = reservation;
+  auto [it, inserted] = descriptor_tracks_state_.Insert(uuid, std::move(state));
   if (inserted) {
     return;
   }
@@ -300,6 +306,43 @@ void TrackEventTracker::ReserveDescriptorTrack(
   }
   it->reservation.min_timestamp =
       std::min(it->reservation.min_timestamp, reservation.min_timestamp);
+}
+
+void TrackEventTracker::InternGpuRenderStageQueueDescriptor(
+    uint64_t uuid,
+    uint32_t packet_sequence_id) {
+  State* state = descriptor_tracks_state_.Find(uuid);
+  if (!state || (!state->reservation.gpu_hw_queue_iid &&
+                 !state->reservation.gpu_logical_queue_id)) {
+    return;
+  }
+  state =
+      EnsureDescriptorTrackInterned(uuid, kNullStringId, packet_sequence_id);
+  if (!state || !state->resolved || state->resolved->is_counter() ||
+      state->resolved->is_state() || !state->gpu_render_stage_factory) {
+    return;
+  }
+  if (auto* factory = std::get_if<TrackCompressor::TrackFactory>(
+          &*state->track_id_or_factory)) {
+    context_->track_compressor->DefaultTrack(*factory);
+  }
+
+  if (state->reservation.gpu_hw_queue_iid) {
+    if (!state->resolved->gpu_id() || state->resolved->gpu_process_upid()) {
+      return;
+    }
+    context_->gpu_tracker->RegisterHardwareQueueTrack(
+        packet_sequence_id, *state->resolved->gpu_id(),
+        *state->reservation.gpu_hw_queue_iid, *state->gpu_render_stage_factory);
+  } else if (state->reservation.gpu_logical_queue_id) {
+    if (!state->resolved->gpu_process_upid()) {
+      return;
+    }
+    context_->gpu_tracker->RegisterLogicalQueueTrack(
+        *state->resolved->gpu_process_upid(),
+        *state->reservation.gpu_logical_queue_id,
+        *state->gpu_render_stage_factory);
+  }
 }
 
 std::optional<TrackEventTracker::ResolvedDescriptorTrack>
@@ -585,6 +628,8 @@ TrackEventTracker::InternDescriptorTrackImpl(
       }
       return id;
     };
+    const bool has_render_stage_queue =
+        reservation->gpu_hw_queue_iid || reservation->gpu_logical_queue_id;
     if (resolved->gpu_id()) {
       PERFETTO_CHECK(resolved->ugpu());
       auto dimensions = tracks::Dimensions(
@@ -595,27 +640,41 @@ TrackEventTracker::InternDescriptorTrackImpl(
             tracks::DynamicName(reservation->name), args_fn,
             tracks::DynamicUnit(reservation->counter_details->unit)));
       }
+      auto make_factory = [&](uint32_t type, StringId key) {
+        if (resolved->gpu_process_upid()) {
+          return context_->track_compressor->CreateTrackFactory(
+              kProcessGpuTrackMergedBlueprint,
+              tracks::Dimensions(*resolved->ugpu(), *resolved->gpu_id(),
+                                 *resolved->gpu_process_upid(), parent_uuid,
+                                 type, key),
+              tracks::DynamicName(name), args_fn, on_new_track);
+        }
+        return context_->track_compressor->CreateTrackFactory(
+            kGpuTrackMergedBlueprint,
+            tracks::Dimensions(*resolved->ugpu(), *resolved->gpu_id(),
+                               parent_uuid, type, key),
+            tracks::DynamicName(name), args_fn, on_new_track);
+      };
       if (reservation->sibling_merge_behavior == M::kNone ||
           reservation->is_state) {
-        return on_new_direct_track(context_->track_tracker->InternTrack(
+        TrackId id = on_new_direct_track(context_->track_tracker->InternTrack(
             reservation->is_state ? kGpuStateTrackBlueprint
                                   : kGpuTrackBlueprint,
             dimensions, tracks::DynamicName(name), args_fn));
+        if (has_render_stage_queue && !reservation->is_state) {
+          StringId key = context_->storage->InternString(
+              "gpu_render_stage_track_uuid:" + std::to_string(uuid));
+          state->gpu_render_stage_factory =
+              make_factory(static_cast<uint32_t>(M::kByKey), key);
+        }
+        return id;
       }
       auto [type, key] = GetMergeKey(*reservation, name);
-      if (resolved->gpu_process_upid()) {
-        return context_->track_compressor->CreateTrackFactory(
-            kProcessGpuTrackMergedBlueprint,
-            tracks::Dimensions(*resolved->ugpu(), *resolved->gpu_id(),
-                               *resolved->gpu_process_upid(), parent_uuid, type,
-                               key),
-            tracks::DynamicName(name), args_fn, std::move(on_new_track));
+      auto factory = make_factory(type, key);
+      if (has_render_stage_queue) {
+        state->gpu_render_stage_factory = factory;
       }
-      return context_->track_compressor->CreateTrackFactory(
-          kGpuTrackMergedBlueprint,
-          tracks::Dimensions(*resolved->ugpu(), *resolved->gpu_id(),
-                             parent_uuid, type, key),
-          tracks::DynamicName(name), args_fn, std::move(on_new_track));
+      return factory;
     }
     auto dimensions = tracks::Dimensions(static_cast<int64_t>(uuid));
     if (reservation->is_counter) {
@@ -624,25 +683,39 @@ TrackEventTracker::InternDescriptorTrackImpl(
           tracks::DynamicName(reservation->name), args_fn,
           tracks::DynamicUnit(reservation->counter_details->unit)));
     }
+    auto make_factory = [&](uint32_t type, StringId key) {
+      if (resolved->gpu_process_upid()) {
+        return context_->track_compressor->CreateTrackFactory(
+            kProcessUnspecifiedGpuTrackMergedBlueprint,
+            tracks::Dimensions(*resolved->gpu_process_upid(), parent_uuid, type,
+                               key),
+            tracks::DynamicName(name), args_fn, on_new_track);
+      }
+      return context_->track_compressor->CreateTrackFactory(
+          kUnspecifiedGpuTrackMergedBlueprint,
+          tracks::Dimensions(parent_uuid, type, key), tracks::DynamicName(name),
+          args_fn, on_new_track);
+    };
     if (reservation->sibling_merge_behavior == M::kNone ||
         reservation->is_state) {
-      return on_new_direct_track(context_->track_tracker->InternTrack(
+      TrackId id = on_new_direct_track(context_->track_tracker->InternTrack(
           reservation->is_state ? kUnspecifiedGpuStateTrackBlueprint
                                 : kUnspecifiedGpuTrackBlueprint,
           dimensions, tracks::DynamicName(name), args_fn));
+      if (has_render_stage_queue && !reservation->is_state) {
+        StringId key = context_->storage->InternString(
+            "gpu_render_stage_track_uuid:" + std::to_string(uuid));
+        state->gpu_render_stage_factory =
+            make_factory(static_cast<uint32_t>(M::kByKey), key);
+      }
+      return id;
     }
     auto [type, key] = GetMergeKey(*reservation, name);
-    if (resolved->gpu_process_upid()) {
-      return context_->track_compressor->CreateTrackFactory(
-          kProcessUnspecifiedGpuTrackMergedBlueprint,
-          tracks::Dimensions(*resolved->gpu_process_upid(), parent_uuid, type,
-                             key),
-          tracks::DynamicName(name), args_fn, std::move(on_new_track));
+    auto factory = make_factory(type, key);
+    if (has_render_stage_queue) {
+      state->gpu_render_stage_factory = factory;
     }
-    return context_->track_compressor->CreateTrackFactory(
-        kUnspecifiedGpuTrackMergedBlueprint,
-        tracks::Dimensions(parent_uuid, type, key), tracks::DynamicName(name),
-        args_fn, std::move(on_new_track));
+    return factory;
   };
 
   if (resolved->is_root()) {
@@ -884,6 +957,14 @@ void TrackEventTracker::AddTrackArgs(
       .AddArg(is_root_in_scope_key_, Variadic::Boolean(is_root_in_scope));
   if (gpu_process_upid) {
     args.AddArg(gpu_process_upid_key_id_, Variadic::Integer(*gpu_process_upid));
+  }
+  if (reservation.gpu_hw_queue_iid) {
+    args.AddArg(gpu_hw_queue_iid_key_id_,
+                Variadic::UnsignedInteger(*reservation.gpu_hw_queue_iid));
+  }
+  if (reservation.gpu_logical_queue_id) {
+    args.AddArg(gpu_logical_queue_id_key_id_,
+                Variadic::UnsignedInteger(*reservation.gpu_logical_queue_id));
   }
   if (reservation.counter_details) {
     if (!reservation.counter_details->category.is_null()) {

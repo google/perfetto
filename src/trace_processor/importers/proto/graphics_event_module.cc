@@ -235,7 +235,8 @@ void GraphicsEventModule::ParseField(const ParseFieldArgs& args) {
       return;
     case TracePacket::kGpuRenderStageEventFieldNumber:
       parser_.ParseGpuRenderStageEvent(
-          args.ts, args.data.sequence_state.get(),
+          args.ts, args.decoder.trusted_packet_sequence_id(),
+          args.data.sequence_state.get(),
           args.field.Cast<TracePacket::kGpuRenderStageEvent>());
       return;
     case TracePacket::kGpuLogFieldNumber:

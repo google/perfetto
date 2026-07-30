@@ -74,12 +74,17 @@ tables::GpuTable::Id GpuTracker::SetGpuInfo(uint32_t gpu,
   return id;
 }
 
-void GpuTracker::AddGpuRenderStageSlice(uint64_t event_id, SliceId slice_id) {
+void GpuTracker::AddGpuRenderStageSlice(
+    uint64_t event_id,
+    SliceId slice_id,
+    RenderStageRepresentation representation) {
   auto* gpu_slices = event_id_to_gpu_slices_.Find(event_id);
   if (!gpu_slices) {
-    event_id_to_gpu_slices_.Insert(event_id, {slice_id});
+    RenderStageSlices slices;
+    slices[static_cast<size_t>(representation)] = slice_id;
+    event_id_to_gpu_slices_.Insert(event_id, std::move(slices));
   } else {
-    gpu_slices->push_back(slice_id);
+    (*gpu_slices)[static_cast<size_t>(representation)] = slice_id;
   }
 
   auto* te_slice = event_id_to_track_event_slice_.Find(event_id);
@@ -94,8 +99,10 @@ void GpuTracker::AddGpuRenderStageSlice(uint64_t event_id, SliceId slice_id) {
 
   auto* waiting = event_id_to_waiting_slices_.Find(event_id);
   if (waiting) {
-    for (SliceId wait_slice : *waiting) {
-      context_->flow_tracker->InsertFlow(slice_id, wait_slice);
+    for (const WaitingSlice& wait_slice : *waiting) {
+      if (wait_slice.representation == representation) {
+        context_->flow_tracker->InsertFlow(slice_id, wait_slice.slice_id);
+      }
     }
   }
 }
@@ -110,8 +117,10 @@ void GpuTracker::AddRenderStageSubmission(uint64_t event_id, SliceId slice_id) {
 
   auto* gpu_slices = event_id_to_gpu_slices_.Find(event_id);
   if (gpu_slices) {
-    for (SliceId gpu_slice : *gpu_slices) {
-      context_->flow_tracker->InsertFlow(slice_id, gpu_slice);
+    for (const std::optional<SliceId>& gpu_slice : *gpu_slices) {
+      if (gpu_slice) {
+        context_->flow_tracker->InsertFlow(slice_id, *gpu_slice);
+      }
     }
   }
 }
@@ -126,25 +135,87 @@ void GpuTracker::AddRenderStageWait(uint64_t event_id, SliceId slice_id) {
 
   auto* gpu_slices = event_id_to_gpu_slices_.Find(event_id);
   if (gpu_slices) {
-    for (SliceId gpu_slice : *gpu_slices) {
-      context_->flow_tracker->InsertFlow(gpu_slice, slice_id);
+    for (const std::optional<SliceId>& gpu_slice : *gpu_slices) {
+      if (gpu_slice) {
+        context_->flow_tracker->InsertFlow(*gpu_slice, slice_id);
+      }
     }
   }
 }
 
-void GpuTracker::AddEventWait(uint64_t waited_event_id, SliceId slice_id) {
+void GpuTracker::AddPendingRenderStageQueue(std::function<void()> materialize) {
+  pending_render_stage_queues_.push_back(std::move(materialize));
+}
+
+void GpuTracker::MaterializePendingRenderStageQueues() {
+  std::vector<std::function<void()>> pending;
+  pending.swap(pending_render_stage_queues_);
+  for (auto& materialize : pending) {
+    materialize();
+  }
+}
+
+void GpuTracker::RegisterHardwareQueueTrack(
+    uint32_t packet_sequence_id,
+    uint32_t gpu_id,
+    uint64_t hw_queue_iid,
+    const TrackCompressor::TrackFactory& factory) {
+  hardware_queue_tracks_.Insert({packet_sequence_id, gpu_id, hw_queue_iid},
+                                factory);
+}
+
+void GpuTracker::RegisterLogicalQueueTrack(
+    UniquePid upid,
+    uint64_t logical_queue_id,
+    const TrackCompressor::TrackFactory& factory) {
+  logical_queue_tracks_.Insert({upid, logical_queue_id}, factory);
+}
+
+std::optional<TrackId> GpuTracker::InternHardwareQueueTrack(
+    uint32_t packet_sequence_id,
+    uint32_t gpu_id,
+    uint64_t hw_queue_iid,
+    int64_t ts,
+    int64_t dur) {
+  MaterializePendingRenderStageQueues();
+  auto* factory =
+      hardware_queue_tracks_.Find({packet_sequence_id, gpu_id, hw_queue_iid});
+  if (!factory) {
+    return std::nullopt;
+  }
+  return context_->track_compressor->Scoped(*factory, ts, dur);
+}
+
+std::optional<TrackId> GpuTracker::InternLogicalQueueTrack(
+    UniquePid upid,
+    uint64_t logical_queue_id,
+    int64_t ts,
+    int64_t dur) {
+  MaterializePendingRenderStageQueues();
+  auto* factory = logical_queue_tracks_.Find({upid, logical_queue_id});
+  if (!factory) {
+    return std::nullopt;
+  }
+  return context_->track_compressor->Scoped(*factory, ts, dur);
+}
+
+void GpuTracker::AddEventWait(uint64_t waited_event_id,
+                              SliceId slice_id,
+                              RenderStageRepresentation representation) {
   auto* gpu_slices = event_id_to_gpu_slices_.Find(waited_event_id);
   if (gpu_slices) {
-    for (SliceId src_slice : *gpu_slices) {
-      context_->flow_tracker->InsertFlow(src_slice, slice_id);
+    const auto& src_slice = (*gpu_slices)[static_cast<size_t>(representation)];
+    if (src_slice) {
+      context_->flow_tracker->InsertFlow(*src_slice, slice_id);
     }
   }
 
+  WaitingSlice waiting_slice{slice_id, representation};
   auto* waiting = event_id_to_waiting_slices_.Find(waited_event_id);
   if (!waiting) {
-    event_id_to_waiting_slices_.Insert(waited_event_id, {slice_id});
+    event_id_to_waiting_slices_.Insert(waited_event_id, {waiting_slice});
   } else {
-    waiting->push_back(slice_id);
+    waiting->push_back(waiting_slice);
   }
 }
 

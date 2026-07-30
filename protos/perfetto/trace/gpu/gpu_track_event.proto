@@ -54,8 +54,26 @@ message GpuTrackEvent {
 // Marks a TrackDescriptor as belonging to a GPU timeline.
 message GpuTrackDescriptor {
   // Optional identifier for the GPU in a multi-GPU device. This uses the same
-  // namespace as GpuRenderStageEvent.gpu_id.
+  // namespace as GpuRenderStageEvent.gpu_id. A global, non-queue descriptor
+  // which introduces a concrete GPU ID is the placement anchor for existing
+  // tracks belonging to that GPU. Producers should emit at most one such
+  // anchor per (machine, GPU ID); descendants inherit the ID.
   optional int32 gpu_id = 1;
+
+  // Associates this exact descriptor track with a render-stage queue. The
+  // descriptor's name, parent, ordering, and sibling merge fields control the
+  // corresponding render-stage track in the UI.
+  oneof render_stage_queue {
+    // Hardware queue ID scoped to the descriptor packet's trusted packet
+    // sequence, matching GpuRenderStageEvent.hw_queue_iid. Producers MUST keep
+    // this ID stable and MUST NOT reuse it for a different queue after an
+    // incremental-state reset.
+    uint64 hw_queue_iid = 2;
+
+    // Process-scoped logical queue ID. The process is inherited through a
+    // parent process TrackDescriptor.
+    uint64 logical_queue_id = 3;
+  }
 }
 
 message GpuTrackDescriptorExtension {

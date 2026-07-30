@@ -100,6 +100,7 @@ class GpuEventParser {
       bool report_missing,
       const protos::pbzero::GpuCounterEvent::Decoder& event);
   void ParseGpuRenderStageEvent(int64_t ts,
+                                uint32_t packet_sequence_id,
                                 PacketSequenceStateGeneration*,
                                 ConstBytes);
   void ParseGraphicsFrameEvent(int64_t timestamp, ConstBytes);
@@ -156,6 +157,8 @@ class GpuEventParser {
   const StringId frame_id_id_;
   const StringId submission_id_id_;
   const StringId hw_queue_id_id_;
+  const StringId logical_queue_id_id_;
+  const StringId canonical_slice_id_id_;
   const StringId upid_id_;
   const StringId pid_id_;
   const StringId tid_id_;

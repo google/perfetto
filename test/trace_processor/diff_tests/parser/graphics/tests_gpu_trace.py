@@ -21,6 +21,325 @@ from python.generators.diff_tests.testing import TestSuite
 
 class GraphicsGpuTrace(TestSuite):
 
+  def test_gpu_render_stage_track_event_queue_bindings(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor { uuid: 10 process { pid: 42 } }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor {
+            uuid: 20
+            parent_uuid: 10
+            name: "Accelerators"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor {
+            uuid: 21
+            parent_uuid: 20
+            name: "Stream #7"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+              logical_queue_id: 7
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor {
+            uuid: 100
+            name: "Physical execution"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {}
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor {
+            uuid: 101
+            parent_uuid: 100
+            name: "Channel #0"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+              hw_queue_iid: 1
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 90
+          track_event {
+            track_uuid: 21
+            name: "Iteration"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 90
+          track_event {
+            track_uuid: 101
+            name: "Queue saturation"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          interned_data {
+            graphics_contexts { iid: 1 pid: 42 }
+            gpu_specifications { iid: 1 name: "Default queue" }
+            gpu_specifications { iid: 2 name: "Render" }
+          }
+          sequence_flags: 1
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 100
+          gpu_render_stage_event {
+            event_id: 1
+            duration: 10
+            gpu_id: 0
+            hw_queue_iid: 1
+            stage_iid: 2
+            context: 1
+            logical_queue_id: 7
+            name: "Render pass"
+          }
+          sequence_flags: 2
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 115
+          gpu_render_stage_event {
+            event_id: 2
+            event_wait_ids: 1
+            duration: 2
+            gpu_id: 0
+            hw_queue_iid: 1
+            stage_iid: 2
+            context: 1
+            logical_queue_id: 7
+            name: "Dependent pass"
+          }
+          sequence_flags: 2
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 120
+          track_event { track_uuid: 21 type: TYPE_SLICE_END }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 120
+          track_event { track_uuid: 101 type: TYPE_SLICE_END }
+        }
+        """),
+        query="""
+        SELECT
+          t.name,
+          p.name AS parent_name,
+          count(DISTINCT t.id) AS raw_tracks,
+          count(DISTINCT t.track_group_id) AS track_groups,
+          count(s.id) AS slices,
+          sum(extract_arg(s.arg_set_id,
+              'gpu_render_stage_canonical_slice_id') IS NOT NULL)
+            AS projected_slices
+        FROM track t
+        LEFT JOIN track p ON p.id = t.parent_id
+        LEFT JOIN slice s ON s.track_id = t.id
+        WHERE t.name IN ('Channel #0', 'Stream #7')
+        GROUP BY t.name, p.name
+        ORDER BY t.name;
+
+        SELECT count(*) AS canonical_gpu_slices FROM gpu_slice;
+
+        SELECT count(*) AS render_stage_dependency_flows
+        FROM flow
+        JOIN slice source ON source.id = flow.slice_out
+        JOIN slice destination ON destination.id = flow.slice_in
+        WHERE source.name = 'Render pass'
+          AND destination.name = 'Dependent pass';
+        """,
+        out=Csv("""
+        "name","parent_name","raw_tracks","track_groups","slices","projected_slices"
+        "Channel #0","Physical execution",2,1,3,2
+        "Stream #7","Accelerators",2,1,3,2
+
+        "canonical_gpu_slices"
+        2
+
+        "render_stage_dependency_flows"
+        3
+        """))
+
+  def test_gpu_render_stage_hardware_queue_iid_is_sequence_scoped(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor {
+            uuid: 101
+            name: "Queue A"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+              hw_queue_iid: 1
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          track_descriptor {
+            uuid: 201
+            name: "Queue B"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+              hw_queue_iid: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 0
+          trusted_packet_sequence_id: 1
+          interned_data {
+            graphics_contexts { iid: 1 pid: 42 }
+            gpu_specifications { iid: 1 name: "Queue A default" }
+            gpu_specifications { iid: 2 name: "Render" }
+          }
+          sequence_flags: 1
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 1
+          gpu_render_stage_event {
+            event_id: 1
+            duration: 1
+            gpu_id: 0
+            hw_queue_iid: 1
+            stage_iid: 2
+            context: 1
+          }
+          sequence_flags: 2
+        }
+        packet {
+          timestamp: 0
+          trusted_packet_sequence_id: 2
+          interned_data {
+            graphics_contexts { iid: 1 pid: 42 }
+            gpu_specifications { iid: 1 name: "Queue B default" }
+            gpu_specifications { iid: 2 name: "Render" }
+          }
+          sequence_flags: 1
+        }
+        packet {
+          timestamp: 20
+          trusted_packet_sequence_id: 2
+          gpu_render_stage_event {
+            event_id: 2
+            duration: 1
+            gpu_id: 0
+            hw_queue_iid: 1
+            stage_iid: 2
+            context: 1
+          }
+          sequence_flags: 2
+        }
+        """),
+        query="""
+        SELECT t.name, group_concat(s.ts) AS timestamps
+        FROM track t
+        JOIN slice s ON s.track_id = t.id
+        WHERE extract_arg(s.arg_set_id,
+                          'gpu_render_stage_canonical_slice_id') IS NOT NULL
+        GROUP BY t.name
+        ORDER BY t.name;
+        """,
+        out=Csv("""
+        "name","timestamps"
+        "Queue A","10"
+        "Queue B","20"
+        """))
+
+  def test_gpu_render_stage_sibling_merge_none(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor { uuid: 10 process { pid: 42 } }
+        }
+        packet {
+          track_descriptor {
+            uuid: 20
+            parent_uuid: 10
+            name: "Accelerators"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {}
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 21
+            parent_uuid: 20
+            name: "Separate queue"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+              logical_queue_id: 7
+            }
+          }
+        }
+        packet {
+          timestamp: 90
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 21
+            name: "Annotation"
+            type: TYPE_INSTANT
+          }
+        }
+        packet {
+          timestamp: 0
+          trusted_packet_sequence_id: 1
+          interned_data {
+            graphics_contexts { iid: 1 pid: 42 }
+            gpu_specifications { iid: 1 name: "Default queue" }
+            gpu_specifications { iid: 2 name: "Render" }
+          }
+          sequence_flags: 1
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          gpu_render_stage_event {
+            event_id: 1
+            duration: 10
+            gpu_id: 0
+            hw_queue_iid: 1
+            stage_iid: 2
+            context: 1
+            logical_queue_id: 7
+          }
+          sequence_flags: 2
+        }
+        """),
+        query="""
+        SELECT
+          count(*) AS raw_tracks,
+          count(DISTINCT printf('%d:%d', track.track_group_id IS NOT NULL,
+                                coalesce(track.track_group_id, track.id)))
+            AS visual_tracks,
+          count(s.id) AS slices
+        FROM track
+        LEFT JOIN slice s ON s.track_id = track.id
+        WHERE track.name = 'Separate queue';
+        """,
+        out=Csv("""
+        "raw_tracks","visual_tracks","slices"
+        2,2,2
+        """))
+
   def test_gpu_counters(self):
     return DiffTestBlueprint(
         trace=Path('gpu_counters.py'),

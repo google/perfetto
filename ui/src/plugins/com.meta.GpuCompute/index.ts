@@ -86,6 +86,7 @@ class Compute {
   private readonly taskQueue = new AtomicTaskQueue();
   private readonly selectionSlot = new AsyncMemo<{
     hasMetrics: boolean;
+    canonicalSliceId?: number;
     toolbar?: ToolbarInfo;
   }>(this.taskQueue);
   private hadSelection = false;
@@ -285,6 +286,7 @@ class Compute {
           const hasMetrics = Array.isArray(data) && data.length > 0;
           return {
             hasMetrics,
+            canonicalSliceId: hasMetrics ? data[0].id : undefined,
             toolbar: hasMetrics ? data[0].toolbar : undefined,
           };
         },
@@ -293,8 +295,10 @@ class Compute {
       if (result.data && this.appliedSelectionSliceId !== selSliceId) {
         this.appliedSelectionSliceId = selSliceId;
         if (result.data.hasMetrics) {
-          this.sliceId = selSliceId;
+          this.sliceId = result.data.canonicalSliceId ?? selSliceId;
           this.setToolbarInfo(result.data.toolbar);
+          this.ctx.activeInfoTab = 'details';
+          this.trace.tabs.showTab(this.tabUri);
         } else if (!isKnownKernel) {
           this.sliceId = this.options[0]?.id ?? -1;
           this.setToolbarInfo(undefined);
