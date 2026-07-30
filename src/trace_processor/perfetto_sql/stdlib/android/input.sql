@@ -83,6 +83,7 @@ WITH
   _send_message_events AS (
     SELECT
       send_message_slice.name,
+      publish_slice.name AS publish_name,
       enqueue_slice.name AS enqueue_name,
       thread_slice.utid,
       thread_slice.thread_name,
@@ -104,6 +105,7 @@ SELECT
   event_channel,
   str_split(str_split(event_channel, ' ', 1), '/', 0) AS process_name,
   str_split(str_split(enqueue_name, '=', 2), ')', 0) AS input_event_id,
+  str_split(str_split(str_split(publish_name, 'action=', 1), ',', 0), ')', 0) AS event_action,
   utid,
   thread_name
 FROM _send_message_events;
@@ -130,7 +132,6 @@ SELECT
   cast_int!(t.upid) AS upid,
   t.process_name,
   str_split(s.name, '=', 3) AS extracted_input_event_id,
-  str_split(str_split(parent.name, '_', 1), ' ', 0) AS event_action,
   parent.ts AS consume_time,
   parent.ts + parent.dur AS finish_time
 FROM slice AS s
@@ -200,7 +201,6 @@ SELECT * FROM _input_event_frame_speculative_matches;
 CREATE PERFETTO TABLE _input_event_id_to_android_frame AS
 SELECT
   dev.extracted_input_event_id AS input_event_id,
-  dev.event_action,
   dev.consume_time,
   dev.finish_time,
   dev.utid,
@@ -248,8 +248,8 @@ SELECT
     LIMIT 1
   ) AS present_time,
   _input_event_id_to_android_frame.frame_id,
-  event_seq,
-  event_action,
+  _event_seq_to_input_event_id.event_seq,
+  _event_seq_to_input_event_id.event_action,
   _input_event_id_to_android_frame.is_speculative_match
 FROM _input_event_id_to_android_frame
 RIGHT JOIN _event_seq_to_input_event_id
@@ -400,7 +400,7 @@ SELECT
   finish.pid AS pid,
   finish.process_name AS process_name,
   dispatch.event_type,
-  frame.event_action,
+  seq_map.event_action,
   dispatch.event_seq,
   dispatch.event_channel,
   _normalize_event_channel(dispatch.event_channel) AS normalized_event_channel,
