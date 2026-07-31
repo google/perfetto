@@ -70,6 +70,43 @@ const STORE_SCHEMA = z.object({
 
 export type SerializedStoreState = z.infer<typeof STORE_SCHEMA>;
 
+export type SerializedTrackNode = {
+  name?: string;
+  uri?: string;
+  headless?: boolean;
+  sortOrder?: number;
+  collapsed?: boolean;
+  isSummary?: boolean;
+  removable?: boolean;
+  subtitle?: string;
+  chips?: string[];
+  children?: SerializedTrackNode[];
+};
+
+const TRACK_NODE_SCHEMA: z.ZodType<SerializedTrackNode> = z.lazy(() =>
+  z.object({
+    name: z.string().optional(),
+    uri: z.string().optional(),
+    headless: z.boolean().optional(),
+    sortOrder: z.number().optional(),
+    collapsed: z.boolean().optional(),
+    isSummary: z.boolean().optional(),
+    removable: z.boolean().optional(),
+    subtitle: z.string().optional(),
+    chips: z.array(z.string()).optional(),
+    children: z.array(TRACK_NODE_SCHEMA).optional(),
+  }),
+);
+
+const WORKSPACE_SCHEMA = z.object({
+  title: z.string(),
+  userEditable: z.boolean().optional(),
+  pinnedTracks: z.array(TRACK_NODE_SCHEMA).default([]),
+  tracks: z.array(TRACK_NODE_SCHEMA).default([]),
+});
+
+export type SerializedWorkspace = z.infer<typeof WORKSPACE_SCHEMA>;
+
 export const APP_STATE_SCHEMA = z.object({
   version: z.number(),
   pinnedTracks: z.array(z.string()).default([]),
@@ -82,6 +119,8 @@ export const APP_STATE_SCHEMA = z.object({
   selection: z.array(SELECTION_SCHEMA).default([]),
   notes: z.array(NOTE_SCHEMA).default([]),
   store: z.array(STORE_SCHEMA).default([]),
+  workspaces: z.array(WORKSPACE_SCHEMA).default([]),
+  currentWorkspace: z.string().optional(),
 });
 
 export type SerializedAppState = z.infer<typeof APP_STATE_SCHEMA>;

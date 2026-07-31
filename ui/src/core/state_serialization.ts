@@ -19,10 +19,66 @@ import {
   type SerializedStoreState,
   type SerializedSelection,
   type SerializedAppState,
+  type SerializedTrackNode,
 } from './state_serialization_schema';
+import {TrackNode} from '../public/workspace';
 import type {TraceImpl} from './trace_impl';
 import {errResult, okResult, type Result} from '../base/result';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+
+export function serializeTrackNode(node: TrackNode): SerializedTrackNode {
+  const res: SerializedTrackNode = {};
+  if (node.name !== undefined) res.name = node.name;
+  if (node.uri !== undefined) res.uri = node.uri;
+  if (node.headless) res.headless = node.headless;
+  if (node.sortOrder !== undefined) res.sortOrder = node.sortOrder;
+  if (node.collapsed !== undefined) res.collapsed = node.collapsed;
+  if (node.isSummary) res.isSummary = node.isSummary;
+  if (node.removable) res.removable = node.removable;
+  if (node.subtitle !== undefined) res.subtitle = node.subtitle;
+  if (node.chips && node.chips.length > 0) res.chips = Array.from(node.chips);
+  if (node.children.length > 0) {
+    res.children = serializeTrackNodes(node.children);
+  }
+  return res;
+}
+
+export function serializeTrackNodes(
+  nodes: ReadonlyArray<TrackNode>,
+): SerializedTrackNode[] {
+  return nodes.map(serializeTrackNode);
+}
+
+export function deserializeTrackNode(sNode: SerializedTrackNode): TrackNode {
+  const node = new TrackNode({
+    name: sNode.name,
+    uri: sNode.uri,
+    headless: sNode.headless,
+    sortOrder: sNode.sortOrder,
+    collapsed: sNode.collapsed,
+    isSummary: sNode.isSummary,
+    removable: sNode.removable,
+    subtitle: sNode.subtitle,
+    chips: sNode.chips,
+  });
+  if (sNode.children) {
+    for (const sChild of sNode.children) {
+      const childNode = deserializeTrackNode(sChild);
+      node.addChildLast(childNode);
+    }
+  }
+  return node;
+}
+
+export function deserializeTrackNodes(
+  sNodes: SerializedTrackNode[],
+  parent: TrackNode,
+): void {
+  for (const sNode of sNodes) {
+    const node = deserializeTrackNode(sNode);
+    parent.addChildLast(node);
+  }
+}
 
 // When it comes to serialization & permalinks there are two different use cases
 // 1. Uploading the current trace in a Cloud Storage (GCS) file AND serializing
@@ -104,6 +160,15 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
     store.push({id, state: pluginState});
   }
 
+  const workspaces = trace.workspaces.all
+    .filter((w) => w !== trace.defaultWorkspace)
+    .map((w) => ({
+      title: w.title,
+      userEditable: w.userEditable,
+      pinnedTracks: serializeTrackNodes(w.pinnedTracks),
+      tracks: serializeTrackNodes(w.tracks.children),
+    }));
+
   return {
     version: SERIALIZED_STATE_VERSION,
     // Only store pinned tracks from the default workspace
@@ -117,6 +182,8 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
     notes,
     selection,
     store,
+    workspaces,
+    currentWorkspace: trace.workspaces.currentWorkspace.title,
   };
 }
 
@@ -182,6 +249,28 @@ export function deserializeAppStatePhase2(
     const track = trace.defaultWorkspace.getTrackByUri(uri);
     if (track) {
       track.pin();
+    }
+  }
+
+  // Restore non-default workspaces.
+  for (const ws of appState.workspaces ?? []) {
+    const workspace = trace.workspaces.createEmptyWorkspace(ws.title);
+    if (ws.userEditable !== undefined) {
+      workspace.userEditable = ws.userEditable;
+    }
+    deserializeTrackNodes(ws.tracks, workspace.tracks);
+    for (const pinned of ws.pinnedTracks) {
+      const node = deserializeTrackNode(pinned);
+      workspace.pinnedTracksNode.addChildLast(node);
+    }
+  }
+
+  if (appState.currentWorkspace !== undefined) {
+    const targetWs = trace.workspaces.all.find(
+      (w) => w.title === appState.currentWorkspace,
+    );
+    if (targetWs) {
+      trace.workspaces.switchWorkspace(targetWs);
     }
   }
 
