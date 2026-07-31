@@ -163,6 +163,7 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
   const workspaces = trace.workspaces.all
     .filter((w) => w !== trace.defaultWorkspace)
     .map((w) => ({
+      uuid: w.uuid,
       title: w.title,
       userEditable: w.userEditable,
       pinnedTracks: serializeTrackNodes(w.pinnedTracks),
@@ -183,7 +184,7 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
     selection,
     store,
     workspaces,
-    currentWorkspace: trace.workspaces.currentWorkspace.title,
+    currentWorkspace: trace.workspaces.currentWorkspace.uuid,
   };
 }
 
@@ -254,7 +255,24 @@ export function deserializeAppStatePhase2(
 
   // Restore non-default workspaces.
   for (const ws of appState.workspaces ?? []) {
-    const workspace = trace.workspaces.createEmptyWorkspace(ws.title);
+    let workspace = ws.uuid
+      ? trace.workspaces.all.find((w) => w.uuid === ws.uuid)
+      : undefined;
+
+    if (!workspace) {
+      workspace = trace.workspaces.all.find((w) => w.title === ws.title);
+    }
+
+    if (!workspace) {
+      workspace = trace.workspaces.createEmptyWorkspace(ws.title, ws.uuid);
+    } else {
+      workspace.clear();
+      workspace.title = ws.title;
+      if (ws.uuid) {
+        workspace.uuid = ws.uuid;
+      }
+    }
+
     if (ws.userEditable !== undefined) {
       workspace.userEditable = ws.userEditable;
     }
@@ -267,7 +285,9 @@ export function deserializeAppStatePhase2(
 
   if (appState.currentWorkspace !== undefined) {
     const targetWs = trace.workspaces.all.find(
-      (w) => w.title === appState.currentWorkspace,
+      (w) =>
+        w.uuid === appState.currentWorkspace ||
+        w.title === appState.currentWorkspace,
     );
     if (targetWs) {
       trace.workspaces.switchWorkspace(targetWs);

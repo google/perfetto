@@ -104,7 +104,7 @@ describe('state_serialization', () => {
     trace.workspaces.switchWorkspace(customWs);
 
     const serialized = serializeAppState(trace);
-    expect(serialized.currentWorkspace).toBe('Active Workspace');
+    expect(serialized.currentWorkspace).toBe(customWs.uuid);
 
     const targetTrace = createFakeTraceImpl();
     deserializeAppStatePhase2(serialized, targetTrace);
@@ -112,5 +112,32 @@ describe('state_serialization', () => {
     expect(targetTrace.workspaces.currentWorkspace.title).toBe(
       'Active Workspace',
     );
+  });
+
+  test('deduplicate workspaces by uuid when loading multiple times', () => {
+    const trace = createFakeTraceImpl();
+
+    const customWs = trace.workspaces.createEmptyWorkspace(
+      'Plugin Workspace',
+      'stable-plugin-uuid-1234',
+    );
+    customWs.tracks.addChildLast(
+      new TrackNode({name: 'Track A', uri: 'track.a'}),
+    );
+
+    const serialized = serializeAppState(trace);
+    expect(serialized.workspaces[0].uuid).toBe('stable-plugin-uuid-1234');
+
+    const targetTrace = createFakeTraceImpl();
+    deserializeAppStatePhase2(serialized, targetTrace);
+    deserializeAppStatePhase2(serialized, targetTrace);
+
+    const nonDefaultWorkspaces = targetTrace.workspaces.all.filter(
+      (w) => w !== targetTrace.defaultWorkspace,
+    );
+    expect(nonDefaultWorkspaces).toHaveLength(1);
+    expect(nonDefaultWorkspaces[0].uuid).toBe('stable-plugin-uuid-1234');
+    expect(nonDefaultWorkspaces[0].title).toBe('Plugin Workspace');
+    expect(nonDefaultWorkspaces[0].tracks.children).toHaveLength(1);
   });
 });

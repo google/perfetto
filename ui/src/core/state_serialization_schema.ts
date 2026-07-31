@@ -99,6 +99,7 @@ const TRACK_NODE_SCHEMA: z.ZodType<SerializedTrackNode> = z.lazy(() =>
 );
 
 const WORKSPACE_SCHEMA = z.object({
+  uuid: z.string().optional(),
   title: z.string(),
   userEditable: z.boolean().optional(),
   pinnedTracks: z.array(TRACK_NODE_SCHEMA).default([]),
