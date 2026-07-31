@@ -185,7 +185,6 @@ export class AndroidInputEventSource {
         e.dispatch_ts AS ts_dispatch,
         e.receive_ts AS ts_receive,
         s_cons.ts AS ts_consume,
-        s_frame.ts AS ts_frame,
         s_read.id AS id_reader,
         s_read.track_id AS track_reader,
         s_read.dur AS dur_reader,
@@ -198,10 +197,9 @@ export class AndroidInputEventSource {
         s_cons.id AS id_consume,
         s_cons.track_id AS track_consume,
         s_cons.dur AS dur_consume,
-        s_frame.id AS id_frame,
-        s_frame.track_id AS track_frame,
-        s_frame.dur AS dur_frame,
-        e.is_speculative_frame
+        e.is_speculative_frame,
+        e.frame_id AS frame_id,
+        e.upid AS upid
       FROM android_input_events AS e
       LEFT JOIN slice AS s_read
         ON s_read.ts = e.read_time
@@ -215,8 +213,6 @@ export class AndroidInputEventSource {
         AND s_recv.track_id = e.receive_track_id
       LEFT JOIN _input_consumers_lookup AS s_cons
         ON s_cons.cookie = e.event_seq
-      LEFT JOIN _frame_choreographer_lookup AS s_frame
-        ON s_frame.frame_id = CAST(e.frame_id AS LONG)
       WHERE e.event_channel LIKE '%/%'
         AND (e.process_name = ${processFilter} OR ${processFilter} IS NULL)
         AND (${speculativeFilter} = 0 OR e.is_speculative_frame = 0 OR e.is_speculative_frame IS NULL)
@@ -361,14 +357,5 @@ const CORE_STAGES: StageDefinition[] = [
     trackField: 'track_consume',
     tsField: 'ts_consume',
     durField: 'dur_consume',
-  },
-  {
-    key: 'frame',
-    headerName: 'App Frame',
-    sequenceNumber: 5000,
-    idField: 'id_frame',
-    trackField: 'track_frame',
-    tsField: 'ts_frame',
-    durField: 'dur_frame',
   },
 ];
