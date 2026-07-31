@@ -16,8 +16,6 @@
 
 #include "src/tools/proto_merger/proto_file_serializer.h"
 
-#include <google/protobuf/descriptor.h>
-
 namespace perfetto {
 namespace proto_merger {
 namespace {
