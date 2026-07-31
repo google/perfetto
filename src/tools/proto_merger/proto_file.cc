@@ -43,10 +43,6 @@ bool IsMessageEmpty(const ProtoFile::Message& msg) {
          msg.enums.empty() && msg.oneofs.empty();
 }
 
-ProtoFile::Field FieldFromDescriptor(
-    const google::protobuf::Descriptor& parent,
-    const google::protobuf::FieldDescriptor& desc);
-
 const char* const
     kTypeToName[google::protobuf::FieldDescriptor::Type::MAX_TYPE + 1] = {
         "ERROR",  // 0 is reserved for errors
@@ -93,14 +89,18 @@ std::string TypeNameInScope(const std::string& base_package,
                             bool packageless_type) {
   std::string full_name = std::string(type->full_name());
   if (type->file() != desc.containing_type()->file()) {
-    full_name = base_package + "." + std::string(type->name());
+    std::string pkg = std::string(type->file()->package());
+    std::string relative_name =
+        pkg.empty()
+            ? std::string(type->full_name())
+            : base::StripPrefix(std::string(type->full_name()), pkg + ".");
+    full_name = base_package + "." + relative_name;
   }
   if (packageless_type) {
     return base::StripPrefix(full_name, base_package + ".");
-  } else {
-    return MinimizeType(full_name, scope_full_name)
-        .value_or(std::string(type->name()));
   }
+  return MinimizeType(full_name, scope_full_name)
+      .value_or(std::string(type->name()));
 }
 
 std::string SimpleFieldTypeInScope(
@@ -216,31 +216,16 @@ Output InitFromDescriptor(const Descriptor& desc) {
   return out;
 }
 
-std::string FullyQualifiedFieldType(
+ProtoFile::Field FieldFromDescriptor(
+    const google::protobuf::Descriptor& parent,
     const google::protobuf::FieldDescriptor& desc) {
-  if (desc.is_map()) {
-    return "map<" + FullyQualifiedFieldType(*desc.message_type()->field(0)) +
-           "," + FullyQualifiedFieldType(*desc.message_type()->field(1)) + ">";
-  }
-  switch (desc.type()) {
-    case google::protobuf::FieldDescriptor::TYPE_MESSAGE:
-      return "." + std::string(desc.message_type()->full_name());
-    case google::protobuf::FieldDescriptor::TYPE_ENUM:
-      return "." + std::string(desc.enum_type()->full_name());
-    default:
-      return kTypeToName[desc.type()];
-  }
-}
-
-ProtoFile::Field FieldFromDescriptorHelper(
-    const google::protobuf::FieldDescriptor& desc,
-    std::string type,
-    std::string packageless_type) {
+  std::string base_package = std::string(parent.file()->package());
   auto field = InitFromDescriptor<ProtoFile::Field>(desc);
   field.is_repeated = desc.is_repeated();
-  field.packageless_type = std::move(packageless_type);
-  field.type = std::move(type);
-  field.fq_type = FullyQualifiedFieldType(desc);
+  field.type = FieldTypeInScope(base_package, std::string(parent.full_name()),
+                                desc, false);
+  field.packageless_type = FieldTypeInScope(
+      base_package, std::string(parent.full_name()), desc, true);
   field.name = desc.name();
   field.number = desc.number();
   field.options = OptionsFromMessage(*desc.file()->pool(), desc.options());
@@ -257,18 +242,6 @@ ProtoFile::Field FieldFromDescriptorHelper(
   }
 
   return field;
-}
-
-ProtoFile::Field FieldFromDescriptor(
-    const google::protobuf::Descriptor& parent,
-    const google::protobuf::FieldDescriptor& desc) {
-  std::string base_package = std::string(parent.file()->package());
-  return FieldFromDescriptorHelper(
-      desc,
-      FieldTypeInScope(base_package, std::string(parent.full_name()), desc,
-                       false),
-      FieldTypeInScope(base_package, std::string(parent.full_name()), desc,
-                       true));
 }
 
 ProtoFile::Enum::Value EnumValueFromDescriptor(
@@ -362,7 +335,6 @@ ProtoFile ProtoFileFromDescriptor(
         extension_files) {
   ProtoFile file;
   file.preamble = std::move(preamble);
-  file.package = desc.package();
   for (int i = 0; i < desc.enum_type_count(); ++i) {
     file.enums.push_back(EnumFromDescriptor(*desc.enum_type(i)));
   }

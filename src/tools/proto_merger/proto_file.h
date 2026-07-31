@@ -53,7 +53,6 @@ struct ProtoFile {
     bool is_repeated;
     std::string packageless_type;
     std::string type;
-    std::string fq_type;
     std::string name;
     int number;
     std::vector<Option> options;
@@ -80,7 +79,6 @@ struct ProtoFile {
   };
 
   std::string preamble;
-  std::string package;
 
   std::vector<Message> messages;
   std::vector<Enum> enums;

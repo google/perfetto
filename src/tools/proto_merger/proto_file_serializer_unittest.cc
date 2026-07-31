@@ -920,6 +920,94 @@ TEST(ProtoFileSerializerTest, ExtensionsInliningDifferentPackage) {
   EXPECT_THAT(out, HasSubstr("message CustomHelper"));
 }
 
+TEST(ProtoFileSerializerTest, ExtensionsInliningNestedDifferentPackage) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string input_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message BaseMessage {
+      optional string name = 1;
+    }
+  )";
+
+  std::string upstream_base_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message BaseMessage {
+      optional string name = 1;
+      extensions 1000 to 9999;
+    }
+  )";
+
+  std::string upstream_ext_content = R"(
+    syntax = "proto2";
+    package custom.ext;
+    import "upstream_base.proto";
+
+    message MyParent {
+      message CustomHelper {
+        optional string val = 1;
+      }
+    }
+
+    extend perfetto.protos.BaseMessage {
+      optional MyParent.CustomHelper custom_ext = 1000;
+    }
+  )";
+
+  TempProtoFile temp_input(temp_dir.path(), "input.proto", input_content);
+  TempProtoFile temp_upstream_base(temp_dir.path(), "upstream_base.proto",
+                                   upstream_base_content);
+  TempProtoFile temp_upstream_ext(temp_dir.path(), "upstream_ext.proto",
+                                  upstream_ext_content);
+
+  protozero::MultiFileErrorCollectorImpl mfe;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", temp_dir.path());
+  dst.MapPath("", ".");
+  dst.MapPath("", "buildtools/protobuf/src");
+
+  google::protobuf::compiler::Importer importer_input(&dst, &mfe);
+  const auto* input_desc = importer_input.Import("input.proto");
+
+  google::protobuf::compiler::Importer importer_upstream(&dst, &mfe);
+  const auto* upstream_base_desc =
+      importer_upstream.Import("upstream_base.proto");
+  const auto* upstream_ext_desc =
+      importer_upstream.Import("upstream_ext.proto");
+
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_NE(upstream_base_desc, nullptr);
+  ASSERT_NE(upstream_ext_desc, nullptr);
+
+  ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
+  ProtoFile upstream_base_file =
+      ProtoFileFromDescriptor("", *upstream_base_desc, {upstream_ext_desc});
+
+  Allowlist allowed;
+  // Allowlist new inlined extension field custom_ext (1000)
+  allowed.messages["BaseMessage"].fields.insert(1000);
+  // Allowlist CustomHelper recursively
+  allowed.messages["MyParent"].nested_messages["CustomHelper"].fields.insert(1);
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input_file, upstream_base_file, allowed, merged).ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+
+  // 1. Check that active inlined field is output directly inside BaseMessage
+  // and resolved to the nested type, retaining parent name prefix (without
+  // package prefix)
+  EXPECT_THAT(out, HasSubstr("message BaseMessage"));
+  EXPECT_THAT(out, HasSubstr("MyParent.CustomHelper custom_ext = 1000;"));
+
+  // 2. Check helper parent type is relocated
+  EXPECT_THAT(out, HasSubstr("message MyParent"));
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto
