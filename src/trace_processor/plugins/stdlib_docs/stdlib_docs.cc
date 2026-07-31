@@ -283,6 +283,8 @@ bool StdlibDocsTables::Cursor::Run(const std::vector<SqlValue>& arguments) {
           row.description =
               string_pool_->InternString(base::StringView(tv.description));
           row.exposed = tv.exposed ? 1 : 0;
+          row.importance =
+              string_pool_->InternString(base::StringView(tv.importance));
           row.cols = string_pool_->InternString(
               base::StringView(SerializeEntries(tv.columns)));
           table_.Insert(row);

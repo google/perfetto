@@ -14,6 +14,7 @@
 -- limitations under the License.
 
 -- Battery charge at timestamp.
+-- @importance mid
 CREATE PERFETTO VIEW android_battery_charge(
   -- Timestamp.
   ts TIMESTAMP,

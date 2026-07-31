@@ -244,12 +244,15 @@ class TableOrView:
   type: str
   desc: str
   cols: Dict[str, Arg]
+  # Importance level from a `-- @importance <level>` annotation, or '' if none.
+  importance: str
 
-  def __init__(self, name, type, desc, cols):
+  def __init__(self, name, type, desc, cols, importance=''):
     self.name = name
     self.type = type
     self.desc = desc
     self.cols = cols
+    self.importance = importance
 
 
 class TableViewDocParser(AbstractDocParser):
@@ -285,7 +288,8 @@ class TableViewDocParser(AbstractDocParser):
         name=self._parse_name(),
         type=type,
         desc=self._parse_desc_not_empty(doc.description),
-        cols=cols)
+        cols=cols,
+        importance=doc.importance)
 
 
 class Function:

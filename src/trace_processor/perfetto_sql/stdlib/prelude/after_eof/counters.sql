@@ -306,6 +306,7 @@ WHERE
   ct.type IN ('perf_cpu_counter', 'perf_global_counter');
 
 -- Alias of the `counter` table.
+-- @importance low
 CREATE PERFETTO VIEW counters(
   -- Alias of `counter.id`.
   id ID,

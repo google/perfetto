@@ -15,6 +15,7 @@
 --
 
 -- Events when CPU entered hypervisor.
+-- @importance high
 CREATE PERFETTO VIEW pkvm_hypervisor_events(
   -- Id of the corresponding slice in slice table.
   slice_id JOINID(slice.id),

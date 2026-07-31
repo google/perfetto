@@ -653,6 +653,7 @@ ORDER BY
 -- A list of "Chrome tasks": top-level execution units (e.g. scheduler tasks /
 -- IPCs / system callbacks) run by Chrome. For a given thread, the slices
 -- corresponding to these tasks will not intersect.
+-- @importance high
 CREATE PERFETTO VIEW chrome_tasks (
   -- Id for the given task, also the id of the slice this task corresponds to.
   id LONG,

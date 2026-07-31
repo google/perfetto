@@ -53,6 +53,7 @@ FROM __intrinsic_ftrace_event;
 
 -- This table is deprecated. Use `ftrace_event` instead which contains the same
 -- rows; this table is simply a (badly named) alias.
+-- @importance low
 CREATE PERFETTO VIEW raw(
   -- Unique identifier for this raw event.
   id ID,

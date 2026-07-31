@@ -149,6 +149,11 @@ CREATE_MACRO_PATTERN = update_pattern(
 INCLUDE_PATTERN = update_pattern(
     fr'^INCLUDE PERFETTO MODULE ([A-Za-z0-9_.*]*);$')
 
+# A `@importance <level>` annotation line within a leading comment block. `\b`
+# stops a word merely starting with the tag (e.g. "@importanceX") from matching;
+# the level is captured (possibly empty) for validation by the caller.
+IMPORTANCE_PATTERN = r'@importance\b\s*(\S*)\s*$'
+
 NAME_AND_TYPE_PATTERN = update_pattern(fr' ({NAME})\s+({TYPE}) ')
 
 ARG_DEFINITION_PATTERN = update_pattern(ARG_PATTERN)

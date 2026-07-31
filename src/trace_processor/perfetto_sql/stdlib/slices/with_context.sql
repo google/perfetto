@@ -145,6 +145,7 @@ JOIN process USING (upid);
 
 -- All the slices in the trace associated to a thread or a process along
 -- with contextual information about them (e.g. thread name, process name, tid etc).
+-- @importance high
 CREATE PERFETTO VIEW thread_or_process_slice(
   -- Slice
   id JOINID(slice.id),

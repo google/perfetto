@@ -32,6 +32,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 --
 -- NOTE: Some tracks may have a spike greater than 100MiB. This can be legitimate or
 -- an accounting issue: see b/418231246 for more details.
+-- @importance high
 CREATE PERFETTO TABLE android_process_memory_intervals(
   -- The id of the memory counter value
   id JOINID(counter.id),

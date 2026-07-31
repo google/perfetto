@@ -18,6 +18,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 INCLUDE PERFETTO MODULE intervals.fill_gaps;
 
 -- Device charging states.
+-- @importance mid
 CREATE PERFETTO TABLE android_charging_states(
   -- A unique id for each row.
   id LONG,

@@ -13,14 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 from dataclasses import dataclass
 from re import Match
 from typing import List, Optional, Tuple
 
+from python.generators.sql_processing.utils import IMPORTANCE_PATTERN
 from python.generators.sql_processing.utils import ObjKind
 from python.generators.sql_processing.utils import extract_comment
 from python.generators.sql_processing.utils import match_pattern
 from python.generators.sql_processing.utils import PATTERN_BY_KIND
+
+# Valid values for the `-- @importance <level>` table annotation.
+VALID_IMPORTANCE = ('core', 'high', 'mid', 'low')
 
 
 class DocsExtractor:
@@ -36,6 +41,10 @@ class DocsExtractor:
     obj_match: Match
 
     description: str
+
+    # Importance level from a `-- @importance <level>` annotation, or '' if the
+    # object carries no such annotation.
+    importance: str = ''
 
   def __init__(self, path: str, module_name: str, sql: str):
     self.path = path
@@ -73,6 +82,20 @@ class DocsExtractor:
       # Remove the comment.
       comment_stripped = line.lstrip('--')
       stripped = comment_stripped.lstrip()
+
+      # Pull out a `@importance <level>` annotation rather than folding it into
+      # the description.
+      m = re.match(IMPORTANCE_PATTERN, stripped)
+      if m:
+        level = m.group(1)
+        if level in VALID_IMPORTANCE:
+          extract.importance = level
+        else:
+          self.errors.append(
+              f'{self.path}: invalid @importance level "{level}" '
+              f'(expected one of {"|".join(VALID_IMPORTANCE)})')
+        continue
+
       extract.description += comment_stripped + "\n"
 
     return extract

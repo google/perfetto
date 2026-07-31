@@ -188,6 +188,7 @@ SELECT
   END AS component;
 
 -- List of all ANRs that occurred in the trace (one row per ANR).
+-- @importance mid
 CREATE PERFETTO TABLE android_anrs(
   -- Name of the process that triggered the ANR.
   process_name STRING,

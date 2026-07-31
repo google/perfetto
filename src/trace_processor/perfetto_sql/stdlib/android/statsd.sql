@@ -17,6 +17,7 @@
 -- Statsd atoms.
 --
 -- A subset of the slice table containing statsd atom instant events.
+-- @importance mid
 CREATE PERFETTO VIEW android_statsd_atoms(
   -- Unique identifier for this slice.
   id LONG,

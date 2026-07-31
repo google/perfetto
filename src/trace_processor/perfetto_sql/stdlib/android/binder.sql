@@ -445,6 +445,7 @@ LEFT JOIN _oom_score AS server_oom
 
 -- Breakdown binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction async.
+-- @importance high
 CREATE PERFETTO TABLE android_binder_txns(
   -- Fully qualified name of the binder endpoint if existing.
   aidl_name STRING,
