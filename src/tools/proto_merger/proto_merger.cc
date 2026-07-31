@@ -510,7 +510,6 @@ base::Status MergeProtoFiles(const ProtoFile& input,
   // The preamble is taken directly from upstream. This allows private stuff
   // to be in the preamble without being present in upstream.
   out.preamble = input.preamble;
-  out.package = input.package;
 
   std::set<std::string> known_enums;
   for (const auto& en : upstream.enums) {

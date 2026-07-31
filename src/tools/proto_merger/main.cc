@@ -56,8 +56,8 @@ ImportResult ImportProto(const std::string& proto_file,
   auto mfe = std::make_unique<protozero::MultiFileErrorCollectorImpl>();
 
   ImportResult result;
-  result.importer.reset(
-      new google::protobuf::compiler::Importer(dst.get(), mfe.get()));
+  result.importer = std::make_unique<google::protobuf::compiler::Importer>(
+      dst.get(), mfe.get());
   result.source_tree = std::move(dst);
   result.error_collector = std::move(mfe);
   result.file_descriptor = result.importer->Import(proto_file);
