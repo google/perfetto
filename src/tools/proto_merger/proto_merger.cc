@@ -287,6 +287,9 @@ bool IsAllowedTypeTransition(const std::string& from,
       (is_message(from) && to == "bytes")) {
     return true;
   }
+  if (is_message(from) && is_message(to)) {
+    return true;
+  }
   return false;
 }
 
