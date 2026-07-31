@@ -149,9 +149,9 @@ AS
 WITH
   frame_base AS (
     SELECT
-      cuj_id,
-      ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY do_frame.vsync) AS frame_number,
-      vsync,
+      do_frame.cuj_id,
+      ROW_NUMBER() OVER (PARTITION BY do_frame.cuj_id ORDER BY do_frame.vsync) AS frame_number,
+      do_frame.vsync,
       boundary.ts,
       boundary.ts_expected,
       boundary.ts_do_frame_start,
@@ -170,8 +170,8 @@ WITH
     WHERE
       draw_frame.id = fence.draw_frame_slice_id
     GROUP BY
-      cuj_id,
-      vsync,
+      do_frame.cuj_id,
+      do_frame.vsync,
       boundary.ts,
       boundary.ts_do_frame_start
   )

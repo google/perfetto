@@ -68,6 +68,8 @@ FROM _jank_cujs_slices AS cuj
 LEFT JOIN slice AS cuj_state_marker
   ON cuj_state_marker.ts >= cuj.ts
   AND cuj_state_marker.ts < cuj.ts_end
+  AND (cuj_state_marker.name GLOB '*FT#*'
+  OR cuj_state_marker.name GLOB '*#UIThread')
 LEFT JOIN track AS marker_track
   ON marker_track.id = cuj_state_marker.track_id
 LEFT JOIN thread_track
@@ -129,7 +131,7 @@ SELECT substr($cuj_slice_name, 3, length($cuj_slice_name) - 3);
 
 -- Information about all frames in a process that overlap with a CUJ from the same process.
 -- This can include multiple frames for the same frame_id (for eg. frames with different layers).
-CREATE PERFETTO VIEW _all_frames_in_cuj AS
+CREATE PERFETTO TABLE _all_frames_in_cuj AS
 SELECT
   _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
   cuj.upid,

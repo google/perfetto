@@ -98,10 +98,11 @@ class BlockingCallMetricHandler implements MetricHandler {
     const processName = metricData.process;
     const blockingCallName = metricData.blockingCallName;
 
-    // TODO: b/296349525 - Migrate jank tables from run metrics to stdlib
     const blockingCallDuringCujQuery = `
+  INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
+
   SELECT name, ts, dur
-  FROM blocking_call_slices_scoped_to_cujs
+  FROM _blocking_calls_frame_cuj
   WHERE process_name = "${processName}"
       AND cuj_name = "${cuj}"
       AND name = "${blockingCallName}"

@@ -83,18 +83,12 @@ CREATE PERFETTO TABLE _android_jank_cuj_main_thread_frame_boundary(
 AS
 -- intermediate table that discards unfinished slices and parses vsync as int.
 WITH
-  expected_timeline AS (
-    SELECT *, CAST(name AS INTEGER) AS vsync
-    FROM expected_frame_timeline_slice
-    WHERE
-      dur > 0
-  ),
   -- Matches vsyncs in CUJ to expected frame timeline data.
   -- We also store the actual timeline data to handle a few edge cases where due to clock drift the frame timeline is shifted
   cuj_frame_timeline AS (
     SELECT
       cuj_id,
-      vsync,
+      CAST(e.name AS INTEGER) AS vsync,
       e.ts AS ts_expected,
       -- In cases where we are drawing multiple layers, there will be  one
       -- expected frame timeline slice, but multiple actual frame timeline slices.
@@ -103,16 +97,17 @@ WITH
       MIN(a.ts) AS ts_actual_min,
       MAX(a.ts + a.dur) AS ts_end_actual_max
     FROM _android_jank_cuj_vsync_boundary AS vsync_boundary
-    JOIN expected_timeline AS e
+    JOIN expected_frame_timeline_slice AS e
       ON e.upid = vsync_boundary.upid
-      AND e.vsync >= vsync_min
-      AND e.vsync <= vsync_max
+      AND e.dur > 0
+      AND CAST(e.name AS INTEGER) >= vsync_min
+      AND CAST(e.name AS INTEGER) <= vsync_max
     JOIN actual_frame_timeline_slice AS a
       ON e.upid = a.upid
       AND e.name = a.name
     GROUP BY
       cuj_id,
-      e.vsync,
+      vsync,
       e.ts
   ),
   -- Orders do_frame slices by vsync to calculate the ts_end of the previous frame
