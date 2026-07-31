@@ -82,7 +82,6 @@ class PerfettoCmd : public Consumer {
       const std::string& file_name);
 
   static void WaitForPreviousRebootTraceUpload(
-      const std::string& persistent_dir,
       const std::string& session_name,
       const std::string& target_file_path);
 #endif

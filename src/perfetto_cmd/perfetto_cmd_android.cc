@@ -64,12 +64,17 @@ constexpr uint64_t kUploadWaitTimeoutNs =
     5ULL * 60 * 1000 * 1000 * 1000;  // 5 minutes
 
 enum class RebootTraceUploadState {
+  kTraceUploadUninitialized = 0,
   kTraceUploadStarted = 1,
   kTraceUploadFinished = 2,
   kTraceUploadTimedout = 3,
 };
 
 void SetRebootTraceStatusProp(RebootTraceUploadState status) {
+  if (status == RebootTraceUploadState::kTraceUploadUninitialized) {
+    __system_property_set(kRebootTraceStatusProp, "");
+    return;
+  }
   uint64_t boot_time = static_cast<uint64_t>(base::GetBootTimeNs().count());
   base::StackString<64> prop_val("%d:%" PRIu64, static_cast<int>(status),
                                  boot_time);
@@ -274,7 +279,6 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
 }
 
 void PerfettoCmd::WaitForPreviousRebootTraceUpload(
-    const std::string& persistent_dir,
     const std::string& session_name,
     const std::string& target_file_path) {
   // Only block if a persistent trace file with the SAME session name exists on
@@ -339,8 +343,7 @@ base::ScopedFile PerfettoCmd::CreatePersistentTmpFile(
 
   // Wait for any previous pending reboot trace upload for this session name to
   // complete if the persistent trace file exists on disk.
-  WaitForPreviousRebootTraceUpload(dir_path.c_str(), clean_name,
-                                   file_path.c_str());
+  WaitForPreviousRebootTraceUpload(clean_name, file_path.c_str());
 
   // Unlink any pre-existing instance of this persistent trace file.
   unlink(file_path.c_str());
@@ -404,7 +407,7 @@ int PerfettoCmd::UploadPersistentTracesAfterReboot() {
   // Initialize property to empty string if unset to ensure Bionic property node
   // exists.
   if (base::GetAndroidProp(kRebootTraceStatusProp).empty()) {
-    base::SetAndroidProp(kRebootTraceStatusProp, "");
+    SetRebootTraceStatusProp(RebootTraceUploadState::kTraceUploadUninitialized);
   }
   if (!base::FileExists(persistent_dir.c_str())) {
     PERFETTO_LOG(

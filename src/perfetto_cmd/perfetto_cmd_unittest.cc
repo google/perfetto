@@ -373,9 +373,8 @@ TEST_F(PerfettoCmdlineUnitTest,
   EXPECT_FALSE(base::FileExists(non_existent_path));
 
   auto start = base::GetBootTimeNs();
-  PerfettoCmd::WaitForPreviousRebootTraceUpload(
-      "/data/misc/perfetto-traces/persistent", "non_existent_session_9999",
-      non_existent_path);
+  PerfettoCmd::WaitForPreviousRebootTraceUpload("non_existent_session_9999",
+                                                non_existent_path);
   auto elapsed_ns = (base::GetBootTimeNs() - start).count();
 
   // Assert execution returns immediately (under 100 milliseconds)
@@ -385,12 +384,16 @@ TEST_F(PerfettoCmdlineUnitTest,
 TEST_F(PerfettoCmdlineUnitTest,
        WaitForPreviousRebootTraceUploadFileExistsWithPropertySetCrashes) {
   base::TempFile temp_file = base::TempFile::Create();
+  std::string path = temp_file.path();
+  temp_file.Unlink();
+  base::ScopedFile fd = base::OpenFile(path, O_CREAT | O_RDWR, 0600);
+  EXPECT_TRUE(base::FileExists(path));
+
   // Set property indicating previous upload has started or finished
   __system_property_set("traced.reboot_trace_status", "1:100000000");
 
   EXPECT_DEATH(PerfettoCmd::WaitForPreviousRebootTraceUpload(
-                   "/data/misc/perfetto-traces/persistent",
-                   "finished_session_test", temp_file.path()),
+                   "finished_session_test", path),
                "still exists on disk even though property is set");
 }
 #endif
