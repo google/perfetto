@@ -18,6 +18,7 @@ Unreleased:
     * Fixed flicker when selecting between track events.
     * Memscope: native callstack snippet table no longer truncates frames.
     * Intelletto: registered tools with Chrome's WebMCP API.
+    * Serialize workspaces to permalinks.
   SDK:
     *
 
