@@ -32,6 +32,23 @@ namespace {
 using testing::HasSubstr;
 using testing::Not;
 
+class TempProtoFile {
+ public:
+  TempProtoFile(const std::string& temp_dir,
+                const std::string& name,
+                const std::string& content)
+      : path_(temp_dir + "/" + name) {
+    base::ScopedFile file(base::OpenFile(path_, O_CREAT | O_WRONLY, 0600));
+    PERFETTO_CHECK(file);
+    PERFETTO_CHECK(base::WriteAll(*file, content.c_str(), content.size()));
+  }
+
+  ~TempProtoFile() { base::Unlink(path_.c_str()); }
+
+ private:
+  std::string path_;
+};
+
 ProtoFile::Field MakeField(const std::string& type,
                            const std::string& name,
                            int number) {
@@ -364,18 +381,7 @@ TEST(ProtoFileSerializerTest, AllowlistedOptionOnEnumIsMerged) {
 
 TEST(ProtoFileSerializerTest,
      PassthroughFieldAutomaticallyAcceptsSubmessageFields) {
-  struct ScopedUnlink {
-    std::string path;
-    ~ScopedUnlink() { base::Unlink(path.c_str()); }
-  };
-
   base::TempDir temp_dir = base::TempDir::Create();
-  std::string input_path = temp_dir.path() + "/input.proto";
-  std::string upstream_path = temp_dir.path() + "/upstream.proto";
-
-  ScopedUnlink unlink_input{input_path};
-  ScopedUnlink unlink_upstream{upstream_path};
-
   std::string input_content = R"(
     syntax = "proto2";
     package perfetto.protos;
@@ -405,19 +411,9 @@ TEST(ProtoFileSerializerTest,
     }
   )";
 
-  {
-    base::ScopedFile file(base::OpenFile(input_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(
-        base::WriteAll(*file, input_content.c_str(), input_content.size()));
-  }
-  {
-    base::ScopedFile file(
-        base::OpenFile(upstream_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(base::WriteAll(*file, upstream_content.c_str(),
-                               upstream_content.size()));
-  }
+  TempProtoFile temp_input(temp_dir.path(), "input.proto", input_content);
+  TempProtoFile temp_upstream(temp_dir.path(), "upstream.proto",
+                              upstream_content);
 
   protozero::MultiFileErrorCollectorImpl mfe;
   google::protobuf::compiler::DiskSourceTree dst;
@@ -453,18 +449,7 @@ TEST(ProtoFileSerializerTest,
 }
 
 TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
-  struct ScopedUnlink {
-    std::string path;
-    ~ScopedUnlink() { base::Unlink(path.c_str()); }
-  };
-
   base::TempDir temp_dir = base::TempDir::Create();
-  std::string input_path = temp_dir.path() + "/input.proto";
-  std::string upstream_path = temp_dir.path() + "/upstream.proto";
-
-  ScopedUnlink unlink_input{input_path};
-  ScopedUnlink unlink_upstream{upstream_path};
-
   std::string input_content = R"(
     syntax = "proto2";
     package perfetto.protos;
@@ -499,19 +484,9 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
     }
   )";
 
-  {
-    base::ScopedFile file(base::OpenFile(input_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(
-        base::WriteAll(*file, input_content.c_str(), input_content.size()));
-  }
-  {
-    base::ScopedFile file(
-        base::OpenFile(upstream_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(base::WriteAll(*file, upstream_content.c_str(),
-                               upstream_content.size()));
-  }
+  TempProtoFile temp_input(temp_dir.path(), "input.proto", input_content);
+  TempProtoFile temp_upstream(temp_dir.path(), "upstream.proto",
+                              upstream_content);
 
   protozero::MultiFileErrorCollectorImpl mfe;
   google::protobuf::compiler::DiskSourceTree dst;
@@ -545,18 +520,7 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
 }
 
 TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
-  struct ScopedUnlink {
-    std::string path;
-    ~ScopedUnlink() { base::Unlink(path.c_str()); }
-  };
-
   base::TempDir temp_dir = base::TempDir::Create();
-  std::string input_path = temp_dir.path() + "/input.proto";
-  std::string upstream_path = temp_dir.path() + "/upstream.proto";
-
-  ScopedUnlink unlink_input{input_path};
-  ScopedUnlink unlink_upstream{upstream_path};
-
   std::string input_content = R"(
     syntax = "proto2";
     package perfetto.protos;
@@ -594,19 +558,9 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
     }
   )";
 
-  {
-    base::ScopedFile file(base::OpenFile(input_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(
-        base::WriteAll(*file, input_content.c_str(), input_content.size()));
-  }
-  {
-    base::ScopedFile file(
-        base::OpenFile(upstream_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(base::WriteAll(*file, upstream_content.c_str(),
-                               upstream_content.size()));
-  }
+  TempProtoFile temp_input(temp_dir.path(), "input.proto", input_content);
+  TempProtoFile temp_upstream(temp_dir.path(), "upstream.proto",
+                              upstream_content);
 
   protozero::MultiFileErrorCollectorImpl mfe;
   google::protobuf::compiler::DiskSourceTree dst;
@@ -767,20 +721,7 @@ TEST(ProtoFileSerializerTest, EndToEndReservedFieldMerge) {
 }
 
 TEST(ProtoFileSerializerTest, ExtensionsInlining) {
-  struct ScopedUnlink {
-    std::string path;
-    ~ScopedUnlink() { base::Unlink(path.c_str()); }
-  };
-
   base::TempDir temp_dir = base::TempDir::Create();
-  std::string input_path = temp_dir.path() + "/input.proto";
-  std::string upstream_base_path = temp_dir.path() + "/upstream_base.proto";
-  std::string upstream_ext_path = temp_dir.path() + "/upstream_ext.proto";
-
-  ScopedUnlink unlink_input{input_path};
-  ScopedUnlink unlink_upstream_base{upstream_base_path};
-  ScopedUnlink unlink_upstream_ext{upstream_ext_path};
-
   // Monolithic input has inlined fields, including a deleted one.
   std::string input_content = R"(
     syntax = "proto2";
@@ -832,26 +773,11 @@ TEST(ProtoFileSerializerTest, ExtensionsInlining) {
     }
   )";
 
-  {
-    base::ScopedFile file(base::OpenFile(input_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(
-        base::WriteAll(*file, input_content.c_str(), input_content.size()));
-  }
-  {
-    base::ScopedFile file(
-        base::OpenFile(upstream_base_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(base::WriteAll(*file, upstream_base_content.c_str(),
-                               upstream_base_content.size()));
-  }
-  {
-    base::ScopedFile file(
-        base::OpenFile(upstream_ext_path, O_CREAT | O_WRONLY, 0600));
-    ASSERT_TRUE(file);
-    ASSERT_TRUE(base::WriteAll(*file, upstream_ext_content.c_str(),
-                               upstream_ext_content.size()));
-  }
+  TempProtoFile temp_input(temp_dir.path(), "input.proto", input_content);
+  TempProtoFile temp_upstream_base(temp_dir.path(), "upstream_base.proto",
+                                   upstream_base_content);
+  TempProtoFile temp_upstream_ext(temp_dir.path(), "upstream_ext.proto",
+                                  upstream_ext_content);
 
   protozero::MultiFileErrorCollectorImpl mfe;
   google::protobuf::compiler::DiskSourceTree dst;
@@ -874,14 +800,7 @@ TEST(ProtoFileSerializerTest, ExtensionsInlining) {
 
   ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
   ProtoFile upstream_base_file =
-      ProtoFileFromDescriptor("", *upstream_base_desc);
-  ProtoFile upstream_ext_file = ProtoFileFromDescriptor("", *upstream_ext_desc);
-
-  std::vector<ProtoFile> extensions;
-  extensions.push_back(std::move(upstream_ext_file));
-
-  // Inline the extensions into the base file.
-  InlineExtensions(upstream_base_file, extensions);
+      ProtoFileFromDescriptor("", *upstream_base_desc, {upstream_ext_desc});
 
   Allowlist allowed;
   // Allowlist new inlined extension field gpu_correlation (1003)
@@ -911,6 +830,94 @@ TEST(ProtoFileSerializerTest, ExtensionsInlining) {
   // it's empty)
   EXPECT_THAT(out, HasSubstr("message GpuCorrelation"));
   EXPECT_THAT(out, Not(HasSubstr("message GpuTrackEvent")));
+}
+
+TEST(ProtoFileSerializerTest, ExtensionsInliningDifferentPackage) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string input_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message BaseMessage {
+      optional string name = 1;
+    }
+  )";
+
+  std::string upstream_base_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message BaseMessage {
+      optional string name = 1;
+      extensions 1000 to 9999;
+    }
+  )";
+
+  std::string upstream_ext_content = R"(
+    syntax = "proto2";
+    package custom.ext;
+    import "upstream_base.proto";
+
+    message CustomHelper {
+      optional string val = 1;
+    }
+
+    extend perfetto.protos.BaseMessage {
+      optional CustomHelper custom_ext = 1000;
+    }
+  )";
+
+  TempProtoFile temp_input(temp_dir.path(), "input.proto", input_content);
+  TempProtoFile temp_upstream_base(temp_dir.path(), "upstream_base.proto",
+                                   upstream_base_content);
+  TempProtoFile temp_upstream_ext(temp_dir.path(), "upstream_ext.proto",
+                                  upstream_ext_content);
+
+  protozero::MultiFileErrorCollectorImpl mfe;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", temp_dir.path());
+  dst.MapPath("", ".");
+  dst.MapPath("", "buildtools/protobuf/src");
+
+  google::protobuf::compiler::Importer importer_input(&dst, &mfe);
+  const auto* input_desc = importer_input.Import("input.proto");
+
+  google::protobuf::compiler::Importer importer_upstream(&dst, &mfe);
+  const auto* upstream_base_desc =
+      importer_upstream.Import("upstream_base.proto");
+  const auto* upstream_ext_desc =
+      importer_upstream.Import("upstream_ext.proto");
+
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_NE(upstream_base_desc, nullptr);
+  ASSERT_NE(upstream_ext_desc, nullptr);
+
+  ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
+  ProtoFile upstream_base_file =
+      ProtoFileFromDescriptor("", *upstream_base_desc, {upstream_ext_desc});
+
+  Allowlist allowed;
+  // Allowlist new inlined extension field custom_ext (1000)
+  allowed.messages["BaseMessage"].fields.insert(1000);
+  // Allowlist CustomHelper recursively
+  allowed.messages["CustomHelper"].fields.insert(1);
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input_file, upstream_base_file, allowed, merged).ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+
+  // 1. Check that extensions range was removed
+  EXPECT_THAT(out, Not(HasSubstr("extensions 1000")));
+
+  // 2. Check that active inlined field is output directly inside BaseMessage
+  // and resolved to the relocated CustomHelper type (without package prefix)
+  EXPECT_THAT(out, HasSubstr("message BaseMessage"));
+  EXPECT_THAT(out, HasSubstr("CustomHelper custom_ext = 1000;"));
+
+  // 3. Check helper type is moved and relocated to base package
+  EXPECT_THAT(out, HasSubstr("message CustomHelper"));
 }
 
 }  // namespace

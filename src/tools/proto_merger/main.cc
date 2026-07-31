@@ -244,20 +244,18 @@ int Main(int argc, char** argv) {
                                                  *input_proto.file_descriptor);
 
   ImportResult upstream_proto = ImportProto(upstream, upstream_include);
-  ProtoFile upstream_file =
-      ProtoFileFromDescriptor("", *upstream_proto.file_descriptor);
-
-  std::vector<ProtoFile> extension_proto_files;
+  std::vector<const google::protobuf::FileDescriptor*> extension_descs;
   for (const auto& ext_path : extension_files) {
     const auto* ext_desc = upstream_proto.importer->Import(ext_path);
     if (!ext_desc) {
       PERFETTO_ELOG("Failed to import extension proto: %s", ext_path.c_str());
       return 1;
     }
-    extension_proto_files.push_back(ProtoFileFromDescriptor("", *ext_desc));
+    extension_descs.push_back(ext_desc);
   }
 
-  InlineExtensions(upstream_file, extension_proto_files);
+  ProtoFile upstream_file = ProtoFileFromDescriptor(
+      "", *upstream_proto.file_descriptor, extension_descs);
 
   Allowlist allowed;
   if (!allowlist.empty()) {

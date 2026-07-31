@@ -146,12 +146,13 @@ base::Status AllowlistFromFieldList(
     for (size_t i = 0; i < pieces.size(); ++i) {
       const auto* field = current->FindFieldByName(pieces[i]);
       if (!field) {
-        std::string pkg = std::string(current->file()->package());
-        std::string full_ext_name =
-            pkg.empty() ? pieces[i] : pkg + "." + pieces[i];
-        field = current->file()->pool()->FindExtensionByName(full_ext_name);
-        if (field && field->containing_type() != current) {
-          field = nullptr;
+        std::vector<const google::protobuf::FieldDescriptor*> pool_extensions;
+        current->file()->pool()->FindAllExtensions(current, &pool_extensions);
+        for (const auto* ext : pool_extensions) {
+          if (ext->name() == pieces[i]) {
+            field = ext;
+            break;
+          }
         }
       }
       if (!field) {
