@@ -17,6 +17,8 @@
 #include "src/trace_processor/core/util/flex_vector.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <utility>
 
 #include "test/gtest_and_gmock.h"
 
@@ -207,6 +209,26 @@ TEST(FlexVectorTest, CreateFilled) {
   for (uint64_t i = 0; i < vec.size(); ++i) {
     EXPECT_EQ(vec[i], 0xffffffffu);
   }
+}
+
+TEST(FlexVectorTest, TransfersBackingSlabAsBytes) {
+  auto vec = FlexVector<int64_t>::CreateWithCapacity(64);
+  vec.push_back(10);
+  vec.push_back(20);
+  int64_t* original_data = vec.data();
+
+  Slab<int64_t> slab = std::move(vec).TakeSlab();
+  ASSERT_EQ(slab.size(), 2u);
+  EXPECT_EQ(slab.data(), original_data);
+  EXPECT_EQ(slab[0], 10);
+  EXPECT_EQ(slab[1], 20);
+
+  Slab<uint8_t> bytes = std::move(slab).TakeAsBytes();
+  ASSERT_EQ(bytes.size(), 2u * sizeof(int64_t));
+  EXPECT_EQ(bytes.data(), reinterpret_cast<uint8_t*>(original_data));
+  const int64_t* values = reinterpret_cast<const int64_t*>(bytes.data());
+  EXPECT_EQ(values[0], 10);
+  EXPECT_EQ(values[1], 20);
 }
 
 TEST(FlexVectorTest, Reserve) {
