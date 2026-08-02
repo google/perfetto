@@ -46,7 +46,7 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor_PlatformInterface {
   // Returns the filesystem exposed to Trace Processor. The returned object
   // must outlive the TraceProcessor instance. Supplying a filesystem does not
   // enable SQL file access unless Config::enable_sql_file_access is also set.
-  virtual io::FileSystem* GetFileSystem() const { return nullptr; }
+  virtual io::FileSystem* GetFileSystem() { return nullptr; }
 };
 
 // Extends TraceProcessorStorage to support execution of SQL queries on loaded

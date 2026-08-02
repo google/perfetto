@@ -755,7 +755,7 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
 
   Config DefaultConfig() const override { return {}; }
 
-  io::FileSystem* GetFileSystem() const override {
+  io::FileSystem* GetFileSystem() override {
     if (!file_system_) {
       file_system_ = io::CreateLocalFileSystem();
     }
@@ -783,7 +783,7 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
   }
 
  private:
-  mutable std::unique_ptr<io::FileSystem> file_system_;
+  std::unique_ptr<io::FileSystem> file_system_;
 };
 
 DefaultPlatformInterface::~DefaultPlatformInterface() = default;

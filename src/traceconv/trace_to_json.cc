@@ -103,6 +103,9 @@ int TraceToJson(std::istream* input,
 
   // TODO(eseckler): Support truncation of userspace event data.
   if (!ExportUserspaceEvents(tp.get(), trace_writer.get())) {
+    // ExportJson streams directly to |trace_writer|, so emitting an empty
+    // trace header here would corrupt any output already written. Report the
+    // conversion failure instead of silently dropping userspace events.
     return 1;
   }
   trace_writer->Write(",\n");

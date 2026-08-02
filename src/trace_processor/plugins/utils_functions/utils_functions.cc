@@ -68,16 +68,34 @@ class FileOutputWriter final : public json::OutputWriter {
       : file_(std::move(file)) {}
 
   base::Status AppendString(const std::string& value) override {
-    if (status_.ok()) {
-      status_ = file_->Write(value.data(), value.size());
+    if (!status_.ok()) {
+      return status_;
+    }
+    buffer_.append(value);
+    if (buffer_.size() >= kBufferSize) {
+      return Flush();
     }
     return status_;
   }
 
-  const base::Status& status() const { return status_; }
+  base::Status Finish() { return Flush(); }
 
  private:
+  base::Status Flush() {
+    if (!status_.ok() || buffer_.empty()) {
+      return status_;
+    }
+    status_ = file_->Write(buffer_.data(), buffer_.size());
+    if (status_.ok()) {
+      buffer_.clear();
+    }
+    return status_;
+  }
+
+  static constexpr size_t kBufferSize = 64 * 1024;
+
   std::unique_ptr<io::File> file_;
+  std::string buffer_;
   base::Status status_ = base::OkStatus();
 };
 
@@ -121,8 +139,9 @@ void ExportJson::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   }
   FileOutputWriter output(std::move(file));
   base::Status status = json::ExportJson(trace_context->storage.get(), &output);
+  base::Status output_status = output.Finish();
   if (status.ok()) {
-    status = output.status();
+    status = std::move(output_status);
   }
   if (!status.ok()) {
     return sqlite::utils::SetError(ctx, status);

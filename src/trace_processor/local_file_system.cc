@@ -35,6 +35,7 @@ class LocalFile final : public File {
       : path_(std::move(path)), file_(std::move(file)) {}
 
   base::Status Write(const void* data, size_t size) override {
+    errno = 0;
     ssize_t written = base::WriteAll(file_.get(), data, size);
     if (written < 0 || static_cast<size_t>(written) != size) {
       return base::ErrStatus("Failed to write file %s: %s", path_.c_str(),

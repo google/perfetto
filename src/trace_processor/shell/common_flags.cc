@@ -58,6 +58,8 @@
 
 namespace perfetto::trace_processor {
 
+// Keep the destructor in the common shell library so embedders using the
+// subcommand implementation do not need to link the legacy shell entrypoint.
 TraceProcessorShell_PlatformInterface::
     ~TraceProcessorShell_PlatformInterface() = default;
 

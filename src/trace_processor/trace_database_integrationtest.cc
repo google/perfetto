@@ -79,12 +79,39 @@ class FailingWriteFileSystem final : public io::FileSystem {
   }
 };
 
+class CountingFile final : public io::File {
+ public:
+  explicit CountingFile(size_t* write_count) : write_count_(write_count) {}
+
+  base::Status Write(const void*, size_t) override {
+    ++*write_count_;
+    return base::OkStatus();
+  }
+
+ private:
+  size_t* write_count_;
+};
+
+class CountingFileSystem final : public io::FileSystem {
+ public:
+  base::Status OpenFile(const std::string&,
+                        std::unique_ptr<io::File>* file) override {
+    file->reset(new CountingFile(&write_count_));
+    return base::OkStatus();
+  }
+
+  size_t write_count() const { return write_count_; }
+
+ private:
+  size_t write_count_ = 0;
+};
+
 class FileSystemPlatform final : public TraceProcessor::PlatformInterface {
  public:
   explicit FileSystemPlatform(io::FileSystem* file_system)
       : file_system_(file_system) {}
 
-  io::FileSystem* GetFileSystem() const override { return file_system_; }
+  io::FileSystem* GetFileSystem() override { return file_system_; }
 
  private:
   io::FileSystem* file_system_;
@@ -240,6 +267,19 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonPropagatesWriteFailure) {
   EXPECT_FALSE(it.Next());
   EXPECT_THAT(it.Status(), IsError());
   EXPECT_THAT(it.Status().message(), HasSubstr("injected write failure"));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonBuffersWrites) {
+  CountingFileSystem file_system;
+  FileSystemPlatform platform(&file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('file')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_OK(it.Status());
+  EXPECT_EQ(file_system.write_count(), 1u);
 }
 
 TEST(TraceProcessorCustomConfigTest,

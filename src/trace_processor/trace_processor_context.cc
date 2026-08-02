@@ -307,6 +307,8 @@ TraceId TraceProcessorContext::trace_id() const {
 }
 
 void TraceProcessorContext::DestroyParsingState() {
+  // Config and platform capabilities are also needed by query-time features,
+  // so preserve them while reconstructing the parsing context.
   Config _config = std::move(config);
   TraceProcessor_PlatformInterface* _platform = platform;
   auto _storage = std::move(storage);

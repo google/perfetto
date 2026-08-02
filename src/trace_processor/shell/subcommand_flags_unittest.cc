@@ -123,7 +123,7 @@ class TestPlatform : public TraceProcessorShell_PlatformInterface {
  public:
   Config DefaultConfig() const override { return {}; }
 
-  io::FileSystem* GetFileSystem() const override { return &file_system_; }
+  io::FileSystem* GetFileSystem() override { return &file_system_; }
 
   base::Status OnTraceProcessorCreated(TraceProcessor*) override {
     return base::OkStatus();
@@ -136,7 +136,7 @@ class TestPlatform : public TraceProcessorShell_PlatformInterface {
   }
 
  private:
-  mutable TestFileSystem file_system_;
+  TestFileSystem file_system_;
 };
 
 class FlagTestSubcommand : public Subcommand {
