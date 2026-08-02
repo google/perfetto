@@ -1,0 +1,753 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/trace_processor/plugins/flamegraph/flamegraph_function.h"
+
+#include <sqlite3.h>
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/regex.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
+#include "src/trace_processor/core/plugin/plugin.h"
+#include "src/trace_processor/core/tree/tree.h"
+#include "src/trace_processor/core/tree/tree_from_dataframe.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/plugins/flamegraph/flamegraph.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/module_state_manager.h"
+#include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_tagged_args.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+constexpr char kConfigPointerType[] = "FLAMEGRAPH_CONFIG";
+
+constexpr uint32_t kConfigColumn = 0;
+constexpr uint32_t kTreeIdColumn = 1;
+constexpr uint32_t kTreeParentIdColumn = 2;
+constexpr uint32_t kDepthColumn = 3;
+constexpr uint32_t kNameColumn = 4;
+constexpr uint32_t kSelfValueColumn = 5;
+constexpr uint32_t kCumulativeValueColumn = 6;
+constexpr uint32_t kPropertyColumnStart = 7;
+constexpr uint32_t kArgCount = 1;
+
+bool IsArgumentColumn(size_t column) {
+  return column == kConfigColumn;
+}
+
+base::StatusOr<std::string> TaggedText(const char* context,
+                                       sqlite3_value* value) {
+  return sqlite::TaggedArgText(context, value);
+}
+
+base::StatusOr<FlamegraphRegexSpec> ParseRegexSpec(const char* context,
+                                                   sqlite3_value* pattern,
+                                                   sqlite3_value* flags) {
+  ASSIGN_OR_RETURN(std::string parsed_pattern, TaggedText(context, pattern));
+  ASSIGN_OR_RETURN(std::string parsed_flags, TaggedText(context, flags));
+  if (!parsed_flags.empty() && parsed_flags != "i") {
+    return base::ErrStatus("%s: unknown regex flags '%s'", context,
+                           parsed_flags.c_str());
+  }
+  return FlamegraphRegexSpec{std::move(parsed_pattern), parsed_flags == "i"};
+}
+
+base::StatusOr<flamegraph::Config::View> ParseView(sqlite3_value* value) {
+  ASSIGN_OR_RETURN(std::string view,
+                   TaggedText("__intrinsic_flamegraph_config: view", value));
+  if (view == "TOP_DOWN") {
+    return flamegraph::Config::View::kTopDown;
+  }
+  if (view == "BOTTOM_UP") {
+    return flamegraph::Config::View::kBottomUp;
+  }
+  if (view == "PIVOT") {
+    return flamegraph::Config::View::kPivot;
+  }
+  if (view == "FROM_FRAME") {
+    return flamegraph::Config::View::kFromFrame;
+  }
+  return base::ErrStatus("flamegraph_config: unknown view '%s'", view.c_str());
+}
+
+base::StatusOr<FlamegraphFilterSpec::Kind> ParseFilterKind(
+    sqlite3_value* value) {
+  ASSIGN_OR_RETURN(std::string kind,
+                   TaggedText("__intrinsic_flamegraph_config: filter", value));
+  if (kind == "SHOW_STACK") {
+    return FlamegraphFilterSpec::Kind::kShowStack;
+  }
+  if (kind == "HIDE_STACK") {
+    return FlamegraphFilterSpec::Kind::kHideStack;
+  }
+  if (kind == "HIDE_FRAME") {
+    return FlamegraphFilterSpec::Kind::kHideFrame;
+  }
+  return base::ErrStatus("flamegraph_config: unknown filter kind '%s'",
+                         kind.c_str());
+}
+
+base::StatusOr<flamegraph::Config::Aggregate> ParseAggregate(
+    sqlite3_value* value) {
+  ASSIGN_OR_RETURN(
+      std::string aggregate,
+      TaggedText("__intrinsic_flamegraph_config: aggregate", value));
+  if (aggregate == "SUM") {
+    return flamegraph::Config::Aggregate::kSum;
+  }
+  if (aggregate == "ONE_OR_SUMMARY") {
+    return flamegraph::Config::Aggregate::kOneOrSummary;
+  }
+  if (aggregate == "CONCAT_WITH_COMMA") {
+    return flamegraph::Config::Aggregate::kConcatWithComma;
+  }
+  return base::ErrStatus("flamegraph_config: unknown aggregate '%s'",
+                         aggregate.c_str());
+}
+
+base::StatusOr<base::Regex> CompileRegex(const FlamegraphRegexSpec& spec) {
+  const auto sensitivity = spec.case_insensitive
+                               ? base::Regex::CaseSensitivity::kInsensitive
+                               : base::Regex::CaseSensitivity::kSensitive;
+  return base::Regex::Create(spec.pattern, sensitivity);
+}
+
+base::StatusOr<const core::Tree::Column*> ResolveColumn(
+    const core::Tree& tree,
+    const char* context,
+    const std::string& name) {
+  auto column = tree.Find(name);
+  if (!column) {
+    return base::ErrStatus("%s: column '%s' does not exist", context,
+                           name.c_str());
+  }
+  return *column;
+}
+
+base::StatusOr<flamegraph::Config> ResolveConfig(const core::Tree& source,
+                                                 StringPool& pool,
+                                                 const FlamegraphQuery& query) {
+  flamegraph::Config config(pool);
+  config.view = query.view;
+  if (query.view_pattern) {
+    ASSIGN_OR_RETURN(config.view_pattern, CompileRegex(*query.view_pattern));
+  }
+  ASSIGN_OR_RETURN(config.name,
+                   ResolveColumn(source, "flamegraph: name", "name"));
+  if (!config.name->type.Is<core::String>()) {
+    return base::ErrStatus("flamegraph: name column must be a string");
+  }
+  for (const std::string& name : query.grouping_columns) {
+    ASSIGN_OR_RETURN(
+        auto column,
+        ResolveColumn(source, "flamegraph: grouping column", name));
+    config.grouping_columns.push_back(column);
+  }
+  for (const std::string& name : query.value_columns) {
+    ASSIGN_OR_RETURN(auto column,
+                     ResolveColumn(source, "flamegraph: value column", name));
+    if (!flamegraph::IsNumericColumn(*column)) {
+      return base::ErrStatus("flamegraph: value columns must be numeric");
+    }
+    config.value_columns.push_back(column);
+  }
+  if (config.value_columns.empty()) {
+    return base::ErrStatus("flamegraph: at least one value column is required");
+  }
+  for (const FlamegraphFilterSpec& filter : query.filters) {
+    ASSIGN_OR_RETURN(auto regex, CompileRegex(filter.regex));
+    switch (filter.kind) {
+      case FlamegraphFilterSpec::Kind::kShowStack:
+        config.show_stack_filters.push_back(std::move(regex));
+        break;
+      case FlamegraphFilterSpec::Kind::kHideStack:
+        config.hide_stack_filters.push_back(std::move(regex));
+        break;
+      case FlamegraphFilterSpec::Kind::kHideFrame:
+        config.hide_frame_filters.push_back(std::move(regex));
+        break;
+    }
+  }
+  if (config.show_stack_filters.size() >
+      flamegraph::Config::kMaxShowStackFilters) {
+    return base::ErrStatus("flamegraph: too many SHOW_STACK filters");
+  }
+  for (const FlamegraphAggregateSpec& aggregate : query.aggregate_columns) {
+    if (aggregate.output_name != aggregate.input_name) {
+      return base::ErrStatus(
+          "flamegraph: aggregate output must match its source column");
+    }
+    ASSIGN_OR_RETURN(auto column,
+                     ResolveColumn(source, "flamegraph: aggregate column",
+                                   aggregate.input_name));
+    if (aggregate.aggregate == flamegraph::Config::Aggregate::kSum) {
+      if (!flamegraph::IsNumericColumn(*column)) {
+        return base::ErrStatus(
+            "flamegraph: SUM aggregate columns must be numeric");
+      }
+    } else if (!column->type.Is<core::String>()) {
+      return base::ErrStatus(
+          "flamegraph: string aggregate columns must be strings");
+    }
+    config.aggregate_columns.push_back(
+        {column, aggregate.aggregate, aggregate.output_name});
+  }
+  return base::StatusOr<flamegraph::Config>(std::move(config));
+}
+
+bool PushSqliteColumn(dataframe::AdhocDataframeBuilder* builder,
+                      StringPool* pool,
+                      uint32_t column,
+                      sqlite3_stmt* stmt) {
+  switch (sqlite3_column_type(stmt, static_cast<int>(column))) {
+    case SQLITE_INTEGER:
+      return builder->PushNonNull(
+          column, static_cast<int64_t>(
+                      sqlite3_column_int64(stmt, static_cast<int>(column))));
+    case SQLITE_FLOAT:
+      return builder->PushNonNull(
+          column, sqlite3_column_double(stmt, static_cast<int>(column)));
+    case SQLITE_TEXT: {
+      const char* value = reinterpret_cast<const char*>(
+          sqlite3_column_text(stmt, static_cast<int>(column)));
+      return builder->PushNonNull(column,
+                                  pool->InternString(base::StringView(value)));
+    }
+    case SQLITE_NULL:
+      builder->PushNull(column);
+      return true;
+    case SQLITE_BLOB:
+      return false;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+bool IsReservedOutputName(std::string_view name) {
+  return name == "in_config" || name == "_tree_id" ||
+         name == "_tree_parent_id" || name == "depth" || name == "name" ||
+         name == "self_value" || name == "cumulative_value" ||
+         name == "unfiltered_value";
+}
+
+base::StatusOr<std::unique_ptr<FlamegraphOperator::State>> LoadSource(
+    FlamegraphOperator::Context* context,
+    const char* source) {
+  std::string sql = "SELECT * FROM ";
+  sql.append(source);
+  ASSIGN_OR_RETURN(
+      auto execution,
+      context->connection->ExecuteUntilLastStatement(
+          SqlSource::FromTraceProcessorImplementation(std::move(sql))));
+  sqlite3_stmt* stmt = execution.stmt.sqlite_stmt();
+  const int raw_column_count = sqlite3_column_count(stmt);
+  if (raw_column_count < 4) {
+    return base::ErrStatus(
+        "flamegraph: source must contain id, parent_id, name and value");
+  }
+  const auto column_count = static_cast<uint32_t>(raw_column_count);
+  std::vector<std::string> names;
+  names.reserve(column_count);
+  for (uint32_t column = 0; column < column_count; ++column) {
+    names.emplace_back(sqlite3_column_name(stmt, static_cast<int>(column)));
+  }
+  if (names[0] != "id" || names[1] != "parent_id" || names[2] != "name" ||
+      names[3] != "value") {
+    return base::ErrStatus(
+        "flamegraph: first source columns must be id, parent_id, name, value");
+  }
+  for (uint32_t column = 4; column < column_count; ++column) {
+    if (IsReservedOutputName(names[column])) {
+      return base::ErrStatus("flamegraph: reserved property column '%s'",
+                             names[column].c_str());
+    }
+  }
+
+  dataframe::AdhocDataframeBuilder builder(
+      names, context->pool,
+      dataframe::AdhocDataframeBuilder::Options{
+          {}, dataframe::NullabilityType::kDenseNull, false});
+  while (!execution.stmt.IsDone()) {
+    for (uint32_t column = 0; column < column_count; ++column) {
+      if (!PushSqliteColumn(&builder, context->pool, column, stmt)) {
+        return base::ErrStatus(
+            "flamegraph: source contains unsupported or inconsistent values");
+      }
+    }
+    execution.stmt.Step();
+  }
+  RETURN_IF_ERROR(execution.stmt.status());
+  if (!builder.status().ok()) {
+    return builder.status();
+  }
+
+  ASSIGN_OR_RETURN(core::Tree tree, core::BuildTree(std::move(builder)));
+  auto state = std::make_unique<FlamegraphOperator::State>();
+  state->pool = context->pool;
+  state->source = std::move(tree);
+  state->property_names.assign(names.begin() + 4, names.end());
+  for (uint32_t column = 4; column < column_count; ++column) {
+    if (flamegraph::IsNumericColumn(state->source.columns[column])) {
+      state->candidate_value_names.push_back(names[column]);
+    }
+  }
+  const core::Tree::Column* value = *state->source.Find("value");
+  if (!flamegraph::IsNumericColumn(*value)) {
+    return base::ErrStatus("flamegraph: value column must be numeric");
+  }
+  for (uint32_t row = 0; row < state->source.row_count; ++row) {
+    if (value->null_bv.size() > 0 && !value->null_bv.is_set(row)) {
+      continue;
+    }
+    state->unfiltered_value +=
+        value->type.Is<core::Int64>()
+            ? static_cast<double>(value->unchecked_data<int64_t>()[row])
+            : value->unchecked_data<double>()[row];
+  }
+  return state;
+}
+
+std::string QuoteIdentifier(std::string_view identifier) {
+  std::string quoted(1, '"');
+  for (char c : identifier) {
+    quoted.push_back(c);
+    if (c == '"') {
+      quoted.push_back('"');
+    }
+  }
+  quoted.push_back('"');
+  return quoted;
+}
+
+std::string BuildSchema(const FlamegraphOperator::State& state) {
+  std::string schema = R"(
+    CREATE TABLE x(
+      in_config BLOB HIDDEN,
+      _tree_id BIGINT,
+      _tree_parent_id BIGINT,
+      depth BIGINT,
+      name TEXT,
+      self_value,
+      cumulative_value)";
+  for (const std::string& property : state.property_names) {
+    schema.append(",\n      ");
+    schema.append(QuoteIdentifier(property));
+  }
+  for (const std::string& value : state.candidate_value_names) {
+    schema.append(",\n      ");
+    schema.append(QuoteIdentifier("self_" + value));
+    schema.append(",\n      ");
+    schema.append(QuoteIdentifier("cumulative_" + value));
+  }
+  schema.append(R"(,
+      unfiltered_value DOUBLE,
+      PRIMARY KEY(_tree_id)
+    ) WITHOUT ROWID
+  )");
+  return schema;
+}
+
+int DeclareSchema(sqlite3* db,
+                  const FlamegraphOperator::State& state,
+                  char** error) {
+  std::string schema = BuildSchema(state);
+  int result = sqlite3_declare_vtab(db, schema.c_str());
+  if (result != SQLITE_OK && error) {
+    *error = sqlite3_mprintf("flamegraph: failed to declare schema");
+  }
+  return result;
+}
+
+void ReturnTreeColumn(sqlite3_context* context,
+                      StringPool& pool,
+                      const core::Tree::Column* column,
+                      uint32_t row) {
+  if (!column || (column->null_bv.size() > 0 && !column->null_bv.is_set(row))) {
+    sqlite::result::Null(context);
+    return;
+  }
+  if (column->type.Is<core::Int64>()) {
+    sqlite::result::Long(context, column->unchecked_data<int64_t>()[row]);
+    return;
+  }
+  if (column->type.Is<core::Double>()) {
+    sqlite::result::Double(context, column->unchecked_data<double>()[row]);
+    return;
+  }
+  StringPool::Id id = column->unchecked_data<StringPool::Id>()[row];
+  if (id.is_null()) {
+    sqlite::result::Null(context);
+    return;
+  }
+  const auto value = pool.Get(id);
+  sqlite::result::StaticString(context, value.c_str(),
+                               static_cast<int>(value.size()));
+}
+
+}  // namespace
+
+void FlamegraphConfigFunction::Step(sqlite3_context* context,
+                                    int argc,
+                                    sqlite3_value** argv) {
+  FlamegraphQuery query;
+  base::Status status = sqlite::ParseTaggedArgs(
+      kName, argc, argv,
+      {
+          {"view", 1,
+           [&](sqlite3_value** values) -> base::Status {
+             ASSIGN_OR_RETURN(query.view, ParseView(values[0]));
+             return base::OkStatus();
+           }},
+          {"view_pattern", 2,
+           [&](sqlite3_value** values) -> base::Status {
+             ASSIGN_OR_RETURN(query.view_pattern,
+                              ParseRegexSpec("flamegraph_config: view_pattern",
+                                             values[0], values[1]));
+             return base::OkStatus();
+           }},
+          {"filter", 3,
+           [&](sqlite3_value** values) -> base::Status {
+             ASSIGN_OR_RETURN(auto kind, ParseFilterKind(values[0]));
+             ASSIGN_OR_RETURN(auto regex,
+                              ParseRegexSpec("flamegraph_config: filter",
+                                             values[1], values[2]));
+             query.filters.push_back({kind, std::move(regex)});
+             return base::OkStatus();
+           }},
+          {"grouping", 1,
+           [&](sqlite3_value** values) -> base::Status {
+             ASSIGN_OR_RETURN(
+                 std::string name,
+                 TaggedText("flamegraph_config: grouping", values[0]));
+             query.grouping_columns.push_back(std::move(name));
+             return base::OkStatus();
+           }},
+          {"value", 1,
+           [&](sqlite3_value** values) -> base::Status {
+             ASSIGN_OR_RETURN(
+                 std::string name,
+                 TaggedText("flamegraph_config: value", values[0]));
+             query.value_columns.push_back(std::move(name));
+             return base::OkStatus();
+           }},
+          {"aggregate", 3,
+           [&](sqlite3_value** values) -> base::Status {
+             ASSIGN_OR_RETURN(auto aggregate, ParseAggregate(values[0]));
+             ASSIGN_OR_RETURN(
+                 std::string input,
+                 TaggedText("flamegraph_config: aggregate", values[1]));
+             ASSIGN_OR_RETURN(
+                 std::string output,
+                 TaggedText("flamegraph_config: aggregate", values[2]));
+             query.aggregate_columns.push_back(
+                 {aggregate, std::move(input), std::move(output)});
+             return base::OkStatus();
+           }},
+      });
+  if (!status.ok()) {
+    sqlite::utils::SetError(context, status);
+    return;
+  }
+  const bool is_pattern_view =
+      query.view == flamegraph::Config::View::kPivot ||
+      query.view == flamegraph::Config::View::kFromFrame;
+  if (is_pattern_view != query.view_pattern.has_value()) {
+    sqlite::utils::SetError(
+        context,
+        "flamegraph_config: PIVOT and FROM_FRAME require a view pattern");
+    return;
+  }
+  sqlite::utils::MovePointerResult(context, std::move(query),
+                                   kConfigPointerType);
+}
+
+int FlamegraphOperator::Create(sqlite3* db,
+                               void* raw_context,
+                               int argc,
+                               const char* const* argv,
+                               sqlite3_vtab** output,
+                               char** error) {
+  if (argc != 4) {
+    *error = sqlite3_mprintf("flamegraph: wrong number of arguments");
+    return SQLITE_ERROR;
+  }
+  auto* context = GetContext(raw_context);
+  auto state = LoadSource(context, argv[3]);
+  if (!state.ok()) {
+    *error = sqlite3_mprintf("%s", state.status().c_message());
+    return SQLITE_ERROR;
+  }
+  if (int result = DeclareSchema(db, **state, error); result != SQLITE_OK) {
+    return result;
+  }
+  std::unique_ptr<Vtab> vtab = std::make_unique<Vtab>();
+  vtab->state = context->OnCreate(argc, argv, std::move(*state));
+  *output = vtab.release();
+  return SQLITE_OK;
+}
+
+int FlamegraphOperator::Destroy(sqlite3_vtab* raw_vtab) {
+  std::unique_ptr<Vtab> vtab(GetVtab(raw_vtab));
+  sqlite::ModuleStateManager<FlamegraphOperator>::OnDestroy(vtab->state);
+  return SQLITE_OK;
+}
+
+int FlamegraphOperator::Connect(sqlite3* db,
+                                void* raw_context,
+                                int argc,
+                                const char* const* argv,
+                                sqlite3_vtab** output,
+                                char** error) {
+  auto* context = GetContext(raw_context);
+  auto* managed_state = context->OnConnect(argc, argv);
+  if (!managed_state) {
+    *error = sqlite3_mprintf("flamegraph: state not found");
+    return SQLITE_ERROR;
+  }
+  State* state =
+      sqlite::ModuleStateManager<FlamegraphOperator>::GetState(managed_state);
+  if (int result = DeclareSchema(db, *state, error); result != SQLITE_OK) {
+    return result;
+  }
+  std::unique_ptr<Vtab> vtab = std::make_unique<Vtab>();
+  vtab->state = managed_state;
+  *output = vtab.release();
+  return SQLITE_OK;
+}
+
+int FlamegraphOperator::Disconnect(sqlite3_vtab* raw_vtab) {
+  std::unique_ptr<Vtab> vtab(GetVtab(raw_vtab));
+  return SQLITE_OK;
+}
+
+int FlamegraphOperator::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
+  base::Status status = sqlite::utils::ValidateFunctionArguments(
+      info, kArgCount, IsArgumentColumn);
+  return status.ok() && info->nConstraint == kArgCount ? SQLITE_OK
+                                                       : SQLITE_CONSTRAINT;
+}
+
+int FlamegraphOperator::Open(sqlite3_vtab*, sqlite3_vtab_cursor** output) {
+  std::unique_ptr<Cursor> cursor = std::make_unique<Cursor>();
+  *output = cursor.release();
+  return SQLITE_OK;
+}
+
+int FlamegraphOperator::Close(sqlite3_vtab_cursor* raw_cursor) {
+  std::unique_ptr<Cursor> cursor(GetCursor(raw_cursor));
+  return SQLITE_OK;
+}
+
+int FlamegraphOperator::Filter(sqlite3_vtab_cursor* raw_cursor,
+                               int,
+                               const char*,
+                               int argc,
+                               sqlite3_value** argv) {
+  Cursor* cursor = GetCursor(raw_cursor);
+  Vtab* vtab = GetVtab(cursor->pVtab);
+  State* state =
+      sqlite::ModuleStateManager<FlamegraphOperator>::GetState(vtab->state);
+  PERFETTO_CHECK(argc == kArgCount);
+  cursor->result.reset();
+  cursor->value_column.clear();
+  cursor->row = 0;
+  cursor->stats = sqlite::utils::MovePointerValue<FlamegraphQuery>(
+                      argv[0], kConfigPointerType) == nullptr;
+  if (cursor->stats) {
+    if (sqlite3_value_type(argv[0]) != SQLITE_NULL) {
+      return sqlite::utils::SetError(
+          vtab, "flamegraph: expected a flamegraph configuration");
+    }
+    return SQLITE_OK;
+  }
+
+  auto query = sqlite::utils::TakeMovePointerValue<FlamegraphQuery>(
+      argv[0], kConfigPointerType, "flamegraph");
+  if (!query.ok()) {
+    return sqlite::utils::SetError(vtab, query.status());
+  }
+  if (query->value_columns.empty()) {
+    return sqlite::utils::SetError(
+        vtab, "flamegraph: at least one value column is required");
+  }
+  cursor->value_column = query->value_columns[0];
+  if (state->source.row_count == 0) {
+    cursor->result = std::make_unique<core::Tree>();
+    return SQLITE_OK;
+  }
+
+  auto config = ResolveConfig(state->source, *state->pool, *query);
+  if (!config.ok()) {
+    return sqlite::utils::SetError(vtab, config.status());
+  }
+  // TODO: Cache metric-independent intermediate results across metric queries,
+  // not complete query results. In particular, preserve the computed tree shape
+  // when only the value columns change so switching metrics only recomputes
+  // metric-dependent values.
+  auto result = flamegraph::Build(state->source, *config);
+  if (!result.ok()) {
+    return sqlite::utils::SetError(vtab, result.status());
+  }
+  cursor->result = std::make_unique<core::Tree>(std::move(*result));
+  return SQLITE_OK;
+}
+
+int FlamegraphOperator::Next(sqlite3_vtab_cursor* raw_cursor) {
+  GetCursor(raw_cursor)->row++;
+  return SQLITE_OK;
+}
+
+int FlamegraphOperator::Eof(sqlite3_vtab_cursor* raw_cursor) {
+  Cursor* cursor = GetCursor(raw_cursor);
+  if (cursor->stats) {
+    return cursor->row > 0;
+  }
+  return !cursor->result || cursor->row >= cursor->result->row_count;
+}
+
+int FlamegraphOperator::Column(sqlite3_vtab_cursor* raw_cursor,
+                               sqlite3_context* context,
+                               int raw_column) {
+  Cursor* cursor = GetCursor(raw_cursor);
+  Vtab* vtab = GetVtab(cursor->pVtab);
+  State* state =
+      sqlite::ModuleStateManager<FlamegraphOperator>::GetState(vtab->state);
+  const auto column = static_cast<uint32_t>(raw_column);
+  const uint32_t candidate_value_column_start =
+      kPropertyColumnStart +
+      static_cast<uint32_t>(state->property_names.size());
+  const uint32_t unfiltered_column =
+      candidate_value_column_start +
+      2 * static_cast<uint32_t>(state->candidate_value_names.size());
+
+  if (column == unfiltered_column) {
+    sqlite::result::Double(context, state->unfiltered_value);
+    return SQLITE_OK;
+  }
+  if (cursor->stats) {
+    sqlite::result::Null(context);
+    return SQLITE_OK;
+  }
+  const core::Tree& result = *cursor->result;
+  if (column == kTreeIdColumn) {
+    sqlite::result::Long(context, cursor->row);
+    return SQLITE_OK;
+  }
+  if (column == kTreeParentIdColumn) {
+    uint32_t parent = result.parent[cursor->row];
+    if (parent == core::Tree::kNullParent) {
+      sqlite::result::Null(context);
+    } else {
+      sqlite::result::Long(context, parent);
+    }
+    return SQLITE_OK;
+  }
+
+  const core::Tree::Column* result_column = nullptr;
+  if (column == kDepthColumn) {
+    result_column = *result.Find("depth");
+  } else if (column == kNameColumn) {
+    result_column = *result.Find("name");
+  } else if (column == kSelfValueColumn) {
+    auto found = result.Find("self_" + cursor->value_column);
+    result_column = found ? *found : nullptr;
+  } else if (column == kCumulativeValueColumn) {
+    auto found = result.Find("cumulative_" + cursor->value_column);
+    result_column = found ? *found : nullptr;
+  } else if (column >= kPropertyColumnStart &&
+             column < candidate_value_column_start) {
+    const std::string& property =
+        state->property_names[column - kPropertyColumnStart];
+    auto found = result.Find(property);
+    result_column = found ? *found : nullptr;
+  } else if (column >= candidate_value_column_start &&
+             column < unfiltered_column) {
+    const uint32_t offset = column - candidate_value_column_start;
+    const std::string& value = state->candidate_value_names[offset / 2];
+    const std::string result_name =
+        offset % 2 == 0 ? "self_" + value : "cumulative_" + value;
+    auto found = result.Find(result_name);
+    result_column = found ? *found : nullptr;
+  } else {
+    return sqlite::utils::SetError(vtab, "flamegraph: bad column");
+  }
+  ReturnTreeColumn(context, *state->pool, result_column, cursor->row);
+  return SQLITE_OK;
+}
+
+int FlamegraphOperator::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
+  return SQLITE_ERROR;
+}
+
+namespace flamegraph {
+namespace {
+
+class FlamegraphPlugin : public Plugin<FlamegraphPlugin> {
+ public:
+  ~FlamegraphPlugin() override;
+
+  void RegisterFunctions(PerfettoSqlConnection*,
+                         std::vector<FunctionRegistration>& out) override {
+    StringPool* pool = trace_context_->storage->mutable_string_pool();
+    out.push_back(MakeFunctionRegistration<FlamegraphConfigFunction>(pool));
+  }
+
+  void RegisterSqliteModules(
+      PerfettoSqlConnection* connection,
+      std::vector<SqliteModuleRegistration>& out) override {
+    StringPool* pool = trace_context_->storage->mutable_string_pool();
+    out.push_back(MakeSqliteModule<FlamegraphOperator>(
+        "__intrinsic_flamegraph",
+        std::make_unique<FlamegraphOperator::Context>(connection, pool)));
+  }
+};
+
+FlamegraphPlugin::~FlamegraphPlugin() = default;
+
+}  // namespace
+
+void RegisterPlugin() {
+  static PluginRegistration registration(
+      []() -> std::unique_ptr<PluginBase> {
+        return std::make_unique<FlamegraphPlugin>();
+      },
+      FlamegraphPlugin::kPluginId, FlamegraphPlugin::kDepIds.data(),
+      FlamegraphPlugin::kDepIds.size());
+  base::ignore_result(registration);
+}
+
+}  // namespace flamegraph
+}  // namespace perfetto::trace_processor

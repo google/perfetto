@@ -42,6 +42,9 @@ struct Span {
   size_t size() const { return static_cast<size_t>(e - b); }
   bool empty() const { return b == e; }
   T& operator[](size_t index) const { return b[index]; }
+  Span<T> subspan(size_t offset, size_t count) const {
+    return Span<T>(b + offset, b + offset + count);
+  }
 };
 
 template <typename T, size_t N>
