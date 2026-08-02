@@ -155,6 +155,22 @@ inline constexpr bool IsPowerOfTwo(T x) {
   return x != 0 && (x & (x - 1)) == 0;
 }
 
+// Returns the smallest power of two greater than or equal to |x|. Returns zero
+// for zero or when the result is not representable by T.
+template <typename T>
+inline constexpr T RoundUpToPowerOfTwo(T x) {
+  static_assert(std::is_unsigned_v<T> && std::is_integral_v<T>,
+                "T must be an unsigned integer");
+  if (x == 0) {
+    return 0;
+  }
+  --x;
+  for (size_t shift = 1; shift < sizeof(T) * 8; shift *= 2) {
+    x |= x >> shift;
+  }
+  return ++x;
+}
+
 // TODO(primiano): clean this up and move all existing usages to the constexpr
 // version above.
 template <size_t alignment>
