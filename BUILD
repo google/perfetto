@@ -2434,7 +2434,6 @@ perfetto_filegroup(
         "src/trace_processor/core/common/op_types.h",
         "src/trace_processor/core/common/sort_types.h",
         "src/trace_processor/core/common/storage_types.h",
-        "src/trace_processor/core/common/tree_types.h",
         "src/trace_processor/core/common/value_fetcher.h",
     ],
 )
@@ -2500,9 +2499,9 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_core_tree_tree",
     srcs = [
-        "src/trace_processor/core/tree/tree_columns.h",
-        "src/trace_processor/core/tree/tree_columns_from_dataframe.cc",
-        "src/trace_processor/core/tree/tree_columns_from_dataframe.h",
+        "src/trace_processor/core/tree/tree.h",
+        "src/trace_processor/core/tree/tree_from_dataframe.cc",
+        "src/trace_processor/core/tree/tree_from_dataframe.h",
     ],
 )
 

@@ -17575,7 +17575,15 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_core_tree_tree",
     srcs: [
-        "src/trace_processor/core/tree/tree_columns_from_dataframe.cc",
+        "src/trace_processor/core/tree/tree_from_dataframe.cc",
+    ],
+}
+
+// GN: //src/trace_processor/core/tree:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_core_tree_unittests",
+    srcs: [
+        "src/trace_processor/core/tree/tree_algorithms_unittest.cc",
     ],
 }
 
@@ -23849,6 +23857,7 @@ cc_test {
         ":perfetto_src_trace_processor_core_interpreter_unittests",
         ":perfetto_src_trace_processor_core_plugin_plugin",
         ":perfetto_src_trace_processor_core_tree_tree",
+        ":perfetto_src_trace_processor_core_tree_unittests",
         ":perfetto_src_trace_processor_core_util_unittests",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
