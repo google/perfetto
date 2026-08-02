@@ -208,6 +208,16 @@ TEST(UtilsTest, IsPowerOfTwo) {
   EXPECT_FALSE(IsPowerOfTwo(max_pow2 + 1));
 }
 
+TEST(UtilsTest, RoundUpToPowerOfTwo) {
+  EXPECT_EQ(RoundUpToPowerOfTwo(0u), 0u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(1u), 1u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(2u), 2u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(3u), 4u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(5u), 8u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(uint32_t{1} << 31), uint32_t{1} << 31);
+  EXPECT_EQ(RoundUpToPowerOfTwo((uint32_t{1} << 31) + 1), 0u);
+}
+
 TEST(UtilsTest, AlignUp) {
   EXPECT_EQ(0u, AlignUp<4>(0));
   EXPECT_EQ(4u, AlignUp<4>(1));
