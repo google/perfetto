@@ -17,9 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_TREE_TREE_H_
 #define SRC_TRACE_PROCESSOR_CORE_TREE_TREE_H_
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -34,7 +39,9 @@ namespace perfetto::trace_processor::core {
 //
 // Each column stores dense data as raw bytes (Slab<uint8_t>) with a dense null
 // bitvector. Node ids are implicit dense row indices. The parent array contains
-// row indices, with kNullParent used for roots.
+// row indices (kNullParent for roots), and every parent precedes its children:
+// parent[i] == kNullParent || parent[i] < i. This makes root-to-leaf and
+// leaf-to-root operations single forward and reverse passes.
 //
 // This is intentionally minimal: no sort state, no sparse nulls, and no shared
 // ownership. Tree operators consume it and can reuse its allocations.
@@ -86,6 +93,23 @@ struct Tree {
     Slab<uint8_t> data;
     BitVector null_bv;  // non-empty for nullable columns
   };
+
+  // Given a column name, returns a pointer to the corresponding column, or
+  // nullopt if not found.
+  std::optional<const Column*> Find(std::string_view find_name) const {
+    auto it = std::find(names.begin(), names.end(), find_name);
+    if (it == names.end()) {
+      return std::nullopt;
+    }
+    return columns.data() + std::distance(names.begin(), it);
+  }
+
+  // Returns the name associated with a column in this tree.
+  std::string_view ColumnName(const Column* column) const {
+    const auto index = static_cast<size_t>(column - columns.data());
+    PERFETTO_DCHECK(index < names.size());
+    return names[index];
+  }
 
   uint32_t row_count = 0;
   Slab<uint32_t> parent;  // normalized: row indices, kNullParent for roots
