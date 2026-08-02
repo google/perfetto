@@ -40,8 +40,8 @@ uint32_t MixedRowAt(uint32_t position, uint32_t rows) {
 }
 
 dataframe::AdhocDataframeBuilder BuildLongChain(uint32_t rows,
-                                                 RowOrder order,
-                                                 StringPool* pool) {
+                                                RowOrder order,
+                                                StringPool* pool) {
   std::vector<uint32_t> parent(rows, Tree::kNullParent);
   switch (order) {
     case RowOrder::kParentFirst:
@@ -71,8 +71,7 @@ dataframe::AdhocDataframeBuilder BuildLongChain(uint32_t rows,
     if (parent[row] == Tree::kNullParent) {
       builder.PushNull(1);
     } else {
-      PERFETTO_CHECK(
-          builder.PushNonNull(1, static_cast<int64_t>(parent[row])));
+      PERFETTO_CHECK(builder.PushNonNull(1, static_cast<int64_t>(parent[row])));
     }
   }
   return builder;

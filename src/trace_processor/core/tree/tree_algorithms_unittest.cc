@@ -71,8 +71,7 @@ TEST(TreeFromDataframeTest, RejectsSelfLoop) {
   options.types = {dataframe::AdhocColumnType::kInt64,
                    dataframe::AdhocColumnType::kInt64};
   options.nullability_type = dataframe::NullabilityType::kDenseNull;
-  dataframe::AdhocDataframeBuilder builder({"id", "parent_id"}, &pool,
-                                           options);
+  dataframe::AdhocDataframeBuilder builder({"id", "parent_id"}, &pool, options);
 
   ASSERT_TRUE(builder.PushNonNull(0, int64_t{1}));
   ASSERT_TRUE(builder.PushNonNull(1, int64_t{1}));
@@ -88,8 +87,7 @@ TEST(TreeFromDataframeTest, RejectsCycle) {
   options.types = {dataframe::AdhocColumnType::kInt64,
                    dataframe::AdhocColumnType::kInt64};
   options.nullability_type = dataframe::NullabilityType::kDenseNull;
-  dataframe::AdhocDataframeBuilder builder({"id", "parent_id"}, &pool,
-                                           options);
+  dataframe::AdhocDataframeBuilder builder({"id", "parent_id"}, &pool, options);
 
   ASSERT_TRUE(builder.PushNonNull(0, int64_t{1}));
   ASSERT_TRUE(builder.PushNonNull(1, int64_t{2}));
