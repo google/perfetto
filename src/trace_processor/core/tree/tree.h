@@ -34,7 +34,9 @@ namespace perfetto::trace_processor::core {
 //
 // Each column stores dense data as raw bytes (Slab<uint8_t>) with a dense null
 // bitvector. Node ids are implicit dense row indices. The parent array contains
-// row indices, with kNullParent used for roots.
+// row indices (kNullParent for roots), and every parent precedes its children:
+// parent[i] == kNullParent || parent[i] < i. This makes root-to-leaf and
+// leaf-to-root operations single forward and reverse passes.
 //
 // This is intentionally minimal: no sort state, no sparse nulls, and no shared
 // ownership. Tree operators consume it and can reuse its allocations.

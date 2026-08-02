@@ -17,6 +17,8 @@
 #include "src/trace_processor/core/tree/tree_from_dataframe.h"
 
 #include <cstdint>
+#include <iterator>
+#include <optional>
 #include <utility>
 
 #include "src/trace_processor/containers/string_pool.h"
@@ -52,17 +54,43 @@ TEST(TreeFromDataframeTest, PreservesRowOrderAndNullableColumn) {
   Tree tree = std::move(result.value());
   ASSERT_EQ(tree.row_count, 3u);
   ASSERT_EQ(tree.columns.size(), 3u);
-
-  EXPECT_EQ(tree.parent[0], 2u);
-  EXPECT_EQ(tree.parent[1], Tree::kNullParent);
-  EXPECT_EQ(tree.parent[2], 1u);
+  EXPECT_THAT(tree.parent, testing::ElementsAre(Tree::kNullParent, 0u, 1u));
 
   const Tree::Column& values = tree.columns[2];
-  EXPECT_EQ(values.unchecked_span<int64_t>()[1], 30);
-  EXPECT_EQ(values.unchecked_span<int64_t>()[2], 20);
-  EXPECT_FALSE(values.null_bv.is_set(0));
+  EXPECT_EQ(values.unchecked_span<int64_t>()[0], 30);
+  EXPECT_EQ(values.unchecked_span<int64_t>()[1], 20);
+  EXPECT_TRUE(values.null_bv.is_set(0));
   EXPECT_TRUE(values.null_bv.is_set(1));
-  EXPECT_TRUE(values.null_bv.is_set(2));
+  EXPECT_FALSE(values.null_bv.is_set(2));
+}
+
+TEST(TreeFromDataframeTest, OrdersParentsBeforeChildrenDeterministically) {
+  StringPool pool;
+  dataframe::AdhocDataframeBuilder::Options options;
+  options.types = {dataframe::AdhocColumnType::kInt64,
+                   dataframe::AdhocColumnType::kInt64};
+  options.nullability_type = dataframe::NullabilityType::kDenseNull;
+  dataframe::AdhocDataframeBuilder builder({"id", "parent_id"}, &pool, options);
+
+  const int64_t ids[] = {30, 10, 21, 20, 11, 12};
+  const std::optional<int64_t> parents[] = {10,           std::nullopt, 20,
+                                            std::nullopt, 10,           10};
+  for (uint32_t row = 0; row < std::size(ids); ++row) {
+    ASSERT_TRUE(builder.PushNonNull(0, ids[row]));
+    if (parents[row]) {
+      ASSERT_TRUE(builder.PushNonNull(1, *parents[row]));
+    } else {
+      builder.PushNull(1);
+    }
+  }
+
+  auto result = BuildTree(std::move(builder));
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  Tree tree = std::move(result.value());
+  EXPECT_THAT(tree.columns[0].unchecked_span<int64_t>(),
+              testing::ElementsAre(10, 30, 20, 21, 11, 12));
+  EXPECT_THAT(tree.parent, testing::ElementsAre(Tree::kNullParent, 0u,
+                                                Tree::kNullParent, 2u, 0u, 0u));
 }
 
 TEST(TreeFromDataframeTest, RejectsSelfLoop) {
