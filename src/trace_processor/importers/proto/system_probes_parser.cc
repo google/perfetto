@@ -1158,6 +1158,12 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     cpu_infos.push_back(current_cpu_info);
   }
 
+  if (cpu_infos.empty()) {
+    context_->import_logs_tracker->RecordAnalysisLog(
+        stats::cpu_info_empty, [](ArgsTracker::BoundInserter&) {});
+    return;
+  }
+
   // Calculate cluster ids
   // We look to use capacities as it is an ARM provided metric which is designed
   // to measure the heterogeneity of CPU clusters however we fallback on the
@@ -1251,8 +1257,9 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     // Bits beyond the allowlist come from a recorder newer than this
     // version of trace_processor; they stay queryable via the raw bitmap.
     if ((cpu_info.features >> base::ArraySize(base::kCpuInfoFeatures)) != 0) {
-      context_->stats_tracker->IncrementStats(
-          stats::cpu_info_unknown_cpu_features);
+      context_->import_logs_tracker->RecordAnalysisLog(
+          stats::cpu_info_unknown_cpu_features,
+          [](ArgsTracker::BoundInserter&) {});
     }
   }
 }

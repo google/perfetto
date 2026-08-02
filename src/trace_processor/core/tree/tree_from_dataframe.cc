@@ -76,6 +76,14 @@ Tree::Column ConvertRawColumn(
   return tc;
 }
 
+uint32_t FindComponent(uint32_t row, Slab<uint32_t>& component) {
+  while (component[row] != row) {
+    component[row] = component[component[row]];
+    row = component[row];
+  }
+  return row;
+}
+
 struct IdIndex {
   std::optional<uint32_t> Find(int64_t id) const {
     if (identity_ids) {
@@ -153,7 +161,9 @@ base::StatusOr<Tree> BuildFromRawColumns(
   bool identity_ids = true;
   bool uint32_ids = true;
   uint32_t max_id = 0;
+  Slab<uint32_t> component = Slab<uint32_t>::Alloc(row_count);
   for (uint32_t i = 0; i < row_count; ++i) {
+    component[i] = i;
     int64_t id = id_vec[i];
     identity_ids = identity_ids && id == i;
     if (id < 0 ||
@@ -188,19 +198,23 @@ base::StatusOr<Tree> BuildFromRawColumns(
   const IdIndex id_index{identity_ids, dense_ids, row_count,
                          MakeSpan(dense_index), &hash_index};
 
-  // Normalize parent_id to row indices.
+  // Normalize parent_id to row indices and union each node with its parent.
+  // Because every node has at most one parent, an edge whose endpoints are
+  // already connected is exactly a directed cycle.
   auto& pid_rc = raw_cols[1];
   result.parent = Slab<uint32_t>::Alloc(row_count);
-  for (uint32_t row = 0; row < row_count; ++row) {
-    result.parent[row] = Tree::kNullParent;
-  }
-  if (pid_rc.storage && !pid_rc.storage->type().Is<Int64>()) {
-    return base::ErrStatus("tree: parent_id column must be integer");
-  }
-  if (pid_rc.storage) {
+  if (!pid_rc.storage) {
+    for (uint32_t row = 0; row < row_count; ++row) {
+      result.parent[row] = Tree::kNullParent;
+    }
+  } else {
+    if (!pid_rc.storage->type().Is<Int64>()) {
+      return base::ErrStatus("tree: parent_id column must be integer");
+    }
     const auto& pid_vec = pid_rc.storage->unchecked_get<Int64>();
     for (uint32_t row = 0; row < row_count; ++row) {
       if (pid_rc.null_bv.size() > 0 && !pid_rc.null_bv.is_set(row)) {
+        result.parent[row] = Tree::kNullParent;
         continue;
       }
       std::optional<uint32_t> parent = id_index.Find(pid_vec[row]);
@@ -208,6 +222,18 @@ base::StatusOr<Tree> BuildFromRawColumns(
         return base::ErrStatus("tree: parent_id not found in id column");
       }
       result.parent[row] = *parent;
+      uint32_t row_component = FindComponent(row, component);
+      uint32_t parent_component = FindComponent(*parent, component);
+      if (PERFETTO_UNLIKELY(row_component == parent_component)) {
+        return base::ErrStatus("tree: cycle detected");
+      }
+      // Prefer the component rooted at the later row. This keeps the next row
+      // close to the root for both parent-first and child-first inputs.
+      if (row_component < parent_component) {
+        component[row_component] = parent_component;
+      } else {
+        component[parent_component] = row_component;
+      }
     }
   }
 

@@ -44,3 +44,18 @@ perfetto_unittest_source_set("unittests") {
     "../dataframe",
   ]
 }
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "tree_from_dataframe_benchmark.cc" ]
+    deps = [
+      ":tree",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../../include/perfetto/base",
+      "../../containers",
+      "../dataframe",
+    ]
+  }
+}

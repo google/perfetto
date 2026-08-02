@@ -18,12 +18,10 @@
 // loading logic.
 
 import m from 'mithril';
-import {Icons} from '../../../../../base/semantic_icons';
 import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
-import {Anchor} from '../../../../../widgets/anchor';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
 import {Intent} from '../../../../../widgets/common';
@@ -683,17 +681,6 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
             trace,
             findProcessTrack(trace, upid, (k) => k === 'java_heap_graph')?.uri,
             cur.eventId,
-          ),
-          m(
-            Anchor,
-            {
-              disabled: true,
-              title:
-                'Direct linking to specific heap dumps in HDE is not yet ' +
-                'supported',
-              icon: Icons.ExternalLink,
-            },
-            'Show in Heap Dump Explorer',
           ),
         ],
       }),

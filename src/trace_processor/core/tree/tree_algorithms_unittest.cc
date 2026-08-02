@@ -65,5 +65,41 @@ TEST(TreeFromDataframeTest, PreservesRowOrderAndNullableColumn) {
   EXPECT_TRUE(values.null_bv.is_set(2));
 }
 
+TEST(TreeFromDataframeTest, RejectsSelfLoop) {
+  StringPool pool;
+  dataframe::AdhocDataframeBuilder::Options options;
+  options.types = {dataframe::AdhocColumnType::kInt64,
+                   dataframe::AdhocColumnType::kInt64};
+  options.nullability_type = dataframe::NullabilityType::kDenseNull;
+  dataframe::AdhocDataframeBuilder builder({"id", "parent_id"}, &pool,
+                                           options);
+
+  ASSERT_TRUE(builder.PushNonNull(0, int64_t{1}));
+  ASSERT_TRUE(builder.PushNonNull(1, int64_t{1}));
+
+  auto result = BuildTree(std::move(builder));
+  ASSERT_FALSE(result.ok());
+  EXPECT_THAT(result.status().message(), testing::HasSubstr("cycle detected"));
+}
+
+TEST(TreeFromDataframeTest, RejectsCycle) {
+  StringPool pool;
+  dataframe::AdhocDataframeBuilder::Options options;
+  options.types = {dataframe::AdhocColumnType::kInt64,
+                   dataframe::AdhocColumnType::kInt64};
+  options.nullability_type = dataframe::NullabilityType::kDenseNull;
+  dataframe::AdhocDataframeBuilder builder({"id", "parent_id"}, &pool,
+                                           options);
+
+  ASSERT_TRUE(builder.PushNonNull(0, int64_t{1}));
+  ASSERT_TRUE(builder.PushNonNull(1, int64_t{2}));
+  ASSERT_TRUE(builder.PushNonNull(0, int64_t{2}));
+  ASSERT_TRUE(builder.PushNonNull(1, int64_t{1}));
+
+  auto result = BuildTree(std::move(builder));
+  ASSERT_FALSE(result.ok());
+  EXPECT_THAT(result.status().message(), testing::HasSubstr("cycle detected"));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core
