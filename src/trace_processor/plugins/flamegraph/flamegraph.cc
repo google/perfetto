@@ -17,670 +17,965 @@
 #include "src/trace_processor/plugins/flamegraph/flamegraph.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
-#include <cstring>
+#include <limits>
 #include <string>
-#include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/regex.h"
+#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
-#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/core/tree/tree_column_ops.h"
+#include "src/trace_processor/core/tree/tree_path_interner.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::flamegraph {
 namespace {
 
-using core::FlexVector;
+// A bit outside the SHOW_STACK mask. Once set, equality with the required
+// SHOW_STACK mask is impossible, rejecting this path and all its descendants.
+constexpr uint64_t kHideStackBit = uint64_t{1} << 63;
 
-// Show-stack and show-from filters are tracked as per-frame bitmasks, one
-// bit per filter, ORed along each path: a stack satisfies them when every
-// bit is present.
-constexpr size_t kMaxBitFilters = 63;
-
-// Row helpers for the flattened metric columns; explicit loops so they
-// inline instead of dispatching into libc for a handful of bytes.
-void AddRow(double* dst, const double* src, uint32_t k) {
-  for (uint32_t m = 0; m < k; ++m) {
-    dst[m] += src[m];
-  }
-}
-
-void CopyRow(double* dst, const double* src, uint32_t k) {
-  for (uint32_t m = 0; m < k; ++m) {
-    dst[m] = src[m];
-  }
-}
-
-bool AnyNonZero(const double* row, uint32_t k) {
-  for (uint32_t m = 0; m < k; ++m) {
-    if (row[m] < 0 || row[m] > 0) {
-      return true;
+template <typename T>
+bool TryAdd(T value, T* total) {
+  static_assert(std::is_same_v<T, int64_t> || std::is_same_v<T, double>);
+  if constexpr (std::is_same_v<T, int64_t>) {
+    if ((value > 0 && *total > std::numeric_limits<int64_t>::max() - value) ||
+        (value < 0 && *total < std::numeric_limits<int64_t>::min() - value)) {
+      return false;
     }
   }
-  return false;
+  *total += value;
+  return true;
 }
 
-// The compiled filter regexes. The pivot pattern is an extra show-stack
-// filter (only pivot-containing stacks are shown), remembered by index so
-// pivot frames can be identified from the match bitmask.
-struct Filters {
-  std::vector<base::Regex> show_stack;
-  std::vector<base::Regex> hide_stack;
-  std::vector<base::Regex> show_from;
-  std::vector<base::Regex> hide_frame;
-  uint32_t pivot_idx = 0;
-  uint64_t show_stack_mask = 0;
-  uint64_t show_from_mask = 0;
-  // A bit outside the mask: assigning it to a frame's bits makes its
-  // stacks unable to ever satisfy the mask, implementing hide-stack.
-  uint64_t impossible_bits = 0;
-
-  bool any() const {
-    return !show_stack.empty() || !hide_stack.empty() || !show_from.empty() ||
-           !hide_frame.empty();
+template <typename T>
+bool TryAddNonNegative(T value, T* total) {
+  static_assert(std::is_same_v<T, int64_t> || std::is_same_v<T, double>);
+  PERFETTO_DCHECK(value >= 0);
+  if constexpr (std::is_same_v<T, int64_t>) {
+    if (value > std::numeric_limits<int64_t>::max() - *total) {
+      return false;
+    }
   }
+  *total += value;
+  return true;
+}
+
+template <typename T>
+bool AccumulateSum(T value,
+                   uint32_t destination,
+                   core::Span<T> sums,
+                   core::BitVector* has_value) {
+  PERFETTO_DCHECK(destination < sums.size());
+  PERFETTO_DCHECK(has_value->size() == sums.size());
+  if (!has_value->is_set(destination)) {
+    sums[destination] = value;
+    has_value->set(destination);
+    return true;
+  }
+  return TryAdd(value, &sums[destination]);
+}
+
+template <typename T>
+bool PropagateNonNegativeSumToParents(const core::TreePathInterner& tree,
+                                      core::Span<T> values) {
+  PERFETTO_DCHECK(tree.size() == values.size());
+  for (uint32_t node = tree.size(); node-- > 0;) {
+    const uint32_t parent = tree.parent(node);
+    if (parent != core::Tree::kNullParent &&
+        !TryAddNonNegative(values[node], &values[parent])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <typename T>
+core::Slab<T> AllocFilled(uint64_t size, T value) {
+  core::Slab<T> slab = core::Slab<T>::Alloc(size);
+  std::fill_n(slab.data(), size, value);
+  return slab;
+}
+
+void UpdateNonZeroRows(const core::Tree::Column& column,
+                       core::Span<uint8_t> rows) {
+  if (column.type.Is<core::Int64>()) {
+    core::Span<const int64_t> values = column.unchecked_span<int64_t>();
+    PERFETTO_DCHECK(values.size() == rows.size());
+    for (uint32_t row = 0; row < rows.size(); ++row) {
+      rows[row] |= values[row] != 0;
+    }
+    return;
+  }
+  PERFETTO_DCHECK(column.type.Is<core::Double>());
+  core::Span<const double> values = column.unchecked_span<double>();
+  PERFETTO_DCHECK(values.size() == rows.size());
+  for (uint32_t row = 0; row < rows.size(); ++row) {
+    rows[row] |= std::fpclassify(values[row]) != FP_ZERO;
+  }
+}
+
+struct FilterMatches {
+  uint64_t show_stack : Config::kMaxShowStackFilters;
+  uint64_t view_pattern : 1;
+  uint64_t hide_stack : 1;
+  uint64_t hide_frame : 1;
+};
+static_assert(sizeof(FilterMatches) == 8);
+
+constexpr FilterMatches kNoFilterMatches{};
+
+void MergeFilterMatches(const FilterMatches& source,
+                        FilterMatches* destination) {
+  destination->show_stack |= source.show_stack;
+  destination->view_pattern |= source.view_pattern;
+  destination->hide_stack |= source.hide_stack;
+  destination->hide_frame |= source.hide_frame;
+}
+
+// Everything later phases need from the root-to-row path traversal. Keeping
+// the path-compressed retained frame avoids any later ancestor search.
+struct PathState {
+  // SHOW_STACK matches on retained frames, plus kHideStackBit if a retained
+  // frame on this path matched HIDE_STACK. Removed frames inherit this value
+  // unchanged, so their names cannot affect stack filtering.
+  uint64_t stack_bits;
+
+  // The nearest retained input row. A retained frame points to itself, while a
+  // removed frame inherits its nearest retained ancestor.
+  uint32_t retained_frame;
+
+  // Node in the merged downward tree which receives this row's values.
+  // kNullParent means this path is outside the downward half of the view.
+  uint32_t downward_node;
+
+  bool IsRetained(uint32_t row) const;
+  bool StackIsHidden() const;
+  bool StackContributes(uint64_t required_show_stack_bits) const;
+  bool ContributesToDownwardCumulative(uint64_t required_show_stack_bits) const;
+};
+static_assert(sizeof(PathState) == 16);
+
+static constexpr PathState kEmptyPathState =
+    PathState{0, core::Tree::kNullParent, core::Tree::kNullParent};
+
+struct UpwardPath {
+  uint32_t root;
+  uint32_t leaf;
+};
+static_assert(sizeof(UpwardPath) == 8);
+
+struct UpwardAnchor {
+  uint32_t frame;
+  UpwardPath path;
+};
+static_assert(sizeof(UpwardAnchor) == 12);
+
+struct TreeConstituent {
+  uint32_t frame;
+  uint32_t node;
+};
+static_assert(sizeof(TreeConstituent) == 8);
+
+struct MetricColumns {
+  core::Tree::Column self;
+  core::Tree::Column cumulative;
 };
 
-base::StatusOr<Filters> CompileFilters(const Config& config) {
-  Filters f;
-  for (const auto& spec : config.filters) {
-    ASSIGN_OR_RETURN(base::Regex re, base::Regex::Create(spec.pattern));
-    switch (spec.kind) {
-      case Config::FilterKind::kShowStack:
-        f.show_stack.push_back(std::move(re));
-        break;
-      case Config::FilterKind::kHideStack:
-        f.hide_stack.push_back(std::move(re));
-        break;
-      case Config::FilterKind::kShowFromFrame:
-        f.show_from.push_back(std::move(re));
-        break;
-      case Config::FilterKind::kHideFrame:
-        f.hide_frame.push_back(std::move(re));
-        break;
-    }
-  }
-  if (config.view == Config::View::kPivot) {
-    if (!config.pivot_pattern) {
-      return base::ErrStatus(
-          "flamegraph: pivot pattern is required for the pivot view");
-    }
-    ASSIGN_OR_RETURN(base::Regex re,
-                     base::Regex::Create(*config.pivot_pattern));
-    f.pivot_idx = static_cast<uint32_t>(f.show_stack.size());
-    f.show_stack.push_back(std::move(re));
-  } else if (config.pivot_pattern) {
-    return base::ErrStatus(
-        "flamegraph: pivot pattern is only valid for the pivot view");
-  }
-  if (f.show_stack.size() > kMaxBitFilters ||
-      f.show_from.size() > kMaxBitFilters) {
-    return base::ErrStatus("flamegraph: too many filters (max %zu per kind)",
-                           kMaxBitFilters);
-  }
-  f.show_stack_mask = (uint64_t(1) << f.show_stack.size()) - 1;
-  f.show_from_mask = (uint64_t(1) << f.show_from.size()) - 1;
-  f.impossible_bits = uint64_t(1) << f.show_stack.size();
-  return base::StatusOr<Filters>(std::move(f));
-}
-
-// Returns the frames in parents-before-children order, excluding frames
-// unreachable from a root (dangling parent indices, cycles). Input that is
-// already ordered, the common case, is detected and returned as the
-// identity order with no index built.
-FlexVector<uint32_t> TopoOrder(const Forest& forest) {
-  auto n = static_cast<uint32_t>(forest.size());
-  bool ordered = true;
-  for (uint32_t i = 0; i < n && ordered; ++i) {
-    uint32_t p = forest.parent[i];
-    ordered = p == kNoParent || p < i;
-  }
-  auto order = FlexVector<uint32_t>::CreateWithSize(n);
-  if (ordered) {
-    for (uint32_t i = 0; i < n; ++i) {
-      order[i] = i;
-    }
-    return order;
-  }
-  // Reverse the parent index into child lists with a count + scatter pass,
-  // then DFS from the roots.
-  auto child_offset = FlexVector<uint32_t>::CreateFilled(n + 2, 0);
-  for (uint32_t i = 0; i < n; ++i) {
-    if (forest.parent[i] < n) {
-      child_offset[forest.parent[i] + 2]++;
-    }
-  }
-  for (uint32_t i = 2; i < n + 2; ++i) {
-    child_offset[i] += child_offset[i - 1];
-  }
-  auto child_list = FlexVector<uint32_t>::CreateWithSize(child_offset[n + 1]);
-  for (uint32_t i = 0; i < n; ++i) {
-    if (forest.parent[i] < n) {
-      child_list[child_offset[forest.parent[i] + 1]++] = i;
-    }
-  }
-  order.clear();
-  FlexVector<uint32_t> stack;
-  for (uint32_t i = n; i-- > 0;) {
-    if (forest.parent[i] == kNoParent) {
-      stack.push_back(i);
-    }
-  }
-  while (!stack.empty()) {
-    uint32_t i = stack.back();
-    stack.pop_back();
-    order.push_back(i);
-    for (uint32_t c = child_offset[i + 1]; c-- > child_offset[i];) {
-      stack.push_back(child_list[c]);
-    }
-  }
-  return order;
-}
-
-// A merged tree under construction. Node identity is (parent node, key),
-// resolved through one exact hash map; nodes are created in
-// parents-before-children order by construction. |expected_nodes| sizes
-// the map and node columns so steady-state growth never reallocates; pass
-// 0 when the output is expected to be small (pivot views).
-struct Trie {
-  Trie(uint32_t metric_count, uint32_t expected_nodes)
-      : k(metric_count),
-        // 1.5x keeps the expected node count under the map's load limit.
-        map(NextPow2(uint64_t(expected_nodes) + expected_nodes / 2)) {
-    parent.reserve(expected_nodes);
-    rep_frame.reserve(expected_nodes);
-    self.reserve(uint64_t(expected_nodes) * k);
-    cumulative.reserve(uint64_t(expected_nodes) * k);
-  }
-
-  static size_t NextPow2(uint64_t v) {
-    uint64_t p = 16;
-    while (p < v) {
-      p *= 2;
-    }
-    PERFETTO_CHECK(p <= std::numeric_limits<size_t>::max());
-    return static_cast<size_t>(p);
-  }
-
-  uint32_t ChildOf(uint32_t node, uint32_t key, uint32_t frame) {
-    auto next = static_cast<uint32_t>(parent.size());
-    auto [id, inserted] = map.Insert((uint64_t(node) << 32) | key, next);
-    if (inserted) {
-      parent.push_back(node);
-      rep_frame.push_back(frame);
-      self.push_back_multiple(0, k);
-      cumulative.push_back_multiple(0, k);
-    }
-    return *id;
-  }
-
-  size_t size() const { return parent.size(); }
-
-  uint32_t k;
-  base::FlatHashMapV2<uint64_t, uint32_t> map;
-  FlexVector<uint32_t> parent;
-  FlexVector<uint32_t> rep_frame;
-  FlexVector<double> self;
-  FlexVector<double> cumulative;
+struct AggregateColumns {
+  core::Tree::Column downward;
+  core::Tree::Column upward;
 };
 
-// Drops every node whose subtree is zero on all metrics (uncounted or
-// valueless stacks) and packs the survivors into the output Tree, along
-// with the constituent index built from the (node, frame) pairs by a
-// count + scatter pass.
-Tree PackTree(Trie trie, const FlexVector<uint64_t>& node_frame_pairs) {
-  auto nodes = static_cast<uint32_t>(trie.size());
-  uint32_t k = trie.k;
-  if (nodes == 0) {
-    Tree tree;
-    tree.metric_count = k;
-    tree.constituents_offset = FlexVector<uint32_t>::CreateFilled(1, 0);
-    return tree;
-  }
-  // A node stays if its own subtree has value; children come after their
-  // parent, so one reverse scan propagates "has a kept descendant".
-  auto keep = FlexVector<uint8_t>::CreateFilled(nodes, 0);
-  for (uint32_t i = nodes; i-- > 0;) {
-    keep[i] = keep[i] || AnyNonZero(&trie.cumulative[i * k], k);
-    if (keep[i] && trie.parent[i] != kNoParent) {
-      keep[trie.parent[i]] = 1;
-    }
-  }
-  auto remap = FlexVector<uint32_t>::CreateWithSize(nodes);
-  uint32_t packed = 0;
-  for (uint32_t i = 0; i < nodes; ++i) {
-    remap[i] = keep[i] ? packed++ : kNoParent;
+struct PackedTree {
+  explicit PackedTree(uint32_t capacity)
+      : depths(core::Slab<int64_t>::Alloc(capacity)),
+        source_nodes(core::Slab<uint32_t>::Alloc(capacity)),
+        parents(core::Slab<uint32_t>::Alloc(capacity)),
+        representative_frames(core::Slab<uint32_t>::Alloc(capacity)) {}
+
+  void Append(int64_t depth,
+              uint32_t source_node,
+              uint32_t parent,
+              uint32_t representative_frame) {
+    PERFETTO_DCHECK(rows < depths.size());
+    depths[rows] = depth;
+    source_nodes[rows] = source_node;
+    parents[rows] = parent;
+    representative_frames[rows] = representative_frame;
+    ++rows;
   }
 
-  Tree tree;
-  tree.metric_count = k;
-  if (packed == nodes) {
-    // Nothing dropped: adopt the trie's columns as-is (remap is the
-    // identity).
-    tree.parent = std::move(trie.parent);
-    tree.rep_frame = std::move(trie.rep_frame);
-    tree.self = std::move(trie.self);
-    tree.cumulative = std::move(trie.cumulative);
-  } else {
-    tree.parent = FlexVector<uint32_t>::CreateWithSize(packed);
-    tree.rep_frame = FlexVector<uint32_t>::CreateWithSize(packed);
-    tree.self = FlexVector<double>::CreateWithSize(uint64_t(packed) * k);
-    tree.cumulative = FlexVector<double>::CreateWithSize(uint64_t(packed) * k);
-    for (uint32_t i = 0; i < nodes; ++i) {
-      if (!keep[i]) {
-        continue;
-      }
-      uint32_t out = remap[i];
-      tree.parent[out] =
-          trie.parent[i] == kNoParent ? kNoParent : remap[trie.parent[i]];
-      tree.rep_frame[out] = trie.rep_frame[i];
-      CopyRow(&tree.self[out * k], &trie.self[i * k], k);
-      CopyRow(&tree.cumulative[out * k], &trie.cumulative[i * k], k);
-    }
+  uint32_t size() const { return rows; }
+  core::Span<const int64_t> depth_span() const {
+    return depths.span().subspan(0, rows);
+  }
+  core::Span<const uint32_t> source_node_span() const {
+    return source_nodes.span().subspan(0, rows);
+  }
+  core::Span<const uint32_t> parent_span() const {
+    return parents.span().subspan(0, rows);
+  }
+  core::Span<const uint32_t> representative_frame_span() const {
+    return representative_frames.span().subspan(0, rows);
   }
 
-  tree.constituents_offset = FlexVector<uint32_t>::CreateFilled(packed + 1, 0);
-  for (uint64_t pair : node_frame_pairs) {
-    uint32_t node = remap[pair >> 32];
-    if (node != kNoParent) {
-      tree.constituents_offset[node + 1]++;
-    }
-  }
-  for (uint32_t i = 1; i <= packed; ++i) {
-    tree.constituents_offset[i] += tree.constituents_offset[i - 1];
-  }
-  tree.constituents =
-      FlexVector<uint32_t>::CreateWithSize(tree.constituents_offset[packed]);
-  if (packed != 0) {
-    auto cursor = FlexVector<uint32_t>::CreateWithSize(packed);
-    memcpy(cursor.data(), tree.constituents_offset.data(),
-           packed * sizeof(uint32_t));
-    for (uint64_t pair : node_frame_pairs) {
-      uint32_t node = remap[pair >> 32];
-      if (node != kNoParent) {
-        tree.constituents[cursor[node]++] = static_cast<uint32_t>(pair);
-      }
-    }
-  }
-  return tree;
-}
+  core::Slab<int64_t> depths;
+  core::Slab<uint32_t> source_nodes;
+  core::Slab<uint32_t> parents;
+  core::Slab<uint32_t> representative_frames;
+  uint32_t rows = 0;
+};
 
-// The state shared by the phases of one Build() call. See Build() at the
-// bottom for the phase sequence.
-class Builder {
+// Owns all temporary state for one flamegraph computation. The methods are the
+// algorithm phases in execution order; helpers are outlined below to keep the
+// class declaration readable.
+class FlamegraphBuilder {
  public:
-  Builder(const Forest& forest,
-          const Config& config,
-          const StringPool& pool,
-          Filters filters)
-      : forest_(forest),
-        config_(config),
-        pool_(pool),
-        filters_(std::move(filters)),
-        frame_count_(static_cast<uint32_t>(forest.size())),
-        metric_count_(forest.metric_count),
-        // Full top-down / bottom-up output has up to one node per frame;
-        // pivot output is typically far smaller, so let that grow on
-        // demand.
-        expected_nodes_(config.view == Config::View::kPivot ? 0
-                                                            : frame_count_) {}
+  FlamegraphBuilder(core::Tree& input, const Config& config);
 
-  Flamegraph Run() {
-    EvaluateNameMasks();
-    order_ = TopoOrder(forest_);
-    EvaluatePaths();
-    SelectAnchors();
-    Flamegraph result;
-    result.down.metric_count = metric_count_;
-    result.down.constituents_offset = FlexVector<uint32_t>::CreateFilled(1, 0);
-    result.up.metric_count = metric_count_;
-    result.up.constituents_offset = FlexVector<uint32_t>::CreateFilled(1, 0);
-    if (config_.view != Config::View::kBottomUp) {
-      result.down = BuildDown();
-    }
-    if (config_.view != Config::View::kTopDown) {
-      result.up = BuildUp();
-    }
-    return result;
-  }
+  base::StatusOr<core::Tree> Run();
 
  private:
-  // Per distinct name, its regex results across all filters.
-  struct NameMasks {
-    uint64_t show_stack_bits;
-    uint64_t show_from_bits;
-    bool shown;
-  };
+  FilterMatches MatchText(const char* value) const;
 
-  const NameMasks& MasksOf(uint32_t frame) const {
-    return masks_[forest_.name[frame]];
-  }
+  template <typename T>
+  FilterMatches MatchNumber(T value) const;
 
-  bool IsPivotFrame(uint32_t frame) const {
-    return ((MasksOf(frame).show_stack_bits >> filters_.pivot_idx) & 1) != 0;
-  }
+  FilterMatches MatchColumn(const core::Tree::Column& column,
+                            uint32_t row) const;
+  FilterMatches MatchFrame(uint32_t row) const;
+  void PrepareFrameHashes();
+  void BuildDownwardStructure();
+  base::Status BuildUpwardStructure();
+  UpwardPath BuildUpwardPath(uint32_t frame, bool include_aggregates);
+  base::Status AccumulateMetrics();
+  base::Status ComputeAggregates();
+  base::StatusOr<core::Tree> PackOutput();
 
-  // Runs every filter regex against every distinct name once.
-  void EvaluateNameMasks() {
-    auto names = static_cast<uint32_t>(forest_.name_table.size());
-    masks_ = FlexVector<NameMasks>::CreateFilled(names, {0, 0, true});
-    if (!filters_.any()) {
-      return;
-    }
-    for (uint32_t t = 0; t < names; ++t) {
-      NullTermStringView name = pool_.Get(forest_.name_table[t]);
-      std::string_view view(name.data(), name.size());
-      auto matches = [&](const base::Regex& re) {
-        if (re.PartialMatch(view)) {
-          return true;
-        }
-        if (forest_.match_offset.empty()) {
-          return false;
-        }
-        for (uint32_t s = forest_.match_offset[t];
-             s < forest_.match_offset[t + 1]; ++s) {
-          NullTermStringView extra = pool_.Get(forest_.match_strings[s]);
-          if (re.PartialMatch(std::string_view(extra.data(), extra.size()))) {
-            return true;
-          }
-        }
-        return false;
-      };
-      uint64_t sb = 0;
-      for (uint32_t j = 0; j < filters_.show_stack.size(); ++j) {
-        sb |= uint64_t(matches(filters_.show_stack[j])) << j;
-      }
-      bool hidden = std::any_of(filters_.hide_stack.begin(),
-                                filters_.hide_stack.end(), matches);
-      masks_[t].show_stack_bits = hidden ? filters_.impossible_bits : sb;
-      for (uint32_t j = 0; j < filters_.show_from.size(); ++j) {
-        masks_[t].show_from_bits |= uint64_t(matches(filters_.show_from[j]))
-                                    << j;
-      }
-      masks_[t].shown = !std::any_of(filters_.hide_frame.begin(),
-                                     filters_.hide_frame.end(), matches);
-    }
-  }
+  template <typename T>
+  base::Status MarkActiveBottomUpAnchors(const core::Tree::Column& column,
+                                         core::Span<uint8_t> active);
 
-  // One pass along every path, in topological order. Per frame: whether it
-  // is kept (hide-frame, show-from), its nearest kept ancestor, whether
-  // its stack satisfies every show/hide-stack filter (so its values
-  // count), and its metrics with hidden frames' values folded into the
-  // kept ancestor.
-  void EvaluatePaths() {
-    kept_ = FlexVector<uint8_t>::CreateFilled(frame_count_, 0);
-    counted_ = FlexVector<uint8_t>::CreateFilled(frame_count_, 0);
-    ancestor_ = FlexVector<uint32_t>::CreateFilled(frame_count_, kNoParent);
-    auto sb_path = FlexVector<uint64_t>::CreateWithSize(frame_count_);
-    auto sf_path = FlexVector<uint64_t>::CreateWithSize(frame_count_);
-    folded_ = FlexVector<double>::CreateWithSize(uint64_t(frame_count_) *
-                                                 metric_count_);
-    memcpy(folded_.data(), forest_.metrics.data(),
-           uint64_t(frame_count_) * metric_count_ * sizeof(double));
-    for (uint32_t i : order_) {
-      uint32_t p = forest_.parent[i];
-      bool has_parent = p != kNoParent;
-      const NameMasks& m = MasksOf(i);
-      sf_path[i] =
-          (has_parent ? sf_path[p] : 0) | (m.shown ? m.show_from_bits : 0);
-      kept_[i] = m.shown && sf_path[i] == filters_.show_from_mask;
-      ancestor_[i] = !has_parent ? kNoParent : (kept_[p] ? p : ancestor_[p]);
-      sb_path[i] =
-          (has_parent ? sb_path[p] : 0) | (kept_[i] ? m.show_stack_bits : 0);
-      counted_[i] = kept_[i] && sb_path[i] == filters_.show_stack_mask;
-      if (!kept_[i] && ancestor_[i] != kNoParent) {
-        AddRow(&folded_[ancestor_[i] * metric_count_],
-               &forest_.metrics[i * metric_count_], metric_count_);
-      }
-    }
-  }
+  template <typename T>
+  static void InitializeMetricColumns(uint32_t rows, MetricColumns* output);
 
-  // Selects the frames the merged trees grow from and re-root at. This is
-  // the only place the views differ; every phase after this treats
-  // anchors uniformly.
-  void SelectAnchors() {
-    anchor_ = FlexVector<uint8_t>::CreateFilled(frame_count_, 0);
-    for (uint32_t i : order_) {
-      switch (config_.view) {
-        case Config::View::kTopDown:
-          // The roots of the kept forest.
-          anchor_[i] = kept_[i] && ancestor_[i] == kNoParent;
-          break;
-        case Config::View::kBottomUp:
-          // Every frame whose own values count: each one is a stack
-          // sample whose caller chain the up tree attributes.
-          anchor_[i] = counted_[i];
-          break;
-        case Config::View::kPivot:
-          // Frames matching the pivot pattern; nested matches re-root.
-          anchor_[i] = kept_[i] && IsPivotFrame(i);
-          break;
-      }
-    }
-  }
+  template <typename T>
+  base::Status AccumulateMetric(const core::Tree::Column& input,
+                                MetricColumns* downward,
+                                MetricColumns* upward);
 
-  // The downward half: one forward scan with a trie cursor. Anchors start
-  // merged roots; every other kept frame merges under its ancestor's
-  // node.
-  Tree BuildDown() {
-    Trie trie(metric_count_, expected_nodes_);
-    auto trie_of = FlexVector<uint32_t>::CreateFilled(frame_count_, kNoParent);
-    for (uint32_t i : order_) {
-      if (!kept_[i]) {
-        continue;
-      }
-      uint32_t node;
-      if (anchor_[i]) {
-        node = trie.ChildOf(kNoParent, forest_.key[i], i);
-      } else if (ancestor_[i] != kNoParent &&
-                 trie_of[ancestor_[i]] != kNoParent) {
-        node = trie.ChildOf(trie_of[ancestor_[i]], forest_.key[i], i);
-      } else {
-        continue;  // Not under any anchor.
-      }
-      trie_of[i] = node;
-      // Self shows the merged frames' own values regardless of stack
-      // filters; only cumulative is limited to counted stacks.
-      AddRow(&trie.self[node * metric_count_], &folded_[i * metric_count_],
-             metric_count_);
-      if (counted_[i]) {
-        AddRow(&trie.cumulative[node * metric_count_],
-               &folded_[i * metric_count_], metric_count_);
-      }
-    }
-    // Cumulative: children were created after their parent, so one
-    // reverse scan sums subtrees onto the counted bases.
-    for (uint32_t i = static_cast<uint32_t>(trie.size()); i-- > 0;) {
-      if (trie.parent[i] != kNoParent) {
-        AddRow(&trie.cumulative[trie.parent[i] * metric_count_],
-               &trie.cumulative[i * metric_count_], metric_count_);
-      }
-    }
-    FlexVector<uint64_t> pairs;
-    for (uint32_t i = 0; i < frame_count_; ++i) {
-      if (trie_of[i] != kNoParent) {
-        pairs.push_back((uint64_t(trie_of[i]) << 32) | i);
-      }
-    }
-    return PackTree(std::move(trie), pairs);
-  }
+  template <typename T>
+  base::Status AccumulateDownwardMetric(const core::Tree::Column& input,
+                                        MetricColumns* output);
 
-  // The upward half: walk each anchor's kept ancestor chain, descending
-  // the trie by key and attributing the anchor's weight to every node on
-  // the chain.
-  Tree BuildUp() {
-    FlexVector<double> weights = AnchorWeights();
-    // Unlike the downward half, the up tree is usually much smaller than
-    // the input (distinct caller suffixes); growing on demand keeps the
-    // map compact and cache-resident.
-    Trie trie(metric_count_, 0);
-    FlexVector<uint64_t> pairs;
-    for (uint32_t i : order_) {
-      if (!anchor_[i] ||
-          !AnyNonZero(&weights[i * metric_count_], metric_count_)) {
-        continue;
-      }
-      uint32_t node = kNoParent;
-      for (uint32_t f = i; f != kNoParent; f = ancestor_[f]) {
-        node = trie.ChildOf(node, forest_.key[f], f);
-        AddRow(&trie.cumulative[node * metric_count_],
-               &weights[i * metric_count_], metric_count_);
-        AddRow(&trie.self[node * metric_count_], &folded_[f * metric_count_],
-               metric_count_);
-        pairs.push_back((uint64_t(node) << 32) | f);
-      }
-    }
-    return PackTree(std::move(trie), pairs);
-  }
+  template <typename T>
+  base::Status AccumulateUpwardMetric(const core::Tree::Column& input,
+                                      MetricColumns* output);
 
-  // The weight each anchor carries up its caller chain: its counted
-  // subtree total, accumulated bottom-up along the kept tree and stopping
-  // at other anchors (the same re-rooting the downward half applies).
-  // With bottom-up anchors, where every counted frame is an anchor, this
-  // reduces to each frame's own values.
-  FlexVector<double> AnchorWeights() {
-    auto weights = FlexVector<double>::CreateFilled(
-        uint64_t(frame_count_) * metric_count_, 0);
-    for (uint32_t idx = static_cast<uint32_t>(order_.size()); idx-- > 0;) {
-      uint32_t i = order_[idx];
-      if (!kept_[i]) {
-        continue;
-      }
-      if (counted_[i]) {
-        AddRow(&weights[i * metric_count_], &folded_[i * metric_count_],
-               metric_count_);
-      }
-      if (!anchor_[i] && ancestor_[i] != kNoParent) {
-        AddRow(&weights[ancestor_[i] * metric_count_],
-               &weights[i * metric_count_], metric_count_);
-      }
-    }
-    return weights;
-  }
+  template <typename T>
+  static base::Status PropagateCumulative(const core::TreePathInterner& tree,
+                                          core::Span<T> cumulative);
 
-  const Forest& forest_;
+  template <typename T>
+  base::Status SumAggregateColumn(const core::Tree::Column& input,
+                                  AggregateColumns* output);
+
+  void AppendPackedNodes(const core::TreePathInterner& tree,
+                         core::Span<const MetricColumns> metrics,
+                         bool upward,
+                         PackedTree* output) const;
+
+  core::Tree& input_;
   const Config& config_;
-  const StringPool& pool_;
-  Filters filters_;
-  uint32_t frame_count_;
-  uint32_t metric_count_;
-  uint32_t expected_nodes_;
+  uint64_t required_show_stack_bits_;
 
-  FlexVector<NameMasks> masks_;
-  FlexVector<uint32_t> order_;     // Topological, unreachable frames absent.
-  FlexVector<uint8_t> kept_;       // Survives hide-frame / show-from.
-  FlexVector<uint8_t> counted_;    // Kept and stack satisfies every filter.
-  FlexVector<uint8_t> anchor_;     // Roots the merged trees. SelectAnchors().
-  FlexVector<uint32_t> ancestor_;  // Nearest kept ancestor, or kNoParent.
-  FlexVector<double> folded_;      // Metrics, hidden frames folded in.
+  std::vector<base::MurmurHashCombiner> frame_hashes_;
+  core::TreePathInterner downward_tree_;
+  core::TreePathInterner upward_tree_;
+  core::Slab<PathState> path_state_;
+  core::FlexVector<UpwardAnchor> pivot_anchors_;
+  core::FlexVector<TreeConstituent> upward_aggregate_constituents_;
+  core::Slab<UpwardPath> bottom_up_paths_;
+  std::vector<MetricColumns> downward_metrics_;
+  std::vector<MetricColumns> upward_metrics_;
+  std::vector<AggregateColumns> aggregate_columns_;
 };
+
+bool IsValidConfig(const Config& config) {
+  if (!config.name || !config.name->type.Is<core::String>()) {
+    return false;
+  }
+  if (config.value_columns.empty()) {
+    return false;
+  }
+  for (const Config::AggregateColumn& aggregate : config.aggregate_columns) {
+    if (!aggregate.input || aggregate.output_name.empty()) {
+      return false;
+    }
+    if (aggregate.aggregate == Config::Aggregate::kSum &&
+        !IsNumericColumn(*aggregate.input)) {
+      return false;
+    }
+  }
+  if (config.show_stack_filters.size() > Config::kMaxShowStackFilters) {
+    return false;
+  }
+  const bool is_pattern_view = config.view == Config::View::kPivot ||
+                               config.view == Config::View::kFromFrame;
+  return is_pattern_view == config.view_pattern.has_value();
+}
+
+bool PathState::IsRetained(uint32_t row) const {
+  return retained_frame == row;
+}
+
+bool PathState::StackIsHidden() const {
+  return (stack_bits & kHideStackBit) != 0;
+}
+
+bool PathState::StackContributes(uint64_t required_show_stack_bits) const {
+  return retained_frame != core::Tree::kNullParent &&
+         stack_bits == required_show_stack_bits;
+}
+
+bool PathState::ContributesToDownwardCumulative(
+    uint64_t required_show_stack_bits) const {
+  return downward_node != core::Tree::kNullParent &&
+         StackContributes(required_show_stack_bits);
+}
+
+FlamegraphBuilder::FlamegraphBuilder(core::Tree& input, const Config& config)
+    : input_(input),
+      config_(config),
+      required_show_stack_bits_(
+          (uint64_t{1} << config.show_stack_filters.size()) - 1),
+      downward_tree_(config.view == Config::View::kTopDown ? input.row_count
+                                                           : 0),
+      upward_tree_(config.view == Config::View::kBottomUp ? input.row_count
+                                                          : 0) {}
+
+base::StatusOr<core::Tree> FlamegraphBuilder::Run() {
+  PrepareFrameHashes();
+  BuildDownwardStructure();
+  RETURN_IF_ERROR(BuildUpwardStructure());
+  std::vector<base::MurmurHashCombiner>().swap(frame_hashes_);
+  RETURN_IF_ERROR(AccumulateMetrics());
+  bottom_up_paths_ = {};
+  pivot_anchors_ = {};
+  RETURN_IF_ERROR(ComputeAggregates());
+  path_state_ = {};
+  upward_aggregate_constituents_ = {};
+  return PackOutput();
+}
+
+FilterMatches FlamegraphBuilder::MatchText(const char* value) const {
+  FilterMatches matches{};
+  if (config_.view_pattern) {
+    matches.view_pattern = config_.view_pattern->PartialMatch(value);
+  }
+  for (size_t i = 0; i < config_.show_stack_filters.size(); ++i) {
+    if (config_.show_stack_filters[i].PartialMatch(value)) {
+      matches.show_stack |= uint64_t{1} << i;
+    }
+  }
+  for (const base::Regex& filter : config_.hide_stack_filters) {
+    if (filter.PartialMatch(value)) {
+      matches.hide_stack = 1;
+      break;
+    }
+  }
+  for (const base::Regex& filter : config_.hide_frame_filters) {
+    if (filter.PartialMatch(value)) {
+      matches.hide_frame = 1;
+      break;
+    }
+  }
+  return matches;
+}
+
+void FlamegraphBuilder::PrepareFrameHashes() {
+  frame_hashes_.resize(input_.row_count);
+  core::Span<base::MurmurHashCombiner> hashes =
+      core::MakeMutableSpan(frame_hashes_);
+  core::tree_ops::UpdateRowHashes(*config_.name, hashes);
+  for (const core::Tree::Column* column : config_.grouping_columns) {
+    core::tree_ops::UpdateRowHashes(*column, hashes);
+  }
+}
+
+template <typename T>
+FilterMatches FlamegraphBuilder::MatchNumber(T value) const {
+  if constexpr (std::is_same_v<T, int64_t>) {
+    return MatchText(base::StackString<32>("%" PRId64, value).c_str());
+  } else {
+    return MatchText(base::StackString<32>("%.15g", value).c_str());
+  }
+}
+
+FilterMatches FlamegraphBuilder::MatchColumn(const core::Tree::Column& column,
+                                             uint32_t row) const {
+  if (column.null_bv.size() > 0 && !column.null_bv.is_set(row)) {
+    return kNoFilterMatches;
+  }
+  if (column.type.Is<core::String>()) {
+    const StringPool::Id value = column.unchecked_data<StringPool::Id>()[row];
+    return value.is_null() ? kNoFilterMatches
+                           : MatchText(config_.pool.Get(value).c_str());
+  }
+  if (column.type.Is<core::Int64>()) {
+    return MatchNumber(column.unchecked_data<int64_t>()[row]);
+  }
+  return MatchNumber(column.unchecked_data<double>()[row]);
+}
+
+FilterMatches FlamegraphBuilder::MatchFrame(uint32_t row) const {
+  FilterMatches matches = MatchColumn(*config_.name, row);
+  for (const core::Tree::Column* column : config_.grouping_columns) {
+    MergeFilterMatches(MatchColumn(*column, row), &matches);
+  }
+  return matches;
+}
+
+void FlamegraphBuilder::BuildDownwardStructure() {
+  path_state_ = core::Slab<PathState>::Alloc(input_.row_count);
+  const bool needs_matching = config_.HasFilters() || config_.view_pattern;
+  base::FlatHashMapV2<uint64_t, uint32_t, base::AlreadyHashed<uint64_t>>
+      frame_match_index;
+  base::FlatHashMapV2<StringPool::Id, uint32_t> name_match_index;
+  std::vector<FilterMatches> match_pool;
+  const StringPool::Id* names = config_.name->unchecked_data<StringPool::Id>();
+
+  for (uint32_t row = 0; row < input_.row_count; ++row) {
+    // Tree guarantees parents precede children, so inheritance is an O(1)
+    // reference rather than an ancestor walk or a copy. Roots inherit the
+    // shared empty path.
+    const uint32_t parent = input_.parent[row];
+    const PathState& inheritance = parent == core::Tree::kNullParent
+                                       ? kEmptyPathState
+                                       : path_state_[parent];
+    PERFETTO_DCHECK(parent == core::Tree::kNullParent || parent < row);
+
+    // A HIDE_FRAME row folds into the same downward node as its parent and
+    // cannot affect stack filtering.
+    PathState& state = path_state_[row];
+    const FilterMatches* matches = &kNoFilterMatches;
+    if (needs_matching) {
+      const uint32_t next_index = static_cast<uint32_t>(match_pool.size());
+      uint32_t* index;
+      bool inserted;
+      StringPool::Id matched_name;
+      if (config_.grouping_columns.empty()) {
+        const bool is_null = config_.name->null_bv.size() > 0 &&
+                             !config_.name->null_bv.is_set(row);
+        matched_name = is_null ? StringPool::Id() : names[row];
+        std::tie(index, inserted) =
+            name_match_index.Insert(matched_name, next_index);
+      } else {
+        const uint64_t frame_hash = frame_hashes_[row].digest();
+        std::tie(index, inserted) =
+            frame_match_index.Insert(frame_hash, next_index);
+      }
+      if (inserted) {
+        if (config_.grouping_columns.empty()) {
+          match_pool.push_back(
+              matched_name.is_null()
+                  ? kNoFilterMatches
+                  : MatchText(config_.pool.Get(matched_name).c_str()));
+        } else {
+          match_pool.push_back(MatchFrame(row));
+        }
+      }
+      matches = &match_pool[*index];
+    }
+    if (matches->hide_frame) {
+      state = inheritance;
+      PERFETTO_DCHECK(!state.IsRetained(row));
+      continue;
+    }
+
+    // Every other row is retained, even when it is outside the downward half.
+    // This lets matching descendants start roots and lets upward paths walk
+    // through retained ancestors.
+    state.retained_frame = row;
+    if (config_.view == Config::View::kPivot && matches->view_pattern) {
+      pivot_anchors_.push_back(UpwardAnchor{
+          row, {core::Tree::kNullParent, core::Tree::kNullParent}});
+    }
+
+    state.stack_bits = matches->hide_stack
+                           ? kHideStackBit
+                           : matches->show_stack | inheritance.stack_bits;
+
+    // Top-down starts at every retained root. Pivot and from-frame start only
+    // at matching frames; nested matches deliberately start another root.
+    // Bottom-up has no downward half.
+    const bool has_retained_parent =
+        inheritance.retained_frame != core::Tree::kNullParent;
+    const bool has_downward_parent =
+        inheritance.downward_node != core::Tree::kNullParent;
+    const bool is_top_down_root =
+        config_.view == Config::View::kTopDown && !has_retained_parent;
+    const bool starts_downward_tree = matches->view_pattern || is_top_down_root;
+    if (!starts_downward_tree && !has_downward_parent) {
+      state.downward_node = core::Tree::kNullParent;
+      continue;
+    }
+    const uint32_t downward_parent = starts_downward_tree
+                                         ? core::Tree::kNullParent
+                                         : inheritance.downward_node;
+
+    // Equivalent frames under the same merged parent share a node. The first
+    // row which creates the node remains its representative.
+    state.downward_node =
+        downward_tree_.Intern(downward_parent, frame_hashes_[row], row);
+  }
+}
+
+template <typename T>
+base::Status FlamegraphBuilder::MarkActiveBottomUpAnchors(
+    const core::Tree::Column& column,
+    core::Span<uint8_t> active) {
+  core::Span<const T> values = column.unchecked_span<T>();
+  for (uint32_t row = 0; row < input_.row_count; ++row) {
+    if (column.null_bv.size() > 0 && !column.null_bv.is_set(row)) {
+      continue;
+    }
+    const T value = values[row];
+    if (value < 0) {
+      return base::ErrStatus("flamegraph: value columns must be non-negative");
+    }
+    bool non_zero;
+    if constexpr (std::is_same_v<T, int64_t>) {
+      non_zero = value != 0;
+    } else {
+      non_zero = std::fpclassify(value) != FP_ZERO;
+    }
+    const PathState& state = path_state_[row];
+    if (non_zero && state.StackContributes(required_show_stack_bits_)) {
+      active[state.retained_frame] = 1;
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status FlamegraphBuilder::BuildUpwardStructure() {
+  if (config_.view == Config::View::kPivot) {
+    for (UpwardAnchor& anchor : pivot_anchors_) {
+      const bool include_aggregates =
+          !config_.aggregate_columns.empty() &&
+          path_state_[anchor.frame].StackContributes(required_show_stack_bits_);
+      anchor.path = BuildUpwardPath(anchor.frame, include_aggregates);
+    }
+    return base::OkStatus();
+  }
+  if (config_.view != Config::View::kBottomUp) {
+    return base::OkStatus();
+  }
+
+  auto active = AllocFilled<uint8_t>(input_.row_count, 0);
+  for (const core::Tree::Column* column : config_.value_columns) {
+    if (column->type.Is<core::Int64>()) {
+      RETURN_IF_ERROR(
+          MarkActiveBottomUpAnchors<int64_t>(*column, active.mutable_span()));
+    } else {
+      RETURN_IF_ERROR(
+          MarkActiveBottomUpAnchors<double>(*column, active.mutable_span()));
+    }
+  }
+  constexpr UpwardPath kNoPath{core::Tree::kNullParent,
+                               core::Tree::kNullParent};
+  bottom_up_paths_ = AllocFilled<UpwardPath>(input_.row_count, kNoPath);
+  for (uint32_t row = 0; row < input_.row_count; ++row) {
+    if (active[row]) {
+      bottom_up_paths_[row] = BuildUpwardPath(row, true);
+    }
+  }
+  return base::OkStatus();
+}
+
+UpwardPath FlamegraphBuilder::BuildUpwardPath(uint32_t frame,
+                                              bool include_aggregates) {
+  UpwardPath result{core::Tree::kNullParent, core::Tree::kNullParent};
+  uint32_t upward_parent = core::Tree::kNullParent;
+  while (frame != core::Tree::kNullParent) {
+    upward_parent =
+        upward_tree_.Intern(upward_parent, frame_hashes_[frame], frame);
+    if (result.root == core::Tree::kNullParent) {
+      result.root = upward_parent;
+    }
+    if (include_aggregates) {
+      upward_aggregate_constituents_.push_back(
+          TreeConstituent{frame, upward_parent});
+    }
+    const uint32_t parent = input_.parent[frame];
+    frame = parent == core::Tree::kNullParent
+                ? core::Tree::kNullParent
+                : path_state_[parent].retained_frame;
+  }
+  result.leaf = upward_parent;
+  return result;
+}
+
+template <typename T>
+void FlamegraphBuilder::InitializeMetricColumns(uint32_t rows,
+                                                MetricColumns* output) {
+  output->self = core::Tree::Column::Create<T>(rows);
+  output->cumulative = core::Tree::Column::Create<T>(rows);
+  core::Span<T> self = output->self.unchecked_span<T>();
+  core::Span<T> cumulative = output->cumulative.unchecked_span<T>();
+  std::fill(self.begin(), self.end(), T{});
+  std::fill(cumulative.begin(), cumulative.end(), T{});
+}
+
+template <typename T>
+base::Status FlamegraphBuilder::AccumulateMetric(
+    const core::Tree::Column& input,
+    MetricColumns* downward,
+    MetricColumns* upward) {
+  RETURN_IF_ERROR(AccumulateDownwardMetric<T>(input, downward));
+  return AccumulateUpwardMetric<T>(input, upward);
+}
+
+template <typename T>
+base::Status FlamegraphBuilder::PropagateCumulative(
+    const core::TreePathInterner& tree,
+    core::Span<T> cumulative) {
+  if (!PropagateNonNegativeSumToParents(tree, cumulative)) {
+    return base::ErrStatus("flamegraph: integer value overflow");
+  }
+  return base::OkStatus();
+}
+
+template <typename T>
+base::Status FlamegraphBuilder::AccumulateDownwardMetric(
+    const core::Tree::Column& input,
+    MetricColumns* output) {
+  InitializeMetricColumns<T>(downward_tree_.size(), output);
+  core::Span<T> self = output->self.unchecked_span<T>();
+  core::Span<T> cumulative = output->cumulative.unchecked_span<T>();
+  if (config_.view == Config::View::kBottomUp) {
+    return base::OkStatus();
+  }
+
+  core::Span<const T> values = input.unchecked_span<T>();
+  for (uint32_t row = 0; row < input_.row_count; ++row) {
+    if (input.null_bv.size() > 0 && !input.null_bv.is_set(row)) {
+      continue;
+    }
+    const T value = values[row];
+    if (value < 0) {
+      return base::ErrStatus("flamegraph: value columns must be non-negative");
+    }
+
+    const PathState& state = path_state_[row];
+    if (state.downward_node == core::Tree::kNullParent) {
+      continue;
+    }
+    if (state.ContributesToDownwardCumulative(required_show_stack_bits_) &&
+        (!TryAddNonNegative(value, &self[state.downward_node]) ||
+         !TryAddNonNegative(value, &cumulative[state.downward_node]))) {
+      return base::ErrStatus("flamegraph: integer value overflow");
+    }
+  }
+
+  return PropagateCumulative(downward_tree_, cumulative);
+}
+
+template <typename T>
+base::Status FlamegraphBuilder::AccumulateUpwardMetric(
+    const core::Tree::Column& input,
+    MetricColumns* output) {
+  InitializeMetricColumns<T>(upward_tree_.size(), output);
+  core::Span<T> self = output->self.unchecked_span<T>();
+  core::Span<T> cumulative = output->cumulative.unchecked_span<T>();
+
+  if (config_.view != Config::View::kPivot &&
+      config_.view != Config::View::kBottomUp) {
+    return base::OkStatus();
+  }
+
+  core::Span<const T> values = input.unchecked_span<T>();
+  if (config_.view == Config::View::kBottomUp) {
+    for (uint32_t row = 0; row < input_.row_count; ++row) {
+      if (input.null_bv.size() > 0 && !input.null_bv.is_set(row)) {
+        continue;
+      }
+      const T value = values[row];
+      bool is_zero;
+      if constexpr (std::is_same_v<T, int64_t>) {
+        is_zero = value == 0;
+      } else {
+        is_zero = std::fpclassify(value) == FP_ZERO;
+      }
+      const PathState& state = path_state_[row];
+      if (is_zero || !state.StackContributes(required_show_stack_bits_)) {
+        continue;
+      }
+      const uint32_t retained = state.retained_frame;
+      const UpwardPath& path = bottom_up_paths_[retained];
+      const uint32_t root = path.root;
+      const uint32_t leaf = path.leaf;
+      PERFETTO_DCHECK(root != core::Tree::kNullParent);
+      PERFETTO_DCHECK(leaf != core::Tree::kNullParent);
+      if (!TryAddNonNegative(value, &self[root]) ||
+          !TryAddNonNegative(value, &cumulative[leaf])) {
+        return base::ErrStatus("flamegraph: integer value overflow");
+      }
+    }
+    return PropagateCumulative(upward_tree_, cumulative);
+  }
+
+  auto anchor_weights = AllocFilled<T>(input_.row_count, T{});
+  for (uint32_t row = 0; row < input_.row_count; ++row) {
+    if (input.null_bv.size() > 0 && !input.null_bv.is_set(row)) {
+      continue;
+    }
+    const PathState& state = path_state_[row];
+    if (state.ContributesToDownwardCumulative(required_show_stack_bits_) &&
+        !TryAddNonNegative(values[row],
+                           &anchor_weights[state.retained_frame])) {
+      return base::ErrStatus("flamegraph: integer value overflow");
+    }
+  }
+
+  for (uint32_t row = input_.row_count; row-- > 0;) {
+    const PathState& state = path_state_[row];
+    if (!state.IsRetained(row) ||
+        state.downward_node == core::Tree::kNullParent ||
+        downward_tree_.parent(state.downward_node) == core::Tree::kNullParent) {
+      continue;
+    }
+    const uint32_t parent = input_.parent[row];
+    PERFETTO_DCHECK(parent != core::Tree::kNullParent);
+    const uint32_t retained_parent = path_state_[parent].retained_frame;
+    PERFETTO_DCHECK(retained_parent != core::Tree::kNullParent);
+    if (!TryAddNonNegative(anchor_weights[row],
+                           &anchor_weights[retained_parent])) {
+      return base::ErrStatus("flamegraph: integer value overflow");
+    }
+  }
+
+  for (const UpwardAnchor& anchor : pivot_anchors_) {
+    const T value = anchor_weights[anchor.frame];
+    if (!TryAddNonNegative(value, &self[anchor.path.root]) ||
+        !TryAddNonNegative(value, &cumulative[anchor.path.leaf])) {
+      return base::ErrStatus("flamegraph: integer value overflow");
+    }
+  }
+  return PropagateCumulative(upward_tree_, cumulative);
+}
+
+base::Status FlamegraphBuilder::AccumulateMetrics() {
+  downward_metrics_.resize(config_.value_columns.size());
+  upward_metrics_.resize(config_.value_columns.size());
+  for (uint32_t i = 0; i < config_.value_columns.size(); ++i) {
+    const core::Tree::Column& column = *config_.value_columns[i];
+    switch (column.type.index()) {
+      case core::Tree::Column::Type::GetTypeIndex<core::Int64>():
+        RETURN_IF_ERROR(AccumulateMetric<int64_t>(column, &downward_metrics_[i],
+                                                  &upward_metrics_[i]));
+        break;
+      case core::Tree::Column::Type::GetTypeIndex<core::Double>():
+        RETURN_IF_ERROR(AccumulateMetric<double>(column, &downward_metrics_[i],
+                                                 &upward_metrics_[i]));
+        break;
+      default:
+        PERFETTO_FATAL("Unsupported flamegraph value column type");
+    }
+  }
+  return base::OkStatus();
+}
+
+template <typename T>
+base::Status FlamegraphBuilder::SumAggregateColumn(
+    const core::Tree::Column& input,
+    AggregateColumns* output) {
+  auto retained_totals = AllocFilled<T>(input_.row_count, T{});
+  auto retained_has_value =
+      core::BitVector::CreateWithSize(input_.row_count, false);
+  core::Span<const T> values = input.unchecked_span<T>();
+  core::Span<T> retained_sums = retained_totals.mutable_span();
+  for (uint32_t row = 0; row < input_.row_count; ++row) {
+    if (input.null_bv.size() > 0 && !input.null_bv.is_set(row)) {
+      continue;
+    }
+    const PathState& state = path_state_[row];
+    const uint32_t retained = state.retained_frame;
+    if (retained == core::Tree::kNullParent || state.StackIsHidden()) {
+      continue;
+    }
+    if (!AccumulateSum(values[row], retained, retained_sums,
+                       &retained_has_value)) {
+      return base::ErrStatus("flamegraph: integer aggregate overflow");
+    }
+  }
+
+  output->downward = core::Tree::Column::Create<T>(downward_tree_.size());
+  output->downward.null_bv =
+      core::BitVector::CreateWithSize(downward_tree_.size(), false);
+  core::Span<T> downward = output->downward.unchecked_span<T>();
+  for (uint32_t frame = 0; frame < input_.row_count; ++frame) {
+    const PathState& state = path_state_[frame];
+    if (!state.IsRetained(frame) || !retained_has_value.is_set(frame) ||
+        !state.ContributesToDownwardCumulative(required_show_stack_bits_)) {
+      continue;
+    }
+    const uint32_t node = state.downward_node;
+    if (!AccumulateSum(retained_totals[frame], node, downward,
+                       &output->downward.null_bv)) {
+      return base::ErrStatus("flamegraph: integer aggregate overflow");
+    }
+  }
+
+  output->upward = core::Tree::Column::Create<T>(upward_tree_.size());
+  output->upward.null_bv =
+      core::BitVector::CreateWithSize(upward_tree_.size(), false);
+  core::Span<T> upward = output->upward.unchecked_span<T>();
+  for (const TreeConstituent& constituent : upward_aggregate_constituents_) {
+    const uint32_t frame = constituent.frame;
+    const uint32_t node = constituent.node;
+    if (!retained_has_value.is_set(frame)) {
+      continue;
+    }
+    if (!AccumulateSum(retained_totals[frame], node, upward,
+                       &output->upward.null_bv)) {
+      return base::ErrStatus("flamegraph: integer aggregate overflow");
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status FlamegraphBuilder::ComputeAggregates() {
+  aggregate_columns_.resize(config_.aggregate_columns.size());
+  for (uint32_t i = 0; i < config_.aggregate_columns.size(); ++i) {
+    const core::Tree::Column& input = *config_.aggregate_columns[i].input;
+    if (input.type.Is<core::Int64>()) {
+      RETURN_IF_ERROR(
+          SumAggregateColumn<int64_t>(input, &aggregate_columns_[i]));
+    } else {
+      RETURN_IF_ERROR(
+          SumAggregateColumn<double>(input, &aggregate_columns_[i]));
+    }
+  }
+  return base::OkStatus();
+}
+
+void FlamegraphBuilder::AppendPackedNodes(
+    const core::TreePathInterner& tree,
+    core::Span<const MetricColumns> metrics,
+    bool upward,
+    PackedTree* output) const {
+  auto keep = AllocFilled<uint8_t>(tree.size(), 0);
+  for (const MetricColumns& metric : metrics) {
+    UpdateNonZeroRows(metric.cumulative, keep.mutable_span());
+  }
+
+  auto output_row = AllocFilled<uint32_t>(tree.size(), core::Tree::kNullParent);
+  for (uint32_t node = 0; node < tree.size(); ++node) {
+    if (!keep[node]) {
+      continue;
+    }
+    const uint32_t parent = tree.parent(node);
+    const uint32_t packed_parent = parent == core::Tree::kNullParent
+                                       ? core::Tree::kNullParent
+                                       : output_row[parent];
+    PERFETTO_DCHECK(parent == core::Tree::kNullParent ||
+                    packed_parent != core::Tree::kNullParent);
+    const int64_t depth =
+        packed_parent == core::Tree::kNullParent
+            ? (upward ? -1 : 1)
+            : output->depths[packed_parent] + (upward ? -1 : 1);
+    output_row[node] = output->size();
+    output->Append(depth, node, packed_parent, tree.representative_row(node));
+  }
+}
+
+base::StatusOr<core::Tree> FlamegraphBuilder::PackOutput() {
+  PackedTree packed(downward_tree_.size() + upward_tree_.size());
+  AppendPackedNodes(downward_tree_, core::MakeSpan(downward_metrics_), false,
+                    &packed);
+  const uint32_t downward_rows = packed.size();
+  AppendPackedNodes(upward_tree_, core::MakeSpan(upward_metrics_), true,
+                    &packed);
+
+  core::Tree output;
+  output.row_count = packed.size();
+  const size_t column_count = 2 + config_.grouping_columns.size() +
+                              2 * config_.value_columns.size() +
+                              config_.aggregate_columns.size();
+  output.names.reserve(column_count);
+  output.columns.reserve(column_count);
+  output.parent = core::Slab<uint32_t>::Alloc(output.row_count);
+  core::Span<const uint32_t> packed_parents = packed.parent_span();
+  std::copy(packed_parents.begin(), packed_parents.end(),
+            output.parent.begin());
+
+  output.names.push_back("depth");
+  core::Tree::Column depth =
+      core::Tree::Column::Create<int64_t>(output.row_count);
+  core::Span<int64_t> depths = depth.unchecked_span<int64_t>();
+  core::Span<const int64_t> packed_depths = packed.depth_span();
+  std::copy(packed_depths.begin(), packed_depths.end(), depths.begin());
+  output.columns.push_back(std::move(depth));
+
+  const core::Span<const uint32_t> representatives =
+      packed.representative_frame_span();
+  output.names.push_back("name");
+  output.columns.push_back(
+      core::tree_ops::Gather(*config_.name, representatives));
+  for (const core::Tree::Column* grouping : config_.grouping_columns) {
+    output.names.emplace_back(input_.ColumnName(grouping));
+    output.columns.push_back(
+        core::tree_ops::Gather(*grouping, representatives));
+  }
+
+  const core::Span<const uint32_t> packed_sources = packed.source_node_span();
+  const core::Span<const uint32_t> downward_sources =
+      packed_sources.subspan(0, downward_rows);
+  const core::Span<const uint32_t> upward_sources = packed_sources.subspan(
+      downward_rows, packed_sources.size() - downward_rows);
+  auto gather_merged = [&](const core::Tree::Column& downward,
+                           const core::Tree::Column& upward) {
+    return core::tree_ops::GatherConcat(downward, downward_sources, upward,
+                                        upward_sources);
+  };
+  for (uint32_t i = 0; i < config_.value_columns.size(); ++i) {
+    const std::string name(input_.ColumnName(config_.value_columns[i]));
+    output.names.push_back("self_" + name);
+    output.columns.push_back(
+        gather_merged(downward_metrics_[i].self, upward_metrics_[i].self));
+    output.names.push_back("cumulative_" + name);
+    output.columns.push_back(gather_merged(downward_metrics_[i].cumulative,
+                                           upward_metrics_[i].cumulative));
+  }
+  for (uint32_t i = 0; i < config_.aggregate_columns.size(); ++i) {
+    output.names.push_back(config_.aggregate_columns[i].output_name);
+    output.columns.push_back(gather_merged(aggregate_columns_[i].downward,
+                                           aggregate_columns_[i].upward));
+  }
+  return std::move(output);
+}
 
 }  // namespace
 
-base::StatusOr<Flamegraph> Build(const Forest& forest,
-                                 const Config& config,
-                                 const StringPool& pool) {
-  auto n = static_cast<uint32_t>(forest.size());
-  uint32_t k = forest.metric_count;
-  if (k == 0) {
-    return base::ErrStatus("flamegraph: at least one metric is required");
-  }
-  if (forest.key.size() != n || forest.name.size() != n ||
-      forest.metrics.size() != uint64_t(n) * k) {
-    return base::ErrStatus("flamegraph: forest column sizes do not match");
-  }
-  for (uint32_t i = 0; i < n; ++i) {
-    if (forest.name[i] >= forest.name_table.size()) {
-      return base::ErrStatus("flamegraph: frame name index out of range");
-    }
-  }
-  if (!forest.match_offset.empty() &&
-      forest.match_offset.size() != forest.name_table.size() + 1) {
-    return base::ErrStatus(
-        "flamegraph: match_offset must have one entry per name plus one");
-  }
-  ASSIGN_OR_RETURN(Filters filters, CompileFilters(config));
-  if (n == 0) {
-    Flamegraph empty;
-    empty.down.metric_count = k;
-    empty.down.constituents_offset = FlexVector<uint32_t>::CreateFilled(1, 0);
-    empty.up.metric_count = k;
-    empty.up.constituents_offset = FlexVector<uint32_t>::CreateFilled(1, 0);
-    return base::StatusOr<Flamegraph>(std::move(empty));
-  }
-  return Builder(forest, config, pool, std::move(filters)).Run();
-}
-
-base::StatusOr<core::dataframe::Dataframe> ToDataframe(
-    const Flamegraph& flamegraph,
-    const Forest& forest,
-    StringPool* pool) {
-  uint32_t k = forest.metric_count;
-  std::vector<std::string> columns = {"id", "parentId", "depth", "name"};
-  for (uint32_t m = 0; m < k; ++m) {
-    std::string suffix = k == 1 ? "" : std::to_string(m);
-    columns.push_back("selfValue" + suffix);
-    columns.push_back("cumulativeValue" + suffix);
-  }
-  // Sums of integral inputs are integral, so inspecting the output values
-  // decides each metric's column type.
-  std::vector<bool> integral(k, true);
-  for (const Tree* tree : {&flamegraph.down, &flamegraph.up}) {
-    for (const FlexVector<double>* col : {&tree->self, &tree->cumulative}) {
-      for (uint64_t i = 0; i < col->size(); ++i) {
-        double v = (*col)[i];
-        double t = std::trunc(v);
-        if (t < v || t > v) {
-          integral[i % k] = false;
-        }
-      }
-    }
-  }
-
-  core::dataframe::AdhocDataframeBuilder builder(columns, pool);
-  bool ok = true;
-  int64_t base = 0;
-  for (const Tree* tree : {&flamegraph.down, &flamegraph.up}) {
-    bool up = tree == &flamegraph.up;
-    std::vector<int64_t> depth(tree->size());
-    for (uint32_t i = 0; ok && i < tree->size(); ++i) {
-      bool root = tree->parent[i] == kNoParent;
-      depth[i] = root ? 1 : depth[tree->parent[i]] + 1;
-      ok = ok && builder.PushNonNull(0, base + i);
-      ok = ok &&
-           builder.PushNonNull(1, root ? int64_t(-1) : base + tree->parent[i]);
-      ok = ok && builder.PushNonNull(2, up ? -depth[i] : depth[i]);
-      ok = ok && builder.PushNonNull(
-                     3, forest.name_table[forest.name[tree->rep_frame[i]]]);
-      for (uint32_t m = 0; m < k; ++m) {
-        double self = tree->self[i * k + m];
-        double cumulative = tree->cumulative[i * k + m];
-        if (integral[m]) {
-          ok = ok && builder.PushNonNull(4 + 2 * m, static_cast<int64_t>(self));
-          ok = ok &&
-               builder.PushNonNull(5 + 2 * m, static_cast<int64_t>(cumulative));
-        } else {
-          ok = ok && builder.PushNonNull(4 + 2 * m, self);
-          ok = ok && builder.PushNonNull(5 + 2 * m, cumulative);
-        }
-      }
-    }
-    base += static_cast<int64_t>(tree->size());
-  }
-  if (!ok) {
-    return builder.status();
-  }
-  ASSIGN_OR_RETURN(core::dataframe::Dataframe df, std::move(builder).Build());
-  df.Finalize();
-  return base::StatusOr<core::dataframe::Dataframe>(std::move(df));
+base::StatusOr<core::Tree> Build(core::Tree&& tree, const Config& config) {
+  PERFETTO_DCHECK(IsValidConfig(config));
+  return FlamegraphBuilder(tree, config).Run();
 }
 
 }  // namespace perfetto::trace_processor::flamegraph
