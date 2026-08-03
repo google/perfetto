@@ -107,9 +107,7 @@ def find_protoc(explicit):
   out_dir = REPO_ROOT / 'out'
   if out_dir.is_dir():
     candidates = sorted(
-        out_dir.glob('*/protoc'),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True)
+        out_dir.glob('*/protoc'), key=lambda p: p.stat().st_mtime, reverse=True)
     if candidates:
       return candidates[0]
   found = shutil.which('protoc')
@@ -173,7 +171,8 @@ def run_agent(claude_bin, prompt, sandbox, plugin_dir, model, max_turns,
   """
   cmd = [
       claude_bin, '-p', prompt, '--output-format', 'json', '--bare',
-      '--dangerously-skip-permissions', '--max-turns', str(max_turns)
+      '--dangerously-skip-permissions', '--max-turns',
+      str(max_turns)
   ]
   if plugin_dir:
     cmd += ['--plugin-dir', str(plugin_dir)]
@@ -184,7 +183,11 @@ def run_agent(claude_bin, prompt, sandbox, plugin_dir, model, max_turns,
   env.pop('CLAUDE_PROJECT_DIR', None)
   try:
     proc = subprocess.run(
-        cmd, cwd=sandbox, capture_output=True, text=True, timeout=timeout,
+        cmd,
+        cwd=sandbox,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
         env=env)
   except subprocess.TimeoutExpired:
     return '', f'agent timed out after {timeout}s', 0.0, 0
@@ -196,22 +199,29 @@ def run_agent(claude_bin, prompt, sandbox, plugin_dir, model, max_turns,
     return proc.stdout, 'unparseable claude --output-format json', 0.0, 0
   if result.get('is_error'):
     return '', f'agent error: {result.get("result", "")[:500]}', 0.0, 0
-  return (result.get('result', ''), '',
-          result.get('total_cost_usd', 0.0), result.get('num_turns', 0))
+  return (result.get('result',
+                     ''), '', result.get('total_cost_usd',
+                                         0.0), result.get('num_turns', 0))
 
 
 def decode_config(protoc, path):
   """Parses a text-format TraceConfig; returns (canonical_text, error)."""
-  encode = subprocess.run(
-      [str(protoc), f'--encode=perfetto.protos.TraceConfig', '-I', 'protos',
-       MERGED_CONFIG_PROTO],
-      cwd=REPO_ROOT, stdin=open(path, 'rb'), capture_output=True)
+  encode = subprocess.run([
+      str(protoc), f'--encode=perfetto.protos.TraceConfig', '-I', 'protos',
+      MERGED_CONFIG_PROTO
+  ],
+                          cwd=REPO_ROOT,
+                          stdin=open(path, 'rb'),
+                          capture_output=True)
   if encode.returncode != 0:
     return None, encode.stderr.decode(errors='replace').strip()
-  decode = subprocess.run(
-      [str(protoc), f'--decode=perfetto.protos.TraceConfig', '-I', 'protos',
-       MERGED_CONFIG_PROTO],
-      cwd=REPO_ROOT, input=encode.stdout, capture_output=True)
+  decode = subprocess.run([
+      str(protoc), f'--decode=perfetto.protos.TraceConfig', '-I', 'protos',
+      MERGED_CONFIG_PROTO
+  ],
+                          cwd=REPO_ROOT,
+                          input=encode.stdout,
+                          capture_output=True)
   if decode.returncode != 0:
     return None, decode.stderr.decode(errors='replace').strip()
   return decode.stdout.decode(errors='replace'), None
@@ -250,7 +260,10 @@ def run_judge(claude_bin, case, output, sandbox, expectations, judge_model,
   ]
   try:
     proc = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=timeout,
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
         cwd=tempfile.gettempdir())
   except subprocess.TimeoutExpired:
     return None, 'judge timed out'
@@ -265,18 +278,18 @@ def run_judge(claude_bin, case, output, sandbox, expectations, judge_model,
     return None, f'unparseable judge verdict: {e}'
 
 
-def run_checks(case, output, sandbox, protoc, claude_bin, judge_model,
-               timeout):
+def run_checks(case, output, sandbox, protoc, claude_bin, judge_model, timeout):
   results = []
   for check in case['checks']:
     kind = check['type']
     if kind == 'file_exists':
       artifact = resolve_artifact(sandbox, check['path'])
       results.append(
-          CheckResult(check, artifact is not None,
-                      str(artifact) if artifact else
-                      f'no file matching {check["path"]}; '
-                      f'files: {sandbox_files(sandbox)}'))
+          CheckResult(
+              check, artifact is not None,
+              str(artifact)
+              if artifact else f'no file matching {check["path"]}; '
+              f'files: {sandbox_files(sandbox)}'))
     elif kind == 'trace_config_parses':
       artifact = resolve_artifact(sandbox, check['path'])
       if not artifact:
@@ -293,18 +306,20 @@ def run_checks(case, output, sandbox, protoc, claude_bin, judge_model,
       if err:
         results.append(CheckResult(check, False, f'unparseable: {err}'))
         continue
-      missing = [p for p in check.get('patterns', [])
-                 if not re.search(p, decoded)]
-      unwanted = [p for p in check.get('absent_patterns', [])
-                  if re.search(p, decoded)]
+      missing = [
+          p for p in check.get('patterns', []) if not re.search(p, decoded)
+      ]
+      unwanted = [
+          p for p in check.get('absent_patterns', []) if re.search(p, decoded)
+      ]
       detail = []
       if missing:
         detail.append(f'missing patterns: {missing}')
       if unwanted:
         detail.append(f'unwanted patterns present: {unwanted}')
       results.append(
-          CheckResult(check, not missing and not unwanted,
-                      '; '.join(detail) or 'ok'))
+          CheckResult(check, not missing and not unwanted, '; '.join(detail) or
+                      'ok'))
     elif kind == 'output_matches':
       ok = re.search(check['pattern'], output, re.IGNORECASE) is not None
       results.append(CheckResult(check, ok, check['pattern']))
@@ -333,9 +348,10 @@ def run_checks(case, output, sandbox, protoc, claude_bin, judge_model,
 def run_trial(case, trial, plugin_dir, work_root, args, protoc):
   sandbox = Path(
       tempfile.mkdtemp(prefix=f'{case["name"]}-t{trial}-', dir=work_root))
-  output, err, cost, turns = run_agent(
-      args.claude_bin, case['prompt'], sandbox, plugin_dir, args.model,
-      case.get('max_turns', args.max_turns), args.timeout)
+  output, err, cost, turns = run_agent(args.claude_bin, case['prompt'], sandbox,
+                                       plugin_dir, args.model,
+                                       case.get('max_turns',
+                                                args.max_turns), args.timeout)
   (sandbox / 'agent_output.md').write_text(output)
   checks = [] if err else run_checks(case, output, sandbox, protoc,
                                      args.claude_bin, args.judge_model,
@@ -347,41 +363,57 @@ def run_trial(case, trial, plugin_dir, work_root, args, protoc):
 def main():
   ap = argparse.ArgumentParser(
       description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-  ap.add_argument('--cases', default=str(CASES_DIR),
-                  help='Case file or directory of *.json case files.')
-  ap.add_argument('--filter', default='',
-                  help='Regex matched against suite.case_name.')
+  ap.add_argument(
+      '--cases',
+      default=str(CASES_DIR),
+      help='Case file or directory of *.json case files.')
+  ap.add_argument(
+      '--filter', default='', help='Regex matched against suite.case_name.')
   ap.add_argument('--trials', type=int, default=1)
   ap.add_argument('--jobs', type=int, default=4)
-  ap.add_argument('--model', default='',
-                  help='Model for the agent under test (claude CLI --model). '
-                  'Empty uses the CLI default.')
+  ap.add_argument(
+      '--model',
+      default='',
+      help='Model for the agent under test (claude CLI --model). '
+      'Empty uses the CLI default.')
   ap.add_argument('--judge-model', default='opus')
-  ap.add_argument('--claude-bin', default='claude',
-                  help='Path to the claude CLI (or a compatible stub, '
-                  'useful for testing the harness itself).')
+  ap.add_argument(
+      '--claude-bin',
+      default='claude',
+      help='Path to the claude CLI (or a compatible stub, '
+      'useful for testing the harness itself).')
   ap.add_argument('--max-turns', type=int, default=40)
-  ap.add_argument('--timeout', type=int, default=900,
-                  help='Per-trial agent timeout in seconds.')
+  ap.add_argument(
+      '--timeout',
+      type=int,
+      default=900,
+      help='Per-trial agent timeout in seconds.')
   ap.add_argument('--protoc', default='')
-  ap.add_argument('--plugin-dir', default='',
-                  help='Use an already-assembled plugin dir instead of '
-                  'bundling ai/skills via tools/release/build_ai_agents.py.')
-  ap.add_argument('--skills-src', default='',
-                  help='ai/skills tree to bundle (default: this checkout).')
-  ap.add_argument('--baseline', action='store_true',
-                  help='Run without the skill installed (no-skill baseline, '
-                  'for measuring the uplift the skill provides).')
+  ap.add_argument(
+      '--plugin-dir',
+      default='',
+      help='Use an already-assembled plugin dir instead of '
+      'bundling ai/skills via tools/release/build_ai_agents.py.')
+  ap.add_argument(
+      '--skills-src',
+      default='',
+      help='ai/skills tree to bundle (default: this checkout).')
+  ap.add_argument(
+      '--baseline',
+      action='store_true',
+      help='Run without the skill installed (no-skill baseline, '
+      'for measuring the uplift the skill provides).')
   ap.add_argument('--keep-sandboxes', action='store_true')
-  ap.add_argument('--results', default='',
-                  help='Write full results JSON to this path.')
+  ap.add_argument(
+      '--results', default='', help='Write full results JSON to this path.')
   args = ap.parse_args()
 
   protoc = find_protoc(args.protoc)
   cases = load_cases(args.cases)
   if args.filter:
-    cases = [c for c in cases
-             if re.search(args.filter, f'{c["suite"]}.{c["name"]}')]
+    cases = [
+        c for c in cases if re.search(args.filter, f'{c["suite"]}.{c["name"]}')
+    ]
   if not cases:
     sys.exit('error: no cases matched')
 
@@ -400,8 +432,9 @@ def main():
   with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
     for case in cases:
       for trial in range(args.trials):
-        jobs.append(pool.submit(run_trial, case, trial, plugin_dir, work_root,
-                                args, protoc))
+        jobs.append(
+            pool.submit(run_trial, case, trial, plugin_dir, work_root, args,
+                        protoc))
     results = [j.result() for j in jobs]
 
   by_case = {}
@@ -432,13 +465,20 @@ def main():
 
   if args.results:
     payload = [{
-        'case': r.case_name,
-        'trial': r.trial,
-        'passed': r.passed,
-        'agent_error': r.agent_error,
-        'cost_usd': r.cost_usd,
-        'num_turns': r.num_turns,
-        'sandbox': r.sandbox,
+        'case':
+            r.case_name,
+        'trial':
+            r.trial,
+        'passed':
+            r.passed,
+        'agent_error':
+            r.agent_error,
+        'cost_usd':
+            r.cost_usd,
+        'num_turns':
+            r.num_turns,
+        'sandbox':
+            r.sandbox,
         'checks': [{
             'type': c.check['type'],
             'passed': c.passed,
