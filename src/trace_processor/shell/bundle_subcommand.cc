@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -47,7 +48,13 @@ std::string SymlinkProblemDescription(const std::string& path) {
   return "";
 #else
   struct stat st;
-  if (lstat(path.c_str(), &st) != 0 || !S_ISLNK(st.st_mode)) {
+  if (lstat(path.c_str(), &st) != 0) {
+    return "";
+  }
+  // MSan's stat() interceptor on glibc 2.35+ does not mark the output buffer
+  // as initialized (the syscall goes through statx).
+  PERFETTO_MSAN_UNPOISON(&st, sizeof(st));
+  if (!S_ISLNK(st.st_mode)) {
     return "";
   }
   if (stat(path.c_str(), &st) != 0) {

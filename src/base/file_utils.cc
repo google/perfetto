@@ -353,7 +353,13 @@ bool DirectoryExists(const std::string& path) {
   return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY);
 #else
   struct stat st;
-  return stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+  if (stat(path.c_str(), &st) != 0) {
+    return false;
+  }
+  // MSan's stat() interceptor on glibc 2.35+ does not mark the output buffer
+  // as initialized (the syscall goes through statx).
+  PERFETTO_MSAN_UNPOISON(&st, sizeof(st));
+  return S_ISDIR(st.st_mode);
 #endif
 }
 
