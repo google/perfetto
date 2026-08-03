@@ -239,7 +239,7 @@ Common messages and what they mean:
 
 - **`N frames could not be symbolized and will appear as "unknown"`** with a
   `hint: use --symbol-paths ...` line: the tool searched the auto-discovered
-  paths (plus any `--symbol-paths` / `PERFETTO_BINARY_PATH` you gave) but
+  paths (plus any `--symbol-paths` you gave) but
   found no binary with a matching Build ID. Follow the hint, or re-run with
   `--verbose` to see every path that was tried.
 
@@ -272,7 +272,7 @@ Could not find /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so
 ```
 
 Check that `somelib.so` exists somewhere under one of the search paths
-(`--symbol-paths`, `PERFETTO_BINARY_PATH`, or an auto-discovered location). Then
+(`--symbol-paths` or an auto-discovered location). Then
 compare the Build ID on disk to the one reported in the message using
 `readelf -n /path/to/somelib.so`. If they do not match, the copy on disk is a
 different build than the one on device and cannot be used.
