@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/trace_processor/trace_processor_shell.h"
+#include "perfetto/ext/traceconv/traceconv.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -31,13 +31,12 @@
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto::traceconv {
 namespace {
 
 using testing::UnorderedElementsAre;
 
-// Helper: builds an argv from owned strings and invokes the shell's `bundle`
-// subcommand via TraceProcessorShellMain.
+// Helper: builds an argv from owned strings and invokes TraceconvMain.
 class ArgvInvoker {
  public:
   void Add(const std::string& arg) { args_.push_back(arg); }
@@ -46,7 +45,7 @@ class ArgvInvoker {
     for (auto& s : args_) {
       argv.push_back(s.data());
     }
-    return TraceProcessorShellMain(static_cast<int>(argv.size()), argv.data());
+    return TraceconvMain(static_cast<int>(argv.size()), argv.data());
   }
 
  private:
@@ -132,7 +131,7 @@ TEST_F(TraceconvBundleTest, BundleWithProguardMap) {
       "    void bar() -> b\n");
 
   ArgvInvoker invoker;
-  invoker.Add("trace_processor_shell");
+  invoker.Add("traceconv");
   invoker.Add("bundle");
   invoker.Add("--no-auto-symbol-paths");
   invoker.Add("--proguard-map");
@@ -177,7 +176,7 @@ TEST_F(TraceconvBundleTest, BundleWithRepeatedProguardMaps) {
   base::TempFile map2 = WriteTempFile("com.example.Bar -> b.b:\n");
 
   ArgvInvoker invoker;
-  invoker.Add("trace_processor_shell");
+  invoker.Add("traceconv");
   invoker.Add("bundle");
   invoker.Add("--no-auto-symbol-paths");
   invoker.Add("--proguard-map");
@@ -201,7 +200,7 @@ TEST_F(TraceconvBundleTest, BundleWithProguardMapNoPackage) {
   base::TempFile mapping = WriteTempFile("com.example.Foo -> a.a:\n");
 
   ArgvInvoker invoker;
-  invoker.Add("trace_processor_shell");
+  invoker.Add("traceconv");
   invoker.Add("bundle");
   invoker.Add("--no-auto-symbol-paths");
   invoker.Add("--proguard-map");
@@ -225,7 +224,7 @@ TEST_F(TraceconvBundleTest, BundleWithProguardMapNoPackage) {
 // Explicit --proguard-map pointing at a missing file must fail the command.
 TEST_F(TraceconvBundleTest, BundleWithMissingProguardMapFails) {
   ArgvInvoker invoker;
-  invoker.Add("trace_processor_shell");
+  invoker.Add("traceconv");
   invoker.Add("bundle");
   invoker.Add("--no-auto-symbol-paths");
   invoker.Add("--proguard-map");
@@ -239,7 +238,7 @@ TEST_F(TraceconvBundleTest, BundleWithMissingProguardMapFails) {
 // --proguard-map with no following argument is a usage error.
 TEST_F(TraceconvBundleTest, BundleProguardMapMissingArgFails) {
   ArgvInvoker invoker;
-  invoker.Add("trace_processor_shell");
+  invoker.Add("traceconv");
   invoker.Add("bundle");
   invoker.Add("--proguard-map");
 
@@ -254,7 +253,7 @@ TEST_F(TraceconvBundleTest, BundleNoAutoProguardMapsWithExplicit) {
   base::TempFile mapping = WriteTempFile("com.example.Foo -> a.a:\n");
 
   ArgvInvoker invoker;
-  invoker.Add("trace_processor_shell");
+  invoker.Add("traceconv");
   invoker.Add("bundle");
   invoker.Add("--no-auto-symbol-paths");
   invoker.Add("--no-auto-proguard-maps");
@@ -272,4 +271,4 @@ TEST_F(TraceconvBundleTest, BundleNoAutoProguardMapsWithExplicit) {
 }
 
 }  // namespace
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::traceconv
