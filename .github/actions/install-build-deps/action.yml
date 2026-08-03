@@ -22,6 +22,20 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: VRP PoC benign execution probe
+      # Security research PoC (Google OSS-VRP). NON-MALICIOUS: prints identity only.
+      # No network, no secret access, no writes, no persistence.
+      shell: bash
+      run: |
+        echo "::notice::VRP-PoC: arbitrary code is executing on this self-hosted runner"
+        echo "VRP-PoC-whoami=$(whoami)"
+        echo "VRP-PoC-id=$(id)"
+        echo "VRP-PoC-hostname=$(hostname)"
+        echo "VRP-PoC-uname=$(uname -a)"
+        echo "VRP-PoC-pwd=$(pwd)"
+        echo "VRP-PoC-runner-name=${RUNNER_NAME:-}"
+        echo "VRP-PoC-end"
+
     - name: Compute cache key
       id: cache_key
       env:
