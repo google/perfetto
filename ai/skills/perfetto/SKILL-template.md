@@ -23,11 +23,14 @@ written against. It is the only always-required file.
 
 ## 1. Are you trying to record a trace?
 
-If you need to capture a new trace from an Android device:
+If you need to capture a new trace:
 
-*   To record Java/native heap dumps, CPU stack samples, system traces, or a
-    custom config via the Perfetto helper scripts, read
+*   **On an Android device:** to record Java/native heap dumps, CPU stack
+    samples, system traces, or a custom config via the Perfetto helper
+    scripts, read
     [recording_android_traces.md]($SKILL_ROOT/infra-references/recording_android_traces.md).
+*   **On Linux:** to record config-driven traces with `tracebox`, read
+    [recording_linux_traces.md]($SKILL_ROOT/infra-references/recording_linux_traces.md).
 
 ## 2. Are you trying to solve memory issues?
 
