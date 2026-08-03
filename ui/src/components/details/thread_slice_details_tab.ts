@@ -285,10 +285,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       {
         title: 'Slice',
         description: slice.name,
-        buttons: [
-          this.renderOpenInDefaultWorkspaceButton(),
-          this.renderContextButton(slice),
-        ],
+        buttons: this.renderContextButton(slice),
       },
       m(
         GridLayout,
@@ -550,27 +547,6 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         }),
       ),
     );
-  }
-
-  // Shown only when the selected slice is in a non-default workspace and the same
-  // track also exists in the default workspace: switches to the default
-  // workspace and scrolls to the slice there.
-  private renderOpenInDefaultWorkspaceButton(): m.Children {
-    const {workspaces, selection} = this.trace;
-    if (workspaces.currentWorkspace === workspaces.defaultWorkspace) return;
-    const sel = selection.selection;
-    if (sel.kind !== 'track_event') return;
-    if (workspaces.defaultWorkspace.getTrackByUri(sel.trackUri) === undefined) {
-      return;
-    }
-    return m(Button, {
-      label: 'Open in default workspace',
-      icon: Icons.GoTo,
-      onclick: () => {
-        workspaces.switchWorkspace(workspaces.defaultWorkspace);
-        selection.scrollToSelection('focus');
-      },
-    });
   }
 
   private renderContextButton(sliceInfo: SliceDetails): m.Children {
