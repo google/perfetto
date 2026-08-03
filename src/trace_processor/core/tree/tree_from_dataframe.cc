@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <cstring>
 #include <limits>
 #include <optional>
 #include <string>
@@ -36,7 +35,7 @@
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/tree/tree.h"
 #include "src/trace_processor/core/util/flex_vector.h"
-#include "src/trace_processor/core/util/span.h"
+#include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core {
@@ -44,44 +43,87 @@ namespace perfetto::trace_processor::core {
 namespace {
 
 template <typename T>
-Slab<uint8_t> CopyColumn(Span<const T> values) {
+Slab<uint8_t> GatherColumnData(Span<const T> values,
+                               Span<const uint32_t> order,
+                               const BitVector* source_non_null,
+                               BitVector* output_non_null) {
   auto bytes = static_cast<uint64_t>(values.size()) * sizeof(T);
   auto slab = Slab<uint8_t>::Alloc(bytes);
-  memcpy(slab.begin(), values.b, bytes);
+  T* output_data = reinterpret_cast<T*>(slab.data());
+  Span<T> output(output_data, output_data + order.size());
+  if (source_non_null) {
+    PERFETTO_DCHECK(output_non_null);
+    core::ops::GatherNullableRows(values, *source_non_null, output,
+                                  output_non_null, order);
+  } else {
+    PERFETTO_DCHECK(!output_non_null);
+    core::ops::GatherRows(values, output, order);
+  }
   return slab;
 }
 
-Tree::Column ConvertRawColumn(
-    dataframe::AdhocDataframeBuilder::RawColumn& rc,
-    uint32_t row_count) {
+Tree::Column MoveRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc) {
   Tree::Column tc;
-  if (!rc.storage) {
-    // All-null column: default to Int64 with zero data.
-    tc = Tree::Column::Create<int64_t>(row_count);
-    memset(tc.data.begin(), 0,
-           static_cast<uint64_t>(row_count) * sizeof(int64_t));
-  } else if (rc.storage->type().Is<Int64>()) {
-    tc.type = Tree::Column::Type(Int64{});
-    tc.data = CopyColumn(rc.storage->unchecked_get<Int64>().span());
-  } else if (rc.storage->type().Is<Double>()) {
-    tc.type = Tree::Column::Type(Double{});
-    tc.data = CopyColumn(rc.storage->unchecked_get<Double>().span());
-  } else if (rc.storage->type().Is<String>()) {
-    tc.type = Tree::Column::Type(String{});
-    tc.data = CopyColumn(rc.storage->unchecked_get<String>().span());
-  } else {
-    PERFETTO_FATAL("Unexpected storage type in raw column");
+  if (rc.storage) {
+    if (rc.storage->type().Is<Int64>()) {
+      tc.type = Tree::Column::Type(Int64{});
+      auto& values = rc.storage->unchecked_get<Int64>();
+      tc.data = std::move(values).TakeSlab().TakeAsBytes();
+    } else if (rc.storage->type().Is<Double>()) {
+      tc.type = Tree::Column::Type(Double{});
+      auto& values = rc.storage->unchecked_get<Double>();
+      tc.data = std::move(values).TakeSlab().TakeAsBytes();
+    } else if (rc.storage->type().Is<String>()) {
+      tc.type = Tree::Column::Type(String{});
+      auto& values = rc.storage->unchecked_get<String>();
+      tc.data = std::move(values).TakeSlab().TakeAsBytes();
+    } else {
+      PERFETTO_FATAL("Unexpected storage type in raw column");
+    }
   }
+  // All-null columns keep the default Int64 type with no payload; null_bv
+  // flags every row as null so the data is never read.
   tc.null_bv = std::move(rc.null_bv);
   return tc;
 }
 
-uint32_t FindComponent(uint32_t row, Slab<uint32_t>& component) {
-  while (component[row] != row) {
-    component[row] = component[component[row]];
-    row = component[row];
+// Converts a raw column into parent-before-child row order. This is the only
+// payload copy needed when constructing a Tree from unordered input.
+Tree::Column GatherRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc,
+                             uint32_t row_count,
+                             Span<const uint32_t> order) {
+  Tree::Column tc;
+  const BitVector* source_non_null =
+      rc.null_bv.size() > 0 ? &rc.null_bv : nullptr;
+  if (!rc.storage) {
+    // All-null column: keep the default Int64 type with no payload; null_bv
+    // flags every row as null so the data is never read.
+    tc.null_bv = BitVector::CreateWithSize(row_count);
+    return tc;
   }
-  return row;
+  if (source_non_null) {
+    tc.null_bv = BitVector::CreateWithSize(row_count);
+  }
+  BitVector* output_non_null = tc.null_bv.size() > 0 ? &tc.null_bv : nullptr;
+  if (rc.storage->type().Is<Int64>()) {
+    tc.type = Tree::Column::Type(Int64{});
+    const auto& values = rc.storage->unchecked_get<Int64>();
+    tc.data = GatherColumnData(values.span(), order, source_non_null,
+                               output_non_null);
+  } else if (rc.storage->type().Is<Double>()) {
+    tc.type = Tree::Column::Type(Double{});
+    const auto& values = rc.storage->unchecked_get<Double>();
+    tc.data = GatherColumnData(values.span(), order, source_non_null,
+                               output_non_null);
+  } else if (rc.storage->type().Is<String>()) {
+    tc.type = Tree::Column::Type(String{});
+    const auto& values = rc.storage->unchecked_get<String>();
+    tc.data = GatherColumnData(values.span(), order, source_non_null,
+                               output_non_null);
+  } else {
+    PERFETTO_FATAL("Unexpected storage type in raw column");
+  }
+  return tc;
 }
 
 struct IdIndex {
@@ -161,9 +203,7 @@ base::StatusOr<Tree> BuildFromRawColumns(
   bool identity_ids = true;
   bool uint32_ids = true;
   uint32_t max_id = 0;
-  Slab<uint32_t> component = Slab<uint32_t>::Alloc(row_count);
   for (uint32_t i = 0; i < row_count; ++i) {
-    component[i] = i;
     int64_t id = id_vec[i];
     identity_ids = identity_ids && id == i;
     if (id < 0 ||
@@ -198,50 +238,90 @@ base::StatusOr<Tree> BuildFromRawColumns(
   const IdIndex id_index{identity_ids, dense_ids, row_count,
                          MakeSpan(dense_index), &hash_index};
 
-  // Normalize parent_id to row indices and union each node with its parent.
-  // Because every node has at most one parent, an edge whose endpoints are
-  // already connected is exactly a directed cycle.
+  // Normalize parent_id to input row indices first. Track whether the input
+  // already satisfies the Tree ordering invariant while doing so.
   auto& pid_rc = raw_cols[1];
-  result.parent = Slab<uint32_t>::Alloc(row_count);
-  if (!pid_rc.storage) {
-    for (uint32_t row = 0; row < row_count; ++row) {
-      result.parent[row] = Tree::kNullParent;
-    }
-  } else {
-    if (!pid_rc.storage->type().Is<Int64>()) {
-      return base::ErrStatus("tree: parent_id column must be integer");
-    }
+  Slab<uint32_t> input_parent = Slab<uint32_t>::Alloc(row_count);
+  std::fill_n(input_parent.data(), row_count, Tree::kNullParent);
+  bool identity_order = true;
+  if (pid_rc.storage && !pid_rc.storage->type().Is<Int64>()) {
+    return base::ErrStatus("tree: parent_id column must be integer");
+  }
+  if (pid_rc.storage) {
     const auto& pid_vec = pid_rc.storage->unchecked_get<Int64>();
     for (uint32_t row = 0; row < row_count; ++row) {
       if (pid_rc.null_bv.size() > 0 && !pid_rc.null_bv.is_set(row)) {
-        result.parent[row] = Tree::kNullParent;
         continue;
       }
       std::optional<uint32_t> parent = id_index.Find(pid_vec[row]);
       if (PERFETTO_UNLIKELY(!parent)) {
         return base::ErrStatus("tree: parent_id not found in id column");
       }
-      result.parent[row] = *parent;
-      uint32_t row_component = FindComponent(row, component);
-      uint32_t parent_component = FindComponent(*parent, component);
-      if (PERFETTO_UNLIKELY(row_component == parent_component)) {
-        return base::ErrStatus("tree: cycle detected");
+      input_parent[row] = *parent;
+      if (*parent >= row) {
+        identity_order = false;
       }
-      // Prefer the component rooted at the later row. This keeps the next row
-      // close to the root for both parent-first and child-first inputs.
-      if (row_component < parent_component) {
-        component[row_component] = parent_component;
-      } else {
-        component[parent_component] = row_component;
+    }
+  }
+
+  std::vector<uint32_t> order;
+  if (identity_order) {
+    // A parent-before-child relation cannot contain a cycle. Keep its parent
+    // storage and columns in place without constructing any row maps.
+    result.parent = std::move(input_parent);
+  } else {
+    // Topologically order nodes directly through their parent pointers. Use
+    // the unfilled suffix of result.parent as the current path stack. Emitting
+    // the path parent-first then overwrites each input_parent slot with its
+    // output row, fusing parent normalization with topological ordering.
+    constexpr uint8_t kVisiting = 1;
+    constexpr uint8_t kVisited = 2;
+    std::vector<uint8_t> state(row_count);
+    order.reserve(row_count);
+    result.parent = Slab<uint32_t>::Alloc(row_count);
+    for (uint32_t start = 0; start < row_count; ++start) {
+      if (state[start] == kVisited) {
+        continue;
+      }
+
+      uint32_t path_size = 0;
+      uint32_t row = start;
+      while (row != Tree::kNullParent && state[row] == 0) {
+        state[row] = kVisiting;
+        result.parent[row_count - ++path_size] = row;
+        row = input_parent[row];
+      }
+      if (row != Tree::kNullParent && state[row] == kVisiting) {
+        return base::ErrStatus("tree: cycle detected in parent relation");
+      }
+
+      while (path_size > 0) {
+        uint32_t input_row = result.parent[row_count - path_size--];
+        uint32_t parent = input_parent[input_row];
+        uint32_t output_row = static_cast<uint32_t>(order.size());
+        result.parent[output_row] = parent == Tree::kNullParent
+                                        ? Tree::kNullParent
+                                        : input_parent[parent];
+        input_parent[input_row] = output_row;
+        state[input_row] = kVisited;
+        order.push_back(input_row);
       }
     }
   }
 
   result.names.reserve(raw_cols.size());
   result.columns.reserve(raw_cols.size());
-  for (auto& rc : raw_cols) {
-    result.names.push_back(std::move(rc.name));
-    result.columns.push_back(ConvertRawColumn(rc, row_count));
+  if (identity_order) {
+    for (auto& rc : raw_cols) {
+      result.names.push_back(std::move(rc.name));
+      result.columns.push_back(MoveRawColumn(rc));
+    }
+  } else {
+    // Gather all columns (including id/parent_id) in topological order.
+    for (auto& rc : raw_cols) {
+      result.names.push_back(std::move(rc.name));
+      result.columns.push_back(GatherRawColumn(rc, row_count, MakeSpan(order)));
+    }
   }
   return std::move(result);
 }

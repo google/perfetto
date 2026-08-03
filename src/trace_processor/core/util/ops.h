@@ -19,11 +19,60 @@
 
 #include <cstdint>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::ops {
+
+// Copies rows selected by |source_rows| into a dense output. Exact in-place
+// operation is supported when source_rows[i] >= i. Partial overlap is not
+// supported. Keep this pure-copy loop in the header: function and alias-check
+// overhead is measurable when Dataframe gathers small columns.
+template <typename T>
+void GatherRows(Span<const T> source,
+                Span<T> output,
+                Span<const uint32_t> source_rows) {
+  PERFETTO_DCHECK(output.size() >= source_rows.size());
+  const bool in_place = source.b == output.b;
+  for (uint32_t row = 0; row < source_rows.size(); ++row) {
+    PERFETTO_DCHECK(source_rows[row] < source.size());
+    PERFETTO_DCHECK(!in_place || source_rows[row] >= row);
+    output[row] = source[source_rows[row]];
+  }
+}
+
+// Gathers dense nullable rows. The value spans and null bitvectors can each
+// alias their corresponding input exactly when source_rows[i] >= i. Partial
+// overlap is not supported.
+template <typename T>
+void GatherNullableRows(Span<const T> source,
+                        const BitVector& source_non_null,
+                        Span<T> output,
+                        BitVector* output_non_null,
+                        Span<const uint32_t> source_rows) {
+  PERFETTO_DCHECK(output.size() >= source_rows.size());
+  PERFETTO_DCHECK(output_non_null);
+  PERFETTO_DCHECK(output_non_null->size() >= source_rows.size());
+  const bool values_in_place = source.b == output.b;
+  const bool nulls_in_place = &source_non_null == output_non_null;
+  for (uint32_t row = 0; row < source_rows.size(); ++row) {
+    const uint32_t source_row = source_rows[row];
+    PERFETTO_DCHECK(source_row < source.size());
+    PERFETTO_DCHECK((!values_in_place && !nulls_in_place) || source_row >= row);
+    const bool non_null = source_non_null.is_set(source_row);
+    if (non_null) {
+      output[row] = source[source_row];
+    }
+    if (nulls_in_place) {
+      output_non_null->change(row, non_null);
+    } else {
+      output_non_null->change_assume_unset(row, non_null);
+    }
+  }
+}
 
 // Estimates the number of distinct values using a bounded strided sample.
 template <typename T>
