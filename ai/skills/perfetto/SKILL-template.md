@@ -28,6 +28,11 @@ If you need to capture a new trace from an Android device:
 *   To record Java/native heap dumps, CPU stack samples, system traces, or a
     custom config via the Perfetto helper scripts, read
     [recording_android_traces.md]($SKILL_ROOT/infra-references/recording_android_traces.md).
+*   To synthesize a custom trace config (mixing data sources: scheduling,
+    atrace, memory counters, heap profiles, long/ring-buffer traces), read
+    [trace_config_reference.md]($SKILL_ROOT/infra-references/trace_config_reference.md)
+    and start from the exemplars in
+    `$SKILL_ROOT/infra-references/example-configs/`.
 
 ## 2. Are you trying to solve memory issues?
 
