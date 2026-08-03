@@ -99,6 +99,24 @@ if (is_perfetto_build_generator) {
   _demangle_target_type = "source_set"
 }
 
+source_set("io") {
+  sources = [ "io.cc" ]
+  deps = [ "../../gn:default_deps" ]
+  public_deps = [ "../../include/perfetto/trace_processor:io" ]
+}
+
+source_set("local_file_system") {
+  sources = [
+    "local_file_system.cc",
+    "local_file_system.h",
+  ]
+  deps = [
+    ":io",
+    "../../gn:default_deps",
+    "../../include/perfetto/ext/base",
+  ]
+}
+
 target(_demangle_target_type, "demangle") {
   sources = [ "demangle.cc" ]
   deps = [
@@ -167,6 +185,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "trace_processor_impl.h",
     ]
     deps = [
+      ":io",
       ":metatrace",
       ":storage_minimal",
       "../../gn:default_deps",
@@ -306,6 +325,7 @@ if (enable_perfetto_trace_processor_sqlite) {
   static_library("trace_processor_shell_lib") {
     deps = [
       ":lib",
+      ":local_file_system",
       "../../gn:default_deps",
       "../../gn:protobuf_full",
       "../../include/perfetto/ext/trace_processor:trace_processor_shell",
@@ -375,14 +395,18 @@ perfetto_unittest_source_set("top_level_unittests") {
 
   sources = [
     "forwarding_trace_parser_unittest.cc",
+    "local_file_system_unittest.cc",
     "ref_counted_unittest.cc",
     "trace_blob_unittest.cc",
   ]
   deps = [
+    ":local_file_system",
     ":storage_minimal",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "../../include/perfetto/ext/base",
     "../../include/perfetto/trace_processor",
+    "../base:test_support",
     "importers/common",
     "importers/fuchsia:full",
     "importers/json",
@@ -480,9 +504,12 @@ if (enable_perfetto_integration_tests) {
       ]
       deps += [
         ":lib",
+        ":local_file_system",
         "../../gn:default_deps",
         "../../gn:gtest_and_gmock",
+        "../../include/perfetto/ext/base",
         "../../include/perfetto/protozero",
+        "../../include/perfetto/trace_processor:io",
         "../../protos/perfetto/common:zero",
         "../../protos/perfetto/trace:zero",
         "../../protos/perfetto/trace/track_event:zero",
@@ -490,6 +517,7 @@ if (enable_perfetto_integration_tests) {
         "../base",
         "../base:test_support",
         "../protozero",
+        "rpc",
         "sqlite",
         "trace_summary:integrationtests",
       ]

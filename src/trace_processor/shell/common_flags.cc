@@ -56,8 +56,16 @@
 #include "src/trace_processor/rpc/remote_trace_processor.h"
 #endif
 
-namespace perfetto::trace_processor::shell {
+namespace perfetto::trace_processor {
 
+// Keep the destructor in the common shell library so embedders using the
+// subcommand implementation do not need to link the legacy shell entrypoint.
+TraceProcessorShell_PlatformInterface::
+    ~TraceProcessorShell_PlatformInterface() = default;
+
+}  // namespace perfetto::trace_processor
+
+namespace perfetto::trace_processor::shell {
 namespace {
 
 void AppendFlagList(std::string* out, const std::vector<FlagSpec>& flags) {
@@ -126,6 +134,11 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
   flags.push_back(BoolFlag("crop-track-events", '\0',
                            "Ignores track events outside range of interest.",
                            &opts->crop_track_events));
+  flags.push_back(BoolFlag(
+      "allow-sql-file-access", '\0',
+      "Allows SQL functions to access files visible to the shell process. Do "
+      "not enable this for untrusted SQL.",
+      &opts->allow_sql_file_access));
   flags.push_back(
       BoolFlag("dev", '\0', "Enables local development features.", &opts->dev));
   flags.push_back({/*long_name=*/"dev-flag", /*short_name=*/'\0',
@@ -299,6 +312,11 @@ base::StatusOr<Config> BuildConfig(
     const GlobalOptions& opts,
     TraceProcessorShell_PlatformInterface* platform) {
   Config config = platform->DefaultConfig();
+  config.enable_sql_file_access = opts.allow_sql_file_access;
+  if (config.enable_sql_file_access && !platform->GetFileSystem()) {
+    return base::ErrStatus(
+        "--allow-sql-file-access is not supported by this shell platform");
+  }
   config.sorting_mode = opts.force_full_sort ? SortingMode::kForceFullSort
                                              : SortingMode::kDefaultHeuristics;
   config.ingest_ftrace_in_raw_table = !opts.no_ftrace_raw;
@@ -345,7 +363,8 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(
     const GlobalOptions& opts,
     const Config& config,
     TraceProcessorShell_PlatformInterface* platform) {
-  std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
+  std::unique_ptr<TraceProcessor> tp =
+      TraceProcessor::CreateInstance(config, platform);
   auto status = platform->OnTraceProcessorCreated(tp.get());
   if (!status.ok()) {
     return base::StatusOr<std::unique_ptr<TraceProcessor>>(status);
@@ -539,6 +558,7 @@ static base::Status CheckRemoteFlagCompatibility(const GlobalOptions& opts) {
       {opts.no_ftrace_raw, "--no-ftrace-raw"},
       {opts.analyze_trace_proto_content, "--analyze-trace-proto-content"},
       {opts.crop_track_events, "--crop-track-events"},
+      {opts.allow_sql_file_access, "--allow-sql-file-access"},
       {opts.dev, "--dev"},
       {!opts.dev_flags.empty(), "--dev-flag"},
       {opts.extra_checks, "--extra-checks"},

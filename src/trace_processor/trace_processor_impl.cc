@@ -325,8 +325,10 @@ std::string NormalizeExecuteQuerySql(const std::string& sql) {
 
 }  // namespace
 
-TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
-    : TraceProcessorStorageImpl(cfg), config_(cfg) {
+TraceProcessorImpl::TraceProcessorImpl(
+    const Config& cfg,
+    TraceProcessor::PlatformInterface* platform)
+    : TraceProcessorStorageImpl(cfg, platform), config_(cfg) {
   // TODO(lalitm): plugins should self-register via PERFETTO_TP_REGISTER_PLUGIN
   // (a global static initializer). That's currently disabled due to build-time
   // issues, so instead each plugin exposes an explicit Register* function that

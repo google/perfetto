@@ -29,11 +29,20 @@
 namespace perfetto::trace_processor {
 
 TraceProcessor::MetatraceConfig::MetatraceConfig() = default;
+TraceProcessor_PlatformInterface::~TraceProcessor_PlatformInterface() = default;
 
 // static
 std::unique_ptr<TraceProcessor> TraceProcessor::CreateInstance(
     const Config& config) {
-  return std::unique_ptr<TraceProcessor>(new TraceProcessorImpl(config));
+  return CreateInstance(config, nullptr);
+}
+
+// static
+std::unique_ptr<TraceProcessor> TraceProcessor::CreateInstance(
+    const Config& config,
+    PlatformInterface* platform) {
+  return std::unique_ptr<TraceProcessor>(
+      new TraceProcessorImpl(config, platform));
 }
 
 TraceProcessor::~TraceProcessor() = default;
