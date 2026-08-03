@@ -217,9 +217,9 @@ or, at a higher level, the `_metadata_by_trace` view in the
 
 - **Android bugreports**: `bugreport.zip` files already open as archives;
   Trace Processor extracts and merges the traces inside.
-- **traceconv bundle**: the TAR produced by
-  [`traceconv bundle`](/docs/quickstart/traceconv.md) (trace plus symbols)
-  is the same archive mechanism.
+- **trace_processor bundle**: the TAR produced by
+  [`trace_processor bundle`](/docs/learning-more/symbolization.md) (trace
+  plus symbols) is the same archive mechanism.
 - **Python `BatchTraceProcessor`** does not merge: it loads N traces into N
   independent instances for parallel querying. To merge, pass one archive
   to a single `TraceProcessor` instance.
