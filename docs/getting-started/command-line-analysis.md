@@ -73,21 +73,31 @@ Session naming, socket paths and idle-timeout tuning:
 ## Merge traces
 
 To analyze several trace files as one (e.g. traces from two devices, or a
-system trace plus an in-process trace), pass a zip or a concatenation of
-them. For the common case, no configuration is needed:
+system trace plus an in-process trace), pack them into one archive. For
+the common case (traces whose clocks already relate), no configuration is
+needed:
 
 ```bash
-zip traces.zip trace1.pftrace trace2.pftrace
-trace_processor query traces.zip "SELECT count(*) FROM slice"
-
-# Or concatenate protobuf traces directly.
-cat trace1.pftrace trace2.pftrace > merged.pftrace
+trace_processor util merge -o merged.tar trace1.pftrace trace2.pftrace
+trace_processor query merged.tar "SELECT count(*) FROM slice"
 ```
 
-When you need control over how the traces combine (keeping devices'
-data separate, aligning unsynchronized clocks, naming machines), use a
-trace manifest: see
-[Merging traces with Trace Processor](/docs/analysis/merging-traces.md).
+`util merge` writes a TAR that Trace Processor opens as a single merged
+trace, and dry-runs the result to warn if the traces would not merge
+cleanly (`--strict` makes that a hard error, handy in CI). Any ZIP or TAR
+of trace files opens the same way, so without a `trace_processor`
+dependency you can pack them yourself:
+`tar cf merged.tar trace1.pftrace trace2.pftrace`.
+
+Do not merge by concatenating the files with `cat`; that is not a merge,
+see [Trace merging](/docs/concepts/merging-traces.md).
+
+When you need control over how the traces combine (keeping devices' data
+separate, aligning unsynchronized clocks, naming machines), pass a trace
+manifest to `util merge` (`--manifest manifest.json`) or tar it into the
+archive yourself. See
+[Merging traces from the command line](/docs/analysis/merging-traces.md)
+for the details, including how to verify a merge placed every event.
 
 ## Export to a SQLite database
 
