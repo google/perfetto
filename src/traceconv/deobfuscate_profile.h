@@ -19,10 +19,12 @@
 
 #include <iostream>
 
+#include "perfetto/base/status.h"
+
 namespace perfetto {
 namespace trace_to_text {
 
-int DeobfuscateProfile(std::istream* input, std::ostream* output);
+base::Status DeobfuscateProfile(std::istream* input, std::ostream* output);
 
 }
 }  // namespace perfetto

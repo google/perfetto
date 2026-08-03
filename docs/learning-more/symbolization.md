@@ -228,6 +228,40 @@ gauge demand and prioritise.
 
 ### Troubleshooting
 
+`trace_processor bundle` always produces a bundle containing at least the
+original trace. When it cannot add all the enrichment it wants, it prints a
+summary of what is missing and how to fix it, then still exits successfully
+&mdash; so check the output of the command even when it succeeds. It exits
+non-zero only for genuine failures (unreadable input, unwritable output, or
+an explicitly-provided `--proguard-map` that cannot be read).
+
+Common messages and what they mean:
+
+- **`N frames could not be symbolized and will appear as "unknown"`** with a
+  `hint: use --symbol-paths ...` line: the tool searched the auto-discovered
+  paths (plus any `--symbol-paths` / `PERFETTO_BINARY_PATH` you gave) but
+  found no binary with a matching Build ID. Follow the hint, or re-run with
+  `--verbose` to see every path that was tried.
+
+- **`N frames ... no build IDs in trace, symbol lookup requires build IDs`**:
+  the trace's mappings have no Build ID, so symbols cannot be matched even
+  with the right binaries. Rebuild the binaries with Build IDs (linker flag
+  `-Wl,--build-id`) and re-record.
+
+- **`Kernel function names: this trace contains function_graph events ...`**:
+  the trace contains kernel addresses from `function_graph` (or similar
+  ftrace events) recorded **without** `symbolize_ksyms`. These cannot be
+  symbolized offline; re-record with `symbolize_ksyms: true`. See
+  [Kernel ftrace events](#ftrace).
+
+- **`no symbol paths were searched`**: automatic discovery was disabled
+  (`--no-auto-symbol-paths`) and no explicit paths were given. Pass
+  `--symbol-paths` with the directories to search.
+
+- **`failed to open output file ...`**: the output path could not be created
+  (e.g. the parent directory does not exist or is not writable). Check the
+  path.
+
 #### Could not find library
 
 When symbolizing a profile you may see messages like:

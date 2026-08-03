@@ -347,6 +347,16 @@ bool FileExists(const std::string& path) {
 #endif
 }
 
+bool DirectoryExists(const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  DWORD attrs = GetFileAttributesA(path.c_str());
+  return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY);
+#else
+  struct stat st;
+  return stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+#endif
+}
+
 // Declared in base/platform_handle.h.
 int ClosePlatformHandle(PlatformHandle handle) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

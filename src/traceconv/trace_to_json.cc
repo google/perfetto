@@ -67,6 +67,7 @@ bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
 
   TraceWriterOutputWriter output(writer);
   base::Status status = trace_processor::json::ExportJson(tp, &output);
+  EndProgressLine();
   if (!status.ok()) {
     PERFETTO_ELOG("Could not convert userspace events: %s", status.c_message());
     return false;
@@ -80,11 +81,11 @@ bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
 
 }  // namespace
 
-int TraceToJson(std::istream* input,
-                std::ostream* output,
-                bool compress,
-                Keep truncate_keep,
-                bool full_sort) {
+base::Status TraceToJson(std::istream* input,
+                         std::ostream* output,
+                         bool compress,
+                         Keep truncate_keep,
+                         bool full_sort) {
   std::unique_ptr<TraceWriter> trace_writer(
       compress ? new DeflateTraceWriter(output) : new TraceWriter(output));
 
@@ -96,9 +97,9 @@ int TraceToJson(std::istream* input,
       trace_processor::TraceProcessor::CreateInstance(config);
 
   if (!ReadTraceUnfinalized(tp.get(), input))
-    return 1;
+    return base::ErrStatus("failed to read trace");
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
-    return 1;
+    return base::ErrStatus("failed to finalize trace: %s", status.c_message());
   }
 
   // TODO(eseckler): Support truncation of userspace event data.
@@ -106,17 +107,21 @@ int TraceToJson(std::istream* input,
     // ExportJson streams directly to |trace_writer|, so emitting an empty
     // trace header here would corrupt any output already written. Report the
     // conversion failure instead of silently dropping userspace events.
-    return 1;
+    return base::ErrStatus(
+        "failed to convert userspace events (see errors above)");
   }
   trace_writer->Write(",\n");
 
   int ret = ExtractSystrace(tp.get(), trace_writer.get(),
                             /*wrapped_in_json=*/true, truncate_keep);
-  if (ret)
-    return ret;
+  if (ret) {
+    EndProgressLine();
+    return base::ErrStatus("failed to convert ftrace events");
+  }
 
   trace_writer->Write(kTraceFooter);
-  return 0;
+  EndProgressLine();
+  return base::OkStatus();
 }
 
 }  // namespace trace_to_text

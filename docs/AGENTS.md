@@ -251,18 +251,44 @@ out/linux_msan/perfetto_unittests --gtest_brief=1 --gtest_filter="<TestSuiteName
 
 ## Creating Pull Requests
 
+**Always use stacked pull requests (PRs) with GitHub, via the `gh stack`
+CLI extension — do not open PRs with `gh pr create` directly.** A stack is a
+chain of dependent PRs, one per branch, each based on the branch below it
+(see the `gh-stack` skill in `.pi/skills/gh-stack/SKILL.md` for the full
+workflow). Perfetto uses stacks for all incremental review.
+
+1.  **Create the first branch of a new stack** (off the latest remote trunk):
+
+    ```bash
+    gh stack init dev/$USER/<name-of-branch>
+    ```
+
+    This creates the branch from the remote default branch and checks it out.
+
+2.  **Add a dependent branch** (a second PR that builds on the first):
+
+    ```bash
+    gh stack add dev/$USER/<name-of-branch>
+    ```
+
+3.  **Commit** with the normal `git add` / `git commit` workflow, then push
+    and open the PRs:
+
+    ```bash
+    gh stack submit --auto
+    ```
+
+Notes:
+
+- To keep the working tree clean while creating branches, `git stash` your
+  changes before `gh stack init` / `gh stack add` and `git stash pop` after.
+- Before pushing a stack, run `tools/run_presubmit` on each changed branch.
+- To change a lower layer of an existing stack, navigate to it
+  (`gh stack down` or `gh stack checkout <branch>`), commit there, then run
+  `gh stack rebase --upstack` to propagate the change up the stack.
+
 **Note:** This is the default PR workflow. If the user has their own way of
 creating and managing pull requests, follow that and skip this section.
-
-When creating a pull request, follow these steps:
-
-1.  **Create a new branch:**
-    Use the command `git checkout -b dev/$USER/<name-of-branch>` to create a new branch for your pull request.
-
-2.  **Create a stacked/dependent pull request:**
-    To create a pull request that depends on another, use the command `git checkout -b dev/$USER/<name-of-branch> <name-of-parent-branch>`.
-
-**Note:** The `git checkout` command only creates and switches to a new branch. The normal `git add` and `git commit` workflow should be used to add changes to the branch.
 
 ## Commit Messages
 

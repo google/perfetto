@@ -52,6 +52,17 @@ constexpr char kProgressChar = '\n';
 constexpr char kProgressChar = '\r';
 #endif
 
+// Terminates the current in-place progress line so that subsequent output
+// (errors, logs, results) starts on a fresh line instead of overwriting or
+// merging with the progress text. On WASM, progress updates already end with
+// a newline (see kProgressChar), so this is a no-op there.
+inline void EndProgressLine() {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  fprintf(stderr, "\n");
+  fflush(stderr);
+#endif
+}
+
 bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
                           std::istream* input);
 void IngestTraceOrDie(trace_processor::TraceProcessor* tp,

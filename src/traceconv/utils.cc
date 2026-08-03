@@ -83,7 +83,7 @@ bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
   }
 
   fprintf(stderr, "Loaded trace%c", kProgressChar);
-  fflush(stderr);
+  EndProgressLine();
   return true;
 }
 

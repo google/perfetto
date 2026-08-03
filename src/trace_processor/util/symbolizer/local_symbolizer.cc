@@ -89,7 +89,6 @@ template <typename E>
 typename E::Phdr* FindFirstExecutableSegment(void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
     return nullptr;
   }
   // Note debug-symbols-only ELF files might not have any program header at all,
@@ -100,7 +99,6 @@ typename E::Phdr* FindFirstExecutableSegment(void* mem, size_t size) {
   for (size_t i = 0; i < ehdr->e_phnum; ++i) {
     typename E::Phdr* phdr = GetPhdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, phdr, sizeof(typename E::Phdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
       return nullptr;
     }
     if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
@@ -114,13 +112,11 @@ template <typename E>
 std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
     return std::nullopt;
   }
   for (size_t i = 0; i < ehdr->e_shnum; ++i) {
     typename E::Shdr* shdr = GetShdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, shdr, sizeof(typename E::Shdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
       return std::nullopt;
     }
 
@@ -133,13 +129,11 @@ std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
           reinterpret_cast<typename E::Nhdr*>(static_cast<char*>(mem) + offset);
 
       if (!InRange(mem, size, nhdr, sizeof(typename E::Nhdr))) {
-        PERFETTO_ELOG("Corrupted ELF.");
         return std::nullopt;
       }
       if (nhdr->n_type == NT_GNU_BUILD_ID && nhdr->n_namesz == 4) {
         char* name = reinterpret_cast<char*>(nhdr) + sizeof(*nhdr);
         if (!InRange(mem, size, name, 4)) {
-          PERFETTO_ELOG("Corrupted ELF.");
           return std::nullopt;
         }
         if (memcmp(name, "GNU", 3) == 0) {
@@ -147,7 +141,6 @@ std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
                               base::AlignUp<4>(nhdr->n_namesz);
 
           if (!InRange(mem, size, value, nhdr->n_descsz)) {
-            PERFETTO_ELOG("Corrupted ELF.");
             return std::nullopt;
           }
           return std::string(value, nhdr->n_descsz);
@@ -326,10 +319,14 @@ std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
   return std::nullopt;
 }
 
-// Helper function to process a single binary file and add it to the index
+// Helper function to process a single binary file and add it to the index.
+// Increments *corrupt_file_count when a file looks like ELF/Mach-O but cannot
+// be parsed (corrupt or truncated): callers aggregate this into a single log
+// line instead of spamming one message per file.
 void ProcessBinaryFile(const char* fname,
                        size_t size,
-                       std::map<std::string, FoundBinary>& result) {
+                       std::map<std::string, FoundBinary>& result,
+                       uint32_t* corrupt_file_count) {
   static_assert(EI_MAG3 + 1 == sizeof(kMachO64Magic));
   char magic[EI_MAG3 + 1];
   // Scope file access. On windows OpenFile opens an exclusive lock.
@@ -352,7 +349,8 @@ void ProcessBinaryFile(const char* fname,
   }
   std::optional<BinaryInfo> binary_info = GetBinaryInfo(fname, size);
   if (!binary_info) {
-    PERFETTO_DLOG("Failed to extract binary info from %s.", fname);
+    // Passed the magic check but failed to parse: corrupt or truncated.
+    ++(*corrupt_file_count);
     return;
   }
   if (!binary_info->build_id) {
@@ -394,17 +392,26 @@ std::map<std::string, FoundBinary> BuildIdIndex(
     std::vector<std::string> dirs,
     std::vector<std::string> files) {
   std::map<std::string, FoundBinary> result;
+  uint32_t corrupt_file_count = 0;
 
   // Process directories
   if (!dirs.empty()) {
-    WalkDirectories(std::move(dirs), [&result](const char* fname, size_t size) {
-      ProcessBinaryFile(fname, size, result);
+    WalkDirectories(std::move(dirs), [&result, &corrupt_file_count](
+                                         const char* fname, size_t size) {
+      ProcessBinaryFile(fname, size, result, &corrupt_file_count);
     });
   }
 
   // Process individual files
   for (const std::string& file_path : files) {
-    ProcessBinaryFile(file_path.c_str(), 0, result);
+    ProcessBinaryFile(file_path.c_str(), 0, result, &corrupt_file_count);
+  }
+
+  if (corrupt_file_count > 0) {
+    PERFETTO_LOG(
+        "Skipped %u file(s) that look like ELF/Mach-O but could not be "
+        "parsed (corrupt or truncated) while indexing symbol paths.",
+        corrupt_file_count);
   }
 
   return result;
