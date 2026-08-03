@@ -44,9 +44,6 @@ ARTIFACTS = [
         'name': 'trace_processor_shell'
     },
     {
-        'name': 'traceconv',
-    },
-    {
         'name': 'tracebox',
         'exclude_platforms': ['windows-amd64']
     },
