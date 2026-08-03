@@ -1,4 +1,4 @@
-# Analyzing traces from the command line
+# Cookbook: Analyzing Traces from the Command Line
 
 This page is a set of task-oriented recipes for working with traces from a
 shell using `trace_processor`: running queries, iterating without

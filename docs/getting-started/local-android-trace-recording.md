@@ -1,4 +1,4 @@
-# Cookbook: Local Android Trace Recording
+# Cookbook: Recording Android Traces Locally
 
 This page collects **end-to-end recipes** for recording Perfetto traces on
 Android in situations that the standard interactive workflow does not cover.
