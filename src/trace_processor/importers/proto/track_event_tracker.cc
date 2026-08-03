@@ -622,44 +622,42 @@ TrackEventTracker::InternDescriptorTrackImpl(
   auto intern_gpu_track =
       [&](const TrackTracker::SetArgsCallback& args_fn, int64_t parent_uuid,
           std::function<void(TrackId)> on_new_track) -> TrackOrFactory {
-    auto on_new_direct_track = [&on_new_track](TrackId id) {
-      if (on_new_track) {
-        on_new_track(id);
-      }
-      return id;
-    };
-    const bool has_render_stage_queue =
-        reservation->gpu_hw_queue_iid || reservation->gpu_logical_queue_id;
-    if (resolved->gpu_id()) {
-      PERFETTO_CHECK(resolved->ugpu());
-      auto dimensions = tracks::Dimensions(
-          *resolved->ugpu(), *resolved->gpu_id(), static_cast<int64_t>(uuid));
+    auto intern_with_blueprints =
+        [&](const auto& counter_blueprint, const auto& state_blueprint,
+            const auto& track_blueprint, const auto& merged_blueprint,
+            const auto& process_merged_blueprint,
+            const auto& make_dimensions) -> TrackOrFactory {
+      auto on_new_direct_track = [&on_new_track](TrackId id) {
+        if (on_new_track) {
+          on_new_track(id);
+        }
+        return id;
+      };
+      auto dimensions = make_dimensions(static_cast<int64_t>(uuid));
       if (reservation->is_counter) {
         return on_new_direct_track(context_->track_tracker->InternTrack(
-            kGpuCounterTrackBlueprint, dimensions,
+            counter_blueprint, dimensions,
             tracks::DynamicName(reservation->name), args_fn,
             tracks::DynamicUnit(reservation->counter_details->unit)));
       }
       auto make_factory = [&](uint32_t type, StringId key) {
         if (resolved->gpu_process_upid()) {
           return context_->track_compressor->CreateTrackFactory(
-              kProcessGpuTrackMergedBlueprint,
-              tracks::Dimensions(*resolved->ugpu(), *resolved->gpu_id(),
-                                 *resolved->gpu_process_upid(), parent_uuid,
-                                 type, key),
+              process_merged_blueprint,
+              make_dimensions(*resolved->gpu_process_upid(), parent_uuid, type,
+                              key),
               tracks::DynamicName(name), args_fn, on_new_track);
         }
         return context_->track_compressor->CreateTrackFactory(
-            kGpuTrackMergedBlueprint,
-            tracks::Dimensions(*resolved->ugpu(), *resolved->gpu_id(),
-                               parent_uuid, type, key),
+            merged_blueprint, make_dimensions(parent_uuid, type, key),
             tracks::DynamicName(name), args_fn, on_new_track);
       };
+      const bool has_render_stage_queue =
+          reservation->gpu_hw_queue_iid || reservation->gpu_logical_queue_id;
       if (reservation->sibling_merge_behavior == M::kNone ||
           reservation->is_state) {
         TrackId id = on_new_direct_track(context_->track_tracker->InternTrack(
-            reservation->is_state ? kGpuStateTrackBlueprint
-                                  : kGpuTrackBlueprint,
+            reservation->is_state ? state_blueprint : track_blueprint,
             dimensions, tracks::DynamicName(name), args_fn));
         if (has_render_stage_queue && !reservation->is_state) {
           StringId key = context_->storage->InternString(
@@ -675,47 +673,25 @@ TrackEventTracker::InternDescriptorTrackImpl(
         state->gpu_render_stage_factory = factory;
       }
       return factory;
-    }
-    auto dimensions = tracks::Dimensions(static_cast<int64_t>(uuid));
-    if (reservation->is_counter) {
-      return on_new_direct_track(context_->track_tracker->InternTrack(
-          kUnspecifiedGpuCounterTrackBlueprint, dimensions,
-          tracks::DynamicName(reservation->name), args_fn,
-          tracks::DynamicUnit(reservation->counter_details->unit)));
-    }
-    auto make_factory = [&](uint32_t type, StringId key) {
-      if (resolved->gpu_process_upid()) {
-        return context_->track_compressor->CreateTrackFactory(
-            kProcessUnspecifiedGpuTrackMergedBlueprint,
-            tracks::Dimensions(*resolved->gpu_process_upid(), parent_uuid, type,
-                               key),
-            tracks::DynamicName(name), args_fn, on_new_track);
-      }
-      return context_->track_compressor->CreateTrackFactory(
-          kUnspecifiedGpuTrackMergedBlueprint,
-          tracks::Dimensions(parent_uuid, type, key), tracks::DynamicName(name),
-          args_fn, on_new_track);
     };
-    if (reservation->sibling_merge_behavior == M::kNone ||
-        reservation->is_state) {
-      TrackId id = on_new_direct_track(context_->track_tracker->InternTrack(
-          reservation->is_state ? kUnspecifiedGpuStateTrackBlueprint
-                                : kUnspecifiedGpuTrackBlueprint,
-          dimensions, tracks::DynamicName(name), args_fn));
-      if (has_render_stage_queue && !reservation->is_state) {
-        StringId key = context_->storage->InternString(
-            "gpu_render_stage_track_uuid:" + std::to_string(uuid));
-        state->gpu_render_stage_factory =
-            make_factory(static_cast<uint32_t>(M::kByKey), key);
-      }
-      return id;
+
+    if (resolved->gpu_id()) {
+      PERFETTO_CHECK(resolved->ugpu());
+      const uint32_t ugpu = *resolved->ugpu();
+      const uint32_t gpu_id = *resolved->gpu_id();
+      return intern_with_blueprints(
+          kGpuCounterTrackBlueprint, kGpuStateTrackBlueprint,
+          kGpuTrackBlueprint, kGpuTrackMergedBlueprint,
+          kProcessGpuTrackMergedBlueprint, [ugpu, gpu_id](auto... dimensions) {
+            return tracks::Dimensions(ugpu, gpu_id, dimensions...);
+          });
     }
-    auto [type, key] = GetMergeKey(*reservation, name);
-    auto factory = make_factory(type, key);
-    if (has_render_stage_queue) {
-      state->gpu_render_stage_factory = factory;
-    }
-    return factory;
+    return intern_with_blueprints(
+        kUnspecifiedGpuCounterTrackBlueprint,
+        kUnspecifiedGpuStateTrackBlueprint, kUnspecifiedGpuTrackBlueprint,
+        kUnspecifiedGpuTrackMergedBlueprint,
+        kProcessUnspecifiedGpuTrackMergedBlueprint,
+        [](auto... dimensions) { return tracks::Dimensions(dimensions...); });
   };
 
   if (resolved->is_root()) {
