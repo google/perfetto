@@ -317,6 +317,12 @@ To ensure accuracy and efficiency, follow these steps:
 4. **Cleanup & Finalize:**
   - Explicitly return and state the final validated SQL and explain the
     results to the user.
+  - **Save an analysis report.** Write a markdown file in the working
+    directory (default `perfetto_analysis_report.md`) containing: the
+    question investigated, the trace file(s) analyzed, the findings with
+    concrete numbers, the final validated queries (so the analysis can be
+    re-run), and open questions / next steps. Point the user at it in
+    your final message.
   - Before finishing, delete any temporary SQL files created in `/tmp/`.
 
 ## Where to look for more
