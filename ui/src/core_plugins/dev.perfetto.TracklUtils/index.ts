@@ -681,35 +681,6 @@ async function resolveTracksFromSliceQuery(
     .filter((track) => track !== undefined);
 }
 
-// De-duplicated tracks backing the ids returned by `query` (an `id` column in
-// `rootTableName`). resolveSqlEvents is generic over a track's rootTableName, so
-// this handles both 'slice' and 'thread_state'.
-async function resolveTracksFromEventQuery(
-  ctx: Trace,
-  query: string,
-  rootTableName: string,
-): Promise<TrackNode[]> {
-  const result = await ctx.engine.query(query);
-  const iter = result.iter({id: NUM});
-  const ids = [];
-  for (; iter.valid(); iter.next()) {
-    ids.push(iter.id);
-  }
-  const resolved = await ctx.selection.resolveSqlEvents(rootTableName, ids);
-  const tracksByUri = new Map<string, TrackNode>();
-  for (const {trackUri} of resolved) {
-    if (tracksByUri.has(trackUri)) continue;
-    const track = ctx.currentWorkspace.getTrackByUri(trackUri);
-    if (track !== undefined) {
-      tracksByUri.set(trackUri, track);
-    }
-  }
-  return Array.from(tracksByUri.values());
-}
-
-// Copy each process's main-thread thread_state and slice tracks into a
-// workspace, grouped under their process, and switch to it. Each query picks one
-// event per track so every track resolves exactly once.
 async function copyMainThreadTracksToWorkspace(
   ctx: Trace,
   workspaceNameArg: unknown,
@@ -717,27 +688,16 @@ async function copyMainThreadTracksToWorkspace(
   const workspaceName =
     typeof workspaceNameArg === 'string' ? workspaceNameArg : 'Main threads';
 
-  const mainThreadJoin = 'join thread th using (utid) where th.is_main_thread';
-
-  const stateTracks = await resolveTracksFromEventQuery(
-    ctx,
-    `select min(ts.id) as id from thread_state ts ${mainThreadJoin}
-     group by ts.utid`,
-    'thread_state',
-  );
-  const sliceTracks = await resolveTracksFromEventQuery(
-    ctx,
-    `select min(s.id) as id from slice s
-     join thread_track tt on s.track_id = tt.id ${mainThreadJoin}
-     group by s.track_id`,
-    'slice',
-  );
+  const tracks = ctx.tracks
+    .getAllTracks()
+    .filter((track) => track.tags?.isMainThread === true)
+    .map((track) => ctx.currentWorkspace.getTrackByUri(track.uri))
+    .filter(exists);
 
   const targetWorkspace =
     ctx.workspaces.all.find((ws) => ws.title === workspaceName) ??
     ctx.workspaces.createEmptyWorkspace(workspaceName);
 
-  copyTracksWithAncestors([...stateTracks, ...sliceTracks], targetWorkspace);
-
+  copyTracksWithAncestors(tracks, targetWorkspace);
   ctx.workspaces.switchWorkspace(targetWorkspace);
 }
