@@ -26,7 +26,7 @@ prints each result set as CSV (blank line between result sets):
 # Inline SQL.
 trace_processor query trace.pftrace "SELECT ts, dur, name FROM slice LIMIT 5"
 
-# From a file (or `-f -` for stdin) — the natural form for scripts.
+# From a file (`-f -` for stdin): the natural form for scripts.
 trace_processor query -f queries.sql trace.pftrace
 ```
 
@@ -36,8 +36,8 @@ cached locally under `~/.cache/perfetto/`.
 
 ## Iterate without re-parsing: sessions
 
-Parsing the trace is the expensive part — tens of seconds for large
-traces — and a plain `query` invocation pays it every time. When you'll
+Parsing the trace is the expensive part (tens of seconds for large
+traces), and a plain `query` invocation pays it every time. When you'll
 run more than one query against the same trace, load it once into a named
 background **session** and point each invocation at it with `--remote`:
 
@@ -55,7 +55,7 @@ trace_processor server kill mysession
 
 Session state persists across `--remote` invocations: a
 `CREATE PERFETTO TABLE` or `INCLUDE PERFETTO MODULE` from one call is
-visible to the next, exactly as within a single interactive shell — so
+visible to the next, exactly as within a single interactive shell, so
 materializing intermediate results pays off across calls. Idle sessions
 are reaped automatically after 30 minutes.
 
@@ -65,7 +65,7 @@ Two things to know:
   `--add-sql-package`, ...) belong on the `server unix` invocation;
   `query --remote` rejects them.
 - `--remote` works with `interactive` and `summarize` too, so you can
-  drop into a REPL on — or summarize — an already-warm session.
+  drop into a REPL on an already-warm session, or summarize it.
 
 Session naming, socket paths and idle-timeout tuning:
 [reference](/docs/analysis/trace-processor.md#subcommand-server).
@@ -73,8 +73,8 @@ Session naming, socket paths and idle-timeout tuning:
 ## Merge traces
 
 To analyze several trace files as one (e.g. traces from two devices, or a
-system trace plus an in-process trace), pass a zip or concatenation of
-them — for the common case no configuration is needed:
+system trace plus an in-process trace), pass a zip or a concatenation of
+them. For the common case, no configuration is needed:
 
 ```bash
 zip traces.zip trace1.pftrace trace2.pftrace
@@ -84,8 +84,8 @@ trace_processor query traces.zip "SELECT count(*) FROM slice"
 cat trace1.pftrace trace2.pftrace > merged.pftrace
 ```
 
-When you need control over how the traces combine — keeping devices'
-data separate, aligning unsynchronized clocks, naming machines — use a
+When you need control over how the traces combine (keeping devices'
+data separate, aligning unsynchronized clocks, naming machines), use a
 trace manifest: see
 [Merging traces with Trace Processor](/docs/analysis/merging-traces.md).
 
