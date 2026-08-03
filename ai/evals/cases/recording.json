@@ -1,0 +1,110 @@
+{
+  "suite": "recording",
+  "cases": [
+    {
+      "name": "sched_config",
+      "prompt": "I want to record a Perfetto trace on my Android phone that captures CPU scheduling activity (context switches and wakeups) for 10 seconds with a 32 MB trace buffer. Write the trace config in protobuf text format to a file called config.pftxt in the current directory, and tell me the exact command I would use to record with it. Do not actually record anything - no device is attached right now.",
+      "checks": [
+        {"type": "file_exists", "path": "config.pftxt"},
+        {"type": "trace_config_parses", "path": "config.pftxt"},
+        {
+          "type": "config_contains",
+          "path": "config.pftxt",
+          "patterns": [
+            "linux\\.ftrace",
+            "sched_switch",
+            "sched_wakeup",
+            "duration_ms: 10000",
+            "size_kb: 32768"
+          ]
+        },
+        {"type": "output_matches", "pattern": "record_android_trace"}
+      ]
+    },
+    {
+      "name": "memory_counters_config",
+      "prompt": "Write a Perfetto trace config (protobuf text format) for Android that samples system-wide memory counters (meminfo) every second and also polls per-process memory stats for all processes every 10 seconds, recording for 30 seconds total. Save it as memory.pftxt in the current directory. No device is attached, so don't try to record.",
+      "checks": [
+        {"type": "trace_config_parses", "path": "memory.pftxt"},
+        {
+          "type": "config_contains",
+          "path": "memory.pftxt",
+          "patterns": [
+            "linux\\.sys_stats",
+            "meminfo_period_ms: 1000",
+            "MEMINFO_",
+            "linux\\.process_stats",
+            "proc_stats_poll_ms: 10000",
+            "duration_ms: 30000"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "combined_sched_atrace_config",
+      "prompt": "Create a single Perfetto trace config that records BOTH CPU scheduling ftrace events and Android atrace events for the gfx and view categories, plus app trace events from com.example.myapp, running for 15 seconds. Save it to combined.pftxt in the current directory and tell me how I'd record with it on a phone. No device is attached right now, so don't record anything.",
+      "checks": [
+        {"type": "trace_config_parses", "path": "combined.pftxt"},
+        {
+          "type": "config_contains",
+          "path": "combined.pftxt",
+          "patterns": [
+            "linux\\.ftrace",
+            "sched_switch",
+            "atrace_categories: \"gfx\"",
+            "atrace_categories: \"view\"",
+            "atrace_apps: \"com.example.myapp\"",
+            "duration_ms: 15000"
+          ]
+        },
+        {"type": "output_matches", "pattern": "record_android_trace"}
+      ]
+    },
+    {
+      "name": "ring_buffer_background_config",
+      "prompt": "Write a Perfetto config for a long-running background trace on Android: ring-buffer mode so only the most recent data is kept, a 64 MB buffer, recording CPU frequency and CPU idle state changes. There should be no fixed trace duration - I'll stop it manually. Save it as background.pftxt in the current directory. No device is attached, don't record.",
+      "checks": [
+        {"type": "trace_config_parses", "path": "background.pftxt"},
+        {
+          "type": "config_contains",
+          "path": "background.pftxt",
+          "patterns": [
+            "RING_BUFFER",
+            "size_kb: 65536",
+            "cpu_frequency",
+            "cpu_idle"
+          ],
+          "absent_patterns": ["duration_ms"]
+        }
+      ]
+    },
+    {
+      "name": "java_heap_dump_howto",
+      "prompt": "How do I capture a Java heap dump of the app com.example.myapp from a connected Android phone so I can look for memory leaks? Just tell me the steps and commands - don't run anything.",
+      "checks": [
+        {"type": "output_matches", "pattern": "java_heap_dump"},
+        {
+          "type": "rubric",
+          "expectations": [
+            "Recommends the official java_heap_dump helper script from the Perfetto repo, not raw 'adb shell am dumpheap' or Android Studio.",
+            "Shows passing the app's package name to the script via -n com.example.myapp."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "cpu_profile_howto",
+      "prompt": "My native C++ game (package com.example.game) is burning a lot of CPU on Android. How do I capture callstack samples with Perfetto to find the hot functions? Give me the commands - don't run anything.",
+      "checks": [
+        {"type": "output_matches", "pattern": "cpu_profile"},
+        {
+          "type": "rubric",
+          "expectations": [
+            "Recommends the cpu_profile helper script (traced_perf-based callstack sampling) as the primary approach.",
+            "Passes the package name via -n com.example.game."
+          ]
+        }
+      ]
+    }
+  ]
+}
