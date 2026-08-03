@@ -381,8 +381,13 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.CopyMainThreadTracksToWorkspace',
       name: 'Copy main thread tracks to workspace',
-      callback: (workspaceNameArg: unknown) =>
-        copyMainThreadTracksToWorkspace(ctx, workspaceNameArg),
+      callback: (workspaceNameArg: unknown) => {
+        const workspaceName =
+          typeof workspaceNameArg === 'string'
+            ? workspaceNameArg
+            : 'Main threads';
+        copyMainThreadTracksToWorkspace(ctx, workspaceName);
+      },
     });
 
     ctx.commands.registerCommand({
@@ -681,13 +686,10 @@ async function resolveTracksFromSliceQuery(
     .filter((track) => track !== undefined);
 }
 
-async function copyMainThreadTracksToWorkspace(
+function copyMainThreadTracksToWorkspace(
   ctx: Trace,
-  workspaceNameArg: unknown,
-): Promise<void> {
-  const workspaceName =
-    typeof workspaceNameArg === 'string' ? workspaceNameArg : 'Main threads';
-
+  workspaceName: string,
+): void {
   const tracks = ctx.tracks
     .getAllTracks()
     .filter((track) => track.tags?.isMainThread === true)
