@@ -78,3 +78,13 @@ If you want to load a trace and write custom PerfettoSQL queries:
 
 Workflows above are self-contained (they carry their own queries); read
 `querying.md` only for ad-hoc work outside a workflow.
+
+## Finishing any analysis
+
+Whichever path you took — a guided workflow or ad-hoc queries — end by
+**saving a report of the analysis** as a markdown file in the working
+directory (default name: `perfetto_analysis_report.md`, or where the user
+asked). It should contain: the question investigated, the trace file(s)
+used, the findings with concrete numbers, the key validated queries so the
+analysis can be re-run, and open questions or suggested next steps. Tell
+the user the report's path in your final message.
