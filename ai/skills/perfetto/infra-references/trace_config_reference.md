@@ -7,8 +7,11 @@ merge the pieces described below.
 
 ## Shape of a config
 
-A config is a `TraceConfig` protobuf written in protobuf **text format**
-(conventionally saved as `config.pftxt`):
+A config is a `TraceConfig` protobuf — authoritative schema:
+<https://raw.githubusercontent.com/google/perfetto/main/protos/perfetto/config/trace_config.proto>
+(per-source option messages live under `protos/perfetto/config/` in the same
+repo, e.g. `.../ftrace/ftrace_config.proto`) — written in protobuf **text
+format** (conventionally saved as `config.pftxt`):
 
 ```
 buffers {
