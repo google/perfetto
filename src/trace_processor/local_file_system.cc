@@ -41,8 +41,8 @@ class LocalFile final : public File {
                              strerror(errno));
     }
     if (static_cast<size_t>(written) != size) {
-      return base::ErrStatus("Short write to file %s: wrote %zd of %zu bytes",
-                             path_.c_str(), written, size);
+      return base::ErrStatus("Short write to file %s: wrote %zu of %zu bytes",
+                             path_.c_str(), static_cast<size_t>(written), size);
     }
     return base::OkStatus();
   }
