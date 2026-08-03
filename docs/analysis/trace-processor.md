@@ -105,6 +105,19 @@ ts                   value
 ...
 ```
 
+### {#sessions} Keeping a trace warm: sessions
+
+If you run more than one invocation against the same trace, don't re-pay
+trace parsing every time: load the trace once into a named background
+session (`server unix --name mysession --daemonize trace.pftrace`) and
+point each invocation at it with `--remote mysession`. The `query`,
+`interactive`, `metrics` and `summarize` subcommands all accept
+`--remote`, speaking the same TraceProcessor RPC interface the Perfetto
+UI uses. For the task-oriented walkthrough, see
+[Analyzing traces from the command line](/docs/getting-started/command-line-analysis.md);
+the mode and flag details are under the
+[`server` subcommand](#subcommand-server) below.
+
 ### {#subcommands} Subcommand interface
 
 In addition to launching an interactive REPL, `trace_processor` exposes a
@@ -130,7 +143,7 @@ If no command is given, opens an interactive SQL shell on the trace file.
 Commands:
   query         Load a trace and run a SQL query.
   interactive   Interactive SQL shell (default if no command is given).
-  server        Start an RPC server (http or stdio).
+  server        Start an RPC server.
   summarize     Compute a trace summary from specs and/or built-in metrics.
   export        Export a trace to a database file.
   metrics       Run v1 metrics (deprecated; use 'summarize --metrics-v2').
@@ -175,6 +188,10 @@ cat queries.sql | trace_processor query trace.pftrace
 
 Useful flags:
 
+- `--remote ADDR` — run against a warm session instead of loading a local
+  trace; `ADDR` is a session name, a `*.sock`/absolute socket path, or
+  `host:port` (see [sessions](#sessions)). No trace-file argument is
+  passed in this mode.
 - `-f, --query-file FILE` — read SQL from `FILE` (or `-` for stdin).
 - `-i, --interactive` — drop into the interactive REPL after the queries
   finish.
@@ -193,7 +210,7 @@ section. This is the default subcommand when none is specified, so
 `trace_processor interactive trace.pftrace` are equivalent. The only
 subcommand-specific flag is `-W, --wide`.
 
-#### {#subcommand-server} `server` — HTTP / stdio RPC
+#### {#subcommand-server} `server` — HTTP / stdio / unix RPC
 
 Exposes trace processor over a remote-procedure-call protocol.
 
@@ -207,6 +224,13 @@ trace_processor server http trace.pftrace
 # stdio server (length-prefixed RPC; used by tooling that embeds
 # trace_processor as a subprocess).
 trace_processor server stdio
+
+# Named unix-socket session: keeps the trace warm for repeated
+# `query --remote <name>` calls (see the sessions section above).
+trace_processor server unix --name mysession --daemonize trace.pftrace
+
+# Stop a unix session by name or socket path.
+trace_processor server kill mysession
 ```
 
 Server-specific flags:
@@ -216,9 +240,18 @@ Server-specific flags:
 - `--additional-cors-origins O1,O2,...` — extra CORS-allowed origins on
   top of the defaults (`https://ui.perfetto.dev`, `http://localhost:10000`,
   `http://127.0.0.1:10000`).
+- `--name NAME` — session name for unix mode (default: auto-generated).
+- `--path PATH` — explicit socket path for unix mode (mutually exclusive
+  with `--name`).
+- `--daemonize` — detach into the background (unix mode, POSIX only).
+- `--idle-timeout auto|DUR` — reap the server after this much inactivity
+  (e.g. `30m`, `90s`); `auto` means 30 minutes for unix and never for
+  http, `0`/`never` disables.
+- `--idle-start auto|orphaned|last-query` — when the idle clock applies
+  (default `auto`: owner-aware).
 
-The trace file is optional in `http` mode: clients can also load traces
-remotely. The most common client is the Perfetto UI, which auto-detects a
+The trace file is optional in `http` and `unix` modes: clients can also
+load traces remotely. The most common client is the Perfetto UI, which auto-detects a
 local server and offloads trace parsing to it; see
 [Visualising large traces](/docs/visualization/large-traces.md) for the
 end-user flow, or
