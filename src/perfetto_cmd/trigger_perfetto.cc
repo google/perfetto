@@ -28,11 +28,11 @@ namespace perfetto {
 namespace {
 
 int PrintUsage(const char* argv0) {
-  fprintf(stderr, R"(
+  PERFETTO_ELOG(R"(
 Usage: %s TRIGGER...
   -h|--help  Show this message
 )",
-          argv0);
+                argv0);
   return 1;
 }
 
