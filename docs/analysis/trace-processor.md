@@ -107,43 +107,16 @@ ts                   value
 
 ### {#sessions} Keeping a trace warm: sessions
 
-Parsing a trace is the expensive part of any analysis — tens of seconds
-for large traces. If you run more than one `query` invocation against the
-same trace, don't pay that cost every time: load the trace once into a
-named background **session** and point each invocation at it with
-`--remote`.
-
-```bash
-# 1. Load the trace into a background session (once per trace).
-trace_processor server unix --name mysession --daemonize trace.pftrace
-
-# 2. Query the warm session: no trace path, no reparse.
-trace_processor query --remote mysession \
-  "SELECT ts, dur, name FROM slice LIMIT 10"
-
-# 3. Stop the session when you're done with the trace.
-trace_processor server kill mysession
-```
-
-How sessions behave:
-
-- Sessions are addressed by name; their sockets live in a per-user session
-  directory, so there are no ports to pick and concurrent sessions don't
-  collide with each other or with the Perfetto UI.
-- Session state persists across `--remote` invocations: a
-  `CREATE PERFETTO TABLE` or `INCLUDE PERFETTO MODULE` from one call is
-  visible to the next, exactly as within a single interactive shell.
-- Flags that configure trace loading (`--full-sort`, `--add-sql-package`,
-  ...) must be passed to `server unix` when starting the session;
-  `query --remote` rejects them with an explanatory error.
-- Idle sessions are reaped automatically (after 30 minutes by default for
-  unix mode; tune with `--idle-timeout`).
-- `--remote` also accepts an explicit socket path (`*.sock`) or the
-  `host:port` of an HTTP server; names are the common case.
-
-`--remote` is accepted by the `query`, `interactive`, `metrics` and
-`summarize` subcommands alike (described below), all speaking the same
-TraceProcessor RPC interface the Perfetto UI uses.
+If you run more than one invocation against the same trace, don't re-pay
+trace parsing every time: load the trace once into a named background
+session (`server unix --name mysession --daemonize trace.pftrace`) and
+point each invocation at it with `--remote mysession`. The `query`,
+`interactive`, `metrics` and `summarize` subcommands all accept
+`--remote`, speaking the same TraceProcessor RPC interface the Perfetto
+UI uses. For the task-oriented walkthrough, see
+[Analyzing traces from the command line](/docs/getting-started/command-line-analysis.md);
+the mode and flag details are under the
+[`server` subcommand](#subcommand-server) below.
 
 ### {#subcommands} Subcommand interface
 
