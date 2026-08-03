@@ -31,7 +31,7 @@ import textwrap
 import time
 import uuid
 
-from perfetto.prebuilts.manifests.traceconv import *
+from perfetto.prebuilts.manifests.trace_processor_shell import *
 from perfetto.prebuilts.perfetto_prebuilts import *
 
 # Used for creating directories, etc.
@@ -394,17 +394,18 @@ def record_trace(config, profile_target):
   adb_check_output(['adb', 'shell', 'rm', profile_device_path])
 
 
-def get_traceconv():
-  """Sets up and returns the path to `traceconv`."""
+def get_trace_processor():
+  """Sets up and returns the path to `trace_processor`."""
   try:
-    traceconv = get_perfetto_prebuilt(TRACECONV_MANIFEST, soft_fail=True)
+    trace_processor = get_perfetto_prebuilt(
+        TRACE_PROCESSOR_SHELL_MANIFEST, soft_fail=True)
   except Exception as error:
     exit_with_bug_report(error)
-  if traceconv is None:
+  if trace_processor is None:
     exit_with_bug_report(
-        "Unable to download `traceconv` for symbolizing profiles.")
+        "Unable to download `trace_processor` for symbolizing profiles.")
 
-  return traceconv
+  return trace_processor
 
 
 def concatenate_files(files_to_concatenate, output_file):
@@ -420,12 +421,13 @@ def concatenate_files(files_to_concatenate, output_file):
         shutil.copyfileobj(input, output)
 
 
-def symbolize_trace(traceconv, profile_target):
+def symbolize_trace(trace_processor, profile_target):
   """Attempts symbolization of the recorded trace/profile, if symbols are
   available.
 
   Args:
-    traceconv: The path to the `traceconv` binary used for symbolization.
+    trace_processor: The path to the `trace_processor` binary used for
+      symbolization.
     profile_target: The directory where the recorded trace was output.
 
   Returns:
@@ -439,11 +441,10 @@ def symbolize_trace(traceconv, profile_target):
   if binary_path is not None:
     try:
       with open(os.path.join(profile_target, 'symbols'), 'w') as symbols_file:
-        return_code = subprocess.call([traceconv, 'symbolize', trace_file],
-                                      env=dict(
-                                          os.environ,
-                                          PERFETTO_BINARY_PATH=binary_path),
-                                      stdout=symbols_file)
+        return_code = subprocess.call(
+            [trace_processor, 'util', 'symbolize', trace_file],
+            env=dict(os.environ, PERFETTO_BINARY_PATH=binary_path),
+            stdout=symbols_file)
     except IOError as error:
       sys.exit("Unable to write symbols to disk: {}".format(error))
     if return_code == 0:
@@ -461,26 +462,27 @@ def symbolize_trace(traceconv, profile_target):
   return trace_file
 
 
-def generate_pprof_profiles(traceconv, trace_file, args):
+def generate_pprof_profiles(trace_processor, trace_file, args):
   """Generates pprof profiles from the recorded trace.
 
   Args:
-    traceconv: The path to the `traceconv` binary used for generating profiles.
+    trace_processor: The path to the `trace_processor` binary used for
+      generating profiles.
     trace_file: The oath to the recorded and potentially symbolized trace file.
 
   Returns:
     The directory where pprof profiles are output.
   """
   try:
-    conversion_args = [traceconv, 'profile', '--perf'] + (
+    conversion_args = [trace_processor, 'convert', 'profile', '--perf'] + (
         ['--no-annotations'] if args.no_annotations else []) + [trace_file]
-    traceconv_output = subprocess.check_output(conversion_args)
+    trace_processor_output = subprocess.check_output(conversion_args)
   except Exception as error:
     exit_with_bug_report(
         "Unable to extract profiles from trace: {}".format(error))
 
   profiles_output_directory = None
-  for word in traceconv_output.decode('utf-8').split():
+  for word in trace_processor_output.decode('utf-8').split():
     if 'perf_profile-' in word:
       profiles_output_directory = word
   if profiles_output_directory is None:
@@ -511,10 +513,11 @@ def main(argv):
     print(trace_config)
     return 0
   record_trace(trace_config, profile_target)
-  traceconv = get_traceconv()
-  trace_file = symbolize_trace(traceconv, profile_target)
+  trace_processor = get_trace_processor()
+  trace_file = symbolize_trace(trace_processor, profile_target)
   copy_profiles_to_destination(
-      profile_target, generate_pprof_profiles(traceconv, trace_file, args))
+      profile_target, generate_pprof_profiles(trace_processor, trace_file,
+                                              args))
   return 0
 
 
