@@ -21,11 +21,11 @@
 
   - [Cookbooks](#)
 
-    - [Local Android Recording](getting-started/local-android-trace-recording.md) {.tag-android}
-    - [Analysing Android Traces](getting-started/android-trace-analysis.md) {.tag-android}
-    - [Command-Line Trace Analysis](getting-started/command-line-analysis.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
-    - [Linux Tracing Recipes](getting-started/linux-cookbook.md) {.tag-linux}
-    - [Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
+    - [Recording Android Traces Locally](getting-started/local-android-trace-recording.md) {.tag-android}
+    - [Analyzing Android Traces](getting-started/android-trace-analysis.md) {.tag-android}
+    - [Analyzing Traces from the Command Line](getting-started/command-line-analysis.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
+    - [Tracing on Linux](getting-started/linux-cookbook.md) {.tag-linux}
+    - [Capturing Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
     - [Using AI with Perfetto](getting-started/using-ai.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
 
   - [Case Studies](#)
