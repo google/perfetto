@@ -54,6 +54,7 @@ void GatherNullableRows(Span<const T> source,
                         BitVector* output_non_null,
                         Span<const uint32_t> source_rows) {
   PERFETTO_DCHECK(output.size() >= source_rows.size());
+  PERFETTO_DCHECK(output_non_null);
   PERFETTO_DCHECK(output_non_null->size() >= source_rows.size());
   const bool values_in_place = source.b == output.b;
   const bool nulls_in_place = &source_non_null == output_non_null;

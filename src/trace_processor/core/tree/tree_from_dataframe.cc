@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <cstring>
 #include <limits>
 #include <optional>
 #include <string>
@@ -63,29 +62,27 @@ Slab<uint8_t> GatherColumnData(Span<const T> values,
   return slab;
 }
 
-Tree::Column MoveRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc,
-                           uint32_t row_count) {
+Tree::Column MoveRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc) {
   Tree::Column tc;
-  if (!rc.storage) {
-    // All-null column: default to Int64 with zero data.
-    tc = Tree::Column::Create<int64_t>(row_count);
-    memset(tc.data.begin(), 0,
-           static_cast<uint64_t>(row_count) * sizeof(int64_t));
-  } else if (rc.storage->type().Is<Int64>()) {
-    tc.type = Tree::Column::Type(Int64{});
-    auto& values = rc.storage->unchecked_get<Int64>();
-    tc.data = std::move(values).TakeSlab().TakeAsBytes();
-  } else if (rc.storage->type().Is<Double>()) {
-    tc.type = Tree::Column::Type(Double{});
-    auto& values = rc.storage->unchecked_get<Double>();
-    tc.data = std::move(values).TakeSlab().TakeAsBytes();
-  } else if (rc.storage->type().Is<String>()) {
-    tc.type = Tree::Column::Type(String{});
-    auto& values = rc.storage->unchecked_get<String>();
-    tc.data = std::move(values).TakeSlab().TakeAsBytes();
-  } else {
-    PERFETTO_FATAL("Unexpected storage type in raw column");
+  if (rc.storage) {
+    if (rc.storage->type().Is<Int64>()) {
+      tc.type = Tree::Column::Type(Int64{});
+      auto& values = rc.storage->unchecked_get<Int64>();
+      tc.data = std::move(values).TakeSlab().TakeAsBytes();
+    } else if (rc.storage->type().Is<Double>()) {
+      tc.type = Tree::Column::Type(Double{});
+      auto& values = rc.storage->unchecked_get<Double>();
+      tc.data = std::move(values).TakeSlab().TakeAsBytes();
+    } else if (rc.storage->type().Is<String>()) {
+      tc.type = Tree::Column::Type(String{});
+      auto& values = rc.storage->unchecked_get<String>();
+      tc.data = std::move(values).TakeSlab().TakeAsBytes();
+    } else {
+      PERFETTO_FATAL("Unexpected storage type in raw column");
+    }
   }
+  // All-null columns keep the default Int64 type with no payload; null_bv
+  // flags every row as null so the data is never read.
   tc.null_bv = std::move(rc.null_bv);
   return tc;
 }
@@ -99,10 +96,8 @@ Tree::Column GatherRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc,
   const BitVector* source_non_null =
       rc.null_bv.size() > 0 ? &rc.null_bv : nullptr;
   if (!rc.storage) {
-    // All-null column: default to Int64 with zero data.
-    tc = Tree::Column::Create<int64_t>(row_count);
-    memset(tc.data.begin(), 0,
-           static_cast<uint64_t>(row_count) * sizeof(int64_t));
+    // All-null column: keep the default Int64 type with no payload; null_bv
+    // flags every row as null so the data is never read.
     tc.null_bv = BitVector::CreateWithSize(row_count);
     return tc;
   }
@@ -319,7 +314,7 @@ base::StatusOr<Tree> BuildFromRawColumns(
   if (identity_order) {
     for (auto& rc : raw_cols) {
       result.names.push_back(std::move(rc.name));
-      result.columns.push_back(MoveRawColumn(rc, row_count));
+      result.columns.push_back(MoveRawColumn(rc));
     }
   } else {
     // Gather all columns (including id/parent_id) in topological order.
