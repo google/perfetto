@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/tree/tree_columns_from_dataframe.h"
+#include "src/trace_processor/core/tree/tree_from_dataframe.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -33,52 +33,42 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
-#include "src/trace_processor/core/tree/tree_columns.h"
+#include "src/trace_processor/core/tree/tree.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/core/util/slab.h"
 
-namespace perfetto::trace_processor::core::tree {
+namespace perfetto::trace_processor::core {
 
 namespace {
 
-// Copies a FlexVector's data into a Slab<uint8_t>.
 template <typename T>
-Slab<uint8_t> FlexVectorToSlab(const FlexVector<T>& vec) {
-  auto byte_count = static_cast<uint64_t>(vec.size()) * sizeof(T);
-  auto slab = Slab<uint8_t>::Alloc(byte_count);
-  memcpy(slab.begin(), vec.data(), byte_count);
+Slab<uint8_t> CopyColumn(Span<const T> values) {
+  auto bytes = static_cast<uint64_t>(values.size()) * sizeof(T);
+  auto slab = Slab<uint8_t>::Alloc(bytes);
+  memcpy(slab.begin(), values.b, bytes);
   return slab;
 }
 
-// Converts a raw column (Storage + BitVector) into a TreeColumns::Column.
-// The Storage contains raw FlexVector<int64_t|double|StringPool::Id>;
-// no type downcasting has been performed.
-TreeColumns::Column ConvertRawColumn(
+Tree::Column ConvertRawColumn(
     dataframe::AdhocDataframeBuilder::RawColumn& rc,
     uint32_t row_count) {
-  TreeColumns::Column tc;
+  Tree::Column tc;
   if (!rc.storage) {
     // All-null column: default to Int64 with zero data.
-    tc.type = StorageType(Int64{});
-    tc.elem_size = sizeof(int64_t);
-    tc.data = Slab<uint8_t>::Alloc(static_cast<uint64_t>(row_count) *
-                                   sizeof(int64_t));
+    tc = Tree::Column::Create<int64_t>(row_count);
     memset(tc.data.begin(), 0,
            static_cast<uint64_t>(row_count) * sizeof(int64_t));
   } else if (rc.storage->type().Is<Int64>()) {
-    tc.type = StorageType(Int64{});
-    tc.elem_size = sizeof(int64_t);
-    tc.data = FlexVectorToSlab(rc.storage->unchecked_get<Int64>());
+    tc.type = Tree::Column::Type(Int64{});
+    tc.data = CopyColumn(rc.storage->unchecked_get<Int64>().span());
   } else if (rc.storage->type().Is<Double>()) {
-    tc.type = StorageType(Double{});
-    tc.elem_size = sizeof(double);
-    tc.data = FlexVectorToSlab(rc.storage->unchecked_get<Double>());
+    tc.type = Tree::Column::Type(Double{});
+    tc.data = CopyColumn(rc.storage->unchecked_get<Double>().span());
   } else if (rc.storage->type().Is<String>()) {
-    tc.type = StorageType(String{});
-    tc.elem_size = sizeof(StringPool::Id);
-    tc.data = FlexVectorToSlab(rc.storage->unchecked_get<String>());
+    tc.type = Tree::Column::Type(String{});
+    tc.data = CopyColumn(rc.storage->unchecked_get<String>().span());
   } else {
     PERFETTO_FATAL("Unexpected storage type in raw column");
   }
@@ -86,20 +76,53 @@ TreeColumns::Column ConvertRawColumn(
   return tc;
 }
 
-base::StatusOr<TreeColumns> BuildFromRawColumns(
+uint32_t FindComponent(uint32_t row, Slab<uint32_t>& component) {
+  while (component[row] != row) {
+    component[row] = component[component[row]];
+    row = component[row];
+  }
+  return row;
+}
+
+struct IdIndex {
+  std::optional<uint32_t> Find(int64_t id) const {
+    if (identity_ids) {
+      if (id < 0 || static_cast<uint64_t>(id) >= row_count) {
+        return std::nullopt;
+      }
+      return static_cast<uint32_t>(id);
+    }
+    if (dense_ids) {
+      if (id < 0 || static_cast<uint64_t>(id) >= dense_index.size()) {
+        return std::nullopt;
+      }
+      const uint32_t row = dense_index[static_cast<uint32_t>(id)];
+      return row == Tree::kNullParent ? std::nullopt : std::make_optional(row);
+    }
+    const uint32_t* row = hash_index->Find(id);
+    return row ? std::make_optional(*row) : std::nullopt;
+  }
+
+  bool identity_ids;
+  bool dense_ids;
+  uint32_t row_count;
+  Span<const uint32_t> dense_index;
+  const base::FlatHashMap<int64_t, uint32_t>* hash_index;
+};
+
+base::StatusOr<Tree> BuildFromRawColumns(
     std::vector<dataframe::AdhocDataframeBuilder::RawColumn> raw_cols);
 
 }  // namespace
 
-base::StatusOr<TreeColumns> BuildTreeColumns(
-    dataframe::AdhocDataframeBuilder&& builder) {
+base::StatusOr<Tree> BuildTree(dataframe::AdhocDataframeBuilder&& builder) {
   ASSIGN_OR_RETURN(auto raw_cols, std::move(builder).BuildRaw());
   return BuildFromRawColumns(std::move(raw_cols));
 }
 
 namespace {
 
-base::StatusOr<TreeColumns> BuildFromRawColumns(
+base::StatusOr<Tree> BuildFromRawColumns(
     std::vector<dataframe::AdhocDataframeBuilder::RawColumn> raw_cols) {
   // Columns 0 and 1 are id and parent_id.
   if (raw_cols.size() < 2) {
@@ -121,7 +144,7 @@ base::StatusOr<TreeColumns> BuildFromRawColumns(
       return base::ErrStatus("tree: id column must be integer");
     }
     id_vec_ptr = &id_rc.storage->unchecked_get<Int64>();
-    if (id_vec_ptr->size() >= kNullParent) {
+    if (id_vec_ptr->size() >= Tree::kNullParent) {
       return base::ErrStatus("tree: too many rows");
     }
     row_count = static_cast<uint32_t>(id_vec_ptr->size());
@@ -129,7 +152,7 @@ base::StatusOr<TreeColumns> BuildFromRawColumns(
   FlexVector<int64_t> empty_ids;
   const auto& id_vec = id_vec_ptr ? *id_vec_ptr : empty_ids;
 
-  TreeColumns result;
+  Tree result;
   result.row_count = row_count;
 
   // Prefer indexes which avoid hashing. Identity ids need no storage; a
@@ -138,7 +161,9 @@ base::StatusOr<TreeColumns> BuildFromRawColumns(
   bool identity_ids = true;
   bool uint32_ids = true;
   uint32_t max_id = 0;
+  Slab<uint32_t> component = Slab<uint32_t>::Alloc(row_count);
   for (uint32_t i = 0; i < row_count; ++i) {
+    component[i] = i;
     int64_t id = id_vec[i];
     identity_ids = identity_ids && id == i;
     if (id < 0 ||
@@ -153,10 +178,10 @@ base::StatusOr<TreeColumns> BuildFromRawColumns(
   std::vector<uint32_t> dense_index;
   base::FlatHashMap<int64_t, uint32_t> hash_index;
   if (dense_ids) {
-    dense_index.resize(uint64_t(max_id) + 1, kNullParent);
+    dense_index.resize(uint64_t(max_id) + 1, Tree::kNullParent);
     for (uint32_t i = 0; i < row_count; ++i) {
       uint32_t id = static_cast<uint32_t>(id_vec[i]);
-      if (dense_index[id] != kNullParent) {
+      if (dense_index[id] != Tree::kNullParent) {
         return base::ErrStatus("tree: duplicate id");
       }
       dense_index[id] = i;
@@ -170,50 +195,48 @@ base::StatusOr<TreeColumns> BuildFromRawColumns(
       }
     }
   }
-  auto find_id = [&](int64_t id) -> std::optional<uint32_t> {
-    if (identity_ids) {
-      if (id < 0 || static_cast<uint64_t>(id) >= row_count) {
-        return std::nullopt;
-      }
-      return static_cast<uint32_t>(id);
-    }
-    if (dense_ids) {
-      if (id < 0 || static_cast<uint64_t>(id) >= dense_index.size()) {
-        return std::nullopt;
-      }
-      uint32_t row = dense_index[static_cast<uint32_t>(id)];
-      return row == kNullParent ? std::nullopt : std::make_optional(row);
-    }
-    const uint32_t* row = hash_index.Find(id);
-    return row ? std::make_optional(*row) : std::nullopt;
-  };
+  const IdIndex id_index{identity_ids, dense_ids, row_count,
+                         MakeSpan(dense_index), &hash_index};
 
-  // Normalize parent_id (column 1) to row indices.
+  // Normalize parent_id to row indices and union each node with its parent.
+  // Because every node has at most one parent, an edge whose endpoints are
+  // already connected is exactly a directed cycle.
   auto& pid_rc = raw_cols[1];
   result.parent = Slab<uint32_t>::Alloc(row_count);
   if (!pid_rc.storage) {
-    // All-null parent_id: every node is a root.
-    for (uint32_t i = 0; i < row_count; ++i) {
-      result.parent[i] = kNullParent;
+    for (uint32_t row = 0; row < row_count; ++row) {
+      result.parent[row] = Tree::kNullParent;
     }
-  } else if (!pid_rc.storage->type().Is<Int64>()) {
-    return base::ErrStatus("tree: parent_id column must be integer");
   } else {
+    if (!pid_rc.storage->type().Is<Int64>()) {
+      return base::ErrStatus("tree: parent_id column must be integer");
+    }
     const auto& pid_vec = pid_rc.storage->unchecked_get<Int64>();
-    for (uint32_t i = 0; i < row_count; ++i) {
-      if (pid_rc.null_bv.size() > 0 && !pid_rc.null_bv.is_set(i)) {
-        result.parent[i] = kNullParent;
+    for (uint32_t row = 0; row < row_count; ++row) {
+      if (pid_rc.null_bv.size() > 0 && !pid_rc.null_bv.is_set(row)) {
+        result.parent[row] = Tree::kNullParent;
+        continue;
+      }
+      std::optional<uint32_t> parent = id_index.Find(pid_vec[row]);
+      if (PERFETTO_UNLIKELY(!parent)) {
+        return base::ErrStatus("tree: parent_id not found in id column");
+      }
+      result.parent[row] = *parent;
+      uint32_t row_component = FindComponent(row, component);
+      uint32_t parent_component = FindComponent(*parent, component);
+      if (PERFETTO_UNLIKELY(row_component == parent_component)) {
+        return base::ErrStatus("tree: cycle detected");
+      }
+      // Prefer the component rooted at the later row. This keeps the next row
+      // close to the root for both parent-first and child-first inputs.
+      if (row_component < parent_component) {
+        component[row_component] = parent_component;
       } else {
-        std::optional<uint32_t> row = find_id(pid_vec[i]);
-        if (PERFETTO_UNLIKELY(!row)) {
-          return base::ErrStatus("tree: parent_id not found in id column");
-        }
-        result.parent[i] = *row;
+        component[parent_component] = row_component;
       }
     }
   }
 
-  // Convert all columns (including id/parent_id) to TreeColumns format.
   result.names.reserve(raw_cols.size());
   result.columns.reserve(raw_cols.size());
   for (auto& rc : raw_cols) {
@@ -225,4 +248,4 @@ base::StatusOr<TreeColumns> BuildFromRawColumns(
 
 }  // namespace
 
-}  // namespace perfetto::trace_processor::core::tree
+}  // namespace perfetto::trace_processor::core

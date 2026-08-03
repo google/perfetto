@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_TRACECONV_TRACECONV_H_
-#define INCLUDE_PERFETTO_EXT_TRACECONV_TRACECONV_H_
+#ifndef SRC_TRACE_PROCESSOR_LOCAL_FILE_SYSTEM_H_
+#define SRC_TRACE_PROCESSOR_LOCAL_FILE_SYSTEM_H_
 
-#include "perfetto/base/export.h"
+#include <memory>
 
-namespace perfetto::traceconv {
+#include "perfetto/trace_processor/io.h"
 
-int PERFETTO_EXPORT_COMPONENT TraceconvMain(int argc, char** argv);
+namespace perfetto::trace_processor::io {
 
-}  // namespace perfetto::traceconv
+std::unique_ptr<FileSystem> CreateLocalFileSystem();
 
-#endif  // INCLUDE_PERFETTO_EXT_TRACECONV_TRACECONV_H_
+}  // namespace perfetto::trace_processor::io
+
+#endif  // SRC_TRACE_PROCESSOR_LOCAL_FILE_SYSTEM_H_

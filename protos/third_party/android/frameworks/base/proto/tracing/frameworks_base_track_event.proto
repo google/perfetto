@@ -677,7 +677,7 @@ message AndroidFreezerEvent {
 }
 
 message AndroidProcessStartEvent {
-  // The uid of the ProcessRecord.
+  // Real (kernel) uid of the ProcessRecord.
   optional int32 uid = 1;
 
   // The process pid.
@@ -706,12 +706,21 @@ message AndroidProcessStartEvent {
 
   // start sequence id which is assigned to a process during start update
   optional int64 start_seq_id = 10;
+
+  // The host package uid.
+  optional int32 package_uid = 11;
+
+  // The caller uid. See HostingRecord#getCallerUid.
+  optional int32 caller_uid = 12;
+
+  // The defining uid. See HostingRecord#getDefiningUid.
+  optional int32 defining_uid = 13;
 }
 
 // This can be delayed for up to 15s in some cases. It should typically
 // be paired with AndroidBinderDiedEvent which has less latency.
 message AndroidProcessDiedEvent {
-  // Uid of the package of the dying process.
+  // Real (kernel) uid of the dying process.
   optional int32 uid = 1;
 
   // Pid of the dying process.
@@ -737,12 +746,18 @@ message AndroidProcessDiedEvent {
 
   // start sequence id which is assigned to a process during start update
   optional int64 start_seq_id = 9;
+
+  // The host package uid.
+  optional int32 package_uid = 10;
+
+  // The defining uid. See HostingRecord#getDefiningUid.
+  optional int32 defining_uid = 11;
 }
 
 // This is expected to come earlier than AndroidProcessDiedEvent.
 // For death reasons, see AndroidProcessDiedEvent.
 message AndroidBinderDiedEvent {
-  // Uid of the package of the dying process.
+  // The real (kernel) uid of the dying process.
   optional int32 uid = 1;
 
   // Pid of the dying process.

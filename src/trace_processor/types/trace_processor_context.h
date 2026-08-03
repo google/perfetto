@@ -70,6 +70,7 @@ class TraceImporterRegistry;
 class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
+class TraceProcessor_PlatformInterface;
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
@@ -139,8 +140,10 @@ class TraceProcessorContext {
 
   // Creates the root TraceProcessorContext. Should only be called by
   // TraceProcessor top level class.
-  static TraceProcessorContext CreateRootContext(const Config& config) {
-    return TraceProcessorContext(config);
+  static TraceProcessorContext CreateRootContext(
+      const Config& config,
+      TraceProcessor_PlatformInterface* platform = nullptr) {
+    return TraceProcessorContext(config, platform);
   }
 
   // Destroys all state related to parsing the trace, keeping only state
@@ -167,6 +170,7 @@ class TraceProcessorContext {
   // then shared between all machines.
 
   Config config;
+  TraceProcessor_PlatformInterface* platform = nullptr;
   GlobalPtr<TraceStorage> storage;
   GlobalPtr<TraceSorter> sorter;
   GlobalPtr<TraceReaderRegistry> reader_registry;
@@ -298,7 +302,8 @@ class TraceProcessorContext {
   }
 
  private:
-  explicit TraceProcessorContext(const Config& config);
+  TraceProcessorContext(const Config& config,
+                        TraceProcessor_PlatformInterface* platform);
 
   TraceProcessorContext(TraceProcessorContext&&) = default;
   TraceProcessorContext& operator=(TraceProcessorContext&&) = default;
