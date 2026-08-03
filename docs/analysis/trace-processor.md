@@ -105,6 +105,46 @@ ts                   value
 ...
 ```
 
+### {#sessions} Keeping a trace warm: sessions
+
+Parsing a trace is the expensive part of any analysis — tens of seconds
+for large traces. If you run more than one `query` invocation against the
+same trace, don't pay that cost every time: load the trace once into a
+named background **session** and point each invocation at it with
+`--remote`.
+
+```bash
+# 1. Load the trace into a background session (once per trace).
+trace_processor server unix --name mysession --daemonize trace.pftrace
+
+# 2. Query the warm session: no trace path, no reparse.
+trace_processor query --remote mysession \
+  "SELECT ts, dur, name FROM slice LIMIT 10"
+
+# 3. Stop the session when you're done with the trace.
+trace_processor server kill mysession
+```
+
+How sessions behave:
+
+- Sessions are addressed by name; their sockets live in a per-user session
+  directory, so there are no ports to pick and concurrent sessions don't
+  collide with each other or with the Perfetto UI.
+- Session state persists across `--remote` invocations: a
+  `CREATE PERFETTO TABLE` or `INCLUDE PERFETTO MODULE` from one call is
+  visible to the next, exactly as within a single interactive shell.
+- Flags that configure trace loading (`--full-sort`, `--add-sql-package`,
+  ...) must be passed to `server unix` when starting the session;
+  `query --remote` rejects them with an explanatory error.
+- Idle sessions are reaped automatically (after 30 minutes by default for
+  unix mode; tune with `--idle-timeout`).
+- `--remote` also accepts an explicit socket path (`*.sock`) or the
+  `host:port` of an HTTP server; names are the common case.
+
+`--remote` is accepted by the `query`, `interactive`, `metrics` and
+`summarize` subcommands alike (described below), all speaking the same
+TraceProcessor RPC interface the Perfetto UI uses.
+
 ### {#subcommands} Subcommand interface
 
 In addition to launching an interactive REPL, `trace_processor` exposes a
@@ -130,7 +170,7 @@ If no command is given, opens an interactive SQL shell on the trace file.
 Commands:
   query         Load a trace and run a SQL query.
   interactive   Interactive SQL shell (default if no command is given).
-  server        Start an RPC server (http or stdio).
+  server        Start an RPC server.
   summarize     Compute a trace summary from specs and/or built-in metrics.
   export        Export a trace to a database file.
   metrics       Run v1 metrics (deprecated; use 'summarize --metrics-v2').
@@ -175,6 +215,10 @@ cat queries.sql | trace_processor query trace.pftrace
 
 Useful flags:
 
+- `--remote ADDR` — run against a warm session instead of loading a local
+  trace; `ADDR` is a session name, a `*.sock`/absolute socket path, or
+  `host:port` (see [sessions](#sessions)). No trace-file argument is
+  passed in this mode.
 - `-f, --query-file FILE` — read SQL from `FILE` (or `-` for stdin).
 - `-i, --interactive` — drop into the interactive REPL after the queries
   finish.
@@ -193,7 +237,7 @@ section. This is the default subcommand when none is specified, so
 `trace_processor interactive trace.pftrace` are equivalent. The only
 subcommand-specific flag is `-W, --wide`.
 
-#### {#subcommand-server} `server` — HTTP / stdio RPC
+#### {#subcommand-server} `server` — HTTP / stdio / unix RPC
 
 Exposes trace processor over a remote-procedure-call protocol.
 
@@ -207,6 +251,13 @@ trace_processor server http trace.pftrace
 # stdio server (length-prefixed RPC; used by tooling that embeds
 # trace_processor as a subprocess).
 trace_processor server stdio
+
+# Named unix-socket session: keeps the trace warm for repeated
+# `query --remote <name>` calls (see the sessions section above).
+trace_processor server unix --name mysession --daemonize trace.pftrace
+
+# Stop a unix session by name or socket path.
+trace_processor server kill mysession
 ```
 
 Server-specific flags:
@@ -216,9 +267,18 @@ Server-specific flags:
 - `--additional-cors-origins O1,O2,...` — extra CORS-allowed origins on
   top of the defaults (`https://ui.perfetto.dev`, `http://localhost:10000`,
   `http://127.0.0.1:10000`).
+- `--name NAME` — session name for unix mode (default: auto-generated).
+- `--path PATH` — explicit socket path for unix mode (mutually exclusive
+  with `--name`).
+- `--daemonize` — detach into the background (unix mode, POSIX only).
+- `--idle-timeout auto|DUR` — reap the server after this much inactivity
+  (e.g. `30m`, `90s`); `auto` means 30 minutes for unix and never for
+  http, `0`/`never` disables.
+- `--idle-start auto|orphaned|last-query` — when the idle clock applies
+  (default `auto`: owner-aware).
 
-The trace file is optional in `http` mode: clients can also load traces
-remotely. The most common client is the Perfetto UI, which auto-detects a
+The trace file is optional in `http` and `unix` modes: clients can also
+load traces remotely. The most common client is the Perfetto UI, which auto-detects a
 local server and offloads trace parsing to it; see
 [Visualising large traces](/docs/visualization/large-traces.md) for the
 end-user flow, or
