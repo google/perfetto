@@ -1037,9 +1037,9 @@ and merge the traces inside onto a single timeline. An optional
 [trace manifest](/docs/reference/perfetto-manifest.md) file inside the
 archive controls how the traces are merged: which machine each file belongs
 to and how their clocks relate. See
-[Merging traces with Trace Processor](/docs/analysis/merging-traces.md) for
+[Merging traces from the command line](/docs/analysis/merging-traces.md) for
 how to build such archives and
-[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md)
+[Merging traces in the UI](/docs/visualization/merging-traces.md)
 for the interactive equivalent, which can also export the archive it builds.
 
 When merging traces produced from Linux `perf`, choose a merge-friendly clock

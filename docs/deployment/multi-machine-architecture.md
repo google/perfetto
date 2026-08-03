@@ -157,7 +157,7 @@ namespaces, etc.).
 * [Multi-machine recording](/docs/learning-more/multi-machine-tracing.md) —
   step-by-step walk-through of recording a multi-machine trace between two
   Linux hosts.
-* [How trace merging works](/docs/concepts/merging-traces.md) — combining
+* [Trace merging](/docs/concepts/merging-traces.md) — combining
   independently recorded traces into the same multi-machine model after
   the fact.
 * [Clock Synchronization](/docs/concepts/clock-sync.md) — the single-machine

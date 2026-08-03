@@ -72,7 +72,7 @@ write queries, see the
 
 TIP: the trace file can also be a ZIP or TAR archive containing several
 traces: they are merged onto a single timeline. See
-[Merging traces with Trace Processor](/docs/analysis/merging-traces.md).
+[Merging traces from the command line](/docs/analysis/merging-traces.md).
 
 For example, to see all the slices in a trace:
 
