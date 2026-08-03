@@ -379,6 +379,18 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
+      id: 'dev.perfetto.CopyMainThreadTracksToWorkspace',
+      name: 'Copy main thread tracks to workspace',
+      callback: (workspaceNameArg: unknown) => {
+        const workspaceName =
+          typeof workspaceNameArg === 'string'
+            ? workspaceNameArg
+            : 'Main threads';
+        copyMainThreadTracksToWorkspace(ctx, workspaceName);
+      },
+    });
+
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.AddNoteAtUtcTimestamp',
       name: 'Add note at UTC timestamp',
       callback: async (utcTimestampArg: unknown, noteTextArg: unknown) => {
@@ -672,4 +684,22 @@ async function resolveTracksFromSliceQuery(
   return resolved
     .map((event) => ctx.currentWorkspace.getTrackByUri(event.trackUri))
     .filter((track) => track !== undefined);
+}
+
+function copyMainThreadTracksToWorkspace(
+  ctx: Trace,
+  workspaceName: string,
+): void {
+  const tracks = ctx.tracks
+    .getAllTracks()
+    .filter((track) => track.tags?.isMainThread === true)
+    .map((track) => ctx.currentWorkspace.getTrackByUri(track.uri))
+    .filter(exists);
+
+  const targetWorkspace =
+    ctx.workspaces.all.find((ws) => ws.title === workspaceName) ??
+    ctx.workspaces.createEmptyWorkspace(workspaceName);
+
+  copyTracksWithAncestors(tracks, targetWorkspace);
+  ctx.workspaces.switchWorkspace(targetWorkspace);
 }
