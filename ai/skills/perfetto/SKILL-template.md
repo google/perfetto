@@ -75,6 +75,10 @@ If you want to load a trace and write custom PerfettoSQL queries:
 *   Read [querying.md]($SKILL_ROOT/infra-references/querying.md) to learn about running
     one-shot queries, using the long-running RPC mode, discovering schemas, and
     writing efficient PerfettoSQL.
+*   **Slow query?** If a PerfettoSQL query takes tens of seconds, times out,
+    or dominates an iteration loop, read
+    [slow_queries.md]($SKILL_ROOT/workflows/sql_optimization/slow_queries.md)
+    for a measure → diagnose → fix runbook.
 
 Workflows above are self-contained (they carry their own queries); read
 `querying.md` only for ad-hoc work outside a workflow.
