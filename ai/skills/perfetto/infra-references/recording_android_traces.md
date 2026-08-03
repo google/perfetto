@@ -1,9 +1,10 @@
 # Recording Perfetto Traces on Android (Helper Scripts)
 
 > [!IMPORTANT] **Scope:** This guide is **strictly for recording traces on
-> Android devices**. For other platforms (such as Linux, macOS, or Chrome),
-> please refer to the platform-specific documentation on
-> [perfetto.dev/docs](https://perfetto.dev/docs/).
+> Android devices**. For Linux, read
+> [recording_linux_traces.md]($SKILL_ROOT/infra-references/recording_linux_traces.md);
+> for other platforms (macOS, Chrome), please refer to the platform-specific
+> documentation on [perfetto.dev/docs](https://perfetto.dev/docs/).
 
 Rather than running raw `adb` commands, you should use the official Perfetto
 helper scripts. They automatically handle pushing configurations, starting the
