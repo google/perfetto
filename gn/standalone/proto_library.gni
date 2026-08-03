@@ -27,8 +27,7 @@ template("proto_library") {
   not_needed(invoker,
              [
                "generator_visibility",
-               "proto_deps",
-               "component_build_force_source_set",
+               "proto_deps"
              ])
 
   proto_sources = invoker.sources

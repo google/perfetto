@@ -134,7 +134,8 @@ template("protozero_cpp_library") {
     generator_plugin_label =
         perfetto_root_path + "src/protozero/protoc_plugin:cppgen_plugin"
     generator_plugin_suffix = ".gen"
-    if (perfetto_build_with_embedder) {
+    if (build_with_chromium ||
+        (perfetto_build_with_embedder && !is_perfetto_build_generator)) {
       component_build_force_source_set = true
     }
 
