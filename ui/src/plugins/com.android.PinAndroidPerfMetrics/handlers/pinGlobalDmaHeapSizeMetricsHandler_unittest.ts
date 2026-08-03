@@ -14,36 +14,39 @@
 
 import {vi} from 'vitest';
 import type {Trace} from '../../../public/trace';
-import {pinGlobalDmaHeapSizeMetricsInstance} from './pinGlobalDmaHeapSizeMetricsHandler';
+import {PinRequestType} from './pinRequest';
+import {
+  execGlobalDmaHeap,
+  translateGlobalDmaHeap,
+} from './pinGlobalDmaHeapSizeMetricsHandler';
 
-describe('PinGlobalDmaHeapSizeMetricsHandler.match', () => {
-  const tester = pinGlobalDmaHeapSizeMetricsInstance;
+describe('translateGlobalDmaHeap', () => {
   it('parses valid metrics', () => {
     expect(
-      tester.match('perfetto_android_dma_heap-avg_size_bytes-p95'),
-    ).toEqual({});
+      translateGlobalDmaHeap('perfetto_android_dma_heap-avg_size_bytes-p95'),
+    ).toEqual([{type: PinRequestType.GlobalDmaHeap}]);
     expect(
-      tester.match('perfetto_android_dma_heap-max_size_bytes-mean'),
-    ).toEqual({});
+      translateGlobalDmaHeap('perfetto_android_dma_heap-max_size_bytes-mean'),
+    ).toEqual([{type: PinRequestType.GlobalDmaHeap}]);
     expect(
-      tester.match('perfetto_android_dma_heap-total_alloc_size_bytes-anything'),
-    ).toEqual({});
+      translateGlobalDmaHeap(
+        'perfetto_android_dma_heap-total_alloc_size_bytes-anything',
+      ),
+    ).toEqual([{type: PinRequestType.GlobalDmaHeap}]);
   });
-  it('returns undefined for invalid metrics', () => {
+  it('returns empty array for invalid metrics', () => {
     expect(
-      tester.match('perfetto_android_dma_heap-avg_size_bytes'),
-    ).toBeUndefined();
+      translateGlobalDmaHeap('perfetto_android_dma_heap-avg_size_bytes'),
+    ).toEqual([]);
     expect(
-      tester.match(
+      translateGlobalDmaHeap(
         'perfetto_android_mem-com.android.systemui-total_counters-java_heap-max-mean',
       ),
-    ).toBeUndefined();
+    ).toEqual([]);
   });
 });
 
-describe('PinGlobalDmaHeapSizeMetricsHandler.addMetricTrack', () => {
-  const tester = pinGlobalDmaHeapSizeMetricsInstance;
-
+describe('execGlobalDmaHeap', () => {
   it('pins mem.dma_heap and mem.dma_buffer tracks', async () => {
     const createMockTrack = (
       uri: string,
@@ -78,7 +81,7 @@ describe('PinGlobalDmaHeapSizeMetricsHandler.addMetricTrack', () => {
       },
     } as unknown as Trace;
 
-    await tester.addMetricTrack({}, mockTrace);
+    await execGlobalDmaHeap(mockTrace, {type: PinRequestType.GlobalDmaHeap});
 
     expect(dmaHeapTrack.pin).toHaveBeenCalledTimes(1);
     expect(dmaBufferTrack.pin).toHaveBeenCalledTimes(1);

@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
+import {makeProcessTracksTranslator} from './simpleProcessMetricHandler';
 
-export const pinBitmapMetricsInstance = new SimpleProcessMetricHandler(
+export const translateBitmap = makeProcessTracksTranslator(
   [/^perfetto_android_bitmap_metric_(.*)_val-(?<processName>.*)/],
   [
     'Bitmap Count',

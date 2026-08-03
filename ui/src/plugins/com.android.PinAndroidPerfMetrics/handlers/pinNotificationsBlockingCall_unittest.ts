@@ -12,52 +12,68 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {NotificationsBlockingCallMetricData} from './metricUtils';
-import {pinNotificationsBlockingCallHandlerInstance} from './pinNotificationsBlockingCall';
+import type {PinRequest} from './pinRequest';
+import {PinRequestType} from './pinRequest';
+import {translateNotificationsBlockingCall} from './pinNotificationsBlockingCall';
 
 const validMetricsTest: {
   inputMetric: string;
-  expectedOutput: NotificationsBlockingCallMetricData;
+  expectedOutput: PinRequest[];
 }[] = [
   {
     inputMetric:
       'perfetto_android_notifications_blocking_call-blocking_calls-name-NotificationStackScrollLayout#onMeasure-total_dur_ms-mean',
-    expectedOutput: {
-      notificationName: 'NotificationStackScrollLayout#onMeasure',
-      aggregation: 'total_dur_ms-mean',
-    },
+    expectedOutput: [
+      {
+        type: PinRequestType.NotificationsBlockingCall,
+        notificationName: 'NotificationStackScrollLayout#onMeasure',
+        aggregation: 'total_dur_ms-mean',
+      },
+    ],
   },
   {
     inputMetric:
       'perfetto_android_notifications_blocking_call-blocking_calls-name-NotificationToplineView#onMeasure-cnt',
-    expectedOutput: {
-      notificationName: 'NotificationToplineView#onMeasure',
-      aggregation: 'cnt',
-    },
+    expectedOutput: [
+      {
+        type: PinRequestType.NotificationsBlockingCall,
+        notificationName: 'NotificationToplineView#onMeasure',
+        aggregation: 'cnt',
+      },
+    ],
   },
   {
     inputMetric:
       'perfetto_android_notifications_blocking_call-blocking_calls-name-ExpNotRow#onNotifUpdated (leaf)-total_dur_ns',
-    expectedOutput: {
-      notificationName: 'ExpNotRow#onNotifUpdated (leaf)',
-      aggregation: 'total_dur_ns',
-    },
+    expectedOutput: [
+      {
+        type: PinRequestType.NotificationsBlockingCall,
+        notificationName: 'ExpNotRow#onNotifUpdated (leaf)',
+        aggregation: 'total_dur_ns',
+      },
+    ],
   },
   {
     inputMetric:
       'perfetto_android_notifications_blocking_call-blocking_calls-name-NotificationShadeWindowView#onMeasure-total_dur_ns-mean',
-    expectedOutput: {
-      notificationName: 'NotificationShadeWindowView#onMeasure',
-      aggregation: 'total_dur_ns-mean',
-    },
+    expectedOutput: [
+      {
+        type: PinRequestType.NotificationsBlockingCall,
+        notificationName: 'NotificationShadeWindowView#onMeasure',
+        aggregation: 'total_dur_ns-mean',
+      },
+    ],
   },
   {
     inputMetric:
       'perfetto_android_notifications_blocking_call-blocking_calls-name-ImageFloatingTextView#onMeasure-total_dur_ns-mean',
-    expectedOutput: {
-      notificationName: 'ImageFloatingTextView#onMeasure',
-      aggregation: 'total_dur_ns-mean',
-    },
+    expectedOutput: [
+      {
+        type: PinRequestType.NotificationsBlockingCall,
+        notificationName: 'ImageFloatingTextView#onMeasure',
+        aggregation: 'total_dur_ns-mean',
+      },
+    ],
   },
 ];
 
@@ -66,24 +82,19 @@ const invalidMetricsTest: string[] = [
   'perfetto_cuj_launcher-RECENTS_SCROLLING-counter_metrics-missed_sf_frames-mean',
 ];
 
-const tester = pinNotificationsBlockingCallHandlerInstance;
-
 describe('testMetricParser_match', () => {
   it('parses metrics and returns expected data', () => {
     for (const testCase of validMetricsTest) {
-      const parsedData = tester.match(testCase.inputMetric);
-      // without this explicit check, undefined also passes the test
-      expect(parsedData).toBeDefined();
-      if (parsedData) {
-        expect(parsedData).toEqual(testCase.expectedOutput);
-      }
+      const parsedData = translateNotificationsBlockingCall(
+        testCase.inputMetric,
+      );
+      expect(parsedData).toEqual(testCase.expectedOutput);
     }
   });
-  it('parses metrics and returns undefined', () => {
+  it('parses metrics and returns empty array', () => {
     for (const testCase of invalidMetricsTest) {
-      const parsedData = tester.match(testCase);
-
-      expect(parsedData).toBeUndefined();
+      const parsedData = translateNotificationsBlockingCall(testCase);
+      expect(parsedData).toEqual([]);
     }
   });
 });

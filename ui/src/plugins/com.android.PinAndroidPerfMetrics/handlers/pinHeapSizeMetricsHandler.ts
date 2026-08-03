@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
+import {makeProcessTracksTranslator} from './simpleProcessMetricHandler';
 
-export const pinHeapSizeMetricsInstance = new SimpleProcessMetricHandler(
+export const translateHeapSize = makeProcessTracksTranslator(
   [
     /perfetto_android_mem-(?<processName>.*)-total_counters-java_heap-(.*)/,
     /^perfetto_java_heap_class_stats-instance_stats-name-(?<processName>.*?)-samples-type_count-type_name/,

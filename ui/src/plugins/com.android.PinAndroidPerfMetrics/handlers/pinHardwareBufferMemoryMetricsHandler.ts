@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
+import {makeProcessTracksTranslator} from './simpleProcessMetricHandler';
 
-export const pinHardwareBufferMemoryMetricsInstance =
-  new SimpleProcessMetricHandler(
-    [
-      /perfetto_android_dmabuf_per_process_metric_(.*)_val-(?<processName>.*)-.*/,
-      /perfetto_android_gralloc_buffers_per_process_metric_(.*)_val-(?<processName>.*)-.*/,
-    ],
-    ['dmabuf allocs', 'mem.gralloc.allocations', 'mem.gralloc.buffers'],
-  );
+export const translateHardwareBufferMemory = makeProcessTracksTranslator(
+  [
+    /perfetto_android_dmabuf_per_process_metric_(.*)_val-(?<processName>.*)-.*/,
+    /perfetto_android_gralloc_buffers_per_process_metric_(.*)_val-(?<processName>.*)-.*/,
+  ],
+  ['dmabuf allocs', 'mem.gralloc.allocations', 'mem.gralloc.buffers'],
+);

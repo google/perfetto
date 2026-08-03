@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
+import {makeProcessTracksTranslator} from './simpleProcessMetricHandler';
 
-export const pinDirtyMemoryMetricsInstance = new SimpleProcessMetricHandler(
+export const translateDirtyMemory = makeProcessTracksTranslator(
   [/perfetto_android_mem-(?<processName>.*)-total_counters-anon_and_swap-(.*)/],
   ['Heap size', 'mem.rss.anon', 'mem.swap'],
 );

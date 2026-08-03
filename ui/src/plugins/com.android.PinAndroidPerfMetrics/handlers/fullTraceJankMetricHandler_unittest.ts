@@ -12,44 +12,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {FullTraceMetricData} from './metricUtils';
-import {pinFullTraceJankInstance} from './fullTraceJankMetricHandler';
+import type {PinRequest} from './pinRequest';
+import {PinRequestType} from './pinRequest';
+import {translateFullTraceJank} from './fullTraceJankMetricHandler';
 
 const validMetricsTest: {
   inputMetric: string;
-  expectedOutput: FullTraceMetricData;
+  expectedOutput: PinRequest[];
 }[] = [
   {
     inputMetric: 'perfetto_ft_launcher-missed_app_frames-mean',
-    expectedOutput: {
-      process: 'com.google.android.apps.nexuslauncher',
-      jankType: 'app_frames',
-      isWeighted: false,
-    },
+    expectedOutput: [
+      {
+        type: PinRequestType.FullTraceMissedFrames,
+        process: 'com.google.android.apps.nexuslauncher',
+        jankType: 'app_frames',
+        isWeighted: false,
+      },
+    ],
   },
   {
     inputMetric: 'perfetto_ft_systemui-missed_sf_frames-mean',
-    expectedOutput: {
-      process: 'com.android.systemui',
-      jankType: 'sf_frames',
-      isWeighted: false,
-    },
+    expectedOutput: [
+      {
+        type: PinRequestType.FullTraceMissedFrames,
+        process: 'com.android.systemui',
+        jankType: 'sf_frames',
+        isWeighted: false,
+      },
+    ],
   },
   {
     inputMetric: 'perfetto_ft_systemui-missed_app_frames-mean',
-    expectedOutput: {
-      process: 'com.android.systemui',
-      jankType: 'app_frames',
-      isWeighted: false,
-    },
+    expectedOutput: [
+      {
+        type: PinRequestType.FullTraceMissedFrames,
+        process: 'com.android.systemui',
+        jankType: 'app_frames',
+        isWeighted: false,
+      },
+    ],
   },
   {
     inputMetric: 'perfetto_ft_systemui-weighted_missed_app_frames-mean',
-    expectedOutput: {
-      process: 'com.android.systemui',
-      jankType: 'app_frames',
-      isWeighted: true,
-    },
+    expectedOutput: [
+      {
+        type: PinRequestType.FullTraceMissedFrames,
+        process: 'com.android.systemui',
+        jankType: 'app_frames',
+        isWeighted: true,
+      },
+    ],
   },
 ];
 
@@ -58,24 +71,17 @@ const invalidMetricsTest: string[] = [
   'perfetto_android_blocking_call-cuj-name-com.google.android.apps.nexuslauncher-name-TASKBAR_EXPAND-blocking_calls-name-animation-total_dur_ms-mean',
 ];
 
-const tester = pinFullTraceJankInstance;
-
 describe('testMetricParser_match', () => {
   it('parses metrics and returns expected data', () => {
     for (const testCase of validMetricsTest) {
-      const parsedData = tester.match(testCase.inputMetric);
-      // without this explicit check, undefined also passes the test
-      expect(parsedData).toBeDefined();
-      if (parsedData) {
-        expect(parsedData).toEqual(testCase.expectedOutput);
-      }
+      const parsedData = translateFullTraceJank(testCase.inputMetric);
+      expect(parsedData).toEqual(testCase.expectedOutput);
     }
   });
-  it('parses metrics and returns undefined', () => {
+  it('parses metrics and returns empty array', () => {
     for (const testCase of invalidMetricsTest) {
-      const parsedData = tester.match(testCase);
-
-      expect(parsedData).toBeUndefined();
+      const parsedData = translateFullTraceJank(testCase);
+      expect(parsedData).toEqual([]);
     }
   });
 });

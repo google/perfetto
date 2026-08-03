@@ -13,39 +13,47 @@
 // limitations under the License.
 
 import type {Trace} from '../../../public/trace';
-import type {
-  GlobalDmaHeapMetricData,
-  MetricData,
-  MetricHandler,
-} from './metricUtils';
+import type {GlobalDmaHeapPinRequest, PinRequest} from './pinRequest';
+import {PinRequestType} from './pinRequest';
 
-export class PinGlobalDmaHeapSizeMetricsHandler implements MetricHandler {
-  private readonly matcher = /perfetto_android_dma_heap-(.*)_size_bytes-.*/;
+const matcher = /perfetto_android_dma_heap-(.*)_size_bytes-.*/;
 
-  public match(metricKey: string): GlobalDmaHeapMetricData | undefined {
-    if (this.matcher.test(metricKey)) {
-      return {};
-    }
-    return undefined;
+/**
+ * Translates a global DMA heap size metric key into a request to pin the global
+ * DMA heap / buffer tracks.
+ *
+ * @param {string} metricKey The metric key to match.
+ * @returns {PinRequest[]} A single GlobalDmaHeap request, or [] if no match.
+ */
+export function translateGlobalDmaHeap(metricKey: string): PinRequest[] {
+  if (matcher.test(metricKey)) {
+    return [{type: PinRequestType.GlobalDmaHeap}];
   }
-
-  public addMetricTrack(_metricData: MetricData, ctx: Trace) {
-    const dmaHeapTracks = ctx.currentWorkspace.flatTracks.filter(
-      (t) => t.uri !== undefined && t.name === 'mem.dma_heap',
-    );
-
-    const dmaBufferTracks = ctx.currentWorkspace.flatTracks.filter(
-      (t) =>
-        t.uri !== undefined &&
-        // We have many 'mem.dma_buffer' tracks, we only interested in global one
-        t.name === 'mem.dma_buffer' &&
-        t.parent?.name === 'mem.dma_heap',
-    );
-
-    dmaHeapTracks.forEach((t) => t.pin());
-    dmaBufferTracks.forEach((t) => t.pin());
-  }
+  return [];
 }
 
-export const pinGlobalDmaHeapSizeMetricsInstance =
-  new PinGlobalDmaHeapSizeMetricsHandler();
+/**
+ * Pins the global `mem.dma_heap` and `mem.dma_buffer` tracks.
+ *
+ * @param {Trace} ctx Trace context.
+ * @param {GlobalDmaHeapPinRequest} _req The request (carries no parameters).
+ */
+export async function execGlobalDmaHeap(
+  ctx: Trace,
+  _req: GlobalDmaHeapPinRequest,
+): Promise<void> {
+  const dmaHeapTracks = ctx.currentWorkspace.flatTracks.filter(
+    (t) => t.uri !== undefined && t.name === 'mem.dma_heap',
+  );
+
+  const dmaBufferTracks = ctx.currentWorkspace.flatTracks.filter(
+    (t) =>
+      t.uri !== undefined &&
+      // We have many 'mem.dma_buffer' tracks, we only interested in global one
+      t.name === 'mem.dma_buffer' &&
+      t.parent?.name === 'mem.dma_heap',
+  );
+
+  dmaHeapTracks.forEach((t) => t.pin());
+  dmaBufferTracks.forEach((t) => t.pin());
+}

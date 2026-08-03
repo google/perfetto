@@ -12,155 +12,161 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {pinHeapSizeMetricsInstance} from './pinHeapSizeMetricsHandler';
-import {pinBitmapMetricsInstance} from './pinBitmapMetricsHandler';
-import {pinDirtyMemoryMetricsInstance} from './pinDirtyMemoryMetricsHandler';
-import {pinGPUMemoryMetricsInstance} from './pinGPUMemoryMetricsHandler';
-import {pinActivityOrBinderLeaksMetricsInstance} from './pinActivityOrBinderLeaksMetricsHandler';
-import {pinHardwareBufferMemoryMetricsInstance} from './pinHardwareBufferMemoryMetricsHandler';
+import {translateHeapSize} from './pinHeapSizeMetricsHandler';
+import {translateBitmap} from './pinBitmapMetricsHandler';
+import {translateDirtyMemory} from './pinDirtyMemoryMetricsHandler';
+import {translateGpuMemory} from './pinGPUMemoryMetricsHandler';
+import {translateActivityOrBinderLeaks} from './pinActivityOrBinderLeaksMetricsHandler';
+import {translateHardwareBufferMemory} from './pinHardwareBufferMemoryMetricsHandler';
 
-describe('SimpleProcessMetricHandler subclasses', () => {
-  describe('PinHeapSizeMetricsHandler', () => {
-    const tester = pinHeapSizeMetricsInstance;
+describe('SimpleProcessMetric translators', () => {
+  describe('translateHeapSize', () => {
     it('parses valid metrics', () => {
       expect(
-        tester.match(
+        translateHeapSize(
           'perfetto_android_mem-com.android.systemui-total_counters-java_heap-max-mean',
         ),
-      ).toEqual({process: 'com.android.systemui'});
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
 
       expect(
-        tester.match(
+        translateHeapSize(
           'perfetto_java_heap_class_stats-instance_stats-name-com.android.systemui-samples-type_count-type_name-android.graphics.Bitmap-obj_count-p95',
         ),
-      ).toEqual({process: 'com.android.systemui'});
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
     });
-    it('returns undefined for invalid metrics', () => {
+    it('returns empty array for invalid metrics', () => {
       expect(
-        tester.match('perfetto_ft_launcher-missed_sf_frames-mean'),
-      ).toBeUndefined();
+        translateHeapSize('perfetto_ft_launcher-missed_sf_frames-mean'),
+      ).toEqual([]);
     });
   });
 
-  describe('PinBitmapMetricsHandler', () => {
-    const tester = pinBitmapMetricsInstance;
+  describe('translateBitmap', () => {
     it('parses valid metrics', () => {
       expect(
-        tester.match(
+        translateBitmap(
           'perfetto_android_bitmap_metric_max_val-com.android.systemui',
         ),
-      ).toEqual({process: 'com.android.systemui'});
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
 
       expect(
-        tester.match('perfetto_android_bitmap_metric_max_val-systemui'),
-      ).toEqual({process: 'com.android.systemui'});
+        translateBitmap('perfetto_android_bitmap_metric_max_val-systemui'),
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
     });
-    it('returns undefined for invalid metrics', () => {
+    it('returns empty array for invalid metrics', () => {
       expect(
-        tester.match(
+        translateBitmap(
           'perfetto_android_mem-com.android.systemui-total_counters-java_heap-max-mean',
         ),
-      ).toBeUndefined();
+      ).toEqual([]);
     });
   });
 
-  describe('PinDirtyMemoryMetricsHandler', () => {
-    const tester = pinDirtyMemoryMetricsInstance;
+  describe('translateDirtyMemory', () => {
     it('parses valid metrics', () => {
       expect(
-        tester.match(
+        translateDirtyMemory(
           'perfetto_android_mem-com.android.systemui-total_counters-anon_and_swap-max-mean',
         ),
-      ).toEqual({process: 'com.android.systemui'});
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
     });
-    it('returns undefined for invalid metrics', () => {
+    it('returns empty array for invalid metrics', () => {
       expect(
-        tester.match(
+        translateDirtyMemory(
           'perfetto_android_mem-com.android.systemui-total_counters-java_heap-max-mean',
         ),
-      ).toBeUndefined();
+      ).toEqual([]);
     });
   });
 
-  describe('PinGPUMemoryMetricsHandler', () => {
-    const tester = pinGPUMemoryMetricsInstance;
+  describe('translateGpuMemory', () => {
     it('parses valid metrics', () => {
       expect(
-        tester.match('perfetto_android_gpu-com.android.systemui-mem_max-max'),
-      ).toEqual({process: 'com.android.systemui'});
+        translateGpuMemory(
+          'perfetto_android_gpu-com.android.systemui-mem_max-max',
+        ),
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
 
       expect(
-        tester.match(
+        translateGpuMemory(
           'perfetto_android_gpu-/system/bin/surfaceflinger-mem_avg-mean',
         ),
-      ).toEqual({process: '/system/bin/surfaceflinger'});
+      ).toEqual([
+        expect.objectContaining({process: '/system/bin/surfaceflinger'}),
+      ]);
 
       expect(
-        tester.match(
+        translateGpuMemory(
           'perfetto_android_gpu-/vendor/bin/hw/surfaceflinger-mem_avg-mean',
         ),
-      ).toEqual({process: '/system/bin/surfaceflinger'});
+      ).toEqual([
+        expect.objectContaining({process: '/system/bin/surfaceflinger'}),
+      ]);
 
       expect(
-        tester.match(
+        translateGpuMemory(
           'perfetto_android_gpu-/system/bin/otherprocess-mem_avg-mean',
         ),
-      ).toEqual({process: '/system/bin/otherprocess'});
+      ).toEqual([
+        expect.objectContaining({process: '/system/bin/otherprocess'}),
+      ]);
     });
-    it('returns undefined for invalid metrics', () => {
+    it('returns empty array for invalid metrics', () => {
       expect(
-        tester.match(
+        translateGpuMemory(
           'perfetto_android_mem-com.android.systemui-total_counters-java_heap-max-mean',
         ),
-      ).toBeUndefined();
+      ).toEqual([]);
     });
   });
 
-  describe('PinActivityOrBinderLeaksMetricsHandler', () => {
-    const tester = pinActivityOrBinderLeaksMetricsInstance;
+  describe('translateActivityOrBinderLeaks', () => {
     it('parses valid metrics', () => {
       expect(
-        tester.match('com.android.systemui_Activities-last-first-diff'),
-      ).toEqual({process: 'com.android.systemui'});
+        translateActivityOrBinderLeaks(
+          'com.android.systemui_Activities-last-first-diff',
+        ),
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
 
-      expect(tester.match('systemui_View-last-first-diff')).toEqual({
-        process: 'com.android.systemui',
-      });
-    });
-    it('returns undefined for invalid metrics', () => {
       expect(
-        tester.match('com.android.systemui_Activities-last-first'),
-      ).toBeUndefined();
+        translateActivityOrBinderLeaks('systemui_View-last-first-diff'),
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
+    });
+    it('returns empty array for invalid metrics', () => {
+      expect(
+        translateActivityOrBinderLeaks(
+          'com.android.systemui_Activities-last-first',
+        ),
+      ).toEqual([]);
     });
   });
 
-  describe('PinHardwareBufferMemoryMetricsHandler', () => {
-    const tester = pinHardwareBufferMemoryMetricsInstance;
+  describe('translateHardwareBufferMemory', () => {
     it('parses valid metrics', () => {
       expect(
-        tester.match(
+        translateHardwareBufferMemory(
           'perfetto_android_dmabuf_per_process_metric_max_val-com.android.systemui-p95',
         ),
-      ).toEqual({process: 'com.android.systemui'});
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
 
       expect(
-        tester.match(
+        translateHardwareBufferMemory(
           'perfetto_android_dmabuf_per_process_metric_max_val-com.android.systemui-mean',
         ),
-      ).toEqual({process: 'com.android.systemui'});
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
 
       expect(
-        tester.match(
+        translateHardwareBufferMemory(
           'perfetto_android_dmabuf_per_process_metric_max_val-systemui-p95',
         ),
-      ).toEqual({process: 'com.android.systemui'});
+      ).toEqual([expect.objectContaining({process: 'com.android.systemui'})]);
     });
-    it('returns undefined for invalid metrics', () => {
+    it('returns empty array for invalid metrics', () => {
       expect(
-        tester.match(
+        translateHardwareBufferMemory(
           'perfetto_android_dmabuf_per_process_metric_max_val-com.android.systemui',
         ),
-      ).toBeUndefined();
+      ).toEqual([]);
     });
   });
 });

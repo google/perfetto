@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  expandProcessName,
-  type CujScopedMetricData,
-  type MetricHandler,
-  type JankType,
-} from './metricUtils';
+import {expandProcessName, type JankType} from './metricUtils';
+import type {MissedFramesDuringCujPinRequest, PinRequest} from './pinRequest';
+import {PinRequestType} from './pinRequest';
 import {NUM} from '../../../trace_processor/query_result';
 import type {Trace} from '../../../public/trace';
 
@@ -28,70 +25,74 @@ import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 const ENABLE_FOCUS_ON_FIRST_JANK = true;
 
-class PinCujScopedJank implements MetricHandler {
-  /**
-   * Matches metric key & return parsed data if successful.
-   *
-   * @param {string} metricKey The metric key to match.
-   * @returns {CujScopedMetricData | undefined} Parsed data or undefined if no match.
-   */
-  public match(metricKey: string): CujScopedMetricData | undefined {
-    const matcher =
-      /perfetto_cuj_(?<process>.*)-(?<cujName>.*)-.*-(?<jps>weighted_)?missed_(?<jankType>frames|sf_frames|app_frames)/;
-    const match = matcher.exec(metricKey);
-    if (!match?.groups) {
-      return undefined;
-    }
-    return {
+/**
+ * Translates a CUJ scoped jank metric key into a request to pin the missed
+ * frames of a process during that CUJ.
+ *
+ * @param {string} metricKey The metric key to match.
+ * @returns {PinRequest[]} A single MissedFramesDuringCuj request, or [] if the
+ *     key doesn't match.
+ */
+export function translateCujScoped(metricKey: string): PinRequest[] {
+  const matcher =
+    /perfetto_cuj_(?<process>.*)-(?<cujName>.*)-.*-(?<jps>weighted_)?missed_(?<jankType>frames|sf_frames|app_frames)/;
+  const match = matcher.exec(metricKey);
+  if (!match?.groups) {
+    return [];
+  }
+  return [
+    {
+      type: PinRequestType.MissedFramesDuringCuj,
       process: expandProcessName(match.groups.process),
       cujName: match.groups.cujName,
       jankType: match.groups.jankType as JankType,
       isWeighted: !!match.groups.jps,
-    };
+    },
+  ];
+}
+
+/**
+ * Adds the debug tracks for cuj scoped jank metrics.
+ *
+ * @param {Trace} ctx PluginContextTrace for trace related properties and methods
+ * @param {MissedFramesDuringCujPinRequest} req The missed frames to pin.
+ * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
+ */
+export async function execMissedFramesDuringCuj(
+  ctx: Trace,
+  req: MissedFramesDuringCujPinRequest,
+): Promise<void> {
+  // TODO: b/349502258 - Refactor to single API
+  const {tableName, ...config} = await cujScopedTrackConfig(req, ctx);
+  addDebugSliceTrack({trace: ctx, ...config});
+  if (ENABLE_FOCUS_ON_FIRST_JANK) {
+    await focusOnFirstJank(ctx, tableName);
+  }
+}
+
+async function cujScopedTrackConfig(
+  req: MissedFramesDuringCujPinRequest,
+  ctx: Trace,
+) {
+  let jankTypeFilter = 'AND (app_missed > 0 OR sf_missed > 0)';
+  let jankTypeDisplayName = 'all';
+  if (req.jankType?.includes('app')) {
+    jankTypeFilter = ' AND app_missed > 0';
+    jankTypeDisplayName = 'app';
+  } else if (req.jankType?.includes('sf')) {
+    jankTypeFilter = ' AND sf_missed > 0';
+    jankTypeDisplayName = 'sf';
+  }
+  if (req.isWeighted) {
+    jankTypeFilter += ' AND jank_score > 0';
   }
 
-  /**
-   * Adds the debug tracks for cuj Scoped jank metrics.
-   *
-   * @param {CujScopedMetricData} metricData Parsed metric data for the cuj scoped jank
-   * @param {Trace} ctx PluginContextTrace for trace related properties and methods
-   * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
-   */
-  public async addMetricTrack(metricData: CujScopedMetricData, ctx: Trace) {
-    // TODO: b/349502258 - Refactor to single API
-    const {tableName, ...config} = await this.cujScopedTrackConfig(
-      metricData,
-      ctx,
-    );
-    addDebugSliceTrack({trace: ctx, ...config});
-    if (ENABLE_FOCUS_ON_FIRST_JANK) {
-      await this.focusOnFirstJank(ctx, tableName);
-    }
-  }
+  const cuj = req.cujName;
+  const processName = req.process;
 
-  private async cujScopedTrackConfig(
-    metricData: CujScopedMetricData,
-    ctx: Trace,
-  ) {
-    let jankTypeFilter = 'AND (app_missed > 0 OR sf_missed > 0)';
-    let jankTypeDisplayName = 'all';
-    if (metricData.jankType?.includes('app')) {
-      jankTypeFilter = ' AND app_missed > 0';
-      jankTypeDisplayName = 'app';
-    } else if (metricData.jankType?.includes('sf')) {
-      jankTypeFilter = ' AND sf_missed > 0';
-      jankTypeDisplayName = 'sf';
-    }
-    if (metricData.isWeighted) {
-      jankTypeFilter += ' AND jank_score > 0';
-    }
+  const tableWithJankyFramesName = `_janky_frames_during_cuj_from_metric_key_${Math.floor(Math.random() * 1_000_000)}`;
 
-    const cuj = metricData.cujName;
-    const processName = metricData.process;
-
-    const tableWithJankyFramesName = `_janky_frames_during_cuj_from_metric_key_${Math.floor(Math.random() * 1_000_000)}`;
-
-    const createJankyCujFrameTable = `
+  const createJankyCujFrameTable = `
       CREATE OR REPLACE PERFETTO TABLE ${tableWithJankyFramesName} AS
       SELECT
         f.vsync as id,
@@ -103,53 +104,50 @@ class PinCujScopedJank implements MetricHandler {
       AND cuj_name = "${cuj}" ${jankTypeFilter}
     `;
 
-    await ctx.engine.query(createJankyCujFrameTable);
+  await ctx.engine.query(createJankyCujFrameTable);
 
-    const jankyFramesDuringCujQuery = `
+  const jankyFramesDuringCujQuery = `
       SELECT id, ts, dur, jank_score
       FROM ${tableWithJankyFramesName}
     `;
 
-    const trackName = jankTypeDisplayName + ' missed frames in ' + processName;
+  const trackName = jankTypeDisplayName + ' missed frames in ' + processName;
 
-    const cujScopedJankSlice = {
-      data: {
-        sqlSource: jankyFramesDuringCujQuery,
-        columns: ['id', 'ts', 'dur', 'jank_score'],
-      },
-      columns: {
-        ts: 'ts',
-        dur: 'dur',
-        name: metricData.isWeighted ? 'jank_score' : 'id',
-      },
-      argColumns: ['id', 'ts', 'dur', 'jank_score'],
-      title: trackName,
-    };
+  const cujScopedJankSlice = {
+    data: {
+      sqlSource: jankyFramesDuringCujQuery,
+      columns: ['id', 'ts', 'dur', 'jank_score'],
+    },
+    columns: {
+      ts: 'ts',
+      dur: 'dur',
+      name: req.isWeighted ? 'jank_score' : 'id',
+    },
+    argColumns: ['id', 'ts', 'dur', 'jank_score'],
+    title: trackName,
+  };
 
-    return {
-      ...cujScopedJankSlice,
-      tableName: tableWithJankyFramesName,
-    };
-  }
+  return {
+    ...cujScopedJankSlice,
+    tableName: tableWithJankyFramesName,
+  };
+}
 
-  private async focusOnFirstJank(ctx: Trace, tableWithJankyFramesName: string) {
-    const queryForFirstJankyFrame = `
+async function focusOnFirstJank(ctx: Trace, tableWithJankyFramesName: string) {
+  const queryForFirstJankyFrame = `
       SELECT id as slice_id, track_id
       FROM actual_frame_timeline_slice
       WHERE name = cast_string!(
         (SELECT id FROM ${tableWithJankyFramesName} LIMIT 1)
       );
     `;
-    const queryResult = await ctx.engine.query(queryForFirstJankyFrame);
-    if (queryResult.numRows() === 0) {
-      return;
-    }
-    const row = queryResult.firstRow({
-      slice_id: NUM,
-      track_id: NUM,
-    });
-    focusOnSlice(ctx, row.slice_id);
+  const queryResult = await ctx.engine.query(queryForFirstJankyFrame);
+  if (queryResult.numRows() === 0) {
+    return;
   }
+  const row = queryResult.firstRow({
+    slice_id: NUM,
+    track_id: NUM,
+  });
+  focusOnSlice(ctx, row.slice_id);
 }
-
-export const pinCujScopedJankInstance = new PinCujScopedJank();

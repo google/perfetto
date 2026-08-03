@@ -14,97 +14,98 @@
 
 import {NUM} from '../../../trace_processor/query_result';
 import type {Trace} from '../../../public/trace';
-import {
-  expandProcessName,
-  type MetricHandler,
-  type ProcessMetricData,
-} from './metricUtils';
+import {expandProcessName} from './metricUtils';
+import type {PinRequest, ProcessTracksPinRequest} from './pinRequest';
+import {PinRequestType} from './pinRequest';
 
-export class SimpleProcessMetricHandler implements MetricHandler {
-  /**
-   * Base class for simple logic track pinning
-   * Use when you have a Regexp which can extract a process name from an url
-   * And pin tracks in the found process
-   *
-   * @param {RegExp[]} matchers List of matchers for metric keys
-   * @param {string[]} trackPrefixMatchers Matches track in the process based on prefix
-   * @param {RegExp[]} trackRegexpMatchers Matches track in the process based on RegExp
-   */
-  constructor(
-    private readonly matchers: RegExp[],
-    private readonly trackPrefixMatchers: string[],
-    private readonly trackRegexpMatchers: RegExp[] = [],
-  ) {}
-
-  /**
-   * Matches metric key & return parsed data if successful.
-   *
-   * @param {string} metricKey The metric key to match.
-   * @returns {ProcessMetricData | undefined} Parsed data or undefined if no match.
-   */
-  public match(metricKey: string): ProcessMetricData | undefined {
-    for (const matcher of this.matchers) {
+/**
+ * Builds a translator for simple process-track metrics.
+ * Use when you have Regexps which can extract a process name from a metric key
+ * and you want to pin tracks in the found process.
+ *
+ * @param {RegExp[]} matchers List of matchers for metric keys
+ * @param {string[]} trackPrefixes Matches tracks in the process based on prefix
+ * @param {RegExp[]} trackRegexes Matches tracks in the process based on RegExp
+ * @returns {(metricKey: string) => PinRequest[]} A translator that emits a
+ *     ProcessTracks request on match, or [] otherwise.
+ */
+export function makeProcessTracksTranslator(
+  matchers: RegExp[],
+  trackPrefixes: string[],
+  trackRegexes: RegExp[] = [],
+): (metricKey: string) => PinRequest[] {
+  return (metricKey: string): PinRequest[] => {
+    for (const matcher of matchers) {
       const match = matcher.exec(metricKey);
       if (match?.groups?.processName) {
-        return {
-          process: expandProcessName(match.groups.processName),
-        };
+        return [
+          {
+            type: PinRequestType.ProcessTracks,
+            process: expandProcessName(match.groups.processName),
+            trackPrefixes,
+            trackRegexes: trackRegexes.map((r) => r.source),
+          },
+        ];
       }
     }
-    return undefined;
+    return [];
+  };
+}
+
+/**
+ * Pins matching tracks for the specified process.
+ *
+ * @param {Trace} ctx Trace context.
+ * @param {ProcessTracksPinRequest} req Parsed request with process and matchers.
+ */
+export async function execProcessTracks(
+  ctx: Trace,
+  req: ProcessTracksPinRequest,
+): Promise<void> {
+  const processName = req.process;
+  const upid = await getUpidForProcess(ctx, processName);
+  if (upid === undefined) {
+    return;
   }
 
-  /**
-   * Pins matching tracks for the specified process.
-   *
-   * @param {ProcessMetricData} metricData Parsed metric data.
-   * @param {Trace} ctx Trace context.
-   */
-  public async addMetricTrack(metricData: ProcessMetricData, ctx: Trace) {
-    const processName = metricData.process;
-    const upid = await getUpidForProcess(ctx, processName);
-    if (upid === undefined) {
-      return;
+  // Filter tracks for this process first
+  const processTracks = ctx.currentWorkspace.flatTracks.filter((track) => {
+    if (!track.uri) {
+      return false;
     }
+    const descriptor = ctx.tracks.getTrack(track.uri);
+    return descriptor?.tags?.upid === upid;
+  });
 
-    // Filter tracks for this process first
-    const processTracks = ctx.currentWorkspace.flatTracks.filter((track) => {
-      if (!track.uri) {
+  const pinnedUris = new Set<string>();
+
+  // Pin tracks matching prefix matchers in order.
+  for (const prefixMatcher of req.trackPrefixes) {
+    const tracksToPin = processTracks.filter((track) => {
+      if (pinnedUris.has(track.uri!)) {
         return false;
       }
-      const descriptor = ctx.tracks.getTrack(track.uri);
-      return descriptor?.tags?.upid === upid;
+      return track.name.startsWith(prefixMatcher);
     });
+    tracksToPin.forEach((track) => {
+      track.pin();
+      pinnedUris.add(track.uri!);
+    });
+  }
 
-    const pinnedUris = new Set<string>();
-
-    // Pin tracks matching prefix matchers in order.
-    for (const prefixMatcher of this.trackPrefixMatchers) {
-      const tracksToPin = processTracks.filter((track) => {
-        if (pinnedUris.has(track.uri!)) {
-          return false;
-        }
-        return track.name.startsWith(prefixMatcher);
-      });
-      tracksToPin.forEach((track) => {
-        track.pin();
-        pinnedUris.add(track.uri!);
-      });
-    }
-
-    // Pin tracks matching regex matchers in order.
-    for (const regexMatcher of this.trackRegexpMatchers) {
-      const tracksToPin = processTracks.filter((track) => {
-        if (pinnedUris.has(track.uri!)) {
-          return false;
-        }
-        return regexMatcher.test(track.name);
-      });
-      tracksToPin.forEach((track) => {
-        track.pin();
-        pinnedUris.add(track.uri!);
-      });
-    }
+  // Pin tracks matching regex matchers in order.
+  for (const regexSource of req.trackRegexes) {
+    const regexMatcher = new RegExp(regexSource);
+    const tracksToPin = processTracks.filter((track) => {
+      if (pinnedUris.has(track.uri!)) {
+        return false;
+      }
+      return regexMatcher.test(track.name);
+    });
+    tracksToPin.forEach((track) => {
+      track.pin();
+      pinnedUris.add(track.uri!);
+    });
   }
 }
 

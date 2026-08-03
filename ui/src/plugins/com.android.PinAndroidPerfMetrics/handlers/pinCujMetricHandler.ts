@@ -12,45 +12,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {CujMetricData, MetricHandler} from './metricUtils';
 import type {Trace} from '../../../public/trace';
-import {addJankCUJDebugTrack} from '../../com.android.AndroidCujs';
+import {
+  addJankCUJDebugTrack,
+  addLatencyCUJDebugTrack,
+} from '../../com.android.AndroidCujs';
+import type {CujPinRequest, PinRequest} from './pinRequest';
+import {PinRequestType} from './pinRequest';
 
-/** Pins a single CUJ from CUJ scoped metrics. */
-class PinCujMetricHandler implements MetricHandler {
-  /**
-   * Matches metric key & return parsed data if successful.
-   *
-   * @param {string} metricKey The metric key to match.
-   * @returns {CujMetricData | undefined} Parsed data or undefined if no match.
-   */
-  public match(metricKey: string): CujMetricData | undefined {
-    const matcher =
-      /perfetto_cuj_(?<process>.*)-(?<cujName>.*)-.*-(?:weighted_)?missed_.*/;
-    const match = matcher.exec(metricKey);
-    if (!match?.groups) {
-      return undefined;
-    }
-    return {
+/**
+ * Translates a CUJ scoped metric key into a request to pin a single jank CUJ.
+ *
+ * @param {string} metricKey The metric key to match.
+ * @returns {PinRequest[]} A single Cuj request, or [] if the key doesn't match.
+ */
+export function translateCuj(metricKey: string): PinRequest[] {
+  const matcher =
+    /perfetto_cuj_(?<process>.*)-(?<cujName>.*)-.*-(?:weighted_)?missed_.*/;
+  const match = matcher.exec(metricKey);
+  if (!match?.groups) {
+    return [];
+  }
+  return [
+    {
+      type: PinRequestType.Cuj,
       cujName: match.groups.cujName,
-    };
-  }
-
-  /**
-   * Adds the debug tracks for cuj Scoped jank metrics
-   *
-   * @param {CujMetricData} metricData Parsed metric data for the cuj scoped jank
-   * @param {Trace} ctx PluginContextTrace for trace related properties and methods
-   * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
-   */
-  public async addMetricTrack(metricData: CujMetricData, ctx: Trace) {
-    this.pinSingleCuj(ctx, metricData.cujName);
-  }
-
-  private pinSingleCuj(ctx: Trace, cujName: string) {
-    const trackName = `Jank CUJ: ${cujName}`;
-    addJankCUJDebugTrack(ctx, trackName, cujName);
-  }
+      fallbackToLatency: false,
+    },
+  ];
 }
 
-export const pinCujInstance = new PinCujMetricHandler();
+/**
+ * Pins a single CUJ track. Pins the jank CUJ track and, only when
+ * `req.fallbackToLatency` is set and no jank track was found, falls back to
+ * pinning the latency CUJ track.
+ *
+ * @param {Trace} ctx PluginContextTrace for trace related properties and methods
+ * @param {CujPinRequest} req The CUJ to pin.
+ */
+export async function execCuj(ctx: Trace, req: CujPinRequest): Promise<void> {
+  const jankTrackName = `Jank CUJ: ${req.cujName}`;
+  const jankCujPinned = await addJankCUJDebugTrack(
+    ctx,
+    jankTrackName,
+    req.cujName,
+  );
+  if (!jankCujPinned && req.fallbackToLatency) {
+    const latencyTrackName = `Latency CUJ: ${req.cujName}`;
+    addLatencyCUJDebugTrack(ctx, latencyTrackName, req.cujName);
+  }
+}
