@@ -201,19 +201,19 @@ export default class GpuPlugin implements PerfettoPlugin {
           AND child.gpu_hw_queue_iid IS NULL
           AND child.gpu_logical_queue_id IS NULL
       )
-      SELECT trackId, machineId, gpuId
+      SELECT min(trackId) AS trackId, machineId, gpuId
       FROM authored
       WHERE
         (gpuId IS NULL AND parentId IS NULL)
         OR
         (gpuId IS NOT NULL AND
           (parentId IS NULL OR parentGpuId IS NULL OR parentGpuId != gpuId))
+      GROUP BY machineId, gpuId
+      HAVING count(*) = 1
       ORDER BY machineId, gpuId, trackId
     `);
 
     const trackEventPlugin = ctx.plugins.getPlugin(TrackEventPlugin);
-    const machineCandidates = new Map<number, TrackNode | null>();
-    const gpuCandidates = new Map<string, TrackNode | null>();
     const it = result.iter({
       trackId: NUM,
       machineId: NUM,
@@ -223,33 +223,13 @@ export default class GpuPlugin implements PerfettoPlugin {
       const node = trackEventPlugin.getTrackNode(it.trackId);
       if (node === undefined) continue;
       if (it.gpuId === null) {
-        this.recordUniqueAnchor(machineCandidates, it.machineId, node);
+        this.authoredMachineRoots.set(it.machineId, node);
       } else {
-        this.recordUniqueAnchor(
-          gpuCandidates,
+        this.authoredGpuAnchors.set(
           this.gpuAnchorKey(it.machineId, it.gpuId),
           node,
         );
       }
-    }
-    for (const [machineId, node] of machineCandidates) {
-      if (node !== null) this.authoredMachineRoots.set(machineId, node);
-    }
-    for (const [key, node] of gpuCandidates) {
-      if (node !== null) this.authoredGpuAnchors.set(key, node);
-    }
-  }
-
-  private recordUniqueAnchor<K>(
-    candidates: Map<K, TrackNode | null>,
-    key: K,
-    node: TrackNode,
-  ): void {
-    const existing = candidates.get(key);
-    if (existing === undefined) {
-      candidates.set(key, node);
-    } else if (existing !== node) {
-      candidates.set(key, null);
     }
   }
 
