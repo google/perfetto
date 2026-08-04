@@ -64,6 +64,7 @@ bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
                            TraceWriter* writer) {
   fprintf(stderr, "Converting userspace events%c", kProgressChar);
   fflush(stderr);
+  MarkProgressLine();
 
   TraceWriterOutputWriter output(writer);
   base::Status status = trace_processor::json::ExportJson(tp, &output);

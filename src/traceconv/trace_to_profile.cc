@@ -236,7 +236,8 @@ base::Status TraceToProfile(std::istream* input,
                    GetDestinationDirectory(output_dir, dir_prefix));
   for (const auto& profile : profiles) {
     std::string filename = dst_dir + "/" + filename_fn(profile);
-    base::ScopedFile fd(base::OpenFile(filename, O_CREAT | O_WRONLY, 0700));
+    base::ScopedFile fd(
+        base::OpenFile(filename, O_CREAT | O_WRONLY | O_TRUNC, 0700));
     if (!fd) {
       return base::ErrStatus("failed to open %s (errno: %d, %s)",
                              filename.c_str(), errno, strerror(errno));

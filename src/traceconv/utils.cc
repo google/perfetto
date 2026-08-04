@@ -66,6 +66,7 @@ bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
       fprintf(stderr, "Loading trace %.2f MB%c",
               static_cast<double>(file_size) / 1.0e6, kProgressChar);
       fflush(stderr);
+      MarkProgressLine();
     }
 
     std::unique_ptr<uint8_t[]> buf(new uint8_t[kChunkSize]);
@@ -83,6 +84,7 @@ bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
   }
 
   fprintf(stderr, "Loaded trace%c", kProgressChar);
+  MarkProgressLine();
   EndProgressLine();
   return true;
 }

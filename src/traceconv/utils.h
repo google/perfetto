@@ -52,14 +52,41 @@ constexpr char kProgressChar = '\n';
 constexpr char kProgressChar = '\r';
 #endif
 
+// True while an in-place progress line (one ending in kProgressChar) has been
+// printed but not yet terminated. Kept TU-local: progress printing and the
+// matching EndProgressLine() always happen in the same translation unit.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+namespace {
+inline bool& IsProgressLineActive() {
+  static bool active = false;
+  return active;
+}
+}  // namespace
+#endif
+
+// Marks that an in-place progress line (ending in kProgressChar) has been
+// printed. Call right after printing a progress update so that the matching
+// EndProgressLine() terminates it. No-op on WASM where progress updates
+// already end with a newline.
+inline void MarkProgressLine() {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  IsProgressLineActive() = true;
+#endif
+}
+
 // Terminates the current in-place progress line so that subsequent output
 // (errors, logs, results) starts on a fresh line instead of overwriting or
-// merging with the progress text. On WASM, progress updates already end with
-// a newline (see kProgressChar), so this is a no-op there.
+// merging with the progress text. No-op when no progress line is active, so
+// callers can invoke it unconditionally without producing stray blank lines.
+// On WASM, progress updates already end with a newline (see kProgressChar),
+// so this is a no-op there too.
 inline void EndProgressLine() {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
-  fprintf(stderr, "\n");
-  fflush(stderr);
+  if (IsProgressLineActive()) {
+    fprintf(stderr, "\n");
+    fflush(stderr);
+    IsProgressLineActive() = false;
+  }
 #endif
 }
 

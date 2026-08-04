@@ -404,7 +404,16 @@ std::map<std::string, FoundBinary> BuildIdIndex(
 
   // Process individual files
   for (const std::string& file_path : files) {
-    ProcessBinaryFile(file_path.c_str(), 0, result, &corrupt_file_count);
+    std::optional<uint64_t> file_size = base::GetFileSize(file_path);
+    if (!file_size.has_value()) {
+      continue;
+    }
+    // Unlike WalkDirectories we don't have the size on hand here; pass the
+    // real size so GetBinaryInfo can actually parse the file. A size of 0
+    // would make it bail out early and miscount every valid file as corrupt.
+    size_t size = static_cast<size_t>(
+        std::min<uint64_t>(std::numeric_limits<size_t>::max(), *file_size));
+    ProcessBinaryFile(file_path.c_str(), size, result, &corrupt_file_count);
   }
 
   if (corrupt_file_count > 0) {

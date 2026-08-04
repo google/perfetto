@@ -149,6 +149,7 @@ void OnlineTraceToText::Feed(const uint8_t* data, size_t len) {
       fprintf(stderr, "Processing trace: %8zu KB%c", bytes_processed_ / 1024,
               kProgressChar);
       fflush(stderr);
+      MarkProgressLine();
     }
     if (decoder.has_compressed_packets()) {
       PrintCompressedPackets(decoder.compressed_packets(),
