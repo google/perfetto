@@ -775,6 +775,12 @@ message AndroidProcessStateChangedEvent {
 
   // Current ActivityManager scheduling group (Constants.SCHED_GROUP_*).
   optional SchedGroup cur_sched_group = 15;
+
+  // Previous kernel process group (android.os.Process.THREAD_GROUP_*).
+  optional ProcessGroup prev_process_group = 16;
+
+  // Current kernel process group (android.os.Process.THREAD_GROUP_*).
+  optional ProcessGroup cur_process_group = 17;
 }
 
 message AndroidServiceStateChangedEvent {
