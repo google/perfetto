@@ -146,10 +146,7 @@ void OnlineTraceToText::Feed(const uint8_t* data, size_t len) {
     protos::pbzero::TracePacket::Decoder decoder(token.start, token.len);
     bytes_processed_ += token.len;
     if ((packet_++ & 0x3f) == 0) {
-      fprintf(stderr, "Processing trace: %8zu KB%c", bytes_processed_ / 1024,
-              kProgressChar);
-      fflush(stderr);
-      MarkProgressLine();
+      ProgressLine("Processing trace: %8zu KB", bytes_processed_ / 1024);
     }
     if (decoder.has_compressed_packets()) {
       PrintCompressedPackets(decoder.compressed_packets(),

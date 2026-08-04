@@ -124,8 +124,7 @@ class QueryWriter {
       callback(&iterator, &line_writer);
 
       if (global_writer_.pos() + line_writer.pos() >= kFlushThreshold) {
-        fprintf(stderr, "Writing row %" PRIu32 "%c", rows, kProgressChar);
-        MarkProgressLine();
+        ProgressLine("Writing row %" PRIu32, rows);
         auto str = global_writer_.GetStringView();
         trace_writer_->Write(str.data(), str.size());
         global_writer_.Clear();
@@ -179,9 +178,7 @@ int ExtractRawEvents(TraceWriter* trace_writer,
     return 0;
   }
 
-  fprintf(stderr, "Converting ftrace events%c", kProgressChar);
-  fflush(stderr);
-  MarkProgressLine();
+  ProgressLine("Converting ftrace events");
 
   auto raw_callback = [wrapped_in_json](Iterator* it,
                                         base::DynamicStringWriter* writer) {

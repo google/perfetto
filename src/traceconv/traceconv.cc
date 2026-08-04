@@ -330,9 +330,9 @@ int Main(int argc, char** argv) {
   }
 
   if (format == "json")
-    return ToExitCode(trace_to_text::TraceToJson(
-        input_stream, output_stream, /*compress=*/false, truncate_keep,
-        full_sort));
+    return ToExitCode(trace_to_text::TraceToJson(input_stream, output_stream,
+                                                 /*compress=*/false,
+                                                 truncate_keep, full_sort));
 
   if (format == "systrace")
     return ToExitCode(trace_to_text::TraceToSystrace(
@@ -393,8 +393,8 @@ int Main(int argc, char** argv) {
         trace_to_text::DeobfuscateProfile(input_stream, output_stream));
 
   if (format == "firefox")
-    return ToExitCode(trace_to_text::TraceToFirefoxProfile(input_stream,
-                                                           output_stream));
+    return ToExitCode(
+        trace_to_text::TraceToFirefoxProfile(input_stream, output_stream));
 
   if (format == "decompress_packets")
     return ToExitCode(

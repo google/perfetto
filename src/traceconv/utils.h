@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 
+#include <cstdarg>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -26,6 +27,7 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/paged_memory.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
@@ -52,9 +54,9 @@ constexpr char kProgressChar = '\n';
 constexpr char kProgressChar = '\r';
 #endif
 
-// True while an in-place progress line (one ending in kProgressChar) has been
-// printed but not yet terminated. Kept TU-local: progress printing and the
-// matching EndProgressLine() always happen in the same translation unit.
+// True while an in-place progress line has been printed but not yet
+// terminated with a newline. TU-local: all progress printing and the
+// matching EndProgressLine() live in the same translation unit.
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
 namespace {
 inline bool& IsProgressLineActive() {
@@ -64,12 +66,19 @@ inline bool& IsProgressLineActive() {
 }  // namespace
 #endif
 
-// Marks that an in-place progress line (ending in kProgressChar) has been
-// printed. Call right after printing a progress update so that the matching
-// EndProgressLine() terminates it. No-op on WASM where progress updates
-// already end with a newline.
-inline void MarkProgressLine() {
+// Prints an in-place progress update to stderr: the message followed by
+// kProgressChar (a '\r' so the next update overwrites it). Remembers that a
+// progress line is active so the matching EndProgressLine() terminates it
+// with a newline. No-op on WASM where updates already end with '\n'.
+inline void ProgressLine(const char* fmt, ...) PERFETTO_PRINTF_FORMAT(1, 2);
+inline void ProgressLine(const char* fmt, ...) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  va_list args;
+  va_start(args, fmt);
+  vfprintf(stderr, fmt, args);
+  va_end(args);
+  fputc(kProgressChar, stderr);
+  fflush(stderr);
   IsProgressLineActive() = true;
 #endif
 }
