@@ -1343,7 +1343,11 @@ export async function getClassHierarchy(
   return chain;
 }
 
-/** Transitive subclass names of `rootName` (including the root itself). */
+/**
+ * `rootName`'s transitive subclasses that have objects in `activeDump`. The graph
+ * is walked over all of heap_graph_class so it passes through abstract classes
+ * (which have no objects); the object join then scopes the result to the dump.
+ */
 export async function getSubclassNames(
   engine: Engine,
   activeDump: HeapDump,
@@ -1351,22 +1355,17 @@ export async function getSubclassNames(
 ): Promise<string[]> {
   const res = await engine.query(`
     INCLUDE PERFETTO MODULE graphs.search;
-
-    WITH dump_classes AS (
-      SELECT DISTINCT c.id, c.name, c.deobfuscated_name, c.superclass_id
-      FROM heap_graph_class c
-      JOIN heap_graph_object o ON o.type_id = c.id
-      WHERE ${dumpFilterSql(activeDump, 'o')}
-    )
-    SELECT coalesce(c.deobfuscated_name, c.name) AS name
+    SELECT DISTINCT coalesce(c.deobfuscated_name, c.name) AS name
     FROM graph_reachable_dfs!(
       (SELECT superclass_id AS source_node_id, id AS dest_node_id
-       FROM dump_classes WHERE superclass_id IS NOT NULL),
-      (SELECT id AS node_id FROM dump_classes
+       FROM heap_graph_class WHERE superclass_id IS NOT NULL),
+      (SELECT id AS node_id FROM heap_graph_class
        WHERE coalesce(deobfuscated_name, name) = '${sqlEsc(rootName)}'
        LIMIT 1)
     ) AS dfs
-    JOIN dump_classes c ON c.id = dfs.node_id
+    JOIN heap_graph_class c ON c.id = dfs.node_id
+    JOIN heap_graph_object o ON o.type_id = c.id
+    WHERE ${dumpFilterSql(activeDump, 'o')}
   `);
   const names: string[] = [];
   for (const it = res.iter({name: STR}); it.valid(); it.next()) {

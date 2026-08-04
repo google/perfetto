@@ -61,5 +61,5 @@ Yes. In the UI, use "Open multiple trace files" (or select/drop several
 files): a dialog lets you configure how they merge onto a shared timeline.
 From the command line, pass a ZIP or TAR archive of the traces to
 `trace_processor`. See
-[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md)
-and [Merging traces with Trace Processor](/docs/analysis/merging-traces.md).
+[Merging traces in the UI](/docs/visualization/merging-traces.md)
+and [Merging traces from the command line](/docs/analysis/merging-traces.md).

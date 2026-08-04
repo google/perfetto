@@ -337,7 +337,7 @@ class InstrumentsXmlTokenizer::Impl {
       MaybeCachedRef<uint64_t> uint64_lookup =
           GetOrInsertByRef(attrs, os_log_metadata_or_uint64_ref_to_uint64_);
       current_os_log_metadata_uint64_ref_ = &uint64_lookup.ref;
-    } else if (tag_name == "backtrace") {
+    } else if (tag_name == "backtrace" || tag_name == "tagged-backtrace") {
       MaybeCachedRef<BacktraceId> backtrace_lookup =
           GetOrInsertByRef(attrs, backtrace_ref_to_backtrace_);
       if (backtrace_lookup.is_new) {

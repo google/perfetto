@@ -22,6 +22,9 @@ import {Select} from '../../widgets/select';
 import {Form, FormLabel} from '../../widgets/form';
 import {STR} from '../../trace_processor/query_result';
 import {Time} from '../../base/time';
+import {z} from 'zod';
+import type {App} from '../../public/app';
+import type {Setting} from '../../public/settings';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 
@@ -33,12 +36,38 @@ import {AndroidInputLifecycleTab} from './tab';
 import type {AsyncMemoResult} from '../../base/async_memo';
 import type {InputLifecycleExtension, NavTarget} from './extensions/interface';
 import {PixelInputLifecycleExtension} from './extensions/pixel_extension';
+import {AndroidFramesInputLifecycleExtension} from './extensions/android_frames_extension';
+
+const EXTENSIONS: InputLifecycleExtension[] = [
+  new PixelInputLifecycleExtension(),
+  new AndroidFramesInputLifecycleExtension(),
+];
 
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';
   static readonly description =
     'Visualise connected input events in the lifecycle from touch to frame, ' +
     "with latencies for the various input stages. Activate by running the command 'Android: View Input Lifecycle'.";
+
+  private static extensionSettings = new Map<string, Setting<boolean>>();
+
+  static onActivate(app: App): void {
+    for (const ext of EXTENSIONS) {
+      const setting = app.settings.register({
+        id: `com.android.AndroidInputLifecycle.extension.${ext.id}`,
+        name: `Enable ${ext.name} extension`,
+        description: `Enable custom stages in the tab and overlay for ${ext.name} extension.`,
+        schema: z.boolean(),
+        defaultValue: true,
+        requiresReload: true,
+      });
+      AndroidInputLifecyclePlugin.extensionSettings.set(ext.id, setting);
+    }
+  }
+
+  static isExtensionEnabled(id: string): boolean {
+    return AndroidInputLifecyclePlugin.extensionSettings.get(id)?.get() ?? true;
+  }
 
   private visibleRowIds = new Set<string>();
   private lastAppliedEventId?: number;
@@ -50,19 +79,17 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
 
-    const extensions: InputLifecycleExtension[] = [
-      new PixelInputLifecycleExtension(),
-    ];
-
     const activeExtensions: InputLifecycleExtension[] = [];
-    for (const ext of extensions) {
-      if (await ext.isEligible(trace)) {
-        if (ext.requiredModules !== undefined) {
-          for (const mod of ext.requiredModules) {
-            await trace.engine.query(`INCLUDE PERFETTO MODULE ${mod};`);
+    for (const ext of EXTENSIONS) {
+      if (AndroidInputLifecyclePlugin.isExtensionEnabled(ext.id)) {
+        if (await ext.isEligible(trace)) {
+          if (ext.requiredModules !== undefined) {
+            for (const mod of ext.requiredModules) {
+              await trace.engine.query(`INCLUDE PERFETTO MODULE ${mod};`);
+            }
           }
+          activeExtensions.push(ext);
         }
-        activeExtensions.push(ext);
       }
     }
 

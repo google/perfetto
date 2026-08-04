@@ -366,6 +366,7 @@ export default class SchedPlugin implements PerfettoPlugin {
           utid,
           upid: upid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
+          ...(isMainThread === 1 && {isMainThread: true}),
         },
         renderer: createThreadStateTrack(ctx, uri, utid),
       });

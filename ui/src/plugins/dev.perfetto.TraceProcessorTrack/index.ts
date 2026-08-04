@@ -436,6 +436,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           upid: upid ?? undefined,
           utid: utid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
+          ...(isMainThread === 1 && {isMainThread: true}),
           hasCallstacks: hasCallstacks === 1,
         },
         renderer: await createTraceProcessorSliceTrack({

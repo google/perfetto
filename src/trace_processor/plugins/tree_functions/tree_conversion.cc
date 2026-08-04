@@ -29,13 +29,11 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/plugin/plugin.h"
-#include "src/trace_processor/core/tree/tree_columns.h"
-#include "src/trace_processor/core/tree/tree_columns_from_dataframe.h"
-#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/tree/tree.h"
+#include "src/trace_processor/core/tree/tree_from_dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/plugins/tree_functions/tree_functions.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
@@ -56,39 +54,26 @@ struct AggCtx : sqlite::AggregateContext<AggCtx> {
 
 void PushColumnValue(dataframe::AdhocDataframeBuilder* builder,
                      uint32_t col_idx,
-                     const core::tree::TreeColumns::Column& column,
+                     const core::Tree::Column& column,
                      uint32_t row) {
-  const uint8_t* data = column.data.begin();
   switch (column.type.index()) {
-    case core::StorageType::GetTypeIndex<core::Uint32>():
-      builder->PushNonNull(
-          col_idx,
-          static_cast<int64_t>(reinterpret_cast<const uint32_t*>(data)[row]));
+    case core::Tree::Column::Type::GetTypeIndex<core::Int64>():
+      builder->PushNonNull(col_idx, column.unchecked_data<int64_t>()[row]);
       return;
-    case core::StorageType::GetTypeIndex<core::Int32>():
-      builder->PushNonNull(
-          col_idx,
-          static_cast<int64_t>(reinterpret_cast<const int32_t*>(data)[row]));
+    case core::Tree::Column::Type::GetTypeIndex<core::Double>():
+      builder->PushNonNull(col_idx, column.unchecked_data<double>()[row]);
       return;
-    case core::StorageType::GetTypeIndex<core::Int64>():
+    case core::Tree::Column::Type::GetTypeIndex<core::String>():
       builder->PushNonNull(col_idx,
-                           reinterpret_cast<const int64_t*>(data)[row]);
-      return;
-    case core::StorageType::GetTypeIndex<core::Double>():
-      builder->PushNonNull(col_idx, reinterpret_cast<const double*>(data)[row]);
-      return;
-    case core::StorageType::GetTypeIndex<core::String>():
-      builder->PushNonNull(col_idx,
-                           reinterpret_cast<const StringPool::Id*>(data)[row]);
+                           column.unchecked_data<StringPool::Id>()[row]);
       return;
     default:
       PERFETTO_FATAL("Unsupported tree column type");
   }
 }
 
-base::StatusOr<dataframe::Dataframe> TreeToDataframe(
-    core::tree::TreeColumns tree,
-    StringPool* pool) {
+base::StatusOr<dataframe::Dataframe> TreeToDataframe(core::Tree tree,
+                                                     StringPool* pool) {
   std::vector<std::string> names = {"_tree_id", "_tree_parent_id"};
   names.insert(names.end(), tree.names.begin(), tree.names.end());
   dataframe::AdhocDataframeBuilder builder(
@@ -99,13 +84,13 @@ base::StatusOr<dataframe::Dataframe> TreeToDataframe(
   bool ok = true;
   for (uint32_t row = 0; row < tree.row_count && ok; ++row) {
     ok = builder.PushNonNull(0, row);
-    if (tree.parent[row] == core::kNullParent) {
+    if (tree.parent[row] == core::Tree::kNullParent) {
       builder.PushNull(1);
     } else {
       ok = ok && builder.PushNonNull(1, tree.parent[row]);
     }
     for (uint32_t col = 0; col < tree.columns.size(); ++col) {
-      const core::tree::TreeColumns::Column& column = tree.columns[col];
+      const core::Tree::Column& column = tree.columns[col];
       if (column.null_bv.size() > 0 && !column.null_bv.is_set(row)) {
         builder.PushNull(col + 2);
       } else {
@@ -179,13 +164,9 @@ void TreeFromTable::Final(sqlite3_context* ctx) {
   }
   auto& agg = *raw_agg.get();
   PERFETTO_CHECK(agg.builder);
-  SQLITE_ASSIGN_OR_RETURN(
-      ctx, auto cols, core::tree::BuildTreeColumns(std::move(*agg.builder)));
-  return sqlite::result::UniquePointer(
-      ctx,
-      std::make_unique<sqlite::utils::MovePointer<core::tree::TreeColumns>>(
-          std::move(cols)),
-      "TREE");
+  SQLITE_ASSIGN_OR_RETURN(ctx, auto cols,
+                          core::BuildTree(std::move(*agg.builder)));
+  return sqlite::utils::MovePointerResult(ctx, std::move(cols), "TREE");
 }
 
 void TreeToTable::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
@@ -193,17 +174,11 @@ void TreeToTable::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return sqlite::result::Error(ctx,
                                  "tree_to_table: expected exactly 1 argument");
   }
-  auto* tree_ptr = sqlite::value::Pointer<
-      sqlite::utils::MovePointer<core::tree::TreeColumns>>(argv[0], "TREE");
-  if (!tree_ptr) {
-    return sqlite::result::Error(ctx, "tree_to_table: expected TREE");
-  }
-  if (tree_ptr->taken()) {
-    return sqlite::result::Error(
-        ctx, "tree_to_table: tree has already been consumed");
-  }
+  SQLITE_ASSIGN_OR_RETURN(ctx, core::Tree tree,
+                          sqlite::utils::TakeMovePointerValue<core::Tree>(
+                              argv[0], "TREE", "tree_to_table"));
   SQLITE_ASSIGN_OR_RETURN(ctx, auto df,
-                          TreeToDataframe(tree_ptr->Take(), GetUserData(ctx)));
+                          TreeToDataframe(std::move(tree), GetUserData(ctx)));
   return sqlite::result::UniquePointer(
       ctx, std::make_unique<dataframe::Dataframe>(std::move(df)), "TABLE");
 }

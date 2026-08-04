@@ -1165,6 +1165,9 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
         stats::traced_buf_chunks_read, buf_num,
         static_cast<int64_t>(buf.chunks_read()));
     context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_chunks_relocated, buf_num,
+        static_cast<int64_t>(buf.chunks_relocated()));
+    context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_chunks_committed_out_of_order, buf_num,
         static_cast<int64_t>(buf.chunks_committed_out_of_order()));
     context_->stats_tracker->SetIndexedStats(

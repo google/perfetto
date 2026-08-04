@@ -13,6 +13,10 @@ Unreleased:
     * Replaced TraceConfig.notes and `perfetto --add-note` with
       TraceConfig.trace_attributes and `--add-attribute`.
   Trace Processor:
+    * Added an embedder-provided filesystem interface. The interface is
+      disabled by default; trace_processor_shell allows SQL file access only
+      with --allow-sql-file-access. SQL file writes no longer require --dev,
+      and the integer file descriptor form of EXPORT_JSON has been removed.
     * Introduced common stack_sample, stack_sample_session,
       stack_sample_task_context, stack_sample_execution_context,
       stack_sample_async_context, stack_sample_counter_track and

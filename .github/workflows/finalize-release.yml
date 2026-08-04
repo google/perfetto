@@ -200,6 +200,14 @@ jobs:
             --skills-src "$SKILLS_SRC"
           git worktree remove --force /tmp/release-tag-tree
 
+          # Attach a copy-paste installable skill zip to the release for
+          # offline installs (#6515). Unzipping yields a `perfetto/` skill
+          # directory to drop into any agent's skills directory.
+          (cd /tmp/ai-agents-tree/plugins/perfetto/skills && \
+            zip -qr /tmp/perfetto-ai-skill.zip perfetto)
+          gh release upload "$VERSION" /tmp/perfetto-ai-skill.zip \
+            --repo "$REPO" --clobber
+
           BRANCH="dev/github-bot/ai-agents-bundle"
           REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
 

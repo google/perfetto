@@ -181,12 +181,14 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
     // data while preserving the normal order within each group. Keys ensure
     // in-flight section queries and component state survive the reorder.
     const smapsAvailable = capture === undefined || capture.smaps.samples > 0;
+    const timelineAvailable =
+      capture === undefined || capture.smaps.samples > 1;
     const dumpsAvailable = capture === undefined || capture.dumps > 0;
     const bitmapsAvailable = capture === undefined || capture.hasBitmaps;
     const nativeAvailable = capture === undefined || capture.native.samples > 0;
     const sections = [
       {
-        hasData: smapsAvailable,
+        hasData: timelineAvailable,
         content: m(CompositionTimeline, {
           key: 'composition',
           trace,
