@@ -139,6 +139,22 @@ TEST(LocalBinaryIndexerTest, NOMSAN_SimpleTree) {
 #endif
 }
 
+// A valid ELF passed as an individual file (rather than discovered via a
+// directory walk) must be indexed. Previously the size passed for such files
+// was 0, which made GetBinaryInfo bail out and silently dropped them (and,
+// after the corrupt-file aggregation, miscounted them as corrupt).
+TEST(LocalBinaryIndexerTest, IndividualFilesAreIndexed) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("root");
+  tmp.AddFile("root/elf1", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
+
+  LocalBinaryIndexer indexer({}, {tmp.AbsolutePath("root/elf1")});
+
+  BinaryLookupResult result = indexer.FindBinary("", "AAAAAAAAAAAAAAAAAAAA");
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(result.binary->file_name, tmp.AbsolutePath("root/elf1"));
+}
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)

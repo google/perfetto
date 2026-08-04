@@ -19,10 +19,7 @@
 #include <stdio.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/trace_processor/export_json.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/traceconv/utils.h"
 
@@ -31,58 +28,63 @@ namespace trace_to_text {
 
 namespace {
 
-const char kTraceHeader[] = R"({
-  "traceEvents": [],
-)";
-
 const char kTraceFooter[] = R"(,
   "controllerTraceDataKey": "systraceController"
 })";
 
+class TraceWriterOutputWriter final
+    : public trace_processor::json::OutputWriter {
+ public:
+  explicit TraceWriterOutputWriter(TraceWriter* writer) : writer_(writer) {}
+
+  base::Status AppendString(const std::string& value) override {
+    if (value.empty()) {
+      return base::OkStatus();
+    }
+    if (has_trailing_byte_) {
+      writer_->Write(&trailing_byte_, 1);
+    }
+    writer_->Write(value.data(), value.size() - 1);
+    trailing_byte_ = value.back();
+    has_trailing_byte_ = true;
+    return base::OkStatus();
+  }
+
+  bool HasTrailingBrace() const {
+    return has_trailing_byte_ && trailing_byte_ == '}';
+  }
+
+ private:
+  TraceWriter* writer_;
+  char trailing_byte_ = 0;
+  bool has_trailing_byte_ = false;
+};
+
 bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
                            TraceWriter* writer) {
-  fprintf(stderr, "Converting userspace events%c", kProgressChar);
-  fflush(stderr);
+  ProgressLine("Converting userspace events");
 
-  // Write userspace trace to a temporary file.
-  // TODO(eseckler): Support streaming the result out of TP directly instead.
-  auto file = base::TempFile::Create();
-  base::StackString<100> query("select export_json(\"%s\")",
-                               file.path().c_str());
-  auto it = tp->ExecuteQuery(query.ToStdString());
-
-  if (!it.Next()) {
-    auto status = it.Status();
-    PERFETTO_CHECK(!status.ok());
+  TraceWriterOutputWriter output(writer);
+  base::Status status = trace_processor::json::ExportJson(tp, &output);
+  EndProgressLine();
+  if (!status.ok()) {
     PERFETTO_ELOG("Could not convert userspace events: %s", status.c_message());
     return false;
   }
-
-  base::ScopedFstream source = base::OpenFstream(file.path(), "r");
-  if (!source) {
-    PERFETTO_ELOG("Could not convert userspace events: Couldn't read file %s",
-                  file.path().c_str());
+  if (!output.HasTrailingBrace()) {
+    PERFETTO_ELOG("Could not convert userspace events: invalid JSON output");
     return false;
-  }
-
-  char buf[BUFSIZ];
-  size_t size;
-  while ((size = fread(buf, sizeof(char), BUFSIZ, *source)) > 0) {
-    // Skip writing the closing brace since we'll append system trace data.
-    if (feof(*source))
-      size--;
-    writer->Write(buf, size);
   }
   return true;
 }
 
 }  // namespace
 
-int TraceToJson(std::istream* input,
-                std::ostream* output,
-                bool compress,
-                Keep truncate_keep,
-                bool full_sort) {
+base::Status TraceToJson(std::istream* input,
+                         std::ostream* output,
+                         bool compress,
+                         Keep truncate_keep,
+                         bool full_sort) {
   std::unique_ptr<TraceWriter> trace_writer(
       compress ? new DeflateTraceWriter(output) : new TraceWriter(output));
 
@@ -94,25 +96,31 @@ int TraceToJson(std::istream* input,
       trace_processor::TraceProcessor::CreateInstance(config);
 
   if (!ReadTraceUnfinalized(tp.get(), input))
-    return 1;
+    return base::ErrStatus("failed to read trace");
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
-    return 1;
+    return base::ErrStatus("failed to finalize trace: %s", status.c_message());
   }
 
   // TODO(eseckler): Support truncation of userspace event data.
-  if (ExportUserspaceEvents(tp.get(), trace_writer.get())) {
-    trace_writer->Write(",\n");
-  } else {
-    trace_writer->Write(kTraceHeader);
+  if (!ExportUserspaceEvents(tp.get(), trace_writer.get())) {
+    // ExportJson streams directly to |trace_writer|, so emitting an empty
+    // trace header here would corrupt any output already written. Report the
+    // conversion failure instead of silently dropping userspace events.
+    return base::ErrStatus(
+        "failed to convert userspace events (see errors above)");
   }
+  trace_writer->Write(",\n");
 
   int ret = ExtractSystrace(tp.get(), trace_writer.get(),
                             /*wrapped_in_json=*/true, truncate_keep);
-  if (ret)
-    return ret;
+  if (ret) {
+    EndProgressLine();
+    return base::ErrStatus("failed to convert ftrace events");
+  }
 
   trace_writer->Write(kTraceFooter);
-  return 0;
+  EndProgressLine();
+  return base::OkStatus();
 }
 
 }  // namespace trace_to_text

@@ -14,18 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_TREE_TYPES_H_
-#define SRC_TRACE_PROCESSOR_CORE_COMMON_TREE_TYPES_H_
+#ifndef SRC_TRACE_PROCESSOR_PLUGINS_STRACE_STRACE_H_
+#define SRC_TRACE_PROCESSOR_PLUGINS_STRACE_STRACE_H_
 
-#include <cstdint>
-#include <limits>
+namespace perfetto::trace_processor::strace_importer {
 
-namespace perfetto::trace_processor::core {
+void RegisterPlugin();
 
-// Sentinel value representing a null parent in tree structures.
-// Root nodes have this value as their parent.
-inline constexpr uint32_t kNullParent = std::numeric_limits<uint32_t>::max();
+}  // namespace perfetto::trace_processor::strace_importer
 
-}  // namespace perfetto::trace_processor::core
-
-#endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_TREE_TYPES_H_
+#endif  // SRC_TRACE_PROCESSOR_PLUGINS_STRACE_STRACE_H_
