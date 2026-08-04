@@ -16,12 +16,13 @@ import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import type {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
+import {
+  JANK_CUJ_QUERY_PRECONDITIONS,
+  executePinRequests,
+} from './handlers/executor';
+import {parsePinRequests} from './handlers/pinRequest';
 import AndroidCujsPlugin from '../com.android.AndroidCujs';
 import Wattson from '../org.kernel.Wattson';
-
-const JANK_CUJ_QUERY_PRECONDITIONS = `
-  SELECT RUN_METRIC('android/android_blocking_calls_cuj_metric.sql');
-`;
 
 function getMetricsFromHash(): string[] {
   // TODO(stevegolton): this uses `dev.perfetto.PinAndroidPerfMetrics` for
@@ -77,6 +78,16 @@ export default class implements PerfettoPlugin {
         this.callHandlers(metricList, ctx);
       },
     });
+
+    // Generic entry point for other clients (e.g. Perfetto startup commands)
+    // that provide PinRequests directly, without a Crystalball metric string.
+    ctx.commands.registerCommand({
+      id: 'com.android.PinAndroidPerfMetrics#pinRequests',
+      name: 'Pin performance tracks from PinRequest[]',
+      callback: (arg: unknown) =>
+        executePinRequests(ctx, parsePinRequests(arg)),
+    });
+
     if (metrics.length !== 0) {
       const plugin = ctx.plugins.getPlugin(AndroidCujsPlugin);
       await plugin.pinJankCujs(ctx);
