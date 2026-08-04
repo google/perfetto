@@ -130,6 +130,21 @@ class GraphicsGpuTrace(TestSuite):
         }
         packet {
           trusted_packet_sequence_id: 1
+          timestamp: 118
+          gpu_render_stage_event {
+            event_id: 1
+            duration: 1
+            gpu_id: 0
+            hw_queue_iid: 1
+            stage_iid: 2
+            context: 1
+            logical_queue_id: 7
+            name: "Repeated render pass"
+          }
+          sequence_flags: 2
+        }
+        packet {
+          trusted_packet_sequence_id: 1
           timestamp: 120
           track_event { track_uuid: 21 type: TYPE_SLICE_END }
         }
@@ -173,27 +188,39 @@ class GraphicsGpuTrace(TestSuite):
         GROUP BY scope
         ORDER BY scope;
 
-        SELECT count(*) AS render_stage_dependency_flows
+        SELECT
+          CASE
+            WHEN projection.projected_slice_id IS NULL THEN 'canonical'
+            WHEN projection.upid IS NULL THEN 'hardware'
+            ELSE 'logical'
+          END AS representation,
+          count(*) AS render_stage_dependency_flows
         FROM flow
         JOIN slice source ON source.id = flow.slice_out
         JOIN slice destination ON destination.id = flow.slice_in
-        WHERE source.name = 'Render pass'
-          AND destination.name = 'Dependent pass';
+        LEFT JOIN _gpu_render_stage_projections projection
+          ON projection.projected_slice_id = source.id
+        WHERE source.name IN ('Render pass', 'Repeated render pass')
+          AND destination.name = 'Dependent pass'
+        GROUP BY representation
+        ORDER BY representation;
         """,
         out=Csv("""
         "name","parent_name","raw_tracks","track_groups","slices","projected_slices"
-        "Channel #0","Physical execution",2,1,3,2
-        "Stream #7","Accelerators",2,1,3,2
+        "Channel #0","Physical execution",2,1,4,3
+        "Stream #7","Accelerators",2,1,4,3
 
         "canonical_gpu_slices"
-        2
+        3
 
         "scope","pid","projected_slices","canonical_slices"
-        "global","[NULL]",2,2
-        "process",42,2,2
+        "global","[NULL]",3,3
+        "process",42,3,3
 
-        "render_stage_dependency_flows"
-        3
+        "representation","render_stage_dependency_flows"
+        "canonical",2
+        "hardware",2
+        "logical",2
         """))
 
   def test_gpu_render_stage_hardware_queue_iid_is_sequence_scoped(self):

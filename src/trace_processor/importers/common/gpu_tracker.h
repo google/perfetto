@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GPU_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GPU_TRACKER_H_
 
-#include <array>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -110,17 +109,14 @@ class GpuTracker {
   // Maps gpu number to GpuTable::Id for the current machine.
   base::FlatHashMap<uint32_t, tables::GpuTable::Id> gpu_ids_;
 
-  static constexpr size_t kRenderStageRepresentationCount = 3;
-  using RenderStageSlices =
-      std::array<std::optional<SliceId>, kRenderStageRepresentationCount>;
-
-  struct WaitingSlice {
+  struct RenderStageSlice {
     SliceId slice_id;
     RenderStageRepresentation representation;
   };
 
-  // Maps event_id to its canonical, hardware, and logical representations.
-  base::FlatHashMap<uint64_t, RenderStageSlices> event_id_to_gpu_slices_;
+  // Maps event_id to all of its canonical, hardware, and logical slices.
+  base::FlatHashMap<uint64_t, std::vector<RenderStageSlice>>
+      event_id_to_gpu_slices_;
 
   // Maps event_id to the track event slice ID.
   base::FlatHashMap<uint64_t, SliceId> event_id_to_track_event_slice_;
@@ -129,7 +125,7 @@ class GpuTracker {
   base::FlatHashMap<uint64_t, SliceId> event_id_to_terminating_slice_;
 
   // Maps event_id to slice IDs that are waiting on it (via event_wait_ids).
-  base::FlatHashMap<uint64_t, std::vector<WaitingSlice>>
+  base::FlatHashMap<uint64_t, std::vector<RenderStageSlice>>
       event_id_to_waiting_slices_;
 
   struct HardwareQueueKey {
