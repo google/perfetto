@@ -191,7 +191,6 @@ base::Status TraceRedactor::AugmentReduce(const Context* context,
   ASSIGN_OR_RETURN(trace_processor::TraceBlob blob, LoadTrace(source_file));
   trace_processor::TraceBlobView view(std::move(blob));
 
-  PERFETTO_ELOG("EDGAR: Start AugmentReduce Collect");
   // 1. Collect phase: run Collect on each packet for all augment_reducers_
   const Trace::Decoder collect_decoder(view.data(), view.length());
   for (auto packet_it = collect_decoder.packet(); packet_it; ++packet_it) {
@@ -209,7 +208,6 @@ base::Status TraceRedactor::AugmentReduce(const Context* context,
         "AugmentReduce.");
   }
 
-  PERFETTO_ELOG("EDGAR: Start AugmentReduce Augment");
   // 2. Augment phase: continue augmenting as long as a non-empty string is
   // returned. Append each returned trace packet to the trace file.
   for (const auto& augment_reducer : augment_reducers_) {
@@ -229,7 +227,6 @@ base::Status TraceRedactor::AugmentReduce(const Context* context,
     }
   }
 
-  PERFETTO_ELOG("EDGAR: Start AugmentReduce Reduce");
   // 3. Reduce phase: loop per packet, call Reduce, and serialize packets to
   // output file.
   const Trace::Decoder reduce_decoder(view.data(), view.length());
