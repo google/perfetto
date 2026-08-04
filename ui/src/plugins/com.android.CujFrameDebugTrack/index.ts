@@ -18,7 +18,7 @@ import {
   addDebugSliceTrack,
   type DebugSliceTrackArgs,
 } from '../../components/tracks/debug_tracks';
-import AndroidCujsPlugin from '../com.android.AndroidCujs';
+import AndroidCujsPlugin, {pinJankCujs} from '../com.android.AndroidCujs';
 
 /**
  * Plugin that adds and pins the debug track for frame boundaries in jank CUJs.
@@ -35,8 +35,7 @@ export default class implements PerfettoPlugin {
       id: 'com.android.CujFrameDebugTrack',
       name: 'Debug: Pin CUJ frame boundaries',
       callback: async () => {
-        const plugin = ctx.plugins.getPlugin(AndroidCujsPlugin);
-        await plugin.pinJankCujs(ctx);
+        await pinJankCujs(ctx);
 
         const INCLUDE_PREQUERY = `
         INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;

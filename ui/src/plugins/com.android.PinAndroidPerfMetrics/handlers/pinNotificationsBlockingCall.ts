@@ -12,14 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {
-  NotificationsBlockingCallMetricData,
-  MetricHandler,
+import {
+  extractAggregation,
+  extractCujName,
+  extractNotificationName,
+  PinIntentKind,
+  type NotificationsBlockingCallMetricData,
+  type MetricHandler,
 } from './metricUtils';
 import type {Trace} from '../../../public/trace';
 import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
-class BlockingCallMetricHandler implements MetricHandler {
+class BlockingCallMetricHandler implements MetricHandler<NotificationsBlockingCallMetricData> {
+  public readonly kind = PinIntentKind.NotificationBlockingCall;
+
   /**
    * Matches metric key for notifications blocking call metrics & return parsed data if successful.
    *
@@ -40,6 +46,17 @@ class BlockingCallMetricHandler implements MetricHandler {
       aggregation: match.groups.aggregation,
     };
     return metricData;
+  }
+
+  public parseRequest(
+    item: Record<string, string>,
+  ): NotificationsBlockingCallMetricData | undefined {
+    const notificationName = extractNotificationName(item);
+    if (notificationName === undefined || extractCujName(item) !== undefined) {
+      return undefined;
+    }
+    const aggregation = extractAggregation(item) ?? 'cnt';
+    return {notificationName, aggregation};
   }
 
   /**

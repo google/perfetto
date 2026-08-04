@@ -14,6 +14,14 @@
 
 import {
   expandProcessName,
+  extractBlockingCallName,
+  extractBooleanFlag,
+  extractCujName,
+  extractIsWeighted,
+  extractJankType,
+  extractProcess,
+  FULL_TRACE_FLAG_ALIASES,
+  PinIntentKind,
   type FullTraceMetricData,
   type JankType,
   type MetricHandler,
@@ -21,7 +29,9 @@ import {
 import type {Trace} from '../../../public/trace';
 import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
-class FullTraceJankMetricHandler implements MetricHandler {
+class FullTraceJankMetricHandler implements MetricHandler<FullTraceMetricData> {
+  public readonly kind = PinIntentKind.FullTraceJank;
+
   /**
    * Matches metric key & return parsed data if successful.
    *
@@ -40,6 +50,26 @@ class FullTraceJankMetricHandler implements MetricHandler {
       jankType: match.groups.jankType as JankType,
       isWeighted: !!match.groups.jps,
     };
+  }
+
+  public parseRequest(
+    item: Record<string, string>,
+  ): FullTraceMetricData | undefined {
+    const process = extractProcess(item);
+    if (
+      process === undefined ||
+      extractCujName(item) !== undefined ||
+      extractBlockingCallName(item) !== undefined
+    ) {
+      return undefined;
+    }
+    const hasFullTraceFlag = extractBooleanFlag(item, FULL_TRACE_FLAG_ALIASES);
+    const jankType = extractJankType(item);
+    if (jankType === undefined && !hasFullTraceFlag) {
+      return undefined;
+    }
+    const isWeighted = extractIsWeighted(item) ?? false;
+    return {process, jankType: jankType ?? 'frames', isWeighted};
   }
 
   /**

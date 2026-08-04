@@ -265,7 +265,7 @@ export default class implements PerfettoPlugin {
       id: 'com.android.PinJankCUJs',
       name: 'Add track: Android jank CUJs',
       callback: async () => {
-        await this.pinJankCujs(ctx);
+        await pinJankCujs(ctx);
       },
     });
 
@@ -285,7 +285,7 @@ export default class implements PerfettoPlugin {
       id: 'com.android.PinLatencyCUJs',
       name: 'Add track: Android latency CUJs',
       callback: async () => {
-        await this.pinLatencyCujs(ctx);
+        await pinLatencyCujs(ctx);
       },
     });
 
@@ -317,20 +317,32 @@ export default class implements PerfettoPlugin {
       },
     });
   }
+}
 
-  async pinJankCujs(ctx: Trace) {
-    await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
-    await addJankCUJDebugTrack(ctx, 'Jank CUJs');
-  }
+/**
+ * Queries jank CUJ slice summaries and adds a debug track pinning all Android
+ * Jank CUJs found in the trace.
+ *
+ * @param {Trace} ctx Trace context.
+ */
+export async function pinJankCujs(ctx: Trace) {
+  await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
+  await addJankCUJDebugTrack(ctx, 'Jank CUJs');
+}
 
-  async pinLatencyCujs(ctx: Trace) {
-    addDebugSliceTrack({
-      trace: ctx,
-      data: {
-        sqlSource: LATENCY_CUJ_QUERY,
-        columns: LATENCY_COLUMNS,
-      },
-      title: 'Latency CUJs',
-    });
-  }
+/**
+ * Queries latency CUJ slice summaries and adds a debug track pinning all Android
+ * Latency CUJs found in the trace.
+ *
+ * @param {Trace} ctx Trace context.
+ */
+export async function pinLatencyCujs(ctx: Trace) {
+  addDebugSliceTrack({
+    trace: ctx,
+    data: {
+      sqlSource: LATENCY_CUJ_QUERY,
+      columns: LATENCY_COLUMNS,
+    },
+    title: 'Latency CUJs',
+  });
 }

@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ProcessMemoryType} from './metricUtils';
 import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 
 export const pinActivityOrBinderLeaksMetricsInstance =
   new SimpleProcessMetricHandler(
+    ProcessMemoryType.ActivityOrBinderLeaks,
     [
       /(?<processName>.*)_Activities-last-first-diff/,
       /(?<processName>.*)_View-last-first-diff/,

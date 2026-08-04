@@ -14,16 +14,18 @@
 
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
-import {METRIC_HANDLERS} from './handlers/handlerRegistry';
-import type {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
+import {
+  executePinRequests,
+  pinJankCujs,
+  pinLatencyCujs,
+} from './handlers/executor';
+import {
+  parsePinRequests,
+  type PinMetricRequest,
+  type PinRequestsCommandArg,
+} from './handlers/pinRequest';
 import AndroidCujsPlugin from '../com.android.AndroidCujs';
 import Wattson from '../org.kernel.Wattson';
-
-const JANK_CUJ_QUERY_PRECONDITIONS = `
-  INCLUDE PERFETTO MODULE android.cujs.frames;
-  INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
-  INCLUDE PERFETTO MODULE android.critical_blocking_calls;
-`;
 
 function getMetricsFromHash(): string[] {
   // TODO(stevegolton): this uses `dev.perfetto.PinAndroidPerfMetrics` for
@@ -79,52 +81,37 @@ export default class implements PerfettoPlugin {
         this.callHandlers(metricList, ctx);
       },
     });
+
+    const pinCallback = async (arg?: unknown): Promise<PinMetricRequest[]> => {
+      const reqs = parsePinRequests(arg as PinRequestsCommandArg);
+      await executePinRequests(ctx, reqs);
+      return reqs;
+    };
+
+    // Generic entry point for other clients (e.g. Perfetto startup commands)
+    // that provide PinMetricRequests directly, without a lab pipeline metric string.
+    ctx.commands.registerCommand({
+      id: 'com.android.PinAndroidPerfMetrics#pinRequests',
+      name: 'Pin performance tracks from PinMetricRequest[]',
+      callback: pinCallback,
+    });
+
+    // Alias for external console deep links passing filter dictionaries.
+    ctx.commands.registerCommand({
+      id: 'com.android.PinAndroidPerfMetrics#pinRequestsFromFilter',
+      name: 'Pin performance tracks from external console filter dictionary',
+      callback: pinCallback,
+    });
+
     if (metrics.length !== 0) {
-      const plugin = ctx.plugins.getPlugin(AndroidCujsPlugin);
-      await plugin.pinJankCujs(ctx);
-      await plugin.pinLatencyCujs(ctx);
+      await pinJankCujs(ctx);
+      await pinLatencyCujs(ctx);
       this.callHandlers(metrics, ctx);
     }
   }
 
   private async callHandlers(metricsList: string[], ctx: Trace) {
-    // List of metrics that actually match some handler
-    const metricsToShow: MetricHandlerMatch[] =
-      this.getMetricsToShow(metricsList);
-
-    if (metricsToShow.length === 0) {
-      return;
-    }
-
-    await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
-    for (const {metricData, metricHandler} of metricsToShow) {
-      metricHandler.addMetricTrack(metricData, ctx);
-    }
-  }
-
-  private getMetricsToShow(metricList: string[]): MetricHandlerMatch[] {
-    const sortedMetricList = [...metricList].sort();
-    const validMetrics: MetricHandlerMatch[] = [];
-    const alreadyMatchedMetricData: Set<string> = new Set();
-    for (const metric of sortedMetricList) {
-      for (const metricHandler of METRIC_HANDLERS) {
-        const metricData = metricHandler.match(metric);
-        if (!metricData) continue;
-        const jsonMetricData = this.metricDataToJson(metricData);
-        if (!alreadyMatchedMetricData.has(jsonMetricData)) {
-          alreadyMatchedMetricData.add(jsonMetricData);
-          validMetrics.push({
-            metricData: metricData,
-            metricHandler: metricHandler,
-          });
-        }
-      }
-    }
-    return validMetrics;
-  }
-
-  private metricDataToJson(metricData: MetricData): string {
-    // Used to have a deterministic keys order.
-    return JSON.stringify(metricData, Object.keys(metricData).sort());
+    const reqs = parsePinRequests(metricsList);
+    await executePinRequests(ctx, reqs);
   }
 }

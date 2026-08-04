@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ProcessMemoryType} from './metricUtils';
 import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 
 export const pinHardwareBufferMemoryMetricsInstance =
   new SimpleProcessMetricHandler(
+    ProcessMemoryType.HardwareBufferMemory,
     [
       /perfetto_android_dmabuf_per_process_metric_(.*)_val-(?<processName>.*)-.*/,
       /perfetto_android_gralloc_buffers_per_process_metric_(.*)_val-(?<processName>.*)-.*/,

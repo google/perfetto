@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ProcessMemoryType} from './metricUtils';
 import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 
 export const pinHeapSizeMetricsInstance = new SimpleProcessMetricHandler(
+  ProcessMemoryType.HeapSize,
   [
     /perfetto_android_mem-(?<processName>.*)-total_counters-java_heap-(.*)/,
     /^perfetto_java_heap_class_stats-instance_stats-name-(?<processName>.*?)-samples-type_count-type_name/,

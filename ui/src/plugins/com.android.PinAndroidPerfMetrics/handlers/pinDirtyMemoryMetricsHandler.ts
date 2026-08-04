@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ProcessMemoryType} from './metricUtils';
 import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 
 export const pinDirtyMemoryMetricsInstance = new SimpleProcessMetricHandler(
+  ProcessMemoryType.DirtyMemory,
   [/perfetto_android_mem-(?<processName>.*)-total_counters-anon_and_swap-(.*)/],
   ['Heap size', 'mem.rss.anon', 'mem.swap'],
 );

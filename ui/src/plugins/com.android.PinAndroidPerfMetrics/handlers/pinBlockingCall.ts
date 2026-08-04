@@ -14,6 +14,11 @@
 
 import {
   expandProcessName,
+  extractAggregation,
+  extractBlockingCallName,
+  extractCujName,
+  extractProcess,
+  PinIntentKind,
   type BlockingCallMetricData,
   type MetricHandler,
 } from './metricUtils';
@@ -28,7 +33,9 @@ import {
 } from '../../../components/tracks/debug_tracks';
 import {LONG, type QueryResult} from '../../../trace_processor/query_result';
 
-class BlockingCallMetricHandler implements MetricHandler {
+class BlockingCallMetricHandler implements MetricHandler<BlockingCallMetricData> {
+  public readonly kind = PinIntentKind.CujBlockingCall;
+
   /**
    * Matches metric key for blocking call and per-frame blocking call metrics & return parsed data
    * if successful.
@@ -50,6 +57,19 @@ class BlockingCallMetricHandler implements MetricHandler {
       aggregation: match.groups.aggregation,
     };
     return metricData;
+  }
+
+  public parseRequest(
+    item: Record<string, string>,
+  ): BlockingCallMetricData | undefined {
+    const cujName = extractCujName(item);
+    const blockingCallName = extractBlockingCallName(item);
+    if (cujName === undefined || blockingCallName === undefined) {
+      return undefined;
+    }
+    const process = extractProcess(item) ?? 'com.android.systemui';
+    const aggregation = extractAggregation(item) ?? 'mean_dur_per_frame_ns-max';
+    return {process, cujName, blockingCallName, aggregation};
   }
 
   /**

@@ -16,21 +16,30 @@ import {NUM} from '../../../trace_processor/query_result';
 import type {Trace} from '../../../public/trace';
 import {
   expandProcessName,
+  extractProcess,
+  extractProp,
+  MEMORY_TYPE_FIELD_ALIASES,
+  PinIntentKind,
   type MetricHandler,
-  type ProcessMetricData,
+  type ProcessMemoryMetricData,
+  type ProcessMemoryType,
 } from './metricUtils';
 
-export class SimpleProcessMetricHandler implements MetricHandler {
+export class SimpleProcessMetricHandler implements MetricHandler<ProcessMemoryMetricData> {
+  public readonly kind = PinIntentKind.ProcessMemory;
+
   /**
    * Base class for simple logic track pinning
    * Use when you have a Regexp which can extract a process name from an url
    * And pin tracks in the found process
    *
+   * @param {ProcessMemoryType} memoryType Memory track type identifier
    * @param {RegExp[]} matchers List of matchers for metric keys
    * @param {string[]} trackPrefixMatchers Matches track in the process based on prefix
    * @param {RegExp[]} trackRegexpMatchers Matches track in the process based on RegExp
    */
   constructor(
+    private readonly memoryType: ProcessMemoryType,
     private readonly matchers: RegExp[],
     private readonly trackPrefixMatchers: string[],
     private readonly trackRegexpMatchers: RegExp[] = [],
@@ -40,16 +49,28 @@ export class SimpleProcessMetricHandler implements MetricHandler {
    * Matches metric key & return parsed data if successful.
    *
    * @param {string} metricKey The metric key to match.
-   * @returns {ProcessMetricData | undefined} Parsed data or undefined if no match.
+   * @returns {ProcessMemoryMetricData | undefined} Parsed data or undefined if no match.
    */
-  public match(metricKey: string): ProcessMetricData | undefined {
+  public match(metricKey: string): ProcessMemoryMetricData | undefined {
     for (const matcher of this.matchers) {
       const match = matcher.exec(metricKey);
       if (match?.groups?.processName) {
         return {
           process: expandProcessName(match.groups.processName),
+          memoryType: this.memoryType,
         };
       }
+    }
+    return undefined;
+  }
+
+  public parseRequest(
+    item: Record<string, string>,
+  ): ProcessMemoryMetricData | undefined {
+    const process = extractProcess(item);
+    const memType = extractProp(item, MEMORY_TYPE_FIELD_ALIASES);
+    if (process !== undefined && memType === this.memoryType) {
+      return {process, memoryType: this.memoryType};
     }
     return undefined;
   }
@@ -57,10 +78,10 @@ export class SimpleProcessMetricHandler implements MetricHandler {
   /**
    * Pins matching tracks for the specified process.
    *
-   * @param {ProcessMetricData} metricData Parsed metric data.
+   * @param {ProcessMemoryMetricData} metricData Parsed metric data.
    * @param {Trace} ctx Trace context.
    */
-  public async addMetricTrack(metricData: ProcessMetricData, ctx: Trace) {
+  public async addMetricTrack(metricData: ProcessMemoryMetricData, ctx: Trace) {
     const processName = metricData.process;
     const upid = await getUpidForProcess(ctx, processName);
     if (upid === undefined) {

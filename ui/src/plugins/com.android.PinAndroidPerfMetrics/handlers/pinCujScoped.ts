@@ -14,9 +14,15 @@
 
 import {
   expandProcessName,
+  extractBlockingCallName,
+  extractCujName,
+  extractIsWeighted,
+  extractJankType,
+  extractProcess,
+  PinIntentKind,
   type CujScopedMetricData,
-  type MetricHandler,
   type JankType,
+  type MetricHandler,
 } from './metricUtils';
 import {NUM} from '../../../trace_processor/query_result';
 import type {Trace} from '../../../public/trace';
@@ -28,7 +34,9 @@ import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
 
 const ENABLE_FOCUS_ON_FIRST_JANK = true;
 
-class PinCujScopedJank implements MetricHandler {
+class PinCujScopedJank implements MetricHandler<CujScopedMetricData> {
+  public readonly kind = PinIntentKind.CujScopedJank;
+
   /**
    * Matches metric key & return parsed data if successful.
    *
@@ -48,6 +56,23 @@ class PinCujScopedJank implements MetricHandler {
       jankType: match.groups.jankType as JankType,
       isWeighted: !!match.groups.jps,
     };
+  }
+
+  public parseRequest(
+    item: Record<string, string>,
+  ): CujScopedMetricData | undefined {
+    const cujName = extractCujName(item);
+    if (
+      cujName === undefined ||
+      cujName === '*' ||
+      extractBlockingCallName(item) !== undefined
+    ) {
+      return undefined;
+    }
+    const process = extractProcess(item) ?? 'com.android.systemui';
+    const jankType = extractJankType(item) ?? 'frames';
+    const isWeighted = extractIsWeighted(item) ?? false;
+    return {process, cujName, jankType, isWeighted};
   }
 
   /**

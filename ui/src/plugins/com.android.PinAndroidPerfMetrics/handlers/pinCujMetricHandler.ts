@@ -12,19 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {CujMetricData, MetricHandler} from './metricUtils';
+import {
+  ALL_JANK_CUJS_FLAG_ALIASES,
+  ALL_LATENCY_CUJS_FLAG_ALIASES,
+  extractBlockingCallName,
+  extractBooleanFlag,
+  extractCujName,
+  PinIntentKind,
+  type CujMetricData,
+  type MetricHandler,
+} from './metricUtils';
 import type {Trace} from '../../../public/trace';
-import {addJankCUJDebugTrack} from '../../com.android.AndroidCujs';
+import {
+  addJankCUJDebugTrack,
+  pinJankCujs as pinAllJankCujsFromPlugin,
+  pinLatencyCujs as pinAllLatencyCujsFromPlugin,
+} from '../../com.android.AndroidCujs';
 
-/** Pins a single CUJ from CUJ scoped metrics. */
-class PinCujMetricHandler implements MetricHandler {
-  /**
-   * Matches metric key & return parsed data if successful.
-   *
-   * @param {string} metricKey The metric key to match.
-   * @returns {CujMetricData | undefined} Parsed data or undefined if no match.
-   */
+/** Pins a single CUJ or all CUJs from CUJ scoped metrics. */
+class PinCujMetricHandler implements MetricHandler<CujMetricData> {
+  public readonly kind = PinIntentKind.Cuj;
+
   public match(metricKey: string): CujMetricData | undefined {
+    if (
+      metricKey === 'allJankCujs' ||
+      metricKey === 'all_jank_cujs' ||
+      metricKey === 'allLatencyCujs' ||
+      metricKey === 'all_latency_cujs' ||
+      metricKey === '*'
+    ) {
+      return {cujName: '*'};
+    }
     const matcher =
       /perfetto_cuj_(?<process>.*)-(?<cujName>.*)-.*-(?:weighted_)?missed_.*/;
     const match = matcher.exec(metricKey);
@@ -36,14 +54,26 @@ class PinCujMetricHandler implements MetricHandler {
     };
   }
 
-  /**
-   * Adds the debug tracks for cuj Scoped jank metrics
-   *
-   * @param {CujMetricData} metricData Parsed metric data for the cuj scoped jank
-   * @param {Trace} ctx PluginContextTrace for trace related properties and methods
-   * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
-   */
+  public parseRequest(item: Record<string, string>): CujMetricData | undefined {
+    if (
+      extractBooleanFlag(item, ALL_JANK_CUJS_FLAG_ALIASES) ||
+      extractBooleanFlag(item, ALL_LATENCY_CUJS_FLAG_ALIASES)
+    ) {
+      return {cujName: '*'};
+    }
+    const cujName = extractCujName(item);
+    if (cujName !== undefined && extractBlockingCallName(item) === undefined) {
+      return {cujName};
+    }
+    return undefined;
+  }
+
   public async addMetricTrack(metricData: CujMetricData, ctx: Trace) {
+    if (metricData.cujName === '*') {
+      await pinAllJankCujsFromPlugin(ctx);
+      await pinAllLatencyCujsFromPlugin(ctx);
+      return;
+    }
     this.pinSingleCuj(ctx, metricData.cujName);
   }
 

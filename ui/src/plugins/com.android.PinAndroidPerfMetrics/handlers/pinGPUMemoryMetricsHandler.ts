@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ProcessMemoryType} from './metricUtils';
 import {SimpleProcessMetricHandler} from './simpleProcessMetricHandler';
 
 export const pinGPUMemoryMetricsInstance = new SimpleProcessMetricHandler(
+  ProcessMemoryType.GpuMemory,
   [/perfetto_android_gpu-(?<processName>.*)-mem_.*/],
   [
     'GPU Memory',
