@@ -1,5 +1,15 @@
 Unreleased:
   Tracing service and probes:
+   *
+  Trace Processor:
+   *
+  UI:
+   *
+  SDK:
+   *
+
+v58.0 - 2026-08-04:
+  Tracing service and probes:
     * Added optional recording of the state changes of other concurrent
       tracing sessions, as ConcurrentSessionEvent packets. Opt-in via
       TraceConfig.BuiltinDataSource.enable_concurrent_session_events. Trace
@@ -62,6 +72,16 @@ Unreleased:
       The wire format is unchanged; code referencing the generated
       `TrackEvent.Callstack` / `TrackEvent::Callstack` types must switch to
       `InlineCallstack`.
+    * Added `trace_processor_shell export arrow_tar`, which writes the static
+      tables as a tar of Arrow files for other tools. It is cross-version
+      compatible but cannot be loaded back into Trace Processor.
+    * Added `trace_processor_shell export perfetto`, which writes an archive
+      that a fresh Trace Processor of the same version can load, so a large
+      trace can be parsed once and reloaded instead of reparsed.
+    * Fixed Apple Instruments XML traces from Xcode 27 losing their call
+      stacks, which moved to a <tagged-backtrace> element.
+    * `regexp()` takes an optional third argument for matching flags: `i`
+      for case-insensitive matching, `c` for case-sensitive.
   UI:
     * Improved flamegraphs with clearer direction and filter controls, frame
       highlighting, and case-insensitive regular expression filtering.
@@ -80,6 +100,14 @@ Unreleased:
     * Update node to v22.23.1 and pnpm to 10.34.5.
     * Allow pivoting on arg values in slice aggregation table.
     * Bump to vite v8.1.5 and typescript v7.0.2, vastly improving build times.
+    * Area selections now have a "Contained traces" tab that lists the other
+      traces under the selection and merges the ones you check.
+    * Add memory tooling:
+      * Memscope: a live memory profiler that guides you through connecting
+        an Android/Linux device and recording memory traces.
+      * Memory overview: opens by default on traces containing smaps dumps
+        and shows a high-level breakdown of where memory is being used,
+        drawing on smaps, ART, and native memory data recorded in the trace.
   SDK:
     * Reworked the C SDK shared library export macros: static linking (the
       default) no longer needs any macros. Define
@@ -93,6 +121,22 @@ Unreleased:
       preferred trace clock, so callers no longer need to pick the OS
       specific clock themselves. Also added DataSourceTimestamp::now() in
       the Rust SDK.
+    * dev.perfetto.clock_sync signpost events now fire on iOS as well as
+      macOS, so iOS Instruments traces can be synced with Perfetto traces.
+  Tools:
+    * Deprecated `traceconv`. Please use `trace_processor_shell`, which does
+      the same conversions as subcommands. The downloadable wrapper now
+      fetches it; the standalone binary still ships for now.
+  AI:
+    * The skill now queries through trace_processor sessions by default:
+      load the trace once, then query a named session many times. The HTTP
+      server and Python client paths are gone.
+    * Added a TraceConfig reference and exemplar configs for agents writing
+      a custom recording config.
+    * Every analysis now ends by writing a markdown report with the
+      question, the findings and the queries that worked.
+    * Releases now include a skill zip for machines that cannot reach
+      github.com at install time.
 
 v57.2 - 2026-07-07:
   Trace Processor:
