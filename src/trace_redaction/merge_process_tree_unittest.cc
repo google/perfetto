@@ -184,7 +184,6 @@ TEST_F(MergeProcessTreeTest, CollectsAndAugmentsProcessesAndThreads) {
 
 TEST_F(MergeProcessTreeTest, DeduplicatesProcessesByPid) {
   int32_t pid1 = 100;
-  int32_t pid2 = 101;
   int32_t tid1 = 200;
   int32_t tid2 = 201;
   TracePacket packet1;

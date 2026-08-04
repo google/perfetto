@@ -29,7 +29,6 @@ using protos::pbzero::TracePacket;
 base::Status MergeProcessTree::Collect(const TracePacket::Decoder& packet,
                                        const Context*) {
   if (packet.has_process_tree()) {
-    PERFETTO_ELOG("EDGAR: Found process tree at %lu", packet.timestamp());
     ProcessTree::Decoder process_tree_decoder(packet.process_tree());
     for (auto it = process_tree_decoder.processes(); it; ++it) {
       if (PERFETTO_UNLIKELY(!collected_global_packet_fields_)) {
@@ -41,7 +40,6 @@ base::Status MergeProcessTree::Collect(const TracePacket::Decoder& packet,
       ProcessTreeProcess process;
       process.pid = process_decoder.pid();
       if (processes_by_pid_.find(process.pid) != processes_by_pid_.end()) {
-        PERFETTO_ELOG("EDGAR: Skipping process %d", process.pid);
         continue;
       }
       for (auto cmdline_it = process_decoder.cmdline(); cmdline_it;
@@ -56,7 +54,6 @@ base::Status MergeProcessTree::Collect(const TracePacket::Decoder& packet,
     for (auto it = process_tree_decoder.threads(); it; ++it) {
       ProcessTree::Thread::Decoder thread_decoder(*it);
       if (threads_by_tid_.find(thread_decoder.tid()) != threads_by_tid_.end()) {
-        PERFETTO_ELOG("EDGAR: Skipping thread %d", thread_decoder.tid());
         continue;
       }
       ProcessTreeThread thread;
