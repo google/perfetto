@@ -40,7 +40,7 @@ test('sched', async () => {
     locator: drawerPanel,
   });
 
-  await page.click('button[label="CPU by process"]');
+  await page.click('button[label="By process"]');
   await pth.waitForIdleAndScreenshot('cpu-by-process.png', {
     locator: drawerPanel,
   });

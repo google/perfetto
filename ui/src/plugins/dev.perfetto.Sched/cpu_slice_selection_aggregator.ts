@@ -17,7 +17,7 @@ import {Icons} from '../../base/semantic_icons';
 import {
   type Aggregation,
   type Aggregator,
-  type AggregatorGridConfig,
+  type AggregatorGridPreset,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -136,89 +136,113 @@ export class CpuSliceSelectionAggregator implements Aggregator {
   }
 
   getTabName() {
-    return `CPU by thread`;
+    return 'CPU Slices';
   }
 
   private getGridConfig(
     resolveTrack: (groupId: number, partition: SqlValue) => Track | undefined,
-  ): AggregatorGridConfig {
-    return {
-      schema: {
-        id_with_lineage: {
-          title: 'ID',
-          columnType: 'identifier',
-          cellRenderer: (value: unknown) => {
-            // Value is a JSON object {id, groupid, partition}
-            if (typeof value !== 'string') {
-              return String(value);
-            }
+  ): ReadonlyArray<AggregatorGridPreset> {
+    const schema = {
+      id_with_lineage: {
+        title: 'ID',
+        columnType: 'identifier' as const,
+        cellRenderer: (value: unknown) => {
+          // Value is a JSON object {id, groupid, partition}
+          if (typeof value !== 'string') {
+            return String(value);
+          }
 
-            const parsed = JSON.parse(value) as {
-              id: number;
-              groupid: number;
-              partition: SqlValue;
-            };
-            const {id, groupid, partition} = parsed;
+          const parsed = JSON.parse(value) as {
+            id: number;
+            groupid: number;
+            partition: SqlValue;
+          };
+          const {id, groupid, partition} = parsed;
 
-            // Resolve track from lineage
-            const track = resolveTrack(groupid, partition);
-            if (!track) {
-              return String(id);
-            }
+          // Resolve track from lineage
+          const track = resolveTrack(groupid, partition);
+          if (!track) {
+            return String(id);
+          }
 
-            return m(
-              Anchor,
-              {
-                title: 'Go to sched slice',
-                icon: Icons.UpdateSelection,
-                onclick: () => {
-                  this.trace.selection.selectTrackEvent(track.uri, id, {
-                    scrollToSelection: true,
-                  });
-                },
+          return m(
+            Anchor,
+            {
+              title: 'Go to sched slice',
+              icon: Icons.UpdateSelection,
+              onclick: () => {
+                this.trace.selection.selectTrackEvent(track.uri, id, {
+                  scrollToSelection: true,
+                });
               },
-              String(id),
-            );
-          },
+            },
+            String(id),
+          );
         },
-        pid: {title: 'PID', columnType: 'identifier'},
-        process_name: {title: 'Process Name', columnType: 'text'},
-        tid: {title: 'TID', columnType: 'identifier'},
-        thread_name: {title: 'Thread Name', columnType: 'text'},
-        dur: {
-          title: 'CPU Time',
-          columnType: 'quantitative',
-          cellRenderer: formatDurationValue,
-        },
-        fraction_of_total: {
-          title: 'CPU Time %',
-          columnType: 'quantitative',
-          cellRenderer: formatPercentValue,
-        },
-        fraction_of_selection: {
-          title: 'CPU Time / Wall Time',
-          columnType: 'quantitative',
-          cellRenderer: formatPercentValue,
-        },
-        ucpu: {title: 'CPU', columnType: 'quantitative'},
       },
-      initialPivot: {
-        groupBy: [
-          {id: 'process_name', field: 'process_name'},
-          {id: 'thread_name', field: 'thread_name'},
-        ],
-        aggregates: [
-          {id: 'count', function: 'COUNT'},
-          {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
-          {
-            id: 'fraction_of_total_sum',
-            field: 'fraction_of_total',
-            function: 'SUM',
-          },
-          {id: 'dur_avg', field: 'dur', function: 'AVG'},
-        ],
+      pid: {title: 'PID', columnType: 'identifier' as const},
+      process_name: {title: 'Process Name', columnType: 'text' as const},
+      tid: {title: 'TID', columnType: 'identifier' as const},
+      thread_name: {title: 'Thread Name', columnType: 'text' as const},
+      dur: {
+        title: 'CPU Time',
+        columnType: 'quantitative' as const,
+        cellRenderer: formatDurationValue,
       },
+      fraction_of_total: {
+        title: 'CPU Time %',
+        columnType: 'quantitative' as const,
+        cellRenderer: formatPercentValue,
+      },
+      fraction_of_selection: {
+        title: 'CPU Time / Wall Time',
+        columnType: 'quantitative' as const,
+        cellRenderer: formatPercentValue,
+      },
+      ucpu: {title: 'CPU', columnType: 'quantitative' as const},
     };
+
+    const aggregates = [
+      {id: 'count', function: 'COUNT' as const},
+      {
+        id: 'dur_sum',
+        field: 'dur',
+        function: 'SUM' as const,
+        sort: 'DESC' as const,
+      },
+      {
+        id: 'fraction_of_total_sum',
+        field: 'fraction_of_total',
+        function: 'SUM' as const,
+      },
+      {id: 'dur_avg', field: 'dur', function: 'AVG' as const},
+    ];
+
+    return [
+      {
+        displayName: 'By Thread',
+        config: {
+          schema,
+          initialPivot: {
+            groupBy: [
+              {id: 'process_name', field: 'process_name'},
+              {id: 'thread_name', field: 'thread_name'},
+            ],
+            aggregates,
+          },
+        },
+      },
+      {
+        displayName: 'By Process',
+        config: {
+          schema,
+          initialPivot: {
+            groupBy: [{id: 'process_name', field: 'process_name'}],
+            aggregates,
+          },
+        },
+      },
+    ];
   }
 
   /**

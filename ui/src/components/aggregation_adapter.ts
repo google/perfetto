@@ -42,10 +42,16 @@ import {AsyncMemo, AtomicTaskQueue} from '../base/async_memo';
 import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
 import {Memo} from '../base/memo';
 import {assertExists} from '../base/assert';
+import {Button, ButtonGroup} from '../widgets/button';
 
 export interface AggregationData {
   readonly tableName: string;
   readonly barChartData?: ReadonlyArray<BarChartData>;
+}
+
+export interface AggregatorGridPreset {
+  readonly displayName: string;
+  readonly config: AggregatorGridConfig;
 }
 
 export interface Aggregation {
@@ -53,7 +59,7 @@ export interface Aggregation {
    * Defines how the datagrid that displays the aggregated data looks, including
    * what to pivot on and the column definitions.
    */
-  getGridConfig(): AggregatorGridConfig;
+  getGridConfig(): AggregatorGridConfig | readonly AggregatorGridPreset[];
 
   /**
    * Creates a view for the aggregated data corresponding to the selected area.
@@ -215,6 +221,46 @@ interface DataGridModel {
   readonly filters: readonly Filter[];
 }
 
+export function getPresetDisplayName(preset: AggregatorGridPreset): string {
+  if ('displayName' in preset && typeof preset.displayName === 'string') {
+    return preset.displayName;
+  }
+  if ('name' in preset && typeof preset.name === 'string') {
+    return preset.name;
+  }
+  if ('title' in preset && typeof preset.title === 'string') {
+    return preset.title;
+  }
+  return 'Preset';
+}
+
+export function getPresetConfig(
+  preset: AggregatorGridPreset,
+): AggregatorGridConfig {
+  if ('config' in preset && preset.config !== undefined) {
+    return preset.config;
+  }
+  if ('configuration' in preset && preset.configuration !== undefined) {
+    return (preset as unknown as {configuration: AggregatorGridConfig})
+      .configuration;
+  }
+  return preset.config;
+}
+
+export function getActiveGridConfig(
+  configOrPresets: AggregatorGridConfig | ReadonlyArray<AggregatorGridPreset>,
+  presetIndex: number = 0,
+): AggregatorGridConfig {
+  if ('schema' in configOrPresets) {
+    return configOrPresets;
+  }
+  if (configOrPresets.length === 0) {
+    throw new Error('No presets provided');
+  }
+  const idx = Math.min(Math.max(0, presetIndex), configOrPresets.length - 1);
+  return getPresetConfig(configOrPresets[idx]);
+}
+
 /**
  * Creates an adapter that adapts an old style aggregation to a new area
  * selection sub-tab.
@@ -242,6 +288,7 @@ export function createAggregationTab(
   // and only ever modified by the user so that the config is retained over
   // selection changes.
   let dataModel: DataGridModel | undefined;
+  let selectedPresetIndex = 0;
 
   return {
     id: aggregator.id,
@@ -259,7 +306,11 @@ export function createAggregationTab(
           const aggr = aggregator.probe(selection);
           // Snapshot the grid config if we don't have one yet
           if (aggr && !dataModel) {
-            dataModel = createInitialState(aggr.getGridConfig());
+            const activeConfig = getActiveGridConfig(
+              aggr.getGridConfig(),
+              selectedPresetIndex,
+            );
+            dataModel = createInitialState(activeConfig);
           }
           return aggr;
         },
@@ -270,12 +321,23 @@ export function createAggregationTab(
         return undefined;
       }
 
+      const configOrPresets = aggregation.getGridConfig();
+      if (
+        Array.isArray(configOrPresets) &&
+        selectedPresetIndex >= configOrPresets.length
+      ) {
+        selectedPresetIndex = Math.max(0, configOrPresets.length - 1);
+      }
+      const activeGridConfig = getActiveGridConfig(
+        configOrPresets,
+        selectedPresetIndex,
+      );
+
       const {data: datasource} = dataMemo.use({
-        key: selectionKey,
+        key: {...selectionKey, presetIndex: selectedPresetIndex},
         compute: async () => {
           const data = await aggregation.prepareData(trace.engine);
-          const gridConfig = aggregation.getGridConfig();
-          const sqlConfig = gridConfig.sqlConfig?.(data) ?? {
+          const sqlConfig = activeGridConfig.sqlConfig?.(data) ?? {
             tableOrSubquery: data.tableName,
           };
           const datasource = new SQLDataSource({
@@ -322,13 +384,32 @@ export function createAggregationTab(
         },
       };
 
+      const presetButtons =
+        Array.isArray(configOrPresets) &&
+        configOrPresets.length > 0 &&
+        m(
+          ButtonGroup,
+          configOrPresets.map((preset, index) =>
+            m(Button, {
+              label: getPresetDisplayName(preset),
+              active: index === selectedPresetIndex,
+              onclick: () => {
+                if (index !== selectedPresetIndex) {
+                  selectedPresetIndex = index;
+                  dataModel = createInitialState(getPresetConfig(preset));
+                }
+              },
+            }),
+          ),
+        );
+
       return {
         isLoading: false,
         content: m(AggregationPanel, {
-          controls: aggregator.renderTopbarControls?.(),
+          controls: [presetButtons, aggregator.renderTopbarControls?.()],
           key: aggregator.id,
           dataSource: datasource,
-          gridConfig: aggregation.getGridConfig(),
+          gridConfig: activeGridConfig,
           barChartData: data?.barChartData,
           onReady: (api: DataGridApi) => {
             dataGridApi = api;
@@ -336,7 +417,7 @@ export function createAggregationTab(
           dataGridState,
           onClearGridState: () => {
             // Just wipe out the local data model to reset to initial state
-            dataModel = createInitialState(aggregation.getGridConfig());
+            dataModel = createInitialState(activeGridConfig);
           },
         }),
         buttons:
