@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
@@ -128,6 +129,52 @@ std::vector<std::string> DiscoverSymbolPaths(
   return paths;
 }
 
+// Returns a warning (empty string if nothing to report) when the trace
+// contains kernel addresses that cannot be symbolized offline.
+//
+// Kernel function names in ftrace events (e.g. function_graph tracing,
+// workqueue_execute_start, sched_blocked_reason) come from the on-device
+// kallsyms map, which is only captured at record time when the ftrace config
+// sets FtraceConfig.symbolize_ksyms. Perfetto deliberately does not store
+// absolute kernel addresses in traces (to protect KASLR), so these addresses
+// cannot be resolved after the fact. If the map was not captured, the events
+// only contain raw hex addresses and the only fix is to re-record the trace
+// with `symbolize_ksyms: true`.
+std::string GetKernelSymbolizationWarning(TraceProcessor* tp) {
+  // Count function_graph slices whose names are raw hex addresses (i.e. the
+  // kernel symbol map was not captured at record time). With symbolize_ksyms
+  // enabled these names are the actual function names instead.
+  Iterator it = tp->ExecuteQuery(R"(
+    SELECT COUNT(*)
+    FROM slice s
+    JOIN track t ON s.track_id = t.id
+    WHERE t.type IN ('thread_funcgraph', 'cpu_funcgraph')
+      AND s.name GLOB '0x*'
+  )");
+  if (!it.Next() || it.Get(0).AsLong() == 0) {
+    return "";
+  }
+
+  return R"(Kernel function names: this trace contains function_graph events
+whose kernel function names were not captured at record time, so they appear
+as raw hex addresses. These cannot be symbolized offline: Perfetto does not
+store absolute kernel addresses in traces (to protect KASLR), so the only fix
+is to re-record the trace with `symbolize_ksyms: true` in the ftrace config:
+
+  data_sources: {
+    config {
+      name: "linux.ftrace"
+      ftrace_config {
+        symbolize_ksyms: true
+        # ... your ftrace_events / function_graph config ...
+      }
+    }
+  }
+
+See https://perfetto.dev/docs/learning-more/symbolization#ftrace for details.
+)";
+}
+
 }  // namespace
 
 EnrichmentResult EnrichTrace(TraceProcessor* tp,
@@ -174,6 +221,11 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     }
   }
 
+  // === Kernel ftrace events that cannot be symbolized offline ===
+  // Do this even when symbolization itself was skipped: the user needs this
+  // feedback regardless of whether any symbol paths were configured.
+  result.details += GetKernelSymbolizationWarning(tp);
+
   // === Java Deobfuscation ===
   bool explicit_maps_failed = false;
   {
@@ -199,34 +251,38 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     std::vector<std::string> failed_explicit_maps;
     for (size_t i = 0; i < maps.size(); ++i) {
       bool is_explicit = i < explicit_count;
-      bool success = profiling::ReadProguardMapsToDeobfuscationPackets(
+      auto map_status = profiling::ReadProguardMapsToDeobfuscationPackets(
           {maps[i]}, [&result](const std::string& packet) {
             result.deobfuscation_data += packet;
           });
-      if (!success && is_explicit) {
+      if (!map_status.ok() && is_explicit) {
         explicit_maps_failed = true;
-        failed_explicit_maps.push_back(maps[i].filename);
+        failed_explicit_maps.push_back(maps[i].filename + ": " +
+                                       map_status.message());
       }
     }
 
     // Add deobfuscation failures to details if any explicit maps failed.
     if (!failed_explicit_maps.empty()) {
-      result.details += "Deobfuscation: failed to read ProGuard map(s):\n";
+      result.details +=
+          "Deobfuscation: failed to read the following explicitly-provided "
+          "ProGuard/R8 map(s):\n";
       for (const auto& path : failed_explicit_maps) {
         result.details += "  - " + path + "\n";
       }
+      result.details +=
+          "Check that each file exists and is a valid mapping.txt produced "
+          "by R8/ProGuard for the build that ran on the device.\n";
     }
   }
 
-  // Determine overall status.
-  if (explicit_maps_failed) {
-    result.error = EnrichmentError::kExplicitMapsFailed;
-  } else if (result.native_symbols.empty() &&
-             result.deobfuscation_data.empty()) {
-    result.error = EnrichmentError::kAllFailed;
-  } else {
-    result.error = EnrichmentError::kOk;
-  }
+  // Determine overall status. Only explicitly-provided resources that fail
+  // to load are hard errors. Everything else (symbols not found, kernel
+  // addresses that cannot be resolved offline, etc.) is advisory: the bundle
+  // is still produced, with the details above explaining what was and wasn't
+  // possible and how to fix it.
+  result.error = explicit_maps_failed ? EnrichmentError::kExplicitMapsFailed
+                                      : EnrichmentError::kOk;
 
   return result;
 }

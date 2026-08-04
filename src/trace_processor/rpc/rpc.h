@@ -68,6 +68,7 @@ class Rpc {
   explicit Rpc(std::unique_ptr<TraceProcessor>,
                bool has_preloaded_eof,
                Config default_config,
+               TraceProcessor::PlatformInterface* platform,
                std::function<void(TraceProcessor*)> on_trace_processor_created);
   Rpc();
   ~Rpc();
@@ -163,6 +164,7 @@ class Rpc {
       protos::pbzero::DisableAndReadMetatraceResult*);
 
   Config default_config_;
+  TraceProcessor::PlatformInterface* platform_ = nullptr;
   std::function<void(TraceProcessor*)> on_trace_processor_created_;
 
   Config current_config_;

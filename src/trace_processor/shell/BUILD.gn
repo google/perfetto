@@ -64,6 +64,7 @@ source_set("shell") {
     "../../traceconv:gen_cc_android_extension_descriptor",
     "../../traceconv:gen_cc_trace_descriptor",
     "../../traceconv:lib",
+    "../../traceconv:utils",
     "../metrics",
     "../rpc",
     "../rpc:lifecycle",
@@ -121,6 +122,26 @@ source_set("unittests") {
     "../../../gn:gtest_and_gmock",
     "../../../gn:protobuf_full",
     "../../../gn:sqlite",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../../include/perfetto/trace_processor:io",
     "../../base",
   ]
+}
+if (enable_perfetto_integration_tests) {
+  source_set("integrationtests") {
+    testonly = true
+    sources = [ "bundle_integrationtest.cc" ]
+    deps = [
+      "..:trace_processor_shell_lib",
+      "../../../gn:default_deps",
+      "../../../gn:gtest_and_gmock",
+      "../../../include/perfetto/ext/base",
+      "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+      "../../../protos/perfetto/trace:cpp",
+      "../../../protos/perfetto/trace/ftrace:cpp",
+      "../../../protos/perfetto/trace/interned_data:cpp",
+      "../../../protos/perfetto/trace/profiling:cpp",
+      "../../base:test_support",
+    ]
+  }
 }

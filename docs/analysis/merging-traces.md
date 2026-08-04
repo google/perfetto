@@ -1,13 +1,13 @@
-# Merging traces with Trace Processor
+# Merging traces from the command line
 
 Trace Processor can import several trace files as one merged trace: events
 from every file end up on a single timeline, with their processes, threads
 and CPUs kept attributed to the machine they came from. This page shows how
 to do it from the command line and in scripted or CI setups. For the
 interactive equivalent see
-[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md);
+[Merging traces in the UI](/docs/visualization/merging-traces.md);
 for how the merging actually works see
-[How trace merging works](/docs/concepts/merging-traces.md).
+[Trace merging](/docs/concepts/merging-traces.md).
 
 ## The model: one archive in, one trace out
 
@@ -217,9 +217,9 @@ or, at a higher level, the `_metadata_by_trace` view in the
 
 - **Android bugreports**: `bugreport.zip` files already open as archives;
   Trace Processor extracts and merges the traces inside.
-- **traceconv bundle**: the TAR produced by
-  [`traceconv bundle`](/docs/quickstart/traceconv.md) (trace plus symbols)
-  is the same archive mechanism.
+- **trace_processor bundle**: the TAR produced by
+  [`trace_processor bundle`](/docs/learning-more/symbolization.md) (trace
+  plus symbols) is the same archive mechanism.
 - **Python `BatchTraceProcessor`** does not merge: it loads N traces into N
   independent instances for parallel querying. To merge, pass one archive
   to a single `TraceProcessor` instance.
@@ -227,7 +227,7 @@ or, at a higher level, the `_metadata_by_trace` view in the
   files directly.
 - **Hidden files are ignored**: any archive entry whose name has a path
   component starting with a `.` is skipped and never parsed as a trace. This
-  covers the metadata that archiving tools add automatically — most notably the
+  covers the metadata that archiving tools add automatically, most notably the
   AppleDouble resource-fork files (`._foo`) and `.DS_Store` entries that macOS
   `tar` and Finder-created ZIPs sprinkle next to the real files. As a result a
   `.tar`/`.zip` built on macOS loads without a spurious "unknown trace type"
@@ -238,7 +238,7 @@ or, at a higher level, the `_metadata_by_trace` view in the
 
 - [Trace manifest format](/docs/reference/perfetto-manifest.md): the
   normative reference for the manifest.
-- [How trace merging works](/docs/concepts/merging-traces.md): clock graph,
+- [Trace merging](/docs/concepts/merging-traces.md): clock graph,
   placement rules and the machine model.
 - [Multi-machine recording](/docs/learning-more/multi-machine-tracing.md):
   recording a single trace from several machines live, instead of merging

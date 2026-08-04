@@ -91,6 +91,7 @@ std::vector<FlagSpec> ConvertSubcommand::GetFlags() {
 }
 
 base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "convert", 3));
   if (ctx.positional_args.empty())
     return base::ErrStatus("convert: a format must be specified.");
 
@@ -161,16 +162,15 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
   RETURN_IF_ERROR(
       OpenConversionOutput(output_path, binary_output, &output_file, &output));
 
-  int ret = 0;
   if (format == "json") {
-    ret = trace_to_text::TraceToJson(input, output, /*compress=*/false,
-                                     truncate_keep, full_sort_);
+    RETURN_IF_ERROR(trace_to_text::TraceToJson(
+        input, output, /*compress=*/false, truncate_keep, full_sort_));
   } else if (format == "systrace") {
-    ret = trace_to_text::TraceToSystrace(input, output, /*ctrace=*/false,
-                                         truncate_keep, full_sort_);
+    RETURN_IF_ERROR(trace_to_text::TraceToSystrace(
+        input, output, /*ctrace=*/false, truncate_keep, full_sort_));
   } else if (format == "ctrace") {
-    ret = trace_to_text::TraceToSystrace(input, output, /*ctrace=*/true,
-                                         truncate_keep, full_sort_);
+    RETURN_IF_ERROR(trace_to_text::TraceToSystrace(
+        input, output, /*ctrace=*/true, truncate_keep, full_sort_));
   } else if (format == "text" || format == "profile" || format == "firefox") {
     if (truncate_keep != trace_to_text::Keep::kAll) {
       return base::ErrStatus("--truncate is unsupported for the '%s' format.",
@@ -183,26 +183,23 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
     if (format == "text") {
       trace_to_text::TraceToTextOptions options;
       options.skip_unknown_fields = skip_unknown_;
-      ret = trace_to_text::TraceToText(input, output, options) ? 0 : 1;
+      RETURN_IF_ERROR(trace_to_text::TraceToText(input, output, options));
     } else if (format == "profile") {
       if (!output_path.empty()) {
         return base::ErrStatus(
             "output file is not supported for 'profile', use --output-dir "
             "instead.");
       }
-      ret = trace_to_text::TraceToProfile(input, pid, timestamps,
-                                          !no_annotations_, output_dir_,
-                                          profile_type, verbose_);
+      RETURN_IF_ERROR(trace_to_text::TraceToProfile(
+          input, pid, timestamps, !no_annotations_, output_dir_, profile_type,
+          verbose_));
     } else {  // firefox
-      ret = trace_to_text::TraceToFirefoxProfile(input, output) ? 0 : 1;
+      RETURN_IF_ERROR(trace_to_text::TraceToFirefoxProfile(input, output));
     }
   } else {
     return base::ErrStatus("convert: unknown format '%s'.", format.c_str());
   }
 
-  if (ret != 0)
-    return base::ErrStatus("convert: conversion of '%s' failed.",
-                           format.c_str());
   return base::OkStatus();
 }
 

@@ -64,6 +64,7 @@ std::vector<FlagSpec> ExportSubcommand::GetFlags() {
 }
 
 base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "export", 2));
   // First positional arg is the format.
   if (ctx.positional_args.empty()) {
     return base::ErrStatus(

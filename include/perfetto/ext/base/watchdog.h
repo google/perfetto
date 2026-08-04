@@ -76,7 +76,8 @@ constexpr uint32_t kWatchdogDefaultCpuWindow = 10 * 60 * 1000;  // 10 minutes.
 
 // The default memory margin we give to our processes. This is used as as a
 // constant to put on top of the trace buffers.
-constexpr uint64_t kWatchdogDefaultMemorySlack = 32 * 1024 * 1024;  // 32 MiB.
+// TODO(b/540573436): Retune the value once we have a proper solution.
+constexpr uint64_t kWatchdogDefaultMemorySlack = 64 * 1024 * 1024;  // 64 MiB.
 constexpr uint32_t kWatchdogDefaultMemoryWindow = 30 * 1000;  // 30 seconds.
 
 inline void RunTaskWithWatchdogGuard(const std::function<void()>& task) {

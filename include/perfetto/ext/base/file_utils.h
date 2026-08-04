@@ -115,6 +115,9 @@ bool Unlink(const char* path);
 // Wrapper around access(path, F_OK).
 bool FileExists(const std::string& path);
 
+// Returns true if the path exists and is a directory.
+bool DirectoryExists(const std::string& path);
+
 // Gets the extension for a filename. If the file has two extensions, returns
 // only the last one (foo.pb.gz => .gz). Returns empty string if there is no
 // extension.
