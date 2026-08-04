@@ -769,6 +769,12 @@ message AndroidProcessStateChangedEvent {
   optional int32 freeze_policy_flags = 13
       [(perfetto.protos.flags_enum) =
            ".com.android.internal.FreezerPolicyFlag"];
+
+  // Previous ActivityManager scheduling group (Constants.SCHED_GROUP_*).
+  optional SchedGroup prev_sched_group = 14;
+
+  // Current ActivityManager scheduling group (Constants.SCHED_GROUP_*).
+  optional SchedGroup cur_sched_group = 15;
 }
 
 message AndroidServiceStateChangedEvent {

@@ -114,6 +114,9 @@ message AndroidProcessStateSnapshot {
     optional int32 proc_state = 3;
     optional int32 oom_score = 4;
     optional int32 capability_flags = 5;
+    // Current scheduling group of the process (ActivityManager SchedGroup:
+    // Constants.SCHED_GROUP_*).
+    optional SchedGroup sched_group = 6;
   }
   repeated Record record = 1;
 }
