@@ -72,7 +72,9 @@ inline bool& IsProgressLineActive() {
 // with a newline. No-op on WASM where updates already end with '\n'.
 inline void ProgressLine(const char* fmt, ...) PERFETTO_PRINTF_FORMAT(1, 2);
 inline void ProgressLine(const char* fmt, ...) {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  ::perfetto::base::ignore_result(fmt);
+#else
   va_list args;
   va_start(args, fmt);
   vfprintf(stderr, fmt, args);
