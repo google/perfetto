@@ -35,6 +35,7 @@ export class CounterSelectionAggregator implements Aggregator {
     if (trackIds.length === 0) return undefined;
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         const duration = area.end - area.start;
         const durationSec = Duration.toSeconds(duration);
@@ -129,7 +130,7 @@ export class CounterSelectionAggregator implements Aggregator {
     };
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(): AggregatorGridConfig {
     return {
       schema: {
         name: {title: 'Name', columnType: 'text'},

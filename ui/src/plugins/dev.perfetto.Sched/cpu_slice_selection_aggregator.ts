@@ -55,8 +55,6 @@ export class CpuSliceSelectionAggregator implements Aggregator {
   readonly id = 'cpu_aggregation';
 
   private readonly trace: Trace;
-  private trackDatasetMap?: Map<Dataset, Track>;
-  private unionDataset?: UnionDatasetWithLineage<DatasetSchema>;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -76,29 +74,33 @@ export class CpuSliceSelectionAggregator implements Aggregator {
 
     if (cpuTracks.length === 0) return undefined;
 
+    // Build track-to-dataset mapping synchronously
+    const trackDatasetMap = new Map<Dataset, Track>();
+    const datasets: Dataset[] = [];
+    for (const track of cpuTracks) {
+      const dataset = track.renderer.getDataset?.();
+      if (dataset) {
+        datasets.push(dataset);
+        trackDatasetMap.set(dataset, track);
+      }
+    }
+
+    // Create union dataset with lineage tracking
+    const unionDataset = UnionDatasetWithLineage.create(datasets);
+
     return {
+      getGridConfig: () =>
+        this.getGridConfig((groupId, partition) =>
+          this.resolveTrack(groupId, partition, trackDatasetMap, unionDataset),
+        ),
       prepareData: async (engine: Engine) => {
-        // Build track-to-dataset mapping
-        this.trackDatasetMap = new Map();
-        const datasets: Dataset[] = [];
-        for (const track of cpuTracks) {
-          const dataset = track.renderer.getDataset?.();
-          if (dataset) {
-            datasets.push(dataset);
-            this.trackDatasetMap.set(dataset, track);
-          }
-        }
-
-        // Create union dataset with lineage tracking
-        this.unionDataset = UnionDatasetWithLineage.create(datasets);
-
         // Query with needed columns for II table
         const iiQuerySchema = {
           ...CPU_SLICE_SPEC,
           __groupid: NUM,
           __partition: UNKNOWN,
         };
-        const sql = this.unionDataset.query(iiQuerySchema);
+        const sql = unionDataset.query(iiQuerySchema);
 
         // Create interval-intersect table for time filtering
         await using iiTable = await createIITable(
@@ -137,7 +139,9 @@ export class CpuSliceSelectionAggregator implements Aggregator {
     return `CPU by thread`;
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(
+    resolveTrack: (groupId: number, partition: SqlValue) => Track | undefined,
+  ): AggregatorGridConfig {
     return {
       schema: {
         id_with_lineage: {
@@ -157,7 +161,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             const {id, groupid, partition} = parsed;
 
             // Resolve track from lineage
-            const track = this.resolveTrack(groupid, partition);
+            const track = resolveTrack(groupid, partition);
             if (!track) {
               return String(id);
             }
@@ -223,8 +227,10 @@ export class CpuSliceSelectionAggregator implements Aggregator {
   private resolveTrack(
     groupId: number,
     partition: SqlValue,
+    trackDatasetMap: Map<Dataset, Track>,
+    unionDataset?: UnionDatasetWithLineage<DatasetSchema>,
   ): Track | undefined {
-    if (!this.trackDatasetMap || !this.unionDataset) return undefined;
+    if (!unionDataset) return undefined;
 
     // Ensure partition is a valid SqlValue
     const partitionValue =
@@ -236,13 +242,13 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         ? partition
         : null;
 
-    const datasets = this.unionDataset.resolveLineage({
+    const datasets = unionDataset.resolveLineage({
       __groupid: groupId,
       __partition: partitionValue,
     });
 
     for (const dataset of datasets) {
-      const track = this.trackDatasetMap.get(dataset);
+      const track = trackDatasetMap.get(dataset);
       if (track) return track;
     }
 

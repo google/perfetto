@@ -53,6 +53,12 @@ export interface AggregationData {
 
 export interface Aggregation {
   /**
+   * Defines how the datagrid that displays the aggregated data looks, including
+   * what to pivot on and the column definitions.
+   */
+  getGridConfig(): AggregatorGridConfig;
+
+  /**
    * Creates a view for the aggregated data corresponding to the selected area.
    *
    * The dataset provided will be filtered based on the `trackKind` and `schema`
@@ -111,10 +117,6 @@ export interface Aggregator {
 
   // Returns the name of this aggregation tag. Called every render cycle.
   getTabName(): string;
-
-  // Return the grid configuration for this aggregation panel. Called every
-  // render cycle.
-  getGridConfig(): AggregatorGridConfig;
 
   // Optional controls to render in the top bar of the aggregation panel.
   renderTopbarControls?(): m.Children;
@@ -232,9 +234,7 @@ export function createAggregationTab(
   let data: AggregationData | undefined;
   let dataSource: SQLDataSource | undefined;
   let dataGridApi: DataGridApi | undefined;
-
-  function createInitialState(): DataGridModel {
-    const config = aggregator.getGridConfig();
+  function createInitialState(config: AggregatorGridConfig): DataGridModel {
     return {
       columns: config.initialColumns,
       pivot: config.initialPivot,
@@ -242,9 +242,10 @@ export function createAggregationTab(
     };
   }
 
-  // DataGrid state managed by the adapter
-  const initialDataModel: DataGridModel = createInitialState();
-  let dataModel: DataGridModel = initialDataModel;
+  // Mutable datagrid model state - initialized the first time we get a config,
+  // and only ever modified by the user so that the config is retained over
+  // selection changes.
+  let dataModel: DataGridModel | undefined;
 
   return {
     id: aggregator.id,
@@ -260,6 +261,11 @@ export function createAggregationTab(
         currentSelection = selection;
         aggregation = aggregator.probe(selection);
 
+        // Snapshot the grid config if we don't have one yet
+        if (aggregation && !dataModel) {
+          dataModel = createInitialState(aggregation.getGridConfig());
+        }
+
         // Kick off a new load of the data
         limiter.schedule(async () => {
           // Clear previous data to prevent queries against a stale or partially
@@ -268,8 +274,8 @@ export function createAggregationTab(
           dataSource = undefined;
           data = undefined;
           if (aggregation) {
-            data = await aggregation?.prepareData(trace.engine);
-            const gridConfig = aggregator.getGridConfig();
+            const gridConfig = aggregation.getGridConfig();
+            data = await aggregation.prepareData(trace.engine);
             const sqlConfig = gridConfig.sqlConfig?.(data) ?? {
               tableOrSubquery: data.tableName,
             };
@@ -282,7 +288,7 @@ export function createAggregationTab(
         });
       }
 
-      if (!aggregation) {
+      if (!aggregation || !dataModel) {
         // Hides the tab
         return undefined;
       }
@@ -307,23 +313,24 @@ export function createAggregationTab(
         pivot: dataModel.pivot,
         filters: dataModel.filters,
         onColumnsChanged: (c) => {
-          dataModel = {...dataModel, columns: c};
+          dataModel = {...dataModel!, columns: c};
         },
         onPivotChanged: (p) => {
-          dataModel = {...dataModel, pivot: p};
+          dataModel = {...dataModel!, pivot: p};
         },
         onFiltersChanged: (f) => {
-          dataModel = {...dataModel, filters: f};
+          dataModel = {...dataModel!, filters: f};
         },
       };
 
+      const aggr = aggregation;
       return {
         isLoading: false,
         content: m(AggregationPanel, {
           controls: aggregator.renderTopbarControls?.(),
           key: aggregator.id,
           dataSource,
-          gridConfig: aggregator.getGridConfig(),
+          gridConfig: aggregation.getGridConfig(),
           barChartData: data?.barChartData,
           onReady: (api: DataGridApi) => {
             dataGridApi = api;
@@ -331,7 +338,7 @@ export function createAggregationTab(
           dataGridState,
           onClearGridState: () => {
             // Just wipe out the local data model to reset to initial state
-            dataModel = initialDataModel;
+            dataModel = createInitialState(aggr.getGridConfig());
           },
         }),
         buttons:
