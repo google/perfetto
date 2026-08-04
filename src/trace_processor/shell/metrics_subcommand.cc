@@ -68,6 +68,7 @@ std::vector<FlagSpec> MetricsSubcommand::GetFlags() {
 }
 
 base::Status MetricsSubcommand::Run(const SubcommandContext& ctx) {
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "metrics", 1));
   if (metric_names_.empty()) {
     return base::ErrStatus("metrics: --run is required");
   }

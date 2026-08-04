@@ -155,7 +155,9 @@ class ProtoTraceTokenizer {
           }
           default:
             return base::ErrStatus(
-                "Unknown field type @ 0x%zx (ERR:tp-corrupt)", start_offset);
+                "Unknown field type @ 0x%zx; the trace is corrupt or was "
+                "produced by a newer version of Perfetto (ERR:tp-corrupt)",
+                start_offset);
         }
       }
 

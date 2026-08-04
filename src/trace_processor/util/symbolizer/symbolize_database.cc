@@ -432,7 +432,12 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
       !config.find_symbol_paths.empty() || !config.breakpad_paths.empty();
   if (!has_any_paths) {
     result.error = SymbolizerError::kSymbolizerNotAvailable;
-    result.error_details = "No symbol paths or breakpad paths provided";
+    result.error_details =
+        "no symbol paths were searched. This happens when automatic path "
+        "discovery is disabled and no paths are provided. Pass "
+        "--symbol-paths PATH1,PATH2,... to point at the unstripped binaries "
+        "or Breakpad symbol files, or drop --no-auto-symbol-paths to search "
+        "the standard locations.";
     return result;
   }
 

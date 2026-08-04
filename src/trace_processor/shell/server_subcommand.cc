@@ -226,6 +226,7 @@ base::Status KillServer(const std::string& addr) {
 }  // namespace
 
 base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "server", 2));
   // First positional arg is the mode.
   if (ctx.positional_args.empty()) {
     return base::ErrStatus(

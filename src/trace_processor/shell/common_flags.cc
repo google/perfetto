@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/shell/common_flags.h"
+#include "src/traceconv/utils.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -440,8 +441,11 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
         size_mb = static_cast<double>(parsed_size) / 1E6;
         fprintf(stderr, "\rLoading trace: %.2f MB\r", size_mb);
       });
+  // Terminate the in-place progress line so errors/logs below start on a
+  // fresh line.
+  trace_to_text::EndProgressLine();
   if (!load_status.ok()) {
-    return base::ErrStatus("Could not read trace file (path: %s): %s",
+    return base::ErrStatus("failed to read trace file (path: %s): %s",
                            trace_file.c_str(), load_status.c_message());
   }
 
@@ -491,7 +495,7 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
   if (!maybe_map.empty()) {
     if (is_proto_trace) {
       tp->Flush();
-      profiling::ReadProguardMapsToDeobfuscationPackets(
+      auto deob_status = profiling::ReadProguardMapsToDeobfuscationPackets(
           maybe_map, [tp](const std::string& trace_proto) {
             std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
             memcpy(buf.get(), trace_proto.data(), trace_proto.size());
@@ -502,6 +506,9 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
               return;
             }
           });
+      if (!deob_status.ok()) {
+        PERFETTO_ELOG("Failed to deobfuscate: %s", deob_status.c_message());
+      }
     } else {
       PERFETTO_ELOG("Skipping deobfuscation for non-proto trace");
     }
