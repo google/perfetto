@@ -163,6 +163,11 @@ base::StatusOr<Tree> BuildTree(dataframe::AdhocDataframeBuilder&& builder) {
   return BuildFromRawColumns(std::move(raw_cols));
 }
 
+base::StatusOr<Tree> BuildTree(dataframe::RuntimeDataframeBuilder&& builder) {
+  ASSIGN_OR_RETURN(auto raw_cols, std::move(builder).BuildRaw());
+  return BuildFromRawColumns(std::move(raw_cols));
+}
+
 namespace {
 
 base::StatusOr<Tree> BuildFromRawColumns(
@@ -328,5 +333,4 @@ base::StatusOr<Tree> BuildFromRawColumns(
 }
 
 }  // namespace
-
 }  // namespace perfetto::trace_processor::core
