@@ -145,4 +145,3 @@ if (enable_perfetto_integration_tests) {
     ]
   }
 }
-

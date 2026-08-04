@@ -100,7 +100,7 @@ std::map<std::string, std::string> ReadTarMembers(const std::string& path) {
   return out;
 }
 
-class TraceconvBundleTest : public ::testing::Test {
+class TraceconvShellBundleTest : public ::testing::Test {
  protected:
   void SetUp() override {
     input_trace_ = base::GetTestDataPath(
@@ -137,7 +137,7 @@ class TraceconvBundleTest : public ::testing::Test {
 // The bundle should contain the unmodified input trace plus a parseable
 // deobfuscation.pb whose `deobfuscation_mapping` reflects the supplied
 // mapping.txt (package, class, method names).
-TEST_F(TraceconvBundleTest, BundleWithProguardMap) {
+TEST_F(TraceconvShellBundleTest, BundleWithProguardMap) {
   base::TempFile mapping = WriteTempFile(
       "com.example.Foo -> a.a:\n"
       "    void bar() -> b\n");
@@ -183,7 +183,7 @@ TEST_F(TraceconvBundleTest, BundleWithProguardMap) {
 
 // Repeating --proguard-map should produce one DeobfuscationMapping per input
 // map, each tagged with the right package name.
-TEST_F(TraceconvBundleTest, BundleWithRepeatedProguardMaps) {
+TEST_F(TraceconvShellBundleTest, BundleWithRepeatedProguardMaps) {
   base::TempFile map1 = WriteTempFile("com.example.Foo -> a.a:\n");
   base::TempFile map2 = WriteTempFile("com.example.Bar -> b.b:\n");
 
@@ -208,7 +208,7 @@ TEST_F(TraceconvBundleTest, BundleWithRepeatedProguardMaps) {
 
 // --proguard-map without `pkg=` is accepted; the package name ends up empty
 // in the emitted mapping but the class mapping is still present.
-TEST_F(TraceconvBundleTest, BundleWithProguardMapNoPackage) {
+TEST_F(TraceconvShellBundleTest, BundleWithProguardMapNoPackage) {
   base::TempFile mapping = WriteTempFile("com.example.Foo -> a.a:\n");
 
   ArgvInvoker invoker;
@@ -234,7 +234,7 @@ TEST_F(TraceconvBundleTest, BundleWithProguardMapNoPackage) {
 }
 
 // Explicit --proguard-map pointing at a missing file must fail the command.
-TEST_F(TraceconvBundleTest, BundleWithMissingProguardMapFails) {
+TEST_F(TraceconvShellBundleTest, BundleWithMissingProguardMapFails) {
   ArgvInvoker invoker;
   invoker.Add("trace_processor_shell");
   invoker.Add("bundle");
@@ -248,7 +248,7 @@ TEST_F(TraceconvBundleTest, BundleWithMissingProguardMapFails) {
 }
 
 // --proguard-map with no following argument is a usage error.
-TEST_F(TraceconvBundleTest, BundleProguardMapMissingArgFails) {
+TEST_F(TraceconvShellBundleTest, BundleProguardMapMissingArgFails) {
   ArgvInvoker invoker;
   invoker.Add("trace_processor_shell");
   invoker.Add("bundle");
@@ -261,7 +261,7 @@ TEST_F(TraceconvBundleTest, BundleProguardMapMissingArgFails) {
 // and produces a DeobfuscationMapping for the specified package. (In the
 // test environment there are no Gradle layouts to auto-discover either
 // way, so this asserts the explicit path keeps working.)
-TEST_F(TraceconvBundleTest, BundleNoAutoProguardMapsWithExplicit) {
+TEST_F(TraceconvShellBundleTest, BundleNoAutoProguardMapsWithExplicit) {
   base::TempFile mapping = WriteTempFile("com.example.Foo -> a.a:\n");
 
   ArgvInvoker invoker;
@@ -376,7 +376,7 @@ class ScopedStderrCapture {
 // (the trace alone is bundled) but must tell the user why the names are hex
 // and how to fix it.
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-TEST_F(TraceconvBundleTest, BundleFuncgraphWithoutKallsymsGuidesUser) {
+TEST_F(TraceconvShellBundleTest, BundleFuncgraphWithoutKallsymsGuidesUser) {
   base::TempFile trace =
       WriteTempFile(BuildFuncgraphTrace(/*with_ksyms=*/false));
 
@@ -406,7 +406,7 @@ TEST_F(TraceconvBundleTest, BundleFuncgraphWithoutKallsymsGuidesUser) {
 
 // When symbolize_ksyms WAS enabled the names resolve fine: the bundle should
 // succeed without the kernel warning.
-TEST_F(TraceconvBundleTest, BundleFuncgraphWithKallsymsSucceedsQuietly) {
+TEST_F(TraceconvShellBundleTest, BundleFuncgraphWithKallsymsSucceedsQuietly) {
   base::TempFile trace =
       WriteTempFile(BuildFuncgraphTrace(/*with_ksyms=*/true));
 
@@ -427,7 +427,7 @@ TEST_F(TraceconvBundleTest, BundleFuncgraphWithKallsymsSucceedsQuietly) {
 // A trace with no profiled data at all (e.g. a pure atrace/systrace trace)
 // has nothing to enrich; bundling it must succeed, not fail with a cryptic
 // message.
-TEST_F(TraceconvBundleTest, BundleTraceWithoutProfileDataSucceeds) {
+TEST_F(TraceconvShellBundleTest, BundleTraceWithoutProfileDataSucceeds) {
   base::TempFile trace = WriteTempFile("");
 
   ArgvInvoker invoker;
@@ -445,7 +445,7 @@ TEST_F(TraceconvBundleTest, BundleTraceWithoutProfileDataSucceeds) {
 // (with the trace), and the user gets a summary of what could not be
 // symbolized plus a hint on how to fix it.
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-TEST_F(TraceconvBundleTest, BundleUnsymbolizedFramesSucceedsWithWarning) {
+TEST_F(TraceconvShellBundleTest, BundleUnsymbolizedFramesSucceedsWithWarning) {
   ArgvInvoker invoker;
   invoker.Add("trace_processor_shell");
   invoker.Add("bundle");
@@ -472,7 +472,7 @@ TEST_F(TraceconvBundleTest, BundleUnsymbolizedFramesSucceedsWithWarning) {
 // With --no-auto-symbol-paths and no explicit paths, no symbol source is
 // configured at all: the user must be told how to provide one.
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-TEST_F(TraceconvBundleTest, BundleNoSymbolPathsConfiguredExplainsFix) {
+TEST_F(TraceconvShellBundleTest, BundleNoSymbolPathsConfiguredExplainsFix) {
   ArgvInvoker invoker;
   invoker.Add("trace_processor_shell");
   invoker.Add("bundle");
@@ -494,7 +494,7 @@ TEST_F(TraceconvBundleTest, BundleNoSymbolPathsConfiguredExplainsFix) {
 
 // An unwritable output path must produce a graceful, descriptive error
 // instead of crashing the process.
-TEST_F(TraceconvBundleTest, BundleUnwritableOutputFailsGracefully) {
+TEST_F(TraceconvShellBundleTest, BundleUnwritableOutputFailsGracefully) {
   ArgvInvoker invoker;
   invoker.Add("trace_processor_shell");
   invoker.Add("bundle");
@@ -508,7 +508,7 @@ TEST_F(TraceconvBundleTest, BundleUnwritableOutputFailsGracefully) {
 }
 
 // An input path that is a directory must produce a helpful message.
-TEST_F(TraceconvBundleTest, BundleInputIsDirectoryFailsHelpfully) {
+TEST_F(TraceconvShellBundleTest, BundleInputIsDirectoryFailsHelpfully) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   GTEST_SKIP() << "directory-vs-file validation differs on Windows";
 #endif
@@ -523,7 +523,7 @@ TEST_F(TraceconvBundleTest, BundleInputIsDirectoryFailsHelpfully) {
 
 // A broken input symlink must be called out as a broken link, not as a
 // missing file.
-TEST_F(TraceconvBundleTest, BundleBrokenSymlinkInputFailsHelpfully) {
+TEST_F(TraceconvShellBundleTest, BundleBrokenSymlinkInputFailsHelpfully) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   GTEST_SKIP() << "symlink tests are POSIX-only";
 #endif
@@ -544,7 +544,7 @@ TEST_F(TraceconvBundleTest, BundleBrokenSymlinkInputFailsHelpfully) {
 
 // A garbage (non-trace) input file must fail with a clear "not a trace"
 // style error rather than a bare failure.
-TEST_F(TraceconvBundleTest, BundleMalformedInputFailsWithReason) {
+TEST_F(TraceconvShellBundleTest, BundleMalformedInputFailsWithReason) {
   base::TempFile trace = WriteTempFile(
       "this is definitely not a perfetto trace, just some text bytes");
 
@@ -562,7 +562,7 @@ TEST_F(TraceconvBundleTest, BundleMalformedInputFailsWithReason) {
 // `bundle --symbol-paths a b trace out.tar`). The shell must reject this
 // with a hint instead of silently treating the extra paths as the input and
 // output files.
-TEST_F(TraceconvBundleTest, BundleRejectsSymbolPathsAsSeparateArgs) {
+TEST_F(TraceconvShellBundleTest, BundleRejectsSymbolPathsAsSeparateArgs) {
   ArgvInvoker invoker;
   invoker.Add("trace_processor_shell");
   invoker.Add("bundle");
