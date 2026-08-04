@@ -993,6 +993,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
     legacy_event->set_phase('X');
     legacy_event->set_duration_us(23);         // absolute end: 1028.
     legacy_event->set_thread_duration_us(12);  // absolute end: 2015.
+    legacy_event->set_duration_ns(23001);
+    legacy_event->set_thread_duration_ns(12002);
   }
 
   Tokenize();
@@ -1017,8 +1019,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
   auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.dur(), 23001);
   EXPECT_EQ(rr_0.thread_ts(), 2003000);
-  EXPECT_EQ(rr_0.thread_dur(), 12000);
+  EXPECT_EQ(rr_0.thread_dur(), 12002);
   auto rr_1 = storage_->slice_table()[SliceId(1u)];
   EXPECT_EQ(rr_1.thread_ts(), 2005000);
   EXPECT_EQ(rr_1.thread_dur(), 5000);
@@ -2320,6 +2323,8 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
     legacy_event->set_phase('?');
     legacy_event->set_duration_us(23);
     legacy_event->set_thread_duration_us(15);
+    legacy_event->set_duration_ns(23001);
+    legacy_event->set_thread_duration_ns(15002);
     legacy_event->set_global_id(99u);
     legacy_event->set_id_scope("scope1");
     legacy_event->set_use_async_tts(true);
@@ -2380,13 +2385,13 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
                      Variadic::String(question)));
   EXPECT_TRUE(HasArg(arg_set_id,
                      storage_->InternString("legacy_event.duration_ns"),
-                     Variadic::Integer(23000)));
+                     Variadic::Integer(23001)));
   EXPECT_TRUE(HasArg(arg_set_id,
                      storage_->InternString("legacy_event.thread_timestamp_ns"),
                      Variadic::Integer(2005000)));
   EXPECT_TRUE(HasArg(arg_set_id,
                      storage_->InternString("legacy_event.thread_duration_ns"),
-                     Variadic::Integer(15000)));
+                     Variadic::Integer(15002)));
   EXPECT_TRUE(HasArg(arg_set_id,
                      storage_->InternString("legacy_event.use_async_tts"),
                      Variadic::Boolean(true)));

@@ -17584,7 +17584,7 @@ class TrackEvent(_message.Message):
         frames: _containers.RepeatedCompositeFieldContainer[TrackEvent.InlineCallstack.Frame]
         def __init__(self, frames: _Optional[_Iterable[_Union[TrackEvent.InlineCallstack.Frame, _Mapping]]] = ...) -> None: ...
     class LegacyEvent(_message.Message):
-        __slots__ = ("name_iid", "phase", "duration_us", "thread_duration_us", "thread_instruction_delta", "unscoped_id", "local_id", "global_id", "id_scope", "use_async_tts", "bind_id", "bind_to_enclosing", "flow_direction", "instant_event_scope", "pid_override", "tid_override")
+        __slots__ = ("name_iid", "phase", "duration_us", "thread_duration_us", "duration_ns", "thread_duration_ns", "thread_instruction_delta", "unscoped_id", "local_id", "global_id", "id_scope", "use_async_tts", "bind_id", "bind_to_enclosing", "flow_direction", "instant_event_scope", "pid_override", "tid_override")
         class FlowDirection(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
             __slots__ = ()
             FLOW_UNSPECIFIED: _ClassVar[TrackEvent.LegacyEvent.FlowDirection]
@@ -17609,6 +17609,8 @@ class TrackEvent(_message.Message):
         PHASE_FIELD_NUMBER: _ClassVar[int]
         DURATION_US_FIELD_NUMBER: _ClassVar[int]
         THREAD_DURATION_US_FIELD_NUMBER: _ClassVar[int]
+        DURATION_NS_FIELD_NUMBER: _ClassVar[int]
+        THREAD_DURATION_NS_FIELD_NUMBER: _ClassVar[int]
         THREAD_INSTRUCTION_DELTA_FIELD_NUMBER: _ClassVar[int]
         UNSCOPED_ID_FIELD_NUMBER: _ClassVar[int]
         LOCAL_ID_FIELD_NUMBER: _ClassVar[int]
@@ -17625,6 +17627,8 @@ class TrackEvent(_message.Message):
         phase: int
         duration_us: int
         thread_duration_us: int
+        duration_ns: int
+        thread_duration_ns: int
         thread_instruction_delta: int
         unscoped_id: int
         local_id: int
@@ -17637,7 +17641,7 @@ class TrackEvent(_message.Message):
         instant_event_scope: TrackEvent.LegacyEvent.InstantEventScope
         pid_override: int
         tid_override: int
-        def __init__(self, name_iid: _Optional[int] = ..., phase: _Optional[int] = ..., duration_us: _Optional[int] = ..., thread_duration_us: _Optional[int] = ..., thread_instruction_delta: _Optional[int] = ..., unscoped_id: _Optional[int] = ..., local_id: _Optional[int] = ..., global_id: _Optional[int] = ..., id_scope: _Optional[str] = ..., use_async_tts: bool = ..., bind_id: _Optional[int] = ..., bind_to_enclosing: bool = ..., flow_direction: _Optional[_Union[TrackEvent.LegacyEvent.FlowDirection, str]] = ..., instant_event_scope: _Optional[_Union[TrackEvent.LegacyEvent.InstantEventScope, str]] = ..., pid_override: _Optional[int] = ..., tid_override: _Optional[int] = ...) -> None: ...
+        def __init__(self, name_iid: _Optional[int] = ..., phase: _Optional[int] = ..., duration_us: _Optional[int] = ..., thread_duration_us: _Optional[int] = ..., duration_ns: _Optional[int] = ..., thread_duration_ns: _Optional[int] = ..., thread_instruction_delta: _Optional[int] = ..., unscoped_id: _Optional[int] = ..., local_id: _Optional[int] = ..., global_id: _Optional[int] = ..., id_scope: _Optional[str] = ..., use_async_tts: bool = ..., bind_id: _Optional[int] = ..., bind_to_enclosing: bool = ..., flow_direction: _Optional[_Union[TrackEvent.LegacyEvent.FlowDirection, str]] = ..., instant_event_scope: _Optional[_Union[TrackEvent.LegacyEvent.InstantEventScope, str]] = ..., pid_override: _Optional[int] = ..., tid_override: _Optional[int] = ...) -> None: ...
     CATEGORY_IIDS_FIELD_NUMBER: _ClassVar[int]
     CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     NAME_IID_FIELD_NUMBER: _ClassVar[int]

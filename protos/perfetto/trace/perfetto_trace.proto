@@ -15456,7 +15456,7 @@ message TrackEvent {
   // without replacement where transition is unsuitable.
   //
   // Next reserved id: 16 (up to 16).
-  // Next id: 20.
+  // Next id: 22.
   message LegacyEvent {
     // Deprecated, use TrackEvent::name(_iid) instead.
     // interned EventName.
@@ -15464,6 +15464,11 @@ message TrackEvent {
     optional int32 phase = 2;
     optional int64 duration_us = 3;
     optional int64 thread_duration_us = 4;
+
+    // Exact-duration variants for complete events. If present, trace
+    // processors should prefer these over the microsecond fields above.
+    optional int64 duration_ns = 20;
+    optional int64 thread_duration_ns = 21;
 
     // Elapsed retired instruction count during the event.
     optional int64 thread_instruction_delta = 15;

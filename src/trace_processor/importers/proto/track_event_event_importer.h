@@ -879,7 +879,9 @@ class TrackEventEventImporter {
           "TrackEvent with phase X without thread association");
     }
 
-    auto duration_ns = legacy_event_.duration_us() * 1000;
+    auto duration_ns = legacy_event_.has_duration_ns()
+                           ? legacy_event_.duration_ns()
+                           : legacy_event_.duration_us() * 1000;
     if (duration_ns < 0)
       return base::ErrStatus("TrackEvent with phase X with negative duration");
 
@@ -891,7 +893,9 @@ class TrackEventEventImporter {
       auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
         rr.set_thread_ts(*thread_timestamp_);
-        rr.set_thread_dur(legacy_event_.thread_duration_us() * 1000);
+        rr.set_thread_dur(legacy_event_.has_thread_duration_ns()
+                              ? legacy_event_.thread_duration_ns()
+                              : legacy_event_.thread_duration_us() * 1000);
       }
       if (thread_instruction_count_) {
         rr.set_thread_instruction_count(*thread_instruction_count_);
@@ -1254,7 +1258,10 @@ class TrackEventEventImporter {
     inserter.AddArg(parser_->legacy_event_phase_key_id_,
                     Variadic::String(phase_id));
 
-    if (legacy_event_.has_duration_us()) {
+    if (legacy_event_.has_duration_ns()) {
+      inserter.AddArg(parser_->legacy_event_duration_ns_key_id_,
+                      Variadic::Integer(legacy_event_.duration_ns()));
+    } else if (legacy_event_.has_duration_us()) {
       inserter.AddArg(parser_->legacy_event_duration_ns_key_id_,
                       Variadic::Integer(legacy_event_.duration_us() * 1000));
     }
@@ -1262,7 +1269,10 @@ class TrackEventEventImporter {
     if (thread_timestamp_) {
       inserter.AddArg(parser_->legacy_event_thread_timestamp_ns_key_id_,
                       Variadic::Integer(*thread_timestamp_));
-      if (legacy_event_.has_thread_duration_us()) {
+      if (legacy_event_.has_thread_duration_ns()) {
+        inserter.AddArg(parser_->legacy_event_thread_duration_ns_key_id_,
+                        Variadic::Integer(legacy_event_.thread_duration_ns()));
+      } else if (legacy_event_.has_thread_duration_us()) {
         inserter.AddArg(
             parser_->legacy_event_thread_duration_ns_key_id_,
             Variadic::Integer(legacy_event_.thread_duration_us() * 1000));
