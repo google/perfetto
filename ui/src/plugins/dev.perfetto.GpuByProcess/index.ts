@@ -150,8 +150,9 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
     WHERE s.upid IS NOT NULL
       AND NOT EXISTS (
         SELECT 1
-        FROM __gpu_by_process_bound_canonical_slices bound
-        WHERE bound.canonical_slice_id = s.id
+        FROM _gpu_render_stage_projections projection
+        WHERE projection.canonical_slice_id = s.id
+          AND projection.upid = s.upid
       )
       AND s.context_id IS NOT NULL
       AND extract_arg(s.arg_set_id, 'device') IS NOT NULL
@@ -244,8 +245,9 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
       ` AND extract_arg(arg_set_id, 'stream') = ${r.stream}` +
       ` AND NOT EXISTS (` +
       `   SELECT 1` +
-      `   FROM __gpu_by_process_bound_canonical_slices bound` +
-      `   WHERE bound.canonical_slice_id = gpu_slice.id` +
+      `   FROM _gpu_render_stage_projections projection` +
+      `   WHERE projection.canonical_slice_id = gpu_slice.id` +
+      `     AND projection.upid = gpu_slice.upid` +
       ` )`;
     return {
       upid: r.upid,
@@ -290,8 +292,9 @@ async function discoverFallbackTracks(
     WHERE s.upid IS NOT NULL AND s.hw_queue_id IS NOT NULL
       AND NOT EXISTS (
         SELECT 1
-        FROM __gpu_by_process_bound_canonical_slices bound
-        WHERE bound.canonical_slice_id = s.id
+        FROM _gpu_render_stage_projections projection
+        WHERE projection.canonical_slice_id = s.id
+          AND projection.upid = s.upid
       )
       AND (extract_arg(s.arg_set_id, 'device') IS NULL
            OR extract_arg(s.arg_set_id, 'stream') IS NULL)
@@ -379,8 +382,9 @@ async function discoverFallbackTracks(
       ` OR extract_arg(arg_set_id, 'stream') IS NULL)` +
       ` AND NOT EXISTS (` +
       `   SELECT 1` +
-      `   FROM __gpu_by_process_bound_canonical_slices bound` +
-      `   WHERE bound.canonical_slice_id = gpu_slice.id` +
+      `   FROM _gpu_render_stage_projections projection` +
+      `   WHERE projection.canonical_slice_id = gpu_slice.id` +
+      `     AND projection.upid = gpu_slice.upid` +
       ` )`;
     return {
       upid: row.upid,
@@ -411,25 +415,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await ctx.engine.query(`
-      DROP TABLE IF EXISTS __gpu_by_process_authored_upids;
-      DROP TABLE IF EXISTS __gpu_by_process_authored_logical_queues;
-      DROP TABLE IF EXISTS __gpu_by_process_bound_canonical_slices;
-      CREATE PERFETTO TABLE __gpu_by_process_bound_canonical_slices AS
-      SELECT DISTINCT extract_arg(
-        projected.arg_set_id,
-        'gpu_render_stage_canonical_slice_id'
-      ) AS canonical_slice_id
-      FROM slice projected
-      JOIN track projected_track ON projected_track.id = projected.track_id
-      WHERE projected_track.type GLOB 'gpu*_track_event'
-        AND extract_arg(projected.arg_set_id,
-                        'gpu_render_stage_canonical_slice_id') IS NOT NULL
-        AND coalesce(
-          extract_arg(projected_track.dimension_arg_set_id, 'upid'),
-          extract_arg(projected_track.source_arg_set_id, 'gpu_process_upid')
-        ) IS NOT NULL;
-      CREATE PERFETTO INDEX __gpu_by_process_bound_canonical_slices_idx
-      ON __gpu_by_process_bound_canonical_slices(canonical_slice_id);
+      INCLUDE PERFETTO MODULE std.gpu.render_stage;
     `);
     const numMachines = await getMachineCount(ctx.engine);
     const apiTracks = await discoverApiTracks(ctx);

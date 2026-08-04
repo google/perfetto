@@ -140,6 +140,8 @@ class GraphicsGpuTrace(TestSuite):
         }
         """),
         query="""
+        INCLUDE PERFETTO MODULE std.gpu.render_stage;
+
         SELECT
           t.name,
           p.name AS parent_name,
@@ -158,6 +160,19 @@ class GraphicsGpuTrace(TestSuite):
 
         SELECT count(*) AS canonical_gpu_slices FROM gpu_slice;
 
+        SELECT
+          CASE
+            WHEN projection.upid IS NULL THEN 'global'
+            ELSE 'process'
+          END AS scope,
+          min(process.pid) AS pid,
+          count(*) AS projected_slices,
+          count(DISTINCT canonical_slice_id) AS canonical_slices
+        FROM _gpu_render_stage_projections projection
+        LEFT JOIN process USING (upid)
+        GROUP BY scope
+        ORDER BY scope;
+
         SELECT count(*) AS render_stage_dependency_flows
         FROM flow
         JOIN slice source ON source.id = flow.slice_out
@@ -172,6 +187,10 @@ class GraphicsGpuTrace(TestSuite):
 
         "canonical_gpu_slices"
         2
+
+        "scope","pid","projected_slices","canonical_slices"
+        "global","[NULL]",2,2
+        "process",42,2,2
 
         "render_stage_dependency_flows"
         3

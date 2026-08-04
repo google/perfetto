@@ -703,46 +703,23 @@ export default class GpuPlugin implements PerfettoPlugin {
   private async addSlices(ctx: Trace) {
     const sliceTypes = GPU_SLICE_SCHEMAS.map((s) => `'${s.type}'`).join(',');
 
-    // A global hardware queue is removed from the default hierarchy only when
-    // projection through an exact authored binding actually succeeded.
     await ctx.engine.query(`
-      DROP TABLE IF EXISTS __gpu_global_bound_canonical_slices;
-      CREATE PERFETTO TABLE __gpu_global_bound_canonical_slices AS
-      SELECT DISTINCT extract_arg(
-        projected.arg_set_id,
-        'gpu_render_stage_canonical_slice_id'
-      ) AS canonical_slice_id
-      FROM slice projected
-      JOIN track projected_track ON projected_track.id = projected.track_id
-      WHERE projected_track.type GLOB 'gpu*_track_event'
-        AND extract_arg(projected.arg_set_id,
-                        'gpu_render_stage_canonical_slice_id') IS NOT NULL
-        AND coalesce(
-          extract_arg(projected_track.dimension_arg_set_id, 'upid'),
-          extract_arg(projected_track.source_arg_set_id, 'gpu_process_upid')
-        ) IS NULL;
-      CREATE PERFETTO INDEX __gpu_global_bound_canonical_slices_idx
-      ON __gpu_global_bound_canonical_slices(canonical_slice_id);
-
-      DROP TABLE IF EXISTS __gpu_global_fully_bound_canonical_tracks;
-      CREATE PERFETTO TABLE __gpu_global_fully_bound_canonical_tracks AS
-      SELECT canonical.track_id AS track_id
-      FROM gpu_slice canonical
-      GROUP BY canonical.track_id
-      HAVING count(*) = sum(EXISTS(
-        SELECT 1
-        FROM __gpu_global_bound_canonical_slices bound
-        WHERE bound.canonical_slice_id = canonical.id
-      ));
-      CREATE PERFETTO INDEX __gpu_global_fully_bound_canonical_tracks_idx
-      ON __gpu_global_fully_bound_canonical_tracks(track_id);
+      INCLUDE PERFETTO MODULE std.gpu.render_stage;
     `);
 
+    // Keep a canonical track when any of its slices lacks a global projection.
     await using _ = await createPerfettoTable({
       name: '__gpu_tracks_to_create',
       engine: ctx.engine,
       as: `
-        with grouped as materialized (
+        with global_unbound_canonical_tracks as materialized (
+          select distinct canonical.track_id
+          from gpu_slice canonical
+          left join _gpu_render_stage_projections projection
+            on projection.canonical_slice_id = canonical.id
+            and projection.upid is null
+          where projection.projected_slice_id is null
+        ), grouped as materialized (
           select
             t.type,
             min(t.name) as name,
@@ -765,10 +742,10 @@ export default class GpuPlugin implements PerfettoPlugin {
           where t.type in (${sliceTypes})
             and not (
               t.type = 'gpu_render_stage'
-              and exists (
+              and not exists (
                 select 1
-                from __gpu_global_fully_bound_canonical_tracks bound
-                where bound.track_id = t.id
+                from global_unbound_canonical_tracks unbound
+                where unbound.track_id = t.id
               )
             )
           group by type, t.track_group_id, ifnull(t.track_group_id, t.id),
