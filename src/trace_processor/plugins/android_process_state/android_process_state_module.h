@@ -62,6 +62,7 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> oom_score;
     std::optional<int32_t> proc_state;
     std::optional<int32_t> capability_flags;
+    std::optional<int32_t> sched_group;
   };
 
   struct EarliestDelta {
@@ -80,6 +81,7 @@ class AndroidProcessStateTracker {
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
   DescriptorPool::CachedDescriptor reason_cache_;
+  DescriptorPool::CachedDescriptor sched_group_cache_;
 
   std::map<UniquePid, EarliestDelta> earliest_prev_;
   std::map<UniquePid, ProcessStateValues> dump_;

@@ -82,6 +82,9 @@ void AndroidProcessStateTracker::ParseChange(int64_t ts,
     if (p.has_prev_capability_flags()) {
       earliest.values.capability_flags = p.prev_capability_flags();
     }
+    if (p.has_prev_sched_group()) {
+      earliest.values.sched_group = static_cast<int32_t>(p.prev_sched_group());
+    }
   }
 
   // Insert the change row.
@@ -103,6 +106,11 @@ void AndroidProcessStateTracker::ParseChange(int64_t ts,
   }
   if (p.has_cur_capability_flags()) {
     row.capability_flags = p.cur_capability_flags();
+  }
+  if (p.has_cur_sched_group()) {
+    row.sched_group =
+        InternEnum(sched_group_cache_, ".com.android.internal.SchedGroup",
+                   static_cast<int32_t>(p.cur_sched_group()));
   }
   if (p.has_reason()) {
     row.reason =
@@ -132,13 +140,16 @@ void AndroidProcessStateTracker::ParseDump(protozero::ConstBytes blob) {
                                                static_cast<uint32_t>(*v.uid));
     }
     if (rec.has_proc_state()) {
-      v.proc_state = rec.proc_state();
+      v.proc_state = static_cast<int32_t>(rec.proc_state());
     }
     if (rec.has_oom_score()) {
       v.oom_score = rec.oom_score();
     }
     if (rec.has_capability_flags()) {
       v.capability_flags = rec.capability_flags();
+    }
+    if (rec.has_sched_group()) {
+      v.sched_group = static_cast<int32_t>(rec.sched_group());
     }
     dump_[v.upid] = v;
   }
@@ -176,6 +187,10 @@ void AndroidProcessStateTracker::EmitInitialRow(const ProcessStateValues& v) {
   }
   if (v.capability_flags.has_value()) {
     row.capability_flags = *v.capability_flags;
+  }
+  if (v.sched_group.has_value()) {
+    row.sched_group = InternEnum(
+        sched_group_cache_, ".com.android.internal.SchedGroup", *v.sched_group);
   }
   process_state_table_->Insert(row);
 }
