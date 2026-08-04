@@ -31,20 +31,20 @@ class GpuFreqTrack extends TraceProcessorCounterTrack {
   constructor(
     trace: Trace,
     uri: string,
-    freqTrackId: number,
+    freqTrackIds: ReadonlyArray<number>,
     trackName: string,
   ) {
     super({
       trace,
       uri,
       unit: 'Hz',
-      trackId: freqTrackId,
+      trackId: freqTrackIds[0],
       trackName,
       rootTable: 'counter',
       sqlSource: `
       select id, ts, value * 1000 as value, arg_set_id
       from counter
-      where track_id = ${freqTrackId}
+      where track_id in (${freqTrackIds.join(',')})
     `,
     });
   }
@@ -177,9 +177,10 @@ export default class GpuPlugin implements PerfettoPlugin {
   }
 
   private async addGpuFreq(ctx: Trace) {
+    // One track per logical GPU, unioning rows a merged trace may duplicate.
     const result = await ctx.engine.query(`
       select
-        gct.id,
+        group_concat(distinct gct.id) as freqTrackIds,
         gct.gpu_id as gpuId,
         gct.machine_id as machineId,
         m.name as machineName,
@@ -191,15 +192,16 @@ export default class GpuPlugin implements PerfettoPlugin {
       left join gpu g on gct.ugpu = g.id
       left join machine m on m.id = gct.machine_id
       where gct.name = 'gpufreq'
+      group by gct.machine_id, ifnull(gct.ugpu, gct.gpu_id)
       order by machineId, gct.ugpu
     `);
 
     const tracks: Array<{
-      id: number;
+      freqTrackIds: number[];
       gpu: Gpu;
     }> = [];
     const it = result.iter({
-      id: NUM,
+      freqTrackIds: STR,
       gpuId: NUM,
       machineId: NUM,
       machineName: STR_NULL,
@@ -209,7 +211,7 @@ export default class GpuPlugin implements PerfettoPlugin {
     });
     for (; it.valid(); it.next()) {
       tracks.push({
-        id: it.id,
+        freqTrackIds: it.freqTrackIds.split(',').map(Number),
         gpu: new Gpu(
           it.ugpu ?? it.gpuId,
           it.gpuId,
@@ -234,16 +236,16 @@ export default class GpuPlugin implements PerfettoPlugin {
       parent = gpuGroup;
     }
 
-    for (const {id, gpu} of tracks) {
-      const uri = `/gpu_frequency_${gpu.ugpu}`;
+    for (const {freqTrackIds, gpu} of tracks) {
+      const uri = `/gpu_frequency_${gpu.machine}_${gpu.ugpu}`;
       const name = `${gpu.displayName} Frequency${gpu.maybeMachineLabel()}`;
       ctx.tracks.registerTrack({
         uri,
         tags: {
           kinds: [COUNTER_TRACK_KIND],
-          trackIds: [id],
+          trackIds: freqTrackIds,
         },
-        renderer: new GpuFreqTrack(ctx, uri, id, name),
+        renderer: new GpuFreqTrack(ctx, uri, freqTrackIds, name),
       });
       parent.addChildInOrder(
         new TrackNode({

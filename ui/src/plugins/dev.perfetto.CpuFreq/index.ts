@@ -16,7 +16,7 @@ import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
@@ -32,27 +32,31 @@ export default class implements PerfettoPlugin {
 
     // Find the list of CPU frequency track ids and their corresponding CPU idle
     // track ids if they exist
+    // One track per logical CPU, unioning rows a merged trace may duplicate.
     const tracksResult = await engine.query(`
       SELECT
-        track.id AS freqTrackId,
-        t2.id AS idleTrackId,
         cpu.ucpu AS ucpu,
         track.machine_id AS machineId,
         machine.name AS machineName,
         machine.label_index AS machineLabelIndex,
-        track.cpu AS cpu
+        track.cpu AS cpu,
+        group_concat(DISTINCT track.id) AS freqTrackIds,
+        (
+          SELECT group_concat(DISTINCT t2.id)
+          FROM cpu_counter_track t2
+          WHERE t2.type = 'cpu_idle'
+            AND t2.cpu = track.cpu
+            AND t2.machine_id = track.machine_id
+        ) AS idleTrackIds
       FROM cpu_counter_track track
       JOIN cpu
         ON track.cpu = cpu.cpu
        AND track.machine_id = cpu.machine_id
-      LEFT JOIN cpu_counter_track t2
-        ON track.cpu = t2.cpu
-       AND track.machine_id = t2.machine_id
-       AND t2.type = 'cpu_idle'
       LEFT JOIN machine
         ON machine.id = track.machine_id
       WHERE
         track.type = 'cpu_frequency'
+      GROUP BY cpu.ucpu
       ORDER BY ucpu
     `);
 
@@ -76,40 +80,36 @@ export default class implements PerfettoPlugin {
 
     for (
       const it = tracksResult.iter({
-        freqTrackId: NUM,
+        freqTrackIds: STR,
         machineId: NUM,
         machineName: STR_NULL,
         machineLabelIndex: NUM_NULL,
         cpu: NUM,
         ucpu: NUM,
-        idleTrackId: NUM_NULL,
+        idleTrackIds: STR_NULL,
       });
       it.valid();
       it.next()
     ) {
-      const {
-        freqTrackId,
-        idleTrackId,
-        machineId,
-        machineName,
-        machineLabelIndex,
-        cpu,
-        ucpu,
-      } = it;
+      const {machineId, machineName, machineLabelIndex, cpu, ucpu} = it;
+      const freqTrackIds = it.freqTrackIds.split(',').map(Number);
+      const idleTrackIds =
+        it.idleTrackIds === null ? [] : it.idleTrackIds.split(',').map(Number);
       const uri = `/cpu_freq_cpu${ucpu}`;
 
       ctx.tracks.registerTrack({
         uri,
         tags: {
           cpu: ucpu,
+          trackIds: freqTrackIds,
         },
         renderer: new CpuFreqTrack(
           {
             // Coloring based Cpu number, same for all machines.
             cpu,
             maximumValue: maxCpuFreq,
-            freqTrackId,
-            idleTrackId: idleTrackId ?? undefined,
+            freqTrackIds,
+            idleTrackIds,
           },
           ctx,
         ),

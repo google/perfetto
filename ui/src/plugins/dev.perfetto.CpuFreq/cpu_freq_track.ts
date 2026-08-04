@@ -73,8 +73,9 @@ interface MipmapTables extends AsyncDisposable {
 
 interface Config {
   cpu: number;
-  freqTrackId: number;
-  idleTrackId?: number;
+  // A merged trace can contribute several rows per CPU; union them.
+  freqTrackIds: ReadonlyArray<number>;
+  idleTrackIds: ReadonlyArray<number>;
   maximumValue: number;
 }
 
@@ -150,7 +151,10 @@ export class CpuFreqTrack implements TrackRenderer {
 
     let rawFreqIdleTableName: string;
 
-    if (this.config.idleTrackId === undefined) {
+    const freqTrackIds = this.config.freqTrackIds.join(',');
+    const idleTrackIds = this.config.idleTrackIds.join(',');
+
+    if (this.config.idleTrackIds.length === 0) {
       const rawFreqIdleView = await createView({
         engine: this.trace.engine,
         as: `
@@ -158,7 +162,7 @@ export class CpuFreqTrack implements TrackRenderer {
           from counter_leading_intervals!((
             select id, ts, track_id, value
             from counter
-            where track_id = ${this.config.freqTrackId}
+            where track_id in (${freqTrackIds})
           ))
         `,
       });
@@ -172,7 +176,7 @@ export class CpuFreqTrack implements TrackRenderer {
           from counter_leading_intervals!((
             select id, ts, track_id, value
             from counter
-           where track_id = ${this.config.freqTrackId}
+           where track_id in (${freqTrackIds})
           ))
         `,
       });
@@ -188,7 +192,7 @@ export class CpuFreqTrack implements TrackRenderer {
           from counter_leading_intervals!((
             select id, ts, track_id, value
             from counter
-            where track_id = ${this.config.idleTrackId}
+            where track_id in (${idleTrackIds})
           ))
         `,
       });
@@ -393,8 +397,8 @@ export class CpuFreqTrack implements TrackRenderer {
     const tableResult = this.tableSlot.use({
       // Key is constant - tables only need to be created once
       key: {
-        freqTrackId: this.config.freqTrackId,
-        idleTrackId: this.config.idleTrackId,
+        freqTrackIds: this.config.freqTrackIds,
+        idleTrackIds: this.config.idleTrackIds,
       },
       compute: () => this.createMipmapTables(),
     });

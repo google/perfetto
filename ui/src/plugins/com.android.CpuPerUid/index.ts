@@ -17,7 +17,7 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.CpuPerUid';
@@ -62,17 +62,28 @@ export default class implements PerfettoPlugin {
   async addSummaryCpuCounters(ctx: Trace): Promise<void> {
     const e = ctx.engine;
 
+    // One track per (machine, type, cluster), unioning duplicated rows.
     const tracks = await e.query(
-      `select distinct
-         id,
+      `select
+         machine_id as machineId,
          extract_arg(dimension_arg_set_id, 'type') as type,
-         extract_arg(dimension_arg_set_id, 'cluster') as cluster
+         extract_arg(dimension_arg_set_id, 'cluster') as cluster,
+         group_concat(id) as trackIds
        from track
        where type = 'android_cpu_per_uid_totals'
+       group by
+         machine_id,
+         extract_arg(dimension_arg_set_id, 'type'),
+         extract_arg(dimension_arg_set_id, 'cluster')
        order by type, cluster`,
     );
 
-    const it = tracks.iter({id: NUM, type: STR, cluster: NUM});
+    const it = tracks.iter({
+      machineId: NUM_NULL,
+      type: STR,
+      cluster: NUM,
+      trackIds: STR,
+    });
     if (it.valid()) {
       const group = new TrackNode({
         name: 'Summary',
@@ -82,13 +93,14 @@ export default class implements PerfettoPlugin {
 
       for (; it.valid(); it.next()) {
         const name = `${it.type} (${clusterName(it.cluster)})`;
+        const trackIds = it.trackIds.split(',').map(Number);
         await this.addCpuPerUidTrack(
           ctx,
           `select ts, value
           from counter
-          where track_id = ${it.id}`,
+          where track_id in (${trackIds.join(',')})`,
           name,
-          `/cpu_per_uid_summary_${it.type}_${it.cluster}`,
+          `/cpu_per_uid_summary_${it.machineId ?? 0}_${it.type}_${it.cluster}`,
           group,
           'cpu-per-uid-summary',
         );

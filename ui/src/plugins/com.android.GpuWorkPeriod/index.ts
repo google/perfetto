@@ -53,7 +53,7 @@ export default class implements PerfettoPlugin {
         group by uid
       )
       select
-        t.id as trackId,
+        group_concat(distinct t.id) as trackIds,
         t.uid as uid,
         t.gpu_id as gpuId,
         t.ugpu as ugpu,
@@ -65,11 +65,12 @@ export default class implements PerfettoPlugin {
       left join grouped_packages p using (uid)
       left join gpu g on g.id = t.ugpu
       left join machine m on m.id = t.machine_id
+      group by t.machine_id, ifnull(t.ugpu, t.gpu_id), t.uid
       order by t.gpu_id, lower(packageName)
     `);
 
     const it = result.iter({
-      trackId: NUM,
+      trackIds: STR,
       uid: NUM,
       gpuId: NUM,
       ugpu: NUM_NULL,
@@ -89,8 +90,10 @@ export default class implements PerfettoPlugin {
     // Cache the work-period group(s) by name so each is created only once.
     const groupsByName = new Map<string, TrackNode>();
     for (; it.valid(); it.next()) {
-      const {trackId, gpuId, uid, packageName} = it;
-      const uri = `/gpu_work_period_${gpuId}_${uid}`;
+      const {gpuId, uid, packageName} = it;
+      const trackIds = it.trackIds.split(',').map(Number);
+      const logicalGpu = it.ugpu ?? gpuId;
+      const uri = `/gpu_work_period_${it.machineId ?? 0}_${logicalGpu}_${uid}`;
       const track = await SliceTrack.createMaterialized({
         trace: ctx,
         uri,
@@ -98,7 +101,7 @@ export default class implements PerfettoPlugin {
           src: `
             select ts, dur, name
             from slice
-            where track_id = ${trackId}
+            where track_id in (${trackIds.join(',')})
           `,
           schema: {
             ts: LONG,
@@ -110,7 +113,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         tags: {
-          trackIds: [trackId],
+          trackIds,
           kinds: [SLICE_TRACK_KIND],
         },
         renderer: track,
