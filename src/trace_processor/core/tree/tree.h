@@ -17,9 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_TREE_TREE_H_
 #define SRC_TRACE_PROCESSOR_CORE_TREE_TREE_H_
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -88,6 +93,24 @@ struct Tree {
     Slab<uint8_t> data;
     BitVector null_bv;  // non-empty for nullable columns
   };
+
+  // Given a column name, returns a pointer to the corresponding column, or
+  // nullopt if not found.
+  std::optional<const Column*> Find(std::string_view find_name) const {
+    auto it = std::find(names.begin(), names.end(), find_name);
+    if (it == names.end()) {
+      return std::nullopt;
+    }
+    return columns.data() + std::distance(names.begin(), it);
+  }
+
+  // Returns the name associated with a column in this tree.
+  std::string_view ColumnName(const Column* column) const {
+    const auto index =
+        static_cast<size_t>(std::distance(columns.data(), column));
+    PERFETTO_DCHECK(index < names.size());
+    return names[index];
+  }
 
   uint32_t row_count = 0;
   Slab<uint32_t> parent;  // normalized: row indices, kNullParent for roots

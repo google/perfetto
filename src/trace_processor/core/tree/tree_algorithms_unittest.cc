@@ -14,22 +14,45 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/tree/tree_from_dataframe.h"
+#include "src/trace_processor/core/tree/tree_path_interner.h"
 
 #include <cstdint>
 #include <iterator>
 #include <optional>
 #include <utility>
+#include <vector>
 
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/tree/tree.h"
+#include "src/trace_processor/core/tree/tree_from_dataframe.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core {
 namespace {
 
-TEST(TreeFromDataframeTest, PreservesRowOrderAndNullableColumn) {
+base::MurmurHashCombiner Hash(int64_t value) {
+  base::MurmurHashCombiner hash;
+  hash.Combine(value);
+  return hash;
+}
+
+TEST(TreePathInternerTest, InternsByParentAndKey) {
+  TreePathInterner tree(4);
+  const uint32_t root = tree.Intern(Tree::kNullParent, Hash(1), 10);
+  EXPECT_EQ(tree.Intern(Tree::kNullParent, Hash(1), 20), root);
+
+  const uint32_t child = tree.Intern(root, Hash(2), 30);
+  EXPECT_EQ(tree.Intern(root, Hash(2), 40), child);
+  EXPECT_NE(tree.Intern(Tree::kNullParent, Hash(2), 50), child);
+
+  EXPECT_EQ(tree.parent(child), root);
+  EXPECT_EQ(tree.representative_row(root), 10u);
+  EXPECT_EQ(tree.representative_row(child), 30u);
+}
+
+TEST(TreeFromDataframeTest, ReordersNullableColumn) {
   StringPool pool;
   dataframe::AdhocDataframeBuilder::Options options;
   options.types = {dataframe::AdhocColumnType::kInt64,

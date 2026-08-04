@@ -2514,8 +2514,12 @@ perfetto_filegroup(
     name = "src_trace_processor_core_tree_tree",
     srcs = [
         "src/trace_processor/core/tree/tree.h",
+        "src/trace_processor/core/tree/tree_column_ops.cc",
+        "src/trace_processor/core/tree/tree_column_ops.h",
         "src/trace_processor/core/tree/tree_from_dataframe.cc",
         "src/trace_processor/core/tree/tree_from_dataframe.h",
+        "src/trace_processor/core/tree/tree_path_interner.cc",
+        "src/trace_processor/core/tree/tree_path_interner.h",
     ],
 )
 

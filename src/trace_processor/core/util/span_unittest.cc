@@ -30,6 +30,7 @@ TEST(SpanTest, CreatesFromVector) {
   std::vector<uint32_t> values{1, 2, 3};
   Span<const uint32_t> span = MakeSpan(values);
   EXPECT_THAT(span, testing::ElementsAre(1u, 2u, 3u));
+  EXPECT_THAT(span.subspan(1, 2), testing::ElementsAre(2u, 3u));
 
   Span<uint32_t> mutable_span = MakeMutableSpan(values);
   mutable_span.b[1] = 4;
