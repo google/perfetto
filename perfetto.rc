@@ -143,7 +143,13 @@ on property:sys.boot_completed=1 && property:init.svc.perfetto_trace_on_boot=run
 
 # Trigger upload of post-reboot traces after boot completes
 on property:sys.boot_completed=1 && property:persist.traced.enable=1
-    exec_background - shell shell -- /system/bin/perfetto --upload-after-reboot
+    start perfetto_upload_after_reboot
+
+service perfetto_upload_after_reboot /system/bin/perfetto --upload-after-reboot
+    disabled
+    oneshot
+    user shell
+    group shell log system
 
 # Forcefully enable select userspace (atrace) tracing categories early into the
 # userspace boot. This is primarily for capturing zygote events without waiting

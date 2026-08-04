@@ -376,8 +376,8 @@ size_t PerfettoCmd::SanitizeAndAnnotatePersistentTrace(
   if (valid_offset < mmap.length()) {
     bytes_truncated = static_cast<uint64_t>(mmap.length() - valid_offset);
     PERFETTO_LOG(
-        "Truncating incomplete trailing trace packet from %zu to %zu bytes "
-        "(%" PRIu64 " bytes truncated) in %s",
+        "reboot-trace: Truncating incomplete trailing trace packet from %zu to "
+        "%zu bytes (%" PRIu64 " bytes truncated) in %s",
         mmap.length(), valid_offset, bytes_truncated, file_name.c_str());
     if (ftruncate(fd, static_cast<off_t>(valid_offset)) != 0) {
       PERFETTO_PLOG("Failed to ftruncate trace file %s", file_name.c_str());
@@ -410,18 +410,14 @@ int PerfettoCmd::UploadPersistentTracesAfterReboot() {
     SetRebootTraceStatusProp(RebootTraceUploadState::kTraceUploadUninitialized);
   }
   if (!base::FileExists(persistent_dir.c_str())) {
-    PERFETTO_LOG(
-        "reboot-trace: Persistent directory %s does not exist, nothing to "
-        "upload",
-        persistent_dir.c_str());
     return 0;
   }
 
   std::vector<std::string> files;
   base::Status status = base::ListFilesRecursive(persistent_dir.c_str(), files);
   if (!status.ok()) {
-    PERFETTO_LOG("reboot-trace: Failed to list files in %s: %s",
-                 persistent_dir.c_str(), status.c_message());
+    PERFETTO_ELOG("reboot-trace: Failed to list files in %s: %s",
+                  persistent_dir.c_str(), status.c_message());
     return 0;
   }
 
@@ -446,14 +442,15 @@ int PerfettoCmd::UploadPersistentTracesAfterReboot() {
                                      file_name.c_str());
 
     base::ScopedFile fd = base::OpenFile(full_path.c_str(), O_RDWR | O_CLOEXEC);
+    if (!fd) {
+      PERFETTO_PLOG("reboot-trace: Failed to open persistent trace %s",
+                    full_path.c_str());
+    }
     // Unlink immediately regardless of open status to guarantee disk cleanup.
     unlink(full_path.c_str());
 
     if (fd) {
       pending_traces.push_back({std::move(fd), file_name});
-    } else {
-      PERFETTO_PLOG("reboot-trace: Failed to open persistent trace %s",
-                    full_path.c_str());
     }
   }
 
@@ -515,9 +512,11 @@ int PerfettoCmd::UploadPersistentTracesAfterReboot() {
     }
   }
 
-  PERFETTO_LOG(
-      "reboot-trace: %zu persistent trace(s) found, %zu file(s) uploaded.",
-      traces_found, traces_uploaded);
+  if (traces_found > 0) {
+    PERFETTO_LOG(
+        "reboot-trace: %zu persistent trace(s) found, %zu file(s) uploaded.",
+        traces_found, traces_uploaded);
+  }
 
   // Update property status to 2:TS upon completion of reboot recovery uploads.
   SetRebootTraceStatusProp(RebootTraceUploadState::kTraceUploadFinished);
