@@ -104,6 +104,18 @@ if (enable_perfetto_llvm_symbolizer) {
   }
 }
 
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":symbolizer",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+    ]
+    sources = [ "local_symbolizer_benchmark.cc" ]
+  }
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
