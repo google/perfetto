@@ -178,32 +178,10 @@ constexpr auto kGpuTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
         tracks::StringIdDimensionBlueprint("merge_key_value")),
     tracks::DynamicNameBlueprint());
 
-constexpr auto kProcessGpuTrackMergedBlueprint =
-    TrackCompressor::SliceBlueprint(
-        "gpu_merged_track_event",
-        tracks::DimensionBlueprints(
-            tracks::kUgpuDimensionBlueprint,
-            tracks::kGpuIdDimensionBlueprint,
-            tracks::kProcessDimensionBlueprint,
-            tracks::LongDimensionBlueprint("parent_track_uuid"),
-            tracks::UintDimensionBlueprint("merge_key_type"),
-            tracks::StringIdDimensionBlueprint("merge_key_value")),
-        tracks::DynamicNameBlueprint());
-
 constexpr auto kUnspecifiedGpuTrackMergedBlueprint =
     TrackCompressor::SliceBlueprint(
         "gpu_unspecified_merged_track_event",
         tracks::DimensionBlueprints(
-            tracks::LongDimensionBlueprint("parent_track_uuid"),
-            tracks::UintDimensionBlueprint("merge_key_type"),
-            tracks::StringIdDimensionBlueprint("merge_key_value")),
-        tracks::DynamicNameBlueprint());
-
-constexpr auto kProcessUnspecifiedGpuTrackMergedBlueprint =
-    TrackCompressor::SliceBlueprint(
-        "gpu_unspecified_merged_track_event",
-        tracks::DimensionBlueprints(
-            tracks::kProcessDimensionBlueprint,
             tracks::LongDimensionBlueprint("parent_track_uuid"),
             tracks::UintDimensionBlueprint("merge_key_type"),
             tracks::StringIdDimensionBlueprint("merge_key_value")),
@@ -625,7 +603,6 @@ TrackEventTracker::InternDescriptorTrackImpl(
     auto intern_with_blueprints =
         [&](const auto& counter_blueprint, const auto& state_blueprint,
             const auto& track_blueprint, const auto& merged_blueprint,
-            const auto& process_merged_blueprint,
             const auto& make_dimensions) -> TrackOrFactory {
       auto on_new_direct_track = [&on_new_track](TrackId id) {
         if (on_new_track) {
@@ -641,13 +618,6 @@ TrackEventTracker::InternDescriptorTrackImpl(
             tracks::DynamicUnit(reservation->counter_details->unit)));
       }
       auto make_factory = [&](uint32_t type, StringId key) {
-        if (resolved->gpu_process_upid()) {
-          return context_->track_compressor->CreateTrackFactory(
-              process_merged_blueprint,
-              make_dimensions(*resolved->gpu_process_upid(), parent_uuid, type,
-                              key),
-              tracks::DynamicName(name), args_fn, on_new_track);
-        }
         return context_->track_compressor->CreateTrackFactory(
             merged_blueprint, make_dimensions(parent_uuid, type, key),
             tracks::DynamicName(name), args_fn, on_new_track);
@@ -682,7 +652,7 @@ TrackEventTracker::InternDescriptorTrackImpl(
       return intern_with_blueprints(
           kGpuCounterTrackBlueprint, kGpuStateTrackBlueprint,
           kGpuTrackBlueprint, kGpuTrackMergedBlueprint,
-          kProcessGpuTrackMergedBlueprint, [ugpu, gpu_id](auto... dimensions) {
+          [ugpu, gpu_id](auto... dimensions) {
             return tracks::Dimensions(ugpu, gpu_id, dimensions...);
           });
     }
@@ -690,7 +660,6 @@ TrackEventTracker::InternDescriptorTrackImpl(
         kUnspecifiedGpuCounterTrackBlueprint,
         kUnspecifiedGpuStateTrackBlueprint, kUnspecifiedGpuTrackBlueprint,
         kUnspecifiedGpuTrackMergedBlueprint,
-        kProcessUnspecifiedGpuTrackMergedBlueprint,
         [](auto... dimensions) { return tracks::Dimensions(dimensions...); });
   };
 
@@ -729,7 +698,8 @@ TrackEventTracker::InternDescriptorTrackImpl(
             tracks::DynamicName(translated_name), args_fn_root);
       }
       case ResolvedDescriptorTrack::Scope::kGpu:
-        return intern_gpu_track(args_fn_root, 0, {});
+        return intern_gpu_track(
+            args_fn_root, static_cast<int64_t>(reservation->parent_uuid), {});
       case ResolvedDescriptorTrack::Scope::kGlobal:
         PERFETTO_FATAL("Should never happen");
     }
