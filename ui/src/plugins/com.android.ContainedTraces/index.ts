@@ -24,7 +24,7 @@ import {
 } from '../../trace_processor/query_result';
 import {SourceDataset, type Dataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
-import {AsyncLimiter} from '../../base/async_limiter';
+import {AsyncMemo} from '../../base/async_memo';
 import {Duration, Time, type duration} from '../../base/time';
 import {DurationWidget} from '../../components/widgets/duration';
 import {selectTracksAndGetDataset} from '../../components/aggregation_adapter';
@@ -34,11 +34,10 @@ import {Button} from '../../widgets/button';
 import {Checkbox} from '../../widgets/checkbox';
 import {Anchor} from '../../widgets/anchor';
 import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
-import {
-  type AreaSelection,
-  type AreaSelectionTab,
-  type ContentWithLoadingFlag,
-  areaSelectionsEqual,
+import type {
+  AreaSelection,
+  AreaSelectionTab,
+  ContentWithLoadingFlag,
 } from '../../public/selection';
 
 interface ContainedTrace {
@@ -77,11 +76,10 @@ class ContainedTracesTab implements AreaSelectionTab {
   readonly id = 'contained_traces_merge';
   readonly name = 'Contained traces';
 
-  private readonly limiter = new AsyncLimiter();
-  private previousSelection?: AreaSelection;
-  private rows: MergeRow[] = [];
-  private selected = new Set<string>();
-  private loading = false;
+  private readonly memo = new AsyncMemo<{
+    rows: MergeRow[];
+    selected: Set<string>;
+  }>();
 
   constructor(
     private readonly trace: Trace,
@@ -93,35 +91,39 @@ class ContainedTracesTab implements AreaSelectionTab {
       selection.tracks,
       CONTAINED_TRACE_SPEC,
     );
-    if (dataset === undefined) {
-      this.previousSelection = undefined;
-      return undefined;
-    }
+    if (dataset === undefined) return undefined;
 
-    if (
-      this.previousSelection === undefined ||
-      !areaSelectionsEqual(this.previousSelection, selection)
-    ) {
-      this.previousSelection = selection;
-      this.loading = true;
-      this.limiter.schedule(async () => {
-        this.rows = await this.queryRows(dataset, selection);
-        this.selected = new Set(this.rows.map((r) => r.uuid));
-        this.loading = false;
-        m.redraw();
-      });
-    }
+    const {data, isPending} = this.memo.use({
+      key: {
+        start: selection.start,
+        end: selection.end,
+        trackUris: selection.trackUris,
+      },
+      compute: async () => {
+        const rows = await this.queryRows(dataset, selection);
+        return {rows, selected: new Set(rows.map((r) => r.uuid))};
+      },
+    });
 
     return {
-      isLoading: this.loading,
+      isLoading: isPending,
       buttons: m(Button, {
         label: 'Merge selected traces',
         icon: Icons.ExternalLink,
-        disabled: this.selected.size === 0,
-        onclick: () =>
-          window.open(TRACE_UUIDS_URL + [...this.selected].join(','), '_blank'),
+        disabled: data === undefined || data.selected.size === 0,
+        onclick: () => {
+          if (data !== undefined) {
+            window.open(
+              TRACE_UUIDS_URL + [...data.selected].join(','),
+              '_blank',
+            );
+          }
+        },
       }),
-      content: this.renderGrid(),
+      content:
+        data === undefined
+          ? undefined
+          : this.renderGrid(data.rows, data.selected),
     };
   }
 
@@ -164,7 +166,10 @@ class ContainedTracesTab implements AreaSelectionTab {
     return rows;
   }
 
-  private renderGrid(): m.Children {
+  private renderGrid(
+    rows: ReadonlyArray<MergeRow>,
+    selected: Set<string>,
+  ): m.Children {
     return m(Grid, {
       columns: [
         {key: 'select'},
@@ -174,12 +179,18 @@ class ContainedTracesTab implements AreaSelectionTab {
         {key: 'track', header: m(GridHeaderCell, 'Track')},
         {key: 'dur', header: m(GridHeaderCell, 'Duration')},
       ],
-      rowData: this.rows.map((r) => [
+      rowData: rows.map((r) => [
         m(
           GridCell,
           m(Checkbox, {
-            checked: this.selected.has(r.uuid),
-            onchange: () => this.toggle(r.uuid),
+            checked: selected.has(r.uuid),
+            onchange: () => {
+              if (selected.has(r.uuid)) {
+                selected.delete(r.uuid);
+              } else {
+                selected.add(r.uuid);
+              }
+            },
           }),
         ),
         m(GridCell, r.isSelf ? m(Icon, {icon: Icons.Check}) : undefined),
@@ -196,14 +207,6 @@ class ContainedTracesTab implements AreaSelectionTab {
         m(GridCell, m(DurationWidget, {trace: this.trace, dur: r.dur})),
       ]),
     });
-  }
-
-  private toggle(uuid: string) {
-    if (this.selected.has(uuid)) {
-      this.selected.delete(uuid);
-    } else {
-      this.selected.add(uuid);
-    }
   }
 }
 
