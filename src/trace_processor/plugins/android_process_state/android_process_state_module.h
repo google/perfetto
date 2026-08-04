@@ -62,12 +62,24 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> oom_score;
     std::optional<int32_t> proc_state;
     std::optional<int32_t> capability_flags;
+    std::optional<int32_t> process_group;
     std::optional<int32_t> sched_group;
   };
 
   struct EarliestDelta {
-    int64_t ts = std::numeric_limits<int64_t>::max();
-    ProcessStateValues values;
+    UniquePid upid = 0;
+    int32_t pid = 0;
+    std::optional<int32_t> uid;
+    std::optional<int32_t> oom_score;
+    int64_t oom_score_ts = std::numeric_limits<int64_t>::max();
+    std::optional<int32_t> proc_state;
+    int64_t proc_state_ts = std::numeric_limits<int64_t>::max();
+    std::optional<int32_t> capability_flags;
+    int64_t capability_flags_ts = std::numeric_limits<int64_t>::max();
+    std::optional<int32_t> process_group;
+    int64_t process_group_ts = std::numeric_limits<int64_t>::max();
+    std::optional<int32_t> sched_group;
+    int64_t sched_group_ts = std::numeric_limits<int64_t>::max();
   };
 
   void EmitInitialRow(const ProcessStateValues& v);
@@ -81,6 +93,7 @@ class AndroidProcessStateTracker {
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
   DescriptorPool::CachedDescriptor reason_cache_;
+  DescriptorPool::CachedDescriptor process_group_cache_;
   DescriptorPool::CachedDescriptor sched_group_cache_;
 
   std::map<UniquePid, EarliestDelta> earliest_prev_;
