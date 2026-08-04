@@ -14,6 +14,11 @@ the `convert` subcommand of `trace_processor`.
 > see [Symbolization and deobfuscation](/docs/learning-more/symbolization.md)
 > instead (the `bundle` and `util` subcommands). This page covers only format
 > conversion.
+>
+> To dump trace processor's parsed *tables* (rather than the trace itself) as
+> SQLite, Arrow or a reloadable Perfetto archive, use the `export` subcommand
+> instead: see
+> [Export trace data](/docs/getting-started/command-line-analysis.md#export-trace-data).
 
 ## Prerequisites
 
