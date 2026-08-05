@@ -35,7 +35,7 @@ export interface ContentWithLoadingFlag {
   readonly buttons?: m.Children;
 }
 
-export interface AreaSelectionTab {
+export interface SelectionTab<T = Selection> {
   // Unique id for this tab.
   readonly id: string;
 
@@ -54,12 +54,15 @@ export interface AreaSelectionTab {
    * has nothing relevant to show.
    *
    * The |isLoading| flag is used to avoid flickering. If set to true, we keep
-   * hold of the the previous vnodes, rendering them instead, for up to 50ms
+   * hold of the previous vnodes, rendering them instead, for up to 50ms
    * before switching to the new content. This avoids very fast load times
    * from causing flickering loading screens, which can be somewhat jarring.
    */
-  render(selection: AreaSelection): ContentWithLoadingFlag | undefined;
+  render(selection: T): ContentWithLoadingFlag | undefined;
 }
+
+export type AreaSelectionTab = SelectionTab<AreaSelection>;
+export type TrackEventSelectionTab = SelectionTab<TrackEventSelection>;
 
 /**
  * Compare two area selections for equality. Returns true if the selections are
@@ -78,9 +81,9 @@ export interface SelectionManager {
   readonly selection: Selection;
 
   /**
-   * Provides a list of registered area selection tabs.
+   * Provides a list of registered selection tabs.
    */
-  readonly areaSelectionTabs: ReadonlyArray<AreaSelectionTab>;
+  readonly selectionTabs: ReadonlyArray<SelectionTab>;
 
   /**
    * Clears the current selection, selects nothing.
@@ -155,9 +158,19 @@ export interface SelectionManager {
   getTimeSpanOfSelection(): TimeSpan | undefined;
 
   /**
+   * Register a new tab under the selection details panel.
+   */
+  registerSelectionTab(tab: SelectionTab): void;
+
+  /**
    * Register a new tab under the area selection details panel.
    */
   registerAreaSelectionTab(tab: AreaSelectionTab): void;
+
+  /**
+   * Register a new tab under the track event selection details panel.
+   */
+  registerTrackEventSelectionTab(tab: TrackEventSelectionTab): void;
 }
 
 export type Selection =
