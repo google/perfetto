@@ -14,7 +14,7 @@
 
 import './styles.scss';
 import {AsyncMemo, AtomicTaskQueue} from '../../base/async_memo';
-import {LockOwnerDetailsPanel} from './lock_owner_details_panel';
+import {LockContentionDetailsTab} from './lock_owner_details_panel';
 import {LOCK_CONTENTION_SQL} from './lock_contention_sql';
 import type {Selection} from '../../public/selection';
 import {Time} from '../../base/time';
@@ -52,6 +52,7 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
   public highlightedTargetIds = new Set<number>();
   public pinningManager!: TrackPinningManager;
   public currentBlockedSlice?: {id: number; trackUri?: string};
+  public contentionSliceIds = new Set<number>();
   private lastEventId?: number;
 
   private async contextualJump(trace: Trace) {
@@ -131,6 +132,18 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     this.pinningManager = new TrackPinningManager(trace);
     await trace.engine.query(LOCK_CONTENTION_SQL);
+
+    const contentions = await trace.engine.query(
+      `SELECT id FROM android_all_lock_contentions`,
+    );
+    const it = contentions.iter({id: NUM});
+    for (; it.valid(); it.next()) {
+      this.contentionSliceIds.add(it.id);
+    }
+
+    trace.selection.registerTrackEventSelectionTab(
+      new LockContentionDetailsTab(trace, this),
+    );
 
     trace.tracks.registerOverlay(
       new RelatedEventsOverlay(trace, () => this.getConnections(trace)),
@@ -411,7 +424,6 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
           sliceHeight: 14,
           titleSizePx: 10,
         },
-        detailsPanel: (row) => new LockOwnerDetailsPanel(trace, row.id, this),
       }),
     });
 
