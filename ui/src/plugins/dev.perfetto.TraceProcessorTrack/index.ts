@@ -50,7 +50,6 @@ import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {CounterSelectionAggregator} from './counter_selection_aggregator';
 import {COUNTER_TRACK_SCHEMAS} from './counter_tracks';
-import {PivotTableTab} from './pivot_table_tab';
 import {ThreadSliceAggregator} from './thread_slice_aggregator';
 import {SLICE_TRACK_SCHEMAS} from './slice_tracks';
 import {STATE_TRACK_SCHEMAS} from './state_tracks';
@@ -599,7 +598,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new ThreadSliceAggregator(ctx)),
     );
-    ctx.selection.registerAreaSelectionTab(new PivotTableTab(ctx));
     ctx.selection.registerAreaSelectionTab(
       this.createSliceFlameGraphPanel(ctx),
     );
