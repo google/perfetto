@@ -61,9 +61,11 @@ class Parser : public TrackEventExtensionParser {
   }
   ~Parser() override = default;
 
-  Result OnTrackEventSliceExtension(const TrackEventExtensionField& field,
-                                    SliceId id) override {
-    int64_t ts = trace_context_->storage->slice_table()[id].ts();
+  Result OnTrackEventSliceExtension(
+      const TrackEventExtensionField& field,
+      SliceId /*id*/,
+      int64_t ts,
+      PacketSequenceStateGeneration* /*sequence_state*/) override {
     switch (field.id()) {
       case FBTE::kProcessStartEventFieldNumber:
         HandleProcessStart(field.Cast<FBTE::kProcessStartEvent>(), ts);

@@ -1369,23 +1369,23 @@ class TrackEventEventImporter {
   }
 
   bool DispatchSliceParsers(SliceId id) {
-    return DispatchParsers([id](TrackEventExtensionParser* parser,
-                                const TrackEventExtensionField& f) {
-      return parser->OnTrackEventSliceExtension(f, id);
+    return DispatchParsers([id, this](TrackEventExtensionParser* parser,
+                                      const TrackEventExtensionField& f) {
+      return parser->OnTrackEventSliceExtension(f, id, ts_, sequence_state_);
     });
   }
 
   bool DispatchCounterParsers(CounterId id) {
-    return DispatchParsers([id](TrackEventExtensionParser* parser,
-                                const TrackEventExtensionField& f) {
-      return parser->OnTrackEventCounterExtension(f, id);
+    return DispatchParsers([id, this](TrackEventExtensionParser* parser,
+                                      const TrackEventExtensionField& f) {
+      return parser->OnTrackEventCounterExtension(f, id, ts_, sequence_state_);
     });
   }
 
   bool DispatchStateParsers(StateId id) {
-    return DispatchParsers([id](TrackEventExtensionParser* parser,
-                                const TrackEventExtensionField& f) {
-      return parser->OnTrackEventStateExtension(f, id);
+    return DispatchParsers([id, this](TrackEventExtensionParser* parser,
+                                      const TrackEventExtensionField& f) {
+      return parser->OnTrackEventStateExtension(f, id, ts_, sequence_state_);
     });
   }
 
@@ -1428,6 +1428,7 @@ class TrackEventEventImporter {
                        Variadic::String(context_->storage->InternString(
                            id_str.string_view())));
     }
+
     if (event_.has_correlation_id_str()) {
       inserter->AddArg(parser_->correlation_id_key_id_,
                        Variadic::String(storage_->InternString(
