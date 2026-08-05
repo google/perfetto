@@ -19,7 +19,7 @@ import type {BarChartData} from '../../components/aggregation';
 import {
   type Aggregation,
   type Aggregator,
-  type AggregatorGridConfig,
+  type AggregatorGridPreset,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -174,86 +174,114 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
   private getGridConfig(
     resolveTrack: (groupId: number, partition: SqlValue) => Track | undefined,
-  ): AggregatorGridConfig {
-    return {
-      schema: {
-        id_with_lineage: {
-          title: 'ID',
-          columnType: 'identifier',
-          cellRenderer: (value: unknown) => {
-            // Value is a JSON object {id, groupid, partition}
-            if (typeof value !== 'string') {
-              return String(value);
-            }
+  ): ReadonlyArray<AggregatorGridPreset> {
+    const schema = {
+      id_with_lineage: {
+        title: 'ID',
+        columnType: 'identifier' as const,
+        cellRenderer: (value: unknown) => {
+          // Value is a JSON object {id, groupid, partition}
+          if (typeof value !== 'string') {
+            return String(value);
+          }
 
-            const parsed = JSON.parse(value) as {
-              id: number;
-              groupid: number;
-              partition: SqlValue;
-            };
-            const {id, groupid, partition} = parsed;
+          const parsed = JSON.parse(value) as {
+            id: number;
+            groupid: number;
+            partition: SqlValue;
+          };
+          const {id, groupid, partition} = parsed;
 
-            // Resolve track from lineage
-            const track = resolveTrack(groupid, partition);
-            if (!track) {
-              return String(id);
-            }
+          // Resolve track from lineage
+          const track = resolveTrack(groupid, partition);
+          if (!track) {
+            return String(id);
+          }
 
-            return m(
-              Anchor,
-              {
-                title: 'Go to thread state',
-                icon: Icons.UpdateSelection,
-                onclick: () => {
-                  this.trace.selection.selectTrackEvent(track.uri, id, {
-                    scrollToSelection: true,
-                  });
-                },
+          return m(
+            Anchor,
+            {
+              title: 'Go to thread state',
+              icon: Icons.UpdateSelection,
+              onclick: () => {
+                this.trace.selection.selectTrackEvent(track.uri, id, {
+                  scrollToSelection: true,
+                });
               },
-              String(id),
-            );
-          },
-        },
-        cluster_type: {title: 'Cluster Type', columnType: 'text'},
-        process_name: {title: 'Process', columnType: 'text'},
-        pid: {title: 'PID', columnType: 'identifier'},
-        thread_name: {title: 'Thread', columnType: 'text'},
-        tid: {title: 'TID', columnType: 'identifier'},
-        ucpu: {title: 'CPU', columnType: 'quantitative'},
-        utid: {title: 'UTID', columnType: 'identifier'},
-        state: {title: 'State', columnType: 'text'},
-        dur: {
-          title: 'Wall duration',
-          columnType: 'quantitative',
-          cellRenderer: formatDurationValue,
-        },
-        fraction_of_total: {
-          title: 'Wall duration %',
-          columnType: 'quantitative',
-          cellRenderer: formatPercentValue,
+            },
+            String(id),
+          );
         },
       },
-      initialPivot: {
-        groupBy: [
-          {id: 'thread_name', field: 'thread_name'},
-          {id: 'state', field: 'state'},
-        ],
-        aggregates: [
-          {id: 'count', function: 'COUNT'},
-          {id: 'process_name_any', field: 'process_name', function: 'ANY'},
-          {id: 'pid_any', field: 'pid', function: 'ANY'},
-          {id: 'thread_name_any', field: 'thread_name', function: 'ANY'},
-          {id: 'tid_any', field: 'tid', function: 'ANY'},
-          {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
-          {
-            id: 'fraction_of_total_sum',
-            field: 'fraction_of_total',
-            function: 'SUM',
-          },
-          {id: 'dur_avg', field: 'dur', function: 'AVG'},
-        ],
+      cluster_type: {title: 'Cluster Type', columnType: 'text' as const},
+      process_name: {title: 'Process', columnType: 'text' as const},
+      pid: {title: 'PID', columnType: 'identifier' as const},
+      thread_name: {title: 'Thread', columnType: 'text' as const},
+      tid: {title: 'TID', columnType: 'identifier' as const},
+      ucpu: {title: 'CPU', columnType: 'quantitative' as const},
+      utid: {title: 'UTID', columnType: 'identifier' as const},
+      state: {title: 'State', columnType: 'text' as const},
+      dur: {
+        title: 'Wall duration',
+        columnType: 'quantitative' as const,
+        cellRenderer: formatDurationValue,
+      },
+      fraction_of_total: {
+        title: 'Wall duration %',
+        columnType: 'quantitative' as const,
+        cellRenderer: formatPercentValue,
       },
     };
+
+    const aggregates = [
+      {id: 'count', function: 'COUNT' as const},
+      {id: 'process_name_any', field: 'process_name', function: 'ANY' as const},
+      {id: 'pid_any', field: 'pid', function: 'ANY' as const},
+      {id: 'thread_name_any', field: 'thread_name', function: 'ANY' as const},
+      {id: 'tid_any', field: 'tid', function: 'ANY' as const},
+      {
+        id: 'dur_sum',
+        field: 'dur',
+        function: 'SUM' as const,
+        sort: 'DESC' as const,
+      },
+      {
+        id: 'fraction_of_total_sum',
+        field: 'fraction_of_total',
+        function: 'SUM' as const,
+      },
+      {id: 'dur_avg', field: 'dur', function: 'AVG' as const},
+    ];
+
+    return [
+      {
+        displayName: 'By Thread',
+        config: {
+          schema,
+          initialPivot: {
+            groupBy: [
+              {id: 'thread_name', field: 'thread_name'},
+              {id: 'state', field: 'state'},
+            ],
+            aggregates,
+          },
+        },
+      },
+      {
+        displayName: 'By CPU',
+        config: {
+          schema,
+          initialPivot: {
+            groupBy: [
+              {id: 'thread_name', field: 'thread_name'},
+              {id: 'state', field: 'state'},
+              {id: 'ucpu', field: 'ucpu'},
+            ],
+            aggregates,
+          },
+        },
+      },
+    ];
   }
 
   getTabName() {
