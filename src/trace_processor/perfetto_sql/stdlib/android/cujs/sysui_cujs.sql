@@ -17,6 +17,10 @@ INCLUDE PERFETTO MODULE android.frames.timeline;
 
 INCLUDE PERFETTO MODULE android.cujs.base;
 
+INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+
+INCLUDE PERFETTO MODULE android.render_thread;
+
 -- Table tracking all jank CUJs information.
 CREATE PERFETTO TABLE android_sysui_jank_cujs(
   -- Unique incremental ID for each CUJ.
@@ -286,3 +290,50 @@ SELECT
   end_vsync,
   cuj_type
 FROM combined_cujs;
+
+-- Slices corresponding to critical blocking calls that occurred during a CUJ,
+-- clipped to the CUJ time boundaries.
+CREATE PERFETTO TABLE android_cuj_blocking_calls(
+  -- Unique slice id.
+  slice_id JOINID(slice.id),
+  -- Standardized name of the blocking call.
+  name STRING,
+  -- Timestamp of the blocking call, clamped to the CUJ start timestamp.
+  ts TIMESTAMP,
+  -- Duration of the blocking call within the CUJ boundaries.
+  dur DURATION,
+  -- End timestamp of the blocking call, clamped to the CUJ end timestamp.
+  ts_end TIMESTAMP,
+  -- CUJ ID.
+  cuj_id LONG,
+  -- Name of the CUJ.
+  cuj_name STRING,
+  -- Process name.
+  process_name STRING,
+  -- Process upid.
+  upid JOINID(process.id),
+  -- Thread utid.
+  utid JOINID(thread.id)
+)
+AS
+SELECT
+  s.id AS slice_id,
+  s.name,
+  max(s.ts, cuj.ts) AS ts,
+  min(s.ts + s.dur, cuj.ts_end) - max(s.ts, cuj.ts) AS dur,
+  min(s.ts + s.dur, cuj.ts_end) AS ts_end,
+  cuj.cuj_id,
+  cuj.cuj_name,
+  s.process_name,
+  s.upid,
+  s.utid
+FROM _android_critical_blocking_calls AS s
+JOIN android_jank_latency_cujs AS cuj
+  ON s.ts + s.dur > cuj.ts
+  AND s.ts < cuj.ts_end
+  AND s.upid = cuj.upid
+LEFT JOIN _render_thread_per_process AS rt
+  ON rt.upid = cuj.upid
+WHERE
+  s.utid = cuj.ui_thread
+  OR s.utid = rt.render_thread_utid;
