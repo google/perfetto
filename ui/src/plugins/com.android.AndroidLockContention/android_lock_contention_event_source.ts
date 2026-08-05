@@ -461,7 +461,7 @@ export class AndroidLockContentionEventSource {
   ): Promise<LockContentionDetails | null> {
     const query = await this.trace.engine.query(`
       SELECT 
-        c.id, c.ts, c.dur, c.name AS lock_name, c.owner_tid,
+        c.id, c.ts, c.dur, c.lock_name, c.owner_tid,
         c.blocked_thread_name, c.blocking_thread_name,
         t.is_main_thread as is_blocking_thread_main,
         c.lock_type, c.is_monitor
