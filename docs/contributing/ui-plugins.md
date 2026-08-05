@@ -1478,30 +1478,51 @@ async function selectProcess(
 This feature allows for creating interactive workflows directly within the
 omnibox, guided by your plugin.
 
-### Area Selection Tabs
+### Selection Tabs
 
-Plugins can register tabs to be displayed in the details panel when an area of
-the timeline is selected.
+Plugins can register custom subtabs in the bottom details panel for timeline selections.
 
-To register an area selection tab, use the
-`trace.selection.registerAreaSelectionTab` method.
+Perfetto provides convenience helpers targeting specific selection types, as well as a generic method:
+
+- `trace.selection.registerTrackEventSelectionTab`: Registers a tab for track events (slices).
+- `trace.selection.registerAreaSelectionTab`: Registers a tab for area selections.
+- `trace.selection.registerSelectionTab`: Generic registration for any selection type (`Selection` union).
+
+#### Track Event Selection Tab Example
+
+```ts
+trace.selection.registerTrackEventSelectionTab({
+  id: 'my-slice-tab',
+  name: 'My Slice Tab',
+  render: (selection) => {
+    return {
+      isLoading: false,
+      content: m('div', `Selected event: ${selection.eventId} on track ${selection.trackUri}`),
+    };
+  },
+});
+```
+
+#### Area Selection Tab Example
 
 ```ts
 trace.selection.registerAreaSelectionTab({
   id: 'my-area-selection-tab',
   name: 'My Area Selection Tab',
   render: (selection) => {
-    return m('div', `Selected area: ${selection.start} - ${selection.end}`);
+    return {
+      isLoading: false,
+      content: m('div', `Selected area: ${selection.start} - ${selection.end}`),
+    };
   },
 });
 ```
 
-The `render` callback should return mithril content to be displayed in the tab.
-The `selection` argument is an `AreaSelection` object, which contains
-information about the selected area.
+The `render` callback should return a `ContentWithLoadingFlag` object (or `undefined` if the tab is not applicable to the current selection).
 
 Examples:
 
+- [com.android.AndroidLockContention](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.android.AndroidLockContention/index.ts).
 - [dev.perfetto.TraceProcessorTrack/index.ts](https://github.com/google/perfetto/blob/main/ui/src/plugins/dev.perfetto.TraceProcessorTrack/index.ts).
 
 ### Metric Visualisations
