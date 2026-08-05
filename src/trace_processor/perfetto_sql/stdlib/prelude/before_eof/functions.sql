@@ -15,6 +15,33 @@
 
 -- sqlformat file off
 
+-- Returns whether a regular expression partially matches an input string.
+-- This two-argument overload is also used by the `input REGEXP pattern`
+-- operator and performs case-sensitive matching.
+CREATE PERFETTO FUNCTION regexp(
+  -- The regular expression pattern.
+  pattern STRING,
+  -- The input string to match against.
+  input STRING
+)
+-- Whether the pattern matches the input.
+RETURNS BOOL
+DELEGATES TO __intrinsic_regexp;
+
+-- Returns whether a regular expression partially matches an input string.
+CREATE PERFETTO FUNCTION regexp(
+  -- The regular expression pattern.
+  pattern STRING,
+  -- The input string to match against.
+  input STRING,
+  -- Matching flags. `i` enables case-insensitive matching and `c` enables
+  -- case-sensitive matching. If both are present, the last one takes effect.
+  flags STRING
+)
+-- Whether the pattern matches the input.
+RETURNS BOOL
+DELEGATES TO __intrinsic_regexp_with_flags;
+
 -- Replaces all occurrences of a regular expression with a constant
 -- replacement string.
 -- Note that there is no way to substitute matching groups into the

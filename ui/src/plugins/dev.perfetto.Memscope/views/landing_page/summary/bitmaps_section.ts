@@ -17,7 +17,7 @@
 // Self-contained: owns its query slot and loading logic.
 
 import m from 'mithril';
-import {QuerySlot} from '../../../../../base/query_slot';
+import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import {
@@ -267,7 +267,7 @@ export interface BitmapsSectionAttrs {
 }
 
 export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
-  private readonly slot = new QuerySlot<BitmapsData>();
+  private readonly slot = new AsyncMemo<BitmapsData>();
 
   onremove() {
     this.slot.dispose();
@@ -277,7 +277,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
     const {trace, upid, selTs, baseTs} = attrs;
     const data = this.slot.use({
       key: {traceId: trace.traceInfo.uuid, upid},
-      queryFn: () => loadBitmapsData(trace, upid),
+      compute: () => loadBitmapsData(trace, upid),
       // Emulate an empty response
       // queryFn: async () => ({
       //   dumps: [],

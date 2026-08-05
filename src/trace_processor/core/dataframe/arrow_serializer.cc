@@ -249,7 +249,7 @@ W::Offset BuildField(W& w,
     arrow_type = kTypeInt;
     type_table =
         BuildInt(w, static_cast<int32_t>(NumericSize(type) * kBitsPerByte),
-                 !type.Is<core::Uint32>());
+                 !type.Is<core::Id>() && !type.Is<core::Uint32>());
   }
   auto name_offset = w.WriteString(name);
   w.StartTable();
@@ -370,6 +370,19 @@ base::Status WriteUtf8Buffers(uint32_t rows,
   return output.Finish();
 }
 
+base::Status WriteIdBuffer(uint32_t rows,
+                           FlexVector<uint8_t>* scratch,
+                           const ArrowSerializer::WriteFn& write) {
+  BufferedOutput output(scratch, write);
+  for (uint32_t row = 0; row < rows; ++row) {
+    RETURN_IF_ERROR(output.Append(&row, sizeof(row)));
+  }
+  size_t bytes = static_cast<size_t>(rows) * sizeof(uint32_t);
+  RETURN_IF_ERROR(
+      output.AppendPadding(static_cast<size_t>(AlignToArrow(bytes)) - bytes));
+  return output.Finish();
+}
+
 base::Status WriteNumericBuffer(uint32_t rows,
                                 const Column& column,
                                 bool sparse,
@@ -405,6 +418,9 @@ base::Status WriteNumericBuffer(uint32_t rows,
 
 }  // namespace
 
+ArrowSerializer::ArrowSerializer(IdColumnMode id_column_mode)
+    : id_column_mode_(id_column_mode) {}
+
 void ArrowSerializer::Reset() {
   prepared_dataframe_ = nullptr;
   prepared_string_pool_ = nullptr;
@@ -424,12 +440,12 @@ base::Status ArrowSerializer::PlanBody(const Dataframe& dataframe,
   for (uint32_t i = 0; i < dataframe.column_count(); ++i) {
     const auto& column = *dataframe.columns_[i];
     StorageType type = column.storage.type();
-    if (type.Is<core::Id>()) {
+    if (type.Is<core::Id>() && id_column_mode_ == IdColumnMode::kOmit) {
       continue;
     }
-    PERFETTO_CHECK(type.Is<core::String>() || type.Is<core::Uint32>() ||
-                   type.Is<core::Int32>() || type.Is<core::Int64>() ||
-                   type.Is<core::Double>());
+    PERFETTO_CHECK(type.Is<core::Id>() || type.Is<core::String>() ||
+                   type.Is<core::Uint32>() || type.Is<core::Int32>() ||
+                   type.Is<core::Int64>() || type.Is<core::Double>());
 
     Nullability nullability = column.null_storage.nullability();
     bool nullable = IsNullable(nullability);
@@ -577,7 +593,9 @@ base::Status ArrowSerializer::WriteBody(const Dataframe& dataframe,
       validity = &column.null_storage.GetNullBitVector();
       RETURN_IF_ERROR(WriteValidityBuffer(rows, *validity, &scratch_, write));
     }
-    if (prepared.storage_type.Is<core::String>()) {
+    if (prepared.storage_type.Is<core::Id>()) {
+      RETURN_IF_ERROR(WriteIdBuffer(rows, &scratch_, write));
+    } else if (prepared.storage_type.Is<core::String>()) {
       RETURN_IF_ERROR(WriteUtf8Buffers(rows, column, pool, validity, sparse,
                                        prepared.string_data_length, &scratch_,
                                        write));

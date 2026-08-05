@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QuerySlot} from '../../base/query_slot';
+import {AsyncMemo} from '../../base/async_memo';
 import {sqliteString} from '../../base/string_utils';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import {
@@ -41,7 +41,7 @@ export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
   readonly id = 'track_event_callstack_flamegraph';
   readonly name = 'Track Event Callstacks';
 
-  private readonly metadataSlot = new QuerySlot<Metadata>();
+  private readonly metadataSlot = new AsyncMemo<Metadata>();
   private metricsCache?: MetricsCache;
 
   constructor(
@@ -59,7 +59,7 @@ export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
     const samplesSql = buildSamplesSql(selection, trackIds);
     const metadata = this.metadataSlot.use({
       key: {start: selection.start, end: selection.end, trackIds},
-      queryFn: () => this.queryMetadata(samplesSql),
+      compute: () => this.queryMetadata(samplesSql),
     });
     if (metadata.data === undefined) {
       return {isLoading: metadata.isPending, content: undefined};

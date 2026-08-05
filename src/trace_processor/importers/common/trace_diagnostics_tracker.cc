@@ -322,64 +322,6 @@ void RuleDiscardBufferForStreaming(const TraceConfigDecoder& config,
   }
 }
 
-// atrace_apps: "*" (capture userspace atrace from every app) combined
-// with many atrace categories (or the "*" category) generates a lot of traffic.
-// The base confidence scales with how many categories are captured, and is
-// bumped when the trace actually recorded data loss, since then this is a good
-// candidate for the cause.
-void RuleAtraceWildcardApps(const TraceConfigDecoder& config,
-                            TraceDiagnosticsHelper* helper) {
-  helper->ForEachFtraceConfig(config, [&](const FtraceConfigDecoder& ftrace) {
-    bool wildcard_apps = false;
-    for (auto it = ftrace.atrace_apps(); it; ++it) {
-      if (it->as_std_string() == "*") {
-        wildcard_apps = true;
-        break;
-      }
-    }
-    if (!wildcard_apps)
-      return;
-
-    size_t category_count = 0;
-    bool wildcard_category = false;
-    for (auto it = ftrace.atrace_categories(); it; ++it) {
-      ++category_count;
-      if (it->as_std_string() == "*")
-        wildcard_category = true;
-    }
-
-    // atrace_apps: "*" only generates heavy traffic when combined with many
-    // categories. Base confidence scales with the category count: 0.1 at 4
-    // categories, ramping to 0.5 (saturated) at 10. The "*" category means all
-    // categories, i.e. maximally heavy.
-    double confidence;
-    if (wildcard_category) {
-      confidence = 0.5;
-    } else if (category_count > 3) {
-      double t = static_cast<double>(category_count - 4) / (10 - 4);
-      if (t > 1.0)
-        t = 1.0;
-      confidence = 0.1 + t * (0.5 - 0.1);
-    } else {
-      return;  // <= 3 categories: not heavy enough to warn.
-    }
-
-    // Recorded ftrace or tracing-service data loss makes this a good candidate
-    // for the cause: bump the confidence.
-    if (helper->HasFtraceCpuDataLoss() || helper->HasTracedDataLoss())
-      confidence += 0.3;
-
-    helper->AddTraceDiagnostic(
-        "atrace_wildcard_apps", "Wildcard atrace_apps",
-        "atrace_apps: \"*\" captures userspace atrace from every app; combined "
-        "with this many atrace categories it generates a lot of ftrace "
-        "traffic.",
-        "Restrict atrace_apps to the specific apps you care about instead of "
-        "\"*\", or reduce the number of atrace categories.",
-        confidence);
-  });
-}
-
 // Heapprofd sampling_interval_bytes is very small. Below ~100 KB it
 // rarely improves accuracy while adding overhead. Baseline 0.3, bumped to 0.9
 // if the trace recorded any heapprofd error.
@@ -456,7 +398,6 @@ constexpr RuleFn kRules[] = {
     &RuleSyscallsWithoutFilter,            //
     &RuleEventsRequireSymbolizeKsyms,      //
     &RuleDiscardBufferForStreaming,        //
-    &RuleAtraceWildcardApps,               //
     &RuleHeapprofdSamplingIntervalTooLow,  //
     &RuleDisplayVideoNotEnabled,           //
 };

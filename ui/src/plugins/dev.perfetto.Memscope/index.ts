@@ -14,6 +14,7 @@
 
 import './styles.scss';
 import m from 'mithril';
+import {z} from 'zod';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin, PluginStatus} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
@@ -68,6 +69,27 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(trace: Trace): Promise<void> {
     const pageRoot = '/memoryoverview';
+    const openByDefault = trace.settings.register({
+      id: 'dev.perfetto.OpenMemoryOverviewByDefault',
+      name: 'Open Memory Overview by default',
+      description:
+        'Open traces containing smaps snapshots in Memory Overview instead ' +
+        'of the timeline.',
+      schema: z.boolean(),
+      defaultValue: true,
+    });
+    const hideDefaultChangedHint = trace.settings.register({
+      id: 'dev.perfetto.HideMemoryOverviewDefaultChangedHint',
+      name: 'Hide Memory Overview default-page explanation',
+      description:
+        'Do not show the explanation that Memory Overview is the default ' +
+        'page for traces containing smaps snapshots.',
+      schema: z.boolean(),
+      defaultValue: false,
+      headless: true,
+    });
+    const availability = await this.getMemoryOverviewAvailability(trace);
+    const autoNavigated = openByDefault.get() && availability.hasSmapsSnapshots;
 
     trace.pages.registerPage({
       route: pageRoot,
@@ -75,6 +97,10 @@ export default class implements PerfettoPlugin {
         m(MemoryOverviewPage, {
           trace,
           subpage,
+          autoNavigated,
+          hdeAvailable: availability.hasHeapDumps,
+          openByDefault,
+          hideDefaultChangedHint,
           onSubpageChange: (subpage) => {
             trace.navigate(`#!${pageRoot}/${subpage}`);
           },
@@ -89,30 +115,28 @@ export default class implements PerfettoPlugin {
       icon: 'memory',
     });
 
-    // Only suggest the page as the initial view when the trace actually has
-    // some memory data — java heap dumps, smaps snapshots, or native
-    // (heapprofd) profiles. On a trace with none of these the page has nothing
-    // to show.
-    if (await this.hasMemoryInfo(trace)) {
+    if (autoNavigated) {
       // Make this page appear before the heap dump explorer page.
       trace.initialPage.suggest(pageRoot, 500);
     }
   }
 
-  private async hasMemoryInfo(trace: Trace): Promise<boolean> {
-    const counts = await trace.engine.query(`
+  private async getMemoryOverviewAvailability(trace: Trace): Promise<{
+    readonly hasSmapsSnapshots: boolean;
+    readonly hasHeapDumps: boolean;
+  }> {
+    const result = await trace.engine.query(`
       SELECT
-        (SELECT count(DISTINCT graph_sample_ts) FROM heap_graph_object)
-          AS heapDumps,
-        (SELECT count(DISTINCT ts) FROM profiler_smaps) AS smapsSnapshots,
-        (SELECT count(DISTINCT ts) FROM heap_profile_allocation) AS nativeDumps
+        EXISTS(SELECT 1 FROM profiler_smaps) AS hasSmapsSnapshots,
+        EXISTS(SELECT 1 FROM heap_graph_object) AS hasHeapDumps
     `);
-    const {heapDumps, smapsSnapshots, nativeDumps} = counts.firstRow({
-      heapDumps: NUM,
-      smapsSnapshots: NUM,
-      nativeDumps: NUM,
+    const row = result.firstRow({
+      hasSmapsSnapshots: NUM,
+      hasHeapDumps: NUM,
     });
-
-    return heapDumps + smapsSnapshots + nativeDumps >= 1;
+    return {
+      hasSmapsSnapshots: row.hasSmapsSnapshots !== 0,
+      hasHeapDumps: row.hasHeapDumps !== 0,
+    };
   }
 }

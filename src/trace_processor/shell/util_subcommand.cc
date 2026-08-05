@@ -197,8 +197,11 @@ base::Status UtilSubcommand::Run(const SubcommandContext& ctx) {
   }
   const std::string& util = ctx.positional_args[0];
   if (util == "merge") {
+    // merge accepts any number of input traces, so skip the positional count
+    // check (the other utilities take at most [input] [output]).
     return RunMerge(ctx);
   }
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "util", 3));
   const std::string input_path =
       ctx.positional_args.size() > 1 ? ctx.positional_args[1] : "";
   const std::string output_path =
@@ -222,18 +225,15 @@ base::Status UtilSubcommand::Run(const SubcommandContext& ctx) {
   RETURN_IF_ERROR(OpenConversionOutput(output_path, /*binary_output=*/true,
                                        &output_file, &output));
 
-  int ret;
   if (util == "symbolize") {
-    ret = trace_to_text::SymbolizeProfile(input, output, verbose_);
+    RETURN_IF_ERROR(trace_to_text::SymbolizeProfile(input, output, verbose_));
   } else if (util == "deobfuscate") {
-    ret = trace_to_text::DeobfuscateProfile(input, output);
+    RETURN_IF_ERROR(trace_to_text::DeobfuscateProfile(input, output));
   } else if (util == "decompress_packets") {
-    ret = trace_to_text::UnpackCompressedPackets(input, output) ? 0 : 1;
+    RETURN_IF_ERROR(trace_to_text::UnpackCompressedPackets(input, output));
   } else {  // text_to_binary
-    ret = TextToTrace(input, output);
+    RETURN_IF_ERROR(TextToTrace(input, output));
   }
-  if (ret != 0)
-    return base::ErrStatus("util: '%s' failed.", util.c_str());
   return base::OkStatus();
 }
 

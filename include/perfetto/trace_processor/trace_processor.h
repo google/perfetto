@@ -35,6 +35,20 @@
 
 namespace perfetto::trace_processor {
 
+namespace io {
+class FileSystem;
+}  // namespace io
+
+class PERFETTO_EXPORT_COMPONENT TraceProcessor_PlatformInterface {
+ public:
+  virtual ~TraceProcessor_PlatformInterface();
+
+  // Returns the filesystem exposed to Trace Processor. The returned object
+  // must outlive the TraceProcessor instance. Supplying a filesystem does not
+  // enable SQL file access unless Config::enable_sql_file_access is also set.
+  virtual io::FileSystem* GetFileSystem() { return nullptr; }
+};
+
 // Extends TraceProcessorStorage to support execution of SQL queries on loaded
 // traces. See TraceProcessorStorage for parsing of trace files.
 class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
@@ -42,9 +56,14 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // For legacy API clients. Iterator used to be a nested class here. Many API
   // clients depends on it at this point.
   using Iterator = ::perfetto::trace_processor::Iterator;
+  using PlatformInterface = TraceProcessor_PlatformInterface;
 
-  // Creates a new instance of TraceProcessor.
+  // Creates a new instance of TraceProcessor. |platform| is optional and, when
+  // provided, must outlive the returned instance.
   static std::unique_ptr<TraceProcessor> CreateInstance(const Config&);
+  static std::unique_ptr<TraceProcessor> CreateInstance(
+      const Config&,
+      PlatformInterface* platform);
 
   ~TraceProcessor() override;
 
@@ -266,6 +285,47 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // loaded by trace processor shell at runtime. The message is encoded as
   // DescriptorSet, defined in perfetto/trace_processor/trace_processor.proto.
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
+
+  // =================================================================
+  // |          EXPERIMENTAL: Export functionality starts here       |
+  // =================================================================
+  //
+  // WARNING: This API is under active development and may change without
+  // notice. Do not depend on this interface in production code.
+
+  enum class ExportFormat {
+    // A Perfetto-internal archive that can be loaded as input by a fresh Trace
+    // Processor instance from the same version. Loading it in a different
+    // version may work but is not guaranteed.
+    kPerfetto,
+
+    // A tar archive containing one standard Arrow file per statically
+    // registered table. Its representation has cross-version compatibility
+    // guarantees and is intended for external consumers, which should ignore
+    // unrecognized members. It cannot be loaded back into Trace Processor; use
+    // kPerfetto for that.
+    kArrowTar,
+  };
+
+  class PERFETTO_EXPORT_COMPONENT ExportOutput {
+   public:
+    ExportOutput();
+    virtual ~ExportOutput();
+
+    // Receives consecutive output chunks synchronously. A non-ok return aborts
+    // the export and is returned from Export().
+    virtual base::Status Write(const void* data, size_t size) = 0;
+
+    // An optional alternative to Write(). A format which needs random-access
+    // output may create or overwrite this file directly, in which case Write()
+    // is not called. Streaming formats may ignore this alternative.
+    virtual std::optional<std::string> GetFilePath() const;
+  };
+
+  // EXPERIMENTAL: Exports the contents of Trace Processor without
+  // materializing the complete output in memory. The exact contents exported
+  // are defined by |format|.
+  virtual base::Status Export(ExportFormat format, ExportOutput* output) = 0;
 
   // =================================================================
   // |  EXPERIMENTAL: Summarizer related functionality starts here   |

@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {
-  type QueryResult,
-  QuerySlot,
-  type SerialTaskQueue,
-} from '../../../../base/query_slot';
+  type AsyncMemoResult,
+  AsyncMemo,
+  type AtomicTaskQueue,
+} from '../../../../base/async_memo';
 import type {Engine} from '../../../../trace_processor/engine';
 import {NUM, type Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
@@ -26,24 +26,24 @@ import {filterToSql, quoteIdentifier, sqlAggregateExpr} from '../sql_utils';
 
 // Flat GROUP BY datasource - uses simple GROUP BY queries without hierarchy.
 export class SQLDataSourceGroupBy {
-  private readonly rowCountSlot: QuerySlot<number>;
-  private readonly rowsSlot: QuerySlot<{
+  private readonly rowCountSlot: AsyncMemo<number>;
+  private readonly rowsSlot: AsyncMemo<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
   }>;
-  private readonly summariesSlot: QuerySlot<Row>;
+  private readonly summariesSlot: AsyncMemo<Row>;
 
   constructor(
-    queue: SerialTaskQueue,
+    queue: AtomicTaskQueue,
     private readonly engine: Engine,
     private readonly sqlSchema: SQLTableSchema,
   ) {
-    this.rowCountSlot = new QuerySlot<number>(queue);
-    this.rowsSlot = new QuerySlot<{
+    this.rowCountSlot = new AsyncMemo<number>(queue);
+    this.rowsSlot = new AsyncMemo<{
       readonly rows: readonly Row[];
       readonly rowOffset: number;
     }>(queue);
-    this.summariesSlot = new QuerySlot<Row>(queue);
+    this.summariesSlot = new AsyncMemo<Row>(queue);
   }
 
   getRows(model: PivotModel): DataSourceRows {
@@ -57,7 +57,7 @@ export class SQLDataSourceGroupBy {
 
     const rowCountResult = this.rowCountSlot.use({
       key: queryKey,
-      queryFn: async () => {
+      compute: async () => {
         const query = this.buildGroupByQuery(model, {countOnly: true});
         const result = await this.engine.query(query);
         return result.firstRow({count: NUM}).count;
@@ -67,7 +67,7 @@ export class SQLDataSourceGroupBy {
     const rowsResult = this.rowsSlot.use({
       key: {...queryKey, pagination, sort},
       retainOn: ['pagination', 'sort'],
-      queryFn: async () => {
+      compute: async () => {
         const query = this.buildGroupByQuery(model);
         const result = await runQueryForQueryTable(query, this.engine);
         return {
@@ -85,7 +85,7 @@ export class SQLDataSourceGroupBy {
     };
   }
 
-  getSummaries(model: PivotModel): QueryResult<Row> {
+  getSummaries(model: PivotModel): AsyncMemoResult<Row> {
     const {aggregates, filters = []} = model;
 
     return this.summariesSlot.use({
@@ -93,7 +93,7 @@ export class SQLDataSourceGroupBy {
         aggregates,
         filters: serializeFilters(filters),
       },
-      queryFn: async () => {
+      compute: async () => {
         const query = this.buildSummariesQuery(model);
         const result = await this.engine.query(query);
         return result.firstRow({}) as Row;

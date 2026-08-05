@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, type Locator, type Page} from '@playwright/test';
+import {expect, test, type Locator, type Page} from '@playwright/test';
 import {ensureExists} from '../base/assert';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
@@ -105,4 +105,64 @@ test('proto extension measure', async () => {
   await pth.waitForIdleAndScreenshot('latency-flamegraph.png', {
     locator: drawerPanel,
   });
+});
+
+test('focus modes are filter chips', async () => {
+  const filterInput = page.locator(
+    '.pf-flamegraph .filter-bar > .pf-tag-input input',
+  );
+  const filterChips = page.locator(
+    '.pf-flamegraph .filter-bar > .pf-tag-input .pf-chip',
+  );
+
+  await filterInput.fill('P: ParseInput');
+  await filterInput.press('Enter');
+  await pth.waitForPerfettoIdle();
+  await expect(filterChips).toHaveCount(1);
+  await expect(filterChips.first()).toContainText('Pivot: ParseInput');
+  await pth.waitForIdleAndScreenshot('pivot-filter.png', {
+    locator: drawerPanel,
+  });
+
+  // Show From Frame replaces Pivot rather than adding a second focus mode.
+  await filterInput.fill('SFF: AllocateBuffer');
+  await filterInput.press('Enter');
+  await pth.waitForPerfettoIdle();
+  await expect(filterChips).toHaveCount(1);
+  await expect(filterChips.first()).toContainText(
+    'Show From Frame: AllocateBuffer',
+  );
+
+  // Selecting a direction also clears the mutually exclusive focus mode.
+  await page
+    .locator('.pf-flamegraph .pf-radio-group__button', {hasText: 'Bottom Up'})
+    .click();
+  await pth.waitForPerfettoIdle();
+  await expect(filterChips).toHaveCount(0);
+});
+
+test('highlight controls can be kept open or hidden', async () => {
+  const highlightButton = page.locator(
+    '.pf-flamegraph .filter-bar > .pf-button',
+    {hasText: 'Highlight'},
+  );
+
+  await highlightButton.click();
+  const highlightRow = page.locator(
+    '.pf-flamegraph .pf-flamegraph-secondary-row',
+  );
+  await expect(highlightRow).toBeVisible();
+
+  await highlightRow.locator('input').fill('ParseInput');
+  await expect(
+    highlightRow.locator('.pf-flamegraph-highlight-search__count'),
+  ).toContainText('match');
+  await pth.waitForIdleAndScreenshot('highlight-controls.png', {
+    locator: drawerPanel,
+  });
+
+  // Hiding the controls preserves the active highlight.
+  await highlightRow.locator('.pf-button', {hasText: 'Hide'}).click();
+  await expect(highlightRow).toHaveCount(0);
+  await expect(highlightButton).toHaveClass(/pf-active/);
 });

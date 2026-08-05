@@ -184,7 +184,7 @@ To create slices from your custom data, you'll typically:
 2.  For each event in your data, emit `TrackEvent` packets to mark the beginning
     and end of the slice.
 
-### Python Example
+### Python Example: Basic Slices
 
 Let's say you have data representing tasks with a name, start time, and end
 time. Here's how you could convert them into Perfetto slices on a custom track.
@@ -286,7 +286,7 @@ This is very common for:
 
 The Perfetto UI will visually nest these slices, making the hierarchy clear.
 
-### Python Example
+### Python Example: Nested Slices
 
 This example demonstrates creating multiple stacks of nested slices on a custom
 track. The packets are emitted in timestamp order to correctly represent the
@@ -392,7 +392,7 @@ This is a convention and can be controlled by the user. For more details, see
 the section on controlling merging in the
 [synthetic track event reference docs](/docs/reference/synthetic-track-event.md#controlling-track-merging).
 
-### Python Example
+### Python Example: Asynchronous Slices
 
 Imagine we are tracking active network connections. Each connection is an
 independent asynchronous event. We'll give all connection tracks the same name
@@ -484,7 +484,7 @@ To create a counter track, you'll:
     have a `timestamp` and a `counter_value` (which can be an integer or a
     double).
 
-### Python Example
+### Python Example: Counters
 
 Let's say we want to track the number of outstanding network requests over time.
 
@@ -580,7 +580,7 @@ with consistent colors) without implying causality. See the
 [Linking Related Events with Correlation IDs](/docs/reference/synthetic-track-event.md#linking-related-events-with-correlation-ids)
 section in the Advanced Guide for details.
 
-### Python Example
+### Python Example: Flows
 
 Let's model a simple system where a "Request Handler" track dispatches work to a
 "Data Processor" track. We'll use flows to link the request dispatch to its
@@ -691,7 +691,7 @@ A parent track can serve two main purposes:
 
 The Perfetto UI will typically render these as an expandable tree.
 
-### Python Example
+### Python Example: Track Hierarchies
 
 Let's create a hierarchy:
 
@@ -1127,7 +1127,7 @@ repeated callstacks or when you need binary mapping information, use
 [interned callstacks](/docs/reference/synthetic-track-event.md#callstacks)
 instead.
 
-### Python Example
+### Python Example: Inline Callstacks
 
 Each frame includes a function name, and optionally a source file and line
 number.
@@ -1278,7 +1278,7 @@ the `attributes` section of a
 [trace manifest](/docs/reference/perfetto-manifest.md#attributes), which
 uses its own `manifest_attribute.*` namespace.
 
-### Python Example
+### Python Example: Trace Metadata
 
 Copy the following Python code into the `populate_packets(builder)` function in
 your `trace_converter_template.py` script.
@@ -1323,6 +1323,25 @@ FROM metadata
 WHERE name GLOB 'trace_attribute.*';
 ```
 
+## Exporting the data back out
+
+Once your trace is loaded, trace processor can write the parsed tables back
+out with the `export` subcommand:
+
+```bash
+trace_processor export perfetto -o archive.tar my_custom_trace.pftrace
+trace_processor export arrow_tar -o tables.tar my_custom_trace.pftrace
+trace_processor export sqlite -o trace.db my_custom_trace.pftrace
+```
+
+`perfetto` can be loaded back by a trace processor instance from the same
+version, `arrow_tar` targets external tools such as pandas, Polars or pyarrow,
+and `sqlite` produces a database any SQLite tool can open. For how to choose
+between the formats and the exact contents of each, see
+[Export trace data](/docs/getting-started/command-line-analysis.md#export-trace-data)
+and the
+[Trace Processor reference](/docs/analysis/trace-processor.md#subcommand-export).
+
 ## Next Steps
 
 You've now seen how to convert custom timestamped data into Perfetto traces
@@ -1352,6 +1371,9 @@ you can:
   [Trace Processor](/docs/analysis/getting-started.md) to query your custom
   trace data. Your custom tracks and events will populate standard tables like
   `slice`, `track`, `counter`, etc.
+- **Get the data back out:** Export the parsed tables with the
+  [`export` subcommand](/docs/getting-started/command-line-analysis.md#export-trace-data)
+  (SQLite, Arrow, or a reloadable Perfetto archive).
 - **Handle large datasets:** If you are generating very large traces and want to
   avoid high memory usage, learn how to stream data directly to a file in the
   [Advanced Guide's section on streaming](/docs/reference/synthetic-track-event.md#handling-large-traces-with-streaming).

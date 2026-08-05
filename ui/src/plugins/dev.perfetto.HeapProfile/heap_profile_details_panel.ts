@@ -30,8 +30,8 @@ import type {
 } from '../../public/details_panel';
 import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
+import {Button} from '../../widgets/button';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {DetailsShell} from '../../widgets/details_shell';
 import {showModal} from '../../widgets/modal';
 import {incompleteFlamegraphModal} from './incomplete_flamegraph';
@@ -50,7 +50,9 @@ import {Popup, PopupPosition} from '../../widgets/popup';
 import {type ProfileDescriptor, ProfileType} from './common';
 import {
   buildOomeCallstackMetrics,
-  loadOomeErrorMsg,
+  loadOomeDetails,
+  renderOomeDetails,
+  type OomeDetails,
 } from './oome_callstack_common';
 
 const DOCS_NATIVE_HEAP_PROFILER =
@@ -176,7 +178,7 @@ interface Props {
 export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel {
   private readonly props: Props;
   private flamegraphModalDismissed = false;
-  private oomeErrorMsg?: string;
+  private oomeDetails?: OomeDetails;
 
   // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
   // We moved serialization from being attached to selections to instead being
@@ -226,7 +228,7 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
 
   async load() {
     if (this.props.type === ProfileType.OOME_CALLSTACK) {
-      this.oomeErrorMsg = await loadOomeErrorMsg(this.trace.engine, this.ts);
+      this.oomeDetails = await loadOomeDetails(this.trace.engine, this.ts);
       m.redraw();
     }
 
@@ -259,21 +261,29 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
               label: this.profileDescriptor.label,
               help: profileHelp(this.profileDescriptor),
             }),
-            this.oomeErrorMsg &&
-              m('span.pf-heap-profile-oome-error', this.oomeErrorMsg),
+            renderOomeDetails(this.oomeDetails),
           ),
           buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
             m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
             (type === ProfileType.NATIVE_HEAP_PROFILE ||
               type === ProfileType.JAVA_HEAP_SAMPLES) &&
-              m(Button, {
-                icon: 'file_download',
-                intent: Intent.Primary,
-                variant: ButtonVariant.Filled,
-                onclick: () => {
-                  downloadPprof(this.trace, this.upid, ts);
+              m(
+                PopupMenu,
+                {
+                  trigger: m(Button, {
+                    icon: 'file_download',
+                    label: 'Download',
+                    title: 'Download profile',
+                  }),
                 },
-              }),
+                m(MenuItem, {
+                  icon: 'file_download',
+                  label: 'Pprof profile',
+                  onclick: async () => {
+                    await downloadPprof(this.trace, this.upid, ts);
+                  },
+                }),
+              ),
           ]),
         },
         m(FlamegraphPanel, {
@@ -403,7 +413,7 @@ function flamegraphMetrics(
             select
               id,
               parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
+              ifnull(name, 'unknown') as name,
               root_type,
               heap_type,
               self_size as value,
@@ -445,7 +455,7 @@ function flamegraphMetrics(
             select
               id,
               parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
+              ifnull(name, 'unknown') as name,
               root_type,
               heap_type,
               self_size,
@@ -482,7 +492,7 @@ function flamegraphMetrics(
             select
               id,
               parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
+              ifnull(name, 'unknown') as name,
               root_type,
               heap_type,
               self_size as value,
@@ -524,7 +534,7 @@ function flamegraphMetrics(
             select
               id,
               parent_id as parentId,
-              ifnull(name, '[Unknown]') as name,
+              ifnull(name, 'unknown') as name,
               root_type,
               heap_type,
               self_size,
@@ -646,7 +656,7 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
   const blob = await trace.getTraceFile();
   // This is only reachable for heapprofd-based profiles (native heap and
   // Java heap samples), which are both allocator profiles for traceconv.
-  convertTraceToPprofAndDownload(
+  await convertTraceToPprofAndDownload(
     blob,
     'alloc',
     pid.firstRow({pid: NUM}).pid,

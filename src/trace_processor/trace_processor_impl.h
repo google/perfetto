@@ -53,7 +53,7 @@ class SqliteIteratorImpl;
 class TraceProcessorImpl : public TraceProcessor,
                            public TraceProcessorStorageImpl {
  public:
-  explicit TraceProcessorImpl(const Config&);
+  TraceProcessorImpl(const Config&, TraceProcessor::PlatformInterface*);
 
   TraceProcessorImpl(const TraceProcessorImpl&) = delete;
   TraceProcessorImpl& operator=(const TraceProcessorImpl&) = delete;
@@ -134,6 +134,12 @@ class TraceProcessorImpl : public TraceProcessor,
                                  std::string* metrics_string) override;
 
   std::vector<uint8_t> GetMetricDescriptors() override;
+
+  // ================
+  // |    Export    |
+  // ================
+
+  base::Status Export(ExportFormat format, ExportOutput* output) override;
 
   // ===================
   // |   Summarizer    |

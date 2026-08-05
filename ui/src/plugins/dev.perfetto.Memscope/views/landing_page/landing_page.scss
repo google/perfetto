@@ -117,6 +117,50 @@
     border-bottom-color: var(--pf-color-accent);
     font-weight: 600;
   }
+
+  &--disabled {
+    color: var(--pf-color-text-muted);
+    cursor: not-allowed;
+    opacity: 0.45;
+
+    &:hover {
+      color: var(--pf-color-text-muted);
+    }
+  }
+}
+
+// Explains the default-page change and groups the available actions without
+// forcing the message and controls onto one line on narrow screens.
+.pf-memscope-default-page-callout__body {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.pf-memscope-default-page-callout__message {
+  flex: 1;
+  min-width: 280px;
+}
+
+.pf-memscope-default-page-callout__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pf-memscope-default-page-callout__split-button {
+  .pf-button.pf-button--filled {
+    font-weight: 600;
+  }
+
+  // ButtonGroup normally removes this shared border. Keep a subtle divider so
+  // the overflow control remains visibly distinct from the navigation action.
+  .pf-button.pf-button--filled:not(:last-child) {
+    border-right: 1px solid var(--pf-color-border);
+  }
 }
 
 // Process picker at the top of the overview page.
@@ -132,10 +176,27 @@
   }
 }
 
-// Empty-state caption shown inside section panels (emptyPanel helper).
-.pf-memscope-landing__empty {
-  margin-block: 48px;
-  color: var(--pf-color-text-muted);
+// Empty section panels are deliberately quieter than panels with data, while
+// retaining enough contrast to explain what was not captured.
+.pf-memscope-panel--empty {
+  background: transparent;
+  border: 1px dashed
+    color-mix(in srgb, var(--pf-color-text-muted) 45%, transparent);
+  box-shadow: inset 0 1px 4px
+    color-mix(in srgb, var(--pf-color-text) 8%, transparent);
+
+  .pf-memscope-panel__header h2 {
+    color: var(--pf-color-text-muted);
+  }
+
+  .pf-memscope-landing__empty {
+    margin-block: 48px;
+    color: var(--pf-color-text-muted);
+  }
+
+  .pf-empty-state__main-icon {
+    opacity: 0.55;
+  }
 }
 
 // Memory-composition chart: the line chart plus its snapshot-pill selector and

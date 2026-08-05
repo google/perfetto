@@ -129,6 +129,7 @@
 #include "src/trace_processor/plugins/stack_sample_importer/plugin.h"
 #include "src/trace_processor/plugins/stdlib_docs/stdlib_docs.h"
 #include "src/trace_processor/plugins/storage_tables/storage_tables.h"
+#include "src/trace_processor/plugins/strace/strace.h"
 #include "src/trace_processor/plugins/string_functions/string_functions.h"
 #include "src/trace_processor/plugins/structural_tree_partition/structural_tree_partition.h"
 #include "src/trace_processor/plugins/symbolize/symbolize.h"
@@ -136,6 +137,7 @@
 #include "src/trace_processor/plugins/table_pointer_module/table_pointer_module.h"
 #include "src/trace_processor/plugins/time_functions/time_functions.h"
 #include "src/trace_processor/plugins/to_ftrace/to_ftrace.h"
+#include "src/trace_processor/plugins/trace_export/trace_export.h"
 #include "src/trace_processor/plugins/tree_functions/tree_functions.h"
 #include "src/trace_processor/plugins/type_builder_functions/type_builder_functions.h"
 #include "src/trace_processor/plugins/utils_functions/utils_functions.h"
@@ -184,6 +186,7 @@
 #include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.h"
 #include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h"
+#include "src/trace_processor/plugins/zstd_functions/zstd_functions.h"
 #endif
 
 namespace perfetto::trace_processor {
@@ -322,8 +325,10 @@ std::string NormalizeExecuteQuerySql(const std::string& sql) {
 
 }  // namespace
 
-TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
-    : TraceProcessorStorageImpl(cfg), config_(cfg) {
+TraceProcessorImpl::TraceProcessorImpl(
+    const Config& cfg,
+    TraceProcessor::PlatformInterface* platform)
+    : TraceProcessorStorageImpl(cfg, platform), config_(cfg) {
   // TODO(lalitm): plugins should self-register via PERFETTO_TP_REGISTER_PLUGIN
   // (a global static initializer). That's currently disabled due to build-time
   // issues, so instead each plugin exposes an explicit Register* function that
@@ -372,7 +377,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   stack_sample_importer::RegisterPlugin();
   stdlib_docs::RegisterPlugin();
   storage_tables::RegisterPlugin();
+  strace_importer::RegisterPlugin();
   string_functions::RegisterPlugin();
+  trace_export::RegisterPlugin();
   structural_tree_partition::RegisterPlugin();
   symbolize::RegisterPlugin();
   table_info::RegisterPlugin();
@@ -389,6 +396,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   winscope_importer::RegisterPlugin();
   winscope_proto_to_args_with_defaults::RegisterPlugin();
   winscope_surfaceflinger_hierarchy_paths::RegisterPlugin();
+  zstd_functions::RegisterPlugin();
 #endif
 
   // Initialize plugins using the statically pre-computed PluginSet.
@@ -412,6 +420,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     }
     for (auto& p : plugins_) {
       p->RegisterDataframes(plugin_dataframes_);
+    }
+    for (auto& p : plugins_) {
+      p->OnDataframesRegistered(plugin_dataframes_);
     }
   }
   context()->register_additional_proto_modules =
@@ -1194,6 +1205,12 @@ base::Status TraceProcessorImpl::CreateSummarizer(
   *out = std::make_unique<summary::SummarizerImpl>(
       this, &metrics_descriptor_pool_, std::move(id));
   return base::OkStatus();
+}
+
+base::Status TraceProcessorImpl::Export(ExportFormat format,
+                                        ExportOutput* output) {
+  return trace_export::WriteExport(
+      plugin_dataframes_, context()->storage->string_pool(), format, output);
 }
 
 }  // namespace perfetto::trace_processor

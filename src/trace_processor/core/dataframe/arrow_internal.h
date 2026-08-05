@@ -150,7 +150,8 @@ inline uint32_t NumericSize(StorageType type) {
   if (type.Is<core::Int64>() || type.Is<core::Double>()) {
     return sizeof(int64_t);
   }
-  PERFETTO_CHECK(type.Is<core::Uint32>() || type.Is<core::Int32>());
+  PERFETTO_CHECK(type.Is<core::Id>() || type.Is<core::Uint32>() ||
+                 type.Is<core::Int32>());
   return sizeof(int32_t);
 }
 

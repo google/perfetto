@@ -53,6 +53,7 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
     }
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         await engine.query(`drop view if exists ${this.id};`);
         const duration = area.end - area.start;
@@ -164,7 +165,7 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
     });
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(): AggregatorGridConfig {
     const powerUnits = this.scaleNumericData ? 'µW' : 'mW';
     const energyUnits = this.scaleNumericData ? 'µWs' : 'mWs';
 

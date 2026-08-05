@@ -228,6 +228,27 @@ TEST(ArrowSerializerTest, OmitsImplicitIdColumn) {
   EXPECT_EQ(batch->block.body_length, 0);
 }
 
+TEST(ArrowSerializerTest, MaterializesImplicitIdColumn) {
+  StringPool pool;
+  auto source = Dataframe::CreateFromTypedSpec(kIdOnly, &pool);
+  source.InsertUnchecked(kIdOnly, std::monostate{});
+  source.InsertUnchecked(kIdOnly, std::monostate{});
+  source.InsertUnchecked(kIdOnly, std::monostate{});
+  std::vector<uint8_t> bytes =
+      Serialize(source, pool, ArrowSerializer::IdColumnMode::kInclude);
+  auto batch = ReadRecordBatch(bytes);
+
+  ASSERT_TRUE(batch);
+  ASSERT_EQ(batch->nodes.size(), 1u);
+  ASSERT_EQ(batch->buffers.size(), 2u);
+  EXPECT_EQ(batch->buffers[0].length, 0);
+  EXPECT_EQ(batch->buffers[1].length,
+            static_cast<int64_t>(3 * sizeof(uint32_t)));
+  EXPECT_EQ(ReadBodyValue<uint32_t>(bytes, *batch, 1, 0), 0u);
+  EXPECT_EQ(ReadBodyValue<uint32_t>(bytes, *batch, 1, 1), 1u);
+  EXPECT_EQ(ReadBodyValue<uint32_t>(bytes, *batch, 1, 2), 2u);
+}
+
 TEST(ArrowSerializerTest, ValidatesPrepareWriteLifecycle) {
   StringPool pool;
   auto value = pool.InternString(base::StringView("value"));

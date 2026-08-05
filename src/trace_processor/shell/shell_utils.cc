@@ -21,6 +21,7 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string>
 
 #include "perfetto/base/build_config.h"
@@ -41,6 +42,33 @@
 #endif
 
 namespace perfetto::trace_processor {
+namespace {
+
+class FileExportOutput : public TraceProcessor::ExportOutput {
+ public:
+  explicit FileExportOutput(std::string path) : path_(std::move(path)) {}
+
+  base::Status Write(const void* data, size_t size) override {
+    if (!file_) {
+      file_ = base::OpenFile(path_, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+      if (!file_) {
+        return base::ErrStatus("Failed to create file: %s", path_.c_str());
+      }
+    }
+    if (base::WriteAll(file_.get(), data, size) != static_cast<ssize_t>(size)) {
+      return base::ErrStatus("Failed to write export output");
+    }
+    return base::OkStatus();
+  }
+
+  std::optional<std::string> GetFilePath() const override { return path_; }
+
+ private:
+  std::string path_;
+  base::ScopedFile file_;
+};
+
+}  // namespace
 
 bool StderrSupportsColors() {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
@@ -245,6 +273,13 @@ base::Status ExportTraceToDatabase(TraceProcessor* trace_processor,
   bool detach_has_more = detach_it.Next();
   PERFETTO_DCHECK(!detach_has_more);
   return detach_it.Status();
+}
+
+base::Status ExportTrace(TraceProcessor* trace_processor,
+                         TraceProcessor::ExportFormat format,
+                         const std::string& output_name) {
+  FileExportOutput output(output_name);
+  return trace_processor->Export(format, &output);
 }
 
 }  // namespace perfetto::trace_processor

@@ -37,10 +37,13 @@
 
 namespace perfetto::trace_processor::core::dataframe::arrow_test {
 
-inline std::vector<uint8_t> Serialize(Dataframe& dataframe,
-                                      const StringPool& pool) {
+inline std::vector<uint8_t> Serialize(
+    Dataframe& dataframe,
+    const StringPool& pool,
+    ArrowSerializer::IdColumnMode id_column_mode =
+        ArrowSerializer::IdColumnMode::kOmit) {
   dataframe.Finalize();
-  ArrowSerializer serializer;
+  ArrowSerializer serializer(id_column_mode);
   auto prepared_size = serializer.Prepare(dataframe, pool);
   EXPECT_OK(prepared_size);
   if (!prepared_size.ok()) {

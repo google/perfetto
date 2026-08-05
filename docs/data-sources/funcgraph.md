@@ -26,7 +26,7 @@ If instead you want to add your **own** tracepoints to the kernel, see
   up as a raw hexadecimal address. See
   [Symbolization: kernel symbols](/docs/learning-more/symbolization.md#ftrace)
   for why kernel symbols must be resolved at record time and cannot be added
-  afterwards with `traceconv bundle`.
+  afterwards with `trace_processor bundle`.
 - On **Android**, function graph tracing is available only on `debuggable`
   (userdebug/eng) builds, and was introduced in Android U.
 - `traced_probes` must run as root (or `kptr_restrict` lowered), both to read

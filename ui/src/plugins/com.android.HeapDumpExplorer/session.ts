@@ -191,14 +191,18 @@ export class HeapDumpExplorerSession {
   };
 
   readonly clearNavParam = (key: string): void => {
-    // A consumed nav param (e.g. ?cls=Foo) becomes a one-shot grid filter, so
-    // drop it from the nav. Otherwise it would re-apply on restore and clobber
-    // the user's later manual filter edits to the same grid.
+    // A consumed nav param becomes a one-shot grid filter, so drop it from the
+    // nav — from both the store and the URL. Otherwise it re-applies on the next
+    // sync and clobbers the user's later manual filter edits. Query params are
+    // already gone (the router strips them), but path-encoded ones (e.g.
+    // objects_<class>) survive in the URL, so we must rewrite it here.
+    const nav = subpageToState(this.store.state.nav);
+    delete (nav.params as Record<string, unknown>)[key];
+    const sub = stateToSubpage(nav);
     this.store.edit((s) => {
-      const nav = subpageToState(s.nav);
-      delete (nav.params as Record<string, unknown>)[key];
-      s.nav = stateToSubpage(nav);
+      s.nav = sub;
     });
+    this._navigateCallback?.(sub);
   };
 
   // Mirrors URL-driven nav (back/forward, address bar) into the store, on path

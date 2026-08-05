@@ -125,6 +125,7 @@ from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
 from diff_tests.parser.smoke.tests_sched_events import SmokeSchedEvents
+from diff_tests.parser.strace.tests import StraceParser
 from diff_tests.parser.trace_manifest.tests import TraceManifest
 from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
@@ -166,6 +167,7 @@ from diff_tests.stdlib.prelude.args_functions_tests import ArgsFunctions
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.package_lookup_tests import PackageLookup
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
+from diff_tests.stdlib.prelude.regexp import Regexp
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
 from diff_tests.stdlib.prelude.regexp_replace_simple import RegexpReplaceSimple
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
@@ -183,8 +185,6 @@ from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.stdlib.traced.stats import TracedStats
 from diff_tests.stdlib.trees.table_conversion_tests import TreeRoundtrip
-from diff_tests.stdlib.trees.tree_filter_tests import TreeFilter
-from diff_tests.stdlib.trees.tree_propagate_tests import TreePropagate
 from diff_tests.stdlib.viz.tests import Viz
 from diff_tests.stdlib.wattson.tests import WattsonStdlib
 from diff_tests.syntax.filtering_tests import PerfettoFiltering
@@ -258,6 +258,7 @@ def fetch_all_diff_tests(
       SmokeComputeMetrics,
       SmokeJson,
       SmokeSchedEvents,
+      StraceParser,
       Symbolize,
       InputMethodClients,
       InputMethodManagerService,
@@ -336,8 +337,6 @@ def fetch_all_diff_tests(
       DominatorTree,
       GraphScanTests,
       TreeRoundtrip,
-      TreeFilter,
-      TreePropagate,
       ExportTests,
       Frames,
       GraphSearchTests,
@@ -351,6 +350,7 @@ def fetch_all_diff_tests(
       UnHex,
       PreludePprofFunctions,
       PreludeWindowFunctions,
+      Regexp,
       RegexpExtract,
       RegexpReplaceSimple,
       Pkvm,

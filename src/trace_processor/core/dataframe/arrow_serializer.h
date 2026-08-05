@@ -37,13 +37,23 @@ namespace perfetto::trace_processor::core::dataframe {
 // Serializes a Dataframe as a standard Arrow file containing one record batch.
 // The output can be read by full Arrow implementations such as PyArrow.
 //
-// Dataframe Id columns are implicit row numbers and are omitted. Sparse columns
-// are expanded to Arrow's dense logical layout, and StringPool IDs are encoded
-// as Arrow Utf8 offset and data buffers. Input dataframes must be finalized so
-// their column storage remains stable across the Prepare() and Write() passes.
+// Sparse columns are expanded to Arrow's dense logical layout, and StringPool
+// IDs are encoded as Arrow Utf8 offset and data buffers. Input dataframes must
+// be finalized so their column storage remains stable across the Prepare() and
+// Write() passes.
 class ArrowSerializer {
  public:
+  enum class IdColumnMode {
+    // Dataframe Id columns are implicit row numbers. Omit them when the reader
+    // will reconstruct them from the record-batch row count.
+    kOmit,
+    // Materialize Id columns as Arrow uint32 arrays for external consumers.
+    kInclude,
+  };
+
   using WriteFn = std::function<base::Status(const uint8_t*, size_t)>;
+
+  explicit ArrowSerializer(IdColumnMode = IdColumnMode::kOmit);
 
   // Computes Arrow buffer metadata and the exact output size for a finalized
   // dataframe. Arrow places buffer lengths before buffer contents, so
@@ -79,6 +89,7 @@ class ArrowSerializer {
   const Dataframe* prepared_dataframe_ = nullptr;
   const StringPool* prepared_string_pool_ = nullptr;
   uint64_t prepared_mutations_ = 0;
+  IdColumnMode id_column_mode_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

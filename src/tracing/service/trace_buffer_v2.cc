@@ -739,9 +739,13 @@ void TraceBufferV2::CopyChunkUntrusted(
     std::optional<Frag> maybe_frag = frag_iter.NextFragmentInChunk();
     if (!maybe_frag.has_value()) {
       // Either we found less fragments than what the header said, or some
-      // fragment is out of bounds.
-      stats_.set_abi_violations(stats_.abi_violations() + 1);
-      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
+      // fragment is out of bounds. The exception is a TraceWriter that
+      // deliberately aborted the packet (kPacketSizeDropPacket), which is not
+      // an ABI violation and is accounted via trace_writer_packet_loss.
+      if (!frag_iter.trace_writer_data_drop()) {
+        stats_.set_abi_violations(stats_.abi_violations() + 1);
+        PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
+      }
       break;
     }
     Frag& f = *maybe_frag;
@@ -859,24 +863,68 @@ void TraceBufferV2::CopyChunkUntrusted(
       PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
-    // Only clear kChunkIncomplete on real IPC recommits (chunk_complete=true).
-    // During scraping the producer may still be writing, so the chunk should
-    // remain incomplete until the producer explicitly commits it.
-    if (chunk_complete)
-      recommit_chunk->flags &= ~kChunkIncomplete;
-    if (all_frags_size == recommit_chunk->payload_size) {
-      TRACE_BUFFER_V2_DLOG("  skipping recommit of identical chunk");
+
+    // Decide whether to relocate this re-commit rather than rewrite it in
+    // place. A scraped chunk that has been fully read keeps its copy at the
+    // offset where it was scraped, which can sit arbitrarily close to the
+    // write cursor, so the recovered packets could be overwritten before the
+    // next read. Relocating skips the already-consumed payload as in the
+    // re-admit of evicted chunks above. See b/518755701 for more details.
+
+    // The copy came from a scrape, so more payload may still be coming.
+    const bool copy_is_scraped = recommit_chunk->flags & kChunkIncomplete;
+
+    // Nothing for the erase to lose, nothing for the relocation to duplicate.
+    const bool copy_fully_consumed = recommit_chunk->payload_avail == 0;
+
+    // The producer's final commit (not another scrape), with new fragments.
+    const bool commit_adds_new_data =
+        chunk_complete && all_frags_size > recommit_chunk->payload_size;
+
+    // EraseCurrentChunk() only supports the first chunk of a sequence. Later
+    // chunks may stay physically ahead of the relocated one, which is fine:
+    // reads follow chunk_list, which is ordered by ChunkID and not by offset.
+    const bool copy_is_first_chunk_of_seq =
+        *chunk_list.begin() == OffsetOf(recommit_chunk);
+
+    // Only a ring buffer laps, so only there can the stale copy be overwritten.
+    // On kDiscard, routing the commit through the write path below could also
+    // hit the end-of-buffer DiscardWrite(), dropping the very fragments we are
+    // recovering and sealing the buffer for good.
+    const bool buffer_can_lap = overwrite_policy_ == kOverwrite;
+
+    const bool should_relocate_chunk =
+        copy_is_scraped && copy_fully_consumed && commit_adds_new_data &&
+        copy_is_first_chunk_of_seq && buffer_can_lap;
+
+    if (PERFETTO_LIKELY(!should_relocate_chunk)) {
+      // Only clear kChunkIncomplete on real IPC recommits
+      // (chunk_complete=true). During scraping the producer may still be
+      // writing, so the chunk should remain incomplete until the producer
+      // explicitly commits it.
+      if (chunk_complete)
+        recommit_chunk->flags &= ~kChunkIncomplete;
+      if (all_frags_size == recommit_chunk->payload_size) {
+        TRACE_BUFFER_V2_DLOG("  skipping recommit of identical chunk");
+        return;
+      }
+      uint16_t payload_consumed =
+          recommit_chunk->payload_size - recommit_chunk->payload_avail;
+      recommit_chunk->payload_size = all_frags_size_u16;
+      recommit_chunk->payload_avail = all_frags_size_u16 - payload_consumed;
+      memcpy(recommit_chunk->fragments_begin(), src, all_frags_size);
+      recommit_chunk->flags |= chunk_flags;
+      stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
       return;
     }
-    uint16_t payload_consumed =
-        recommit_chunk->payload_size - recommit_chunk->payload_avail;
-    recommit_chunk->payload_size = all_frags_size_u16;
-    recommit_chunk->payload_avail = all_frags_size_u16 - payload_consumed;
-    memcpy(recommit_chunk->fragments_begin(), src, all_frags_size);
-    recommit_chunk->flags |= chunk_flags;
-    stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
-    return;
-  }
+
+    // Erase the stale copy and fall through to the write path below, which
+    // re-creates the chunk at the write cursor.
+    TRACE_BUFFER_V2_DLOG("  Relocating consumed scraped chunk %u", chunk_id);
+    stats_.set_chunks_relocated(stats_.chunks_relocated() + 1);
+    previously_consumed_payload = recommit_chunk->payload_size;
+    internal::ChunkSeqIterator(this, &seq).EraseCurrentChunk();
+  }  // if (recommit_chunk)
 
   // If there isn't enough room from the given write position: write a padding
   // record to clear the end of the buffer, wrap and start at offset 0.
@@ -900,8 +948,9 @@ void TraceBufferV2::CopyChunkUntrusted(
   // Deletes all chunks from |wptr_| to |wptr_| + |record_size|.
   DeleteNextChunksFor(tbchunk_outer_size);
 
-  // If the DeleteNextChunksFor happens to delete a chunk in the same sequence,
-  // the insert_pos becomes invalid and we need to recompute that.
+  // |insert_pos| is invalid if any chunk was removed from this sequence since
+  // it was computed: either by the DeleteNextChunksFor above, or by the
+  // relocation erase.
   // Why don't we compute the insert_pos here? Because we also need to check
   // for re-commits (which are rare, but possible) and don't want to iterate
   // over the chunk list twice in most cases.

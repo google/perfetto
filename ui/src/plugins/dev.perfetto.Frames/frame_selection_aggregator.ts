@@ -44,6 +44,7 @@ export class FrameSelectionAggregator implements Aggregator {
     if (!dataset) return undefined;
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         await using iiTable = await createIITable(
           engine,
@@ -70,7 +71,7 @@ export class FrameSelectionAggregator implements Aggregator {
     return 'Frames';
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(): AggregatorGridConfig {
     return {
       schema: {
         jank_type: {title: 'Jank Type', columnType: 'text'},

@@ -17,6 +17,7 @@
 #include "src/trace_processor/util/tar_writer.h"
 
 #include <fcntl.h>
+#include <cerrno>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -133,7 +134,15 @@ TarHeader MakeTarHeader(const std::string& filename, size_t file_size) {
   return header;
 }
 
-// Writes to a file descriptor. Backs the path/ScopedFile constructors.
+}  // namespace
+
+// --- TarWriterSink ---
+
+TarWriterSink::~TarWriterSink() = default;
+
+namespace {
+
+// Writes to a file descriptor. Backs the ScopedFile constructor.
 class FdTarWriterSink : public TarWriterSink {
  public:
   explicit FdTarWriterSink(base::ScopedFile fd) : fd_(std::move(fd)) {
@@ -156,11 +165,21 @@ class FdTarWriterSink : public TarWriterSink {
   base::ScopedFile fd_;
 };
 
+// Returns the same error for every operation. Used when the output path
+// could not be opened, so that callers get a useful error instead of a
+// PERFETTO_CHECK crash when they attempt the first write.
+class FailedTarWriterSink : public TarWriterSink {
+ public:
+  explicit FailedTarWriterSink(base::Status error) : error_(std::move(error)) {}
+
+  base::Status Write(const void*, size_t) override { return error_; }
+  base::Status WriteFromFd(int, size_t) override { return error_; }
+
+ private:
+  base::Status error_;
+};
+
 }  // namespace
-
-// --- TarWriterSink ---
-
-TarWriterSink::~TarWriterSink() = default;
 
 // --- BufferTarWriterSink ---
 
@@ -188,9 +207,27 @@ base::Status BufferTarWriterSink::WriteFromFd(int fd, size_t len) {
 
 // --- TarWriter ---
 
+namespace {
+
+// Opens the output path for writing. On failure returns a sink that makes
+// every subsequent TarWriter operation fail with a descriptive error
+// (instead of crashing on a PERFETTO_CHECK as the old code did).
+std::unique_ptr<TarWriterSink> OpenOutputSink(const std::string& output_path) {
+  base::ScopedFile fd =
+      base::OpenFile(output_path, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+  if (fd) {
+    return std::unique_ptr<TarWriterSink>(new FdTarWriterSink(std::move(fd)));
+  }
+  return std::unique_ptr<TarWriterSink>(new FailedTarWriterSink(
+      base::ErrStatus("Failed to open output file '%s' for writing (errno: "
+                      "%d, %s)",
+                      output_path.c_str(), errno, strerror(errno))));
+}
+
+}  // namespace
+
 TarWriter::TarWriter(const std::string& output_path)
-    : TarWriter(
-          base::OpenFile(output_path, O_CREAT | O_WRONLY | O_TRUNC, 0644)) {}
+    : TarWriter(OpenOutputSink(output_path)) {}
 
 TarWriter::TarWriter(base::ScopedFile output_file)
     : TarWriter(std::unique_ptr<TarWriterSink>(

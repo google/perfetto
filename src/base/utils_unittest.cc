@@ -208,6 +208,16 @@ TEST(UtilsTest, IsPowerOfTwo) {
   EXPECT_FALSE(IsPowerOfTwo(max_pow2 + 1));
 }
 
+TEST(UtilsTest, RoundUpToPowerOfTwo) {
+  EXPECT_EQ(RoundUpToPowerOfTwo(0u), 0u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(1u), 1u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(2u), 2u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(3u), 4u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(5u), 8u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(uint32_t{1} << 31), uint32_t{1} << 31);
+  EXPECT_EQ(RoundUpToPowerOfTwo((uint32_t{1} << 31) + 1), 0u);
+}
+
 TEST(UtilsTest, AlignUp) {
   EXPECT_EQ(0u, AlignUp<4>(0));
   EXPECT_EQ(4u, AlignUp<4>(1));
@@ -417,6 +427,56 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
   }
 }
 #endif
+
+TEST(UtilsTest, SaturatingAdd) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+
+  EXPECT_EQ(SaturatingAdd(0, 0), 0);
+  EXPECT_EQ(SaturatingAdd(123, 456), 579);
+  EXPECT_EQ(SaturatingAdd(-123, -456), -579);
+  EXPECT_EQ(SaturatingAdd(kMax, 0), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin, 0), kMin);
+  EXPECT_EQ(SaturatingAdd(kMax - 1, 1), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin + 1, -1), kMin);
+  EXPECT_EQ(SaturatingAdd(kMax, 1), kMax);
+  EXPECT_EQ(SaturatingAdd(kMax - 1, 2), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin, -1), kMin);
+  EXPECT_EQ(SaturatingAdd(kMin + 1, -2), kMin);
+}
+
+TEST(UtilsTest, SaturatingMultiply) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+
+  // No overflow: behaves like a normal multiply.
+  EXPECT_EQ(SaturatingMultiply(0, 1000), 0);
+  EXPECT_EQ(SaturatingMultiply(1000, 0), 0);
+  EXPECT_EQ(SaturatingMultiply(123, 1000), 123000);
+  EXPECT_EQ(SaturatingMultiply(-123, 1000), -123000);
+  EXPECT_EQ(SaturatingMultiply(123, -1000), -123000);
+  EXPECT_EQ(SaturatingMultiply(-123, -1000), 123000);
+  EXPECT_EQ(SaturatingMultiply(kMax, 1), kMax);
+  EXPECT_EQ(SaturatingMultiply(kMin, 1), kMin);
+
+  // Positive overflow saturates to kMax (same-sign operands).
+  EXPECT_EQ(SaturatingMultiply(kMax, 1000), kMax);
+  EXPECT_EQ(SaturatingMultiply(kMax, 2), kMax);
+  EXPECT_EQ(SaturatingMultiply(kMin, -1), kMax);
+  EXPECT_EQ(SaturatingMultiply(-kMax, -2), kMax);
+
+  // Just-in-range products near kMin are not saturated.
+  EXPECT_EQ(SaturatingMultiply(kMin / 1000, 1000), -9223372036854775000);
+
+  // Negative overflow saturates to kMin (opposite-sign operands). Notably a
+  // value near INT64_MIN scaled by a positive factor must stay negative rather
+  // than wrapping to a large positive value.
+  EXPECT_EQ(SaturatingMultiply(kMin, 1000), kMin);
+  EXPECT_EQ(SaturatingMultiply(kMin, 2), kMin);
+  EXPECT_EQ(SaturatingMultiply(kMax, -2), kMin);
+  EXPECT_EQ(SaturatingMultiply(-9223372036854776, 1000), kMin);
+  EXPECT_EQ(SaturatingMultiply(1000, -9223372036854776), kMin);
+}
 
 }  // namespace
 }  // namespace base

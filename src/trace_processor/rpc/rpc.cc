@@ -163,7 +163,7 @@ PERFETTO_NO_INLINE void StreamSerializerResponses(
     qres->set_error("The query ended up with a response that is too big (" +
                     std::to_string(resp_size) +
                     " bytes). This usually happens when a single row is >= 256 "
-                    "MiB. See also WRITE_FILE for dealing with large rows.");
+                    "MiB. Consider writing large values to a file instead.");
     err_resp.Send(send_fn);
     break;
   }
@@ -186,13 +186,29 @@ PERFETTO_NO_INLINE void SendSingleStatementResponse(
   resp.Send(send_fn);
 }
 
+class RpcExportOutput : public TraceProcessor::ExportOutput {
+ public:
+  explicit RpcExportOutput(const Rpc::ExportCallback& callback)
+      : callback_(callback) {}
+
+  base::Status Write(const void* data, size_t size) override {
+    return callback_(static_cast<const uint8_t*>(data), size,
+                     /*has_more=*/true);
+  }
+
+ private:
+  const Rpc::ExportCallback& callback_;
+};
+
 }  // namespace
 
 Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
          bool has_preloaded_eof,
          Config default_config,
+         TraceProcessor::PlatformInterface* platform,
          std::function<void(TraceProcessor*)> on_trace_processor_created)
     : default_config_(default_config),
+      platform_(platform),
       on_trace_processor_created_(std::move(on_trace_processor_created)),
       current_config_(std::move(default_config)),
       trace_processor_(std::move(preloaded_instance)),
@@ -202,7 +218,7 @@ Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
   }
 }
 
-Rpc::Rpc() : Rpc(nullptr, false, Config(), {}) {}
+Rpc::Rpc() : Rpc(nullptr, false, Config(), nullptr, {}) {}
 Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
@@ -214,7 +230,7 @@ void Rpc::ResetTraceProcessorInternal(const Config& config) {
   // hold pointers to it.
   summarizers_.Clear();
 
-  trace_processor_ = TraceProcessor::CreateInstance(config);
+  trace_processor_ = TraceProcessor::CreateInstance(config, platform_);
   if (on_trace_processor_created_) {
     on_trace_processor_created_(trace_processor_.get());
   }
@@ -573,6 +589,33 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_EXPORT: {
+      protos::pbzero::ExportArgs::Decoder args(req.export_args());
+      std::optional<TraceProcessor::ExportFormat> format =
+          ParseExportFormat(args.format());
+      base::Status status =
+          format ? Export(*format,
+                          [&](const uint8_t* chunk, size_t chunk_len,
+                              bool has_more) {
+                            Response resp(tx_seq_id_++, req_type);
+                            auto* result = resp->set_export_result();
+                            if (chunk && chunk_len > 0) {
+                              result->set_data(chunk, chunk_len);
+                            }
+                            result->set_has_more(has_more);
+                            resp.Send(rpc_response_fn_);
+                            return base::OkStatus();
+                          })
+                 : base::ErrStatus("Export format is required");
+      if (!status.ok()) {
+        Response resp(tx_seq_id_++, req_type);
+        auto* result = resp->set_export_result();
+        result->set_error(status.message());
+        result->set_has_more(false);
+        resp.Send(rpc_response_fn_);
+      }
+      break;
+    }
     case RpcProto::TPM_DESTROY_SUMMARIZER: {
       Response resp(tx_seq_id_++, req_type);
       protozero::ConstBytes args = req.destroy_summarizer_args();
@@ -750,6 +793,24 @@ void Rpc::Query(const uint8_t* args,
     }
     buffered.Reset();
   }
+}
+
+std::optional<TraceProcessor::ExportFormat> Rpc::ParseExportFormat(
+    int32_t format) {
+  if (format == protos::pbzero::ExportArgs::PERFETTO) {
+    return TraceProcessor::ExportFormat::kPerfetto;
+  }
+  if (format == protos::pbzero::ExportArgs::ARROW_TAR) {
+    return TraceProcessor::ExportFormat::kArrowTar;
+  }
+  return std::nullopt;
+}
+
+base::Status Rpc::Export(TraceProcessor::ExportFormat format,
+                         const ExportCallback& callback) {
+  RpcExportOutput output(callback);
+  RETURN_IF_ERROR(trace_processor_->Export(format, &output));
+  return callback(nullptr, 0, /*has_more=*/false);
 }
 
 void Rpc::RestoreInitialTables() {

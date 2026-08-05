@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder} from '../../../base/fuzzy';
+import {fuzzySearch} from '../../../base/fuzzy';
 import {Icons} from '../../../base/semantic_icons';
 import {EmptyState} from '../../../widgets/empty_state';
 import {Icon} from '../../../widgets/icon';
@@ -172,11 +172,11 @@ class RecordPopup implements m.ClassComponent<RecordPopupAttrs> {
         }));
       } else {
         // Fuzzy search with highlighting
-        const finder = new FuzzyFinder(
+        return fuzzySearch(
           availableKeys as string[],
           (k: string) => k,
-        );
-        return finder.find(this.searchQuery).map((result) => ({
+          this.searchQuery,
+        ).map((result) => ({
           key: result.item,
           segments: result.segments,
         }));
@@ -230,7 +230,7 @@ class RecordPopup implements m.ClassComponent<RecordPopupAttrs> {
               visibleResults.map(
                 (result: {
                   key: string;
-                  segments: {matching: boolean; value: string}[];
+                  segments: readonly {matching: boolean; value: string}[];
                 }) => {
                   const keyPath = `${pathPrefix}.${result.key}`;
                   const isKeyAlreadyVisible = existingColumns.includes(keyPath);

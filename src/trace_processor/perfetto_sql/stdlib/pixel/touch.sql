@@ -85,7 +85,11 @@ WITH
       track_id = (SELECT id FROM track WHERE name = 'gti_th_irq_index' LIMIT 1)
   ),
   irq_slices AS (
-    SELECT id, ts, dur, track_id FROM slice WHERE name GLOB 'IRQ (*)'
+    SELECT id, ts, dur, track_id
+    FROM slice
+    WHERE
+      name GLOB 'IRQ (*)'
+      AND dur > 0
   )
 SELECT
   s.id AS th_slice_id,

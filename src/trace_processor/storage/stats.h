@@ -193,6 +193,11 @@ namespace perfetto::trace_processor::stats {
   F(missing_disk_io_event_name,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
        "ETW Disk IO tracker encountered an event with an opcode for which it " \
         "didn't have a name."),                                                \
+  F(cpu_info_empty,                       kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+       "CpuInfo packet in the trace contained no CPUs. This usually happens "  \
+       "when /proc/cpuinfo is unreadable or empty in the environment (e.g. "   \
+       "sandbox or container) where tracing occurred. Metadata in the cpu "    \
+       "table will be missing."),                                              \
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, Scope::kGlobal, ""), \
@@ -252,6 +257,11 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_chunks_discarded,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_overwritten,        kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_read,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_chunks_relocated,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "TraceBufferV2 only. Num. chunks that we moved to the write cursor "       \
+    "instead of rewriting in place. We do this for scraped chunks that have "  \
+    "been fully read, as their old position can be too close to the write "    \
+    "cursor to be safe."),                                                     \
   F(traced_buf_chunks_rewritten,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_written,            kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_committed_out_of_order,                                  \
@@ -755,6 +765,22 @@ namespace perfetto::trace_processor::stats {
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
       "Linux kernel documentation for causes of this and potential fixes."),   \
+  F(strace_parse_failure,                       kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,   \
+      "A line in an strace trace could not be parsed as a syscall event "     \
+      "and was skipped. This is expected for non-syscall lines, such as "     \
+      "signal delivery or process exit banners."),                           \
+  F(strace_unsupported_timestamp_format,        kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A line in an strace trace looked like a syscall event, but used "      \
+      "`strace -t`/`-tt` wall-clock time-of-day timestamps rather than "      \
+      "`-ttt` Unix epoch timestamps, and was skipped: `-t`/`-tt` print no "   \
+      "date, so they cannot be safely treated as an absolute point in "       \
+      "time. Re-run strace with `-ttt` to fix this."),                       \
+  F(strace_missing_pid,                         kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A syscall line in an strace trace had no leading pid and was "         \
+      "skipped: without one there is no way to attribute the event to a "     \
+      "thread that stays meaningful when traces are merged. strace only "     \
+      "prints pids when following processes, so re-run strace with `-f` "     \
+      "to fix this."),                                                       \
   F(simpleperf_missing_file_mapping,            kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,   \
       "One or more simpleperf samples were dropped because their callchain "   \
       "entries referenced a file_id that has no corresponding File record in " \
@@ -807,6 +833,14 @@ namespace perfetto::trace_processor::stats {
       "be dropped. This indicates a bug in the trace producer or trace "       \
       "conversion tool, or data corruption. Ensure all events have valid "     \
       "timestamps."),                                                          \
+  F(track_event_invalid_timestamp,              kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackEvent packet resolved to a negative timestamp and was dropped. " \
+      "This indicates a bug in the trace producer or trace conversion tool, " \
+      "or data corruption."),                                                  \
+  F(streaming_profile_invalid_timestamp,        kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A StreamingProfilePacket resolved to a negative timestamp and was "    \
+      "dropped. This indicates a bug in the trace producer or data "           \
+      "corruption."),                                                          \
   F(thread_descriptor_missing_sequence_id,      kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A ThreadDescriptor packet was received without a "                      \
       "trusted_packet_sequence_id field. This field is required to associate " \

@@ -1,4 +1,4 @@
-# Cookbook: Analysing Android Traces
+# Cookbook: Analyzing Android Traces
 
 This page will take you through some real world examples on how you can analyse
 issues with SQL and more advanced features of the Perfetto UI.

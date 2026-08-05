@@ -164,9 +164,12 @@ Ptr<TraceSorter> CreateSorter(TraceProcessorContext* context,
                                     event_handling);
 }
 
-void InitGlobalState(TraceProcessorContext* context, const Config& config) {
+void InitGlobalState(TraceProcessorContext* context,
+                     const Config& config,
+                     TraceProcessor_PlatformInterface* platform) {
   // Global state.
   context->config = config;
+  context->platform = platform;
   context->storage = Ptr<TraceStorage>::MakeRoot(config);
   context->global_stats_tracker =
       Ptr<GlobalStatsTracker>::MakeRoot(context->storage.get());
@@ -209,6 +212,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
                      TraceProcessorContext* dest) {
   // Global state.
   dest->config = source->config;
+  dest->platform = source->platform;
   dest->storage = source->storage.Fork();
   dest->sorter = source->sorter.Fork();
   dest->reader_registry = source->reader_registry.Fork();
@@ -242,8 +246,10 @@ void CopyGlobalState(const TraceProcessorContext* source,
 }  // namespace
 
 TraceProcessorContext::TraceProcessorContext() = default;
-TraceProcessorContext::TraceProcessorContext(const Config& _config) {
-  InitGlobalState(this, _config);
+TraceProcessorContext::TraceProcessorContext(
+    const Config& _config,
+    TraceProcessor_PlatformInterface* _platform) {
+  InitGlobalState(this, _config, _platform);
 }
 TraceProcessorContext::~TraceProcessorContext() = default;
 
@@ -301,6 +307,10 @@ TraceId TraceProcessorContext::trace_id() const {
 }
 
 void TraceProcessorContext::DestroyParsingState() {
+  // Config and platform capabilities are also needed by query-time features,
+  // so preserve them while reconstructing the parsing context.
+  Config _config = std::move(config);
+  TraceProcessor_PlatformInterface* _platform = platform;
   auto _storage = std::move(storage);
 
   // TODO(b/309623584): Decouple from storage and remove from here. This
@@ -319,6 +329,8 @@ void TraceProcessorContext::DestroyParsingState() {
   this->~TraceProcessorContext();
   new (this) TraceProcessorContext();
 
+  config = std::move(_config);
+  platform = _platform;
   storage = std::move(_storage);
   heap_graph_tracker = std::move(_heap_graph_tracker);
   clock_converter = std::move(_clock_converter);

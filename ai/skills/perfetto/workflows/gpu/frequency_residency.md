@@ -34,7 +34,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
     returns one row per GPU (that has a frequency track) as CSV.
 
     ```bash
-    trace_processor query --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_frequency_residency.sql TRACE_FILE
+    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_frequency_residency.sql
     ```
 
     Columns: `gpu`, `gpu_name`, `active_span_ns`, `gpu_busy_ns`,
@@ -133,7 +133,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
     a healthy state:
 
     ```bash
-    trace_processor query --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_dvfs_ramp.sql TRACE_FILE
+    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_dvfs_ramp.sql
     ```
 
     Returns, worst first: `gpu`, `gpu_name`, `edge_rel_ns`, `idle_gap_ns`,
@@ -206,7 +206,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
     had already reached target in the same burst — with thermal/power context:
 
     ```bash
-    trace_processor query --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_sustained_throttle.sql TRACE_FILE
+    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_sustained_throttle.sql
     ```
 
     Returns, longest first: `gpu`, `gpu_name`, `start_rel_ns`, `dur_ns`,

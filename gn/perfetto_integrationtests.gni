@@ -50,6 +50,8 @@ if (enable_perfetto_trace_processor && perfetto_build_standalone &&
   perfetto_integrationtests_targets +=
       [ "src/trace_processor:integrationtests" ]
   perfetto_integrationtests_targets += [ "src/traceconv:integrationtests" ]
+  perfetto_integrationtests_targets +=
+      [ "src/trace_processor/shell:integrationtests" ]
   perfetto_integrationtests_data_targets +=
       [ "protos/perfetto/trace:test_extensions_slim_descriptor" ]
 }
