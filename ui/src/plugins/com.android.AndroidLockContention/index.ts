@@ -58,48 +58,31 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
     const selection = trace.selection.selection;
     if (selection.kind !== 'track_event') return;
 
-    const currentEventId = selection.eventId;
-    const currentTrackUri = selection.trackUri;
-
-    const query = await trace.engine.query(`
-      SELECT owner_tid, id FROM __android_lock_contention_owner_events WHERE id = ${selection.eventId} LIMIT 1
-    `);
-    if (query.numRows() > 0) {
-      const row = query.firstRow({owner_tid: NUM, id: NUM});
-      const targetUri = `com.android.AndroidLockContention#OwnerEvents_${row.owner_tid}`;
-
-      if (currentEventId === row.id && currentTrackUri === targetUri) {
-        return;
-      }
-
-      this.selectAndNavigate(trace, row.id, targetUri);
+    if (
+      selection.trackUri.startsWith(
+        'com.android.AndroidLockContention#OwnerEvents',
+      )
+    ) {
       return;
     }
 
-    const contentionQuery = await trace.engine.query(`
-      SELECT owner_tid, ts FROM __android_lock_contention_owner_events WHERE id = ${selection.eventId} LIMIT 1
+    const query = await trace.engine.query(`
+      SELECT id, owner_tid 
+      FROM __android_lock_contention_owner_events 
+      WHERE id = ${selection.eventId} 
+      LIMIT 1
     `);
-    if (contentionQuery.numRows() > 0) {
-      const row = contentionQuery.firstRow({owner_tid: NUM, ts: LONG});
-
-      const ownerQuery = await trace.engine.query(`
-        SELECT id FROM __android_lock_contention_owner_events
-        WHERE owner_tid = ${row.owner_tid}
-          AND ts <= ${row.ts}
-          AND ts + dur >= ${row.ts}
-        LIMIT 1
-      `);
-      if (ownerQuery.numRows() > 0) {
-        const ownerId = ownerQuery.firstRow({id: NUM}).id;
-        const targetUri = `com.android.AndroidLockContention#OwnerEvents_${row.owner_tid}`;
-
-        if (currentEventId === ownerId && currentTrackUri === targetUri) {
-          return;
-        }
-
-        this.selectAndNavigate(trace, ownerId, targetUri);
-        return;
-      }
+    if (query.numRows() > 0) {
+      const row = query.firstRow({id: NUM, owner_tid: NUM});
+      this.currentBlockedSlice = {
+        id: selection.eventId,
+        trackUri: selection.trackUri,
+      };
+      this.selectAndNavigate(
+        trace,
+        row.id,
+        `com.android.AndroidLockContention#OwnerEvents_${row.owner_tid}`,
+      );
     }
   }
   public readonly navigation = new LockContentionNavigation();
@@ -154,7 +137,7 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
       name: 'Android Lock Contention: Navigate Backward',
       defaultHotkey: '[',
       callback: async () => {
-        await this.navigation.goBack(trace, this);
+        await this.navigation.goBack(trace);
       },
     });
 
@@ -466,7 +449,7 @@ class LockContentionNavigation {
     this.stack.push({source, targetEventId, targetTrackUri});
   }
 
-  async goBack(trace: Trace, plugin: AndroidLockContentionPlugin) {
+  async goBack(trace: Trace) {
     const currentSelection = trace.selection.selection;
 
     const top = this.stack[this.stack.length - 1];
@@ -490,18 +473,27 @@ class LockContentionNavigation {
         'com.android.AndroidLockContention#OwnerEvents',
       )
     ) {
-      const blockedSlice = plugin.currentBlockedSlice;
-      if (blockedSlice && blockedSlice.trackUri) {
-        trace.selection.selectTrackEvent(
-          blockedSlice.trackUri,
-          blockedSlice.id,
-          {
+      const sliceQuery = await trace.engine.query(`
+        SELECT track_id FROM slice WHERE id = ${currentSelection.eventId} LIMIT 1
+      `);
+      if (sliceQuery.numRows() > 0) {
+        const trackId = sliceQuery.firstRow({track_id: NUM}).track_id;
+        const trackUri = getTrackUriForTrackId(trace, trackId);
+        if (trackUri) {
+          trace.selection.selectTrackEvent(trackUri, currentSelection.eventId, {
             scrollToSelection: true,
             switchToCurrentSelectionTab: false,
-          },
-        );
-        return;
+          });
+          this.stack = [];
+          return;
+        }
       }
+      trace.selection.selectSqlEvent('slice', currentSelection.eventId, {
+        scrollToSelection: true,
+        switchToCurrentSelectionTab: false,
+      });
+      this.stack = [];
+      return;
     }
 
     if (this.stack.length > 0) {
