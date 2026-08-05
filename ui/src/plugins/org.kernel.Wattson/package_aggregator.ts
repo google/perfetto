@@ -36,6 +36,7 @@ abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
     if (probeResult === undefined) return undefined;
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         await engine.query(`drop view if exists ${this.id};`);
         const duration = area.end - area.start;
@@ -90,7 +91,7 @@ abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
     return String(value);
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  protected getGridConfig(): AggregatorGridConfig {
     const powerUnits = this.powerUnits();
     const energyUnits = `${powerUnits}s`;
     const idleCost = this.hasIdleCost();

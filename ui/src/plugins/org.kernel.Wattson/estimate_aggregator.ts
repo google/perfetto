@@ -47,6 +47,7 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     if (estimateTracks.length === 0) return undefined;
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         await engine.query(`drop view if exists ${this.id};`);
         const query = this.getEstimateTracksQuery(area, estimateTracks);
@@ -118,7 +119,7 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     return String(value);
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(): AggregatorGridConfig {
     const powerUnits = this.scaleNumericData ? 'µW' : 'mW';
     const energyUnits = this.scaleNumericData ? 'µWs' : 'mWs';
 

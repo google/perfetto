@@ -60,6 +60,7 @@ export class ThreadStateByCpuAggregator implements Aggregator {
     if (!dataset) return undefined;
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         await using iiTable = await createIITable(
           engine,
@@ -118,7 +119,7 @@ export class ThreadStateByCpuAggregator implements Aggregator {
     };
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(): AggregatorGridConfig {
     return {
       schema: {
         process_name: {title: 'Process', columnType: 'text'},
