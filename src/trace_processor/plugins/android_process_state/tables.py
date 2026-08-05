@@ -35,6 +35,7 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         C('capability_flags', CppOptional(CppInt32())),
         C('reason', CppOptional(CppString())),
         C('seq_id', CppOptional(CppInt64())),
+        C('sched_group', CppOptional(CppString())),
         C('is_initial', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -55,6 +56,8 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'OOM score.',
             'capability_flags':
                 'Capability flags.',
+            'sched_group':
+                'ActivityManager scheduling group enum name or value.',
             'reason':
                 'Reason for state change (if from track event).',
             'seq_id':
