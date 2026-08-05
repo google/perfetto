@@ -13,10 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DetailsShell} from '../../widgets/details_shell';
+import {AsyncMemo} from '../../base/async_memo';
+import {NUM} from '../../trace_processor/query_result';
 import {DurationWidget} from '../../components/widgets/duration';
 import type {Trace} from '../../public/trace';
-import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {
+  ContentWithLoadingFlag,
+  TrackEventSelection,
+  TrackEventSelectionTab,
+} from '../../public/selection';
 import {
   AndroidLockContentionEventSource,
   type LockContentionDetails,
@@ -38,102 +43,185 @@ import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Tooltip} from '../../widgets/tooltip';
 
-import {Section} from '../../widgets/section';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Card, CardStack} from '../../widgets/card';
+import {Section} from '../../widgets/section';
+import {Spinner} from '../../widgets/spinner';
 
-export class LockOwnerDetailsPanel implements TrackEventDetailsPanel {
-  private mergedDetails?: LockContentionDetails[];
-  private monitorThreadStates = new Map<
-    number,
-    ReadonlyArray<ContentionState>
-  >();
-  private monitorBlockedFunctions = new Map<
+interface ContentionBreakdownData {
+  readonly rows: LockContentionDetails[];
+  readonly threadStates: Map<number, ReadonlyArray<ContentionState>>;
+  readonly blockedFunctions: Map<
     number,
     ReadonlyArray<ContentionBlockedFunction>
-  >();
+  >;
+}
+
+export class LockContentionDetailsTab implements TrackEventSelectionTab {
+  readonly id = 'android_lock_contention';
+  readonly name = 'Lock Contention';
+  readonly priority = 10;
+
+  private readonly memo = new AsyncMemo<ContentionBreakdownData | undefined>();
 
   constructor(
     private readonly trace: Trace,
-    private readonly eventId: number,
     private readonly plugin: AndroidLockContentionPlugin,
   ) {}
 
-  async load() {
-    const source = new AndroidLockContentionEventSource(this.trace);
-    this.mergedDetails = await source.fetchMergedDetails(this.eventId);
+  render(selection: TrackEventSelection): ContentWithLoadingFlag | undefined {
+    const isOwnerTrack = selection.trackUri.startsWith(
+      'com.android.AndroidLockContention#OwnerEvents',
+    );
+    const isContentionSlice = this.plugin.contentionSliceIds.has(
+      selection.eventId,
+    );
 
-    const selectedRow = this.mergedDetails.find((r) => r.id === this.eventId);
-    if (selectedRow) {
-      this.plugin.highlightedTargetIds.add(this.eventId);
-      this.plugin.currentBlockedSlice = {
-        id: selectedRow.id,
-        trackUri: selectedRow.trackUri,
+    if (!isOwnerTrack && !isContentionSlice) {
+      return undefined;
+    }
+
+    const {data, isPending} = this.memo.use({
+      key: {eventId: selection.eventId},
+      compute: () => this.loadData(selection),
+    });
+
+    if (isPending) {
+      return {
+        isLoading: true,
+        content: m(Spinner, {easing: true}),
       };
     }
 
-    for (const row of this.mergedDetails) {
-      if (row.isMonitor) {
-        const states = await source.fetchThreadStates(row.id);
-        const funcs = await source.fetchBlockedFunctions(row.id);
-        this.monitorThreadStates.set(row.id, states);
-        this.monitorBlockedFunctions.set(row.id, funcs);
-      }
+    if (!data || data.rows.length === 0) {
+      return undefined;
     }
+
+    return {
+      isLoading: false,
+      content: m(LockContentionBreakdown, {
+        trace: this.trace,
+        plugin: this.plugin,
+        rows: data.rows,
+        monitorThreadStates: data.threadStates,
+        monitorBlockedFunctions: data.blockedFunctions,
+      }),
+    };
   }
 
-  render() {
-    if (this.mergedDetails === undefined) {
-      return m(DetailsShell, {title: 'Lock Owner', description: 'Loading...'});
+  private async loadData(
+    selection: TrackEventSelection,
+  ): Promise<ContentionBreakdownData | undefined> {
+    const source = new AndroidLockContentionEventSource(this.trace);
+
+    // Check if this is an owner event or a slice matching an owner event
+    const query = await this.trace.engine.query(`
+      SELECT id FROM __android_lock_contention_owner_events WHERE id = ${selection.eventId}
+      UNION ALL
+      SELECT oe.id
+      FROM android_all_lock_contentions c
+      JOIN __android_lock_contention_owner_events oe
+        ON oe.owner_tid = c.owner_tid
+        AND oe.ts <= c.ts
+        AND oe.ts + oe.dur >= c.ts
+      WHERE c.id = ${selection.eventId}
+      LIMIT 1
+    `);
+
+    if (query.numRows() > 0) {
+      const ownerEventId = query.firstRow({id: NUM}).id;
+      const res = await source.fetchAllDetails(ownerEventId);
+      return {
+        rows: res.details,
+        threadStates: res.threadStates,
+        blockedFunctions: res.blockedFunctions,
+      };
     }
 
-    const rows = this.mergedDetails;
+    // If it is a contention slice without an owner event in this window:
+    const singleDetails = await source.fetchDetails(
+      selection.eventId,
+      selection.trackUri,
+    );
+    if (singleDetails !== null) {
+      const threadStates = new Map<number, ReadonlyArray<ContentionState>>();
+      const blockedFunctions = new Map<
+        number,
+        ReadonlyArray<ContentionBlockedFunction>
+      >();
+      if (singleDetails.isMonitor) {
+        threadStates.set(
+          singleDetails.id,
+          await source.fetchThreadStates(singleDetails.id),
+        );
+        blockedFunctions.set(
+          singleDetails.id,
+          await source.fetchBlockedFunctions(singleDetails.id),
+        );
+      }
+      return {
+        rows: [singleDetails],
+        threadStates,
+        blockedFunctions,
+      };
+    }
+
+    return undefined;
+  }
+}
+
+export interface LockContentionBreakdownAttrs {
+  readonly trace: Trace;
+  readonly plugin: AndroidLockContentionPlugin;
+  readonly rows: LockContentionDetails[];
+  readonly monitorThreadStates: Map<number, ReadonlyArray<ContentionState>>;
+  readonly monitorBlockedFunctions: Map<
+    number,
+    ReadonlyArray<ContentionBlockedFunction>
+  >;
+}
+
+export class LockContentionBreakdown implements m.ClassComponent<LockContentionBreakdownAttrs> {
+  view({attrs}: m.Vnode<LockContentionBreakdownAttrs>) {
+    const {trace, plugin, rows, monitorThreadStates, monitorBlockedFunctions} =
+      attrs;
+
     const ownerTid = rows.length > 0 ? rows[0].blockingThreadTid : undefined;
     const customTrackUri =
       ownerTid !== undefined && ownerTid !== null
         ? `com.android.AndroidLockContention#OwnerEvents_${ownerTid}`
         : undefined;
     const isCustomPinned = customTrackUri
-      ? this.plugin.pinningManager.isTrackPinned(customTrackUri)
+      ? plugin.pinningManager.isTrackPinned(customTrackUri)
       : false;
 
     const threadTrackUri = rows.length > 0 ? rows[0].ownerTrackUri : undefined;
     const isThreadPinned = threadTrackUri
-      ? this.plugin.pinningManager.isTrackPinned(threadTrackUri)
+      ? plugin.pinningManager.isTrackPinned(threadTrackUri)
       : false;
 
     const artRows = rows.filter((r) => !r.isMonitor);
     const monitorRows = rows.filter((r) => r.isMonitor);
 
-    const uniqueBlockedThreads = new Set(
-      rows.map((r) => r.blockedThreadTid ?? r.blockedThreadName),
-    );
     return m(
-      DetailsShell,
-      {
-        title: 'Lock Owner Contention Breakdown',
-        description: `Owner is blocking ${uniqueBlockedThreads.size} threads`,
-      },
+      '.pf-lock-owner-panel',
       m(
-        'div',
-        {className: 'pf-lock-owner-panel__note'},
+        '.pf-lock-owner-panel__note',
         'Press [ and ] to navigate between custom track and original slices.',
       ),
 
       m(
-        'div',
-        {className: 'pf-lock-owner-panel__toolbar'},
+        '.pf-lock-owner-panel__toolbar',
         m(
-          'label',
-          {className: 'pf-lock-owner-panel__checkbox-label'},
+          'label.pf-lock-owner-panel__checkbox-label',
           m(Checkbox, {
             checked: isCustomPinned,
             onchange: () => {
               if (customTrackUri) {
                 if (isCustomPinned) {
-                  this.plugin.pinningManager.unpinTracks([customTrackUri]);
+                  plugin.pinningManager.unpinTracks([customTrackUri]);
                 } else {
-                  this.plugin.pinningManager.pinTracks([customTrackUri]);
+                  plugin.pinningManager.pinTracks([customTrackUri]);
                 }
               }
             },
@@ -141,16 +229,15 @@ export class LockOwnerDetailsPanel implements TrackEventDetailsPanel {
           'Pin Lock Owner Track',
         ),
         m(
-          'label',
-          {className: 'pf-lock-owner-panel__checkbox-label'},
+          'label.pf-lock-owner-panel__checkbox-label',
           m(Checkbox, {
             checked: isThreadPinned,
             onchange: () => {
               if (threadTrackUri) {
                 if (isThreadPinned) {
-                  this.plugin.pinningManager.unpinTracks([threadTrackUri]);
+                  plugin.pinningManager.unpinTracks([threadTrackUri]);
                 } else {
-                  this.plugin.pinningManager.pinTracks([threadTrackUri]);
+                  plugin.pinningManager.pinTracks([threadTrackUri]);
                 }
               }
             },
@@ -162,36 +249,29 @@ export class LockOwnerDetailsPanel implements TrackEventDetailsPanel {
 
       artRows.length > 0 &&
         m(
-          'div',
-          {className: 'pf-lock-owner-panel__section'},
+          '.pf-lock-owner-panel__section',
           m('h3', 'ART Lock Contentions'),
           m(ArtContentionsGrid, {
-            trace: this.trace,
-            plugin: this.plugin,
+            trace,
+            plugin,
             rows: artRows,
           }),
         ),
 
       monitorRows.length > 0 &&
         m(
-          'div',
-          {className: 'pf-lock-owner-panel__section'},
-          m(
-            'h3',
-            {className: 'pf-lock-owner-panel__title'},
-            'Monitor Contentions',
-          ),
+          '.pf-lock-owner-panel__section',
+          m('h3.pf-lock-owner-panel__title', 'Monitor Contentions'),
           m(
             CardStack,
             {className: 'pf-lock-owner-panel__card-stack'},
             monitorRows.map((row) =>
               m(MonitorContentionCard, {
-                trace: this.trace,
-                plugin: this.plugin,
+                trace,
+                plugin,
                 row,
-                threadStates: this.monitorThreadStates.get(row.id) ?? [],
-                blockedFunctions:
-                  this.monitorBlockedFunctions.get(row.id) ?? [],
+                threadStates: monitorThreadStates.get(row.id) ?? [],
+                blockedFunctions: monitorBlockedFunctions.get(row.id) ?? [],
               }),
             ),
           ),
@@ -206,13 +286,7 @@ function renderLockName(lockName: string): m.Children {
     : m(
         Tooltip,
         {
-          trigger: m(
-            'span',
-            {
-              className: 'pf-lock-owner-panel__unknown-text',
-            },
-            'Unknown',
-          ),
+          trigger: m('span.pf-lock-owner-panel__unknown-text', 'Unknown'),
         },
         "To see lock names, emit '<name>_lock_acquire' and '<name>_lock_held' trace events around the lock contention.",
       );
@@ -336,16 +410,11 @@ class MonitorContentionCard implements m.ClassComponent<MonitorContentionCardAtt
         style: 'border: 1px solid #007acc;',
       },
       m(
-        'div',
-        {
-          className: 'pf-lock-owner-panel__card-header',
-        },
+        '.pf-lock-owner-panel__card-header',
         m(
-          'div',
-          {className: 'pf-lock-owner-panel__card-header-left'},
+          '.pf-lock-owner-panel__card-header-left',
           m(
-            'label',
-            {className: 'pf-lock-owner-panel__checkbox-label'},
+            'label.pf-lock-owner-panel__checkbox-label',
             m(Checkbox, {
               checked: isSelected,
               onchange: () => {
@@ -359,8 +428,7 @@ class MonitorContentionCard implements m.ClassComponent<MonitorContentionCardAtt
             'Show Flow',
           ),
           m(
-            'label',
-            {className: 'pf-lock-owner-panel__checkbox-label'},
+            'label.pf-lock-owner-panel__checkbox-label',
             m(Checkbox, {
               checked: isPinned,
               onchange: () => {
@@ -392,10 +460,7 @@ class MonitorContentionCard implements m.ClassComponent<MonitorContentionCardAtt
         ),
       ),
       m(
-        'div',
-        {
-          className: 'pf-lock-owner-panel__card-content',
-        },
+        '.pf-lock-owner-panel__card-content',
         this.renderMonitorDetails(
           row,
           threadStates,
@@ -481,8 +546,7 @@ class MonitorContentionCard implements m.ClassComponent<MonitorContentionCardAtt
         ),
 
       m(
-        'div',
-        {className: 'pf-lock-owner-panel__details-col'},
+        '.pf-lock-owner-panel__details-col',
         m(
           'div',
           m('strong', 'Thread: '),
@@ -504,21 +568,13 @@ class MonitorContentionCard implements m.ClassComponent<MonitorContentionCardAtt
           m(
             'div',
             m('strong', 'Method: '),
-            m(
-              'span',
-              {className: 'pf-lock-owner-panel__monospace'},
-              row.blockedMethod,
-            ),
+            m('span.pf-lock-owner-panel__monospace', row.blockedMethod),
           ),
         row.blockedSrc &&
           m(
             'div',
             m('strong', 'Source: '),
-            m(
-              'span',
-              {className: 'pf-lock-owner-panel__monospace'},
-              row.blockedSrc,
-            ),
+            m('span.pf-lock-owner-panel__monospace', row.blockedSrc),
           ),
       ),
     );
@@ -532,8 +588,7 @@ class MonitorContentionCard implements m.ClassComponent<MonitorContentionCardAtt
       Section,
       {title: 'Contention Details'},
       m(
-        'div',
-        {className: 'pf-lock-owner-panel__details-col'},
+        '.pf-lock-owner-panel__details-col',
         m('div', m('strong', 'Lock Name: '), renderLockName(row.lockName)),
         m(
           'div',
@@ -582,8 +637,7 @@ class MonitorContentionCard implements m.ClassComponent<MonitorContentionCardAtt
         ),
 
       m(
-        'div',
-        {className: 'pf-lock-owner-panel__details-col'},
+        '.pf-lock-owner-panel__details-col',
         m(
           'div',
           m('strong', 'Thread: '),
@@ -605,21 +659,13 @@ class MonitorContentionCard implements m.ClassComponent<MonitorContentionCardAtt
           m(
             'div',
             m('strong', 'Method: '),
-            m(
-              'span',
-              {className: 'pf-lock-owner-panel__monospace'},
-              row.blockingMethod,
-            ),
+            m('span.pf-lock-owner-panel__monospace', row.blockingMethod),
           ),
         row.blockingSrc &&
           m(
             'div',
             m('strong', 'Source: '),
-            m(
-              'span',
-              {className: 'pf-lock-owner-panel__monospace'},
-              row.blockingSrc,
-            ),
+            m('span.pf-lock-owner-panel__monospace', row.blockingSrc),
           ),
       ),
     );
@@ -631,8 +677,7 @@ class MonitorContentionCard implements m.ClassComponent<MonitorContentionCardAtt
     trace: Trace,
   ): m.Children {
     return m(
-      'div',
-      {className: 'pf-lock-owner-panel__margin-top'},
+      '.pf-lock-owner-panel__margin-top',
       m(
         GridLayout,
         {},
