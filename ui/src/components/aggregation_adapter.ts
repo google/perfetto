@@ -14,14 +14,9 @@
 
 import './aggregation_adapter.scss';
 import m from 'mithril';
-import {AsyncLimiter} from '../base/async_limiter';
 import {type time, Time} from '../base/time';
 import {exists} from '../base/utils';
-import {
-  type AreaSelection,
-  areaSelectionsEqual,
-  type AreaSelectionTab,
-} from '../public/selection';
+import type {AreaSelection, AreaSelectionTab} from '../public/selection';
 import type {Trace} from '../public/trace';
 import type {Track} from '../public/track';
 import {
@@ -43,8 +38,10 @@ import {
 } from '../trace_processor/sql_utils';
 import type {DataGridApi} from './widgets/datagrid/datagrid';
 import {ExportButton} from '../widgets/export_button';
-import {AtomicTaskQueue} from '../base/async_memo';
+import {AsyncMemo, AtomicTaskQueue} from '../base/async_memo';
 import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
+import {Memo} from '../base/memo';
+import {assertExists} from '../base/assert';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -227,12 +224,8 @@ export function createAggregationTab(
   aggregator: Aggregator,
   priority: number = 0,
 ): AreaSelectionTab {
-  const limiter = new AsyncLimiter();
   const queue = new AtomicTaskQueue();
-  let currentSelection: AreaSelection | undefined;
-  let aggregation: Aggregation | undefined;
   let data: AggregationData | undefined;
-  let dataSource: SQLDataSource | undefined;
   let dataGridApi: DataGridApi | undefined;
   function createInitialState(config: AggregatorGridConfig): DataGridModel {
     return {
@@ -241,6 +234,9 @@ export function createAggregationTab(
       filters: config.initialFilters ?? [],
     };
   }
+
+  const aggregationMemo = new Memo<Aggregation | undefined>();
+  const dataMemo = new AsyncMemo<SQLDataSource>();
 
   // Mutable datagrid model state - initialized the first time we get a config,
   // and only ever modified by the user so that the config is retained over
@@ -252,48 +248,48 @@ export function createAggregationTab(
     name: aggregator.getTabName(),
     priority,
     render(selection: AreaSelection) {
-      if (
-        currentSelection === undefined ||
-        !areaSelectionsEqual(selection, currentSelection)
-      ) {
-        // Every time the selection changes, probe the aggregator to see if it
-        // supports this selection.
-        currentSelection = selection;
-        aggregation = aggregator.probe(selection);
-
-        // Snapshot the grid config if we don't have one yet
-        if (aggregation && !dataModel) {
-          dataModel = createInitialState(aggregation.getGridConfig());
-        }
-
-        // Kick off a new load of the data
-        limiter.schedule(async () => {
-          // Clear previous data to prevent queries against a stale or partially
-          // updated table/view while `prepareData` is running.
-          dataSource?.dispose();
-          dataSource = undefined;
-          data = undefined;
-          if (aggregation) {
-            const gridConfig = aggregation.getGridConfig();
-            data = await aggregation.prepareData(trace.engine);
-            const sqlConfig = gridConfig.sqlConfig?.(data) ?? {
-              tableOrSubquery: data.tableName,
-            };
-            dataSource = new SQLDataSource({
-              queue,
-              engine: trace.engine,
-              ...sqlConfig,
-            });
+      const selectionKey = {
+        start: selection.start,
+        end: selection.end,
+        tracks: selection.trackUris,
+      };
+      const aggregation = aggregationMemo.use({
+        key: selectionKey,
+        compute: () => {
+          const aggr = aggregator.probe(selection);
+          // Snapshot the grid config if we don't have one yet
+          if (aggr && !dataModel) {
+            dataModel = createInitialState(aggr.getGridConfig());
           }
-        });
-      }
+          return aggr;
+        },
+      });
 
-      if (!aggregation || !dataModel) {
-        // Hides the tab
+      if (!aggregation) {
+        // The aggregation doesn't apply to this selection
         return undefined;
       }
 
-      if (!dataSource) {
+      const {data: datasource} = dataMemo.use({
+        key: selectionKey,
+        compute: async () => {
+          const data = await aggregation.prepareData(trace.engine);
+          const gridConfig = aggregation.getGridConfig();
+          const sqlConfig = gridConfig.sqlConfig?.(data) ?? {
+            tableOrSubquery: data.tableName,
+          };
+          const datasource = new SQLDataSource({
+            queue,
+            engine: trace.engine,
+            ...sqlConfig,
+          });
+
+          return datasource;
+        },
+      });
+
+      if (!datasource) {
+        // Datasource is still loading...
         return {
           isLoading: true,
           content: m(
@@ -307,6 +303,9 @@ export function createAggregationTab(
           ),
         };
       }
+
+      // This shouid exist by now...
+      assertExists(dataModel);
 
       const dataGridState: DataGridState = {
         columns: dataModel.columns,
@@ -323,13 +322,12 @@ export function createAggregationTab(
         },
       };
 
-      const aggr = aggregation;
       return {
         isLoading: false,
         content: m(AggregationPanel, {
           controls: aggregator.renderTopbarControls?.(),
           key: aggregator.id,
-          dataSource,
+          dataSource: datasource,
           gridConfig: aggregation.getGridConfig(),
           barChartData: data?.barChartData,
           onReady: (api: DataGridApi) => {
@@ -338,7 +336,7 @@ export function createAggregationTab(
           dataGridState,
           onClearGridState: () => {
             // Just wipe out the local data model to reset to initial state
-            dataModel = createInitialState(aggr.getGridConfig());
+            dataModel = createInitialState(aggregation.getGridConfig());
           },
         }),
         buttons:
