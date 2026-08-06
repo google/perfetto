@@ -114,6 +114,10 @@ void ProcessMessagePassthrough(
     if (IsPassthrough(input_field->options())) {
       const auto* upstream_field =
           upstream_desc.FindFieldByNumber(input_field->number());
+      if (!upstream_field) {
+        upstream_field = upstream_desc.file()->pool()->FindExtensionByNumber(
+            &upstream_desc, input_field->number());
+      }
       if (upstream_field) {
         AllowlistField(*upstream_field, allowlist);
       }
@@ -141,6 +145,16 @@ base::Status AllowlistFromFieldList(
     const auto* current = &desc;
     for (size_t i = 0; i < pieces.size(); ++i) {
       const auto* field = current->FindFieldByName(pieces[i]);
+      if (!field) {
+        std::vector<const google::protobuf::FieldDescriptor*> pool_extensions;
+        current->file()->pool()->FindAllExtensions(current, &pool_extensions);
+        for (const auto* ext : pool_extensions) {
+          if (ext->name() == pieces[i]) {
+            field = ext;
+            break;
+          }
+        }
+      }
       if (!field) {
         return base::ErrStatus("Field %s in message %s not found.",
                                pieces[i].c_str(),

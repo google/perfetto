@@ -85,8 +85,11 @@ struct ProtoFile {
 };
 
 // Creates a ProtoFile struct from a libprotobuf-full descriptor clas.
-ProtoFile ProtoFileFromDescriptor(std::string preamble,
-                                  const google::protobuf::FileDescriptor&);
+ProtoFile ProtoFileFromDescriptor(
+    std::string preamble,
+    const google::protobuf::FileDescriptor&,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files = {});
 
 }  // namespace proto_merger
 }  // namespace perfetto
