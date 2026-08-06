@@ -65,17 +65,42 @@ constexpr size_t kMaxChunkSize = 4ul * 1024 * 1024;
 
 class FailingFile final : public io::File {
  public:
-  base::Status Write(const void*, size_t) override {
+  base::Status ReadAt(uint64_t, void*, size_t, size_t*) override {
+    return base::ErrStatus("injected read failure");
+  }
+
+  base::Status WriteAt(uint64_t, const void*, size_t) override {
     return base::ErrStatus("injected write failure");
+  }
+
+  base::Status Truncate(uint64_t) override {
+    return base::ErrStatus("injected truncate failure");
+  }
+
+  base::Status GetSize(uint64_t*) override {
+    return base::ErrStatus("injected size failure");
+  }
+
+  base::Status Flush() override {
+    return base::ErrStatus("injected flush failure");
   }
 };
 
 class FailingWriteFileSystem final : public io::FileSystem {
  public:
   base::Status OpenFile(const std::string&,
+                        const io::FileOpenOptions&,
                         std::unique_ptr<io::File>* file) override {
     file->reset(new FailingFile());
     return base::OkStatus();
+  }
+
+  base::Status DeleteFile(const std::string&) override {
+    return base::ErrStatus("injected delete failure");
+  }
+
+  base::Status FileExists(const std::string&, bool*) override {
+    return base::ErrStatus("injected exists failure");
   }
 };
 
@@ -83,10 +108,24 @@ class CountingFile final : public io::File {
  public:
   explicit CountingFile(size_t* write_count) : write_count_(write_count) {}
 
-  base::Status Write(const void*, size_t) override {
+  base::Status ReadAt(uint64_t, void*, size_t, size_t*) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status WriteAt(uint64_t, const void*, size_t) override {
     ++*write_count_;
     return base::OkStatus();
   }
+
+  base::Status Truncate(uint64_t) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status GetSize(uint64_t*) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status Flush() override { return base::ErrStatus("not supported"); }
 
  private:
   size_t* write_count_;
@@ -95,9 +134,18 @@ class CountingFile final : public io::File {
 class CountingFileSystem final : public io::FileSystem {
  public:
   base::Status OpenFile(const std::string&,
+                        const io::FileOpenOptions&,
                         std::unique_ptr<io::File>* file) override {
     file->reset(new CountingFile(&write_count_));
     return base::OkStatus();
+  }
+
+  base::Status DeleteFile(const std::string&) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status FileExists(const std::string&, bool*) override {
+    return base::ErrStatus("not supported");
   }
 
   size_t write_count() const { return write_count_; }
@@ -194,7 +242,7 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonRequiresPlatformFileSystem) {
 
 TEST(TraceProcessorCustomConfigTest, ExportJsonRejectsIntegerFileDescriptor) {
   auto file_system = io::CreateLocalFileSystem();
-  FileSystemPlatform platform(file_system.get());
+  FileSystemPlatform platform(file_system);
   Config config;
   config.enable_sql_file_access = true;
   auto processor = TraceProcessor::CreateInstance(config, &platform);
@@ -212,7 +260,7 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
   ASSERT_EQ(path.find('\''), std::string::npos);
 
   auto file_system = io::CreateLocalFileSystem();
-  FileSystemPlatform platform(file_system.get());
+  FileSystemPlatform platform(file_system);
   Config config;
   config.enable_sql_file_access = true;
   auto processor = TraceProcessor::CreateInstance(config, &platform);
@@ -231,7 +279,7 @@ TEST(TraceProcessorCustomConfigTest,
      RpcImplicitResetPreservesSqlFileAccessGrant) {
   base::TempDir dir = base::TempDir::Create();
   auto file_system = io::CreateLocalFileSystem();
-  FileSystemPlatform platform(file_system.get());
+  FileSystemPlatform platform(file_system);
   Config config;
   config.enable_sql_file_access = true;
   auto processor = TraceProcessor::CreateInstance(config, &platform);
@@ -300,7 +348,7 @@ TEST(TraceProcessorCustomConfigTest,
   ASSERT_EQ(path.find('\''), std::string::npos);
 
   auto file_system = io::CreateLocalFileSystem();
-  FileSystemPlatform platform(file_system.get());
+  FileSystemPlatform platform(file_system);
   Config config;
   config.enable_sql_file_access = true;
   auto processor = TraceProcessor::CreateInstance(config, &platform);

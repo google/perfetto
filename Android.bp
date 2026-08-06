@@ -20709,6 +20709,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_sqlite_sqlite",
     srcs: [
+        "src/trace_processor/sqlite/file_system_vfs.cc",
         "src/trace_processor/sqlite/module_state_manager.cc",
         "src/trace_processor/sqlite/sql_source.cc",
         "src/trace_processor/sqlite/sqlite_connection.cc",
@@ -20720,6 +20721,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_sqlite_unittests",
     srcs: [
+        "src/trace_processor/sqlite/file_system_vfs_unittest.cc",
         "src/trace_processor/sqlite/module_state_manager_unittest.cc",
         "src/trace_processor/sqlite/sql_source_unittest.cc",
         "src/trace_processor/sqlite/sqlite_utils_unittest.cc",
