@@ -53,6 +53,7 @@ struct GlobalOptions {
   bool no_ftrace_raw = false;
   bool analyze_trace_proto_content = false;
   bool crop_track_events = false;
+  bool allow_sql_file_access = false;
 
   bool dev = false;
   std::vector<std::string> dev_flags;

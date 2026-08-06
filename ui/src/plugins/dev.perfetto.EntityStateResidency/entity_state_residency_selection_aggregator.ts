@@ -41,6 +41,7 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
     }
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         const duration = area.end - area.start;
         const durationSec = Duration.toSeconds(duration);
@@ -79,7 +80,7 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
     };
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(): AggregatorGridConfig {
     return {
       schema: {
         entity_name: {title: 'Entity', columnType: 'text'},

@@ -163,7 +163,7 @@ PERFETTO_NO_INLINE void StreamSerializerResponses(
     qres->set_error("The query ended up with a response that is too big (" +
                     std::to_string(resp_size) +
                     " bytes). This usually happens when a single row is >= 256 "
-                    "MiB. See also WRITE_FILE for dealing with large rows.");
+                    "MiB. Consider writing large values to a file instead.");
     err_resp.Send(send_fn);
     break;
   }
@@ -205,8 +205,10 @@ class RpcExportOutput : public TraceProcessor::ExportOutput {
 Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
          bool has_preloaded_eof,
          Config default_config,
+         TraceProcessor::PlatformInterface* platform,
          std::function<void(TraceProcessor*)> on_trace_processor_created)
     : default_config_(default_config),
+      platform_(platform),
       on_trace_processor_created_(std::move(on_trace_processor_created)),
       current_config_(std::move(default_config)),
       trace_processor_(std::move(preloaded_instance)),
@@ -216,7 +218,7 @@ Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
   }
 }
 
-Rpc::Rpc() : Rpc(nullptr, false, Config(), {}) {}
+Rpc::Rpc() : Rpc(nullptr, false, Config(), nullptr, {}) {}
 Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
@@ -228,7 +230,7 @@ void Rpc::ResetTraceProcessorInternal(const Config& config) {
   // hold pointers to it.
   summarizers_.Clear();
 
-  trace_processor_ = TraceProcessor::CreateInstance(config);
+  trace_processor_ = TraceProcessor::CreateInstance(config, platform_);
   if (on_trace_processor_created_) {
     on_trace_processor_created_(trace_processor_.get());
   }

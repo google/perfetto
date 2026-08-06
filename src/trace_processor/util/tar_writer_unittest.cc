@@ -568,5 +568,22 @@ TEST_F(TarWriterTest, CustomSinkFinalizeErrorPropagates) {
   EXPECT_OK(writer.Finalize());
 }
 
+// An output path that cannot be opened (e.g. the parent directory does not
+// exist) must produce a descriptive error from the first write instead of
+// crashing on a PERFETTO_CHECK deep in the sink constructor, and teardown
+// must not crash either.
+TEST_F(TarWriterTest, DisableWindows(UnopenableOutputPathFailsGracefully)) {
+  TarWriter writer("/nonexistent_dir_xyz/out.tar");
+
+  auto status = writer.AddFile("f.txt", "content");
+  EXPECT_THAT(status, IsError());
+  EXPECT_THAT(status.message(), HasSubstr("Failed to open output file"));
+  EXPECT_THAT(status.message(), HasSubstr("/nonexistent_dir_xyz/out.tar"));
+
+  // The failed write poisons the writer: finalization is a no-op and the
+  // destructor does not crash.
+  EXPECT_OK(writer.Finalize());
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::util

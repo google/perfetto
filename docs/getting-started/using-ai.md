@@ -1,4 +1,4 @@
-# Using AI with Perfetto
+# Cookbook: Using AI with Perfetto
 
 NOTE: **Googlers**: use [go/perfetto-ai-skills](http://go/perfetto-ai-skills)
 and
@@ -41,6 +41,49 @@ install into that agent's default directory.
 
 To share the setup with your team, point `--target` at a per-agent directory
 in your repo (for example `.claude/skills/`) and commit the result.
+
+### Offline install
+
+Machines that can't reach github.com at install time can use the
+`perfetto-ai-skill.zip` asset attached to each
+[GitHub release](https://github.com/google/perfetto/releases): download it
+where you have connectivity, copy it across, and unzip it into your agent's
+skills directory (for example `.claude/skills/`). It contains a single
+`perfetto/` skill folder with `SKILL.md` inside — no installer needed.
+
+The bundled `bin/trace_processor` wrapper downloads the native
+`trace_processor` binary on first use and caches it in
+`~/.local/share/perfetto/prebuilts/` under the name
+`trace_processor_shell-<first 16 hex chars of its sha256>`. On a fully
+offline machine, seed that cache yourself: download your platform's prebuilt
+zip from the same release page (for example `linux-amd64.zip`, containing
+`trace_processor_shell`), then run:
+
+```sh
+mkdir -p ~/.local/share/perfetto/prebuilts
+SHA=$(sha256sum trace_processor_shell | cut -c1-16)
+cp trace_processor_shell ~/.local/share/perfetto/prebuilts/trace_processor_shell-$SHA
+```
+
+The wrapper trusts any file already present under that name, so the binary
+must come from the same release. On Windows the cache directory is
+`%USERPROFILE%\.local\share\perfetto\prebuilts` and the file is
+`trace_processor_shell.exe-<sha256 prefix>`.
+
+## Update
+
+Updating uses the same mechanism as installing:
+
+| Installed via | Update by |
+| ------------- | --------- |
+| Claude Code marketplace | Claude Code's normal plugin update flow (`/plugin` → manage/update, which pulls the latest `ai-agents` branch). |
+| Codex marketplace | Codex's plugin update mechanism. |
+| OpenCode `skills.urls` | Nothing to do — the URL always serves the latest published skill. |
+| Fallback installer | Re-run the same `curl ... agents-install` command. It detects the existing install and asks before replacing it (pass `--yes` to skip the prompt). |
+
+New skill versions are published with each Perfetto release. The fallback
+installer installs the latest release by default; pass `--version vX.Y` to
+pin a specific one.
 
 ## Ad-hoc trace analysis
 

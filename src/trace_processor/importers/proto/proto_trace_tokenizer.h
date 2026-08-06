@@ -117,8 +117,16 @@ class ProtoTraceTokenizer {
                                start_offset);
             }
 
+            const size_t header_overhead =
+                static_cast<size_t>(varint_end - tag_start);
+            const size_t kMaxSize = std::numeric_limits<size_t>::max();
+            if (PERFETTO_UNLIKELY(varint > kMaxSize - header_overhead)) {
+              return base::ErrStatus(
+                  "Oversized length-delimited field @ 0x%zx (ERR:tp-corrupt)",
+                  start_offset);
+            }
             size_t size_incl_header =
-                static_cast<size_t>(varint_end - tag_start) + varint;
+                header_overhead + static_cast<size_t>(varint);
             if (size_incl_header > avail) {
               return base::OkStatus();
             }
@@ -147,7 +155,9 @@ class ProtoTraceTokenizer {
           }
           default:
             return base::ErrStatus(
-                "Unknown field type @ 0x%zx (ERR:tp-corrupt)", start_offset);
+                "Unknown field type @ 0x%zx; the trace is corrupt or was "
+                "produced by a newer version of Perfetto (ERR:tp-corrupt)",
+                start_offset);
         }
       }
 

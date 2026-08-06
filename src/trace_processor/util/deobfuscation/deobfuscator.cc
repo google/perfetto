@@ -18,6 +18,8 @@
 
 #include <stdlib.h>
 
+#include <cerrno>
+#include <cstring>
 #include <optional>
 #include <set>
 
@@ -451,22 +453,25 @@ void MakeDeobfuscationPackets(
   callback(trace.SerializeAsString());
 }
 
-bool ReadProguardMapsToDeobfuscationPackets(
+base::Status ReadProguardMapsToDeobfuscationPackets(
     const std::vector<ProguardMap>& maps,
     std::function<void(std::string)> fn) {
   for (const ProguardMap& map : maps) {
     const char* filename = map.filename.c_str();
     base::ScopedFstream f = base::OpenFstream(filename, base::kFopenReadFlag);
     if (!f) {
-      PERFETTO_ELOG("Failed to open %s", filename);
-      return false;
+      return base::ErrStatus("failed to open ProGuard map %s (errno: %d, %s)",
+                             filename, errno, strerror(errno));
     }
     profiling::ProguardParser parser;
     std::string contents;
-    PERFETTO_CHECK(base::ReadFileStream(*f, &contents));
+    if (!base::ReadFileStream(*f, &contents)) {
+      return base::ErrStatus("failed to read ProGuard map %s", filename);
+    }
     if (!parser.AddLines(std::move(contents))) {
-      PERFETTO_ELOG("Failed to parse %s", filename);
-      return false;
+      return base::ErrStatus(
+          "failed to parse ProGuard map %s (not a valid mapping.txt)",
+          filename);
     }
     std::map<std::string, profiling::ObfuscatedClass> obfuscation_map =
         parser.ConsumeMapping();
@@ -476,7 +481,7 @@ bool ReadProguardMapsToDeobfuscationPackets(
     // profile.
     MakeDeobfuscationPackets(map.package, obfuscation_map, fn);
   }
-  return true;
+  return base::OkStatus();
 }
 
 std::vector<ProguardMap> GetPerfettoProguardMapPath() {
