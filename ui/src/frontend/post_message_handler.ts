@@ -329,6 +329,9 @@ function sanitizePostedTrace(postedTrace: RawPostedTrace): PostedTrace {
     appStateHash: postedTrace.appStateHash,
     pluginArgs: postedTrace.pluginArgs,
   };
+  if (postedTrace.fileName !== undefined) {
+    result.fileName = sanitizeString(postedTrace.fileName);
+  }
   if (postedTrace.url !== undefined) {
     result.url = sanitizeString(postedTrace.url);
   }

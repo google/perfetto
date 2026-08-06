@@ -14,7 +14,7 @@ sidebar to open a local trace file.
 
 Selecting or dropping several files at once merges them onto a single shared
 timeline via a configuration dialog: see
-[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md).
+[Merging traces in the UI](/docs/visualization/merging-traces.md).
 
 ## Navigating the Timeline
 

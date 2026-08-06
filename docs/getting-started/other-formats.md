@@ -439,7 +439,7 @@ stacks, timestamps, process/thread identifiers, CPU number, and event names.
   - The primary focus of this importer is on **CPU samples and their associated
     call stacks**.
   - When such data is parsed, it populates Perfetto's standard profiling tables
-    (e.g., `cpu_profile_stack_sample_table` for the samples, and
+    (e.g., `cpu_profile_stack_sample` for the samples, and
     `stack_profile_callsite`, `stack_profile_frame`, `stack_profile_mapping` for
     the call stack information).
   - This allows the CPU profile data from the `perf script` output to be
@@ -1037,9 +1037,9 @@ and merge the traces inside onto a single timeline. An optional
 [trace manifest](/docs/reference/perfetto-manifest.md) file inside the
 archive controls how the traces are merged: which machine each file belongs
 to and how their clocks relate. See
-[Merging traces with Trace Processor](/docs/analysis/merging-traces.md) for
+[Merging traces from the command line](/docs/analysis/merging-traces.md) for
 how to build such archives and
-[Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md)
+[Merging traces in the UI](/docs/visualization/merging-traces.md)
 for the interactive equivalent, which can also export the archive it builds.
 
 When merging traces produced from Linux `perf`, choose a merge-friendly clock

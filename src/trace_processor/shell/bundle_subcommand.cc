@@ -20,13 +20,54 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/traceconv/trace_to_bundle.h"
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <cerrno>
+#endif
+
 namespace perfetto::trace_processor::shell {
+namespace {
+
+// Returns a human-readable description of a symlink problem with `path`, or
+// an empty string if the path is either not a symlink or is a symlink whose
+// target resolves. Used to distinguish a broken/dangling link or a link loop
+// from a plain missing file, which would otherwise be reported as "does not
+// exist".
+std::string SymlinkProblemDescription(const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return "";
+#else
+  struct stat st;
+  if (lstat(path.c_str(), &st) != 0) {
+    return "";
+  }
+  // MSan's stat() interceptor on glibc 2.35+ does not mark the output buffer
+  // as initialized (the syscall goes through statx).
+  PERFETTO_MSAN_UNPOISON(&st, sizeof(st));
+  if (!S_ISLNK(st.st_mode)) {
+    return "";
+  }
+  if (stat(path.c_str(), &st) != 0) {
+    if (errno == ELOOP) {
+      return "symbolic link loop (the link ultimately points to itself)";
+    }
+    return "broken symbolic link (its target does not exist)";
+  }
+  return "";
+#endif
+}
+
+}  // namespace
 
 const char* BundleSubcommand::name() const {
   return "bundle";
@@ -70,7 +111,16 @@ std::vector<FlagSpec> BundleSubcommand::GetFlags() {
 base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
   if (ctx.positional_args.size() < 2) {
     return base::ErrStatus(
-        "bundle requires both an input and an output file path.");
+        "bundle requires both an input and an output file path, got %zu "
+        "argument(s).",
+        ctx.positional_args.size());
+  }
+  if (ctx.positional_args.size() > 2) {
+    return RejectExtraPositionals(
+        ctx, "bundle", 2,
+        "Note: --symbol-paths takes a single comma-separated list of paths, "
+        "e.g. --symbol-paths path1,path2,path3; do not pass each path as a "
+        "separate argument.");
   }
   const std::string& input_file = ctx.positional_args[0];
   const std::string& output_file = ctx.positional_args[1];
@@ -84,8 +134,53 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
         "bundle does not support stdout output; provide a file path.");
   }
   if (!base::FileExists(input_file)) {
-    return base::ErrStatus("Input file does not exist: %s", input_file.c_str());
+    std::string symlink_problem = SymlinkProblemDescription(input_file);
+    if (!symlink_problem.empty()) {
+      return base::ErrStatus(
+          "bundle: input file '%s' is a %s. Fix the symlink and try again.",
+          input_file.c_str(), symlink_problem.c_str());
+    }
+    return base::ErrStatus(
+        "bundle: input file '%s' does not exist. Check the path and try "
+        "again.",
+        input_file.c_str());
   }
+  if (base::DirectoryExists(input_file)) {
+    return base::ErrStatus(
+        "bundle: input path '%s' is a directory, expected a trace file. If "
+        "you are trying to bundle a directory of traces, point at the "
+        "individual files instead.",
+        input_file.c_str());
+  }
+  if (base::DirectoryExists(output_file)) {
+    return base::ErrStatus(
+        "bundle: output path '%s' is a directory, expected a file path for "
+        "the bundle (e.g. %s.bundle.tar).",
+        output_file.c_str(), input_file.c_str());
+  }
+  std::string symlink_problem = SymlinkProblemDescription(output_file);
+  if (!symlink_problem.empty()) {
+    return base::ErrStatus(
+        "bundle: output path '%s' is a %s. Fix the symlink and try again.",
+        output_file.c_str(), symlink_problem.c_str());
+  }
+
+  // Fail fast on output paths that cannot be created, before spending time
+  // reading the (potentially huge) trace. The TarWriter re-opens with O_TRUNC
+  // once the trace has been read successfully.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  {
+    base::ScopedFile probe =
+        base::OpenFile(output_file, O_CREAT | O_WRONLY, 0644);
+    if (!probe) {
+      return base::ErrStatus(
+          "bundle: cannot create output file '%s' (errno: %d, %s). Check "
+          "that the parent directory exists and is writable, then try "
+          "again.",
+          output_file.c_str(), errno, strerror(errno));
+    }
+  }
+#endif
 
   trace_to_text::BundleContext context;
   if (!symbol_paths_.empty())
@@ -110,9 +205,13 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
     context.home_dir = val;
   context.root_dir = "/";
 
-  if (trace_to_text::TraceToBundle(input_file, output_file, context) != 0)
-    return base::ErrStatus("bundle: failed to create bundle.");
-  return base::OkStatus();
+  base::Status status =
+      trace_to_text::TraceToBundle(input_file, output_file, context);
+  if (status.ok()) {
+    fprintf(stdout, "Wrote %s.\n", output_file.c_str());
+    fflush(stdout);
+  }
+  return status;
 }
 
 }  // namespace perfetto::trace_processor::shell

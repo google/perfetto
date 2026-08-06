@@ -342,62 +342,6 @@ class TraceDiagnostics(TestSuite):
         0
         """))
 
-  # atrace_apps: "*" combined with more than 3 atrace categories warns.
-  def test_atrace_wildcard_apps(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          trace_config {
-            data_sources {
-              config {
-                name: "linux.ftrace"
-                ftrace_config {
-                  atrace_apps: "*"
-                  atrace_categories: "sched"
-                  atrace_categories: "gfx"
-                  atrace_categories: "view"
-                  atrace_categories: "wm"
-                }
-              }
-            }
-          }
-        }
-        """),
-        query="""
-        SELECT key FROM __intrinsic_trace_diagnostics;
-        """,
-        out=Csv("""
-        "key"
-        "atrace_wildcard_apps"
-        """))
-
-  # ...but with 3 or fewer categories it is not heavy enough to warn.
-  def test_atrace_wildcard_apps_few_categories_ok(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          trace_config {
-            data_sources {
-              config {
-                name: "linux.ftrace"
-                ftrace_config {
-                  atrace_apps: "*"
-                  atrace_categories: "sched"
-                  atrace_categories: "gfx"
-                }
-              }
-            }
-          }
-        }
-        """),
-        query="""
-        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
-        """,
-        out=Csv("""
-        "n"
-        0
-        """))
-
   # A heapprofd sampling_interval_bytes below 100 KB warns.
   def test_heapprofd_sampling_interval_too_low(self):
     return DiffTestBlueprint(
@@ -435,6 +379,62 @@ class TraceDiagnostics(TestSuite):
                 heapprofd_config {
                   sampling_interval_bytes: 1048576
                 }
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT count(*) AS n FROM __intrinsic_trace_diagnostics;
+        """,
+        out=Csv("""
+        "n"
+        0
+        """))
+
+  # android.display.video configured on a user build, but no frames captured
+  # and no producer error: trips display_video_not_enabled (the sysprop hint).
+  def test_display_video_not_enabled_on_user_build(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            android_build_fingerprint: "google/x/x:14/AB/1:user/release-keys"
+          }
+        }
+        packet {
+          trace_config {
+            data_sources {
+              config {
+                name: "android.display.video"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT key FROM __intrinsic_trace_diagnostics;
+        """,
+        out=Csv("""
+        "key"
+        "display_video_not_enabled"
+        """))
+
+  # Same config on a userdebug build, where display video works out of the box:
+  # the rule must not fire.
+  def test_display_video_userdebug_ok(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            android_build_fingerprint: "google/x/x:14/AB/1:userdebug/dev-keys"
+          }
+        }
+        packet {
+          trace_config {
+            data_sources {
+              config {
+                name: "android.display.video"
               }
             }
           }

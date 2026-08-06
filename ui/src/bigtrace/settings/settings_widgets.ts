@@ -39,9 +39,7 @@ interface DeferredCommitInputAttrs {
 // focus guard, so binding it to setting.get() would let an unrelated redraw wipe
 // the typed text; rendering the local buffer avoids that. Re-syncs to the
 // external value when it changes and there's no pending edit (e.g. a reset).
-class DeferredCommitInput
-  implements m.ClassComponent<DeferredCommitInputAttrs>
-{
+class DeferredCommitInput implements m.ClassComponent<DeferredCommitInputAttrs> {
   private local = '';
   private syncedInitial: string | undefined;
 

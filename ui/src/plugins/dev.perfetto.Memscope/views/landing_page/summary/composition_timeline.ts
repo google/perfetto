@@ -18,7 +18,7 @@
 // selection.
 
 import m from 'mithril';
-import {QuerySlot} from '../../../../../base/query_slot';
+import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import {
   LineChartSvg,
@@ -64,10 +64,8 @@ export interface CompositionTimelineAttrs {
   readonly belowChart?: m.Children;
 }
 
-export class CompositionTimeline
-  implements m.ClassComponent<CompositionTimelineAttrs>
-{
-  private readonly slot = new QuerySlot<TimelineData>();
+export class CompositionTimeline implements m.ClassComponent<CompositionTimelineAttrs> {
+  private readonly slot = new AsyncMemo<TimelineData>();
 
   onremove() {
     this.slot.dispose();
@@ -77,17 +75,20 @@ export class CompositionTimeline
     const {trace, upid, selection, onSelect, belowChart} = attrs;
     const data = this.slot.use({
       key: {traceId: trace.traceInfo.uuid, upid},
-      queryFn: () => loadTimelineData(trace, upid),
+      compute: () => loadTimelineData(trace, upid),
     }).data;
     if (data === undefined) {
       return loadingPanel({title: 'Composition over time'}); // Still loading.
     }
 
     const snaps = data.snapshots;
-    if (snaps.length === 0 || data.chart === undefined) {
+    if (snaps.length < 2 || data.chart === undefined) {
       return emptyPanel({
         title: 'Composition over time',
-        message: 'No smaps snapshots in this trace for this process.',
+        message:
+          snaps.length === 1
+            ? 'Only one smaps snapshot; no point in showing the timeline.'
+            : 'No smaps snapshots in this trace for this process.',
       });
     }
 

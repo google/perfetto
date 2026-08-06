@@ -62,10 +62,7 @@ export interface MachineEntry {
 // The possible error states for the modal, used to show a helpful message
 // to the user and disable the "Open Traces" button.
 export type LoadingError =
-  | 'NO_TRACES'
-  | 'DUPLICATE_NAMES'
-  | 'ANALYZING'
-  | 'TRACE_ERROR';
+  'NO_TRACES' | 'DUPLICATE_NAMES' | 'ANALYZING' | 'TRACE_ERROR';
 
 // Minimum spacing between auto-run alignment dry-runs. The first change after a
 // quiet period checks immediately (leading edge); rapid follow-ups coalesce

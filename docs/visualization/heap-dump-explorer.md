@@ -206,12 +206,22 @@ The Overview is the default landing page and summarizes the dump:
 - **Bytes retained by heap.** Java, native and total sizes per heap,
   with a total row at the top. Use this to see whether the problem
   is on the Java heap, in native memory, or both.
+- **Out of Memory Error** _(OOM dumps only)_. For dumps triggered by an
+  `OutOfMemoryError`, a breakdown of the failed allocation — allocation
+  size, the free headroom until the heap's growth limit, and the raw
+  error message. The allocation stack itself is on the
+  [Callstack](#callstack) tab.
 - **Duplicate bitmaps / strings / primitive arrays.** Duplicated
   content grouped by content hash. Each row shows the copy count
   and the wasted bytes; clicking _Copies_ opens the relevant tab
   filtered to that group.
 
 ![Overview tab: General Information (437,681 reachable instances across app/image/zygote heaps), Bytes Retained by Heap (24.4 MiB total, 1.5 MiB on the app heap), and a Duplicate Bitmaps group wasting 785.8 KiB across 12 copies of the same 128×128 image.](../images/heap_docs/04-overview.png)
+
+For a dump captured on `OutOfMemoryError`, the Out of Memory Error card
+sits below Bytes Retained by Heap:
+
+![Overview tab for an OOM dump. Below Bytes Retained by Heap, the Out of Memory Error card reports Allocation size 10.00 MB, Free until OOM 8.91 MB, and the raw ART error message.](../images/heap_docs/18-overview-oom.png)
 
 ## Flamegraph
 
@@ -609,6 +619,30 @@ detects duplicate arrays.
 Two common uses: finding a large duplicated `byte[]` that backs an
 image or serialized buffer, and jumping from a container object to
 the primitive array holding its data.
+
+## Callstack
+
+The Callstack tab only has data for dumps captured on `OutOfMemoryError`
+on recent Android versions; on any other dump it is empty. It shows the
+Java allocation stack of the thread that triggered the OOM — the path
+that requested the allocation the heap could not satisfy — in the
+[flamegraph](#flamegraph) widget, with a breakdown of the failed
+allocation above it.
+
+![Callstack tab for an OOM dump. The Out of Memory Error grid reports Allocation size 10.00 MB, Free until OOM 8.91 MB and the raw ART error message; below it the allocation stack runs java.lang.Thread.run down to MainActivity.triggerOOM.](../images/heap_docs/17-callstack.png)
+
+The grid breaks down the failure:
+
+- **Allocation size** — the allocation that could not be satisfied.
+- **Free until OOM** — bytes still available before the heap's growth
+  limit; the headroom at the moment of failure.
+- **Error message** — the raw `OutOfMemoryError` string from ART.
+
+The stack tells you _what allocated_ at the point of failure; the other
+tabs tell you _what was already retaining_ the heap. A large allocation
+against ample headroom is an allocation-site problem; a modest
+allocation against almost no headroom is a retention problem — chase it
+from [Dominators](#dominators) or the [Flamegraph](#flamegraph).
 
 ## Jumping from a flamegraph
 

@@ -22,9 +22,9 @@ import {
 } from '../../components/sql_utils/process';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import type {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
+import type {SQLTableSchema} from '../../components/widgets/datagrid/sql_schema';
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {PerfettoPlugin} from '../../public/plugin';
@@ -47,35 +47,33 @@ function renderSize(value: unknown): string {
   return Number(value).toLocaleString();
 }
 
-const UI_SCHEMA: SchemaRegistry = {
-  memory_snapshot_node: {
-    path: {
-      title: 'Path',
-      columnType: 'text',
-    },
-    size: {
-      title: 'Size',
-      columnType: 'quantitative',
-      cellRenderer: (value) => renderSize(value),
-    },
-    effective_size: {
-      title: 'Effective Size',
-      columnType: 'quantitative',
-      cellRenderer: (value) => renderSize(value),
-    },
-    all_args: {
-      title: 'All Args',
-      columnType: 'text',
-    },
-    args: {
-      title: 'Args',
-      parameterized: true,
-    },
+const UI_SCHEMA: ColumnSchema = {
+  path: {
+    title: 'Path',
+    columnType: 'text',
+  },
+  size: {
+    title: 'Size',
+    columnType: 'quantitative',
+    cellRenderer: (value) => renderSize(value),
+  },
+  effective_size: {
+    title: 'Effective Size',
+    columnType: 'quantitative',
+    cellRenderer: (value) => renderSize(value),
+  },
+  all_args: {
+    title: 'All Args',
+    columnType: 'text',
+  },
+  args: {
+    title: 'Args',
+    parameterized: true,
   },
 };
 
 // SQL schema for memory_snapshot_node with args support
-function createMemorySnapshotSchema(snapshotId: number): SQLSchemaRegistry {
+function createMemorySnapshotSchema(snapshotId: number): SQLTableSchema {
   const query = `(
     SELECT
       SUBSTR(path, LENGTH(RTRIM(path, REPLACE(path, '/', ''))) + 1) AS path,
@@ -87,31 +85,29 @@ function createMemorySnapshotSchema(snapshotId: number): SQLSchemaRegistry {
     WHERE process_snapshot_id = ${snapshotId}
   )`;
   return {
-    memory_snapshot_node: {
-      table: query,
-      columns: {
-        id: {},
-        parent_node_id: {},
-        path: {},
-        size: {},
-        effective_size: {},
-        all_args: {
-          expression: (alias) =>
-            `__intrinsic_arg_set_to_json(${alias}.arg_set_id)`,
-        },
-        args: {
-          expression: (alias, key) =>
-            `extract_arg(${alias}.arg_set_id, '${key}')`,
-          parameterized: true,
-          parameterKeysQuery: (baseTable, baseAlias) => `
+    tableOrSubquery: query,
+    columns: {
+      id: {},
+      parent_node_id: {},
+      path: {},
+      size: {},
+      effective_size: {},
+      all_args: {
+        expression: (alias) =>
+          `__intrinsic_arg_set_to_json(${alias}.arg_set_id)`,
+      },
+      args: {
+        expression: (alias, key) =>
+          `extract_arg(${alias}.arg_set_id, '${key}')`,
+        parameterized: true,
+        parameterKeysQuery: (tableOrSubquery, alias) => `
             SELECT DISTINCT args.key
-            FROM ${baseTable} AS ${baseAlias}
-            JOIN args ON args.arg_set_id = ${baseAlias}.arg_set_id
+            FROM ${tableOrSubquery} AS ${alias}
+            JOIN args ON args.arg_set_id = ${alias}.arg_set_id
             WHERE args.key IS NOT NULL
             ORDER BY args.key
             LIMIT 1000
           `,
-        },
       },
     },
   };
@@ -132,14 +128,12 @@ class SnapshotTab implements m.ClassComponent<SnapshotTabAttrs> {
     if (!this.dataSource) {
       this.dataSource = new SQLDataSource({
         engine: trace.engine,
-        sqlSchema: createMemorySnapshotSchema(snapshotId),
-        rootSchemaName: 'memory_snapshot_node',
+        ...createMemorySnapshotSchema(snapshotId),
       });
     }
 
     return m(DataGrid, {
       schema: UI_SCHEMA,
-      rootSchema: 'memory_snapshot_node',
       data: this.dataSource,
       fillHeight: true,
       initialTree: {

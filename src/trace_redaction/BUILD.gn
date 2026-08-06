@@ -149,6 +149,7 @@ perfetto_unittest_source_set("unittests") {
     "prune_package_list_unittest.cc",
     "redact_process_events_unittest.cc",
     "redact_sched_events_unittest.cc",
+    "trace_redactor_unittest.cc",
     "verify_integrity_unittest.cc",
   ]
   deps = [

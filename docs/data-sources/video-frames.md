@@ -7,17 +7,21 @@ per-display timeline track that decodes them in the browser. You can
 hover the track to preview a frame, play the frames back like a video,
 and click any frame to line it up with the tracks below it.
 
-It records the actual contents of the screen, so it is meant for
-`userdebug` (debuggable) devices only, and any trace that contains it is
-sensitive: it shows exactly what was on the display.
+It records the actual contents of the screen, so any trace that contains
+it is sensitive: it shows exactly what was on the display. On `userdebug`
+(debuggable) devices it is available out of the box. On `user`
+(production) builds it is disabled by default and must be unlocked with a
+system property first — see [Prerequisite on `user`
+builds](#prerequisite-on-user-builds).
 
 This guide covers:
 
 - [How it works, and what it costs](#how-it-works-and-what-it-costs) —
   how the frames get into the trace, and the overhead on the device.
-- [Capturing display video](#capturing-display-video): the three ways to
-  turn it on — the on-device toggle, the record page, and a raw config
-  with full control over quality and size.
+- [Capturing display video](#capturing-display-video): the property to
+  set first on `user` builds, then the three ways to turn it on — the
+  on-device toggle, the record page, and a raw config with full control
+  over quality and size.
 - [Viewing display video](#viewing-display-video): the timeline track,
   hovering to preview a frame, and playing the capture back with the
   timeline kept in sync.
@@ -41,7 +45,24 @@ When the data source is off, it costs nothing.
 ## Capturing display video
 
 There are three ways to turn on display-video capture, from the simplest
-to the most control.
+to the most control. On `user` builds there is also a one-time-per-boot
+property to set first — see the prerequisite below.
+
+### Prerequisite on `user` builds {#prerequisite-on-user-builds}
+
+On `userdebug` (debuggable) devices, display-video capture works out of
+the box, and you can skip this step. On `user` (production) builds it is
+disabled by default: unlock it first by setting a system property over
+ADB.
+
+```
+adb shell setprop debug.tracing_video_allowed true
+```
+
+This property is **not persistent** — it is cleared on the next reboot.
+After the device restarts you have to set it again before you can capture
+display video. Once it is set, capture works through any of the methods
+below: the on-device toggle, the record page, or a raw config.
 
 ### On the device, with System Tracing
 
@@ -86,6 +107,7 @@ data_sources {
       scale: 0.5
       format: FORMAT_H264
       key_frame_interval_secs: 2
+      bitrate_bps: 8000000  # 8 Mbps
       max_stream_size_bytes: 67108864  # 64 MiB per display
     }
   }
@@ -97,6 +119,7 @@ data_sources {
 | `scale` | Factor applied to each display's resolution before capture, e.g. `0.5` for half size or `0.25` for quarter. Lower scale means less encoder load and a smaller trace, at the cost of detail. |
 | `format` | `FORMAT_H264` (the default) or `FORMAT_HEVC`. HEVC produces a smaller stream at the same quality, but the device must support HEVC encoding to capture it and the browser must support HEVC decoding to preview it. |
 | `key_frame_interval_secs` | How often a keyframe is emitted. Smaller values make seeking snappier but grow the trace; larger values are more compact but slower to scrub. |
+| `bitrate_bps` | Target encoder bitrate, in bits per second. Trace size is roughly bitrate × duration, so this trades quality against size at a fixed resolution (unlike `scale`, which lowers the resolution). Left unset, the device picks a default. |
 | `max_stream_size_bytes` | A per-display cap on emitted bytes. When a display hits it, its stream is torn down (a size-cap error) rather than growing without bound. Left unset, the device applies a default cap of 256 MiB per display. |
 
 ## Size limits
@@ -149,3 +172,46 @@ the speed selector to play back slower (down to 0.1×) or faster (up to
 2×).
 
 ![Playing a display-video capture back with the video-frames track pinned at the top: in the details panel the decoded preview advances from the settings screen to the launcher while the frame number and timestamp update.](../images/video_frames/05-playback.gif)
+
+### Exporting to an .mp4 from the command line
+
+`tools/trace_video_conv.py` pulls the captured video out of a trace into an
+`.mp4` using ffmpeg (the encoded frames are copied as-is, not re-encoded).
+It needs `ffmpeg` on the `PATH`; `trace_processor` is downloaded
+automatically, or pass `--trace-processor` to use a local build.
+
+```bash
+# List the video streams in a trace.
+tools/trace_video_conv.py TRACE.perfetto-trace --list
+
+# Convert the whole video to an .mp4.
+tools/trace_video_conv.py TRACE.perfetto-trace -o out.mp4
+
+# Clip to a time range (trace ts, ns), or to whatever a query selects
+# (the query returns a `ts` column, and optionally `dur`).
+tools/trace_video_conv.py TRACE.perfetto-trace -o clip.mp4 --start <ts> --end <ts>
+tools/trace_video_conv.py TRACE.perfetto-trace -o clip.mp4 \
+    --query "SELECT ts, dur FROM slice WHERE name = 'my_cuj'"
+
+# Slow motion (0.5x) or 2x faster.
+tools/trace_video_conv.py TRACE.perfetto-trace -o out.mp4 --speed 0.5
+
+# Two traces side by side, each captioned (defaults to the file names).
+tools/trace_video_conv.py before.perfetto-trace --compare after.perfetto-trace \
+    -o compare.mp4 --title Before --title2 After
+```
+
+| Option | Description |
+| --- | --- |
+| `-o, --output` | Output `.mp4` path. |
+| `--list` | List the trace's video streams and exit. |
+| `--display-id` | Which stream to use, for a trace with more than one display. |
+| `--start`, `--end` | Clip to a time range, in trace `ts` nanoseconds. |
+| `--query` | Clip to the region a SQL query selects (returns `ts`, optionally `dur`). |
+| `--speed` | Playback speed of the output: `2` = twice as fast, `0.5` = slow motion. |
+| `--compare` | A second trace, placed to the right for a side-by-side comparison. |
+| `--display-id2` | Which stream to use from the `--compare` trace. |
+| `--start2`, `--end2` | Clip the `--compare` trace to a time range. |
+| `--query2` | Clip the `--compare` trace to a SQL-selected region. |
+| `--title`, `--title2` | Captions for the first and second videos (default: the file names). |
+| `--trace-processor` | Path to a local `trace_processor` build (otherwise one is downloaded). |

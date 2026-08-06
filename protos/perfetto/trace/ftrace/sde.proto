@@ -16,6 +16,21 @@ message SdeSdeEvtlogFtraceEvent {
   optional string evtlog_tag = 1;
   optional int32 pid = 2;
   optional uint32 tag_id = 3;
+  optional uint32 d00 = 4;
+  optional uint32 d01 = 5;
+  optional uint32 d02 = 6;
+  optional uint32 d03 = 7;
+  optional uint32 d04 = 8;
+  optional uint32 d05 = 9;
+  optional uint32 d06 = 10;
+  optional uint32 d07 = 11;
+  optional uint32 d08 = 12;
+  optional uint32 d09 = 13;
+  optional uint32 d10 = 14;
+  optional uint32 d11 = 15;
+  optional uint32 d12 = 16;
+  optional uint32 d13 = 17;
+  optional uint32 d14 = 18;
 }
 message SdeSdePerfCalcCrtcFtraceEvent {
   optional uint64 bw_ctl_ebi = 1;

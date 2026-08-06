@@ -393,13 +393,16 @@ declare_args() {
   # service) and to decompress traces (by trace_processor), as an alternative
   # to Zlib/deflate.
   #
-  # Off in Chromium builds: enabling it makes the tracing service the first
-  # thing to pull Chromium's //third_party/zstd:compress (the zstd *encoder*)
-  # into size-optimized Android. Chrome only ever linked the decoder there, so
-  # this added ~235 KB to Trichrome, which is too much to justify. See the
-  # size increase on the Chromium roll: https://crrev.com/c/8065805
+  # Only on builds that have zstd in buildtools/ (standalone, Android tree,
+  # generators). GN embedders have no common zstd target, see //gn:zstd.
+  # Chromium does have one (//third_party/zstd:{compress,decompress}) but is
+  # left out on purpose: Chrome only ever linked the zstd *decoder*, so turning
+  # this on made the tracing service the first thing to pull the *encoder* into
+  # size-optimized Android, adding ~235 KB to Trichrome. See the size increase
+  # on the Chromium roll: https://crrev.com/c/8065805
   enable_perfetto_zstd =
-      !build_with_chromium &&
+      (perfetto_build_standalone || perfetto_build_with_android ||
+       is_perfetto_build_generator) &&
       (enable_perfetto_trace_processor || enable_perfetto_platform_services)
 
   # Enables PCRE2 support. Individual modules that should not pull libpcre2

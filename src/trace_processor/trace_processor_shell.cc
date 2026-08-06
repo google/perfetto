@@ -49,6 +49,7 @@
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/local_file_system.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
@@ -137,6 +138,7 @@ struct CommandLineOptions {
   bool wide = false;
   bool analyze_trace_proto_content = false;
   bool crop_track_events = false;
+  bool allow_sql_file_access = false;
   std::string register_files_dir;
   std::string override_stdlib_path;
 
@@ -314,11 +316,15 @@ Metatracing:
                                       categories to enable.
 
 Advanced:
+ --allow-sql-file-access              Allows SQL functions to access files
+                                      visible to the shell process. Do not
+                                      enable this for untrusted SQL. Disabled
+                                      by default.
  --dev                                Enables features which are reserved for
-                                      local development use only and
-                                      *should not* be enabled on production
-                                      builds. The features behind this flag can
-                                      break at any time without any warning.
+                                      local development use only and *should
+                                      not* be enabled on production builds. The
+                                      features behind this flag can break at
+                                      any time without any warning.
  --dev-flag KEY=VALUE                 Set a development flag to the given value.
                                       Does not have any affect unless --dev is
                                       specified.
@@ -429,6 +435,7 @@ enum LongOption {
   OPT_EXTRA_CHECKS,
   OPT_ANALYZE_TRACE_PROTO_CONTENT,
   OPT_CROP_TRACK_EVENTS,
+  OPT_ALLOW_SQL_FILE_ACCESS,
   OPT_REGISTER_FILES_DIR,
   OPT_OVERRIDE_STDLIB,
 
@@ -486,6 +493,7 @@ const option kLongOptions[] = {
     {"analyze-trace-proto-content", no_argument, nullptr,
      OPT_ANALYZE_TRACE_PROTO_CONTENT},
     {"crop-track-events", no_argument, nullptr, OPT_CROP_TRACK_EVENTS},
+    {"allow-sql-file-access", no_argument, nullptr, OPT_ALLOW_SQL_FILE_ACCESS},
     {"register-files-dir", required_argument, nullptr, OPT_REGISTER_FILES_DIR},
     {"override-stdlib", required_argument, nullptr, OPT_OVERRIDE_STDLIB},
 
@@ -607,6 +615,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_CROP_TRACK_EVENTS) {
       command_line_options.crop_track_events = true;
+      continue;
+    }
+
+    if (option == OPT_ALLOW_SQL_FILE_ACCESS) {
+      command_line_options.allow_sql_file_access = true;
       continue;
     }
 
@@ -742,6 +755,13 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
 
   Config DefaultConfig() const override { return {}; }
 
+  io::FileSystem* GetFileSystem() override {
+    if (!file_system_) {
+      file_system_ = io::CreateLocalFileSystem();
+    }
+    return file_system_;
+  }
+
   base::Status OnTraceProcessorCreated(TraceProcessor*) override {
     return base::OkStatus();
   }
@@ -761,6 +781,9 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
     return ReadTraceUnfinalized(trace_processor, path.c_str(),
                                 progress_callback, args);
   }
+
+ private:
+  io::FileSystem* file_system_ = nullptr;
 };
 
 DefaultPlatformInterface::~DefaultPlatformInterface() = default;
@@ -955,6 +978,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       args.emplace_back("--analyze-trace-proto-content");
     if (options.crop_track_events)
       args.emplace_back("--crop-track-events");
+    if (options.allow_sql_file_access)
+      args.emplace_back("--allow-sql-file-access");
     if (options.dev)
       args.emplace_back("--dev");
     for (const auto& f : options.dev_flags) {
@@ -1129,9 +1154,6 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     new_argv.emplace_back(a.data());
   return Run(static_cast<int>(new_argv.size()), new_argv.data());
 }
-
-TraceProcessorShell_PlatformInterface::
-    ~TraceProcessorShell_PlatformInterface() = default;
 
 int PERFETTO_EXPORT_ENTRYPOINT TraceProcessorShellMain(int argc, char** argv) {
   auto shell = TraceProcessorShell::CreateWithDefaultPlatform();

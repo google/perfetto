@@ -23,16 +23,16 @@ import {formatDuration} from '../../components/time_utils';
 import type {NavState, NavView} from './nav_state';
 import type {OverviewData} from './types';
 import type * as queries from './queries';
-import OverviewView from './views/overview_view';
-import DominatorsView from './views/dominators_view';
-import ObjectView from './views/object_view';
-import AllObjectsView from './views/all_objects_view';
-import BitmapGalleryView from './views/bitmap_gallery_view';
-import ClassesView from './views/classes_view';
-import StringsView from './views/strings_view';
-import ArraysView from './views/arrays_view';
-import FlamegraphObjectsView from './views/flamegraph_objects_view';
-import FlamegraphView from './views/flamegraph_view';
+import {OverviewView} from './views/overview_view';
+import {DominatorsView} from './views/dominators_view';
+import {ObjectView} from './views/object_view';
+import {AllObjectsView} from './views/all_objects_view';
+import {BitmapGalleryView} from './views/bitmap_gallery_view';
+import {ClassesView} from './views/classes_view';
+import {StringsView} from './views/strings_view';
+import {ArraysView} from './views/arrays_view';
+import {FlamegraphObjectsView} from './views/flamegraph_objects_view';
+import {FlamegraphView} from './views/flamegraph_view';
 import {CallstackView} from './views/callstack_view';
 import type {HeapDumpExplorerSession} from './session';
 
@@ -108,7 +108,7 @@ function buildTabs(
       content: m(FlamegraphView, {
         trace,
         upid: activeDump.upid,
-        ts: Time.fromRaw(activeDump.ts),
+        ts: activeDump.ts,
         state: session.flamegraphPanelState,
         onStateChange: session.setFlamegraphPanelState,
         onShowObjects: (pathHashes, isDominator) =>
@@ -285,10 +285,7 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
         }),
       },
       allDumps.map((d) => {
-        const offset = Time.diff(
-          Time.fromRaw(d.ts),
-          session.trace.traceInfo.start,
-        );
+        const offset = Time.diff(d.ts, session.trace.traceInfo.start);
         return m(MenuItem, {
           label: `${processLabel(d)} — ${formatDuration(session.trace, offset)}`,
           active: d === active,

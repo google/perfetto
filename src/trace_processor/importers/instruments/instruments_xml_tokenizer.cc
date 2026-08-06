@@ -38,6 +38,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -169,6 +170,10 @@ class InstrumentsXmlTokenizer::Impl {
       parser_ = XML_ParserCreate(nullptr);
       if (!parser_) {
         return base::ErrStatus("Failed to create XML parser");
+      }
+      if (!XML_SetHashSalt(parser_,
+                           static_cast<unsigned long>(base::Uuidv4().lsb()))) {
+        return base::ErrStatus("Failed to set XML parser hash salt");
       }
       XML_SetElementHandler(parser_, ElementStart, ElementEnd);
       XML_SetCharacterDataHandler(parser_, CharacterData);
@@ -332,7 +337,7 @@ class InstrumentsXmlTokenizer::Impl {
       MaybeCachedRef<uint64_t> uint64_lookup =
           GetOrInsertByRef(attrs, os_log_metadata_or_uint64_ref_to_uint64_);
       current_os_log_metadata_uint64_ref_ = &uint64_lookup.ref;
-    } else if (tag_name == "backtrace") {
+    } else if (tag_name == "backtrace" || tag_name == "tagged-backtrace") {
       MaybeCachedRef<BacktraceId> backtrace_lookup =
           GetOrInsertByRef(attrs, backtrace_ref_to_backtrace_);
       if (backtrace_lookup.is_new) {

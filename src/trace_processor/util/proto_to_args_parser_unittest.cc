@@ -144,6 +144,18 @@ class ProtoToArgsParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
+  void AddUpid(Id fk, Id k, int64_t pid) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " upid_of(" << pid << ")";
+    args_.push_back(ss.str());
+  }
+
+  void AddUtid(Id fk, Id k, int64_t tid) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " utid_of(" << tid << ")";
+    args_.push_back(ss.str());
+  }
+
   bool AddJson(Id fk, Id k, const protozero::ConstChars& value) override {
     std::stringstream ss;
     ss << K(fk) << " " << K(k) << " " << std::hex << value.ToStdString()
@@ -831,6 +843,18 @@ class DebugAnnotationParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
+  void AddUpid(Id fk, Id k, int64_t pid) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " upid_of(" << pid << ")";
+    args_.push_back(ss.str());
+  }
+
+  void AddUtid(Id fk, Id k, int64_t tid) override {
+    std::stringstream ss;
+    ss << K(fk) << " " << K(k) << " utid_of(" << tid << ")";
+    args_.push_back(ss.str());
+  }
+
   bool AddJson(Id fk, Id k, const protozero::ConstChars& value) override {
     std::stringstream ss;
     ss << K(fk) << " " << K(k) << " " << std::hex << value.ToStdString()
@@ -1244,6 +1268,76 @@ TEST_F(ProtoToArgsParserTest, FlagsFieldSurfacesUnknownBits) {
 
   EXPECT_THAT(args(),
               testing::ElementsAre("caps caps[0] CAP_A", "caps caps[1] 0x8"));
+}
+
+namespace {
+// Builds a descriptor set with a FieldOptions carrying the (pid) and (tid)
+// options and a message with a "caller_pid" field annotated (pid) and a
+// "caller_tid" field annotated (tid).
+std::vector<uint8_t> BuildPidTidDescriptorSet() {
+  using namespace protos::pbzero;
+  protozero::HeapBuffered<FileDescriptorSet> fds{kChunkSize, kChunkSize};
+
+  auto* opts_file = fds->add_file();
+  opts_file->set_name("descriptor.proto");
+  opts_file->set_package("google.protobuf");
+  auto* opts = opts_file->add_message_type();
+  opts->set_name("FieldOptions");
+  auto add_bool_opt = [&](const char* name, int32_t number) {
+    auto* o = opts->add_field();
+    o->set_name(name);
+    o->set_number(number);
+    o->set_type(FieldDescriptorProto::TYPE_BOOL);
+    o->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  };
+  add_bool_opt("is_pid", 51002);
+  add_bool_opt("is_tid", 51003);
+
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+  auto* msg = file->add_message_type();
+  msg->set_name("Msg");
+  auto add_field = [&](const char* name, int32_t number, uint32_t opt_number) {
+    auto* f = msg->add_field();
+    f->set_name(name);
+    f->set_number(number);
+    f->set_type(FieldDescriptorProto::TYPE_INT32);
+    f->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+    f->set_options()->AppendVarInt(opt_number, 1);
+  };
+  add_field("caller_pid", 1, 51002);
+  add_field("caller_tid", 2, 51003);
+  // "owner" does not end in "pid": exercises the append fallback.
+  add_field("owner", 3, 51002);
+  return fds.SerializeAsArray();
+}
+}  // namespace
+
+TEST_F(ProtoToArgsParserTest, PidTidFieldsEmitCompanionArgs) {
+  auto fds_bytes = BuildPidTidDescriptorSet();
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size()));
+
+  protozero::HeapBuffered<protozero::Message> msg_proto{kChunkSize, kChunkSize};
+  msg_proto->AppendVarInt(1, 4321);
+  msg_proto->AppendVarInt(2, 99);
+  msg_proto->AppendVarInt(3, 7);
+  auto binary = msg_proto.SerializeAsArray();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  ASSERT_OK(
+      parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
+                          ".test.Msg", nullptr, *this));
+
+  // Each id field emits its raw value plus a companion upid/utid, keyed by
+  // replacing (or appending) the trailing "pid"/"tid".
+  EXPECT_THAT(
+      args(),
+      testing::ElementsAre(
+          "caller_pid caller_pid 4321", "caller_upid caller_upid upid_of(4321)",
+          "caller_tid caller_tid 99", "caller_utid caller_utid utid_of(99)",
+          "owner owner 7", "owner_upid owner_upid upid_of(7)"));
 }
 
 }  // namespace

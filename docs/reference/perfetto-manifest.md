@@ -11,9 +11,9 @@ and attach [attributes](#attributes) annotating the archive.
 
 This page is the normative reference for the format. For a task-oriented
 guide to merging see
-[Merging traces with Trace Processor](/docs/analysis/merging-traces.md); for
+[Merging traces from the command line](/docs/analysis/merging-traces.md); for
 the underlying model see
-[How trace merging works](/docs/concepts/merging-traces.md).
+[Trace merging](/docs/concepts/merging-traces.md).
 
 The format is stable: `version` 1 is the current (and only) version and will
 remain supported. New capabilities are added as new fields within version 1;
@@ -104,7 +104,7 @@ key, containing:
 
 Files present in the archive but not listed in `files` are still imported;
 they just get no overrides and follow the default merging rules described in
-[How trace merging works](/docs/concepts/merging-traces.md).
+[Trace merging](/docs/concepts/merging-traces.md).
 
 ## {#trace-time} trace_time
 
@@ -318,9 +318,9 @@ and its test suite in
 
 ## Next steps
 
-- [Merging traces with Trace Processor](/docs/analysis/merging-traces.md):
+- [Merging traces from the command line](/docs/analysis/merging-traces.md):
   building and querying merged archives.
-- [Merging traces in the Perfetto UI](/docs/visualization/merging-traces.md):
+- [Merging traces in the UI](/docs/visualization/merging-traces.md):
   the interactive merge dialog, which generates this format for you.
-- [How trace merging works](/docs/concepts/merging-traces.md): machines,
+- [Trace merging](/docs/concepts/merging-traces.md): machines,
   the clock graph, and the automatic placement rules.

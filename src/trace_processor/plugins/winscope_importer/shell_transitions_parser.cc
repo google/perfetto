@@ -66,7 +66,8 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   winscope::ShellTransitionsTracker& transition_tracker =
       context_->shell_transitions_tracker_;
   ArgsInserter& inserter = transition_tracker.AddArgsTo(transition_id);
-  ArgsParser writer(/*packet_timestamp=*/0, inserter, *storage);
+  ArgsParser writer(/*packet_timestamp=*/0, inserter, *storage,
+                    *context_->trace_processor_context_->process_tracker);
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(

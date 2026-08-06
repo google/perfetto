@@ -29,6 +29,18 @@ ANDROID_TRACK_EVENT_PROCESS_TABLE = Table(
     sql_name='__intrinsic_android_track_event_process',
     columns=[
         C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
+        C('start_seq_id',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('package_uid',
+          CppOptional(CppInt32()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('caller_uid',
+          CppOptional(CppInt32()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('defining_uid',
+          CppOptional(CppInt32()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C('fw_start_ts',
           CppOptional(CppInt64()),
           cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
@@ -57,6 +69,14 @@ ANDROID_TRACK_EVENT_PROCESS_TABLE = Table(
         columns={
             'upid':
                 'The process this row describes.',
+            'start_seq_id':
+                'start_seq assigned when the process started.',
+            'package_uid':
+                'The host package uid.',
+            'caller_uid':
+                'The caller uid.',
+            'defining_uid':
+                'The defining uid.',
             'fw_start_ts':
                 'Timestamp of AndroidProcessStartEvent.',
             'fw_end_ts':

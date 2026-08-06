@@ -378,6 +378,7 @@ source_set("unittests") {
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../../protos/perfetto/trace/ps:zero",
     "../../../../protos/perfetto/trace/sys_stats:zero",
+    "../../../../protos/perfetto/trace/system_info:zero",
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../../../protos/third_party/android/art:art_heap_graph_zero",
     "../../../../protos/third_party/android/connectivity:connectivity_network_trace_zero",

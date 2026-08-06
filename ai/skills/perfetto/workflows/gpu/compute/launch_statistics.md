@@ -17,7 +17,7 @@ producer — so this workflow is self-contained (no vendor layer).
 ## Get the data
 
 ```bash
-trace_processor query --query-file $SKILL_ROOT/workflows/gpu/compute/scripts/launch_statistics.sql TRACE_FILE
+trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/compute/scripts/launch_statistics.sql
 ```
 
 Columns: `id`, `kernel`, `block_size`, `grid_size`, `thread_count`,

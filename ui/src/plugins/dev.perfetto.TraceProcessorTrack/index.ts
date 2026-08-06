@@ -436,6 +436,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           upid: upid ?? undefined,
           utid: utid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
+          ...(isMainThread === 1 && {isMainThread: true}),
           hasCallstacks: hasCallstacks === 1,
         },
         renderer: await createTraceProcessorSliceTrack({
@@ -574,7 +575,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     // different nodes.
     const name = typeof group === 'string' ? group : group.name;
     const expanded =
-      typeof group === 'string' ? false : group.expanded ?? false;
+      typeof group === 'string' ? false : (group.expanded ?? false);
     const groupId = `tp_group_${scopeId}_${name.toLowerCase().replace(' ', '_')}`;
     const groupNode = this.groups.get(groupId);
     if (groupNode) {

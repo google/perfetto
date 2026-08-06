@@ -18,6 +18,11 @@ source_set("dataframe") {
   sources = [
     "adhoc_dataframe_builder.cc",
     "adhoc_dataframe_builder.h",
+    "arrow_deserializer.cc",
+    "arrow_deserializer.h",
+    "arrow_internal.h",
+    "arrow_serializer.cc",
+    "arrow_serializer.h",
     "cursor.h",
     "cursor_impl.h",
     "dataframe.cc",
@@ -33,10 +38,14 @@ source_set("dataframe") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:util",
     "../../../base",
     "../../../base/regex",
     "../../containers",
+    "../../util:flatbuffer_reader",
+    "../../util:flatbuffer_writer",
     "../../util:glob",
+    "../../util:trace_blob_view_reader",
     "../common",
     "../interpreter",
     "../util",
@@ -47,6 +56,9 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "adhoc_dataframe_builder_unittest.cc",
+    "arrow_deserializer_unittest.cc",
+    "arrow_serializer_unittest.cc",
+    "arrow_test_utils.h",
     "dataframe_test_utils.h",
     "dataframe_unittest.cc",
     "runtime_dataframe_builder_unittest.cc",
@@ -55,10 +67,13 @@ perfetto_unittest_source_set("unittests") {
     ":dataframe",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../../include/perfetto/trace_processor:util",
     "../../../base",
     "../../../base:test_support",
     "../../../base/regex",
     "../../containers",
+    "../../util:flatbuffer_reader",
+    "../../util:trace_blob_view_reader",
     "../interpreter",
     "../util",
   ]

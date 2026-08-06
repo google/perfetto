@@ -86,6 +86,17 @@ packet {
   sequence_flags: 2
   kernel_wakelock_data {
     wakelock_id: 1
+    time_held_millis: 10
+  }
+}
+
+packet {
+  trusted_uid: 9999
+  timestamp: 120000000000
+  trusted_packet_sequence_id: 2
+  sequence_flags: 2
+  kernel_wakelock_data {
+    wakelock_id: 1
     wakelock_id: 2
     wakelock_id: 3
     time_held_millis: 100
