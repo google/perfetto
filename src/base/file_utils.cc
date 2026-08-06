@@ -267,24 +267,28 @@ bool FlushFile(int fd) {
 }
 
 bool SeekFile(int fd, uint64_t offset) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   if (offset > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
     errno = EOVERFLOW;
     return false;
   }
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   return _lseeki64(fd, static_cast<int64_t>(offset), SEEK_SET) != -1;
 #else
+  if (offset > static_cast<uint64_t>(std::numeric_limits<off_t>::max())) {
+    errno = EOVERFLOW;
+    return false;
+  }
   return lseek(fd, static_cast<off_t>(offset), SEEK_SET) !=
          static_cast<off_t>(-1);
 #endif
 }
 
 bool TruncateFile(int fd, uint64_t size) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   if (size > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
     errno = EOVERFLOW;
     return false;
   }
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   int result = _chsize_s(fd, size);
   if (result != 0) {
     errno = result;
@@ -292,7 +296,11 @@ bool TruncateFile(int fd, uint64_t size) {
   }
   return true;
 #else
-  return ftruncate(fd, static_cast<off_t>(size)) == 0;
+  if (size > static_cast<uint64_t>(std::numeric_limits<off_t>::max())) {
+    errno = EOVERFLOW;
+    return false;
+  }
+  return PERFETTO_EINTR(ftruncate(fd, static_cast<off_t>(size))) == 0;
 #endif
 }
 

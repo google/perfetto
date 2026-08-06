@@ -384,6 +384,22 @@ TEST(UtilsTest, TruncateFile) {
   std::string contents;
   ASSERT_TRUE(ReadFile(file.path(), &contents));
   EXPECT_EQ(contents, "abc");
+
+  ASSERT_TRUE(TruncateFile(*file, 8));
+  EXPECT_EQ(GetFileSize(*file), 8u);
+  contents.clear();
+  ASSERT_TRUE(ReadFile(file.path(), &contents));
+  EXPECT_EQ(contents, std::string("abc\0\0\0\0\0", 8));
+}
+
+TEST(UtilsTest, SeekAndTruncateFileErrors) {
+  EXPECT_FALSE(SeekFile(-1, 0));
+  EXPECT_FALSE(TruncateFile(-1, 0));
+
+  constexpr uint64_t kTooLarge = std::numeric_limits<uint64_t>::max();
+  TempFile file = TempFile::Create();
+  EXPECT_FALSE(SeekFile(*file, kTooLarge));
+  EXPECT_FALSE(TruncateFile(*file, kTooLarge));
 }
 
 TEST(UtilsTest, GetFileSize) {
