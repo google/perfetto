@@ -31,7 +31,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -39,7 +38,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -77,77 +75,76 @@ std::string GetLine(const std::function<int64_t(char*, size_t)>& fn_read) {
   return line;
 }
 
-bool InRange(const void* base,
-             size_t total_size,
-             const void* ptr,
-             size_t size) {
-  return ptr >= base && static_cast<const char*>(ptr) + size <=
-                            static_cast<const char*>(base) + total_size;
+constexpr size_t kMaxNoteSize = 1u << 20;
+
+// Reads up to |len| bytes at |offset| from |fd| into |buf|. Returns the
+// number of bytes actually read (0 on error or EOF); a short read means the
+// file is smaller than |len| (e.g. a truncated header).
+size_t ReadFileAt(int fd, size_t offset, void* buf, size_t len) {
+  if (len == 0)
+    return 0;
+  if (!base::SeekFile(fd, offset))
+    return 0;
+  ssize_t rd = base::Read(fd, buf, len);
+  return rd > 0 ? static_cast<size_t>(rd) : 0;
 }
 
+// Scans the note data at |data| (a PT_NOTE segment or a SHT_NOTE section)
+// for the GNU build-id (an NT_GNU_BUILD_ID note named "GNU").
 template <typename E>
-typename E::Phdr* FindFirstExecutableSegment(void* mem, size_t size) {
-  const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
-  if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    return nullptr;
-  }
-  // Note debug-symbols-only ELF files might not have any program header at all,
-  // and we would need to do the load_bias adjustment computations using the
-  // segments instead. Luckily so far we did not run into this situation but
-  // what happens is that those ELF files have an adjusted p_offest instead
-  // (that we need to take care of in `ComputeUserSpaceAddressCorrection`).
-  for (size_t i = 0; i < ehdr->e_phnum; ++i) {
-    typename E::Phdr* phdr = GetPhdr<E>(mem, ehdr, i);
-    if (!InRange(mem, size, phdr, sizeof(typename E::Phdr))) {
-      return nullptr;
+std::optional<std::string> GetBuildIdFromNotes(const char* data, size_t size) {
+  size_t offset = 0;
+  while (offset + sizeof(typename E::Nhdr) <= size) {
+    typename E::Nhdr nhdr;
+    memcpy(&nhdr, data + offset, sizeof(nhdr));
+    const size_t name_size = base::AlignUp<4>(nhdr.n_namesz);
+    const size_t desc_size = base::AlignUp<4>(nhdr.n_descsz);
+    if (offset + sizeof(nhdr) + name_size + desc_size > size)
+      return std::nullopt;  // Truncated note.
+    if (nhdr.n_type == NT_GNU_BUILD_ID && nhdr.n_namesz == 4 &&
+        memcmp(data + offset + sizeof(nhdr), "GNU", 3) == 0) {
+      return std::string(data + offset + sizeof(nhdr) + name_size,
+                         nhdr.n_descsz);
     }
-    if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
-      return phdr;
-    }
+    offset += sizeof(nhdr) + name_size + desc_size;
   }
-  return nullptr;
+  return std::nullopt;
 }
 
+// Fallback build-id extraction: walks the section header table (read at
+// e_shoff) looking for SHT_NOTE sections. Used only when the fast PT_NOTE
+// path found nothing, e.g. files whose build-id note is section-only (some
+// ET_REL objects and older linkers).
 template <typename E>
-std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
-  const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
-  if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
+std::optional<std::string> GetBuildIdFromShdrs(int fd,
+                                               const typename E::Ehdr& ehdr) {
+  if (ehdr.e_shnum == 0 || ehdr.e_shoff == 0)
     return std::nullopt;
-  }
-  for (size_t i = 0; i < ehdr->e_shnum; ++i) {
-    typename E::Shdr* shdr = GetShdr<E>(mem, ehdr, i);
-    if (!InRange(mem, size, shdr, sizeof(typename E::Shdr))) {
-      return std::nullopt;
-    }
-
-    if (shdr->sh_type != SHT_NOTE)
+  const size_t shdr_table_size =
+      static_cast<size_t>(ehdr.e_shnum) * sizeof(typename E::Shdr);
+  std::string shdrs;
+  shdrs.resize(shdr_table_size);
+  // Tolerate a truncated section header table (declared e_shnum larger than
+  // the actual table): process only the complete entries.
+  const size_t num_shdrs = ReadFileAt(fd, static_cast<size_t>(ehdr.e_shoff),
+                                      shdrs.data(), shdr_table_size) /
+                           sizeof(typename E::Shdr);
+  for (size_t i = 0; i < num_shdrs; i++) {
+    typename E::Shdr shdr;
+    memcpy(&shdr, shdrs.data() + i * sizeof(shdr), sizeof(shdr));
+    if (shdr.sh_type != SHT_NOTE)
       continue;
-
-    auto offset = shdr->sh_offset;
-    while (offset < shdr->sh_offset + shdr->sh_size) {
-      auto* nhdr =
-          reinterpret_cast<typename E::Nhdr*>(static_cast<char*>(mem) + offset);
-
-      if (!InRange(mem, size, nhdr, sizeof(typename E::Nhdr))) {
-        return std::nullopt;
-      }
-      if (nhdr->n_type == NT_GNU_BUILD_ID && nhdr->n_namesz == 4) {
-        char* name = reinterpret_cast<char*>(nhdr) + sizeof(*nhdr);
-        if (!InRange(mem, size, name, 4)) {
-          return std::nullopt;
-        }
-        if (memcmp(name, "GNU", 3) == 0) {
-          const char* value = reinterpret_cast<char*>(nhdr) + sizeof(*nhdr) +
-                              base::AlignUp<4>(nhdr->n_namesz);
-
-          if (!InRange(mem, size, value, nhdr->n_descsz)) {
-            return std::nullopt;
-          }
-          return std::string(value, nhdr->n_descsz);
-        }
-      }
-      offset += sizeof(*nhdr) + base::AlignUp<4>(nhdr->n_namesz) +
-                base::AlignUp<4>(nhdr->n_descsz);
+    // Build-id notes are tiny; cap the read to avoid huge allocations from
+    // corrupt headers.
+    const size_t note_size = static_cast<size_t>(shdr.sh_size);
+    if (note_size == 0 || note_size > kMaxNoteSize)
+      continue;
+    std::string note;
+    note.resize(note_size);
+    if (ReadFileAt(fd, static_cast<size_t>(shdr.sh_offset), note.data(),
+                   note_size) == note_size) {
+      if (auto build_id = GetBuildIdFromNotes<E>(note.data(), note.size()))
+        return build_id;
     }
   }
   return std::nullopt;
@@ -164,10 +161,8 @@ std::string SplitBuildID(const std::string& hex_build_id) {
 }
 
 bool IsElf(const char* mem, size_t size) {
-  if (size <= EI_MAG3)
-    return false;
-  return (mem[EI_MAG0] == ELFMAG0 && mem[EI_MAG1] == ELFMAG1 &&
-          mem[EI_MAG2] == ELFMAG2 && mem[EI_MAG3] == ELFMAG3);
+  constexpr size_t kElfMagicSize = sizeof(kElfMagic) - 1;
+  return size >= kElfMagicSize && memcmp(mem, kElfMagic, kElfMagicSize) == 0;
 }
 
 constexpr uint32_t kMachO64Magic = 0xfeedfacf;
@@ -214,109 +209,169 @@ struct BinaryInfo {
   BinaryType type;
 };
 
-std::optional<BinaryInfo> GetMachOBinaryInfo(char* mem, size_t size) {
-  if (size < sizeof(mach_header_64))
-    return {};
+std::optional<BinaryInfo> GetMachOBinaryInfo(int fd,
+                                             size_t size,
+                                             const mach_header_64& header) {
+  if (size < sizeof(header) || header.sizeofcmds > size - sizeof(header))
+    return std::nullopt;
 
-  mach_header_64 header;
-  memcpy(&header, mem, sizeof(mach_header_64));
-
-  if (size < sizeof(mach_header_64) + header.sizeofcmds)
-    return {};
+  std::string commands;
+  commands.resize(header.sizeofcmds);
+  if (ReadFileAt(fd, sizeof(header), commands.data(), commands.size()) !=
+      commands.size()) {
+    return std::nullopt;
+  }
 
   std::optional<std::string> build_id;
   uint64_t vaddr = 0;
-
-  char* pcmd = mem + sizeof(mach_header_64);
-  char* pcmds_end = pcmd + header.sizeofcmds;
-  while (pcmd < pcmds_end) {
-    load_command cmd_header;
-    memcpy(&cmd_header, pcmd, sizeof(load_command));
+  size_t offset = 0;
+  while (offset < commands.size()) {
+    if (commands.size() - offset < sizeof(load_command))
+      return std::nullopt;
+    load_command command;
+    memcpy(&command, commands.data() + offset, sizeof(command));
+    if (command.cmdsize < sizeof(command) ||
+        command.cmdsize > commands.size() - offset) {
+      return std::nullopt;
+    }
 
     constexpr uint32_t LC_SEGMENT_64 = 0x19;
     constexpr uint32_t LC_UUID = 0x1b;
-
-    switch (cmd_header.cmd) {
-      case LC_UUID: {
-        build_id = std::string(pcmd + sizeof(load_command),
-                               cmd_header.cmdsize - sizeof(load_command));
+    switch (command.cmd) {
+      case LC_UUID:
+        build_id = std::string(commands.data() + offset + sizeof(command),
+                               command.cmdsize - sizeof(command));
         break;
-      }
       case LC_SEGMENT_64: {
-        segment_64_command seg_cmd;
-        memcpy(&seg_cmd, pcmd, sizeof(segment_64_command));
-        if (strcmp(seg_cmd.segname, "__TEXT") == 0) {
-          vaddr = seg_cmd.vmaddr;
-        }
+        if (command.cmdsize < sizeof(segment_64_command))
+          return std::nullopt;
+        segment_64_command segment;
+        memcpy(&segment, commands.data() + offset, sizeof(segment));
+        constexpr char kTextSegment[] = "__TEXT";
+        if (memcmp(segment.segname, kTextSegment, sizeof(kTextSegment)) == 0)
+          vaddr = segment.vmaddr;
         break;
       }
       default:
         break;
     }
-
-    pcmd += cmd_header.cmdsize;
+    offset += command.cmdsize;
   }
 
-  if (build_id) {
-    constexpr uint32_t MH_DSYM = 0xa;
-    BinaryType type = header.filetype == MH_DSYM ? BinaryType::kMachODsym
-                                                 : BinaryType::kMachO;
-    return BinaryInfo{build_id, LoadInfo{vaddr, 0, 0}, type};
-  }
-  return {};
+  if (!build_id)
+    return std::nullopt;
+  constexpr uint32_t MH_DSYM = 0xa;
+  BinaryType type =
+      header.filetype == MH_DSYM ? BinaryType::kMachODsym : BinaryType::kMachO;
+  return BinaryInfo{build_id, LoadInfo{vaddr, 0, 0}, type};
 }
 
+// Parses the ELF at |fd| (position 0) and extracts build-id and load info by
+// reading only the ELF header, the program header table and the build-id note
+// (PT_NOTE). The section header table at the end of large binaries is only
+// read as a fallback when the note is not in a program segment.
 template <typename E>
-std::optional<BinaryInfo> ElfToBinaryInfo(char* mem, size_t size) {
-  std::optional<std::string> build_id = GetElfBuildId<E>(mem, size);
-  typename E::Phdr* phdr = FindFirstExecutableSegment<E>(mem, size);
-
-  if (!phdr) {
-    return BinaryInfo{
-        build_id,
-        std::nullopt,
-        BinaryType::kElf,
-    };
-  }
-
-  // p_align can only be 0, 1 (no alignment requirement) or a power of two.
-  if (phdr->p_align != 0 && !base::IsPowerOfTwo(phdr->p_align)) {
-    PERFETTO_DLOG("Invalid p_aling value: %" PRIu64,
-                  static_cast<uint64_t>(phdr->p_align));
+std::optional<BinaryInfo> GetElfBinaryInfo(int fd,
+                                           const char* header,
+                                           size_t header_size) {
+  if (header_size < sizeof(typename E::Ehdr))
     return std::nullopt;
+  typename E::Ehdr ehdr;
+  memcpy(&ehdr, header, sizeof(ehdr));
+
+  std::optional<std::string> build_id;
+  std::optional<LoadInfo> load_info;
+
+  // Program header table (e_phnum is 16-bit, so the table is at most a few
+  // hundred KB). A short read (truncated table) is tolerated: only the
+  // complete entries are processed, and the build-id section fallback still
+  // runs.
+  const size_t phdr_table_size =
+      static_cast<size_t>(ehdr.e_phnum) * sizeof(typename E::Phdr);
+  if (phdr_table_size > 0 && ehdr.e_phoff != 0) {
+    std::string phdrs;
+    phdrs.resize(phdr_table_size);
+    const size_t num_phdrs = ReadFileAt(fd, static_cast<size_t>(ehdr.e_phoff),
+                                        phdrs.data(), phdr_table_size) /
+                             sizeof(typename E::Phdr);
+    for (size_t i = 0; i < num_phdrs; i++) {
+      typename E::Phdr phdr;
+      memcpy(&phdr, phdrs.data() + i * sizeof(phdr), sizeof(phdr));
+      if (phdr.p_type == PT_LOAD && phdr.p_flags & PF_X) {
+        // p_align can only be 0, 1 (no alignment requirement) or a power of
+        // two.
+        if (phdr.p_align != 0 && !base::IsPowerOfTwo(phdr.p_align)) {
+          PERFETTO_DLOG("Invalid p_align value: %" PRIu64,
+                        static_cast<uint64_t>(phdr.p_align));
+          return std::nullopt;
+        }
+        if (!load_info.has_value()) {
+          load_info = LoadInfo{phdr.p_vaddr, phdr.p_offset, phdr.p_align};
+        }
+      } else if (phdr.p_type == PT_NOTE && !build_id.has_value()) {
+        // Build-id notes are tiny; cap the read to avoid huge allocations
+        // from corrupt headers.
+        const size_t note_size = static_cast<size_t>(phdr.p_filesz);
+        if (note_size > 0 && note_size <= kMaxNoteSize) {
+          std::string note;
+          note.resize(note_size);
+          if (ReadFileAt(fd, static_cast<size_t>(phdr.p_offset), note.data(),
+                         note_size) == note_size) {
+            build_id = GetBuildIdFromNotes<E>(note.data(), note.size());
+          }
+        }
+      }
+    }
   }
 
-  return BinaryInfo{
-      build_id,
-      LoadInfo{phdr->p_vaddr, phdr->p_offset, phdr->p_align},
-      BinaryType::kElf,
-  };
+  if (!build_id.has_value())
+    build_id = GetBuildIdFromShdrs<E>(fd, ehdr);
+
+  return BinaryInfo{build_id, load_info, BinaryType::kElf};
 }
 
-std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
-  static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
-  if (size <= EI_CLASS) {
-    return std::nullopt;
-  }
-  base::ScopedMmap map = base::ReadMmapFilePart(fname, size);
-  if (!map.IsValid()) {
-    return std::nullopt;
-  }
-  char* mem = static_cast<char*>(map.data());
+// Parses an already-open file whose format has not yet been detected. Reads
+// the initial header once and dispatches to the ELF (32/64) or Mach-O parser.
+// |is_binary| distinguishes non-binary files from malformed binaries.
+std::optional<BinaryInfo> GetBinaryInfoFromFd(int fd,
+                                              size_t size,
+                                              bool* is_binary = nullptr) {
+  static_assert(sizeof(mach_header_64) <= sizeof(Elf64::Ehdr));
+  char header[sizeof(Elf64::Ehdr)];
+  const size_t header_size = ReadFileAt(fd, 0, header, sizeof(header));
+  const bool is_elf = IsElf(header, header_size);
+  const bool is_macho = IsMachO64(header, header_size);
+  if (is_binary)
+    *is_binary = is_elf || is_macho;
 
-  if (IsElf(mem, size)) {
-    switch (mem[EI_CLASS]) {
+  if (is_elf) {
+    if (header_size <= EI_CLASS)
+      return std::nullopt;
+    switch (header[EI_CLASS]) {
       case ELFCLASS32:
-        return ElfToBinaryInfo<Elf32>(mem, size);
+        return GetElfBinaryInfo<Elf32>(fd, header, header_size);
       case ELFCLASS64:
-        return ElfToBinaryInfo<Elf64>(mem, size);
+        return GetElfBinaryInfo<Elf64>(fd, header, header_size);
       default:
         return std::nullopt;
     }
-  } else if (IsMachO64(mem, size)) {
-    return GetMachOBinaryInfo(mem, size);
+  }
+  if (is_macho) {
+    if (header_size < sizeof(mach_header_64))
+      return std::nullopt;
+    mach_header_64 mach_header;
+    memcpy(&mach_header, header, sizeof(mach_header));
+    return GetMachOBinaryInfo(fd, size, mach_header);
   }
   return std::nullopt;
+}
+
+std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
+  base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
+  if (!fd) {
+    return std::nullopt;
+  }
+  return GetBinaryInfoFromFd(fd.get(), size);
 }
 
 // Helper function to process a single binary file and add it to the index.
@@ -327,27 +382,18 @@ void ProcessBinaryFile(const char* fname,
                        size_t size,
                        std::map<std::string, FoundBinary>& result,
                        uint32_t* corrupt_file_count) {
-  static_assert(EI_MAG3 + 1 == sizeof(kMachO64Magic));
-  char magic[EI_MAG3 + 1];
-  // Scope file access. On windows OpenFile opens an exclusive lock.
-  // This lock needs to be released before mapping the file.
-  // Check if file exists first to avoid noisy errors for speculative paths.
-  if (!base::FileExists(fname)) {
+  base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
+  if (!fd) {
+    // Missing/unreadable file: skip silently (e.g. speculative paths).
     return;
   }
-  {
-    base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
-    if (!fd) {
-      return;
-    }
-    auto rd = base::Read(*fd, &magic, sizeof(magic));
-    if (rd != sizeof(magic) || (!IsElf(magic, static_cast<size_t>(rd)) &&
-                                !IsMachO64(magic, static_cast<size_t>(rd)))) {
-      PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
-      return;
-    }
+  bool is_binary = false;
+  std::optional<BinaryInfo> binary_info =
+      GetBinaryInfoFromFd(fd.get(), size, &is_binary);
+  if (!is_binary) {
+    PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
+    return;
   }
-  std::optional<BinaryInfo> binary_info = GetBinaryInfo(fname, size);
   if (!binary_info) {
     // Passed the magic check but failed to parse: corrupt or truncated.
     ++(*corrupt_file_count);
