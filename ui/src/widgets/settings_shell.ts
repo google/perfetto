@@ -79,9 +79,10 @@ export class SettingsShell implements m.ClassComponent<SettingsShellAttrs> {
   }
 }
 
-export interface SettingsCardAttrs extends HTMLAttrs {
+export interface SettingsCardAttrs {
+  readonly className?: string;
   readonly id?: string;
-  readonly title: string;
+  readonly title: m.Children;
   readonly controls: m.Children;
   readonly focused?: boolean;
   readonly description?: m.Children;

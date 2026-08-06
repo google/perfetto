@@ -120,12 +120,11 @@ tools/ninja -C <out directory>
 tools/diff_test_trace_processor.py <out directory>/trace_processor_shell
 ```
 
-TIP: Query diff tests are expected to only have a single query which produces
-output in the whole file (usually at the end). Calling
-`SELECT RUN_METRIC('metric file')` can trip up this check as this query
-generates some hidden output. To address this issue, if a query only has
-column is named `suppress_query_output`, even if it has output, this will
-be ignored (for example,
+TIP: Every statement which produces output has its result set printed, with
+consecutive result sets separated by a blank line. Calling
+`SELECT RUN_METRIC('metric file')` can trip this up as this query generates
+some hidden output. To address this issue, if a query's only column is named
+`suppress_query_output`, its output will be ignored (for example,
 `SELECT RUN_METRIC('metric file') as suppress_query_output`)
 
 ### Adding a new diff test

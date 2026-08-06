@@ -39,7 +39,11 @@ ViewCaptureArgsParser::ViewCaptureArgsParser(
     PacketSequenceStateGeneration* sequence_state,
     ViewCaptureRow* snapshot_row,
     ViewRow* view_row)
-    : ArgsParser(packet_timestamp, inserter, *context.storage, sequence_state),
+    : ArgsParser(packet_timestamp,
+                 inserter,
+                 *context.storage,
+                 *context.process_tracker,
+                 sequence_state),
       context_(context),
       snapshot_row_(snapshot_row),
       view_row_(view_row) {}

@@ -29,7 +29,7 @@ This section is the mandatory first-pass triage for analyzing a Java allocation 
 1.  Run the trace query using the provided compiled script to extract the top allocation path. For triage, we look at the top allocator by default (unreleased, but the script can be adapted or we assume it's the primary signal).
 
     ```bash
-    trace_processor query --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_java_allocation.sql TRACE_FILE
+    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_java_allocation.sql
     ```
 
 2.  Parse the returned string CSV to identify the columns and extract the values for `process_name`, `path` (callstack), `class_name` (leaf method), and `self_size` (allocated bytes). If the response is empty or contains only a header, inform the user that the query returned no matching data for this trace.

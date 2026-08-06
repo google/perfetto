@@ -40,4 +40,10 @@ message DisplayVideoConfig {
   // Per-display cap on emitted bytes. On reaching it the stream is torn
   // down with a VideoFrameError (SIZE_CAP_HIT).
   optional uint64 max_stream_size_bytes = 4;
+
+  // Target video encoder bitrate in bits per second. Controls quality vs
+  // trace size at a fixed resolution (unlike `scale`, which changes the
+  // resolution). Unset lets the producer pick a default from the (scaled)
+  // resolution and frame rate. Maps to MediaFormat.KEY_BIT_RATE.
+  optional uint32 bitrate_bps = 5;
 }

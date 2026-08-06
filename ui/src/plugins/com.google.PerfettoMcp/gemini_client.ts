@@ -41,9 +41,7 @@ interface GeminiFunctionResponsePart {
 }
 
 type GeminiPart =
-  | GeminiTextPart
-  | GeminiFunctionCallPart
-  | GeminiFunctionResponsePart;
+  GeminiTextPart | GeminiFunctionCallPart | GeminiFunctionResponsePart;
 
 interface GeminiContent {
   readonly role: 'user' | 'model';

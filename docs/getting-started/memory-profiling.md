@@ -191,7 +191,7 @@ The script:
    first `malloc` until it has attached, so every allocation is captured.
 
 When your binary exits (or you press `Ctrl-C` to stop early) the script
-runs `traceconv` to produce gzipped pprof files alongside the raw trace and
+runs `trace_processor` to produce gzipped pprof files alongside the raw trace and
 prints the output directory. A typical end-to-end run looks like this:
 
 ```text

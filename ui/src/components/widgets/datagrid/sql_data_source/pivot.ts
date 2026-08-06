@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {QueryResult, SerialTaskQueue} from '../../../../base/query_slot';
+import type {
+  AsyncMemoResult,
+  AtomicTaskQueue,
+} from '../../../../base/async_memo';
 import type {Engine} from '../../../../trace_processor/engine';
 import type {Row} from '../../../../trace_processor/query_result';
 import type {DataSourceRows, PivotModel} from '../data_source';
 import {SQLDataSourceGroupBy} from './group_by';
 import {SQLDataSourceRollupTree} from './rollup_tree';
-import type {SQLSchemaRegistry} from '../sql_schema';
+import type {SQLTableSchema} from '../sql_schema';
 
 // Pivot datasource for DataGrid - delegates to flat or tree implementations.
 export class SQLDataSourcePivot {
@@ -27,24 +30,12 @@ export class SQLDataSourcePivot {
 
   constructor(
     uuid: string,
-    queue: SerialTaskQueue,
+    queue: AtomicTaskQueue,
     engine: Engine,
-    sqlSchema: SQLSchemaRegistry,
-    rootSchemaName: string,
+    sqlSchema: SQLTableSchema,
   ) {
-    this.flat = new SQLDataSourceGroupBy(
-      queue,
-      engine,
-      sqlSchema,
-      rootSchemaName,
-    );
-    this.tree = new SQLDataSourceRollupTree(
-      uuid,
-      queue,
-      engine,
-      sqlSchema,
-      rootSchemaName,
-    );
+    this.flat = new SQLDataSourceGroupBy(queue, engine, sqlSchema);
+    this.tree = new SQLDataSourceRollupTree(uuid, queue, engine, sqlSchema);
   }
 
   getRows(model: PivotModel): DataSourceRows {
@@ -55,7 +46,7 @@ export class SQLDataSourcePivot {
     }
   }
 
-  getSummaries(model: PivotModel): QueryResult<Row> {
+  getSummaries(model: PivotModel): AsyncMemoResult<Row> {
     if (model.groupDisplay === 'tree') {
       return this.tree.getSummaries(model);
     } else {
@@ -65,6 +56,18 @@ export class SQLDataSourcePivot {
 
   exportData(model: PivotModel): Promise<readonly Row[]> {
     return this.flat.exportData(model);
+  }
+
+  /**
+   * Returns the SQL that materializes and traverses the pivot's backing
+   * table(s) for this model, without running it.
+   */
+  getQuery(model: PivotModel): string {
+    if (model.groupDisplay === 'flat') {
+      return this.flat.getQuery(model);
+    } else {
+      return this.tree.getQuery(model);
+    }
   }
 
   dispose(): void {

@@ -48,6 +48,7 @@ export class PowerCounterSelectionAggregator implements Aggregator {
     if (trackIds.length === 0) return undefined;
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         const duration = area.end - area.start;
         const durationSec = Duration.toSeconds(duration);
@@ -81,7 +82,7 @@ export class PowerCounterSelectionAggregator implements Aggregator {
     };
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(): AggregatorGridConfig {
     return {
       schema: {
         name: {title: 'Rail Name', columnType: 'text'},

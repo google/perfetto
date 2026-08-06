@@ -47,6 +47,7 @@ def load_shell(
     extra_flags: Optional[List[str]] = None,
     add_sql_packages: Optional[List[Union[str, 'SqlPackage']]] = None,
     fetch_latest_trace_processor: bool = False,
+    enable_sql_file_access: bool = False,
 ):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
@@ -77,6 +78,9 @@ def load_shell(
 
   if enable_dev_features:
     args.append('--dev')
+
+  if enable_sql_file_access:
+    args.append('--allow-sql-file-access')
 
   if add_sql_packages:
     for package in add_sql_packages:

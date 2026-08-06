@@ -56,11 +56,7 @@ import {utf8Decode} from '../base/string_utils';
 import {Duration, type duration, Time, type time} from '../base/time';
 
 export type SqlValue =
-  | string
-  | number
-  | bigint
-  | null
-  | Uint8Array<ArrayBuffer>;
+  string | number | bigint | null | Uint8Array<ArrayBuffer>;
 
 export const UNKNOWN: SqlValue = null;
 export const NUM = 0;

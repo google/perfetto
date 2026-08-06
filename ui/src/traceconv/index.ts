@@ -77,9 +77,11 @@ async function runTraceconv(trace: Blob, args: string[]) {
     printErr: updateStatus,
     onRuntimeInitialized: () => {},
   });
-  module.FS.mkdir('/fs');
-  module.FS.mount(
-    ensureExists(module.FS.filesystems.WORKERFS),
+  // Use the explicitly exported functions rather than methods on module.FS.
+  // Closure Compiler can rename the latter, making e.g. FS.mkdir undefined.
+  module.FS_mkdir('/fs');
+  module.FS_mount(
+    module.WORKERFS,
     {blobs: [{name: 'trace.proto', data: trace}]},
     '/fs',
   );
@@ -124,9 +126,9 @@ async function ConvertTraceAndDownload(
   args.push('/fs/trace.proto', outPath);
   try {
     const module = await runTraceconv(trace, args);
-    const fsNode = module.FS.lookupPath(outPath).node;
+    const fsNode = module.FS_lookupPath(outPath).node;
     downloadFile(fsNodeToBuffer(fsNode), `trace.${format}`);
-    module.FS.unlink(outPath);
+    module.FS_unlink(outPath);
   } finally {
     notifyJobCompleted();
   }
@@ -159,12 +161,12 @@ async function ConvertTraceAndOpenInLegacy(
   args.push('/fs/trace.proto', outPath);
   try {
     const module = await runTraceconv(trace, args);
-    const fsNode = module.FS.lookupPath(outPath).node;
+    const fsNode = module.FS_lookupPath(outPath).node;
     const data = fsNode.contents.buffer;
     const size = fsNode.usedBytes;
     const buffer = new Uint8Array(data, 0, size);
     openTraceInLegacy(buffer);
-    module.FS.unlink(outPath);
+    module.FS_unlink(outPath);
   } finally {
     notifyJobCompleted();
   }
@@ -206,7 +208,7 @@ async function ConvertTraceToPprof(
   try {
     const module = await runTraceconv(trace, args);
     const heapDirName = Object.keys(
-      module.FS.lookupPath('/tmp/').node.contents,
+      module.FS_lookupPath('/tmp/').node.contents,
     )[0];
     if (heapDirName === undefined) {
       throw new Error(
@@ -214,12 +216,12 @@ async function ConvertTraceToPprof(
           `type=${profileType} pid=${pid} ts=${ts}`,
       );
     }
-    const heapDirContents = module.FS.lookupPath(`/tmp/${heapDirName}`).node
+    const heapDirContents = module.FS_lookupPath(`/tmp/${heapDirName}`).node
       .contents;
     const heapDumpFiles = Object.keys(heapDirContents);
     for (let i = 0; i < heapDumpFiles.length; ++i) {
       const heapDump = heapDumpFiles[i];
-      const fileNode = module.FS.lookupPath(
+      const fileNode = module.FS_lookupPath(
         `/tmp/${heapDirName}/${heapDump}`,
       ).node;
       const fileName = `/heap_dump.${i}.${pid}.pb`;

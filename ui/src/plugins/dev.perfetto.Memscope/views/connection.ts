@@ -215,7 +215,7 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
       this.wdpDevices.map((dev) => {
         const ready = dev.proxyStatus === 'ADB' && dev.adbStatus === 'DEVICE';
         const model =
-          dev.proxyStatus === 'ADB' ? dev.adbProps?.model ?? '?' : '?';
+          dev.proxyStatus === 'ADB' ? (dev.adbProps?.model ?? '?') : '?';
         const label = ready
           ? `${model} [${dev.serialNumber}]`
           : `${dev.proxyStatus}/${dev.adbStatus} [${dev.serialNumber}]`;
@@ -546,7 +546,7 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
       }
 
       const model =
-        dev.proxyStatus === 'ADB' ? dev.adbProps?.model ?? '?' : '?';
+        dev.proxyStatus === 'ADB' ? (dev.adbProps?.model ?? '?') : '?';
       this.wdpDeviceConnecting = false;
       attrs.onConnected({
         device: result.value,

@@ -252,18 +252,18 @@ export class QueryTabsState {
         : [...traceFilterState.get()];
     // Restored: persisted; history-reopen: null (runner rehydrates); fresh: global.
     const traceMetadataColumns: readonly string[] | null = isFromStorage
-      ? stored?.traceMetadataColumns ?? null
+      ? (stored?.traceMetadataColumns ?? null)
       : isFromHistory
         ? null
         : traceQueryColumnsState.get();
     const traceOrderBy: string = isFromStorage
-      ? stored?.traceOrderBy ?? ''
+      ? (stored?.traceOrderBy ?? '')
       : isFromHistory
         ? ''
         : traceOrderByState.get();
     // Restored tabs keep their layout; fresh/history start at show-all (null).
     const resultColumns: readonly string[] | null = isFromStorage
-      ? stored?.resultColumns ?? null
+      ? (stored?.resultColumns ?? null)
       : null;
     // Per-tab enable/disable. Fresh tabs mirror the current global state, then
     // diverge independently; restored tabs use their persisted set.

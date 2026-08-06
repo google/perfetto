@@ -1068,8 +1068,7 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
 
     const deserializedModifyNode = deserializedTableNode.nextNodes[0] as
-      | ModifyColumnsNode
-      | undefined;
+      ModifyColumnsNode | undefined;
     expect(deserializedModifyNode).toBeDefined();
     expect(deserializedModifyNode?.type).toBe(NodeType.kModifyColumns);
 
@@ -1087,8 +1086,7 @@ describe('JSON serialization/deserialization', () => {
     // Verify the aggregation node still sees the aliased column
     expect(deserializedModifyNode?.nextNodes.length).toBe(1);
     const deserializedAggNode = deserializedModifyNode?.nextNodes[0] as
-      | AggregationNode
-      | undefined;
+      AggregationNode | undefined;
     expect(deserializedAggNode).toBeDefined();
     expect(deserializedAggNode?.type).toBe(NodeType.kAggregation);
     expect(deserializedAggNode?.attrs.groupByColumns.length).toBe(1);

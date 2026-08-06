@@ -226,6 +226,7 @@ base::Status KillServer(const std::string& addr) {
 }  // namespace
 
 base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "server", 2));
   // First positional arg is the mode.
   if (ctx.positional_args.empty()) {
     return base::ErrStatus(
@@ -261,9 +262,10 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
   bool has_trace = !trace_file.empty();
 
   if (mode == "stdio") {
-    Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
-      ctx.platform->OnTraceProcessorCreated(new_tp);
-    });
+    Rpc rpc(std::move(tp), has_trace, config, ctx.platform,
+            [&ctx](TraceProcessor* new_tp) {
+              ctx.platform->OnTraceProcessorCreated(new_tp);
+            });
 #if PERFETTO_HAS_SIGNAL_H()
     static Rpc* g_rpc_for_signal_handler = &rpc;
     signal(SIGINT, [](int) {
@@ -285,9 +287,10 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     ASSIGN_OR_RETURN(IdleStart idle_start, ParseIdleStart(idle_start_str_));
     ASSIGN_OR_RETURN(uint32_t idle_timeout_ms,
                      ResolveIdleTimeout(idle_timeout_str_, /*auto=*/0));
-    Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
-      ctx.platform->OnTraceProcessorCreated(new_tp);
-    });
+    Rpc rpc(std::move(tp), has_trace, config, ctx.platform,
+            [&ctx](TraceProcessor* new_tp) {
+              ctx.platform->OnTraceProcessorCreated(new_tp);
+            });
 #if PERFETTO_HAS_SIGNAL_H()
     if (ctx.global->metatrace_path.empty()) {
       signal(SIGINT, SIG_DFL);
@@ -345,9 +348,10 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     ASSIGN_OR_RETURN(uint32_t idle_timeout_ms,
                      ResolveIdleTimeout(idle_timeout_str_, kUnixDefaultIdleMs));
 
-    Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
-      ctx.platform->OnTraceProcessorCreated(new_tp);
-    });
+    Rpc rpc(std::move(tp), has_trace, config, ctx.platform,
+            [&ctx](TraceProcessor* new_tp) {
+              ctx.platform->OnTraceProcessorCreated(new_tp);
+            });
     UnixServerArgs server_args;
     server_args.socket_path = socket_path;
     server_args.session_name = session_name;

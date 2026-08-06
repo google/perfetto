@@ -240,9 +240,7 @@ export class TouchscreenHandler {
 }
 
 export type TouchEventTranslation =
-  | 'down-up-move'
-  | 'pan-x'
-  | 'pinch-zoom-as-ctrl-wheel';
+  'down-up-move' | 'pan-x' | 'pinch-zoom-as-ctrl-wheel';
 export function convertTouchIntoMouseEvents(
   target: HTMLElement,
   events: TouchEventTranslation[],

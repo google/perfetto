@@ -61,6 +61,7 @@ class OnlineTraceToText {
   OnlineTraceToText& operator=(const OnlineTraceToText&) = delete;
   void Feed(const uint8_t* data, size_t len);
   bool ok() const { return ok_; }
+  const std::string& error() const { return error_; }
 
  private:
   std::string TracePacketToText(protozero::ConstBytes packet,
@@ -69,6 +70,7 @@ class OnlineTraceToText {
                               util::CompressionType type);
 
   bool ok_ = true;
+  std::string error_;
   std::ostream* output_;
   protozero::ProtoRingBuffer ring_buffer_;
   DescriptorPool pool_;
@@ -127,7 +129,7 @@ void OnlineTraceToText::Feed(const uint8_t* data, size_t len) {
   while (true) {
     auto token = ring_buffer_.ReadMessage();
     if (token.fatal_framing_error) {
-      PERFETTO_ELOG("Failed to tokenize trace packet");
+      error_ = "failed to tokenize trace packet (corrupt or truncated)";
       ok_ = false;
       return;
     }
@@ -144,9 +146,7 @@ void OnlineTraceToText::Feed(const uint8_t* data, size_t len) {
     protos::pbzero::TracePacket::Decoder decoder(token.start, token.len);
     bytes_processed_ += token.len;
     if ((packet_++ & 0x3f) == 0) {
-      fprintf(stderr, "Processing trace: %8zu KB%c", bytes_processed_ / 1024,
-              kProgressChar);
-      fflush(stderr);
+      ProgressLine("Processing trace: %8zu KB", bytes_processed_ / 1024);
     }
     if (decoder.has_compressed_packets()) {
       PrintCompressedPackets(decoder.compressed_packets(),
@@ -176,7 +176,7 @@ class InputReader {
       return false;
     input_->read(reinterpret_cast<char*>(data), std::streamsize(len_limit));
     if (input_->bad() || (input_->fail() && !input_->eof())) {
-      PERFETTO_ELOG("Failed while reading trace");
+      error_ = "failed while reading trace";
       ok_ = false;
       return false;
     }
@@ -184,17 +184,19 @@ class InputReader {
     return true;
   }
   bool ok() const { return ok_; }
+  const std::string& error() const { return error_; }
 
  private:
   std::istream* input_;
   bool ok_ = true;
+  std::string error_;
 };
 
 }  // namespace
 
-bool TraceToText(std::istream* input,
-                 std::ostream* output,
-                 const TraceToTextOptions& options) {
+base::Status TraceToText(std::istream* input,
+                         std::ostream* output,
+                         const TraceToTextOptions& options) {
   constexpr size_t kMaxMsgSize = protozero::ProtoRingBuffer::kMaxMsgSize;
   std::unique_ptr<uint8_t[]> buffer(new uint8_t[kMaxMsgSize]);
   uint32_t buffer_len = 0;
@@ -215,7 +217,10 @@ bool TraceToText(std::istream* input,
     std::unique_ptr<util::Decompressor> decompressor =
         util::CreateDecompressor(codec);
     if (!decompressor) {
-      return false;  // The codec isn't enabled in this build.
+      // The codec isn't enabled in this build.
+      return base::ErrStatus(
+          "cannot decode compressed packets: the codec is not enabled in the "
+          "build config");
     }
 
     using ResultCode = util::Decompressor::ResultCode;
@@ -231,13 +236,17 @@ bool TraceToText(std::istream* input,
       for (;;) {
         auto res = decompressor->ExtractOutput(out, sizeof(out));
         if (res.ret == ResultCode::kError) {
-          PERFETTO_ELOG("Failed to decompress, trace is likely corrupt");
-          return false;
+          EndProgressLine();
+          return base::ErrStatus(
+              "failed to decompress, trace is likely corrupt");
         }
         if (res.bytes_written > 0)
           online_trace_to_text.Feed(out, res.bytes_written);
-        if (!online_trace_to_text.ok())
-          return false;
+        if (!online_trace_to_text.ok()) {
+          EndProgressLine();
+          return base::ErrStatus("failed to convert trace to text: %s",
+                                 online_trace_to_text.error().c_str());
+        }
         code = res.ret;
         if (res.ret == ResultCode::kOk)
           continue;  // More output buffered; keep draining.
@@ -257,20 +266,36 @@ bool TraceToText(std::istream* input,
              buffer_len > 0);
 
     if (code != ResultCode::kEof) {
-      PERFETTO_ELOG("Compressed stream incomplete, trace is likely corrupt");
-      return false;
+      EndProgressLine();
+      return base::ErrStatus(
+          "compressed stream incomplete, trace is likely corrupt");
     }
-    return input_reader.ok();
+    if (!input_reader.ok()) {
+      EndProgressLine();
+      return base::ErrStatus("failed to read trace: %s",
+                             input_reader.error().c_str());
+    }
+    EndProgressLine();
+    return base::OkStatus();
   } else if (type == trace_processor::CompressedTraceType::kProto) {
     do {
       online_trace_to_text.Feed(buffer.get(), buffer_len);
-      if (!online_trace_to_text.ok())
-        return false;
+      if (!online_trace_to_text.ok()) {
+        EndProgressLine();
+        return base::ErrStatus("failed to convert trace to text: %s",
+                               online_trace_to_text.error().c_str());
+      }
     } while (input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize));
-    return input_reader.ok();
+    if (!input_reader.ok()) {
+      EndProgressLine();
+      return base::ErrStatus("failed to read trace: %s",
+                             input_reader.error().c_str());
+    }
+    EndProgressLine();
+    return base::OkStatus();
   } else {
-    PERFETTO_ELOG("Unrecognised file.");
-    return false;
+    return base::ErrStatus(
+        "unrecognised file: the input does not look like a Perfetto trace");
   }
 }
 

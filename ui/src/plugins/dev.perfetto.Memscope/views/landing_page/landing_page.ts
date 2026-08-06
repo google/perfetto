@@ -14,18 +14,25 @@
 
 import m from 'mithril';
 import {assertIsInstance} from '../../../../base/assert';
-import {QuerySlot} from '../../../../base/query_slot';
+import {AsyncMemo} from '../../../../base/async_memo';
+import type {Setting} from '../../../../public/settings';
 import type {Trace} from '../../../../public/trace';
+import {getBugReportUrl} from '../../../../public/utils';
 import type {Engine} from '../../../../trace_processor/engine';
 import {
   materializeRows,
   NUM,
   STR,
 } from '../../../../trace_processor/query_result';
-import {Select} from '../../../../widgets/select';
-import './landing_page.scss';
+import {Button, ButtonGroup, ButtonVariant} from '../../../../widgets/button';
+import {Intent} from '../../../../widgets/common';
 import {EmptyState} from '../../../../widgets/empty_state';
+import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
+import {PopupPosition} from '../../../../widgets/popup';
+import {Select} from '../../../../widgets/select';
+import {Callout} from '../../components/callout';
 import {Page} from '../../components/page';
+import './landing_page.scss';
 import {ProcessMemDetails} from './proc_mem_overview';
 
 // Per-process memory-capture counts, used to populate and score the process
@@ -42,18 +49,28 @@ interface ProcMemStat {
 export interface MemoryOverviewPageAttrs {
   readonly trace: Trace;
   readonly subpage: string | undefined;
+  readonly autoNavigated: boolean;
+  readonly hdeAvailable: boolean;
+  readonly openByDefault: Setting<boolean>;
+  readonly hideDefaultChangedHint: Setting<boolean>;
   readonly onSubpageChange: (subpage: string) => void;
 }
 
 type ProcWithMem = readonly ProcMemStat[];
 
-export class MemoryOverviewPage
-  implements m.Component<MemoryOverviewPageAttrs>
-{
-  private readonly slot = new QuerySlot<ProcWithMem>();
+export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> {
+  private readonly slot = new AsyncMemo<ProcWithMem>();
 
   view({attrs}: m.Vnode<MemoryOverviewPageAttrs>) {
-    const {trace, subpage, onSubpageChange} = attrs;
+    const {
+      trace,
+      subpage,
+      autoNavigated,
+      hdeAvailable,
+      openByDefault,
+      hideDefaultChangedHint,
+      onSubpageChange,
+    } = attrs;
 
     return m(
       Page,
@@ -63,7 +80,91 @@ export class MemoryOverviewPage
         'Memory triage: smaps owns the total, the native and Java ' +
           'profilers explain what is inside.',
       ),
+      this.renderDefaultChangedHint(
+        trace,
+        autoNavigated,
+        hdeAvailable,
+        openByDefault,
+        hideDefaultChangedHint,
+      ),
       this.renderPageContent(trace, subpage, onSubpageChange),
+    );
+  }
+
+  private renderDefaultChangedHint(
+    trace: Trace,
+    autoNavigated: boolean,
+    hdeAvailable: boolean,
+    openByDefault: Setting<boolean>,
+    hideDefaultChangedHint: Setting<boolean>,
+  ): m.Children {
+    if (
+      !autoNavigated ||
+      !openByDefault.get() ||
+      hideDefaultChangedHint.get()
+    ) {
+      return undefined;
+    }
+
+    return m(
+      Callout,
+      {
+        className: 'pf-memscope-default-page-callout',
+        icon: 'info',
+        intent: Intent.Primary,
+      },
+      m('.pf-memscope-default-page-callout__body', [
+        m(
+          'span.pf-memscope-default-page-callout__message',
+          'Memory Overview is now the default page when opening traces with ' +
+            'smaps snapshots.',
+        ),
+        m(
+          '.pf-memscope-default-page-callout__actions',
+          m(
+            ButtonGroup,
+            {className: 'pf-memscope-default-page-callout__split-button'},
+            m(Button, {
+              label: 'Back to Heapdump Explorer',
+              icon: 'arrow_back',
+              variant: ButtonVariant.Filled,
+              disabled: !hdeAvailable,
+              title: hdeAvailable
+                ? undefined
+                : 'No Java heap dumps are available in this trace',
+              onclick: () => trace.navigate('#!/heapdump'),
+            }),
+            m(
+              PopupMenu,
+              {
+                trigger: m(Button, {
+                  icon: 'arrow_drop_down',
+                  variant: ButtonVariant.Filled,
+                  title: 'More options',
+                }),
+                position: PopupPosition.BottomEnd,
+              },
+              m(MenuItem, {
+                label: 'Never open this page by default',
+                icon: 'timeline',
+                onclick: () => openByDefault.set(false),
+              }),
+              m(MenuItem, {
+                label: 'Dismiss forever',
+                icon: 'close',
+                onclick: () => hideDefaultChangedHint.set(true),
+              }),
+              m(MenuDivider),
+              m(MenuItem, {
+                label: 'Submit feedback',
+                icon: 'bug_report',
+                onclick: () =>
+                  window.open(getBugReportUrl(trace), '_blank', 'noopener'),
+              }),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -74,7 +175,7 @@ export class MemoryOverviewPage
   ) {
     const procsWithMemResult = this.slot.use({
       key: '',
-      queryFn: () => loadProcessMemoryStats(trace.engine),
+      compute: () => loadProcessMemoryStats(trace.engine),
     });
 
     const procs = procsWithMemResult.data;

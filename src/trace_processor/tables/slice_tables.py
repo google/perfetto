@@ -18,6 +18,7 @@ from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
+from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
@@ -217,6 +218,7 @@ TRACK_EVENT_CALLSTACKS = Table(
             CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
+        C('weight', CppOptional(CppDouble())),
     ],
 )
 

@@ -61,12 +61,16 @@ namespace perfetto::trace_processor::json {
 namespace {
 
 std::string ReadFile(FILE* input) {
+  fseek(input, 0, SEEK_END);
+  long size = ftell(input);
   fseek(input, 0, SEEK_SET);
-  const int kBufSize = 10000;
-  char buffer[kBufSize];
-  size_t ret = fread(buffer, sizeof(char), kBufSize, input);
-  EXPECT_GT(ret, 0u);
-  return {buffer, ret};
+  if (size <= 0)
+    return "";
+  std::string buffer(static_cast<size_t>(size), '\0');
+  size_t ret =
+      fread(&buffer[0], sizeof(char), static_cast<size_t>(size), input);
+  EXPECT_EQ(ret, static_cast<size_t>(size));
+  return buffer;
 }
 
 class StringOutputWriter : public OutputWriter {
