@@ -118,12 +118,13 @@ class Client {
   bool IsConnected();
 
  private:
-#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_RISCV) && \
+#if (PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_RISCV) ||   \
+     PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)) && \
     !PERFETTO_HAS_BUILTIN_STACK_ADDRESS()
-  // For specific architectures, such as riscv, different calling conventions
-  // make a difference in the meaning of the frame pointer. (see comments in
-  // client.cc) So, we want to use other method to get the stack address for
-  // specific architectures such as riscv.
+  // For specific architectures, such as riscv and x86_64, different calling
+  // conventions make a difference in the meaning of the frame pointer. (see
+  // comments in client.cc) So, we want to use other method to get the stack
+  // address for specific architectures such as riscv and x86_64.
   ssize_t GetStackRegister(unwindstack::ArchEnum arch);
   uintptr_t GetStackAddress(char* reg_data, unwindstack::ArchEnum arch);
 #endif
