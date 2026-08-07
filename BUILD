@@ -4287,7 +4287,6 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_viz_viz",
     srcs = [
         ":src_trace_processor_perfetto_sql_stdlib_viz_summary_summary",
-        "src/trace_processor/perfetto_sql/stdlib/viz/flamegraph.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/threads.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/track_event_callstacks.sql",
