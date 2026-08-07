@@ -401,7 +401,7 @@ bool Client::RecordMalloc(uint32_t heap_id,
     return postfork_return_value_;
   }
 
-  AllocMetadata metadata;
+  AllocMetadata metadata = {};
   unwindstack::AsmGetRegs(metadata.register_data);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_ARM64)
