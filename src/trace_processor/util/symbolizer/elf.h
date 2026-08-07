@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_ELF_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 // We cannot just include elf.h, as that only exists on Linux, and we want to
 // allow symbolization on other platforms as well. As we only need a small
