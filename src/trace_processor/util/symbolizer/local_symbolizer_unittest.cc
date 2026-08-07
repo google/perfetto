@@ -240,7 +240,11 @@ TEST(LocalBinaryIndexerTest, BuildIdFromNoteSegment) {
 
   BinaryLookupResult result = indexer.FindBinary("", "AAAAAAAAAAAAAAAAAAAA");
   ASSERT_TRUE(result.ok());
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  EXPECT_EQ(result.binary->file_name, tmp.path() + "/root\\elf1");
+#else
   EXPECT_EQ(result.binary->file_name, tmp.path() + "/root/elf1");
+#endif
 }
 
 TEST(LocalBinaryIndexerTest, MachOBuildIdFromLoadCommands) {
@@ -253,7 +257,11 @@ TEST(LocalBinaryIndexerTest, MachOBuildIdFromLoadCommands) {
 
   BinaryLookupResult result = indexer.FindBinary("", build_id);
   ASSERT_TRUE(result.ok());
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  EXPECT_EQ(result.binary->file_name, tmp.path() + "/root\\macho");
+#else
   EXPECT_EQ(result.binary->file_name, tmp.path() + "/root/macho");
+#endif
   EXPECT_EQ(result.binary->load_info.p_vaddr, 0x1234u);
 }
 
