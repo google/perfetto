@@ -372,6 +372,7 @@ class TrackEventEventImporter {
             }
           }
           break;
+        case TrackEventTracker::ResolvedDescriptorTrack::Scope::kGpu:
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kGlobal:
           // TODO: b/175152326 - Should pid namespace translation also be done
           // here?

@@ -33,10 +33,12 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/trace/gpu/gpu_track_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -128,10 +130,35 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     const TokenizePacketArgs& args) {
   using TrackDescriptorProto = protos::pbzero::TrackDescriptor;
   using Reservation = TrackEventTracker::DescriptorTrackReservation;
-  TrackDescriptorProto::Decoder track(
-      args.field.Cast<protos::pbzero::TracePacket::kTrackDescriptor>());
+  protozero::ConstBytes track_bytes =
+      args.field.Cast<protos::pbzero::TracePacket::kTrackDescriptor>();
+  TrackDescriptorProto::Decoder track(track_bytes);
 
   Reservation reservation;
+
+  protozero::Field gpu_track =
+      protozero::ProtoDecoder(track_bytes.data, track_bytes.size)
+          .FindField(protos::pbzero::GpuTrackDescriptorExtension::
+                         kGpuTrackFieldNumber);
+  if (gpu_track.valid()) {
+    protos::pbzero::GpuTrackDescriptor::Decoder gpu(gpu_track.as_bytes());
+    reservation.is_gpu_track = true;
+    if (gpu.has_gpu_id()) {
+      if (gpu.gpu_id() < 0) {
+        context_->import_logs_tracker->RecordTokenizationLog(
+            stats::track_descriptor_invalid_gpu_id, args.packet->offset());
+        reservation.is_gpu_track = false;
+      } else {
+        reservation.gpu_id = static_cast<uint32_t>(gpu.gpu_id());
+      }
+    }
+    if (reservation.is_gpu_track && gpu.has_hw_queue_iid()) {
+      reservation.gpu_hw_queue_iid = gpu.hw_queue_iid();
+    }
+    if (reservation.is_gpu_track && gpu.has_logical_queue_id()) {
+      reservation.gpu_logical_queue_id = gpu.logical_queue_id();
+    }
+  }
 
   if (!track.has_uuid()) {
     context_->import_logs_tracker->RecordTokenizationLog(
@@ -378,6 +405,15 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   }
 
   track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+  if (reservation.gpu_hw_queue_iid || reservation.gpu_logical_queue_id) {
+    uint64_t uuid = track.uuid();
+    uint32_t packet_sequence_id = args.decoder.trusted_packet_sequence_id();
+    context_->gpu_tracker->AddPendingRenderStageQueue(
+        [this, uuid, packet_sequence_id] {
+          track_event_tracker_->InternGpuRenderStageQueueDescriptor(
+              uuid, packet_sequence_id);
+        });
+  }
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();

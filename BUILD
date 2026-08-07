@@ -4203,6 +4203,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_std_gpu_gpu",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/std/gpu/context.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/gpu/render_stage.sql",
     ],
 )
 

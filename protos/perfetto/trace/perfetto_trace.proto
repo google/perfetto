@@ -13475,6 +13475,10 @@ message GpuRenderStageEvent {
   // optional. Compute kernel launch parameters for this event.
   optional ComputeKernelLaunch launch = 21;
 
+  // Optional producer-defined logical queue identifier. This identifier is
+  // scoped to the process associated with the event's graphics context.
+  optional uint64 logical_queue_id = 22;
+
   // DEPRECATED
 
   // Deprecated.  Use InternedGpuRenderStageSpecification instead.
@@ -18036,6 +18040,10 @@ message TrackDescriptor {
     THREAD_ORDERING_EXPLICIT = 1;
   }
   optional ThreadOrdering thread_ordering = 20;
+
+  // Extension range for domain-specific track descriptors. See
+  // protos/perfetto/trace/extensions.json for the allocation registry.
+  extensions 1000 to 9999;
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto

@@ -41,8 +41,12 @@ export class Gpu {
 
   // Sort order for deterministic track ordering: machine first (unbounded),
   // then gpu_id within a machine (small, bounded).
+  static machineSortOrder(machine: number): number {
+    return machine * MAX_GPUS_PER_MACHINE;
+  }
+
   get sortOrder(): number {
-    return this.machine * MAX_GPUS_PER_MACHINE + this.gpu;
+    return Gpu.machineSortOrder(this.machine) + this.gpu;
   }
 
   public toString(): string {

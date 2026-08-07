@@ -18,10 +18,14 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GPU_TRACKER_H_
 
 #include <cstdint>
+#include <functional>
+#include <optional>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -47,9 +51,18 @@ class GpuTracker {
                                   std::string_view uuid,
                                   std::string_view pci_bdf);
 
+  enum class RenderStageRepresentation : uint8_t {
+    kCanonical,
+    kHardwareQueue,
+    kLogicalQueue,
+  };
+
   // Registers a GPU render stage slice. Correlates it with any pending
   // event_wait_ids that reference this event_id.
-  void AddGpuRenderStageSlice(uint64_t event_id, SliceId slice_id);
+  void AddGpuRenderStageSlice(
+      uint64_t event_id,
+      SliceId slice_id,
+      RenderStageRepresentation = RenderStageRepresentation::kCanonical);
 
   // Registers a track event slice as a submission point. Correlates it with
   // all GPU render stage slices (past and future) that share the same
@@ -63,16 +76,47 @@ class GpuTracker {
 
   // Registers that a GPU render stage slice waited on another event.
   // Correlates the referenced event_id with this slice.
-  void AddEventWait(uint64_t waited_event_id, SliceId slice_id);
+  void AddEventWait(
+      uint64_t waited_event_id,
+      SliceId slice_id,
+      RenderStageRepresentation = RenderStageRepresentation::kCanonical);
+
+  void AddPendingRenderStageQueue(std::function<void()> materialize);
+
+  void RegisterHardwareQueueTrack(uint32_t packet_sequence_id,
+                                  uint32_t gpu_id,
+                                  uint64_t hw_queue_iid,
+                                  const TrackCompressor::TrackFactory& factory);
+  void RegisterLogicalQueueTrack(UniquePid upid,
+                                 uint64_t logical_queue_id,
+                                 const TrackCompressor::TrackFactory& factory);
+
+  std::optional<TrackId> InternHardwareQueueTrack(uint32_t packet_sequence_id,
+                                                  uint32_t gpu_id,
+                                                  uint64_t hw_queue_iid,
+                                                  int64_t ts,
+                                                  int64_t dur);
+  std::optional<TrackId> InternLogicalQueueTrack(UniquePid upid,
+                                                 uint64_t logical_queue_id,
+                                                 int64_t ts,
+                                                 int64_t dur);
 
  private:
+  void MaterializePendingRenderStageQueues();
+
   TraceProcessorContext* const context_;
 
   // Maps gpu number to GpuTable::Id for the current machine.
   base::FlatHashMap<uint32_t, tables::GpuTable::Id> gpu_ids_;
 
-  // Maps event_id to GPU render stage slice IDs.
-  base::FlatHashMap<uint64_t, std::vector<SliceId>> event_id_to_gpu_slices_;
+  struct RenderStageSlice {
+    SliceId slice_id;
+    RenderStageRepresentation representation;
+  };
+
+  // Maps event_id to all of its canonical, hardware, and logical slices.
+  base::FlatHashMap<uint64_t, std::vector<RenderStageSlice>>
+      event_id_to_gpu_slices_;
 
   // Maps event_id to the track event slice ID.
   base::FlatHashMap<uint64_t, SliceId> event_id_to_track_event_slice_;
@@ -81,7 +125,34 @@ class GpuTracker {
   base::FlatHashMap<uint64_t, SliceId> event_id_to_terminating_slice_;
 
   // Maps event_id to slice IDs that are waiting on it (via event_wait_ids).
-  base::FlatHashMap<uint64_t, std::vector<SliceId>> event_id_to_waiting_slices_;
+  base::FlatHashMap<uint64_t, std::vector<RenderStageSlice>>
+      event_id_to_waiting_slices_;
+
+  struct HardwareQueueKey {
+    uint32_t packet_sequence_id;
+    uint32_t gpu_id;
+    uint64_t hw_queue_iid;
+
+    bool operator==(const HardwareQueueKey& other) const {
+      return packet_sequence_id == other.packet_sequence_id &&
+             gpu_id == other.gpu_id && hw_queue_iid == other.hw_queue_iid;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H h, const HardwareQueueKey& key) {
+      return H::Combine(std::move(h), key.packet_sequence_id, key.gpu_id,
+                        key.hw_queue_iid);
+    }
+  };
+
+  using LogicalQueueKey = std::pair<UniquePid, uint64_t>;
+  base::FlatHashMap<HardwareQueueKey, TrackCompressor::TrackFactory>
+      hardware_queue_tracks_;
+  base::FlatHashMap<LogicalQueueKey,
+                    TrackCompressor::TrackFactory,
+                    base::MurmurHash<LogicalQueueKey>>
+      logical_queue_tracks_;
+  std::vector<std::function<void()>> pending_render_stage_queues_;
 };
 
 }  // namespace perfetto::trace_processor

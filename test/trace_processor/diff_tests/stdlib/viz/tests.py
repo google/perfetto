@@ -20,6 +20,107 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Viz(TestSuite):
+
+  def test_gpu_track_event_summary(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor {
+            uuid: 100
+            name: "GPU Root"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 2
+            }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 101
+            parent_uuid: 100
+            name: "GPU Child"
+          }
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 101
+            name: "event"
+            type: TYPE_INSTANT
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE viz.summary.track_event;
+
+        SELECT
+          g.name,
+          p.name AS parent_name,
+          g.scope,
+          g.machine_id,
+          g.gpu_id,
+          g.ugpu IS NOT NULL AS has_ugpu
+        FROM _track_event_tracks_ordered_groups g
+        LEFT JOIN _track_event_tracks_ordered_groups p
+          ON p.min_track_id = g.parent_id
+        WHERE g.scope = 'gpu'
+        ORDER BY g.name;
+        """,
+        out=Csv("""
+        "name","parent_name","scope","machine_id","gpu_id","has_ugpu"
+        "GPU Child","GPU Root","gpu",0,2,1
+        "GPU Root","[NULL]","gpu",0,2,1
+        """))
+
+  def test_process_associated_gpu_track_event_summary(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor {
+            uuid: 900
+            process { pid: 42 }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 901
+            parent_uuid: 900
+            name: "CUDA"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {}
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 902
+            parent_uuid: 901
+            name: "Stream #7"
+          }
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 902
+            name: "kernel"
+            type: TYPE_INSTANT
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE viz.summary.track_event;
+
+        SELECT tracks.name, scope, process.pid
+        FROM _track_event_tracks_ordered_groups tracks
+        LEFT JOIN process USING (upid)
+        WHERE scope = 'gpu'
+        ORDER BY tracks.name;
+        """,
+        out=Csv("""
+        "name","scope","pid"
+        "CUDA","gpu",42
+        "Stream #7","gpu",42
+        """))
+
   chronological_trace = TextProto(r"""
         packet {
           track_descriptor {
