@@ -25,7 +25,8 @@ import {
   ALL_CATEGORIES,
   type Flow,
   getFlowCategories,
-} from '../../core/flow_types';
+} from './flow_types';
+import type {FlowManager} from './flow_manager';
 import type {TraceImpl} from '../../core/trace_impl';
 import type {TrackNode} from '../../public/workspace';
 
@@ -56,10 +57,11 @@ export interface TrackInfo {
  * Renders the flows overlay on top of the timeline, given the set of panels and
  * a canvas to draw on.
  *
- * Note: the actual flow data is retrieved from trace.flows, which are produced
+ * Note: the actual flow data is retrieved from flows, which are produced
  * by FlowManager.
  *
- * @param trace - The Trace instance, which holds onto the FlowManager.
+ * @param trace - The Trace instance.
+ * @param flows - The FlowManager instance.
  * @param ctx - The canvas to draw on.
  * @param size - The size of the canvas.
  * @param tracks - A list of tracks and their vertical positions on the canvas.
@@ -71,6 +73,7 @@ export interface TrackInfo {
  */
 export function renderFlows(
   trace: TraceImpl,
+  flows: FlowManager,
   ctx: CanvasRenderingContext2D,
   size: Size2D,
   tracks: ReadonlyArray<TrackInfo>,
@@ -107,8 +110,8 @@ export function renderFlows(
       flow.end.sliceId === trace.timeline.highlightedSliceId ||
       flow.begin.sliceId === trace.timeline.highlightedSliceId;
     const focused =
-      flow.id === trace.flows.focusedFlowIdLeft ||
-      flow.id === trace.flows.focusedFlowIdRight;
+      flow.id === flows.focusedFlowIdLeft ||
+      flow.id === flows.focusedFlowIdRight;
 
     let intensity = DEFAULT_FLOW_INTENSITY;
     let width = DEFAULT_FLOW_WIDTH;
@@ -188,17 +191,17 @@ export function renderFlows(
   };
 
   // Render the connected flows
-  trace.flows.connectedFlows.forEach((flow) => {
+  flows.connectedFlows.forEach((flow) => {
     drawFlow(flow, CONNECTED_FLOW_HUE);
   });
 
   // Render the selected flows
-  trace.flows.selectedFlows.forEach((flow) => {
+  flows.selectedFlows.forEach((flow) => {
     const categories = getFlowCategories(flow);
     for (const cat of categories) {
       if (
-        trace.flows.visibleCategories.get(cat) ||
-        trace.flows.visibleCategories.get(ALL_CATEGORIES)
+        flows.visibleCategories.get(cat) ||
+        flows.visibleCategories.get(ALL_CATEGORIES)
       ) {
         drawFlow(flow, SELECTED_FLOW_HUE);
         break;

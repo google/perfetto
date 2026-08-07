@@ -60,7 +60,6 @@ import {
   COLOR_TIMELINE_OVERLAY,
   TRACK_SHELL_WIDTH,
 } from '../../frontend/css_constants';
-import {renderFlows} from './flow_events_renderer';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {
   shiftDragPanInteraction,
@@ -341,7 +340,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             virtualCanvasSize,
             renderedTracks,
             canvasRect,
-            rootNode,
             renderer,
           );
 
@@ -429,7 +427,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     size: Size2D,
     renderedTracks: ReadonlyArray<TrackView>,
     floatingCanvasRect: Rect2D,
-    rootNode: TrackNode,
     renderer: Renderer,
   ) {
     const timelineRect = new Rect2D({
@@ -480,7 +477,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       renderer,
     );
 
-    renderFlows(this.trace, ctx, size, renderedTracks, rootNode, timescale);
     this.drawHoveredNoteVertical(ctx, timescale, size);
     this.drawHoveredCursorVertical(ctx, timescale, size);
     this.drawNoteVerticals(ctx, timescale, size);
