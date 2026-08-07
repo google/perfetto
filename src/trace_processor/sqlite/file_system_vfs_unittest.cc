@@ -21,7 +21,6 @@
 #include <memory>
 #include <string>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/io.h"
@@ -64,18 +63,11 @@ TEST(SqliteFileSystemVfsTest, CreatesReadableDatabase) {
   ASSERT_GE(contents.size(), 16u);
   EXPECT_EQ(contents.substr(0, 16), std::string("SQLite format 3\0", 16));
 
-  // Re-open the database and check it is readable. On Fuchsia this has to go
-  // through our VFS again: the default unix VFS needs fcntl() advisory locks,
-  // which Fuchsia doesn't implement (ENOSYS).
-  const char* read_vfs_name = nullptr;
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   ASSERT_OK_AND_ASSIGN(vfs, SqliteFileSystemVfs::Create(file_system));
-  read_vfs_name = vfs->name();
-#endif
   raw_db = nullptr;
-  ASSERT_EQ(sqlite3_open_v2(path.c_str(), &raw_db, SQLITE_OPEN_READONLY,
-                            read_vfs_name),
-            SQLITE_OK);
+  ASSERT_EQ(
+      sqlite3_open_v2(path.c_str(), &raw_db, SQLITE_OPEN_READONLY, vfs->name()),
+      SQLITE_OK);
   db.reset(raw_db);
   sqlite3_stmt* raw_stmt = nullptr;
   ASSERT_EQ(sqlite3_prepare_v2(db.get(), "SELECT value FROM data", -1,
