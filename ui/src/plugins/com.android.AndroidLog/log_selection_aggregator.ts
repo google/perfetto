@@ -42,6 +42,7 @@ export class AndroidLogSelectionAggregator implements Aggregator {
       .filter((u): u is number => u !== undefined);
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         let whereClause = `al.ts >= ${area.start} AND al.ts <= ${area.end}`;
         if (utids.length > 0) {
@@ -75,7 +76,7 @@ export class AndroidLogSelectionAggregator implements Aggregator {
     return 'Android Logs';
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(): AggregatorGridConfig {
     return {
       schema: {
         id: {

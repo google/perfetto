@@ -170,9 +170,25 @@ class ContainedTracesTab implements AreaSelectionTab {
     rows: ReadonlyArray<MergeRow>,
     selected: Set<string>,
   ): m.Children {
+    const allSelected = rows.length > 0 && selected.size === rows.length;
     return m(Grid, {
       columns: [
-        {key: 'select'},
+        {
+          key: 'select',
+          header: m(
+            GridHeaderCell,
+            m(Checkbox, {
+              checked: allSelected,
+              onchange: () => {
+                if (allSelected) {
+                  selected.clear();
+                } else {
+                  rows.forEach((r) => selected.add(r.uuid));
+                }
+              },
+            }),
+          ),
+        },
         {key: 'self', header: m(GridHeaderCell, 'Self')},
         {key: 'uuid', header: m(GridHeaderCell, 'Trace')},
         {key: 'name', header: m(GridHeaderCell, 'Name')},

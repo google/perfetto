@@ -57,6 +57,12 @@ struct String {
   using cpp_type = StringPool::Id;
 };
 
+// Represents a column with no values at all: every row is null. Such columns
+// carry no payload and no underlying value type.
+struct Null {
+  using cpp_type = void;
+};
+
 // TypeSet of all possible storage value types.
 using StorageType = core::TypeSet<Id, Uint32, Int32, Int64, Double, String>;
 

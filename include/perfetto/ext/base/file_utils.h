@@ -19,6 +19,7 @@
 
 #include <fcntl.h>  // For mode_t & O_RDONLY/RDWR. Exists also on Windows.
 #include <stddef.h>
+#include <stdint.h>
 
 #include <functional>
 #include <memory>
@@ -100,6 +101,16 @@ int PERFETTO_EXPORT_COMPONENT CloseFile(int fd);
 
 bool FlushFile(int fd);
 
+// Moves the file offset to |offset| bytes from the beginning of the file.
+// Returns false if |offset| cannot be represented by the platform or the seek
+// fails.
+bool SeekFile(int fd, uint64_t offset);
+
+// Changes the size of an open file to |size| bytes.
+// Returns false if |size| cannot be represented by the platform or truncation
+// fails.
+bool TruncateFile(int fd, uint64_t size);
+
 // Returns true if mkdir succeeds, false if it fails (see errno in that case).
 // `mode` is the permission bits for the new directory; it is ignored on
 // Windows.
@@ -171,6 +182,13 @@ std::optional<uint64_t> GetFileSize(const std::string& path);
 
 // Returns the size of the open file |fd|, or nullopt in case of error.
 std::optional<uint64_t> GetFileSize(PlatformHandle fd);
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// On Windows PlatformHandle is a HANDLE, not a file descriptor. This overload
+// accepts the CRT file descriptors returned by base::OpenFile(). On other
+// platforms PlatformHandle is an int, so the overload above already covers it.
+std::optional<uint64_t> GetFileSize(int fd);
+#endif
 
 // This class uses inotify (on Linux/Android) to watch for the creation of
 // files in the filesystem. When the specified file is created, it triggers a

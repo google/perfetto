@@ -5542,6 +5542,8 @@ perfetto_filegroup(
     name = "src_trace_processor_sqlite_sqlite",
     srcs = [
         "src/trace_processor/sqlite/committed_state_manager.h",
+        "src/trace_processor/sqlite/file_system_vfs.cc",
+        "src/trace_processor/sqlite/file_system_vfs.h",
         "src/trace_processor/sqlite/module_state_manager.cc",
         "src/trace_processor/sqlite/module_state_manager.h",
         "src/trace_processor/sqlite/scoped_db.h",

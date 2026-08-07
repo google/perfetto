@@ -115,8 +115,16 @@ struct OutputPath {
 class TestFileSystem final : public io::FileSystem {
  public:
   base::Status OpenFile(const std::string&,
-                        std::unique_ptr<io::File>* file) override {
-    file->reset();
+                        const io::FileOpenOptions&,
+                        std::unique_ptr<io::File>*) override {
+    return base::ErrStatus("not implemented");
+  }
+
+  base::Status DeleteFile(const std::string&) override {
+    return base::ErrStatus("not implemented");
+  }
+
+  base::Status FileExists(const std::string&, bool*) override {
     return base::ErrStatus("not implemented");
   }
 };
