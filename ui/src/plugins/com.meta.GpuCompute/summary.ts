@@ -31,51 +31,39 @@ import {Button} from '../../widgets/button';
 import {Icon} from '../../widgets/icon';
 import type {GpuComputeContext} from './index';
 import {adjustSeconds} from './humanize';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {assertUnreachable} from '../../base/assert';
 
 // Per-kernel row returned by {@link fetchKernelSummaryRows}.
 export type SummaryRow = {
-  id: number;
-  demangledName: string;
-  durationNSecNum: number | string | null;
-  computePct: number | string | null;
-  memoryPct: number | string | null;
-  registersPerThread: number | string | null;
-  gridSize: number | string | null;
+  readonly id: number;
+  readonly demangledName: string;
+  readonly durationNSecNum: number;
+  readonly computePct: number;
+  readonly memoryPct: number;
+  readonly registersPerThread: number;
+  readonly gridSize: number;
 };
 
 const PAGE_SIZE = 100;
 
-// Component state holding the fetched rows and per-column max values.
-type SummaryState = {
-  rows?: SummaryRow[];
-  maxDurationNSec?: number;
-  maxComputePct?: number;
-  maxMemoryPct?: number;
-  maxRegisters?: number;
-  maxGridSize?: number;
-  launchIndexBySliceId: Map<number, number>;
-  sortKey: SortKey | null;
-  sortDescending: boolean;
-  pageOffset: number;
-};
-
 // Renders a bar whose width is proportional to `val / max`.
 // Falls back to `—` when the value is non-finite or missing.
-const renderRelPercentBar = (
-  val?: number,
-  max?: number,
+function renderRelPercentBar(
+  val: number,
+  max?: number, // Undefined means no max
   label?: string,
-): m.Children => {
-  const hasLabel = typeof label === 'string' && label.trim() !== '';
-  const curVal = Number(val);
-  const maxVal = Number(max);
+): m.Children {
+  const hasLabel = label !== undefined && label.trim() !== '';
+  const curVal = val;
+  const maxVal = Number(max); // NaN if undefined
   if (!Number.isFinite(curVal) || !Number.isFinite(maxVal) || maxVal <= 0) {
     return hasLabel ? renderPercentBar(0, null, false, label) : '—';
   }
   const clamped = Math.max(0, Math.min(curVal, maxVal));
   const pct = Math.max(0, Math.min(100, (clamped / maxVal) * 100));
   return renderPercentBar(pct, null, false, label ?? '');
-};
+}
 
 // =============================================================================
 // Data fetching
@@ -135,10 +123,10 @@ export async function fetchKernelSummaryRows(
         EXTRACT_ARG(cs.arg_set_id, 'kernel_name'),
         cs.name
       ) AS demangledName,
-      CAST(EXTRACT_ARG(cs.arg_set_id, 'registers_per_thread') AS REAL) AS registers_per_thread,
+      CAST(EXTRACT_ARG(cs.arg_set_id, 'registers_per_thread') AS REAL) AS registersPerThread,
       CAST(EXTRACT_ARG(cs.arg_set_id, 'launch.grid_size.x') AS REAL)
         * CAST(COALESCE(EXTRACT_ARG(cs.arg_set_id, 'launch.grid_size.y'), 1) AS REAL)
-        * CAST(COALESCE(EXTRACT_ARG(cs.arg_set_id, 'launch.grid_size.z'), 1) AS REAL) AS grid_size,
+        * CAST(COALESCE(EXTRACT_ARG(cs.arg_set_id, 'launch.grid_size.z'), 1) AS REAL) AS gridSize,
       COALESCE(
         ${coalesceExpr(durationNames)},
         CAST(cs.dur AS REAL)
@@ -150,18 +138,27 @@ export async function fetchKernelSummaryRows(
   `;
 
   const result = await engine.query(sql);
-  const iter = result.iter({});
+  const iter = result.iter({
+    id: NUM,
+    demangledName: STR_NULL,
+    durationNSecNum: NUM_NULL,
+    // The follwoing can be string | number | null - we don't have a type for
+    // this - just use unknown and cast later
+    computePct: NUM_NULL,
+    memoryPct: NUM_NULL,
+    registersPerThread: NUM_NULL,
+    gridSize: NUM_NULL,
+  });
   const list: SummaryRow[] = [];
   while (iter.valid()) {
     list.push({
-      id: Number(iter.get('id')),
-      demangledName: String(iter.get('demangledName') ?? ''),
-      durationNSecNum: (iter.get('durationNSecNum') as number | null) ?? null,
-      computePct: (iter.get('computePct') as number | string | null) ?? null,
-      memoryPct: (iter.get('memoryPct') as number | string | null) ?? null,
-      registersPerThread:
-        (iter.get('registers_per_thread') as number | string | null) ?? null,
-      gridSize: (iter.get('grid_size') as number | string | null) ?? null,
+      id: iter.id,
+      demangledName: iter.demangledName ?? '',
+      durationNSecNum: iter.durationNSecNum ?? 0,
+      computePct: iter.computePct ?? 0,
+      memoryPct: iter.memoryPct ?? 0,
+      registersPerThread: iter.registersPerThread ?? 0,
+      gridSize: iter.gridSize ?? 0,
     });
     iter.next();
   }
@@ -174,11 +171,11 @@ export async function fetchKernelSummaryRows(
 
 // Attrs accepted by {@link KernelSummarySection}.
 export interface SummarySectionAttrs extends m.Attributes {
-  ctx: GpuComputeContext;
-  engine: Engine;
-  sliceId?: number;
-  openSliceInDetail?: (sliceId: number) => void;
-  prefetchedRows?: SummaryRow[];
+  readonly ctx: GpuComputeContext;
+  readonly engine: Engine;
+  readonly sliceId?: number;
+  readonly openSliceInDetail?: (sliceId: number) => void;
+  readonly prefetchedRows: readonly SummaryRow[];
 }
 
 // Column keys that the table can be sorted by.
@@ -189,23 +186,25 @@ type SortKey =
 function getSortableValue(
   r: SummaryRow,
   key: SortKey,
-  launchIndex: Map<number, number>,
-): number | string | undefined {
+  launchIndex: ReadonlyMap<number, number>,
+): number | string {
   switch (key) {
     case 'id':
       return launchIndex.get(r.id) ?? r.id;
     case 'name':
-      return r.demangledName ?? '';
+      return r.demangledName;
     case 'duration':
-      return Number(r.durationNSecNum);
+      return r.durationNSecNum;
     case 'compute':
-      return Number(r.computePct);
+      return r.computePct;
     case 'memory':
-      return Number(r.memoryPct);
+      return r.memoryPct;
     case 'registers':
-      return Number(r.registersPerThread);
+      return r.registersPerThread;
     case 'grid_size':
-      return Number(r.gridSize);
+      return r.gridSize;
+    default:
+      assertUnreachable(key);
   }
 }
 
@@ -235,7 +234,7 @@ function compare(
 
   // Numeric comparison
   if (isANum && isBNum) {
-    const delta = Number(aVal) - Number(bVal);
+    const delta = aVal - bVal;
     return descending ? -Math.sign(delta) : Math.sign(delta);
   }
 
@@ -247,175 +246,154 @@ function compare(
 
 // Mithril component that renders the summary table.
 //
-// On init it fetches all kernel launches via {@link fetchKernelSummaryRows},
-// computes per-column max values for the relative bars, and renders a
-// sortable `<table>` whose rows can be double-clicked to navigate to
+// Renders a sortable `<table>` whose rows can be double-clicked to navigate to
 // the kernel's detail view.
-export const KernelSummarySection: m.Component<
-  SummarySectionAttrs,
-  SummaryState
-> = {
-  async oninit({attrs, state}) {
-    state.launchIndexBySliceId = new Map();
-    state.sortKey = 'id';
-    state.sortDescending = false;
-    state.pageOffset = 0;
+export function KernelSummarySection({
+  attrs,
+}: m.Vnode<SummarySectionAttrs>): m.Component<SummarySectionAttrs> {
+  const launchIndexBySliceId = new Map();
+  let sortKey: SortKey = 'id';
+  let sortDescending = false;
+  let pageOffset = 0;
 
-    const rows =
-      attrs.prefetchedRows ??
-      (await fetchKernelSummaryRows(attrs.ctx, attrs.engine));
+  const rows = attrs.prefetchedRows;
 
-    // Build launch-order map so the ID column shows 0, 1, 2, …
-    rows.forEach((opt, zeroBasedIndex) =>
-      state.launchIndexBySliceId.set(opt.id, zeroBasedIndex),
-    );
+  // Build launch-order map so the ID column shows 0, 1, 2, …
+  rows.forEach((opt, zeroBasedIndex) =>
+    launchIndexBySliceId.set(opt.id, zeroBasedIndex),
+  );
 
-    // Initial sort by launch order (ascending)
-    rows.sort((a, b) => a.id - b.id);
+  // Per-column max values drive the relative percent-bar widths
+  const finiteMax = (arr: number[]) => {
+    const nums = arr.filter((x) => Number.isFinite(x));
+    if (nums.length === 0) {
+      return undefined;
+    }
+    // Reduce, not `Math.max(...nums)`, which overflows the stack for large arrays.
+    return nums.reduce((a, b) => Math.max(a, b));
+  };
 
-    // Per-column max values drive the relative percent-bar widths
-    const finiteMax = (arr: Array<number | null | undefined>) => {
-      const nums = arr
-        .map(Number)
-        .filter((x) => Number.isFinite(x)) as number[];
-      if (nums.length === 0) {
-        return undefined;
-      }
-      // Reduce, not `Math.max(...nums)`, which overflows the stack for large arrays.
-      return nums.reduce((a, b) => Math.max(a, b));
-    };
+  const maxDurationNSec = finiteMax(rows.map((r) => r.durationNSecNum));
+  const maxComputePct = finiteMax(rows.map((r) => r.computePct));
+  const maxMemoryPct = finiteMax(rows.map((r) => r.memoryPct));
+  const maxRegisters = finiteMax(rows.map((r) => r.registersPerThread));
+  const maxGridSize = finiteMax(rows.map((r) => r.gridSize));
 
-    state.rows = rows;
-    state.maxDurationNSec = finiteMax(
-      rows.map((r) => Number(r.durationNSecNum)),
-    );
-    state.maxComputePct = finiteMax(rows.map((r) => Number(r.computePct)));
-    state.maxMemoryPct = finiteMax(rows.map((r) => Number(r.memoryPct)));
-    state.maxRegisters = finiteMax(
-      rows.map((r) => Number(r.registersPerThread)),
-    );
-    state.maxGridSize = finiteMax(rows.map((r) => Number(r.gridSize)));
-  },
+  return {
+    view({attrs}) {
+      const terminology = attrs.ctx.terminologyRegistry.get(
+        attrs.ctx.terminologyId,
+      );
 
-  view({state, attrs}) {
-    const terminology = attrs.ctx.terminologyRegistry.get(
-      attrs.ctx.terminologyId,
-    );
-
-    const rows = state.rows ?? [];
-
-    // Formats a raw metric value into a display label with optional unit.
-    const label = (
-      val: number | string | null | undefined,
-      unit?: string,
-    ): string => {
-      if (val == null || val === 'null' || val === 'undefined') {
-        return '—';
-      }
-
-      // Humanize seconds when enabled
-      if (unit === 'nsecond' && Number.isFinite(Number(val))) {
-        if (attrs.ctx.humanizeMetrics) {
-          const {value: v, unit: u} = adjustSeconds(Number(val) / 1e9);
-          return `${formatNumber(v)} ${u}`;
+      // Formats a raw metric value into a display label with optional unit.
+      const label = (
+        val: number | string | null | undefined,
+        unit?: string,
+      ): string => {
+        if (val == null || val === 'null' || val === 'undefined') {
+          return '—';
         }
-        return `${formatNumber(Number(val))} nsecond`;
-      }
 
-      const text = Number.isFinite(Number(val))
-        ? String(formatNumber(Number(val)))
-        : String(val);
-      return unit ? `${text} ${unit}` : text;
-    };
+        // Humanize seconds when enabled
+        if (unit === 'nsecond' && Number.isFinite(Number(val))) {
+          if (attrs.ctx.humanizeMetrics) {
+            const {value: v, unit: u} = adjustSeconds(Number(val) / 1e9);
+            return `${formatNumber(v)} ${u}`;
+          }
+          return `${formatNumber(Number(val))} nsecond`;
+        }
 
-    // Sort rows immutably for rendering
-    const {sortKey, sortDescending, launchIndexBySliceId} = state;
-    const sortedRows = (() => {
-      if (!sortKey) return rows;
-      const copy = rows.slice();
-      copy.sort((a, b) =>
-        compare(a, b, sortKey, sortDescending, launchIndexBySliceId),
-      );
-      return copy;
-    })();
+        const text = Number.isFinite(Number(val))
+          ? String(formatNumber(Number(val)))
+          : String(val);
+        return unit ? `${text} ${unit}` : text;
+      };
 
-    // Cycle sort direction on header click
-    const onSort = (key: SortKey) => {
-      if (state.sortKey === key) {
-        state.sortDescending = !state.sortDescending;
-      } else {
-        state.sortKey = key;
-        state.sortDescending = true;
-      }
-      state.pageOffset = 0;
-    };
+      // Sort rows immutably for rendering
+      const sortedRows = (() => {
+        if (!sortKey) return rows;
+        const copy = rows.slice();
+        copy.sort((a, b) =>
+          compare(a, b, sortKey, sortDescending, launchIndexBySliceId),
+        );
+        return copy;
+      })();
 
-    // Up/down arrow indicator for the active sort column
-    const arrowIconFor = (key: SortKey) => {
-      if (state.sortKey !== key) return null;
-      const icon = state.sortDescending ? 'expand_more' : 'expand_less';
+      // Cycle sort direction on header click
+      const onSort = (key: SortKey) => {
+        if (sortKey === key) {
+          sortDescending = !sortDescending;
+        } else {
+          sortKey = key;
+          sortDescending = true;
+        }
+        pageOffset = 0;
+      };
+
+      // Up/down arrow indicator for the active sort column
+      const arrowIconFor = (key: SortKey) => {
+        if (sortKey !== key) return null;
+        const icon = sortDescending ? 'expand_more' : 'expand_less';
+        return m(
+          'i',
+          {class: 'pf-icon pf-left-icon', style: 'margin-left:6px;'},
+          icon,
+        );
+      };
+
+      const headerCell = (text: string, key: SortKey) =>
+        m(
+          'th.pf-gpu-compute__summary-th',
+          {
+            onclick: () => onSort(key),
+            title: 'Sort',
+          },
+          [text, arrowIconFor(key)],
+        );
+
       return m(
-        'i',
-        {class: 'pf-icon pf-left-icon', style: 'margin-left:6px;'},
-        icon,
-      );
-    };
-
-    const headerCell = (text: string, key: SortKey) =>
-      m(
-        'th.pf-gpu-compute__summary-th',
-        {
-          onclick: () => onSort(key),
-          title: 'Sort',
-        },
-        [text, arrowIconFor(key)],
-      );
-
-    return m(
-      '.pf-gpu-compute',
-      m('table.pf-gpu-compute__summary-table', [
-        m('caption.pf-gpu-compute__summary-caption', [
-          m('.pf-gpu-compute__summary-caption-row', [
-            m(Icon, {
-              icon: Icons.Help,
-              title: 'About this table',
-              style: 'font-size:16px;',
-            }),
-            m(
-              'span',
-              'This table shows all results in the report. Use the column headers to sort the results in this report. Double-Click a result to see detailed metrics.',
-            ),
+        '.pf-gpu-compute',
+        m('table.pf-gpu-compute__summary-table', [
+          m('caption.pf-gpu-compute__summary-caption', [
+            m('.pf-gpu-compute__summary-caption-row', [
+              m(Icon, {
+                icon: Icons.Help,
+                title: 'About this table',
+                style: 'font-size:16px;',
+              }),
+              m(
+                'span',
+                'This table shows all results in the report. Use the column headers to sort the results in this report. Double-Click a result to see detailed metrics.',
+              ),
+            ]),
           ]),
-        ]),
 
-        m('colgroup', [
-          m('col', {style: 'width:5%'}),
-          m('col', {style: 'width:25%'}),
-          m('col', {style: 'width:14%'}),
-          m('col', {style: 'width:14%'}),
-          m('col', {style: 'width:14%'}),
-          m('col', {style: 'width:14%'}),
-          m('col', {style: 'width:14%'}),
-        ]),
-
-        m(
-          'thead',
-          m('tr.pf-gpu-compute__summary-thead-row', [
-            headerCell('ID', 'id'),
-            headerCell('Demangled Name', 'name'),
-            headerCell('Duration', 'duration'),
-            headerCell('Compute Throughput', 'compute'),
-            headerCell('Memory Throughput', 'memory'),
-            headerCell('# Registers', 'registers'),
-            headerCell(`${terminology.grid.title} Size`, 'grid_size'),
+          m('colgroup', [
+            m('col', {style: 'width:5%'}),
+            m('col', {style: 'width:25%'}),
+            m('col', {style: 'width:14%'}),
+            m('col', {style: 'width:14%'}),
+            m('col', {style: 'width:14%'}),
+            m('col', {style: 'width:14%'}),
+            m('col', {style: 'width:14%'}),
           ]),
-        ),
 
-        m(
-          'tbody',
-          sortedRows
-            .slice(state.pageOffset, state.pageOffset + PAGE_SIZE)
-            .map((r) =>
+          m(
+            'thead',
+            m('tr.pf-gpu-compute__summary-thead-row', [
+              headerCell('ID', 'id'),
+              headerCell('Demangled Name', 'name'),
+              headerCell('Duration', 'duration'),
+              headerCell('Compute Throughput', 'compute'),
+              headerCell('Memory Throughput', 'memory'),
+              headerCell('# Registers', 'registers'),
+              headerCell(`${terminology.grid.title} Size`, 'grid_size'),
+            ]),
+          ),
+
+          m(
+            'tbody',
+            sortedRows.slice(pageOffset, pageOffset + PAGE_SIZE).map((r) =>
               m(
                 'tr.pf-gpu-compute__summary-row',
                 {
@@ -434,72 +412,73 @@ export const KernelSummarySection: m.Component<
                   m(
                     'td.pf-gpu-compute__summary-td',
                     renderRelPercentBar(
-                      Number(r.durationNSecNum),
-                      state.maxDurationNSec,
-                      label(Number(r.durationNSecNum), 'nsecond'),
+                      r.durationNSecNum,
+                      maxDurationNSec,
+                      label(r.durationNSecNum, 'nsecond'),
                     ),
                   ),
                   m(
                     'td.pf-gpu-compute__summary-td',
                     renderRelPercentBar(
-                      Number(r.computePct),
-                      state.maxComputePct,
+                      r.computePct,
+                      maxComputePct,
                       label(r.computePct),
                     ),
                   ),
                   m(
                     'td.pf-gpu-compute__summary-td',
                     renderRelPercentBar(
-                      Number(r.memoryPct),
-                      state.maxMemoryPct,
+                      r.memoryPct,
+                      maxMemoryPct,
                       label(r.memoryPct),
                     ),
                   ),
                   m(
                     'td.pf-gpu-compute__summary-td',
                     renderRelPercentBar(
-                      Number(r.registersPerThread),
-                      state.maxRegisters,
+                      r.registersPerThread,
+                      maxRegisters,
                       label(r.registersPerThread),
                     ),
                   ),
                   m(
                     'td.pf-gpu-compute__summary-td',
                     renderRelPercentBar(
-                      Number(r.gridSize),
-                      state.maxGridSize,
+                      r.gridSize,
+                      maxGridSize,
                       label(r.gridSize),
                     ),
                   ),
                 ],
               ),
             ),
-        ),
-      ]),
-      sortedRows.length > PAGE_SIZE &&
-        m('.pf-gpu-compute__summary-pagination', [
-          m(Button, {
-            icon: Icons.PrevPage,
-            disabled: state.pageOffset === 0,
-            onclick: () => {
-              state.pageOffset = Math.max(0, state.pageOffset - PAGE_SIZE);
-            },
-          }),
-          m(
-            'span',
-            `${state.pageOffset + 1}–${Math.min(state.pageOffset + PAGE_SIZE, sortedRows.length)} of ${sortedRows.length}`,
           ),
-          m(Button, {
-            icon: Icons.NextPage,
-            disabled: state.pageOffset + PAGE_SIZE >= sortedRows.length,
-            onclick: () => {
-              state.pageOffset = Math.min(
-                state.pageOffset + PAGE_SIZE,
-                sortedRows.length - PAGE_SIZE,
-              );
-            },
-          }),
         ]),
-    );
-  },
-};
+        sortedRows.length > PAGE_SIZE &&
+          m('.pf-gpu-compute__summary-pagination', [
+            m(Button, {
+              icon: Icons.PrevPage,
+              disabled: pageOffset === 0,
+              onclick: () => {
+                pageOffset = Math.max(0, pageOffset - PAGE_SIZE);
+              },
+            }),
+            m(
+              'span',
+              `${pageOffset + 1}–${Math.min(pageOffset + PAGE_SIZE, sortedRows.length)} of ${sortedRows.length}`,
+            ),
+            m(Button, {
+              icon: Icons.NextPage,
+              disabled: pageOffset + PAGE_SIZE >= sortedRows.length,
+              onclick: () => {
+                pageOffset = Math.min(
+                  pageOffset + PAGE_SIZE,
+                  sortedRows.length - PAGE_SIZE,
+                );
+              },
+            }),
+          ]),
+      );
+    },
+  };
+}

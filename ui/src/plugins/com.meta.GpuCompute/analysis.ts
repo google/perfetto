@@ -60,17 +60,17 @@ export interface AnalysisCache {
 export interface AnalysisProvider {
   // Renders the full Analysis tab body.
   renderAnalysisTab(attrs: {
-    engine: Engine;
-    sliceId: number;
-    analysisCache: AnalysisCache;
+    readonly engine: Engine;
+    readonly sliceId?: number;
+    readonly analysisCache: AnalysisCache;
   }): m.Children;
 
   // Renders a per-section inline analysis button.
   renderSectionAnalysis(attrs: {
-    section: MetricSection;
-    kernelData: KernelMetricData;
-    sliceId: number;
-    analysisCache: AnalysisCache;
+    readonly section: MetricSection;
+    readonly kernelData: KernelMetricData;
+    readonly sliceId?: number;
+    readonly analysisCache: AnalysisCache;
   }): m.Children;
 }
 
