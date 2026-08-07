@@ -4,7 +4,7 @@ Unreleased:
   Trace Processor:
    *
   UI:
-   *
+    * Double-clicking a timeline slice now selects and zooms into it.
   SDK:
    *
 

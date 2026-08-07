@@ -115,6 +115,7 @@ export interface TrackShellAttrs extends HTMLAttrs {
   onTrackContentMouseMove?(pos: Point2D, contentSize: Bounds2D): void;
   onTrackContentMouseOut?(): void;
   onTrackContentClick?(pos: Point2D, contentSize: Bounds2D): boolean;
+  onTrackContentDoubleClick?(pos: Point2D, contentSize: Bounds2D): boolean;
 
   // If reorderable, these functions will be called when track shells are
   // dragged and dropped.
@@ -367,6 +368,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       onTrackContentMouseMove,
       onTrackContentMouseOut,
       onTrackContentClick,
+      onTrackContentDoubleClick,
       error,
     } = attrs;
 
@@ -408,6 +410,16 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           // Returns true if something was selected, so stop propagation.
           if (
             onTrackContentClick?.(
+              currentTargetOffset(e),
+              getTargetContainerSize(e),
+            )
+          ) {
+            e.stopPropagation();
+          }
+        },
+        ondblclick: (e: MouseEvent) => {
+          if (
+            onTrackContentDoubleClick?.(
               currentTargetOffset(e),
               getTargetContainerSize(e),
             )
