@@ -14,11 +14,7 @@
 
 import m from 'mithril';
 import type {Engine} from '../../../trace_processor/engine';
-import {
-  STR,
-  type Row,
-  type SqlValue,
-} from '../../../trace_processor/query_result';
+import type {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Spinner} from '../../../widgets/spinner';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {
@@ -47,11 +43,10 @@ export interface ObjectParams {
   readonly id: number;
 }
 
-// Open the flamegraph pivoted at the given path. Routed through the
-// session so flamegraph state has a single owner.
-export type OpenFlamegraphPivotedAt = (
-  pathHash: string,
-  label: string,
+// Open the flamegraph pivoted on the given class. Routed through the session
+// so flamegraph state has a single owner.
+export type OpenFlamegraphPivotedOnClass = (
+  className: string,
   isDominator: boolean,
 ) => void;
 
@@ -60,7 +55,7 @@ interface ObjectViewAttrs {
   readonly activeDump: HeapDump;
   readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
-  readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
+  readonly openFlamegraphPivotedOnClass: OpenFlamegraphPivotedOnClass;
   readonly params: ObjectParams;
 }
 
@@ -608,19 +603,14 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
               'button',
               {
                 class: 'pf-hde-link',
-                title: isDominator
-                  ? 'Open in Flamegraph pivoted on this dominator path'
-                  : 'Open in Flamegraph pivoted on this shortest path',
+                title: 'View this class in the Flamegraph',
                 onclick: () =>
-                  openInFlamegraph(
-                    vnode.attrs.engine,
-                    row.id,
+                  vnode.attrs.openFlamegraphPivotedOnClass(
                     row.className,
                     isDominator,
-                    vnode.attrs.openFlamegraphPivotedAt,
                   ),
               },
-              'View in Flamegraph',
+              'View class in Flamegraph',
             )
           : null;
 
@@ -1032,33 +1022,6 @@ function renderArrayGrid(
       showExportButton: true,
     }),
   ]);
-}
-
-// Look up the object's path_hash in the chosen tree (BFS or dominator)
-// and open the flamegraph pivoted on it with the matching metric. The
-// hash is tree-specific so the tree dictates both. No-op if the object
-// has no entry (e.g. unreachable garbage).
-async function openInFlamegraph(
-  engine: Engine,
-  id: number,
-  cls: string,
-  isDominator: boolean,
-  openFlamegraphPivotedAt: OpenFlamegraphPivotedAt,
-): Promise<void> {
-  const moduleName = isDominator
-    ? 'android.memory.heap_graph.dominator_class_tree'
-    : 'android.memory.heap_graph.class_tree';
-  const table = isDominator
-    ? '_heap_graph_dominator_path_hashes'
-    : '_heap_graph_path_hashes';
-  await engine.query(`INCLUDE PERFETTO MODULE ${moduleName};`);
-  const res = await engine.query(
-    `SELECT CAST(path_hash AS TEXT) AS path_hash
-       FROM ${table} WHERE id = ${id} LIMIT 1`,
-  );
-  const it = res.iter({path_hash: STR});
-  if (!it.valid()) return;
-  openFlamegraphPivotedAt(it.path_hash, shortClassName(cls), isDominator);
 }
 
 // `java.lang.Class<Foo>` has no useful subclasses in heap_graph_class; the
