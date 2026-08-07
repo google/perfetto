@@ -17,6 +17,7 @@
 #include "src/trace_redaction/trace_redactor.h"
 
 #include <cstddef>
+#include <cstdio>
 #include <string>
 #include <string_view>
 
@@ -37,6 +38,7 @@
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/drop_empty_ftrace_events.h"
 #include "src/trace_redaction/find_package_uid.h"
+#include "src/trace_redaction/merge_process_tree.h"
 #include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
@@ -82,6 +84,7 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
                                    std::string_view dest_filename,
                                    Context* context) const {
   const std::string source_filename_str(source_filename);
+  const std::string dest_filename_str(dest_filename);
   ASSIGN_OR_RETURN(trace_processor::TraceBlob blob,
                    LoadTrace(source_filename_str));
   trace_processor::TraceBlobView whole_view(std::move(blob));
@@ -98,7 +101,16 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
     RETURN_IF_ERROR(builder->Build(context));
   }
 
-  return Transform(*context, whole_view, std::string(dest_filename));
+  if (augment_reducers_.empty()) {
+    return Transform(*context, whole_view, dest_filename_str);
+  }
+
+  std::string temp_dest_file = dest_filename_str + ".tmp";
+  RETURN_IF_ERROR(Transform(*context, whole_view, temp_dest_file));
+  base::Status status =
+      AugmentReduce(context, temp_dest_file, dest_filename_str);
+  std::remove(temp_dest_file.c_str());
+  return status;
 }
 
 base::Status TraceRedactor::Collect(
@@ -167,6 +179,81 @@ base::Status TraceRedactor::Transform(
         exported_data <= 0) {
       return base::ErrStatus(
           "TraceRedactor: failed to write redacted trace to disk");
+    }
+  }
+
+  return base::OkStatus();
+}
+
+base::Status TraceRedactor::AugmentReduce(const Context* context,
+                                          const std::string& source_file,
+                                          const std::string& dest_file) const {
+  ASSIGN_OR_RETURN(trace_processor::TraceBlob blob, LoadTrace(source_file));
+  trace_processor::TraceBlobView view(std::move(blob));
+
+  // 1. Collect phase: run Collect on each packet for all augment_reducers_
+  const Trace::Decoder collect_decoder(view.data(), view.length());
+  for (auto packet_it = collect_decoder.packet(); packet_it; ++packet_it) {
+    const TracePacket::Decoder packet(packet_it->as_bytes());
+    for (const auto& augment_reducer : augment_reducers_) {
+      RETURN_IF_ERROR(augment_reducer->Collect(packet, context));
+    }
+  }
+
+  const auto dest_fd =
+      base::OpenFile(dest_file, O_RDWR | O_CREAT | O_TRUNC, 0666);
+  if (dest_fd.get() == -1) {
+    return base::ErrStatus(
+        "Failed to open destination file; can't write redacted trace in "
+        "AugmentReduce.");
+  }
+
+  // 2. Augment phase: continue augmenting as long as a non-empty string is
+  // returned. Append each returned trace packet to the trace file.
+  for (const auto& augment_reducer : augment_reducers_) {
+    for (std::string packet = augment_reducer->Augment(*context);
+         !packet.empty(); packet = augment_reducer->Augment(*context)) {
+      protozero::HeapBuffered<protos::pbzero::Trace> serializer;
+      serializer->add_packet()->AppendRawProtoBytes(packet.data(),
+                                                    packet.size());
+      packet.assign(serializer.SerializeAsString());
+      if (const auto exported_data =
+              base::WriteAll(dest_fd.get(), packet.data(), packet.size());
+          exported_data <= 0) {
+        return base::ErrStatus(
+            "TraceRedactor: failed to write redacted trace to disk in "
+            "AugmentReduce");
+      }
+    }
+  }
+
+  // 3. Reduce phase: loop per packet, call Reduce, and serialize packets to
+  // output file.
+  const Trace::Decoder reduce_decoder(view.data(), view.length());
+  for (auto packet_it = reduce_decoder.packet(); packet_it; ++packet_it) {
+    auto packet = packet_it->as_std_string();
+
+    for (const auto& augment_reducer : augment_reducers_) {
+      if (packet.empty()) {
+        break;
+      }
+      RETURN_IF_ERROR(augment_reducer->Reduce(context, &packet));
+    }
+
+    if (packet.empty()) {
+      continue;
+    }
+
+    protozero::HeapBuffered<protos::pbzero::Trace> serializer;
+    serializer->add_packet()->AppendRawProtoBytes(packet.data(), packet.size());
+    packet.assign(serializer.SerializeAsString());
+
+    if (const auto exported_data =
+            base::WriteAll(dest_fd.get(), packet.data(), packet.size());
+        exported_data <= 0) {
+      return base::ErrStatus(
+          "TraceRedactor: failed to write redacted trace to disk in "
+          "AugmentReduce");
     }
   }
 
@@ -321,6 +408,8 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   {
     redactor->emplace_transform<DropEmptyFtraceEvents>();
   }
+
+  redactor->emplace_augment_reduce<MergeProcessTree>();
 
   return redactor;
 }
