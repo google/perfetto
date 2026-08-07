@@ -418,6 +418,10 @@ export default class implements PerfettoPlugin {
           trace: ctx,
           uri,
           dataset: t.dataset,
+          // Root table for SQL-event resolution: without it these tracks
+          // are invisible to selectSqlEvent(), so ts/dur deep links into
+          // GPU streams zoom but never select the slice.
+          rootTableName: 'slice',
           detailsPanel: () => new ThreadSliceDetailsPanel(ctx),
         }),
       });
