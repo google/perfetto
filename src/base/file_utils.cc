@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -265,6 +266,44 @@ bool FlushFile(int fd) {
 #endif
 }
 
+bool SeekFile(int fd, uint64_t offset) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (offset > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    errno = EOVERFLOW;
+    return false;
+  }
+  return _lseeki64(fd, static_cast<int64_t>(offset), SEEK_SET) != -1;
+#else
+  if (offset > static_cast<uint64_t>(std::numeric_limits<off_t>::max())) {
+    errno = EOVERFLOW;
+    return false;
+  }
+  return lseek(fd, static_cast<off_t>(offset), SEEK_SET) !=
+         static_cast<off_t>(-1);
+#endif
+}
+
+bool TruncateFile(int fd, uint64_t size) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (size > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    errno = EOVERFLOW;
+    return false;
+  }
+  int result = _chsize_s(fd, size);
+  if (result != 0) {
+    errno = result;
+    return false;
+  }
+  return true;
+#else
+  if (size > static_cast<uint64_t>(std::numeric_limits<off_t>::max())) {
+    errno = EOVERFLOW;
+    return false;
+  }
+  return PERFETTO_EINTR(ftruncate(fd, static_cast<off_t>(size))) == 0;
+#endif
+}
+
 bool Mkdir(const std::string& path, uint32_t mode) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   base::ignore_result(mode);
@@ -344,6 +383,22 @@ bool FileExists(const std::string& path) {
   return _access(path.c_str(), 0) == 0;
 #else
   return access(path.c_str(), F_OK) == 0;
+#endif
+}
+
+bool DirectoryExists(const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  DWORD attrs = GetFileAttributesA(path.c_str());
+  return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY);
+#else
+  struct stat st;
+  if (stat(path.c_str(), &st) != 0) {
+    return false;
+  }
+  // MSan's stat() interceptor on glibc 2.35+ does not mark the output buffer
+  // as initialized (the syscall goes through statx).
+  PERFETTO_MSAN_UNPOISON(&st, sizeof(st));
+  return S_ISDIR(st.st_mode);
 #endif
 }
 
@@ -646,6 +701,12 @@ std::optional<uint64_t> GetFileSize(PlatformHandle fd) {
   return static_cast<uint64_t>(buf.st_size);
 #endif
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+std::optional<uint64_t> GetFileSize(int fd) {
+  return GetFileSize(reinterpret_cast<PlatformHandle>(_get_osfhandle(fd)));
+}
+#endif
 
 // LinuxFileWatch
 

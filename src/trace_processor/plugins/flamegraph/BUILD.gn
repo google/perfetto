@@ -26,10 +26,12 @@ source_set("flamegraph") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
     "../../../base",
     "../../../base/regex",
     "../../containers",
-    "../../core/dataframe",
+    "../../core/common",
+    "../../core/tree",
     "../../core/util",
   ]
 }
@@ -44,7 +46,9 @@ if (enable_perfetto_benchmarks) {
       "../../../../gn:default_deps",
       "../../../base",
       "../../containers",
-      "../../core/dataframe",
+      "../../core/common",
+      "../../core/tree",
+      "../../core/util",
     ]
   }
 }
@@ -58,7 +62,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../base",
     "../../containers",
-    "../../core/dataframe",
+    "../../core/tree",
     "../../core/util",
   ]
 }

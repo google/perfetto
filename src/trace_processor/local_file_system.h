@@ -23,7 +23,13 @@
 
 namespace perfetto::trace_processor::io {
 
-std::unique_ptr<FileSystem> CreateLocalFileSystem();
+// Returns a process-wide filesystem backed by the native filesystem.
+FileSystem* CreateLocalFileSystem();
+
+// Returns a process-wide filesystem which rejects every operation. Embedders
+// without file I/O use this explicitly rather than accidentally falling
+// through to process filesystem calls.
+FileSystem* CreateNoopFileSystem();
 
 }  // namespace perfetto::trace_processor::io
 

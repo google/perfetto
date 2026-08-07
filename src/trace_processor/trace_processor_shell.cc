@@ -759,7 +759,7 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
     if (!file_system_) {
       file_system_ = io::CreateLocalFileSystem();
     }
-    return file_system_.get();
+    return file_system_;
   }
 
   base::Status OnTraceProcessorCreated(TraceProcessor*) override {
@@ -783,7 +783,7 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
   }
 
  private:
-  std::unique_ptr<io::FileSystem> file_system_;
+  io::FileSystem* file_system_ = nullptr;
 };
 
 DefaultPlatformInterface::~DefaultPlatformInterface() = default;

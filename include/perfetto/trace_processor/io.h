@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_IO_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -26,7 +27,8 @@
 
 namespace perfetto::trace_processor::io {
 
-// A synchronous writable file. Each instance is used from a single thread.
+// A synchronous random-access file. Each instance is used from a single thread
+// and implementations do not need to support concurrent calls.
 class PERFETTO_EXPORT_COMPONENT File {
  public:
   File();
@@ -35,10 +37,35 @@ class PERFETTO_EXPORT_COMPONENT File {
   File(const File&) = delete;
   File& operator=(const File&) = delete;
 
-  virtual base::Status Write(const void* data, size_t size) = 0;
+  // Reads up to |size| bytes starting at |offset|. A short read indicates EOF.
+  virtual base::Status ReadAt(uint64_t offset,
+                              void* data,
+                              size_t size,
+                              size_t* bytes_read) = 0;
+
+  // Writes all |size| bytes starting at |offset|.
+  virtual base::Status WriteAt(uint64_t offset,
+                               const void* data,
+                               size_t size) = 0;
+
+  virtual base::Status Truncate(uint64_t size) = 0;
+  virtual base::Status GetSize(uint64_t* size) = 0;
+  virtual base::Status Flush() = 0;
 };
 
-// A synchronous filesystem used by Trace Processor features which write named
+enum class FileAccess {
+  kReadOnly,
+  kWriteOnly,
+  kReadWrite,
+};
+
+struct FileOpenOptions {
+  FileAccess access = FileAccess::kReadOnly;
+  bool create = false;
+  bool truncate = false;
+};
+
+// A synchronous filesystem used by Trace Processor features which need named
 // files. Paths are opaque to Trace Processor and interpreted by the embedder.
 // Implementations must be thread-safe, although each returned File is only
 // used from one thread.
@@ -50,10 +77,14 @@ class PERFETTO_EXPORT_COMPONENT FileSystem {
   FileSystem(const FileSystem&) = delete;
   FileSystem& operator=(const FileSystem&) = delete;
 
-  // Opens |path| for writing, creating it if needed and replacing any existing
-  // contents. On success, stores the opened file in |file|.
+  // Opens |path| with the given |options|. On success, stores the opened
+  // random-access file in |file|.
   virtual base::Status OpenFile(const std::string& path,
+                                const FileOpenOptions& options,
                                 std::unique_ptr<File>* file) = 0;
+
+  virtual base::Status DeleteFile(const std::string& path) = 0;
+  virtual base::Status FileExists(const std::string& path, bool* exists) = 0;
 };
 
 }  // namespace perfetto::trace_processor::io

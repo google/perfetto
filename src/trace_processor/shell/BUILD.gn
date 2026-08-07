@@ -64,6 +64,7 @@ source_set("shell") {
     "../../traceconv:gen_cc_android_extension_descriptor",
     "../../traceconv:gen_cc_trace_descriptor",
     "../../traceconv:lib",
+    "../../traceconv:utils",
     "../metrics",
     "../rpc",
     "../rpc:lifecycle",
@@ -126,7 +127,6 @@ source_set("unittests") {
     "../../base",
   ]
 }
-
 if (enable_perfetto_integration_tests) {
   source_set("integrationtests") {
     testonly = true
@@ -138,6 +138,8 @@ if (enable_perfetto_integration_tests) {
       "../../../include/perfetto/ext/base",
       "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
       "../../../protos/perfetto/trace:cpp",
+      "../../../protos/perfetto/trace/ftrace:cpp",
+      "../../../protos/perfetto/trace/interned_data:cpp",
       "../../../protos/perfetto/trace/profiling:cpp",
       "../../base:test_support",
     ]

@@ -591,8 +591,10 @@ base::Status ReadTraceUnfinalized(
 #endif  // PERFETTO_HAS_MMAP()
   if (bytes_read == 0) {
     base::ScopedFile fd(base::OpenFile(filename, O_RDONLY));
-    if (!fd)
-      return base::ErrStatus("Could not open trace file (path: %s)", filename);
+    if (!fd) {
+      return base::ErrStatus("could not open trace file %s (errno: %d, %s)",
+                             filename, errno, strerror(errno));
+    }
     RETURN_IF_ERROR(
         ReadTraceUsingRead(tp, *fd, &bytes_read, progress_callback));
   }

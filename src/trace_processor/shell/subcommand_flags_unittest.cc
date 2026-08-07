@@ -31,6 +31,10 @@
 #include "perfetto/trace_processor/io.h"
 #include "src/trace_processor/shell/bundle_subcommand.h"
 #include "src/trace_processor/shell/convert_subcommand.h"
+#include "src/trace_processor/shell/export_subcommand.h"
+#include "src/trace_processor/shell/metrics_subcommand.h"
+#include "src/trace_processor/shell/query_subcommand.h"
+#include "src/trace_processor/shell/server_subcommand.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/shell/util_subcommand.h"
 #include "test/gtest_and_gmock.h"
@@ -111,8 +115,16 @@ struct OutputPath {
 class TestFileSystem final : public io::FileSystem {
  public:
   base::Status OpenFile(const std::string&,
-                        std::unique_ptr<io::File>* file) override {
-    file->reset();
+                        const io::FileOpenOptions&,
+                        std::unique_ptr<io::File>*) override {
+    return base::ErrStatus("not implemented");
+  }
+
+  base::Status DeleteFile(const std::string&) override {
+    return base::ErrStatus("not implemented");
+  }
+
+  base::Status FileExists(const std::string&, bool*) override {
     return base::ErrStatus("not implemented");
   }
 };
@@ -306,6 +318,71 @@ TEST(BundleSubcommandTest, RequiresInputAndOutput) {
   BundleSubcommand bundle;
   EXPECT_FALSE(bundle.Run(CtxWithPositionals({})).ok());
   EXPECT_FALSE(bundle.Run(CtxWithPositionals({"only_input"})).ok());
+}
+
+// Passing more than two positional args is almost always a mistake (e.g.
+// each --symbol-paths dir passed as a separate argument); reject it with a
+// hint instead of silently misinterpreting the args.
+TEST(BundleSubcommandTest, RejectsTooManyPositionals) {
+  BundleSubcommand bundle;
+  base::Status s = bundle.Run(
+      CtxWithPositionals({"dir1", "dir2", "input.pftrace", "out.tar"}));
+  EXPECT_FALSE(s.ok());
+  EXPECT_THAT(s.message(), HasSubstr("expected at most 2 positional"));
+  EXPECT_THAT(s.message(), HasSubstr("--symbol-paths"));
+}
+
+// Every fixed-arity subcommand must reject extra positional arguments instead
+// of silently ignoring them (which used to misparse command lines such as
+// `bundle --symbol-paths a b trace out.tar`).
+TEST(RejectExtraPositionalsTest, RejectsAcrossSubcommands) {
+  struct Case {
+    std::unique_ptr<Subcommand> cmd;
+    std::vector<std::string> args;
+    const char* expected;
+  };
+  std::vector<Case> cases;
+  {
+    auto cmd = std::make_unique<ConvertSubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"json", "in.pb", "out.json", "extra"},
+                     "expected at most 3 positional"});
+  }
+  {
+    auto cmd = std::make_unique<QuerySubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"trace.pb", "select 1", "extra"},
+                     "expected at most 2 positional"});
+  }
+  {
+    auto cmd = std::make_unique<UtilSubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"symbolize", "in.pb", "out", "extra"},
+                     "expected at most 3 positional"});
+  }
+  {
+    auto cmd = std::make_unique<ExportSubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"sqlite", "trace.pb", "extra"},
+                     "expected at most 2 positional"});
+  }
+  {
+    auto cmd = std::make_unique<ServerSubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"stdio", "trace.pb", "extra"},
+                     "expected at most 2 positional"});
+  }
+  {
+    auto cmd = std::make_unique<MetricsSubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"trace.pb", "extra"},
+                     "expected at most 1 positional"});
+  }
+  for (auto& c : cases) {
+    base::Status s = c.cmd->Run(CtxWithPositionals(c.args));
+    EXPECT_FALSE(s.ok()) << c.args[0];
+    EXPECT_THAT(s.message(), HasSubstr(c.expected)) << c.args[0];
+  }
 }
 
 TEST(BundleSubcommandTest, RejectsStdinInput) {

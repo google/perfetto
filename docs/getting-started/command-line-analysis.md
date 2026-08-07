@@ -99,14 +99,33 @@ archive yourself. See
 [Merging traces from the command line](/docs/analysis/merging-traces.md)
 for the details, including how to verify a merge placed every event.
 
-## Export to a SQLite database
+## Export trace data
 
-To use tools that speak SQLite (or to hand the data to someone without
-Perfetto), export every trace processor table to a database file:
+`export` writes the parsed trace data to a file. The format is the first
+positional argument, `-o FILE` the output path:
 
 ```bash
+trace_processor export perfetto -o archive.tar trace.pftrace
+trace_processor export arrow_tar -o tables.tar trace.pftrace
 trace_processor export sqlite -o trace.db trace.pftrace
 ```
+
+- **`perfetto`**: a version-coupled archive of the static tables. A fresh
+  trace processor instance from the same version can load it back as a trace;
+  a different version may load it, but this is not guaranteed. The only
+  format that can be reloaded.
+- **`arrow_tar`**: one standard [Apache Arrow](https://arrow.apache.org/)
+  file per statically registered table, packed in a tar. Stable across trace
+  processor versions, for analysis with pandas, Polars or pyarrow. Cannot be
+  loaded back into trace processor.
+- **`sqlite`**: the statically registered tables plus the trace's views, as
+  a SQLite database file that any SQLite tool can open.
+
+All three formats export the statically registered tables; only `sqlite` also
+includes views. Runtime tables created during the session (e.g.
+`CREATE PERFETTO TABLE`) are not exported. See the
+[Trace Processor reference](/docs/analysis/trace-processor.md#subcommand-export)
+for the flag and format details.
 
 ## Convert to another trace format
 
@@ -121,7 +140,8 @@ trace_processor convert text trace.pftrace trace.txt
 
 Run `trace_processor convert --help` for the full format list, and see
 [Converting from Perfetto](/docs/quickstart/traceconv.md) for more on the
-underlying traceconv tool.
+underlying traceconv tool. `convert` translates the trace itself; to dump the
+parsed tables instead, see [Export trace data](#export-trace-data) above.
 
 ## Next steps
 

@@ -27,7 +27,7 @@ Run this before drilling any single kernel; it names the hotspot. The table is
 verdict needs vendor throughput counters and comes from Phase 2 (Speed of Light).
 
 ```bash
-trace_processor query --query-file $SKILL_ROOT/workflows/gpu/compute/scripts/kernels_summary.sql TRACE_FILE
+trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/compute/scripts/kernels_summary.sql
 ```
 
 Columns: `id` (launch order), `kernel`, `ugpu`, `dur_ns`, `block_size`,

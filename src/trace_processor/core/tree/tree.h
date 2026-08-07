@@ -17,9 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_TREE_TREE_H_
 #define SRC_TRACE_PROCESSOR_CORE_TREE_TREE_H_
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -34,7 +39,9 @@ namespace perfetto::trace_processor::core {
 //
 // Each column stores dense data as raw bytes (Slab<uint8_t>) with a dense null
 // bitvector. Node ids are implicit dense row indices. The parent array contains
-// row indices, with kNullParent used for roots.
+// row indices (kNullParent for roots), and every parent precedes its children:
+// parent[i] == kNullParent || parent[i] < i. This makes root-to-leaf and
+// leaf-to-root operations single forward and reverse passes.
 //
 // This is intentionally minimal: no sort state, no sparse nulls, and no shared
 // ownership. Tree operators consume it and can reuse its allocations.
@@ -42,7 +49,17 @@ struct Tree {
   static constexpr uint32_t kNullParent = std::numeric_limits<uint32_t>::max();
 
   struct Column {
-    using Type = TypeSet<Int64, Double, String>;
+    // Null-typed columns have no payload at all; their null_bv marks every
+    // row as null and their data is never read.
+    using Type = TypeSet<Int64, Double, String, Null>;
+
+    // Creates a null-typed column of |rows| rows: no payload, every row null.
+    static Column CreateNull(uint32_t rows) {
+      Column column;
+      column.type = Type(Null{});
+      column.null_bv = BitVector::CreateWithSize(rows, false);
+      return column;
+    }
 
     template <typename T>
     static Column Create(uint32_t rows, bool nullable = false) {
@@ -86,6 +103,24 @@ struct Tree {
     Slab<uint8_t> data;
     BitVector null_bv;  // non-empty for nullable columns
   };
+
+  // Given a column name, returns a pointer to the corresponding column, or
+  // nullopt if not found.
+  std::optional<const Column*> Find(std::string_view find_name) const {
+    auto it = std::find(names.begin(), names.end(), find_name);
+    if (it == names.end()) {
+      return std::nullopt;
+    }
+    return columns.data() + std::distance(names.begin(), it);
+  }
+
+  // Returns the name associated with a column in this tree.
+  std::string_view ColumnName(const Column* column) const {
+    const auto index =
+        static_cast<size_t>(std::distance(columns.data(), column));
+    PERFETTO_DCHECK(index < names.size());
+    return names[index];
+  }
 
   uint32_t row_count = 0;
   Slab<uint32_t> parent;  // normalized: row indices, kNullParent for roots

@@ -16,21 +16,20 @@
 
 #include <benchmark/benchmark.h>
 
-#include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/tree/tree.h"
+#include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/plugins/flamegraph/flamegraph.h"
 
 namespace perfetto::trace_processor::flamegraph {
 namespace {
 
-// Deterministic LCG so runs are comparable.
 struct Rng {
   uint64_t state = 42;
   uint32_t operator()() {
@@ -39,254 +38,179 @@ struct Rng {
   }
 };
 
-// A forest plus the per-frame property columns the collection step would
-// intern alongside it: |mapping| groups (and is folded into the merge
-// key), |source_file| aggregates.
-struct BenchInput {
-  Forest forest;
-  std::vector<StringPool::Id> mapping;
-  std::vector<StringPool::Id> source_file;
-};
+template <typename T>
+core::Tree::Column ColumnFromValues(const std::vector<T>& values) {
+  auto column =
+      core::Tree::Column::Create<T>(static_cast<uint32_t>(values.size()));
+  memcpy(column.data.begin(), values.data(), values.size() * sizeof(T));
+  return column;
+}
 
-BenchInput GenForest(StringPool* pool,
-                     uint32_t n,
-                     uint32_t metric_count,
-                     bool with_properties) {
-  constexpr uint32_t kNameCardinality = 10000;
-  constexpr uint32_t kMappingCardinality = 40;
-  constexpr uint32_t kSourceFileCardinality = 2000;
-
+core::Tree MakeInput(StringPool* pool, uint32_t rows) {
+  constexpr uint32_t kNames = 10000;
   Rng rng;
-  BenchInput in;
-  Forest& forest = in.forest;
-  forest.metric_count = metric_count;
-  for (uint32_t t = 0; t < kNameCardinality; ++t) {
-    forest.name_table.push_back(
-        pool->InternString(base::StringView("frame_" + std::to_string(t))));
+  std::vector<StringPool::Id> name_table;
+  for (uint32_t i = 0; i < kNames; ++i) {
+    name_table.push_back(
+        pool->InternString(base::StringView("frame_" + std::to_string(i))));
   }
-  std::vector<StringPool::Id> mappings;
-  for (uint32_t t = 0; t < kMappingCardinality && with_properties; ++t) {
-    mappings.push_back(
-        pool->InternString(base::StringView("mapping_" + std::to_string(t))));
-  }
-  std::vector<StringPool::Id> files;
-  for (uint32_t t = 0; t < kSourceFileCardinality && with_properties; ++t) {
-    files.push_back(
-        pool->InternString(base::StringView("file_" + std::to_string(t))));
-  }
+  core::Tree tree;
+  tree.row_count = rows;
+  tree.parent = core::Slab<uint32_t>::Alloc(rows);
+  std::vector<StringPool::Id> names;
+  std::vector<int64_t> values;
+  std::vector<int64_t> groupings;
+  names.reserve(rows);
+  values.reserve(rows);
+  groupings.reserve(rows);
   std::vector<uint32_t> stack;
-  for (uint32_t i = 0; i < n; ++i) {
+  for (uint32_t row = 0; row < rows; ++row) {
     if (!stack.empty() && rng() % 100 < 40) {
       stack.resize(stack.size() - (rng() % stack.size()));
     }
-    forest.parent.push_back(stack.empty() ? kNoParent : stack.back());
-    uint32_t name = rng() % kNameCardinality;
-    forest.name.push_back(name);
-    // The merge key folds the grouping properties in; the generated
-    // mapping is a function of the name, so the name index is exactly the
-    // distinct (name, mapping) id.
-    forest.key.push_back(name);
-    for (uint32_t m = 0; m < metric_count; ++m) {
-      forest.metrics.push_back(rng() % 3 == 0 ? rng() % 100 : 0);
-    }
-    if (with_properties) {
-      in.mapping.push_back(mappings[name % kMappingCardinality]);
-      in.source_file.push_back(files[rng() % kSourceFileCardinality]);
-    }
-    stack.push_back(i);
+    tree.parent[row] = stack.empty() ? core::Tree::kNullParent : stack.back();
+    names.push_back(name_table[rng() % kNames]);
+    values.push_back(rng() % 3 == 0 ? rng() % 100 : 0);
+    groupings.push_back(row);
+    stack.push_back(row);
   }
-  return in;
+  tree.names = {"name", "value", "grouping"};
+  tree.columns.push_back(ColumnFromValues(names));
+  tree.columns.push_back(ColumnFromValues(values));
+  tree.columns.push_back(ColumnFromValues(groupings));
+  return tree;
 }
 
-// Converts the trees to a flat dataframe like the library's ToDataframe,
-// additionally emitting the grouping property of the representative frame
-// and the ONE_OR_SUMMARY aggregation of the constituents' values: the
-// work the SQL intrinsic glue does for property columns.
-constexpr auto PropsRowSpec() {
-  using core::dataframe::CreateTypedColumnSpec;
-  using core::dataframe::Int64;
-  using core::dataframe::NonNull;
-  using core::dataframe::String;
-  using core::dataframe::Unsorted;
-  return core::dataframe::CreateTypedDataframeSpec(
-      {"id", "parentId", "depth", "name", "mapping", "sourceFile", "selfValue",
-       "cumulativeValue"},
-      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
-      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
-      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
-      CreateTypedColumnSpec(String{}, NonNull{}, Unsorted{}),
-      CreateTypedColumnSpec(String{}, NonNull{}, Unsorted{}),
-      CreateTypedColumnSpec(String{}, NonNull{}, Unsorted{}),
-      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
-      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}));
-}
-
-core::dataframe::Dataframe TreesToDataframeWithProps(const Flamegraph& fg,
-                                                     const BenchInput& in,
-                                                     StringPool* pool) {
-  static constexpr auto kSpec = PropsRowSpec();
-  auto df = core::dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool);
-  std::vector<StringPool::Id> seen;
-  int64_t base = 0;
-  for (const Tree* tree : {&fg.down, &fg.up}) {
-    uint32_t k = tree->metric_count;
-    std::vector<int64_t> depth(tree->size());
-    for (uint32_t i = 0; i < tree->size(); ++i) {
-      bool root = tree->parent[i] == kNoParent;
-      depth[i] = root ? 1 : depth[tree->parent[i]] + 1;
-      // ONE_OR_SUMMARY: the representative frame's value, with a summary
-      // suffix when the merged frames had several distinct ones. The
-      // double space and the count including the shown value mirror the
-      // SQL surface this replaces.
-      seen.clear();
-      for (uint32_t c = tree->constituents_offset[i];
-           c < tree->constituents_offset[i + 1]; ++c) {
-        StringPool::Id file = in.source_file[tree->constituents[c]];
-        if (std::find(seen.begin(), seen.end(), file) == seen.end()) {
-          seen.push_back(file);
-        }
-      }
-      StringPool::Id file = in.source_file[tree->rep_frame[i]];
-      if (seen.size() > 1) {
-        std::string text = pool->Get(file).ToStdString() + "  and " +
-                           std::to_string(seen.size()) + " others";
-        file = pool->InternString(base::StringView(text));
-      }
-      df.InsertUnchecked(
-          kSpec, base + i, root ? -1 : base + tree->parent[i],
-          tree == &fg.up ? -depth[i] : depth[i],
-          in.forest.name_table[in.forest.name[tree->rep_frame[i]]],
-          in.mapping[tree->rep_frame[i]], file,
-          static_cast<int64_t>(tree->self[i * k]),
-          static_cast<int64_t>(tree->cumulative[i * k]));
-    }
-    base += static_cast<int64_t>(tree->size());
+struct RunOptions {
+  static RunOptions Filtered() {
+    RunOptions options;
+    options.filtered = true;
+    return options;
   }
-  df.Finalize();
-  return df;
-}
+  static RunOptions Pivot() {
+    RunOptions options;
+    options.pivot = true;
+    return options;
+  }
+  static RunOptions Aggregate() {
+    RunOptions options;
+    options.aggregate = true;
+    return options;
+  }
+  static RunOptions SummaryAggregate() {
+    RunOptions options;
+    options.summary_aggregate = true;
+    return options;
+  }
+  static RunOptions ConcatAggregate() {
+    RunOptions options;
+    options.concat_aggregate = true;
+    return options;
+  }
+  static RunOptions NumericFilter() {
+    RunOptions options;
+    options.numeric_filter = true;
+    return options;
+  }
 
-void Run(benchmark::State& state,
-         const BenchInput& in,
-         const Config& config,
-         StringPool* pool) {
+  bool filtered = false;
+  bool pivot = false;
+  bool aggregate = false;
+  bool summary_aggregate = false;
+  bool concat_aggregate = false;
+  bool numeric_filter = false;
+};
+
+void Run(benchmark::State& state, Config::View view, RunOptions options = {}) {
+  StringPool pool;
+  uint32_t rows = static_cast<uint32_t>(state.range(0));
   for (auto _ : state) {
-    auto fg = Build(in.forest, config, *pool);
-    PERFETTO_CHECK(fg.ok());
-    benchmark::DoNotOptimize(fg);
-  }
-  state.counters["frames/s"] =
-      benchmark::Counter(static_cast<double>(in.forest.size()),
-                         benchmark::Counter::kIsIterationInvariantRate);
-}
-
-// Build plus the dataframe conversion (and property aggregation when the
-// input has properties).
-void RunWithRows(benchmark::State& state,
-                 const BenchInput& in,
-                 const Config& config,
-                 StringPool* pool) {
-  for (auto _ : state) {
-    auto fg = Build(in.forest, config, *pool);
-    PERFETTO_CHECK(fg.ok());
-    if (in.mapping.empty()) {
-      auto df = ToDataframe(*fg, in.forest, pool);
-      PERFETTO_CHECK(df.ok());
-      benchmark::DoNotOptimize(df);
-    } else {
-      auto df = TreesToDataframeWithProps(*fg, in, pool);
-      benchmark::DoNotOptimize(df);
+    state.PauseTiming();
+    core::Tree input = MakeInput(&pool, rows);
+    Config config(pool);
+    config.view = view;
+    config.name = &input.columns[0];
+    config.value_columns.push_back(&input.columns[1]);
+    if (options.aggregate) {
+      config.aggregate_columns.push_back(
+          {&input.columns[1], Config::Aggregate::kSum, "sum_value"});
     }
+    if (options.summary_aggregate) {
+      config.aggregate_columns.push_back(
+          {&input.columns[2], Config::Aggregate::kOneOrSummary, "summary"});
+    }
+    if (options.concat_aggregate) {
+      config.aggregate_columns.push_back({&input.columns[2],
+                                          Config::Aggregate::kConcatWithComma,
+                                          "concatenated"});
+    }
+    if (options.numeric_filter) {
+      config.grouping_columns.push_back(&input.columns[2]);
+      config.show_stack_filters.push_back(
+          base::Regex::CreateOrCheck("^12345$"));
+    }
+    if (options.filtered) {
+      config.show_stack_filters.push_back(
+          base::Regex::CreateOrCheck("frame_1\\d\\d"));
+      config.hide_frame_filters.push_back(
+          base::Regex::CreateOrCheck("frame_2\\d\\d"));
+    }
+    if (options.pivot) {
+      config.view_pattern = base::Regex::CreateOrCheck("frame_12");
+    }
+    state.ResumeTiming();
+    auto output = Build(std::move(input), config);
+    PERFETTO_CHECK(output.ok());
+    benchmark::DoNotOptimize(output);
   }
-  state.counters["frames/s"] =
-      benchmark::Counter(static_cast<double>(in.forest.size()),
-                         benchmark::Counter::kIsIterationInvariantRate);
+  state.counters["frames/s"] = benchmark::Counter(
+      static_cast<double>(rows), benchmark::Counter::kIsIterationInvariantRate);
 }
 
-void BM_FlamegraphTreeTopDown(benchmark::State& state) {
-  StringPool pool;
-  BenchInput in =
-      GenForest(&pool, static_cast<uint32_t>(state.range(0)), 1, false);
-  Run(state, in, Config{}, &pool);
+void BM_FlamegraphTopDown(benchmark::State& state) {
+  Run(state, Config::View(Config::TopDown{}));
 }
-BENCHMARK(BM_FlamegraphTreeTopDown)->Arg(100000)->Arg(1000000);
+BENCHMARK(BM_FlamegraphTopDown)->Arg(100000)->Arg(1000000);
 
-void BM_FlamegraphTreeTopDown4Metrics(benchmark::State& state) {
-  StringPool pool;
-  BenchInput in =
-      GenForest(&pool, static_cast<uint32_t>(state.range(0)), 4, false);
-  Run(state, in, Config{}, &pool);
+void BM_FlamegraphTopDownFiltered(benchmark::State& state) {
+  Run(state, Config::View(Config::TopDown{}), RunOptions::Filtered());
 }
-BENCHMARK(BM_FlamegraphTreeTopDown4Metrics)->Arg(100000)->Arg(1000000);
+BENCHMARK(BM_FlamegraphTopDownFiltered)->Arg(100000)->Arg(1000000);
 
-void BM_FlamegraphTreeTopDownFiltered(benchmark::State& state) {
-  StringPool pool;
-  BenchInput in =
-      GenForest(&pool, static_cast<uint32_t>(state.range(0)), 1, false);
-  Config config;
-  config.filters.push_back({Config::FilterKind::kShowStack, "frame_1\\d\\d"});
-  config.filters.push_back({Config::FilterKind::kHideFrame, "frame_2\\d\\d"});
-  Run(state, in, config, &pool);
+void BM_FlamegraphTopDownAggregate(benchmark::State& state) {
+  Run(state, Config::View(Config::TopDown{}), RunOptions::Aggregate());
 }
-BENCHMARK(BM_FlamegraphTreeTopDownFiltered)->Arg(100000)->Arg(1000000);
+BENCHMARK(BM_FlamegraphTopDownAggregate)->Arg(100000)->Arg(1000000);
 
-void BM_FlamegraphTreeBottomUp(benchmark::State& state) {
-  StringPool pool;
-  BenchInput in =
-      GenForest(&pool, static_cast<uint32_t>(state.range(0)), 1, false);
-  Config config;
-  config.view = Config::View::kBottomUp;
-  Run(state, in, config, &pool);
+void BM_FlamegraphTopDownNumericFilter(benchmark::State& state) {
+  Run(state, Config::View(Config::TopDown{}), RunOptions::NumericFilter());
 }
-BENCHMARK(BM_FlamegraphTreeBottomUp)->Arg(100000)->Arg(1000000);
+BENCHMARK(BM_FlamegraphTopDownNumericFilter)->Arg(100000)->Arg(1000000);
 
-void BM_FlamegraphTreePivot(benchmark::State& state) {
-  StringPool pool;
-  BenchInput in =
-      GenForest(&pool, static_cast<uint32_t>(state.range(0)), 1, false);
-  Config config;
-  config.view = Config::View::kPivot;
-  config.pivot_pattern = "frame_12";
-  Run(state, in, config, &pool);
+void BM_FlamegraphBottomUp(benchmark::State& state) {
+  Run(state, Config::View(Config::BottomUp{}));
 }
-BENCHMARK(BM_FlamegraphTreePivot)->Arg(100000)->Arg(1000000);
+BENCHMARK(BM_FlamegraphBottomUp)->Arg(100000)->Arg(1000000);
 
-void BM_FlamegraphTreeTopDownRows(benchmark::State& state) {
-  StringPool pool;
-  BenchInput in =
-      GenForest(&pool, static_cast<uint32_t>(state.range(0)), 1, false);
-  RunWithRows(state, in, Config{}, &pool);
+void BM_FlamegraphBottomUpAggregate(benchmark::State& state) {
+  Run(state, Config::View(Config::BottomUp{}), RunOptions::Aggregate());
 }
-BENCHMARK(BM_FlamegraphTreeTopDownRows)->Arg(100000)->Arg(1000000);
+BENCHMARK(BM_FlamegraphBottomUpAggregate)->Arg(100000)->Arg(1000000);
 
-void BM_FlamegraphTreeTopDownPropertiesRows(benchmark::State& state) {
-  StringPool pool;
-  BenchInput in =
-      GenForest(&pool, static_cast<uint32_t>(state.range(0)), 1, true);
-  RunWithRows(state, in, Config{}, &pool);
+void BM_FlamegraphTopDownSummaryAggregate(benchmark::State& state) {
+  Run(state, Config::View(Config::TopDown{}), RunOptions::SummaryAggregate());
 }
-BENCHMARK(BM_FlamegraphTreeTopDownPropertiesRows)->Arg(100000)->Arg(1000000);
+BENCHMARK(BM_FlamegraphTopDownSummaryAggregate)->Arg(100000)->Arg(1000000);
 
-void BM_FlamegraphTreeBottomUpRows(benchmark::State& state) {
-  StringPool pool;
-  BenchInput in =
-      GenForest(&pool, static_cast<uint32_t>(state.range(0)), 1, false);
-  Config config;
-  config.view = Config::View::kBottomUp;
-  RunWithRows(state, in, config, &pool);
+void BM_FlamegraphTopDownConcatAggregate(benchmark::State& state) {
+  Run(state, Config::View(Config::TopDown{}), RunOptions::ConcatAggregate());
 }
-BENCHMARK(BM_FlamegraphTreeBottomUpRows)->Arg(100000)->Arg(1000000);
+BENCHMARK(BM_FlamegraphTopDownConcatAggregate)->Arg(100000)->Arg(1000000);
 
-void BM_FlamegraphTreePivotRows(benchmark::State& state) {
-  StringPool pool;
-  BenchInput in =
-      GenForest(&pool, static_cast<uint32_t>(state.range(0)), 1, false);
-  Config config;
-  config.view = Config::View::kPivot;
-  config.pivot_pattern = "frame_12";
-  RunWithRows(state, in, config, &pool);
+void BM_FlamegraphPivot(benchmark::State& state) {
+  Run(state, Config::View(Config::Pivot{}), RunOptions::Pivot());
 }
-BENCHMARK(BM_FlamegraphTreePivotRows)->Arg(100000)->Arg(1000000);
+BENCHMARK(BM_FlamegraphPivot)->Arg(100000)->Arg(1000000);
 
 }  // namespace
 }  // namespace perfetto::trace_processor::flamegraph

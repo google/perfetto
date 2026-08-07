@@ -39,6 +39,7 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
     if (selectedCpus.length === 0) return undefined;
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         await engine.query(`drop view if exists ${this.id};`);
 
@@ -95,7 +96,7 @@ export class WattsonProcessSelectionAggregator implements Aggregator {
     return String(value);
   }
 
-  getGridConfig(): AggregatorGridConfig {
+  private getGridConfig(): AggregatorGridConfig {
     const powerUnits = this.scaleNumericData ? 'µW' : 'mW';
     const energyUnits = this.scaleNumericData ? 'µWs' : 'mWs';
 
