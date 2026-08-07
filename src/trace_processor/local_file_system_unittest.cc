@@ -91,6 +91,8 @@ TEST(LocalFileSystemTest, RandomAccessReadWrite) {
   ASSERT_OK(file->Truncate(6));
   ASSERT_OK(file->GetSize(&size));
   EXPECT_EQ(size, 6u);
+
+  file.reset();
   ASSERT_OK(file_system->DeleteFile(path));
 }
 
