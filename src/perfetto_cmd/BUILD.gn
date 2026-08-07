@@ -55,6 +55,7 @@ source_set("perfetto_cmd") {
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
     "../../protos/perfetto/config/sys_stats:cpp",
+    "../../protos/perfetto/trace/android:zero",
     "../android_stats",
     "../base",
     "../base:version",
@@ -148,6 +149,8 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
     "../../protos/perfetto/trace:cpp",
+    "../../protos/perfetto/trace/android:cpp",
+    "../../protos/perfetto/trace/android:zero",
     "../tracing/core",
     "../tracing/test:test_support",
   ]

@@ -17,15 +17,20 @@
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
 #include <sys/sendfile.h>
+#include <sys/system_properties.h>
 
+#include <chrono>
 #include <cinttypes>
+#include <thread>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/uuid.h"
+#include "perfetto/ext/base/watchdog.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/android_internal/incident_service.h"
@@ -33,8 +38,11 @@
 #include "src/android_internal/tracing_service_proxy.h"
 #include "src/android_stats/statsd_logging_helper.h"
 
+#include "perfetto/base/time.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 
+#include "protos/perfetto/trace/android/after_reboot_trace_event.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -45,6 +53,33 @@ namespace {
 // https://cs.android.com/android/platform/superproject/+/android-latest-release:system/core/libcutils/include/private/android_filesystem_config.h;l=203;drc=f5b540e2b7b9b325d99486d49c0ac57bdd0c5344
 // We only trust packages written by traced.
 static constexpr int32_t kTrustedUid = 9999;
+
+// State: <status>:<boot_time_ns>
+// Empty : Not started yet
+// 1:ts  : Started but not finished yet
+// 2:ts  : Finished
+// 3:ts  : Timed out
+const char* kRebootTraceStatusProp = "traced.reboot_trace_status";
+constexpr uint64_t kUploadWaitTimeoutNs =
+    5ULL * 60 * 1000 * 1000 * 1000;  // 5 minutes
+
+enum class RebootTraceUploadState {
+  kTraceUploadUninitialized = 0,
+  kTraceUploadStarted = 1,
+  kTraceUploadFinished = 2,
+  kTraceUploadTimedout = 3,
+};
+
+void SetRebootTraceStatusProp(RebootTraceUploadState status) {
+  if (status == RebootTraceUploadState::kTraceUploadUninitialized) {
+    __system_property_set(kRebootTraceStatusProp, "");
+    return;
+  }
+  uint64_t boot_time = static_cast<uint64_t>(base::GetBootTimeNs().count());
+  base::StackString<64> prop_val("%d:%" PRIu64, static_cast<int>(status),
+                                 boot_time);
+  __system_property_set(kRebootTraceStatusProp, prop_val.c_str());
+}
 
 // Directory for local state and temporary files. This is automatically
 // created by the system by setting setprop persist.traced.enable=1.
@@ -159,6 +194,12 @@ void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
   if (!status.ok()) {
     PERFETTO_FATAL("ReportTraceToAndroidFramework: %s", status.c_message());
   }
+
+  if (!persistent_file_path_.empty()) {
+    PERFETTO_LOG("Unlinking persistent trace file %s after framework handoff",
+                 persistent_file_path_.c_str());
+    unlink(persistent_file_path_.c_str());
+  }
 }
 
 // Open a staging file (unlinking the previous instance), copy the trace
@@ -237,9 +278,254 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
   return fd;
 }
 
+void PerfettoCmd::WaitForPreviousRebootTraceUpload(
+    const std::string& session_name,
+    const std::string& target_file_path) {
+  // Only block if a persistent trace file with the SAME session name exists on
+  // disk.
+  if (!base::FileExists(target_file_path)) {
+    return;
+  }
+
+  std::string cur_prop = base::GetAndroidProp(kRebootTraceStatusProp);
+
+  // If the file exists on disk and property is empty, wait up to 5 minutes
+  // for property to be set.
+  auto start_time = base::GetBootTimeNs();
+  while (cur_prop.empty() &&
+         static_cast<uint64_t>((base::GetBootTimeNs() - start_time).count()) <
+             kUploadWaitTimeoutNs) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    cur_prop = base::GetAndroidProp(kRebootTraceStatusProp);
+  }
+
+  if (cur_prop.empty()) {
+    base::Uuid uuid;
+    android_stats::MaybeLogUploadEvent(
+        PerfettoStatsdAtom::kRebootTraceUploadTimeout, uuid.lsb(), uuid.msb(),
+        session_name);
+    PERFETTO_ELOG(
+        "Timed out waiting for uploader to set property status for session "
+        "'%s'! Unlinking '%s'.",
+        session_name.c_str(), target_file_path.c_str());
+    remove(target_file_path.c_str());
+    PERFETTO_FATAL(
+        "Timed out waiting for uploader to set property status for session "
+        "'%s'!",
+        session_name.c_str());
+  }
+
+  // If property is set, but the persistent trace file STILL exists on disk,
+  // log error, unlink file, and crash.
+  if (base::FileExists(target_file_path)) {
+    PERFETTO_ELOG(
+        "Persistent trace file '%s' still exists on disk even though property "
+        "is set to '%s'! Unlinking file.",
+        target_file_path.c_str(), cur_prop.c_str());
+    remove(target_file_path.c_str());
+    PERFETTO_FATAL(
+        "Persistent trace file '%s' still exists on disk even though property "
+        "is set to '%s'!",
+        target_file_path.c_str(), cur_prop.c_str());
+  }
+}
+
+// static
+base::ScopedFile PerfettoCmd::CreatePersistentTmpFile(
+    const std::string& session_name,
+    std::string* out_file_path) {
+  base::StackString<256> dir_path("%s/persistent", kStateDir);
+  base::Mkdir(dir_path.c_str());
+
+  std::string clean_name = session_name.empty() ? "default" : session_name;
+  base::StackString<256> file_path("%s/%s.tmp", dir_path.c_str(),
+                                   clean_name.c_str());
+
+  // Wait for any previous pending reboot trace upload for this session name to
+  // complete if the persistent trace file exists on disk.
+  WaitForPreviousRebootTraceUpload(clean_name, file_path.c_str());
+
+  // Unlink any pre-existing instance of this persistent trace file.
+  unlink(file_path.c_str());
+
+  auto fd =
+      base::OpenFile(file_path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+  if (!fd) {
+    PERFETTO_PLOG("Could not create persistent trace file %s",
+                  file_path.c_str());
+  } else if (out_file_path) {
+    *out_file_path = file_path.c_str();
+  }
+  return fd;
+}
+
+size_t PerfettoCmd::SanitizeAndAnnotatePersistentTrace(
+    int fd,
+    const base::ScopedMmap& mmap,
+    const std::string& file_name) {
+  // Compute the valid boundary of complete trace packets in the file.
+  size_t valid_offset = 0;
+  protozero::ProtoDecoder trace_decoder(mmap.data(), mmap.length());
+  for (auto packet = trace_decoder.ReadField(); packet;
+       packet = trace_decoder.ReadField()) {
+    valid_offset = trace_decoder.read_offset();
+  }
+
+  // Truncate any incomplete trailing trace packet caused by abrupt reboot.
+  uint64_t bytes_truncated = 0;
+  if (valid_offset < mmap.length()) {
+    bytes_truncated = static_cast<uint64_t>(mmap.length() - valid_offset);
+    PERFETTO_LOG(
+        "reboot-trace: Truncating incomplete trailing trace packet from %zu to "
+        "%zu bytes (%" PRIu64 " bytes truncated) in %s",
+        mmap.length(), valid_offset, bytes_truncated, file_name.c_str());
+    if (ftruncate(fd, static_cast<off_t>(valid_offset)) != 0) {
+      PERFETTO_PLOG("Failed to ftruncate trace file %s", file_name.c_str());
+    }
+  }
+
+  // Inject AfterRebootTraceEvent packet into trace stream with recovery info.
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  auto* after_reboot_evt = packet->set_after_reboot_trace_event();
+  after_reboot_evt->set_original_file_size(
+      static_cast<uint64_t>(mmap.length()));
+  after_reboot_evt->set_bytes_truncated(bytes_truncated);
+
+  std::vector<uint8_t> packet_bytes = packet.SerializeAsArray();
+  if (lseek(fd, static_cast<off_t>(valid_offset), SEEK_SET) == -1) {
+    PERFETTO_PLOG("Failed to lseek trace file %s", file_name.c_str());
+  } else {
+    base::WriteAll(fd, packet_bytes.data(), packet_bytes.size());
+    valid_offset += packet_bytes.size();
+  }
+  return valid_offset;
+}
+
+int PerfettoCmd::UploadPersistentTracesAfterReboot() {
+  base::StackString<256> persistent_dir("%s/persistent", kStateDir);
+
+  // Initialize property to empty string if unset to ensure Bionic property node
+  // exists.
+  if (base::GetAndroidProp(kRebootTraceStatusProp).empty()) {
+    SetRebootTraceStatusProp(RebootTraceUploadState::kTraceUploadUninitialized);
+  }
+  if (!base::FileExists(persistent_dir.c_str())) {
+    return 0;
+  }
+
+  std::vector<std::string> files;
+  base::Status status = base::ListFilesRecursive(persistent_dir.c_str(), files);
+  if (!status.ok()) {
+    PERFETTO_ELOG("reboot-trace: Failed to list files in %s: %s",
+                  persistent_dir.c_str(), status.c_message());
+    return 0;
+  }
+
+  // Step 1: Upfront Unlink & Open.
+  // Open ALL persistent files upfront and immediately unlink them from disk.
+  // If the process crashes during processing or uploading of any trace,
+  // no persistent trace files remain on disk to cause crash loops.
+  struct PendingTrace {
+    base::ScopedFile fd;
+    std::string file_name;
+  };
+  std::vector<PendingTrace> pending_traces;
+
+  for (const std::string& file_name : files) {
+    // Only process immediate top-level .tmp trace files. Ignore subdirectories.
+    if (file_name.find('/') != std::string::npos ||
+        !base::EndsWith(file_name, ".tmp")) {
+      continue;
+    }
+
+    base::StackString<256> full_path("%s/%s", persistent_dir.c_str(),
+                                     file_name.c_str());
+
+    base::ScopedFile fd = base::OpenFile(full_path.c_str(), O_RDWR | O_CLOEXEC);
+    if (!fd) {
+      PERFETTO_PLOG("reboot-trace: Failed to open persistent trace %s",
+                    full_path.c_str());
+    }
+    // Unlink immediately regardless of open status to guarantee disk cleanup.
+    unlink(full_path.c_str());
+
+    if (fd) {
+      pending_traces.push_back({std::move(fd), file_name});
+    }
+  }
+
+  // Set property status to 1:TS after all persistent trace files are unlinked.
+  // At this point any new reboot-aware trace session can proceed immediately,
+  // since the target persistent file on disk has been unlinked.
+  SetRebootTraceStatusProp(RebootTraceUploadState::kTraceUploadStarted);
+
+  size_t traces_found = pending_traces.size();
+  size_t traces_uploaded = 0;
+
+  // Step 2: Process pre-opened descriptors directly to avoid packet corruption.
+  for (auto& pending : pending_traces) {
+    int fd = pending.fd.get();
+    std::optional<uint64_t> file_size = base::GetFileSize(fd);
+    if (!file_size.has_value() || *file_size == 0) {
+      PERFETTO_LOG("reboot-trace: Skipping empty persistent trace %s",
+                   pending.file_name.c_str());
+      continue;
+    }
+
+    base::ScopedFile dup_fd(dup(fd));
+    base::ScopedMmap mmap = base::ScopedMmap::FromHandle(
+        std::move(dup_fd), static_cast<size_t>(*file_size));
+    if (!mmap.IsValid()) {
+      PERFETTO_PLOG("reboot-trace: Failed to mmap persistent trace %s",
+                    pending.file_name.c_str());
+      continue;
+    }
+
+    std::optional<TraceConfig> config = ParseTraceConfigFromMmapedTrace(mmap);
+    if (!config.has_value()) {
+      PERFETTO_ELOG(
+          "reboot-trace: Failed to parse TraceConfig from persistent trace %s",
+          pending.file_name.c_str());
+      continue;
+    }
+
+    base::Uuid uuid(config->trace_uuid_lsb(), config->trace_uuid_msb());
+    android_stats::MaybeLogUploadEvent(
+        PerfettoStatsdAtom::kRebootTraceRecovered, uuid.lsb(), uuid.msb());
+
+    size_t valid_offset =
+        SanitizeAndAnnotatePersistentTrace(fd, mmap, pending.file_name);
+
+    base::Status report_status = ReportTraceToAndroidFramework(
+        fd, valid_offset, uuid, config->unique_session_name(),
+        config->android_report_config(), true);
+
+    if (!report_status.ok()) {
+      PERFETTO_ELOG(
+          "reboot-trace: Failed to upload recovered reboot trace %s: %s",
+          pending.file_name.c_str(), report_status.c_message());
+    } else {
+      traces_uploaded++;
+      PERFETTO_LOG(
+          "reboot-trace: Successfully uploaded recovered reboot trace %s",
+          pending.file_name.c_str());
+    }
+  }
+
+  if (traces_found > 0) {
+    PERFETTO_LOG(
+        "reboot-trace: %zu persistent trace(s) found, %zu file(s) uploaded.",
+        traces_found, traces_uploaded);
+  }
+
+  // Update property status to 2:TS upon completion of reboot recovery uploads.
+  SetRebootTraceStatusProp(RebootTraceUploadState::kTraceUploadFinished);
+  return 0;
+}
+
 // static
 std::optional<TraceConfig> PerfettoCmd::ParseTraceConfigFromMmapedTrace(
-    base::ScopedMmap mmapped_trace) {
+    const base::ScopedMmap& mmapped_trace) {
   PERFETTO_CHECK(mmapped_trace.IsValid());
 
   protozero::ProtoDecoder trace_decoder(mmapped_trace.data(),

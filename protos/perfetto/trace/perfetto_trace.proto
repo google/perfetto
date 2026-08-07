@@ -512,6 +512,10 @@ message TracingServiceState {
     // If true, the session is in the STARTED state. If false the session is in
     // any other state (see `state` field).
     optional bool is_started = 11;
+
+    // If true, the session is writing directly into an output file (long
+    // trace).
+    optional bool is_write_into_file = 12;
   }
 
   // Lists all the producers connected.
@@ -5068,7 +5072,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 49.
+// Next id: 51.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -6026,6 +6030,22 @@ message TraceConfig {
   //
   // Introduced in: perfetto v58.
   optional TraceAttributes trace_attributes = 48;
+
+  // Android-only. Not for general use. If set to true, writes trace chunks to a
+  // persistent file
+  // (/data/misc/perfetto-traces/persistent/$unique_session_name.tmp) that
+  // survives device reboots (e.g. during OTA updates or battery depletion).
+  //
+  // Introduced in: perfetto v59.
+  // Supported on: Android 26Q3+.
+  optional bool persist_trace_across_reboots = 49;
+
+  // If set to true, forces explicit buffer flushes prior to periodic write
+  // passes into output files when write_into_file is true.
+  //
+  // Introduced in: perfetto v59.
+  // Supported on: Android 26Q3+.
+  optional bool flush_before_writing_into_file = 50;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -6339,6 +6359,22 @@ message TraceStats {
 }
 
 // End of protos/perfetto/common/trace_stats.proto
+
+// Begin of protos/perfetto/trace/android/after_reboot_trace_event.proto
+
+// TODO: or should we just reuse an existing an existing proto file?
+
+// Injected into TracePacket by perfetto --upload-after-reboot to record
+// post-reboot recovery metadata.
+message AfterRebootTraceEvent {
+  // Raw trace file size (in bytes) on disk prior to post-reboot recovery.
+  optional uint64 original_file_size = 1;
+
+  // Amount of trailing corrupted/incomplete bytes truncated during recovery.
+  optional uint64 bytes_truncated = 2;
+}
+
+// End of protos/perfetto/trace/android/after_reboot_trace_event.proto
 
 // Begin of protos/perfetto/trace/android/android_aflags.proto
 
@@ -18168,7 +18204,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 136.
+// Next id: 137.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18346,6 +18382,10 @@ message TracePacket {
     AndroidUserList user_list = 123;
 
     SystemdJournaldEvent journald_event = 132;
+
+    // Injected into TracePacket by perfetto --upload-after-reboot to record
+    // post-reboot recovery lifecycle events and timestamps.
+    AfterRebootTraceEvent after_reboot_trace_event = 136;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

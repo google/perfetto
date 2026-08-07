@@ -1149,8 +1149,18 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       write_period_ms = kMinWriteIntoFilePeriodMs;
 
     auto flush_mode = cfg.write_flush_mode();
-    if (flush_mode == TraceConfig::WRITE_FLUSH_AUTO ||
-        flush_mode == TraceConfig::WRITE_FLUSH_UNSPECIFIED) {
+    if (cfg.flush_before_writing_into_file() ||
+        flush_mode == TraceConfig::WRITE_FLUSH_ENABLED) {
+      tracing_session->flush_strategy = TracingSession::FlushStrategy::kOnWrite;
+      if (cfg.flush_period_ms() > 0) {
+        PERFETTO_LOG(
+            "Warning: flush_period_ms is ignored because "
+            "flush_before_writing_into_file or write_flush_mode is enabled. "
+            "Set write_flush_mode to WRITE_FLUSH_DISABLED to use "
+            "flush_period_ms.");
+      }
+    } else if (flush_mode == TraceConfig::WRITE_FLUSH_AUTO ||
+               flush_mode == TraceConfig::WRITE_FLUSH_UNSPECIFIED) {
       if (write_period_ms <=
           static_cast<uint32_t>(kDefaultWriteIntoFilePeriodMs)) {
         tracing_session->flush_strategy =
@@ -1167,14 +1177,6 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
             "Warning: flush_period_ms is ignored because write_flush_mode is "
             "in AUTO mode. Set write_flush_mode to WRITE_FLUSH_DISABLED to "
             "use flush_period_ms.");
-      }
-    } else if (flush_mode == TraceConfig::WRITE_FLUSH_ENABLED) {
-      tracing_session->flush_strategy = TracingSession::FlushStrategy::kOnWrite;
-      if (cfg.flush_period_ms() > 0) {
-        PERFETTO_LOG(
-            "Warning: flush_period_ms is ignored because write_flush_mode is "
-            "in WRITE_FLUSH_ENABLED mode. Set write_flush_mode to "
-            "WRITE_FLUSH_DISABLED to use flush_period_ms.");
       }
     }
     tracing_session->write_period_ms = write_period_ms;
