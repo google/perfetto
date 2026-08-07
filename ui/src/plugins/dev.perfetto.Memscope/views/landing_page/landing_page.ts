@@ -17,7 +17,6 @@ import {assertIsInstance} from '../../../../base/assert';
 import {AsyncMemo} from '../../../../base/async_memo';
 import type {Setting} from '../../../../public/settings';
 import type {Trace} from '../../../../public/trace';
-import {getBugReportUrl} from '../../../../public/utils';
 import type {Engine} from '../../../../trace_processor/engine';
 import {
   materializeRows,
@@ -27,11 +26,12 @@ import {
 import {Button, ButtonGroup, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {EmptyState} from '../../../../widgets/empty_state';
-import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {PopupPosition} from '../../../../widgets/popup';
 import {Select} from '../../../../widgets/select';
 import {Callout} from '../../components/callout';
 import {Page} from '../../components/page';
+import {PreviewBanner} from '../../components/preview_banner';
 import './landing_page.scss';
 import {ProcessMemDetails} from './proc_mem_overview';
 
@@ -87,6 +87,7 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
         openByDefault,
         hideDefaultChangedHint,
       ),
+      m(PreviewBanner, {app: trace}),
       this.renderPageContent(trace, subpage, onSubpageChange),
     );
   }
@@ -153,13 +154,6 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
                 label: 'Dismiss forever',
                 icon: 'close',
                 onclick: () => hideDefaultChangedHint.set(true),
-              }),
-              m(MenuDivider),
-              m(MenuItem, {
-                label: 'Submit feedback',
-                icon: 'bug_report',
-                onclick: () =>
-                  window.open(getBugReportUrl(trace), '_blank', 'noopener'),
               }),
             ),
           ),
