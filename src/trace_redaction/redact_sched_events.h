@@ -102,13 +102,15 @@ class RedactSchedEvents : public TransformPrimitive {
       const Context& context,
       int32_t cpu,
       protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
-      InternTable* intern_table,
+      InternTable* source_intern_table,
+      std::vector<std::string>* target_intern_table,
       protos::pbzero::FtraceEventBundle::CompactSched* message) const;
 
   base::Status OnCompactSchedWaking(
       const Context& context,
       protos::pbzero::FtraceEventBundle::CompactSched::Decoder& compact_sched,
-      InternTable* intern_table,
+      InternTable* source_intern_table,
+      std::vector<std::string>* target_intern_table,
       protos::pbzero::FtraceEventBundle::CompactSched* compact_sched_message)
       const;
 
