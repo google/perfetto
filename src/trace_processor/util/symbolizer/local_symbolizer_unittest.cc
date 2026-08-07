@@ -361,8 +361,8 @@ TEST(LocalBinaryFinderTest, InvalidBinaryReportsParseError) {
   tmp.AddFile("invalid.so", "not an ELF");
 
   LocalBinaryFinder finder({});
-  BinaryLookupResult result = finder.FindBinary(
-      tmp.AbsolutePath("invalid.so"), "AAAAAAAAAAAAAAAAAAAA");
+  BinaryLookupResult result =
+      finder.FindBinary(tmp.AbsolutePath("invalid.so"), "AAAAAAAAAAAAAAAAAAAA");
 
   ASSERT_FALSE(result.ok());
   ASSERT_EQ(result.attempts.size(), 1u);
