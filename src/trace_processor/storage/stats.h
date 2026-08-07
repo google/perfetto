@@ -678,6 +678,12 @@ namespace perfetto::trace_processor::stats {
       "uses a `DISCARD` buffer. This configuration is strongly discouraged "   \
       "and can cause mysterious data loss in the trace. Please use "           \
       "`RING_BUFFER` buffers instead."),                                       \
+  F(long_trace_mode_bytes_overwritten,    kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Number of bytes this buffer overwrote while the trace was collected "   \
+      "in streaming mode (`write_into_file` with a periodic "                  \
+      "`file_write_period_ms`). The overwritten bytes were never written "     \
+      "out, so they are missing from the trace file. Consider a larger "       \
+      "buffer or a shorter `file_write_period_ms`."),                          \
    F(hprof_string_counter,                 kSingle,  kInfo,   kAnalysis, Scope::kMachineAndTrace,       \
          "Number of strings encountered."),                                    \
    F(hprof_class_counter,                  kSingle,  kInfo,   kAnalysis, Scope::kMachineAndTrace,       \
