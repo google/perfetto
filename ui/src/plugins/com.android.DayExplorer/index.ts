@@ -105,6 +105,8 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
         trackName,
         groupKey,
         query,
+        childIter.track_id,
+        parentId === -1n, // isRoot
       );
       parent.addChildInOrder(node);
       await this.addDayExplorerRecursive(ctx, node, limit, childIter.track_id);
@@ -116,6 +118,8 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     name: string,
     groupKey: string,
     query: string,
+    trackId: bigint,
+    isRoot: boolean,
   ): Promise<TrackNode> {
     const uri = `/day_explorer_${uuidv4()}`;
     const renderer = await CounterTrack.createMaterialized({
@@ -130,6 +134,9 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       renderer,
       tags: {
         kinds: [DAY_EXPLORER_TRACK_KIND],
+        trackId: trackId.toString(),
+        isLabelRoot: isRoot && name.startsWith('[Label]'),
+        isPhysicalRoot: isRoot && !name.startsWith('[Label]'),
       },
     });
 
@@ -178,27 +185,66 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     currentSelection: AreaSelection,
   ): ReadonlyArray<QueryFlamegraphMetric> | undefined {
     // The flame graph will be shown when any day explorer track is in the area
-    // selection. The selection is used to filter by time, but not by track. All
-    // day explorer tracks are considered for the graph.
-    let hasDayExplorer = false;
+    // selection. The selection is used to filter by time, and we filter the graph
+    // to only include energy from the selected tracks and their recursive descendants.
+    // If a physical track is selected, we exclude label roots to avoid double-counting.
+    const selectedTrackIds: bigint[] = [];
+    let hasPhysicalSelected = false;
+
+    // First pass: identify if any physical roots are selected
     for (const trackInfo of currentSelection.tracks) {
-      if (trackInfo?.tags?.kinds?.includes(DAY_EXPLORER_TRACK_KIND)) {
-        hasDayExplorer = true;
-        break;
+      if (
+        trackInfo?.tags?.kinds?.includes(DAY_EXPLORER_TRACK_KIND) &&
+        trackInfo.tags.trackId !== undefined
+      ) {
+        if (trackInfo.tags.isPhysicalRoot === true) {
+          hasPhysicalSelected = true;
+        }
       }
     }
-    if (!hasDayExplorer) {
+
+    // Second pass: collect selected IDs, filtering out label roots if physical tracks are selected
+    for (const trackInfo of currentSelection.tracks) {
+      if (
+        trackInfo?.tags?.kinds?.includes(DAY_EXPLORER_TRACK_KIND) &&
+        trackInfo.tags.trackId !== undefined
+      ) {
+        const isLabelRoot = trackInfo.tags.isLabelRoot === true;
+        if (hasPhysicalSelected && isLabelRoot) {
+          // Exclude label roots if physical tracks are selected to avoid double-counting
+          continue;
+        }
+        const trackId = trackInfo.tags.trackId;
+        if (typeof trackId === 'string' || typeof trackId === 'number') {
+          selectedTrackIds.push(BigInt(trackId));
+        }
+      }
+    }
+
+    if (selectedTrackIds.length === 0) {
       return undefined;
     }
+
     const metrics = metricsFromTableOrSubquery({
       tableOrSubquery: `
         (
-          WITH
+          WITH RECURSIVE
+            selected_roots(track_id) AS (
+              SELECT column1 FROM (VALUES ${selectedTrackIds.map((id) => `(${id})`).join(',')})
+            ),
+            descendants(track_id) AS (
+              SELECT track_id FROM selected_roots
+              UNION ALL
+              SELECT child.track_id
+              FROM day_explorer_ui_hierarchy child
+              JOIN descendants parent ON child.parent_id = parent.track_id
+            ),
             total_energy AS (
               SELECT track_id, parent_id, display_name, SUM(energy_uws) AS energy_uws
               FROM day_explorer_ui_hierarchy_per_ts
               WHERE ts >= ${currentSelection.start}
                 AND ts <= ${currentSelection.end}
+                AND track_id IN (SELECT track_id FROM descendants)
               GROUP BY 1, 2, 3
             ),
             with_child AS (
