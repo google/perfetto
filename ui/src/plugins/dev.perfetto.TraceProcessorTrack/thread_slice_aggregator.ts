@@ -18,6 +18,7 @@ import {
   type Aggregation,
   type Aggregator,
   type AggregatorGridConfig,
+  createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -76,25 +77,25 @@ export class ThreadSliceAggregator implements Aggregator {
           area,
         );
 
-        await engine.query(`
-          CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-          SELECT
-            json_object('id', id, 'trackId', track_id) as id_with_lineage,
-            name,
-            dur,
-            self_dur,
-            depth,
-            parent_id,
-            arg_set_id,
-            track_id,
-            utid,
-            upid
-          FROM (${iiTable.name})
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              json_object('id', id, 'trackId', track_id) as id_with_lineage,
+              name,
+              dur,
+              self_dur,
+              depth,
+              parent_id,
+              arg_set_id,
+              track_id,
+              utid,
+              upid
+            FROM (${iiTable.name})
+          `,
+        });
 
-        return {
-          tableName: this.id,
-        };
+        return createAggregationData(table);
       },
     };
   }
@@ -214,6 +215,7 @@ export class ThreadSliceAggregator implements Aggregator {
                   onclick: () => {
                     this.trace.selection.selectTrackEvent(t.uri, id, {
                       scrollToSelection: true,
+                      switchToCurrentSelectionTab: false,
                     });
                   },
                 }),
@@ -229,6 +231,7 @@ export class ThreadSliceAggregator implements Aggregator {
                 onclick: () => {
                   this.trace.selection.selectTrackEvent(track.uri, id, {
                     scrollToSelection: true,
+                    switchToCurrentSelectionTab: false,
                   });
                 },
               },
@@ -319,8 +322,8 @@ export class ThreadSliceAggregator implements Aggregator {
       schema,
       // The aggregation table has an `arg_set_id` column, so we can expose a
       // parameterized `args.*` column to the datagrid.
-      sqlConfig: ({tableName}): SQLTableSchema => ({
-        tableOrSubquery: tableName,
+      sqlConfig: ({sqlTable}): SQLTableSchema => ({
+        tableOrSubquery: sqlTable.get().name,
         columns: {
           thread: {
             foreignKey: 'utid',
@@ -362,6 +365,13 @@ export class ThreadSliceAggregator implements Aggregator {
           },
         },
       }),
+      initialColumns: [
+        {id: 'id_with_lineage', field: 'id_with_lineage'},
+        {id: 'dur', field: 'dur'},
+        {id: 'name', field: 'name'},
+        {id: 'self_dur', field: 'self_dur'},
+        {id: 'arg_set_id', field: 'arg_set_id'},
+      ],
       initialPivot: {
         groupBy: [{id: 'name', field: 'name'}],
         aggregates: [
