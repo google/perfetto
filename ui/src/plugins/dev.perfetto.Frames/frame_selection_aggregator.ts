@@ -19,10 +19,12 @@ import {
   createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
+import {formatDurationValue} from '../../components/aggregation_panel';
+import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
+import type {SQLTableSchema} from '../../components/widgets/datagrid/sql_schema';
 import type {AreaSelection} from '../../public/selection';
 import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {formatDurationValue} from '../../components/aggregation_panel';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
@@ -37,6 +39,7 @@ export class FrameSelectionAggregator implements Aggregator {
         ts: LONG,
         dur: LONG,
         jank_type: STR,
+        track_id: NUM,
       },
       ACTUAL_FRAMES_SLICE_TRACK_KIND,
     );
@@ -55,9 +58,12 @@ export class FrameSelectionAggregator implements Aggregator {
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
-            jank_type,
-            dur
-          from (${iiTable.name})
+            f.jank_type,
+            f.dur,
+            f.track_id,
+            process_track.upid
+          from (${iiTable.name}) f
+          left join process_track on (f.track_id = process_track.id)
         `);
 
         return {
@@ -72,15 +78,55 @@ export class FrameSelectionAggregator implements Aggregator {
   }
 
   private getGridConfig(): AggregatorGridConfig {
-    return {
-      schema: {
-        jank_type: {title: 'Jank Type', columnType: 'text'},
-        dur: {
-          title: 'Duration',
-          columnType: 'quantitative',
-          cellRenderer: formatDurationValue,
+    const schema: ColumnSchema = {
+      jank_type: {title: 'Jank Type', columnType: 'text'},
+      dur: {
+        title: 'Duration',
+        columnType: 'quantitative',
+        cellRenderer: formatDurationValue,
+      },
+      process: {
+        title: 'Process',
+        schema: {
+          id: {
+            title: 'UPID',
+            columnType: 'identifier',
+          },
+          name: {
+            title: 'Process Name',
+            columnType: 'text',
+          },
+          pid: {
+            title: 'PID',
+            columnType: 'identifier',
+          },
+          cmdline: {
+            title: 'Cmdline',
+            columnType: 'text',
+          },
         },
       },
+    };
+
+    return {
+      schema,
+      sqlConfig: ({tableName}): SQLTableSchema => ({
+        tableOrSubquery: tableName,
+        columns: {
+          process: {
+            foreignKey: 'upid',
+            schema: {
+              tableOrSubquery: 'process',
+              columns: {
+                id: {},
+                name: {},
+                pid: {},
+                cmdline: {},
+              },
+            },
+          },
+        },
+      }),
       initialPivot: {
         groupBy: [{id: 'jank_type', field: 'jank_type'}],
         aggregates: [
