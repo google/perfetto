@@ -702,6 +702,12 @@ std::optional<uint64_t> GetFileSize(PlatformHandle fd) {
 #endif
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+std::optional<uint64_t> GetFileSize(int fd) {
+  return GetFileSize(reinterpret_cast<PlatformHandle>(_get_osfhandle(fd)));
+}
+#endif
+
 // LinuxFileWatch
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
