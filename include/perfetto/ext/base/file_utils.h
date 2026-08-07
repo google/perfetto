@@ -183,6 +183,13 @@ std::optional<uint64_t> GetFileSize(const std::string& path);
 // Returns the size of the open file |fd|, or nullopt in case of error.
 std::optional<uint64_t> GetFileSize(PlatformHandle fd);
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// On Windows PlatformHandle is a HANDLE, not a file descriptor. This overload
+// accepts the CRT file descriptors returned by base::OpenFile(). On other
+// platforms PlatformHandle is an int, so the overload above already covers it.
+std::optional<uint64_t> GetFileSize(int fd);
+#endif
+
 // This class uses inotify (on Linux/Android) to watch for the creation of
 // files in the filesystem. When the specified file is created, it triggers a
 // callback function.
