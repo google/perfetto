@@ -18,11 +18,13 @@ import {Checkbox} from '../../widgets/checkbox';
 import {Intent} from '../../widgets/common';
 import {Icon} from '../../widgets/icon';
 import {Tooltip} from '../../widgets/tooltip';
-import {ALL_CATEGORIES, getFlowCategories} from '../../core/flow_types';
+import {ALL_CATEGORIES, getFlowCategories} from './flow_types';
+import type {FlowManager} from './flow_manager';
 import type {TraceImpl} from '../../core/trace_impl';
 
 export interface FlowEventsAreaSelectedPanelAttrs {
   trace: TraceImpl;
+  flows: FlowManager;
 }
 
 export class FlowEventsAreaSelectedPanel implements m.ClassComponent<FlowEventsAreaSelectedPanelAttrs> {
@@ -32,8 +34,7 @@ export class FlowEventsAreaSelectedPanel implements m.ClassComponent<FlowEventsA
       return;
     }
 
-    const {trace} = attrs;
-    const {flows} = trace;
+    const {flows} = attrs;
 
     const categoryToFlowsNum = new Map<string, number>();
 

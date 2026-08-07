@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time} from '../base/time';
-import {featureFlags} from './feature_flags';
+import {Time} from '../../base/time';
+import {featureFlags} from '../../core/feature_flags';
 import type {FlowDirection, Flow} from './flow_types';
-import {asSliceSqlId} from '../components/sql_utils/core_types';
-import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
-import type {Track, TrackManager} from '../public/track';
+import {asSliceSqlId} from '../../components/sql_utils/core_types';
+import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
+import type {Track, TrackManager} from '../../public/track';
 import type {
   AreaSelection,
   Selection,
   SelectionManager,
-} from '../public/selection';
-import type {Engine} from '../trace_processor/engine';
+} from '../../public/selection';
+import type {Engine} from '../../trace_processor/engine';
+import type {Raf} from '../../public/raf';
 
 const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
   id: 'showIndirectPrecedingFlows',
@@ -47,6 +48,7 @@ export class FlowManager {
     private engine: Engine,
     private trackMgr: TrackManager,
     private selectionMgr: SelectionManager,
+    private raf?: Raf,
   ) {}
 
   // TODO(primiano): the only reason why this is not done in the constructor is
@@ -75,10 +77,10 @@ export class FlowManager {
            when name="ThreadControllerImpl::RunTask" or
                 name="ThreadPool_RunTask" then
             printf("RunTask(posted_from=%s:%s)",
-             EXTRACT_ARG(arg_set_id, "task.posted_from.file_name"),
-             EXTRACT_ARG(arg_set_id, "task.posted_from.function_name"))
-         end
-         from slice where id=$slice_id'
+              EXTRACT_ARG(arg_set_id, "task.posted_from.file_name"),
+              EXTRACT_ARG(arg_set_id, "task.posted_from.function_name"))
+          end
+          from slice where id=$slice_id'
     );`);
   }
 
@@ -448,13 +450,18 @@ export class FlowManager {
         }
       }
     }
+    this.raf?.scheduleCanvasRedraw();
   }
 
   private setSelectedFlows(selectedFlows: Flow[]) {
     this._selectedFlows = selectedFlows;
+    this.raf?.scheduleCanvasRedraw();
   }
 
   updateFlows(selection: Selection) {
+    if (this._curSelection === selection) {
+      return;
+    }
     this.initialize();
     this._curSelection = selection;
 
@@ -477,7 +484,7 @@ export class FlowManager {
     if (selection.kind === 'area') {
       this.areaSelected(selection);
     } else {
-      this.setConnectedFlows([]);
+      this.setSelectedFlows([]);
     }
   }
 
