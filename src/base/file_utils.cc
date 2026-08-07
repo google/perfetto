@@ -268,6 +268,10 @@ bool FlushFile(int fd) {
 
 bool SeekFile(int fd, uint64_t offset) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (fd < 0) {
+    errno = EBADF;
+    return false;
+  }
   if (offset > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
     errno = EOVERFLOW;
     return false;
@@ -285,6 +289,10 @@ bool SeekFile(int fd, uint64_t offset) {
 
 bool TruncateFile(int fd, uint64_t size) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (fd < 0) {
+    errno = EBADF;
+    return false;
+  }
   if (size > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
     errno = EOVERFLOW;
     return false;
