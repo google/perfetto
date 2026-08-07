@@ -39,8 +39,13 @@ import type {
   TrackRenderContext,
   TrackRenderer,
 } from '../../public/track';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {
+  TrackEventDetails,
+  TrackEventSelection,
+} from '../../public/selection';
 import type {TrackNode} from '../../public/workspace';
-import type {Dataset} from '../../trace_processor/dataset';
+import type {Dataset, SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
@@ -55,7 +60,7 @@ export const SLICE_TRACK_SUMMARY_KIND = 'SliceTrackSummary';
 const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
-
+const COLLAPSED_SUMMARY_HEIGHT = 19;
 interface Data {
   start: time;
   end: time;
@@ -86,6 +91,8 @@ export interface Config {
   pidForColor: bigint | number;
   upid: number | null;
   utid: number | null;
+  readonly parentDataset?: SourceDataset;
+  readonly delegateTrack?: TrackRenderer;
 }
 
 type Mode = 'sched' | 'slices';
@@ -102,14 +109,33 @@ function computeHover(
   timescale: TimeScale,
   data: Data,
   threads: ThreadMap,
+  trackNode: TrackNode,
+  delegateTrack?: TrackRenderer,
 ): GroupSummaryHover | undefined {
   if (pos === undefined) return undefined;
 
   const {x, y} = pos;
-  if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) return undefined;
+  const parentHeight = delegateTrack?.getHeight?.(trackNode) ?? 0;
+  const hasParent = delegateTrack !== undefined;
+  const actualYStart = parentHeight;
+  const actualSummaryDrawHeight = hasParent
+    ? COLLAPSED_SUMMARY_HEIGHT
+    : RECT_HEIGHT;
+  const actualMarginTop = hasParent ? 1 : MARGIN_TOP;
 
-  const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
-  const lane = Math.floor((y - MARGIN_TOP) / (laneHeight + 1));
+  const relativeY = y - actualYStart;
+  if (
+    relativeY < actualMarginTop ||
+    relativeY > actualSummaryDrawHeight - actualMarginTop
+  ) {
+    return undefined;
+  }
+
+  const laneHeight = Math.floor(
+    (actualSummaryDrawHeight - (hasParent ? actualMarginTop * 2 : 0)) /
+      data.maxLanes,
+  );
+  const lane = Math.floor((relativeY - actualMarginTop) / (laneHeight + 1));
   const t = timescale.pxToHpTime(x).toTime('floor');
 
   const [i, j] = searchRange(data.starts, t, searchEq(data.lanes, lane));
@@ -133,7 +159,6 @@ export class GroupSummaryTrack implements TrackRenderer {
   private hover?: GroupSummaryHover;
   private readonly mode: Mode;
   private sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
-
   // Cached color scheme for 'slices' mode (constant for track lifetime).
   private readonly slicesModeColor: ColorScheme;
 
@@ -260,7 +285,8 @@ export class GroupSummaryTrack implements TrackRenderer {
       'Can only collect slice tracks in slice mode',
     );
     const sliceTracks: Array<{uri: string; dataset: Dataset}> = [];
-    const stack: TrackNode[] = [trackNode];
+
+    const stack: TrackNode[] = [...trackNode.children].reverse();
     while (stack.length > 0 && sliceTracks.length < 8) {
       const node = stack.pop()!;
 
@@ -281,11 +307,10 @@ export class GroupSummaryTrack implements TrackRenderer {
           uri: node.uri!,
           dataset: dataset,
         });
-      } else {
-        // Not valid - traverse children
-        for (let i = node.children.length - 1; i >= 0; i--) {
-          stack.push(node.children[i]);
-        }
+      }
+      // Always traverse children to include their datasets in the summary
+      for (let i = node.children.length - 1; i >= 0; i--) {
+        stack.push(node.children[i]);
       }
     }
     return sliceTracks;
@@ -469,11 +494,32 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  getHeight(): number {
+  getDataset(): SourceDataset | undefined {
+    return this.config.parentDataset;
+  }
+
+  getHeight(trackNode: TrackNode): number {
+    const parentHeight = this.config.delegateTrack?.getHeight?.(trackNode) ?? 0;
+    const hasParent = this.config.delegateTrack !== undefined;
+    if (hasParent) {
+      if (trackNode.expanded) {
+        return parentHeight;
+      }
+      return parentHeight + COLLAPSED_SUMMARY_HEIGHT;
+    }
     return TRACK_HEIGHT;
   }
 
-  renderTooltip(): m.Children {
+  renderTooltip(trackNode: TrackNode): m.Children {
+    if (trackNode.expanded && this.config.delegateTrack?.renderTooltip) {
+      return this.config.delegateTrack.renderTooltip(trackNode);
+    }
+    if (this.config.delegateTrack?.renderTooltip) {
+      const tooltip = this.config.delegateTrack.renderTooltip(trackNode);
+      if (tooltip !== undefined) {
+        return tooltip;
+      }
+    }
     if (this.hover === undefined) {
       return undefined;
     }
@@ -521,7 +567,42 @@ export class GroupSummaryTrack implements TrackRenderer {
     visibleWindow,
     resolution,
     trackNode,
+    colors,
+    trackUri,
   }: TrackRenderContext): void {
+    if (trackNode.expanded && this.config.delegateTrack) {
+      this.config.delegateTrack.render({
+        ctx,
+        size,
+        timescale,
+        renderer,
+        visibleWindow,
+        resolution,
+        trackNode,
+        colors,
+        trackUri,
+      });
+      return;
+    }
+
+    const parentHeight = this.config.delegateTrack?.getHeight?.(trackNode) ?? 0;
+    const hasParent = this.config.delegateTrack !== undefined;
+    const summaryHeight = COLLAPSED_SUMMARY_HEIGHT;
+
+    if (hasParent) {
+      this.config.delegateTrack!.render({
+        ctx,
+        size: {width: size.width, height: parentHeight},
+        timescale,
+        renderer,
+        visibleWindow,
+        resolution,
+        trackNode,
+        colors,
+        trackUri,
+      });
+    }
+
     // Step 1: Declaratively ensure mipmap table exists
     const tableResult = this.tableSlot.use({
       // Key is constant - table only needs to be created once
@@ -572,10 +653,12 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
+    const actualSummaryHeight = hasParent ? summaryHeight : RECT_HEIGHT;
+    const actualYStart = hasParent ? parentHeight : 0;
     checkerboardExcept(
       ctx,
-      this.getHeight(),
-      0,
+      actualSummaryHeight,
+      actualYStart,
       size.width,
       timescale.timeToPx(data.start),
       timescale.timeToPx(data.end),
@@ -584,7 +667,12 @@ export class GroupSummaryTrack implements TrackRenderer {
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
-    const laneHeight = Math.floor(RECT_HEIGHT / data.maxLanes);
+    const actualSummaryDrawHeight = hasParent ? summaryHeight : RECT_HEIGHT;
+    const actualMarginTop = hasParent ? 1 : MARGIN_TOP;
+    const laneHeight = Math.floor(
+      (actualSummaryDrawHeight - (hasParent ? actualMarginTop * 2 : 0)) /
+        data.maxLanes,
+    );
     const timeline = this.trace.timeline;
     const count = data.length;
 
@@ -622,7 +710,7 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     // Row layout: each lane gets laneHeight with a 1px gap
     const rowLayout: RowLayout = {
-      paddingTop: MARGIN_TOP,
+      paddingTop: actualMarginTop,
       firstRowHeight: laneHeight,
       rowHeight: laneHeight,
       rowGap: 1,
@@ -632,24 +720,56 @@ export class GroupSummaryTrack implements TrackRenderer {
     const pxPerNs = timescale.durationToPx(1n);
     const baseOffsetPx = timescale.timeToPx(data.start);
 
-    renderer.drawSlices(
-      {
-        starts: data.startRelNs,
-        ends: data.endRelNs,
-        depths: data.depths,
-        colors: renderColors,
-        patterns: data.patterns,
-        count,
-      },
-      rowLayout,
-      {offset: baseOffsetPx, scale: pxPerNs},
-    );
+    const draw = () => {
+      renderer.drawSlices(
+        {
+          starts: data.startRelNs,
+          ends: data.endRelNs,
+          depths: data.depths,
+          colors: renderColors,
+          patterns: data.patterns,
+          count,
+        },
+        rowLayout,
+        {offset: baseOffsetPx, scale: pxPerNs},
+      );
+    };
+
+    if (hasParent) {
+      using _translate = renderer.pushTransform({
+        offsetX: 0,
+        offsetY: parentHeight,
+      });
+      using _clip = renderer.clip(0, 0, size.width, summaryHeight);
+      draw();
+    } else {
+      draw();
+    }
   }
 
-  onMouseMove({x, y, timescale}: TrackMouseEvent) {
+  onMouseMove({x, y, timescale}: TrackMouseEvent, trackNode: TrackNode) {
+    const hasParent = this.config.delegateTrack !== undefined;
+
+    if (
+      trackNode.expanded &&
+      hasParent &&
+      this.config.delegateTrack?.onMouseMove
+    ) {
+      this.config.delegateTrack.onMouseMove({x, y, timescale}, trackNode);
+      return;
+    }
+
     const data = this.data;
     if (data === undefined) return;
-    this.hover = computeHover({x, y}, timescale, data, this.threads);
+
+    this.hover = computeHover(
+      {x, y},
+      timescale,
+      data,
+      this.threads,
+      trackNode,
+      this.config.delegateTrack,
+    );
     if (this.hoverMonitor.ifStateChanged()) {
       if (this.mode === 'sched') {
         this.trace.timeline.hoveredUtid = this.hover?.utid;
@@ -659,7 +779,16 @@ export class GroupSummaryTrack implements TrackRenderer {
     }
   }
 
-  onMouseOut() {
+  onMouseOut(trackNode: TrackNode) {
+    const hasParent = this.config.delegateTrack !== undefined;
+    if (
+      trackNode.expanded &&
+      hasParent &&
+      this.config.delegateTrack?.onMouseOut
+    ) {
+      this.config.delegateTrack.onMouseOut(trackNode);
+      return;
+    }
     this.hover = undefined;
     if (this.hoverMonitor.ifStateChanged()) {
       if (this.mode === 'sched') {
@@ -668,5 +797,28 @@ export class GroupSummaryTrack implements TrackRenderer {
       }
       this.trace.raf.scheduleFullRedraw();
     }
+  }
+
+  onMouseClick(event: TrackMouseEvent, trackNode: TrackNode): boolean {
+    if (this.config.delegateTrack?.onMouseClick) {
+      return this.config.delegateTrack.onMouseClick(event, trackNode);
+    }
+    return false;
+  }
+
+  async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    if (this.config.delegateTrack?.getSelectionDetails) {
+      return this.config.delegateTrack.getSelectionDetails(id);
+    }
+    return undefined;
+  }
+
+  detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel | undefined {
+    if (this.config.delegateTrack?.detailsPanel) {
+      return this.config.delegateTrack.detailsPanel(sel);
+    }
+    return undefined;
   }
 }

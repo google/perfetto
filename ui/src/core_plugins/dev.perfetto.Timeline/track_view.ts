@@ -78,7 +78,7 @@ function getTrackHeight(
   // compact to save space.
   if (node.isSummary && node.expanded) return TRACK_HEIGHT_MIN_PX;
 
-  const trackHeight = track?.getHeight?.();
+  const trackHeight = track?.getHeight?.(node);
   if (trackHeight === undefined) return TRACK_HEIGHT_MIN_PX;
 
   // Limit the minimum height of a track, and also round up to the nearest
@@ -213,15 +213,18 @@ export class TrackView {
         },
         onTrackContentMouseMove: (pos, bounds) => {
           const timescale = this.getTimescaleForBounds(bounds);
-          renderer?.track.onMouseMove?.({
-            ...pos,
-            timescale,
-          });
+          renderer?.track.onMouseMove?.(
+            {
+              ...pos,
+              timescale,
+            },
+            node,
+          );
           raf.scheduleCanvasRedraw();
           attrs.onTrackMouseOver();
         },
         onTrackContentMouseOut: () => {
-          renderer?.track.onMouseOut?.();
+          renderer?.track.onMouseOut?.(node);
           raf.scheduleCanvasRedraw();
           attrs.onTrackMouseOut();
         },
@@ -229,10 +232,13 @@ export class TrackView {
           const timescale = this.getTimescaleForBounds(bounds);
           raf.scheduleCanvasRedraw();
           return (
-            renderer?.track.onMouseClick?.({
-              ...pos,
-              timescale,
-            }) ?? false
+            renderer?.track.onMouseClick?.(
+              {
+                ...pos,
+                timescale,
+              },
+              node,
+            ) ?? false
           );
         },
         onMoveBefore: (nodeId: string) => {
