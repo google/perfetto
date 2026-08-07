@@ -378,6 +378,23 @@ message FrameTimelineEvent {
     optional int64 cookie = 1;
   };
 
+  // Emitted once per composite queued to a virtual display's output surface
+  // (e.g. a display-video mirror feeding a MediaCodec input surface). Ties the
+  // frame-timeline token of that composite to the exact present time stamped on
+  // the queued buffer. A surface-input encoder carries that buffer timestamp
+  // through unchanged as the frame's presentation time, so present_time_us
+  // equals the encoded frame's presentationTimeUs and a consumer can join the
+  // token to that frame with certainty.
+  message VirtualDisplayComposite {
+    // SurfaceFlinger's id for the virtual display.
+    optional int64 display_id = 1;
+    // The frame-timeline token (vsync id) of the composite.
+    optional int64 vsync_id = 2;
+    // CLOCK_MONOTONIC present time stamped on the queued buffer, in
+    // microseconds. Equals the encoded frame's presentationTimeUs.
+    optional int64 present_time_us = 3;
+  };
+
   oneof event {
     ExpectedDisplayFrameStart expected_display_frame_start = 1;
     ActualDisplayFrameStart actual_display_frame_start = 2;
@@ -386,6 +403,8 @@ message FrameTimelineEvent {
     ActualSurfaceFrameStart actual_surface_frame_start = 4;
 
     FrameEnd frame_end = 5;
+
+    VirtualDisplayComposite virtual_display_composite = 6;
   }
 }
 
