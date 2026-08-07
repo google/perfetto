@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, type Page} from '@playwright/test';
+import {expect, test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
 let pth: PerfettoTestHelper;
@@ -32,6 +32,21 @@ test('double-clicking a slice zooms into it', async () => {
   const box = await canvas.boundingBox();
   if (box === null) throw new Error('Track canvas bounding box is null');
   await canvas.dblclick({position: {x: box.width / 2, y: box.height / 2}});
+  await pth.waitForPerfettoIdle();
+
+  const visibleWindow = await page.evaluate(() => {
+    const {start, end, duration} = self.app.trace!.timeline.visibleWindow;
+    return {
+      start: start.toNumber(),
+      end: end.toNumber(),
+      duration,
+    };
+  });
+  expect(visibleWindow).toEqual({
+    start: 4_937_500_000,
+    end: 5_062_500_000,
+    duration: 125_000_000,
+  });
 
   await pth.waitForIdleAndScreenshot('slice_double_click_zoom.png', {
     locator: page.locator('.pf-timeline-page__timeline'),

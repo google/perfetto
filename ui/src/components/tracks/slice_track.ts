@@ -303,12 +303,6 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
    * Called when a slice is clicked. Overrides the default selection behavior.
    */
   onSliceClick?(args: OnSliceClickArgs<T>): void;
-
-  /**
-   * Called when a slice is double-clicked. Overrides the default select and
-   * focus behavior.
-   */
-  onSliceDoubleClick?(args: OnSliceClickArgs<T>): void;
 }
 
 interface Tables extends AsyncDisposable {
@@ -1331,13 +1325,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     if (slice === undefined) {
       return false;
     }
-    if (this.attrs.onSliceDoubleClick) {
-      this.attrs.onSliceDoubleClick({slice});
-    } else {
-      void this.trace.selection
-        .selectTrackEvent(this.uri, slice.id)
-        .then(() => this.trace.selection.scrollToSelection('focus'));
-    }
+    void this.trace.selection
+      .selectTrackEvent(this.uri, slice.id)
+      .then(() => this.trace.selection.scrollToSelection('focus'));
     return true;
   }
 
