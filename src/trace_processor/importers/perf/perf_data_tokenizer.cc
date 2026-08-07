@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -215,8 +216,22 @@ PerfDataTokenizer::ParseHeader() {
   return ParsingResult::kSuccess;
 }
 
+// Rejects a section whose attacker-controlled `offset + size` overflows. Such a
+// range can never be satisfied by more data, so it must reject the trace rather
+// than be treated as "more data needed" (an empty/absent slice).
+static base::Status CheckSectionInBounds(const PerfFile::Section& section,
+                                         const char* name) {
+  if (section.size > std::numeric_limits<uint64_t>::max() - section.offset) {
+    return base::ErrStatus("Invalid %s section: offset (%" PRIu64
+                           ") + size (%" PRIu64 ") exceeds uint64 max",
+                           name, section.offset, section.size);
+  }
+  return base::OkStatus();
+}
+
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseAttrs() {
+  RETURN_IF_ERROR(CheckSectionInBounds(header_.attrs, "attrs"));
   std::optional<TraceBlobView> tbv =
       buffer_.SliceOff(header_.attrs.offset, header_.attrs.size);
   if (!tbv) {
@@ -235,6 +250,8 @@ PerfDataTokenizer::ParseAttrs() {
       return base::ErrStatus("Invalid id section size: %" PRIu64,
                              entry.ids.size);
     }
+    RETURN_IF_ERROR(
+        CheckSectionInBounds(entry.ids, "id"));
 
     tbv = buffer_.SliceOff(entry.ids.offset, entry.ids.size);
     if (!tbv) {
@@ -398,6 +415,8 @@ void PerfDataTokenizer::MaybePushRecord(Record record) {
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseFeatureSections() {
   PERFETTO_CHECK(buffer_.start_offset() == header_.data.end());
+  RETURN_IF_ERROR(
+      CheckSectionInBounds(feature_headers_section_, "feature headers"));
   auto tbv = buffer_.SliceOff(feature_headers_section_.offset,
                               feature_headers_section_.size);
   if (!tbv) {
@@ -435,6 +454,8 @@ PerfDataTokenizer::ParseFeatures() {
   while (!feature_sections_.empty()) {
     const auto feature_id = feature_sections_.back().first;
     const auto& section = feature_sections_.back().second;
+    RETURN_IF_ERROR(
+        CheckSectionInBounds(section, "feature"));
     auto tbv = buffer_.SliceOff(section.offset, section.size);
     if (!tbv) {
       return ParsingResult::kMoreDataNeeded;
