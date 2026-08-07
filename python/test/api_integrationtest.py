@@ -15,6 +15,7 @@
 
 import io
 import os
+import sqlite3
 import tempfile
 import unittest
 from typing import Optional
@@ -345,6 +346,26 @@ class TestApi(unittest.TestCase):
     with self.assertRaisesRegex(TraceProcessorException,
                                 'server must be started with'):
       TraceProcessor(addr='localhost:1', config=config)
+
+  def test_sqlite_export(self):
+    with tempfile.TemporaryDirectory() as temp_dir:
+      path = os.path.join(temp_dir, 'export.db')
+
+      config = TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"])
+      with TraceProcessor(
+          trace=example_android_trace_path(), config=config) as tp:
+        tp.export(path, 'sqlite')
+
+      con = sqlite3.connect(path)
+      try:
+        table_count = con.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone(
+            )[0]
+        self.assertGreater(table_count, 0)
+        self.assertGreater(
+            con.execute('SELECT COUNT(*) FROM slice').fetchone()[0], 0)
+      finally:
+        con.close()
 
   def test_add_sql_packages(self):
     with tempfile.TemporaryDirectory() as temp_dir:

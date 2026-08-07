@@ -115,6 +115,8 @@ class TraceProcessorHttp:
       args.format = self.protos.ExportArgs.Format.PERFETTO
     elif export_format == 'arrow_tar':
       args.format = self.protos.ExportArgs.Format.ARROW_TAR
+    elif export_format == 'sqlite':
+      args.format = self.protos.ExportArgs.Format.SQLITE
     else:
       raise ValueError(f'Unknown export format: {export_format}')
     self.conn.request('POST', '/export', body=args.SerializeToString())

@@ -554,6 +554,7 @@ message ExportArgs {
     FORMAT_UNSPECIFIED = 0;
     PERFETTO = 1;
     ARROW_TAR = 2;
+    SQLITE = 3;
   }
   optional Format format = 1;
 }

@@ -5552,6 +5552,8 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/sqlite_connection.cc",
         "src/trace_processor/sqlite/sqlite_connection.h",
         "src/trace_processor/sqlite/sqlite_database.h",
+        "src/trace_processor/sqlite/sqlite_export.cc",
+        "src/trace_processor/sqlite/sqlite_export.h",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/sqlite_utils.h",
     ],
