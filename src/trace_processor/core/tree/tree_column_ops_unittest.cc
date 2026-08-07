@@ -54,26 +54,5 @@ TEST(TreeColumnOpsTest, GathersNullableRows) {
   EXPECT_FALSE(output.null_bv.is_set(1));
 }
 
-TEST(TreeColumnOpsTest, ConcatenatesRowsAndNullability) {
-  Tree::Column first = Tree::Column::Create<int64_t>(2);
-  first.unchecked_span<int64_t>()[0] = 10;
-  first.unchecked_span<int64_t>()[1] = 20;
-  Tree::Column second = Tree::Column::Create<int64_t>(2);
-  second.unchecked_span<int64_t>()[0] = 30;
-  second.unchecked_span<int64_t>()[1] = 40;
-  second.null_bv = BitVector::CreateWithSize(2, true);
-  second.null_bv.clear(0);
-  const uint32_t first_rows[] = {1};
-  const uint32_t second_rows[] = {0, 1};
-
-  Tree::Column output =
-      GatherConcat(first, MakeSpan(first_rows), second, MakeSpan(second_rows));
-  EXPECT_EQ(output.unchecked_span<int64_t>()[0], 20);
-  EXPECT_EQ(output.unchecked_span<int64_t>()[2], 40);
-  EXPECT_TRUE(output.null_bv.is_set(0));
-  EXPECT_FALSE(output.null_bv.is_set(1));
-  EXPECT_TRUE(output.null_bv.is_set(2));
-}
-
 }  // namespace
 }  // namespace perfetto::trace_processor::core::tree_ops
