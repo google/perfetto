@@ -68,7 +68,7 @@ interface ClassAggRow {
   dominatedSizeBytes: number;
   dominatedNativeSizeBytes: number;
   rnRetained: number; // by retained (dominated Java + native)
-  rnShallow: number; // by shallow (reachable self)
+  rnShallow: number; // by direct footprint (reachable shallow + native)
   rnCount: number; // by reachable instance count
 }
 
@@ -184,7 +184,7 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
         ) AS rn_retained,
         ROW_NUMBER() OVER (
           PARTITION BY a.graph_sample_ts
-          ORDER BY a.reachable_size_bytes DESC
+          ORDER BY a.reachable_size_bytes + a.reachable_native_size_bytes DESC
         ) AS rn_shallow,
         ROW_NUMBER() OVER (
           PARTITION BY a.graph_sample_ts ORDER BY a.reachable_obj_count DESC
@@ -653,9 +653,9 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
       .map((c) =>
         classRow(
           c,
-          (r) => r.reachableSizeBytes,
-          cur.reachableHeapSize,
-          comparing ? baseStats.reachableHeapSize : 0,
+          (r) => r.reachableSizeBytes + r.reachableNativeSizeBytes,
+          reachableTotal,
+          baseReachableTotal,
         ),
       );
 
@@ -800,7 +800,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
               }),
             shallowRows.length > 0 &&
               topTable({
-                title: 'Top classes by shallow size',
+                title: 'Top classes by shallow + native size',
                 cols: classCols,
                 rows: shallowRows,
               }),
