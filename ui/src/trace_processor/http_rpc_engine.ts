@@ -29,6 +29,7 @@ export interface HttpRpcState {
 export class HttpRpcEngine extends EngineBase {
   readonly mode = 'HTTP_RPC';
   readonly id: string;
+  override readonly supportsQueryCancellation: boolean;
   private requestQueue = new Array<Uint8Array<ArrayBuffer>>();
   private websocket?: WebSocket;
   private connected = false;
@@ -39,9 +40,10 @@ export class HttpRpcEngine extends EngineBase {
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
   static rpcPort = '9001';
 
-  constructor(id: string) {
+  constructor(id: string, supportsQueryCancellation = false) {
     super();
     this.id = id;
+    this.supportsQueryCancellation = supportsQueryCancellation;
   }
 
   rpcSendRequestBytes(data: Uint8Array): void {

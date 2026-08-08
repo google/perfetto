@@ -46,7 +46,11 @@ selfWorker.onmessage = (msg: MessageEvent) => {
       // then returns. Capturing time before/after the call measures the
       // synchronous prologue; awaiting the returned promise measures the
       // rest (wasm instantiation).
-      const initPromise = bridge.initialize(channel.port1, wasmModule);
+      const initPromise = bridge.initialize(
+        channel.port1,
+        wasmModule,
+        data.useMemory64 ? 'memory64' : 'wasm32',
+      );
       const tAfterStartInit = performance.now();
       return initPromise.then(() => {
         const tDone = performance.now();

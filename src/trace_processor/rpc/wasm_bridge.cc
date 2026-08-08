@@ -15,11 +15,16 @@
  */
 
 #include <emscripten/emscripten.h>
+#if defined(__EMSCRIPTEN_PTHREADS__)
+#include <emscripten/threading.h>
+#endif
 
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <new>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/rpc/rpc.h"
@@ -30,11 +35,31 @@ namespace {
 using RpcResponseFn = void(const void*, uint32_t);
 
 Rpc* g_trace_processor_rpc;
+RpcResponseFn* g_response_fn;
 
-// The buffer used to pass the request arguments. The caller (JS) decides how
-// big this buffer should be in the Initialize() call.
-uint8_t* g_req_buf;
-uint32_t g_req_buf_size;
+#if defined(__EMSCRIPTEN_PTHREADS__)
+struct PendingReply {
+  std::vector<uint8_t> data;
+};
+
+void SendReplyOnFrontend(int, PendingReply* reply) {
+  g_response_fn(reply->data.data(), static_cast<uint32_t>(reply->data.size()));
+  delete reply;
+}
+
+void SendReply(const void* data, uint32_t size) {
+  if (emscripten_is_main_runtime_thread()) {
+    g_response_fn(data, size);
+    return;
+  }
+  auto* reply = new PendingReply;
+  reply->data.resize(size);
+  if (size != 0)
+    memcpy(reply->data.data(), data, size);
+  emscripten_async_run_in_main_runtime_thread(EM_FUNC_SIG_VIP,
+                                              &SendReplyOnFrontend, 0, reply);
+}
+#endif
 
 PERFETTO_NO_INLINE void OutOfMemoryHandler() {
   fprintf(stderr, "\nCannot enlarge memory\n");
@@ -48,11 +73,8 @@ PERFETTO_NO_INLINE void OutOfMemoryHandler() {
 // +---------------------------------------------------------------------------+
 extern "C" {
 
-// Returns the address of the allocated request buffer.
-uint8_t* EMSCRIPTEN_KEEPALIVE
-trace_processor_rpc_init(RpcResponseFn* RpcResponseFn, uint32_t);
-uint8_t* trace_processor_rpc_init(RpcResponseFn* resp_function,
-                                  uint32_t req_buffer_size) {
+void EMSCRIPTEN_KEEPALIVE trace_processor_rpc_init(RpcResponseFn*);
+void trace_processor_rpc_init(RpcResponseFn* resp_function) {
   // Usually OOMs manifest as a failure in dlmalloc() -> sbrk() ->
   //_emscripten_resize_heap() which aborts itself. However in some rare cases
   // sbrk() can fail outside of _emscripten_resize_heap and just return null.
@@ -61,28 +83,30 @@ uint8_t* trace_processor_rpc_init(RpcResponseFn* resp_function,
   std::set_new_handler(&OutOfMemoryHandler);
 
   g_trace_processor_rpc = new Rpc();
+  g_response_fn = resp_function;
 
   // |resp_function| is a JS-bound function passed by wasm_bridge.ts. It will
-  // call back into JavaScript. There the JS code will copy the passed
-  // buffer with the response (a proto-encoded TraceProcessorRpc message) and
-  // postMessage() it to the controller. See the comment in wasm_bridge.ts for
-  // an overview of the JS<>Wasm callstack.
+  // call back into JavaScript. There the JS code will copy the passed buffer
+  // with the response (a proto-encoded TraceProcessorRpc message) and
+  // postMessage() it to the controller. Threaded builds first proxy this
+  // callback onto the worker's main Emscripten runtime thread.
+#if defined(__EMSCRIPTEN_PTHREADS__)
+  g_trace_processor_rpc->SetRpcResponseFunction(&SendReply);
+  g_trace_processor_rpc->EnableThreadedExecution();
+#else
   g_trace_processor_rpc->SetRpcResponseFunction(resp_function);
-
-  g_req_buf = new uint8_t[req_buffer_size];
-  g_req_buf_size = req_buffer_size;
-  return g_req_buf;
+#endif
 }
 
-void EMSCRIPTEN_KEEPALIVE trace_processor_on_rpc_request(uint32_t);
-void trace_processor_on_rpc_request(uint32_t size) {
-  if (PERFETTO_UNLIKELY(size > g_req_buf_size)) {
-    fprintf(stderr,
-            "RPC request size exceeds the buffer passed to "
-            "trace_processor_rpc_init\n");
-    return;
-  }
-  g_trace_processor_rpc->OnRpcRequest(g_req_buf, size);
+uint8_t* EMSCRIPTEN_KEEPALIVE trace_processor_rpc_alloc(uint32_t);
+uint8_t* trace_processor_rpc_alloc(uint32_t size) {
+  return new uint8_t[size];
+}
+
+void EMSCRIPTEN_KEEPALIVE trace_processor_on_rpc_request(uint8_t*, uint32_t);
+void trace_processor_on_rpc_request(uint8_t* data, uint32_t size) {
+  g_trace_processor_rpc->OnRpcRequest(data, size);
+  delete[] data;
 }
 
 }  // extern "C"

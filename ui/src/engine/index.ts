@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {WasmBridge} from './wasm_bridge';
+import type {WasmTier} from '../trace_processor/wasm_modules';
 
 const selfWorker = self as {} as Worker;
 const wasmBridge = new WasmBridge();
@@ -27,10 +28,16 @@ const wasmBridge = new WasmBridge();
 // 2. All the other messages (i.e. the TraceProcessor RPC binary pipe) will be
 //    received on the MessagePort.
 
-selfWorker.onmessage = (msg: MessageEvent) => {
-  const data = msg.data as {
-    port: MessagePort;
-    wasmModule: WebAssembly.Module;
+// A pthread loads this same engine bundle. The modularized Emscripten glue
+// detects its `em-pthread-*` worker name and installs the pthread message
+// handler itself; do not overwrite it with Perfetto's controller handler.
+if (!(globalThis as {name?: string}).name?.startsWith('em-pthread-')) {
+  selfWorker.onmessage = (msg: MessageEvent) => {
+    const data = msg.data as {
+      port: MessagePort;
+      wasmModule: WebAssembly.Module;
+      wasmTier: WasmTier;
+    };
+    wasmBridge.initialize(data.port, data.wasmModule, data.wasmTier);
   };
-  wasmBridge.initialize(data.port, data.wasmModule);
-};
+}

@@ -449,11 +449,10 @@ gcc_like_toolchain("gcc_like_host") {
                                  ])
 }
 
-# The 32 and 64 bit wasm toolchains are configured identically, but differ in
-# the fact that is_wasm_memory64=true (in gn_vars.gni, which looks at the
-# current_toolchain) conditions cflags and ldflags. We actually need different
-# toolchains because the same .cc files will be build twice for each wasm
-# bitness, and they need different output paths.
+# The wasm toolchains are configured identically here. gn_vars.gni derives
+# memory width and threading from current_toolchain, which then conditions the
+# compile and link flags. Separate toolchains give each variant distinct object
+# and output paths.
 template("wasm_toolchain") {
   gcc_like_toolchain(target_name) {
     forward_variables_from(invoker, "*")
@@ -472,6 +471,8 @@ template("wasm_toolchain") {
 wasm_toolchain("wasm") {
 }
 wasm_toolchain("wasm_memory64") {
+}
+wasm_toolchain("wasm_memory64_threads") {
 }
 
 # This is used both for MSVC anc clang-cl. clang-cl cmdline interface pretends

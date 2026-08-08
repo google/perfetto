@@ -378,6 +378,11 @@ config("default") {
     ]
   }
 
+  if (is_wasm_threads) {
+    cflags += [ "-pthread" ]
+    ldflags += [ "-pthread" ]
+  }
+
   if (is_linux) {
     # Enable LFS (large file support) for stat() and other syscalls.
     cflags += [

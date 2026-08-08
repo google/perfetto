@@ -15,7 +15,11 @@
 import {assetSrc} from '../base/assets';
 import {ensureExists, assertTrue} from '../base/assert';
 import {EngineBase} from '../trace_processor/engine';
-import {traceProcessorWasmUrl} from './wasm_modules';
+import {
+  traceProcessorWasmTier,
+  traceProcessorWasmUrl,
+  type WasmTier,
+} from './wasm_modules';
 
 let idleWasmWorker: Worker | undefined = undefined;
 
@@ -24,9 +28,11 @@ let idleWasmWorker: Worker | undefined = undefined;
 // unit-test setups transitively import this file but never start a wasm
 // worker — fetching the .wasm at module-load would error there.
 let precompiledWasmModule: Promise<WebAssembly.Module> | undefined;
+let warmedTier: WasmTier | undefined;
 
 export function warmupWasmWorker() {
   if (precompiledWasmModule === undefined) {
+    warmedTier = traceProcessorWasmTier();
     precompiledWasmModule = WebAssembly.compileStreaming(
       fetch(traceProcessorWasmUrl()),
     );
@@ -44,12 +50,15 @@ export function warmupWasmWorker() {
 export class WasmEngineProxy extends EngineBase implements Disposable {
   readonly mode = 'WASM';
   readonly id: string;
+  override readonly supportsQueryCancellation: boolean;
   private port: MessagePort;
   private worker: Worker;
 
   constructor(id: string) {
     super();
     this.id = id;
+    const wasmTier = traceProcessorWasmTier();
+    this.supportsQueryCancellation = wasmTier === 'memory64-threads';
 
     const channel = new MessageChannel();
     const port1 = channel.port1;
@@ -68,7 +77,8 @@ export class WasmEngineProxy extends EngineBase implements Disposable {
     const worker = this.worker;
     // warmupWasmWorker() guarantees precompiledWasmModule is set.
     ensureExists(precompiledWasmModule).then((wasmModule) => {
-      worker.postMessage({port: port1, wasmModule}, [port1]);
+      assertTrue(warmedTier === wasmTier);
+      worker.postMessage({port: port1, wasmModule, wasmTier}, [port1]);
     });
     this.port.onmessage = this.onMessage.bind(this);
   }

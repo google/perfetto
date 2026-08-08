@@ -49,6 +49,13 @@ if (enable_perfetto_ui) {
     is_memory64 = true
     deps = trace_processor_wasm_deps
   }
+
+  wasm_lib("trace_processor_memory64_threads_wasm") {
+    name = "trace_processor_memory64_threads"
+    is_memory64 = true
+    enable_threads = true
+    deps = trace_processor_wasm_deps
+  }
 }
 
 # Depended upon by Chrome to do proto -> JSON conversion of traces.

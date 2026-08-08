@@ -16,14 +16,13 @@ import {ensureExists, assertTrue} from '../base/assert';
 import {
   TraceProcessor32,
   TraceProcessor64,
-  memory64Supported,
+  TraceProcessor64Threads,
+  type WasmTier,
 } from '../trace_processor/wasm_modules';
 
-// The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
-// will be used to copy the input request data. This is to avoid passing the
-// input data on the stack, which has a limited (~1MB) size.
-// The buffer will be allocated by the C++ side and reachable at
-// HEAPU8[reqBufferAddr, +REQ_BUFFER_SIZE].
+// Requests are copied in chunks no larger than REQ_BUF_SIZE. Each chunk gets
+// an owned C++ allocation rather than using the stack (which is only ~1MB) or
+// a shared reusable buffer (which would race the TP pthread).
 const REQ_BUF_SIZE = 32 * 1024 * 1024;
 
 // The end-to-end interaction between JS and Wasm is as follows:
@@ -50,12 +49,18 @@ export class WasmBridge {
   async initialize(
     port: MessagePort,
     precompiledModule: WebAssembly.Module,
+    tier: WasmTier,
   ): Promise<void> {
     assertTrue(this.messagePort === undefined);
     this.messagePort = port;
-    this.useMemory64 = memory64Supported();
+    this.useMemory64 = tier !== 'wasm32';
 
-    const initModule = this.useMemory64 ? TraceProcessor64 : TraceProcessor32;
+    const initModule =
+      tier === 'memory64-threads'
+        ? TraceProcessor64Threads
+        : tier === 'memory64'
+          ? TraceProcessor64
+          : TraceProcessor32;
     const connection = await initModule({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
@@ -68,13 +73,11 @@ export class WasmBridge {
       },
     });
     const fn = connection.addFunction(this.onReply.bind(this), 'vpi');
-    this.reqBufferAddr = this.wasmPtrCast(
-      connection.ccall(
-        'trace_processor_rpc_init',
-        /* return=*/ 'pointer',
-        /* args=*/ ['pointer', 'number'],
-        [fn, REQ_BUF_SIZE],
-      ),
+    connection.ccall(
+      'trace_processor_rpc_init',
+      /* return=*/ 'void',
+      /* args=*/ ['pointer'],
+      [fn],
     );
     this.connection = connection;
 
@@ -97,14 +100,25 @@ export class WasmBridge {
     while (wrSize < data.length) {
       const sliceLen = Math.min(data.length - wrSize, REQ_BUF_SIZE);
       const dataSlice = data.subarray(wrSize, wrSize + sliceLen);
-      connection.HEAPU8.set(dataSlice, this.reqBufferAddr);
-      wrSize += sliceLen;
       try {
+        // Each message slice owns its handoff buffer. C++ releases it after
+        // the responsive RPC frontend has copied the bytes into its framing
+        // buffer/queue, so the TP pthread never races a reused JS buffer.
+        this.reqBufferAddr = this.wasmPtrCast(
+          connection.ccall(
+            'trace_processor_rpc_alloc',
+            /* return=*/ 'pointer',
+            /* args=*/ ['number'],
+            [sliceLen],
+          ),
+        );
+        connection.HEAPU8.set(dataSlice, this.reqBufferAddr);
+        wrSize += sliceLen;
         connection.ccall(
           'trace_processor_on_rpc_request', // C function name.
           'void', // Return type.
-          ['number'], // Arg types.
-          [sliceLen], // Args.
+          ['pointer', 'number'], // Arg types.
+          [this.reqBufferAddr, sliceLen], // Args.
         );
       } catch (err) {
         this.aborted = true;

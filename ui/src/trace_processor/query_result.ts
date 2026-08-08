@@ -210,12 +210,23 @@ export interface QueryErrorInfo {
   tag?: string; // The EngineProxy tag.
 }
 
+export enum QueryErrorCode {
+  UNSPECIFIED = 0,
+  INTERRUPTED = 1,
+}
+
 export class QueryError extends Error {
   readonly queryErrorInfo: QueryErrorInfo;
+  readonly code: QueryErrorCode;
 
-  constructor(message: string, info: QueryErrorInfo) {
+  constructor(
+    message: string,
+    info: QueryErrorInfo,
+    code = QueryErrorCode.UNSPECIFIED,
+  ) {
     super(message);
     this.queryErrorInfo = info;
+    this.code = code;
   }
 
   toString() {
@@ -441,6 +452,7 @@ export interface WritableQueryResult {
 class QueryResultImpl implements QueryResult, WritableQueryResult {
   columnNames: string[] = [];
   private _error?: string;
+  private _errorCode = QueryErrorCode.UNSPECIFIED;
   private _numRows = 0;
   private _isComplete = false;
   private _errorInfo: QueryErrorInfo;
@@ -622,6 +634,10 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
           this._elapsedTimeMs = reader.double();
           break;
 
+        case 8:
+          this._errorCode = reader.uint32() as QueryErrorCode;
+          break;
+
         default:
           console.warn(`Unexpected QueryResult field ${tag >>> 3}`);
           reader.skipType(tag & 7);
@@ -654,7 +670,9 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     if (this._error === undefined) {
       promise.resolve(arg);
     } else {
-      promise.reject(new QueryError(this._error, this._errorInfo));
+      promise.reject(
+        new QueryError(this._error, this._errorInfo, this._errorCode),
+      );
     }
   }
 }

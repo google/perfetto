@@ -35,6 +35,7 @@ template("wasm_lib") {
   assert(invoker.name + "_wasm" == target_name)
   _lib_name = invoker.name
   _is_memory64 = defined(invoker.is_memory64) && invoker.is_memory64
+  _enable_threads = defined(invoker.enable_threads) && invoker.enable_threads
   if (is_wasm) {
     # Defaults: worker-only, no Emscripten FS. Callers opt in via
     # enable_web_environment / enable_filesystem.
@@ -162,6 +163,13 @@ template("wasm_lib") {
                     "MAXIMUM_MEMORY=4GB",
                   ]
       }
+      if (_enable_threads) {
+        ldflags += [
+          "-pthread",
+          "-s",
+          "PTHREAD_POOL_SIZE=1",
+        ]
+      }
       output_extension = ""
     }
 
@@ -189,7 +197,10 @@ template("wasm_lib") {
   }
 
   group(target_name) {
-    if (_is_memory64) {
+    if (_enable_threads) {
+      assert(_is_memory64, "The threaded WASM tier requires memory64")
+      _wasm_32_or_64_toolchain = wasm_memory64_threads_toolchain
+    } else if (_is_memory64) {
       _wasm_32_or_64_toolchain = wasm_memory64_toolchain
     } else {
       _wasm_32_or_64_toolchain = wasm_toolchain

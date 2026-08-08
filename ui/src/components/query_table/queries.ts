@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import './query_table.scss';
-import type {Engine} from '../../trace_processor/engine';
+import type {
+  Engine,
+  QueryHandle,
+  QueryOptions,
+} from '../../trace_processor/engine';
 import type {Row} from '../../trace_processor/query_result';
 
 export interface QueryResponse {
@@ -46,6 +50,8 @@ export interface QueryResponse {
 export async function runQueryForQueryTable(
   sqlQuery: string,
   engine: Engine,
+  options: QueryOptions = {},
+  onQueryStarted?: (query: QueryHandle) => void,
 ): Promise<QueryResponse> {
   const startMs = performance.now();
 
@@ -54,10 +60,10 @@ export async function runQueryForQueryTable(
   // and deal with pagination there. For now we keep the old behavior and
   // truncate to 10k rows.
 
-  const maybeResult = await engine.tryQuery(sqlQuery);
-
-  if (maybeResult.ok) {
-    const queryRes = maybeResult.value;
+  try {
+    const query = engine.query(sqlQuery, options);
+    onQueryStarted?.(query);
+    const queryRes = await query;
 
     const rows: Row[] = [];
     const columns = queryRes.columns();
@@ -82,7 +88,7 @@ export async function runQueryForQueryTable(
       lastStatementSql: queryRes.lastStatementSql(),
     };
     return result;
-  } else {
+  } catch (error) {
     // In the case of a query error we don't want the exception to bubble up
     // as a crash. The |queryRes| object will be populated anyways.
     // queryRes.error() is used to tell if the query errored or not. If it
@@ -90,7 +96,7 @@ export async function runQueryForQueryTable(
     return {
       query: sqlQuery,
       durationMs: performance.now() - startMs,
-      error: maybeResult.error,
+      error: error instanceof Error ? error.message : `Query failed: ${error}`,
       totalRowCount: 0,
       columns: [],
       rows: [],

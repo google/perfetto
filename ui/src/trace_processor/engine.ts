@@ -59,9 +59,44 @@ export interface QueryLog {
   readonly success?: boolean;
 }
 
+/**
+ * Options controlling a query.
+ *
+ * Tags identify ordering sequences. They are opaque strings and only exact
+ * equality is significant: e.g. `foo` and `foo/bar` are unrelated sequences.
+ * Names concatenated by nested getProxy() calls are only for uniqueness and
+ * diagnostics; they do not establish parent/child ordering.
+ *
+ * Cancellable queries must be side-effect free. Interrupting a multi-statement
+ * query can leave effects from statements which completed before interruption.
+ */
+export interface QueryOptions {
+  tag?: string;
+  cancellable?: boolean;
+}
+
+/** A query promise with cancellation scoped to the query's exact tag. */
+export interface QueryHandle extends Promise<QueryResult> {
+  /**
+   * Requests cancellation and resolves only after the query's terminal
+   * response. On engines without cancellation support this simply waits for
+   * normal completion.
+   */
+  cancel(): Promise<void>;
+}
+
+/**
+ * Trace Processor client.
+ *
+ * Operations with the exact same tag are ordered. Ordering across different
+ * tags is undefined; dependencies must be expressed by awaiting completion in
+ * JavaScript or by using a global barrier operation.
+ */
 export interface Engine {
   readonly mode: EngineMode;
   readonly engineId: string;
+  /** Whether this engine can interrupt a running cancellable query. */
+  readonly supportsQueryCancellation: boolean;
 
   /**
    * A list of the most recent queries along with their start times, elapsed
@@ -82,7 +117,7 @@ export interface Engine {
    *
    * @param sql The query to execute.
    */
-  query(sql: string): Promise<QueryResult>;
+  query(sql: string, options?: QueryOptions): QueryHandle;
 
   /**
    * Execute a query against the database, returning a promise that resolves
@@ -95,7 +130,7 @@ export interface Engine {
    *
    * @param sql The query to execute.
    */
-  tryQuery(sql: string): Promise<Result<QueryResult>>;
+  tryQuery(sql: string, options?: QueryOptions): Promise<Result<QueryResult>>;
 
   /**
    * Execute one or more metric and get the result.
@@ -157,6 +192,7 @@ export interface Engine {
 export abstract class EngineBase implements Engine, Disposable {
   abstract readonly id: string;
   abstract readonly mode: EngineMode;
+  readonly supportsQueryCancellation: boolean = false;
   private txSeqId = 0;
   private rxSeqId = 0;
   private rxBuf = new ProtoRingBuffer();
@@ -177,6 +213,10 @@ export abstract class EngineBase implements Engine, Disposable {
   private _failed: string | undefined = undefined;
   private _queryLog: Array<QueryLog> = [];
   private _nextQueryLogId = 0;
+  private outstandingQueryTails = new Map<
+    string | undefined,
+    {token: symbol; cancellable: boolean}
+  >();
 
   get queryLog(): ReadonlyArray<QueryLog> {
     return this._queryLog;
@@ -568,12 +608,17 @@ export abstract class EngineBase implements Engine, Disposable {
   // attributing trace processor workload to different UI components.
   // NOTE: the only reason why this is public is so that Winscope (which uses a
   // fork of our codebase) can invoke this directly. See commit msg of #3051.
-  streamingQuery(result: WritableQueryResult, sqlQuery: string, tag?: string) {
+  streamingQuery(
+    result: WritableQueryResult,
+    sqlQuery: string,
+    options: QueryOptions = {},
+  ) {
     const rpc = protos.TraceProcessorRpc.create();
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new protos.QueryArgs();
     rpc.queryArgs.sqlQuery = sqlQuery;
-    rpc.queryArgs.tag = tag;
+    rpc.queryArgs.tag = options.tag;
+    rpc.queryArgs.cancellable = options.cancellable;
     this.pendingQueries.push(result);
     this.rpcSendRequest(rpc);
   }
@@ -603,30 +648,77 @@ export abstract class EngineBase implements Engine, Disposable {
   //
   // Note: This function is less flexible than .execute() as it only returns a
   // promise which must be unwrapped before the QueryResult may be accessed.
-  async query(sqlQuery: string, tag?: string): Promise<QueryResult> {
-    const queryLog = this.logQueryStart(sqlQuery, tag);
-    try {
-      const result = createQueryResult({query: sqlQuery, tag});
-      this.streamingQuery(result, sqlQuery, tag);
-      const resolvedResult = await result;
-      queryLog.success = true;
-      queryLog.elapsedTimeMs = resolvedResult.elapsedTimeMs();
-      return resolvedResult;
-    } catch (e) {
-      // Replace the error's stack trace with the one from here
-      // Note: It seems only V8 can trace the stack up the promise chain, so its
-      // likely this stack won't be useful on !V8.
-      // See
-      // https://docs.google.com/document/d/13Sy_kBIJGP0XT34V1CV3nkWya4TwYx9L3Yv45LdGB6Q
-      captureStackTrace(e);
-      queryLog.success = false;
-      throw e;
+  query(sqlQuery: string, options: QueryOptions = {}): QueryHandle {
+    const {tag} = options;
+    const previousTail = this.outstandingQueryTails.get(tag);
+    if (previousTail?.cancellable) {
+      throw new Error(
+        `Cannot enqueue an operation on tag ${JSON.stringify(tag)} while ` +
+          `its cancellable tail query is outstanding`,
+      );
     }
+    const token = Symbol('query');
+    this.outstandingQueryTails.set(tag, {
+      token,
+      cancellable: options.cancellable === true,
+    });
+    const queryLog = this.logQueryStart(sqlQuery, tag);
+    const queryPromise = (async () => {
+      try {
+        const result = createQueryResult({query: sqlQuery, tag});
+        this.streamingQuery(result, sqlQuery, options);
+        const resolvedResult = await result;
+        queryLog.success = true;
+        queryLog.elapsedTimeMs = resolvedResult.elapsedTimeMs();
+        return resolvedResult;
+      } catch (e) {
+        // Replace the error's stack trace with the one from here
+        // Note: It seems only V8 can trace the stack up the promise chain, so its
+        // likely this stack won't be useful on !V8.
+        // See
+        // https://docs.google.com/document/d/13Sy_kBIJGP0XT34V1CV3nkWya4TwYx9L3Yv45LdGB6Q
+        captureStackTrace(e);
+        queryLog.success = false;
+        throw e;
+      }
+    })();
+
+    const clearTail = () => {
+      if (this.outstandingQueryTails.get(tag)?.token === token) {
+        this.outstandingQueryTails.delete(tag);
+      }
+    };
+    void queryPromise.then(clearTail, clearTail);
+
+    let cancellationRequested = false;
+    const cancel = async (): Promise<void> => {
+      if (!cancellationRequested && this.supportsQueryCancellation) {
+        cancellationRequested = true;
+        this.sendQueryCancellation(tag);
+      }
+      // Cancellation completion is gated on the target query's terminal
+      // response. Its expected query error is deliberately swallowed here.
+      await queryPromise.then(
+        () => undefined,
+        () => undefined,
+      );
+    };
+    return Object.assign(queryPromise, {cancel});
   }
 
-  async tryQuery(sql: string, tag?: string): Promise<Result<QueryResult>> {
+  private sendQueryCancellation(tag: string | undefined): void {
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_INTERRUPT_QUERY;
+    rpc.interruptQueryArgs = new protos.InterruptQueryArgs({tag});
+    this.rpcSendRequest(rpc, false);
+  }
+
+  async tryQuery(
+    sql: string,
+    options: QueryOptions = {},
+  ): Promise<Result<QueryResult>> {
     try {
-      const result = await this.query(sql, tag);
+      const result = await this.query(sql, options);
       return okResult(result);
     } catch (error) {
       const msg = 'message' in error ? `${error.message}` : `${error}`;
@@ -757,14 +849,17 @@ export abstract class EngineBase implements Engine, Disposable {
 
   // Marshals the TraceProcessorRpc request arguments and sends the request
   // to the concrete Engine (Wasm or HTTP).
-  private rpcSendRequest(rpc: protos.TraceProcessorRpc) {
+  private rpcSendRequest(
+    rpc: protos.TraceProcessorRpc,
+    expectsResponse = true,
+  ) {
     rpc.seq = this.txSeqId++;
     // Each message is wrapped in a TraceProcessorRpcStream to add the varint
     // preamble with the size, which allows tokenization on the other end.
     const outerProto = protos.TraceProcessorRpcStream.create();
     outerProto.msg.push(rpc);
     const buf = protos.TraceProcessorRpcStream.encode(outerProto).finish();
-    ++this._numRequestsPending;
+    if (expectsResponse) ++this._numRequestsPending;
     this.rpcSendRequestBytes(buf);
   }
 
@@ -811,21 +906,27 @@ export class EngineProxy implements Engine, Disposable {
     this.tag = tag;
   }
 
-  async query(query: string): Promise<QueryResult> {
+  query(query: string, options: QueryOptions = {}): QueryHandle {
     if (this.disposed) {
       // If we are disposed (the trace was closed), return an empty QueryResult
       // that will never see any data or EOF. We can't do otherwise or it will
       // cause crashes to code calling firstRow() and expecting data.
-      return createQueryResult({query, tag: this.tag});
+      const result = createQueryResult({query, tag: this.tag});
+      return Object.assign(Promise.resolve(result), {
+        cancel: async () => undefined,
+      });
     }
-    return await this.engine.query(query, this.tag);
+    return this.engine.query(query, {...options, tag: this.tag});
   }
 
-  async tryQuery(query: string): Promise<Result<QueryResult>> {
+  async tryQuery(
+    query: string,
+    options: QueryOptions = {},
+  ): Promise<Result<QueryResult>> {
     if (this.disposed) {
       return errResult(`EngineProxy ${this.tag} was disposed`);
     }
-    return await this.engine.tryQuery(query);
+    return await this.engine.tryQuery(query, {...options, tag: this.tag});
   }
 
   async computeMetric(
@@ -833,7 +934,7 @@ export class EngineProxy implements Engine, Disposable {
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array> {
     if (this.disposed) {
-      return defer<string>(); // Return a promise that will hang forever.
+      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed`));
     }
     return this.engine.computeMetric(metrics, format);
   }
@@ -844,6 +945,9 @@ export class EngineProxy implements Engine, Disposable {
     metadataId: string | undefined,
     format: 'prototext' | 'proto',
   ): Promise<protos.TraceSummaryResult> {
+    if (this.disposed) {
+      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed`));
+    }
     return this.engine.summarizeTrace(
       summarySpecs,
       metricIds,
@@ -853,16 +957,23 @@ export class EngineProxy implements Engine, Disposable {
   }
 
   enableMetatrace(categories?: protos.MetatraceCategories): void {
+    if (this.disposed) return;
     this.engine.enableMetatrace(categories);
   }
 
   stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult> {
+    if (this.disposed) {
+      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed`));
+    }
     return this.engine.stopAndGetMetatrace();
   }
 
   createSummarizer(
     summarizerId: string,
   ): Promise<protos.CreateSummarizerResult> {
+    if (this.disposed) {
+      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed`));
+    }
     return this.engine.createSummarizer(summarizerId);
   }
 
@@ -870,6 +981,9 @@ export class EngineProxy implements Engine, Disposable {
     summarizerId: string,
     spec: protos.TraceSummarySpec,
   ): Promise<protos.UpdateSummarizerSpecResult> {
+    if (this.disposed) {
+      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed`));
+    }
     return this.engine.updateSummarizerSpec(summarizerId, spec);
   }
 
@@ -877,12 +991,18 @@ export class EngineProxy implements Engine, Disposable {
     summarizerId: string,
     queryId: string,
   ): Promise<protos.QuerySummarizerResult> {
+    if (this.disposed) {
+      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed`));
+    }
     return this.engine.querySummarizer(summarizerId, queryId);
   }
 
   destroySummarizer(
     summarizerId: string,
   ): Promise<protos.DestroySummarizerResult> {
+    if (this.disposed) {
+      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed`));
+    }
     return this.engine.destroySummarizer(summarizerId);
   }
 
@@ -900,6 +1020,10 @@ export class EngineProxy implements Engine, Disposable {
 
   get mode() {
     return this.engine.mode;
+  }
+
+  get supportsQueryCancellation() {
+    return this.engine.supportsQueryCancellation;
   }
 
   get failed() {

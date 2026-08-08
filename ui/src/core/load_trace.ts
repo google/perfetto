@@ -21,7 +21,10 @@ import {
 } from './metatracing';
 import {featureFlags} from './feature_flags';
 import type {Engine, EngineBase} from '../trace_processor/engine';
-import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
+import {
+  HttpRpcEngine,
+  type HttpRpcState,
+} from '../trace_processor/http_rpc_engine';
 import {
   LONG,
   LONG_NULL,
@@ -153,9 +156,9 @@ async function createEngine(
 ): Promise<EngineBase> {
   // Check if there is any instance of the trace_processor_shell running in
   // HTTP RPC mode (i.e. trace_processor_shell -D).
-  let useRpc = false;
+  let httpRpcState: HttpRpcState | undefined;
   if (app.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
-    useRpc = (await HttpRpcEngine.checkConnection()).connected;
+    httpRpcState = await HttpRpcEngine.checkConnection();
   }
 
   const descriptorBlobs: Uint8Array[] = [];
@@ -163,9 +166,12 @@ async function createEngine(
     descriptorBlobs.push(base64Decode(b64Str));
   }
   let engine;
-  if (useRpc) {
+  if (httpRpcState?.connected) {
     console.log('Opening trace using native accelerator over HTTP+RPC');
-    engine = new HttpRpcEngine(engineId);
+    engine = new HttpRpcEngine(
+      engineId,
+      httpRpcState.status?.supportsQueryInterrupt === true,
+    );
   } else {
     console.log('Opening trace using built-in WASM engine');
     engine = new WasmEngineProxy(engineId);

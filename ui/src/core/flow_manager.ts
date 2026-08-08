@@ -41,7 +41,7 @@ export class FlowManager {
   private _focusedFlowIdLeft = -1;
   private _focusedFlowIdRight = -1;
   private _visibleCategories = new Map<string, boolean>();
-  private _initialized = false;
+  private initialization?: Promise<unknown>;
 
   constructor(
     private engine: Engine,
@@ -53,16 +53,15 @@ export class FlowManager {
   // because when loading the UI with no trace, we initialize globals with a
   // FakeTraceImpl with a FakeEngine, which crashes when issuing queries.
   // This can be moved in the ctor once globals go away.
-  private initialize() {
-    if (this._initialized) return;
-    this._initialized = true;
+  private initialize(): Promise<unknown> {
+    if (this.initialization !== undefined) return this.initialization;
     // Create |CHROME_CUSTOME_SLICE_NAME| helper, which combines slice name
     // and args for some slices (scheduler tasks and mojo messages) for more
     // helpful messages.
     // In the future, it should be replaced with this a more scalable and
     // customisable solution.
     // Note that a function here is significantly faster than a join.
-    this.engine.query(`
+    return (this.initialization = this.engine.query(`
       SELECT CREATE_FUNCTION(
         'CHROME_CUSTOM_SLICE_NAME(slice_id LONG)',
         'STRING',
@@ -79,10 +78,14 @@ export class FlowManager {
              EXTRACT_ARG(arg_set_id, "task.posted_from.function_name"))
          end
          from slice where id=$slice_id'
-    );`);
+    );`));
   }
 
   async queryFlowEvents(query: string): Promise<Flow[]> {
+    // CREATE_FUNCTION is global database state and callers can use unrelated
+    // engine tags. Establish an explicit JS happens-before edge instead of
+    // relying on cross-tag wire order.
+    await this.initialize();
     const result = await this.engine.query(query);
     const flows: Flow[] = [];
 
@@ -455,7 +458,6 @@ export class FlowManager {
   }
 
   updateFlows(selection: Selection) {
-    this.initialize();
     this._curSelection = selection;
 
     if (selection.kind === 'empty') {

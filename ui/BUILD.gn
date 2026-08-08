@@ -25,6 +25,7 @@ group("ui") {
     "../src/proto_utils:proto_utils.wasm($wasm_toolchain)",
     "../src/trace_processor:trace_processor.wasm($wasm_toolchain)",
     "../src/trace_processor:trace_processor_memory64.wasm($wasm_memory64_toolchain)",
+    "../src/trace_processor:trace_processor_memory64_threads.wasm($wasm_memory64_threads_toolchain)",
     "../src/traceconv:traceconv.wasm($wasm_toolchain)",
   ]
 }
