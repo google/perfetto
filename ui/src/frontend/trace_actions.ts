@@ -30,6 +30,7 @@ import {
 } from './trace_converter';
 import {showModal} from '../widgets/modal';
 import {ensureExists, assertIsArrayBufferView} from '../base/assert';
+import {JsonSerialize, serializeAppState} from '../core/state_serialization';
 
 const TRACE_SUFFIX = '.perfetto-trace';
 
@@ -95,6 +96,29 @@ export async function downloadTrace(trace: TraceImpl) {
   } else {
     throw new Error(`Download from ${JSON.stringify(src)} is not supported`);
   }
+}
+
+export function downloadUiState(trace: TraceImpl) {
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Download UI state');
+  const appState = serializeAppState(trace);
+  const blob = new Blob([JsonSerialize(appState)], {
+    type: 'application/json',
+  });
+  const fileName = `${trace.traceInfo.traceTitle || 'trace'}.state.json`;
+  download({
+    content: blob,
+    fileName,
+  });
+}
+
+export async function downloadTraceAndUiState(trace: TraceImpl) {
+  if (!trace.traceInfo.downloadable) return;
+  AppImpl.instance.analytics.logEvent(
+    'Trace Actions',
+    'Download trace and UI state',
+  );
+  await downloadTrace(trace);
+  downloadUiState(trace);
 }
 
 function recordMetatrace(engine: Engine) {
