@@ -203,10 +203,6 @@ class TraceProcessorImpl : public TraceProcessor,
   std::unordered_map<std::string, std::string> proto_field_to_sql_metric_path_;
   std::unordered_map<std::string, std::string> proto_fn_name_to_path_;
 
-  // This is atomic because it is set by the CTRL-C signal handler and we need
-  // to prevent single-flow compiler optimizations in ExecuteQuery().
-  std::atomic<bool> query_interrupted_{false};
-
   // Track the number of objects registered with SQLite post prelude.
   uint64_t sqlite_objects_post_prelude_ = 0;
 

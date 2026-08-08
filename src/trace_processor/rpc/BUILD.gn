@@ -179,7 +179,9 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:gtest_and_gmock",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
+    "../../base:test_support",
     "../../protozero",
+    "../../protozero:proto_ring_buffer",
   ]
 }
 

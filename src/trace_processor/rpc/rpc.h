@@ -29,6 +29,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -37,6 +38,10 @@
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto {
+
+namespace base {
+class TaskRunner;
+}
 
 namespace protos::pbzero {
 class ComputeMetricResult;
@@ -87,6 +92,8 @@ class Rpc {
   // unrecoverable wire-protocol framing error is detected.
   using RpcResponseFunction =
       std::function<void(const void* /*data*/, uint32_t /*len*/)>;
+  // Called once per inbound message, after its last response.
+  using MessageCompleteFunction = std::function<void()>;
 
   class Stream;
   class Outbox;
@@ -138,8 +145,22 @@ class Rpc {
   class Stream {
    public:
     // |rpc| must outlive this. |response_fn| is called, possibly several times
-    // for a single request, with this stream's responses.
-    Stream(Rpc& rpc, RpcResponseFunction response_fn);
+    // for a single request, with this stream's responses; |complete_fn|, if
+    // set, once after the last of them for each message.
+    //
+    // Without threaded execution (see EnableThreadedExecution()) both run
+    // inline, on the thread that called EndRequest(). With it, responses are
+    // produced on the execution thread and:
+    //  - given |task_runner|, the callbacks run as tasks on it and never after
+    //    the Stream is gone, so a transport whose connection lives on that
+    //    runner never has to think about threads;
+    //  - without one, they run on the execution thread itself, also after the
+    //    Stream is gone, until |rpc| is. For pipes with no connection state to
+    //    protect, e.g. stdio.
+    Stream(Rpc& rpc,
+           RpcResponseFunction response_fn,
+           MessageCompleteFunction complete_fn = {},
+           base::TaskRunner* task_runner = nullptr);
     ~Stream();
 
     Stream(const Stream&) = delete;
@@ -159,10 +180,17 @@ class Rpc {
     void FinishRequest();
 
     Rpc& rpc_;
-    std::unique_ptr<Outbox> outbox_;
+    // Shared with the execution queue, which may outlive this Stream.
+    std::shared_ptr<Outbox> outbox_;
     protozero::ProtoRingBuffer rxbuf_;
     bool request_in_flight_ = false;
+    PERFETTO_THREAD_CHECKER(thread_checker_)
   };
+
+  // Runs byte-pipe requests on a dedicated thread (see Stream), which is what
+  // makes TPM_INTERRUPT_QUERY possible. Must precede any Stream.
+  void EnableThreadedExecution();
+  bool supports_query_interrupt() const { return executor_ != nullptr; }
 
   // 2. TraceProcessor legacy RPC endpoints.
   // The methods below are exposed for the old RPC interfaces, where each RPC
@@ -217,6 +245,12 @@ class Rpc {
  private:
   base::Status ExportSqlite(const ExportCallback&);
 
+  class Executor;
+
+  bool ValidateRpcSequence(Stream&,
+                           const protos::pbzero::TraceProcessorRpc::Decoder&);
+  bool DispatchRpcRequest(Stream&, protozero::ProtoRingBuffer::Message);
+  void SendCancelledQueryResponse(Outbox&);
   void ParseRpcRequest(Outbox&, protozero::ProtoRingBuffer::Message);
   void DrainStream(Stream&);
   void ResetTraceProcessor(const uint8_t*, size_t);
@@ -250,6 +284,10 @@ class Rpc {
 
   // Manages Summarizer instances keyed by caller-provided ID.
   base::FlatHashMap<std::string, std::unique_ptr<Summarizer>> summarizers_;
+
+  // Set by EnableThreadedExecution(). Last, so that its thread is joined
+  // before anything it uses goes away.
+  std::unique_ptr<Executor> executor_;
 };
 
 }  // namespace trace_processor

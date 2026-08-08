@@ -274,6 +274,13 @@ void QueryResultSerializer::MaybeSerializeError(
   if (err.empty())
     err = "Unknown error";
   res->set_error(err);
+  // SQLite reports an interrupt as an error ending in "interrupted".
+  constexpr char kInterrupted[] = "interrupted";
+  if (err.size() >= sizeof(kInterrupted) - 1 &&
+      err.compare(err.size() - (sizeof(kInterrupted) - 1),
+                  sizeof(kInterrupted) - 1, kInterrupted) == 0) {
+    res->set_error_code(protos::pbzero::QueryResult::ERROR_CODE_INTERRUPTED);
+  }
 }
 
 void QueryResultSerializer::SerializeMetadata(
