@@ -20,6 +20,7 @@ import type {QueryResponse} from '../../components/query_table/queries';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
 import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
+import type {QueryHandle} from '../../trace_processor/engine';
 import {Box} from '../../widgets/box';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
@@ -45,6 +46,7 @@ export interface QueryEditorTab {
   editorText: string;
   queryId?: number; // Unique ID associated with the current query result (session unique only, not universally unique).
   queryResult?: QueryResponse;
+  queryHandle?: QueryHandle;
   isLoading: boolean;
   title: string;
 }
@@ -64,6 +66,9 @@ export interface QueryPageAttrs {
 
   // Called when the user requests to execute a query.
   onExecute?(tabId: string, query: string): void;
+
+  // Called when the user requests cancellation of the active tab's query.
+  onCancel?(tabId: string): void;
 
   // Called when the user switches to a different tab.
   onTabChange?(tabId: string): void;
@@ -228,6 +233,21 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
               attrs.onExecute?.(tab.id, tab.editorText);
             },
           }),
+          tab.isLoading &&
+            (trace.engine.supportsQueryCancellation
+              ? m(Button, {
+                  label: 'Cancel',
+                  icon: 'stop',
+                  intent: Intent.Danger,
+                  onclick: () => attrs.onCancel?.(tab.id),
+                })
+              : m(Button, {
+                  label: 'Cancellation unavailable',
+                  icon: 'block',
+                  disabled: true,
+                  title:
+                    'This trace processor build cannot cancel running queries',
+                })),
           m(
             Stack,
             {

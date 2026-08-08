@@ -101,6 +101,7 @@ DEPS_ALLOWLIST = [
     ('/base/proto_utils_wasm', '/gen/proto_utils'),
     ('/frontend/index', ['/gen/*']),
     ('/traceconv/index', '/gen/traceconv'),
+    ('/engine/index', '/trace_processor/wasm_modules'),
     ('/engine/wasm_bridge', '/trace_processor/wasm_modules'),
     ('/engine_bench/worker', '/engine/wasm_bridge'),
     ('/trace_processor/wasm_modules', '/gen/trace_processor*'),

@@ -16,7 +16,8 @@ import {ensureExists, assertTrue} from '../base/assert';
 import {
   TraceProcessor32,
   TraceProcessor64,
-  memory64Supported,
+  TraceProcessor64Threads,
+  type WasmTier,
 } from '../trace_processor/wasm_modules';
 
 // Also the size of the standing reservation held for us in the C++ tokenizer.
@@ -53,12 +54,18 @@ export class WasmBridge {
   async initialize(
     port: MessagePort,
     precompiledModule: WebAssembly.Module,
+    tier: WasmTier,
   ): Promise<void> {
     assertTrue(this.messagePort === undefined);
     this.messagePort = port;
-    this.useMemory64 = memory64Supported();
+    this.useMemory64 = tier !== 'wasm32';
 
-    const initModule = this.useMemory64 ? TraceProcessor64 : TraceProcessor32;
+    const initModule =
+      tier === 'memory64-threads'
+        ? TraceProcessor64Threads
+        : tier === 'memory64'
+          ? TraceProcessor64
+          : TraceProcessor32;
     const connection = await initModule({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),

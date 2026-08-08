@@ -78,6 +78,10 @@ def main(path=''):
     resp.headers['Cache-Control'] = CACHE_CONTROL_INDEX_HTML
   else:
     resp.headers['Cache-Control'] = CACHE_CONTROL
+  # Chromium's Document Isolation Policy enables SharedArrayBuffer-backed
+  # memory64 pthreads without isolating the whole browsing context group.
+  # Other browsers ignore the header and use the non-threaded WASM bundles.
+  resp.headers['Document-Isolation-Policy'] = 'isolate-and-require-corp'
   return resp
 
 

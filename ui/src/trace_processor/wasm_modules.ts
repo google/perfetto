@@ -27,9 +27,12 @@
 
 import {assetSrc} from '../base/assets';
 import TraceProcessor64 from '../gen/trace_processor_memory64';
+import TraceProcessor64Threads from '../gen/trace_processor_memory64_threads';
 import TraceProcessor32 from './trace_processor_32_stub';
 
-export {TraceProcessor64, TraceProcessor32};
+export {TraceProcessor64, TraceProcessor64Threads, TraceProcessor32};
+
+export type WasmTier = 'memory64-threads' | 'memory64' | 'wasm32';
 
 let memory64SupportCache: boolean | undefined;
 
@@ -52,11 +55,39 @@ export function memory64Supported(): boolean {
   }
 }
 
+// Threads are useful only in combination with memory64 for the cancellation
+// tier. Constructing shared memory performs a combined feature check rather
+// than assuming support from the two individual proposals.
+export function memory64ThreadsSupported(): boolean {
+  if (!globalThis.crossOriginIsolated || !memory64Supported()) return false;
+  if (typeof globalThis.SharedArrayBuffer === 'undefined') return false;
+  try {
+    new WebAssembly.Memory({
+      initial: 1,
+      maximum: 1,
+      shared: true,
+      index: 'i64',
+    } as WebAssembly.MemoryDescriptor);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function traceProcessorWasmTier(): WasmTier {
+  if (memory64ThreadsSupported()) return 'memory64-threads';
+  if (memory64Supported()) return 'memory64';
+  return 'wasm32';
+}
+
 // Resolved URL of the .wasm matching the factory we'd pick for this env.
 export function traceProcessorWasmUrl(): string {
-  return assetSrc(
-    memory64Supported()
-      ? 'trace_processor_memory64.wasm'
-      : 'trace_processor.wasm',
-  );
+  switch (traceProcessorWasmTier()) {
+    case 'memory64-threads':
+      return assetSrc('trace_processor_memory64_threads.wasm');
+    case 'memory64':
+      return assetSrc('trace_processor_memory64.wasm');
+    case 'wasm32':
+      return assetSrc('trace_processor.wasm');
+  }
 }

@@ -15,11 +15,16 @@
  */
 
 #include <emscripten/emscripten.h>
+#if defined(__EMSCRIPTEN_PTHREADS__)
+#include <emscripten/threading.h>
+#endif
 
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <new>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/rpc/rpc.h"
@@ -34,6 +39,31 @@ Rpc::Stream* g_rpc_stream;
 Rpc::RequestHandle* g_pending_request;
 
 uint32_t g_max_write_size;
+RpcResponseFn* g_response_fn;
+
+#if defined(__EMSCRIPTEN_PTHREADS__)
+struct PendingReply {
+  std::vector<uint8_t> data;
+};
+
+void SendReplyOnFrontend(int, PendingReply* reply) {
+  g_response_fn(reply->data.data(), static_cast<uint32_t>(reply->data.size()));
+  delete reply;
+}
+
+void SendReply(const void* data, uint32_t size) {
+  if (emscripten_is_main_runtime_thread()) {
+    g_response_fn(data, size);
+    return;
+  }
+  auto* reply = new PendingReply;
+  reply->data.resize(size);
+  if (size != 0)
+    memcpy(reply->data.data(), data, size);
+  emscripten_async_run_in_main_runtime_thread(EM_FUNC_SIG_VIP,
+                                              &SendReplyOnFrontend, 0, reply);
+}
+#endif
 
 PERFETTO_NO_INLINE void OutOfMemoryHandler() {
   fprintf(stderr, "\nCannot enlarge memory\n");
@@ -60,13 +90,21 @@ uint8_t* trace_processor_rpc_init(RpcResponseFn* resp_function,
   std::set_new_handler(&OutOfMemoryHandler);
 
   g_trace_processor_rpc = new Rpc();
+  g_response_fn = resp_function;
 
   // |resp_function| is a JS-bound function passed by wasm_bridge.ts. It will
   // call back into JavaScript. There the JS code will copy the passed
   // buffer with the response (a proto-encoded TraceProcessorRpc message) and
   // postMessage() it to the controller. See the comment in wasm_bridge.ts for
-  // an overview of the JS<>Wasm callstack.
+  // an overview of the JS<>Wasm callstack. Threaded builds run requests on a
+  // separate pthread and first proxy this callback onto the worker's main
+  // Emscripten runtime thread.
+#if defined(__EMSCRIPTEN_PTHREADS__)
+  g_trace_processor_rpc->EnableThreadedExecution();
+  g_rpc_stream = new Rpc::Stream(*g_trace_processor_rpc, &SendReply);
+#else
   g_rpc_stream = new Rpc::Stream(*g_trace_processor_rpc, resp_function);
+#endif
 
   g_max_write_size = max_write_size;
   g_pending_request =

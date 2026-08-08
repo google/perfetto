@@ -64,6 +64,7 @@ LEGACY_ALLOWED_EDGES = {
      '//src/trace_processor:trace_processor_shell'),
     ('//ui:ui', '//src/trace_processor:trace_processor.wasm'),
     ('//ui:ui', '//src/trace_processor:trace_processor_memory64.wasm'),
+    ('//ui:ui', '//src/trace_processor:trace_processor_memory64_threads.wasm'),
 }
 
 

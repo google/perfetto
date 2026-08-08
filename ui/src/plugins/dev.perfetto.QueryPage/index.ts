@@ -220,15 +220,40 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       const tab = editorTabs.find((t) => t.id === tabId);
       if (!tab) return;
 
+      // Superseding a cancellable tail must wait for its terminal response
+      // before the replacement can be enqueued on the same exact sequence.
+      if (tab.queryHandle) {
+        await tab.queryHandle.cancel();
+      }
+
       tab.queryResult = undefined;
-      tab.queryId = queryCounter++;
+      const queryId = queryCounter++;
+      tab.queryId = queryId;
       queryHistoryStorage.saveQuery(text);
 
       tab.isLoading = true;
-      tab.queryResult = await runQueryForQueryTable(text, trace.engine);
+      const result = await runQueryForQueryTable(
+        text,
+        trace.engine.getProxy(`query-page/${tab.id}`),
+        {cancellable: true},
+        (query) => {
+          tab.queryHandle = query;
+        },
+      );
+      // A cancel-and-replace can leave the superseded invocation completing
+      // after a replacement has started. Only the current generation owns UI
+      // state.
+      if (tab.queryId !== queryId) return;
+      tab.queryResult = result;
+      tab.queryHandle = undefined;
       tab.isLoading = false;
 
       trace.tabs.showTab('dev.perfetto.QueryPage');
+    }
+
+    async function onCancel(tabId: string) {
+      const tab = editorTabs.find((t) => t.id === tabId);
+      await tab?.queryHandle?.cancel();
     }
 
     function onEditorContentUpdate(tabId: string, content: string) {
@@ -344,6 +369,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
           activeTabId,
           onEditorContentUpdate,
           onExecute,
+          onCancel,
           onTabChange,
           onTabClose,
           onTabAdd,

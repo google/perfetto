@@ -340,7 +340,12 @@ Env-var overrides:
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
   cfg.experimentalMithrilHmr = !!args.experimental_mithril_hmr;
-  cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
+  cfg.wasmModules = [
+    'traceconv',
+    'proto_utils',
+    'trace_processor_memory64',
+    'trace_processor_memory64_threads',
+  ];
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
   }
@@ -674,8 +679,14 @@ function buildWasm(skipWasmBuild) {
   }
 
   for (const wasmMod of cfg.wasmModules) {
-    const isMem64 = wasmMod.endsWith('_memory64');
-    const wasmOutDir = pjoin(cfg.outDir, isMem64 ? 'wasm_memory64' : 'wasm');
+    const wasmOutDir = pjoin(
+      cfg.outDir,
+      wasmMod.endsWith('_threads')
+        ? 'wasm_memory64_threads'
+        : wasmMod.includes('_memory64')
+          ? 'wasm_memory64'
+          : 'wasm',
+    );
     // The .wasm file goes directly into the dist dir (also .map in debug)
     for (const ext of ['.wasm'].concat(cfg.debug ? ['.wasm.map'] : [])) {
       const src = `${wasmOutDir}/${wasmMod}${ext}`;
@@ -870,7 +881,8 @@ async function startViteDevServer() {
   const port = cfg.httpServerListenPort ?? DEFAULT_PORT;
 
   const headers = cfg.crossOriginIsolation
-    ? {
+      ? {
+        'Document-Isolation-Policy': 'isolate-and-require-corp',
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'require-corp',
       }
@@ -1114,6 +1126,7 @@ function startServer() {
         };
         if (acceptsGzip) head['Content-Encoding'] = 'gzip';
         if (cfg.crossOriginIsolation) {
+          head['Document-Isolation-Policy'] = 'isolate-and-require-corp';
           head['Cross-Origin-Opener-Policy'] = 'same-origin';
           head['Cross-Origin-Embedder-Policy'] = 'require-corp';
         }
