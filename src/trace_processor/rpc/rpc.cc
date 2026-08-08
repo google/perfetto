@@ -229,7 +229,22 @@ Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
 }
 
 Rpc::Rpc() : Rpc(nullptr, false, Config(), nullptr, {}) {}
-Rpc::~Rpc() = default;
+Rpc::~Rpc() {
+  if (execution_thread_.joinable()) {
+    {
+      std::lock_guard<std::mutex> lock(execution_mutex_);
+      stop_execution_thread_ = true;
+    }
+    execution_cv_.notify_one();
+    execution_thread_.join();
+  }
+}
+
+void Rpc::EnableThreadedExecution() {
+  PERFETTO_CHECK(!threaded_execution_);
+  threaded_execution_ = true;
+  execution_thread_ = std::thread(&Rpc::ExecutionLoop, this);
+}
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
   current_config_ = config;
@@ -260,13 +275,154 @@ void Rpc::OnRpcRequest(const void* data, size_t len) {
         protozero::HeapBuffered<TraceProcessorRpcStream> err_msg;
         err_msg->add_msg()->set_fatal_error("RPC framing error");
         auto err = err_msg.SerializeAsArray();
-        rpc_response_fn_(err.data(), static_cast<uint32_t>(err.size()));
-        rpc_response_fn_(nullptr, 0);  // Disconnect.
+        frontend_response_fn_(err.data(), static_cast<uint32_t>(err.size()));
+        frontend_response_fn_(nullptr, 0);  // Disconnect.
       }
       break;
     }
-    ParseRpcRequest(msg.start, msg.len);
+    DispatchRpcRequest(msg.start, msg.len);
   }
+}
+
+bool Rpc::ValidateRpcSequence(const RpcProto::Decoder& req) {
+  // We allow restarting the sequence from 0. This happens when refreshing the
+  // browser while using the external trace_processor_shell --httpd.
+  if (req.seq() != 0 && rx_seq_id_ != 0 && req.seq() != rx_seq_id_ + 1) {
+    char err_str[255];
+    snprintf(err_str, sizeof(err_str),
+             "RPC request out of order. Expected %" PRId64 ", got %" PRId64
+             " (ERR:rpc_seq)",
+             rx_seq_id_ + 1, req.seq());
+    PERFETTO_ELOG("%s", err_str);
+    protozero::HeapBuffered<TraceProcessorRpcStream> err_msg;
+    err_msg->add_msg()->set_fatal_error(err_str);
+    auto err = err_msg.SerializeAsArray();
+    frontend_response_fn_(err.data(), static_cast<uint32_t>(err.size()));
+    frontend_response_fn_(nullptr, 0);  // Disconnect.
+    return false;
+  }
+  rx_seq_id_ = req.seq();
+  return true;
+}
+
+void Rpc::DispatchRpcRequest(const uint8_t* data, size_t len) {
+  RpcProto::Decoder req(data, len);
+  if (!ValidateRpcSequence(req))
+    return;
+
+  if (threaded_execution_ && req.request() == RpcProto::TPM_INTERRUPT_QUERY) {
+    InterruptQuery(req);
+    if (frontend_request_complete_fn_)
+      frontend_request_complete_fn_();
+    return;
+  }
+
+  if (!threaded_execution_) {
+    execution_response_fn_ = frontend_response_fn_;
+    ParseRpcRequest(data, len);
+    execution_response_fn_ = nullptr;
+    if (frontend_request_complete_fn_)
+      frontend_request_complete_fn_();
+    return;
+  }
+
+  QueuedRequest queued;
+  queued.data.assign(data, data + len);
+  queued.response_fn = frontend_response_fn_;
+  queued.complete_fn = frontend_request_complete_fn_;
+  if (req.request() == RpcProto::TPM_QUERY_STREAMING && req.has_query_args()) {
+    queued.is_query = true;
+    protos::pbzero::QueryArgs::Decoder query(req.query_args());
+    queued.cancellable = query.cancellable();
+    queued.has_tag = query.has_tag();
+    if (queued.has_tag)
+      queued.tag = query.tag().ToStdString();
+  }
+  // The queue is global rather than per tag. Therefore every non-query RPC is
+  // a barrier: all earlier work completes before it starts, and no later work
+  // starts until it finishes. Keep this explicit for the future per-sequence
+  // scheduler, where this classification will become load-bearing.
+  {
+    std::lock_guard<std::mutex> lock(execution_mutex_);
+    execution_queue_.emplace_back(std::move(queued));
+  }
+  execution_cv_.notify_one();
+}
+
+void Rpc::InterruptQuery(const RpcProto::Decoder& req) {
+  bool has_tag = false;
+  std::string tag;
+  if (req.has_interrupt_query_args()) {
+    protos::pbzero::InterruptQueryArgs::Decoder args(
+        req.interrupt_query_args());
+    has_tag = args.has_tag();
+    if (has_tag)
+      tag = args.tag().ToStdString();
+  }
+
+  std::lock_guard<std::mutex> lock(execution_mutex_);
+  // Cancellation always targets the newest query on the exact tag. If that
+  // query is still queued and cancellable, leave it in place and mark it dead
+  // so its terminal response is emitted in FIFO position by the TP thread.
+  for (auto it = execution_queue_.rbegin(); it != execution_queue_.rend();
+       ++it) {
+    if (!it->is_query || it->has_tag != has_tag || it->tag != tag)
+      continue;
+    if (it->cancellable)
+      it->cancelled = true;
+    return;
+  }
+
+  // Never interrupt an unrelated or non-cancellable running query. This guard
+  // is essential when a cancellable query is queued behind another query on
+  // the same tag.
+  if (running_query_ && running_query_->cancellable &&
+      running_query_->has_tag == has_tag && running_query_->tag == tag) {
+    trace_processor_->InterruptQuery();
+  }
+}
+
+void Rpc::ExecutionLoop() {
+  for (;;) {
+    QueuedRequest queued;
+    {
+      std::unique_lock<std::mutex> lock(execution_mutex_);
+      execution_cv_.wait(lock, [this] {
+        return stop_execution_thread_ || !execution_queue_.empty();
+      });
+      if (stop_execution_thread_ && execution_queue_.empty())
+        return;
+      queued = std::move(execution_queue_.front());
+      execution_queue_.pop_front();
+      if (queued.is_query && !queued.cancelled) {
+        running_query_ =
+            RunningQuery{queued.has_tag, queued.tag, queued.cancellable};
+      }
+    }
+
+    execution_response_fn_ = queued.response_fn;
+    if (queued.cancelled) {
+      SendCancelledQueryResponse(queued.response_fn);
+    } else {
+      ParseRpcRequest(queued.data.data(), queued.data.size());
+    }
+    execution_response_fn_ = nullptr;
+    if (queued.is_query) {
+      std::lock_guard<std::mutex> lock(execution_mutex_);
+      running_query_.reset();
+    }
+    if (queued.complete_fn)
+      queued.complete_fn();
+  }
+}
+
+void Rpc::SendCancelledQueryResponse(const RpcResponseFunction& response_fn) {
+  Response resp(tx_seq_id_++, RpcProto::TPM_QUERY_STREAMING);
+  auto* result = resp->set_query_result();
+  result->set_error("Query interrupted");
+  result->set_error_code(protos::pbzero::QueryResult::ERROR_CODE_INTERRUPTED);
+  result->add_batch()->set_is_last_batch(true);
+  resp.Send(response_fn);
 }
 
 namespace {
@@ -305,25 +461,6 @@ TraceProcessor::MetatraceCategories MetatraceCategoriesToPublicEnum(
 void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
   RpcProto::Decoder req(data, len);
 
-  // We allow restarting the sequence from 0. This happens when refreshing the
-  // browser while using the external trace_processor_shell --httpd.
-  if (req.seq() != 0 && rx_seq_id_ != 0 && req.seq() != rx_seq_id_ + 1) {
-    char err_str[255];
-    // "(ERR:rpc_seq)" is intercepted by error_dialog.ts in the UI.
-    snprintf(err_str, sizeof(err_str),
-             "RPC request out of order. Expected %" PRId64 ", got %" PRId64
-             " (ERR:rpc_seq)",
-             rx_seq_id_ + 1, req.seq());
-    PERFETTO_ELOG("%s", err_str);
-    protozero::HeapBuffered<TraceProcessorRpcStream> err_msg;
-    err_msg->add_msg()->set_fatal_error(err_str);
-    auto err = err_msg.SerializeAsArray();
-    rpc_response_fn_(err.data(), static_cast<uint32_t>(err.size()));
-    rpc_response_fn_(nullptr, 0);  // Disconnect.
-    return;
-  }
-  rx_seq_id_ = req.seq();
-
   // The static cast is to prevent that the compiler breaks future proofness.
   const int req_type = static_cast<int>(req.request());
   static const char kErrFieldNotSet[] = "RPC error: request field not set";
@@ -340,7 +477,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
           result->set_error(res.message());
         }
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_FINALIZE_TRACE_DATA: {
@@ -350,7 +487,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       if (!res.ok()) {
         result->set_error(res.message());
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_QUERY_STREAMING: {
@@ -358,7 +495,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         Response resp(tx_seq_id_++, req_type);
         auto* result = resp->set_query_result();
         result->set_error(kErrFieldNotSet);
-        resp.Send(rpc_response_fn_);
+        resp.Send(execution_response_fn_);
       } else {
         protozero::ConstBytes args = req.query_args();
         protos::pbzero::QueryArgs::Decoder query(args.data, args.size);
@@ -377,13 +514,14 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
 
         QueryResultSerializer serializer(std::move(it), t_start);
         StreamSerializerResponses(&serializer, req_type, &tx_seq_id_,
-                                  rpc_response_fn_, /*header=*/nullptr);
+                                  execution_response_fn_, /*header=*/nullptr);
       }
       break;
     }
     case RpcProto::TPM_STATEMENT_STREAMING: {
       if (!req.has_statement_args()) {
-        SendSingleStatementResponse(req_type, &tx_seq_id_, rpc_response_fn_,
+        SendSingleStatementResponse(req_type, &tx_seq_id_,
+                                    execution_response_fn_,
                                     /*header=*/nullptr, kErrFieldNotSet);
         break;
       }
@@ -407,17 +545,18 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       // are invalid in both forms. Offsets in the gap between the two sizes
       // are rejected by ExecuteNextStatement's own range check below.
       if (offset > sql.size()) {
-        SendSingleStatementResponse(req_type, &tx_seq_id_, rpc_response_fn_,
-                                    /*header=*/nullptr,
-                                    "StatementArgs.start_offset out of range");
+        SendSingleStatementResponse(
+            req_type, &tx_seq_id_, execution_response_fn_,
+            /*header=*/nullptr, "StatementArgs.start_offset out of range");
         break;
       }
       std::optional<Iterator> it =
           trace_processor_->ExecuteNextStatement(sql, &offset);
       if (!it.has_value()) {
         StatementStreamHeader header{offset, /*statement_executed=*/false};
-        SendSingleStatementResponse(req_type, &tx_seq_id_, rpc_response_fn_,
-                                    &header, /*error=*/nullptr);
+        SendSingleStatementResponse(req_type, &tx_seq_id_,
+                                    execution_response_fn_, &header,
+                                    /*error=*/nullptr);
         break;
       }
 
@@ -429,7 +568,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       QueryResultSerializer serializer(std::move(*it), t_start);
       StatementStreamHeader header{offset, statement_executed};
       StreamSerializerResponses(&serializer, req_type, &tx_seq_id_,
-                                rpc_response_fn_, &header);
+                                execution_response_fn_, &header);
       break;
     }
     case RpcProto::TPM_COMPUTE_METRIC: {
@@ -441,7 +580,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         protozero::ConstBytes args = req.compute_metric_args();
         ComputeMetricInternal(args.data, args.size, result);
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_SUMMARIZE_TRACE: {
@@ -453,7 +592,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         protozero::ConstBytes args = req.trace_summary_args();
         ComputeTraceSummaryInternal(args.data, args.size, result);
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_GET_METRIC_DESCRIPTORS: {
@@ -461,13 +600,13 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       auto descriptor_set = trace_processor_->GetMetricDescriptors();
       auto* result = resp->set_metric_descriptors();
       result->AppendRawProtoBytes(descriptor_set.data(), descriptor_set.size());
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_RESTORE_INITIAL_TABLES: {
       trace_processor_->RestoreInitialTables();
       Response resp(tx_seq_id_++, req_type);
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_ENABLE_METATRACE: {
@@ -476,27 +615,32 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       EnableMetatrace(args.data, args.size);
 
       Response resp(tx_seq_id_++, req_type);
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
+    case RpcProto::TPM_INTERRUPT_QUERY:
+      // Threaded frontends consume this request before it reaches the
+      // execution queue. Synchronous transports advertise no capability and
+      // treat an unsolicited interrupt as a fire-and-forget no-op.
+      break;
     case RpcProto::TPM_DISABLE_AND_READ_METATRACE: {
       Response resp(tx_seq_id_++, req_type);
       DisableAndReadMetatraceInternal(resp->set_metatrace());
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_GET_STATUS: {
       Response resp(tx_seq_id_++, req_type);
       std::vector<uint8_t> status = GetStatus();
       resp->set_status()->AppendRawProtoBytes(status.data(), status.size());
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_RESET_TRACE_PROCESSOR: {
       Response resp(tx_seq_id_++, req_type);
       protozero::ConstBytes args = req.reset_trace_processor_args();
       ResetTraceProcessor(args.data, args.size);
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_REGISTER_SQL_PACKAGE: {
@@ -506,7 +650,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       if (!status.ok()) {
         res->set_error(status.message());
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_CREATE_SUMMARIZER: {
@@ -529,7 +673,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
           result->set_summarizer_id(summarizer_id);
         }
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_UPDATE_SUMMARIZER_SPEC: {
@@ -562,7 +706,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
           query->set_was_dropped(sync_info.was_dropped);
         }
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_QUERY_SUMMARIZER: {
@@ -596,7 +740,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
           result->set_standalone_sql(query_result.standalone_sql);
         }
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     case RpcProto::TPM_EXPORT: {
@@ -613,7 +757,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
                               result->set_data(chunk, chunk_len);
                             }
                             result->set_has_more(has_more);
-                            resp.Send(rpc_response_fn_);
+                            resp.Send(execution_response_fn_);
                             return base::OkStatus();
                           })
                  : base::ErrStatus("Export format is required");
@@ -622,7 +766,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         auto* result = resp->set_export_result();
         result->set_error(status.message());
         result->set_has_more(false);
-        resp.Send(rpc_response_fn_);
+        resp.Send(execution_response_fn_);
       }
       break;
     }
@@ -640,7 +784,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         // Erasing will call the Summarizer destructor which drops all tables.
         summarizers_.Erase(summarizer_id);
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
     default: {
@@ -651,7 +795,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       Response resp(tx_seq_id_++, req_type);
       resp->set_invalid_request(
           static_cast<RpcProto::TraceProcessorMethod>(req_type));
-      resp.Send(rpc_response_fn_);
+      resp.Send(execution_response_fn_);
       break;
     }
   }  // switch(req_type)
@@ -1049,6 +1193,7 @@ std::vector<uint8_t> Rpc::GetStatus() {
     status->set_version_code(version_code);
   }
   status->set_api_version(protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+  status->set_supports_query_interrupt(threaded_execution_);
   return status.SerializeAsArray();
 }
 

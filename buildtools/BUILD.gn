@@ -1665,6 +1665,9 @@ config("sqlite_config") {
   visibility = _buildtools_visibility
   include_dirs = [ "sqlite" ]
   cflags = [
+    # Each trace processor connection is owned by one execution thread. The
+    # only cross-thread SQLite call is sqlite3_interrupt(), which SQLite
+    # explicitly documents as safe and implements using an atomic store.
     "-DSQLITE_THREADSAFE=0",
     "-DSQLITE_DEFAULT_MEMSTATUS=0",
     "-DSQLITE_LIKE_DOESNT_MATCH_BLOBS",

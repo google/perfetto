@@ -330,20 +330,37 @@ void UnixRpcServer::DispatchMessage(base::UnixSocket* sock,
 
   if (reaper_)
     reaper_->set_query_in_flight(true);
-  rpc_.SetRpcResponseFunction([sock](const void* resp, uint32_t resp_len) {
-    if (resp == nullptr) {
-      sock->Shutdown(/*notify=*/false);
-      return;
-    }
-    sock->Send(resp, resp_len);
+  rpc_.SetRpcResponseFunction(
+      [this, sock](const void* resp, uint32_t resp_len) {
+        const bool close = resp == nullptr;
+        std::vector<uint8_t> copy;
+        if (resp) {
+          copy.assign(static_cast<const uint8_t*>(resp),
+                      static_cast<const uint8_t*>(resp) + resp_len);
+        }
+        task_runner_.PostTask(
+            [this, sock, close, copy = std::move(copy)]() mutable {
+              if (!FindConn(sock))
+                return;
+              if (close) {
+                sock->Shutdown(/*notify=*/false);
+              } else {
+                sock->Send(copy.data(), copy.size());
+              }
+            });
+      });
+  rpc_.SetRpcRequestCompleteFunction([this] {
+    task_runner_.PostTask([this] {
+      if (reaper_) {
+        reaper_->set_query_in_flight(false);
+        reaper_->OnActivity();
+      }
+    });
   });
   rpc_.OnRpcRequest(preamble, static_cast<size_t>(preamble_end - preamble));
   rpc_.OnRpcRequest(data, len);
   rpc_.SetRpcResponseFunction(nullptr);
-  if (reaper_) {
-    reaper_->set_query_in_flight(false);
-    reaper_->OnActivity();
-  }
+  rpc_.SetRpcRequestCompleteFunction(nullptr);
 }
 
 }  // namespace

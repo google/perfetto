@@ -46,9 +46,10 @@ namespace perfetto::trace_processor {
 namespace {
 
 void EnsureSqliteInitialized() {
-  // sqlite3_initialize isn't actually thread-safe in standalone builds because
-  // we build with SQLITE_THREADSAFE=0. Ensure it's only called from a single
-  // thread.
+  // SQLITE_THREADSAFE=0 omits SQLite's mutexes. The function-local static keeps
+  // configuration and initialization in one process-wide call, and each
+  // connection remains owned by one execution thread. sqlite3_interrupt() is
+  // the sole cross-thread SQLite call and is explicitly safe for that use.
   static bool init_once = [] {
     // Enabling memstatus causes a lock to be taken on every malloc/free in
     // SQLite to update the memory statistics. This can cause massive contention

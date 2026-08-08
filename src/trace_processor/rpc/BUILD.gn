@@ -167,6 +167,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "query_result_serializer_unittest.cc",
+    "rpc_unittest.cc",
     "session_paths_unittest.cc",
   ]
   deps = [
@@ -179,6 +180,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../protozero",
+    "../../protozero:proto_ring_buffer",
   ]
 }
 

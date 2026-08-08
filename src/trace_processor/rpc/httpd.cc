@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -65,6 +66,7 @@ class Httpd : public base::HttpRequestHandler {
   // HttpRequestHandler implementation.
   void OnHttpRequest(const base::HttpRequest&) override;
   void OnWebsocketMessage(const base::WebsocketMessage&) override;
+  void OnHttpConnectionClosed(base::HttpServerConnection*) override;
 
   static void ServeHelpPage(const base::HttpRequest&);
 
@@ -72,6 +74,7 @@ class Httpd : public base::HttpRequestHandler {
   base::MaybeLockFreeTaskRunner task_runner_;
   base::HttpServer http_srv_;
   std::unique_ptr<IdleReaper> reaper_;
+  std::unordered_set<base::HttpServerConnection*> live_connections_;
 };
 
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
@@ -131,6 +134,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   if (reaper_)
     reaper_->OnActivity();
   base::HttpServerConnection& conn = *req.conn;
+  live_connections_.insert(&conn);
   if (req.uri == "/") {
     // If a user tries to open http://127.0.0.1:9001/ show a minimal help page.
     return ServeHelpPage(req);
@@ -182,15 +186,30 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     conn.SendResponseHeaders("200 OK", chunked_headers,
                              base::HttpServerConnection::kOmitContentLength);
     global_trace_processor_rpc_.SetRpcResponseFunction(
-        [&](const void* data, uint32_t len) {
-          SendRpcChunk(&conn, data, len);
+        [this, conn = &conn](const void* data, uint32_t len) {
+          const bool close = data == nullptr;
+          std::vector<uint8_t> copy;
+          if (data)
+            copy.assign(static_cast<const uint8_t*>(data),
+                        static_cast<const uint8_t*>(data) + len);
+          task_runner_.PostTask(
+              [this, conn, close, copy = std::move(copy)]() mutable {
+                if (live_connections_.count(conn) == 0)
+                  return;
+                SendRpcChunk(conn, close ? nullptr : copy.data(),
+                             static_cast<uint32_t>(copy.size()));
+              });
         });
-    // OnRpcRequest() will call SendRpcChunk() one or more times.
+    global_trace_processor_rpc_.SetRpcRequestCompleteFunction(
+        [this, conn = &conn] {
+          task_runner_.PostTask([this, conn] {
+            if (live_connections_.count(conn) != 0)
+              conn->SendResponseBody("0\r\n\r\n", 5);
+          });
+        });
     global_trace_processor_rpc_.OnRpcRequest(req.body.data(), req.body.size());
     global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
-
-    // Terminate chunked stream.
-    conn.SendResponseBody("0\r\n\r\n", 5);
+    global_trace_processor_rpc_.SetRpcRequestCompleteFunction(nullptr);
     return;
   }
 
@@ -312,13 +331,28 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
   if (reaper_)
     reaper_->OnActivity();
+  live_connections_.insert(msg.conn);
   global_trace_processor_rpc_.SetRpcResponseFunction(
-      [&](const void* data, uint32_t len) {
-        SendRpcChunk(msg.conn, data, len);
+      [this, conn = msg.conn](const void* data, uint32_t len) {
+        const bool close = data == nullptr;
+        std::vector<uint8_t> copy;
+        if (data)
+          copy.assign(static_cast<const uint8_t*>(data),
+                      static_cast<const uint8_t*>(data) + len);
+        task_runner_.PostTask(
+            [this, conn, close, copy = std::move(copy)]() mutable {
+              if (live_connections_.count(conn) == 0)
+                return;
+              SendRpcChunk(conn, close ? nullptr : copy.data(),
+                           static_cast<uint32_t>(copy.size()));
+            });
       });
-  // OnRpcRequest() will call SendRpcChunk() one or more times.
   global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
   global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+}
+
+void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
+  live_connections_.erase(conn);
 }
 
 }  // namespace

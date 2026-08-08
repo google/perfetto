@@ -17,12 +17,16 @@
 #ifndef SRC_TRACE_PROCESSOR_RPC_RPC_H_
 #define SRC_TRACE_PROCESSOR_RPC_RPC_H_
 
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -94,8 +98,17 @@ class Rpc {
   using RpcResponseFunction =
       std::function<void(const void* /*data*/, uint32_t /*len*/)>;
   void SetRpcResponseFunction(RpcResponseFunction f) {
-    rpc_response_fn_ = std::move(f);
+    frontend_response_fn_ = std::move(f);
   }
+  void SetRpcRequestCompleteFunction(std::function<void()> f) {
+    frontend_request_complete_fn_ = std::move(f);
+  }
+
+  // Runs byte-pipe requests on a dedicated Trace Processor thread. Framing,
+  // sequence validation, queue management, and interrupts remain on the
+  // caller's frontend thread. Must be called before OnRpcRequest().
+  void EnableThreadedExecution();
+  bool supports_query_interrupt() const { return threaded_execution_; }
 
   // 2. TraceProcessor legacy RPC endpoints.
   // The methods below are exposed for the old RPC interfaces, where each RPC
@@ -150,6 +163,22 @@ class Rpc {
  private:
   base::Status ExportSqlite(const ExportCallback&);
 
+  struct QueuedRequest {
+    std::vector<uint8_t> data;
+    RpcResponseFunction response_fn;
+    std::function<void()> complete_fn;
+    bool is_query = false;
+    bool cancellable = false;
+    bool cancelled = false;
+    bool has_tag = false;
+    std::string tag;
+  };
+
+  bool ValidateRpcSequence(const protos::pbzero::TraceProcessorRpc::Decoder&);
+  void DispatchRpcRequest(const uint8_t*, size_t);
+  void InterruptQuery(const protos::pbzero::TraceProcessorRpc::Decoder&);
+  void ExecutionLoop();
+  void SendCancelledQueryResponse(const RpcResponseFunction&);
   void ParseRpcRequest(const uint8_t*, size_t);
   void ResetTraceProcessor(const uint8_t*, size_t);
   base::Status RegisterSqlPackage(protozero::ConstBytes);
@@ -171,7 +200,11 @@ class Rpc {
 
   Config current_config_;
   std::unique_ptr<TraceProcessor> trace_processor_;
-  RpcResponseFunction rpc_response_fn_;
+  // Set and consumed on the frontend thread when a complete request is
+  // dispatched. The execution callback is only accessed on the TP thread.
+  RpcResponseFunction frontend_response_fn_;
+  std::function<void()> frontend_request_complete_fn_;
+  RpcResponseFunction execution_response_fn_;
   protozero::ProtoRingBuffer rxbuf_;
   int64_t tx_seq_id_ = 0;
   int64_t rx_seq_id_ = 0;
@@ -179,6 +212,19 @@ class Rpc {
   int64_t t_parse_started_ = 0;
   size_t bytes_last_progress_ = 0;
   size_t bytes_parsed_ = 0;
+
+  bool threaded_execution_ = false;
+  bool stop_execution_thread_ = false;
+  std::mutex execution_mutex_;
+  std::condition_variable execution_cv_;
+  std::deque<QueuedRequest> execution_queue_;
+  std::thread execution_thread_;
+  struct RunningQuery {
+    bool has_tag = false;
+    std::string tag;
+    bool cancellable = false;
+  };
+  std::optional<RunningQuery> running_query_;
 
   // Manages Summarizer instances keyed by caller-provided ID.
   base::FlatHashMap<std::string, std::unique_ptr<Summarizer>> summarizers_;
