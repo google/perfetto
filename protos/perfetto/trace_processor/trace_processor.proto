@@ -116,6 +116,7 @@ message TraceProcessorRpc {
     TPM_DESTROY_SUMMARIZER = 19;
     TPM_STATEMENT_STREAMING = 20;
     TPM_EXPORT = 21;
+    TPM_INTERRUPT_QUERY = 22;
   }
 
   oneof type {
@@ -163,6 +164,8 @@ message TraceProcessorRpc {
     StatementArgs statement_args = 115;
     // For TPM_EXPORT.
     ExportArgs export_args = 116;
+    // For TPM_INTERRUPT_QUERY.
+    InterruptQueryArgs interrupt_query_args = 117;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -216,8 +219,18 @@ message QueryArgs {
   optional string sql_query = 1;
   // Was time_queued_ns
   reserved 2;
-  // Optional string to tag this query with for performance diagnostic purposes.
+  // An opaque sequence identity. Ordering is only guaranteed for operations
+  // with the exact same tag; tags have no hierarchical semantics.
   optional string tag = 3;
+  // Opts this query into interruption. Callers must only use this for
+  // side-effect-free queries because earlier statements can remain applied.
+  optional bool cancellable = 4;
+}
+
+// Input for TPM_INTERRUPT_QUERY. Has no response of its own: the outcome is
+// reported by the target query's terminal QueryResult.
+message InterruptQueryArgs {
+  optional string tag = 1;
 }
 
 // Input for the TPM_STATEMENT_STREAMING endpoint: executes only the next
@@ -249,6 +262,11 @@ message StatementArgs {
 // returns 3 columns and 2 rows, the cells will be emitted in this order:
 // R0C0, R0C1, R0C2, R1C0, R1C1, R1C2.
 message QueryResult {
+  enum ErrorCode {
+    ERROR_CODE_UNSPECIFIED = 0;
+    ERROR_CODE_INTERRUPTED = 1;
+  }
+
   // This determines the number and names of columns.
   repeated string column_names = 1;
 
@@ -304,6 +322,9 @@ message QueryResult {
   // milliseconds. If this query is comprised of multiple messages, this field
   // will contain the cumulative time taken so far.
   optional double elapsed_time_ms = 7;
+
+  // Classifies |error|; unset for ordinary query failures.
+  optional ErrorCode error_code = 8;
 }
 
 // Output for the TPM_STATEMENT_STREAMING endpoint. Like TPM_QUERY_STREAMING,
@@ -356,6 +377,10 @@ message StatusResult {
   // but you should not attempt to parse it as the format may change
   // without warning.
   optional string version_code = 4;
+
+  // Whether TPM_INTERRUPT_QUERY is honoured. False on the synchronous WASM
+  // transport.
+  optional bool supports_query_interrupt = 5;
 }
 
 // Input for the /compute_metric endpoint.

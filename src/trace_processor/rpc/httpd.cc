@@ -235,12 +235,12 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     // Start the chunked reply.
     conn.SendResponseHeaders("200 OK", chunked_headers,
                              base::HttpServerConnection::kOmitContentLength);
-    if (!req.body.empty()) {
-      conns_[&conn].pending.EndRequest(req.body.size());
+    if (req.body.empty()) {
+      conn.SendResponseBody("0\r\n\r\n", 5);
+      return;
     }
-
-    // Terminate chunked stream.
-    conn.SendResponseBody("0\r\n\r\n", 5);
+    // The terminating chunk follows from the stream's completion callback.
+    conns_[&conn].pending.EndRequest(req.body.size());
     return;
   }
 
@@ -381,9 +381,15 @@ Rpc::Stream& Httpd::GetRpcStream(base::HttpServerConnection* conn) {
   auto& stream = conns_[conn].stream;
   if (!stream) {
     stream = std::make_unique<Rpc::Stream>(
-        global_trace_processor_rpc_, [conn](const void* data, uint32_t len) {
+        global_trace_processor_rpc_,
+        [conn](const void* data, uint32_t len) {
           SendRpcChunk(conn, data, len);
-        });
+        },
+        [conn] {
+          if (!conn->is_websocket())
+            conn->SendResponseBody("0\r\n\r\n", 5);
+        },
+        &task_runner_);
   }
   return *stream;
 }

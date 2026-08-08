@@ -271,13 +271,21 @@ void UnixRpcServer::OnNewIncomingConnection(
   base::UnixSocket* sock = new_conn.get();
   conn->sock = std::move(new_conn);
   conn->stream = std::make_unique<Rpc::Stream>(
-      rpc_, [sock](const void* resp, uint32_t resp_len) {
+      rpc_,
+      [sock](const void* resp, uint32_t resp_len) {
         if (resp == nullptr) {
           sock->Shutdown(/*notify=*/false);
           return;
         }
         sock->Send(resp, resp_len);
-      });
+      },
+      [this] {
+        if (reaper_) {
+          reaper_->set_query_in_flight(false);
+          reaper_->OnActivity();
+        }
+      },
+      &task_runner_);
   clients_.push_back(std::move(conn));
 }
 
@@ -303,6 +311,7 @@ void UnixRpcServer::OnDataAvailable(base::UnixSocket* self) {
   if (!conn)
     return;
 
+  // Cleared by the stream's completion callback.
   if (reaper_)
     reaper_->set_query_in_flight(true);
 
@@ -316,11 +325,6 @@ void UnixRpcServer::OnDataAvailable(base::UnixSocket* self) {
     req.EndRequest(rx_bytes);
     if (rx_bytes == 0)
       break;
-  }
-
-  if (reaper_) {
-    reaper_->set_query_in_flight(false);
-    reaper_->OnActivity();
   }
 }
 
