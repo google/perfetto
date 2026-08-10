@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
+import {Time} from '../../base/time';
 import {
   type Aggregation,
   type Aggregator,
@@ -21,6 +22,7 @@ import {
   createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
+import {Timestamp} from '../../components/widgets/timestamp';
 import type {AreaSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import type {Track} from '../../public/track';
@@ -83,6 +85,7 @@ export class ThreadSliceAggregator implements Aggregator {
             SELECT
               json_object('id', id, 'trackId', track_id) as id_with_lineage,
               name,
+              ts,
               dur,
               self_dur,
               depth,
@@ -243,6 +246,16 @@ export class ThreadSliceAggregator implements Aggregator {
       name: {
         title: 'Name',
         columnType: 'text',
+      },
+      ts: {
+        title: 'Timestamp',
+        columnType: 'quantitative',
+        cellRenderer: (value: unknown) => {
+          if (typeof value === 'bigint') {
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+          }
+          return String(value ?? '');
+        },
       },
       dur: {
         title: 'Wall Duration',

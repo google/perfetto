@@ -15,8 +15,10 @@
 import m from 'mithril';
 import {AtomicTaskQueue} from '../base/async_memo';
 import type {Trace} from '../public/trace';
+import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {ExportButton} from '../widgets/export_button';
+import {Popup, PopupPosition} from '../widgets/popup';
 import type {
   AggregationData,
   Aggregator,
@@ -24,6 +26,7 @@ import type {
   DataGridState,
 } from './aggregation_adapter';
 import {AggregationPanel} from './aggregation_panel';
+import {AddDebugTrackMenu} from './tracks/add_debug_track_menu';
 import type {DataGridApi} from './widgets/datagrid/datagrid';
 import type {Column, Filter, Pivot} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
@@ -81,7 +84,7 @@ export class AggregationDrilldownPanel implements m.ClassComponent<AggregationDr
   }
 
   view({attrs}: m.Vnode<AggregationDrilldownPanelAttrs>): m.Children {
-    const {aggregator, gridConfig} = attrs;
+    const {trace, aggregator, gridConfig} = attrs;
     const dataGridState: DataGridState = {
       columns: this.dataModel.columns,
       pivot: this.dataModel.pivot,
@@ -102,7 +105,7 @@ export class AggregationDrilldownPanel implements m.ClassComponent<AggregationDr
       {
         title: 'Area Selection Drill-down',
         description: aggregator.getTabName(),
-        buttons: this.renderButtons(),
+        buttons: this.renderButtons(trace, this.datasource),
       },
       m(AggregationPanel, {
         controls: aggregator.renderTopbarControls?.(),
@@ -119,11 +122,39 @@ export class AggregationDrilldownPanel implements m.ClassComponent<AggregationDr
     );
   }
 
-  private renderButtons(): m.Children {
+  private renderButtons(trace: Trace, dataSource: SQLDataSource): m.Children {
     const api = this.dataGridApi;
     if (!api) return undefined;
 
-    return m(ExportButton, {onExportData: api.exportData});
+    const model = api.getModel();
+    let debugTrackButton: m.Children;
+    if (model.mode === 'flat') {
+      const availableColumns: string[] = [];
+      const columnDisplayNames: Record<string, string> = {};
+      for (const {alias, field} of model.columns) {
+        availableColumns.push(alias);
+        columnDisplayNames[alias] = field;
+      }
+      const query = dataSource.getQuery({...model, pagination: undefined});
+      debugTrackButton = m(
+        Popup,
+        {
+          trigger: m(Button, {label: 'Add debug track'}),
+          position: PopupPosition.Top,
+        },
+        m(AddDebugTrackMenu, {
+          trace,
+          query,
+          availableColumns,
+          columnDisplayNames,
+        }),
+      );
+    }
+
+    return [
+      debugTrackButton,
+      m(ExportButton, {onExportData: api.exportData}),
+    ];
   }
 
   onremove(): void {
