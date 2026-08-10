@@ -151,10 +151,7 @@ export class AggregationDrilldownPanel implements m.ClassComponent<AggregationDr
       );
     }
 
-    return [
-      debugTrackButton,
-      m(ExportButton, {onExportData: api.exportData}),
-    ];
+    return [debugTrackButton, m(ExportButton, {onExportData: api.exportData})];
   }
 
   onremove(): void {
