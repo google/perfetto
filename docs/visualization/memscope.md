@@ -58,15 +58,15 @@ and per-process memory metrics update in real time. It is useful for:
 
 Use the process table to:
 
-- **Sort by memory usage** - By default the process list is sorted by descending
+- **Sort by memory usage** - by default the process list is sorted by descending
   RSS Anon + Swap usage.
-- **Watch trends** - The sparkline next to each process shows recent RSS
-  direction. Processes with consistently upward trends are good candidates for
+- **Watch trends** - the sparkline next to each process shows recent RSS
+  direction - processes with consistently upward trends are good candidates for
   deeper investigation.
-- **Search for a process** - Use the filter box to search for a specific process
+- **Search for a process** - use the filter box to search for a specific process
   or package by name.
-- **Profile a process** - Hover over a process row to reveal the **Profile**
-  button. Click it to start a heap profile for that process.
+- **Profile a process** - hover over a process row to reveal the **Profile**
+  button - click it to start a heap profile for that process.
 
   ![Memscope filtered to the Mandelbrot process, with an arrow pointing to the Profile button](../images/memscope-mandelbrot-hover.png)
 
@@ -75,11 +75,10 @@ Use the process table to:
 
 ### Recording and opening a trace
 
-After clicking **Profile**, Memscope starts recording a preconfigured memory
-trace configuration of the selected process and shows its memory composition as
-it changes.
+After clicking **Profile**, Memscope starts recording the selected process using
+a pre-configured memory trace configuration.
 
-This trace config includes:
+This pre-configured trace config includes:
 
 - Periodic [Java (ART) heap dumps](/docs/data-sources/java-heap-profiler.md)
   (every 10s).
@@ -89,7 +88,7 @@ This trace config includes:
 
 Exercise the app or otherwise reproduce the behavior you want to investigate,
 then click **Stop & Open Trace**. You can monitor the high-level memory usage
-using the stacked graph on this page.
+using the stacked area graph on this page.
 
 ![Memscope recording the Mandelbrot process, with an arrow pointing to Stop & Open Trace](../images/memscope-mandelbrot-profile-stop-open.png)
 
@@ -103,15 +102,15 @@ duration of the trace.
 NOTE: For Googlers, you can find good examples of traces with smaps dumps via
 the
 [process_smaps dashboard](https://apconsole.corp.google.com/dashboards/process_smaps).
-However, these usually contain only one dump, so the timeline view on this page
-will be hidden.
+However, these usually contain only a single dump, so the timeline view on this
+page will be hidden.
 
 ### Process selector and headline stats
 
 At the top of the page, the process selector lets you pick which process to
 inspect. By default, the process with the highest number of memory-relevant
-stats is selected. If you have recorded a trace via Memscope, this process
-will be selected automatically as these traces only record a single process.
+stats is selected. If you have recorded a trace via Memscope, this process will
+be selected automatically, as it only records a single process.
 
 ![Memory Overview as it opens from a Memscope trace, with the process selector showing the profiled app](../images/memscope-mandelbrot-trace-opened.png)
 
@@ -121,12 +120,15 @@ The composition-over-time chart shows how memory is broken down by category
 (anon, file, shmem, etc.) based on the information in the smaps snapshots. This
 is used for top-level temporal navigation for the rest of the page. You can:
 
-- **Select single snapshots** - Click points on the chart to inspect specific
+- **Select single snapshots** - click points on the chart to inspect specific
   snapshots. The following sections show a breakdown of this snapshot only.
-- **Drag across a range** - Click and drag across multiple snapshots to compare
+- **Drag across a range** - click and drag across multiple snapshots to compare
   snapshots and see how memory use has changed over time.
 
 ![Composition over time chart for the profiled app](../images/memscope-composition-over-time.png)
+
+In this example, we can see that native memory started increasing rapidly
+towards the end of the trace (after we started interacting with the app).
 
 #### Where the growth went
 
@@ -147,8 +149,7 @@ below are consuming the most memory.
 
 ![Where did all the memory go section with the resident memory breakdown](../images/memscope-where-did-memory-go.png)
 
-In this example, we can see that native memory is using a large fraction of the
-memory map - a lot more than Java heap.
+In this example, we can see that native memory is using a large proportion.
 
 #### Java heap
 
@@ -167,30 +168,30 @@ dimension.
 
 #### Native allocations
 
-The native allocation section shows some native memory stats and the top
-unreleased memory allocation call sites (allocations for which we haven't seen a
-subsequent free). Note that it cannot account for all native memory usage -
-only for allocations made since we started recording the trace. In our example
-it covers 87%, so we can get a good idea of where the memory is going.
+The native allocation section shows the top unreleased memory allocation call
+sites (allocations for which we haven't seen a subsequent free). Note that it
+cannot account for all native memory usage - only for allocations made since we
+started recording the trace. In our example it covers 87%, so we can get a good
+idea of where the memory is going.
 
 ![Native memory breakdown for the profiled app](../images/memscope-native-memory.png)
 
 We can see that a native function in the mandelbrot engine has allocated 182 MB
-without freeing it. This engine is a native rendering library used to
-generate the mandelbrot bitmaps and send them back to the Java runtime for
-composition. It should not retain much, if any, memory. The intentional leak was
-in fact caused by purposely skipping the call to free the image buffer for
-rendered tiles, so every call into the native code would leak one 512x512px
-buffer, which has grown steadily over time.
+without freeing it. This function originates from a native tile rendering
+library in the dummy app used to generate the mandelbrot bitmaps and send them
+back to the Java runtime for composition. It should not retain much, if any,
+memory. The intentional leak was, in fact, caused by skipping the call to free
+the image buffer for rendered tiles, so every call into the native code would
+leak one 512x512px buffer, which has added up steadily over time.
 
 Click on the 'Show in timeline' button to drill down into the native allocation
 flamegraph in more detail.
 
 #### Smaps Detail
 
-Click the **Smaps Detail** tab at the top of Memory Overview to inspect the raw
-`/proc/<pid>/smaps` data. The table groups mappings using the same categories as
-the composition chart and supports filtering by regular expression.
+Scrolling back up to the top of the page, click the **Smaps Detail** tab at the
+top of Memory Overview to inspect the raw `/proc/<pid>/smaps` data. The table
+groups mappings using the same categories as the composition chart.
 
 ![Smaps Detail tab showing the raw smaps mappings grouped by category](../images/memscope-smaps-detail.png)
 
@@ -199,9 +200,9 @@ the composition chart and supports filtering by regular expression.
 In summary, a typical memory investigation workflow looks like this:
 
 1. **Find the process** - use Memscope to monitor memory live and identify which
-   process is growing.
+   process is growing or find the process you're looking to monitor.
 2. **Start tracing the process** - click to start profiling the offending
-   process, and open the trace in the UI.
+   process, then open the trace in the UI.
 3. **Triage in Memory Overview** - open the trace and use the composition chart
    and breakdown sections to understand where the memory went.
 4. **Go deeper** - if needed, start a native heap profile from Memscope or
