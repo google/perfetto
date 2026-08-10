@@ -627,6 +627,27 @@ std::string Dirname(const std::string& path) {
   return p.substr(0, last_sep);
 }
 
+size_t PathRootPrefixLength(const std::string& path) {
+  size_t pos = 0;
+  // Skip over a leading drive letter, e.g. "C:\foo".
+  bool has_drive_letter = path.size() >= 2 && path[1] == ':' &&
+                          ((path[0] >= 'a' && path[0] <= 'z') ||
+                           (path[0] >= 'A' && path[0] <= 'Z'));
+  if (has_drive_letter)
+    pos = 2;
+
+  size_t end = path.find_first_not_of("/\\", pos);
+  end = end == std::string::npos ? path.size() : end;
+
+  // A drive letter not followed by a separator ("C:foo") is relative to the
+  // current directory of that drive, not absolute.
+  return end > pos ? end : 0;
+}
+
+bool IsAbsolutePath(const std::string& path) {
+  return PathRootPrefixLength(path) != 0;
+}
+
 base::Status SetFilePermissions(const std::string& file_path,
                                 const std::string& group_name_or_id,
                                 const std::string& mode_bits) {

@@ -158,6 +158,22 @@ std::string Basename(const std::string& path);
 //   Dirname("C:\\Windows\\System32") => "C:\\Windows"
 std::string Dirname(const std::string& path);
 
+// Returns the length of the leading root component of a path: "/" on UNIX,
+// "C:\" or "\\" (UNC) on Windows. Returns 0 if the path is relative. Like
+// Basename() and Dirname(), both '/' and '\' are recognized on all platforms.
+// Stripping the returned prefix turns the path into a relative one.
+// Examples:
+//   PathRootPrefixLength("/usr/bin/ls") => 1
+//   PathRootPrefixLength("//usr/bin") => 2
+//   PathRootPrefixLength("C:\\Windows") => 3
+//   PathRootPrefixLength("C:foo") => 0 (relative to the current dir of drive
+//   C:) PathRootPrefixLength("foo/bar") => 0
+size_t PathRootPrefixLength(const std::string& path);
+
+// Returns true if the path starts with a root component. See
+// PathRootPrefixLength().
+bool IsAbsolutePath(const std::string& path);
+
 // Puts the path to all files under |dir_path| in |output|, recursively walking
 // subdirectories. File paths are relative to |dir_path|. Only files are
 // included, not directories. Path separator is always '/', even on windows (not
