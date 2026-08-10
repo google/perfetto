@@ -46,18 +46,25 @@ SELECT
   c3 AS dominated_size_bytes,
   c4 AS dominated_native_size_bytes,
   c5 AS depth
-FROM __intrinsic_table_ptr((
-  SELECT __intrinsic_tree_dominator_summary(
-    __intrinsic_tree_from_table(
-      'id', p.id,
-      'parent_id', p.idom_id,
-      'self_size', o.self_size,
-      'native_size', o.native_size
-    )
+FROM __intrinsic_table_ptr(
+  (
+    SELECT
+      __intrinsic_tree_dominator_summary(
+        __intrinsic_tree_from_table(
+          'id',
+          p.id,
+          'parent_id',
+          p.idom_id,
+          'self_size',
+          o.self_size,
+          'native_size',
+          o.native_size
+        )
+      )
+    FROM _raw_heap_graph_dominator_tree AS p
+    JOIN heap_graph_object AS o USING (id)
   )
-  FROM _raw_heap_graph_dominator_tree p
-  JOIN heap_graph_object o USING (id)
-))
+)
 WHERE
   __intrinsic_table_ptr_bind(c0, 'id')
   AND __intrinsic_table_ptr_bind(c1, 'idom_id')

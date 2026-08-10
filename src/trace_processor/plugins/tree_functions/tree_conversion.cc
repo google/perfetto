@@ -183,10 +183,11 @@ void TreeToTable::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
       ctx, std::make_unique<dataframe::Dataframe>(std::move(df)), "TABLE");
 }
 
-// Computes depth and subtree aggregations (object count, self size, native size)
-// for a dominator tree in O(N) linear time using two topological passes.
+// Computes depth and subtree aggregations (object count, self size, native
+// size) for a dominator tree in O(N) linear time using two topological passes.
 static base::StatusOr<dataframe::Dataframe> TreeDominatorSummaryImpl(
-    core::Tree tree, StringPool* pool) {
+    core::Tree tree,
+    StringPool* pool) {
   std::vector<std::string> names = {"id",
                                     "idom_id",
                                     "dominated_obj_count",
@@ -210,7 +211,8 @@ static base::StatusOr<dataframe::Dataframe> TreeDominatorSummaryImpl(
     return std::move(builder).Build();
   }
 
-  // Pre-initialize working vectors. Every node dominates itself (count=1, depth=1).
+  // Pre-initialize working vectors. Every node dominates itself (count=1,
+  // depth=1).
   std::vector<int64_t> subtree_count(N, 1);
   std::vector<int64_t> subtree_size_bytes(N, 0);
   std::vector<int64_t> subtree_native_size_bytes(N, 0);
@@ -220,7 +222,8 @@ static base::StatusOr<dataframe::Dataframe> TreeDominatorSummaryImpl(
   const auto* self_sizes = tree.columns[2].unchecked_data<int64_t>();
   const auto* native_sizes = tree.columns[3].unchecked_data<int64_t>();
 
-  // Copy initial self-sizes into subtree accumulators, skipping nulls if present.
+  // Copy initial self-sizes into subtree accumulators, skipping nulls if
+  // present.
   if (tree.columns[2].null_bv.size() == 0) {
     std::copy(self_sizes, self_sizes + N, subtree_size_bytes.begin());
   } else {
@@ -231,7 +234,8 @@ static base::StatusOr<dataframe::Dataframe> TreeDominatorSummaryImpl(
     }
   }
 
-  // Copy initial native-sizes into subtree accumulators, skipping nulls if present.
+  // Copy initial native-sizes into subtree accumulators, skipping nulls if
+  // present.
   if (tree.columns[3].null_bv.size() == 0) {
     std::copy(native_sizes, native_sizes + N,
               subtree_native_size_bytes.begin());
@@ -252,7 +256,8 @@ static base::StatusOr<dataframe::Dataframe> TreeDominatorSummaryImpl(
     }
   }
 
-  // 2. Bottom-up pass: Traverse in reverse topological order so children accumulate
+  // 2. Bottom-up pass: Traverse in reverse topological order so children
+  // accumulate
   //    their total dominated subtree sizes/counts into their immediate parent.
   for (uint32_t i = N; i > 0; --i) {
     uint32_t idx = i - 1;
@@ -286,7 +291,8 @@ static base::StatusOr<dataframe::Dataframe> TreeDominatorSummaryImpl(
   return std::move(builder).Build();
 }
 
-void TreeDominatorSummary::Step(sqlite3_context* ctx, int argc,
+void TreeDominatorSummary::Step(sqlite3_context* ctx,
+                                int argc,
                                 sqlite3_value** argv) {
   if (argc != 1) {
     return sqlite::result::Error(
