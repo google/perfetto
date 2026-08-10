@@ -32,7 +32,7 @@
 
 #include "protos/perfetto/common/trace_attributes.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
-#include "protos/perfetto/trace/android/after_reboot_trace_event.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"

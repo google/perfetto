@@ -1868,29 +1868,35 @@ void PerfettoCmd::CloneAllBugreportTraces(
     if (it->is_write_into_file) {
       std::string clean_name =
           it->unique_session_name.empty() ? "default" : it->unique_session_name;
-      base::StackString<256> persistent_path(
-          "/data/misc/perfetto-traces/persistent/%s.tmp", clean_name.c_str());
-      base::ScopedFile fd_in =
-          base::OpenFile(persistent_path.c_str(), O_RDONLY | O_CLOEXEC);
-      if (fd_in) {
-        base::ScopedFile fd_out = base::OpenFile(
-            out_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0600);
-        if (fd_out) {
-          PERFETTO_LOG(
-              "Copying persistent trace %s for write_into_file session %" PRIu64
-              " into bugreport path %s",
-              persistent_path.c_str(), it->tsid, out_path.c_str());
-          base::CopyFileContents(*fd_in, *fd_out);
+      snapshot_threads_.emplace_back(
+          base::ThreadTaskRunner::CreateAndStart("snapshot"));
+      snapshot_threads_.back().PostTask([clean_name, out_path, tsid = it->tsid,
+                                         sync_fn] {
+        base::StackString<256> persistent_path(
+            "/data/misc/perfetto-traces/persistent/%s.tmp", clean_name.c_str());
+        base::ScopedFile fd_in =
+            base::OpenFile(persistent_path.c_str(), O_RDONLY | O_CLOEXEC);
+        if (fd_in) {
+          base::ScopedFile fd_out = base::OpenFile(
+              out_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0600);
+          if (fd_out) {
+            PERFETTO_LOG(
+                "Copying persistent trace %s for write_into_file session "
+                "%" PRIu64 " into bugreport path %s",
+                persistent_path.c_str(), tsid, out_path.c_str());
+            base::CopyFileContents(*fd_in, *fd_out);
+          } else {
+            PERFETTO_PLOG("Failed to open bugreport output file %s",
+                          out_path.c_str());
+          }
         } else {
-          PERFETTO_PLOG("Failed to open bugreport output file %s",
-                        out_path.c_str());
+          PERFETTO_LOG(
+              "Persistent trace %s for write_into_file session %" PRIu64
+              " not found",
+              persistent_path.c_str(), tsid);
         }
-      } else {
-        PERFETTO_LOG("Persistent trace %s for write_into_file session %" PRIu64
-                     " not found",
-                     persistent_path.c_str(), it->tsid);
-      }
-      sync_fn();
+        sync_fn();
+      });
       continue;
     }
 

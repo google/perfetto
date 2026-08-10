@@ -29,7 +29,7 @@ import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 51.
+// Next id: 50.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -993,14 +993,7 @@ message TraceConfig {
   // (/data/misc/perfetto-traces/persistent/$unique_session_name.tmp) that
   // survives device reboots (e.g. during OTA updates or battery depletion).
   //
-  // Introduced in: perfetto v58.
+  // Introduced in: perfetto v59.
   // Supported on: Android 26Q4+.
   optional bool persist_trace_across_reboots = 49;
-
-  // If set to true, forces explicit buffer flushes prior to periodic write
-  // passes into output files when write_into_file is true.
-  //
-  // Introduced in: perfetto v58.
-  // Supported on: Android 26Q4+.
-  optional bool flush_before_writing_into_file = 50;
 }

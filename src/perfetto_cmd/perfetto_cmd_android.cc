@@ -42,7 +42,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 
-#include "protos/perfetto/trace/android/after_reboot_trace_event.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -60,7 +60,10 @@ static constexpr int32_t kTrustedUid = 9999;
 // 2:ts  : Finished
 // 3:ts  : Timed out
 const char* kRebootTraceStatusProp = "traced.reboot_trace_status";
-constexpr uint64_t kUploadWaitTimeoutNs =
+// Maximum duration to wait for the boot recovery service to start up
+// and unlink pre-existing trace files from disk. Sized to 5 minutes to
+// accommodate worst-case full device boot and service scheduling.
+constexpr uint64_t kBootTraceCleanupTimeoutNs =
     5ULL * 60 * 1000 * 1000 * 1000;  // 5 minutes
 
 enum class RebootTraceUploadState {
@@ -294,13 +297,24 @@ void PerfettoCmd::WaitForPreviousRebootTraceUpload(
   auto start_time = base::GetBootTimeNs();
   while (cur_prop.empty() &&
          static_cast<uint64_t>((base::GetBootTimeNs() - start_time).count()) <
-             kUploadWaitTimeoutNs) {
+             kBootTraceCleanupTimeoutNs) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     cur_prop = base::GetAndroidProp(kRebootTraceStatusProp);
   }
 
+  auto extract_trace_uuid = [](const std::string& path) -> base::Uuid {
+    auto mmap = base::ReadMmapWholeFile(path.c_str());
+    if (mmap.IsValid()) {
+      auto config = ParseTraceConfigFromMmapedTrace(mmap);
+      if (config.has_value()) {
+        return base::Uuid(config->trace_uuid_lsb(), config->trace_uuid_msb());
+      }
+    }
+    return base::Uuid();
+  };
+
   if (cur_prop.empty()) {
-    base::Uuid uuid;
+    base::Uuid uuid = extract_trace_uuid(target_file_path);
     android_stats::MaybeLogUploadEvent(
         PerfettoStatsdAtom::kRebootTraceUploadTimeout, uuid.lsb(), uuid.msb(),
         session_name);
@@ -318,6 +332,10 @@ void PerfettoCmd::WaitForPreviousRebootTraceUpload(
   // If property is set, but the persistent trace file STILL exists on disk,
   // log error, unlink file, and crash.
   if (base::FileExists(target_file_path)) {
+    base::Uuid uuid = extract_trace_uuid(target_file_path);
+    android_stats::MaybeLogUploadEvent(
+        PerfettoStatsdAtom::kRebootTraceUploadLeftover, uuid.lsb(), uuid.msb(),
+        session_name);
     PERFETTO_ELOG(
         "Persistent trace file '%s' still exists on disk even though property "
         "is set to '%s'! Unlinking file.",
@@ -345,11 +363,8 @@ base::ScopedFile PerfettoCmd::CreatePersistentTmpFile(
   // complete if the persistent trace file exists on disk.
   WaitForPreviousRebootTraceUpload(clean_name, file_path.c_str());
 
-  // Unlink any pre-existing instance of this persistent trace file.
-  unlink(file_path.c_str());
-
-  auto fd =
-      base::OpenFile(file_path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+  auto fd = base::OpenFile(file_path.c_str(),
+                           O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, 0600);
   if (!fd) {
     PERFETTO_PLOG("Could not create persistent trace file %s",
                   file_path.c_str());
@@ -483,6 +498,9 @@ int PerfettoCmd::UploadPersistentTracesAfterReboot() {
 
     std::optional<TraceConfig> config = ParseTraceConfigFromMmapedTrace(mmap);
     if (!config.has_value()) {
+      android_stats::MaybeLogUploadEvent(
+          PerfettoStatsdAtom::kRebootTraceParseFailed, /*uuid_lsb=*/0,
+          /*uuid_msb=*/0, pending.file_name);
       PERFETTO_ELOG(
           "reboot-trace: Failed to parse TraceConfig from persistent trace %s",
           pending.file_name.c_str());

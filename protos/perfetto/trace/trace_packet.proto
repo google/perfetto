@@ -22,7 +22,6 @@ import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/protovm/vm_program.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
-import "protos/perfetto/trace/android/after_reboot_trace_event.proto";
 import "protos/perfetto/trace/android/android_aflags.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
