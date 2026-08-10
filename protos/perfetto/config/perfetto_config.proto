@@ -512,10 +512,6 @@ message TracingServiceState {
     // If true, the session is in the STARTED state. If false the session is in
     // any other state (see `state` field).
     optional bool is_started = 11;
-
-    // If true, the session is writing directly into an output file (long
-    // trace).
-    optional bool is_write_into_file = 12;
   }
 
   // Lists all the producers connected.

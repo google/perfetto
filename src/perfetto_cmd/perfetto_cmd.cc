@@ -1795,8 +1795,6 @@ void PerfettoCmd::CloneAllBugreportTraces(
     int32_t bugreport_score;
     TracingSessionID tsid;
     std::string fname;  // Before deduping logic.
-    std::string unique_session_name;
-    bool is_write_into_file = false;
     bool operator<(const SessionToClone& other) const {
       return bugreport_score > other.bugreport_score;  // High score first.
     }
@@ -1811,13 +1809,8 @@ void PerfettoCmd::CloneAllBugreportTraces(
     } else {
       fname = "systrace.pftrace";
     }
-    SessionToClone s_clone;
-    s_clone.bugreport_score = session.bugreport_score();
-    s_clone.tsid = session.id();
-    s_clone.fname = fname;
-    s_clone.unique_session_name = session.unique_session_name();
-    s_clone.is_write_into_file = session.is_write_into_file();
-    sessions.emplace_back(std::move(s_clone));
+    sessions.emplace_back(
+        SessionToClone{session.bugreport_score(), session.id(), fname});
   }  // for(session)
 
   if (sessions.empty()) {
@@ -1864,41 +1857,6 @@ void PerfettoCmd::CloneAllBugreportTraces(
     // Clone the tracing session into the bugreport file.
     std::string out_path = GetBugreportTraceDir() + "/" + actual_fname;
     remove(out_path.c_str());
-
-    if (it->is_write_into_file) {
-      std::string clean_name =
-          it->unique_session_name.empty() ? "default" : it->unique_session_name;
-      snapshot_threads_.emplace_back(
-          base::ThreadTaskRunner::CreateAndStart("snapshot"));
-      snapshot_threads_.back().PostTask([clean_name, out_path, tsid = it->tsid,
-                                         sync_fn] {
-        base::StackString<256> persistent_path(
-            "/data/misc/perfetto-traces/persistent/%s.tmp", clean_name.c_str());
-        base::ScopedFile fd_in =
-            base::OpenFile(persistent_path.c_str(), O_RDONLY | O_CLOEXEC);
-        if (fd_in) {
-          base::ScopedFile fd_out = base::OpenFile(
-              out_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0600);
-          if (fd_out) {
-            PERFETTO_LOG(
-                "Copying persistent trace %s for write_into_file session "
-                "%" PRIu64 " into bugreport path %s",
-                persistent_path.c_str(), tsid, out_path.c_str());
-            base::CopyFileContents(*fd_in, *fd_out);
-          } else {
-            PERFETTO_PLOG("Failed to open bugreport output file %s",
-                          out_path.c_str());
-          }
-        } else {
-          PERFETTO_LOG(
-              "Persistent trace %s for write_into_file session %" PRIu64
-              " not found",
-              persistent_path.c_str(), tsid);
-        }
-        sync_fn();
-      });
-      continue;
-    }
 
     PERFETTO_LOG("Cloning tracing session %" PRIu64 " with score %d into %s",
                  it->tsid, it->bugreport_score, out_path.c_str());

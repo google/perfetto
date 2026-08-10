@@ -3426,7 +3426,7 @@ class TracingServiceState(_message.Message):
         producer_id: int
         def __init__(self, ds_descriptor: _Optional[_Union[DataSourceDescriptor, _Mapping]] = ..., producer_id: _Optional[int] = ...) -> None: ...
     class TracingSession(_message.Message):
-        __slots__ = ("id", "consumer_uid", "state", "unique_session_name", "buffer_size_kb", "duration_ms", "num_data_sources", "start_realtime_ns", "bugreport_score", "bugreport_filename", "is_started", "is_write_into_file")
+        __slots__ = ("id", "consumer_uid", "state", "unique_session_name", "buffer_size_kb", "duration_ms", "num_data_sources", "start_realtime_ns", "bugreport_score", "bugreport_filename", "is_started")
         ID_FIELD_NUMBER: _ClassVar[int]
         CONSUMER_UID_FIELD_NUMBER: _ClassVar[int]
         STATE_FIELD_NUMBER: _ClassVar[int]
@@ -3438,7 +3438,6 @@ class TracingServiceState(_message.Message):
         BUGREPORT_SCORE_FIELD_NUMBER: _ClassVar[int]
         BUGREPORT_FILENAME_FIELD_NUMBER: _ClassVar[int]
         IS_STARTED_FIELD_NUMBER: _ClassVar[int]
-        IS_WRITE_INTO_FILE_FIELD_NUMBER: _ClassVar[int]
         id: int
         consumer_uid: int
         state: str
@@ -3450,8 +3449,7 @@ class TracingServiceState(_message.Message):
         bugreport_score: int
         bugreport_filename: str
         is_started: bool
-        is_write_into_file: bool
-        def __init__(self, id: _Optional[int] = ..., consumer_uid: _Optional[int] = ..., state: _Optional[str] = ..., unique_session_name: _Optional[str] = ..., buffer_size_kb: _Optional[_Iterable[int]] = ..., duration_ms: _Optional[int] = ..., num_data_sources: _Optional[int] = ..., start_realtime_ns: _Optional[int] = ..., bugreport_score: _Optional[int] = ..., bugreport_filename: _Optional[str] = ..., is_started: bool = ..., is_write_into_file: bool = ...) -> None: ...
+        def __init__(self, id: _Optional[int] = ..., consumer_uid: _Optional[int] = ..., state: _Optional[str] = ..., unique_session_name: _Optional[str] = ..., buffer_size_kb: _Optional[_Iterable[int]] = ..., duration_ms: _Optional[int] = ..., num_data_sources: _Optional[int] = ..., start_realtime_ns: _Optional[int] = ..., bugreport_score: _Optional[int] = ..., bugreport_filename: _Optional[str] = ..., is_started: bool = ...) -> None: ...
     PRODUCERS_FIELD_NUMBER: _ClassVar[int]
     DATA_SOURCES_FIELD_NUMBER: _ClassVar[int]
     TRACING_SESSIONS_FIELD_NUMBER: _ClassVar[int]
