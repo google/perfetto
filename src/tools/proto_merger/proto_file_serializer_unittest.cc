@@ -640,6 +640,43 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
   EXPECT_THAT(out, HasSubstr("proto_filter_merge_passthrough) = true"));
 }
 
+TEST(ProtoFileSerializerTest, MessageToMessageTypeTransitionAllowed) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "TrackEvent";
+    message.fields.push_back(MakeField("InlineCallstack", "callstack", 55));
+    input.messages.push_back(message);
+
+    ProtoFile::Message callstack_msg{};
+    callstack_msg.name = "InlineCallstack";
+    callstack_msg.fields.push_back(MakeField("string", "entry", 1));
+    input.messages.push_back(callstack_msg);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "TrackEvent";
+    message.fields.push_back(MakeField("Callstack", "callstack", 55));
+
+    ProtoFile::Message callstack_msg{};
+    callstack_msg.name = "Callstack";
+    callstack_msg.fields.push_back(MakeField("string", "entry", 1));
+    message.nested_messages.push_back(callstack_msg);
+
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+
+  std::string out = ProtoFileToDotProto(merged);
+  // Expect output to use the new upstream type name.
+  EXPECT_THAT(out, HasSubstr("  Callstack callstack = 55;"));
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto
