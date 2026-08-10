@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import {Duration} from '../../base/time';
+import {Duration, Time} from '../../base/time';
 import type {BarChartData} from '../../components/aggregation';
 import {
   type Aggregation,
@@ -50,6 +50,7 @@ import {
   formatPercentValue,
 } from '../../components/aggregation_panel';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {Timestamp} from '../../components/widgets/timestamp';
 
 const THREAD_STATE_SPEC = {
   id: NUM,
@@ -133,6 +134,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
               tstate.state as state,
               utid,
               ucpu,
+              tstate.ts,
               dur,
               dur * 1.0 / sum(dur) OVER () as fraction_of_total,
               android_cpu_cluster_mapping.cluster_type as cluster_type
@@ -223,6 +225,16 @@ export class ThreadStateSelectionAggregator implements Aggregator {
       ucpu: {title: 'CPU', columnType: 'quantitative' as const},
       utid: {title: 'UTID', columnType: 'identifier' as const},
       state: {title: 'State', columnType: 'text' as const},
+      ts: {
+        title: 'Timestamp',
+        columnType: 'quantitative' as const,
+        cellRenderer: (value: unknown) => {
+          if (typeof value === 'bigint') {
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+          }
+          return String(value ?? '');
+        },
+      },
       dur: {
         title: 'Wall duration',
         columnType: 'quantitative' as const,
@@ -262,6 +274,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
       {id: 'thread_name', field: 'thread_name'},
       {id: 'tid', field: 'tid'},
       {id: 'state', field: 'state'},
+      {id: 'ts', field: 'ts'},
       {id: 'dur', field: 'dur'},
       {id: 'ucpu', field: 'ucpu'},
     ];

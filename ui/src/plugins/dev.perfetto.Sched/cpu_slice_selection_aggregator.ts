@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
+import {Time} from '../../base/time';
 import {
   type Aggregation,
   type Aggregator,
@@ -44,6 +45,7 @@ import {
   formatPercentValue,
 } from '../../components/aggregation_panel';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {Timestamp} from '../../components/widgets/timestamp';
 
 const CPU_SLICE_SPEC = {
   id: NUM,
@@ -122,6 +124,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
               pid,
               thread.name as thread_name,
               tid,
+              sched.ts,
               sched.dur,
               sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
               sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
@@ -187,6 +190,16 @@ export class CpuSliceSelectionAggregator implements Aggregator {
       process_name: {title: 'Process Name', columnType: 'text' as const},
       tid: {title: 'TID', columnType: 'identifier' as const},
       thread_name: {title: 'Thread Name', columnType: 'text' as const},
+      ts: {
+        title: 'Timestamp',
+        columnType: 'quantitative' as const,
+        cellRenderer: (value: unknown) => {
+          if (typeof value === 'bigint') {
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+          }
+          return String(value ?? '');
+        },
+      },
       dur: {
         title: 'CPU Time',
         columnType: 'quantitative' as const,
@@ -227,6 +240,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
       {id: 'pid', field: 'pid'},
       {id: 'thread_name', field: 'thread_name'},
       {id: 'tid', field: 'tid'},
+      {id: 'ts', field: 'ts'},
       {id: 'dur', field: 'dur'},
       {id: 'ucpu', field: 'ucpu'},
     ];

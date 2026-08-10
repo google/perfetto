@@ -14,12 +14,14 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
+import {Time} from '../../base/time';
 import {
   type Aggregation,
   type Aggregator,
   type AggregatorGridConfig,
   createAggregationData,
 } from '../../components/aggregation_adapter';
+import {Timestamp} from '../../components/widgets/timestamp';
 import type {AreaSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
@@ -103,7 +105,16 @@ export class AndroidLogSelectionAggregator implements Aggregator {
             );
           },
         },
-        ts: {title: 'Timestamp', columnType: 'quantitative'},
+        ts: {
+          title: 'Timestamp',
+          columnType: 'quantitative',
+          cellRenderer: (value: unknown) => {
+            if (typeof value === 'bigint') {
+              return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+            }
+            return String(value ?? '');
+          },
+        },
         prio: {title: 'Priority', columnType: 'quantitative'},
         tag: {title: 'Tag', columnType: 'text'},
         msg: {title: 'Message', columnType: 'text'},
@@ -112,6 +123,15 @@ export class AndroidLogSelectionAggregator implements Aggregator {
         pid: {title: 'PID', columnType: 'quantitative'},
         process_name: {title: 'Process', columnType: 'text'},
       },
+      initialColumns: [
+        {id: 'id', field: 'id'},
+        {id: 'ts', field: 'ts'},
+        {id: 'prio', field: 'prio'},
+        {id: 'tag', field: 'tag'},
+        {id: 'msg', field: 'msg'},
+        {id: 'process_name', field: 'process_name'},
+        {id: 'thread_name', field: 'thread_name'},
+      ],
       initialPivot: {
         groupBy: [
           {id: 'tag', field: 'tag'},

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {Time} from '../../base/time';
 import {
   type Aggregation,
   type Aggregator,
@@ -23,7 +25,9 @@ import {
 import {formatDurationValue} from '../../components/aggregation_panel';
 import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
 import type {SQLTableSchema} from '../../components/widgets/datagrid/sql_schema';
+import {Timestamp} from '../../components/widgets/timestamp';
 import type {AreaSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
 import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
@@ -32,6 +36,8 @@ export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
 export class FrameSelectionAggregator implements Aggregator {
   readonly id = 'frame_aggregation';
+
+  constructor(private readonly trace: Trace) {}
 
   probe(area: AreaSelection): Aggregation | undefined {
     const dataset = selectTracksAndGetDataset(
@@ -61,6 +67,7 @@ export class FrameSelectionAggregator implements Aggregator {
           engine,
           as: `
             select
+              f.ts,
               f.jank_type,
               f.dur,
               f.track_id,
@@ -84,6 +91,16 @@ export class FrameSelectionAggregator implements Aggregator {
   private getGridConfig(): AggregatorGridConfig {
     const schema: ColumnSchema = {
       jank_type: {title: 'Jank Type', columnType: 'text'},
+      ts: {
+        title: 'Timestamp',
+        columnType: 'quantitative',
+        cellRenderer: (value: unknown) => {
+          if (typeof value === 'bigint') {
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+          }
+          return String(value ?? '');
+        },
+      },
       dur: {
         title: 'Duration',
         columnType: 'quantitative',
@@ -131,6 +148,12 @@ export class FrameSelectionAggregator implements Aggregator {
           },
         },
       }),
+      initialColumns: [
+        {id: 'jank_type', field: 'jank_type'},
+        {id: 'ts', field: 'ts'},
+        {id: 'dur', field: 'dur'},
+        {id: 'process_name', field: 'process_name'},
+      ],
       initialPivot: {
         groupBy: [{id: 'jank_type', field: 'jank_type'}],
         aggregates: [

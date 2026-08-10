@@ -14,6 +14,8 @@
 
 import m from 'mithril';
 import {AtomicTaskQueue} from '../base/async_memo';
+import {Time} from '../base/time';
+import type {AreaSelection} from '../public/selection';
 import type {Trace} from '../public/trace';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
@@ -32,6 +34,8 @@ import type {Column, Filter, Pivot} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import type {SharedAsyncDisposable} from '../base/shared_disposable';
 import type {DisposableSqlEntity} from '../trace_processor/sql_utils';
+import {DurationWidget} from './widgets/duration';
+import {Timestamp} from './widgets/timestamp';
 
 export interface DataGridModel {
   readonly columns?: readonly Column[];
@@ -62,6 +66,7 @@ interface AggregationDrilldownPanelAttrs {
   readonly initialDataModel: DataGridModel;
   readonly sharedTable: SharedAsyncDisposable<DisposableSqlEntity>;
   readonly aggregationData: AggregationData;
+  readonly area: AreaSelection;
 }
 
 export class AggregationDrilldownPanel implements m.ClassComponent<AggregationDrilldownPanelAttrs> {
@@ -84,7 +89,7 @@ export class AggregationDrilldownPanel implements m.ClassComponent<AggregationDr
   }
 
   view({attrs}: m.Vnode<AggregationDrilldownPanelAttrs>): m.Children {
-    const {trace, aggregator, gridConfig} = attrs;
+    const {trace, aggregator, gridConfig, area} = attrs;
     const dataGridState: DataGridState = {
       columns: this.dataModel.columns,
       pivot: this.dataModel.pivot,
@@ -104,7 +109,20 @@ export class AggregationDrilldownPanel implements m.ClassComponent<AggregationDr
       DetailsShell,
       {
         title: 'Area Selection Drill-down',
-        description: aggregator.getTabName(),
+        description: [
+          aggregator.getTabName(),
+          ': ',
+          m(Timestamp, {trace, ts: area.start}),
+          ' - ',
+          m(Timestamp, {trace, ts: area.end}),
+          ' (',
+          m(DurationWidget, {
+            trace,
+            dur: Time.durationBetween(area.start, area.end),
+          }),
+          ') ',
+          `${area.tracks.length} tracks`,
+        ],
         buttons: this.renderButtons(trace, this.datasource),
       },
       m(AggregationPanel, {

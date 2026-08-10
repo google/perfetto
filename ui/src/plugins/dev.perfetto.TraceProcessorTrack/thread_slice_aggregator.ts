@@ -380,6 +380,7 @@ export class ThreadSliceAggregator implements Aggregator {
       }),
       initialColumns: [
         {id: 'id_with_lineage', field: 'id_with_lineage'},
+        {id: 'ts', field: 'ts'},
         {id: 'dur', field: 'dur'},
         {id: 'name', field: 'name'},
         {id: 'self_dur', field: 'self_dur'},

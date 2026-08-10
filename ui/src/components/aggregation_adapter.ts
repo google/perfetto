@@ -423,6 +423,7 @@ export function createAggregationTab(
                 m(AggregationDrilldownPanel, {
                   trace,
                   aggregator,
+                  area: selection,
                   gridConfig: activeGridConfig,
                   aggregationData: data,
                   sharedTable,
