@@ -268,6 +268,10 @@ bool FlushFile(int fd) {
 
 bool SeekFile(int fd, uint64_t offset) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (fd < 0) {
+    errno = EBADF;
+    return false;
+  }
   if (offset > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
     errno = EOVERFLOW;
     return false;
@@ -285,6 +289,10 @@ bool SeekFile(int fd, uint64_t offset) {
 
 bool TruncateFile(int fd, uint64_t size) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (fd < 0) {
+    errno = EBADF;
+    return false;
+  }
   if (size > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
     errno = EOVERFLOW;
     return false;
@@ -617,6 +625,27 @@ std::string Dirname(const std::string& path) {
 
   // Return everything up to (but not including) the last separator
   return p.substr(0, last_sep);
+}
+
+size_t PathRootPrefixLength(const std::string& path) {
+  size_t pos = 0;
+  // Skip over a leading drive letter, e.g. "C:\foo".
+  bool has_drive_letter = path.size() >= 2 && path[1] == ':' &&
+                          ((path[0] >= 'a' && path[0] <= 'z') ||
+                           (path[0] >= 'A' && path[0] <= 'Z'));
+  if (has_drive_letter)
+    pos = 2;
+
+  size_t end = path.find_first_not_of("/\\", pos);
+  end = end == std::string::npos ? path.size() : end;
+
+  // A drive letter not followed by a separator ("C:foo") is relative to the
+  // current directory of that drive, not absolute.
+  return end > pos ? end : 0;
+}
+
+bool IsAbsolutePath(const std::string& path) {
+  return PathRootPrefixLength(path) != 0;
 }
 
 base::Status SetFilePermissions(const std::string& file_path,

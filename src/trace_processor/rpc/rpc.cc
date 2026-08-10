@@ -30,7 +30,11 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
@@ -188,16 +192,22 @@ PERFETTO_NO_INLINE void SendSingleStatementResponse(
 
 class RpcExportOutput : public TraceProcessor::ExportOutput {
  public:
-  explicit RpcExportOutput(const Rpc::ExportCallback& callback)
-      : callback_(callback) {}
+  // |path|, when provided, makes the export write to that file instead of
+  // streaming through Write().
+  explicit RpcExportOutput(const Rpc::ExportCallback& callback,
+                           std::optional<std::string> path = std::nullopt)
+      : callback_(callback), path_(std::move(path)) {}
 
   base::Status Write(const void* data, size_t size) override {
     return callback_(static_cast<const uint8_t*>(data), size,
                      /*has_more=*/true);
   }
 
+  std::optional<std::string> GetFilePath() const override { return path_; }
+
  private:
   const Rpc::ExportCallback& callback_;
+  std::optional<std::string> path_;
 };
 
 }  // namespace
@@ -803,13 +813,51 @@ std::optional<TraceProcessor::ExportFormat> Rpc::ParseExportFormat(
   if (format == protos::pbzero::ExportArgs::ARROW_TAR) {
     return TraceProcessor::ExportFormat::kArrowTar;
   }
+  if (format == protos::pbzero::ExportArgs::SQLITE) {
+    return TraceProcessor::ExportFormat::kSqlite;
+  }
   return std::nullopt;
 }
 
 base::Status Rpc::Export(TraceProcessor::ExportFormat format,
                          const ExportCallback& callback) {
+  if (format == TraceProcessor::ExportFormat::kSqlite) {
+    return ExportSqlite(callback);
+  }
   RpcExportOutput output(callback);
   RETURN_IF_ERROR(trace_processor_->Export(format, &output));
+  return callback(nullptr, 0, /*has_more=*/false);
+}
+
+base::Status Rpc::ExportSqlite(const ExportCallback& callback) {
+  // SQLite export needs random-access output, so the server materializes the
+  // database in a server-controlled temporary file and streams the bytes back
+  // to the client. The client never names a path on the server, so this does
+  // not expose the server's filesystem.
+  base::TempDir dir = base::TempDir::Create();
+  std::string path = dir.path() + "/export.db";
+  auto cleanup = base::OnScopeExit([&path] { base::Unlink(path.c_str()); });
+
+  RpcExportOutput output(callback, path);
+  RETURN_IF_ERROR(
+      trace_processor_->Export(TraceProcessor::ExportFormat::kSqlite, &output));
+
+  base::ScopedFile fd = base::OpenFile(path, O_RDONLY);
+  if (!fd) {
+    return base::ErrStatus("Failed to open exported SQLite database");
+  }
+  std::vector<uint8_t> buffer(64 * 1024);
+  for (;;) {
+    ssize_t read = base::Read(fd.get(), buffer.data(), buffer.size());
+    if (read < 0) {
+      return base::ErrStatus("Failed to read exported SQLite database");
+    }
+    if (read == 0) {
+      break;
+    }
+    RETURN_IF_ERROR(callback(buffer.data(), static_cast<size_t>(read),
+                             /*has_more=*/true));
+  }
   return callback(nullptr, 0, /*has_more=*/false);
 }
 

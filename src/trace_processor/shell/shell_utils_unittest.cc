@@ -29,7 +29,9 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/io.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/local_file_system.h"  // no-include-violation-check
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -73,6 +75,13 @@ std::string MakeAttachUri(const std::string& path) {
 #define DisableFuchsia(x) x
 #endif
 
+class FileSystemPlatform final : public TraceProcessor::PlatformInterface {
+ public:
+  io::FileSystem* GetFileSystem() override {
+    return io::CreateLocalFileSystem();
+  }
+};
+
 // Verifies the export produces an on-disk SQLite database that can be read back
 // by a standalone SQLite connection and re-attached and queried by a trace
 // processor.
@@ -83,7 +92,8 @@ TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToDatabaseWritesToDisk)) {
   auto remove_output =
       base::OnScopeExit([&output] { base::Unlink(output.c_str()); });
 
-  auto tp = TraceProcessor::CreateInstance(Config());
+  FileSystemPlatform platform;
+  auto tp = TraceProcessor::CreateInstance(Config(), &platform);
 
   int64_t expected_tables = ScalarCount(tp.get(),
                                         "SELECT COUNT(*) FROM "

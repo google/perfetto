@@ -300,7 +300,7 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   onSliceOut?(args: OnSliceOutArgs<T>): void;
 
   /**
-   * Called when a slice is clicked. Return false to prevent default selection.
+   * Called when a slice is clicked. Overrides the default selection behavior.
    */
   onSliceClick?(args: OnSliceClickArgs<T>): void;
 }
@@ -1317,6 +1317,17 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     } else {
       this.trace.selection.selectTrackEvent(this.uri, slice.id);
     }
+    return true;
+  }
+
+  onMouseDoubleClick(event: TrackMouseEvent): boolean {
+    const slice = this.findSlice(event);
+    if (slice === undefined) {
+      return false;
+    }
+    void this.trace.selection
+      .selectTrackEvent(this.uri, slice.id)
+      .then(() => this.trace.selection.scrollToSelection('focus'));
     return true;
   }
 

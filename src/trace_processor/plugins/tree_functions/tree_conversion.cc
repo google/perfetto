@@ -183,6 +183,141 @@ void TreeToTable::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
       ctx, std::make_unique<dataframe::Dataframe>(std::move(df)), "TABLE");
 }
 
+// Computes depth and subtree aggregations (object count, self size, native
+// size) for a dominator tree in O(N) linear time using two topological passes.
+static base::StatusOr<dataframe::Dataframe> TreeDominatorSummaryImpl(
+    core::Tree tree,
+    StringPool* pool) {
+  std::vector<std::string> names = {"id",
+                                    "idom_id",
+                                    "dominated_obj_count",
+                                    "dominated_size_bytes",
+                                    "dominated_native_size_bytes",
+                                    "depth"};
+
+  dataframe::AdhocDataframeBuilder builder(
+      std::move(names), pool,
+      dataframe::AdhocDataframeBuilder::Options{
+          {dataframe::AdhocColumnType::kInt64,
+           dataframe::AdhocColumnType::kInt64,
+           dataframe::AdhocColumnType::kInt64,
+           dataframe::AdhocColumnType::kInt64,
+           dataframe::AdhocColumnType::kInt64,
+           dataframe::AdhocColumnType::kInt64},
+          dataframe::NullabilityType::kDenseNull});
+
+  uint32_t N = tree.row_count;
+  if (N == 0) {
+    return std::move(builder).Build();
+  }
+
+  // Pre-initialize working vectors. Every node dominates itself (count=1,
+  // depth=1).
+  std::vector<int64_t> subtree_count(N, 1);
+  std::vector<int64_t> subtree_size_bytes(N, 0);
+  std::vector<int64_t> subtree_native_size_bytes(N, 0);
+  std::vector<int64_t> depth(N, 1);
+
+  const auto* ids = tree.columns[0].unchecked_data<int64_t>();
+  const auto* self_sizes = tree.columns[2].unchecked_data<int64_t>();
+  const auto* native_sizes = tree.columns[3].unchecked_data<int64_t>();
+
+  // Copy initial self-sizes into subtree accumulators, skipping nulls if
+  // present.
+  if (tree.columns[2].null_bv.size() == 0) {
+    std::copy(self_sizes, self_sizes + N, subtree_size_bytes.begin());
+  } else {
+    for (uint32_t i = 0; i < N; ++i) {
+      if (tree.columns[2].null_bv.is_set(i)) {
+        subtree_size_bytes[i] = self_sizes[i];
+      }
+    }
+  }
+
+  // Copy initial native-sizes into subtree accumulators, skipping nulls if
+  // present.
+  if (tree.columns[3].null_bv.size() == 0) {
+    std::copy(native_sizes, native_sizes + N,
+              subtree_native_size_bytes.begin());
+  } else {
+    for (uint32_t i = 0; i < N; ++i) {
+      if (tree.columns[3].null_bv.is_set(i)) {
+        subtree_native_size_bytes[i] = native_sizes[i];
+      }
+    }
+  }
+
+  // 1. Top-down pass: Parent depth is guaranteed to be computed before child
+  //    since nodes in `core::Tree` are topologically ordered.
+  for (uint32_t i = 0; i < N; ++i) {
+    uint32_t p = tree.parent[i];
+    if (p != core::Tree::kNullParent) {
+      depth[i] = depth[p] + 1;
+    }
+  }
+
+  // 2. Bottom-up pass: Traverse in reverse topological order so children
+  // accumulate
+  //    their total dominated subtree sizes/counts into their immediate parent.
+  for (uint32_t i = N; i > 0; --i) {
+    uint32_t idx = i - 1;
+    uint32_t p = tree.parent[idx];
+    if (p != core::Tree::kNullParent) {
+      subtree_count[p] += subtree_count[idx];
+      subtree_size_bytes[p] += subtree_size_bytes[idx];
+      subtree_native_size_bytes[p] += subtree_native_size_bytes[idx];
+    }
+  }
+
+  // 3. Construct and return output dataframe table for Perfetto SQL.
+  bool ok = true;
+  for (uint32_t i = 0; i < N && ok; ++i) {
+    ok = builder.PushNonNull(0, ids[i]);
+    uint32_t p = tree.parent[i];
+    if (p == core::Tree::kNullParent) {
+      builder.PushNull(1);
+    } else {
+      ok = ok && builder.PushNonNull(1, ids[p]);
+    }
+    ok = ok && builder.PushNonNull(2, subtree_count[i]);
+    ok = ok && builder.PushNonNull(3, subtree_size_bytes[i]);
+    ok = ok && builder.PushNonNull(4, subtree_native_size_bytes[i]);
+    ok = ok && builder.PushNonNull(5, depth[i]);
+  }
+  if (!ok) {
+    return builder.status();
+  }
+
+  return std::move(builder).Build();
+}
+
+void TreeDominatorSummary::Step(sqlite3_context* ctx,
+                                int argc,
+                                sqlite3_value** argv) {
+  if (argc != 1) {
+    return sqlite::result::Error(
+        ctx, "__intrinsic_tree_dominator_summary: expected 1 argument");
+  }
+  auto tree_or = sqlite::utils::TakeMovePointerValue<core::Tree>(
+      argv[0], "TREE", "__intrinsic_tree_dominator_summary");
+  if (!tree_or.ok()) {
+    if (sqlite::value::Type(argv[0]) == sqlite::Type::kNull) {
+      SQLITE_ASSIGN_OR_RETURN(
+          ctx, auto empty_df,
+          TreeDominatorSummaryImpl(core::Tree{}, GetUserData(ctx)));
+      return sqlite::result::UniquePointer(
+          ctx, std::make_unique<dataframe::Dataframe>(std::move(empty_df)),
+          "TABLE");
+    }
+    return sqlite::utils::SetError(ctx, tree_or.status());
+  }
+  SQLITE_ASSIGN_OR_RETURN(
+      ctx, auto df,
+      TreeDominatorSummaryImpl(std::move(*tree_or), GetUserData(ctx)));
+  return sqlite::result::UniquePointer(
+      ctx, std::make_unique<dataframe::Dataframe>(std::move(df)), "TABLE");
+}
+
 namespace tree_functions {
 namespace {
 
@@ -194,6 +329,7 @@ class TreeFunctionsPlugin : public Plugin<TreeFunctionsPlugin> {
                          std::vector<FunctionRegistration>& out) override {
     StringPool* pool = trace_context_->storage->mutable_string_pool();
     out.push_back(MakeFunctionRegistration<TreeToTable>(pool));
+    out.push_back(MakeFunctionRegistration<TreeDominatorSummary>(pool));
   }
 
   void RegisterAggregateFunctions(

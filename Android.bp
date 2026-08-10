@@ -20727,6 +20727,7 @@ filegroup {
         "src/trace_processor/sqlite/module_state_manager.cc",
         "src/trace_processor/sqlite/sql_source.cc",
         "src/trace_processor/sqlite/sqlite_connection.cc",
+        "src/trace_processor/sqlite/sqlite_export.cc",
         "src/trace_processor/sqlite/sqlite_utils.cc",
     ],
 }

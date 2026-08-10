@@ -148,6 +148,8 @@ class Rpc {
   TraceProcessor* trace_processor() const { return trace_processor_.get(); }
 
  private:
+  base::Status ExportSqlite(const ExportCallback&);
+
   void ParseRpcRequest(const uint8_t*, size_t);
   void ResetTraceProcessor(const uint8_t*, size_t);
   base::Status RegisterSqlPackage(protozero::ConstBytes);

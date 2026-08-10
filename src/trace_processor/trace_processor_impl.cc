@@ -42,6 +42,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/io.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_blob.h"
@@ -148,6 +149,7 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_export.h"
 #include "src/trace_processor/sqlite_iterator_impl.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -1209,6 +1211,25 @@ base::Status TraceProcessorImpl::CreateSummarizer(
 
 base::Status TraceProcessorImpl::Export(ExportFormat format,
                                         ExportOutput* output) {
+  if (!output) {
+    return base::ErrStatus("Export output is null");
+  }
+  if (format == ExportFormat::kSqlite) {
+    std::optional<std::string> path = output->GetFilePath();
+    if (!path) {
+      return base::ErrStatus("SQLite export requires a file path");
+    }
+    // SQLite export is an explicit API call (not reachable from SQL), so it is
+    // not gated behind Config::enable_sql_file_access. Embedders without a
+    // filesystem, such as the RPC server and Wasm, fail here cleanly.
+    // The filesystem is borrowed at construction and must outlive this
+    // instance.
+    io::FileSystem* file_system = context()->file_system;
+    if (!file_system) {
+      return base::ErrStatus("SQLite export requires a file system");
+    }
+    return ExportSqliteDatabase(this, file_system, *path);
+  }
   return trace_export::WriteExport(
       plugin_dataframes_, context()->storage->string_pool(), format, output);
 }
