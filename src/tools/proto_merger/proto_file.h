@@ -69,6 +69,8 @@ struct ProtoFile {
     std::vector<Oneof> oneofs;
     std::vector<Field> fields;
 
+    std::set<int> reserved_numbers;
+
     std::vector<Enum> deleted_enums;
     std::vector<Message> deleted_nested_messages;
     std::vector<Oneof> deleted_oneofs;
