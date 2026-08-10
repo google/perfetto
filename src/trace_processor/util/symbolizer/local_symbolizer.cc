@@ -38,7 +38,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/util/symbolizer/elf.h"
@@ -715,16 +714,20 @@ std::optional<FoundBinary> FindBinaryInRoot(
     std::vector<BinaryPathAttempt>& attempts) {
   constexpr char kApkPrefix[] = "base.apk!";
 
-  std::string filename;
-  std::string dirname;
+  std::optional<FoundBinary> result;
+  // Try a path relative to the symbol root and record the attempt.
+  auto try_path_in_root = [&](const std::string& rel_path) {
+    return TryPath(root_str + "/" + rel_path, build_id, result, attempts);
+  };
 
-  for (base::StringSplitter sp(abspath, '/'); sp.Next();) {
-    if (!dirname.empty()) {
-      dirname += "/";
-    }
-    dirname += filename;
-    filename = sp.cur_token();
-  }
+  // Strip the leading root (e.g. "/" or "C:\") before searching for the
+  // mapping under `root_str`. Treat both '/' and '\' as path separators.
+  std::string_view rel = abspath;
+  rel.remove_prefix(base::PathRootPrefixLength(abspath));
+  size_t last_sep = rel.find_last_of("/\\");
+  size_t file_pos = last_sep == std::string_view::npos ? 0 : last_sep + 1;
+
+  std::string filename(rel.substr(file_pos));
 
   // Return the first match for the following options:
   // * absolute path of library file relative to root.
@@ -746,42 +749,35 @@ std::optional<FoundBinary> FindBinaryInRoot(
   // * $ROOT/foo.so
   // * $ROOT/.build-id/ab/cd1234.debug
 
-  std::optional<FoundBinary> result;
-  std::string symbol_file;
+  // Directory of the mapping relative to the root, including the trailing '/'
+  // (empty if the mapping has no directory component). Native separators are
+  // normalized to '/', which is accepted on all platforms.
+  std::string dir(rel.substr(0, file_pos));
+  std::replace(dir.begin(), dir.end(), '\\', '/');
 
-  symbol_file = root_str + "/" + dirname + "/" + filename;
-  if (TryPath(symbol_file, build_id, result, attempts)) {
+  bool has_apk_prefix = base::StartsWith(filename, kApkPrefix);
+  std::string filename_without_apk_prefix =
+      has_apk_prefix ? filename.substr(sizeof(kApkPrefix) - 1) : std::string();
+
+  if (!dir.empty() && try_path_in_root(dir + filename)) {
     return result;
   }
-
-  if (base::StartsWith(filename, kApkPrefix)) {
-    symbol_file = root_str + "/" + dirname + "/" +
-                  filename.substr(sizeof(kApkPrefix) - 1);
-    if (TryPath(symbol_file, build_id, result, attempts)) {
-      return result;
-    }
-  }
-
-  symbol_file = root_str + "/" + filename;
-  if (TryPath(symbol_file, build_id, result, attempts)) {
+  if (!dir.empty() && has_apk_prefix &&
+      try_path_in_root(dir + filename_without_apk_prefix)) {
     return result;
   }
-
-  if (base::StartsWith(filename, kApkPrefix)) {
-    symbol_file = root_str + "/" + filename.substr(sizeof(kApkPrefix) - 1);
-    if (TryPath(symbol_file, build_id, result, attempts)) {
-      return result;
-    }
+  if (try_path_in_root(filename)) {
+    return result;
+  }
+  if (has_apk_prefix && try_path_in_root(filename_without_apk_prefix)) {
+    return result;
   }
 
   std::string hex_build_id = base::ToHex(build_id.c_str(), build_id.size());
-  std::string split_hex_build_id = SplitBuildID(hex_build_id);
-  if (!split_hex_build_id.empty()) {
-    symbol_file =
-        root_str + "/" + ".build-id" + "/" + split_hex_build_id + ".debug";
-    if (TryPath(symbol_file, build_id, result, attempts)) {
-      return result;
-    }
+  if (std::string build_id_path = SplitBuildID(hex_build_id);
+      !build_id_path.empty() &&
+      try_path_in_root(".build-id/" + build_id_path + ".debug")) {
+    return result;
   }
 
   return std::nullopt;
@@ -948,7 +944,7 @@ BinaryLookupResult LocalBinaryFinder::FindBinary(const std::string& abspath,
   BinaryLookupResult& result = p.first->second;
 
   // Try the absolute path first.
-  if (base::StartsWith(abspath, "/")) {
+  if (base::IsAbsolutePath(abspath)) {
     if (TryPath(abspath, build_id, result.binary, result.attempts)) {
       return result;
     }
