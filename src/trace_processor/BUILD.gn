@@ -246,6 +246,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/experimental_flamegraph",
       "plugins/experimental_flat_slice",
       "plugins/experimental_slice_layout",
+      "plugins/flamegraph:intrinsics",
       "plugins/graph_scan",
       "plugins/graph_traversal",
       "plugins/import",
