@@ -94,6 +94,19 @@ PERFETTO_SDK_EXPORT uint8_t* PerfettoStreamWriterAnnotatePatch(
     struct PerfettoStreamWriter*,
     uint8_t* patch_addr);
 
+// Serialization modes requested by the stream owner. This is an additive ABI
+// query: PerfettoStreamWriter keeps its existing size and layout.
+//
+// Introduced alongside proto group encoding. Because pb_msg.h calls this from
+// an inline function, code compiled against this header requires a libperfetto
+// that exports the symbol; a new header against an older shared library fails
+// to link. Mixing the two in the other direction (old header, new library) is
+// unaffected.
+#define PERFETTO_STREAM_WRITER_NESTED_MESSAGES_AS_GROUPS (1u << 0)
+
+PERFETTO_SDK_EXPORT uint32_t
+PerfettoStreamWriterGetSerializationFlags(const struct PerfettoStreamWriter*);
+
 // Returns a pointer to an area of the chunk long `size` for writing. The
 // returned area is considered already written by the writer (it will not be
 // used again).

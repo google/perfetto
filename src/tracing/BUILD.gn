@@ -79,6 +79,7 @@ source_set("client_api_without_backends") {
     "../../protos/perfetto/config/track_event:cpp",
     "../base",
     "core",
+    "v2",
   ]
   public_deps = [ "../../include/perfetto/tracing" ]
   sources = [
@@ -94,6 +95,8 @@ source_set("client_api_without_backends") {
     "internal/tracing_muxer_fake.h",
     "internal/tracing_muxer_impl.cc",
     "internal/tracing_muxer_impl.h",
+    "internal/tracing_v2_producer_endpoint.cc",
+    "internal/tracing_v2_producer_endpoint.h",
     "internal/track_event_internal.cc",
     "internal/track_event_interned_fields.cc",
     "platform.cc",
@@ -122,6 +125,8 @@ if (enable_perfetto_integration_tests) {
   source_set("integrationtests") {
     testonly = true
     deps = [
+      # For the tracing v2 opt-in hook, which is producer-side and internal.
+      ":client_api_without_backends",
       "../../gn:default_deps",
       "../../gn:gtest_and_gmock",
       "../../include/perfetto/ext/tracing/ipc",
@@ -129,6 +134,9 @@ if (enable_perfetto_integration_tests) {
       "../../protos/perfetto/trace:cpp",
       "../base",
       "../base:test_support",
+
+      # For kHasFutex: the v2 test skips where the data path cannot run.
+      "v2",
     ]
     sources = [ "internal/tracing_muxer_impl_integrationtest.cc" ]
   }
@@ -144,6 +152,7 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/trace/track_event:lite",
     "../base",
     "../base:test_support",
+    "core",
     "test:test_support",
   ]
 
@@ -154,6 +163,7 @@ perfetto_unittest_source_set("unittests") {
   if (!build_with_chromium) {
     sources += [
       "internal/interceptor_trace_writer_unittest.cc",
+      "internal/tracing_v2_producer_endpoint_unittest.cc",
       "traced_proto_unittest.cc",
       "traced_value_unittest.cc",
     ]

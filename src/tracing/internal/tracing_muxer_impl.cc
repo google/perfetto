@@ -47,6 +47,7 @@
 #include "perfetto/tracing/tracing_backend.h"
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/internal/tracing_muxer_fake.h"
+#include "src/tracing/internal/tracing_v2_producer_endpoint.h"
 
 #include "protos/perfetto/config/interceptor_config.gen.h"
 
@@ -204,6 +205,18 @@ void TracingMuxerImpl::ProducerImpl::Initialize(
     std::unique_ptr<ProducerEndpoint> endpoint) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(!connected_);
+  // "In process" describes the temporary producer-local ring and v2-to-v1
+  // relay; it is unrelated to kInProcessBackend. This decorates normal writer
+  // creation only: startup writers obtained from MaybeSharedMemoryArbiter()
+  // remain on v1 initially.
+  // TODO(sashwinbalaji): require an explicit process and system-backend opt-in
+  // before enabling this for Android, and remove the decorator when traced
+  // consumes v2 chunks directly.
+  if (UseTracingV2InProcess()) {
+    endpoint.reset(new TracingV2ProducerEndpoint(
+        std::move(endpoint), muxer_->task_runner_.get(),
+        muxer_->GetOrCreateTracingV2RelayTaskRunner()));
+  }
   connection_id_.fetch_add(1, std::memory_order_relaxed);
   is_producer_provided_smb_ = endpoint->shared_memory();
   last_startup_target_buffer_reservation_ = 0;
@@ -962,6 +975,24 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
   PERFETTO_CHECK(consumer_backends_.empty());
   AddConsumerBackend(internal::TracingBackendFake::GetInstance(),
                      BackendType::kUnspecifiedBackend);
+}
+
+base::TaskRunner* TracingMuxerImpl::GetOrCreateTracingV2RelayTaskRunner() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!tracing_v2_relay_task_runner_) {
+    // One relay for the whole muxer rather than one per endpoint: it stands in
+    // for the single consumer that traced will eventually be, and a backend
+    // reconnecting must not spawn another thread. Deliberately not wrapped in
+    // NonReentrantTaskRunner - that guards muxer state against re-entrant
+    // control-plane tasks, and the relay touches none of it.
+    Platform::CreateTaskRunnerArgs tr_args{
+        /*name_for_debugging=*/"TracingV2Relay"};
+    tracing_v2_relay_task_runner_ =
+        platform_->CreateTaskRunner(std::move(tr_args));
+    tracing_v2_relay_task_runner_observer_.store(
+        tracing_v2_relay_task_runner_.get(), std::memory_order_release);
+  }
+  return tracing_v2_relay_task_runner_.get();
 }
 
 void TracingMuxerImpl::AddConsumerBackend(TracingConsumerBackend* backend,
@@ -2793,13 +2824,31 @@ void TracingMuxerImpl::Shutdown() {
 
   // Shutting down on the muxer thread would lead to a deadlock.
   PERFETTO_CHECK(!muxer->task_runner_->RunsTasksOnCurrentThread());
+  // Same for the tracing v2 relay thread: shutdown joins it below, so calling
+  // from there would join the thread it is running on. Read through the atomic
+  // observer rather than the owning unique_ptr, which is lazily initialized on
+  // the muxer sequence.
+  base::TaskRunner* const relay_task_runner =
+      muxer->tracing_v2_relay_task_runner_observer_.load(
+          std::memory_order_acquire);
+  PERFETTO_CHECK(!relay_task_runner ||
+                 !relay_task_runner->RunsTasksOnCurrentThread());
   muxer->DestroyStoppedTraceWritersForCurrentThread();
 
   std::unique_ptr<base::TaskRunner> owned_task_runner(
       muxer->task_runner_.get());
+  // Ownership of the tracing v2 relay runner moves to this thread too, and for
+  // a stronger reason than the muxer runner's. Draining a bridge can need the
+  // muxer: forwarding into a stalling downstream writer waits for the muxer to
+  // issue the arbiter's pending commits. If the relay were joined as an
+  // incidental member destructor of |muxer|, that join would happen *on* the
+  // muxer sequence and the work the relay is waiting for could never run.
+  // Taken on the muxer sequence below, where the lazy initialization lives.
+  std::unique_ptr<base::TaskRunner> owned_relay_task_runner;
   Platform* platform = muxer->platform_;
   base::WaitableEvent shutdown_done;
-  owned_task_runner->PostTask([muxer, &shutdown_done] {
+  owned_task_runner->PostTask([muxer, &owned_relay_task_runner,
+                               &shutdown_done] {
     // Check that no consumer session is currently active on any backend.
     // Producers will be automatically disconnected as a part of deleting the
     // muxer below.
@@ -2812,14 +2861,29 @@ void TracingMuxerImpl::Shutdown() {
     // that we can't do this for any arbitrary thread in the process; it is the
     // caller's responsibility to clean them up before shutting down Perfetto.
     muxer->DestroyStoppedTraceWritersForCurrentThread();
-    // The task runner must be deleted outside the muxer thread. This is done by
-    // `owned_task_runner` above.
+    // Both task runners must be deleted outside the muxer thread. This is done
+    // by the two unique_ptrs above.
     muxer->task_runner_.release();
+    owned_relay_task_runner.reset(muxer->tracing_v2_relay_task_runner_.get());
+    muxer->tracing_v2_relay_task_runner_.release();
+    // Destroying the muxer releases the producer endpoints, and with them the
+    // v2 bridges, each of which posts its own drain-and-delete to the relay.
+    // Those tasks are still ahead of us: the relay is joined by the caller,
+    // after this task returns, while this sequence is still running and can
+    // serve the arbiter work they may need. Trace writers left alive by the
+    // caller can still post to a destroyed runner, which is why disposing of
+    // them first is a documented precondition of Shutdown().
     delete muxer;
     instance_ = TracingMuxerFake::Get();
     shutdown_done.Notify();
   });
   shutdown_done.Wait();
+
+  // Join the relay first, and note that the muxer thread is still alive and
+  // pumping tasks at this point - it stops only when |owned_task_runner| goes
+  // away below. That is what lets a bridge being torn down on the relay get
+  // the muxer-side commits it needs to finish.
+  owned_relay_task_runner.reset();
 
   // Join the muxer thread before the platform (and its TLS key) is destroyed.
   owned_task_runner.reset();

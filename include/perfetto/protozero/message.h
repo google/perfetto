@@ -76,13 +76,41 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // corresponding size field in the parent message. In most cases this is only
   // used for nested messages and the ScatteredStreamWriter::Delegate (e.g.
   // TraceWriterImpl), takes case of the outer message.
-  uint8_t* size_field() const { return size_field_; }
-  void set_size_field(uint8_t* size_field) { size_field_ = size_field; }
+  uint8_t* size_field() const {
+    PERFETTO_DCHECK(!nested_messages_are_groups());
+    return size_field_;
+  }
+  void set_size_field(uint8_t* size_field) {
+    PERFETTO_DCHECK(!nested_messages_are_groups());
+    size_field_ = size_field;
+  }
+
+  // Encodes nested messages as start/end proto groups. This avoids reserving
+  // and later patching their lengths after bytes can already be visible to a
+  // concurrent reader. The root message itself is not group-framed.
+  //
+  // This is a one-way mode switch and must happen immediately after Reset(),
+  // before any field is written. The tracing v2 relay converts groups back to
+  // canonical length-delimited messages before forwarding the packet.
+  void set_nested_messages_as_groups() {
+    PERFETTO_DCHECK(message_state_ == MessageState::kNotFinalized);
+    PERFETTO_DCHECK(size_ == 0 && !nested_message_ && !size_field_);
+    group_field_id_ = 0;
+    message_state_ = MessageState::kNotFinalizedWithGroupEncoding;
+  }
+
+  bool nested_messages_are_groups() const {
+    return message_state_ == MessageState::kNotFinalizedWithGroupEncoding ||
+           message_state_ == MessageState::kFinalizedWithGroupEncoding;
+  }
 
   Message* nested_message() { return nested_message_; }
 
   bool is_finalized() const {
-    return message_state_ != MessageState::kNotFinalized;
+    // Single comparison on purpose: this sits on the hot path. The enum is
+    // ordered so that every not-finalized state sorts below every finalized
+    // one; see MessageState.
+    return message_state_ >= MessageState::kFinalized;
   }
 
 #if PERFETTO_DCHECK_IS_ON()
@@ -224,17 +252,28 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // accessed anymore afterwards.
   Message* nested_message_;
 
-  // [optional] Pointer to a non-aligned pre-reserved var-int slot of
-  // kMessageLengthFieldSize bytes. When set, the Finalize() method will write
-  // the size of proto-encoded message in the pointed memory region.
-  uint8_t* size_field_;
+  union {
+    // [optional] Pointer to a non-aligned pre-reserved var-int slot of
+    // kMessageLengthFieldSize bytes. When set, Finalize() writes the size of
+    // this message in the pointed memory region.
+    uint8_t* size_field_;
+
+    // Field id for a group-encoded nested message. Root messages use 0 because
+    // their framing belongs to the surrounding stream.
+    uint32_t group_field_id_;
+  };
 
   // Keeps track of the size of the current message.
   uint32_t size_;
 
+  // The order is load-bearing: is_finalized() is a single comparison against
+  // kFinalized, so every not-finalized state must sort below it and every
+  // finalized state above or equal. Keep new states on the correct side.
   enum class MessageState : uint8_t {
     // Message is still being written to.
     kNotFinalized,
+    // Not finalized, with nested messages encoded as proto groups.
+    kNotFinalizedWithGroupEncoding,
     // Finalized, no more changes to the message are allowed. This is to DCHECK
     // attempts of writing to a message which has been Finalize()-d.
     kFinalized,
@@ -242,6 +281,8 @@ class PERFETTO_EXPORT_COMPONENT Message {
     // compacted into the last 3 bytes of `size_field_`. See the comment in
     // Finalize().
     kFinalizedWithCompaction,
+    // Finalized, with nested messages encoded as proto groups.
+    kFinalizedWithGroupEncoding,
   };
 
   MessageState message_state_;
