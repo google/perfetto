@@ -34,6 +34,7 @@ import {
   TrackPinningManager,
 } from '../../components/related_events/utils';
 import {SliceTrack} from '../../components/tracks/slice_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import type {PerfettoPlugin} from '../../public/plugin';
@@ -60,7 +61,7 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
 
     if (
       selection.trackUri.startsWith(
-        'com.android.AndroidLockContention#OwnerEvents',
+        'com.android.AndroidLockContention#OwnerEvents_Slice',
       )
     ) {
       if (this.currentBlockedSlice?.trackUri) {
@@ -90,10 +91,11 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
       this.selectAndNavigate(
         trace,
         row.id,
-        `com.android.AndroidLockContention#OwnerEvents_${row.owner_tid}`,
+        `com.android.AndroidLockContention#OwnerEvents_Slice_${row.owner_tid}`,
       );
     }
   }
+
   public readonly navigation = new LockContentionNavigation();
 
   public selectAndNavigate(
@@ -211,19 +213,23 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
       track_id: NUM_NULL,
     });
 
+    const promises = [];
     for (; tidsIt.valid(); tidsIt.next()) {
       const tid = tidsIt.owner_tid;
       if (tid === null) continue; // Skip invalid TIDs
 
-      this.registerOwnerTrack(
-        trace,
-        tid,
-        tidsIt.name || 'Unknown',
-        tidsIt.max_depth ?? 0,
-        tidsIt.track_id,
-        tableName,
+      promises.push(
+        this.registerOwnerTrack(
+          trace,
+          tid,
+          tidsIt.name || 'Unknown',
+          tidsIt.max_depth ?? 0,
+          tidsIt.track_id,
+          tableName,
+        ),
       );
     }
+    await Promise.all(promises);
   }
 
   private getConnections(trace: Trace): ArrowConnection[] {
@@ -260,7 +266,9 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
     const trackUri = selection.trackUri;
     const eventId = selection.eventId;
 
-    if (trackUri.startsWith('com.android.AndroidLockContention#OwnerEvents')) {
+    if (
+      trackUri.startsWith('com.android.AndroidLockContention#OwnerEvents_Slice')
+    ) {
       const targetIds = new Set(this.highlightedTargetIds);
 
       if (targetIds.size === 0) {
@@ -337,7 +345,7 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
         depth: NUM,
       });
       const middleTs = row.ts + row.dur / 2n;
-      const ownerTrackUri = `com.android.AndroidLockContention#OwnerEvents_${row.owner_tid}`;
+      const ownerTrackUri = `com.android.AndroidLockContention#OwnerEvents_Slice_${row.owner_tid}`;
 
       const targets = [{id: eventId, trackUri: trackUri, depth: 0}];
       await enrichDepths(trace, targets);
@@ -361,7 +369,7 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
     return [];
   }
 
-  private registerOwnerTrack(
+  private async registerOwnerTrack(
     trace: Trace,
     tid: number,
     threadName: string,
@@ -369,16 +377,18 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
     trackId: number | null,
     tableName: string,
   ) {
-    const ownerTrackUri = `com.android.AndroidLockContention#OwnerEvents_${tid}`;
-    const trackName = `${threadName} [${tid}] Blocking Contentions`;
+    const sliceTrackUri = `com.android.AndroidLockContention#OwnerEvents_Slice_${tid}`;
+    const counterTrackUri = `com.android.AndroidLockContention#OwnerEvents_Counter_${tid}`;
+    const groupTrackName = `${threadName} [${tid}] Blocking Contentions`;
 
+    // 1. Register the Slice Track (details)
     trace.tracks.registerTrack({
-      uri: ownerTrackUri,
+      uri: sliceTrackUri,
       description:
         'Shows slices representing when this thread is blocking other threads',
       renderer: SliceTrack.create({
         trace,
-        uri: ownerTrackUri,
+        uri: sliceTrackUri,
         dataset: new SourceDataset({
           schema: {
             id: NUM,
@@ -413,12 +423,49 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
       }),
     });
 
-    const ownerTrackNode = new TrackNode({
-      uri: ownerTrackUri,
-      name: trackName,
+    // 2. Create and Register the Counter Track (summary)
+    const counterTrack = await CounterTrack.createMaterialized({
+      trace,
+      uri: counterTrackUri,
+      sqlSource: `
+        WITH events AS (
+          SELECT ts, 1 AS val FROM ${tableName} WHERE owner_tid = ${tid}
+          UNION ALL
+          SELECT ts + dur AS ts, -1 AS val FROM ${tableName} WHERE owner_tid = ${tid}
+        ),
+        grouped_events AS (
+          SELECT ts, SUM(val) AS val_delta
+          FROM events
+          GROUP BY ts
+        )
+        SELECT ts, SUM(val_delta) OVER (ORDER BY ts) AS value
+        FROM grouped_events
+      `,
+      yMode: 'value',
+      unit: ' contentions',
+    });
+
+    trace.tracks.registerTrack({
+      uri: counterTrackUri,
+      renderer: counterTrack,
+    });
+
+    // 3. Create the Parent Group Node (uses Counter Track as summary)
+    const groupNode = new TrackNode({
+      uri: counterTrackUri,
+      name: groupTrackName,
+      isSummary: true,
       removable: true,
     });
 
+    // 4. Create the Child Slice Node
+    const sliceNode = new TrackNode({
+      uri: sliceTrackUri,
+      name: 'Details',
+    });
+    groupNode.addChildLast(sliceNode);
+
+    // 5. Add the Group Node to the workspace
     if (trackId !== null) {
       const track = trace.tracks.findTrack((t) =>
         t.tags?.trackIds?.includes(trackId),
@@ -426,7 +473,7 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
 
       if (track) {
         const threadNode = trace.currentWorkspace.getTrackByUri(track.uri);
-        threadNode?.parent?.addChildBefore(ownerTrackNode, threadNode);
+        threadNode?.parent?.addChildBefore(groupNode, threadNode);
       }
     }
   }
@@ -479,7 +526,7 @@ class LockContentionNavigation {
     if (
       currentSelection.kind === 'track_event' &&
       currentSelection.trackUri.startsWith(
-        'com.android.AndroidLockContention#OwnerEvents',
+        'com.android.AndroidLockContention#OwnerEvents_Slice',
       )
     ) {
       const blockedSlice = plugin.currentBlockedSlice;
