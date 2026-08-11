@@ -1,6 +1,8 @@
 Unreleased:
   Tracing service and probes:
-   *
+    * Added opt-in TraceBufferV2 compaction to bound the resident memory of
+      long streaming traces. The feature is gated by the
+      tbv2_shift_left_compaction flag.
   Trace Processor:
    *
   UI:
