@@ -167,7 +167,7 @@ base::Status ParseMergedClass(SimpleJsonParser& parser,
 // Proguard mapping.
 base::Status ParseMergedClassesComment(std::string_view json_str,
                                        ObfuscatedClass& target_class) {
-  if (!json_str.contains(kMergedClassesKey)) {
+  if (json_str.find(kMergedClassesKey) == std::string_view::npos) {
     // Avoid full parsing if possible.
     return base::OkStatus();
   }
