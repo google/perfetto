@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
 
 // Schema for the slice of Heap Dump Explorer state that survives in a shared
 // permalink. The session writes this on every state change via mountStore;
@@ -54,9 +54,9 @@ export const HDE_STATE_SCHEMA = z
     // re-derived from nav (which encodes the object id) on restore.
     instanceTabs: z.array(INSTANCE_TAB_SCHEMA).optional(),
     // Filter / pivot / view state of the main Flamegraph tab.
-    flamegraphPanelState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    flamegraphPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
     // Filter / pivot / view state of the Callstack tab.
-    callstackPanelState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    callstackPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
   })
   .readonly();
 

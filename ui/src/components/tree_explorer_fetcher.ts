@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {ensureExists} from '../base/assert';
 import type {Engine} from '../trace_processor/engine';
@@ -28,22 +26,20 @@ import {
   STR_NULL,
   UNKNOWN,
 } from '../trace_processor/query_result';
-import {
-  Flamegraph,
-  type FlamegraphAddableMetric,
-  type FlamegraphPropertyDefinition,
-  type FlamegraphQueryData,
-  type FlamegraphState,
-  type FlamegraphOptionalAction,
-  type FlamegraphOptionalMarker,
-} from '../widgets/flamegraph';
+import type {
+  TreeExplorerData,
+  TreeExplorerOptionalAction,
+  TreeExplorerOptionalMarker,
+  TreeExplorerPropertyDefinition,
+  TreeExplorerState,
+} from '../widgets/tree_explorer';
+import {metricId} from '../widgets/tree_explorer';
 import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
 import {parseUserFilterRegex} from '../widgets/flamegraph_regex';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
-import {Monitor} from '../base/monitor';
 
-export interface QueryFlamegraphColumn {
+export interface TreeExplorerQueryColumn {
   // The name of the column in SQL.
   readonly name: string;
 
@@ -55,12 +51,12 @@ export interface QueryFlamegraphColumn {
   readonly isVisible?: (value: string) => boolean;
 }
 
-export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
-  // The aggregation to be run when nodes are merged together in the flamegraph.
+export interface AggTreeExplorerQueryColumn extends TreeExplorerQueryColumn {
+  // The aggregation to be run when nodes are merged together in the tree.
   readonly mergeAggregation: 'ONE_OR_SUMMARY' | 'SUM' | 'CONCAT_WITH_COMMA';
 }
 
-export interface QueryFlamegraphMetric {
+export interface TreeExplorerQueryMetric {
   // Stable identity used in persisted state. Defaults to `name`.
   readonly id?: string;
 
@@ -95,35 +91,35 @@ export interface QueryFlamegraphMetric {
   // type etc.
   //
   // Note: the name is always unaggregatable and should not be specified here.
-  readonly unaggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>;
+  readonly unaggregatableProperties?: ReadonlyArray<TreeExplorerQueryColumn>;
 
   // Additional contextual columns containing data which will be displayed to
   // the user if there is no merging. If there is merging, currently the value
   // will not be shown.
   //
   // Examples include the source file and line number.
-  readonly aggregatableProperties?: ReadonlyArray<AggQueryFlamegraphColumn>;
+  readonly aggregatableProperties?: ReadonlyArray<AggTreeExplorerQueryColumn>;
 
-  // Optional actions to be taken on the flamegraph nodes. Accessible from the
+  // Optional actions to be taken on the tree nodes. Accessible from the
   // flamegraph tooltip.
   //
   // Examples include showing a table of objects from a class reference
   // hierarchy.
-  readonly optionalNodeActions?: ReadonlyArray<FlamegraphOptionalAction>;
+  readonly optionalNodeActions?: ReadonlyArray<TreeExplorerOptionalAction>;
 
-  // Optional actions to be taken on the flamegraph root. Accessible from the
+  // Optional actions to be taken on the tree root. Accessible from the
   // flamegraph tooltip.
   //
   // Examples include showing a table of objects from a class reference
   // hierarchy.
-  readonly optionalRootActions?: ReadonlyArray<FlamegraphOptionalAction>;
+  readonly optionalRootActions?: ReadonlyArray<TreeExplorerOptionalAction>;
 
-  // Optional marker to be displayed on flamegraph nodes. Marker appears as
-  // a visual indicator (small dot) on the left side of nodes and is shown
+  // Optional marker to be displayed on nodes. Marker appears as a visual
+  // indicator (small dot) on the left side of flamegraph nodes and is shown
   // in the tooltip.
   //
   // Examples include marking inlined functions, optimized code, etc.
-  readonly optionalMarker?: FlamegraphOptionalMarker;
+  readonly optionalMarker?: TreeExplorerOptionalMarker;
 }
 
 export interface MetricsFromTableOrSubqueryOptions {
@@ -136,22 +132,22 @@ export interface MetricsFromTableOrSubqueryOptions {
     provenance?: 'DEFAULT' | 'ADDED';
   }>;
   readonly dependencySql?: string;
-  readonly unaggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>;
-  readonly aggregatableProperties?: ReadonlyArray<AggQueryFlamegraphColumn>;
-  readonly optionalActions?: ReadonlyArray<FlamegraphOptionalAction>;
+  readonly unaggregatableProperties?: ReadonlyArray<TreeExplorerQueryColumn>;
+  readonly aggregatableProperties?: ReadonlyArray<AggTreeExplorerQueryColumn>;
+  readonly optionalActions?: ReadonlyArray<TreeExplorerOptionalAction>;
   readonly nameColumnLabel?: string;
 }
 
 // Given a table and columns on those table (corresponding to metrics),
-// returns an array of `QueryFlamegraphMetric` structs which can be passed
-// in QueryFlamegraph's attrs.
+// returns an array of `TreeExplorerQueryMetric` structs which can be passed
+// in TreeExplorerPanel's attrs.
 //
 // `tableOrSubquery` should have the columns `id`, `parentId`, `name` and all
 // columns specified by `tableMetrics[].name`, `unaggregatableProperties` and
 // `aggregatableProperties`.
 export function metricsFromTableOrSubquery(
   opts: MetricsFromTableOrSubqueryOptions,
-): QueryFlamegraphMetric[] {
+): TreeExplorerQueryMetric[] {
   const metrics = [];
   for (const {id, name, unit, columnName, provenance} of opts.tableMetrics) {
     metrics.push({
@@ -173,42 +169,20 @@ export function metricsFromTableOrSubquery(
   return metrics;
 }
 
-interface QueryFlamegraphAttrs {
-  // The metrics to display in the flamegraph. If undefined, the flamegraph will
-  // show a loading state.
-  readonly metrics?: ReadonlyArray<QueryFlamegraphMetric>;
-
-  // The current state of the flamegraph (filters, view, selected metric, etc).
-  readonly state?: FlamegraphState;
-
-  readonly addableMetrics?: ReadonlyArray<FlamegraphAddableMetric>;
-  readonly onAddMetric?: (metric: FlamegraphAddableMetric) => void;
-
-  // Callback invoked when the flamegraph state changes (e.g., user changes
-  // filters, selects a different metric, etc).
-  readonly onStateChange: (state: FlamegraphState) => void;
-}
-
-interface FlamegraphTable {
-  readonly metric: QueryFlamegraphMetric;
+interface MetricTable {
+  readonly metric: TreeExplorerQueryMetric;
   readonly table: DisposableSqlEntity;
   readonly unfilteredCumulativeValue: number;
 }
 
-// A Perfetto UI component which wraps the `Flamegraph` widget and fetches the
-// data for the widget by querying an `Engine`.
-export class QueryFlamegraph implements AsyncDisposable {
-  private data?: FlamegraphQueryData;
-  private readonly queryLimiter = new AsyncLimiter();
+// Fetches tree explorer data by querying an `Engine`: turns a
+// (metric, state) pair into the filtered tree the views display. Purely a
+// data-layer object with no rendering; TreeExplorerPanel drives it.
+export class TreeExplorerFetcher implements AsyncDisposable {
   private readonly dependencies: ReadonlyArray<
     SharedAsyncDisposable<AsyncDisposable>
   >;
-  private readonly flamegraphTables: FlamegraphTable[] = [];
-  private lastAttrs?: QueryFlamegraphAttrs;
-  private monitor = new Monitor([
-    () => this.lastAttrs?.metrics,
-    () => this.lastAttrs?.state,
-  ]);
+  private readonly metricTables: MetricTable[] = [];
 
   constructor(
     private readonly trace: Trace,
@@ -218,73 +192,46 @@ export class QueryFlamegraph implements AsyncDisposable {
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
-    for (const flamegraph of this.flamegraphTables) {
-      await flamegraph.table[Symbol.asyncDispose]();
+    for (const entry of this.metricTables) {
+      await entry.table[Symbol.asyncDispose]();
     }
     for (const dependency of this.dependencies ?? []) {
       await dependency[Symbol.asyncDispose]?.();
     }
   }
 
-  render(attrs: QueryFlamegraphAttrs) {
-    const {metrics, state, addableMetrics, onAddMetric, onStateChange} = attrs;
-    this.lastAttrs = attrs;
-    if (this.monitor.ifStateChanged()) {
-      this.data = undefined;
-      if (metrics && state) {
-        this.fetchData(metrics, state);
-      }
-    }
-    return m(Flamegraph, {
-      metrics: metrics ?? [],
-      data: this.data,
-      state: state ?? {
-        view: {kind: 'TOP_DOWN'},
-        selectedMetricId: '',
-        addedMetricIds: [],
-        filters: [],
-      },
-      addableMetrics,
-      onAddMetric,
-      onStateChange,
-    });
-  }
-
-  fetchData(
-    metrics: ReadonlyArray<QueryFlamegraphMetric>,
-    state: FlamegraphState,
-  ) {
+  // Fetches the tree for the metric selected in `state`, with all of
+  // `state`'s filters and view applied. Returns undefined if the fetcher's
+  // dependencies were disposed while the fetch was in flight.
+  async fetch(
+    metrics: ReadonlyArray<TreeExplorerQueryMetric>,
+    state: TreeExplorerState,
+  ): Promise<TreeExplorerData | undefined> {
     const metric = ensureExists(
-      metrics.find((x) => state.selectedMetricId === (x.id ?? x.name)),
+      metrics.find((x) => state.selectedMetricId === metricId(x)),
     );
-    const engine = this.trace.engine;
-    this.queryLimiter.schedule(async () => {
-      this.data = undefined;
-      // Clone all the dependencies to make sure the the are not dropped while
-      // this function is running, adding them to the trash to make sure they
-      // are disposed after this function returns, but note this won't
-      // actually drop the tables unless this class instances have also been
-      // disposed due to the SharedAsyncDisposable logic.
-      await using trash = new AsyncDisposableStack();
-      for (const dependency of this.dependencies ?? []) {
-        // If the dependency is disposed, it means that we have already ended
-        // up cleaning up the object so none of this matters. Just return.
-        if (dependency.isDisposed) {
-          return;
-        }
-        trash.use(dependency.clone());
+    // Clone all the dependencies to make sure the the are not dropped while
+    // this function is running, adding them to the trash to make sure they
+    // are disposed after this function returns, but note this won't
+    // actually drop the tables unless this class instances have also been
+    // disposed due to the SharedAsyncDisposable logic.
+    await using trash = new AsyncDisposableStack();
+    for (const dependency of this.dependencies ?? []) {
+      // If the dependency is disposed, it means that we have already ended
+      // up cleaning up the object so none of this matters. Just return.
+      if (dependency.isDisposed) {
+        return undefined;
       }
-      const flamegraph = await this.getFlamegraphTable(metric);
-      this.data = await computeFlamegraphTree(engine, flamegraph, state);
-    });
+      trash.use(dependency.clone());
+    }
+    const table = await this.getMetricTable(metric);
+    return await computeTree(this.trace.engine, table, state);
   }
 
-  private async getFlamegraphTable(
-    metric: QueryFlamegraphMetric,
-  ): Promise<FlamegraphTable> {
-    const cached = this.flamegraphTables.find(
-      (entry) => entry.metric === metric,
-    );
+  private async getMetricTable(
+    metric: TreeExplorerQueryMetric,
+  ): Promise<MetricTable> {
+    const cached = this.metricTables.find((entry) => entry.metric === metric);
     if (cached) {
       return cached;
     }
@@ -318,15 +265,15 @@ export class QueryFlamegraph implements AsyncDisposable {
         ))
         where __intrinsic_flamegraph_find(_tree_id, 'SUPER_ROOT')
       `);
-      const flamegraph = {
+      const entry = {
         metric,
         table,
         unfilteredCumulativeValue: result.firstRow({
           cumulative_value: NUM,
         }).cumulative_value,
       };
-      this.flamegraphTables.push(flamegraph);
-      return flamegraph;
+      this.metricTables.push(entry);
+      return entry;
     } catch (error) {
       await table[Symbol.asyncDispose]();
       throw error;
@@ -334,18 +281,18 @@ export class QueryFlamegraph implements AsyncDisposable {
   }
 }
 
-async function computeFlamegraphTree(
+async function computeTree(
   engine: Engine,
-  flamegraph: FlamegraphTable,
-  {filters, view}: FlamegraphState,
-): Promise<FlamegraphQueryData> {
+  metricTable: MetricTable,
+  {filters, view}: TreeExplorerState,
+): Promise<TreeExplorerData> {
   const {
     unaggregatableProperties,
     aggregatableProperties,
     optionalNodeActions,
     optionalRootActions,
     optionalMarker,
-  } = flamegraph.metric;
+  } = metricTable.metric;
   const agg = aggregatableProperties ?? [];
   const aggCols = agg.map((x) => x.name);
   const unagg = unaggregatableProperties ?? [];
@@ -401,7 +348,7 @@ async function computeFlamegraphTree(
   // attached; nodes with no cumulative value are invisible and skipped.
   const res = await engine.query(`
     select ${outputColumns.join(', ')}
-    from ${flamegraph.table.name}(
+    from ${metricTable.table.name}(
       __intrinsic_flamegraph_config(${configArgs.join(', ')})
     )
     where cumulative_value > 0
@@ -426,7 +373,7 @@ async function computeFlamegraphTree(
   let maxDepth = 0;
   const nodes = [];
   for (; it.valid(); it.next()) {
-    const properties = new Map<string, FlamegraphPropertyDefinition>();
+    const properties = new Map<string, TreeExplorerPropertyDefinition>();
     for (const a of unagg) {
       const r = it.get(a.name);
       if (r !== null) {
@@ -489,7 +436,7 @@ async function computeFlamegraphTree(
     nodes,
     allRootsCumulativeValue:
       view.kind === 'BOTTOM_UP' ? negativeRootsValue : postiveRootsValue,
-    unfilteredCumulativeValue: flamegraph.unfilteredCumulativeValue,
+    unfilteredCumulativeValue: metricTable.unfilteredCumulativeValue,
     minDepth,
     maxDepth,
     nodeActions,
