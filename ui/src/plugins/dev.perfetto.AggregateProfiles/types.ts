@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
-import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import type {TreeExplorerQueryMetric} from '../../components/tree_explorer_fetcher';
+import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
 import {z} from 'zod';
 
 export const AGGREGATE_PROFILES_PAGE_STATE_SCHEMA = z.object({
-  flamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  flamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
   selectedProfileId: z.string().optional(),
 });
 
@@ -28,5 +28,5 @@ export type AggregateProfilesPageState = z.infer<
 export interface AggregateProfile {
   readonly id: string;
   readonly displayName: string;
-  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
+  readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
 }
