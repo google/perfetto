@@ -94,6 +94,16 @@ class HeapGraphTracker : public Destructible {
     return static_cast<HeapGraphTracker*>(context->heap_graph_tracker.get());
   }
 
+  // Returns the per-trace heap graph tracker, creating it on first use.
+  // The tracker is per-trace state (like import_logs_tracker) and is created
+  // lazily so trace_processor_context.cc stays free of importer deps.
+  static HeapGraphTracker* GetOrCreate(TraceProcessorContext* context) {
+    if (!context->heap_graph_tracker) {
+      context->heap_graph_tracker = std::make_unique<HeapGraphTracker>(context);
+    }
+    return Get(context);
+  }
+
   void AddRoot(uint32_t seq_id, UniquePid upid, int64_t ts, SourceRoot root);
   void AddObject(uint32_t seq_id, UniquePid upid, int64_t ts, SourceObject obj);
   void AddInternedType(

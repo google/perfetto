@@ -69,78 +69,78 @@ constexpr size_t kSecondIterationBytes = 7;
 enum class TestMode { kCentral, kStatic };
 enum class AllocatorMode { kMalloc, kCustom };
 
-using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::Bool;
-using ::testing::Contains;
 using ::testing::Eq;
-using ::testing::Field;
-using ::testing::HasSubstr;
 using ::testing::Values;
 
-constexpr const char* kOnlyFlamegraph = R"(
-  SELECT
-    id,
-    name,
-    map_name,
-    count,
-    cumulative_count,
-    size,
-    cumulative_size,
-    alloc_count,
-    cumulative_alloc_count,
-    alloc_size,
-    cumulative_alloc_size,
-    parent_id
-  FROM (SELECT distinct ts, upid from heap_profile_allocation) hpa
-  JOIN experimental_flamegraph(
-    'native',
-    hpa.ts,
-    NULL,
-    hpa.upid,
-    NULL,
-    NULL
+constexpr const char* kCallstackTree = R"(
+  INCLUDE PERFETTO MODULE android.memory.heap_profile.callstacks;
+
+  WITH RECURSIVE
+  latest AS (
+    SELECT upid, max(ts) AS ts FROM heap_profile_allocation GROUP BY upid
+  ),
+  raw AS MATERIALIZED (
+    SELECT *
+    FROM _android_heap_profile_callstacks_for_allocations!((
+      SELECT
+        h.callsite_id,
+        h.count,
+        h.size,
+        max(h.count, 0) AS alloc_count,
+        max(h.size, 0) AS alloc_size
+      FROM heap_profile_allocation AS h
+      JOIN latest AS l USING (upid)
+      WHERE h.ts <= l.ts
+    ))
+  ),
+  descendants(root_id, id) AS (
+    SELECT id, id FROM raw
+    UNION ALL
+    SELECT d.root_id, r.id
+    FROM descendants AS d
+    JOIN raw AS r ON r.parent_id = d.id
   )
-  order by abs(cumulative_size) desc;
+  SELECT
+    root.name,
+    sum(child.self_size) AS size,
+    sum(child.self_alloc_size) AS alloc_size
+  FROM descendants AS d
+  JOIN raw AS root ON root.id = d.root_id
+  JOIN raw AS child ON child.id = d.id
+  GROUP BY d.root_id;
 )";
 
-struct FlamegraphNode {
-  int64_t id;
+struct CallstackTreeNode {
   std::string name;
-  std::string map_name;
-  int64_t count;
-  int64_t cumulative_count;
   int64_t size;
-  int64_t cumulative_size;
-  int64_t alloc_count;
-  int64_t cumulative_alloc_count;
   int64_t alloc_size;
-  int64_t cumulative_alloc_size;
-  std::optional<int64_t> parent_id;
 };
 
-std::vector<FlamegraphNode> GetFlamegraph(trace_processor::TraceProcessor* tp) {
-  std::vector<FlamegraphNode> result;
-  auto it = tp->ExecuteQuery(kOnlyFlamegraph);
+std::vector<CallstackTreeNode> GetCallstackTree(
+    trace_processor::TraceProcessor* tp) {
+  std::vector<CallstackTreeNode> result;
+  auto it = tp->ExecuteQuery(kCallstackTree);
   while (it.Next()) {
-    result.push_back({
-        it.Get(0).AsLong(),
-        it.Get(1).AsString(),
-        it.Get(2).AsString(),
-        it.Get(3).AsLong(),
-        it.Get(4).AsLong(),
-        it.Get(5).AsLong(),
-        it.Get(6).AsLong(),
-        it.Get(7).AsLong(),
-        it.Get(8).AsLong(),
-        it.Get(9).AsLong(),
-        it.Get(10).AsLong(),
-        it.Get(11).is_null() ? std::nullopt
-                             : std::optional<int64_t>(it.Get(11).AsLong()),
-    });
+    result.push_back(
+        {it.Get(0).AsString(), it.Get(1).AsLong(), it.Get(2).AsLong()});
   }
   PERFETTO_CHECK(it.Status().ok());
   return result;
+}
+
+std::pair<int64_t, int64_t> SumRunAccurateMallocMetrics(
+    const std::vector<CallstackTreeNode>& tree) {
+  int64_t size = 0;
+  int64_t alloc_size = 0;
+  for (const CallstackTreeNode& node : tree) {
+    if (node.name.find("RunAccurateMalloc") != std::string::npos) {
+      size += node.size;
+      alloc_size += node.alloc_size;
+    }
+  }
+  return {size, alloc_size};
 }
 
 std::string AllocatorName(AllocatorMode mode) {
@@ -993,12 +993,10 @@ TEST_P(HeapprofdEndToEnd, AccurateCustomReportAllocation) {
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
-  auto flamegraph = GetFlamegraph(&helper->tp());
-  EXPECT_THAT(flamegraph,
-              Contains(AllOf(
-                  Field(&FlamegraphNode::name, HasSubstr("RunAccurateMalloc")),
-                  Field(&FlamegraphNode::cumulative_size, Eq(15)),
-                  Field(&FlamegraphNode::cumulative_alloc_size, Eq(40)))));
+  auto [size, alloc_size] =
+      SumRunAccurateMallocMetrics(GetCallstackTree(&helper->tp()));
+  EXPECT_EQ(size, 15);
+  EXPECT_EQ(alloc_size, 40);
 
   ValidateOnlyPID(helper.get(), pid);
 
@@ -1051,12 +1049,10 @@ TEST_P(HeapprofdEndToEnd, MAYBE_AccurateCustomReportAllocationWithVfork) {
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
-  auto flamegraph = GetFlamegraph(&helper->tp());
-  EXPECT_THAT(flamegraph,
-              Contains(AllOf(
-                  Field(&FlamegraphNode::name, HasSubstr("RunAccurateMalloc")),
-                  Field(&FlamegraphNode::cumulative_size, Eq(15)),
-                  Field(&FlamegraphNode::cumulative_alloc_size, Eq(40)))));
+  auto [size, alloc_size] =
+      SumRunAccurateMallocMetrics(GetCallstackTree(&helper->tp()));
+  EXPECT_EQ(size, 15);
+  EXPECT_EQ(alloc_size, 40);
 
   ValidateOnlyPID(helper.get(), pid);
 
@@ -1098,12 +1094,10 @@ TEST_P(HeapprofdEndToEnd, MAYBE_AccurateCustomReportAllocationWithVforkThread) {
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
-  auto flamegraph = GetFlamegraph(&helper->tp());
-  EXPECT_THAT(flamegraph,
-              Contains(AllOf(
-                  Field(&FlamegraphNode::name, HasSubstr("RunAccurateMalloc")),
-                  Field(&FlamegraphNode::cumulative_size, Eq(15)),
-                  Field(&FlamegraphNode::cumulative_alloc_size, Eq(40)))));
+  auto [size, alloc_size] =
+      SumRunAccurateMallocMetrics(GetCallstackTree(&helper->tp()));
+  EXPECT_EQ(size, 15);
+  EXPECT_EQ(alloc_size, 40);
 
   ValidateOnlyPID(helper.get(), pid);
 

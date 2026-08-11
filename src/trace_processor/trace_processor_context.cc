@@ -55,7 +55,6 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/etw/file_io_tracker.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
-#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/user_tracker.h"
@@ -129,7 +128,6 @@ void InitPerTraceState(TraceProcessorContext* context, TraceId trace_id) {
   context->content_analyzer = nullptr;
   context->import_logs_tracker =
       Ptr<ImportLogsTracker>::MakeRoot(context, trace_id);
-  context->heap_graph_tracker = std::make_unique<HeapGraphTracker>(context);
 }
 
 void CopyTraceState(const TraceProcessorContext* source,

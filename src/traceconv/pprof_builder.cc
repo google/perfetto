@@ -32,7 +32,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/murmur_hash.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -842,32 +841,19 @@ constexpr View kJavaAllocationViews[] = {
     {"Total allocation count", "count", "count"},
     {"Total allocation size", "bytes", "size"}};
 
-std::string CreateHeapDumpFlameGraphQuery(const std::string& columns,
-                                          const uint64_t upid,
-                                          const uint64_t ts) {
-  std::string query = "SELECT " + columns + " ";
-  query += "FROM experimental_flamegraph(";
-
-  const std::vector<std::string> query_params = {
-      // The type of the profile from which the flamegraph is being generated
-      // Always 'graph' for Java heap graphs.
-      "'graph'",
-      // Heapdump timestamp
-      std::to_string(ts),
-      // Timestamp constraints: not relevant and always null for Java heap
-      // graphs.
-      "NULL",
-      // The upid of the heap graph sample
-      std::to_string(upid),
-      // The upid group: not relevant and always null for Java heap graphs
-      "NULL",
-      // A regex for focusing on a particular node in the heapgraph
-      "NULL"};
-
-  query += base::Join(query_params, ", ");
-  query += ")";
-
-  return query;
+std::string CreateHeapDumpClassTreeQuery(const std::string& columns,
+                                         const uint64_t upid,
+                                         const uint64_t ts) {
+  return "INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree; "
+         "SELECT " +
+         columns +
+         " FROM (SELECT id, parent_id, "
+         "iif(parent_id IS NULL AND root_type IS NOT NULL, "
+         "name || ' [' || root_type || ']', name) AS name, "
+         "self_count AS count, self_size AS size "
+         "FROM _heap_graph_class_tree WHERE upid = " +
+         std::to_string(upid) + " AND graph_sample_ts = " + std::to_string(ts) +
+         ")";
 }
 
 bool WriteAllocations(
@@ -887,13 +873,14 @@ bool WriteAllocations(
 
 // Extracts and interns the unique locations from the heap dump SQL tables.
 //
-// It uses experimental_flamegraph table to get normalized representation of
-// the heap graph as a tree, which always takes the shortest path to the root.
+// It uses the internal heap graph class tree to get a normalized
+// representation of the heap graph, which always takes the shortest path to
+// the root.
 //
 // Approach:
-//   * First we iterate over all heap dump flamegraph rows and create a map
-//     of flamegraph item id -> flamegraph item parent_id, each flamechart
-//     item is converted to a Location where we populate Function name using
+//   * First we iterate over all heap dump class-tree rows and create a map
+//     of node id -> parent node id. Each node is converted to a Location where
+//     we populate Function name using
 //     the name of the class (as opposed to using actual call function as
 //     allocation call stack is not available for java heap dumps).
 //     Also populate view_values straightaway here to not iterate over the data
@@ -918,12 +905,12 @@ LocationTracker PreprocessLocationsForJavaHeap(
   const auto data_columns_count = static_cast<uint32_t>(views.size());
   columns += "id, parent_id, name";
 
-  const std::string query = CreateHeapDumpFlameGraphQuery(columns, upid, ts);
+  const std::string query = CreateHeapDumpClassTreeQuery(columns, upid, ts);
   Iterator it = tp->ExecuteQuery(query);
 
-  // flamegraph id -> flamegraph parent_id
+  // Class-tree node id -> parent node id.
   std::unordered_map<int64_t, int64_t> parents;
-  // flamegraph id -> interned location id
+  // Class-tree node id -> interned location id.
   std::unordered_map<int64_t, int64_t> interned_ids;
 
   // Create locations
@@ -1015,7 +1002,7 @@ bool TraceToHeapPprof(trace_processor::TraceProcessor* tp,
       continue;
     }
 
-    // flamegraph id -> view values
+    // Class-tree node id -> view values.
     std::unordered_map<int64_t, std::vector<int64_t>> view_values;
 
     std::vector<View> views;
