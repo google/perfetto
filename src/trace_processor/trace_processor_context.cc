@@ -55,6 +55,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/etw/file_io_tracker.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
+#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/user_tracker.h"
@@ -128,6 +129,7 @@ void InitPerTraceState(TraceProcessorContext* context, TraceId trace_id) {
   context->content_analyzer = nullptr;
   context->import_logs_tracker =
       Ptr<ImportLogsTracker>::MakeRoot(context, trace_id);
+  context->heap_graph_tracker = std::make_unique<HeapGraphTracker>(context);
 }
 
 void CopyTraceState(const TraceProcessorContext* source,
@@ -319,7 +321,6 @@ void TraceProcessorContext::DestroyParsingState() {
 
   // TODO(b/309623584): Decouple from storage and remove from here. This
   // function should only move storage and delete everything else.
-  auto _heap_graph_tracker = std::move(heap_graph_tracker);
   auto _clock_converter = std::move(clock_converter);
   // "to_ftrace" textual converter of the "raw" table requires remembering the
   // kernel version (inside system_info_tracker) to know how to textualise
@@ -337,7 +338,6 @@ void TraceProcessorContext::DestroyParsingState() {
   platform = _platform;
   file_system = _file_system;
   storage = std::move(_storage);
-  heap_graph_tracker = std::move(_heap_graph_tracker);
   clock_converter = std::move(_clock_converter);
   system_info_tracker = std::move(_system_info_tracker);
   descriptor_pool_ = std::move(_descriptor_pool_);

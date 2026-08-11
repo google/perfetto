@@ -20,8 +20,6 @@ source_set("experimental_flamegraph") {
   sources = [
     "experimental_flamegraph.cc",
     "experimental_flamegraph.h",
-    "flamegraph_construction_algorithms.cc",
-    "flamegraph_construction_algorithms.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -30,7 +28,11 @@ source_set("experimental_flamegraph") {
     "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
+    "../../core/tree",
     "../../importers/proto:full",
+    "../../perfetto_sql/engine",
+    "../../plugins/flamegraph:flamegraph",
+    "../../sqlite",
     "../../storage",
     "../../tables",
     "../../types",

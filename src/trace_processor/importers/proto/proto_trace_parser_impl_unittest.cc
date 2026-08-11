@@ -290,8 +290,7 @@ class ProtoTraceParserTest : public ::testing::Test {
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
     context_.uuid_state = std::make_unique<TraceProcessorContext::UuidState>();
-    context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(
-        storage_, context_.global_stats_tracker.get());
+    context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(&context_);
     context_.trace_diagnostics_tracker =
         std::make_unique<TraceDiagnosticsTracker>(&context_);
     context_.track_compressor.reset(new TrackCompressor(&context_));

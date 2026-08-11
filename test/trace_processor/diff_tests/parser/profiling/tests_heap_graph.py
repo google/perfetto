@@ -511,15 +511,15 @@ class ProfilingHeapGraph(TestSuite):
         out=Csv('''
           "id","ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","parent_id","source_file","line_number"
           0,605908369259172,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,"[NULL]","[NULL]","[NULL]"
-          1,605908369259172,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,0,"[NULL]","[NULL]"
-          2,605908369259172,2,"_ZN7android14AndroidRuntime15javaThreadShellEPv","/system/lib64/libandroid_runtime.so",0,5,0,27704,0,77,0,348050,1,"[NULL]","[NULL]"
-          3,605908369259172,3,"_ZN7android6Thread11_threadLoopEPv","/system/lib64/libutils.so",0,5,0,27704,0,77,0,348050,2,"[NULL]","[NULL]"
-          4,605908369259172,4,"_ZN7android10PoolThread10threadLoopEv","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,3,"[NULL]","[NULL]"
-          5,605908369259172,5,"_ZN7android14IPCThreadState14joinThreadPoolEb","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,4,"[NULL]","[NULL]"
-          6,605908369259172,6,"_ZN7android14IPCThreadState20getAndExecuteCommandEv","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,5,"[NULL]","[NULL]"
-          7,605908369259172,7,"_ZN7android14IPCThreadState14executeCommandEi","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,6,"[NULL]","[NULL]"
-          8,605908369259172,8,"_ZN7android7BBinder8transactEjRKNS_6ParcelEPS1_j","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,7,"[NULL]","[NULL]"
-          9,605908369259172,9,"_ZN11JavaBBinder10onTransactEjRKN7android6ParcelEPS1_j","/system/lib64/libandroid_runtime.so",0,0,0,0,0,60,0,262730,8,"[NULL]","[NULL]"
+          1,605908369259172,1,"__pthread_start(void*)","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,0,"[NULL]","[NULL]"
+          2,605908369259172,2,"android::AndroidRuntime::javaThreadShell(void*)","/system/lib64/libandroid_runtime.so",0,5,0,27704,0,77,0,348050,1,"[NULL]","[NULL]"
+          3,605908369259172,3,"android::Thread::_threadLoop(void*)","/system/lib64/libutils.so",0,5,0,27704,0,77,0,348050,2,"[NULL]","[NULL]"
+          4,605908369259172,4,"android::PoolThread::threadLoop()","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,3,"[NULL]","[NULL]"
+          5,605908369259172,5,"android::IPCThreadState::joinThreadPool(bool)","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,4,"[NULL]","[NULL]"
+          6,605908369259172,6,"android::IPCThreadState::getAndExecuteCommand()","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,5,"[NULL]","[NULL]"
+          7,605908369259172,7,"android::IPCThreadState::executeCommand(int)","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,6,"[NULL]","[NULL]"
+          8,605908369259172,8,"android::BBinder::transact(unsigned int, android::Parcel const&, android::Parcel*, unsigned int)","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,7,"[NULL]","[NULL]"
+          9,605908369259172,9,"JavaBBinder::onTransact(unsigned int, android::Parcel const&, android::Parcel*, unsigned int)","/system/lib64/libandroid_runtime.so",0,0,0,0,0,60,0,262730,8,"[NULL]","[NULL]"
         '''))
 
   def test_heap_profile_tracker_new_stack(self):

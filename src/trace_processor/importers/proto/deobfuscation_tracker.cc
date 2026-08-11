@@ -321,10 +321,6 @@ void DeobfuscationTracker::DeobfuscateProfiles(
 
 void DeobfuscationTracker::DeobfuscateHeapGraph(
     const DeobfuscationMapping::Decoder& deobfuscation_mapping) {
-  using ReferenceTable = tables::HeapGraphReferenceTable;
-
-  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
-
   std::optional<StringId> package_name_id;
   if (deobfuscation_mapping.package_name().size > 0) {
     package_name_id = context_->storage->string_pool().GetId(
@@ -333,6 +329,27 @@ void DeobfuscationTracker::DeobfuscateHeapGraph(
 
   auto* reference_table =
       context_->storage->mutable_heap_graph_reference_table();
+
+  // The heap graph tracker is per-trace; apply the mapping to every trace's
+  // heap graph data.
+  for (auto it = context_->forked_context_state->trace_to_context.GetIterator();
+       it; ++it) {
+    auto* heap_graph_tracker = HeapGraphTracker::Get(it.value());
+    if (!heap_graph_tracker) {
+      continue;
+    }
+    DeobfuscateHeapGraphForTracker(deobfuscation_mapping, package_name_id,
+                                   reference_table, heap_graph_tracker);
+  }
+}
+
+void DeobfuscationTracker::DeobfuscateHeapGraphForTracker(
+    const DeobfuscationMapping::Decoder& deobfuscation_mapping,
+    std::optional<StringId> package_name_id,
+    tables::HeapGraphReferenceTable* reference_table,
+    HeapGraphTracker* heap_graph_tracker) {
+  using ReferenceTable = tables::HeapGraphReferenceTable;
+
   for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
        ++class_it) {
     ObfuscatedClass::Decoder cls(*class_it);
@@ -346,10 +363,11 @@ void DeobfuscationTracker::DeobfuscateHeapGraph(
       // TODO(b/153552977): Remove this work-around for legacy traces.
       // For traces without location information, deobfuscate all matching
       // classes.
-      DeobfuscateHeapGraphClass(std::nullopt, *obfuscated_class_name_id, cls);
+      DeobfuscateHeapGraphClass(heap_graph_tracker, std::nullopt,
+                                *obfuscated_class_name_id, cls);
       if (package_name_id) {
-        DeobfuscateHeapGraphClass(package_name_id, *obfuscated_class_name_id,
-                                  cls);
+        DeobfuscateHeapGraphClass(heap_graph_tracker, package_name_id,
+                                  *obfuscated_class_name_id, cls);
       }
     }
 
@@ -386,12 +404,12 @@ void DeobfuscationTracker::DeobfuscateHeapGraph(
 }
 
 void DeobfuscationTracker::DeobfuscateHeapGraphClass(
+    HeapGraphTracker* heap_graph_tracker,
     std::optional<StringId> package_name_id,
     StringId obfuscated_class_name_id,
     const ObfuscatedClass::Decoder& cls) {
   using ClassTable = tables::HeapGraphClassTable;
 
-  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   const std::vector<ClassTable::RowNumber>* cls_objects =
       heap_graph_tracker->RowsForType(package_name_id,
                                       obfuscated_class_name_id);

@@ -64,7 +64,9 @@ struct Config {
   enum class Aggregate {
     kSum,
     kOneOrSummary,
+    kOneOrNull,
     kConcatWithComma,
+    kMax,
   };
 
   struct AggregateColumn {

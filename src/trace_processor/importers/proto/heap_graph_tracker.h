@@ -28,7 +28,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -41,27 +40,13 @@
 namespace perfetto::trace_processor {
 
 class GlobalStatsTracker;
+class ImportLogsTracker;
 class TraceProcessorContext;
 
 struct NormalizedType {
   base::StringView name;
   bool is_static_class;
   size_t number_of_arrays;
-};
-
-struct PathFromRoot {
-  static constexpr size_t kRoot = 0;
-  struct Node {
-    uint32_t depth = 0;
-    // Invariant: parent_id < id of this node.
-    size_t parent_id = 0;
-    int64_t size = 0;
-    int64_t count = 0;
-    StringId class_name_id = {};
-    std::map<StringId, size_t> children;
-  };
-  std::vector<Node> nodes{Node{}};
-  std::set<tables::HeapGraphObjectTable::Id> visited;
 };
 
 std::optional<base::StringView> GetStaticClassTypeName(base::StringView type);
@@ -103,7 +88,7 @@ class HeapGraphTracker : public Destructible {
     std::vector<uint64_t> object_ids;
   };
 
-  HeapGraphTracker(TraceStorage* storage, GlobalStatsTracker* stats_tracker);
+  explicit HeapGraphTracker(TraceProcessorContext* context);
 
   static HeapGraphTracker* Get(TraceProcessorContext* context) {
     return static_cast<HeapGraphTracker*>(context->heap_graph_tracker.get());
@@ -149,10 +134,6 @@ class HeapGraphTracker : public Destructible {
     return field_to_rows_.Find(field_name);
   }
 
-  std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildFlamegraph(
-      int64_t current_ts,
-      UniquePid current_upid);
-
   uint64_t GetLastObjectId(uint32_t seq_id) {
     return GetOrCreateSequence(seq_id).last_object_id;
   }
@@ -186,6 +167,8 @@ class HeapGraphTracker : public Destructible {
             HEAP_TYPE_UNKNOWN;
     std::vector<SourceRoot> current_roots;
     std::vector<uint64_t> internal_vm_roots;
+    bool truncated = false;
+    bool finalized_at_eof = false;
 
     // Note: the below maps are a mix of std::map and base::FlatHashMap because
     // of the incremental evolution of this code (i.e. when the code was written
@@ -220,7 +203,6 @@ class HeapGraphTracker : public Destructible {
     // Contains the value of the "size" field for each
     // "libcore.util.NativeAllocationRegistry" object.
     std::map<tables::HeapGraphObjectTable::Id, int64_t> nar_size_by_obj_id;
-    bool truncated = false;
     std::optional<int64_t> heap_size;
   };
 
@@ -235,7 +217,6 @@ class HeapGraphTracker : public Destructible {
   void PopulateSuperClasses(const SequenceState& seq);
   InternedType* GetSuperClass(SequenceState* sequence_state,
                               const InternedType* current_type);
-  bool IsTruncated(UniquePid upid, int64_t ts);
   StringId InternRootTypeString(
       ::com::android::art::tracing::pbzero::HeapGraphRoot::Type);
   StringId InternTypeKindString(
@@ -257,15 +238,8 @@ class HeapGraphTracker : public Destructible {
                    std::vector<tables::HeapGraphObjectTable::Id>&);
   void MarkRoot(tables::HeapGraphObjectTable::RowReference, StringId type);
   size_t RankRoot(StringId type);
-  void UpdateShortestPaths(
-      base::CircularQueue<
-          std::pair<int32_t, tables::HeapGraphObjectTable::RowReference>>&,
-      tables::HeapGraphObjectTable::RowReference row_ref);
-  void FindPathFromRoot(tables::HeapGraphObjectTable::RowReference,
-                        PathFromRoot* path);
 
-  TraceStorage* const storage_;
-  GlobalStatsTracker* const global_stats_tracker_;
+  TraceProcessorContext* const context_;
   std::map<uint32_t, SequenceState> sequence_state_;
 
   tables::HeapGraphClassTable::Cursor class_cursor_;
@@ -281,11 +255,6 @@ class HeapGraphTracker : public Destructible {
   base::FlatHashMap<StringId,
                     std::vector<tables::HeapGraphReferenceTable::RowNumber>>
       field_to_rows_;
-
-  std::map<std::pair<UniquePid, int64_t>,
-           std::set<tables::HeapGraphObjectTable::RowNumber>>
-      roots_;
-  std::set<std::pair<UniquePid, int64_t>> truncated_graphs_;
 
   StringId cleaner_thunk_str_id_;
   StringId referent_str_id_;

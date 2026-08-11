@@ -37,6 +37,8 @@
 
 namespace perfetto::trace_processor {
 
+class HeapGraphTracker;
+
 struct NameInPackage {
   StringId name;
   StringId package;
@@ -77,7 +79,13 @@ class DeobfuscationTracker : public Destructible {
       const protos::pbzero::DeobfuscationMapping::Decoder& mapping);
   void DeobfuscateHeapGraph(
       const protos::pbzero::DeobfuscationMapping::Decoder& mapping);
+  void DeobfuscateHeapGraphForTracker(
+      const protos::pbzero::DeobfuscationMapping::Decoder& mapping,
+      std::optional<StringId> package_name_id,
+      tables::HeapGraphReferenceTable* reference_table,
+      HeapGraphTracker* heap_graph_tracker);
   void DeobfuscateHeapGraphClass(
+      HeapGraphTracker* heap_graph_tracker,
       std::optional<StringId> package_name_id,
       StringId obfuscated_class_name_id,
       const protos::pbzero::ObfuscatedClass::Decoder& cls);

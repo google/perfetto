@@ -76,7 +76,6 @@
 #include "src/trace_processor/importers/primes/primes_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/deobfuscation_tracker.h"
-#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
@@ -480,13 +479,6 @@ TraceProcessorImpl::TraceProcessorImpl(
   reg.Register(CreateTarImporter());
   reg.Register(CreatePrimesImporter());
 
-  // Force initialization of heap graph tracker.
-  //
-  // TODO(lalitm): remove heap graph tracker from global context and get rid
-  // of this.
-  context()->heap_graph_tracker = std::make_unique<HeapGraphTracker>(
-      context()->storage.get(), context()->global_stats_tracker.get());
-
   // Initialize deobfuscation tracker.
   context()->deobfuscation_tracker =
       std::make_unique<DeobfuscationTracker>(context());
@@ -594,7 +586,6 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   RETURN_IF_ERROR(TraceProcessorStorageImpl::OnPushDataToSorter());
 
   // Stage 2: finalize all data.
-  HeapGraphTracker::Get(context())->FinalizeAllProfiles();
   TraceProcessorStorageImpl::OnEventsFullyExtracted();
   DeobfuscationTracker::Get(context())->OnEventsFullyExtracted();
   CacheBoundsAndBuildTable();

@@ -4708,8 +4708,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/experimental_flamegraph/experimental_flamegraph.cc",
         "src/trace_processor/plugins/experimental_flamegraph/experimental_flamegraph.h",
-        "src/trace_processor/plugins/experimental_flamegraph/flamegraph_construction_algorithms.cc",
-        "src/trace_processor/plugins/experimental_flamegraph/flamegraph_construction_algorithms.h",
     ],
 )
 

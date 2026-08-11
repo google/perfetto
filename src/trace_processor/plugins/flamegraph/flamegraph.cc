@@ -454,6 +454,136 @@ class OneOrSummaryAggregateOperator final : public AggregateOperator {
   bool has_multiple_values_ = false;
 };
 
+// Keeps the group's value only when every member shares the same non-null
+// value; a null member or any disagreement produces a null output. This is
+// the legacy experimental_flamegraph semantics for source_file/line_number
+// (null when merged frames disagree), as opposed to OneOrSummary which
+// summarizes disagreements as "<value> and N others".
+template <typename T>
+class OneOrNullAggregateOperator final : public AggregateOperator {
+ public:
+  OneOrNullAggregateOperator(const core::Tree::Column& input,
+                             uint32_t output_rows)
+      : input_(input), output_(core::Tree::Column::Create<T>(output_rows)) {
+    output_.null_bv = core::BitVector::CreateWithSize(output_rows, false);
+  }
+
+  base::Status UpdateBatch(core::Span<const uint32_t> output_rows,
+                           core::Span<const uint32_t> input_rows) override {
+    core::Span<const T> input = input_.unchecked_span<T>();
+    for (uint32_t i = 0; i < input_rows.size(); ++i) {
+      const uint32_t input_row = input_rows[i];
+      const uint32_t output_row = output_rows[i];
+      if (output_row != current_output_row_) {
+        FinishGroup();
+        current_output_row_ = output_row;
+      }
+      if (input_.null_bv.size() > 0 && !input_.null_bv.is_set(input_row)) {
+        // A null member is a distinct value: the group output is null unless
+        // every member shares the same non-null value.
+        has_null_ = true;
+        continue;
+      }
+      const T value = input[input_row];
+      if (!has_value_) {
+        representative_ = value;
+        representative_key_ = DistinctKey(value);
+        has_value_ = true;
+      } else if (DistinctKey(value) != representative_key_) {
+        has_multiple_values_ = true;
+      }
+    }
+    return base::OkStatus();
+  }
+
+  base::Status Finalize() override {
+    FinishGroup();
+    return base::OkStatus();
+  }
+
+  core::Tree::Column TakeOutput() override { return std::move(output_); }
+
+ private:
+  void FinishGroup() {
+    if (has_value_ && !has_multiple_values_ && !has_null_) {
+      output_.unchecked_span<T>()[current_output_row_] = representative_;
+      output_.null_bv.set(current_output_row_);
+    }
+    ResetGroup();
+  }
+
+  void ResetGroup() {
+    has_value_ = false;
+    has_multiple_values_ = false;
+    has_null_ = false;
+  }
+
+  const core::Tree::Column& input_;
+  core::Tree::Column output_;
+  T representative_{};
+  uint64_t representative_key_ = 0;
+  uint32_t current_output_row_ = core::Tree::kNullParent;
+  bool has_value_ = false;
+  bool has_multiple_values_ = false;
+  bool has_null_ = false;
+};
+
+// Maximum over the group's non-null members; a group with no non-null members
+// produces a null output. Used for per-frame timestamps which only leaf frames
+// carry.
+template <typename T>
+class MaxAggregateOperator final : public AggregateOperator {
+ public:
+  MaxAggregateOperator(const core::Tree::Column& input, uint32_t output_rows)
+      : input_(input), output_(core::Tree::Column::Create<T>(output_rows)) {
+    output_.null_bv = core::BitVector::CreateWithSize(output_rows, false);
+  }
+
+  base::Status UpdateBatch(core::Span<const uint32_t> output_rows,
+                           core::Span<const uint32_t> input_rows) override {
+    core::Span<const T> input = input_.unchecked_span<T>();
+    for (uint32_t i = 0; i < input_rows.size(); ++i) {
+      const uint32_t input_row = input_rows[i];
+      if (input_.null_bv.size() > 0 && !input_.null_bv.is_set(input_row)) {
+        continue;
+      }
+      const uint32_t output_row = output_rows[i];
+      if (output_row != current_output_row_) {
+        FinishGroup();
+        current_output_row_ = output_row;
+      }
+      const T value = input[input_row];
+      if (!has_value_ || value > representative_) {
+        representative_ = value;
+        has_value_ = true;
+      }
+    }
+    return base::OkStatus();
+  }
+
+  base::Status Finalize() override {
+    FinishGroup();
+    return base::OkStatus();
+  }
+
+  core::Tree::Column TakeOutput() override { return std::move(output_); }
+
+ private:
+  void FinishGroup() {
+    if (has_value_) {
+      output_.unchecked_span<T>()[current_output_row_] = representative_;
+      output_.null_bv.set(current_output_row_);
+    }
+    has_value_ = false;
+  }
+
+  const core::Tree::Column& input_;
+  core::Tree::Column output_;
+  T representative_{};
+  uint32_t current_output_row_ = core::Tree::kNullParent;
+  bool has_value_ = false;
+};
+
 template <typename T>
 class ConcatAggregateOperator final : public AggregateOperator {
  public:
@@ -667,6 +797,9 @@ bool IsValidConfig(const core::Tree& input, const Config& config) {
     if (aggregate.input->type.Is<core::Null>()) {
       // A column with no values aggregates to no values under any mode.
     } else if (aggregate.aggregate == Config::Aggregate::kSum &&
+               !IsNumericColumn(*aggregate.input)) {
+      return false;
+    } else if (aggregate.aggregate == Config::Aggregate::kMax &&
                !IsNumericColumn(*aggregate.input)) {
       return false;
     }
@@ -1368,6 +1501,21 @@ base::Status FlamegraphBuilder::ComputeAggregates() {
           aggregate_columns_[i] = op.TakeOutput();
         }
         break;
+      case Config::Aggregate::kOneOrNull:
+        if (input.type.Is<core::String>()) {
+          OneOrNullAggregateOperator<StringPool::Id> op(input, nodes);
+          RETURN_IF_ERROR(RunAggregateOperator(&op));
+          aggregate_columns_[i] = op.TakeOutput();
+        } else if (input.type.Is<core::Int64>()) {
+          OneOrNullAggregateOperator<int64_t> op(input, nodes);
+          RETURN_IF_ERROR(RunAggregateOperator(&op));
+          aggregate_columns_[i] = op.TakeOutput();
+        } else {
+          OneOrNullAggregateOperator<double> op(input, nodes);
+          RETURN_IF_ERROR(RunAggregateOperator(&op));
+          aggregate_columns_[i] = op.TakeOutput();
+        }
+        break;
       case Config::Aggregate::kConcatWithComma:
         if (input.type.Is<core::String>()) {
           ConcatAggregateOperator<StringPool::Id> op(input, config_.pool,
@@ -1380,6 +1528,17 @@ base::Status FlamegraphBuilder::ComputeAggregates() {
           aggregate_columns_[i] = op.TakeOutput();
         } else {
           ConcatAggregateOperator<double> op(input, config_.pool, nodes);
+          RETURN_IF_ERROR(RunAggregateOperator(&op));
+          aggregate_columns_[i] = op.TakeOutput();
+        }
+        break;
+      case Config::Aggregate::kMax:
+        if (input.type.Is<core::Int64>()) {
+          MaxAggregateOperator<int64_t> op(input, nodes);
+          RETURN_IF_ERROR(RunAggregateOperator(&op));
+          aggregate_columns_[i] = op.TakeOutput();
+        } else {
+          MaxAggregateOperator<double> op(input, nodes);
           RETURN_IF_ERROR(RunAggregateOperator(&op));
           aggregate_columns_[i] = op.TakeOutput();
         }

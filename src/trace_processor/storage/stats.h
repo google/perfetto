@@ -431,6 +431,9 @@ namespace perfetto::trace_processor::stats {
   F(heap_graph_invalid_string_id,         kIndexed, kError,    kTrace, Scope::kGlobal,             ""), \
   F(heap_graph_malformed_packet,          kIndexed, kError,    kTrace, Scope::kGlobal,             ""), \
   F(heap_graph_missing_packet,            kIndexed, kError,    kTrace, Scope::kGlobal,             ""), \
+  F(heap_graph_incomplete_dump,           kSingle,  kDataLoss, kTrace, Scope::kGlobal,                  \
+      "A heap graph dump was incomplete. See trace_import_logs for the "     \
+      "affected process, timestamp, and reason."),                           \
   F(heapprofd_buffer_corrupted,           kIndexed, kError,    kTrace, Scope::kMachineAndTrace,         \
       "Shared memory buffer corrupted. This is a bug or memory corruption "    \
       "in the target. Indexed by target upid."),                               \

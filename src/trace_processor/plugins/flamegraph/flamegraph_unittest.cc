@@ -229,6 +229,77 @@ TEST(FlamegraphTest, AllNullAggregates) {
   }
 }
 
+TEST(FlamegraphTest, OneOrNullAndMaxAggregates) {
+  StringPool pool;
+  core::Tree input =
+      MakeTree(&pool, {{"main", std::nullopt, 1}, {"x", 0, 2}, {"x", 0, 3}});
+  AddStringColumn(&input, &pool, "source", {"root", "a", "b"});
+  AddColumn(&input, "num", std::vector<int64_t>{5, 7, 8});
+  AddColumn(&input, "ts", std::vector<int64_t>{1, 10, 9});
+  Config config = MakeConfig(input, pool);
+  config.aggregate_columns.push_back(
+      {&input.columns[2], Config::Aggregate::kOneOrNull, "source_one_or_null"});
+  config.aggregate_columns.push_back(
+      {&input.columns[3], Config::Aggregate::kOneOrNull, "num_one_or_null"});
+  config.aggregate_columns.push_back(
+      {&input.columns[3], Config::Aggregate::kMax, "num_max"});
+  config.aggregate_columns.push_back(
+      {&input.columns[4], Config::Aggregate::kMax, "ts_max"});
+
+  auto result = Build(input, config);
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result->row_count, 2u);
+  // The "main" group has a single member: the value is kept.
+  EXPECT_EQ(pool.Get(Value<StringPool::Id>(*result, "source_one_or_null", 0))
+                .ToStdString(),
+            "root");
+  EXPECT_EQ(Value<int64_t>(*result, "num_one_or_null", 0), 5);
+  EXPECT_EQ(Value<int64_t>(*result, "num_max", 0), 5);
+  EXPECT_EQ(Value<int64_t>(*result, "ts_max", 0), 1);
+  // The "x" group merges two frames with disagreeing values: null.
+  auto* source = *result->Find("source_one_or_null");
+  ASSERT_TRUE(source->null_bv.size() > 0);
+  EXPECT_FALSE(source->null_bv.is_set(1));
+  auto* num = *result->Find("num_one_or_null");
+  ASSERT_TRUE(num->null_bv.size() > 0);
+  EXPECT_FALSE(num->null_bv.is_set(1));
+  EXPECT_EQ(Value<int64_t>(*result, "num_max", 1), 8);
+  EXPECT_EQ(Value<int64_t>(*result, "ts_max", 1), 10);
+}
+
+TEST(FlamegraphTest, OneOrNullWithNullMember) {
+  StringPool pool;
+  core::Tree input =
+      MakeTree(&pool, {{"main", std::nullopt, 1}, {"x", 0, 2}, {"x", 0, 3}});
+  // A nullable string column: "root", NULL, "root".
+  std::vector<StringPool::Id> ids;
+  for (const std::string& value : {"root", "ignored", "root"}) {
+    ids.push_back(pool.InternString(base::StringView(value)));
+  }
+  core::Tree::Column col =
+      core::Tree::Column::Create<StringPool::Id>(3, /*nullable=*/true);
+  memcpy(col.data.begin(), ids.data(), ids.size() * sizeof(StringPool::Id));
+  col.null_bv.clear(1);
+  input.names.emplace_back("source");
+  input.columns.push_back(std::move(col));
+  Config config = MakeConfig(input, pool);
+  config.aggregate_columns.push_back(
+      {&input.columns[2], Config::Aggregate::kOneOrNull, "source_one_or_null"});
+
+  auto result = Build(input, config);
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result->row_count, 2u);
+  // "main" group: single non-null member, value kept.
+  EXPECT_EQ(pool.Get(Value<StringPool::Id>(*result, "source_one_or_null", 0))
+                .ToStdString(),
+            "root");
+  // "x" group: the null member makes the output null despite the non-null
+  // members agreeing.
+  auto* source = *result->Find("source_one_or_null");
+  ASSERT_TRUE(source->null_bv.size() > 0);
+  EXPECT_FALSE(source->null_bv.is_set(1));
+}
+
 TEST(FlamegraphTest, BottomUp) {
   StringPool pool;
   core::Tree input =
