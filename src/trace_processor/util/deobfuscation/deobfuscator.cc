@@ -167,6 +167,10 @@ base::Status ParseMergedClass(SimpleJsonParser& parser,
 // Proguard mapping.
 base::Status ParseMergedClassesComment(std::string_view json_str,
                                        ObfuscatedClass& target_class) {
+  if (!json_str.contains(kMergedClassesKey)) {
+    // Avoid full parsing if possible.
+    return base::OkStatus();
+  }
   SimpleJsonParser parser(json_str);
   RETURN_IF_ERROR(parser.Parse());
 
@@ -459,7 +463,7 @@ base::Status ProguardParser::AddLine(std::string line) {
       std::string_view json_sv = std::string_view(line).substr(json_start);
       base::Status s = ParseMergedClassesComment(json_sv, *current_class_);
       if (!s.ok()) {
-        PERFETTO_DLOG("Failed to parse merged classes comment: %s\non line %s",
+        PERFETTO_ELOG("Failed to parse merged classes comment: %s\non line %s",
                       s.message().c_str(), line.c_str());
       }
     }
