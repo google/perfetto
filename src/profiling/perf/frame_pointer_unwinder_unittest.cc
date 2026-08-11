@@ -39,10 +39,13 @@ class RegsFake : public unwindstack::Regs {
   }
   ~RegsFake() override = default;
 
-  unwindstack::ArchEnum Arch() override { return fake_arch_; }
+  unwindstack::ArchEnum Arch() { return fake_arch_; }
+  unwindstack::ArchEnum Arch() const { return fake_arch_; }
   void* RawData() override { return fake_data_.get(); }
-  uint64_t pc() override { return fake_pc_; }
-  uint64_t sp() override { return fake_sp_; }
+  uint64_t pc() { return fake_pc_; }
+  uint64_t pc() const { return fake_pc_; }
+  uint64_t sp() { return fake_sp_; }
+  uint64_t sp() const { return fake_sp_; }
   void set_pc(uint64_t pc) override { fake_pc_ = pc; }
   void set_sp(uint64_t sp) override { fake_sp_ = sp; }
 
@@ -67,7 +70,8 @@ class RegsFake : public unwindstack::Regs {
 
   bool SetPcFromReturnAddress(unwindstack::Memory*) override { return false; }
 
-  void IterateRegisters(std::function<void(const char*, uint64_t)>) override {}
+  void IterateRegisters(std::function<void(const char*, uint64_t)>) {}
+  void IterateRegisters(std::function<void(const char*, uint64_t)>) const {}
 
   bool StepIfSignalHandler(uint64_t,
                            unwindstack::Elf*,
@@ -77,7 +81,8 @@ class RegsFake : public unwindstack::Regs {
 
   void FakeSetArch(unwindstack::ArchEnum arch) { fake_arch_ = arch; }
 
-  Regs* Clone() override { return nullptr; }
+  Regs* Clone() { return nullptr; }
+  Regs* Clone() const { return nullptr; }
 
  private:
   unwindstack::ArchEnum fake_arch_ = unwindstack::ARCH_UNKNOWN;
