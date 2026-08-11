@@ -23,8 +23,6 @@ import {Button} from '../../widgets/button';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
 import {EmptyState} from '../../widgets/empty_state';
 import {Callout} from '../../widgets/callout';
-import {TabStrip} from '../../widgets/tab_strip';
-import {Icon} from '../../widgets/icon';
 import {
   createDefaultTreeExplorerState,
   updateTreeExplorerState,
@@ -45,7 +43,6 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
   private profiles?: ReadonlyArray<AggregateProfile>;
   private readonly monitor = new Monitor([() => this.profiles]);
   private flamegraphMetrics?: ReadonlyArray<TreeExplorerQueryMetric>;
-  private currentTab = 'flamegraph';
 
   view({attrs}: m.CVnode<AggregateProfilesPageAttrs>): m.Children {
     this.profiles = attrs.profiles;
@@ -73,14 +70,7 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
           m(StackFixed, this.renderControlsRow(attrs)),
         this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY) &&
           m(StackFixed, this.renderPageExplanation()),
-        m(
-          StackFixed,
-          m(Stack, {orientation: 'horizontal', spacing: 'medium'}, [
-            m(StackAuto, this.renderTabStrip()),
-            this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY) &&
-              m(StackFixed, this.renderPageHelpButton()),
-          ]),
-        ),
+        this.renderHelpRow(),
         this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
           m(StackFixed, this.renderViewExplanation()),
         m(StackAuto, [
@@ -136,31 +126,32 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     localStorage.removeItem(key);
   }
 
-  private renderTabStrip(): m.Children {
-    const showViewExplanation = this.shouldShowExplanation(
-      HIDE_VIEW_EXPLANATION_KEY,
+  // The view tabs themselves live in the TreeExplorerPanel's own switcher;
+  // this row only hosts the help buttons that used to hang off the old
+  // single-tab strip.
+  private renderHelpRow(): m.Children {
+    const showViewHelp = !this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY);
+    const showPageHelp = this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY);
+    if (!showViewHelp && !showPageHelp) {
+      return undefined;
+    }
+    return m(
+      StackFixed,
+      m(Stack, {orientation: 'horizontal', spacing: 'medium'}, [
+        m(StackAuto),
+        showViewHelp &&
+          m(
+            StackFixed,
+            m(Button, {
+              label: 'About views',
+              icon: 'help',
+              compact: true,
+              onclick: () => this.showExplanation(HIDE_VIEW_EXPLANATION_KEY),
+            }),
+          ),
+        showPageHelp && m(StackFixed, this.renderPageHelpButton()),
+      ]),
     );
-    return m(TabStrip, {
-      className: 'pf-aggregate-profiles-page__tabs',
-      tabs: [
-        {
-          key: 'flamegraph',
-          title: 'Flamegraph',
-          rightIcon: !showViewExplanation
-            ? m(Icon, {
-                icon: 'help',
-                className: 'pf-aggregate-profiles-page__help-icon',
-                onclick: () => this.showExplanation(HIDE_VIEW_EXPLANATION_KEY),
-              })
-            : undefined,
-        },
-        // Future tabs: top-down table, bottom-up table, etc.
-      ],
-      currentTabKey: this.currentTab,
-      onTabChange: (key: string) => {
-        this.currentTab = key;
-      },
-    });
   }
 
   private renderPageHelpButton(): m.Children {

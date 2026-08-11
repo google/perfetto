@@ -16,22 +16,31 @@ import './tree_explorer_panel.scss';
 import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {Monitor} from '../base/monitor';
-import {ensureExists} from '../base/assert';
+import {assertUnreachable, ensureExists} from '../base/assert';
 import type {Trace} from '../public/trace';
+import {EmptyState} from '../widgets/empty_state';
+import {Spinner} from '../widgets/spinner';
 import {Flamegraph, buildFlamegraphExportString} from '../widgets/flamegraph';
 import {TreeExplorerFilterBar} from '../widgets/tree_explorer_filter_bar';
+import {TreeExplorerViewSwitcher} from '../widgets/tree_explorer_view_switcher';
 import {
   computeHighlightRegex,
   metricId,
   type TreeExplorerAddableMetric,
   type TreeExplorerData,
   type TreeExplorerState,
+  type TreeExplorerView,
 } from '../widgets/tree_explorer';
 import {
   TreeExplorerFetcher,
   type TreeExplorerFetcherDependency,
   type TreeExplorerQueryMetric,
 } from './tree_explorer_fetcher';
+import {
+  TreeExplorerFlatView,
+  TreeExplorerTreeView,
+  buildFlatExportString,
+} from './tree_explorer_table_views';
 
 export interface TreeExplorerPanelAttrs {
   readonly trace: Trace;
@@ -57,9 +66,14 @@ export interface TreeExplorerPanelAttrs {
 
 // The batteries-included tree explorer: owns a `TreeExplorerFetcher` (created
 // on first render, disposed on unmount or when `trace` / `dependencies`
-// identity changes) and composes the shared filter bar with the flamegraph
-// view of the fetched tree. Lets area-selection tabs and details panels
-// render a tree explorer without managing `[Symbol.asyncDispose]` themselves.
+// identity changes) and composes the view switcher, the shared filter bar
+// and the active view (flamegraph canvas, call tree or flat function table)
+// of the fetched tree. Lets area-selection tabs and details panels render a
+// tree explorer without managing `[Symbol.asyncDispose]` themselves.
+//
+// Hosts that want the view switcher elsewhere (a DetailsShell header, an
+// existing tab strip) compose `TreeExplorerViewSwitcher`,
+// `TreeExplorerFilterBar` and the views directly instead of using this panel.
 export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttrs> {
   private fetcher?: TreeExplorerFetcher;
   private lastTrace?: Trace;
@@ -68,11 +82,24 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
   private data?: TreeExplorerData;
   private readonly queryLimiter = new AsyncLimiter();
   private lastAttrs?: TreeExplorerPanelAttrs;
-  private monitor = new Monitor([
-    () => this.lastAttrs?.metrics,
-    () => this.lastAttrs?.state,
-  ]);
+  private monitor = this.createMonitor();
   private highlightPattern = '';
+
+  // Watches everything that affects the fetched tree. Notably absent:
+  // displayMode, which only changes how the already-fetched tree is shown —
+  // except through effectiveView(), whose result it can change (flat mode
+  // always fetches the TOP_DOWN shape).
+  private createMonitor(): Monitor {
+    return new Monitor([
+      () => this.lastAttrs?.metrics,
+      () => this.lastAttrs?.state?.filters,
+      () => this.lastAttrs?.state?.selectedMetricId,
+      () => this.lastAttrs?.state?.addedMetricIds,
+      () =>
+        this.lastAttrs?.state &&
+        JSON.stringify(effectiveView(this.lastAttrs.state)),
+    ]);
+  }
 
   view({attrs}: m.CVnode<TreeExplorerPanelAttrs>): m.Children {
     this.lastAttrs = attrs;
@@ -87,19 +114,17 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
       this.lastDeps = attrs.dependencies;
       // A new fetcher has no tables yet: force a refetch even if the
       // metrics/state references are unchanged.
-      this.monitor = new Monitor([
-        () => this.lastAttrs?.metrics,
-        () => this.lastAttrs?.state,
-      ]);
+      this.monitor = this.createMonitor();
     }
     const fetcher = this.fetcher;
     const {metrics, state} = attrs;
     if (this.monitor.ifStateChanged()) {
       this.data = undefined;
       if (metrics && state) {
+        const fetchState = {...state, view: effectiveView(state)};
         this.queryLimiter.schedule(async () => {
           this.data = undefined;
-          this.data = await fetcher.fetch(metrics, state);
+          this.data = await fetcher.fetch(metrics, fetchState);
         });
       }
     }
@@ -107,6 +132,7 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
       view: {kind: 'TOP_DOWN' as const},
       selectedMetricId: '',
       addedMetricIds: [],
+      displayMode: 'flamegraph' as const,
       filters: [],
     };
     const shownMetrics = metrics ?? [];
@@ -114,8 +140,13 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
       (x) => metricId(x) === shownState.selectedMetricId,
     );
     const highlightRegex = computeHighlightRegex(this.highlightPattern);
+    const displayMode = shownState.displayMode;
     return m(
       '.pf-tree-explorer',
+      m(TreeExplorerViewSwitcher, {
+        state: shownState,
+        onStateChange: attrs.onStateChange,
+      }),
       m(TreeExplorerFilterBar, {
         metrics: shownMetrics,
         state: shownState,
@@ -128,29 +159,81 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
         onHighlightChange: (pattern) => {
           this.highlightPattern = pattern;
         },
+        highlightDisabled: displayMode !== 'flamegraph',
+        directionDisabled: displayMode === 'flat',
         onExportData:
           selectedMetric === undefined
             ? undefined
-            : async (format) =>
-                buildFlamegraphExportString(
-                  ensureExists(this.data),
-                  selectedMetric,
-                  format,
-                ),
-        exportFileBaseName: 'flamegraph',
+            : async (format) => {
+                const data = ensureExists(this.data);
+                return displayMode === 'flat'
+                  ? buildFlatExportString(data, selectedMetric, format)
+                  : buildFlamegraphExportString(data, selectedMetric, format);
+              },
+        exportFileBaseName:
+          displayMode === 'flat'
+            ? 'functions'
+            : displayMode === 'tree'
+              ? 'call_tree'
+              : 'flamegraph',
       }),
-      m(Flamegraph, {
-        metrics: shownMetrics,
-        state: shownState,
+      this.renderView(attrs, shownState, highlightRegex),
+    );
+  }
+
+  private renderView(
+    attrs: TreeExplorerPanelAttrs,
+    state: TreeExplorerState,
+    highlightRegex: RegExp | undefined,
+  ): m.Children {
+    const displayMode = state.displayMode;
+    if (displayMode === 'flamegraph') {
+      return m(Flamegraph, {
+        metrics: attrs.metrics ?? [],
+        state,
         data: this.data,
         highlightRegex,
         onStateChange: attrs.onStateChange,
-      }),
-    );
+      });
+    }
+    if (this.data === undefined) {
+      return m(
+        '.pf-tree-explorer__loading',
+        m(
+          EmptyState,
+          {icon: 'bar_chart', title: 'Computing graph ...'},
+          m(Spinner, {easing: true}),
+        ),
+      );
+    }
+    const unit =
+      (attrs.metrics ?? []).find((x) => metricId(x) === state.selectedMetricId)
+        ?.unit ?? '';
+    switch (displayMode) {
+      case 'tree':
+        return m(TreeExplorerTreeView, {data: this.data, unit});
+      case 'flat':
+        return m(TreeExplorerFlatView, {data: this.data, unit});
+      default:
+        assertUnreachable(displayMode);
+    }
   }
 
   async onremove(): Promise<void> {
     await this.fetcher?.[Symbol.asyncDispose]();
     this.fetcher = undefined;
   }
+}
+
+// The view whose tree shape is actually fetched. The flat function table
+// aggregates the callee direction, so direction has no meaning there: fetch
+// the TOP_DOWN shape and grey out the direction selector.
+function effectiveView(state: TreeExplorerState): TreeExplorerView {
+  if (
+    state.displayMode === 'flat' &&
+    (state.view.kind === 'TOP_DOWN' || state.view.kind === 'BOTTOM_UP')
+  ) {
+    return {kind: 'TOP_DOWN'};
+  }
+  return state.view;
 }
