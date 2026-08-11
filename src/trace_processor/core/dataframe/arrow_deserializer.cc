@@ -107,14 +107,9 @@ base::StatusOr<BitVector> ReadValidityBuffer(BodyReader* reader,
 
   ASSIGN_OR_RETURN(TraceBlobView bitmap,
                    reader->ReadExact(ValidityBufferSize(rows)));
-  BitVector validity = BitVector::CreateWithSize(rows, false);
-  int64_t nulls = rows;
-  for (uint32_t row = 0; row < rows; ++row) {
-    if (bitmap.data()[BitmapByteIndex(row)] & BitmapMask(row)) {
-      validity.set(row);
-      --nulls;
-    }
-  }
+  BitVector validity = BitVector::CreateFromBitmap(bitmap.data(), rows);
+  int64_t nulls = static_cast<int64_t>(rows) -
+                  static_cast<int64_t>(validity.CountSetBits());
   return nulls == expected_nulls
              ? base::StatusOr<BitVector>(std::move(validity))
              : base::StatusOr<BitVector>(InvalidFile());
