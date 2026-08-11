@@ -15,6 +15,7 @@
 
 from python.generators.diff_tests.testing import Csv, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import ExpectedError
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -399,3 +400,16 @@ class PerfettoFlamegraph(TestSuite):
         out=Csv("""
         "name","depth","g"
       """))
+
+  def test_negative_value(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+          CREATE VIRTUAL TABLE fg USING __intrinsic_flamegraph((
+            SELECT 1 AS id, NULL AS parent_id, 'main' AS name, -1 AS value
+          ));
+          SELECT name, cumulative_value
+          FROM fg(__intrinsic_flamegraph_config(
+              'value', 'value', 'view', 'TOP_DOWN'));
+        """,
+        out=ExpectedError('flamegraph: value columns must be non-negative'))
