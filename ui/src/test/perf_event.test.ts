@@ -29,26 +29,41 @@ test.beforeAll(async ({browser}, _testInfo) => {
 test('multiple callstack tracks', async () => {
   const grp = pth.locateTrack('surfaceflinger 558');
   await grp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(grp);
+  await pth.expandTrackGroup(grp);
 
   await pth.waitForIdleAndScreenshot('perf_event_sf.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
 
   const processGrp = pth.locateTrack(
-    'surfaceflinger 558/Perf Process Callstacks',
+    'surfaceflinger 558/Process Callstacks',
     grp,
   );
   await processGrp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(processGrp);
+  await pth.expandTrackGroup(processGrp);
   const threadGrp = pth.locateTrack(
-    'surfaceflinger 558/Thread 558 Perf Callstacks',
+    'surfaceflinger 558/Thread 558 Callstacks',
     grp,
   );
   await threadGrp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(threadGrp);
+  await pth.expandTrackGroup(threadGrp);
 
   await pth.waitForIdleAndScreenshot('perf_event_sf_expanded.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
+});
+
+test('flamechart mapping colors', async () => {
+  const grp = pth.locateTrack('surfaceflinger 558');
+  const flamechart = grp
+    .locator('.pf-track[ref$="/Callstack flamechart"]')
+    .first();
+  await flamechart.scrollIntoViewIfNeeded();
+  await flamechart.locator('.pf-track__shell').first().hover();
+  await flamechart.getByTitle('Track options', {exact: true}).click();
+  await page.getByText('Color by', {exact: true}).click();
+  await page.getByText('Mapping', {exact: true}).click();
+  await pth.waitForIdleAndScreenshot('flamechart_mapping_colors.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
 });

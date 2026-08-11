@@ -120,6 +120,14 @@ export class PerfettoTestHelper {
     await this.waitForPerfettoIdle();
   }
 
+  async expandTrackGroup(locator: Locator) {
+    const header = locator.locator(':scope > .pf-track__header');
+    const classes = await header.getAttribute('class');
+    if (!classes?.includes('pf-track__header--expanded')) {
+      await this.toggleTrackGroup(locator);
+    }
+  }
+
   locateTrack(name: string, trackGroup?: Locator): Locator {
     return (trackGroup ?? this.page).locator(`.pf-track[ref="${name}"]`);
   }
