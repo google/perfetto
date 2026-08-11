@@ -173,11 +173,8 @@ class BufferedOutput {
 };
 
 int64_t CountNulls(uint32_t rows, const BitVector& validity) {
-  int64_t nulls = 0;
-  for (uint32_t row = 0; row < rows; ++row) {
-    nulls += !validity.is_set(row);
-  }
-  return nulls;
+  PERFETTO_DCHECK(validity.size() == rows);
+  return rows - static_cast<int64_t>(validity.CountSetBits());
 }
 
 // Maps Arrow's logical row index to dataframe's physical storage index. Dense
