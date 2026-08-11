@@ -39,6 +39,7 @@ constexpr uint8_t kPaddedMagic[] = {'A', 'R', 'R', 'O', 'W', '1', 0, 0};
 constexpr uint32_t kContinuation = 0xFFFFFFFF;
 constexpr int16_t kMetadataV5 = 4;
 constexpr uint8_t kHeaderSchema = 1;
+constexpr uint8_t kHeaderDictionaryBatch = 2;
 constexpr uint8_t kHeaderRecordBatch = 3;
 constexpr uint8_t kTypeInt = 2;
 constexpr uint8_t kTypeFloatingPoint = 3;
@@ -49,15 +50,21 @@ constexpr int16_t kEndiannessLittle = 0;
 constexpr uint32_t kArrowAlignment = 8;
 constexpr uint32_t kBitsPerByte = 8;
 constexpr uint32_t kMessagePrefixSize = 8;
+constexpr uint32_t kEndOfStreamSize = kMessagePrefixSize;
 constexpr uint32_t kFooterSizeFieldSize = sizeof(uint32_t);
 constexpr uint32_t kFileTrailerSize = kFooterSizeFieldSize + sizeof(kMagic);
 constexpr uint32_t kMinimumFileSize =
     sizeof(kPaddedMagic) + kFooterSizeFieldSize + sizeof(kMagic);
 constexpr uint32_t kFixedWidthBufferCount = 2;  // Validity + values.
 constexpr uint32_t kUtf8BufferCount = 3;        // Validity + offsets + bytes.
-constexpr uint32_t kDictionaryBatchCount = 0;
 constexpr uint32_t kRecordBatchCount = 1;
 constexpr int64_t kMissingSignedValue = -1;
+
+// String columns are dictionary encoded: the record batch holds int32 indices
+// and the values live in a dictionary batch, mirroring how a dataframe stores
+// StringPool ids.
+constexpr int32_t kDictionaryIndexBits = 32;
+using DictionaryIndex = int32_t;
 
 // Field indices from the official Arrow flatbuffer schema.
 namespace int_field {
@@ -72,7 +79,18 @@ constexpr uint32_t kName = 0;
 constexpr uint32_t kNullable = 1;
 constexpr uint32_t kTypeType = 2;
 constexpr uint32_t kType = 3;
+constexpr uint32_t kDictionary = 4;
 }  // namespace field_field
+namespace dictionary_encoding_field {
+constexpr uint32_t kId = 0;
+constexpr uint32_t kIndexType = 1;
+constexpr uint32_t kIsOrdered = 2;
+}  // namespace dictionary_encoding_field
+namespace dictionary_batch_field {
+constexpr uint32_t kId = 0;
+constexpr uint32_t kData = 1;
+constexpr uint32_t kIsDelta = 2;
+}  // namespace dictionary_batch_field
 namespace schema_field {
 constexpr uint32_t kEndianness = 0;
 constexpr uint32_t kFields = 1;
@@ -134,8 +152,8 @@ inline uint64_t ValidityBufferSize(uint32_t rows) {
   return (static_cast<uint64_t>(rows) + kBitsPerByte - 1) / kBitsPerByte;
 }
 
-inline uint64_t Utf8OffsetBufferSize(uint32_t rows) {
-  return (static_cast<uint64_t>(rows) + 1) * sizeof(int32_t);
+inline uint64_t Utf8OffsetBufferSize(uint32_t values) {
+  return (static_cast<uint64_t>(values) + 1) * sizeof(int32_t);
 }
 
 inline size_t BitmapByteIndex(uint32_t row) {
