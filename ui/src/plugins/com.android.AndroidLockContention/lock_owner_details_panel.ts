@@ -102,7 +102,8 @@ export class LockContentionDetailsTab implements TrackEventSelectionTab {
 
     // Check if this is an owner event or a slice matching an owner event
     const query = await this.trace.engine.query(`
-      SELECT id FROM __android_lock_contention_owner_events WHERE id = ${selection.eventId}
+      SELECT id FROM __android_lock_contention_owner_events 
+      WHERE id = ${selection.eventId}
       UNION ALL
       SELECT oe.id
       FROM android_all_lock_contentions c
@@ -175,7 +176,7 @@ export class LockContentionBreakdown implements m.ClassComponent<LockContentionB
     const ownerTid = rows.length > 0 ? rows[0].blockingThreadTid : undefined;
     const customTrackUri =
       ownerTid !== undefined && ownerTid !== null
-        ? `com.android.AndroidLockContention#OwnerEvents_${ownerTid}`
+        ? `com.android.AndroidLockContention#OwnerEvents_Counter_${ownerTid}`
         : undefined;
     const isCustomPinned = customTrackUri
       ? plugin.pinningManager.isTrackPinned(customTrackUri)
@@ -195,7 +196,7 @@ export class LockContentionBreakdown implements m.ClassComponent<LockContentionB
       m(
         'div',
         {className: 'pf-lock-owner-panel__note'},
-        'Press [ and ] to navigate between custom track and original slices.',
+        'Press [ and ] to navigate between blocking thread and blocked thread slices.',
       ),
 
       m(
