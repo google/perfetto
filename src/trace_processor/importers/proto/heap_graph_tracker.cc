@@ -1089,14 +1089,6 @@ void HeapGraphTracker::FinalizeAllProfiles() {
       FinalizeProfile(sequence_state_.begin()->first);
     }
   }
-
-  // TODO(lalitm): when experimental_flamegraph is removed, we can remove all of
-  // this.
-  class_cursor_.Reset();
-  object_cursor_.Reset();
-  superclass_cursor_.Reset();
-  reference_cursor_.Reset();
-  referred_cursor_.Reset();
 }
 
 StringId HeapGraphTracker::InternRootTypeString(
