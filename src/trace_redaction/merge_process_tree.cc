@@ -67,7 +67,7 @@ base::Status MergeProcessTree::Collect(const TracePacket::Decoder& packet,
 }
 
 std::string MergeProcessTree::Augment(const Context&) {
-  if (processes_by_pid_.empty() || threads_by_tid_.empty()) {
+  if (processes_by_pid_.empty() && threads_by_tid_.empty()) {
     return "";
   }
   protozero::HeapBuffered<protos::pbzero::TracePacket> message;
