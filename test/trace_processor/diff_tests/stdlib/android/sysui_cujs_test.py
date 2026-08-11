@@ -50,8 +50,8 @@ class SystemUICujs(TestSuite):
         """,
         out=Csv("""
         "cuj_id","upid","process_name","cuj_slice_name","cuj_name","slice_id","ts","ts_end","dur","state"
-        1,1,"com.android.systemui","L<IGNORED_CUJ_1>","IGNORED_CUJ_1",59,150000000,155000000,5000000,"completed"
-        2,1,"com.android.systemui","L<IGNORED_CUJ_2>","IGNORED_CUJ_2",64,156000000,160000000,4000000,"completed"
+        1,1,"com.android.systemui","L<IGNORED_CUJ_1>","IGNORED_CUJ_1",60,150000000,155000000,5000000,"completed"
+        2,1,"com.android.systemui","L<IGNORED_CUJ_2>","IGNORED_CUJ_2",65,156000000,160000000,4000000,"completed"
         """))
 
   def test_android_sysui_latency_cujs_state(self):
