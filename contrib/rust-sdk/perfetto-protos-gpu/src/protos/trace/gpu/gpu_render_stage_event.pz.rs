@@ -79,6 +79,7 @@ pb_msg!(GpuRenderStageEvent {
     event_wait_ids: u64, primitive, 18,
     kernel_iid: u64, primitive, 19,
     launch: GpuRenderStageEventComputeKernelLaunch, msg, 21,
+    logical_queue_id: u64, primitive, 22,
     specifications: GpuRenderStageEventSpecifications, msg, 7,
     hw_queue_id: i32, primitive, 3,
     stage_id: i32, primitive, 4,

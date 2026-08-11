@@ -24,6 +24,7 @@ import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
+import TrackEventPlugin from '../dev.perfetto.TrackEvent';
 
 // GPU frequency track that converts kHz values to Hz so that the generic
 // counter renderer produces correct SI-prefixed labels (e.g. "2 GHz").
@@ -158,9 +159,12 @@ export default class GpuPlugin implements PerfettoPlugin {
   static readonly dependencies = [
     StandardGroupsPlugin,
     TraceProcessorTrackPlugin,
+    TrackEventPlugin,
   ];
 
   private groups = new Map<string, TrackNode>();
+  private authoredMachineRoots = new Map<number, TrackNode>();
+  private authoredGpuAnchors = new Map<string, TrackNode>();
   private gpuCount = 0;
   private numMachines = 0;
 
@@ -170,10 +174,73 @@ export default class GpuPlugin implements PerfettoPlugin {
     `);
     this.gpuCount = gpuCountResult.firstRow({cnt: NUM}).cnt;
     this.numMachines = await getMachineCount(ctx.engine);
+    await this.discoverAuthoredGlobalGpuAnchors(ctx);
 
     await this.addGpuFreq(ctx);
     await this.addCounters(ctx);
     await this.addSlices(ctx);
+  }
+
+  private gpuAnchorKey(machineId: number, gpuId: number): string {
+    return `${machineId}:${gpuId}`;
+  }
+
+  private async discoverAuthoredGlobalGpuAnchors(ctx: Trace): Promise<void> {
+    const result = await ctx.engine.query(`
+      WITH authored AS MATERIALIZED (
+        SELECT
+          child.min_track_id AS trackId,
+          child.machine_id AS machineId,
+          child.gpu_id AS gpuId,
+          child.parent_id AS parentId,
+          extract_arg(parent.dimension_arg_set_id, 'gpu') AS parentGpuId
+        FROM _track_event_tracks_ordered_groups child
+        LEFT JOIN track parent ON parent.id = child.parent_id
+        WHERE child.scope = 'gpu'
+          AND child.upid IS NULL
+          AND child.gpu_hw_queue_iid IS NULL
+          AND child.gpu_logical_queue_id IS NULL
+      )
+      SELECT min(trackId) AS trackId, machineId, gpuId
+      FROM authored
+      WHERE
+        (gpuId IS NULL AND parentId IS NULL)
+        OR
+        (gpuId IS NOT NULL AND
+          (parentId IS NULL OR parentGpuId IS NULL OR parentGpuId != gpuId))
+      GROUP BY machineId, gpuId
+      HAVING count(*) = 1
+      ORDER BY machineId, gpuId, trackId
+    `);
+
+    const trackEventPlugin = ctx.plugins.getPlugin(TrackEventPlugin);
+    const it = result.iter({
+      trackId: NUM,
+      machineId: NUM,
+      gpuId: NUM_NULL,
+    });
+    for (; it.valid(); it.next()) {
+      const node = trackEventPlugin.getTrackNode(it.trackId);
+      if (node === undefined) continue;
+      if (it.gpuId === null) {
+        this.authoredMachineRoots.set(it.machineId, node);
+      } else {
+        this.authoredGpuAnchors.set(
+          this.gpuAnchorKey(it.machineId, it.gpuId),
+          node,
+        );
+      }
+    }
+  }
+
+  private getAuthoredPlacement(
+    machineId: number,
+    gpuId: number | null,
+  ): TrackNode | undefined {
+    if (gpuId !== null) {
+      return this.authoredGpuAnchors.get(this.gpuAnchorKey(machineId, gpuId));
+    }
+    return this.authoredMachineRoots.get(machineId);
   }
 
   private async addGpuFreq(ctx: Trace) {
@@ -224,19 +291,25 @@ export default class GpuPlugin implements PerfettoPlugin {
 
     if (tracks.length === 0) return;
 
-    const gpuGroup = this.getGpuGroup(ctx);
-
-    // Only create a sub-group if there's more than one track.
-    let parent: TrackNode;
-    if (tracks.length > 1) {
-      parent = this.getGroupByName(gpuGroup, 'Frequency', null);
-    } else {
-      parent = gpuGroup;
+    const defaultTracks = tracks.filter(
+      ({gpu}) => this.getAuthoredPlacement(gpu.machine, gpu.gpu) === undefined,
+    );
+    let defaultParent: TrackNode | undefined;
+    if (defaultTracks.length > 0) {
+      const gpuGroup = this.getGpuGroup(ctx);
+      defaultParent =
+        tracks.length > 1
+          ? this.getGroupByName(gpuGroup, 'Frequency', null)
+          : gpuGroup;
     }
 
     for (const {id, gpu} of tracks) {
       const uri = `/gpu_frequency_${gpu.ugpu}`;
-      const name = `${gpu.displayName} Frequency${gpu.maybeMachineLabel()}`;
+      const authoredParent = this.getAuthoredPlacement(gpu.machine, gpu.gpu);
+      const name =
+        authoredParent !== undefined
+          ? 'Frequency'
+          : `${gpu.displayName} Frequency${gpu.maybeMachineLabel()}`;
       ctx.tracks.registerTrack({
         uri,
         tags: {
@@ -245,11 +318,15 @@ export default class GpuPlugin implements PerfettoPlugin {
         },
         renderer: new GpuFreqTrack(ctx, uri, id, name),
       });
+      const parent = authoredParent ?? defaultParent;
+      if (parent === undefined) {
+        throw new Error('GPU frequency track has no workspace parent');
+      }
       parent.addChildInOrder(
         new TrackNode({
           uri,
           name,
-          sortOrder: gpu.sortOrder,
+          sortOrder: authoredParent !== undefined ? 0 : gpu.sortOrder,
         }),
       );
     }
@@ -361,6 +438,7 @@ export default class GpuPlugin implements PerfettoPlugin {
       baseName: string;
       uri: string;
       trackId: number;
+      authoredParent: TrackNode | undefined;
     }> = [];
     const it = result.iter({
       id: NUM,
@@ -405,8 +483,12 @@ export default class GpuPlugin implements PerfettoPlugin {
               this.numMachines,
             )
           : null;
-      let trackName = getTrackName({name, kind: COUNTER_TRACK_KIND});
-      if (gpu !== null && schema.gpuTrackName !== undefined) {
+      const baseName = getTrackName({name, kind: COUNTER_TRACK_KIND});
+      const authoredParent = this.getAuthoredPlacement(machineId, gpuId);
+      let trackName = baseName;
+      if (authoredParent !== undefined && schema.gpuTrackName !== undefined) {
+        trackName = schema.gpuTrackName;
+      } else if (gpu !== null && schema.gpuTrackName !== undefined) {
         trackName = `${gpu.displayName} ${schema.gpuTrackName}${gpu.maybeMachineLabel()}`;
       }
       const uri = `/counter_${ugpu ?? trackId}_${trackId}`;
@@ -435,9 +517,10 @@ export default class GpuPlugin implements PerfettoPlugin {
         schema,
         gpu,
         trackName,
-        baseName: getTrackName({name, kind: COUNTER_TRACK_KIND}),
+        baseName,
         uri,
         trackId,
+        authoredParent,
       });
     }
 
@@ -511,12 +594,21 @@ export default class GpuPlugin implements PerfettoPlugin {
       baseName,
       uri,
       trackId,
+      authoredParent,
     } of counterTracks) {
       const trackNode = new TrackNode({
         uri,
         name: trackName,
-        sortOrder: gpu?.sortOrder ?? 0,
+        sortOrder: authoredParent !== undefined ? 0 : (gpu?.sortOrder ?? 0),
       });
+
+      // A generic GPU placement anchor already identifies the GPU. Keep all
+      // canonical telemetry as direct children and do not reproduce the
+      // default Counters -> GPU N -> counter hierarchy.
+      if (authoredParent !== undefined) {
+        authoredParent.addChildInOrder(trackNode);
+        continue;
+      }
 
       // Check if this track has a custom group assignment.
       const customGroup = trackGroupMap.get(trackId);
@@ -591,11 +683,23 @@ export default class GpuPlugin implements PerfettoPlugin {
   private async addSlices(ctx: Trace) {
     const sliceTypes = GPU_SLICE_SCHEMAS.map((s) => `'${s.type}'`).join(',');
 
+    await ctx.engine.query(`
+      INCLUDE PERFETTO MODULE std.gpu.render_stage;
+    `);
+
+    // Keep a canonical track when any of its slices lacks a global projection.
     await using _ = await createPerfettoTable({
       name: '__gpu_tracks_to_create',
       engine: ctx.engine,
       as: `
-        with grouped as materialized (
+        with global_unbound_canonical_tracks as materialized (
+          select distinct canonical.track_id
+          from gpu_slice canonical
+          left join _gpu_render_stage_projections projection
+            on projection.canonical_slice_id = canonical.id
+            and projection.upid is null
+          where projection.projected_slice_id is null
+        ), grouped as materialized (
           select
             t.type,
             min(t.name) as name,
@@ -616,6 +720,14 @@ export default class GpuPlugin implements PerfettoPlugin {
           left join gpu g on extract_arg(t.dimension_arg_set_id, 'ugpu') = g.id
           left join machine m on m.id = t.machine_id
           where t.type in (${sliceTypes})
+            and not (
+              t.type = 'gpu_render_stage'
+              and not exists (
+                select 1
+                from global_unbound_canonical_tracks unbound
+                where unbound.track_id = t.id
+              )
+            )
           group by type, t.track_group_id, ifnull(t.track_group_id, t.id),
             extract_arg(t.dimension_arg_set_id, 'ugpu')
         )
@@ -689,17 +801,26 @@ export default class GpuPlugin implements PerfettoPlugin {
           trackIds,
         }),
       });
-      this.addToGpuGroup(
-        ctx,
-        schema.group,
-        schema.groupSortOrder,
-        gpu,
-        new TrackNode({
-          uri,
-          name: trackName,
-          sortOrder: gpu?.sortOrder ?? 0,
-        }),
-      );
+      const authoredParent =
+        type === 'gpu_render_stage'
+          ? undefined
+          : this.getAuthoredPlacement(machineId, gpuId);
+      const trackNode = new TrackNode({
+        uri,
+        name: trackName,
+        sortOrder: authoredParent !== undefined ? 0 : (gpu?.sortOrder ?? 0),
+      });
+      if (authoredParent !== undefined) {
+        authoredParent.addChildInOrder(trackNode);
+      } else {
+        this.addToGpuGroup(
+          ctx,
+          schema.group,
+          schema.groupSortOrder,
+          gpu,
+          trackNode,
+        );
+      }
     }
   }
 }

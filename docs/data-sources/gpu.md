@@ -357,40 +357,198 @@ gpu_render_stage_event {
 }
 ```
 
+## Generic GPU tracks
+
+GPU concepts are not limited to physical hardware queues. Producers often need
+to show logical timelines such as schedulers, annotations, or command buffer
+state. These can be represented with regular `TrackDescriptor` and
+`TrackEvent` packets by adding the `GpuTrackDescriptor` extension defined in
+[gpu_track_event.proto](/protos/perfetto/trace/gpu/gpu_track_event.proto).
+
+The presence of the extension marks a descriptor as GPU-associated. The normal
+`TrackDescriptor` fields still define the track name, event type, ordering,
+sibling merging, and `parent_uuid` hierarchy. Descendants inherit the GPU
+association, so only the root of a GPU subtree needs the extension.
+
+```
+track_descriptor {
+  uuid: 100
+  name: "Scheduler"
+  [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+    gpu_id: 0
+  }
+}
+track_descriptor {
+  uuid: 101
+  parent_uuid: 100
+  name: "Dispatches"
+}
+```
+
+`gpu_id` identifies the physical GPU that owns the track. A global descriptor
+which introduces a concrete `gpu_id` is the placement anchor for that GPU's
+existing frequency, memory, counter, and other GPU-specific tracks. There must
+be at most one unambiguous placement anchor for each `(machine, gpu_id)`.
+Descendants created using `parent_uuid` inherit the anchor's GPU association and
+should not repeat `gpu_id`.
+
+Existing GPU tracks become direct children of a valid placement anchor; the UI
+does not reproduce its default `Counters -> GPU N` grouping there. A unique
+global GPU root without a concrete `gpu_id` similarly receives machine-wide GPU
+tracks. Missing or ambiguous anchors leave the corresponding tracks in their
+normal default locations. Traces without generic GPU descriptors therefore keep
+the existing UI hierarchy unchanged.
+
+Generic GPU tracks support the normal TrackEvent event types, including slices,
+instants, counters, and states. Producers can create arbitrary descriptor trees;
+Perfetto does not assign meaning to names such as `Device`, `Context`, or
+`Stream`.
+
+### Process-scoped GPU tracks
+
+Some GPU concepts are defined by a software API within a process rather than by
+machine-wide hardware. For example, CUDA logical devices, contexts, and streams
+belong to the process that created them. A track named `Stream #2` identifies a
+stream in one process, but has no meaning outside that process and is unrelated
+to a track with the same name in another process.
+
+Set the GPU subtree root's `parent_uuid` to the UUID of a process
+`TrackDescriptor` to associate the hierarchy with the process that owns those
+concepts:
+
+```
+track_descriptor {
+  uuid: 10
+  process { pid: 1234 }
+}
+track_descriptor {
+  uuid: 20
+  parent_uuid: 10
+  name: "CUDA"
+  [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+    gpu_id: 0
+  }
+}
+track_descriptor {
+  uuid: 21
+  parent_uuid: 20
+  name: "Device #0"
+}
+track_descriptor {
+  uuid: 22
+  parent_uuid: 21
+  name: "Stream #2"
+}
+```
+
+The process-parent edge supplies ownership but is not displayed as part of the
+GPU subtree. The `CUDA` track becomes a root in the process's GPU group, while
+subsequent `parent_uuid` edges define the producer-authored GPU hierarchy.
+Process ownership is inherited by GPU descendants. Use separate roots for
+separate processes, and emit concepts which are not process-scoped as a
+separate global GPU subtree.
+
+### Render-stage queue tracks
+
+A GPU descriptor can represent either an interned hardware queue or a
+process-scoped logical queue. The exact descriptor is both the authored
+TrackEvent track and the merge anchor for matching render-stage events.
+
+A global hardware queue binding uses `hw_queue_iid`. The descriptor packet and
+render-stage events must use the same trusted packet sequence. The producer
+must keep the ID stable and must not reuse it for another queue after an
+incremental-state reset:
+
+```
+track_descriptor {
+  uuid: 100
+  name: "Accelerators"
+  [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {}
+}
+track_descriptor {
+  uuid: 101
+  parent_uuid: 100
+  name: "Physical execution"
+  [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {}
+}
+track_descriptor {
+  uuid: 102
+  parent_uuid: 101
+  name: "Channel #0"
+  [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+    gpu_id: 0
+    hw_queue_iid: 7
+  }
+}
+```
+
+Annotations can be emitted directly on UUID 102. Render-stage events carrying
+`hw_queue_iid: 7` appear as additional lanes on the same visual track.
+
+A process logical queue binding uses `logical_queue_id`:
+
+```
+track_descriptor {
+  uuid: 22
+  parent_uuid: 21
+  name: "Stream #2"
+  [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+    gpu_id: 0
+    logical_queue_id: 2
+  }
+}
+gpu_render_stage_event {
+  event_id: 1
+  duration: 50000
+  context: 1
+  hw_queue_iid: 7
+  stage_iid: 2
+  logical_queue_id: 2
+  name: "matmul_kernel"
+}
+```
+
+The event's process is obtained from its graphics context. Matching render-stage
+work is projected onto the descriptor's native TrackEvent sibling group while
+the canonical GPU slice remains available for analysis and flow correlation.
+The default sibling behavior merges by descriptor name. Producers can use
+`TrackDescriptor.sibling_merge_behavior` and `sibling_merge_key` to select an
+explicit merge identity, or `SIBLING_MERGE_BEHAVIOR_NONE` to keep annotations
+and render-stage work as separate sibling tracks.
+
+Queue fields apply only to the exact slice/instant descriptor and are not
+inherited. Counters and state tracks cannot bind render-stage queues. Logical
+queue ID zero is valid and scoped to the inherited process. A hardware queue
+binding requires a concrete inherited `gpu_id`.
+
 ## UI plugins
 
-The Perfetto UI ships several plugins that consume GPU trace data. They
-register tracks, groups, and detail panes under the standard `GPU` group in
-the workspace tree (and, for per-process plugins, under each process group).
+The Perfetto UI ships several plugins that consume GPU trace data. Default
+tracks use the standard `GPU` group; producer-authored GPU trees can claim
+matching tracks globally or beneath a process while unclaimed sources keep
+that default placement.
 
 ### dev.perfetto.Gpu
 
-The base plugin that lays out a `GPU` group per GPU and populates it with
-the leaf and summary tracks for everything in the `gpu_counter_track`,
-`gpu_render_stage`, `gpu_log`, `vulkan_events`, and `graphics_frame_event`
-families. Multi-GPU and multi-machine traces are split into per-GPU
-sub-groups (with machine labels appended when more than one machine is
-present); custom counter groups declared in `GpuCounterDescriptor` /
-`GpuCounterGroupSpec` show up as collapsible sub-groups under `Counters`.
+Without authored placement anchors, the base plugin populates the default `GPU`
+workspace group exactly as before. With an unambiguous per-GPU anchor,
+frequency, memory, counters, and other matching legacy tracks become direct
+children of that anchor. A unique machine-wide root receives matching tracks
+which have no concrete GPU ID. Unmatched sources retain the default hierarchy.
+Only hardware queues with a successful exact `hw_queue_iid` binding use the
+authored TrackEvent location and sibling merging; unbound queues remain under
+the default `GPU` group.
 
 ![](/docs/images/gpu-tracks.png)
 
 ### dev.perfetto.GpuByProcess
 
-Surfaces GPU concepts that are scoped to a single process and don't have a
-meaningful global representation. A CUDA stream, for example, is a
-per-process handle: the same numeric `stream` ID in two different processes
-refers to two unrelated streams, so showing all streams under a single
-shared `GPU` group would be misleading. This plugin places those tracks
-under each owning process instead.
-
-For traces whose GPU slices carry `device` and `stream` launch args (e.g.
-CUDA, HIP), it nests `gpu_render_stage` slices under each process as
-`<API> → Device #N → Context #N → Stream #N`, collapsing any level that
-only has a single value. Slices that don't carry those args fall back to
-one track per `hw_queue_id`, named after the source hardware-queue track
-(typically `"Channel #N"`). When a process spans multiple GPUs the leaf
-tracks are nested under per-GPU sub-groups.
+Without an authored process GPU tree, this plugin uses the default inferred
+GPU hierarchy and hardware-queue fallback. Process-associated authored roots
+are attached directly to the process. Matching logical queues use their exact
+producer-authored TrackEvent locations, while unbound logical queues and events
+without a logical queue remain in the inferred fallback hierarchy. Authored and
+fallback process GPU roots can therefore coexist.
 
 ![](/docs/images/gpu-by-process.png)
 

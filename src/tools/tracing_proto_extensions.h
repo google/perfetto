@@ -46,8 +46,9 @@ struct Allocation {
 // Represents a parsed extensions.json file.
 struct Registry {
   // The fully-qualified proto message being extended. One of
-  // "perfetto.protos.TrackEvent", "perfetto.protos.TracePacket",
-  // "perfetto.protos.TrackEvent.State", or "perfetto.protos.InternedData".
+  // "perfetto.protos.TrackEvent", "perfetto.protos.TrackDescriptor",
+  // "perfetto.protos.TracePacket", "perfetto.protos.TrackEvent.State", or
+  // "perfetto.protos.InternedData".
   std::string scope;
   std::vector<Range> ranges;  // Each pair is [start, end] inclusive.
   std::vector<Allocation> allocations;

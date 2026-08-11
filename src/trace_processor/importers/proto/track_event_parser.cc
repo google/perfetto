@@ -317,7 +317,7 @@ TrackEventParser::TrackEventParser(
 void TrackEventParser::ParseTrackDescriptor(
     int64_t packet_timestamp,
     protozero::ConstBytes track_descriptor,
-    uint32_t) {
+    uint32_t packet_sequence_id) {
   protos::pbzero::TrackDescriptor::Decoder decoder(track_descriptor);
 
   // Ensure that the track and its parents are resolved. This may start a new
@@ -327,6 +327,8 @@ void TrackEventParser::ParseTrackDescriptor(
     context_->stats_tracker->IncrementStats(stats::track_event_parser_errors);
     return;
   }
+  track_event_tracker_->InternGpuRenderStageQueueDescriptor(decoder.uuid(),
+                                                            packet_sequence_id);
 
   if (decoder.has_thread()) {
     if (decoder.has_chrome_thread()) {

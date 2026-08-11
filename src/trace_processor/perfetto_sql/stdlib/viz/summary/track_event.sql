@@ -101,8 +101,17 @@ WITH
     SELECT id, order_id FROM chronological
   )
 SELECT
-  extract_arg(track.dimension_arg_set_id, 'upid') AS upid,
+  coalesce(
+    extract_arg(track.dimension_arg_set_id, 'upid'),
+    min(extract_arg(track.source_arg_set_id, 'gpu_process_upid'))
+  ) AS upid,
   extract_arg(track.dimension_arg_set_id, 'utid') AS utid,
+  min(track.machine_id) AS machine_id,
+  min(extract_arg(track.dimension_arg_set_id, 'ugpu')) AS ugpu,
+  min(extract_arg(track.dimension_arg_set_id, 'gpu')) AS gpu_id,
+  min(extract_arg(track.source_arg_set_id, 'gpu_hw_queue_iid')) AS gpu_hw_queue_iid,
+  min(extract_arg(track.source_arg_set_id, 'gpu_logical_queue_id')) AS gpu_logical_queue_id,
+  CASE WHEN track.type GLOB 'gpu*_track_event' THEN 'gpu' END AS scope,
   track.parent_id,
   track.type GLOB '*counter*' AS is_counter,
   track.type GLOB '*state*' AS is_state,

@@ -22,6 +22,556 @@ from python.generators.diff_tests.testing import TestSuite
 class TrackEvent(TestSuite):
   # Contains tests on the parsing and ingestion of TrackEvent packets. Same
   # handling
+  def test_gpu_track_descriptor(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor {
+            uuid: 100
+            name: "GPU 1 Root"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 1
+            }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 101
+            parent_uuid: 100
+            name: "GPU 1 Slices"
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 102
+            parent_uuid: 100
+            name: "GPU 1 Counter"
+            counter { unit_name: "widgets" }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 103
+            parent_uuid: 100
+            name: "GPU 1 State"
+            state {}
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 200
+            name: "Unspecified GPU Root"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {}
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 201
+            parent_uuid: 200
+            name: "Unspecified GPU Slices"
+          }
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 101
+            name: "concrete slice"
+            type: TYPE_INSTANT
+          }
+        }
+        packet {
+          timestamp: 110
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 102
+            type: TYPE_COUNTER
+            counter_value: 7
+          }
+        }
+        packet {
+          timestamp: 115
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 103
+            name: "busy"
+            type: TYPE_STATE
+          }
+        }
+        packet {
+          timestamp: 120
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 201
+            name: "unspecified slice"
+            type: TYPE_INSTANT
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.name,
+          t.type,
+          p.name AS parent_name,
+          t.machine_id,
+          extract_arg(t.dimension_arg_set_id, 'gpu') AS gpu_id,
+          extract_arg(t.dimension_arg_set_id, 'ugpu') IS NOT NULL AS has_ugpu,
+          (SELECT count(*) FROM slice s WHERE s.track_id = t.id) AS slices,
+          (SELECT count(*) FROM counter c WHERE c.track_id = t.id) AS counters,
+          (SELECT count(*) FROM state s WHERE s.track_id = t.id) AS states,
+          (SELECT count(*) FROM gpu_counter_track g WHERE g.id = t.id) AS gpu_counters
+        FROM track t
+        LEFT JOIN track p ON p.id = t.parent_id
+        WHERE t.type GLOB 'gpu*_track_event'
+        ORDER BY t.name;
+        """,
+        out=Csv("""
+        "name","type","parent_name","machine_id","gpu_id","has_ugpu","slices","counters","states","gpu_counters"
+        "GPU 1 Counter","gpu_counter_track_event","GPU 1 Root",0,1,1,0,1,0,1
+        "GPU 1 Root","gpu_merged_track_event","[NULL]",0,1,1,0,0,0,0
+        "GPU 1 Slices","gpu_merged_track_event","GPU 1 Root",0,1,1,1,0,0,0
+        "GPU 1 State","gpu_state_track_event","GPU 1 Root",0,1,1,0,0,1,0
+        "Unspecified GPU Root","gpu_unspecified_merged_track_event","[NULL]",0,"[NULL]",0,0,0,0,0
+        "Unspecified GPU Slices","gpu_unspecified_merged_track_event","Unspecified GPU Root",0,"[NULL]",0,1,0,0,0
+        """))
+
+  def test_gpu_track_descriptor_process_association(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor {
+            uuid: 900
+            process {
+              pid: 42
+              process_name: "training"
+            }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 901
+            parent_uuid: 900
+            name: "CUDA"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+            }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 902
+            parent_uuid: 901
+            name: "Stream #7"
+          }
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 902
+            name: "kernel"
+            type: TYPE_INSTANT
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.name,
+          p.name AS parent_name,
+          extract_arg(t.source_arg_set_id, 'gpu_process_upid') IS NOT NULL AS has_process,
+          process.pid
+        FROM track t
+        LEFT JOIN track p ON p.id = t.parent_id
+        LEFT JOIN process
+          ON process.upid = extract_arg(t.source_arg_set_id, 'gpu_process_upid')
+        WHERE t.name IN ('CUDA', 'Stream #7')
+        ORDER BY t.name;
+        """,
+        out=Csv("""
+        "name","parent_name","has_process","pid"
+        "CUDA","[NULL]",1,42
+        "Stream #7","CUDA",1,42
+        """))
+
+  def test_gpu_track_descriptor_process_merge_isolation(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor { uuid: 930 process { pid: 10 } }
+        }
+        packet {
+          track_descriptor { uuid: 931 process { pid: 20 } }
+        }
+        packet {
+          track_descriptor {
+            uuid: 932
+            parent_uuid: 930
+            name: "CUDA"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+            }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 933
+            parent_uuid: 931
+            name: "CUDA"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+            }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 934
+            name: "CUDA"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+            }
+          }
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 932
+            name: "process 10"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          timestamp: 110
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 933
+            name: "process 20"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          timestamp: 115
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 934
+            name: "process independent"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          timestamp: 120
+          trusted_packet_sequence_id: 1
+          track_event { track_uuid: 932 type: TYPE_SLICE_END }
+        }
+        packet {
+          timestamp: 125
+          trusted_packet_sequence_id: 1
+          track_event { track_uuid: 934 type: TYPE_SLICE_END }
+        }
+        packet {
+          timestamp: 130
+          trusted_packet_sequence_id: 1
+          track_event { track_uuid: 933 type: TYPE_SLICE_END }
+        }
+        """),
+        query="""
+        SELECT
+          count(*) AS analysis_tracks,
+          count(DISTINCT track_group_id) AS track_groups,
+          count(DISTINCT extract_arg(source_arg_set_id, 'gpu_process_upid'))
+            AS processes
+        FROM track
+        WHERE name = 'CUDA';
+        """,
+        out=Csv("""
+        "analysis_tracks","track_groups","processes"
+        3,3,2
+        """))
+
+  def test_gpu_track_descriptor_process_reuse_isolation(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          first_packet_on_sequence: true
+          track_descriptor {
+            uuid: 950
+            process { pid: 42 process_name: "old" }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 10
+          track_descriptor {
+            uuid: 951
+            parent_uuid: 950
+            name: "CUDA"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 100
+          track_event {
+            track_uuid: 951
+            name: "old lifetime"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 110
+          incremental_state_cleared: true
+          first_packet_on_sequence: true
+          track_descriptor {
+            uuid: 952
+            process { pid: 42 process_name: "new" }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 120
+          track_descriptor {
+            uuid: 953
+            parent_uuid: 952
+            name: "CUDA"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 0
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 130
+          track_event {
+            track_uuid: 953
+            name: "new lifetime"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 140
+          track_event { track_uuid: 951 type: TYPE_SLICE_END }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 150
+          track_event { track_uuid: 953 type: TYPE_SLICE_END }
+        }
+        """),
+        query="""
+        SELECT
+          count(*) AS analysis_tracks,
+          count(DISTINCT track_group_id) AS track_groups,
+          count(DISTINCT extract_arg(source_arg_set_id, 'gpu_process_upid'))
+            AS processes,
+          (SELECT count(*) FROM process WHERE pid = 42) AS process_lifetimes
+        FROM track
+        WHERE name = 'CUDA';
+        """,
+        out=Csv("""
+        "analysis_tracks","track_groups","processes","process_lifetimes"
+        2,2,2,2
+        """))
+
+  def test_gpu_track_descriptor_root_merge(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor {
+            uuid: 400
+            name: "Root Lane"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 3
+            }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 401
+            name: "Root Lane"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 3
+            }
+          }
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 400
+            name: "first"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          timestamp: 110
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 401
+            name: "second"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          timestamp: 120
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 401
+            type: TYPE_SLICE_END
+          }
+        }
+        packet {
+          timestamp: 130
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 400
+            type: TYPE_SLICE_END
+          }
+        }
+        """),
+        query="""
+        SELECT
+          count(*) AS analysis_tracks,
+          count(DISTINCT track_group_id) AS track_groups,
+          min(extract_arg(dimension_arg_set_id, 'gpu')) AS gpu_id
+        FROM track
+        WHERE name = 'Root Lane';
+        """,
+        out=Csv("""
+        "analysis_tracks","track_groups","gpu_id"
+        2,1,3
+        """))
+
+  def test_gpu_track_descriptor_preserves_non_gpu_parent(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor {
+            uuid: 500
+            name: "Host Parent"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 501
+            parent_uuid: 500
+            name: "GPU Child"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 4
+            }
+          }
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 501
+            name: "event"
+            type: TYPE_INSTANT
+          }
+        }
+        """),
+        query="""
+        SELECT
+          child.type,
+          parent.name AS parent_name,
+          extract_arg(child.dimension_arg_set_id, 'gpu') AS gpu_id
+        FROM track child
+        LEFT JOIN track parent ON parent.id = child.parent_id
+        WHERE child.name = 'GPU Child';
+        """,
+        out=Csv("""
+        "type","parent_name","gpu_id"
+        "gpu_merged_track_event","Host Parent",4
+        """))
+
+  def test_gpu_track_descriptor_merge_isolation(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor {
+            uuid: 300
+            name: "Unspecified GPU Root"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {}
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 301
+            parent_uuid: 300
+            name: "Lane"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 1
+            }
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 302
+            parent_uuid: 300
+            name: "Lane"
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {
+              gpu_id: 2
+            }
+          }
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 301
+            name: "gpu 1"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          timestamp: 110
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 302
+            name: "gpu 2"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          timestamp: 120
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 301
+            type: TYPE_SLICE_END
+          }
+        }
+        packet {
+          timestamp: 130
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 302
+            type: TYPE_SLICE_END
+          }
+        }
+        """),
+        query="""
+        SELECT
+          count(*) AS tracks,
+          count(DISTINCT extract_arg(dimension_arg_set_id, 'gpu')) AS gpu_ids,
+          count(DISTINCT extract_arg(dimension_arg_set_id, 'ugpu')) AS ugpus,
+          count(DISTINCT track_group_id) AS track_groups,
+          min((SELECT name FROM track p WHERE p.id = track.parent_id)) AS parent_name
+        FROM track
+        WHERE name = 'Lane';
+        """,
+        out=Csv("""
+        "tracks","gpu_ids","ugpus","track_groups","parent_name"
+        2,2,2,2,"Unspecified GPU Root"
+        """))
+
   def test_track_event_same_tids_threads(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

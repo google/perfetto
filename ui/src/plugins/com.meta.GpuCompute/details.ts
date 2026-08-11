@@ -277,11 +277,17 @@ export function buildKernelQuery(
 ): string {
   const whereFilter = `
     WHERE s.render_stage_category = ${COMPUTE_RENDER_STAGE_CATEGORY}
-      AND s.id = ${sliceIdFilter}
+      AND s.id = coalesce((
+        SELECT canonical_slice_id
+        FROM _gpu_render_stage_projections
+        WHERE projected_slice_id = ${sliceIdFilter}
+      ), ${sliceIdFilter})
     GROUP BY kernel_id, metric_label
   `;
 
   return `
+    INCLUDE PERFETTO MODULE std.gpu.render_stage;
+
     ${kernelQueryBody(ctx)}
     ${whereFilter}
     ORDER BY s.ts ASC;

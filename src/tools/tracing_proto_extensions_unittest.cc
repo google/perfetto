@@ -404,7 +404,7 @@ TEST(GenProtoExtensionsTest, ValidateRegistryMissingScope) {
 TEST(GenProtoExtensionsTest, ValidateRegistryWrongScope) {
   Registry reg;
   reg.source_path = "test.json";
-  // Scopes other than TrackEvent / TracePacket / InternedData are rejected.
+  // Scopes other than the explicitly supported extension scopes are rejected.
   reg.scope = "perfetto.protos.SomeOtherType";
   reg.ranges = {{100, 199}};
   reg.allocations.push_back({"a", {{100, 199}}, "", "", "", "a.proto", ""});
@@ -412,6 +412,16 @@ TEST(GenProtoExtensionsTest, ValidateRegistryWrongScope) {
   auto status = ValidateRegistry(reg);
   EXPECT_FALSE(status.ok());
   EXPECT_THAT(status.message(), testing::HasSubstr("scope"));
+}
+
+TEST(GenProtoExtensionsTest, ValidateRegistryAcceptsTrackDescriptorScope) {
+  Registry reg;
+  reg.source_path = "test.json";
+  reg.scope = "perfetto.protos.TrackDescriptor";
+  reg.ranges = {{100, 199}};
+  reg.allocations.push_back({"a", {{100, 199}}, "", "", "", "a.proto", ""});
+
+  EXPECT_TRUE(ValidateRegistry(reg).ok());
 }
 
 TEST(GenProtoExtensionsTest, ValidateRegistryAcceptsTracePacketScope) {
@@ -438,6 +448,9 @@ TEST(GenProtoExtensionsTest, ValidateScopesUniqueAccepts) {
   Registry track_event;
   track_event.source_path = "test.json";
   track_event.scope = "perfetto.protos.TrackEvent";
+  Registry track_descriptor;
+  track_descriptor.source_path = "test.json";
+  track_descriptor.scope = "perfetto.protos.TrackDescriptor";
   Registry trace_packet;
   trace_packet.source_path = "test.json";
   trace_packet.scope = "perfetto.protos.TracePacket";
@@ -445,8 +458,9 @@ TEST(GenProtoExtensionsTest, ValidateScopesUniqueAccepts) {
   interned_data.source_path = "test.json";
   interned_data.scope = "perfetto.protos.InternedData";
 
-  EXPECT_TRUE(
-      ValidateScopesUnique({track_event, trace_packet, interned_data}).ok());
+  EXPECT_TRUE(ValidateScopesUnique(
+                  {track_event, track_descriptor, trace_packet, interned_data})
+                  .ok());
 }
 
 TEST(GenProtoExtensionsTest, ValidateScopesUniqueRejectsDuplicates) {
