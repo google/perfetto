@@ -408,6 +408,17 @@ PERFETTO_SDK_EXPORT void PerfettoDsTracerImplFlush(
     PerfettoDsTracerOnFlushCb cb,
     void* user_arg);
 
+// Returns the number of times `tracer` entered a mode in which it started
+// dropping data (e.g. because the shared memory buffer was exhausted and the
+// buffer exhausted policy is PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP).
+//
+// Note that this does *not* necessarily correspond to the number of dropped
+// packets, as multiple packets can be dropped on each entry into the drop
+// mode. A non-zero (or increased) value indicates that some data written on
+// this tracer was lost.
+PERFETTO_SDK_EXPORT uint64_t
+PerfettoDsTracerImplGetDropCount(struct PerfettoDsTracerImpl* tracer);
+
 #ifdef __cplusplus
 }
 #endif
