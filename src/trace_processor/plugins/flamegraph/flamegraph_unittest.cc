@@ -316,6 +316,23 @@ TEST(FlamegraphTest, RejectsInvalidConfig) {
   EXPECT_FALSE(Build(input, duplicate_output).ok());
 }
 
+TEST(FlamegraphTest, RejectsNegativeValues) {
+  StringPool pool;
+  // Negative values are rejected in downward views (TOP_DOWN).
+  {
+    core::Tree input = MakeTree(&pool, {{"main", std::nullopt, -1}});
+    Config config = MakeConfig(input, pool);
+    EXPECT_FALSE(Build(std::move(input), config).ok());
+  }
+  // Negative values are rejected in upward views (BOTTOM_UP) too.
+  {
+    core::Tree input = MakeTree(&pool, {{"main", std::nullopt, -1}});
+    Config config = MakeConfig(input, pool);
+    config.view = Config::View(Config::BottomUp{});
+    EXPECT_FALSE(Build(std::move(input), config).ok());
+  }
+}
+
 TEST(FlamegraphTest, RejectsIntegerOverflow) {
   StringPool pool;
   {

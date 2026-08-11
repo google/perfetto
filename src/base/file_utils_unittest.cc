@@ -59,6 +59,28 @@ TEST(FileUtilsTest, Basename) {
   EXPECT_EQ(Basename("foo/bar\\"), "bar");
 }
 
+TEST(FileUtilsTest, PathRootPrefixLength) {
+  EXPECT_EQ(PathRootPrefixLength("/usr/bin/ls"), 1u);
+  EXPECT_EQ(PathRootPrefixLength("/"), 1u);
+  EXPECT_EQ(PathRootPrefixLength("//usr//bin"), 2u);
+  EXPECT_EQ(PathRootPrefixLength("foo/bar"), 0u);
+  EXPECT_EQ(PathRootPrefixLength(""), 0u);
+
+  // Windows.
+  EXPECT_EQ(PathRootPrefixLength("C:\\Windows\\System32"), 3u);
+  EXPECT_EQ(PathRootPrefixLength("c:/Windows"), 3u);
+  EXPECT_EQ(PathRootPrefixLength("\\\\server\\share"), 2u);
+  // Relative to the current directory of drive C:, not absolute.
+  EXPECT_EQ(PathRootPrefixLength("C:foo"), 0u);
+  EXPECT_EQ(PathRootPrefixLength("C:"), 0u);
+  EXPECT_EQ(PathRootPrefixLength("1:\\foo"), 0u);
+
+  EXPECT_TRUE(IsAbsolutePath("/usr/bin/ls"));
+  EXPECT_TRUE(IsAbsolutePath("C:\\Windows"));
+  EXPECT_FALSE(IsAbsolutePath("foo/bar"));
+  EXPECT_FALSE(IsAbsolutePath(""));
+}
+
 TEST(FileUtilsTest, Dirname) {
   EXPECT_EQ(Dirname("/usr/bin/ls"), "/usr/bin");
   EXPECT_EQ(Dirname("/usr/bin"), "/usr");
