@@ -33,7 +33,7 @@ interface MonitorRowData {
   readonly id: number;
   readonly ts: bigint;
   readonly dur: bigint | null;
-  readonly lock_name: string;
+  readonly lock_name: string | null;
   readonly waiter_count: number;
   readonly blocked_thread_name: string | null;
   readonly blocking_thread_name: string | null;
@@ -343,7 +343,7 @@ export class AndroidLockContentionEventSource {
         id: NUM,
         ts: LONG,
         dur: LONG_NULL,
-        lock_name: STR,
+        lock_name: STR_NULL,
         waiter_count: NUM,
         blocked_thread_name: STR_NULL,
         blocking_thread_name: STR_NULL,
@@ -394,7 +394,7 @@ export class AndroidLockContentionEventSource {
 
     const blockingTrackUri =
       monitorRow.owner_tid !== null
-        ? `com.android.AndroidLockContention#OwnerEvents_${monitorRow.owner_tid}`
+        ? `com.android.AndroidLockContention#OwnerEvents_Counter_${monitorRow.owner_tid}`
         : undefined;
 
     return {
@@ -404,7 +404,7 @@ export class AndroidLockContentionEventSource {
         monitorRow.dur !== null ? Duration.fromRaw(monitorRow.dur) : undefined,
       waiterCount,
       isMonitor: true,
-      lockName: monitorRow.lock_name,
+      lockName: monitorRow.lock_name ?? '',
 
       parentId,
       binderReplyId,
@@ -451,7 +451,7 @@ export class AndroidLockContentionEventSource {
       id: NUM,
       ts: LONG,
       dur: LONG_NULL,
-      lock_name: STR,
+      lock_name: STR_NULL,
       owner_tid: NUM_NULL,
       blocked_thread_name: STR_NULL,
       blocking_thread_name: STR_NULL,
@@ -462,7 +462,7 @@ export class AndroidLockContentionEventSource {
 
     const blockingTrackUri =
       row.owner_tid !== null
-        ? `com.android.AndroidLockContention#OwnerEvents_${row.owner_tid}`
+        ? `com.android.AndroidLockContention#OwnerEvents_Counter_${row.owner_tid}`
         : undefined;
 
     return {
