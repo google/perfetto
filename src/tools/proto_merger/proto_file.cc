@@ -249,6 +249,14 @@ ProtoFile::Message MessageFromDescriptor(
     const google::protobuf::Descriptor& desc) {
   auto message = InitFromDescriptor<ProtoFile::Message>(desc);
   message.name = desc.name();
+
+  for (int i = 0; i < desc.reserved_range_count(); ++i) {
+    const auto* range = desc.reserved_range(i);
+    for (int num = range->start; num < range->end; ++num) {
+      message.reserved_numbers.insert(num);
+    }
+  }
+
   for (int i = 0; i < desc.enum_type_count(); ++i) {
     message.enums.emplace_back(EnumFromDescriptor(*desc.enum_type(i)));
   }

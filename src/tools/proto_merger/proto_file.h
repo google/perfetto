@@ -18,6 +18,7 @@
 #define SRC_TOOLS_PROTO_MERGER_PROTO_FILE_H_
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 // We include this intentionally instead of forward declaring to allow
@@ -68,6 +69,8 @@ struct ProtoFile {
     std::vector<Message> nested_messages;
     std::vector<Oneof> oneofs;
     std::vector<Field> fields;
+
+    std::unordered_set<int> reserved_numbers;
 
     std::vector<Enum> deleted_enums;
     std::vector<Message> deleted_nested_messages;
