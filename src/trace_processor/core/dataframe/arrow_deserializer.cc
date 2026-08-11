@@ -69,8 +69,26 @@ class BodyReader {
 
   base::StatusOr<TraceBlobView> ReadVariableSize() { return Read(0, false); }
 
+  // Returns the buffer as the pieces it arrived in. Callers which only copy the
+  // bytes out can consume those directly, where ReadExact would first have to
+  // join them into one allocation.
+  base::StatusOr<std::vector<TraceBlobView>> ReadExactPieces(
+      uint64_t expected_size) {
+    ASSIGN_OR_RETURN(ArrowBuffer buffer, Next(expected_size, true));
+    auto size = static_cast<size_t>(buffer.length);
+    std::vector<TraceBlobView> pieces = data_.MultiSliceOff(
+        body_offset_ + static_cast<size_t>(buffer.offset), size);
+    size_t total = 0;
+    for (const TraceBlobView& piece : pieces) {
+      total += piece.size();
+    }
+    return total == size
+               ? base::StatusOr<std::vector<TraceBlobView>>(std::move(pieces))
+               : base::StatusOr<std::vector<TraceBlobView>>(InvalidFile());
+  }
+
  private:
-  base::StatusOr<TraceBlobView> Read(uint64_t expected_size, bool exact) {
+  base::StatusOr<ArrowBuffer> Next(uint64_t expected_size, bool exact) {
     if (next_buffer_ >= buffers_.size()) {
       return InvalidFile();
     }
@@ -79,7 +97,12 @@ class BodyReader {
     if ((exact && size != expected_size) || (!exact && size < expected_size)) {
       return InvalidFile();
     }
-    if (!size) {
+    return buffer;
+  }
+
+  base::StatusOr<TraceBlobView> Read(uint64_t expected_size, bool exact) {
+    ASSIGN_OR_RETURN(ArrowBuffer buffer, Next(expected_size, exact));
+    if (!buffer.length) {
       return TraceBlobView{};
     }
     auto blob =
@@ -178,23 +201,42 @@ base::Status ReadDictionaryIndices(BodyReader* reader,
   return base::OkStatus();
 }
 
+template <typename Fn>
+void VisitNumericStorage(Storage* storage, Fn fn) {
+  if (storage->type().Is<core::Double>()) {
+    fn(&storage->unchecked_get<Double>());
+  } else if (storage->type().Is<core::Int64>()) {
+    fn(&storage->unchecked_get<Int64>());
+  } else if (storage->type().Is<core::Int32>()) {
+    fn(&storage->unchecked_get<Int32>());
+  } else {
+    fn(&storage->unchecked_get<Uint32>());
+  }
+}
+
 template <typename T>
-void ReadNumericValues(const TraceBlobView& values,
-                       uint32_t rows,
-                       uint32_t stored_rows,
-                       bool sparse,
-                       const BitVector& validity,
-                       FlexVector<T>* output) {
-  if (!sparse) {
-    output->resize(rows);
-    if (rows) {
-      memcpy(output->data(), values.data(),
-             static_cast<size_t>(rows) * sizeof(T));
-    }
+void CopyDenseValues(const std::vector<TraceBlobView>& pieces,
+                     uint32_t rows,
+                     FlexVector<T>* output) {
+  output->resize(rows);
+  if (!rows) {
     return;
   }
-  // Arrow has one value slot per logical row. Sparse dataframe storage keeps
-  // only valid values, so compact the Arrow buffer using its validity bitmap.
+  auto* out = reinterpret_cast<uint8_t*>(output->data());
+  for (const TraceBlobView& piece : pieces) {
+    memcpy(out, piece.data(), piece.size());
+    out += piece.size();
+  }
+}
+
+// Arrow has one value slot per logical row. Sparse dataframe storage keeps
+// only valid values, so compact the Arrow buffer using its validity bitmap.
+template <typename T>
+void CompactSparseValues(const TraceBlobView& values,
+                         uint32_t rows,
+                         uint32_t stored_rows,
+                         const BitVector& validity,
+                         FlexVector<T>* output) {
   output->reserve(stored_rows);
   for (uint32_t row = 0; row < rows; ++row) {
     if (validity.is_set(row)) {
@@ -209,22 +251,18 @@ base::Status ReadNumericBuffer(BodyReader* reader,
                                bool sparse,
                                const BitVector& validity,
                                Storage* storage) {
-  ASSIGN_OR_RETURN(TraceBlobView values,
-                   reader->ReadExact(static_cast<uint64_t>(rows) *
-                                     NumericSize(storage->type())));
-  if (storage->type().Is<core::Double>()) {
-    ReadNumericValues(values, rows, stored_rows, sparse, validity,
-                      &storage->unchecked_get<Double>());
-  } else if (storage->type().Is<core::Int64>()) {
-    ReadNumericValues(values, rows, stored_rows, sparse, validity,
-                      &storage->unchecked_get<Int64>());
-  } else if (storage->type().Is<core::Int32>()) {
-    ReadNumericValues(values, rows, stored_rows, sparse, validity,
-                      &storage->unchecked_get<Int32>());
-  } else {
-    ReadNumericValues(values, rows, stored_rows, sparse, validity,
-                      &storage->unchecked_get<Uint32>());
+  uint64_t size = static_cast<uint64_t>(rows) * NumericSize(storage->type());
+  if (!sparse) {
+    ASSIGN_OR_RETURN(std::vector<TraceBlobView> pieces,
+                     reader->ReadExactPieces(size));
+    VisitNumericStorage(
+        storage, [&](auto* output) { CopyDenseValues(pieces, rows, output); });
+    return base::OkStatus();
   }
+  ASSIGN_OR_RETURN(TraceBlobView values, reader->ReadExact(size));
+  VisitNumericStorage(storage, [&](auto* output) {
+    CompactSparseValues(values, rows, stored_rows, validity, output);
+  });
   return base::OkStatus();
 }
 
