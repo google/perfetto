@@ -21,6 +21,7 @@ import type {
   Renderer,
   MarkerRenderFunc,
   MarkerBuffers,
+  MarkerShape,
   StepAreaBuffers,
   SliceBuffers,
   RowLayout,
@@ -90,6 +91,7 @@ export class WebGLRenderer implements Renderer {
     markerWidth: number,
     xTransform: Transform1D,
     _render: MarkerRenderFunc,
+    shape?: MarkerShape,
   ): void {
     this.markers.draw(
       buffers,
@@ -97,6 +99,7 @@ export class WebGLRenderer implements Renderer {
       markerWidth,
       xTransform,
       this.transform,
+      shape,
     );
   }
 

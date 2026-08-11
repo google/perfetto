@@ -22,7 +22,9 @@ import {
   type Renderer,
   RECT_PATTERN_HATCHED,
   RECT_PATTERN_FADE_RIGHT,
+  RECT_PATTERN_SAMPLED,
   type MarkerRenderFunc,
+  type MarkerShape,
   type MarkerBuffers,
   type StepAreaBuffers,
   type SliceBuffers,
@@ -76,6 +78,9 @@ export class Canvas2DRenderer implements Renderer {
     markerWidth: number,
     xTransform: Transform1D,
     render: MarkerRenderFunc,
+    // The Canvas2D path draws markers through |render|, which already
+    // carries the shape.
+    _shape?: MarkerShape,
   ): void {
     const {xs, depths, colors, count} = buffers;
     const ctx = this.ctx;
@@ -200,6 +205,15 @@ export class Canvas2DRenderer implements Renderer {
       if (flags & RECT_PATTERN_HATCHED && w >= 5) {
         ctx.fillStyle = getHatchedPattern(ctx);
         ctx.fillRect(drawX, drawY, drawW, drawH);
+        previousColor = undefined;
+      }
+
+      if (flags & RECT_PATTERN_SAMPLED && w >= DASH_MIN_WIDTH_PX) {
+        ctx.save();
+        ctx.translate(drawX, 0);
+        ctx.fillStyle = getDashedEdgePattern(ctx);
+        ctx.fillRect(0, drawY + drawH - DASH_HEIGHT_PX, drawW, DASH_HEIGHT_PX);
+        ctx.restore();
         previousColor = undefined;
       }
 
@@ -354,4 +368,28 @@ function getHatchedPattern(ctx: CanvasRenderingContext2D): CanvasPattern {
   patternCtx.stroke();
   mctx.sliceHatchedPattern = mctx.createPattern(canvas, 'repeat')!;
   return mctx.sliceHatchedPattern;
+}
+
+const DASH_PERIOD_PX = 8;
+const DASH_ON_PX = 4;
+const DASH_HEIGHT_PX = 1;
+const DASH_MIN_WIDTH_PX = 6;
+
+// Creates the dashed hairline pattern drawn along the bottom edge of
+// sampling-derived slices, matching the WebGL shader. The pattern is created
+// once as an offscreen canvas and cached on the main canvas context.
+function getDashedEdgePattern(ctx: CanvasRenderingContext2D): CanvasPattern {
+  const mctx = ctx as CanvasRenderingContext2D & {
+    sliceDashedPattern?: CanvasPattern;
+  };
+  if (mctx.sliceDashedPattern !== undefined) return mctx.sliceDashedPattern;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = DASH_PERIOD_PX;
+  canvas.height = DASH_HEIGHT_PX;
+  const patternCtx = canvas.getContext('2d')!;
+  patternCtx.fillStyle = 'rgba(255,255,255,0.5)';
+  patternCtx.fillRect(0, 0, DASH_ON_PX, DASH_HEIGHT_PX);
+  mctx.sliceDashedPattern = mctx.createPattern(canvas, 'repeat')!;
+  return mctx.sliceDashedPattern;
 }

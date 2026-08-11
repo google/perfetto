@@ -14,7 +14,7 @@
 
 import {createSDFTexture, generatePolygonSDF} from './sdf';
 import type {Point2D, Transform1D, Transform2D} from '../geom';
-import type {MarkerBuffers, RowLayout} from '../renderer';
+import type {MarkerBuffers, MarkerShape, RowLayout} from '../renderer';
 import {createProgram, getAttribLocation, getUniformLocation} from './gl';
 
 // Static quad geometry shared by all sprite batches
@@ -37,15 +37,27 @@ const SDF_PADDING = 0.1;
 //    /   C   \  - C (0.5, 0.7) inner notch
 //   /   / \   \
 //  D---     ---B - D (0, 1) and B (1, 1) bottom corners
-const CHEVRON_VERTICES: readonly Point2D[] = [
-  {x: 0.5, y: 0}, // A - top
-  {x: 1, y: 1}, // B - bottom right
-  {x: 0.5, y: 0.7}, // C - inner notch
-  {x: 0, y: 1}, // D - bottom left
-].map(({x, y}) => ({
-  x: x * (1 - 2 * SDF_PADDING) + SDF_PADDING,
-  y: y * (1 - 2 * SDF_PADDING) + SDF_PADDING,
-}));
+function padVertices(vertices: readonly Point2D[]): readonly Point2D[] {
+  return vertices.map(({x, y}) => ({
+    x: x * (1 - 2 * SDF_PADDING) + SDF_PADDING,
+    y: y * (1 - 2 * SDF_PADDING) + SDF_PADDING,
+  }));
+}
+
+const SHAPE_VERTICES: Record<MarkerShape, readonly Point2D[]> = {
+  chevron: padVertices([
+    {x: 0.5, y: 0},
+    {x: 1, y: 1},
+    {x: 0.5, y: 0.7},
+    {x: 0, y: 1},
+  ]),
+  diamond: padVertices([
+    {x: 0.5, y: 0},
+    {x: 1, y: 0.5},
+    {x: 0.5, y: 1},
+    {x: 0, y: 0.5},
+  ]),
+};
 
 interface ChevronBatchProgram {
   readonly program: WebGLProgram;
@@ -66,9 +78,12 @@ interface ChevronBatchProgram {
   readonly sdfTexLoc: WebGLUniformLocation;
 }
 
-function createChevronTexture(gl: WebGL2RenderingContext): WebGLTexture {
+function createMarkerTexture(
+  gl: WebGL2RenderingContext,
+  shape: MarkerShape,
+): WebGLTexture {
   const sdfData = generatePolygonSDF(
-    CHEVRON_VERTICES,
+    SHAPE_VERTICES[shape],
     SDF_TEX_SIZE,
     SDF_SPREAD,
   );
@@ -201,13 +216,12 @@ export class ChevronBatch {
   private readonly colorBuffer: WebGLBuffer;
 
   private readonly program: ChevronBatchProgram;
-  private readonly chevronTexture: WebGLTexture;
+  private readonly textures = new Map<MarkerShape, WebGLTexture>();
 
   constructor(gl: WebGL2RenderingContext) {
     this.gl = gl;
 
     this.program = createBatchProgram(gl);
-    this.chevronTexture = createChevronTexture(gl);
 
     // Create static quad buffers
     this.quadCornerBuffer = gl.createBuffer();
@@ -273,6 +287,7 @@ export class ChevronBatch {
     markerWidth: number,
     xTransform: Transform1D,
     viewTransform: Transform2D,
+    shape: MarkerShape = 'chevron',
   ): void {
     const {xs, depths, colors, count} = buffers;
     if (count === 0) return;
@@ -303,9 +318,13 @@ export class ChevronBatch {
     gl.uniform1f(prog.rowGapLoc, rowLayout.rowGap ?? 0);
     gl.uniform1f(prog.paddingTopLoc, rowLayout.paddingTop ?? 0);
 
-    // Bind SDF texture
+    let texture = this.textures.get(shape);
+    if (texture === undefined) {
+      texture = createMarkerTexture(gl, shape);
+      this.textures.set(shape, texture);
+    }
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, this.chevronTexture);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.uniform1i(prog.sdfTexLoc, 0);
 
     // Bind static quad
