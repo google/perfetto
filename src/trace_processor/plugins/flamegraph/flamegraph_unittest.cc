@@ -229,6 +229,44 @@ TEST(FlamegraphTest, AllNullAggregates) {
   }
 }
 
+TEST(FlamegraphTest, MaxAggregate) {
+  StringPool pool;
+  core::Tree input =
+      MakeTree(&pool, {{"main", std::nullopt, 1}, {"x", 0, 2}, {"x", 0, 3}});
+  AddColumn(&input, "ts", std::vector<int64_t>{1, 10, 9});
+  Config config = MakeConfig(input, pool);
+  config.aggregate_columns.push_back(
+      {&input.columns[2], Config::Aggregate::kMax, "ts_max"});
+
+  auto result = Build(input, config);
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result->row_count, 2u);
+  // The "main" group has a single member: its value is the max.
+  EXPECT_EQ(Value<int64_t>(*result, "ts_max", 0), 1);
+  // The "x" group merges two frames: the max wins.
+  EXPECT_EQ(Value<int64_t>(*result, "ts_max", 1), 10);
+}
+
+TEST(FlamegraphTest, MaxAggregateAllNull) {
+  StringPool pool;
+  core::Tree input =
+      MakeTree(&pool, {{"main", std::nullopt, 1}, {"x", 0, 2}, {"x", 0, 3}});
+  input.names.emplace_back("ts");
+  input.columns.push_back(core::Tree::Column::CreateNull(3));
+  Config config = MakeConfig(input, pool);
+  config.aggregate_columns.push_back(
+      {&input.columns[2], Config::Aggregate::kMax, "ts_max"});
+
+  auto result = Build(input, config);
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result->row_count, 2u);
+  auto output = result->Find("ts_max");
+  ASSERT_TRUE(output);
+  ASSERT_TRUE((*output)->null_bv.size() > 0);
+  EXPECT_FALSE((*output)->null_bv.is_set(0));
+  EXPECT_FALSE((*output)->null_bv.is_set(1));
+}
+
 TEST(FlamegraphTest, BottomUp) {
   StringPool pool;
   core::Tree input =

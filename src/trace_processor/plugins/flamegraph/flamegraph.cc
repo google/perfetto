@@ -454,6 +454,62 @@ class OneOrSummaryAggregateOperator final : public AggregateOperator {
   bool has_multiple_values_ = false;
 };
 
+// Maximum over the group's non-null members; a group with no non-null members
+// produces a null output. Used e.g. for per-node sample timestamps, which only
+// leaf frames carry.
+template <typename T>
+class MaxAggregateOperator final : public AggregateOperator {
+ public:
+  MaxAggregateOperator(const core::Tree::Column& input, uint32_t output_rows)
+      : input_(input), output_(core::Tree::Column::Create<T>(output_rows)) {
+    output_.null_bv = core::BitVector::CreateWithSize(output_rows, false);
+  }
+
+  base::Status UpdateBatch(core::Span<const uint32_t> output_rows,
+                           core::Span<const uint32_t> input_rows) override {
+    core::Span<const T> input = input_.unchecked_span<T>();
+    for (uint32_t i = 0; i < input_rows.size(); ++i) {
+      const uint32_t input_row = input_rows[i];
+      if (input_.null_bv.size() > 0 && !input_.null_bv.is_set(input_row)) {
+        continue;
+      }
+      const uint32_t output_row = output_rows[i];
+      if (output_row != current_output_row_) {
+        FinishGroup();
+        current_output_row_ = output_row;
+      }
+      const T value = input[input_row];
+      if (!has_value_ || value > representative_) {
+        representative_ = value;
+        has_value_ = true;
+      }
+    }
+    return base::OkStatus();
+  }
+
+  base::Status Finalize() override {
+    FinishGroup();
+    return base::OkStatus();
+  }
+
+  core::Tree::Column TakeOutput() override { return std::move(output_); }
+
+ private:
+  void FinishGroup() {
+    if (has_value_) {
+      output_.unchecked_span<T>()[current_output_row_] = representative_;
+      output_.null_bv.set(current_output_row_);
+    }
+    has_value_ = false;
+  }
+
+  const core::Tree::Column& input_;
+  core::Tree::Column output_;
+  T representative_{};
+  uint32_t current_output_row_ = core::Tree::kNullParent;
+  bool has_value_ = false;
+};
+
 template <typename T>
 class ConcatAggregateOperator final : public AggregateOperator {
  public:
@@ -666,7 +722,8 @@ bool IsValidConfig(const core::Tree& input, const Config& config) {
     }
     if (aggregate.input->type.Is<core::Null>()) {
       // A column with no values aggregates to no values under any mode.
-    } else if (aggregate.aggregate == Config::Aggregate::kSum &&
+    } else if ((aggregate.aggregate == Config::Aggregate::kSum ||
+                aggregate.aggregate == Config::Aggregate::kMax) &&
                !IsNumericColumn(*aggregate.input)) {
       return false;
     }
@@ -1380,6 +1437,17 @@ base::Status FlamegraphBuilder::ComputeAggregates() {
           aggregate_columns_[i] = op.TakeOutput();
         } else {
           ConcatAggregateOperator<double> op(input, config_.pool, nodes);
+          RETURN_IF_ERROR(RunAggregateOperator(&op));
+          aggregate_columns_[i] = op.TakeOutput();
+        }
+        break;
+      case Config::Aggregate::kMax:
+        if (input.type.Is<core::Int64>()) {
+          MaxAggregateOperator<int64_t> op(input, nodes);
+          RETURN_IF_ERROR(RunAggregateOperator(&op));
+          aggregate_columns_[i] = op.TakeOutput();
+        } else {
+          MaxAggregateOperator<double> op(input, nodes);
           RETURN_IF_ERROR(RunAggregateOperator(&op));
           aggregate_columns_[i] = op.TakeOutput();
         }
