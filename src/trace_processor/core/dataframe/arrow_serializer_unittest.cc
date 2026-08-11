@@ -56,6 +56,12 @@ inline constexpr auto kStringNonNull = CreateTypedDataframeSpec(
     CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
     CreateTypedColumnSpec(String{}, NonNull{}, Unsorted{}));
 
+inline constexpr auto kTwoStrings = CreateTypedDataframeSpec(
+    {"_auto_id", "first", "second"},
+    CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
+    CreateTypedColumnSpec(String{}, NonNull{}, Unsorted{}),
+    CreateTypedColumnSpec(String{}, NonNull{}, Unsorted{}));
+
 inline constexpr auto kInt32Sparse = CreateTypedDataframeSpec(
     {"_auto_id", "val"},
     CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
@@ -73,8 +79,17 @@ struct SerializedRecordBatch {
   util::FlatBufferScalarVec<ArrowBuffer> buffers;
 };
 
-std::optional<SerializedRecordBatch> ReadRecordBatch(
-    const std::vector<uint8_t>& bytes) {
+size_t FooterOffset(const std::vector<uint8_t>& bytes) {
+  using namespace arrow_internal;
+  uint32_t footer_size =
+      Load<uint32_t>(bytes.data() + bytes.size() - kFileTrailerSize, 0);
+  return bytes.size() - kFileTrailerSize - footer_size;
+}
+
+std::optional<SerializedRecordBatch> ReadBatch(
+    const std::vector<uint8_t>& bytes,
+    uint32_t footer_blocks_field,
+    uint32_t index) {
   using namespace arrow_internal;
   if (bytes.size() < kMinimumFileSize) {
     return std::nullopt;
@@ -84,17 +99,17 @@ std::optional<SerializedRecordBatch> ReadRecordBatch(
   if (footer_size > bytes.size() - kFileTrailerSize) {
     return std::nullopt;
   }
-  size_t footer_offset = bytes.size() - kFileTrailerSize - footer_size;
+  size_t footer_offset = FooterOffset(bytes);
   auto footer = util::FlatBufferReader::GetRoot(bytes.data() + footer_offset,
                                                 footer_size);
   if (!footer) {
     return std::nullopt;
   }
-  auto blocks = footer->VecScalar<Block>(footer_field::kRecordBatches);
-  if (blocks.size() != kRecordBatchCount) {
+  auto blocks = footer->VecScalar<Block>(footer_blocks_field);
+  if (index >= blocks.size()) {
     return std::nullopt;
   }
-  Block block = blocks[0];
+  Block block = blocks[index];
   if (block.offset < 0 || block.metadata_length < 0 ||
       static_cast<uint64_t>(block.offset) +
               static_cast<uint32_t>(block.metadata_length) >
@@ -109,8 +124,11 @@ std::optional<SerializedRecordBatch> ReadRecordBatch(
   auto message = util::FlatBufferReader::GetRoot(
       bytes.data() + message_offset + kMessagePrefixSize,
       static_cast<uint32_t>(prefix.metadata_size));
-  auto record_batch = message ? message->Table(message_field::kHeader)
-                              : util::FlatBufferReader{};
+  auto header = message ? message->Table(message_field::kHeader)
+                        : util::FlatBufferReader{};
+  auto record_batch = footer_blocks_field == footer_field::kDictionaries
+                          ? header.Table(dictionary_batch_field::kData)
+                          : header;
   if (!record_batch) {
     return std::nullopt;
   }
@@ -119,6 +137,32 @@ std::optional<SerializedRecordBatch> ReadRecordBatch(
       message_offset + static_cast<uint32_t>(block.metadata_length),
       record_batch.VecScalar<FieldNode>(record_batch_field::kNodes),
       record_batch.VecScalar<ArrowBuffer>(record_batch_field::kBuffers)};
+}
+
+std::optional<SerializedRecordBatch> ReadRecordBatch(
+    const std::vector<uint8_t>& bytes) {
+  return ReadBatch(bytes, arrow_internal::footer_field::kRecordBatches, 0);
+}
+
+std::optional<SerializedRecordBatch> ReadDictionaryBatch(
+    const std::vector<uint8_t>& bytes,
+    uint32_t index) {
+  return ReadBatch(bytes, arrow_internal::footer_field::kDictionaries, index);
+}
+
+// Reads the schema message, which is the first message in the file.
+util::FlatBufferReader ReadSchema(const std::vector<uint8_t>& bytes) {
+  using namespace arrow_internal;
+  MessagePrefix prefix =
+      Load<MessagePrefix>(bytes.data() + sizeof(kPaddedMagic), 0);
+  EXPECT_EQ(prefix.continuation, kContinuation);
+  auto message = util::FlatBufferReader::GetRoot(
+      bytes.data() + sizeof(kPaddedMagic) + kMessagePrefixSize,
+      static_cast<uint32_t>(prefix.metadata_size));
+  EXPECT_TRUE(message.has_value());
+  auto schema = message->Table(message_field::kHeader);
+  EXPECT_TRUE(static_cast<bool>(schema));
+  return schema;
 }
 
 template <typename T>
@@ -186,30 +230,97 @@ TEST(ArrowSerializerTest, WritesValidityAndDensifiesSparseNumericBuffer) {
   EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 2), 33);
 }
 
-TEST(ArrowSerializerTest, WritesUtf8OffsetAndDataBuffers) {
+TEST(ArrowSerializerTest, WritesDictionaryIndicesAndValues) {
   StringPool pool;
   auto hello = pool.InternString(base::StringView("hello"));
   auto empty = pool.InternString(base::StringView(""));
   auto world = pool.InternString(base::StringView("world"));
-  auto source = MakeDataframe(kStringNonNull, &pool, hello, empty, world);
+  auto source =
+      MakeDataframe(kStringNonNull, &pool, hello, empty, world, hello);
+  std::vector<uint8_t> bytes = Serialize(source, pool);
+  auto batch = ReadRecordBatch(bytes);
+  auto dictionary = ReadDictionaryBatch(bytes, 0);
+
+  ASSERT_TRUE(batch);
+  ASSERT_EQ(batch->rows, 4);
+  ASSERT_EQ(batch->buffers.size(), 2u);
+  EXPECT_EQ(batch->buffers[0].length, 0);
+  EXPECT_EQ(batch->buffers[1].length,
+            static_cast<int64_t>(4 * sizeof(int32_t)));
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 0), 0);
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 1), 1);
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 2), 2);
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 3), 0);
+
+  ASSERT_TRUE(dictionary);
+  ASSERT_EQ(dictionary->rows, 3);
+  ASSERT_EQ(dictionary->buffers.size(), 3u);
+  EXPECT_EQ(dictionary->buffers[0].length, 0);
+  EXPECT_EQ(dictionary->buffers[1].length,
+            static_cast<int64_t>(4 * sizeof(int32_t)));
+  EXPECT_EQ(dictionary->buffers[2].length, 10);
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *dictionary, 1, 0), 0);
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *dictionary, 1, 1), 5);
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *dictionary, 1, 2), 5);
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *dictionary, 1, 3), 10);
+  ArrowBuffer strings = dictionary->buffers[2];
+  const char* string_data = reinterpret_cast<const char*>(
+      bytes.data() + dictionary->body_offset + strings.offset);
+  EXPECT_EQ(std::string_view(string_data, static_cast<size_t>(strings.length)),
+            "helloworld");
+}
+
+TEST(ArrowSerializerTest, WritesDictionaryEncodingInSchema) {
+  using namespace arrow_internal;
+  StringPool pool;
+  auto hello = pool.InternString(base::StringView("hello"));
+  auto source = MakeDataframe(kStringNonNull, &pool, hello);
+  std::vector<uint8_t> bytes = Serialize(source, pool);
+
+  auto fields = ReadSchema(bytes).VecTable(schema_field::kFields);
+  ASSERT_EQ(fields.size(), 1u);
+  EXPECT_EQ(fields[0].Scalar<uint8_t>(field_field::kTypeType), kTypeUtf8);
+  auto encoding = fields[0].Table(field_field::kDictionary);
+  ASSERT_TRUE(static_cast<bool>(encoding));
+  EXPECT_EQ(encoding.Scalar<int64_t>(dictionary_encoding_field::kId,
+                                     kMissingSignedValue),
+            0);
+  auto index_type = encoding.Table(dictionary_encoding_field::kIndexType);
+  ASSERT_TRUE(static_cast<bool>(index_type));
+  EXPECT_EQ(index_type.Scalar<int32_t>(int_field::kBitWidth),
+            kDictionaryIndexBits);
+  EXPECT_TRUE(index_type.Scalar<bool>(int_field::kIsSigned));
+}
+
+TEST(ArrowSerializerTest, WritesOneDictionaryPerStringColumn) {
+  StringPool pool;
+  auto a = pool.InternString(base::StringView("a"));
+  auto source = Dataframe::CreateFromTypedSpec(kTwoStrings, &pool);
+  source.InsertUnchecked(kTwoStrings, std::monostate{}, a, a);
+  std::vector<uint8_t> bytes = Serialize(source, pool);
+
+  ASSERT_TRUE(ReadDictionaryBatch(bytes, 0));
+  ASSERT_TRUE(ReadDictionaryBatch(bytes, 1));
+  EXPECT_FALSE(ReadDictionaryBatch(bytes, 2));
+  auto batch = ReadRecordBatch(bytes);
+  ASSERT_TRUE(batch);
+  EXPECT_EQ(batch->buffers.size(), 2u * arrow_internal::kFixedWidthBufferCount);
+}
+
+TEST(ArrowSerializerTest, WritesEndOfStreamMarkerBeforeFooter) {
+  using namespace arrow_internal;
+  StringPool pool;
+  auto source = MakeDataframe(kUint32NonNull, &pool, uint32_t{1});
   std::vector<uint8_t> bytes = Serialize(source, pool);
   auto batch = ReadRecordBatch(bytes);
 
   ASSERT_TRUE(batch);
-  ASSERT_EQ(batch->buffers.size(), 3u);
-  EXPECT_EQ(batch->buffers[0].length, 0);
-  EXPECT_EQ(batch->buffers[1].length,
-            static_cast<int64_t>(4 * sizeof(int32_t)));
-  EXPECT_EQ(batch->buffers[2].length, 10);
-  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 0), 0);
-  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 1), 5);
-  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 2), 5);
-  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 3), 10);
-  ArrowBuffer strings = batch->buffers[2];
-  const char* string_data = reinterpret_cast<const char*>(
-      bytes.data() + batch->body_offset + strings.offset);
-  EXPECT_EQ(std::string_view(string_data, static_cast<size_t>(strings.length)),
-            "helloworld");
+  size_t batch_end =
+      batch->body_offset + static_cast<size_t>(batch->block.body_length);
+  MessagePrefix marker = Load<MessagePrefix>(bytes.data() + batch_end, 0);
+  EXPECT_EQ(marker.continuation, kContinuation);
+  EXPECT_EQ(marker.metadata_size, 0);
+  EXPECT_EQ(batch_end + kEndOfStreamSize, FooterOffset(bytes));
 }
 
 TEST(ArrowSerializerTest, OmitsImplicitIdColumn) {

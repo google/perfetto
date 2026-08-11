@@ -27,6 +27,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -44,6 +45,15 @@ struct ArrowSerializer::BodyPlan {
   uint64_t size = 0;
   std::vector<arrow_internal::FieldNode> nodes;
   std::vector<arrow_internal::ArrowBuffer> buffers;
+};
+
+struct ArrowSerializer::DictionaryPlan {
+  std::vector<StringPool::Id> values;
+  base::FlatHashMap<uint32_t, uint32_t> index_by_id;
+  uint32_t data_length = 0;
+  uint64_t body_size = 0;
+  std::vector<arrow_internal::ArrowBuffer> buffers;
+  std::vector<uint8_t> message;
 };
 
 namespace {
@@ -163,11 +173,8 @@ class BufferedOutput {
 };
 
 int64_t CountNulls(uint32_t rows, const BitVector& validity) {
-  int64_t nulls = 0;
-  for (uint32_t row = 0; row < rows; ++row) {
-    nulls += !validity.is_set(row);
-  }
-  return nulls;
+  PERFETTO_DCHECK(validity.size() == rows);
+  return rows - static_cast<int64_t>(validity.CountSetBits());
 }
 
 // Maps Arrow's logical row index to dataframe's physical storage index. Dense
@@ -193,27 +200,6 @@ class StorageIndexMapper {
   uint32_t sparse_row_ = 0;
 };
 
-base::StatusOr<uint32_t> MeasureUtf8(uint32_t rows,
-                                     const Column& column,
-                                     const StringPool& pool,
-                                     const BitVector* validity,
-                                     bool sparse) {
-  const auto* ids = column.storage.unchecked_data<String>();
-  StorageIndexMapper mapper(validity, sparse);
-  uint32_t bytes = 0;
-  for (uint32_t row = 0; row < rows; ++row) {
-    if (mapper.HasValue(row)) {
-      size_t size = pool.Get(ids[mapper.Take(row)]).size();
-      if (size >
-          static_cast<uint32_t>(std::numeric_limits<int32_t>::max() - bytes)) {
-        return base::ErrStatus("String column is too large for Arrow Utf8");
-      }
-      bytes += static_cast<uint32_t>(size);
-    }
-  }
-  return bytes;
-}
-
 // Small subset of the Arrow flatbuffer schema used by this file.
 W::Offset BuildInt(W& w, int32_t width, bool is_signed) {
   w.StartTable();
@@ -233,15 +219,27 @@ W::Offset BuildUtf8(W& w) {
   return w.EndTable();
 }
 
+W::Offset BuildDictionaryEncoding(W& w, int64_t id) {
+  auto index_type = BuildInt(w, kDictionaryIndexBits, true);
+  w.StartTable();
+  w.FieldI64(dictionary_encoding_field::kId, id);
+  w.FieldOffset(dictionary_encoding_field::kIndexType, index_type);
+  return w.EndTable();
+}
+
 W::Offset BuildField(W& w,
                      const std::string& name,
                      StorageType type,
-                     bool nullable) {
+                     bool nullable,
+                     int64_t dictionary_id) {
   uint8_t arrow_type;
   W::Offset type_table;
+  W::Offset dictionary;
+  bool has_dictionary = type.Is<core::String>();
   if (type.Is<core::String>()) {
     arrow_type = kTypeUtf8;
     type_table = BuildUtf8(w);
+    dictionary = BuildDictionaryEncoding(w, dictionary_id);
   } else if (type.Is<core::Double>()) {
     arrow_type = kTypeFloatingPoint;
     type_table = BuildFloatingPoint(w);
@@ -257,6 +255,9 @@ W::Offset BuildField(W& w,
   w.FieldBool(field_field::kNullable, nullable);
   w.FieldU8(field_field::kTypeType, arrow_type);
   w.FieldOffset(field_field::kType, type_table);
+  if (has_dictionary) {
+    w.FieldOffset(field_field::kDictionary, dictionary);
+  }
   return w.EndTable();
 }
 
@@ -289,11 +290,27 @@ W::Offset BuildRecordBatch(W& w,
   return w.EndTable();
 }
 
-W::Offset BuildFooter(W& w, W::Offset schema, const Block& block) {
+W::Offset BuildDictionaryBatch(W& w,
+                               int64_t id,
+                               uint32_t length,
+                               const std::vector<ArrowBuffer>& buffers) {
+  std::vector<FieldNode> nodes{FieldNode{length, 0}};
+  auto data = BuildRecordBatch(w, length, nodes, buffers);
+  w.StartTable();
+  w.FieldI64(dictionary_batch_field::kId, id);
+  w.FieldOffset(dictionary_batch_field::kData, data);
+  return w.EndTable();
+}
+
+W::Offset BuildFooter(W& w,
+                      W::Offset schema,
+                      const std::vector<Block>& dictionary_blocks,
+                      const Block& block) {
   auto blocks = w.WriteVecStruct(&block, sizeof(block), kRecordBatchCount,
                                  alignof(int64_t));
-  auto dictionaries = w.WriteVecStruct(nullptr, sizeof(Block),
-                                       kDictionaryBatchCount, alignof(int64_t));
+  auto dictionaries = w.WriteVecStruct(
+      dictionary_blocks.data(), sizeof(Block),
+      static_cast<uint32_t>(dictionary_blocks.size()), alignof(int64_t));
   w.StartTable();
   w.FieldI16(footer_field::kVersion, kMetadataV5);
   w.FieldOffset(footer_field::kSchema, schema);
@@ -325,49 +342,21 @@ base::Status WriteValidityBuffer(uint32_t rows,
   return output.Finish();
 }
 
-// Arrow Utf8 stores an offset per logical row followed by one contiguous byte
-// buffer. Dataframe stores StringPool IDs, so this is where IDs are resolved
-// and their bytes are streamed in Arrow's representation.
-base::Status WriteUtf8Buffers(uint32_t rows,
-                              const Column& column,
-                              const StringPool& pool,
-                              const BitVector* validity,
-                              bool sparse,
-                              uint32_t string_bytes,
-                              FlexVector<uint8_t>* scratch,
-                              const ArrowSerializer::WriteFn& write) {
-  size_t offsets_bytes = static_cast<size_t>(Utf8OffsetBufferSize(rows));
-  const auto* ids = column.storage.unchecked_data<String>();
-  BufferedOutput output(scratch, write);
-
-  // Offset buffer. Resolving IDs here only reads string lengths; bytes are
-  // emitted in the second pass below.
-  StorageIndexMapper offset_mapper(validity, sparse);
+base::Status WriteUtf8OffsetBuffer(const std::vector<StringPool::Id>& values,
+                                   const StringPool& pool,
+                                   uint32_t data_length,
+                                   BufferedOutput* output) {
   int32_t offset = 0;
-  for (uint32_t row = 0; row < rows; ++row) {
-    RETURN_IF_ERROR(output.Append(&offset, sizeof(offset)));
-    if (offset_mapper.HasValue(row)) {
-      offset +=
-          static_cast<int32_t>(pool.Get(ids[offset_mapper.Take(row)]).size());
-    }
+  for (StringPool::Id id : values) {
+    RETURN_IF_ERROR(output->Append(&offset, sizeof(offset)));
+    offset += static_cast<int32_t>(pool.Get(id).size());
   }
-  RETURN_IF_ERROR(output.Append(&offset, sizeof(offset)));
-  RETURN_IF_ERROR(output.AppendPadding(
-      static_cast<size_t>(AlignToArrow(offsets_bytes)) - offsets_bytes));
-  PERFETTO_CHECK(static_cast<uint32_t>(offset) == string_bytes);
-
-  // Data buffer. Values already live in the StringPool, so stream those bytes
-  // directly instead of gathering the whole Arrow buffer in memory.
-  StorageIndexMapper string_mapper(validity, sparse);
-  for (uint32_t row = 0; row < rows; ++row) {
-    if (string_mapper.HasValue(row)) {
-      NullTermStringView value = pool.Get(ids[string_mapper.Take(row)]);
-      RETURN_IF_ERROR(output.Append(value.data(), value.size()));
-    }
-  }
-  RETURN_IF_ERROR(output.AppendPadding(
-      static_cast<size_t>(AlignToArrow(string_bytes)) - string_bytes));
-  return output.Finish();
+  RETURN_IF_ERROR(output->Append(&offset, sizeof(offset)));
+  PERFETTO_CHECK(static_cast<uint32_t>(offset) == data_length);
+  size_t bytes = static_cast<size_t>(
+      Utf8OffsetBufferSize(static_cast<uint32_t>(values.size())));
+  return output->AppendPadding(static_cast<size_t>(AlignToArrow(bytes)) -
+                               bytes);
 }
 
 base::Status WriteIdBuffer(uint32_t rows,
@@ -421,12 +410,66 @@ base::Status WriteNumericBuffer(uint32_t rows,
 ArrowSerializer::ArrowSerializer(IdColumnMode id_column_mode)
     : id_column_mode_(id_column_mode) {}
 
+ArrowSerializer::~ArrowSerializer() = default;
+
 void ArrowSerializer::Reset() {
   prepared_dataframe_ = nullptr;
   prepared_string_pool_ = nullptr;
   prepared_columns_.clear();
+  dictionaries_.clear();
   header_.clear();
+  batch_header_.clear();
   trailer_.clear();
+}
+
+// Collects the distinct StringPool ids of a column in first-appearance order
+// and lays out the dictionary batch which will carry their bytes.
+base::Status ArrowSerializer::PlanDictionary(uint32_t rows,
+                                             const Column& column,
+                                             const StringPool& pool,
+                                             const BitVector* validity,
+                                             bool sparse) {
+  constexpr uint32_t kMaxData =
+      static_cast<uint32_t>(std::numeric_limits<int32_t>::max());
+  constexpr size_t kMaxValues =
+      static_cast<size_t>(std::numeric_limits<DictionaryIndex>::max());
+
+  DictionaryPlan dictionary;
+  const auto* ids = column.storage.unchecked_data<String>();
+  StorageIndexMapper mapper(validity, sparse);
+  for (uint32_t row = 0; row < rows; ++row) {
+    if (!mapper.HasValue(row)) {
+      continue;
+    }
+    StringPool::Id id = ids[mapper.Take(row)];
+    auto [index, inserted] = dictionary.index_by_id.Insert(
+        id.raw_id(), static_cast<uint32_t>(dictionary.values.size()));
+    if (!inserted) {
+      continue;
+    }
+    if (dictionary.values.size() == kMaxValues) {
+      return base::ErrStatus("String column has too many distinct values");
+    }
+    size_t size = pool.Get(id).size();
+    if (size > kMaxData - dictionary.data_length) {
+      return base::ErrStatus("String column is too large for Arrow Utf8");
+    }
+    dictionary.data_length += static_cast<uint32_t>(size);
+    dictionary.values.push_back(id);
+  }
+
+  auto values = static_cast<uint32_t>(dictionary.values.size());
+  uint64_t cursor = 0;
+  dictionary.buffers.push_back({0, 0});
+  ASSIGN_OR_RETURN(auto offsets_buffer,
+                   AddBuffer(Utf8OffsetBufferSize(values), &cursor));
+  dictionary.buffers.push_back(offsets_buffer);
+  ASSIGN_OR_RETURN(auto data_buffer,
+                   AddBuffer(dictionary.data_length, &cursor));
+  dictionary.buffers.push_back(data_buffer);
+  dictionary.body_size = cursor;
+  dictionaries_.push_back(std::move(dictionary));
+  return base::OkStatus();
 }
 
 // Phase 1: derive the exact record-batch body layout from the dataframe. Arrow
@@ -463,18 +506,16 @@ base::Status ArrowSerializer::PlanBody(const Dataframe& dataframe,
     }
 
     if (type.Is<core::String>()) {
-      ASSIGN_OR_RETURN(
-          auto offsets_buffer,
-          AddBuffer(Utf8OffsetBufferSize(plan->rows), &body_cursor));
-      plan->buffers.push_back(offsets_buffer);
       const BitVector* validity =
           nullable ? &column.null_storage.GetNullBitVector() : nullptr;
-      ASSIGN_OR_RETURN(uint32_t string_bytes,
-                       MeasureUtf8(plan->rows, column, pool, validity, sparse));
-      prepared.string_data_length = string_bytes;
-      ASSIGN_OR_RETURN(auto string_buffer,
-                       AddBuffer(string_bytes, &body_cursor));
-      plan->buffers.push_back(string_buffer);
+      prepared.dictionary = static_cast<uint32_t>(dictionaries_.size());
+      RETURN_IF_ERROR(
+          PlanDictionary(plan->rows, column, pool, validity, sparse));
+      ASSIGN_OR_RETURN(
+          auto index_buffer,
+          AddBuffer(static_cast<uint64_t>(plan->rows) * sizeof(DictionaryIndex),
+                    &body_cursor));
+      plan->buffers.push_back(index_buffer);
     } else {
       ASSIGN_OR_RETURN(
           auto data_buffer,
@@ -497,8 +538,9 @@ base::Status ArrowSerializer::BuildFileFraming(const BodyPlan& plan) {
     std::vector<W::Offset> fields;
     fields.reserve(prepared_columns_.size());
     for (const auto& column : prepared_columns_) {
-      fields.push_back(
-          BuildField(w, column.name, column.storage_type, column.nullable));
+      fields.push_back(BuildField(w, column.name, column.storage_type,
+                                  column.nullable,
+                                  static_cast<int64_t>(column.dictionary)));
     }
     auto field_vector =
         w.WriteVecOffsets(fields.data(), static_cast<uint32_t>(fields.size()));
@@ -527,21 +569,48 @@ base::Status ArrowSerializer::BuildFileFraming(const BodyPlan& plan) {
     return base::ErrStatus("Arrow metadata is too large");
   }
 
+  Append(&header_, kPaddedMagic, sizeof(kPaddedMagic));
+  AppendMessage(&header_, schema, schema_size);
+
+  uint64_t cursor = header_.size();
+  std::vector<Block> dictionary_blocks;
+  dictionary_blocks.reserve(dictionaries_.size());
+  for (uint32_t i = 0; i < dictionaries_.size(); ++i) {
+    DictionaryPlan& dictionary = dictionaries_[i];
+    W writer;
+    auto values = static_cast<uint32_t>(dictionary.values.size());
+    std::vector<uint8_t> dictionary_metadata = FinishFlatbuffer(
+        &writer, BuildMessage(writer, kHeaderDictionaryBatch,
+                              BuildDictionaryBatch(writer, i, values,
+                                                   dictionary.buffers),
+                              static_cast<int64_t>(dictionary.body_size)));
+    auto size = static_cast<uint32_t>(AlignToArrow(dictionary_metadata.size()));
+    if (size > maximum_metadata_size) {
+      return base::ErrStatus("Arrow metadata is too large");
+    }
+    AppendMessage(&dictionary.message, dictionary_metadata, size);
+    dictionary_blocks.push_back(
+        Block{static_cast<int64_t>(cursor),
+              static_cast<int32_t>(kMessagePrefixSize + size),
+              {},
+              static_cast<int64_t>(dictionary.body_size)});
+    cursor += dictionary.message.size() + dictionary.body_size;
+  }
+
   W footer_writer;
-  Block block{static_cast<int64_t>(sizeof(kPaddedMagic) + kMessagePrefixSize +
-                                   schema_size),
+  Block block{static_cast<int64_t>(cursor),
               static_cast<int32_t>(kMessagePrefixSize + metadata_size),
               {},
               static_cast<int64_t>(plan.size)};
   std::vector<uint8_t> footer = FinishFlatbuffer(
-      &footer_writer,
-      BuildFooter(footer_writer, build_schema(footer_writer), block));
+      &footer_writer, BuildFooter(footer_writer, build_schema(footer_writer),
+                                  dictionary_blocks, block));
 
-  // Assemble framing separately from the body so Write() only needs to stream
-  // header, column buffers, and footer in that order.
-  Append(&header_, kPaddedMagic, sizeof(kPaddedMagic));
-  AppendMessage(&header_, schema, schema_size);
-  AppendMessage(&header_, batch_metadata, metadata_size);
+  AppendMessage(&batch_header_, batch_metadata, metadata_size);
+  // Readers which walk the message stream instead of the footer rely on the
+  // end-of-stream marker to stop before the footer.
+  AppendU32(&trailer_, kContinuation);
+  AppendU32(&trailer_, 0);
   Append(&trailer_, footer.data(), footer.size());
   AppendU32(&trailer_, static_cast<uint32_t>(footer.size()));
   Append(&trailer_, kMagic, sizeof(kMagic));
@@ -566,22 +635,70 @@ base::StatusOr<size_t> ArrowSerializer::Prepare(const Dataframe& dataframe,
 
   // Phase 3: validate the final platform-sized result and record the objects
   // whose identity and mutation count Write() must verify.
-  uint64_t total = header_.size() + plan.size + trailer_.size();
-  uint64_t max_output_size = std::numeric_limits<size_t>::max();
-  if (total < plan.size || total > max_output_size) {
+  constexpr uint64_t kMaxOutputSize = std::numeric_limits<size_t>::max();
+  uint64_t total = header_.size() + batch_header_.size() + trailer_.size();
+  for (const DictionaryPlan& dictionary : dictionaries_) {
+    uint64_t dictionary_size = dictionary.message.size() + dictionary.body_size;
+    if (dictionary_size > kMaxOutputSize - total) {
+      return base::ErrStatus("Dataframe is too large for an Arrow file");
+    }
+    total += dictionary_size;
+  }
+  if (plan.size > kMaxOutputSize - total) {
     return base::ErrStatus("Dataframe is too large for an Arrow file");
   }
+  total += plan.size;
   prepared_dataframe_ = &dataframe;
   prepared_string_pool_ = &pool;
   prepared_mutations_ = dataframe.mutations();
   return static_cast<size_t>(total);
 }
 
+base::Status ArrowSerializer::WriteDictionary(const DictionaryPlan& dictionary,
+                                              const StringPool& pool,
+                                              const WriteFn& write) {
+  BufferedOutput output(&scratch_, write);
+  RETURN_IF_ERROR(WriteUtf8OffsetBuffer(dictionary.values, pool,
+                                        dictionary.data_length, &output));
+  for (StringPool::Id id : dictionary.values) {
+    NullTermStringView value = pool.Get(id);
+    RETURN_IF_ERROR(output.Append(value.data(), value.size()));
+  }
+  RETURN_IF_ERROR(output.AppendPadding(static_cast<size_t>(
+      AlignToArrow(dictionary.data_length) - dictionary.data_length)));
+  return output.Finish();
+}
+
+base::Status ArrowSerializer::WriteDictionaryIndices(
+    uint32_t rows,
+    const Column& column,
+    bool sparse,
+    const BitVector* validity,
+    const DictionaryPlan& dictionary,
+    const WriteFn& write) {
+  const auto* ids = column.storage.unchecked_data<String>();
+  BufferedOutput output(&scratch_, write);
+  StorageIndexMapper mapper(validity, sparse);
+  for (uint32_t row = 0; row < rows; ++row) {
+    DictionaryIndex index = 0;
+    if (mapper.HasValue(row)) {
+      const uint32_t* found =
+          dictionary.index_by_id.Find(ids[mapper.Take(row)].raw_id());
+      PERFETTO_CHECK(found);
+      index = static_cast<DictionaryIndex>(*found);
+    }
+    RETURN_IF_ERROR(output.Append(&index, sizeof(index)));
+  }
+  size_t bytes = static_cast<size_t>(rows) * sizeof(DictionaryIndex);
+  RETURN_IF_ERROR(
+      output.AppendPadding(static_cast<size_t>(AlignToArrow(bytes)) - bytes));
+  return output.Finish();
+}
+
 // Phase 4: materialize the buffers planned by PlanBody(). Each logical column
-// is encoded as validity followed by either Utf8's offsets and bytes or one
-// fixed-width numeric buffer.
+// is encoded as validity followed by one fixed-width buffer holding either the
+// numeric values or the dictionary indices.
 base::Status ArrowSerializer::WriteBody(const Dataframe& dataframe,
-                                        const StringPool& pool,
                                         const WriteFn& write) {
   uint32_t rows = dataframe.row_count();
   for (const auto& prepared : prepared_columns_) {
@@ -596,9 +713,9 @@ base::Status ArrowSerializer::WriteBody(const Dataframe& dataframe,
     if (prepared.storage_type.Is<core::Id>()) {
       RETURN_IF_ERROR(WriteIdBuffer(rows, &scratch_, write));
     } else if (prepared.storage_type.Is<core::String>()) {
-      RETURN_IF_ERROR(WriteUtf8Buffers(rows, column, pool, validity, sparse,
-                                       prepared.string_data_length, &scratch_,
-                                       write));
+      RETURN_IF_ERROR(WriteDictionaryIndices(rows, column, sparse, validity,
+                                             dictionaries_[prepared.dictionary],
+                                             write));
     } else {
       RETURN_IF_ERROR(
           WriteNumericBuffer(rows, column, sparse, validity, &scratch_, write));
@@ -617,7 +734,13 @@ base::Status ArrowSerializer::Write(const Dataframe& dataframe,
     return base::ErrStatus("Dataframe changed after Arrow Prepare");
   }
   RETURN_IF_ERROR(Emit(write, header_.data(), header_.size()));
-  RETURN_IF_ERROR(WriteBody(dataframe, pool, write));
+  for (const DictionaryPlan& dictionary : dictionaries_) {
+    RETURN_IF_ERROR(
+        Emit(write, dictionary.message.data(), dictionary.message.size()));
+    RETURN_IF_ERROR(WriteDictionary(dictionary, pool, write));
+  }
+  RETURN_IF_ERROR(Emit(write, batch_header_.data(), batch_header_.size()));
+  RETURN_IF_ERROR(WriteBody(dataframe, write));
   return Emit(write, trailer_.data(), trailer_.size());
 }
 
