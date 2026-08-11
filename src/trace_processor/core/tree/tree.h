@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/slab.h"
@@ -47,6 +48,52 @@ namespace perfetto::trace_processor::core {
 // ownership. Tree operators consume it and can reuse its allocations.
 struct Tree {
   static constexpr uint32_t kNullParent = std::numeric_limits<uint32_t>::max();
+
+  // Index mapping the tree's original node ids (the "id" column produced by
+  // BuildTree) to row indices, built once during construction so consumers
+  // can resolve ids to rows via FindRow without rebuilding the map.
+  //
+  // Storage is chosen to match the id shape: identity ids (id == row index)
+  // need no storage; a reasonably dense uint32 id range uses a direct index
+  // vector; arbitrary ids fall back to a hash map. The default state is
+  // identity: a tree without an id column has row indices as its ids by
+  // definition, so a default-constructed tree resolves ids correctly.
+  struct IdIndex {
+    bool identity_ids = true;
+    std::vector<uint32_t> dense;  // dense uint32 ids -> row, kNullParent absent
+    // Arbitrary ids -> row. Optional because FlatHashMap's constructor is
+    // explicit, which would break aggregate initialization of Tree.
+    std::optional<base::FlatHashMap<int64_t, uint32_t>> hash;
+
+    // Resolves an id to a row index within a table of |num_rows| rows, or
+    // kNullParent if absent (returned as a sentinel rather than wrapped in
+    // std::optional as this is on the hot path of consumers). |num_rows|
+    // bounds the identity case, where ids are the row indices themselves.
+    uint32_t Find(int64_t id, uint32_t num_rows) const {
+      if (identity_ids) {
+        if (id < 0 || static_cast<uint64_t>(id) >= num_rows) {
+          return kNullParent;
+        }
+        return static_cast<uint32_t>(id);
+      }
+      if (!dense.empty()) {
+        if (id < 0 || static_cast<uint64_t>(id) >= dense.size()) {
+          return kNullParent;
+        }
+        return dense[static_cast<uint32_t>(id)];
+      }
+      if (hash) {
+        const uint32_t* row = hash->Find(id);
+        return row ? *row : kNullParent;
+      }
+      return kNullParent;
+    }
+  };
+
+  IdIndex id_index;
+
+  // Resolves an original node id to its row index, or kNullParent if absent.
+  uint32_t FindRow(int64_t id) const { return id_index.Find(id, row_count); }
 
   struct Column {
     // Null-typed columns have no payload at all; their null_bv marks every
