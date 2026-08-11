@@ -61,6 +61,13 @@ export interface TreeExplorerFilterBarAttrs {
   readonly highlightPattern: string;
   readonly highlightRegex: RegExp | undefined;
   readonly onHighlightChange: (pattern: string) => void;
+  // Greys out the highlight control, e.g. when the active view does not
+  // render highlights. The stored pattern is kept.
+  readonly highlightDisabled?: boolean;
+
+  // Greys out the Top Down / Bottom Up selector, e.g. in the flat function
+  // view where direction has no meaning.
+  readonly directionDisabled?: boolean;
 
   // Builds the exported representation of the currently displayed view.
   // Undefined hides the export button.
@@ -194,6 +201,10 @@ export class TreeExplorerFilterBar implements m.ClassComponent<TreeExplorerFilte
       m(
         RadioGroup,
         {
+          disabled: attrs.directionDisabled,
+          title: attrs.directionDisabled
+            ? 'Direction does not apply to the current view'
+            : undefined,
           selectedValue:
             attrs.state.view.kind === 'TOP_DOWN'
               ? 'top-down'
@@ -215,7 +226,13 @@ export class TreeExplorerFilterBar implements m.ClassComponent<TreeExplorerFilte
       m(Button, {
         icon: Icons.Search,
         label: 'Highlight',
-        active: this.showHighlightSearch || attrs.highlightPattern !== '',
+        disabled: attrs.highlightDisabled,
+        title: attrs.highlightDisabled
+          ? 'Highlight does not apply to the current view'
+          : undefined,
+        active:
+          !attrs.highlightDisabled &&
+          (this.showHighlightSearch || attrs.highlightPattern !== ''),
         onclick: () => {
           this.showHighlightSearch = !this.showHighlightSearch;
         },
@@ -228,6 +245,7 @@ export class TreeExplorerFilterBar implements m.ClassComponent<TreeExplorerFilte
           onExportData: attrs.onExportData,
         }),
       this.showHighlightSearch &&
+        !attrs.highlightDisabled &&
         m(
           '.pf-tree-explorer-filter-bar__secondary-row',
           m('span.pf-tree-explorer-filter-bar__label', 'Highlight:'),

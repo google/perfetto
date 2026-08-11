@@ -123,12 +123,17 @@ export const TREE_EXPLORER_STATE_SCHEMA = z
   .object({
     selectedMetricId: z.string().readonly(),
     addedMetricIds: z.array(z.string()).default([]),
+    // How the tree is displayed: the flamegraph canvas, an expandable call
+    // tree table or a flat per-function table. Defaulted so state persisted
+    // before this field existed keeps parsing.
+    displayMode: z.enum(['flamegraph', 'tree', 'flat']).default('flamegraph'),
     filters: z.array(TREE_EXPLORER_FILTER_SCHEMA),
     view: TREE_EXPLORER_VIEW_SCHEMA,
   })
   .readonly();
 
 export type TreeExplorerState = z.infer<typeof TREE_EXPLORER_STATE_SCHEMA>;
+export type TreeExplorerDisplayMode = TreeExplorerState['displayMode'];
 
 export interface TreeExplorerMetric {
   // Stable identity used in persisted state. Defaults to `name`.
@@ -238,6 +243,7 @@ export function createDefaultTreeExplorerState(
   return {
     selectedMetricId: metricId(metrics[0]),
     addedMetricIds: [],
+    displayMode: 'flamegraph',
     filters: [],
     view: {kind: 'TOP_DOWN'},
   };
@@ -272,6 +278,7 @@ export function updateTreeExplorerState(
     filters: state.filters,
     view: state.view,
     addedMetricIds: state.addedMetricIds,
+    displayMode: state.displayMode,
     selectedMetricId: metricId(metrics[0]),
   };
 }
