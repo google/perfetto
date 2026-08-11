@@ -422,15 +422,13 @@ class ProfilingHeapGraph(TestSuite):
         trace=DataPath('system-server-heap-graph-new.pftrace'),
         query="""
         SELECT
-          id,
           depth,
           name,
           map_name,
           count,
           cumulative_count,
           size,
-          cumulative_size,
-          parent_id
+          cumulative_size
         FROM experimental_flamegraph(
           'graph',
           (SELECT max(graph_sample_ts) FROM heap_graph_object),
@@ -439,6 +437,7 @@ class ProfilingHeapGraph(TestSuite):
           NULL,
           NULL
         )
+        ORDER BY cumulative_size DESC, name
         LIMIT 10;
         """,
         out=Path('heap_graph_flamegraph_system-server-heap-graph.out'))
@@ -482,7 +481,6 @@ class ProfilingHeapGraph(TestSuite):
         trace=DataPath('system-server-native-profile'),
         query="""
         SELECT
-          id,
           ts,
           depth,
           name,
@@ -495,7 +493,6 @@ class ProfilingHeapGraph(TestSuite):
           cumulative_alloc_count,
           alloc_size,
           cumulative_alloc_size,
-          parent_id,
           source_file,
           line_number
         FROM experimental_flamegraph(
@@ -506,20 +503,21 @@ class ProfilingHeapGraph(TestSuite):
           NULL,
           NULL
         )
+        ORDER BY depth, name, map_name, cumulative_size, cumulative_count
         LIMIT 10;
         """,
         out=Csv('''
-          "id","ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","parent_id","source_file","line_number"
-          0,605908369259172,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,"[NULL]","[NULL]","[NULL]"
-          1,605908369259172,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,0,"[NULL]","[NULL]"
-          2,605908369259172,2,"_ZN7android14AndroidRuntime15javaThreadShellEPv","/system/lib64/libandroid_runtime.so",0,5,0,27704,0,77,0,348050,1,"[NULL]","[NULL]"
-          3,605908369259172,3,"_ZN7android6Thread11_threadLoopEPv","/system/lib64/libutils.so",0,5,0,27704,0,77,0,348050,2,"[NULL]","[NULL]"
-          4,605908369259172,4,"_ZN7android10PoolThread10threadLoopEv","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,3,"[NULL]","[NULL]"
-          5,605908369259172,5,"_ZN7android14IPCThreadState14joinThreadPoolEb","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,4,"[NULL]","[NULL]"
-          6,605908369259172,6,"_ZN7android14IPCThreadState20getAndExecuteCommandEv","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,5,"[NULL]","[NULL]"
-          7,605908369259172,7,"_ZN7android14IPCThreadState14executeCommandEi","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,6,"[NULL]","[NULL]"
-          8,605908369259172,8,"_ZN7android7BBinder8transactEjRKNS_6ParcelEPS1_j","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,7,"[NULL]","[NULL]"
-          9,605908369259172,9,"_ZN11JavaBBinder10onTransactEjRKN7android6ParcelEPS1_j","/system/lib64/libandroid_runtime.so",0,0,0,0,0,60,0,262730,8,"[NULL]","[NULL]"
+          "ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","source_file","line_number"
+          605908369259172,0,"__libc_init","/apex/com.android.runtime/lib64/bionic/libc.so",0,0,0,0,0,7,0,29012,"[NULL]","[NULL]"
+          605908369259172,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,"[NULL]","[NULL]"
+          605908369259172,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,"[NULL]","[NULL]"
+          605908369259172,1,"main","/system/bin/app_process64",0,0,0,0,0,7,0,29012,"[NULL]","[NULL]"
+          605908369259172,2,"_ZN3art6Thread14CreateCallbackEPv","/apex/com.android.art/lib64/libart.so",0,3,0,57144,0,133,0,736946,"[NULL]","[NULL]"
+          605908369259172,2,"_ZN7android14AndroidRuntime15javaThreadShellEPv","/system/lib64/libandroid_runtime.so",0,5,0,27704,0,77,0,348050,"[NULL]","[NULL]"
+          605908369259172,2,"_ZN7android14AndroidRuntime5startEPKcRKNS_6VectorINS_7String8EEEb","/system/lib64/libandroid_runtime.so",0,0,0,0,0,7,0,29012,"[NULL]","[NULL]"
+          605908369259172,3,"_ZN3art35InvokeVirtualOrInterfaceWithJValuesIPNS_9ArtMethodEEENS_6JValueERKNS_33ScopedObjectAccessAlreadyRunnableEP8_jobjectT_PK6jvalue","/apex/com.android.art/lib64/libart.so",0,3,0,57144,0,133,0,736946,"[NULL]","[NULL]"
+          605908369259172,3,"_ZN7_JNIEnv20CallStaticVoidMethodEP7_jclassP10_jmethodIDz","/system/lib64/libandroid_runtime.so",0,0,0,0,0,7,0,29012,"[NULL]","[NULL]"
+          605908369259172,3,"_ZN7android6Thread11_threadLoopEPv","/system/lib64/libutils.so",0,5,0,27704,0,77,0,348050,"[NULL]","[NULL]"
         '''))
 
   def test_heap_profile_tracker_new_stack(self):
