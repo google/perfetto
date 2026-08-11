@@ -37,10 +37,10 @@ namespace perfetto::trace_processor::core::dataframe {
 // Serializes a Dataframe as a standard Arrow file containing one record batch.
 // The output can be read by full Arrow implementations such as PyArrow.
 //
-// Sparse columns are expanded to Arrow's dense logical layout, and StringPool
-// IDs are encoded as Arrow Utf8 offset and data buffers. Input dataframes must
-// be finalized so their column storage remains stable across the Prepare() and
-// Write() passes.
+// Sparse columns are expanded to Arrow's dense logical layout. String columns
+// are dictionary encoded, with the values written as a dictionary batch ahead
+// of the record batch. Input dataframes must be finalized so their column
+// storage remains stable across the Prepare() and Write() passes.
 class ArrowSerializer {
  public:
   enum class IdColumnMode {
@@ -54,6 +54,7 @@ class ArrowSerializer {
   using WriteFn = std::function<base::Status(const uint8_t*, size_t)>;
 
   explicit ArrowSerializer(IdColumnMode = IdColumnMode::kOmit);
+  ~ArrowSerializer();
 
   // Computes Arrow buffer metadata and the exact output size for a finalized
   // dataframe. Arrow places buffer lengths before buffer contents, so
@@ -68,22 +69,39 @@ class ArrowSerializer {
 
  private:
   struct BodyPlan;
+  struct DictionaryPlan;
   struct PreparedColumn {
     uint32_t dataframe_column;
     std::string name;
     bool nullable;
     StorageType storage_type;
-    uint32_t string_data_length = 0;
+    uint32_t dictionary = 0;
   };
 
   void Reset();
   base::Status PlanBody(const Dataframe&, const StringPool&, BodyPlan*);
+  base::Status PlanDictionary(uint32_t rows,
+                              const Column&,
+                              const StringPool&,
+                              const BitVector*,
+                              bool sparse);
   base::Status BuildFileFraming(const BodyPlan&);
-  base::Status WriteBody(const Dataframe&, const StringPool&, const WriteFn&);
+  base::Status WriteDictionary(const DictionaryPlan&,
+                               const StringPool&,
+                               const WriteFn&);
+  base::Status WriteDictionaryIndices(uint32_t rows,
+                                      const Column&,
+                                      bool sparse,
+                                      const BitVector*,
+                                      const DictionaryPlan&,
+                                      const WriteFn&);
+  base::Status WriteBody(const Dataframe&, const WriteFn&);
 
   std::vector<uint8_t> header_;
+  std::vector<uint8_t> batch_header_;
   std::vector<uint8_t> trailer_;
   std::vector<PreparedColumn> prepared_columns_;
+  std::vector<DictionaryPlan> dictionaries_;
   FlexVector<uint8_t> scratch_;
 
   const Dataframe* prepared_dataframe_ = nullptr;
