@@ -257,6 +257,11 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_chunks_discarded,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_overwritten,        kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_read,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_chunks_relocated,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "TraceBufferV2 only. Num. chunks that we moved to the write cursor "       \
+    "instead of rewriting in place. We do this for scraped chunks that have "  \
+    "been fully read, as their old position can be too close to the write "    \
+    "cursor to be safe."),                                                     \
   F(traced_buf_chunks_rewritten,          kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_written,            kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_committed_out_of_order,                                  \
@@ -673,6 +678,12 @@ namespace perfetto::trace_processor::stats {
       "uses a `DISCARD` buffer. This configuration is strongly discouraged "   \
       "and can cause mysterious data loss in the trace. Please use "           \
       "`RING_BUFFER` buffers instead."),                                       \
+  F(long_trace_mode_bytes_overwritten,    kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "Number of bytes this buffer overwrote while the trace was collected "   \
+      "in streaming mode (`write_into_file` with a periodic "                  \
+      "`file_write_period_ms`). The overwritten bytes were never written "     \
+      "out, so they are missing from the trace file. Consider a larger "       \
+      "buffer or a shorter `file_write_period_ms`."),                          \
    F(hprof_string_counter,                 kSingle,  kInfo,   kAnalysis, Scope::kMachineAndTrace,       \
          "Number of strings encountered."),                                    \
    F(hprof_class_counter,                  kSingle,  kInfo,   kAnalysis, Scope::kMachineAndTrace,       \
@@ -760,6 +771,22 @@ namespace perfetto::trace_processor::stats {
       "A perf sample was encountered that has no frames. This can happen "     \
       "if the kernel is unable to unwind the stack while sampling. Check "     \
       "Linux kernel documentation for causes of this and potential fixes."),   \
+  F(strace_parse_failure,                       kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,   \
+      "A line in an strace trace could not be parsed as a syscall event "     \
+      "and was skipped. This is expected for non-syscall lines, such as "     \
+      "signal delivery or process exit banners."),                           \
+  F(strace_unsupported_timestamp_format,        kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A line in an strace trace looked like a syscall event, but used "      \
+      "`strace -t`/`-tt` wall-clock time-of-day timestamps rather than "      \
+      "`-ttt` Unix epoch timestamps, and was skipped: `-t`/`-tt` print no "   \
+      "date, so they cannot be safely treated as an absolute point in "       \
+      "time. Re-run strace with `-ttt` to fix this."),                       \
+  F(strace_missing_pid,                         kSingle,  kError,    kTrace, Scope::kMachineAndTrace,   \
+      "A syscall line in an strace trace had no leading pid and was "         \
+      "skipped: without one there is no way to attribute the event to a "     \
+      "thread that stays meaningful when traces are merged. strace only "     \
+      "prints pids when following processes, so re-run strace with `-f` "     \
+      "to fix this."),                                                       \
   F(simpleperf_missing_file_mapping,            kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,   \
       "One or more simpleperf samples were dropped because their callchain "   \
       "entries referenced a file_id that has no corresponding File record in " \

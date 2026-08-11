@@ -35,6 +35,20 @@
 
 namespace perfetto::trace_processor {
 
+namespace io {
+class FileSystem;
+}  // namespace io
+
+class PERFETTO_EXPORT_COMPONENT TraceProcessor_PlatformInterface {
+ public:
+  virtual ~TraceProcessor_PlatformInterface();
+
+  // Returns the filesystem exposed to Trace Processor. The returned object
+  // must outlive the TraceProcessor instance. Supplying a filesystem does not
+  // enable SQL file access unless Config::enable_sql_file_access is also set.
+  virtual io::FileSystem* GetFileSystem() { return nullptr; }
+};
+
 // Extends TraceProcessorStorage to support execution of SQL queries on loaded
 // traces. See TraceProcessorStorage for parsing of trace files.
 class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
@@ -42,9 +56,14 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // For legacy API clients. Iterator used to be a nested class here. Many API
   // clients depends on it at this point.
   using Iterator = ::perfetto::trace_processor::Iterator;
+  using PlatformInterface = TraceProcessor_PlatformInterface;
 
-  // Creates a new instance of TraceProcessor.
+  // Creates a new instance of TraceProcessor. |platform| is optional and, when
+  // provided, must outlive the returned instance.
   static std::unique_ptr<TraceProcessor> CreateInstance(const Config&);
+  static std::unique_ptr<TraceProcessor> CreateInstance(
+      const Config&,
+      PlatformInterface* platform);
 
   ~TraceProcessor() override;
 
@@ -275,6 +294,11 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // notice. Do not depend on this interface in production code.
 
   enum class ExportFormat {
+    // A standard SQLite database containing all SQL-visible Perfetto tables
+    // and views, including objects created at runtime. This format requires an
+    // ExportOutput which provides a file path.
+    kSqlite,
+
     // A Perfetto-internal archive that can be loaded as input by a fresh Trace
     // Processor instance from the same version. Loading it in a different
     // version may work but is not guaranteed.

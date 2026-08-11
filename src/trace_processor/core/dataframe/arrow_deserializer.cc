@@ -69,8 +69,26 @@ class BodyReader {
 
   base::StatusOr<TraceBlobView> ReadVariableSize() { return Read(0, false); }
 
+  // Returns the buffer as the pieces it arrived in. Callers which only copy the
+  // bytes out can consume those directly, where ReadExact would first have to
+  // join them into one allocation.
+  base::StatusOr<std::vector<TraceBlobView>> ReadExactPieces(
+      uint64_t expected_size) {
+    ASSIGN_OR_RETURN(ArrowBuffer buffer, Next(expected_size, true));
+    auto size = static_cast<size_t>(buffer.length);
+    std::vector<TraceBlobView> pieces = data_.MultiSliceOff(
+        body_offset_ + static_cast<size_t>(buffer.offset), size);
+    size_t total = 0;
+    for (const TraceBlobView& piece : pieces) {
+      total += piece.size();
+    }
+    return total == size
+               ? base::StatusOr<std::vector<TraceBlobView>>(std::move(pieces))
+               : base::StatusOr<std::vector<TraceBlobView>>(InvalidFile());
+  }
+
  private:
-  base::StatusOr<TraceBlobView> Read(uint64_t expected_size, bool exact) {
+  base::StatusOr<ArrowBuffer> Next(uint64_t expected_size, bool exact) {
     if (next_buffer_ >= buffers_.size()) {
       return InvalidFile();
     }
@@ -79,7 +97,12 @@ class BodyReader {
     if ((exact && size != expected_size) || (!exact && size < expected_size)) {
       return InvalidFile();
     }
-    if (!size) {
+    return buffer;
+  }
+
+  base::StatusOr<TraceBlobView> Read(uint64_t expected_size, bool exact) {
+    ASSIGN_OR_RETURN(ArrowBuffer buffer, Next(expected_size, exact));
+    if (!buffer.length) {
       return TraceBlobView{};
     }
     auto blob =
@@ -107,72 +130,114 @@ base::StatusOr<BitVector> ReadValidityBuffer(BodyReader* reader,
 
   ASSIGN_OR_RETURN(TraceBlobView bitmap,
                    reader->ReadExact(ValidityBufferSize(rows)));
-  BitVector validity = BitVector::CreateWithSize(rows, false);
-  int64_t nulls = rows;
-  for (uint32_t row = 0; row < rows; ++row) {
-    if (bitmap.data()[BitmapByteIndex(row)] & BitmapMask(row)) {
-      validity.set(row);
-      --nulls;
-    }
-  }
+  BitVector validity = BitVector::CreateFromBitmap(bitmap.data(), rows);
+  int64_t nulls = static_cast<int64_t>(rows) -
+                  static_cast<int64_t>(validity.CountSetBits());
   return nulls == expected_nulls
              ? base::StatusOr<BitVector>(std::move(validity))
              : base::StatusOr<BitVector>(InvalidFile());
 }
 
-// Reverses WriteUtf8Buffers: validate Arrow's offsets, intern each string, and
-// store the resulting StringPool IDs in dense or compact sparse storage.
-base::Status ReadUtf8Buffers(BodyReader* reader,
-                             uint32_t rows,
-                             bool nullable,
-                             bool sparse,
-                             const BitVector& validity,
-                             StringPool* pool,
-                             Storage* storage) {
+using Dictionary = FlexVector<StringPool::Id>;
+
+// Reverses ArrowSerializer::WriteDictionary.
+base::StatusOr<Dictionary> ReadDictionaryValues(BodyReader* reader,
+                                                uint32_t count,
+                                                StringPool* pool) {
+  RETURN_IF_ERROR(reader->ReadEmpty());
   ASSIGN_OR_RETURN(TraceBlobView offsets,
-                   reader->ReadExact(Utf8OffsetBufferSize(rows)));
+                   reader->ReadExact(Utf8OffsetBufferSize(count)));
   ASSIGN_OR_RETURN(TraceBlobView strings, reader->ReadVariableSize());
   if (Load<int32_t>(offsets.data(), 0) != 0) {
     return InvalidFile();
   }
-  auto& output = storage->unchecked_get<String>();
-  for (uint32_t row = 0; row < rows; ++row) {
-    int32_t start = Load<int32_t>(offsets.data(), row);
-    int32_t end = Load<int32_t>(offsets.data(), row + 1);
+  const char* bytes =
+      strings.size() ? reinterpret_cast<const char*>(strings.data()) : "";
+  Dictionary values = Dictionary::CreateWithCapacity(count);
+  for (uint32_t i = 0; i < count; ++i) {
+    int32_t start = Load<int32_t>(offsets.data(), i);
+    int32_t end = Load<int32_t>(offsets.data(), i + 1);
     if (start < 0 || end < start ||
         static_cast<uint64_t>(end) > strings.size()) {
       return InvalidFile();
     }
-    if (!nullable || validity.is_set(row)) {
-      output.push_back(pool->InternString(base::StringView(
-          reinterpret_cast<const char*>(strings.data()) + start,
-          static_cast<size_t>(end - start))));
-    } else if (!sparse) {
-      output.push_back({});
-    }
+    values.push_back(pool->InternString(
+        base::StringView(bytes + start, static_cast<size_t>(end - start))));
   }
-  return Load<int32_t>(offsets.data(), rows) ==
-                 static_cast<int64_t>(strings.size())
-             ? base::OkStatus()
-             : InvalidFile();
+  if (static_cast<uint64_t>(Load<int32_t>(offsets.data(), count)) !=
+      strings.size()) {
+    return InvalidFile();
+  }
+  return std::move(values);
+}
+
+// Reverses ArrowSerializer::WriteDictionaryIndices.
+base::Status ReadDictionaryIndices(BodyReader* reader,
+                                   uint32_t rows,
+                                   uint32_t stored_rows,
+                                   bool nullable,
+                                   bool sparse,
+                                   const BitVector& validity,
+                                   const Dictionary& dictionary,
+                                   Storage* storage) {
+  ASSIGN_OR_RETURN(
+      TraceBlobView indices,
+      reader->ReadExact(static_cast<uint64_t>(rows) * sizeof(DictionaryIndex)));
+  auto& output = storage->unchecked_get<String>();
+  output.reserve(stored_rows);
+  for (uint32_t row = 0; row < rows; ++row) {
+    if (nullable && !validity.is_set(row)) {
+      if (!sparse) {
+        output.push_back({});
+      }
+      continue;
+    }
+    DictionaryIndex index = Load<DictionaryIndex>(indices.data(), row);
+    if (index < 0 || static_cast<uint64_t>(index) >= dictionary.size()) {
+      return InvalidFile();
+    }
+    output.push_back(dictionary[static_cast<uint32_t>(index)]);
+  }
+  return base::OkStatus();
+}
+
+template <typename Fn>
+void VisitNumericStorage(Storage* storage, Fn fn) {
+  if (storage->type().Is<core::Double>()) {
+    fn(&storage->unchecked_get<Double>());
+  } else if (storage->type().Is<core::Int64>()) {
+    fn(&storage->unchecked_get<Int64>());
+  } else if (storage->type().Is<core::Int32>()) {
+    fn(&storage->unchecked_get<Int32>());
+  } else {
+    fn(&storage->unchecked_get<Uint32>());
+  }
 }
 
 template <typename T>
-void ReadNumericValues(const TraceBlobView& values,
-                       uint32_t rows,
-                       bool sparse,
-                       const BitVector& validity,
-                       FlexVector<T>* output) {
-  if (!sparse) {
-    output->resize(rows);
-    if (rows) {
-      memcpy(output->data(), values.data(),
-             static_cast<size_t>(rows) * sizeof(T));
-    }
+void CopyDenseValues(const std::vector<TraceBlobView>& pieces,
+                     uint32_t rows,
+                     FlexVector<T>* output) {
+  output->resize(rows);
+  if (!rows) {
     return;
   }
-  // Arrow has one value slot per logical row. Sparse dataframe storage keeps
-  // only valid values, so compact the Arrow buffer using its validity bitmap.
+  auto* out = reinterpret_cast<uint8_t*>(output->data());
+  for (const TraceBlobView& piece : pieces) {
+    memcpy(out, piece.data(), piece.size());
+    out += piece.size();
+  }
+}
+
+// Arrow has one value slot per logical row. Sparse dataframe storage keeps
+// only valid values, so compact the Arrow buffer using its validity bitmap.
+template <typename T>
+void CompactSparseValues(const TraceBlobView& values,
+                         uint32_t rows,
+                         uint32_t stored_rows,
+                         const BitVector& validity,
+                         FlexVector<T>* output) {
+  output->reserve(stored_rows);
   for (uint32_t row = 0; row < rows; ++row) {
     if (validity.is_set(row)) {
       output->push_back(Load<T>(values.data(), row));
@@ -182,25 +247,22 @@ void ReadNumericValues(const TraceBlobView& values,
 
 base::Status ReadNumericBuffer(BodyReader* reader,
                                uint32_t rows,
+                               uint32_t stored_rows,
                                bool sparse,
                                const BitVector& validity,
                                Storage* storage) {
-  ASSIGN_OR_RETURN(TraceBlobView values,
-                   reader->ReadExact(static_cast<uint64_t>(rows) *
-                                     NumericSize(storage->type())));
-  if (storage->type().Is<core::Double>()) {
-    ReadNumericValues(values, rows, sparse, validity,
-                      &storage->unchecked_get<Double>());
-  } else if (storage->type().Is<core::Int64>()) {
-    ReadNumericValues(values, rows, sparse, validity,
-                      &storage->unchecked_get<Int64>());
-  } else if (storage->type().Is<core::Int32>()) {
-    ReadNumericValues(values, rows, sparse, validity,
-                      &storage->unchecked_get<Int32>());
-  } else {
-    ReadNumericValues(values, rows, sparse, validity,
-                      &storage->unchecked_get<Uint32>());
+  uint64_t size = static_cast<uint64_t>(rows) * NumericSize(storage->type());
+  if (!sparse) {
+    ASSIGN_OR_RETURN(std::vector<TraceBlobView> pieces,
+                     reader->ReadExactPieces(size));
+    VisitNumericStorage(
+        storage, [&](auto* output) { CopyDenseValues(pieces, rows, output); });
+    return base::OkStatus();
   }
+  ASSIGN_OR_RETURN(TraceBlobView values, reader->ReadExact(size));
+  VisitNumericStorage(storage, [&](auto* output) {
+    CompactSparseValues(values, rows, stored_rows, validity, output);
+  });
   return base::OkStatus();
 }
 
@@ -219,13 +281,15 @@ void InstallValidity(Nullability nullability,
   }
 }
 
-struct LocatedRecordBatch {
+struct LocatedBatches {
+  std::vector<Block> dictionaries;
   Block block;
   size_t message_offset;
 };
 
-// Phase 1: validate the outer file framing and locate the only record batch.
-base::StatusOr<LocatedRecordBatch> LocateRecordBatch(
+// Phase 1: validate the outer file framing and locate the dictionary batches
+// and the only record batch.
+base::StatusOr<LocatedBatches> LocateBatches(
     const util::TraceBlobViewReader& data) {
   size_t base = data.start_offset();
   size_t file_size = data.end_offset() - base;
@@ -257,6 +321,9 @@ base::StatusOr<LocatedRecordBatch> LocateRecordBatch(
   auto footer = FlatBufferReader::GetRoot(footer_blob->data(), footer_size);
   auto blocks = footer ? footer->VecScalar<Block>(footer_field::kRecordBatches)
                        : util::FlatBufferScalarVec<Block>{};
+  auto dictionary_blocks =
+      footer ? footer->VecScalar<Block>(footer_field::kDictionaries)
+             : util::FlatBufferScalarVec<Block>{};
   if (!footer ||
       footer->Scalar<int16_t>(footer_field::kVersion, kMissingSignedValue) !=
           kMetadataV5 ||
@@ -277,10 +344,44 @@ base::StatusOr<LocatedRecordBatch> LocateRecordBatch(
   if (block_offset > footer_relative ||
       metadata_length > footer_relative - block_offset ||
       body_length > footer_relative - block_offset - metadata_length ||
-      block_offset + metadata_length + body_length != footer_relative) {
+      block_offset + metadata_length + body_length + kEndOfStreamSize !=
+          footer_relative) {
     return InvalidFile();
   }
-  return LocatedRecordBatch{block, base + static_cast<size_t>(block_offset)};
+
+  std::vector<Block> dictionaries;
+  dictionaries.reserve(dictionary_blocks.size());
+  for (uint32_t i = 0; i < dictionary_blocks.size(); ++i) {
+    Block dictionary = dictionary_blocks[i];
+    if (dictionary.offset < 0 || dictionary.metadata_length < 0 ||
+        static_cast<uint32_t>(dictionary.metadata_length) <
+            kMessagePrefixSize ||
+        dictionary.body_length < 0) {
+      return InvalidFile();
+    }
+    uint64_t offset = static_cast<uint64_t>(dictionary.offset);
+    uint64_t metadata = static_cast<uint32_t>(dictionary.metadata_length);
+    uint64_t body = static_cast<uint64_t>(dictionary.body_length);
+    if (offset > block_offset || metadata > block_offset - offset ||
+        body > block_offset - offset - metadata) {
+      return InvalidFile();
+    }
+    dictionaries.push_back(dictionary);
+  }
+  auto marker = data.SliceOff(
+      base + static_cast<size_t>(footer_relative - kEndOfStreamSize),
+      kEndOfStreamSize);
+  MessagePrefix end_of_stream{};
+  if (!marker) {
+    return InvalidFile();
+  }
+  memcpy(&end_of_stream, marker->data(), sizeof(end_of_stream));
+  if (end_of_stream.continuation != kContinuation ||
+      end_of_stream.metadata_size != 0) {
+    return InvalidFile();
+  }
+  return LocatedBatches{std::move(dictionaries), block,
+                        base + static_cast<size_t>(block_offset)};
 }
 
 struct RecordBatchMetadata {
@@ -291,16 +392,18 @@ struct RecordBatchMetadata {
   util::FlatBufferScalarVec<ArrowBuffer> buffers;
 };
 
-// Phase 2: parse and validate the record-batch metadata. Keeping |blob| in the
-// result preserves the backing storage referenced by the flatbuffer vectors.
-base::StatusOr<RecordBatchMetadata> ReadRecordBatchMetadata(
-    const util::TraceBlobViewReader& data,
-    const LocatedRecordBatch& located,
-    uint32_t expected_nodes,
-    uint32_t expected_buffers) {
-  uint64_t metadata_length =
-      static_cast<uint32_t>(located.block.metadata_length);
-  auto prefix = data.SliceOff(located.message_offset, kMessagePrefixSize);
+struct Message {
+  TraceBlobView blob;
+  FlatBufferReader message;
+  size_t body_offset;
+};
+
+base::StatusOr<Message> ReadMessage(const util::TraceBlobViewReader& data,
+                                    const Block& block,
+                                    size_t message_offset,
+                                    uint8_t expected_header) {
+  uint64_t metadata_length = static_cast<uint32_t>(block.metadata_length);
+  auto prefix = data.SliceOff(message_offset, kMessagePrefixSize);
   uint32_t continuation = 0;
   int32_t metadata_size = 0;
   if (prefix) {
@@ -315,25 +418,32 @@ base::StatusOr<RecordBatchMetadata> ReadRecordBatchMetadata(
   }
 
   uint32_t metadata_size_u32 = static_cast<uint32_t>(metadata_size);
-  auto metadata = data.SliceOff(located.message_offset + kMessagePrefixSize,
-                                metadata_size_u32);
+  auto metadata =
+      data.SliceOff(message_offset + kMessagePrefixSize, metadata_size_u32);
   auto message =
       metadata ? FlatBufferReader::GetRoot(metadata->data(), metadata_size_u32)
                : std::nullopt;
-  auto record_batch =
-      message ? message->Table(message_field::kHeader) : FlatBufferReader{};
   if (!message ||
       message->Scalar<int16_t>(message_field::kVersion, kMissingSignedValue) !=
           kMetadataV5 ||
-      message->Scalar<uint8_t>(message_field::kHeaderType) !=
-          kHeaderRecordBatch ||
-      !record_batch ||
+      message->Scalar<uint8_t>(message_field::kHeaderType) != expected_header ||
       message->Scalar<int64_t>(message_field::kBodyLength,
-                               kMissingSignedValue) !=
-          located.block.body_length) {
+                               kMissingSignedValue) != block.body_length) {
     return InvalidFile();
   }
+  return Message{std::move(*metadata), *message,
+                 message_offset + static_cast<size_t>(metadata_length)};
+}
 
+// Phase 2: validate the shape of a record batch against the layout the caller
+// derived from the dataframe spec.
+base::StatusOr<RecordBatchMetadata> ReadRecordBatch(
+    Message message,
+    const FlatBufferReader& record_batch,
+    int64_t body_length,
+    std::optional<uint32_t> expected_rows,
+    uint32_t expected_nodes,
+    uint32_t expected_buffers) {
   int64_t row_count = record_batch.Scalar<int64_t>(record_batch_field::kLength,
                                                    kMissingSignedValue);
   auto nodes = record_batch.VecScalar<FieldNode>(record_batch_field::kNodes);
@@ -345,27 +455,63 @@ base::StatusOr<RecordBatchMetadata> ReadRecordBatchMetadata(
   }
 
   uint32_t rows = static_cast<uint32_t>(row_count);
+  if (expected_rows && rows != *expected_rows) {
+    return InvalidFile();
+  }
   for (uint32_t i = 0; i < nodes.size(); ++i) {
     FieldNode node = nodes[i];
     if (node.length != rows || node.null_count < 0 || node.null_count > rows) {
       return InvalidFile();
     }
   }
-  uint64_t body_length = static_cast<uint64_t>(located.block.body_length);
   for (uint32_t i = 0; i < buffers.size(); ++i) {
     ArrowBuffer buffer = buffers[i];
+    uint64_t body = static_cast<uint64_t>(body_length);
     if (buffer.offset < 0 || buffer.length < 0 ||
-        static_cast<uint64_t>(buffer.offset) > body_length ||
+        static_cast<uint64_t>(buffer.offset) > body ||
         static_cast<uint64_t>(buffer.length) >
-            body_length - static_cast<uint64_t>(buffer.offset)) {
+            body - static_cast<uint64_t>(buffer.offset)) {
       return InvalidFile();
     }
   }
+  return RecordBatchMetadata{std::move(message.blob), rows, message.body_offset,
+                             nodes, buffers};
+}
 
-  size_t body_offset =
-      located.message_offset + static_cast<size_t>(metadata_length);
-  return RecordBatchMetadata{std::move(*metadata), rows, body_offset, nodes,
-                             buffers};
+base::StatusOr<std::vector<Dictionary>> ReadDictionaries(
+    const util::TraceBlobViewReader& data,
+    const LocatedBatches& located,
+    StringPool* pool) {
+  size_t base = data.start_offset();
+  std::vector<Dictionary> dictionaries;
+  dictionaries.reserve(located.dictionaries.size());
+  for (uint32_t i = 0; i < located.dictionaries.size(); ++i) {
+    const Block& block = located.dictionaries[i];
+    ASSIGN_OR_RETURN(
+        Message message,
+        ReadMessage(data, block, base + static_cast<size_t>(block.offset),
+                    kHeaderDictionaryBatch));
+    auto batch = message.message.Table(message_field::kHeader);
+    if (!batch ||
+        batch.Scalar<int64_t>(dictionary_batch_field::kId,
+                              kMissingSignedValue) != i ||
+        batch.Scalar<bool>(dictionary_batch_field::kIsDelta)) {
+      return InvalidFile();
+    }
+    auto record_batch = batch.Table(dictionary_batch_field::kData);
+    if (!record_batch) {
+      return InvalidFile();
+    }
+    ASSIGN_OR_RETURN(
+        RecordBatchMetadata values,
+        ReadRecordBatch(std::move(message), record_batch, block.body_length,
+                        std::nullopt, 1, kUtf8BufferCount));
+    BodyReader reader(data, values.body_offset, values.buffers);
+    ASSIGN_OR_RETURN(Dictionary dictionary,
+                     ReadDictionaryValues(&reader, values.rows, pool));
+    dictionaries.push_back(std::move(dictionary));
+  }
+  return std::move(dictionaries);
 }
 
 }  // namespace
@@ -386,29 +532,43 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
   Dataframe dataframe(pool, static_cast<uint32_t>(column_names.size()),
                       column_names.data(), spec.column_specs.data());
 
-  // The dataframe spec supplies the schema. Derive the exact node and buffer
-  // counts for the supported layout before parsing file metadata.
+  // The dataframe spec supplies the schema. Derive the exact node, buffer and
+  // dictionary counts for the supported layout before parsing file metadata.
   uint32_t expected_nodes = 0;
   uint32_t expected_buffers = 0;
+  uint32_t expected_dictionaries = 0;
   for (const auto& column : dataframe.columns_) {
     if (!column->storage.type().Is<core::Id>()) {
       ++expected_nodes;
-      expected_buffers += column->storage.type().Is<core::String>()
-                              ? kUtf8BufferCount
-                              : kFixedWidthBufferCount;
+      expected_buffers += kFixedWidthBufferCount;
+      expected_dictionaries += column->storage.type().Is<core::String>();
     }
   }
 
-  ASSIGN_OR_RETURN(LocatedRecordBatch located, LocateRecordBatch(data));
-  ASSIGN_OR_RETURN(
-      RecordBatchMetadata batch,
-      ReadRecordBatchMetadata(data, located, expected_nodes, expected_buffers));
+  ASSIGN_OR_RETURN(LocatedBatches located, LocateBatches(data));
+  if (located.dictionaries.size() != expected_dictionaries) {
+    return InvalidFile();
+  }
+  ASSIGN_OR_RETURN(std::vector<Dictionary> dictionaries,
+                   ReadDictionaries(data, located, pool));
+  ASSIGN_OR_RETURN(Message message,
+                   ReadMessage(data, located.block, located.message_offset,
+                               kHeaderRecordBatch));
+  auto record_batch = message.message.Table(message_field::kHeader);
+  if (!record_batch) {
+    return InvalidFile();
+  }
+  ASSIGN_OR_RETURN(RecordBatchMetadata batch,
+                   ReadRecordBatch(std::move(message), record_batch,
+                                   located.block.body_length, std::nullopt,
+                                   expected_nodes, expected_buffers));
 
   // Phase 3: decode buffers in the same validity-then-values order used by the
   // serializer. Id columns are reconstructed from the record-batch row count
   // because they are implicit and therefore absent from Arrow.
   BodyReader reader(data, batch.body_offset, batch.buffers);
   uint32_t serialized_column = 0;
+  uint32_t dictionary_index = 0;
   for (uint32_t column_index = 0; column_index < dataframe.column_count();
        ++column_index) {
     auto& column = *dataframe.columns_[column_index];
@@ -423,12 +583,16 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
     ASSIGN_OR_RETURN(
         BitVector validity,
         ReadValidityBuffer(&reader, batch.rows, node.null_count, nullable));
+    uint32_t stored_rows =
+        sparse ? batch.rows - static_cast<uint32_t>(node.null_count)
+               : batch.rows;
     if (column.storage.type().Is<core::String>()) {
-      RETURN_IF_ERROR(ReadUtf8Buffers(&reader, batch.rows, nullable, sparse,
-                                      validity, pool, &column.storage));
+      RETURN_IF_ERROR(ReadDictionaryIndices(
+          &reader, batch.rows, stored_rows, nullable, sparse, validity,
+          dictionaries[dictionary_index++], &column.storage));
     } else {
-      RETURN_IF_ERROR(ReadNumericBuffer(&reader, batch.rows, sparse, validity,
-                                        &column.storage));
+      RETURN_IF_ERROR(ReadNumericBuffer(&reader, batch.rows, stored_rows,
+                                        sparse, validity, &column.storage));
     }
     InstallValidity(nullability, std::move(validity), &column.null_storage);
   }

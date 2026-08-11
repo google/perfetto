@@ -1165,6 +1165,9 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
         stats::traced_buf_chunks_read, buf_num,
         static_cast<int64_t>(buf.chunks_read()));
     context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_chunks_relocated, buf_num,
+        static_cast<int64_t>(buf.chunks_relocated()));
+    context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_chunks_committed_out_of_order, buf_num,
         static_cast<int64_t>(buf.chunks_committed_out_of_order()));
     context_->stats_tracker->SetIndexedStats(
@@ -1284,7 +1287,30 @@ void ProtoTraceReader::OnEventsFullyExtracted() {
   using Config = protos::pbzero::TraceConfig;
   Config::Decoder trace_config(trace_config_raw_.data(),
                                trace_config_raw_.size());
-  if (!trace_config.write_into_file() || trace_config.flush_period_ms()) {
+  if (!trace_config.write_into_file()) {
+    return;
+  }
+
+  // Overwritten data never reached the file, so it counts as a data loss.
+  // A period of a day or more means "still a ring-buffer trace", the same
+  // cutoff as is_long_trace in tracing_service_impl.cc. In practice that is
+  // Traceur, which only uses write_into_file for detached mode.
+  constexpr uint32_t kMinRingBufferIntentPeriodMs = 24 * 60 * 60 * 1000;
+  if (trace_config.file_write_period_ms() < kMinRingBufferIntentPeriodMs) {
+    int buffer_index = 0;
+    for (auto it = trace_config.buffers(); it; ++it, ++buffer_index) {
+      std::optional<int64_t> bytes_overwritten =
+          context_->stats_tracker->GetIndexedStats(
+              stats::traced_buf_bytes_overwritten, buffer_index);
+      if (bytes_overwritten.value_or(0) > 0) {
+        context_->stats_tracker->SetIndexedStats(
+            stats::long_trace_mode_bytes_overwritten, buffer_index,
+            *bytes_overwritten);
+      }
+    }
+  }
+
+  if (trace_config.flush_period_ms()) {
     return;
   }
 

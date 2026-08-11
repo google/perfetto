@@ -324,6 +324,9 @@ unsafe extern "C" {
         user_arg: *mut ::std::os::raw::c_void,
     );
 }
+unsafe extern "C" {
+    pub fn PerfettoDsTracerImplGetDropCount(tracer: *mut PerfettoDsTracerImpl) -> u64;
+}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct PerfettoHeapBuffer {

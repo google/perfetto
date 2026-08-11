@@ -68,6 +68,7 @@ class Rpc {
   explicit Rpc(std::unique_ptr<TraceProcessor>,
                bool has_preloaded_eof,
                Config default_config,
+               TraceProcessor::PlatformInterface* platform,
                std::function<void(TraceProcessor*)> on_trace_processor_created);
   Rpc();
   ~Rpc();
@@ -147,6 +148,8 @@ class Rpc {
   TraceProcessor* trace_processor() const { return trace_processor_.get(); }
 
  private:
+  base::Status ExportSqlite(const ExportCallback&);
+
   void ParseRpcRequest(const uint8_t*, size_t);
   void ResetTraceProcessor(const uint8_t*, size_t);
   base::Status RegisterSqlPackage(protozero::ConstBytes);
@@ -163,6 +166,7 @@ class Rpc {
       protos::pbzero::DisableAndReadMetatraceResult*);
 
   Config default_config_;
+  TraceProcessor::PlatformInterface* platform_ = nullptr;
   std::function<void(TraceProcessor*)> on_trace_processor_created_;
 
   Config current_config_;

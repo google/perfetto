@@ -168,6 +168,7 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
 }
 
 base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "query", 2));
   // With --remote, the trace is already loaded server-side, so there is no
   // trace-file positional: the first positional (if any) is the SQL.
   std::string trace_file;

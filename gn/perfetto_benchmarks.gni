@@ -26,6 +26,7 @@ perfetto_benchmarks_targets = [
   "src/trace_processor/importers/common:benchmarks",
   "src/trace_processor/core/util:benchmarks",
   "src/trace_processor/core/interpreter:benchmarks",
+  "src/trace_processor/core/tree:benchmarks",
   "src/trace_processor/perfetto_sql/engine:benchmarks",
   "src/trace_processor/plugins/experimental_slice_layout:benchmarks",
   "src/trace_processor/plugins/flamegraph:benchmarks",

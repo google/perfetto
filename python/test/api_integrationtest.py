@@ -15,6 +15,7 @@
 
 import io
 import os
+import sqlite3
 import tempfile
 import unittest
 from typing import Optional
@@ -316,6 +317,55 @@ class TestApi(unittest.TestCase):
         qr_iterator = tp.query(
             'SELECT IMPORT("ext.module"); SELECT test_value FROM test_table')
         self.assertEqual(next(qr_iterator).test_value, 123)
+
+  def test_sql_file_access(self):
+    with tempfile.TemporaryDirectory() as temp_dir:
+      path = os.path.join(temp_dir, 'file_write')
+      sql_path = path.replace("'", "''")
+
+      config = TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"])
+      with TraceProcessor(trace=io.BytesIO(b''), config=config) as tp:
+        with self.assertRaisesRegex(TraceProcessorException,
+                                    'File I/O is disabled'):
+          tp.query(f"SELECT __intrinsic_file_write('{sql_path}', X'000102FF')")
+
+      config = TraceProcessorConfig(
+          bin_path=os.environ["SHELL_PATH"], enable_sql_file_access=True)
+      with TraceProcessor(trace=io.BytesIO(b''), config=config) as tp:
+        row = next(
+            tp.query(
+                f"SELECT __intrinsic_file_write('{sql_path}', X'000102FF') AS size"
+            ))
+        self.assertEqual(row.size, 4)
+
+      with open(path, 'rb') as f:
+        self.assertEqual(f.read(), b'\x00\x01\x02\xff')
+
+  def test_remote_sql_file_access_must_be_enabled_by_server(self):
+    config = TraceProcessorConfig(enable_sql_file_access=True)
+    with self.assertRaisesRegex(TraceProcessorException,
+                                'server must be started with'):
+      TraceProcessor(addr='localhost:1', config=config)
+
+  def test_sqlite_export(self):
+    with tempfile.TemporaryDirectory() as temp_dir:
+      path = os.path.join(temp_dir, 'export.db')
+
+      config = TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"])
+      with TraceProcessor(
+          trace=example_android_trace_path(), config=config) as tp:
+        tp.export(path, 'sqlite')
+
+      con = sqlite3.connect(path)
+      try:
+        table_count = con.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone(
+            )[0]
+        self.assertGreater(table_count, 0)
+        self.assertGreater(
+            con.execute('SELECT COUNT(*) FROM slice').fetchone()[0], 0)
+      finally:
+        con.close()
 
   def test_add_sql_packages(self):
     with tempfile.TemporaryDirectory() as temp_dir:

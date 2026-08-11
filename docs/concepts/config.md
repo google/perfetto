@@ -353,10 +353,10 @@ when writing traces directly from an app.
 ### Reading a compressed trace outside Perfetto
 
 If you need the raw, uncompressed protobuf (e.g. for a non-Perfetto tool), use
-`traceconv` to expand the compressed packets:
+`trace_processor` to expand the compressed packets:
 
 ```bash
-./traceconv decompress_packets trace.perfetto-trace trace.decompressed
+./trace_processor util decompress_packets trace.perfetto-trace trace.decompressed
 ```
 
 ## Data-source specific config

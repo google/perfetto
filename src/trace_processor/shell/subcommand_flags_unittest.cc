@@ -16,7 +16,9 @@
 
 #include "src/trace_processor/shell/common_flags.h"
 
+#include <functional>
 #include <initializer_list>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -25,8 +27,14 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/trace_processor/trace_processor_shell.h"
+#include "perfetto/trace_processor/io.h"
 #include "src/trace_processor/shell/bundle_subcommand.h"
 #include "src/trace_processor/shell/convert_subcommand.h"
+#include "src/trace_processor/shell/export_subcommand.h"
+#include "src/trace_processor/shell/metrics_subcommand.h"
+#include "src/trace_processor/shell/query_subcommand.h"
+#include "src/trace_processor/shell/server_subcommand.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/shell/util_subcommand.h"
 #include "test/gtest_and_gmock.h"
@@ -104,8 +112,45 @@ struct OutputPath {
   }  // TempDir needs an empty dir.
 };
 
+class TestFileSystem final : public io::FileSystem {
+ public:
+  base::Status OpenFile(const std::string&,
+                        const io::FileOpenOptions&,
+                        std::unique_ptr<io::File>*) override {
+    return base::ErrStatus("not implemented");
+  }
+
+  base::Status DeleteFile(const std::string&) override {
+    return base::ErrStatus("not implemented");
+  }
+
+  base::Status FileExists(const std::string&, bool*) override {
+    return base::ErrStatus("not implemented");
+  }
+};
+
 // A subcommand with a representative mix of flags for exercising ParseFlags:
 // a boolean flag, a string flag (both with short forms), and a repeatable flag.
+class TestPlatform : public TraceProcessorShell_PlatformInterface {
+ public:
+  Config DefaultConfig() const override { return {}; }
+
+  io::FileSystem* GetFileSystem() override { return &file_system_; }
+
+  base::Status OnTraceProcessorCreated(TraceProcessor*) override {
+    return base::OkStatus();
+  }
+
+  base::Status LoadTrace(TraceProcessor*,
+                         const std::string&,
+                         std::function<void(size_t)>) override {
+    return base::OkStatus();
+  }
+
+ private:
+  TestFileSystem file_system_;
+};
+
 class FlagTestSubcommand : public Subcommand {
  public:
   bool flag_a = false;
@@ -197,8 +242,8 @@ TEST_F(ParseFlagsTest, OnlyPositionals) {
 }
 
 TEST_F(ParseFlagsTest, GlobalFlagsMergedWithSubcommandFlags) {
-  ASSERT_TRUE(Parse({"prog", "--dev", "--flag-a"}).ok());
-  EXPECT_TRUE(global_.dev);
+  ASSERT_TRUE(Parse({"prog", "--allow-sql-file-access", "--flag-a"}).ok());
+  EXPECT_TRUE(global_.allow_sql_file_access);
   EXPECT_TRUE(cmd_.flag_a);
 }
 
@@ -211,6 +256,26 @@ TEST_F(ParseFlagsTest, UnknownFlagFailsAndMarksPrinted) {
   base::Status s = Parse({"prog", "--unknown-xyz"});
   EXPECT_FALSE(s.ok());
   EXPECT_TRUE(s.GetPayload("perfetto.dev/has_printed_error").has_value());
+}
+
+TEST(BuildConfigTest, FileSystemRequiresAllowSqlFileAccess) {
+  TestPlatform platform;
+  GlobalOptions options;
+
+  EXPECT_FALSE(platform.DefaultConfig().enable_sql_file_access);
+  auto default_config = BuildConfig(options, &platform);
+  ASSERT_TRUE(default_config.ok());
+  EXPECT_FALSE(default_config->enable_sql_file_access);
+
+  options.dev = true;
+  auto dev_config = BuildConfig(options, &platform);
+  ASSERT_TRUE(dev_config.ok());
+  EXPECT_FALSE(dev_config->enable_sql_file_access);
+
+  options.allow_sql_file_access = true;
+  auto io_config = BuildConfig(options, &platform);
+  ASSERT_TRUE(io_config.ok());
+  EXPECT_TRUE(io_config->enable_sql_file_access);
 }
 
 // --- FormatSubcommandUsage ---
@@ -228,6 +293,8 @@ TEST(FormatSubcommandUsageTest, ContainsAllSections) {
   EXPECT_THAT(out, HasSubstr("--rep"));
   EXPECT_THAT(out, HasSubstr("Global flags:"));
   EXPECT_THAT(out, HasSubstr("--help"));
+  EXPECT_THAT(out, HasSubstr("--allow-sql-file-access"));
+  EXPECT_THAT(out, HasSubstr("Do not enable this for untrusted SQL"));
 }
 
 // Regression test: the bundle subcommand used to list its flags both in a
@@ -251,6 +318,71 @@ TEST(BundleSubcommandTest, RequiresInputAndOutput) {
   BundleSubcommand bundle;
   EXPECT_FALSE(bundle.Run(CtxWithPositionals({})).ok());
   EXPECT_FALSE(bundle.Run(CtxWithPositionals({"only_input"})).ok());
+}
+
+// Passing more than two positional args is almost always a mistake (e.g.
+// each --symbol-paths dir passed as a separate argument); reject it with a
+// hint instead of silently misinterpreting the args.
+TEST(BundleSubcommandTest, RejectsTooManyPositionals) {
+  BundleSubcommand bundle;
+  base::Status s = bundle.Run(
+      CtxWithPositionals({"dir1", "dir2", "input.pftrace", "out.tar"}));
+  EXPECT_FALSE(s.ok());
+  EXPECT_THAT(s.message(), HasSubstr("expected at most 2 positional"));
+  EXPECT_THAT(s.message(), HasSubstr("--symbol-paths"));
+}
+
+// Every fixed-arity subcommand must reject extra positional arguments instead
+// of silently ignoring them (which used to misparse command lines such as
+// `bundle --symbol-paths a b trace out.tar`).
+TEST(RejectExtraPositionalsTest, RejectsAcrossSubcommands) {
+  struct Case {
+    std::unique_ptr<Subcommand> cmd;
+    std::vector<std::string> args;
+    const char* expected;
+  };
+  std::vector<Case> cases;
+  {
+    auto cmd = std::make_unique<ConvertSubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"json", "in.pb", "out.json", "extra"},
+                     "expected at most 3 positional"});
+  }
+  {
+    auto cmd = std::make_unique<QuerySubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"trace.pb", "select 1", "extra"},
+                     "expected at most 2 positional"});
+  }
+  {
+    auto cmd = std::make_unique<UtilSubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"symbolize", "in.pb", "out", "extra"},
+                     "expected at most 3 positional"});
+  }
+  {
+    auto cmd = std::make_unique<ExportSubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"sqlite", "trace.pb", "extra"},
+                     "expected at most 2 positional"});
+  }
+  {
+    auto cmd = std::make_unique<ServerSubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"stdio", "trace.pb", "extra"},
+                     "expected at most 2 positional"});
+  }
+  {
+    auto cmd = std::make_unique<MetricsSubcommand>();
+    cases.push_back({std::move(cmd),
+                     {"trace.pb", "extra"},
+                     "expected at most 1 positional"});
+  }
+  for (auto& c : cases) {
+    base::Status s = c.cmd->Run(CtxWithPositionals(c.args));
+    EXPECT_FALSE(s.ok()) << c.args[0];
+    EXPECT_THAT(s.message(), HasSubstr(c.expected)) << c.args[0];
+  }
 }
 
 TEST(BundleSubcommandTest, RejectsStdinInput) {

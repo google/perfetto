@@ -125,6 +125,7 @@ from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
 from diff_tests.parser.smoke.tests_sched_events import SmokeSchedEvents
+from diff_tests.parser.strace.tests import StraceParser
 from diff_tests.parser.trace_manifest.tests import TraceManifest
 from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
@@ -187,6 +188,7 @@ from diff_tests.stdlib.trees.table_conversion_tests import TreeRoundtrip
 from diff_tests.stdlib.viz.tests import Viz
 from diff_tests.stdlib.wattson.tests import WattsonStdlib
 from diff_tests.syntax.filtering_tests import PerfettoFiltering
+from diff_tests.syntax.flamegraph_tests import PerfettoFlamegraph
 from diff_tests.syntax.function_tests import PerfettoFunction
 from diff_tests.syntax.include_tests import PerfettoInclude
 from diff_tests.syntax.macro_tests import PerfettoMacro
@@ -257,6 +259,7 @@ def fetch_all_diff_tests(
       SmokeComputeMetrics,
       SmokeJson,
       SmokeSchedEvents,
+      StraceParser,
       Symbolize,
       InputMethodClients,
       InputMethodManagerService,
@@ -378,6 +381,7 @@ def fetch_all_diff_tests(
 
   syntax_tests = [
       PerfettoFiltering,
+      PerfettoFlamegraph,
       PerfettoFunction,
       PerfettoInclude,
       PerfettoMacro,

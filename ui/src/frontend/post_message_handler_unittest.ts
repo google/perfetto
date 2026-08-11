@@ -71,6 +71,11 @@ describe('parsePostedTrace', () => {
       expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
     });
 
+    test('is local-only by default (no way to opt into sharing)', () => {
+      const result = parsePostedTrace(new ArrayBuffer());
+      expect(result?.localOnly).toBe(true);
+    });
+
     test('view is snipped to the view, not the underlying buffer', () => {
       // A 10-byte view starting at offset 2 of a 16-byte buffer.
       const underlying = new Uint8Array(16);

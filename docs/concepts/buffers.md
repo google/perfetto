@@ -261,6 +261,22 @@ traced_buf_chunks_di                    0 info                 trace       0
 traced_buf_chunks_ov                    0 data_loss            trace       0
 ```
 
+When using [streaming mode] an overwrite is also a data loss: the overwritten
+data is never written into the file, so the trace has a gap. This data is
+available in the `stats` table, one entry per affected central buffer, where
+`idx` is the buffer and `value` is the number of bytes it overwrote:
+
+```sql
+> select * from stats where name = 'long_trace_mode_bytes_overwritten'
+name                 idx                  severity             source  value
+-------------------- -------------------- -------------------- ------- -----
+long_trace_mode_byte                    0 data_loss            trace    2048
+```
+
+Traces with a `file_write_period_ms` of a day or more do not get this stat: a
+write that far out never really happens, so the buffer is a plain ring buffer
+again. Traceur does this because detached mode forces `write_into_file` on it.
+
 Summary: the best way to detect and debug data losses is to use Trace Processor
 and issue the query:
 `select * from stats where severity = 'data_loss' and value != 0`

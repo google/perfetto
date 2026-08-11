@@ -42,6 +42,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/io.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_blob.h"
@@ -110,6 +111,7 @@
 #include "src/trace_processor/plugins/experimental_flamegraph/experimental_flamegraph.h"
 #include "src/trace_processor/plugins/experimental_flat_slice/experimental_flat_slice.h"
 #include "src/trace_processor/plugins/experimental_slice_layout/experimental_slice_layout.h"
+#include "src/trace_processor/plugins/flamegraph/flamegraph_function.h"
 #include "src/trace_processor/plugins/graph_scan/graph_scan.h"
 #include "src/trace_processor/plugins/graph_traversal/graph_traversal.h"
 #include "src/trace_processor/plugins/import/import.h"
@@ -129,6 +131,7 @@
 #include "src/trace_processor/plugins/stack_sample_importer/plugin.h"
 #include "src/trace_processor/plugins/stdlib_docs/stdlib_docs.h"
 #include "src/trace_processor/plugins/storage_tables/storage_tables.h"
+#include "src/trace_processor/plugins/strace/strace.h"
 #include "src/trace_processor/plugins/string_functions/string_functions.h"
 #include "src/trace_processor/plugins/structural_tree_partition/structural_tree_partition.h"
 #include "src/trace_processor/plugins/symbolize/symbolize.h"
@@ -147,6 +150,7 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_export.h"
 #include "src/trace_processor/sqlite_iterator_impl.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -324,8 +328,10 @@ std::string NormalizeExecuteQuerySql(const std::string& sql) {
 
 }  // namespace
 
-TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
-    : TraceProcessorStorageImpl(cfg), config_(cfg) {
+TraceProcessorImpl::TraceProcessorImpl(
+    const Config& cfg,
+    TraceProcessor::PlatformInterface* platform)
+    : TraceProcessorStorageImpl(cfg, platform), config_(cfg) {
   // TODO(lalitm): plugins should self-register via PERFETTO_TP_REGISTER_PLUGIN
   // (a global static initializer). That's currently disabled due to build-time
   // issues, so instead each plugin exposes an explicit Register* function that
@@ -355,6 +361,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   experimental_flamegraph::RegisterPlugin();
   experimental_flat_slice::RegisterPlugin();
   experimental_slice_layout::RegisterPlugin();
+  flamegraph::RegisterPlugin();
   graph_scan::RegisterPlugin();
   graph_traversal::RegisterPlugin();
   import::RegisterPlugin();
@@ -374,6 +381,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   stack_sample_importer::RegisterPlugin();
   stdlib_docs::RegisterPlugin();
   storage_tables::RegisterPlugin();
+  strace_importer::RegisterPlugin();
   string_functions::RegisterPlugin();
   trace_export::RegisterPlugin();
   structural_tree_partition::RegisterPlugin();
@@ -1205,6 +1213,25 @@ base::Status TraceProcessorImpl::CreateSummarizer(
 
 base::Status TraceProcessorImpl::Export(ExportFormat format,
                                         ExportOutput* output) {
+  if (!output) {
+    return base::ErrStatus("Export output is null");
+  }
+  if (format == ExportFormat::kSqlite) {
+    std::optional<std::string> path = output->GetFilePath();
+    if (!path) {
+      return base::ErrStatus("SQLite export requires a file path");
+    }
+    // SQLite export is an explicit API call (not reachable from SQL), so it is
+    // not gated behind Config::enable_sql_file_access. Embedders without a
+    // filesystem, such as the RPC server and Wasm, fail here cleanly.
+    // The filesystem is borrowed at construction and must outlive this
+    // instance.
+    io::FileSystem* file_system = context()->file_system;
+    if (!file_system) {
+      return base::ErrStatus("SQLite export requires a file system");
+    }
+    return ExportSqliteDatabase(this, file_system, *path);
+  }
   return trace_export::WriteExport(
       plugin_dataframes_, context()->storage->string_pool(), format, output);
 }

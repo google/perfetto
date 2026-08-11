@@ -14,14 +14,9 @@
 
 import './aggregation_adapter.scss';
 import m from 'mithril';
-import {AsyncLimiter} from '../base/async_limiter';
 import {type time, Time} from '../base/time';
 import {exists} from '../base/utils';
-import {
-  type AreaSelection,
-  areaSelectionsEqual,
-  type AreaSelectionTab,
-} from '../public/selection';
+import type {AreaSelection, AreaSelectionTab} from '../public/selection';
 import type {Trace} from '../public/trace';
 import type {Track} from '../public/track';
 import {
@@ -32,7 +27,12 @@ import {
 import type {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
+import {
+  AggregationDrilldownPanel,
+  type DataGridModel,
+} from './aggregation_drilldown_panel';
 import {AggregationPanel} from './aggregation_panel';
+import {addEphemeralTab} from './details/add_ephemeral_tab';
 import type {Column, Filter, Pivot} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import type {SQLTableSchema} from './widgets/datagrid/sql_schema';
@@ -43,15 +43,42 @@ import {
 } from '../trace_processor/sql_utils';
 import type {DataGridApi} from './widgets/datagrid/datagrid';
 import {ExportButton} from '../widgets/export_button';
-import {AtomicTaskQueue} from '../base/async_memo';
+import {AsyncMemo, AtomicTaskQueue} from '../base/async_memo';
 import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
+import {Memo} from '../base/memo';
+import {assertExists} from '../base/assert';
+import {Button, ButtonGroup} from '../widgets/button';
+import {SharedAsyncDisposable} from '../base/shared_disposable';
 
-export interface AggregationData {
-  readonly tableName: string;
+export interface AggregationData extends AsyncDisposable {
+  readonly sqlTable: SharedAsyncDisposable<DisposableSqlEntity>;
   readonly barChartData?: ReadonlyArray<BarChartData>;
 }
 
+export function createAggregationData(
+  table: DisposableSqlEntity,
+  barChartData?: ReadonlyArray<BarChartData>,
+): AggregationData {
+  const sharedTable = SharedAsyncDisposable.wrap(table);
+  return {
+    sqlTable: sharedTable,
+    barChartData,
+    [Symbol.asyncDispose]: () => sharedTable[Symbol.asyncDispose](),
+  };
+}
+
+export interface AggregatorGridPreset {
+  readonly displayName: string;
+  readonly config: AggregatorGridConfig;
+}
+
 export interface Aggregation {
+  /**
+   * Defines how the datagrid that displays the aggregated data looks, including
+   * what to pivot on and the column definitions.
+   */
+  getGridConfig(): AggregatorGridConfig | readonly AggregatorGridPreset[];
+
   /**
    * Creates a view for the aggregated data corresponding to the selected area.
    *
@@ -111,10 +138,6 @@ export interface Aggregator {
 
   // Returns the name of this aggregation tag. Called every render cycle.
   getTabName(): string;
-
-  // Return the grid configuration for this aggregation panel. Called every
-  // render cycle.
-  getGridConfig(): AggregatorGridConfig;
 
   // Optional controls to render in the top bar of the aggregation panel.
   renderTopbarControls?(): m.Children;
@@ -210,10 +233,50 @@ export async function createIITable<
   });
 }
 
-interface DataGridModel {
-  readonly columns?: readonly Column[];
-  readonly pivot?: Pivot;
-  readonly filters: readonly Filter[];
+export function getPresetDisplayName(preset: AggregatorGridPreset): string {
+  if ('displayName' in preset && typeof preset.displayName === 'string') {
+    return preset.displayName;
+  }
+  if ('name' in preset && typeof preset.name === 'string') {
+    return preset.name;
+  }
+  if ('title' in preset && typeof preset.title === 'string') {
+    return preset.title;
+  }
+  return 'Preset';
+}
+
+export function getPresetConfig(
+  preset: AggregatorGridPreset,
+): AggregatorGridConfig {
+  if ('config' in preset && preset.config !== undefined) {
+    return preset.config;
+  }
+  if ('configuration' in preset && preset.configuration !== undefined) {
+    return (preset as unknown as {configuration: AggregatorGridConfig})
+      .configuration;
+  }
+  return preset.config;
+}
+
+export function getActiveGridConfig(
+  configOrPresets: AggregatorGridConfig | ReadonlyArray<AggregatorGridPreset>,
+  presetIndex: number = 0,
+): AggregatorGridConfig {
+  if ('schema' in configOrPresets) {
+    return configOrPresets;
+  }
+  if (configOrPresets.length === 0) {
+    throw new Error('No presets provided');
+  }
+  const idx = Math.min(Math.max(0, presetIndex), configOrPresets.length - 1);
+  return getPresetConfig(configOrPresets[idx]);
+}
+
+interface PreparedAggregation extends AsyncDisposable {
+  readonly data: AggregationData;
+  readonly dataSource: SQLDataSource;
+  readonly sharedTable: SharedAsyncDisposable<DisposableSqlEntity>;
 }
 
 /**
@@ -225,16 +288,9 @@ export function createAggregationTab(
   aggregator: Aggregator,
   priority: number = 0,
 ): AreaSelectionTab {
-  const limiter = new AsyncLimiter();
   const queue = new AtomicTaskQueue();
-  let currentSelection: AreaSelection | undefined;
-  let aggregation: Aggregation | undefined;
-  let data: AggregationData | undefined;
-  let dataSource: SQLDataSource | undefined;
   let dataGridApi: DataGridApi | undefined;
-
-  function createInitialState(): DataGridModel {
-    const config = aggregator.getGridConfig();
+  function createInitialState(config: AggregatorGridConfig): DataGridModel {
     return {
       columns: config.initialColumns,
       pivot: config.initialPivot,
@@ -242,52 +298,88 @@ export function createAggregationTab(
     };
   }
 
-  // DataGrid state managed by the adapter
-  const initialDataModel: DataGridModel = createInitialState();
-  let dataModel: DataGridModel = initialDataModel;
+  const aggregationMemo = new Memo<Aggregation | undefined>();
+  const preparedAggregationSlot = new AsyncMemo<
+    PreparedAggregation | undefined
+  >(queue);
+
+  // Mutable datagrid model state - initialized the first time we get a config,
+  // and only ever modified by the user so that the config is retained over
+  // selection changes.
+  let dataModel: DataGridModel | undefined;
+  let selectedPresetIndex = 0;
 
   return {
     id: aggregator.id,
     name: aggregator.getTabName(),
     priority,
     render(selection: AreaSelection) {
-      if (
-        currentSelection === undefined ||
-        !areaSelectionsEqual(selection, currentSelection)
-      ) {
-        // Every time the selection changes, probe the aggregator to see if it
-        // supports this selection.
-        currentSelection = selection;
-        aggregation = aggregator.probe(selection);
-
-        // Kick off a new load of the data
-        limiter.schedule(async () => {
-          // Clear previous data to prevent queries against a stale or partially
-          // updated table/view while `prepareData` is running.
-          dataSource?.dispose();
-          dataSource = undefined;
-          data = undefined;
-          if (aggregation) {
-            data = await aggregation?.prepareData(trace.engine);
-            const gridConfig = aggregator.getGridConfig();
-            const sqlConfig = gridConfig.sqlConfig?.(data) ?? {
-              tableOrSubquery: data.tableName,
-            };
-            dataSource = new SQLDataSource({
-              queue,
-              engine: trace.engine,
-              ...sqlConfig,
-            });
+      const selectionKey = {
+        start: selection.start,
+        end: selection.end,
+        tracks: selection.trackUris,
+      };
+      const aggregation = aggregationMemo.use({
+        key: selectionKey,
+        compute: () => {
+          const aggr = aggregator.probe(selection);
+          // Snapshot the grid config if we don't have one yet
+          if (aggr && !dataModel) {
+            const activeConfig = getActiveGridConfig(
+              aggr.getGridConfig(),
+              selectedPresetIndex,
+            );
+            dataModel = createInitialState(activeConfig);
           }
-        });
-      }
+          return aggr;
+        },
+      });
 
       if (!aggregation) {
-        // Hides the tab
+        // The aggregation doesn't apply to this selection
         return undefined;
       }
 
-      if (!dataSource) {
+      const configOrPresets = aggregation.getGridConfig();
+      if (
+        Array.isArray(configOrPresets) &&
+        selectedPresetIndex >= configOrPresets.length
+      ) {
+        selectedPresetIndex = Math.max(0, configOrPresets.length - 1);
+      }
+      const activeGridConfig = getActiveGridConfig(
+        configOrPresets,
+        selectedPresetIndex,
+      );
+
+      const preparedAggregation = preparedAggregationSlot.use({
+        key: {...selectionKey, presetIndex: selectedPresetIndex},
+        compute: async () => {
+          const data = await aggregation.prepareData(trace.engine);
+          const sharedTable = data.sqlTable.clone();
+          const sqlConfig = activeGridConfig.sqlConfig?.(data) ?? {
+            tableOrSubquery: sharedTable.get().name,
+          };
+          const dataSource = new SQLDataSource({
+            queue,
+            engine: trace.engine,
+            ...sqlConfig,
+          });
+
+          return {
+            data,
+            dataSource,
+            sharedTable,
+            [Symbol.asyncDispose]: async () => {
+              dataSource.dispose();
+              await sharedTable[Symbol.asyncDispose]();
+            },
+          };
+        },
+      }).data;
+
+      if (!preparedAggregation) {
+        // Datasource is still loading...
         return {
           isLoading: true,
           content: m(
@@ -302,28 +394,77 @@ export function createAggregationTab(
         };
       }
 
+      const {data, dataSource, sharedTable} = preparedAggregation;
+
+      // This should exist by now...
+      assertExists(dataModel);
+
       const dataGridState: DataGridState = {
         columns: dataModel.columns,
         pivot: dataModel.pivot,
         filters: dataModel.filters,
         onColumnsChanged: (c) => {
-          dataModel = {...dataModel, columns: c};
+          dataModel = {...dataModel!, columns: c};
         },
-        onPivotChanged: (p) => {
-          dataModel = {...dataModel, pivot: p};
+        onPivotChanged: (pivot) => {
+          const isEnteringDrilldown =
+            dataModel!.pivot?.drillDown === undefined &&
+            pivot?.drillDown !== undefined;
+          if (isEnteringDrilldown) {
+            // Keep the source grid in pivot mode and open the requested
+            // drill-down model in an independent tab.
+            const initialDataModel: DataGridModel = {
+              ...dataModel!,
+              pivot,
+            };
+            addEphemeralTab(trace, `aggregation_drilldown_${aggregator.id}`, {
+              getTitle: () => `${aggregator.getTabName()} drill-down`,
+              render: () =>
+                m(AggregationDrilldownPanel, {
+                  trace,
+                  aggregator,
+                  area: selection,
+                  gridConfig: activeGridConfig,
+                  aggregationData: data,
+                  sharedTable,
+                  initialDataModel,
+                }),
+            });
+          } else {
+            dataModel = {...dataModel!, pivot};
+          }
         },
         onFiltersChanged: (f) => {
-          dataModel = {...dataModel, filters: f};
+          dataModel = {...dataModel!, filters: f};
         },
       };
+
+      const presetButtons =
+        Array.isArray(configOrPresets) &&
+        configOrPresets.length > 0 &&
+        m(
+          ButtonGroup,
+          configOrPresets.map((preset, index) =>
+            m(Button, {
+              label: getPresetDisplayName(preset),
+              active: index === selectedPresetIndex,
+              onclick: () => {
+                if (index !== selectedPresetIndex) {
+                  selectedPresetIndex = index;
+                  dataModel = createInitialState(getPresetConfig(preset));
+                }
+              },
+            }),
+          ),
+        );
 
       return {
         isLoading: false,
         content: m(AggregationPanel, {
-          controls: aggregator.renderTopbarControls?.(),
+          controls: [presetButtons, aggregator.renderTopbarControls?.()],
           key: aggregator.id,
           dataSource,
-          gridConfig: aggregator.getGridConfig(),
+          gridConfig: activeGridConfig,
           barChartData: data?.barChartData,
           onReady: (api: DataGridApi) => {
             dataGridApi = api;
@@ -331,7 +472,7 @@ export function createAggregationTab(
           dataGridState,
           onClearGridState: () => {
             // Just wipe out the local data model to reset to initial state
-            dataModel = initialDataModel;
+            dataModel = createInitialState(activeGridConfig);
           },
         }),
         buttons:

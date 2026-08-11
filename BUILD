@@ -446,6 +446,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_importers_systrace_systrace_parser",
+        ":src_trace_processor_io",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
@@ -490,6 +491,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamegraph_flamegraph",
+        ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
         ":src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":src_trace_processor_plugins_graph_traversal_tables",
@@ -511,6 +514,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",
+        ":src_trace_processor_plugins_strace_strace",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
@@ -593,6 +597,7 @@ perfetto_cc_library(
         ":include_perfetto_public_base",
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
+        ":include_perfetto_trace_processor_io",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -753,7 +758,9 @@ perfetto_cc_library(
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_importers_systrace_systrace_parser",
+        ":src_trace_processor_io",
         ":src_trace_processor_lib",
+        ":src_trace_processor_local_file_system",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
@@ -797,6 +804,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamegraph_flamegraph",
+        ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
         ":src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":src_trace_processor_plugins_graph_traversal_tables",
@@ -818,6 +827,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",
+        ":src_trace_processor_plugins_strace_strace",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
@@ -916,6 +926,7 @@ perfetto_cc_library(
         ":include_perfetto_public_base",
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
+        ":include_perfetto_trace_processor_io",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -1045,6 +1056,7 @@ perfetto_cc_library(
         ":include_perfetto_public_base",
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
+        ":include_perfetto_trace_processor_io",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -1703,6 +1715,14 @@ perfetto_filegroup(
     srcs = [
         "include/perfetto/trace_processor/basic_types.h",
         "include/perfetto/trace_processor/status.h",
+    ],
+)
+
+# GN target: //include/perfetto/trace_processor:io
+perfetto_filegroup(
+    name = "include_perfetto_trace_processor_io",
+    srcs = [
+        "include/perfetto/trace_processor/io.h",
     ],
 )
 
@@ -2432,7 +2452,6 @@ perfetto_filegroup(
         "src/trace_processor/core/common/op_types.h",
         "src/trace_processor/core/common/sort_types.h",
         "src/trace_processor/core/common/storage_types.h",
-        "src/trace_processor/core/common/tree_types.h",
         "src/trace_processor/core/common/value_fetcher.h",
     ],
 )
@@ -2498,9 +2517,13 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_core_tree_tree",
     srcs = [
-        "src/trace_processor/core/tree/tree_columns.h",
-        "src/trace_processor/core/tree/tree_columns_from_dataframe.cc",
-        "src/trace_processor/core/tree/tree_columns_from_dataframe.h",
+        "src/trace_processor/core/tree/tree.h",
+        "src/trace_processor/core/tree/tree_column_ops.cc",
+        "src/trace_processor/core/tree/tree_column_ops.h",
+        "src/trace_processor/core/tree/tree_from_dataframe.cc",
+        "src/trace_processor/core/tree/tree_from_dataframe.h",
+        "src/trace_processor/core/tree/tree_path_interner.cc",
+        "src/trace_processor/core/tree/tree_path_interner.h",
     ],
 )
 
@@ -3663,6 +3686,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.h",
+        "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.cc",
+        "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h",
         "src/trace_processor/perfetto_sql/engine/static_table_function_module.cc",
         "src/trace_processor/perfetto_sql/engine/static_table_function_module.h",
     ],
@@ -4262,7 +4287,6 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_viz_viz",
     srcs = [
         ":src_trace_processor_perfetto_sql_stdlib_viz_summary_summary",
-        "src/trace_processor/perfetto_sql/stdlib/viz/flamegraph.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/threads.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/track_event_callstacks.sql",
@@ -4741,6 +4765,24 @@ perfetto_cc_tp_tables(
     ],
 )
 
+# GN target: //src/trace_processor/plugins/flamegraph:flamegraph
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_flamegraph_flamegraph",
+    srcs = [
+        "src/trace_processor/plugins/flamegraph/flamegraph.cc",
+        "src/trace_processor/plugins/flamegraph/flamegraph.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/flamegraph:intrinsics
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_flamegraph_intrinsics",
+    srcs = [
+        "src/trace_processor/plugins/flamegraph/flamegraph_function.cc",
+        "src/trace_processor/plugins/flamegraph/flamegraph_function.h",
+    ],
+)
+
 # GN target: //src/trace_processor/plugins/graph_scan:graph_scan
 perfetto_filegroup(
     name = "src_trace_processor_plugins_graph_scan_graph_scan",
@@ -4946,6 +4988,20 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/storage_tables/storage_tables.cc",
         "src/trace_processor/plugins/storage_tables/storage_tables.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/strace:strace
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_strace_strace",
+    srcs = [
+        "src/trace_processor/plugins/strace/strace.cc",
+        "src/trace_processor/plugins/strace/strace.h",
+        "src/trace_processor/plugins/strace/strace_event.h",
+        "src/trace_processor/plugins/strace/strace_trace_parser.cc",
+        "src/trace_processor/plugins/strace/strace_trace_parser.h",
+        "src/trace_processor/plugins/strace/strace_trace_tokenizer.cc",
+        "src/trace_processor/plugins/strace/strace_trace_tokenizer.h",
     ],
 )
 
@@ -5509,6 +5565,8 @@ perfetto_filegroup(
     name = "src_trace_processor_sqlite_sqlite",
     srcs = [
         "src/trace_processor/sqlite/committed_state_manager.h",
+        "src/trace_processor/sqlite/file_system_vfs.cc",
+        "src/trace_processor/sqlite/file_system_vfs.h",
         "src/trace_processor/sqlite/module_state_manager.cc",
         "src/trace_processor/sqlite/module_state_manager.h",
         "src/trace_processor/sqlite/scoped_db.h",
@@ -5517,6 +5575,9 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/sqlite_connection.cc",
         "src/trace_processor/sqlite/sqlite_connection.h",
         "src/trace_processor/sqlite/sqlite_database.h",
+        "src/trace_processor/sqlite/sqlite_export.cc",
+        "src/trace_processor/sqlite/sqlite_export.h",
+        "src/trace_processor/sqlite/sqlite_tagged_args.h",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/sqlite_utils.h",
     ],
@@ -5736,6 +5797,7 @@ perfetto_cc_library(
         ":include_perfetto_public_base",
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
+        ":include_perfetto_trace_processor_io",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -6167,6 +6229,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor:io
+perfetto_filegroup(
+    name = "src_trace_processor_io",
+    srcs = [
+        "src/trace_processor/io.cc",
+    ],
+)
+
 # GN target: //src/trace_processor:lib
 perfetto_filegroup(
     name = "src_trace_processor_lib",
@@ -6181,6 +6251,15 @@ perfetto_filegroup(
         "src/trace_processor/trace_processor.cc",
         "src/trace_processor/trace_processor_impl.cc",
         "src/trace_processor/trace_processor_impl.h",
+    ],
+)
+
+# GN target: //src/trace_processor:local_file_system
+perfetto_filegroup(
+    name = "src_trace_processor_local_file_system",
+    srcs = [
+        "src/trace_processor/local_file_system.cc",
+        "src/trace_processor/local_file_system.h",
     ],
 )
 
@@ -11492,6 +11571,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_importers_systrace_systrace_parser",
+        ":src_trace_processor_io",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
@@ -11536,6 +11616,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamegraph_flamegraph",
+        ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
         ":src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":src_trace_processor_plugins_graph_traversal_tables",
@@ -11557,6 +11639,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",
+        ":src_trace_processor_plugins_strace_strace",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",
@@ -11636,6 +11719,7 @@ perfetto_cc_library(
         ":include_perfetto_public_base",
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
+        ":include_perfetto_trace_processor_io",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -11775,6 +11859,7 @@ perfetto_cc_binary(
         ":include_perfetto_public_base",
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
+        ":include_perfetto_trace_processor_io",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -11830,6 +11915,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_importers_systrace_systrace_parser",
+        ":src_trace_processor_io",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
@@ -11874,6 +11960,8 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamegraph_flamegraph",
+        ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
         ":src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":src_trace_processor_plugins_graph_traversal_tables",
@@ -11895,6 +11983,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":src_trace_processor_plugins_stdlib_docs_tables",
         ":src_trace_processor_plugins_storage_tables_storage_tables",
+        ":src_trace_processor_plugins_strace_strace",
         ":src_trace_processor_plugins_string_functions_string_functions",
         ":src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":src_trace_processor_plugins_structural_tree_partition_tables",

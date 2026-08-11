@@ -2817,6 +2817,11 @@ filegroup {
     name: "perfetto_include_perfetto_trace_processor_basic_types",
 }
 
+// GN: //include/perfetto/trace_processor:io
+filegroup {
+    name: "perfetto_include_perfetto_trace_processor_io",
+}
+
 // GN: //include/perfetto/trace_processor:storage
 filegroup {
     name: "perfetto_include_perfetto_trace_processor_storage",
@@ -2876,6 +2881,7 @@ cc_test {
         ":perfetto_include_perfetto_public_public",
         ":perfetto_include_perfetto_test_test_support",
         ":perfetto_include_perfetto_trace_processor_basic_types",
+        ":perfetto_include_perfetto_trace_processor_io",
         ":perfetto_include_perfetto_trace_processor_storage",
         ":perfetto_include_perfetto_trace_processor_trace_processor",
         ":perfetto_include_perfetto_trace_processor_util",
@@ -3089,6 +3095,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_systrace_full",
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_importers_systrace_systrace_parser",
+        ":perfetto_src_trace_processor_io",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
@@ -3123,6 +3130,8 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_experimental_flamegraph_experimental_flamegraph",
         ":perfetto_src_trace_processor_plugins_experimental_flat_slice_experimental_flat_slice",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
+        ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
+        ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
@@ -3142,6 +3151,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
         ":perfetto_src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
+        ":perfetto_src_trace_processor_plugins_strace_strace",
         ":perfetto_src_trace_processor_plugins_string_functions_string_functions",
         ":perfetto_src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":perfetto_src_trace_processor_plugins_symbolize_symbolize",
@@ -17606,7 +17616,18 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_core_tree_tree",
     srcs: [
-        "src/trace_processor/core/tree/tree_columns_from_dataframe.cc",
+        "src/trace_processor/core/tree/tree_column_ops.cc",
+        "src/trace_processor/core/tree/tree_from_dataframe.cc",
+        "src/trace_processor/core/tree/tree_path_interner.cc",
+    ],
+}
+
+// GN: //src/trace_processor/core/tree:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_core_tree_unittests",
+    srcs: [
+        "src/trace_processor/core/tree/tree_algorithms_unittest.cc",
+        "src/trace_processor/core/tree/tree_column_ops_unittest.cc",
     ],
 }
 
@@ -18366,6 +18387,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor:io
+filegroup {
+    name: "perfetto_src_trace_processor_io",
+    srcs: [
+        "src/trace_processor/io.cc",
+    ],
+}
+
 // GN: //src/trace_processor:lib
 filegroup {
     name: "perfetto_src_trace_processor_lib",
@@ -18376,6 +18405,14 @@ filegroup {
         "src/trace_processor/sqlite_iterator_impl.cc",
         "src/trace_processor/trace_processor.cc",
         "src/trace_processor/trace_processor_impl.cc",
+    ],
+}
+
+// GN: //src/trace_processor:local_file_system
+filegroup {
+    name: "perfetto_src_trace_processor_local_file_system",
+    srcs: [
+        "src/trace_processor/local_file_system.cc",
     ],
 }
 
@@ -18679,6 +18716,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
+        "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.cc",
         "src/trace_processor/perfetto_sql/engine/static_table_function_module.cc",
     ],
 }
@@ -19158,7 +19196,6 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_stdlib_viz_viz",
     srcs: [
-        "src/trace_processor/perfetto_sql/stdlib/viz/flamegraph.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/processes.sql",
@@ -19874,6 +19911,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/plugins/flamegraph:intrinsics
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
+    srcs: [
+        "src/trace_processor/plugins/flamegraph/flamegraph_function.cc",
+    ],
+}
+
 // GN: //src/trace_processor/plugins/flamegraph:unittests
 filegroup {
     name: "perfetto_src_trace_processor_plugins_flamegraph_unittests",
@@ -20104,6 +20149,24 @@ filegroup {
     name: "perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
     srcs: [
         "src/trace_processor/plugins/storage_tables/storage_tables.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/strace:strace
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_strace_strace",
+    srcs: [
+        "src/trace_processor/plugins/strace/strace.cc",
+        "src/trace_processor/plugins/strace/strace_trace_parser.cc",
+        "src/trace_processor/plugins/strace/strace_trace_tokenizer.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/strace:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_strace_unittests",
+    srcs: [
+        "src/trace_processor/plugins/strace/strace_trace_tokenizer_unittest.cc",
     ],
 }
 
@@ -20688,9 +20751,11 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_sqlite_sqlite",
     srcs: [
+        "src/trace_processor/sqlite/file_system_vfs.cc",
         "src/trace_processor/sqlite/module_state_manager.cc",
         "src/trace_processor/sqlite/sql_source.cc",
         "src/trace_processor/sqlite/sqlite_connection.cc",
+        "src/trace_processor/sqlite/sqlite_export.cc",
         "src/trace_processor/sqlite/sqlite_utils.cc",
     ],
 }
@@ -20699,6 +20764,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_sqlite_unittests",
     srcs: [
+        "src/trace_processor/sqlite/file_system_vfs_unittest.cc",
         "src/trace_processor/sqlite/module_state_manager_unittest.cc",
         "src/trace_processor/sqlite/sql_source_unittest.cc",
         "src/trace_processor/sqlite/sqlite_utils_unittest.cc",
@@ -20830,6 +20896,7 @@ filegroup {
     name: "perfetto_src_trace_processor_top_level_unittests",
     srcs: [
         "src/trace_processor/forwarding_trace_parser_unittest.cc",
+        "src/trace_processor/local_file_system_unittest.cc",
         "src/trace_processor/ref_counted_unittest.cc",
         "src/trace_processor/trace_blob_unittest.cc",
     ],
@@ -20858,6 +20925,7 @@ cc_library_static {
         ":perfetto_include_perfetto_public_base",
         ":perfetto_include_perfetto_public_protozero",
         ":perfetto_include_perfetto_trace_processor_basic_types",
+        ":perfetto_include_perfetto_trace_processor_io",
         ":perfetto_include_perfetto_trace_processor_storage",
         ":perfetto_include_perfetto_trace_processor_trace_processor",
         ":perfetto_include_perfetto_trace_processor_util",
@@ -20988,7 +21056,9 @@ cc_library_static {
         ":perfetto_src_trace_processor_importers_systrace_full",
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_importers_systrace_systrace_parser",
+        ":perfetto_src_trace_processor_io",
         ":perfetto_src_trace_processor_lib",
+        ":perfetto_src_trace_processor_local_file_system",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
@@ -21022,6 +21092,8 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_experimental_flamegraph_experimental_flamegraph",
         ":perfetto_src_trace_processor_plugins_experimental_flat_slice_experimental_flat_slice",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
+        ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
+        ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
@@ -21041,6 +21113,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
         ":perfetto_src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
+        ":perfetto_src_trace_processor_plugins_strace_strace",
         ":perfetto_src_trace_processor_plugins_string_functions_string_functions",
         ":perfetto_src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":perfetto_src_trace_processor_plugins_symbolize_symbolize",
@@ -23594,6 +23667,7 @@ cc_test {
         ":perfetto_include_perfetto_public_public",
         ":perfetto_include_perfetto_test_test_support",
         ":perfetto_include_perfetto_trace_processor_basic_types",
+        ":perfetto_include_perfetto_trace_processor_io",
         ":perfetto_include_perfetto_trace_processor_storage",
         ":perfetto_include_perfetto_trace_processor_trace_processor",
         ":perfetto_include_perfetto_trace_processor_util",
@@ -23865,6 +23939,7 @@ cc_test {
         ":perfetto_src_trace_processor_core_interpreter_unittests",
         ":perfetto_src_trace_processor_core_plugin_plugin",
         ":perfetto_src_trace_processor_core_tree_tree",
+        ":perfetto_src_trace_processor_core_tree_unittests",
         ":perfetto_src_trace_processor_core_util_unittests",
         ":perfetto_src_trace_processor_core_util_util",
         ":perfetto_src_trace_processor_export_json",
@@ -23919,7 +23994,9 @@ cc_test {
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_importers_systrace_systrace_parser",
         ":perfetto_src_trace_processor_importers_systrace_unittests",
+        ":perfetto_src_trace_processor_io",
         ":perfetto_src_trace_processor_lib",
+        ":perfetto_src_trace_processor_local_file_system",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
         ":perfetto_src_trace_processor_metrics_unittests",
@@ -23965,6 +24042,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_unittests",
         ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
+        ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_flamegraph_unittests",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
@@ -23986,6 +24064,8 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
         ":perfetto_src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
+        ":perfetto_src_trace_processor_plugins_strace_strace",
+        ":perfetto_src_trace_processor_plugins_strace_unittests",
         ":perfetto_src_trace_processor_plugins_string_functions_string_functions",
         ":perfetto_src_trace_processor_plugins_string_functions_unittests",
         ":perfetto_src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
@@ -24924,6 +25004,7 @@ cc_library_static {
         ":perfetto_include_perfetto_public_base",
         ":perfetto_include_perfetto_public_protozero",
         ":perfetto_include_perfetto_trace_processor_basic_types",
+        ":perfetto_include_perfetto_trace_processor_io",
         ":perfetto_include_perfetto_trace_processor_storage",
         ":perfetto_include_perfetto_trace_processor_trace_processor",
         ":perfetto_include_perfetto_trace_processor_util",
@@ -25051,6 +25132,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_importers_systrace_full",
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_importers_systrace_systrace_parser",
+        ":perfetto_src_trace_processor_io",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
@@ -25085,6 +25167,8 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_experimental_flamegraph_experimental_flamegraph",
         ":perfetto_src_trace_processor_plugins_experimental_flat_slice_experimental_flat_slice",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
+        ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
+        ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
@@ -25104,6 +25188,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
         ":perfetto_src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
+        ":perfetto_src_trace_processor_plugins_strace_strace",
         ":perfetto_src_trace_processor_plugins_string_functions_string_functions",
         ":perfetto_src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":perfetto_src_trace_processor_plugins_symbolize_symbolize",
@@ -25619,6 +25704,7 @@ cc_binary_host {
         ":perfetto_include_perfetto_public_base",
         ":perfetto_include_perfetto_public_protozero",
         ":perfetto_include_perfetto_trace_processor_basic_types",
+        ":perfetto_include_perfetto_trace_processor_io",
         ":perfetto_include_perfetto_trace_processor_storage",
         ":perfetto_include_perfetto_trace_processor_trace_processor",
         ":perfetto_include_perfetto_trace_processor_util",
@@ -25747,6 +25833,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_systrace_full",
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_importers_systrace_systrace_parser",
+        ":perfetto_src_trace_processor_io",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
@@ -25781,6 +25868,8 @@ cc_binary_host {
         ":perfetto_src_trace_processor_plugins_experimental_flamegraph_experimental_flamegraph",
         ":perfetto_src_trace_processor_plugins_experimental_flat_slice_experimental_flat_slice",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
+        ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
+        ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
@@ -25800,6 +25889,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_plugins_stack_sample_importer_stack_sample_importer",
         ":perfetto_src_trace_processor_plugins_stdlib_docs_stdlib_docs",
         ":perfetto_src_trace_processor_plugins_storage_tables_storage_tables",
+        ":perfetto_src_trace_processor_plugins_strace_strace",
         ":perfetto_src_trace_processor_plugins_string_functions_string_functions",
         ":perfetto_src_trace_processor_plugins_structural_tree_partition_structural_tree_partition",
         ":perfetto_src_trace_processor_plugins_symbolize_symbolize",

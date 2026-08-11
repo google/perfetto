@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <utility>
@@ -30,6 +31,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -45,6 +47,8 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+#include "src/trace_processor/local_file_system.h"
+#include "src/trace_processor/rpc/rpc.h"
 
 #include "src/base/test/status_matchers.h"
 #include "src/base/test/utils.h"
@@ -58,6 +62,108 @@ using testing::Eq;
 using testing::HasSubstr;
 
 constexpr size_t kMaxChunkSize = 4ul * 1024 * 1024;
+
+class FailingFile final : public io::File {
+ public:
+  base::Status ReadAt(uint64_t, void*, size_t, size_t*) override {
+    return base::ErrStatus("injected read failure");
+  }
+
+  base::Status WriteAt(uint64_t, const void*, size_t) override {
+    return base::ErrStatus("injected write failure");
+  }
+
+  base::Status Truncate(uint64_t) override {
+    return base::ErrStatus("injected truncate failure");
+  }
+
+  base::Status GetSize(uint64_t*) override {
+    return base::ErrStatus("injected size failure");
+  }
+
+  base::Status Flush() override {
+    return base::ErrStatus("injected flush failure");
+  }
+};
+
+class FailingWriteFileSystem final : public io::FileSystem {
+ public:
+  base::Status OpenFile(const std::string&,
+                        const io::FileOpenOptions&,
+                        std::unique_ptr<io::File>* file) override {
+    file->reset(new FailingFile());
+    return base::OkStatus();
+  }
+
+  base::Status DeleteFile(const std::string&) override {
+    return base::ErrStatus("injected delete failure");
+  }
+
+  base::Status FileExists(const std::string&, bool*) override {
+    return base::ErrStatus("injected exists failure");
+  }
+};
+
+class CountingFile final : public io::File {
+ public:
+  explicit CountingFile(size_t* write_count) : write_count_(write_count) {}
+
+  base::Status ReadAt(uint64_t, void*, size_t, size_t*) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status WriteAt(uint64_t, const void*, size_t) override {
+    ++*write_count_;
+    return base::OkStatus();
+  }
+
+  base::Status Truncate(uint64_t) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status GetSize(uint64_t*) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status Flush() override { return base::ErrStatus("not supported"); }
+
+ private:
+  size_t* write_count_;
+};
+
+class CountingFileSystem final : public io::FileSystem {
+ public:
+  base::Status OpenFile(const std::string&,
+                        const io::FileOpenOptions&,
+                        std::unique_ptr<io::File>* file) override {
+    file->reset(new CountingFile(&write_count_));
+    return base::OkStatus();
+  }
+
+  base::Status DeleteFile(const std::string&) override {
+    return base::ErrStatus("not supported");
+  }
+
+  base::Status FileExists(const std::string&, bool*) override {
+    return base::ErrStatus("not supported");
+  }
+
+  size_t write_count() const { return write_count_; }
+
+ private:
+  size_t write_count_ = 0;
+};
+
+class FileSystemPlatform final : public TraceProcessor::PlatformInterface {
+ public:
+  explicit FileSystemPlatform(io::FileSystem* file_system)
+      : file_system_(file_system) {}
+
+  io::FileSystem* GetFileSystem() override { return file_system_; }
+
+ private:
+  io::FileSystem* file_system_;
+};
 
 TEST(TraceProcessorCustomConfigTest, SkipInternalMetricsMatchingMountPath) {
   auto config = Config();
@@ -110,6 +216,153 @@ TEST(TraceProcessorCustomConfigTest, HandlesMalformedMountPath) {
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
   ASSERT_EQ(it.Get(0).long_value, 1);
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonRequiresEnabledConfig) {
+  FailingWriteFileSystem file_system;
+  FileSystemPlatform platform(&file_system);
+  auto processor = TraceProcessor::CreateInstance(Config(), &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('file')");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(), HasSubstr("File I/O is disabled"));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonRequiresPlatformFileSystem) {
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('file')");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(), HasSubstr("File I/O is disabled"));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonRejectsIntegerFileDescriptor) {
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON(1)");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(),
+              HasSubstr("argument must be a filename string"));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
+  base::TempDir dir = base::TempDir::Create();
+  std::string path = dir.path() + "/trace.json";
+  ASSERT_EQ(path.find('\''), std::string::npos);
+
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('" + path + "')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_OK(it.Status());
+
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(path, &contents));
+  EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
+  ASSERT_TRUE(base::Unlink(path.c_str()));
+}
+
+TEST(TraceProcessorCustomConfigTest,
+     RpcImplicitResetPreservesSqlFileAccessGrant) {
+  base::TempDir dir = base::TempDir::Create();
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  Rpc rpc(std::move(processor), false, config, &platform, {});
+
+  auto write_file = [&rpc](const std::string& path) {
+    auto it = rpc.trace_processor()->ExecuteQuery(
+        "SELECT __intrinsic_file_write('" + path + "', X'00')");
+    ASSERT_TRUE(it.Next());
+    EXPECT_OK(it.Status());
+  };
+
+  std::string first_path = dir.path() + "/before_reset";
+  write_file(first_path);
+  ASSERT_TRUE(base::Unlink(first_path.c_str()));
+
+  ASSERT_OK(rpc.NotifyEndOfFile());
+  ASSERT_OK(rpc.Parse(nullptr, 0));
+
+  std::string second_path = dir.path() + "/after_reset";
+  write_file(second_path);
+  ASSERT_TRUE(base::Unlink(second_path.c_str()));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonPropagatesWriteFailure) {
+  FailingWriteFileSystem file_system;
+  FileSystemPlatform platform(&file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('file')");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(), HasSubstr("injected write failure"));
+}
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonBuffersWrites) {
+  CountingFileSystem file_system;
+  FileSystemPlatform platform(&file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('file')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_OK(it.Status());
+  EXPECT_EQ(file_system.write_count(), 1u);
+}
+
+TEST(TraceProcessorCustomConfigTest,
+     IntrinsicFileWriteRequiresConfiguredFileSystem) {
+  auto processor = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it =
+      processor->ExecuteQuery("SELECT __intrinsic_file_write('file', X'00')");
+  EXPECT_FALSE(it.Next());
+  EXPECT_THAT(it.Status(), IsError());
+  EXPECT_THAT(it.Status().message(), HasSubstr("File I/O is disabled"));
+}
+
+TEST(TraceProcessorCustomConfigTest,
+     IntrinsicFileWriteUsesConfiguredFileSystem) {
+  base::TempDir dir = base::TempDir::Create();
+  std::string path = dir.path() + "/file_write";
+  ASSERT_EQ(path.find('\''), std::string::npos);
+
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT __intrinsic_file_write('" + path +
+                                    "', X'000102FF')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_EQ(it.Get(0).AsLong(), 4);
+  EXPECT_OK(it.Status());
+
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(path, &contents));
+  EXPECT_EQ(contents, std::string("\0\1\2\xff", 4));
+  ASSERT_TRUE(base::Unlink(path.c_str()));
 }
 
 namespace {
@@ -1084,6 +1337,13 @@ std::vector<TarMember> ReadTarMembers(const std::string& tar) {
     offset = data_offset + ((size + 511) / 512) * 512;
   }
   return members;
+}
+
+TEST_F(TraceProcessorIntegrationTest, ExportSqliteRequiresFilePath) {
+  StringExportOutput output;
+  EXPECT_THAT(
+      Processor()->Export(TraceProcessor::ExportFormat::kSqlite, &output),
+      IsError());
 }
 
 TEST_F(TraceProcessorIntegrationTest, ExportPerfetto) {

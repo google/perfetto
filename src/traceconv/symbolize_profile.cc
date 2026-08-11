@@ -31,7 +31,9 @@ namespace trace_to_text {
 
 // Ingest profile, and emit a symbolization table for each sequence. This can
 // be prepended to the profile to attach the symbol information.
-int SymbolizeProfile(std::istream* input, std::ostream* output, bool verbose) {
+base::Status SymbolizeProfile(std::istream* input,
+                              std::ostream* output,
+                              bool verbose) {
   profiling::SymbolizerConfig sym_config;
 
   const char* breakpad_dir = getenv("BREAKPAD_SYMBOL_DIR");
@@ -50,29 +52,35 @@ int SymbolizeProfile(std::istream* input, std::ostream* output, bool verbose) {
   if (sym_config.index_symbol_paths.empty() &&
       sym_config.find_symbol_paths.empty() &&
       sym_config.breakpad_paths.empty()) {
-    PERFETTO_FATAL("No symbol paths configured");
+    return base::ErrStatus(
+        "no symbol paths configured: set the PERFETTO_BINARY_PATH "
+        "environment variable to a colon-separated list of directories "
+        "containing the unstripped binaries (or BREAKPAD_SYMBOL_DIR for "
+        "Breakpad symbol files) and try again");
   }
 
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
-  if (!ReadTraceUnfinalized(tp.get(), input))
-    PERFETTO_FATAL("Failed to read trace.");
+  if (!ReadTraceUnfinalized(tp.get(), input)) {
+    return base::ErrStatus("failed to read trace");
+  }
 
   tp->Flush();
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
-    PERFETTO_FATAL("%s", status.c_message());
+    return base::ErrStatus("failed to finalize trace: %s", status.c_message());
   }
 
   auto result =
       profiling::SymbolizeDatabaseAndLog(tp.get(), sym_config, verbose);
   if (result.error != profiling::SymbolizerError::kOk) {
-    PERFETTO_FATAL("Symbolization failed: %s", result.error_details.c_str());
+    return base::ErrStatus("symbolization failed: %s",
+                           result.error_details.c_str());
   }
   *output << result.symbols;
 
-  return 0;
+  return base::OkStatus();
 }
 
 }  // namespace trace_to_text

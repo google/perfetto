@@ -16,13 +16,10 @@
 
 #include "src/trace_processor/plugins/utils_functions/utils_functions.h"
 
-#include <cerrno>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -34,14 +31,14 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/regex.h"
-#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
 #include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/io.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
@@ -56,57 +53,105 @@
 #include "src/trace_processor/util/glob.h"
 
 namespace perfetto::trace_processor {
+namespace {
+
+io::FileSystem* GetSqlFileSystem(TraceProcessorContext* context) {
+  if (!context->config.enable_sql_file_access) {
+    return nullptr;
+  }
+  return context->file_system;
+}
+
+class FileOutputWriter final : public json::OutputWriter {
+ public:
+  explicit FileOutputWriter(std::unique_ptr<io::File> file)
+      : file_(std::move(file)) {}
+
+  base::Status AppendString(const std::string& value) override {
+    if (!status_.ok()) {
+      return status_;
+    }
+    buffer_.append(value);
+    if (buffer_.size() >= kBufferSize) {
+      return Flush();
+    }
+    return status_;
+  }
+
+  base::Status Finish() { return Flush(); }
+
+ private:
+  base::Status Flush() {
+    if (!status_.ok() || buffer_.empty()) {
+      return status_;
+    }
+    status_ = file_->WriteAt(offset_, buffer_.data(), buffer_.size());
+    if (status_.ok()) {
+      offset_ += buffer_.size();
+      buffer_.clear();
+    }
+    return status_;
+  }
+
+  static constexpr size_t kBufferSize = 64 * 1024;
+
+  std::unique_ptr<io::File> file_;
+  uint64_t offset_ = 0;
+  std::string buffer_;
+  base::Status status_ = base::OkStatus();
+};
+
+}  // namespace
 
 struct ExportJson : public sqlite::Function<ExportJson> {
   static constexpr char kName[] = "export_json";
   static constexpr int kArgCount = 1;
 
-  using UserData = TraceStorage;
+  using UserData = TraceProcessorContext;
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 
 void ExportJson::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   PERFETTO_DCHECK(argc == 1);
 
-  auto* storage = GetUserData(ctx);
-  base::ScopedFstream output;
-
   switch (sqlite::value::Type(argv[0])) {
     case sqlite::Type::kNull:
       return sqlite::utils::SetError(ctx,
                                      "EXPORT_JSON: filename cannot be null");
-    case sqlite::Type::kInteger: {
-      // Assume input is an FD.
-      int fd = static_cast<int>(sqlite::value::Int64(argv[0]));
-      output.reset(fdopen(fd, "w"));
-      if (!output) {
-        return sqlite::utils::SetError(
-            ctx, "EXPORT_JSON: Couldn't open output file from given FD");
-      }
+    case sqlite::Type::kText:
       break;
-    }
-    case sqlite::Type::kText: {
-      const char* filename = sqlite::value::Text(argv[0]);
-      output = base::OpenFstream(filename, "w");
-      if (!output) {
-        return sqlite::utils::SetError(
-            ctx, "EXPORT_JSON: Couldn't open output file");
-      }
-      break;
-    }
+    case sqlite::Type::kInteger:
     case sqlite::Type::kFloat:
     case sqlite::Type::kBlob:
       return sqlite::utils::SetError(
-          ctx,
-          "EXPORT_JSON: argument must be filename string or file descriptor");
+          ctx, "EXPORT_JSON: argument must be a filename string");
   }
 
-  auto status = json::ExportJson(storage, output.get());
+  auto* trace_context = GetUserData(ctx);
+  io::FileSystem* file_system = GetSqlFileSystem(trace_context);
+  if (!file_system) {
+    return sqlite::utils::SetError(ctx, "EXPORT_JSON: File I/O is disabled");
+  }
+  io::FileOpenOptions options;
+  options.access = io::FileAccess::kWriteOnly;
+  options.create = true;
+  options.truncate = true;
+  std::unique_ptr<io::File> file;
+  base::Status open_status =
+      file_system->OpenFile(sqlite::value::Text(argv[0]), options, &file);
+  if (!open_status.ok()) {
+    return sqlite::utils::SetError(
+        ctx, base::ErrStatus("EXPORT_JSON: %s", open_status.c_message()));
+  }
+  FileOutputWriter output(std::move(file));
+  base::Status status = json::ExportJson(trace_context->storage.get(), &output);
+  base::Status output_status = output.Finish();
+  if (status.ok()) {
+    status = std::move(output_status);
+  }
   if (!status.ok()) {
     return sqlite::utils::SetError(ctx, status);
   }
-
-  // ExportJson returns no value (void function)
   return sqlite::utils::ReturnNullFromFunction(ctx);
 }
 
@@ -230,33 +275,44 @@ void Demangle::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   }
 }
 
-struct WriteFile : public sqlite::Function<WriteFile> {
-  static constexpr char kName[] = "write_file";
+struct FileWrite : public sqlite::Function<FileWrite> {
+  static constexpr char kName[] = "__intrinsic_file_write";
   static constexpr int kArgCount = 2;
 
-  using UserData = TraceStorage;
+  using UserData = TraceProcessorContext;
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 
-void WriteFile::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+void FileWrite::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   PERFETTO_DCHECK(argc == 2);
 
   if (sqlite::value::Type(argv[0]) != sqlite::Type::kText) {
     return sqlite::utils::SetError(
-        ctx, "WRITE_FILE: argument 1, filename must be string");
+        ctx, "__intrinsic_file_write: argument 1, filename must be string");
   }
 
   if (sqlite::value::Type(argv[1]) != sqlite::Type::kBlob) {
     return sqlite::utils::SetError(
-        ctx, "WRITE_FILE: argument 2, content must be bytes");
+        ctx, "__intrinsic_file_write: argument 2, content must be bytes");
   }
 
-  const char* filename = sqlite::value::Text(argv[0]);
-  base::ScopedFstream file = base::OpenFstream(filename, "wb");
-  if (!file) {
+  io::FileSystem* file_system = GetSqlFileSystem(GetUserData(ctx));
+  if (!file_system) {
     return sqlite::utils::SetError(
-        ctx, base::ErrStatus("WRITE_FILE: Couldn't open output file %s (%s)",
-                             filename, strerror(errno)));
+        ctx, "__intrinsic_file_write: File I/O is disabled");
+  }
+
+  io::FileOpenOptions options;
+  options.access = io::FileAccess::kWriteOnly;
+  options.create = true;
+  options.truncate = true;
+  std::unique_ptr<io::File> file;
+  base::Status open_status =
+      file_system->OpenFile(sqlite::value::Text(argv[0]), options, &file);
+  if (!open_status.ok()) {
+    return sqlite::utils::SetError(
+        ctx,
+        base::ErrStatus("__intrinsic_file_write: %s", open_status.c_message()));
   }
 
   int int_len = sqlite::value::Bytes(argv[1]);
@@ -265,10 +321,10 @@ void WriteFile::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   // Make sure to call last as sqlite::value::Bytes can invalidate pointer
   // returned.
   const void* data = sqlite::value::Blob(argv[1]);
-  if (fwrite(data, 1, len, file.get()) != len || fflush(file.get()) != 0) {
+  base::Status status = file->WriteAt(0, data, len);
+  if (!status.ok()) {
     return sqlite::utils::SetError(
-        ctx, base::ErrStatus("WRITE_FILE: Failed to write to file %s (%s)",
-                             filename, strerror(errno)));
+        ctx, base::ErrStatus("__intrinsic_file_write: %s", status.c_message()));
   }
 
   return sqlite::result::Long(ctx, int_len);
@@ -531,8 +587,7 @@ class UtilsFunctionsPlugin : public Plugin<UtilsFunctionsPlugin> {
 
   void RegisterFunctions(PerfettoSqlConnection*,
                          std::vector<FunctionRegistration>& out) override {
-    TraceStorage* storage = trace_context_->storage.get();
-    out.push_back(MakeFunctionRegistration<ExportJson>(storage));
+    out.push_back(MakeFunctionRegistration<ExportJson>(trace_context_));
     out.push_back(MakeFunctionRegistration<Hash>(nullptr));
     out.push_back(MakeFunctionRegistration<Reverse>(nullptr));
     out.push_back(MakeFunctionRegistration<Base64Encode>(nullptr));
@@ -544,9 +599,7 @@ class UtilsFunctionsPlugin : public Plugin<UtilsFunctionsPlugin> {
     out.push_back(MakeFunctionRegistration<RegexpExtract>(nullptr));
     out.push_back(MakeFunctionRegistration<RegexpReplaceSimple>(nullptr));
     out.push_back(MakeFunctionRegistration<UnHex>(nullptr));
-    if (trace_context_->config.enable_dev_features) {
-      out.push_back(MakeFunctionRegistration<WriteFile>(storage));
-    }
+    out.push_back(MakeFunctionRegistration<FileWrite>(trace_context_));
   }
 };
 

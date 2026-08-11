@@ -14,21 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_TREE_TREE_COLUMNS_FROM_DATAFRAME_H_
-#define SRC_TRACE_PROCESSOR_CORE_TREE_TREE_COLUMNS_FROM_DATAFRAME_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_TREE_TREE_FROM_DATAFRAME_H_
+#define SRC_TRACE_PROCESSOR_CORE_TREE_TREE_FROM_DATAFRAME_H_
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
-#include "src/trace_processor/core/tree/tree_columns.h"
+#include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
+#include "src/trace_processor/core/tree/tree.h"
 
-namespace perfetto::trace_processor::core::tree {
+namespace perfetto::trace_processor::core {
 
-// Converts columns collected in an AdhocDataframeBuilder into TreeColumns.
+// Converts columns collected in an AdhocDataframeBuilder into Tree.
 // The first two columns must be integer id and parent_id columns. This
 // validates their relationships and normalizes parent ids to row indices.
-base::StatusOr<TreeColumns> BuildTreeColumns(
-    dataframe::AdhocDataframeBuilder&& builder);
+base::StatusOr<Tree> BuildTree(dataframe::AdhocDataframeBuilder&& builder);
+base::StatusOr<Tree> BuildTree(dataframe::RuntimeDataframeBuilder&& builder);
 
-}  // namespace perfetto::trace_processor::core::tree
+}  // namespace perfetto::trace_processor::core
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_TREE_TREE_COLUMNS_FROM_DATAFRAME_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_TREE_TREE_FROM_DATAFRAME_H_
