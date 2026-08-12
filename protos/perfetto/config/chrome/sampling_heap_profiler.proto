@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,14 @@
  * limitations under the License.
  */
 
-#include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/importers/common/chunked_trace_reader.h"
+syntax = "proto2";
 
-namespace perfetto {
-namespace trace_processor {
+package perfetto.protos;
 
-ChunkedTraceReader::~ChunkedTraceReader() {}
+message ChromiumSamplingHeapProfilerConfig {
+  // Sampling interval in bytes.
+  optional uint64 sampling_interval_bytes = 1;
 
-// Anchored here: embedders linking only "storage_minimal" call
-// GetFileSystem() and still need the vtable.
-TraceProcessor_PlatformInterface::~TraceProcessor_PlatformInterface() = default;
-
-}  // namespace trace_processor
-}  // namespace perfetto
+  // Sampling interval in milliseconds.
+  optional uint32 sampling_interval_ms = 2;
+}

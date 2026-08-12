@@ -127,31 +127,56 @@ Tree::Column GatherRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc,
   return tc;
 }
 
-struct IdIndex {
-  std::optional<uint32_t> Find(int64_t id) const {
-    if (identity_ids) {
-      if (id < 0 || static_cast<uint64_t>(id) >= row_count) {
-        return std::nullopt;
-      }
-      return static_cast<uint32_t>(id);
-    }
-    if (dense_ids) {
-      if (id < 0 || static_cast<uint64_t>(id) >= dense_index.size()) {
-        return std::nullopt;
-      }
-      const uint32_t row = dense_index[static_cast<uint32_t>(id)];
-      return row == Tree::kNullParent ? std::nullopt : std::make_optional(row);
-    }
-    const uint32_t* row = hash_index->Find(id);
-    return row ? std::make_optional(*row) : std::nullopt;
-  }
+// Direct indexing is used while the dense vector is at least
+// 1 / kDenseIndexMaxSizeFactor full; sparser id ranges fall back to the hash
+// map to bound the memory wasted on empty slots.
+constexpr uint64_t kDenseIndexMaxSizeFactor = 2;
 
-  bool identity_ids;
-  bool dense_ids;
-  uint32_t row_count;
-  Span<const uint32_t> dense_index;
-  const base::FlatHashMap<int64_t, uint32_t>* hash_index;
-};
+// Builds an id -> row index matching storage to the id shape: identity ids
+// (id == row index) need no storage; a reasonably dense uint32 id range uses
+// a direct index vector; arbitrary int64 ids fall back to a hash map. Fails
+// on duplicate ids.
+base::StatusOr<Tree::IdIndex> BuildIdIndex(Span<const int64_t> ids,
+                                           uint32_t row_count) {
+  Tree::IdIndex result;
+  bool identity_ids = true;
+  bool uint32_ids = true;
+  uint32_t max_id = 0;
+  for (uint32_t i = 0; i < row_count; ++i) {
+    const int64_t id = ids[i];
+    identity_ids = identity_ids && id == i;
+    if (id < 0 ||
+        static_cast<uint64_t>(id) > std::numeric_limits<uint32_t>::max()) {
+      uint32_ids = false;
+    } else {
+      max_id = std::max(max_id, static_cast<uint32_t>(id));
+    }
+  }
+  result.identity_ids = identity_ids;
+  const bool dense_ids =
+      !identity_ids && uint32_ids &&
+      uint64_t(max_id) + 1 <= uint64_t(row_count) * kDenseIndexMaxSizeFactor;
+  if (dense_ids) {
+    result.dense.resize(uint64_t(max_id) + 1, Tree::kNullParent);
+    for (uint32_t i = 0; i < row_count; ++i) {
+      const uint32_t id = static_cast<uint32_t>(ids[i]);
+      if (result.dense[id] != Tree::kNullParent) {
+        return base::ErrStatus("tree: duplicate id");
+      }
+      result.dense[id] = i;
+    }
+  } else if (!identity_ids) {
+    result.hash.emplace();
+    for (uint32_t i = 0; i < row_count; ++i) {
+      auto [row, inserted] = result.hash->Insert(ids[i], i);
+      base::ignore_result(row);
+      if (!inserted) {
+        return base::ErrStatus("tree: duplicate id");
+      }
+    }
+  }
+  return std::move(result);
+}
 
 base::StatusOr<Tree> BuildFromRawColumns(
     std::vector<dataframe::AdhocDataframeBuilder::RawColumn> raw_cols);
@@ -159,6 +184,11 @@ base::StatusOr<Tree> BuildFromRawColumns(
 }  // namespace
 
 base::StatusOr<Tree> BuildTree(dataframe::AdhocDataframeBuilder&& builder) {
+  ASSIGN_OR_RETURN(auto raw_cols, std::move(builder).BuildRaw());
+  return BuildFromRawColumns(std::move(raw_cols));
+}
+
+base::StatusOr<Tree> BuildTree(dataframe::RuntimeDataframeBuilder&& builder) {
   ASSIGN_OR_RETURN(auto raw_cols, std::move(builder).BuildRaw());
   return BuildFromRawColumns(std::move(raw_cols));
 }
@@ -198,46 +228,11 @@ base::StatusOr<Tree> BuildFromRawColumns(
   Tree result;
   result.row_count = row_count;
 
-  // Prefer indexes which avoid hashing. Identity ids need no storage; a
-  // reasonably dense uint32 range uses direct indexing; arbitrary int64 ids
-  // fall back to a hash map.
-  bool identity_ids = true;
-  bool uint32_ids = true;
-  uint32_t max_id = 0;
-  for (uint32_t i = 0; i < row_count; ++i) {
-    int64_t id = id_vec[i];
-    identity_ids = identity_ids && id == i;
-    if (id < 0 ||
-        static_cast<uint64_t>(id) > std::numeric_limits<uint32_t>::max()) {
-      uint32_ids = false;
-    } else {
-      max_id = std::max(max_id, static_cast<uint32_t>(id));
-    }
-  }
-  bool dense_ids = !identity_ids && uint32_ids &&
-                   uint64_t(max_id) + 1 <= uint64_t(row_count) * 2;
-  std::vector<uint32_t> dense_index;
-  base::FlatHashMap<int64_t, uint32_t> hash_index;
-  if (dense_ids) {
-    dense_index.resize(uint64_t(max_id) + 1, Tree::kNullParent);
-    for (uint32_t i = 0; i < row_count; ++i) {
-      uint32_t id = static_cast<uint32_t>(id_vec[i]);
-      if (dense_index[id] != Tree::kNullParent) {
-        return base::ErrStatus("tree: duplicate id");
-      }
-      dense_index[id] = i;
-    }
-  } else if (!identity_ids) {
-    for (uint32_t i = 0; i < row_count; ++i) {
-      auto [row, inserted] = hash_index.Insert(id_vec[i], i);
-      base::ignore_result(row);
-      if (!inserted) {
-        return base::ErrStatus("tree: duplicate id");
-      }
-    }
-  }
-  const IdIndex id_index{identity_ids, dense_ids, row_count,
-                         MakeSpan(dense_index), &hash_index};
+  // Id index over the input rows, used to resolve parent_id references during
+  // normalization. If the input already satisfies the ordering invariant it is
+  // persisted on the tree as-is; a topological reorder invalidates it, in
+  // which case it is rebuilt from the output-order id column below.
+  ASSIGN_OR_RETURN(auto id_index, BuildIdIndex(id_vec.span(), row_count));
 
   // Normalize parent_id to input row indices first. Track whether the input
   // already satisfies the Tree ordering invariant while doing so.
@@ -254,12 +249,12 @@ base::StatusOr<Tree> BuildFromRawColumns(
       if (pid_rc.null_bv.size() > 0 && !pid_rc.null_bv.is_set(row)) {
         continue;
       }
-      std::optional<uint32_t> parent = id_index.Find(pid_vec[row]);
-      if (PERFETTO_UNLIKELY(!parent)) {
+      const uint32_t parent = id_index.Find(pid_vec[row], row_count);
+      if (PERFETTO_UNLIKELY(parent == Tree::kNullParent)) {
         return base::ErrStatus("tree: parent_id not found in id column");
       }
-      input_parent[row] = *parent;
-      if (*parent >= row) {
+      input_parent[row] = parent;
+      if (parent >= row) {
         identity_order = false;
       }
     }
@@ -317,16 +312,22 @@ base::StatusOr<Tree> BuildFromRawColumns(
       result.names.push_back(std::move(rc.name));
       result.columns.push_back(MoveRawColumn(rc));
     }
+    result.id_index = std::move(id_index);
   } else {
     // Gather all columns (including id/parent_id) in topological order.
     for (auto& rc : raw_cols) {
       result.names.push_back(std::move(rc.name));
       result.columns.push_back(GatherRawColumn(rc, row_count, MakeSpan(order)));
     }
+    // The reorder invalidated the input-space index; rebuild it from the
+    // gathered id column, which is in output row order.
+    const auto* ids = result.columns[0].unchecked_data<int64_t>();
+    ASSIGN_OR_RETURN(
+        result.id_index,
+        BuildIdIndex(Span<const int64_t>(ids, ids + row_count), row_count));
   }
   return std::move(result);
 }
 
 }  // namespace
-
 }  // namespace perfetto::trace_processor::core
