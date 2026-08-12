@@ -115,11 +115,13 @@ size_t RingAllocationSize(uint32_t num_chunks) {
 SharedRingBuffer::Chunk::Chunk(Chunk&& other) noexcept
     : begin_(other.begin_),
       state_word_(other.state_word_),
-      payload_used_(other.payload_used_) {
+      payload_used_(other.payload_used_),
+      num_fragments_(other.num_fragments_) {
   // If you add a member to Chunk, remember to move it here too.
   other.begin_ = nullptr;
   other.state_word_ = 0;
   other.payload_used_ = 0;
+  other.num_fragments_ = 0;
 }
 
 SharedRingBuffer::Chunk& SharedRingBuffer::Chunk::operator=(
@@ -195,7 +197,7 @@ SharedRingBuffer::Chunk SharedRingBuffer::TryClaimReservedChunk(
   PERFETTO_DCHECK(!writing_header.extended_header);
   writing_header.version = kChunkVersion;
   writing_header.extended_header = false;
-  writing_header.payload_size = 0;  // Nothing committed in this slot yet.
+  writing_header.num_fragments = 0;  // Nothing committed in this slot yet.
   writing_header.flags = static_cast<uint8_t>(
       (requested_header.flags & kChunkFlagsMask) | kFlagAcquiredForWriting);
   const uint32_t writing_state = writing_header.ToStateWord();
@@ -253,9 +255,11 @@ SharedRingBuffer::Chunk SharedRingBuffer::TryAcquireChunkForWriting(
 
 bool SharedRingBuffer::TryReacquireChunkForWriting(Chunk* chunk) {
   PERFETTO_DCHECK(chunk && chunk->is_valid() && !chunk->is_being_written());
-  // The published length is the only place the appending writer may start, and
-  // the reader may be copying everything below it right now.
-  PERFETTO_DCHECK(chunk->payload_used_ == chunk->committed_payload_size());
+  // The reader may be copying every committed record right now; the appending
+  // writer may only start past its locally tracked byte offset, and the
+  // published fragment count is the one cross-check the state word still
+  // offers for that handle-local bookkeeping.
+  PERFETTO_DCHECK(chunk->num_fragments_ == chunk->committed_num_fragments());
   auto* const state = state_word(chunk->begin_);
   const uint32_t desired = chunk->state_word_ | kFlagAcquiredForWriting;
   uint32_t expected = chunk->state_word_;
@@ -280,16 +284,17 @@ bool SharedRingBuffer::ReleaseChunkAsComplete(Chunk* chunk,
                                                        kFlagNeedsRewrite)));
 
   for (;;) {
-    // A chunk taken back to append must come back bigger. That growth is what
-    // makes the new state word differ from the one a reader may be copying
-    // under, and what bounds how often that reader has to start over.
-    // Publishing a freshly claimed chunk with nothing in it is merely wasteful.
-    PERFETTO_DCHECK(chunk->committed_payload_size() == 0 ||
-                    chunk->payload_used_ > chunk->committed_payload_size());
+    // A chunk taken back to append must come back with more records. That
+    // growth is what makes the new state word differ from the one a reader
+    // may be copying under, and what bounds how often that reader has to
+    // start over. Publishing a freshly claimed chunk with nothing in it is
+    // merely wasteful.
+    PERFETTO_DCHECK(chunk->committed_num_fragments() == 0 ||
+                    chunk->num_fragments_ > chunk->committed_num_fragments());
 
     ChunkHeader complete_header = ChunkHeader::FromStateWord(
         chunk->state_word_, LoadChunkTargetBuffer(chunk->begin_));
-    complete_header.payload_size = chunk->payload_used_;
+    complete_header.num_fragments = chunk->num_fragments_;
     complete_header.flags = static_cast<uint8_t>(
         (complete_header.flags &
          ~static_cast<uint8_t>(kFlagAcquiredForWriting | kFlagNeedsRewrite)) |
@@ -324,6 +329,7 @@ bool SharedRingBuffer::ReleaseChunkAsComplete(Chunk* chunk,
     stats_.chunks_rewritten.fetch_add(1, std::memory_order_relaxed);
     std::array<uint8_t, kChunkPayloadSize> payload{};
     const uint32_t payload_used = chunk->payload_used_;
+    const uint8_t num_fragments = chunk->num_fragments_;
     memcpy(payload.data(), chunk->payload_begin(), payload_used);
 
     // Park the payload and free the marked slot before looking for a new one.
@@ -341,9 +347,10 @@ bool SharedRingBuffer::ReleaseChunkAsComplete(Chunk* chunk,
 
     memcpy(chunk->payload_begin(), payload.data(), payload_used);
     chunk->payload_used_ = static_cast<uint8_t>(payload_used);
+    chunk->num_fragments_ = num_fragments;
     // Whatever the previous lap left after |payload_used| stays there. The
-    // loop's next iteration republishes that exact length, and the reader
-    // never looks past it.
+    // loop's next iteration republishes exactly the counted records, and the
+    // reader never walks past them.
     //
     // The reader can collide with the relocated chunk too. Retrying is finite
     // per collision and never waits for the preempted reader.
@@ -409,9 +416,12 @@ void SharedRingBuffer::AdvanceReadPos() {
   ring_buffer_header()->read_pos.store(read_pos_, std::memory_order_release);
 }
 
-SharedRingBuffer::ReadResult SharedRingBuffer::TryReadChunk(ChunkHeader* header,
-                                                            uint8_t* payload) {
-  PERFETTO_DCHECK(header && payload);
+SharedRingBuffer::ReadResult SharedRingBuffer::TryReadChunk(
+    ChunkHeader* header,
+    uint8_t* payload,
+    uint32_t* payload_size) {
+  PERFETTO_DCHECK(header && payload && payload_size);
+  *payload_size = 0;  // First, so no exit path can leave it undefined.
   PERFETTO_DCHECK(read_pos_ == ring_buffer_header()->read_pos.load(
                                    std::memory_order_relaxed));
 
@@ -468,16 +478,10 @@ SharedRingBuffer::ReadResult SharedRingBuffer::TryReadChunk(ChunkHeader* header,
     const bool unsupported =
         observed.extended_header || observed.version != kChunkVersion;
     // Control state that cannot legitimately exist: writer id 0 is reserved,
-    // the payload cannot be longer than the chunk, and kFlagNeedsRewrite on a
-    // complete chunk has no owner left to act on it.
-    const bool malformed = observed.writer_id == 0 ||
-                           observed.payload_size > kChunkPayloadSize ||
-                           (observed.flags & kFlagNeedsRewrite) != 0;
-    // TraceWriterV2 emits at least a one-byte fragment header, even for an
-    // empty packet. A zero-payload complete chunk is tolerated for now because
-    // the producer ABI has not forbidden it.
-    // TODO(sashwinbalaji): decide whether to reject zero-payload complete
-    // chunks before the producer/service ABI is frozen.
+    // and kFlagNeedsRewrite on a complete chunk has no owner left to act on
+    // it.
+    const bool malformed =
+        observed.writer_id == 0 || (observed.flags & kFlagNeedsRewrite) != 0;
     if (PERFETTO_UNLIKELY(unsupported || malformed)) {
       // Dropped either way, so that the ring keeps flowing, but they are not
       // the same event: one is somebody else being ahead of us, the other is
@@ -495,17 +499,54 @@ SharedRingBuffer::ReadResult SharedRingBuffer::TryReadChunk(ChunkHeader* header,
       }
       break;
     }
-    // Both this and the payload below were release-published by the writer's
-    // transition to the complete state we acquire-loaded, so they are only
-    // safe to read from here on.
-    observed.target_buffer = LoadChunkTargetBuffer(chunk);
 
-    // Copy first, then prove the copy was of a whole chunk by freeing the
-    // exact state it was taken from. The owning writer may be appending after
-    // payload_size while this runs - disjoint bytes - but it cannot publish
-    // without changing the word, so a CAS failure means "somebody added data,
-    // start over" and never "the bytes you copied were half-written".
-    memcpy(payload, chunk + kChunkHeaderSize, observed.payload_size);
+    // Walk exactly num_fragments size records to find the committed byte
+    // boundary. Every record it visits belongs to the prefix the writer
+    // release-published with this word, and a writer never modifies committed
+    // bytes, so the walk reads only quiescent memory. A count no payload
+    // could hold, or a record reaching past the capacity, is payload-level
+    // garbage: count it and drop the chunk so the ring keeps flowing, but -
+    // unlike the control-state corruption above - do not treat it as fatal;
+    // the reassembly layer reports the writer's broken continuation chain.
+    // TODO(sashwinbalaji): when this consumer moves behind the service trust
+    // boundary, malformed input needs budgets and attribution, not only a
+    // counter.
+    uint32_t committed_size = 0;
+    uint32_t walked = 0;
+    for (; walked < observed.num_fragments; ++walked) {
+      if (committed_size >= kChunkPayloadSize)
+        break;  // No room left for this record's size byte.
+      const uint8_t fragment_size = chunk[kChunkHeaderSize + committed_size];
+      if (fragment_size >
+          kChunkPayloadSize - committed_size - kFragmentHeaderSize) {
+        break;  // The record would reach past the payload capacity.
+      }
+      committed_size += kFragmentHeaderSize + fragment_size;
+    }
+    if (PERFETTO_UNLIKELY(walked != observed.num_fragments)) {
+      if (!state->compare_exchange_strong(word, kFreeStateWord,
+                                          std::memory_order_acq_rel,
+                                          std::memory_order_acquire)) {
+        continue;
+      }
+      stats_.malformed_chunks.fetch_add(1, std::memory_order_relaxed);
+      break;
+    }
+
+    // The target buffer was release-published together with the records, and
+    // only a nonzero count vouches for it: with zero committed fragments the
+    // bytes may never have been stored, so they must not name a destination.
+    // |observed.target_buffer| stays 0 in that case.
+    if (observed.num_fragments != 0)
+      observed.target_buffer = LoadChunkTargetBuffer(chunk);
+
+    // Copy first, then prove the copy covered every committed record by
+    // freeing the exact state it was taken from. The owning writer may be
+    // appending past the counted records while this runs - disjoint bytes -
+    // but it cannot publish without changing the fragment count in the word,
+    // so a CAS failure means "somebody added data, start over" and never "the
+    // bytes you copied were half-written".
+    memcpy(payload, chunk + kChunkHeaderSize, committed_size);
     if (!state->compare_exchange_strong(word, kFreeStateWord,
                                         std::memory_order_acq_rel,
                                         std::memory_order_acquire)) {
@@ -514,6 +555,7 @@ SharedRingBuffer::ReadResult SharedRingBuffer::TryReadChunk(ChunkHeader* header,
     }
 
     *header = observed;
+    *payload_size = committed_size;
     AdvanceReadPos();
     return ReadResult::kChunkRead;
   }

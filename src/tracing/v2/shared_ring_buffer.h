@@ -87,9 +87,17 @@ class SharedRingBuffer {
     uint8_t* payload_end() const { return begin_ + kChunkSize; }
     uint32_t payload_used() const { return payload_used_; }
     uint32_t payload_free() const { return kChunkPayloadSize - payload_used_; }
-    void set_payload_used(uint32_t payload_used) {
-      PERFETTO_DCHECK(payload_used <= kChunkPayloadSize);
+    uint32_t num_fragments() const { return num_fragments_; }
+    // Called once per finished record: |payload_used| is the new byte offset,
+    // record size byte included, and the fragment count grows with it. The
+    // byte offset stays local to this handle - the ABI publishes only the
+    // count, in the release CAS of ReleaseChunkAsComplete().
+    void AddFragment(uint32_t payload_used) {
+      PERFETTO_DCHECK(payload_used > payload_used_ &&
+                      payload_used <= kChunkPayloadSize);
+      PERFETTO_DCHECK(num_fragments_ < kMaxChunkFragments);
       payload_used_ = static_cast<uint8_t>(payload_used);
+      ++num_fragments_;
     }
 
    private:
@@ -99,11 +107,11 @@ class SharedRingBuffer {
     Chunk(uint8_t* begin, uint32_t state_word)
         : begin_(begin), state_word_(state_word) {}
 
-    // The payload length the last release published for this chunk. Zero for a
-    // freshly claimed one. Re-acquiring only ever appends after it.
-    uint32_t committed_payload_size() const {
+    // The fragment count the last release published for this chunk. Zero for
+    // a freshly claimed one. Re-acquiring only ever appends records after it.
+    uint32_t committed_num_fragments() const {
       return ChunkHeader::FromStateWord(state_word_, /*target_buffer=*/0)
-          .payload_size;
+          .num_fragments;
     }
 
     void Reset() { *this = Chunk(); }
@@ -112,6 +120,7 @@ class SharedRingBuffer {
     uint8_t* begin_ = nullptr;
     uint32_t state_word_ = 0;
     uint8_t payload_used_ = 0;
+    uint8_t num_fragments_ = 0;
   };
 
   struct Stats {
@@ -161,11 +170,16 @@ class SharedRingBuffer {
   [[nodiscard]] bool ReleaseChunkAsComplete(Chunk*, uint8_t added_flags);
 
   // Reader side. There must be exactly one reader. |payload| must point to
-  // kChunkPayloadSize bytes, of which the first header->payload_size are
-  // filled in. The owning writer is free to append while this copies: it only
-  // ever writes past the committed prefix, and its publication changes the
+  // kChunkPayloadSize bytes; on kChunkRead the committed records are copied
+  // into it and |*payload_size| says how many bytes they span. That boundary
+  // comes from walking the header->num_fragments self-sized records, so the
+  // reader never trusts a byte the writer did not release-publish. The owning
+  // writer is free to append while this copies: it only ever writes past the
+  // committed records, and its publication changes the fragment count in the
   // state word, which fails the CAS that would otherwise free the chunk.
-  ReadResult TryReadChunk(ChunkHeader*, uint8_t* payload);
+  ReadResult TryReadChunk(ChunkHeader*,
+                          uint8_t* payload,
+                          uint32_t* payload_size);
 
   uint32_t write_pos() const {
     return ring_buffer_header()->write_pos.load(std::memory_order_acquire);
@@ -219,31 +233,32 @@ class SharedRingBuffer {
   // pre-masked offsets would have to sacrifice one slot to distinguish full
   // from empty.
   //
-  // Split by who writes what, one cache line each, so the two sides do not
-  // ping-pong a line: every writer thread CASes write_pos, and only the reader
-  // stores read_pos.
-  struct alignas(64) RingBufferHeader {
+  // Grouped by who writes what, one cache line per group via alignas on its
+  // leading atomic, so the two sides do not ping-pong a line: every writer
+  // thread CASes write_pos, and only the reader stores read_pos. 64 bytes is
+  // this experimental ABI's documented assumption, not a negotiated
+  // cross-platform constant; the offset static_asserts below are what freeze
+  // the layout.
+  // TODO(sashwinbalaji): settle the line size (or make it part of the mapping
+  // negotiation) before this becomes a cross-process contract.
+  static constexpr size_t kCacheLineSize = 64;
+  struct RingBufferHeader {
     // Written by writers.
-    std::atomic<uint32_t> write_pos{0};
+    alignas(kCacheLineSize) std::atomic<uint32_t> write_pos{0};
     // How many writers are inside WaitForReaderProgress(). Lets the reader
     // skip the wake syscall when nobody is stalled.
     std::atomic<uint32_t> num_writers_waiting{0};
-    // The two atomics above occupy eight bytes; 56 bytes finish their 64-byte
-    // cache line so writer CAS traffic does not invalidate the reader-owned
-    // fields below.
-    uint8_t writer_cache_line_padding[56]{};
 
     // Written by the reader.
-    std::atomic<uint32_t> read_pos{0};
+    alignas(kCacheLineSize) std::atomic<uint32_t> read_pos{0};
     // The futex word. Bumped every time the reader frees chunks. Writers wait
     // on it rather than on read_pos, because a futex needs a value that only
     // ever changes when there is something to wake up for.
     std::atomic<uint32_t> reader_generation{0};
-    // Keep the reserved area on a new cache line. This padding is not space for
-    // future control fields: adding one here could reintroduce false sharing.
-    uint8_t reader_cache_line_padding[56]{};
 
-    // For the cross-process control fields chosen in later steps.
+    // For the cross-process control fields chosen in later steps. Separately
+    // aligned so a future field cannot reintroduce false sharing with either
+    // cursor line above.
     //
     // TODO(sashwinbalaji): add durable ring-wide data-loss auditing before
     // field validation. kFlagDataLoss can report an exhausted ring only after
@@ -251,7 +266,7 @@ class SharedRingBuffer {
     // the loss is invisible to the consumer. Decide between a saturating
     // shared counter here and an equivalently durable per-writer mechanism,
     // and place it so increments do not add contention to the cursor lines.
-    uint8_t reserved[128]{};
+    alignas(kCacheLineSize) uint8_t reserved[128]{};
   };
   static_assert(sizeof(RingBufferHeader) == kChunkSize,
                 "The ring control header is part of the experimental ABI");

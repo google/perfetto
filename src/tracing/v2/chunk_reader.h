@@ -107,7 +107,11 @@ class ChunkReader {
                   const uint8_t* data,
                   size_t size,
                   const std::function<void(const Packet&)>&);
+  // |payload_size| is the byte span of the header's num_fragments records,
+  // walked and validated by SharedRingBuffer::TryReadChunk() when it copied
+  // them into |payload_|.
   uint32_t ProcessChunk(const ChunkHeader&,
+                        uint32_t payload_size,
                         const std::function<void(const Packet&)>&);
   void MarkLoss(WriterState*, uint32_t reasons);
 

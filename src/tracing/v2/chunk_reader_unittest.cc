@@ -60,8 +60,8 @@ void PublishRecords(SharedRingBuffer* ring,
     chunk.payload_begin()[offset++] = static_cast<uint8_t>(record.size());
     std::copy(record.begin(), record.end(), chunk.payload_begin() + offset);
     offset += record.size();
+    chunk.AddFragment(static_cast<uint32_t>(offset));
   }
-  chunk.set_payload_used(static_cast<uint32_t>(offset));
   ASSERT_TRUE(ring->ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
 }
 
@@ -158,28 +158,40 @@ TEST(ChunkReaderTest, MergesLossReasonsIntoOneCanonicalField) {
   EXPECT_TRUE(packets[0].data.empty());
 }
 
-TEST(ChunkReaderTest, RejectsFragmentLargerThanRemainingPayload) {
+// A record reaching past the payload capacity is rejected inside
+// SharedRingBuffer::TryReadChunk() - the walk that turns the fragment count
+// into a byte boundary - so the reassembly layer never sees the chunk. What
+// it does see is the writer's broken continuation chain, reported through the
+// ordinary loss marking. The ring-level rejection has its own tests in
+// shared_ring_buffer_unittest.cc.
+TEST(ChunkReaderTest, SkipsAChunkTheRingRejectedAndMarksTheChainBroken) {
   SharedRingBuffer ring(4);
   ChunkReader reader(&ring);
-  SharedRingBuffer::Chunk chunk =
-      ring.TryAcquireChunkForWriting(MakeHeader(4, 7));
+  // First half of a packet, in a valid chunk.
+  PublishRecords(&ring, MakeHeader(4, 7, kFlagContinuesOnNextChunk),
+                 {{0x0a, 0x02}});
+  // The continuation chunk carries a record claiming bytes past the capacity.
+  SharedRingBuffer::Chunk chunk = ring.TryAcquireChunkForWriting(
+      MakeHeader(4, 7, kFlagContinuesFromPrevChunk));
   ASSERT_TRUE(chunk.is_valid());
-  // Make every byte but the last an empty record, then leave the last record
-  // claiming a byte beyond the committed payload.
-  std::fill(chunk.payload_begin(),
-            chunk.payload_begin() + kChunkPayloadSize - 1, 0);
-  chunk.payload_begin()[kChunkPayloadSize - 1] = 1;
-  chunk.set_payload_used(kChunkPayloadSize);
+  chunk.payload_begin()[0] = 0xff;
+  chunk.AddFragment(2);
   ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+  // The writer moves on to a self-contained packet.
+  PublishRecords(&ring, MakeHeader(4, 7), {{0x08, 0x07}});
 
-  EXPECT_TRUE(Drain(&reader).empty());
-  EXPECT_EQ(reader.stats().malformed_chunks, 1u);
+  const std::vector<PacketCopy> packets = Drain(&reader);
+  EXPECT_EQ(ring.stats().malformed_chunks.load(), 1u);
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(packets[0].data, std::vector<uint8_t>({0x08, 0x07}));
+  // The half-assembled packet was lost and the next one says so.
+  EXPECT_TRUE(packets[0].previous_packet_dropped);
 }
 
 // Nothing zeroes a freed slot, so a chunk that fills only part of one is read
 // against a payload whose tail still holds the previous lap's bytes. The
-// committed size is the only thing that separates the two.
-TEST(ChunkReaderTest, IgnoresBytesPastTheCommittedPayloadSize) {
+// counted records are the only thing that separates the two.
+TEST(ChunkReaderTest, IgnoresBytesPastTheCountedRecords) {
   SharedRingBuffer ring(4);
   ChunkReader reader(&ring);
   SharedRingBuffer::Chunk chunk =
@@ -190,7 +202,7 @@ TEST(ChunkReaderTest, IgnoresBytesPastTheCommittedPayloadSize) {
   chunk.payload_begin()[0] = 2;
   chunk.payload_begin()[1] = 0x08;
   chunk.payload_begin()[2] = 0x01;
-  chunk.set_payload_used(3);
+  chunk.AddFragment(3);
   ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
 
   const std::vector<PacketCopy> packets = Drain(&reader);

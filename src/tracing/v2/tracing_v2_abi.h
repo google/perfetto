@@ -35,8 +35,8 @@ namespace tracing_v2 {
 //        +---------+---------+-------------------+-------------------+
 //        | byte 0  | byte 1  |     bytes 2-3     |     bytes 4-5     |
 //        +---------+---------+-------------------+-------------------+
-//        | control | payload |     writer id     |   target buffer   |
-//        |  byte   |  size   |                   |                   |
+//        | control |  num    |     writer id     |   target buffer   |
+//        |  byte   |fragments|                   |                   |
 //        +---------+---------+-------------------+-------------------+
 //        \__________ atomic state word __________/
 //
@@ -101,21 +101,41 @@ constexpr uint8_t kChunkVersion = 0;
 //
 //   [fragment_size:uint8][fragment bytes] [fragment_size:uint8][...] ...
 //
-// The reader stops at payload_size rather than at a sentinel, so a size of
-// zero is an empty fragment and the bytes past payload_size have no meaning:
-// they are whatever the previous lap left in the slot.
+// The state word carries the number of committed fragments, not a byte count.
+// The reader walks exactly that many records to find the committed boundary
+// rather than stopping at a sentinel, so a size of zero is an empty fragment
+// and the bytes past the last counted record have no meaning: they are
+// whatever the previous lap left in the slot.
+//
+// The count doubles as the committed-prefix generation: a writer only ever
+// appends records, so every release-publication increments it, and a reader
+// holding a copy of an older prefix fails the CAS that would free the chunk.
+// Unlike the byte size it replaced, the count does not limit the payload to
+// 255 bytes. The writer's byte offset is deliberately unpublished; each
+// writer tracks it locally in its chunk handle.
 constexpr uint32_t kFragmentHeaderSize = 1;
 constexpr uint32_t kMaxFragmentSize = kChunkPayloadSize - kFragmentHeaderSize;
+
+// The count field is eight bits, so a writer that reaches this many committed
+// fragments must move to a new chunk even if payload bytes remain. With
+// 256-byte chunks the byte capacity binds first - a record takes at least its
+// size byte - making the rule unreachable today; it is part of the ABI so a
+// larger future chunk cannot overflow the count.
+// TODO(sashwinbalaji): the one-byte fragment_size still caps one fragment at
+// kMaxFragmentSize bytes, so a chunk larger than 256 bytes needs a wider or
+// self-delimiting fragment size first. Decide that encoding before growing
+// kChunkSize; nothing speculative is reserved for it here.
+constexpr uint32_t kMaxChunkFragments = 255;
 
 struct ChunkHeader {
   WriterID writer_id = 0;
   BufferID target_buffer = 0;
-  // Payload bytes committed by the writer, fragment size fields included. It
-  // sits in the state word for two reasons: it tells the reader which prefix
-  // belongs to the snapshot it just observed, and it makes every append change
-  // that word, so a reader that copied the older prefix fails its CAS instead
-  // of freeing a chunk it did not fully read.
-  uint8_t payload_size = 0;
+  // Fragment records committed by the writer. It sits in the state word for
+  // two reasons: it tells the reader which prefix belongs to the snapshot it
+  // just observed - walk this many self-sized records - and it makes every
+  // append change that word, so a reader that copied the older prefix fails
+  // its CAS instead of freeing a chunk it did not fully read.
+  uint8_t num_fragments = 0;
   uint8_t flags = 0;
   uint8_t version = 0;
   // Bit 7 of the control byte. Nothing emits it; the reader only recognises it
@@ -127,7 +147,7 @@ struct ChunkHeader {
                (flags & kChunkFlagsMask) |
                ((version << kChunkVersionShift) & kChunkVersionMask) |
                (extended_header ? kChunkExtendedHeaderMask : 0)) |
-           (static_cast<uint32_t>(payload_size) << 8) |
+           (static_cast<uint32_t>(num_fragments) << 8) |
            (static_cast<uint32_t>(writer_id) << 16);
   }
 
@@ -139,7 +159,7 @@ struct ChunkHeader {
     header.version = static_cast<uint8_t>((control_byte & kChunkVersionMask) >>
                                           kChunkVersionShift);
     header.extended_header = (control_byte & kChunkExtendedHeaderMask) != 0;
-    header.payload_size = static_cast<uint8_t>(state_word >> 8);
+    header.num_fragments = static_cast<uint8_t>(state_word >> 8);
     header.writer_id = static_cast<WriterID>(state_word >> 16);
     header.target_buffer = target_buffer;
     return header;
@@ -151,9 +171,11 @@ struct ChunkHeader {
 // the state word does not have to spend bits on it, and it stays a whole
 // 16-bit field instead of being split across the atomic boundary. A writer
 // stores it while it exclusively owns a newly claimed slot; the release
-// transition to a complete state publishes it along with the payload. The
-// direct producer/service design may replace this initial v1 buffer index with
-// a negotiated routing identifier.
+// transition to a complete state publishes it along with the payload. Only a
+// nonzero committed-fragment count vouches for these bytes: the reader must
+// not interpret them as a destination while the count it observed is zero.
+// The direct producer/service design may replace this initial v1 buffer index
+// with a negotiated routing identifier.
 inline void StoreChunkTargetBuffer(uint8_t* chunk, BufferID target_buffer) {
   chunk[kChunkTargetBufferOffset] = static_cast<uint8_t>(target_buffer);
   chunk[kChunkTargetBufferOffset + 1] =
@@ -175,14 +197,14 @@ inline BufferID LoadChunkTargetBuffer(const uint8_t* chunk) {
 //        Free. A writer claims it by CAS-ing from zero.
 //   2. kFlagAcquiredForWriting
 //        A writer is inside the chunk. It releases by clearing the flag and
-//        publishing the new payload_size in the same CAS.
+//        publishing the new num_fragments in the same CAS.
 //   3. kFlagAcquiredForWriting | kFlagNeedsRewrite
 //        The reader stepped over a live writer. That writer's release CAS
 //        fails; it relocates its payload to a later position and frees this
 //        slot.
 //   4. neither bit set
-//        Complete and readable. Its writer may take it back to append after
-//        payload_size, never to rewrite what is below it.
+//        Complete and readable. Its writer may take it back to append records
+//        after the counted ones, never to rewrite what is below them.
 //   5. kFlagNeedsRewrite with writer id 0  (== kInvalidatedChunkHeader)
 //        A slot whose reservation the reader passed before any writer claimed
 //        it. The late writer frees it rather than using it, which would hand
@@ -197,9 +219,9 @@ constexpr uint32_t kFreeStateWord = 0;
 // the late writer that finally shows up frees it instead of using it, because
 // using it would hand the reader data out of order.
 constexpr uint32_t kInvalidatedChunkHeader =
-    ChunkHeader{/*writer_id=*/0,    /*target_buffer=*/0,
-                /*payload_size=*/0, kFlagNeedsRewrite,
-                kChunkVersion,      /*extended_header=*/false}
+    ChunkHeader{/*writer_id=*/0,     /*target_buffer=*/0,
+                /*num_fragments=*/0, kFlagNeedsRewrite,
+                kChunkVersion,       /*extended_header=*/false}
         .ToStateWord();
 
 static_assert(sizeof(WriterID) == 2,
@@ -211,8 +233,11 @@ static_assert(kChunkHeaderSize == 6,
 static_assert(kChunkTargetBufferOffset + sizeof(BufferID) == kChunkHeaderSize,
               "The target buffer occupies the header bytes after the state "
               "word");
-static_assert(kChunkPayloadSize <= UINT8_MAX,
-              "The payload size and the fragment sizes must fit in one byte");
+static_assert(kMaxFragmentSize <= UINT8_MAX,
+              "A fragment size must fit its one-byte record header");
+static_assert(kChunkPayloadSize / kFragmentHeaderSize <= kMaxChunkFragments,
+              "A chunk must not hold more records than the eight-bit fragment "
+              "count can publish; widen the count before growing the chunk");
 static_assert(kInvalidatedChunkHeader != kFreeStateWord,
               "An invalidated chunk must be distinguishable from a free one");
 static_assert((kChunkFlagsMask & kChunkVersionMask) == 0 &&

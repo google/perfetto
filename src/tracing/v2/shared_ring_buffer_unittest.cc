@@ -64,6 +64,15 @@ class SharedRingBufferTestPeer {
                  std::memory_order_release);
   }
 
+  // Forges the whole state word, for reader paths our writers cannot reach,
+  // e.g. a fragment count the payload cannot hold.
+  static void SetStateWord(SharedRingBuffer* ring,
+                           uint32_t pos,
+                           uint32_t word) {
+    SharedRingBuffer::state_word(ring->chunk_at(pos))
+        ->store(word, std::memory_order_release);
+  }
+
   // The step that validates a reader's copy: freeing the exact state the copy
   // was taken from. Lets a test stand in for a reader that copied |state| and
   // only got here after the writer had moved on.
@@ -92,7 +101,7 @@ void AppendOneByteRecord(SharedRingBuffer::Chunk* chunk, uint8_t value) {
   uint8_t* const record = chunk->payload_begin() + chunk->payload_used();
   record[0] = 1;
   record[1] = value;
-  chunk->set_payload_used(chunk->payload_used() + 2);
+  chunk->AddFragment(chunk->payload_used() + 2);
 }
 
 void AppendUint32Record(SharedRingBuffer::Chunk* chunk, uint32_t value) {
@@ -102,15 +111,15 @@ void AppendUint32Record(SharedRingBuffer::Chunk* chunk, uint32_t value) {
   record[2] = static_cast<uint8_t>(value >> 8);
   record[3] = static_cast<uint8_t>(value >> 16);
   record[4] = static_cast<uint8_t>(value >> 24);
-  chunk->set_payload_used(chunk->payload_used() +
-                          static_cast<uint32_t>(kUint32RecordSize));
+  chunk->AddFragment(chunk->payload_used() +
+                     static_cast<uint32_t>(kUint32RecordSize));
 }
 
 void ReadUint32Records(const ChunkHeader& header,
                        const uint8_t* payload,
                        std::vector<uint32_t>* out) {
   size_t offset = 0;
-  while (offset < header.payload_size) {
+  for (uint32_t record = 0; record < header.num_fragments; ++record) {
     PERFETTO_CHECK(payload[offset] == sizeof(uint32_t));
     out->push_back(static_cast<uint32_t>(payload[offset + 1]) |
                    (static_cast<uint32_t>(payload[offset + 2]) << 8) |
@@ -122,10 +131,11 @@ void ReadUint32Records(const ChunkHeader& header,
 
 SharedRingBuffer::ReadResult ReadPastSkippedChunks(SharedRingBuffer* ring,
                                                    ChunkHeader* header,
-                                                   uint8_t* payload) {
+                                                   uint8_t* payload,
+                                                   uint32_t* payload_size) {
   for (;;) {
     const SharedRingBuffer::ReadResult result =
-        ring->TryReadChunk(header, payload);
+        ring->TryReadChunk(header, payload, payload_size);
     if (result != SharedRingBuffer::ReadResult::kChunkSkipped)
       return result;
   }
@@ -135,7 +145,7 @@ TEST(SharedRingBufferV2Test, HeaderMatchesTheDocumentedSixByteLayout) {
   ChunkHeader header;
   header.writer_id = 0x1234;
   header.target_buffer = 0x5678;
-  header.payload_size = 0xab;
+  header.num_fragments = 0xab;
   header.flags =
       static_cast<uint8_t>(kFlagContinuesOnNextChunk | kFlagDataLoss);
   const uint32_t word = header.ToStateWord();
@@ -148,11 +158,23 @@ TEST(SharedRingBufferV2Test, HeaderMatchesTheDocumentedSixByteLayout) {
   const ChunkHeader decoded = ChunkHeader::FromStateWord(word, 0x5678);
   EXPECT_EQ(decoded.writer_id, 0x1234);
   EXPECT_EQ(decoded.target_buffer, 0x5678);
-  EXPECT_EQ(decoded.payload_size, 0xab);
+  EXPECT_EQ(decoded.num_fragments, 0xab);
   EXPECT_EQ(decoded.version, kChunkVersion);
   EXPECT_FALSE(decoded.extended_header);
   EXPECT_EQ(decoded.flags,
             static_cast<uint8_t>(kFlagContinuesOnNextChunk | kFlagDataLoss));
+
+  // The count field's boundary values pack exactly: empty, first commit, and
+  // the kMaxChunkFragments ceiling that forces a writer onto a new chunk.
+  for (uint32_t count : {0u, 1u, kMaxChunkFragments}) {
+    ChunkHeader boundary;
+    boundary.writer_id = 1;
+    boundary.num_fragments = static_cast<uint8_t>(count);
+    EXPECT_EQ((boundary.ToStateWord() >> 8) & 0xff, count);
+    EXPECT_EQ(
+        ChunkHeader::FromStateWord(boundary.ToStateWord(), 0).num_fragments,
+        count);
+  }
 
   // The target buffer stays a whole 16-bit field, outside the state word.
   uint8_t chunk[kChunkSize]{};
@@ -207,11 +229,13 @@ TEST(SharedRingBufferV2Test, PublishesAndReadsACompleteChunk) {
 
   ChunkHeader header;
   uint8_t payload[kChunkPayloadSize]{};
-  ASSERT_EQ(ring.TryReadChunk(&header, payload),
+  uint32_t payload_size = 0;
+  ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
             SharedRingBuffer::ReadResult::kChunkRead);
   EXPECT_EQ(header.writer_id, 7);
   EXPECT_EQ(header.target_buffer, 11);
-  EXPECT_EQ(header.payload_size, 2);
+  EXPECT_EQ(header.num_fragments, 1);
+  EXPECT_EQ(payload_size, 2u);
   EXPECT_EQ(payload[0], 1);
   EXPECT_EQ(payload[1], 0x42);
   EXPECT_FALSE(ring.has_pending_data());
@@ -219,9 +243,9 @@ TEST(SharedRingBufferV2Test, PublishesAndReadsACompleteChunk) {
 
 // The reader copies the committed prefix and then frees the exact state word
 // it copied under. That only proves anything because appending changes the
-// word: the payload size lives in it. Without the size an
-// acquire/append/release cycle would restore the word bit for bit and the
-// reader would free - and so lose - the appended record.
+// word: the committed-fragment count lives in it. Without the count as a
+// generation, an acquire/append/release cycle would restore the word bit for
+// bit and the reader would free - and so lose - the appended record.
 TEST(SharedRingBufferV2Test, AppendChangesTheStateWordAStaleReaderWouldFree) {
   SharedRingBuffer ring(4);
   SharedRingBuffer::Chunk chunk =
@@ -243,9 +267,11 @@ TEST(SharedRingBufferV2Test, AppendChangesTheStateWordAStaleReaderWouldFree) {
   // ... so the record the writer appended is still there to be read.
   ChunkHeader header;
   uint8_t payload[kChunkPayloadSize]{};
-  ASSERT_EQ(ring.TryReadChunk(&header, payload),
+  uint32_t payload_size = 0;
+  ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
             SharedRingBuffer::ReadResult::kChunkRead);
-  EXPECT_EQ(header.payload_size, 4);
+  EXPECT_EQ(header.num_fragments, 2);
+  EXPECT_EQ(payload_size, 4u);
   EXPECT_EQ(payload[1], 0xAB);
   EXPECT_EQ(payload[3], 0xCD);
 }
@@ -267,10 +293,12 @@ TEST(SharedRingBufferV2Test, SkipsHeadersItCannotParse) {
     ChunkHeader header;
     uint8_t payload[kChunkPayloadSize];
     memset(payload, 0xee, sizeof(payload));
-    EXPECT_EQ(ring.TryReadChunk(&header, payload),
+    uint32_t payload_size = 0xffffffff;
+    EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
               SharedRingBuffer::ReadResult::kChunkSkipped);
     EXPECT_EQ(ring.stats().chunks_unsupported.load(), 1u);
     EXPECT_EQ(ring.stats().malformed_chunks.load(), 0u);
+    EXPECT_EQ(payload_size, 0u);
     EXPECT_EQ(payload[0], 0xee);  // Nothing was copied out of the chunk.
     EXPECT_FALSE(ring.has_pending_data());
   }
@@ -293,27 +321,34 @@ TEST(SharedRingBufferV2Test, NeverOverwritesWhenFull) {
 
   ChunkHeader header;
   uint8_t payload[kChunkPayloadSize]{};
-  EXPECT_EQ(ring.TryReadChunk(&header, payload),
+  uint32_t payload_size = 0;
+  EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
             SharedRingBuffer::ReadResult::kChunkRead);
-  EXPECT_EQ(ring.TryReadChunk(&header, payload),
+  EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
             SharedRingBuffer::ReadResult::kChunkRead);
 }
 
 TEST(SharedRingBufferV2Test, DelayedWriterCannotPublishAfterReaderPassesIt) {
-  SharedRingBuffer ring(2);
-  uint32_t pos = 0;
-  ASSERT_TRUE(SharedRingBufferTestPeer::Reserve(&ring, &pos));
-  EXPECT_EQ(pos, 0u);
+  // At zero and at the 2^32 boundary: invalidating the reservation and
+  // rejecting the late claim must not depend on where the cursors sit.
+  for (uint32_t seed : {0u, 0xffffffffu}) {
+    SharedRingBuffer ring(2);
+    SharedRingBufferTestPeer::SeedPositions(&ring, seed);
+    uint32_t pos = 0;
+    ASSERT_TRUE(SharedRingBufferTestPeer::Reserve(&ring, &pos));
+    EXPECT_EQ(pos, seed);
 
-  ChunkHeader header;
-  uint8_t payload[kChunkPayloadSize]{};
-  EXPECT_EQ(ring.TryReadChunk(&header, payload),
-            SharedRingBuffer::ReadResult::kChunkSkipped);
+    ChunkHeader header;
+    uint8_t payload[kChunkPayloadSize]{};
+    uint32_t payload_size = 0;
+    EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+              SharedRingBuffer::ReadResult::kChunkSkipped);
 
-  SharedRingBuffer::Chunk stale =
-      SharedRingBufferTestPeer::Claim(&ring, MakeHeader(1, 1), pos);
-  EXPECT_FALSE(stale.is_valid());
-  EXPECT_FALSE(ring.has_pending_data());
+    SharedRingBuffer::Chunk stale =
+        SharedRingBufferTestPeer::Claim(&ring, MakeHeader(1, 1), pos);
+    EXPECT_FALSE(stale.is_valid());
+    EXPECT_FALSE(ring.has_pending_data());
+  }
 }
 
 TEST(SharedRingBufferV2Test, ActiveWriterRelocatesInsteadOfBlockingReader) {
@@ -325,11 +360,12 @@ TEST(SharedRingBufferV2Test, ActiveWriterRelocatesInsteadOfBlockingReader) {
 
   ChunkHeader header;
   uint8_t payload[kChunkPayloadSize]{};
-  EXPECT_EQ(ring.TryReadChunk(&header, payload),
+  uint32_t payload_size = 0;
+  EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
             SharedRingBuffer::ReadResult::kChunkSkipped);
   ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
 
-  ASSERT_EQ(ReadPastSkippedChunks(&ring, &header, payload),
+  ASSERT_EQ(ReadPastSkippedChunks(&ring, &header, payload, &payload_size),
             SharedRingBuffer::ReadResult::kChunkRead);
   EXPECT_EQ(header.writer_id, 3);
   EXPECT_EQ(header.target_buffer, 9);
@@ -338,9 +374,10 @@ TEST(SharedRingBufferV2Test, ActiveWriterRelocatesInsteadOfBlockingReader) {
 }
 
 // A relocated payload lands in a slot that a previous lap left dirty, and
-// nothing wipes the bytes after it. What keeps those bytes out of the trace is
-// the republished payload size, so relocation has to carry it over intact.
-TEST(SharedRingBufferV2Test, RelocationIgnoresStaleBytesPastThePayloadSize) {
+// nothing wipes the bytes after it. What keeps those bytes out of the trace
+// is the republished fragment count, so relocation has to carry over exactly
+// the counted records and their local byte offset.
+TEST(SharedRingBufferV2Test, RelocationIgnoresStaleBytesPastTheCountedRecords) {
   SharedRingBuffer ring(2);
 
   // Dirty both slots with record-shaped bytes, then hand them back.
@@ -348,14 +385,15 @@ TEST(SharedRingBufferV2Test, RelocationIgnoresStaleBytesPastThePayloadSize) {
     SharedRingBuffer::Chunk dirty =
         ring.TryAcquireChunkForWriting(MakeHeader(9, 1));
     ASSERT_TRUE(dirty.is_valid());
-    memset(dirty.payload_begin(), 0x01, kChunkPayloadSize);
-    dirty.set_payload_used(kChunkPayloadSize);
+    while (dirty.payload_free() >= 2)
+      AppendOneByteRecord(&dirty, 0x01);
     ASSERT_TRUE(ring.ReleaseChunkAsComplete(&dirty, /*added_flags=*/0));
   }
   ChunkHeader drained;
   uint8_t drained_payload[kChunkPayloadSize]{};
+  uint32_t drained_size = 0;
   for (int i = 0; i < 2; ++i) {
-    ASSERT_EQ(ring.TryReadChunk(&drained, drained_payload),
+    ASSERT_EQ(ring.TryReadChunk(&drained, drained_payload, &drained_size),
               SharedRingBuffer::ReadResult::kChunkRead);
   }
 
@@ -366,7 +404,8 @@ TEST(SharedRingBufferV2Test, RelocationIgnoresStaleBytesPastThePayloadSize) {
   AppendOneByteRecord(&chunk, 0x42);
   ChunkHeader skipped;
   uint8_t skipped_payload[kChunkPayloadSize]{};
-  ASSERT_EQ(ring.TryReadChunk(&skipped, skipped_payload),
+  uint32_t skipped_size = 0;
+  ASSERT_EQ(ring.TryReadChunk(&skipped, skipped_payload, &skipped_size),
             SharedRingBuffer::ReadResult::kChunkSkipped);
 
   // The release now has to relocate into one of the dirty slots.
@@ -375,10 +414,12 @@ TEST(SharedRingBufferV2Test, RelocationIgnoresStaleBytesPastThePayloadSize) {
 
   ChunkHeader header;
   uint8_t payload[kChunkPayloadSize]{};
-  ASSERT_EQ(ring.TryReadChunk(&header, payload),
+  uint32_t payload_size = 0;
+  ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
             SharedRingBuffer::ReadResult::kChunkRead);
   EXPECT_EQ(header.writer_id, 7);
-  EXPECT_EQ(header.payload_size, 2);  // One record, one byte of data...
+  EXPECT_EQ(header.num_fragments, 1);  // One record, one byte of data...
+  EXPECT_EQ(payload_size, 2u);
   EXPECT_EQ(payload[0], 1);
   EXPECT_EQ(payload[1], 0x42);
 }
@@ -393,23 +434,31 @@ TEST(SharedRingBufferV2Test, ReservesAcrossTheCursorRollover) {
 
   ChunkHeader header;
   uint8_t payload[kChunkPayloadSize]{};
+  uint32_t payload_size = 0;
   for (uint32_t i = 0; i < 8; ++i) {
     SharedRingBuffer::Chunk chunk =
         ring.TryAcquireChunkForWriting(MakeHeader(1, 2));
     ASSERT_TRUE(chunk.is_valid()) << "iteration " << i;
     AppendOneByteRecord(&chunk, static_cast<uint8_t>(i));
     ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
-    ASSERT_EQ(ring.TryReadChunk(&header, payload),
+    ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
               SharedRingBuffer::ReadResult::kChunkRead);
     EXPECT_EQ(payload[1], static_cast<uint8_t>(i));
   }
 }
 
-// A full ring at the rollover must still report full, and must recover as soon
-// as the reader frees a position.
+// A full ring at the rollover must still report full, an empty one must still
+// report empty, and both must recover as soon as the cursors move.
 TEST(SharedRingBufferV2Test, ReportsFullAtTheCursorRollover) {
   SharedRingBuffer ring(2);
   SharedRingBufferTestPeer::SeedPositions(&ring, 0xffffffff);
+
+  ChunkHeader header;
+  uint8_t payload[kChunkPayloadSize]{};
+  uint32_t payload_size = 0;
+  // Empty at the boundary: equal cursors mean no data, not a full lap.
+  EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+            SharedRingBuffer::ReadResult::kNoData);
 
   SharedRingBuffer::Chunk first =
       ring.TryAcquireChunkForWriting(MakeHeader(1, 1));
@@ -420,9 +469,7 @@ TEST(SharedRingBufferV2Test, ReportsFullAtTheCursorRollover) {
 
   AppendOneByteRecord(&first, 0x11);
   ASSERT_TRUE(ring.ReleaseChunkAsComplete(&first, /*added_flags=*/0));
-  ChunkHeader header;
-  uint8_t payload[kChunkPayloadSize]{};
-  ASSERT_EQ(ring.TryReadChunk(&header, payload),
+  ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
             SharedRingBuffer::ReadResult::kChunkRead);
 
   SharedRingBuffer::Chunk third =
@@ -436,29 +483,37 @@ TEST(SharedRingBufferV2Test, ReportsFullAtTheCursorRollover) {
 }
 
 TEST(SharedRingBufferV2Test, WrapsPositionsWithoutLosingCapacity) {
-  SharedRingBuffer ring(4);
-  ChunkHeader header;
-  uint8_t payload[kChunkPayloadSize]{};
-  for (uint32_t i = 0; i < 1000; ++i) {
-    SharedRingBuffer::Chunk chunk =
-        ring.TryAcquireChunkForWriting(MakeHeader(1, 2));
-    ASSERT_TRUE(chunk.is_valid());
-    AppendOneByteRecord(&chunk, static_cast<uint8_t>(i));
-    ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
-    ASSERT_EQ(ring.TryReadChunk(&header, payload),
-              SharedRingBuffer::ReadResult::kChunkRead);
-    EXPECT_EQ(payload[1], static_cast<uint8_t>(i));
+  // From zero, and seeded so the run crosses 2^32 mid-way: several complete
+  // laps on each side of the boundary with every slot staying usable.
+  for (uint32_t seed : {0u, 0xffffffffu - 500u}) {
+    SharedRingBuffer ring(4);
+    SharedRingBufferTestPeer::SeedPositions(&ring, seed);
+    ChunkHeader header;
+    uint8_t payload[kChunkPayloadSize]{};
+    uint32_t payload_size = 0;
+    for (uint32_t i = 0; i < 1000; ++i) {
+      SharedRingBuffer::Chunk chunk =
+          ring.TryAcquireChunkForWriting(MakeHeader(1, 2));
+      ASSERT_TRUE(chunk.is_valid()) << "seed " << seed << " iteration " << i;
+      AppendOneByteRecord(&chunk, static_cast<uint8_t>(i));
+      ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+      ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+                SharedRingBuffer::ReadResult::kChunkRead);
+      EXPECT_EQ(payload[1], static_cast<uint8_t>(i));
+    }
   }
 }
 
 // Every other record is appended to a chunk taken back from the ring, so the
 // reader regularly copies a prefix while its writer is adding to the same
 // chunk. Under TSAN this is also what shows the two only ever touch disjoint
-// byte ranges.
-TEST(SharedRingBufferV2Test, ConcurrentWritersAndReaderPreserveEveryRecord) {
+// byte ranges. |seed_pos| places the cursors before the threads start, so the
+// same interleavings can be run right below the 2^32 rollover.
+void RunConcurrentWritersAndReader(uint32_t seed_pos) {
   constexpr uint32_t kNumWriters = 4;
   constexpr uint32_t kRecordsPerWriter = 2000;
   SharedRingBuffer ring(64);
+  SharedRingBufferTestPeer::SeedPositions(&ring, seed_pos);
   std::atomic<bool> start{false};
   std::atomic<uint32_t> writers_done{0};
   std::vector<std::thread> writers;
@@ -504,8 +559,9 @@ TEST(SharedRingBufferV2Test, ConcurrentWritersAndReaderPreserveEveryRecord) {
          ring.has_pending_data()) {
     ChunkHeader header;
     uint8_t payload[kChunkPayloadSize]{};
+    uint32_t payload_size = 0;
     const SharedRingBuffer::ReadResult result =
-        ring.TryReadChunk(&header, payload);
+        ring.TryReadChunk(&header, payload, &payload_size);
     if (result == SharedRingBuffer::ReadResult::kChunkRead) {
       ReadUint32Records(header, payload, &observed);
     } else if (result == SharedRingBuffer::ReadResult::kNoData) {
@@ -523,6 +579,170 @@ TEST(SharedRingBufferV2Test, ConcurrentWritersAndReaderPreserveEveryRecord) {
   }
   std::sort(observed.begin(), observed.end());
   EXPECT_EQ(observed, expected);
+}
+
+TEST(SharedRingBufferV2Test, ConcurrentWritersAndReaderPreserveEveryRecord) {
+  RunConcurrentWritersAndReader(/*seed_pos=*/0);
+}
+
+TEST(SharedRingBufferV2Test,
+     ConcurrentWritersAndReaderPreserveEveryRecordAcrossRollover) {
+  // Far enough below 2^32 that reservations start before the boundary, close
+  // enough that the run's several thousand positions must cross it.
+  RunConcurrentWritersAndReader(/*seed_pos=*/0xffffffffu - 64u);
+}
+
+// The reader copies only the bytes the counted records span, so record-shaped
+// garbage past the committed prefix - whatever an earlier lap or an unfinished
+// append left there - never reaches the output buffer.
+TEST(SharedRingBufferV2Test, CopiesOnlyTheCountedRecords) {
+  SharedRingBuffer ring(4);
+  SharedRingBuffer::Chunk chunk =
+      ring.TryAcquireChunkForWriting(MakeHeader(3, 1));
+  ASSERT_TRUE(chunk.is_valid());
+  AppendOneByteRecord(&chunk, 0x42);
+  memset(chunk.payload_begin() + chunk.payload_used(), 0x01,
+         kChunkPayloadSize - chunk.payload_used());
+  ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+
+  ChunkHeader header;
+  uint8_t payload[kChunkPayloadSize];
+  memset(payload, 0xee, sizeof(payload));
+  uint32_t payload_size = 0;
+  ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+            SharedRingBuffer::ReadResult::kChunkRead);
+  EXPECT_EQ(header.num_fragments, 1);
+  EXPECT_EQ(payload_size, 2u);
+  EXPECT_EQ(payload[0], 1);
+  EXPECT_EQ(payload[1], 0x42);
+  EXPECT_EQ(payload[2], 0xee);  // Nothing past the counted records came over.
+}
+
+// A record whose size byte reaches past the payload capacity cannot come from
+// TraceWriterV2 - FinalizeFragment() bounds every size it writes - so it is
+// payload garbage. The reader must copy nothing, count it, free the slot and
+// keep the ring flowing.
+TEST(SharedRingBufferV2Test, RejectsARecordReachingPastTheCapacity) {
+  SharedRingBuffer ring(4);
+  SharedRingBuffer::Chunk chunk =
+      ring.TryAcquireChunkForWriting(MakeHeader(5, 1));
+  ASSERT_TRUE(chunk.is_valid());
+  chunk.payload_begin()[0] = 0xff;  // Claims more bytes than can follow it.
+  chunk.AddFragment(2);
+  ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+
+  ChunkHeader header;
+  uint8_t payload[kChunkPayloadSize];
+  memset(payload, 0xee, sizeof(payload));
+  uint32_t payload_size = 0;
+  EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+            SharedRingBuffer::ReadResult::kChunkSkipped);
+  EXPECT_EQ(ring.stats().malformed_chunks.load(), 1u);
+  EXPECT_EQ(payload_size, 0u);
+  EXPECT_EQ(payload[0], 0xee);  // Nothing was copied out of the chunk.
+
+  // The slot was freed: the ring keeps flowing.
+  SharedRingBuffer::Chunk next =
+      ring.TryAcquireChunkForWriting(MakeHeader(5, 1));
+  ASSERT_TRUE(next.is_valid());
+  AppendOneByteRecord(&next, 0x11);
+  ASSERT_TRUE(ring.ReleaseChunkAsComplete(&next, /*added_flags=*/0));
+  ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+            SharedRingBuffer::ReadResult::kChunkRead);
+  EXPECT_EQ(payload[1], 0x11);
+}
+
+// Records that fit individually can still lie collectively: their cumulative
+// span must stay inside the payload for every prefix of the walk.
+TEST(SharedRingBufferV2Test, RejectsRecordsOverflowingCumulatively) {
+  SharedRingBuffer ring(4);
+  SharedRingBuffer::Chunk chunk =
+      ring.TryAcquireChunkForWriting(MakeHeader(6, 1));
+  ASSERT_TRUE(chunk.is_valid());
+  chunk.payload_begin()[0] = 200;  // A 201-byte record: fits alone.
+  chunk.AddFragment(201);
+  chunk.payload_begin()[201] = 200;  // A second one cannot also fit.
+  chunk.AddFragment(203);
+  ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+
+  ChunkHeader header;
+  uint8_t payload[kChunkPayloadSize]{};
+  uint32_t payload_size = 0;
+  EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+            SharedRingBuffer::ReadResult::kChunkSkipped);
+  EXPECT_EQ(ring.stats().malformed_chunks.load(), 1u);
+  EXPECT_EQ(payload_size, 0u);
+}
+
+// A fragment count no payload could hold fails the walk by arithmetic: even
+// all-empty records need one byte each. Our writers cannot produce it, so it
+// is forged through the test peer.
+TEST(SharedRingBufferV2Test, RejectsACountThePayloadCannotHold) {
+  SharedRingBuffer ring(2);
+  SharedRingBuffer::Chunk chunk =
+      ring.TryAcquireChunkForWriting(MakeHeader(7, 1));
+  ASSERT_TRUE(chunk.is_valid());
+  AppendOneByteRecord(&chunk, 0x42);
+  ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+  // Keep the control byte and the writer id; forge the count to the ceiling.
+  const uint32_t forged =
+      (SharedRingBufferTestPeer::StateWord(&ring, 0) & 0xffff00ffu) |
+      (kMaxChunkFragments << 8);
+  SharedRingBufferTestPeer::SetStateWord(&ring, 0, forged);
+
+  ChunkHeader header;
+  uint8_t payload[kChunkPayloadSize]{};
+  uint32_t payload_size = 0;
+  EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+            SharedRingBuffer::ReadResult::kChunkSkipped);
+  EXPECT_EQ(ring.stats().malformed_chunks.load(), 1u);
+  EXPECT_FALSE(ring.has_pending_data());
+}
+
+// An empty complete chunk has no committed fragment to vouch for its
+// target-buffer bytes, so the reader must not surface them as a destination,
+// initialized or not.
+TEST(SharedRingBufferV2Test, DoesNotReadTheTargetBufferOfAZeroFragmentChunk) {
+  SharedRingBuffer ring(2);
+  SharedRingBuffer::Chunk chunk =
+      ring.TryAcquireChunkForWriting(MakeHeader(9, 0xdead));
+  ASSERT_TRUE(chunk.is_valid());
+  ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+
+  ChunkHeader header;
+  uint8_t payload[kChunkPayloadSize]{};
+  uint32_t payload_size = 0;
+  ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+            SharedRingBuffer::ReadResult::kChunkRead);
+  EXPECT_EQ(header.writer_id, 9);
+  EXPECT_EQ(header.num_fragments, 0);
+  EXPECT_EQ(payload_size, 0u);
+  EXPECT_EQ(header.target_buffer, 0);  // 0xdead was stored, and not read.
+}
+
+// kChunkPayloadSize empty records are the densest legal record list at this
+// chunk size: the byte capacity binds before the eight-bit count can, which
+// is exactly what the capacity static_assert in the ABI header freezes.
+TEST(SharedRingBufferV2Test, ReadsAChunkPackedWithEmptyFragments) {
+  SharedRingBuffer ring(2);
+  SharedRingBuffer::Chunk chunk =
+      ring.TryAcquireChunkForWriting(MakeHeader(4, 2));
+  ASSERT_TRUE(chunk.is_valid());
+  for (uint32_t i = 0; i < kChunkPayloadSize; ++i) {
+    chunk.payload_begin()[i] = 0;  // A [size=0] record: an empty fragment.
+    chunk.AddFragment(i + 1);
+  }
+  EXPECT_EQ(chunk.num_fragments(), kChunkPayloadSize);
+  EXPECT_EQ(chunk.payload_free(), 0u);
+  ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+
+  ChunkHeader header;
+  uint8_t payload[kChunkPayloadSize]{};
+  uint32_t payload_size = 0;
+  ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+            SharedRingBuffer::ReadResult::kChunkRead);
+  EXPECT_EQ(header.num_fragments, kChunkPayloadSize);
+  EXPECT_EQ(payload_size, kChunkPayloadSize);
 }
 
 }  // namespace

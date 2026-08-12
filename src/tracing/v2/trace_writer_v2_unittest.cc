@@ -170,9 +170,12 @@ TEST(TraceWriterV2Test, DropsWithoutBlockingAndReportsRecovery) {
 
   ChunkHeader ignored_header;
   uint8_t ignored_payload[kChunkPayloadSize]{};
-  ASSERT_EQ(ring.TryReadChunk(&ignored_header, ignored_payload),
+  uint32_t ignored_payload_size = 0;
+  ASSERT_EQ(ring.TryReadChunk(&ignored_header, ignored_payload,
+                              &ignored_payload_size),
             SharedRingBuffer::ReadResult::kChunkRead);
-  ASSERT_EQ(ring.TryReadChunk(&ignored_header, ignored_payload),
+  ASSERT_EQ(ring.TryReadChunk(&ignored_header, ignored_payload,
+                              &ignored_payload_size),
             SharedRingBuffer::ReadResult::kChunkRead);
 
   writer.NewTracePacket()->set_timestamp(2);

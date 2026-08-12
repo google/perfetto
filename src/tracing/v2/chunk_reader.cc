@@ -95,6 +95,7 @@ bool ChunkReader::EmitPacket(
 
 uint32_t ChunkReader::ProcessChunk(
     const ChunkHeader& header,
+    uint32_t payload_size,
     const std::function<void(const Packet&)>& callback) {
   WriterState& state = writer_states_[header.writer_id];
   if (header.flags & kFlagDataLoss) {
@@ -114,28 +115,17 @@ uint32_t ChunkReader::ProcessChunk(
   // Keeping this rule explicit is important when both flags are present and a
   // chunk contains more than one record.
 
-  // Validate all records before emitting any packet from the chunk. A record
-  // is [size][fragment bytes] and the list ends at the committed payload size;
-  // whatever the slot holds past that belongs to a previous lap.
-  //
-  // TryReadChunk() drops a chunk that claims more than it can hold, so the
-  // bound below always stays inside |payload_|.
-  PERFETTO_DCHECK(header.payload_size <= kChunkPayloadSize);
-  const size_t payload_size = header.payload_size;
-  uint32_t num_records = 0;
-  size_t offset = 0;
-  while (offset < payload_size) {
-    const size_t fragment_size = payload_[offset];
-    if (fragment_size > payload_size - offset - kFragmentHeaderSize) {
-      ++stats_.malformed_chunks;
-      MarkLoss(&state, protos::pbzero::TracePacket::DATA_LOSS_CHUNK_CORRUPTED);
-      return 0;
-    }
-    offset += kFragmentHeaderSize + fragment_size;
-    ++num_records;
-  }
+  // A record is [size][fragment bytes] and the list is exactly the
+  // header.num_fragments records spanning |payload_size| bytes; whatever the
+  // slot held past them never reached |payload_|. TryReadChunk() walked and
+  // validated the records against the shared chunk when it copied them, and a
+  // writer cannot retract a committed record, so re-deriving the offsets from
+  // the private copy below cannot escape the bound.
+  const uint32_t num_records = header.num_fragments;
 
   if (num_records == 0 && (continues_from_previous || continues_on_next)) {
+    // A continuation flag names a boundary record; with no records there is
+    // nothing it could describe.
     ++stats_.malformed_chunks;
     MarkLoss(&state, protos::pbzero::TracePacket::DATA_LOSS_CHUNK_CORRUPTED);
     return 0;
@@ -147,9 +137,12 @@ uint32_t ChunkReader::ProcessChunk(
   }
 
   uint32_t packets_read = 0;
-  offset = 0;
+  size_t offset = 0;
   for (uint32_t record = 0; record < num_records; ++record) {
+    PERFETTO_DCHECK(offset + kFragmentHeaderSize <= payload_size);
     const size_t fragment_size = payload_[offset];
+    PERFETTO_DCHECK(offset + kFragmentHeaderSize + fragment_size <=
+                    payload_size);
     const uint8_t* const fragment = payload_ + offset + kFragmentHeaderSize;
     const bool continues_from = record == 0 && continues_from_previous;
     const bool continues_to = record + 1 == num_records && continues_on_next;
@@ -192,14 +185,15 @@ ChunkReader::DrainResult ChunkReader::Drain(
   for (; result.chunks_processed < ring_->num_chunks();
        ++result.chunks_processed) {
     ChunkHeader header;
+    uint32_t payload_size = 0;
     const SharedRingBuffer::ReadResult read_result =
-        ring_->TryReadChunk(&header, payload_);
+        ring_->TryReadChunk(&header, payload_, &payload_size);
     if (read_result == SharedRingBuffer::ReadResult::kNoData)
       break;
     // A skipped position still advances the FIFO cursor and therefore counts
     // against this pass's one-lap fairness bound.
     if (read_result == SharedRingBuffer::ReadResult::kChunkRead)
-      result.packets_read += ProcessChunk(header, callback);
+      result.packets_read += ProcessChunk(header, payload_size, callback);
   }
   // Once per pass, not once per chunk: a stalled writer only needs to be told
   // that space exists, and waking it per chunk would be a syscall per chunk.

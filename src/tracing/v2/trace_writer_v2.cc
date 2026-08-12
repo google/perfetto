@@ -173,11 +173,12 @@ void TraceWriterV2::FinalizeFragment() {
   PERFETTO_CHECK(fragment_size <= kMaxFragmentSize);
   *fragment_size_field_ = static_cast<uint8_t>(fragment_size);
 
-  // Publishing this length is what makes the record visible; nothing marks the
-  // end of the payload besides it.
+  // The record joins the committed prefix when the release CAS publishes the
+  // grown fragment count; within the payload, its size byte is all that
+  // delimits it.
   const size_t payload_used = static_cast<size_t>(
       protobuf_stream_writer_.write_ptr() - current_chunk_.payload_begin());
-  current_chunk_.set_payload_used(static_cast<uint32_t>(payload_used));
+  current_chunk_.AddFragment(static_cast<uint32_t>(payload_used));
   fragment_size_field_ = nullptr;
   fragment_begin_ = nullptr;
 }
@@ -203,12 +204,16 @@ TraceWriterV2::TracePacketHandle TraceWriterV2::NewTracePacket() {
 
   // A loss marker must start a new chunk because an already-published header
   // cannot be changed. Otherwise take back the last chunk when it has enough
-  // room for a size byte and useful payload. An empty packet would fit in the
-  // size byte alone, but taking a chunk back to add nothing is not worth two
-  // atomics and a reader retry.
+  // room for a size byte and useful payload, and its fragment count can still
+  // grow: at kMaxChunkFragments the ABI requires moving on even if bytes
+  // remain. With 256-byte chunks the byte capacity always binds first, so
+  // that clause is the ABI rule spelled out, not a reachable branch. An empty
+  // packet would fit in the size byte alone, but taking a chunk back to add
+  // nothing is not worth two atomics and a reader retry.
   constexpr uint32_t kMinRecordSpace = kFragmentHeaderSize + 1;
   if (current_chunk_.is_valid() && !pending_data_loss_ &&
-      current_chunk_.payload_free() >= kMinRecordSpace) {
+      current_chunk_.payload_free() >= kMinRecordSpace &&
+      current_chunk_.num_fragments() < kMaxChunkFragments) {
     ring_buffer_->TryReacquireChunkForWriting(&current_chunk_);
   } else {
     current_chunk_ = SharedRingBuffer::Chunk();
