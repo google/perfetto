@@ -613,6 +613,37 @@ class Parsing(TestSuite):
         "trace_uuid","123e4567-e89b-12d3-a456-426655443322","[NULL]"
         """))
 
+  # TraceConfig.trace_attributes and TraceAttributes packets both become
+  # trace_attribute.* metadata rows; the last value wins on key collisions.
+  def test_config_trace_attributes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trace_config {
+            trace_attributes {
+              attribute { key: "myapp.build_id" string_value: "b123" }
+              attribute { key: "myapp.variant" string_value: "arm64" }
+            }
+          }
+        }
+        packet {
+          trace_attributes {
+            attribute { key: "myapp.variant" string_value: "arm64-override" }
+            attribute { key: "myapp.iterations" long_value: 10 }
+          }
+        }
+        """),
+        query="""
+        SELECT name, str_value, int_value FROM metadata
+        WHERE name GLOB 'trace_attribute.*' ORDER BY name;
+        """,
+        out=Csv("""
+        "name","str_value","int_value"
+        "trace_attribute.myapp.build_id","b123","[NULL]"
+        "trace_attribute.myapp.iterations","[NULL]",10
+        "trace_attribute.myapp.variant","arm64-override","[NULL]"
+        """))
+
   def test_triggers_packets_trigger_packet_trace(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

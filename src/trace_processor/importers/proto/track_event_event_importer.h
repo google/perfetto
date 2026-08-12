@@ -1448,7 +1448,8 @@ class TrackEventEventImporter {
 
     log_errors(ParseCallstack());
 
-    ArgsParser args_writer(ts_, *inserter, *storage_, sequence_state_,
+    ArgsParser args_writer(ts_, *inserter, *storage_,
+                           *context_->process_tracker, sequence_state_,
                            /*support_json=*/true);
     int unknown_extensions = 0;
     log_errors(parser_->args_parser_.ParseMessage(
@@ -1517,6 +1518,9 @@ class TrackEventEventImporter {
       row.end_callsite_id = *callsite_id_;
     } else {
       row.callsite_id = *callsite_id_;
+    }
+    if (event_.has_callstack_weight()) {
+      row.weight = event_.callstack_weight();
     }
     table->Insert(row);
   }
@@ -1666,7 +1670,7 @@ class TrackEventEventImporter {
     // Handle inline callstack
     // Inline callstacks are simple: just function names and source locations
     if (event_.has_callstack()) {
-      protos::pbzero::TrackEvent::Callstack::Decoder callstack(
+      protos::pbzero::TrackEvent::InlineCallstack::Decoder callstack(
           event_.callstack());
       DummyMemoryMapping* dummy_mapping =
           parser_->GetOrCreateInlineCallstackDummyMapping();
@@ -1674,7 +1678,8 @@ class TrackEventEventImporter {
       std::optional<CallsiteId> callsite_id;
       uint32_t depth = 0;
       for (auto frame_it = callstack.frames(); frame_it; ++frame_it, ++depth) {
-        protos::pbzero::TrackEvent::Callstack::Frame::Decoder frame(*frame_it);
+        protos::pbzero::TrackEvent::InlineCallstack::Frame::Decoder frame(
+            *frame_it);
         std::optional<base::StringView> source_file;
         if (frame.has_source_file()) {
           source_file = frame.source_file();

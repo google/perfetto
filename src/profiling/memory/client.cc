@@ -345,8 +345,6 @@ bool Client::IsPostFork() {
   return false;
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_RISCV) && \
-    !PERFETTO_HAS_BUILTIN_STACK_ADDRESS()
 ssize_t Client::GetStackRegister(unwindstack::ArchEnum arch) {
   ssize_t reg_sp, reg_size;
   switch (arch) {
@@ -382,7 +380,6 @@ uintptr_t Client::GetStackAddress(char* reg_data, unwindstack::ArchEnum arch) {
     return reinterpret_cast<uintptr_t>(nullptr);
   return *reinterpret_cast<uintptr_t*>(&reg_data[reg]);
 }
-#endif /* PERFETTO_ARCH_CPU_RISCV && !PERFETTO_HAS_BUILTIN_STACK_ADDRESS() */
 
 // The stack grows towards numerically smaller addresses, so the stack layout
 // of main calling malloc is as follows.
@@ -404,31 +401,27 @@ bool Client::RecordMalloc(uint32_t heap_id,
     return postfork_return_value_;
   }
 
-  AllocMetadata metadata;
-  // By the difference between calling conventions, the frame pointer might
-  // include the current frame or not. So, using __builtin_frame_address()
-  // on specific architectures such as riscv can make stack unwinding failed.
-  // Thus, using __builtin_stack_address() or reading the stack pointer in
-  // register data directly instead of using __builtin_frame_address() on riscv.
-#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_RISCV)
-#if PERFETTO_HAS_BUILTIN_STACK_ADDRESS()
-  const char* stackptr = reinterpret_cast<char*>(__builtin_stack_address());
+  AllocMetadata metadata = {};
   unwindstack::AsmGetRegs(metadata.register_data);
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_ARM64)
+  // On ARM64, the prologue allocates the callee-saved register block first and
+  // sets x29 (FP) to the base of that block. Starting the stack copy at FP
+  // captures all saved registers while omitting ~450 bytes of RecordMalloc's
+  // own local stack frame to save ring buffer space.
+  const char* stackptr = reinterpret_cast<char*>(__builtin_frame_address(0));
 #else
-  char* register_data = metadata.register_data;
-  unwindstack::AsmGetRegs(register_data);
-  const char* stackptr = reinterpret_cast<char*>(
-      GetStackAddress(register_data, unwindstack::Regs::CurrentArch()));
+  // On other architectures (such as x86_64 and RISC-V), callee-saved registers
+  // are pushed below the frame pointer (or calling conventions differ). We must
+  // copy from the sampled stack pointer (SP) to include all saved registers.
+  const char* stackptr = reinterpret_cast<char*>(GetStackAddress(
+      metadata.register_data, unwindstack::Regs::CurrentArch()));
   if (!stackptr) {
     PERFETTO_ELOG("Failed to get stack address.");
     shmem_.SetErrorState(SharedRingBuffer::kInvalidStackBounds);
     return false;
   }
-#endif /* PERFETTO_HAS_BUILTIN_STACK_ADDRESS() */
-#else
-  const char* stackptr = reinterpret_cast<char*>(__builtin_frame_address(0));
-  unwindstack::AsmGetRegs(metadata.register_data);
-#endif /* PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_RISCV) */
+#endif
   const char* stackend = GetStackEnd(stackptr);
   if (!stackend) {
     PERFETTO_ELOG("Failed to find stackend.");

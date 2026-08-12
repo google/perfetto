@@ -29,15 +29,18 @@
 
 PERFETTO_PB_MSG_DECL(perfetto_protos_DataSourceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PriorityBoostConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TraceAttributes);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_AndroidReportConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_BufferConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_BuiltinDataSource);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CmdTraceStartDelay);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CompressionConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CompressionConfig_Deflate);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CompressionConfig_Zstd);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_DataSource);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_GuardrailOverrides);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_IncidentReportConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_IncrementalStateConfig);
-PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_Note);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_ProducerConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_SessionSemaphore);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_StatsdMetadata);
@@ -274,6 +277,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   24);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   MSG,
+                  perfetto_protos_TraceConfig_CompressionConfig,
+                  compression,
+                  47);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  MSG,
                   perfetto_protos_TraceConfig_IncidentReportConfig,
                   incident_report_config,
                   25);
@@ -339,21 +347,9 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   43);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   MSG,
-                  perfetto_protos_TraceConfig_Note,
-                  notes,
-                  46);
-
-PERFETTO_PB_MSG(perfetto_protos_TraceConfig_Note);
-PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_Note,
-                  STRING,
-                  const char*,
-                  key,
-                  1);
-PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_Note,
-                  STRING,
-                  const char*,
-                  value,
-                  2);
+                  perfetto_protos_TraceAttributes,
+                  trace_attributes,
+                  48);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_SessionSemaphore);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_SessionSemaphore,
@@ -489,6 +485,27 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_IncidentReportConfig,
                   bool,
                   skip_dropbox,
                   4);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_CompressionConfig);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_CompressionConfig,
+                  MSG,
+                  perfetto_protos_TraceConfig_CompressionConfig_Deflate,
+                  deflate,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_CompressionConfig,
+                  MSG,
+                  perfetto_protos_TraceConfig_CompressionConfig_Zstd,
+                  zstd,
+                  2);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_CompressionConfig_Zstd);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_CompressionConfig_Zstd,
+                  VARINT,
+                  int32_t,
+                  level,
+                  1);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_CompressionConfig_Deflate);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_IncrementalStateConfig);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_IncrementalStateConfig,
@@ -643,6 +660,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BuiltinDataSource,
                   bool,
                   disable_extension_descriptors,
                   9);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BuiltinDataSource,
+                  VARINT,
+                  bool,
+                  enable_concurrent_session_events,
+                  10);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_DataSource);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_DataSource,

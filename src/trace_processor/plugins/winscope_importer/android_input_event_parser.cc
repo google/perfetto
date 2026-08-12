@@ -110,7 +110,8 @@ void AndroidInputEventParser::ParseMotionEvent(
                           .id;
   ArgsTracker args_tracker(&context_);
   auto inserter = args_tracker.AddArgsTo(event_row_id);
-  ArgsParser writer{packet_ts, inserter, *context_.storage};
+  ArgsParser writer{packet_ts, inserter, *context_.storage,
+                    *context_.process_tracker};
 
   base::Status status =
       args_parser_.ParseMessage(bytes,
@@ -149,7 +150,8 @@ void AndroidInputEventParser::ParseKeyEvent(
                           .id;
   ArgsTracker args_tracker(&context_);
   auto inserter = args_tracker.AddArgsTo(event_row_id);
-  ArgsParser writer{packet_ts, inserter, *context_.storage};
+  ArgsParser writer{packet_ts, inserter, *context_.storage,
+                    *context_.process_tracker};
 
   base::Status status =
       args_parser_.ParseMessage(bytes,
@@ -186,7 +188,8 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
 
   ArgsTracker args_tracker(&context_);
   auto inserter = args_tracker.AddArgsTo(event_row_id);
-  ArgsParser writer{packet_ts, inserter, *context_.storage};
+  ArgsParser writer{packet_ts, inserter, *context_.storage,
+                    *context_.process_tracker};
 
   base::Status status = args_parser_.ParseMessage(
       bytes,

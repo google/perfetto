@@ -78,7 +78,7 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
   // in-app trace + a system trace on the same machine).
   if (PERFETTO_UNLIKELY(!is_primary_ && current_file_tag_ == 0)) {
     if (PERFETTO_UNLIKELY(num_conversions_ > 0)) {
-      context_->import_logs_tracker->RecordAnalysisError(
+      context_->import_logs_tracker->RecordAnalysisLog(
           stats::clock_sync_mixed_clock_sources,
           [&](ArgsTracker::BoundInserter& inserter) {
             StringId key = context_->storage->InternString(
@@ -88,8 +88,31 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
     }
     current_file_tag_ = own_file_id_;
   }
-  for (auto& ct : clock_timestamps)
+  // REALTIME is a single universal wall clock and the cross-machine rendezvous
+  // domain used to place files that share no other clock (see
+  // docs/concepts/merging-traces.md). A non-primary file on a *remote*
+  // (non-trace-time) machine reaches trace time only through that rendezvous,
+  // so relate each REALTIME clock it actually carries to the machine-canonical
+  // REALTIME at zero offset (a twin added to this snapshot). The trace-time
+  // machine is excluded: its events reach trace time directly through BOOTTIME.
+  const bool bridge_realtime =
+      !is_primary_ &&
+      machine_id_ != context_->trace_time_state->clock_id.machine_id;
+  std::vector<ClockTimestamp> canonical_realtime;
+  for (auto& ct : clock_timestamps) {
+    const uint32_t clock = ct.clock.id.clock_id;
     ct.clock.id = ClockId::Qualify(ct.clock.id, machine_id_, current_file_tag_);
+    if (PERFETTO_UNLIKELY(
+            bridge_realtime &&
+            (clock == protos::pbzero::BUILTIN_CLOCK_REALTIME ||
+             clock == protos::pbzero::BUILTIN_CLOCK_REALTIME_COARSE))) {
+      ClockTimestamp twin = ct;
+      twin.clock.id = ClockId::Qualify(ClockId::Machine(clock), machine_id_, 0);
+      canonical_realtime.push_back(twin);
+    }
+  }
+  clock_timestamps.insert(clock_timestamps.end(), canonical_realtime.begin(),
+                          canonical_realtime.end());
   return AddSnapshotInternal(clock_timestamps);
 }
 
@@ -299,7 +322,7 @@ void ClockTracker::BridgeToTraceTime(ClockId clock_id, ClockId trace_time) {
   // are dropped (and counted by clock_sync_failure_no_path). Record a clear
   // analysis log explaining why, rather than leaving only that generic
   // no-path error which advises emitting ClockSnapshots.
-  context_->import_logs_tracker->RecordAnalysisError(
+  context_->import_logs_tracker->RecordAnalysisLog(
       stats::clock_sync_unrelatable_clock_domains,
       [&](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(source_clock_id_key_,
@@ -358,10 +381,10 @@ void ClockTracker::RecordConversionError(const ClockSyncError& error,
                     Variadic::Integer(error.target_clock.clock_id));
   };
   if (byte_offset) {
-    context_->import_logs_tracker->RecordTokenizationError(stat_key,
-                                                           *byte_offset, args);
+    context_->import_logs_tracker->RecordTokenizationLog(stat_key, *byte_offset,
+                                                         args);
   } else {
-    context_->import_logs_tracker->RecordAnalysisError(stat_key, args);
+    context_->import_logs_tracker->RecordAnalysisLog(stat_key, args);
   }
 }
 

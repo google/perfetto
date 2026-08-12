@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {escapeRegex, escapeRegexEmptyBrackets} from './flamegraph_regex';
+import {escapeRegex, parseUserFilterRegex} from './flamegraph_regex';
 
 test('flamegraph_regex.escapeRegex', () => {
   expect(escapeRegex('byte[]')).toEqual('byte\\[\\]');
@@ -25,23 +25,45 @@ test('flamegraph_regex.escapeRegex', () => {
   expect(escapeRegex('plain_name')).toEqual('plain_name');
 });
 
-test('flamegraph_regex.escapeRegexEmptyBrackets', () => {
-  // Bare [] is rewritten to match literally.
-  expect(escapeRegexEmptyBrackets('byte[]')).toEqual('byte\\[\\]');
-  expect(escapeRegexEmptyBrackets('.*Object[] com\\..*')).toEqual(
-    '.*Object\\[\\] com\\..*',
-  );
-  expect(escapeRegexEmptyBrackets('[][]')).toEqual('\\[\\]\\[\\]');
+test('flamegraph_regex.parseUserFilterRegex', () => {
+  // Bare text is escaped and matched case-insensitively.
+  expect(parseUserFilterRegex('MyClass$Nested')).toEqual({
+    pattern: 'MyClass\\$Nested',
+    flags: 'i',
+  });
+  expect(parseUserFilterRegex('byte[]')).toEqual({
+    pattern: 'byte\\[\\]',
+    flags: 'i',
+  });
+  expect(parseUserFilterRegex('operator()')).toEqual({
+    pattern: 'operator\\(\\)',
+    flags: 'i',
+  });
+  expect(parseUserFilterRegex('malloc')).toEqual({
+    pattern: 'malloc',
+    flags: 'i',
+  });
+  expect(parseUserFilterRegex('')).toEqual({pattern: '', flags: 'i'});
 
-  // Valid regex constructs are left untouched.
-  expect(escapeRegexEmptyBrackets('[abc]+')).toEqual('[abc]+');
-  expect(escapeRegexEmptyBrackets('\\[]')).toEqual('\\[]');
-  expect(escapeRegexEmptyBrackets('\\[\\]')).toEqual('\\[\\]');
-  expect(escapeRegexEmptyBrackets('[a[]]')).toEqual('[a[]]');
-  expect(escapeRegexEmptyBrackets('[^]]')).toEqual('[^]]');
-  expect(escapeRegexEmptyBrackets('plain')).toEqual('plain');
-  expect(escapeRegexEmptyBrackets('')).toEqual('');
+  // `/…/` is a case-sensitive raw regex.
+  expect(parseUserFilterRegex('/Alloc.*/')).toEqual({
+    pattern: 'Alloc.*',
+    flags: '',
+  });
+  expect(parseUserFilterRegex('/^main$/')).toEqual({
+    pattern: '^main$',
+    flags: '',
+  });
+  expect(parseUserFilterRegex('//')).toEqual({pattern: '', flags: ''});
 
-  // Trailing backslash does not drop characters.
-  expect(escapeRegexEmptyBrackets('foo\\')).toEqual('foo\\');
+  // `/…/i` is a case-insensitive raw regex.
+  expect(parseUserFilterRegex('/alloc.*/i')).toEqual({
+    pattern: 'alloc.*',
+    flags: 'i',
+  });
+  expect(parseUserFilterRegex('//i')).toEqual({pattern: '', flags: 'i'});
+
+  // A lone or unmatched slash is literal text.
+  expect(parseUserFilterRegex('/')).toEqual({pattern: '/', flags: 'i'});
+  expect(parseUserFilterRegex('a/b')).toEqual({pattern: 'a/b', flags: 'i'});
 });

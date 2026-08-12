@@ -334,6 +334,12 @@ struct Column {
   DuplicateState duplicate_state;
   SpecializedStorage specialized_storage = SpecializedStorage{};
   uint32_t mutations = 0;
+
+  // Estimated number of distinct values in the column, computed at
+  // finalization. Drives equality-filter selectivity in the cost model
+  // (result rows ~= row_count / estimated_distinct). 0 means unknown, in
+  // which case the planner falls back to a data-blind heuristic.
+  uint32_t estimated_distinct = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

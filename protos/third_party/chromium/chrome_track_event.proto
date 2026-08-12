@@ -427,6 +427,7 @@ message UrlInfo {
   optional bool is_prefetch_with_cross_site_contamination = 7;
   optional WebExposedIsolationInfo web_exposed_isolation_info = 8;
   optional string storage_partition_config = 9;
+  optional bool matches_ad_filter_with_host = 10;
 }
 
 // Next ID: 7
@@ -1016,14 +1017,22 @@ message EventLatency {
         // be joined with EventLatency.event_latency_id.
         optional int64 first_event_latency_id = 1;
 
+        // Deprecated in favor of `total_raw_delta_pixels`.
+        //
         // The absolute total raw (unpredicted) delta of all real scroll updates
-        // included in this frame (in pixels).
-        optional float abs_total_raw_delta_pixels = 2;
+        // included in this frame (in pixels). Non-negative regardless of
+        // whether the user scrolled up or down.
+        optional float abs_total_raw_delta_pixels = 2 [deprecated = true];
 
         // The maximum absolute raw (unpredicted) delta out of all inertial
         // (fling) scroll updates included in this frame (in pixels). Empty if
         // there were no inertial scroll updates in this frame.
         optional float max_abs_inertial_raw_delta_pixels = 3;
+
+        // The total raw (unpredicted) delta of all real scroll updates included
+        // in this frame (in pixels). Negative if the user scrolled down (swiped
+        // finger up). Positive if the user scrolled up (swiped finger down).
+        optional float total_raw_delta_pixels = 4;
       }
       optional Real real = 1;
 
@@ -1165,7 +1174,7 @@ message EventLatency {
         // The calculator has seen a GSE for the most recent scroll.
         END = 3;
       }
-      // LINT.ThenChange(//cc/metrics/scroll_jank_v4_frame_stage_calculator.cc:HasSeen)
+      // LINT.ThenChange(//cc/metrics/scroll_jank_v4_frame_stage_calculator.h:HasSeen)
       optional HasSeen has_seen_in_current_scroll = 2;
     }
     optional FrameStageCalculation frame_stage_calculation = 14;
@@ -2366,10 +2375,12 @@ message WebViewStartup {
     PROFILE_CLEAR_ALL_ORIGIN_MATCHED_HEADERS = 140;
     PROFILE_ADD_QUIC_HINTS = 141;
     PROFILE_GET_HTTP_CACHE_MANAGER = 142;
+    PROFILE_SET_CROSS_ORIGIN_ISOLATED_ALLOW_LIST = 143;
+    PROFILE_GET_CROSS_ORIGIN_ISOLATED_ALLOW_LIST = 144;
     // Remember to update WebViewStartupCallSite in enums.xml when adding new
     // values here.
   }
-  // LINT.ThenChange(//android_webview/glue/java/src/com/android/webview/chromium/WebViewChromiumAwInit.java:CallSite)
+  // LINT.ThenChange(//android_webview/java/src/org/chromium/android_webview/StartupCallSite.java:StartupCallSite,//tools/metrics/histograms/metadata/android/enums.xml:WebViewStartupCallSite)
 
   // LINT.IfChange(WebViewChromiumStartupMode)
   enum StartupMode {
@@ -3004,6 +3015,23 @@ message FrameIntervalDecider {
   optional FrameIntervalMatcherType matcher_type = 2;
 }
 
+message FrameDeadlineDecider {
+  // LINT.IfChange(SelectionReason)
+  enum SelectionReason {
+    SELECTION_REASON_UNSPECIFIED = 0;
+    SELECTION_REASON_PLATFORM_PREFERRED = 1;
+    SELECTION_REASON_ONGOING_SEQUENCE = 2;
+    SELECTION_REASON_CHROME_PREFERRED_NEW_SEQUENCE = 3;
+    SELECTION_REASON_OS_PREFERRED_NO_DEADLINE_WITHIN_TARGET = 4;
+    SELECTION_REASON_OS_PREFERRED_CHROME_PREFERRED_SOONER = 5;
+  }
+  // LINT.ThenChange(//components/viz/service/display/frame_deadline_decider.h:SelectionReason)
+
+  optional AndroidChoreographerFrameCallbackData.FrameTimeline
+      chrome_preferred_frame_timeline = 1;
+  optional SelectionReason selection_reason = 2;
+}
+
 message ChromeAccessibilityWinNotifyWinEvent {
   // The DWORD `event` parameter to ::NotifyWinEvent(). See
   // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-notifywinevent
@@ -3057,10 +3085,7 @@ message AndroidVsyncIntervalDecision {
   // Source of the VSync interval (aka VSync period) that
   // `ExternalBeginFrameSourceAndroid::AChoreographerImpl` provides to
   // `ExternalBeginFrameSourceAndroid`, together with the reason for choosing
-  // the particular source. See `VsyncIntervalSource` in
-  // //components/viz/service/frame_sinks/external_begin_frame_source_android.h
-  // for more details.
-  // LINT.IfChange(VsyncIntervalSource)
+  // the particular source.
   enum VsyncIntervalSource {
     UNKNOWN = 0;
     OS_PROVIDED_TIMELINE_DERIVED_NOT_SUPPORTED = 1;
@@ -3073,41 +3098,38 @@ message AndroidVsyncIntervalDecision {
     SNAPPED_TIMELINE_DERIVED_ALWAYS = 8;
     UNSNAPPED_TIMELINE_DERIVED_ALWAYS = 9;
   }
-  // LINT.ThenChange(
-  //   //components/viz/service/frame_sinks/external_begin_frame_source_android.h:VsyncIntervalSource)
-  // )
-  optional VsyncIntervalSource source = 1;
+  optional VsyncIntervalSource source = 1 [deprecated = true];
 
   // The VSync interval that the OS provided to
   // `ExternalBeginFrameSourceAndroid::AChoreographerImpl::RefreshRateCallback`
   // (registered via `AChoreographer_registerRefreshRateCallback`) in
   // microseconds.
-  optional int64 os_provided_interval_us = 2;
+  optional int64 os_provided_interval_us = 2 [deprecated = true];
 
   // The VSync interval that `AChoreographerImpl` derived from the frame
   // timelines that the OS provided to
   // `ExternalBeginFrameSourceAndroid::AChoreographerImpl::VsyncCallback`
   // (posted via `AChoreographer_postVsyncCallback`) by taking the difference
   // between the presentation timestamps of the first two timelines.
-  optional int64 timeline_derived_interval_us = 3;
+  optional int64 timeline_derived_interval_us = 3 [deprecated = true];
 
   // The supported VSync interval that the OS provided via
   // `Display.getSupportedRefreshRates()` that was the closest to
   // `timeline_derived_interval_us` and was within an implementation-specific
   // threshold.
-  optional int64 snapped_supported_interval_us = 4;
+  optional int64 snapped_supported_interval_us = 4 [deprecated = true];
 
   // VSync intervals supported by the display, sorted by increasing duration.
   // For example, if the display supports 60 Hz and 120 Hz, this vector will
   // contain 8,333 and 16,666 (in that order).
-  repeated int64 supported_intervals_us = 5;
+  repeated int64 supported_intervals_us = 5 [deprecated = true];
 }
 
 message ChromeTrackEvent {
   reserved 1045;
 
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1085
+  // Next ID: 1086
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -3288,7 +3310,9 @@ message ChromeTrackEvent {
 
     optional MacVoucherRelease mac_voucher_release = 1083;
 
-    optional AndroidVsyncIntervalDecision android_vsync_interval_decision =
-        1084;
+    optional AndroidVsyncIntervalDecision android_vsync_interval_decision = 1084
+        [deprecated = true];
+
+    optional FrameDeadlineDecider frame_deadline_decider = 1085;
   }
 }

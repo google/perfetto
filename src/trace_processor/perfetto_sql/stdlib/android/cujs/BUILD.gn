@@ -21,6 +21,7 @@ perfetto_sql_source_set("cujs") {
     "cuj_frame_counters.sql",
     "frames.sql",
     "relevant_slices.sql",
+    "slices.sql",
     "sysui_cujs.sql",
     "threads.sql",
   ]

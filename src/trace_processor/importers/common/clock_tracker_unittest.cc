@@ -130,6 +130,43 @@ TEST_F(ClockTrackerTest, ClockDomainConversions) {
             static_cast<int64_t>(100000 - 1000 + 1e6));
 }
 
+// Merging independent traces from a remote machine deduplicates them onto one
+// machine: the first is the primary, the rest are non-primary. A non-primary
+// trace isolates its builtin clocks onto its own file tag so its snapshots
+// cannot corrupt the others' conversions. But a remote machine's only route to
+// trace time is the cross-machine REALTIME rendezvous (its BOOTTIME belongs to
+// a different machine), so a remote non-primary trace's REALTIME must stay on
+// the machine-canonical tag to join that rendezvous. Otherwise every one of its
+// events is dropped (clock_sync_failure_no_path).
+TEST_F(ClockTrackerTest, RemoteNonPrimaryFileResolvesThroughSharedRealtime) {
+  // Host machine (trace time == its BOOTTIME): relate REALTIME to BOOTTIME so
+  // the cross-machine REALTIME rendezvous can reach trace time.
+  ct_->AddSnapshot({{REALTIME, 1000}, {BOOTTIME, 1000}});
+
+  // Remote machine, primary trace: its own REALTIME<->BOOTTIME plus the
+  // deferred BOOTTIME->trace-time sync the remote reader registers. This builds
+  // the REALTIME(remote)<->REALTIME(host) rendezvous.
+  auto remote_primary = MakeRemoteTracker(/*raw_machine_id=*/1);
+  remote_primary->AddSnapshot({{REALTIME, 2000}, {BOOTTIME, 200000}});
+  remote_primary->AddDeferredClockSync(BOOTTIME);
+  ASSERT_TRUE(remote_primary->ToTraceTime(BOOTTIME, 200000).has_value());
+
+  // Remote machine, non-primary trace: a distinct file id but the SAME machine
+  // as remote_primary (reuse its machine_tracker; a real merge dedups files
+  // with the same raw machine id onto one machine row). Only its own
+  // REALTIME<->BOOTTIME. Its REALTIME must join the shared machine-canonical
+  // REALTIME to reach trace time via the rendezvous.
+  context_.trace_state =
+      TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+          TraceProcessorContext::TraceState{TraceId(9)});
+  ClockTracker remote_np(&context_, primary_sync_.get(), /*is_primary=*/false);
+  remote_np.AddSnapshot({{REALTIME, 3000}, {BOOTTIME, 300000}});
+
+  // A BOOTTIME event on the non-primary trace reaches trace time only because
+  // its REALTIME is the shared machine-canonical node feeding the rendezvous.
+  EXPECT_TRUE(remote_np.ToTraceTime(BOOTTIME, 300000).has_value());
+}
+
 // When a clock moves backwards conversions *from* that clock are forbidden
 // but conversions *to* that clock should still work.
 // Think to the case of REALTIME going backwards from 3AM to 2AM during DST day.

@@ -1,4 +1,4 @@
-# Cookbook: Periodic Trace Snapshots
+# Cookbook: Capturing Periodic Trace Snapshots
 
 In this guide, you'll learn how to:
 

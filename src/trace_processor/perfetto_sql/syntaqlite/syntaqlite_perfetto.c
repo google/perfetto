@@ -46,6 +46,890 @@
 
 #include "syntaqlite_perfetto.h"
 
+/* ======== begin: syntaqlite_dialect/vec.h ======== */
+#ifndef SYNTAQLITE_EXT_VEC_H
+#define SYNTAQLITE_EXT_VEC_H
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+
+// Header-only type-generic dynamic array.
+// Works on any struct with {T *data; uint32_t count; uint32_t capacity;}.
+//
+// All mutating operations take a SyntaqliteMemMethods parameter for
+// allocation. This lets the vec use the caller's configured allocator.
+
+
+#include <stdint.h>
+#include <string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Type constructor
+#define SYNQ_VEC(T)    \
+  struct {             \
+    T* data;           \
+    uint32_t count;    \
+    uint32_t capacity; \
+  }
+
+// Zero-init
+#define syntaqlite_vec_init(v) \
+  do {                         \
+    (v)->data = NULL;          \
+    (v)->count = 0;            \
+    (v)->capacity = 0;         \
+  } while (0)
+
+// Free + zero
+#define syntaqlite_vec_free(v, mem) \
+  do {                              \
+    (mem).xFree((v)->data);         \
+    (v)->data = NULL;               \
+    (v)->count = 0;                 \
+    (v)->capacity = 0;              \
+  } while (0)
+
+// Reset count, keep allocation
+#define syntaqlite_vec_clear(v) \
+  do {                          \
+    (v)->count = 0;             \
+  } while (0)
+
+// Ensure capacity >= needed (capacity is always a power of two).
+#define syntaqlite_vec_ensure(v, needed, mem)             \
+  do {                                                    \
+    if ((needed) > (v)->capacity) {                       \
+      uint32_t _cap = (v)->capacity ? (v)->capacity : 16; \
+      while (_cap < (needed))                             \
+        _cap *= 2;                                        \
+      (v)->data = (__typeof__((v)->data))(mem).xRealloc(  \
+          (v)->data, (size_t)_cap * sizeof(*(v)->data));  \
+      (v)->capacity = _cap;                               \
+    }                                                     \
+  } while (0)
+
+// Append one element, grow if needed
+#define syntaqlite_vec_push(v, val, mem)             \
+  do {                                               \
+    syntaqlite_vec_ensure((v), (v)->count + 1, mem); \
+    (v)->data[(v)->count++] = (val);                 \
+  } while (0)
+
+// Element count
+#define syntaqlite_vec_len(v) ((v)->count)
+
+// Lvalue access to element at index
+#define syntaqlite_vec_at(v, i) ((v)->data[i])
+
+// Set count to n, discarding trailing elements
+#define syntaqlite_vec_truncate(v, n) \
+  do {                                \
+    (v)->count = (n);                 \
+  } while (0)
+
+// Decrement count, evaluate to last element
+#define syntaqlite_vec_pop(v) ((v)->data[--(v)->count])
+
+// Bulk append via memcpy
+#define syntaqlite_vec_push_n(v, src, n, mem)                               \
+  do {                                                                      \
+    uint32_t _n = (n);                                                      \
+    syntaqlite_vec_ensure((v), (v)->count + _n, mem);                       \
+    memcpy((v)->data + (v)->count, (src), (size_t)_n * sizeof(*(v)->data)); \
+    (v)->count += _n;                                                       \
+  } while (0)
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif  /* SYNTAQLITE_EXT_VEC_H */
+/* ======== end: syntaqlite_dialect/vec.h ======== */
+
+/* ======== begin: syntaqlite_dialect/arena.h ======== */
+#ifndef SYNTAQLITE_EXT_ARENA_H
+#define SYNTAQLITE_EXT_ARENA_H
+
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+
+// Arena allocator with offset table for node-based data structures.
+
+
+#include <stdint.h>
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct SynqArena {
+  SYNQ_VEC(uint8_t) data;
+  SYNQ_VEC(uint32_t) offsets;
+} SynqArena;
+
+// Get pointer to node data by offset-table ID.
+#define synq_arena_ptr(a, id) \
+  (&syntaqlite_vec_at(&(a)->data, syntaqlite_vec_at(&(a)->offsets, id)))
+
+// Const-correct variant for read-only access.
+#define synq_arena_cptr(a, id) ((const uint8_t*)synq_arena_ptr((a), (id)))
+
+static inline void synq_arena_init(SynqArena* a) {
+  syntaqlite_vec_init(&a->data);
+  syntaqlite_vec_init(&a->offsets);
+}
+
+static inline void synq_arena_free(SynqArena* a, SyntaqliteMemMethods mem) {
+  syntaqlite_vec_free(&a->data, mem);
+  syntaqlite_vec_free(&a->offsets, mem);
+}
+
+// Reset counts to zero, keeping allocated memory for reuse.
+static inline void synq_arena_clear(SynqArena* a) {
+  syntaqlite_vec_clear(&a->data);
+  syntaqlite_vec_clear(&a->offsets);
+}
+
+// Copy data into the arena and register in the offset table.
+// Returns the node ID.
+static inline uint32_t synq_arena_alloc(SynqArena* a,
+                                        const void* data,
+                                        uint32_t size,
+                                        SyntaqliteMemMethods mem) {
+  uint32_t node_id = syntaqlite_vec_len(&a->offsets);
+  syntaqlite_vec_push(&a->offsets, syntaqlite_vec_len(&a->data), mem);
+  syntaqlite_vec_push_n(&a->data, data, size, mem);
+  return node_id;
+}
+
+// Reserve a node ID in the offset table without allocating arena bytes.
+// The offset is written later by synq_arena_commit.
+static inline uint32_t synq_arena_reserve_id(SynqArena* a,
+                                             SyntaqliteMemMethods mem) {
+  uint32_t node_id = syntaqlite_vec_len(&a->offsets);
+  syntaqlite_vec_push(&a->offsets, 0, mem);
+  return node_id;
+}
+
+// Commit data at a previously reserved node ID.
+static inline void synq_arena_commit(SynqArena* a,
+                                     uint32_t node_id,
+                                     const void* data,
+                                     uint32_t size,
+                                     SyntaqliteMemMethods mem) {
+  syntaqlite_vec_at(&a->offsets, node_id) = syntaqlite_vec_len(&a->data);
+  syntaqlite_vec_push_n(&a->data, data, size, mem);
+}
+
+// Append raw bytes to the arena without registering an offset entry.
+static inline void synq_arena_append(SynqArena* a,
+                                     const void* data,
+                                     uint32_t size,
+                                     SyntaqliteMemMethods mem) {
+  syntaqlite_vec_push_n(&a->data, data, size, mem);
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif  /* SYNTAQLITE_EXT_ARENA_H */
+/* ======== end: syntaqlite_dialect/arena.h ======== */
+
+/* ======== begin: syntaqlite_dialect/ast_builder.h ======== */
+#ifndef SYNTAQLITE_EXT_AST_BUILDER_H
+#define SYNTAQLITE_EXT_AST_BUILDER_H
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+
+// Parse context and AST builder interface.
+// Provides:
+//   - SynqParseCtx: parse/AST state threaded via %extra_argument
+//   - SynqParseToken: terminal token type (used as %token_type in lemon
+//   grammar)
+//   - synq_span(): converts SynqParseToken to SyntaqliteTextSpan
+//   - AST builder functions: synq_parse_build, synq_parse_list_append, etc.
+//   - AST_NODE macro for in-place AST node mutation
+//
+// Grammar actions receive pCtx via lemon's %extra_argument mechanism.
+
+
+#include <stdint.h>
+#include <string.h>
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// ---------------------------------------------------------------------------
+// List descriptor: lightweight metadata for one in-progress list.
+// ---------------------------------------------------------------------------
+
+typedef struct SynqListDesc {
+  uint32_t node_id;  // reserved arena ID
+  uint32_t offset;   // start index into child_buf
+  uint32_t tag;
+} SynqListDesc;
+
+// Per-node extent: half-open byte range in the authored source plus an
+// inclusive token-index range into `p->tokens`.  Both ranges are
+// maintained by the extent hooks on one shadow stack and merged
+// together on reduce.
+//
+// Sentinels:
+//   `root_start == UINT32_MAX && root_end == 0` — no byte range recorded
+//       (pure epsilon reduction, neutral under min/max merging).
+//   `first_tok == UINT32_MAX` — no tokens recorded (layer-N shift with
+//       UINT32_MAX token_idx, or pure epsilon).  `last_tok` is then
+//       also UINT32_MAX.
+//
+// The two sentinels are independent: a macro-expansion-only node can
+// have a valid byte range (the call site's root coordinates) but no
+// layer-0 tokens — or have tokens in `p->tokens` after the token-stream
+// unification.  Consumers check the specific sentinel they care about.
+typedef struct SynqExtentRange {
+  uint32_t root_start;
+  uint32_t root_end;
+  uint32_t first_tok;
+  uint32_t last_tok;
+} SynqExtentRange;
+
+// Layer-local byte range used by per-node *expanded*-text tracking —
+// the bytes the tokenizer saw for a node, in whichever layer buffer
+// they live.
+//
+// Sentinel states:
+//   {0, 0, 0}                  — epsilon (no tokens); neutral in merges.
+//   {_, 0, SYNQ_CROSS_LAYER}   — cross-layer poison; propagates through
+//                                parent merges so the fast path falls
+//                                through to the slow path.
+#define SYNQ_CROSS_LAYER UINT32_MAX
+typedef struct SynqNodeExpandedExtent {
+  uint32_t offset;
+  uint32_t length;
+  uint32_t layer_id;
+} SynqNodeExpandedExtent;
+
+// Straddle stack entry values (packed into uint32_t):
+//   0              = source terminal
+//   1..N           = terminal from outermost expansion layer N
+//   SYNQ_STRADDLE_NEUTRAL = non-terminal / epsilon (neutral in checks)
+#define SYNQ_STRADDLE_NEUTRAL UINT32_MAX
+
+// ---------------------------------------------------------------------------
+// Parse context — threaded through grammar actions via %extra_argument
+// ---------------------------------------------------------------------------
+
+typedef struct SynqParseCtx {
+  // AST storage
+  SyntaqliteMemMethods mem;
+  SynqArena ast;
+  SYNQ_VEC(uint32_t) child_buf;
+  SYNQ_VEC(SynqListDesc) list_stack;
+
+  // Parser state
+  const char* source;  // Source text base pointer (for offset computation).
+  const SyntaqliteDialect* env;   // Dialect env (for cflag checks in actions).
+  uint32_t root;                  // Root node ID of the current statement.
+  uint32_t stmt_completed;        // Set by grammar actions when ecmd reduces.
+  uint32_t pending_explain_mode;  // 1=EXPLAIN, 2=EXPLAIN QUERY PLAN (set by
+                                  // explain rule, consumed by cmdx ::= cmd).
+  uint32_t error;                 // Set when a syntax error occurs.
+  uint32_t error_offset;          // Byte offset of the error token in source.
+  uint32_t error_length;          // Byte length of the error token.
+  uint32_t saw_subquery;  // Set by grammar actions when a subquery is reduced.
+  uint32_t saw_update_delete_limit;  // Set when ORDER BY / LIMIT used on DELETE
+                                     // or UPDATE.
+
+  // Token marking — points to the parser's token list (NULL if not collecting).
+  // Typed as void* because SYNQ_VEC produces anonymous struct types; the
+  // synq_mark_as_id() helper casts it to the right layout.
+  void* tokens;
+
+  // Expansion layer index for span construction.
+  // 0 = original source, 1+ = index into the layer tree (1-based).
+  uint32_t layer_id;
+
+  // Counter for "currently parsing inside a macro definition body".
+  // While > 0, the tokenizer skips macro expansion so the body is captured
+  // verbatim instead of being recursively expanded.  Set/cleared by
+  // grammar actions on entering/leaving the body production.
+  uint32_t in_macro_def_body;
+
+  // Byte offset of the token Lemon is currently processing (in
+  // root-source coordinates).  Set at the start of
+  // `synq_parser_shift_token` *before* `SYNQ_PARSER_FEED` runs, so
+  // empty-rule reductions firing inside the feed observe the offset of
+  // the token they're about to be shifted alongside.  BEFORE-style
+  // markers use this to capture the start position of a non-terminal
+  // (whitespace before the first terminal is excluded).  Valid only
+  // for tokens shifted from the root source layer.
+  uint32_t cur_shift_start;
+
+  // Byte offset just past the end of the most recently shifted terminal
+  // (in root-source coordinates).  Updated in
+  // `synq_parser_shift_token` *after* `SYNQ_PARSER_FEED` returns, so
+  // that empty-rule reductions firing inside the feed see the end of
+  // the *previous* shifted terminal, not the current one.  AFTER-style
+  // markers use this to capture the end position of a non-terminal.
+  // Valid only for tokens shifted from the root source layer.
+  uint32_t last_shifted_end;
+
+  // Per-node extent tracking.  Opt-in via `collect_node_extents`.
+  // `extent_stack` / `node_extents` track the merged *authored*
+  // source range (in root coordinates) — used by
+  // `syntaqlite_parser_node_text`.  `expanded_stack` /
+  // `node_expanded_extents` track the merged *expanded* range in the
+  // tokens' own layer — used by
+  // `syntaqlite_parser_node_expanded_text`; mixed-layer merges
+  // collapse to a sentinel.  `macro_root_*` caches the outermost
+  // currently-active macro call site in root coordinates so tokens
+  // shifted inside expansions can be attributed back to the authored
+  // source.
+  SYNQ_VEC(SynqExtentRange) extent_stack;
+  SYNQ_VEC(SynqExtentRange) node_extents;
+  SYNQ_VEC(SynqNodeExpandedExtent) expanded_stack;
+  SYNQ_VEC(SynqNodeExpandedExtent) node_expanded_extents;
+  uint32_t collect_node_extents;
+  uint32_t macro_root_start;
+  uint32_t macro_root_end;
+  uint32_t macro_root_layer;    // Outermost expansion layer idx (set on entry).
+  uint32_t has_macro_straddle;  // Sticky flag set during reduce.
+  uint32_t lemon_depth;  // Lemon stack depth (always tracked, for lazy init).
+  SYNQ_VEC(uint32_t) straddle_stack;  // Lazily initialized on first macro use.
+} SynqParseCtx;
+
+// Common header for all list nodes in the arena.
+typedef struct SynqListHeader {
+  uint32_t tag;
+  uint32_t count;
+} SynqListHeader;
+
+// ---------------------------------------------------------------------------
+// AST node access macro (for in-place mutation in grammar actions)
+// ---------------------------------------------------------------------------
+
+// Cast the arena pointer for a node ID to a void pointer.
+// Dialect code should further cast to the dialect-specific node union.
+#define AST_NODE(arena_ptr, id) ((void*)synq_arena_ptr((arena_ptr), (id)))
+
+// Type-safe arena access — casts through void* to suppress -Wcast-align.
+#define AST_NODE_AS(type, arena_ptr, id) \
+  ((type*)((void*)synq_arena_ptr((arena_ptr), (id))))
+
+// ---------------------------------------------------------------------------
+// AST builder functions
+// ---------------------------------------------------------------------------
+
+// Flush the topmost list from the stack into the arena.
+static inline void synq_parse_list_flush_top(SynqParseCtx* ctx) {
+  SynqListDesc* desc = &syntaqlite_vec_at(
+      &ctx->list_stack, syntaqlite_vec_len(&ctx->list_stack) - 1);
+  uint32_t count = syntaqlite_vec_len(&ctx->child_buf) - desc->offset;
+  uint32_t children_size = count * (uint32_t)sizeof(uint32_t);
+
+  SynqListHeader hdr = {.tag = desc->tag, .count = count};
+  synq_arena_commit(&ctx->ast, desc->node_id, &hdr, (uint32_t)sizeof(hdr),
+                    ctx->mem);
+  synq_arena_append(&ctx->ast,
+                    &syntaqlite_vec_at(&ctx->child_buf, desc->offset),
+                    children_size, ctx->mem);
+
+  syntaqlite_vec_truncate(&ctx->child_buf, desc->offset);
+  (void)syntaqlite_vec_pop(&ctx->list_stack);
+}
+
+static inline void synq_parse_ctx_init(SynqParseCtx* ctx,
+                                       SyntaqliteMemMethods mem) {
+  ctx->mem = mem;
+  synq_arena_init(&ctx->ast);
+  syntaqlite_vec_init(&ctx->child_buf);
+  syntaqlite_vec_init(&ctx->list_stack);
+  syntaqlite_vec_init(&ctx->extent_stack);
+  syntaqlite_vec_init(&ctx->node_extents);
+  syntaqlite_vec_init(&ctx->expanded_stack);
+  syntaqlite_vec_init(&ctx->node_expanded_extents);
+  ctx->collect_node_extents = 0;
+  ctx->macro_root_start = 0;
+  ctx->macro_root_end = 0;
+  ctx->macro_root_layer = 0;
+  ctx->has_macro_straddle = 0;
+  ctx->lemon_depth = 0;
+  syntaqlite_vec_init(&ctx->straddle_stack);
+}
+
+static inline void synq_parse_ctx_free(SynqParseCtx* ctx) {
+  syntaqlite_vec_free(&ctx->child_buf, ctx->mem);
+  syntaqlite_vec_free(&ctx->list_stack, ctx->mem);
+  syntaqlite_vec_free(&ctx->extent_stack, ctx->mem);
+  syntaqlite_vec_free(&ctx->node_extents, ctx->mem);
+  syntaqlite_vec_free(&ctx->expanded_stack, ctx->mem);
+  syntaqlite_vec_free(&ctx->node_expanded_extents, ctx->mem);
+  syntaqlite_vec_free(&ctx->straddle_stack, ctx->mem);
+  synq_arena_free(&ctx->ast, ctx->mem);
+}
+
+// Reset to empty state, keeping allocated memory for reuse.
+static inline void synq_parse_ctx_clear(SynqParseCtx* ctx) {
+  syntaqlite_vec_clear(&ctx->child_buf);
+  syntaqlite_vec_clear(&ctx->list_stack);
+  syntaqlite_vec_clear(&ctx->extent_stack);
+  syntaqlite_vec_clear(&ctx->node_extents);
+  syntaqlite_vec_clear(&ctx->expanded_stack);
+  syntaqlite_vec_clear(&ctx->node_expanded_extents);
+  synq_arena_clear(&ctx->ast);
+  ctx->macro_root_start = 0;
+  ctx->macro_root_end = 0;
+  ctx->macro_root_layer = 0;
+  ctx->has_macro_straddle = 0;
+  ctx->lemon_depth = 0;
+  syntaqlite_vec_clear(&ctx->straddle_stack);
+}
+
+// Record the current shadow-stack tops (authored + expanded) as the
+// extents for `node_id`.  Called right after a node is allocated, so
+// the tops are the merged ranges for the rule currently being
+// reduced.  List node ids are re-recorded on each append, so the
+// final stored value is the full list's extent.  Node ids are
+// monotonically allocated, so `node_id` is either equal to
+// `node_extents.count` (new) or less (existing).
+static inline void synq_extent_record(SynqParseCtx* ctx, uint32_t node_id) {
+  if (!ctx->collect_node_extents) {
+    return;
+  }
+  uint32_t stack_len = syntaqlite_vec_len(&ctx->extent_stack);
+  if (stack_len == 0) {
+    return;
+  }
+  SynqExtentRange top = syntaqlite_vec_at(&ctx->extent_stack, stack_len - 1);
+  SynqNodeExpandedExtent exp_top =
+      syntaqlite_vec_at(&ctx->expanded_stack, stack_len - 1);
+  if (node_id < ctx->node_extents.count) {
+    syntaqlite_vec_at(&ctx->node_extents, node_id) = top;
+    syntaqlite_vec_at(&ctx->node_expanded_extents, node_id) = exp_top;
+  } else {
+    syntaqlite_vec_push(&ctx->node_extents, top, ctx->mem);
+    syntaqlite_vec_push(&ctx->node_expanded_extents, exp_top, ctx->mem);
+  }
+}
+
+// Re-record the current shadow-stack extent for an existing node ID.
+// Use this in multi-RHS grammar rules that pass through a child node ID
+// without allocating a new node (e.g. `A = B;`).  Without this call,
+// node_extents[child] retains the child's original (narrower) range
+// instead of the merged range of the enclosing rule.
+static inline uint32_t synq_pass(SynqParseCtx* ctx, uint32_t child) {
+  synq_extent_record(ctx, child);
+  return child;
+}
+
+// Generic node builder: copy node data into the arena.
+static inline uint32_t synq_parse_build(SynqParseCtx* ctx,
+                                        const void* node_data,
+                                        uint32_t node_size) {
+  uint32_t node_id =
+      synq_arena_alloc(&ctx->ast, node_data, node_size, ctx->mem);
+  synq_extent_record(ctx, node_id);
+  return node_id;
+}
+
+static inline uint32_t synq_parse_list_append(SynqParseCtx* ctx,
+                                              uint32_t tag,
+                                              uint32_t list_id,
+                                              uint32_t child) {
+  if (list_id == SYNTAQLITE_NULL_NODE) {
+    SynqListDesc desc;
+    desc.node_id = synq_arena_reserve_id(&ctx->ast, ctx->mem);
+    desc.offset = syntaqlite_vec_len(&ctx->child_buf);
+    desc.tag = tag;
+    syntaqlite_vec_push(&ctx->list_stack, desc, ctx->mem);
+    syntaqlite_vec_push(&ctx->child_buf, child, ctx->mem);
+    synq_extent_record(ctx, desc.node_id);
+    return desc.node_id;
+  }
+
+  // Auto-flush completed inner lists above the target.
+  while (syntaqlite_vec_at(&ctx->list_stack,
+                           syntaqlite_vec_len(&ctx->list_stack) - 1)
+             .node_id != list_id) {
+    synq_parse_list_flush_top(ctx);
+  }
+  syntaqlite_vec_push(&ctx->child_buf, child, ctx->mem);
+  synq_extent_record(ctx, list_id);
+  return list_id;
+}
+
+// Like list_append, but inserts the child at the front of the list.
+// Used for right-recursive grammar rules where the innermost (last in source)
+// clause reduces first, so each outer clause must prepend to maintain source
+// order.
+static inline uint32_t synq_parse_list_prepend(SynqParseCtx* ctx,
+                                               uint32_t tag,
+                                               uint32_t list_id,
+                                               uint32_t child) {
+  if (list_id == SYNTAQLITE_NULL_NODE) {
+    return synq_parse_list_append(ctx, tag, list_id, child);
+  }
+
+  // Auto-flush completed inner lists above the target.
+  while (syntaqlite_vec_at(&ctx->list_stack,
+                           syntaqlite_vec_len(&ctx->list_stack) - 1)
+             .node_id != list_id) {
+    synq_parse_list_flush_top(ctx);
+  }
+
+  // Find the list descriptor to get its start offset.
+  SynqListDesc* desc = &syntaqlite_vec_at(
+      &ctx->list_stack, syntaqlite_vec_len(&ctx->list_stack) - 1);
+  uint32_t insert_at = desc->offset;
+  uint32_t len = syntaqlite_vec_len(&ctx->child_buf);
+
+  // Make room: push a dummy, shift elements right, insert at front.
+  syntaqlite_vec_push(&ctx->child_buf, child, ctx->mem);
+  for (uint32_t i = len; i > insert_at; --i) {
+    syntaqlite_vec_at(&ctx->child_buf, i) =
+        syntaqlite_vec_at(&ctx->child_buf, i - 1);
+  }
+  syntaqlite_vec_at(&ctx->child_buf, insert_at) = child;
+  synq_extent_record(ctx, list_id);
+  return list_id;
+}
+
+static inline void synq_parse_list_flush(SynqParseCtx* ctx) {
+  while (syntaqlite_vec_len(&ctx->list_stack) > 0) {
+    synq_parse_list_flush_top(ctx);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Token → span conversion
+// ---------------------------------------------------------------------------
+
+static inline SyntaqliteTextSpan synq_span(SynqParseCtx* ctx,
+                                           SynqParseToken tok) {
+  (void)ctx;
+  if (tok.z == NULL)
+    return (SyntaqliteTextSpan){0};
+  return (SyntaqliteTextSpan){
+      .offset = tok.offset,
+      .length = tok.n,
+      .flags = 0,
+      ._layer_id = tok.layer_id,
+  };
+}
+
+// Like synq_span() but strips surrounding quote characters from quoted
+// identifiers, matching SQLite's tokenExpr() dequoting behavior.
+// Handles "...", `...`, [...], and '...' forms — every call site is an
+// identifier position, so a STRING token here is a string literal used
+// as an identifier (`nm ::= STRING`) and dequotes like the rest.  For
+// unquoted tokens, equivalent to synq_span().  Records which quote
+// character bracketed the identifier in the span flags so consumers can
+// recover the original quote style.
+//
+// The span stays a zero-copy slice: a doubled quote char inside the
+// token (SQLite's escape, e.g. `'a''b'` for `a'b`) survives verbatim in
+// the inner text.  Consumers that need the identifier *value* collapse
+// it with `unescape_quoted` (Rust) keyed off the span's quote flag.
+static inline SyntaqliteTextSpan synq_span_dequote(SynqParseCtx* ctx,
+                                                   SynqParseToken tok) {
+  (void)ctx;
+  if (tok.z == NULL)
+    return (SyntaqliteTextSpan){0};
+  if (tok.n >= 2) {
+    char expected_close = 0;
+    uint32_t kind_flag = 0;
+    switch (tok.z[0]) {
+      case '"':
+        expected_close = '"';
+        kind_flag = SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE;
+        break;
+      case '`':
+        expected_close = '`';
+        kind_flag = SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK;
+        break;
+      case '[':
+        expected_close = ']';
+        kind_flag = SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET;
+        break;
+      case '\'':
+        expected_close = '\'';
+        kind_flag = SYNTAQLITE_SPAN_FLAG_QUOTE_SINGLE;
+        break;
+      default:
+        break;
+    }
+    if (kind_flag != 0 && tok.z[tok.n - 1] == expected_close) {
+      SyntaqliteTextSpan sp = {
+          .offset = tok.offset + 1,
+          .length = tok.n - 2,
+          .flags = kind_flag,
+          ._layer_id = tok.layer_id,
+      };
+      return sp;
+    }
+  }
+  return (SyntaqliteTextSpan){
+      .offset = tok.offset,
+      .length = tok.n,
+      ._layer_id = tok.layer_id,
+  };
+}
+
+#define SYNQ_NO_SPAN ((SyntaqliteTextSpan){0})
+
+// Mark a token as "used as identifier" (fallback from keyword).
+// O(1) — uses the token_idx stored in SynqParseToken at collection time.
+static inline void synq_mark_as_id(SynqParseCtx* ctx, SynqParseToken tok) {
+  if (!ctx->tokens || tok.token_idx == 0xFFFFFFFF)
+    return;
+  // ctx->tokens is a void* pointing to SYNQ_VEC(SyntaqliteParserToken).
+  // The vec layout is: { SyntaqliteParserToken* data; uint32_t count; uint32_t
+  // capacity; }
+  typedef struct {
+    SyntaqliteParserToken* data;
+    uint32_t count;
+    uint32_t capacity;
+  } TokenVec;
+  TokenVec* tv = (TokenVec*)ctx->tokens;
+  tv->data[tok.token_idx].flags |= SYNQ_TOKEN_FLAG_AS_ID;
+}
+
+// Mark a token as "used as function name" in a function-call expression.
+// O(1) — uses the token_idx stored in SynqParseToken at collection time.
+static inline void synq_mark_as_function(SynqParseCtx* ctx,
+                                         SynqParseToken tok) {
+  if (!ctx->tokens || tok.token_idx == 0xFFFFFFFF)
+    return;
+  // ctx->tokens is a void* pointing to SYNQ_VEC(SyntaqliteParserToken).
+  // The vec layout is: { SyntaqliteParserToken* data; uint32_t count; uint32_t
+  // capacity; }
+  typedef struct {
+    SyntaqliteParserToken* data;
+    uint32_t count;
+    uint32_t capacity;
+  } TokenVec;
+  TokenVec* tv = (TokenVec*)ctx->tokens;
+  tv->data[tok.token_idx].flags |= SYNQ_TOKEN_FLAG_AS_FUNCTION;
+}
+
+// Mark a token as "used as type name" in type contexts.
+// O(1) — uses the token_idx stored in SynqParseToken at collection time.
+static inline void synq_mark_as_type(SynqParseCtx* ctx, SynqParseToken tok) {
+  if (!ctx->tokens || tok.token_idx == 0xFFFFFFFF)
+    return;
+  // ctx->tokens is a void* pointing to SYNQ_VEC(SyntaqliteParserToken).
+  // The vec layout is: { SyntaqliteParserToken* data; uint32_t count; uint32_t
+  // capacity; }
+  typedef struct {
+    SyntaqliteParserToken* data;
+    uint32_t count;
+    uint32_t capacity;
+  } TokenVec;
+  TokenVec* tv = (TokenVec*)ctx->tokens;
+  tv->data[tok.token_idx].flags |= SYNQ_TOKEN_FLAG_AS_TYPE;
+}
+
+// Range field metadata types (SyntaqliteFieldRangeMeta,
+// SyntaqliteRangeMetaEntry) are defined in syntaqlite/dialect.h.
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif  /* SYNTAQLITE_EXT_AST_BUILDER_H */
+/* ======== end: syntaqlite_dialect/ast_builder.h ======== */
+
+/* ======== begin: syntaqlite_dialect/dialect_abi.h ======== */
+#ifndef SYNTAQLITE_INTERNAL_DIALECT_ABI_H
+#define SYNTAQLITE_INTERNAL_DIALECT_ABI_H
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+
+// Runtime ↔ dialect ABI contract.
+//
+// Dialects can be linked into the runtime statically (amalgamation builds,
+// cargo-built native binaries) or loaded as separately-compiled side modules
+// (emscripten MAIN_MODULE=2 / SIDE_MODULE=1, future `dlopen` support). In the
+// latter case, neither half of the link sees the other's symbols at compile
+// time, and dead-code elimination will drop any symbol that isn't explicitly
+// marked as part of the cross-module surface.
+//
+// Two kinds of calls cross this boundary:
+//
+//   dialect → runtime
+//     The generated grammar action code and Lemon-emitted parser call back
+//     into runtime-owned helpers during reduce/shift. Everything exported
+//     here lives in `syntaqlite-syntax/csrc/parser_extents.c` or similar
+//     runtime-side C files. Current members:
+//       - synq_extent_on_shift   (see syntaqlite_dialect/extent_hooks.h)
+//       - synq_extent_on_reduce  (see syntaqlite_dialect/extent_hooks.h)
+//
+//   runtime → dialect
+//     The runtime drives each dialect through a `SyntaqliteDialectTemplate`
+//     whose function pointers reference symbols emitted by the dialect's
+//     generated parser/tokenizer. Current members (per dialect, Pascal-cased):
+//       - Synq<Dialect>ParseAlloc / ParseInit / ParseFinalize / ParseFree
+//       - Synq<Dialect>Parse
+//       - Synq<Dialect>ParseTrace
+//       - Synq<Dialect>ParseExpectedTokens
+//       - Synq<Dialect>ParseCompletionContext
+//       - Synq<Dialect>ParseFallback
+//       - Synq<Dialect>GetToken
+//
+// Every declaration in that set must be tagged with `SYNTAQLITE_DIALECT_API`
+// so it survives dead-code elimination and is visible across module
+// boundaries. Renaming or changing the signature of any symbol above is an
+// ABI break: update both sides in lockstep.
+
+
+// `used` keeps wasm-ld / LTO from discarding the symbol when the main module
+// has no direct reference to it (the referencing side module is linked
+// separately). `visibility("default")` ensures it ends up in the module's
+// export table rather than being internal.
+#if defined(__GNUC__) || defined(__clang__)
+#define SYNTAQLITE_DIALECT_API __attribute__((used, visibility("default")))
+#else
+#define SYNTAQLITE_DIALECT_API
+#endif
+
+
+#endif  /* SYNTAQLITE_INTERNAL_DIALECT_ABI_H */
+/* ======== end: syntaqlite_dialect/dialect_abi.h ======== */
+
+/* ======== begin: csrc/sqlite_parse.h ======== */
+#ifndef SYNTAQLITE_PERFETTO_PARSE_H
+#define SYNTAQLITE_PERFETTO_PARSE_H
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+//
+// @generated by syntaqlite-buildtools — DO NOT EDIT
+
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+SYNTAQLITE_DIALECT_API void* SynqPerfettoParseAlloc(void* (*mallocProc)(size_t), SynqParseCtx* pCtx);
+SYNTAQLITE_DIALECT_API void SynqPerfettoParseInit(void* parser, SynqParseCtx* pCtx);
+SYNTAQLITE_DIALECT_API void SynqPerfettoParseFinalize(void* parser);
+SYNTAQLITE_DIALECT_API void SynqPerfettoParseFree(void* parser, void (*freeProc)(void*));
+SYNTAQLITE_DIALECT_API void SynqPerfettoParse(void* parser, int token_type, SynqParseToken minor);
+SYNTAQLITE_DIALECT_API uint32_t SynqPerfettoParseExpectedTokens(void* parser, uint32_t* out_tokens, uint32_t out_cap);
+SYNTAQLITE_DIALECT_API uint32_t SynqPerfettoParseCompletionContext(void* parser);
+SYNTAQLITE_DIALECT_API int SynqPerfettoParseFallback(int iToken);
+#ifndef NDEBUG
+SYNTAQLITE_DIALECT_API void SynqPerfettoParseTrace(FILE* trace_file, char* prompt);
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif  /* SYNTAQLITE_PERFETTO_PARSE_H */
+/* ======== end: csrc/sqlite_parse.h ======== */
+
+/* ======== begin: syntaqlite_dialect/sqlite_compat.h ======== */
+#ifndef SYNTAQLITE_INTERNAL_SQLITE_COMPAT_H
+#define SYNTAQLITE_INTERNAL_SQLITE_COMPAT_H
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+
+// SQLite compatibility definitions for syntaqlite.
+// Provides type aliases, macros, and structures needed by tokenizer and parser.
+
+
+#include <stdint.h>
+
+// SQLite type aliases
+typedef int64_t i64;
+typedef uint8_t u8;
+typedef uint32_t u32;
+
+// Default to SQLITE_ASCII if not defined and SQLITE_EBCDIC also not defined
+#if !defined(SQLITE_ASCII) && !defined(SQLITE_EBCDIC)
+#define SQLITE_ASCII 1
+#endif
+
+// Default digit separator for numeric literals (e.g., 1_000_000)
+#ifndef SQLITE_DIGIT_SEPARATOR
+#define SQLITE_DIGIT_SEPARATOR '_'
+#endif
+
+// Case-insensitive string comparison (POSIX strncasecmp / MSVC _strnicmp)
+#ifdef _MSC_VER
+#include <string.h>
+#define SYNQ_STRNCASECMP _strnicmp
+#else
+#include <strings.h>
+#define SYNQ_STRNCASECMP strncasecmp
+#endif
+
+// C++17 fallthrough, C no-op
+#ifdef __cplusplus
+#define deliberate_fall_through [[fallthrough]]
+#else
+#define deliberate_fall_through
+#endif  // SYNTAQLITE_INTERNAL_SQLITE_COMPAT_H
+
+// No-op for testcase macro if not defined
+#ifndef testcase
+#define testcase(X)
+#endif
+
+// No-op for assert macro if not defined
+#ifndef assert
+#define assert(X)
+#endif
+
+
+#endif  /* SYNTAQLITE_INTERNAL_SQLITE_COMPAT_H */
+/* ======== end: syntaqlite_dialect/sqlite_compat.h ======== */
+
+/* ======== begin: csrc/sqlite_tokenize.h ======== */
+#ifndef SYNTAQLITE_INTERNAL_PERFETTO_TOKENIZE_H
+#define SYNTAQLITE_INTERNAL_PERFETTO_TOKENIZE_H
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+//
+// @generated by syntaqlite-buildtools — DO NOT EDIT
+
+
+
+SYNTAQLITE_DIALECT_API i64 SynqPerfettoGetToken(const SyntaqliteDialect* env, const unsigned char* z, int* tokenType);
+
+
+#endif  /* SYNTAQLITE_INTERNAL_PERFETTO_TOKENIZE_H */
+/* ======== end: csrc/sqlite_tokenize.h ======== */
+
+// Inline-dispatch macros for the perfetto dialect.
+#if !defined(SYNTAQLITE_NO_INLINE_DIALECT_DISPATCH) && !defined(SYNTAQLITE_INLINE_DIALECT_DISPATCH)
+#define SYNQ_PARSER_ALLOC(d, m, c)   SynqPerfettoParseAlloc(m, c)
+#define SYNQ_PARSER_INIT(d, p, c)    SynqPerfettoParseInit(p, c)
+#define SYNQ_PARSER_FINALIZE(d, p)   SynqPerfettoParseFinalize(p)
+#define SYNQ_PARSER_FREE(d, p, f)    SynqPerfettoParseFree(p, f)
+#define SYNQ_PARSER_FEED(d, p, t, m) SynqPerfettoParse(p, t, m)
+#ifndef NDEBUG
+#define SYNQ_PARSER_TRACE(d, f, s)   SynqPerfettoParseTrace(f, s)
+#else
+#define SYNQ_PARSER_TRACE(d, f, s)   ((void)0)
+#endif
+#define SYNQ_GET_TOKEN(env, z, t)    SynqPerfettoGetToken(env, z, t)
+#endif
+
 /* ======== begin: syntaqlite_dialect/dialect_types.h ======== */
 #ifndef SYNTAQLITE_DIALECT_TYPES_H
 #define SYNTAQLITE_DIALECT_TYPES_H
@@ -412,6 +1296,8 @@ static const SyntaqliteFieldMeta field_meta_compound_select[] = {
     {offsetof(SyntaqliteCompoundSelect, op), SYNTAQLITE_FIELD_ENUM, "op", display_compound_op, sizeof(display_compound_op) / sizeof(display_compound_op[0])},
     {offsetof(SyntaqliteCompoundSelect, left), SYNTAQLITE_FIELD_NODE_ID, "left", NULL, 0},
     {offsetof(SyntaqliteCompoundSelect, right), SYNTAQLITE_FIELD_NODE_ID, "right", NULL, 0},
+    {offsetof(SyntaqliteCompoundSelect, orderby), SYNTAQLITE_FIELD_NODE_ID, "orderby", NULL, 0},
+    {offsetof(SyntaqliteCompoundSelect, limit_clause), SYNTAQLITE_FIELD_NODE_ID, "limit_clause", NULL, 0},
 };
 
 static const SyntaqliteFieldMeta field_meta_subquery_expr[] = {
@@ -1307,7 +2193,7 @@ static const uint8_t ast_meta_field_meta_counts[] = {
     6, /* OrderedSetFunctionCall */
     2, /* CastExpr */
     3, /* ColumnRef */
-    3, /* CompoundSelect */
+    5, /* CompoundSelect */
     1, /* SubqueryExpr */
     1, /* ExistsExpr */
     4, /* InExpr */
@@ -1631,851 +2517,6 @@ static const uint8_t token_categories[195] = {
 };
 /* ======== end: csrc/dialect_tokens.h ======== */
 
-/* ======== begin: syntaqlite_dialect/vec.h ======== */
-#ifndef SYNTAQLITE_EXT_VEC_H
-#define SYNTAQLITE_EXT_VEC_H
-// Copyright 2025 The syntaqlite Authors. All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-
-// Header-only type-generic dynamic array.
-// Works on any struct with {T *data; uint32_t count; uint32_t capacity;}.
-//
-// All mutating operations take a SyntaqliteMemMethods parameter for
-// allocation. This lets the vec use the caller's configured allocator.
-
-
-#include <stdint.h>
-#include <string.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// Type constructor
-#define SYNQ_VEC(T)    \
-  struct {             \
-    T* data;           \
-    uint32_t count;    \
-    uint32_t capacity; \
-  }
-
-// Zero-init
-#define syntaqlite_vec_init(v) \
-  do {                         \
-    (v)->data = NULL;          \
-    (v)->count = 0;            \
-    (v)->capacity = 0;         \
-  } while (0)
-
-// Free + zero
-#define syntaqlite_vec_free(v, mem) \
-  do {                              \
-    (mem).xFree((v)->data);         \
-    (v)->data = NULL;               \
-    (v)->count = 0;                 \
-    (v)->capacity = 0;              \
-  } while (0)
-
-// Reset count, keep allocation
-#define syntaqlite_vec_clear(v) \
-  do {                          \
-    (v)->count = 0;             \
-  } while (0)
-
-// Ensure capacity >= needed (capacity is always a power of two).
-#define syntaqlite_vec_ensure(v, needed, mem)             \
-  do {                                                    \
-    if ((needed) > (v)->capacity) {                       \
-      uint32_t _cap = (v)->capacity ? (v)->capacity : 16; \
-      while (_cap < (needed))                             \
-        _cap *= 2;                                        \
-      (v)->data = (__typeof__((v)->data))(mem).xRealloc(  \
-          (v)->data, (size_t)_cap * sizeof(*(v)->data));  \
-      (v)->capacity = _cap;                               \
-    }                                                     \
-  } while (0)
-
-// Append one element, grow if needed
-#define syntaqlite_vec_push(v, val, mem)             \
-  do {                                               \
-    syntaqlite_vec_ensure((v), (v)->count + 1, mem); \
-    (v)->data[(v)->count++] = (val);                 \
-  } while (0)
-
-// Element count
-#define syntaqlite_vec_len(v) ((v)->count)
-
-// Lvalue access to element at index
-#define syntaqlite_vec_at(v, i) ((v)->data[i])
-
-// Set count to n, discarding trailing elements
-#define syntaqlite_vec_truncate(v, n) \
-  do {                                \
-    (v)->count = (n);                 \
-  } while (0)
-
-// Decrement count, evaluate to last element
-#define syntaqlite_vec_pop(v) ((v)->data[--(v)->count])
-
-// Bulk append via memcpy
-#define syntaqlite_vec_push_n(v, src, n, mem)                               \
-  do {                                                                      \
-    uint32_t _n = (n);                                                      \
-    syntaqlite_vec_ensure((v), (v)->count + _n, mem);                       \
-    memcpy((v)->data + (v)->count, (src), (size_t)_n * sizeof(*(v)->data)); \
-    (v)->count += _n;                                                       \
-  } while (0)
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif  /* SYNTAQLITE_EXT_VEC_H */
-/* ======== end: syntaqlite_dialect/vec.h ======== */
-
-/* ======== begin: syntaqlite_dialect/arena.h ======== */
-#ifndef SYNTAQLITE_EXT_ARENA_H
-#define SYNTAQLITE_EXT_ARENA_H
-
-// Copyright 2025 The syntaqlite Authors. All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-
-// Arena allocator with offset table for node-based data structures.
-
-
-#include <stdint.h>
-
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct SynqArena {
-  SYNQ_VEC(uint8_t) data;
-  SYNQ_VEC(uint32_t) offsets;
-} SynqArena;
-
-// Get pointer to node data by offset-table ID.
-#define synq_arena_ptr(a, id) \
-  (&syntaqlite_vec_at(&(a)->data, syntaqlite_vec_at(&(a)->offsets, id)))
-
-// Const-correct variant for read-only access.
-#define synq_arena_cptr(a, id) ((const uint8_t*)synq_arena_ptr((a), (id)))
-
-static inline void synq_arena_init(SynqArena* a) {
-  syntaqlite_vec_init(&a->data);
-  syntaqlite_vec_init(&a->offsets);
-}
-
-static inline void synq_arena_free(SynqArena* a, SyntaqliteMemMethods mem) {
-  syntaqlite_vec_free(&a->data, mem);
-  syntaqlite_vec_free(&a->offsets, mem);
-}
-
-// Reset counts to zero, keeping allocated memory for reuse.
-static inline void synq_arena_clear(SynqArena* a) {
-  syntaqlite_vec_clear(&a->data);
-  syntaqlite_vec_clear(&a->offsets);
-}
-
-// Copy data into the arena and register in the offset table.
-// Returns the node ID.
-static inline uint32_t synq_arena_alloc(SynqArena* a,
-                                        const void* data,
-                                        uint32_t size,
-                                        SyntaqliteMemMethods mem) {
-  uint32_t node_id = syntaqlite_vec_len(&a->offsets);
-  syntaqlite_vec_push(&a->offsets, syntaqlite_vec_len(&a->data), mem);
-  syntaqlite_vec_push_n(&a->data, data, size, mem);
-  return node_id;
-}
-
-// Reserve a node ID in the offset table without allocating arena bytes.
-// The offset is written later by synq_arena_commit.
-static inline uint32_t synq_arena_reserve_id(SynqArena* a,
-                                             SyntaqliteMemMethods mem) {
-  uint32_t node_id = syntaqlite_vec_len(&a->offsets);
-  syntaqlite_vec_push(&a->offsets, 0, mem);
-  return node_id;
-}
-
-// Commit data at a previously reserved node ID.
-static inline void synq_arena_commit(SynqArena* a,
-                                     uint32_t node_id,
-                                     const void* data,
-                                     uint32_t size,
-                                     SyntaqliteMemMethods mem) {
-  syntaqlite_vec_at(&a->offsets, node_id) = syntaqlite_vec_len(&a->data);
-  syntaqlite_vec_push_n(&a->data, data, size, mem);
-}
-
-// Append raw bytes to the arena without registering an offset entry.
-static inline void synq_arena_append(SynqArena* a,
-                                     const void* data,
-                                     uint32_t size,
-                                     SyntaqliteMemMethods mem) {
-  syntaqlite_vec_push_n(&a->data, data, size, mem);
-}
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif  /* SYNTAQLITE_EXT_ARENA_H */
-/* ======== end: syntaqlite_dialect/arena.h ======== */
-
-/* ======== begin: syntaqlite_dialect/ast_builder.h ======== */
-#ifndef SYNTAQLITE_EXT_AST_BUILDER_H
-#define SYNTAQLITE_EXT_AST_BUILDER_H
-// Copyright 2025 The syntaqlite Authors. All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-
-// Parse context and AST builder interface.
-// Provides:
-//   - SynqParseCtx: parse/AST state threaded via %extra_argument
-//   - SynqParseToken: terminal token type (used as %token_type in lemon
-//   grammar)
-//   - synq_span(): converts SynqParseToken to SyntaqliteTextSpan
-//   - AST builder functions: synq_parse_build, synq_parse_list_append, etc.
-//   - AST_NODE macro for in-place AST node mutation
-//
-// Grammar actions receive pCtx via lemon's %extra_argument mechanism.
-
-
-#include <stdint.h>
-#include <string.h>
-
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// ---------------------------------------------------------------------------
-// List descriptor: lightweight metadata for one in-progress list.
-// ---------------------------------------------------------------------------
-
-typedef struct SynqListDesc {
-  uint32_t node_id;  // reserved arena ID
-  uint32_t offset;   // start index into child_buf
-  uint32_t tag;
-} SynqListDesc;
-
-// Per-node extent: half-open byte range in the authored source plus an
-// inclusive token-index range into `p->tokens`.  Both ranges are
-// maintained by the extent hooks on one shadow stack and merged
-// together on reduce.
-//
-// Sentinels:
-//   `root_start == UINT32_MAX && root_end == 0` — no byte range recorded
-//       (pure epsilon reduction, neutral under min/max merging).
-//   `first_tok == UINT32_MAX` — no tokens recorded (layer-N shift with
-//       UINT32_MAX token_idx, or pure epsilon).  `last_tok` is then
-//       also UINT32_MAX.
-//
-// The two sentinels are independent: a macro-expansion-only node can
-// have a valid byte range (the call site's root coordinates) but no
-// layer-0 tokens — or have tokens in `p->tokens` after the token-stream
-// unification.  Consumers check the specific sentinel they care about.
-typedef struct SynqExtentRange {
-  uint32_t root_start;
-  uint32_t root_end;
-  uint32_t first_tok;
-  uint32_t last_tok;
-} SynqExtentRange;
-
-// Layer-local byte range used by per-node *expanded*-text tracking —
-// the bytes the tokenizer saw for a node, in whichever layer buffer
-// they live.
-//
-// Sentinel states:
-//   {0, 0, 0}                  — epsilon (no tokens); neutral in merges.
-//   {_, 0, SYNQ_CROSS_LAYER}   — cross-layer poison; propagates through
-//                                parent merges so the fast path falls
-//                                through to the slow path.
-#define SYNQ_CROSS_LAYER UINT32_MAX
-typedef struct SynqNodeExpandedExtent {
-  uint32_t offset;
-  uint32_t length;
-  uint32_t layer_id;
-} SynqNodeExpandedExtent;
-
-// Straddle stack entry values (packed into uint32_t):
-//   0              = source terminal
-//   1..N           = terminal from outermost expansion layer N
-//   SYNQ_STRADDLE_NEUTRAL = non-terminal / epsilon (neutral in checks)
-#define SYNQ_STRADDLE_NEUTRAL UINT32_MAX
-
-// ---------------------------------------------------------------------------
-// Parse context — threaded through grammar actions via %extra_argument
-// ---------------------------------------------------------------------------
-
-typedef struct SynqParseCtx {
-  // AST storage
-  SyntaqliteMemMethods mem;
-  SynqArena ast;
-  SYNQ_VEC(uint32_t) child_buf;
-  SYNQ_VEC(SynqListDesc) list_stack;
-
-  // Parser state
-  const char* source;  // Source text base pointer (for offset computation).
-  const SyntaqliteDialect* env;   // Dialect env (for cflag checks in actions).
-  uint32_t root;                  // Root node ID of the current statement.
-  uint32_t stmt_completed;        // Set by grammar actions when ecmd reduces.
-  uint32_t pending_explain_mode;  // 1=EXPLAIN, 2=EXPLAIN QUERY PLAN (set by
-                                  // explain rule, consumed by cmdx ::= cmd).
-  uint32_t error;                 // Set when a syntax error occurs.
-  uint32_t error_offset;          // Byte offset of the error token in source.
-  uint32_t error_length;          // Byte length of the error token.
-  uint32_t saw_subquery;  // Set by grammar actions when a subquery is reduced.
-  uint32_t saw_update_delete_limit;  // Set when ORDER BY / LIMIT used on DELETE
-                                     // or UPDATE.
-
-  // Token marking — points to the parser's token list (NULL if not collecting).
-  // Typed as void* because SYNQ_VEC produces anonymous struct types; the
-  // synq_mark_as_id() helper casts it to the right layout.
-  void* tokens;
-
-  // Expansion layer index for span construction.
-  // 0 = original source, 1+ = index into the layer tree (1-based).
-  uint32_t layer_id;
-
-  // Counter for "currently parsing inside a macro definition body".
-  // While > 0, the tokenizer skips macro expansion so the body is captured
-  // verbatim instead of being recursively expanded.  Set/cleared by
-  // grammar actions on entering/leaving the body production.
-  uint32_t in_macro_def_body;
-
-  // Byte offset of the token Lemon is currently processing (in
-  // root-source coordinates).  Set at the start of
-  // `synq_parser_shift_token` *before* `SYNQ_PARSER_FEED` runs, so
-  // empty-rule reductions firing inside the feed observe the offset of
-  // the token they're about to be shifted alongside.  BEFORE-style
-  // markers use this to capture the start position of a non-terminal
-  // (whitespace before the first terminal is excluded).  Valid only
-  // for tokens shifted from the root source layer.
-  uint32_t cur_shift_start;
-
-  // Byte offset just past the end of the most recently shifted terminal
-  // (in root-source coordinates).  Updated in
-  // `synq_parser_shift_token` *after* `SYNQ_PARSER_FEED` returns, so
-  // that empty-rule reductions firing inside the feed see the end of
-  // the *previous* shifted terminal, not the current one.  AFTER-style
-  // markers use this to capture the end position of a non-terminal.
-  // Valid only for tokens shifted from the root source layer.
-  uint32_t last_shifted_end;
-
-  // Per-node extent tracking.  Opt-in via `collect_node_extents`.
-  // `extent_stack` / `node_extents` track the merged *authored*
-  // source range (in root coordinates) — used by
-  // `syntaqlite_parser_node_text`.  `expanded_stack` /
-  // `node_expanded_extents` track the merged *expanded* range in the
-  // tokens' own layer — used by
-  // `syntaqlite_parser_node_expanded_text`; mixed-layer merges
-  // collapse to a sentinel.  `macro_root_*` caches the outermost
-  // currently-active macro call site in root coordinates so tokens
-  // shifted inside expansions can be attributed back to the authored
-  // source.
-  SYNQ_VEC(SynqExtentRange) extent_stack;
-  SYNQ_VEC(SynqExtentRange) node_extents;
-  SYNQ_VEC(SynqNodeExpandedExtent) expanded_stack;
-  SYNQ_VEC(SynqNodeExpandedExtent) node_expanded_extents;
-  uint32_t collect_node_extents;
-  uint32_t macro_root_start;
-  uint32_t macro_root_end;
-  uint32_t macro_root_layer;    // Outermost expansion layer idx (set on entry).
-  uint32_t has_macro_straddle;  // Sticky flag set during reduce.
-  uint32_t lemon_depth;  // Lemon stack depth (always tracked, for lazy init).
-  SYNQ_VEC(uint32_t) straddle_stack;  // Lazily initialized on first macro use.
-} SynqParseCtx;
-
-// Common header for all list nodes in the arena.
-typedef struct SynqListHeader {
-  uint32_t tag;
-  uint32_t count;
-} SynqListHeader;
-
-// ---------------------------------------------------------------------------
-// AST node access macro (for in-place mutation in grammar actions)
-// ---------------------------------------------------------------------------
-
-// Cast the arena pointer for a node ID to a void pointer.
-// Dialect code should further cast to the dialect-specific node union.
-#define AST_NODE(arena_ptr, id) ((void*)synq_arena_ptr((arena_ptr), (id)))
-
-// Type-safe arena access — casts through void* to suppress -Wcast-align.
-#define AST_NODE_AS(type, arena_ptr, id) \
-  ((type*)((void*)synq_arena_ptr((arena_ptr), (id))))
-
-// ---------------------------------------------------------------------------
-// AST builder functions
-// ---------------------------------------------------------------------------
-
-// Flush the topmost list from the stack into the arena.
-static inline void synq_parse_list_flush_top(SynqParseCtx* ctx) {
-  SynqListDesc* desc = &syntaqlite_vec_at(
-      &ctx->list_stack, syntaqlite_vec_len(&ctx->list_stack) - 1);
-  uint32_t count = syntaqlite_vec_len(&ctx->child_buf) - desc->offset;
-  uint32_t children_size = count * (uint32_t)sizeof(uint32_t);
-
-  SynqListHeader hdr = {.tag = desc->tag, .count = count};
-  synq_arena_commit(&ctx->ast, desc->node_id, &hdr, (uint32_t)sizeof(hdr),
-                    ctx->mem);
-  synq_arena_append(&ctx->ast,
-                    &syntaqlite_vec_at(&ctx->child_buf, desc->offset),
-                    children_size, ctx->mem);
-
-  syntaqlite_vec_truncate(&ctx->child_buf, desc->offset);
-  (void)syntaqlite_vec_pop(&ctx->list_stack);
-}
-
-static inline void synq_parse_ctx_init(SynqParseCtx* ctx,
-                                       SyntaqliteMemMethods mem) {
-  ctx->mem = mem;
-  synq_arena_init(&ctx->ast);
-  syntaqlite_vec_init(&ctx->child_buf);
-  syntaqlite_vec_init(&ctx->list_stack);
-  syntaqlite_vec_init(&ctx->extent_stack);
-  syntaqlite_vec_init(&ctx->node_extents);
-  syntaqlite_vec_init(&ctx->expanded_stack);
-  syntaqlite_vec_init(&ctx->node_expanded_extents);
-  ctx->collect_node_extents = 0;
-  ctx->macro_root_start = 0;
-  ctx->macro_root_end = 0;
-  ctx->macro_root_layer = 0;
-  ctx->has_macro_straddle = 0;
-  ctx->lemon_depth = 0;
-  syntaqlite_vec_init(&ctx->straddle_stack);
-}
-
-static inline void synq_parse_ctx_free(SynqParseCtx* ctx) {
-  syntaqlite_vec_free(&ctx->child_buf, ctx->mem);
-  syntaqlite_vec_free(&ctx->list_stack, ctx->mem);
-  syntaqlite_vec_free(&ctx->extent_stack, ctx->mem);
-  syntaqlite_vec_free(&ctx->node_extents, ctx->mem);
-  syntaqlite_vec_free(&ctx->expanded_stack, ctx->mem);
-  syntaqlite_vec_free(&ctx->node_expanded_extents, ctx->mem);
-  syntaqlite_vec_free(&ctx->straddle_stack, ctx->mem);
-  synq_arena_free(&ctx->ast, ctx->mem);
-}
-
-// Reset to empty state, keeping allocated memory for reuse.
-static inline void synq_parse_ctx_clear(SynqParseCtx* ctx) {
-  syntaqlite_vec_clear(&ctx->child_buf);
-  syntaqlite_vec_clear(&ctx->list_stack);
-  syntaqlite_vec_clear(&ctx->extent_stack);
-  syntaqlite_vec_clear(&ctx->node_extents);
-  syntaqlite_vec_clear(&ctx->expanded_stack);
-  syntaqlite_vec_clear(&ctx->node_expanded_extents);
-  synq_arena_clear(&ctx->ast);
-  ctx->macro_root_start = 0;
-  ctx->macro_root_end = 0;
-  ctx->macro_root_layer = 0;
-  ctx->has_macro_straddle = 0;
-  ctx->lemon_depth = 0;
-  syntaqlite_vec_clear(&ctx->straddle_stack);
-}
-
-// Record the current shadow-stack tops (authored + expanded) as the
-// extents for `node_id`.  Called right after a node is allocated, so
-// the tops are the merged ranges for the rule currently being
-// reduced.  List node ids are re-recorded on each append, so the
-// final stored value is the full list's extent.  Node ids are
-// monotonically allocated, so `node_id` is either equal to
-// `node_extents.count` (new) or less (existing).
-static inline void synq_extent_record(SynqParseCtx* ctx, uint32_t node_id) {
-  if (!ctx->collect_node_extents) {
-    return;
-  }
-  uint32_t stack_len = syntaqlite_vec_len(&ctx->extent_stack);
-  if (stack_len == 0) {
-    return;
-  }
-  SynqExtentRange top = syntaqlite_vec_at(&ctx->extent_stack, stack_len - 1);
-  SynqNodeExpandedExtent exp_top =
-      syntaqlite_vec_at(&ctx->expanded_stack, stack_len - 1);
-  if (node_id < ctx->node_extents.count) {
-    syntaqlite_vec_at(&ctx->node_extents, node_id) = top;
-    syntaqlite_vec_at(&ctx->node_expanded_extents, node_id) = exp_top;
-  } else {
-    syntaqlite_vec_push(&ctx->node_extents, top, ctx->mem);
-    syntaqlite_vec_push(&ctx->node_expanded_extents, exp_top, ctx->mem);
-  }
-}
-
-// Re-record the current shadow-stack extent for an existing node ID.
-// Use this in multi-RHS grammar rules that pass through a child node ID
-// without allocating a new node (e.g. `A = B;`).  Without this call,
-// node_extents[child] retains the child's original (narrower) range
-// instead of the merged range of the enclosing rule.
-static inline uint32_t synq_pass(SynqParseCtx* ctx, uint32_t child) {
-  synq_extent_record(ctx, child);
-  return child;
-}
-
-// Generic node builder: copy node data into the arena.
-static inline uint32_t synq_parse_build(SynqParseCtx* ctx,
-                                        const void* node_data,
-                                        uint32_t node_size) {
-  uint32_t node_id =
-      synq_arena_alloc(&ctx->ast, node_data, node_size, ctx->mem);
-  synq_extent_record(ctx, node_id);
-  return node_id;
-}
-
-static inline uint32_t synq_parse_list_append(SynqParseCtx* ctx,
-                                              uint32_t tag,
-                                              uint32_t list_id,
-                                              uint32_t child) {
-  if (list_id == SYNTAQLITE_NULL_NODE) {
-    SynqListDesc desc;
-    desc.node_id = synq_arena_reserve_id(&ctx->ast, ctx->mem);
-    desc.offset = syntaqlite_vec_len(&ctx->child_buf);
-    desc.tag = tag;
-    syntaqlite_vec_push(&ctx->list_stack, desc, ctx->mem);
-    syntaqlite_vec_push(&ctx->child_buf, child, ctx->mem);
-    synq_extent_record(ctx, desc.node_id);
-    return desc.node_id;
-  }
-
-  // Auto-flush completed inner lists above the target.
-  while (syntaqlite_vec_at(&ctx->list_stack,
-                           syntaqlite_vec_len(&ctx->list_stack) - 1)
-             .node_id != list_id) {
-    synq_parse_list_flush_top(ctx);
-  }
-  syntaqlite_vec_push(&ctx->child_buf, child, ctx->mem);
-  synq_extent_record(ctx, list_id);
-  return list_id;
-}
-
-// Like list_append, but inserts the child at the front of the list.
-// Used for right-recursive grammar rules where the innermost (last in source)
-// clause reduces first, so each outer clause must prepend to maintain source
-// order.
-static inline uint32_t synq_parse_list_prepend(SynqParseCtx* ctx,
-                                               uint32_t tag,
-                                               uint32_t list_id,
-                                               uint32_t child) {
-  if (list_id == SYNTAQLITE_NULL_NODE) {
-    return synq_parse_list_append(ctx, tag, list_id, child);
-  }
-
-  // Auto-flush completed inner lists above the target.
-  while (syntaqlite_vec_at(&ctx->list_stack,
-                           syntaqlite_vec_len(&ctx->list_stack) - 1)
-             .node_id != list_id) {
-    synq_parse_list_flush_top(ctx);
-  }
-
-  // Find the list descriptor to get its start offset.
-  SynqListDesc* desc = &syntaqlite_vec_at(
-      &ctx->list_stack, syntaqlite_vec_len(&ctx->list_stack) - 1);
-  uint32_t insert_at = desc->offset;
-  uint32_t len = syntaqlite_vec_len(&ctx->child_buf);
-
-  // Make room: push a dummy, shift elements right, insert at front.
-  syntaqlite_vec_push(&ctx->child_buf, child, ctx->mem);
-  for (uint32_t i = len; i > insert_at; --i) {
-    syntaqlite_vec_at(&ctx->child_buf, i) =
-        syntaqlite_vec_at(&ctx->child_buf, i - 1);
-  }
-  syntaqlite_vec_at(&ctx->child_buf, insert_at) = child;
-  synq_extent_record(ctx, list_id);
-  return list_id;
-}
-
-static inline void synq_parse_list_flush(SynqParseCtx* ctx) {
-  while (syntaqlite_vec_len(&ctx->list_stack) > 0) {
-    synq_parse_list_flush_top(ctx);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Token → span conversion
-// ---------------------------------------------------------------------------
-
-static inline SyntaqliteTextSpan synq_span(SynqParseCtx* ctx,
-                                           SynqParseToken tok) {
-  (void)ctx;
-  if (tok.z == NULL)
-    return (SyntaqliteTextSpan){0};
-  return (SyntaqliteTextSpan){
-      .offset = tok.offset,
-      .length = tok.n,
-      .flags = 0,
-      ._layer_id = tok.layer_id,
-  };
-}
-
-// Like synq_span() but strips surrounding quote characters from quoted
-// identifiers, matching SQLite's tokenExpr() dequoting behavior.
-// Handles "...", `...`, and [...] forms.  For unquoted tokens, equivalent
-// to synq_span().  Records which quote character bracketed the identifier
-// in the span flags so consumers can recover the original quote style.
-static inline SyntaqliteTextSpan synq_span_dequote(SynqParseCtx* ctx,
-                                                   SynqParseToken tok) {
-  (void)ctx;
-  if (tok.z == NULL)
-    return (SyntaqliteTextSpan){0};
-  if (tok.n >= 2) {
-    char open = tok.z[0];
-    char close = tok.z[tok.n - 1];
-    if ((open == '"' && close == '"') || (open == '`' && close == '`') ||
-        (open == '[' && close == ']')) {
-      uint32_t kind_flag = (open == '"')   ? SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE
-                           : (open == '`') ? SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK
-                                           : SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET;
-      SyntaqliteTextSpan sp = {
-          .offset = tok.offset + 1,
-          .length = tok.n - 2,
-          .flags = kind_flag,
-          ._layer_id = tok.layer_id,
-      };
-      return sp;
-    }
-  }
-  return (SyntaqliteTextSpan){
-      .offset = tok.offset,
-      .length = tok.n,
-      ._layer_id = tok.layer_id,
-  };
-}
-
-#define SYNQ_NO_SPAN ((SyntaqliteTextSpan){0})
-
-// Mark a token as "used as identifier" (fallback from keyword).
-// O(1) — uses the token_idx stored in SynqParseToken at collection time.
-static inline void synq_mark_as_id(SynqParseCtx* ctx, SynqParseToken tok) {
-  if (!ctx->tokens || tok.token_idx == 0xFFFFFFFF)
-    return;
-  // ctx->tokens is a void* pointing to SYNQ_VEC(SyntaqliteParserToken).
-  // The vec layout is: { SyntaqliteParserToken* data; uint32_t count; uint32_t
-  // capacity; }
-  typedef struct {
-    SyntaqliteParserToken* data;
-    uint32_t count;
-    uint32_t capacity;
-  } TokenVec;
-  TokenVec* tv = (TokenVec*)ctx->tokens;
-  tv->data[tok.token_idx].flags |= SYNQ_TOKEN_FLAG_AS_ID;
-}
-
-// Mark a token as "used as function name" in a function-call expression.
-// O(1) — uses the token_idx stored in SynqParseToken at collection time.
-static inline void synq_mark_as_function(SynqParseCtx* ctx,
-                                         SynqParseToken tok) {
-  if (!ctx->tokens || tok.token_idx == 0xFFFFFFFF)
-    return;
-  // ctx->tokens is a void* pointing to SYNQ_VEC(SyntaqliteParserToken).
-  // The vec layout is: { SyntaqliteParserToken* data; uint32_t count; uint32_t
-  // capacity; }
-  typedef struct {
-    SyntaqliteParserToken* data;
-    uint32_t count;
-    uint32_t capacity;
-  } TokenVec;
-  TokenVec* tv = (TokenVec*)ctx->tokens;
-  tv->data[tok.token_idx].flags |= SYNQ_TOKEN_FLAG_AS_FUNCTION;
-}
-
-// Mark a token as "used as type name" in type contexts.
-// O(1) — uses the token_idx stored in SynqParseToken at collection time.
-static inline void synq_mark_as_type(SynqParseCtx* ctx, SynqParseToken tok) {
-  if (!ctx->tokens || tok.token_idx == 0xFFFFFFFF)
-    return;
-  // ctx->tokens is a void* pointing to SYNQ_VEC(SyntaqliteParserToken).
-  // The vec layout is: { SyntaqliteParserToken* data; uint32_t count; uint32_t
-  // capacity; }
-  typedef struct {
-    SyntaqliteParserToken* data;
-    uint32_t count;
-    uint32_t capacity;
-  } TokenVec;
-  TokenVec* tv = (TokenVec*)ctx->tokens;
-  tv->data[tok.token_idx].flags |= SYNQ_TOKEN_FLAG_AS_TYPE;
-}
-
-// Range field metadata types (SyntaqliteFieldRangeMeta,
-// SyntaqliteRangeMetaEntry) are defined in syntaqlite/dialect.h.
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif  /* SYNTAQLITE_EXT_AST_BUILDER_H */
-/* ======== end: syntaqlite_dialect/ast_builder.h ======== */
-
-/* ======== begin: syntaqlite_dialect/dialect_abi.h ======== */
-#ifndef SYNTAQLITE_INTERNAL_DIALECT_ABI_H
-#define SYNTAQLITE_INTERNAL_DIALECT_ABI_H
-// Copyright 2025 The syntaqlite Authors. All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-
-// Runtime ↔ dialect ABI contract.
-//
-// Dialects can be linked into the runtime statically (amalgamation builds,
-// cargo-built native binaries) or loaded as separately-compiled side modules
-// (emscripten MAIN_MODULE=2 / SIDE_MODULE=1, future `dlopen` support). In the
-// latter case, neither half of the link sees the other's symbols at compile
-// time, and dead-code elimination will drop any symbol that isn't explicitly
-// marked as part of the cross-module surface.
-//
-// Two kinds of calls cross this boundary:
-//
-//   dialect → runtime
-//     The generated grammar action code and Lemon-emitted parser call back
-//     into runtime-owned helpers during reduce/shift. Everything exported
-//     here lives in `syntaqlite-syntax/csrc/parser_extents.c` or similar
-//     runtime-side C files. Current members:
-//       - synq_extent_on_shift   (see syntaqlite_dialect/extent_hooks.h)
-//       - synq_extent_on_reduce  (see syntaqlite_dialect/extent_hooks.h)
-//
-//   runtime → dialect
-//     The runtime drives each dialect through a `SyntaqliteDialectTemplate`
-//     whose function pointers reference symbols emitted by the dialect's
-//     generated parser/tokenizer. Current members (per dialect, Pascal-cased):
-//       - Synq<Dialect>ParseAlloc / ParseInit / ParseFinalize / ParseFree
-//       - Synq<Dialect>Parse
-//       - Synq<Dialect>ParseTrace
-//       - Synq<Dialect>ParseExpectedTokens
-//       - Synq<Dialect>ParseCompletionContext
-//       - Synq<Dialect>ParseFallback
-//       - Synq<Dialect>GetToken
-//
-// Every declaration in that set must be tagged with `SYNTAQLITE_DIALECT_API`
-// so it survives dead-code elimination and is visible across module
-// boundaries. Renaming or changing the signature of any symbol above is an
-// ABI break: update both sides in lockstep.
-
-
-// `used` keeps wasm-ld / LTO from discarding the symbol when the main module
-// has no direct reference to it (the referencing side module is linked
-// separately). `visibility("default")` ensures it ends up in the module's
-// export table rather than being internal.
-#if defined(__GNUC__) || defined(__clang__)
-#define SYNTAQLITE_DIALECT_API __attribute__((used, visibility("default")))
-#else
-#define SYNTAQLITE_DIALECT_API
-#endif
-
-
-#endif  /* SYNTAQLITE_INTERNAL_DIALECT_ABI_H */
-/* ======== end: syntaqlite_dialect/dialect_abi.h ======== */
-
-/* ======== begin: csrc/sqlite_parse.h ======== */
-#ifndef SYNTAQLITE_PERFETTO_PARSE_H
-#define SYNTAQLITE_PERFETTO_PARSE_H
-// Copyright 2025 The syntaqlite Authors. All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-//
-// @generated by syntaqlite-buildtools — DO NOT EDIT
-
-
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-SYNTAQLITE_DIALECT_API void* SynqPerfettoParseAlloc(void* (*mallocProc)(size_t), SynqParseCtx* pCtx);
-SYNTAQLITE_DIALECT_API void SynqPerfettoParseInit(void* parser, SynqParseCtx* pCtx);
-SYNTAQLITE_DIALECT_API void SynqPerfettoParseFinalize(void* parser);
-SYNTAQLITE_DIALECT_API void SynqPerfettoParseFree(void* parser, void (*freeProc)(void*));
-SYNTAQLITE_DIALECT_API void SynqPerfettoParse(void* parser, int token_type, SynqParseToken minor);
-SYNTAQLITE_DIALECT_API uint32_t SynqPerfettoParseExpectedTokens(void* parser, uint32_t* out_tokens, uint32_t out_cap);
-SYNTAQLITE_DIALECT_API uint32_t SynqPerfettoParseCompletionContext(void* parser);
-SYNTAQLITE_DIALECT_API int SynqPerfettoParseFallback(int iToken);
-#ifndef NDEBUG
-SYNTAQLITE_DIALECT_API void SynqPerfettoParseTrace(FILE* trace_file, char* prompt);
-#endif
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif  /* SYNTAQLITE_PERFETTO_PARSE_H */
-/* ======== end: csrc/sqlite_parse.h ======== */
-
-/* ======== begin: syntaqlite_dialect/sqlite_compat.h ======== */
-#ifndef SYNTAQLITE_INTERNAL_SQLITE_COMPAT_H
-#define SYNTAQLITE_INTERNAL_SQLITE_COMPAT_H
-// Copyright 2025 The syntaqlite Authors. All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-
-// SQLite compatibility definitions for syntaqlite.
-// Provides type aliases, macros, and structures needed by tokenizer and parser.
-
-
-#include <stdint.h>
-
-// SQLite type aliases
-typedef int64_t i64;
-typedef uint8_t u8;
-typedef uint32_t u32;
-
-// Default to SQLITE_ASCII if not defined and SQLITE_EBCDIC also not defined
-#if !defined(SQLITE_ASCII) && !defined(SQLITE_EBCDIC)
-#define SQLITE_ASCII 1
-#endif
-
-// Default digit separator for numeric literals (e.g., 1_000_000)
-#ifndef SQLITE_DIGIT_SEPARATOR
-#define SQLITE_DIGIT_SEPARATOR '_'
-#endif
-
-// Case-insensitive string comparison (POSIX strncasecmp / MSVC _strnicmp)
-#ifdef _MSC_VER
-#include <string.h>
-#define SYNQ_STRNCASECMP _strnicmp
-#else
-#include <strings.h>
-#define SYNQ_STRNCASECMP strncasecmp
-#endif
-
-// C++17 fallthrough, C no-op
-#ifdef __cplusplus
-#define deliberate_fall_through [[fallthrough]]
-#else
-#define deliberate_fall_through
-#endif  // SYNTAQLITE_INTERNAL_SQLITE_COMPAT_H
-
-// No-op for testcase macro if not defined
-#ifndef testcase
-#define testcase(X)
-#endif
-
-// No-op for assert macro if not defined
-#ifndef assert
-#define assert(X)
-#endif
-
-
-#endif  /* SYNTAQLITE_INTERNAL_SQLITE_COMPAT_H */
-/* ======== end: syntaqlite_dialect/sqlite_compat.h ======== */
-
-/* ======== begin: csrc/sqlite_tokenize.h ======== */
-#ifndef SYNTAQLITE_INTERNAL_PERFETTO_TOKENIZE_H
-#define SYNTAQLITE_INTERNAL_PERFETTO_TOKENIZE_H
-// Copyright 2025 The syntaqlite Authors. All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-//
-// @generated by syntaqlite-buildtools — DO NOT EDIT
-
-
-
-SYNTAQLITE_DIALECT_API i64 SynqPerfettoGetToken(const SyntaqliteDialect* env, const unsigned char* z, int* tokenType);
-
-
-#endif  /* SYNTAQLITE_INTERNAL_PERFETTO_TOKENIZE_H */
-/* ======== end: csrc/sqlite_tokenize.h ======== */
-
 /* ======== begin: csrc/dialect_fmt.h ======== */
 #ifndef SYNTAQLITE_PERFETTO_DIALECT_FMT_H
 #define SYNTAQLITE_PERFETTO_DIALECT_FMT_H
@@ -2493,29 +2534,29 @@ static const uint8_t perfetto_fmt_string_data[] = {
     0x52,0x57,0x49,0x54,0x48,0x49,0x4e,0x47,0x52,0x4f,0x55,0x50,0x28,0x4f,0x52,0x44,
     0x45,0x52,0x43,0x41,0x53,0x54,0x28,0x41,0x53,0x2e,0x55,0x4e,0x49,0x4f,0x4e,0x41,
     0x4c,0x4c,0x49,0x4e,0x54,0x45,0x52,0x53,0x45,0x43,0x54,0x45,0x58,0x43,0x45,0x50,
-    0x54,0x45,0x58,0x49,0x53,0x54,0x53,0x4e,0x4f,0x54,0x49,0x4e,0x49,0x53,0x4e,0x55,
-    0x4c,0x4c,0x4e,0x4f,0x54,0x4e,0x55,0x4c,0x4c,0x49,0x53,0x46,0x52,0x4f,0x4d,0x42,
-    0x45,0x54,0x57,0x45,0x45,0x4e,0x41,0x4e,0x44,0x4c,0x49,0x4b,0x45,0x47,0x4c,0x4f,
-    0x42,0x4d,0x41,0x54,0x43,0x48,0x52,0x45,0x47,0x45,0x58,0x50,0x45,0x53,0x43,0x41,
-    0x50,0x45,0x43,0x41,0x53,0x45,0x45,0x4c,0x53,0x45,0x45,0x4e,0x44,0x57,0x48,0x45,
-    0x4e,0x54,0x48,0x45,0x4e,0x52,0x45,0x46,0x45,0x52,0x45,0x4e,0x43,0x45,0x53,0x4f,
-    0x4e,0x44,0x45,0x4c,0x45,0x54,0x45,0x53,0x45,0x54,0x4e,0x55,0x4c,0x4c,0x44,0x45,
-    0x46,0x41,0x55,0x4c,0x54,0x43,0x41,0x53,0x43,0x41,0x44,0x45,0x52,0x45,0x53,0x54,
-    0x52,0x49,0x43,0x54,0x55,0x50,0x44,0x41,0x54,0x45,0x44,0x45,0x46,0x45,0x52,0x52,
-    0x41,0x42,0x4c,0x45,0x49,0x4e,0x49,0x54,0x49,0x41,0x4c,0x4c,0x59,0x44,0x45,0x46,
-    0x45,0x52,0x52,0x45,0x44,0x43,0x4f,0x4e,0x53,0x54,0x52,0x41,0x49,0x4e,0x54,0x50,
-    0x52,0x49,0x4d,0x41,0x52,0x59,0x4b,0x45,0x59,0x44,0x45,0x53,0x43,0x41,0x55,0x54,
-    0x4f,0x49,0x4e,0x43,0x52,0x45,0x4d,0x45,0x4e,0x54,0x43,0x4f,0x4e,0x46,0x4c,0x49,
-    0x43,0x54,0x52,0x4f,0x4c,0x4c,0x42,0x41,0x43,0x4b,0x41,0x42,0x4f,0x52,0x54,0x46,
-    0x41,0x49,0x4c,0x49,0x47,0x4e,0x4f,0x52,0x45,0x52,0x45,0x50,0x4c,0x41,0x43,0x45,
-    0x55,0x4e,0x49,0x51,0x55,0x45,0x43,0x48,0x45,0x43,0x4b,0x28,0x43,0x4f,0x4c,0x4c,
-    0x41,0x54,0x45,0x53,0x54,0x4f,0x52,0x45,0x44,0x2c,0x4b,0x45,0x59,0x28,0x55,0x4e,
-    0x49,0x51,0x55,0x45,0x28,0x46,0x4f,0x52,0x45,0x49,0x47,0x4e,0x43,0x52,0x45,0x41,
-    0x54,0x45,0x54,0x45,0x4d,0x50,0x54,0x41,0x42,0x4c,0x45,0x49,0x46,0x57,0x49,0x54,
-    0x48,0x4f,0x55,0x54,0x52,0x4f,0x57,0x49,0x44,0x53,0x54,0x52,0x49,0x43,0x54,0x4d,
-    0x41,0x54,0x45,0x52,0x49,0x41,0x4c,0x49,0x5a,0x45,0x44,0x57,0x49,0x54,0x48,0x52,
-    0x45,0x43,0x55,0x52,0x53,0x49,0x56,0x45,0x44,0x4f,0x4e,0x4f,0x54,0x48,0x49,0x4e,
-    0x47,0x49,0x4e,0x44,0x45,0x58,0x45,0x44,0x4c,0x49,0x4d,0x49,0x54,0x52,0x45,0x54,
+    0x54,0x4c,0x49,0x4d,0x49,0x54,0x45,0x58,0x49,0x53,0x54,0x53,0x4e,0x4f,0x54,0x49,
+    0x4e,0x49,0x53,0x4e,0x55,0x4c,0x4c,0x4e,0x4f,0x54,0x4e,0x55,0x4c,0x4c,0x49,0x53,
+    0x46,0x52,0x4f,0x4d,0x42,0x45,0x54,0x57,0x45,0x45,0x4e,0x41,0x4e,0x44,0x4c,0x49,
+    0x4b,0x45,0x47,0x4c,0x4f,0x42,0x4d,0x41,0x54,0x43,0x48,0x52,0x45,0x47,0x45,0x58,
+    0x50,0x45,0x53,0x43,0x41,0x50,0x45,0x43,0x41,0x53,0x45,0x45,0x4c,0x53,0x45,0x45,
+    0x4e,0x44,0x57,0x48,0x45,0x4e,0x54,0x48,0x45,0x4e,0x52,0x45,0x46,0x45,0x52,0x45,
+    0x4e,0x43,0x45,0x53,0x4f,0x4e,0x44,0x45,0x4c,0x45,0x54,0x45,0x53,0x45,0x54,0x4e,
+    0x55,0x4c,0x4c,0x44,0x45,0x46,0x41,0x55,0x4c,0x54,0x43,0x41,0x53,0x43,0x41,0x44,
+    0x45,0x52,0x45,0x53,0x54,0x52,0x49,0x43,0x54,0x55,0x50,0x44,0x41,0x54,0x45,0x44,
+    0x45,0x46,0x45,0x52,0x52,0x41,0x42,0x4c,0x45,0x49,0x4e,0x49,0x54,0x49,0x41,0x4c,
+    0x4c,0x59,0x44,0x45,0x46,0x45,0x52,0x52,0x45,0x44,0x43,0x4f,0x4e,0x53,0x54,0x52,
+    0x41,0x49,0x4e,0x54,0x50,0x52,0x49,0x4d,0x41,0x52,0x59,0x4b,0x45,0x59,0x44,0x45,
+    0x53,0x43,0x41,0x55,0x54,0x4f,0x49,0x4e,0x43,0x52,0x45,0x4d,0x45,0x4e,0x54,0x43,
+    0x4f,0x4e,0x46,0x4c,0x49,0x43,0x54,0x52,0x4f,0x4c,0x4c,0x42,0x41,0x43,0x4b,0x41,
+    0x42,0x4f,0x52,0x54,0x46,0x41,0x49,0x4c,0x49,0x47,0x4e,0x4f,0x52,0x45,0x52,0x45,
+    0x50,0x4c,0x41,0x43,0x45,0x55,0x4e,0x49,0x51,0x55,0x45,0x43,0x48,0x45,0x43,0x4b,
+    0x28,0x43,0x4f,0x4c,0x4c,0x41,0x54,0x45,0x53,0x54,0x4f,0x52,0x45,0x44,0x2c,0x4b,
+    0x45,0x59,0x28,0x55,0x4e,0x49,0x51,0x55,0x45,0x28,0x46,0x4f,0x52,0x45,0x49,0x47,
+    0x4e,0x43,0x52,0x45,0x41,0x54,0x45,0x54,0x45,0x4d,0x50,0x54,0x41,0x42,0x4c,0x45,
+    0x49,0x46,0x57,0x49,0x54,0x48,0x4f,0x55,0x54,0x52,0x4f,0x57,0x49,0x44,0x53,0x54,
+    0x52,0x49,0x43,0x54,0x4d,0x41,0x54,0x45,0x52,0x49,0x41,0x4c,0x49,0x5a,0x45,0x44,
+    0x57,0x49,0x54,0x48,0x52,0x45,0x43,0x55,0x52,0x53,0x49,0x56,0x45,0x44,0x4f,0x4e,
+    0x4f,0x54,0x48,0x49,0x4e,0x47,0x49,0x4e,0x44,0x45,0x58,0x45,0x44,0x52,0x45,0x54,
     0x55,0x52,0x4e,0x49,0x4e,0x47,0x3d,0x4f,0x52,0x49,0x4e,0x53,0x45,0x52,0x54,0x49,
     0x4e,0x54,0x4f,0x56,0x41,0x4c,0x55,0x45,0x53,0x2b,0x2d,0x2a,0x2f,0x25,0x3c,0x3e,
     0x3c,0x3d,0x3e,0x3d,0x21,0x3d,0x26,0x7c,0x3c,0x3c,0x3e,0x3e,0x7c,0x7c,0x2d,0x3e,
@@ -2549,11 +2590,11 @@ static const uint8_t perfetto_fmt_string_data[] = {
 
 static const uint32_t perfetto_fmt_string_offsets[] = {
     0,1,9,10,15,17,18,24,29,33,39,44,50,55,57,58,
-    63,66,75,81,87,90,92,98,105,107,111,118,121,125,129,134,
-    140,146,150,154,157,161,165,175,177,183,186,190,197,204,212,218,
-    228,237,245,255,262,265,269,282,290,298,303,307,313,320,326,332,
-    339,345,345,346,350,357,364,370,374,379,381,388,393,399,411,415,
-    424,426,433,440,445,454,455,457,463,467,473,474,475,476,477,478,
+    63,66,75,81,86,92,95,97,103,110,112,116,123,126,130,134,
+    139,145,151,155,159,162,166,170,180,182,188,191,195,202,209,217,
+    223,233,242,250,260,267,270,274,287,295,303,308,312,318,325,331,
+    337,344,350,350,351,355,362,369,375,379,384,386,393,398,404,416,
+    420,429,431,438,445,454,455,457,463,467,473,474,475,476,477,478,
     479,480,482,484,486,487,488,490,492,494,496,499,500,507,513,517,
     522,526,533,538,544,546,552,555,560,569,578,584,593,600,602,608,
     614,620,625,630,634,640,642,647,651,655,660,664,669,676,678,679,
@@ -2565,8 +2606,8 @@ static const uint32_t perfetto_fmt_string_offsets[] = {
 static const uint32_t perfetto_fmt_string_count = 178;
 
 static const uint16_t perfetto_fmt_enum_display[] = {
-    90,91,92,93,94,95,96,97,98,85,99,27,86,100,101,102,
-    103,104,105,106,72,111,112,113,
+    90,91,92,93,94,95,96,97,98,85,99,28,86,100,101,102,
+    103,104,105,106,73,111,112,113,
 };
 
 static const uint32_t perfetto_fmt_enum_display_count = 24;
@@ -2707,6 +2748,23 @@ static const uint8_t perfetto_fmt_ops[] = {
     5,0,0,0,0,0,
     2,2,0,0,0,0,
     6,0,0,0,0,0,
+    10,3,0,0,8,0,
+    3,0,0,0,0,0,
+    0,0,3,0,0,0,
+    0,0,4,0,0,0,
+    8,0,0,0,0,0,
+    3,0,0,0,0,0,
+    2,3,0,0,0,0,
+    9,0,0,0,0,0,
+    12,0,0,0,0,0,
+    10,4,0,0,5,0,
+    3,0,0,0,0,0,
+    0,0,19,0,0,0,
+    0,0,2,0,0,0,
+    2,4,0,0,0,0,
+    12,0,0,0,0,0,
+    7,0,0,0,0,0,
+    6,0,0,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
@@ -2715,7 +2773,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     4,0,0,0,0,0,
     0,0,5,0,0,0,
     7,0,0,0,0,0,
-    0,0,19,0,0,0,
+    0,0,20,0,0,0,
     0,0,2,0,0,0,
     6,0,0,0,0,0,
     0,0,0,0,0,0,
@@ -2729,12 +2787,12 @@ static const uint8_t perfetto_fmt_ops[] = {
     25,2,0,3,0,0,
     17,0,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,20,0,0,0,
     0,0,21,0,0,0,
+    0,0,22,0,0,0,
     0,0,2,0,0,0,
     11,0,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,21,0,0,0,
+    0,0,22,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     17,1,0,0,2,0,
@@ -2753,44 +2811,44 @@ static const uint8_t perfetto_fmt_ops[] = {
     19,0,2,0,4,0,
     25,1,0,3,0,0,
     0,0,2,0,0,0,
-    0,0,22,0,0,0,
+    0,0,23,0,0,0,
     11,0,0,0,44,0,
     19,0,3,0,4,0,
     25,1,0,3,0,0,
     0,0,2,0,0,0,
-    0,0,23,0,0,0,
+    0,0,24,0,0,0,
     11,0,0,0,38,0,
     19,0,0,0,6,0,
     25,1,0,3,0,0,
     0,0,2,0,0,0,
-    0,0,24,0,0,0,
+    0,0,25,0,0,0,
     0,0,2,0,0,0,
     25,2,0,3,1,0,
     11,0,0,0,30,0,
     19,0,1,0,7,0,
     25,1,0,3,0,0,
     0,0,2,0,0,0,
-    0,0,24,0,0,0,
-    0,0,20,0,0,0,
+    0,0,25,0,0,0,
+    0,0,21,0,0,0,
     0,0,2,0,0,0,
     25,2,0,3,1,0,
     11,0,0,0,21,0,
     19,0,4,0,9,0,
     25,1,0,3,0,0,
     0,0,2,0,0,0,
-    0,0,24,0,0,0,
-    0,0,20,0,0,0,
-    0,0,1,0,0,0,
     0,0,25,0,0,0,
+    0,0,21,0,0,0,
+    0,0,1,0,0,0,
+    0,0,26,0,0,0,
     0,0,2,0,0,0,
     25,2,0,3,1,0,
     11,0,0,0,10,0,
     19,0,5,0,8,0,
     25,1,0,3,0,0,
     0,0,2,0,0,0,
-    0,0,24,0,0,0,
-    0,0,1,0,0,0,
     0,0,25,0,0,0,
+    0,0,1,0,0,0,
+    0,0,26,0,0,0,
     0,0,2,0,0,0,
     25,2,0,3,1,0,
     12,0,0,0,0,0,
@@ -2802,38 +2860,38 @@ static const uint8_t perfetto_fmt_ops[] = {
     25,1,0,3,0,0,
     17,0,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,20,0,0,0,
-    0,0,26,0,0,0,
+    0,0,21,0,0,0,
+    0,0,27,0,0,0,
     0,0,2,0,0,0,
     11,0,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,26,0,0,0,
+    0,0,27,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     2,2,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,27,0,0,0,
+    0,0,28,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
     25,2,0,3,0,0,
     17,0,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,20,0,0,0,
+    0,0,21,0,0,0,
     0,0,2,0,0,0,
     11,0,0,0,2,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     19,1,0,0,2,0,
-    0,0,28,0,0,0,
+    0,0,29,0,0,0,
     11,0,0,0,12,0,
     19,1,1,0,2,0,
-    0,0,29,0,0,0,
+    0,0,30,0,0,0,
     11,0,0,0,8,0,
     19,1,2,0,2,0,
-    0,0,30,0,0,0,
+    0,0,31,0,0,0,
     11,0,0,0,4,0,
     19,1,3,0,2,0,
-    0,0,31,0,0,0,
+    0,0,32,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -2842,12 +2900,12 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,3,0,0,0,0,
     10,4,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,32,0,0,0,
+    0,0,33,0,0,0,
     0,0,2,0,0,0,
     2,4,0,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,33,0,0,0,
+    0,0,34,0,0,0,
     10,0,0,0,3,0,
     0,0,2,0,0,0,
     24,0,0,0,0,0,
@@ -2858,27 +2916,27 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,1,0,0,5,0,
     3,0,0,0,0,0,
-    0,0,34,0,0,0,
+    0,0,35,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
     12,0,0,0,0,0,
     9,0,0,0,0,0,
     3,0,0,0,0,0,
-    0,0,35,0,0,0,
+    0,0,36,0,0,0,
     7,0,0,0,0,0,
     3,0,0,0,0,0,
-    0,0,36,0,0,0,
+    0,0,37,0,0,0,
     0,0,2,0,0,0,
     2,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,37,0,0,0,
+    0,0,38,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
     16,0,0,0,0,0,
     20,0,0,0,4,0,
-    0,0,38,0,0,0,
+    0,0,39,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -2895,58 +2953,58 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     19,2,1,0,6,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
     0,0,40,0,0,0,
     0,0,41,0,0,0,
     0,0,42,0,0,0,
+    0,0,43,0,0,0,
     11,0,0,0,22,0,
     19,2,2,0,6,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
     0,0,40,0,0,0,
     0,0,41,0,0,0,
-    0,0,43,0,0,0,
+    0,0,42,0,0,0,
+    0,0,44,0,0,0,
     11,0,0,0,14,0,
     19,2,3,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
     0,0,40,0,0,0,
-    0,0,44,0,0,0,
+    0,0,41,0,0,0,
+    0,0,45,0,0,0,
     11,0,0,0,7,0,
     19,2,4,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
     0,0,40,0,0,0,
-    0,0,45,0,0,0,
+    0,0,41,0,0,0,
+    0,0,46,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     19,3,1,0,6,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,46,0,0,0,
-    0,0,41,0,0,0,
+    0,0,40,0,0,0,
+    0,0,47,0,0,0,
     0,0,42,0,0,0,
+    0,0,43,0,0,0,
     11,0,0,0,22,0,
     19,3,2,0,6,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,46,0,0,0,
-    0,0,41,0,0,0,
-    0,0,43,0,0,0,
+    0,0,40,0,0,0,
+    0,0,47,0,0,0,
+    0,0,42,0,0,0,
+    0,0,44,0,0,0,
     11,0,0,0,14,0,
     19,3,3,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,46,0,0,0,
-    0,0,44,0,0,0,
+    0,0,40,0,0,0,
+    0,0,47,0,0,0,
+    0,0,45,0,0,0,
     11,0,0,0,7,0,
     19,3,4,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
+    0,0,40,0,0,0,
+    0,0,47,0,0,0,
     0,0,46,0,0,0,
-    0,0,45,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -2955,56 +3013,56 @@ static const uint8_t perfetto_fmt_ops[] = {
     20,0,0,0,2,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
-    0,0,47,0,0,0,
     0,0,48,0,0,0,
     0,0,49,0,0,0,
+    0,0,50,0,0,0,
     12,0,0,0,0,0,
     20,1,0,0,5,0,
-    0,0,50,0,0,0,
+    0,0,51,0,0,0,
     0,0,2,0,0,0,
     1,1,0,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     19,0,2,0,45,0,
-    0,0,51,0,0,0,
     0,0,52,0,0,0,
-    19,3,1,0,3,0,
-    0,0,2,0,0,0,
     0,0,53,0,0,0,
-    12,0,0,0,0,0,
-    17,4,0,0,3,0,
+    19,3,1,0,3,0,
     0,0,2,0,0,0,
     0,0,54,0,0,0,
     12,0,0,0,0,0,
+    17,4,0,0,3,0,
+    0,0,2,0,0,0,
+    0,0,55,0,0,0,
+    12,0,0,0,0,0,
     19,2,1,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
+    0,0,40,0,0,0,
     0,0,56,0,0,0,
+    0,0,57,0,0,0,
     11,0,0,0,28,0,
     19,2,2,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,57,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,58,0,0,0,
     11,0,0,0,21,0,
     19,2,3,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,58,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,59,0,0,0,
     11,0,0,0,14,0,
     19,2,4,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,59,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,60,0,0,0,
     11,0,0,0,7,0,
     19,2,5,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,60,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3012,37 +3070,37 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     11,0,0,0,135,0,
     19,0,1,0,37,0,
-    0,0,20,0,0,0,
-    0,0,42,0,0,0,
+    0,0,21,0,0,0,
+    0,0,43,0,0,0,
     19,2,1,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
+    0,0,40,0,0,0,
     0,0,56,0,0,0,
+    0,0,57,0,0,0,
     11,0,0,0,28,0,
     19,2,2,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,57,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,58,0,0,0,
     11,0,0,0,21,0,
     19,2,3,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,58,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,59,0,0,0,
     11,0,0,0,14,0,
     19,2,4,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,59,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,60,0,0,0,
     11,0,0,0,7,0,
     19,2,5,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,60,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3050,36 +3108,36 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     11,0,0,0,96,0,
     19,0,3,0,36,0,
-    0,0,61,0,0,0,
+    0,0,62,0,0,0,
     19,2,1,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
+    0,0,40,0,0,0,
     0,0,56,0,0,0,
+    0,0,57,0,0,0,
     11,0,0,0,28,0,
     19,2,2,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,57,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,58,0,0,0,
     11,0,0,0,21,0,
     19,2,3,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,58,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,59,0,0,0,
     11,0,0,0,14,0,
     19,2,4,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,59,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,60,0,0,0,
     11,0,0,0,7,0,
     19,2,5,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,60,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3088,7 +3146,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     11,0,0,0,58,0,
     19,0,4,0,10,0,
     6,0,0,0,0,0,
-    0,0,62,0,0,0,
+    0,0,63,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     2,8,0,0,0,0,
@@ -3099,7 +3157,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     11,0,0,0,46,0,
     19,0,0,0,12,0,
     6,0,0,0,0,0,
-    0,0,43,0,0,0,
+    0,0,44,0,0,0,
     0,0,2,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
@@ -3111,7 +3169,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     7,0,0,0,0,0,
     11,0,0,0,32,0,
     19,0,6,0,4,0,
-    0,0,63,0,0,0,
+    0,0,64,0,0,0,
     0,0,2,0,0,0,
     1,5,0,0,0,0,
     11,0,0,0,26,0,
@@ -3132,11 +3190,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     7,0,0,0,0,0,
     19,6,1,0,3,0,
     0,0,2,0,0,0,
-    0,0,64,0,0,0,
+    0,0,65,0,0,0,
     12,0,0,0,0,0,
     11,0,0,0,4,0,
     19,0,8,0,2,0,
-    0,0,42,0,0,0,
+    0,0,43,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3148,7 +3206,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,65,0,0,0,
+    15,0,66,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
@@ -3166,63 +3224,18 @@ static const uint8_t perfetto_fmt_ops[] = {
     7,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     20,1,0,0,5,0,
-    0,0,50,0,0,0,
+    0,0,51,0,0,0,
     0,0,2,0,0,0,
     1,1,0,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     19,0,0,0,45,0,
     6,0,0,0,0,0,
-    0,0,51,0,0,0,
-    0,0,67,0,0,0,
-    8,0,0,0,0,0,
-    4,0,0,0,0,0,
-    2,4,0,0,0,0,
-    9,0,0,0,0,0,
-    4,0,0,0,0,0,
-    0,0,5,0,0,0,
-    7,0,0,0,0,0,
-    19,2,1,0,5,0,
-    0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,56,0,0,0,
-    11,0,0,0,28,0,
-    19,2,2,0,5,0,
-    0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,57,0,0,0,
-    11,0,0,0,21,0,
-    19,2,3,0,5,0,
-    0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,58,0,0,0,
-    11,0,0,0,14,0,
-    19,2,4,0,5,0,
-    0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,59,0,0,0,
-    11,0,0,0,7,0,
-    19,2,5,0,5,0,
-    0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,60,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    11,0,0,0,73,0,
-    19,0,1,0,44,0,
-    6,0,0,0,0,0,
+    0,0,52,0,0,0,
     0,0,68,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
@@ -3233,33 +3246,78 @@ static const uint8_t perfetto_fmt_ops[] = {
     7,0,0,0,0,0,
     19,2,1,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
+    0,0,40,0,0,0,
     0,0,56,0,0,0,
+    0,0,57,0,0,0,
     11,0,0,0,28,0,
     19,2,2,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,57,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,58,0,0,0,
     11,0,0,0,21,0,
     19,2,3,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,58,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,59,0,0,0,
     11,0,0,0,14,0,
     19,2,4,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
-    0,0,59,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,60,0,0,0,
     11,0,0,0,7,0,
     19,2,5,0,5,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,61,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,73,0,
+    19,0,1,0,44,0,
+    6,0,0,0,0,0,
+    0,0,69,0,0,0,
+    8,0,0,0,0,0,
+    4,0,0,0,0,0,
+    2,4,0,0,0,0,
+    9,0,0,0,0,0,
+    4,0,0,0,0,0,
+    0,0,5,0,0,0,
+    7,0,0,0,0,0,
+    19,2,1,0,5,0,
+    0,0,2,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,57,0,0,0,
+    11,0,0,0,28,0,
+    19,2,2,0,5,0,
+    0,0,2,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,58,0,0,0,
+    11,0,0,0,21,0,
+    19,2,3,0,5,0,
+    0,0,2,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,59,0,0,0,
+    11,0,0,0,14,0,
+    19,2,4,0,5,0,
+    0,0,2,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
     0,0,60,0,0,0,
+    11,0,0,0,7,0,
+    19,2,5,0,5,0,
+    0,0,2,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3268,7 +3326,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     11,0,0,0,27,0,
     19,0,2,0,10,0,
     6,0,0,0,0,0,
-    0,0,62,0,0,0,
+    0,0,63,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     2,6,0,0,0,0,
@@ -3279,8 +3337,8 @@ static const uint8_t perfetto_fmt_ops[] = {
     11,0,0,0,15,0,
     19,0,3,0,13,0,
     6,0,0,0,0,0,
-    0,0,69,0,0,0,
-    0,0,67,0,0,0,
+    0,0,70,0,0,0,
+    0,0,68,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     2,5,0,0,0,0,
@@ -3296,22 +3354,22 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,70,0,0,0,
+    0,0,71,0,0,0,
     17,2,0,0,3,0,
     0,0,2,0,0,0,
-    0,0,71,0,0,0,
+    0,0,72,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,72,0,0,0,
+    0,0,73,0,0,0,
     17,3,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,73,0,0,0,
+    0,0,74,0,0,0,
+    0,0,21,0,0,0,
     0,0,20,0,0,0,
-    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
@@ -3325,7 +3383,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     4,0,0,0,0,0,
     2,5,0,0,0,0,
     10,6,0,0,4,0,
-    0,0,66,0,0,0,
+    0,0,67,0,0,0,
     3,0,0,0,0,0,
     2,6,0,0,0,0,
     12,0,0,0,0,0,
@@ -3339,15 +3397,15 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     18,4,1,0,7,0,
     0,0,2,0,0,0,
-    0,0,74,0,0,0,
     0,0,75,0,0,0,
+    0,0,76,0,0,0,
     18,4,2,0,2,0,
-    0,0,66,0,0,0,
+    0,0,67,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     18,4,2,0,3,0,
     0,0,2,0,0,0,
-    0,0,76,0,0,0,
+    0,0,77,0,0,0,
     12,0,0,0,0,0,
     7,0,0,0,0,0,
     10,7,0,0,3,0,
@@ -3370,12 +3428,12 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,13,0,0,0,
     0,0,2,0,0,0,
     19,1,1,0,3,0,
-    0,0,77,0,0,0,
+    0,0,78,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     19,1,2,0,4,0,
-    0,0,20,0,0,0,
-    0,0,77,0,0,0,
+    0,0,21,0,0,0,
+    0,0,78,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
@@ -3389,14 +3447,14 @@ static const uint8_t perfetto_fmt_ops[] = {
     7,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     17,0,0,0,3,0,
-    0,0,78,0,0,0,
     0,0,79,0,0,0,
+    0,0,80,0,0,0,
     11,0,0,0,2,0,
-    0,0,78,0,0,0,
+    0,0,79,0,0,0,
     12,0,0,0,0,0,
     10,1,0,0,7,0,
     6,0,0,0,0,0,
@@ -3408,8 +3466,8 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     5,0,0,0,0,0,
     2,2,0,0,0,0,
-    0,0,39,0,0,0,
-    0,0,55,0,0,0,
+    0,0,40,0,0,0,
+    0,0,56,0,0,0,
     10,0,0,0,11,0,
     6,0,0,0,0,0,
     0,0,2,0,0,0,
@@ -3430,11 +3488,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     19,2,1,0,20,0,
     0,0,2,0,0,0,
-    0,0,80,0,0,0,
-    0,0,46,0,0,0,
+    0,0,81,0,0,0,
+    0,0,47,0,0,0,
     10,3,0,0,7,0,
     3,0,0,0,0,0,
-    0,0,41,0,0,0,
+    0,0,42,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,3,0,0,0,0,
@@ -3450,21 +3508,21 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     11,0,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,80,0,0,0,
     0,0,81,0,0,0,
+    0,0,82,0,0,0,
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,65,0,0,0,
+    15,0,66,0,0,0,
     5,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
     10,0,0,0,14,0,
     17,1,0,0,3,0,
-    0,0,78,0,0,0,
     0,0,79,0,0,0,
+    0,0,80,0,0,0,
     11,0,0,0,2,0,
-    0,0,78,0,0,0,
+    0,0,79,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
     8,0,0,0,0,0,
@@ -3474,21 +3532,21 @@ static const uint8_t perfetto_fmt_ops[] = {
     7,0,0,0,0,0,
     5,0,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,40,0,0,0,
-    0,0,25,0,0,0,
+    0,0,41,0,0,0,
+    0,0,26,0,0,0,
     0,0,2,0,0,0,
     2,2,0,0,0,0,
     19,3,2,0,6,0,
     0,0,2,0,0,0,
-    0,0,82,0,0,0,
+    0,0,83,0,0,0,
     0,0,4,0,0,0,
     0,0,2,0,0,0,
     1,4,0,0,0,0,
     11,0,0,0,6,0,
     19,3,1,0,4,0,
     0,0,2,0,0,0,
-    0,0,20,0,0,0,
-    0,0,82,0,0,0,
+    0,0,21,0,0,0,
+    0,0,83,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     10,5,0,0,7,0,
@@ -3510,7 +3568,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,7,0,0,5,0,
     3,0,0,0,0,0,
-    0,0,83,0,0,0,
+    0,0,19,0,0,0,
     0,0,2,0,0,0,
     2,7,0,0,0,0,
     12,0,0,0,0,0,
@@ -3546,16 +3604,16 @@ static const uint8_t perfetto_fmt_ops[] = {
     24,2,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
     10,0,0,0,14,0,
     17,1,0,0,3,0,
-    0,0,78,0,0,0,
     0,0,79,0,0,0,
+    0,0,80,0,0,0,
     11,0,0,0,2,0,
-    0,0,78,0,0,0,
+    0,0,79,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
     8,0,0,0,0,0,
@@ -3565,31 +3623,31 @@ static const uint8_t perfetto_fmt_ops[] = {
     7,0,0,0,0,0,
     5,0,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,46,0,0,0,
+    0,0,47,0,0,0,
     19,2,1,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,56,0,0,0,
+    0,0,57,0,0,0,
     11,0,0,0,24,0,
     19,2,2,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,57,0,0,0,
+    0,0,58,0,0,0,
     11,0,0,0,18,0,
     19,2,3,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,58,0,0,0,
+    0,0,59,0,0,0,
     11,0,0,0,12,0,
     19,2,4,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,59,0,0,0,
+    0,0,60,0,0,0,
     11,0,0,0,6,0,
     19,2,5,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,60,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3599,20 +3657,20 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,3,0,0,0,0,
     19,4,2,0,6,0,
     0,0,2,0,0,0,
-    0,0,82,0,0,0,
+    0,0,83,0,0,0,
     0,0,4,0,0,0,
     0,0,2,0,0,0,
     1,5,0,0,0,0,
     11,0,0,0,6,0,
     19,4,1,0,4,0,
     0,0,2,0,0,0,
-    0,0,20,0,0,0,
-    0,0,82,0,0,0,
+    0,0,21,0,0,0,
+    0,0,83,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     10,6,0,0,7,0,
     3,0,0,0,0,0,
-    0,0,41,0,0,0,
+    0,0,42,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,6,0,0,0,0,
@@ -3620,7 +3678,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,7,0,0,5,0,
     3,0,0,0,0,0,
-    0,0,25,0,0,0,
+    0,0,26,0,0,0,
     0,0,2,0,0,0,
     2,7,0,0,0,0,
     12,0,0,0,0,0,
@@ -3643,7 +3701,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,10,0,0,5,0,
     3,0,0,0,0,0,
-    0,0,83,0,0,0,
+    0,0,19,0,0,0,
     0,0,2,0,0,0,
     2,10,0,0,0,0,
     12,0,0,0,0,0,
@@ -3661,10 +3719,10 @@ static const uint8_t perfetto_fmt_ops[] = {
     6,0,0,0,0,0,
     10,0,0,0,14,0,
     17,1,0,0,3,0,
-    0,0,78,0,0,0,
     0,0,79,0,0,0,
+    0,0,80,0,0,0,
     11,0,0,0,2,0,
-    0,0,78,0,0,0,
+    0,0,79,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
     8,0,0,0,0,0,
@@ -3675,28 +3733,28 @@ static const uint8_t perfetto_fmt_ops[] = {
     5,0,0,0,0,0,
     12,0,0,0,0,0,
     19,2,5,0,2,0,
-    0,0,60,0,0,0,
+    0,0,61,0,0,0,
     11,0,0,0,25,0,
     0,0,87,0,0,0,
     19,2,1,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,56,0,0,0,
+    0,0,57,0,0,0,
     11,0,0,0,18,0,
     19,2,2,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,57,0,0,0,
+    0,0,58,0,0,0,
     11,0,0,0,12,0,
     19,2,3,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,58,0,0,0,
+    0,0,59,0,0,0,
     11,0,0,0,6,0,
     19,2,4,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,59,0,0,0,
+    0,0,60,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3722,7 +3780,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,5,0,0,0,0,
     11,0,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,43,0,0,0,
+    0,0,44,0,0,0,
     0,0,89,0,0,0,
     12,0,0,0,0,0,
     10,6,0,0,3,0,
@@ -3743,7 +3801,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     19,0,11,0,6,0,
     23,1,0,0,0,0,
     3,0,0,0,0,0,
-    0,0,27,0,0,0,
+    0,0,28,0,0,0,
     0,0,2,0,0,0,
     23,2,0,0,1,0,
     11,0,0,0,16,0,
@@ -3764,7 +3822,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     19,0,3,0,4,0,
-    0,0,20,0,0,0,
+    0,0,21,0,0,0,
     0,0,2,0,0,0,
     23,1,20,0,0,0,
     11,0,0,0,15,0,
@@ -3797,7 +3855,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     1,0,0,0,0,0,
@@ -3845,27 +3903,27 @@ static const uint8_t perfetto_fmt_ops[] = {
     1,0,0,0,0,0,
     25,0,0,9,0,0,
     0,0,2,0,0,0,
-    0,0,63,0,0,0,
+    0,0,64,0,0,0,
     0,0,2,0,0,0,
     1,1,0,0,0,0,
     0,0,109,0,0,0,
     19,0,0,0,2,0,
-    0,0,59,0,0,0,
+    0,0,60,0,0,0,
     11,0,0,0,12,0,
     19,0,1,0,2,0,
-    0,0,56,0,0,0,
+    0,0,57,0,0,0,
     11,0,0,0,8,0,
     19,0,2,0,2,0,
-    0,0,57,0,0,0,
+    0,0,58,0,0,0,
     11,0,0,0,4,0,
     19,0,3,0,2,0,
-    0,0,58,0,0,0,
+    0,0,59,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     10,1,0,0,4,0,
-    0,0,66,0,0,0,
+    0,0,67,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
     12,0,0,0,0,0,
@@ -3880,13 +3938,13 @@ static const uint8_t perfetto_fmt_ops[] = {
     21,0,20,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,73,0,0,0,
-    0,0,19,0,0,0,
+    0,0,74,0,0,0,
+    0,0,20,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     2,2,0,0,0,0,
     0,0,114,0,0,0,
-    0,0,72,0,0,0,
+    0,0,73,0,0,0,
     0,0,2,0,0,0,
     10,1,0,0,3,0,
     2,1,0,0,0,0,
@@ -3938,7 +3996,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,122,0,0,0,
     11,0,0,0,4,0,
     19,0,2,0,2,0,
-    0,0,56,0,0,0,
+    0,0,57,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3954,7 +4012,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,1,0,0,0,0,
     11,0,0,0,8,0,
     19,0,2,0,6,0,
-    0,0,56,0,0,0,
+    0,0,57,0,0,0,
     0,0,116,0,0,0,
     0,0,123,0,0,0,
     0,0,2,0,0,0,
@@ -3980,7 +4038,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
@@ -4000,7 +4058,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,2,0,0,5,0,
     3,0,0,0,0,0,
-    0,0,25,0,0,0,
+    0,0,26,0,0,0,
     0,0,2,0,0,0,
     2,2,0,0,0,0,
     12,0,0,0,0,0,
@@ -4040,7 +4098,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,7,0,0,5,0,
     3,0,0,0,0,0,
-    0,0,83,0,0,0,
+    0,0,19,0,0,0,
     0,0,2,0,0,0,
     2,7,0,0,0,0,
     12,0,0,0,0,0,
@@ -4056,7 +4114,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     24,0,0,0,0,0,
     19,1,1,0,3,0,
     0,0,2,0,0,0,
-    0,0,53,0,0,0,
+    0,0,54,0,0,0,
     12,0,0,0,0,0,
     19,2,1,0,4,0,
     0,0,2,0,0,0,
@@ -4070,7 +4128,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     2,0,0,0,0,0,
@@ -4123,12 +4181,12 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     19,0,0,0,25,0,
     2,1,0,0,0,0,
-    0,0,66,0,0,0,
+    0,0,67,0,0,0,
     0,0,2,0,0,0,
     2,2,0,0,0,0,
     10,3,0,0,5,0,
     5,0,0,0,0,0,
-    0,0,39,0,0,0,
+    0,0,40,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
     12,0,0,0,0,0,
@@ -4189,7 +4247,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,135,0,0,0,
     11,0,0,0,4,0,
     19,0,0,0,2,0,
-    0,0,66,0,0,0,
+    0,0,67,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -4205,7 +4263,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     10,3,0,0,7,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
-    0,0,39,0,0,0,
+    0,0,40,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
     9,0,0,0,0,0,
@@ -4228,13 +4286,13 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     2,0,0,0,0,0,
     19,0,0,0,2,0,
-    0,0,40,0,0,0,
+    0,0,41,0,0,0,
     11,0,0,0,16,0,
     19,0,1,0,2,0,
     0,0,87,0,0,0,
     11,0,0,0,12,0,
     19,0,2,0,10,0,
-    0,0,46,0,0,0,
+    0,0,47,0,0,0,
     10,1,0,0,7,0,
     6,0,0,0,0,0,
     0,0,2,0,0,0,
@@ -4249,21 +4307,21 @@ static const uint8_t perfetto_fmt_ops[] = {
     22,0,0,0,0,0,
     14,0,0,0,0,0,
     0,0,142,0,0,0,
-    15,0,65,0,0,0,
+    15,0,66,0,0,0,
     5,0,0,0,0,0,
     16,0,0,0,0,0,
-    0,0,70,0,0,0,
+    0,0,71,0,0,0,
     17,2,0,0,3,0,
     0,0,2,0,0,0,
-    0,0,71,0,0,0,
+    0,0,72,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,113,0,0,0,
     17,3,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,73,0,0,0,
+    0,0,74,0,0,0,
+    0,0,21,0,0,0,
     0,0,20,0,0,0,
-    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
@@ -4287,12 +4345,12 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,2,0,0,0,
     2,5,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
+    0,0,40,0,0,0,
     0,0,2,0,0,0,
     2,6,0,0,0,0,
     10,7,0,0,5,0,
     5,0,0,0,0,0,
-    0,0,36,0,0,0,
+    0,0,37,0,0,0,
     0,0,2,0,0,0,
     2,7,0,0,0,0,
     12,0,0,0,0,0,
@@ -4305,15 +4363,15 @@ static const uint8_t perfetto_fmt_ops[] = {
     9,0,0,0,0,0,
     12,0,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,35,0,0,0,
-    0,0,70,0,0,0,
+    0,0,36,0,0,0,
+    0,0,71,0,0,0,
     0,0,146,0,0,0,
-    0,0,72,0,0,0,
+    0,0,73,0,0,0,
     17,3,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,73,0,0,0,
+    0,0,74,0,0,0,
+    0,0,21,0,0,0,
     0,0,20,0,0,0,
-    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
@@ -4374,7 +4432,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,1,0,0,0,0,
     10,2,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,52,0,0,0,
+    0,0,53,0,0,0,
     0,0,2,0,0,0,
     2,2,0,0,0,0,
     12,0,0,0,0,0,
@@ -4402,18 +4460,18 @@ static const uint8_t perfetto_fmt_ops[] = {
     5,0,0,0,0,0,
     2,1,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,70,0,0,0,
+    0,0,71,0,0,0,
     17,3,0,0,3,0,
     0,0,2,0,0,0,
-    0,0,61,0,0,0,
+    0,0,62,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,111,0,0,0,
     17,4,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,73,0,0,0,
+    0,0,74,0,0,0,
+    0,0,21,0,0,0,
     0,0,20,0,0,0,
-    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
@@ -4422,7 +4480,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     1,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
+    0,0,40,0,0,0,
     0,0,2,0,0,0,
     1,2,0,0,0,0,
     6,0,0,0,0,0,
@@ -4445,18 +4503,18 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     7,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,70,0,0,0,
+    0,0,71,0,0,0,
     17,2,0,0,3,0,
     0,0,2,0,0,0,
-    0,0,71,0,0,0,
+    0,0,72,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,112,0,0,0,
     17,3,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,73,0,0,0,
+    0,0,74,0,0,0,
+    0,0,21,0,0,0,
     0,0,20,0,0,0,
-    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
@@ -4488,7 +4546,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     4,0,0,0,0,0,
     0,0,5,0,0,0,
     7,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
@@ -4536,11 +4594,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,26,0,0,0,
+    0,0,27,0,0,0,
     0,0,2,0,0,0,
     2,2,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,27,0,0,0,
+    0,0,28,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
     19,1,1,0,5,0,
@@ -4613,7 +4671,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     1,0,0,0,0,0,
@@ -4623,7 +4681,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,1,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     10,0,0,0,14,0,
@@ -4661,7 +4719,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     1,0,0,0,0,0,
@@ -4669,13 +4727,13 @@ static const uint8_t perfetto_fmt_ops[] = {
     1,1,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     1,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,67,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     19,0,0,0,2,0,
@@ -4695,15 +4753,15 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     1,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,70,0,0,0,
+    0,0,71,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,60,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,171,0,0,0,
-    0,0,72,0,0,0,
+    0,0,73,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     10,2,0,0,5,0,
@@ -4731,11 +4789,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,4,0,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,70,0,0,0,
+    0,0,71,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,60,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,171,0,0,0,
@@ -4757,11 +4815,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     5,0,0,0,0,0,
     2,3,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,70,0,0,0,
+    0,0,71,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,60,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,171,0,0,0,
@@ -4787,11 +4845,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     5,0,0,0,0,0,
     2,4,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,70,0,0,0,
+    0,0,71,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,60,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,171,0,0,0,
@@ -4818,11 +4876,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,2,0,0,0,
     1,4,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,70,0,0,0,
+    0,0,71,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,60,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,171,0,0,0,
@@ -4830,7 +4888,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
+    0,0,40,0,0,0,
     0,0,2,0,0,0,
     1,2,0,0,0,0,
     0,0,0,0,0,0,
@@ -4842,11 +4900,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,5,0,0,0,
     7,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,70,0,0,0,
+    0,0,71,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
     0,0,86,0,0,0,
-    0,0,60,0,0,0,
+    0,0,61,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,171,0,0,0,
@@ -4882,26 +4940,26 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,39,0,0,0,
+    0,0,40,0,0,0,
     0,0,2,0,0,0,
     1,1,0,0,0,0,
 };
 
-static const uint32_t perfetto_fmt_ops_count = 13878;
+static const uint32_t perfetto_fmt_ops_count = 13980;
 
 static const uint32_t perfetto_fmt_dispatch[] = {
-    0xffff0000,0x0000002d,0x002d0035,0x00620007,0x00690009,0x00720014,0x00860009,0x008f000b,
-    0x009a0018,0x00b20031,0x00e30010,0x00f3001f,0x01120014,0x01260008,0x012e0003,0x01310052,
-    0x018300bb,0x023e0005,0x0243000d,0x02500005,0x0255007d,0x02d20005,0x02d70037,0x030e0021,
-    0x032f0005,0x03340010,0x0344002d,0x03710005,0x03760043,0x03b90013,0x03cc0005,0x03d1006d,
-    0x043e0052,0x04900017,0x04a70014,0x04bb0001,0x04bc0005,0x04c10001,0x04c20005,0x04c70005,
-    0x04cc002a,0x04f60001,0x04f70005,0x04fc0016,0x05120005,0x0517000a,0x05210026,0x05470013,
-    0x055a0014,0x056e0010,0x057e0005,0x05830046,0x05c9000f,0x05d80005,0x05dd0007,0x05e4001a,
-    0x05fe000f,0x060d0069,0x06760001,0x06770013,0x068a0006,0x06900036,0x06c60018,0x06de0013,
-    0x06f10010,0x0701000d,0x070e0003,0x0711000b,0x071c0009,0x0725002b,0x07500022,0x0772000d,
-    0x077f0007,0x0786001a,0x07a0002c,0x07cc002b,0x07f70005,0x07fc0005,0x08010005,0x0806001b,
-    0x08210006,0x08270005,0x082c0003,0x082f0005,0x08340001,0x08350005,0x083a000f,0x08490001,
-    0x084a0024,0x086e001a,0x0888001e,0x08a6001f,0x08c50018,0x08dd001e,0x08fb0005,0x09000009,
+    0xffff0000,0x0000002d,0x002d0035,0x00620007,0x00690009,0x00720025,0x00970009,0x00a0000b,
+    0x00ab0018,0x00c30031,0x00f40010,0x0104001f,0x01230014,0x01370008,0x013f0003,0x01420052,
+    0x019400bb,0x024f0005,0x0254000d,0x02610005,0x0266007d,0x02e30005,0x02e80037,0x031f0021,
+    0x03400005,0x03450010,0x0355002d,0x03820005,0x03870043,0x03ca0013,0x03dd0005,0x03e2006d,
+    0x044f0052,0x04a10017,0x04b80014,0x04cc0001,0x04cd0005,0x04d20001,0x04d30005,0x04d80005,
+    0x04dd002a,0x05070001,0x05080005,0x050d0016,0x05230005,0x0528000a,0x05320026,0x05580013,
+    0x056b0014,0x057f0010,0x058f0005,0x05940046,0x05da000f,0x05e90005,0x05ee0007,0x05f5001a,
+    0x060f000f,0x061e0069,0x06870001,0x06880013,0x069b0006,0x06a10036,0x06d70018,0x06ef0013,
+    0x07020010,0x0712000d,0x071f0003,0x0722000b,0x072d0009,0x0736002b,0x07610022,0x0783000d,
+    0x07900007,0x0797001a,0x07b1002c,0x07dd002b,0x08080005,0x080d0005,0x08120005,0x0817001b,
+    0x08320006,0x08380005,0x083d0003,0x08400005,0x08450001,0x08460005,0x084b000f,0x085a0001,
+    0x085b0024,0x087f001a,0x0899001e,0x08b7001f,0x08d60018,0x08ee001e,0x090c0005,0x09110009,
 };
 
 static const uint32_t perfetto_fmt_dispatch_count = 96;
@@ -4956,7 +5014,7 @@ static const uint8_t perfetto_roles_data[] = {
     0x07,0x00,0x02,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x08,0x00,0x01,0x00,0x00,0x00,0x00,0x00,
-    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x12,0x01,0x02,0x03,0x04,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -4977,7 +5035,7 @@ static const uint8_t perfetto_roles_data[] = {
     0x0c,0x00,0x02,0x03,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x0d,0x00,0x01,0x02,0x00,0x00,0x00,0x00,
-    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x11,0x00,0x01,0x03,0x04,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x0f,0x01,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -4997,7 +5055,7 @@ static const uint8_t perfetto_roles_data[] = {
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x13,0x00,0x01,0x02,0x03,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x06,0x00,0x01,0x02,0x00,0x00,0x00,0x00,
@@ -5146,6 +5204,23 @@ SYNTAQLITE_API SyntaqliteDialect syntaqlite_perfetto_dialect(void) {
 SYNTAQLITE_API const SyntaqliteDialectTemplate* syntaqlite_perfetto_dialect_template(void) {
     return &PERFETTO_DIALECT;
 }
+
+// Local forward decls of the with_dialect entry points (the public
+// parser.h / tokenizer.h may have stripped these in inline-dispatch builds).
+SYNTAQLITE_API SyntaqliteParser* syntaqlite_parser_create_with_dialect(
+    const SyntaqliteMemMethods* mem, SyntaqliteDialect env);
+SYNTAQLITE_API SyntaqliteTokenizer* syntaqlite_tokenizer_create_with_dialect(
+    const SyntaqliteMemMethods* mem, SyntaqliteDialect env);
+
+SYNTAQLITE_API SyntaqliteParser* syntaqlite_parser_create_perfetto(
+    const SyntaqliteMemMethods* mem) {
+    return syntaqlite_parser_create_with_dialect(mem, syntaqlite_perfetto_dialect());
+}
+
+SYNTAQLITE_API SyntaqliteTokenizer* syntaqlite_tokenizer_create_perfetto(
+    const SyntaqliteMemMethods* mem) {
+    return syntaqlite_tokenizer_create_with_dialect(mem, syntaqlite_perfetto_dialect());
+}
 /* ======== end: csrc/dialect.c ======== */
 
 /* ======== begin: csrc/dialect_dispatch.h ======== */
@@ -5159,8 +5234,17 @@ SYNTAQLITE_API const SyntaqliteDialectTemplate* syntaqlite_perfetto_dialect_temp
 //
 // In amalgamation builds all C code compiles as one unit, so we can call
 // dialect functions directly instead of going through function pointers.
-// Define SYNTAQLITE_INLINE_DIALECT_DISPATCH to a header path that provides
-// the SYNQ_PARSER_ALLOC, etc. macros for your dialect.
+//
+// Resolution order:
+//   1. The Full amalgamation pre-defines SYNQ_PARSER_ALLOC, etc. inline at
+//      the top of the .c so this header's branches are skipped entirely.
+//      Define SYNTAQLITE_NO_INLINE_DIALECT_DISPATCH to disable that and
+//      fall through to the function-pointer fallback below.
+//   2. Otherwise, define SYNTAQLITE_INLINE_DIALECT_DISPATCH to a header
+//      path that provides the SYNQ_PARSER_ALLOC, etc. macros for your
+//      dialect (used by hand-built consumers without the Full amalgamation).
+//   3. Otherwise, fall back to function-pointer dispatch through the
+//      dialect template struct.
 
 
 #if defined(SYNTAQLITE_INLINE_DIALECT_DISPATCH)
@@ -7261,8 +7345,22 @@ static void dump_node_recursive(DumpBuf* b,
                   ? p->stmt_source
                   : p->macro.layers.data[sp._layer_id].expansion_data;
 #endif
-          dump_printf(b, mem, "%s: \"%.*s\"\n", fm->name, (int)sp.length,
-                      base + sp.offset);
+          const char* text = base + sp.offset;
+          char q = syntaqlite_span_quote_char(sp);
+          dump_printf(b, mem, "%s: \"", fm->name);
+          if (q != 0 && q != '[' && memchr(text, q, sp.length)) {
+            // Quoted identifier containing its escape (doubled quote
+            // char): dump the identifier *value* so equal names dump
+            // equally regardless of the quote style that encoded them.
+            for (uint32_t i = 0; i < sp.length; i++) {
+              dump_append(b, mem, &text[i], 1);
+              if (text[i] == q && i + 1 < sp.length && text[i + 1] == q)
+                i++;
+            }
+          } else {
+            dump_append(b, mem, text, sp.length);
+          }
+          dump_append(b, mem, "\"\n", 2);
         }
         break;
       }
@@ -7357,6 +7455,13 @@ SYNTAQLITE_DIALECT_API void synq_extent_on_shift(SynqParseCtx* pCtx,
 SYNTAQLITE_DIALECT_API void synq_extent_on_reduce(SynqParseCtx* pCtx,
                                                   unsigned int nrhs);
 
+// Called from grammar actions of rules whose parent rule is
+// {NEVER-REDUCE}: merges the shadow-stack entry directly below the top
+// into the top (both authored and expanded ranges), standing in for the
+// parent reduction that will never run.  Follow with
+// `synq_extent_record` to re-record the widened extent on the node.
+SYNTAQLITE_DIALECT_API void synq_extent_fold_below_into_top(SynqParseCtx* pCtx);
+
 // Lemon stores `yyRuleInfoNRhs[r]` as the negative of the rule's RHS
 // symbol count, so the reduce macro negates it to recover `nrhs`.
 #define synq_on_shift(yypParser, yyMajor, yyMinor_ptr)             \
@@ -7414,6 +7519,58 @@ SYNTAQLITE_DIALECT_API void synq_extent_on_reduce(SynqParseCtx* pCtx,
 // is lazily initialized on first macro use via `lemon_depth`; without
 // macros the only cost is one integer increment/decrement per
 // shift/reduce.
+
+// Merge `e` into `acc`: min/max over the authored byte range, min/max
+// over the token-index range with UINT32_MAX as the "no tokens"
+// sentinel on either side.
+static void synq_extent_merge(SynqExtentRange* acc, SynqExtentRange e) {
+  if (e.root_start < acc->root_start) {
+    acc->root_start = e.root_start;
+  }
+  if (e.root_end > acc->root_end) {
+    acc->root_end = e.root_end;
+  }
+  if (e.first_tok != UINT32_MAX) {
+    if (acc->first_tok == UINT32_MAX || e.first_tok < acc->first_tok) {
+      acc->first_tok = e.first_tok;
+    }
+    if (acc->last_tok == UINT32_MAX || e.last_tok > acc->last_tok) {
+      acc->last_tok = e.last_tok;
+    }
+  }
+}
+
+// Merge `e` into `acc` in expanded-layer coordinates: same-layer merges
+// union the ranges, epsilon ({0,0,0}) is neutral, and cross-layer
+// combinations poison `acc` (SYNQ_CROSS_LAYER), which then absorbs all
+// further merges.
+static void synq_expanded_merge(SynqNodeExpandedExtent* acc,
+                                SynqNodeExpandedExtent e) {
+  if (acc->layer_id == SYNQ_CROSS_LAYER) {
+    return;  // already poisoned
+  }
+  if (e.layer_id == SYNQ_CROSS_LAYER) {
+    *acc = e;  // propagate poison
+    return;
+  }
+  if (e.length == 0) {
+    return;  // epsilon
+  }
+  if (acc->length == 0) {
+    *acc = e;
+    return;
+  }
+  if (acc->layer_id != e.layer_id) {
+    *acc = (SynqNodeExpandedExtent){0, 0, SYNQ_CROSS_LAYER};
+    return;
+  }
+  uint32_t start = acc->offset < e.offset ? acc->offset : e.offset;
+  uint32_t end_a = acc->offset + acc->length;
+  uint32_t end_b = e.offset + e.length;
+  uint32_t end = end_a > end_b ? end_a : end_b;
+  acc->offset = start;
+  acc->length = end - start;
+}
 
 void synq_extent_on_shift(SynqParseCtx* pCtx,
                           unsigned int major,
@@ -7499,56 +7656,32 @@ void synq_extent_on_reduce(SynqParseCtx* pCtx, unsigned int nrhs) {
   // and vice versa.
   SynqExtentRange merged = {UINT32_MAX, 0, UINT32_MAX, UINT32_MAX};
   for (uint32_t i = len - nrhs; i < len; i++) {
-    SynqExtentRange e = syntaqlite_vec_at(&pCtx->extent_stack, i);
-    if (e.root_start < merged.root_start) {
-      merged.root_start = e.root_start;
-    }
-    if (e.root_end > merged.root_end) {
-      merged.root_end = e.root_end;
-    }
-    if (e.first_tok != UINT32_MAX) {
-      if (merged.first_tok == UINT32_MAX || e.first_tok < merged.first_tok) {
-        merged.first_tok = e.first_tok;
-      }
-      if (merged.last_tok == UINT32_MAX || e.last_tok > merged.last_tok) {
-        merged.last_tok = e.last_tok;
-      }
-    }
+    synq_extent_merge(&merged, syntaqlite_vec_at(&pCtx->extent_stack, i));
   }
   syntaqlite_vec_truncate(&pCtx->extent_stack, len - nrhs);
   syntaqlite_vec_push(&pCtx->extent_stack, merged, pCtx->mem);
 
-  // Merge expanded-layer spans: all same layer → merge in that layer;
-  // epsilon entries ({0,0,0}) are neutral; cross-layer poison
-  // (layer_id == SYNQ_CROSS_LAYER) propagates upward unconditionally.
   SynqNodeExpandedExtent exp_merged = {0, 0, 0};
   for (uint32_t i = len - nrhs; i < len; i++) {
-    SynqNodeExpandedExtent e = syntaqlite_vec_at(&pCtx->expanded_stack, i);
-    if (e.layer_id == SYNQ_CROSS_LAYER) {
-      exp_merged = e;  // propagate poison
-      break;
-    }
-    if (e.length == 0) {
-      continue;  // skip epsilon
-    }
-    if (exp_merged.length == 0) {
-      exp_merged = e;
-      continue;
-    }
-    if (exp_merged.layer_id != e.layer_id) {
-      exp_merged = (SynqNodeExpandedExtent){0, 0, SYNQ_CROSS_LAYER};
-      break;
-    }
-    uint32_t start =
-        exp_merged.offset < e.offset ? exp_merged.offset : e.offset;
-    uint32_t end_a = exp_merged.offset + exp_merged.length;
-    uint32_t end_b = e.offset + e.length;
-    uint32_t end = end_a > end_b ? end_a : end_b;
-    exp_merged.offset = start;
-    exp_merged.length = end - start;
+    synq_expanded_merge(&exp_merged,
+                        syntaqlite_vec_at(&pCtx->expanded_stack, i));
   }
   syntaqlite_vec_truncate(&pCtx->expanded_stack, len - nrhs);
   syntaqlite_vec_push(&pCtx->expanded_stack, exp_merged, pCtx->mem);
+}
+
+void synq_extent_fold_below_into_top(SynqParseCtx* pCtx) {
+  if (!pCtx->collect_node_extents) {
+    return;
+  }
+  uint32_t len = syntaqlite_vec_len(&pCtx->extent_stack);
+  if (len < 2) {
+    return;
+  }
+  synq_extent_merge(&syntaqlite_vec_at(&pCtx->extent_stack, len - 1),
+                    syntaqlite_vec_at(&pCtx->extent_stack, len - 2));
+  synq_expanded_merge(&syntaqlite_vec_at(&pCtx->expanded_stack, len - 1),
+                      syntaqlite_vec_at(&pCtx->expanded_stack, len - 2));
 }
 #endif /* !SYNTAQLITE_OMIT_RUNTIME */
 /* ======== end: csrc/parser_extents.c ======== */
@@ -9554,14 +9687,18 @@ static inline uint32_t synq_parse_compound_select(
     SynqParseCtx *ctx,
     SyntaqliteCompoundOp op,
     uint32_t left,
-    uint32_t right
+    uint32_t right,
+    uint32_t orderby,
+    uint32_t limit_clause
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteCompoundSelect){
             .tag = SYNTAQLITE_NODE_COMPOUND_SELECT,
             .op = op,
             .left = left,
-            .right = right
+            .right = right,
+            .orderby = orderby,
+            .limit_clause = limit_clause
         }, (uint32_t)sizeof(SyntaqliteCompoundSelect));
 }
 
@@ -14652,6 +14789,21 @@ static YYACTIONTYPE yy_reduce(
         yylhsminor.yy639 = synq_parse_explain_stmt(
             pCtx, (SyntaqliteExplainMode)(pCtx->pending_explain_mode - 1), yymsp[0].minor.yy639);
         pCtx->pending_explain_mode = 0;
+        // Widen the wrapper node's extents to cover the EXPLAIN /
+        // EXPLAIN QUERY PLAN keyword, otherwise node_text(),
+        // node_token_range() and node_expanded_text() of an explained
+        // statement all drop it (e.g. "SELECT 1" for "EXPLAIN SELECT 1").
+        //
+        // Why this isn't automatic: the keyword lives in the `explain`
+        // nonterminal, a sibling of `cmdx` in the parent rule
+        // `ecmd ::= explain cmdx SEMI`. SQLite marks that rule {NEVER-REDUCE}
+        // (and we mirror it: the statement is finished here, in cmdx), so the
+        // reduction that would normally merge `explain`'s span into the node
+        // never runs. on_reduce has already collapsed `cmd` into the shadow
+        // stack top; the `explain` entry sits directly below it — fold it in
+        // and re-record the widened extents on the wrapper node.
+        synq_extent_fold_below_into_top(pCtx);
+        synq_extent_record(pCtx, yylhsminor.yy639);
     } else {
         yylhsminor.yy639 = yymsp[0].minor.yy639;
     }
@@ -14792,7 +14944,19 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 22: /* selectnowith ::= selectnowith multiselect_op oneselect */
 {
-    yymsp[-2].minor.yy639 = synq_parse_compound_select(pCtx, (SyntaqliteCompoundOp)yymsp[-1].minor.yy390, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    // ORDER BY / LIMIT parse inside the last arm (grammar shape) but apply
+    // to the whole compound — hoist them onto the CompoundSelect node.
+    // An ORDER BY on a non-last arm stays put (SQLite rejects it later).
+    uint32_t orderby = SYNTAQLITE_NULL_NODE;
+    uint32_t limit = SYNTAQLITE_NULL_NODE;
+    SyntaqliteNode *arm = AST_NODE(&pCtx->ast, yymsp[0].minor.yy639);
+    if (arm->tag == SYNTAQLITE_NODE_SELECT_STMT) {
+        orderby = arm->select_stmt.orderby;
+        limit = arm->select_stmt.limit_clause;
+        arm->select_stmt.orderby = SYNTAQLITE_NULL_NODE;
+        arm->select_stmt.limit_clause = SYNTAQLITE_NULL_NODE;
+    }
+    yymsp[-2].minor.yy639 = synq_parse_compound_select(pCtx, (SyntaqliteCompoundOp)yymsp[-1].minor.yy390, yymsp[-2].minor.yy639, yymsp[0].minor.yy639, orderby, limit);
 }
         break;
       case 23: /* multiselect_op ::= UNION */
@@ -14933,7 +15097,6 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-4].minor.yy639 = yylhsminor.yy639;
         break;
       case 46: /* likeop ::= LIKE_KW|MATCH */
-      case 200: /* nm ::= STRING */ yytestcase(yyruleno==200);
 {
     yylhsminor.yy0 = yymsp[0].minor.yy0;
 }
@@ -16064,6 +16227,7 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-4].minor.yy639 = yylhsminor.yy639;
         break;
       case 199: /* nm ::= ID|INDEXED|JOIN_KW */
+      case 200: /* nm ::= STRING */ yytestcase(yyruleno==200);
 {
     synq_mark_as_id(pCtx, yymsp[0].minor.yy0);
     yylhsminor.yy0 = yymsp[0].minor.yy0;

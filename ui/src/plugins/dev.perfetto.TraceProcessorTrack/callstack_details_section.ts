@@ -120,7 +120,7 @@ export class CallstackDetailsSection implements TrackEventDetailsPanelSection {
           const location =
             frame.sourceFile && frame.lineNumber !== undefined
               ? `${frame.sourceFile}:${frame.lineNumber}`
-              : frame.sourceFile ?? '';
+              : (frame.sourceFile ?? '');
 
           return m(TreeNode, {
             left: `#${index}`,

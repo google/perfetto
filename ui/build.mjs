@@ -95,6 +95,7 @@ const cfg = {
   onlyWasmMemory64: false,
   wasmModules: [],
   crossOriginIsolation: false,
+  allowAllHosts: false,
   testFilter: '',
   noOverrideGnArgs: false,
 
@@ -226,6 +227,12 @@ Env-var overrides:
   parser.add_argument('--rebaseline', '-r', {action: 'store_true'});
   parser.add_argument('--no-depscheck', {action: 'store_true'});
   parser.add_argument('--cross-origin-isolation', {action: 'store_true'});
+  parser.add_argument('--allow-all-hosts', {
+    action: 'store_true',
+    help: 'Accept requests for any Host header on the Vite dev server, so it ' +
+          'can sit behind an arbitrary reverse proxy. Disables Vite\'s ' +
+          'DNS-rebind host-check protection.',
+  });
   parser.add_argument('--test-filter', '-f', {
     help: "filter Jest tests by regex, e.g. 'chrome_render'",
   });
@@ -322,6 +329,7 @@ Env-var overrides:
   if (args.cross_origin_isolation) {
     cfg.crossOriginIsolation = true;
   }
+  cfg.allowAllHosts = !!args.allow_all_hosts;
   cfg.check = !!args.typecheck;
   cfg.useHmr = cfg.watch && cfg.startHttpServer && !!!args.bundle;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
@@ -881,6 +889,12 @@ async function startViteDevServer() {
       port,
       strictPort: false,
       headers,
+      // By default Vite only accepts requests whose Host header matches the
+      // bind host, to guard against DNS-rebind attacks. When --allow-all-hosts
+      // is passed, accept any Host header so the dev server can sit behind an
+      // arbitrary reverse proxy. This is safe for us: the app is client-only
+      // and the source is open, so there's nothing to rebind against.
+      allowedHosts: cfg.allowAllHosts ? true : undefined,
       // Vite needs to read source files outside its root (ui/src/assets,
       // ui/src/gen via the symlink to out/, buildtools/, etc.).
       fs: {allow: [ROOT_DIR]},

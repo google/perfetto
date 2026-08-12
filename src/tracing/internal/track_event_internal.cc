@@ -32,7 +32,7 @@
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MAC)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #include <os/signpost.h>
 #endif
 
@@ -460,7 +460,7 @@ void TrackEventInternal::ResetIncrementalState(
           thread_time_counter_track.uuid);
     }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MAC)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
     // Emit a MacOS point-of-interest signpost to synchronize Mac profiler time
     // with boot time.
     // TODO(leszeks): Consider allowing synchronization against other clocks

@@ -138,6 +138,9 @@ export function parsePostedTrace(
   } else if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
     return {
       title: 'External trace',
+      // A bare buffer gives the sender no way to opt into sharing, so default
+      // to local-only (matching the wrapped path).
+      localOnly: true,
       buffer: toArrayBuffer(data),
     };
   } else {
@@ -329,6 +332,9 @@ function sanitizePostedTrace(postedTrace: RawPostedTrace): PostedTrace {
     appStateHash: postedTrace.appStateHash,
     pluginArgs: postedTrace.pluginArgs,
   };
+  if (postedTrace.fileName !== undefined) {
+    result.fileName = sanitizeString(postedTrace.fileName);
+  }
   if (postedTrace.url !== undefined) {
     result.url = sanitizeString(postedTrace.url);
   }

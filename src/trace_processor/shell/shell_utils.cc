@@ -17,7 +17,9 @@
 #include "src/trace_processor/shell/shell_utils.h"
 
 #include <cinttypes>
+#include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <string>
 
 #include "perfetto/base/build_config.h"
@@ -32,12 +34,36 @@
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
-#else
-#include <io.h>
-#define ftruncate _chsize
 #endif
 
 namespace perfetto::trace_processor {
+namespace {
+
+class FileExportOutput : public TraceProcessor::ExportOutput {
+ public:
+  explicit FileExportOutput(std::string path) : path_(std::move(path)) {}
+
+  base::Status Write(const void* data, size_t size) override {
+    if (!file_) {
+      file_ = base::OpenFile(path_, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+      if (!file_) {
+        return base::ErrStatus("Failed to create file: %s", path_.c_str());
+      }
+    }
+    if (base::WriteAll(file_.get(), data, size) != static_cast<ssize_t>(size)) {
+      return base::ErrStatus("Failed to write export output");
+    }
+    return base::OkStatus();
+  }
+
+  std::optional<std::string> GetFilePath() const override { return path_; }
+
+ private:
+  std::string path_;
+  base::ScopedFile file_;
+};
+
+}  // namespace
 
 bool StderrSupportsColors() {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
@@ -142,63 +168,15 @@ base::Status PrintStats(TraceProcessor* tp) {
 
 base::Status ExportTraceToDatabase(TraceProcessor* trace_processor,
                                    const std::string& output_name) {
-  PERFETTO_CHECK(output_name.find('\'') == std::string::npos);
-  {
-    base::ScopedFile fd(base::OpenFile(output_name, O_CREAT | O_RDWR, 0600));
-    if (!fd)
-      return base::ErrStatus("Failed to create file: %s", output_name.c_str());
-    int res = ftruncate(fd.get(), 0);
-    PERFETTO_CHECK(res == 0);
-  }
+  return ExportTrace(trace_processor, TraceProcessor::ExportFormat::kSqlite,
+                     output_name);
+}
 
-  std::string attach_sql =
-      "ATTACH DATABASE '" + output_name + "' AS perfetto_export";
-  auto attach_it = trace_processor->ExecuteQuery(attach_sql);
-  bool attach_has_more = attach_it.Next();
-  PERFETTO_DCHECK(!attach_has_more);
-
-  RETURN_IF_ERROR(attach_it.Status());
-
-  // Export real and virtual tables.
-  auto tables_it =
-      trace_processor->ExecuteQuery("SELECT name FROM perfetto_tables");
-  while (tables_it.Next()) {
-    std::string table_name = tables_it.Get(0).string_value;
-    PERFETTO_CHECK(!base::Contains(table_name, '\''));
-    std::string export_sql = "CREATE TABLE perfetto_export." + table_name +
-                             " AS SELECT * FROM " + table_name;
-
-    auto export_it = trace_processor->ExecuteQuery(export_sql);
-    bool export_has_more = export_it.Next();
-    PERFETTO_DCHECK(!export_has_more);
-    RETURN_IF_ERROR(export_it.Status());
-  }
-  RETURN_IF_ERROR(tables_it.Status());
-
-  // Export views.
-  auto views_it = trace_processor->ExecuteQuery(
-      "SELECT sql FROM sqlite_master WHERE type='view'");
-  while (views_it.Next()) {
-    std::string sql = views_it.Get(0).string_value;
-    // View statements are of the form "CREATE VIEW name AS stmt". We need to
-    // rewrite name to point to the exported db.
-    const std::string kPrefix = "CREATE VIEW ";
-    PERFETTO_CHECK(sql.find(kPrefix) == 0);
-    sql = sql.substr(0, kPrefix.size()) + "perfetto_export." +
-          sql.substr(kPrefix.size());
-
-    auto export_it = trace_processor->ExecuteQuery(sql);
-    bool export_has_more = export_it.Next();
-    PERFETTO_DCHECK(!export_has_more);
-    RETURN_IF_ERROR(export_it.Status());
-  }
-  RETURN_IF_ERROR(views_it.Status());
-
-  auto detach_it =
-      trace_processor->ExecuteQuery("DETACH DATABASE perfetto_export");
-  bool detach_has_more = attach_it.Next();
-  PERFETTO_DCHECK(!detach_has_more);
-  return detach_it.Status();
+base::Status ExportTrace(TraceProcessor* trace_processor,
+                         TraceProcessor::ExportFormat format,
+                         const std::string& output_name) {
+  FileExportOutput output(output_name);
+  return trace_processor->Export(format, &output);
 }
 
 }  // namespace perfetto::trace_processor

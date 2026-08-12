@@ -51,10 +51,12 @@ import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {CounterSelectionAggregator} from './counter_selection_aggregator';
 import {COUNTER_TRACK_SCHEMAS} from './counter_tracks';
 import {PivotTableTab} from './pivot_table_tab';
-import {SliceSelectionAggregator} from './slice_selection_aggregator';
+import {ThreadSliceAggregator} from './thread_slice_aggregator';
 import {SLICE_TRACK_SCHEMAS} from './slice_tracks';
+import {STATE_TRACK_SCHEMAS} from './state_tracks';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
+import {createTraceProcessorStateTrack} from './trace_processor_state_track';
 import type {TopLevelTrackGroup, TrackGroupSchema} from './types';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
@@ -110,6 +112,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 
     await this.addCounters(ctx);
     await this.addSlices(ctx);
+    await this.addStates(ctx);
     this.addAggregations(ctx);
     this.addMinimapContentProvider(ctx);
     this.addSearchProviders(ctx);
@@ -433,6 +436,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           upid: upid ?? undefined,
           utid: utid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
+          ...(isMainThread === 1 && {isMainThread: true}),
           hasCallstacks: hasCallstacks === 1,
         },
         renderer: await createTraceProcessorSliceTrack({
@@ -460,6 +464,51 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             isKernelThread === 0 && isMainThread === 1 && 'main thread',
           ]),
         }),
+      );
+    }
+  }
+
+  private async addStates(ctx: Trace) {
+    const schemas = new Map(STATE_TRACK_SCHEMAS.map((x) => [x.type, x]));
+    const types = STATE_TRACK_SCHEMAS.map((x) => `'${x.type}'`).join(',');
+    const result = await ctx.engine.query(`
+      select t.id, t.type, t.name
+      from track t
+      where t.type in (${types})
+        and exists (select 1 from state s where s.track_id = t.id)
+      order by lower(t.name)
+    `);
+    const it = result.iter({id: NUM, type: STR, name: STR_NULL});
+    for (; it.valid(); it.next()) {
+      const {id: trackId, type, name} = it;
+      const schema = schemas.get(type);
+      if (schema === undefined) {
+        continue;
+      }
+      const {group, topLevelGroup} = schema;
+      const trackName = name ?? `${type} ${trackId}`;
+      const uri = `/state_${trackId}`;
+      ctx.tracks.registerTrack({
+        uri,
+        tags: {
+          kinds: [SLICE_TRACK_KIND],
+          trackIds: [trackId],
+          type,
+        },
+        renderer: await createTraceProcessorStateTrack({
+          trace: ctx,
+          uri,
+          trackId,
+          trackName,
+        }),
+      });
+      this.addTrack(
+        ctx,
+        topLevelGroup,
+        group,
+        null,
+        null,
+        new TrackNode({uri, name: trackName}),
       );
     }
   }
@@ -526,7 +575,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     // different nodes.
     const name = typeof group === 'string' ? group : group.name;
     const expanded =
-      typeof group === 'string' ? false : group.expanded ?? false;
+      typeof group === 'string' ? false : (group.expanded ?? false);
     const groupId = `tp_group_${scopeId}_${name.toLowerCase().replace(' ', '_')}`;
     const groupNode = this.groups.get(groupId);
     if (groupNode) {
@@ -548,7 +597,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       createAggregationTab(ctx, new CounterSelectionAggregator()),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new SliceSelectionAggregator(ctx)),
+      createAggregationTab(ctx, new ThreadSliceAggregator(ctx)),
     );
     ctx.selection.registerAreaSelectionTab(new PivotTableTab(ctx));
     ctx.selection.registerAreaSelectionTab(

@@ -20,6 +20,7 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
 import {TextInput} from '../../../widgets/text_input';
 import {RadioGroup} from '../../../widgets/radio_group';
+import type {App} from '../../../public/app';
 import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
 import {
   WDP_TRACK_DEVICES_SCHEMA,
@@ -37,6 +38,7 @@ import {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_ove
 import {AsyncWebsocket} from '../../dev.perfetto.RecordTraceV2/websocket/async_websocket';
 import {Page} from '../components/page';
 import {Hero} from '../components/hero';
+import {PreviewBanner} from '../components/preview_banner';
 
 export interface ConnectionResult {
   device?: AdbDevice;
@@ -45,7 +47,8 @@ export interface ConnectionResult {
 }
 
 interface ConnectionPageAttrs {
-  onConnected: (result: ConnectionResult) => void;
+  readonly app: App;
+  readonly onConnected: (result: ConnectionResult) => void;
 }
 
 type ConnectionMethod = 'usb' | 'websocket' | 'web_proxy' | 'linux';
@@ -88,6 +91,7 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
     return m(
       Page,
       m(Page.Title, 'Memscope'),
+      m(PreviewBanner, {app: attrs.app}),
       m(
         Hero,
         m(Hero.Icon, {icon: 'memory'}),
@@ -215,7 +219,7 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
       this.wdpDevices.map((dev) => {
         const ready = dev.proxyStatus === 'ADB' && dev.adbStatus === 'DEVICE';
         const model =
-          dev.proxyStatus === 'ADB' ? dev.adbProps?.model ?? '?' : '?';
+          dev.proxyStatus === 'ADB' ? (dev.adbProps?.model ?? '?') : '?';
         const label = ready
           ? `${model} [${dev.serialNumber}]`
           : `${dev.proxyStatus}/${dev.adbStatus} [${dev.serialNumber}]`;
@@ -546,7 +550,7 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
       }
 
       const model =
-        dev.proxyStatus === 'ADB' ? dev.adbProps?.model ?? '?' : '?';
+        dev.proxyStatus === 'ADB' ? (dev.adbProps?.model ?? '?') : '?';
       this.wdpDeviceConnecting = false;
       attrs.onConnected({
         device: result.value,

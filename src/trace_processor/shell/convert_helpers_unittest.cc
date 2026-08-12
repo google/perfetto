@@ -104,7 +104,7 @@ TEST(ConvertHelpersTest, OpenConversionOutputBadPathFails) {
 TEST(ConvertHelpersTest, TextToTraceEmptyInputSucceeds) {
   std::istringstream in("");
   std::ostringstream out;
-  EXPECT_EQ(TextToTrace(&in, &out), 0);
+  EXPECT_TRUE(TextToTrace(&in, &out).ok());
   // An empty trace serializes to zero bytes.
   EXPECT_TRUE(out.str().empty());
 }
@@ -112,14 +112,14 @@ TEST(ConvertHelpersTest, TextToTraceEmptyInputSucceeds) {
 TEST(ConvertHelpersTest, TextToTraceValidProtoSucceeds) {
   std::istringstream in("packet { timestamp: 42 }");
   std::ostringstream out;
-  EXPECT_EQ(TextToTrace(&in, &out), 0);
+  EXPECT_TRUE(TextToTrace(&in, &out).ok());
   EXPECT_FALSE(out.str().empty());
 }
 
 TEST(ConvertHelpersTest, TextToTraceInvalidProtoFails) {
   std::istringstream in("this is not a valid trace proto }}}");
   std::ostringstream out;
-  EXPECT_EQ(TextToTrace(&in, &out), 1);
+  EXPECT_FALSE(TextToTrace(&in, &out).ok());
 }
 
 }  // namespace

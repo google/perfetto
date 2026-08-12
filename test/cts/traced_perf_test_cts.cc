@@ -40,13 +40,6 @@
 namespace perfetto {
 namespace {
 
-// Skip these tests if the device in question doesn't have the necessary kernel
-// LSM hooks in perf_event_open. This comes up when a device with an older
-// kernel upgrades to R.
-bool HasPerfLsmHooks() {
-  return base::GetAndroidProp("sys.init.perf_lsm_hooks") == "1";
-}
-
 std::string RandomSessionName() {
   std::random_device rd;
   std::default_random_engine generator(rd());
@@ -165,9 +158,6 @@ void AssertNoStacksForPid(std::vector<protos::gen::TracePacket> packets,
 }
 
 TEST(TracedPerfCtsTest, SystemWideDebuggableApp) {
-  if (!HasPerfLsmHooks())
-    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
-
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
@@ -179,9 +169,6 @@ TEST(TracedPerfCtsTest, SystemWideDebuggableApp) {
 }
 
 TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
-  if (!HasPerfLsmHooks())
-    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
-
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
@@ -193,9 +180,6 @@ TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
 }
 
 TEST(TracedPerfCtsTest, SystemWideNonProfileableApp) {
-  if (!HasPerfLsmHooks())
-    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
-
   std::string app_name = "android.perfetto.cts.app.nonprofileable";
   const auto& packets = ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
@@ -210,9 +194,6 @@ TEST(TracedPerfCtsTest, SystemWideNonProfileableApp) {
 }
 
 TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
-  if (!HasPerfLsmHooks())
-    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
-
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
@@ -230,9 +211,6 @@ TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
 // Loads a platform process with work (we use traced_probes which runs as
 // AID_NOBODY), and profiles it.
 TEST(TracedPerfCtsTest, ProfilePlatformProcess) {
-  if (!HasPerfLsmHooks())
-    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
-
   int target_pid = PidForProcessName("/system/bin/traced_probes");
   ASSERT_GT(target_pid, 0) << "failed to find pid for target process";
 
@@ -281,9 +259,6 @@ TEST(TracedPerfCtsTest, ProfilePlatformProcess) {
 }
 
 TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
-  if (!HasPerfLsmHooks())
-    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
-
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_duration_ms(3000);

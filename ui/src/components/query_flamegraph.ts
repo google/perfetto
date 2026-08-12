@@ -16,11 +16,10 @@ import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
 import {ensureExists} from '../base/assert';
-import {uuidv4Sql} from '../base/uuid';
 import type {Engine} from '../trace_processor/engine';
 import {
-  createPerfettoIndex,
-  createPerfettoTable,
+  createVirtualTable,
+  type DisposableSqlEntity,
 } from '../trace_processor/sql_utils';
 import {
   NUM,
@@ -31,16 +30,16 @@ import {
 } from '../trace_processor/query_result';
 import {
   Flamegraph,
+  type FlamegraphAddableMetric,
   type FlamegraphPropertyDefinition,
   type FlamegraphQueryData,
   type FlamegraphState,
-  type FlamegraphView,
   type FlamegraphOptionalAction,
   type FlamegraphOptionalMarker,
 } from '../widgets/flamegraph';
 import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
-import {escapeRegexEmptyBrackets} from '../widgets/flamegraph_regex';
+import {parseUserFilterRegex} from '../widgets/flamegraph_regex';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
 import {Monitor} from '../base/monitor';
 
@@ -62,6 +61,9 @@ export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
 }
 
 export interface QueryFlamegraphMetric {
+  // Stable identity used in persisted state. Defaults to `name`.
+  readonly id?: string;
+
   // The human readable name of the metric: will be shown to the user to change
   // between metrics.
   readonly name: string;
@@ -69,6 +71,9 @@ export interface QueryFlamegraphMetric {
   // The human readable SI-style unit of `selfValue`. Values will be shown to
   // the user suffixed with this.
   readonly unit: string;
+
+  // Where the measure came from. Undefined is treated as ADDED.
+  readonly provenance?: 'DEFAULT' | 'ADDED';
 
   // Label for the name column in copy stack table and tooltip.
   // Examples: "Symbol", "Slice", "Class". Defaults to "Name".
@@ -124,9 +129,11 @@ export interface QueryFlamegraphMetric {
 export interface MetricsFromTableOrSubqueryOptions {
   readonly tableOrSubquery: string;
   readonly tableMetrics: ReadonlyArray<{
+    id?: string;
     name: string;
     unit: string;
     columnName: string;
+    provenance?: 'DEFAULT' | 'ADDED';
   }>;
   readonly dependencySql?: string;
   readonly unaggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>;
@@ -146,10 +153,12 @@ export function metricsFromTableOrSubquery(
   opts: MetricsFromTableOrSubqueryOptions,
 ): QueryFlamegraphMetric[] {
   const metrics = [];
-  for (const {name, unit, columnName} of opts.tableMetrics) {
+  for (const {id, name, unit, columnName, provenance} of opts.tableMetrics) {
     metrics.push({
+      id,
       name,
       unit,
+      provenance,
       nameColumnLabel: opts.nameColumnLabel,
       dependencySql: opts.dependencySql,
       statement: `
@@ -172,9 +181,18 @@ interface QueryFlamegraphAttrs {
   // The current state of the flamegraph (filters, view, selected metric, etc).
   readonly state?: FlamegraphState;
 
+  readonly addableMetrics?: ReadonlyArray<FlamegraphAddableMetric>;
+  readonly onAddMetric?: (metric: FlamegraphAddableMetric) => void;
+
   // Callback invoked when the flamegraph state changes (e.g., user changes
   // filters, selects a different metric, etc).
   readonly onStateChange: (state: FlamegraphState) => void;
+}
+
+interface FlamegraphTable {
+  readonly metric: QueryFlamegraphMetric;
+  readonly table: DisposableSqlEntity;
+  readonly unfilteredCumulativeValue: number;
 }
 
 // A Perfetto UI component which wraps the `Flamegraph` widget and fetches the
@@ -185,6 +203,7 @@ export class QueryFlamegraph implements AsyncDisposable {
   private readonly dependencies: ReadonlyArray<
     SharedAsyncDisposable<AsyncDisposable>
   >;
+  private readonly flamegraphTables: FlamegraphTable[] = [];
   private lastAttrs?: QueryFlamegraphAttrs;
   private monitor = new Monitor([
     () => this.lastAttrs?.metrics,
@@ -199,13 +218,16 @@ export class QueryFlamegraph implements AsyncDisposable {
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
+    for (const flamegraph of this.flamegraphTables) {
+      await flamegraph.table[Symbol.asyncDispose]();
+    }
     for (const dependency of this.dependencies ?? []) {
       await dependency[Symbol.asyncDispose]?.();
     }
   }
 
   render(attrs: QueryFlamegraphAttrs) {
-    const {metrics, state, onStateChange} = attrs;
+    const {metrics, state, addableMetrics, onAddMetric, onStateChange} = attrs;
     this.lastAttrs = attrs;
     if (this.monitor.ifStateChanged()) {
       this.data = undefined;
@@ -218,9 +240,12 @@ export class QueryFlamegraph implements AsyncDisposable {
       data: this.data,
       state: state ?? {
         view: {kind: 'TOP_DOWN'},
-        selectedMetricName: '',
+        selectedMetricId: '',
+        addedMetricIds: [],
         filters: [],
       },
+      addableMetrics,
+      onAddMetric,
       onStateChange,
     });
   }
@@ -230,7 +255,7 @@ export class QueryFlamegraph implements AsyncDisposable {
     state: FlamegraphState,
   ) {
     const metric = ensureExists(
-      metrics.find((x) => state.selectedMetricName === x.name),
+      metrics.find((x) => state.selectedMetricId === (x.id ?? x.name)),
     );
     const engine = this.trace.engine;
     this.queryLimiter.schedule(async () => {
@@ -249,259 +274,137 @@ export class QueryFlamegraph implements AsyncDisposable {
         }
         trash.use(dependency.clone());
       }
-      this.data = await computeFlamegraphTree(engine, metric, state);
+      const flamegraph = await this.getFlamegraphTable(metric);
+      this.data = await computeFlamegraphTree(engine, flamegraph, state);
     });
+  }
+
+  private async getFlamegraphTable(
+    metric: QueryFlamegraphMetric,
+  ): Promise<FlamegraphTable> {
+    const cached = this.flamegraphTables.find(
+      (entry) => entry.metric === metric,
+    );
+    if (cached) {
+      return cached;
+    }
+    if (metric.dependencySql !== undefined) {
+      await this.trace.engine.query(metric.dependencySql);
+    }
+    const properties = [
+      ...(metric.unaggregatableProperties ?? []),
+      ...(metric.aggregatableProperties ?? []),
+    ];
+    const sourceColumns = [
+      's.id',
+      's.parentId as parent_id',
+      's.name',
+      's.value',
+      ...properties.map((property) => `s.${property.name}`),
+    ];
+    const table = await createVirtualTable({
+      engine: this.trace.engine,
+      using: `__intrinsic_flamegraph((
+        select ${sourceColumns.join(', ')}
+        from (${metric.statement}) s
+      ))`,
+    });
+    try {
+      const result = await this.trace.engine.query(`
+        select cumulative_value
+        from ${table.name}(__intrinsic_flamegraph_config(
+          'value', 'value',
+          'view', 'TOP_DOWN'
+        ))
+        where __intrinsic_flamegraph_find(_tree_id, 'SUPER_ROOT')
+      `);
+      const flamegraph = {
+        metric,
+        table,
+        unfilteredCumulativeValue: result.firstRow({
+          cumulative_value: NUM,
+        }).cumulative_value,
+      };
+      this.flamegraphTables.push(flamegraph);
+      return flamegraph;
+    } catch (error) {
+      await table[Symbol.asyncDispose]();
+      throw error;
+    }
   }
 }
 
 async function computeFlamegraphTree(
   engine: Engine,
-  {
-    dependencySql,
-    statement,
+  flamegraph: FlamegraphTable,
+  {filters, view}: FlamegraphState,
+): Promise<FlamegraphQueryData> {
+  const {
     unaggregatableProperties,
     aggregatableProperties,
     optionalNodeActions,
     optionalRootActions,
     optionalMarker,
-  }: QueryFlamegraphMetric,
-  {filters, view}: FlamegraphState,
-): Promise<FlamegraphQueryData> {
-  const showStack = filters
-    .filter((x) => x.kind === 'SHOW_STACK')
-    .map((x) => x.filter);
-  const hideStack = filters
-    .filter((x) => x.kind === 'HIDE_STACK')
-    .map((x) => x.filter);
-  const showFromFrame = filters
-    .filter((x) => x.kind === 'SHOW_FROM_FRAME')
-    .map((x) => x.filter);
-  const hideFrame = filters
-    .filter((x) => x.kind === 'HIDE_FRAME')
-    .map((x) => x.filter);
-
-  // Pivot also essentially acts as a "show stack" filter so treat it like one.
-  const showStackAndPivot = [...showStack];
-  if (view.kind === 'PIVOT') {
-    showStackAndPivot.push(view.pivot);
-  }
-
+  } = flamegraph.metric;
   const agg = aggregatableProperties ?? [];
   const aggCols = agg.map((x) => x.name);
   const unagg = unaggregatableProperties ?? [];
   const unaggCols = unagg.map((x) => x.name);
-
-  const matchingColumns = ['name', ...unaggCols];
-  // Frame names commonly contain literal `[]` (e.g. Java arrays), which is
-  // not valid regex syntax; rewrite it so such filters match literally.
-  const matchExpr = (x: string) =>
-    matchingColumns.map(
-      (c) =>
-        `(IFNULL(${c}, '') REGEXP ${sqliteString(escapeRegexEmptyBrackets(x))})`,
-    );
-
-  const showStackFilter =
-    showStackAndPivot.length === 0
-      ? '0'
-      : showStackAndPivot
-          .map((x, i) => `((${matchExpr(x).join(' OR ')}) << ${i})`)
-          .join(' | ');
-  const showStackBits = (1 << showStackAndPivot.length) - 1;
-
-  const hideStackFilter =
-    hideStack.length === 0
-      ? 'false'
-      : hideStack
-          .map((x) => matchExpr(x))
-          .flat()
-          .join(' OR ');
-
-  const showFromFrameFilter =
-    showFromFrame.length === 0
-      ? '0'
-      : showFromFrame
-          .map((x, i) => `((${matchExpr(x).join(' OR ')}) << ${i})`)
-          .join(' | ');
-  const showFromFrameBits = (1 << showFromFrame.length) - 1;
-
-  const hideFrameFilter =
-    hideFrame.length === 0
-      ? 'false'
-      : hideFrame
-          .map((x) => matchExpr(x))
-          .flat()
-          .join(' OR ');
-
-  const pivotFilter = getPivotFilter(view, matchExpr);
-
   const nodeActions = optionalNodeActions ?? [];
   const rootActions = optionalRootActions ?? [];
 
-  const groupingColumns = `(${(unaggCols.length === 0 ? ['groupingColumn'] : unaggCols).join()})`;
-  const groupedColumns = `(${(aggCols.length === 0 ? ['groupedColumn'] : aggCols).join()})`;
-
-  if (dependencySql !== undefined) {
-    await engine.query(dependencySql);
+  // Convert the UI syntax into finished patterns and explicit flags before
+  // passing them to the operator.
+  const configArgs = [`'view', ${sqliteString(view.kind)}`, `'value', 'value'`];
+  if (view.kind === 'PIVOT' || view.kind === 'FROM_FRAME') {
+    const filter = view.kind === 'PIVOT' ? view.pivot : view.pattern;
+    const regex = parseUserFilterRegex(filter);
+    configArgs.push(
+      `'view_pattern', ${sqliteString(regex.pattern)}, ` +
+        sqliteString(regex.flags),
+    );
   }
-  await engine.query(`include perfetto module viz.flamegraph;`);
+  for (const filter of filters) {
+    if (filter.kind !== 'OPTIONS') {
+      const regex = parseUserFilterRegex(filter.filter);
+      configArgs.push(
+        `'filter', ${sqliteString(filter.kind)}, ` +
+          `${sqliteString(regex.pattern)}, ${sqliteString(regex.flags)}`,
+      );
+    }
+  }
+  for (const column of unaggCols) {
+    configArgs.push(`'grouping', ${sqliteString(column)}`);
+  }
+  for (const column of agg) {
+    configArgs.push(
+      `'aggregate', ${sqliteString(column.mergeAggregation)}, ` +
+        `${sqliteString(column.name)}, ${sqliteString(column.name)}`,
+    );
+  }
 
-  const uuid = uuidv4Sql();
-  await using disposable = new AsyncDisposableStack();
+  const outputColumns = [
+    '_tree_id as id',
+    'IFNULL(_tree_parent_id, -1) as parentId',
+    'depth',
+    `IIF(IFNULL(name, '') = '', 'unknown', name) as name`,
+    'self_value as selfValue',
+    'cumulative_value as cumulativeValue',
+    'parent_cumulative_value as parentCumulativeValue',
+    'x_start as xStart',
+    'x_end as xEnd',
+    ...unaggCols,
+    ...aggCols,
+  ];
 
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_materialized_statement_${uuid}`,
-      as: statement,
-    }),
-  );
-  disposable.use(
-    await createPerfettoIndex({
-      engine,
-      name: `_flamegraph_materialized_statement_${uuid}_index`,
-      on: `_flamegraph_materialized_statement_${uuid}(parentId)`,
-    }),
-  );
-
-  // TODO(lalitm): this doesn't need to be called unless we have
-  // a non-empty set of filters.
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_source_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_prepare_filter!(
-          (
-            select
-              s.id,
-              s.parentId,
-              s.name,
-              s.value,
-              ${(unaggCols.length === 0
-                ? [`'' as groupingColumn`]
-                : unaggCols.map((x) => `s.${x}`)
-              ).join()},
-              ${(aggCols.length === 0
-                ? [`'' as groupedColumn`]
-                : aggCols.map((x) => `s.${x}`)
-              ).join()}
-            from _flamegraph_materialized_statement_${uuid} s
-          ),
-          (${showStackFilter}),
-          (${hideStackFilter}),
-          (${showFromFrameFilter}),
-          (${hideFrameFilter}),
-          (${pivotFilter}),
-          ${1 << showStackAndPivot.length},
-          ${groupingColumns}
-        )
-      `,
-    }),
-  );
-  // TODO(lalitm): this doesn't need to be called unless we have
-  // a non-empty set of filters.
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_filtered_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_filter_frames!(
-          _flamegraph_source_${uuid},
-          ${showFromFrameBits}
-        )
-      `,
-    }),
-  );
-  disposable.use(
-    await createPerfettoIndex({
-      engine,
-      name: `_flamegraph_filtered_${uuid}_index`,
-      on: `_flamegraph_filtered_${uuid}(parentId)`,
-    }),
-  );
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_accumulated_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_accumulate!(
-          _flamegraph_filtered_${uuid},
-          ${showStackBits}
-        )
-      `,
-    }),
-  );
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_hash_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_downwards_hash!(
-          _flamegraph_source_${uuid},
-          _flamegraph_filtered_${uuid},
-          _flamegraph_accumulated_${uuid},
-          ${groupingColumns},
-          ${groupedColumns},
-          ${view.kind === 'BOTTOM_UP' ? 'FALSE' : 'TRUE'}
-        )
-        union all
-        select *
-        from _viz_flamegraph_upwards_hash!(
-          _flamegraph_source_${uuid},
-          _flamegraph_filtered_${uuid},
-          _flamegraph_accumulated_${uuid},
-          ${groupingColumns},
-          ${groupedColumns}
-        )
-        order by hash
-      `,
-    }),
-  );
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_merged_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_merge_hashes!(
-          _flamegraph_hash_${uuid},
-          ${groupingColumns},
-          ${computeGroupedAggExprs(agg)}
-        )
-      `,
-    }),
-  );
-  disposable.use(
-    await createPerfettoIndex({
-      engine,
-      name: `_flamegraph_merged_${uuid}_index`,
-      on: `_flamegraph_merged_${uuid}(parentId)`,
-    }),
-  );
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_layout_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_local_layout!(
-          _flamegraph_merged_${uuid}
-        );
-      `,
-    }),
-  );
+  // The operator emits rows pre-ordered for rendering with layout geometry
+  // attached; nodes with no cumulative value are invisible and skipped.
   const res = await engine.query(`
-    select *
-    from _viz_flamegraph_global_layout!(
-      _flamegraph_merged_${uuid},
-      _flamegraph_layout_${uuid},
-      ${groupingColumns},
-      ${groupedColumns}
+    select ${outputColumns.join(', ')}
+    from ${flamegraph.table.name}(
+      __intrinsic_flamegraph_config(${configArgs.join(', ')})
     )
+    where cumulative_value > 0
   `);
 
   const it = res.iter({
@@ -582,51 +485,14 @@ async function computeFlamegraphTree(
     minDepth = Math.min(minDepth, it.depth);
     maxDepth = Math.max(maxDepth, it.depth);
   }
-  const sumQuery = await engine.query(
-    `select sum(value) v from _flamegraph_source_${uuid}`,
-  );
-  const unfilteredCumulativeValue = sumQuery.firstRow({v: NUM_NULL}).v ?? 0;
   return {
     nodes,
     allRootsCumulativeValue:
       view.kind === 'BOTTOM_UP' ? negativeRootsValue : postiveRootsValue,
-    unfilteredCumulativeValue,
+    unfilteredCumulativeValue: flamegraph.unfilteredCumulativeValue,
     minDepth,
     maxDepth,
     nodeActions,
     rootActions,
   };
-}
-
-function getPivotFilter(
-  view: FlamegraphView,
-  makeFilterExpr: (x: string) => string[],
-) {
-  if (view.kind === 'PIVOT') {
-    return makeFilterExpr(view.pivot).join(' OR ');
-  }
-  if (view.kind === 'BOTTOM_UP') {
-    return 'value > 0';
-  }
-  return '0';
-}
-
-function computeGroupedAggExprs(agg: ReadonlyArray<AggQueryFlamegraphColumn>) {
-  const aggFor = (x: AggQueryFlamegraphColumn) => {
-    switch (x.mergeAggregation) {
-      case 'ONE_OR_SUMMARY':
-        return `
-          ${x.name} || IIF(
-            COUNT(DISTINCT ${x.name}) = 1,
-            '',
-            ' ' || ' and ' || cast_string!(COUNT(DISTINCT ${x.name})) || ' others'
-          ) AS ${x.name}
-        `;
-      case 'SUM':
-        return `SUM(${x.name}) AS ${x.name}`;
-      case 'CONCAT_WITH_COMMA':
-        return `GROUP_CONCAT(${x.name}, ',') AS ${x.name}`;
-    }
-  };
-  return `(${agg.length === 0 ? 'groupedColumn' : agg.map((x) => aggFor(x)).join(',')})`;
 }

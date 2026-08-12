@@ -32,7 +32,7 @@ const char* ExportSubcommand::name() const {
 }
 
 const char* ExportSubcommand::description() const {
-  return "Export trace to a database file.";
+  return "Export the contents of Trace Processor.";
 }
 
 const char* ExportSubcommand::usage_args() const {
@@ -40,11 +40,21 @@ const char* ExportSubcommand::usage_args() const {
 }
 
 const char* ExportSubcommand::detailed_help() const {
-  return R"(Load a trace and export it to a database file.
+  return R"(Load a trace and export it to a file.
 
-Currently the only supported format is "sqlite", which exports all trace
-processor tables to a SQLite database. The format is the first positional
-argument, and -o specifies the output path.)";
+Supported formats:
+  sqlite      Exports all SQL-visible tables and views to SQLite.
+  arrow_tar   Exports static tables as a cross-version-compatible tar of Arrow
+              files for external consumers. It cannot be loaded back into Trace
+              Processor.
+  perfetto    Exports static tables that a fresh Trace Processor instance from
+              the same version can load. A different version may also load the
+              archive, but this is not guaranteed.
+
+The exact contents exported are defined by the selected format.
+
+The format is the first positional argument, and -o specifies the output
+path.)";
 }
 
 std::vector<FlagSpec> ExportSubcommand::GetFlags() {
@@ -54,15 +64,19 @@ std::vector<FlagSpec> ExportSubcommand::GetFlags() {
 }
 
 base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "export", 2));
   // First positional arg is the format.
   if (ctx.positional_args.empty()) {
-    return base::ErrStatus("export: must specify format (sqlite)");
+    return base::ErrStatus(
+        "export: must specify format (sqlite, arrow_tar, or perfetto)");
   }
   const std::string& format = ctx.positional_args[0];
 
-  if (format != "sqlite") {
-    return base::ErrStatus("export: unknown format '%s' (expected sqlite)",
-                           format.c_str());
+  if (format != "sqlite" && format != "arrow_tar" && format != "perfetto") {
+    return base::ErrStatus(
+        "export: unknown format '%s' (expected sqlite, arrow_tar, or "
+        "perfetto)",
+        format.c_str());
   }
 
   if (output_path_.empty()) {
@@ -75,12 +89,20 @@ base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
   }
   std::string trace_file = ctx.positional_args[1];
 
-  auto config = BuildConfig(*ctx.global, ctx.platform);
+  ASSIGN_OR_RETURN(Config config, BuildConfig(*ctx.global, ctx.platform));
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
   RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file).status());
 
-  return ExportTraceToDatabase(tp.get(), output_path_);
+  TraceProcessor::ExportFormat export_format;
+  if (format == "sqlite") {
+    export_format = TraceProcessor::ExportFormat::kSqlite;
+  } else if (format == "arrow_tar") {
+    export_format = TraceProcessor::ExportFormat::kArrowTar;
+  } else {
+    export_format = TraceProcessor::ExportFormat::kPerfetto;
+  }
+  return ExportTrace(tp.get(), export_format, output_path_);
 }
 
 }  // namespace perfetto::trace_processor::shell

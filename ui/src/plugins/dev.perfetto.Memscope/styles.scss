@@ -69,6 +69,10 @@
   align-items: stretch;
   gap: 8px;
   padding: 8px;
+
+  .pf-text-input {
+    flex: 1;
+  }
 }
 
 .pf-memscope-device-list {

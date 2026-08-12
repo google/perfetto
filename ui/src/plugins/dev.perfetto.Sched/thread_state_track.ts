@@ -14,7 +14,7 @@
 
 import {HSLColor} from '../../base/color';
 import type {ColorScheme} from '../../base/color_scheme';
-import {SliceTrack} from '../../components/tracks/slice_track';
+import {ColorVariant, SliceTrack} from '../../components/tracks/slice_track';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
@@ -36,6 +36,7 @@ export function createThreadStateTrack(
   uri: string,
   utid: number,
 ) {
+  let hoveredSliceId: number | undefined;
   return SliceTrack.create({
     trace,
     uri,
@@ -72,6 +73,23 @@ export function createThreadStateTrack(
       sliceHeight: 12,
       titleSizePx: 10,
     },
+    // The following set of callbacks work around base slice_track's behaviour
+    // of globally highlighting all slices with the same title. Highlighting
+    // all "running" or "sleeping" slices across all visible thread tracks is
+    // both visually noisy, and distracts from the actual slice being hovered.
+    // Corner case: different tracks still see the published title for
+    // highlighting, but the alternative is polluting SliceTrackAttrs for a
+    // case that only this track currently cares about.
+    onSliceOver: ({slice}) => {
+      hoveredSliceId = slice.id;
+    },
+    onSliceOut: () => {
+      hoveredSliceId = undefined;
+    },
+    onUpdatedSlices: (slices) =>
+      slices.map((s) =>
+        s.id === hoveredSliceId ? ColorVariant.VARIANT : ColorVariant.BASE,
+      ),
     sliceName: (row) => row.state || '[Unknown]',
     colorizer: (row): ColorScheme => {
       const colorForState = colorForThreadState(row.state || '[Unknown]');

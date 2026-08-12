@@ -21,11 +21,11 @@
 
   - [Cookbooks](#)
 
-    - [Analysing Android Traces](getting-started/android-trace-analysis.md) {.tag-android}
-    - [Linux Tracing Recipes](getting-started/linux-cookbook.md) {.tag-linux}
-    - [Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
-    - [Boot Tracing](case-studies/android-boot-tracing.md) {.tag-android}
-    - [OutOfMemoryError](case-studies/android-outofmemoryerror.md) {.tag-android}
+    - [Recording Android Traces Locally](getting-started/local-android-trace-recording.md) {.tag-android}
+    - [Analyzing Android Traces](getting-started/android-trace-analysis.md) {.tag-android}
+    - [Analyzing Traces from the Command Line](getting-started/command-line-analysis.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
+    - [Tracing on Linux](getting-started/linux-cookbook.md) {.tag-linux}
+    - [Capturing Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
     - [Using AI with Perfetto](getting-started/using-ai.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
 
   - [Case Studies](#)
@@ -46,7 +46,7 @@
     - [Buffers and Dataflow](concepts/buffers.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome}
     - [Trace Configuration](concepts/config.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome}
     - [Clock Synchronization](concepts/clock-sync.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome}
-    - [How trace merging works](concepts/merging-traces.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
+    - [Trace merging](concepts/merging-traces.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Concurrent Sessions](concepts/concurrent-tracing-sessions.md) {.tag-android .tag-linux .tag-cpp-rust}
 
   - [Recording](#)
@@ -83,6 +83,7 @@
       - [Battery & Power](data-sources/battery-counters.md) {.tag-android}
       - [Android Game Interventions](data-sources/android-game-intervention-list.md) {.tag-android}
       - [Android Aflags](data-sources/android-aflags.md) {.tag-android}
+      - [Screen Recording](data-sources/video-frames.md) {.tag-android}
 
   - [Tracing SDK](#)
 
@@ -92,13 +93,14 @@
   - [Visualization](#)
 
     - [Perfetto UI](visualization/perfetto-ui.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
-    - [Merging traces in the Perfetto UI](visualization/merging-traces.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
+    - [Merging traces in the UI](visualization/merging-traces.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Data Explorer](visualization/data-explorer.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Opening Large Traces](visualization/large-traces.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Deep Linking](visualization/deep-linking-to-perfetto-ui.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Embedding the UI](visualization/embedding-the-ui.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Debug Tracks](analysis/debug-tracks.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Heap Dump Explorer](visualization/heap-dump-explorer.md) {.tag-android}
+    - [Memscope & Memory Overview](visualization/memscope.md) {.tag-android .tag-linux}
 
     - [Extending the UI](#)
 
@@ -125,7 +127,7 @@
       - [Python Library](analysis/trace-processor-python.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
       - [Batch Trace Processor](analysis/batch-trace-processor.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
 
-    - [Merging traces with Trace Processor](analysis/merging-traces.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
+    - [Merging traces from the command line](analysis/merging-traces.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Trace Summarization](analysis/trace-summary.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Converting from Perfetto](quickstart/traceconv.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome}
 

@@ -14,11 +14,12 @@
 
 import m from 'mithril';
 import {exists} from '../../base/utils';
-import type {ColumnDef} from '../../components/aggregation';
 import {addWattsonThreadTrack} from './wattson_thread_utils';
-import type {
-  Aggregation,
-  Aggregator,
+import {
+  type Aggregation,
+  type Aggregator,
+  type AggregatorGridConfig,
+  createAggregationData,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -26,9 +27,11 @@ import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
 import {Intent} from '../../widgets/common';
 import type {SqlValue} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {RadioGroup} from '../../widgets/radio_group';
 import type {Trace} from '../../public/trace';
 import {WATTSON_THREAD_TRACK_KIND} from './track_kinds';
+import {formatPercentValue} from '../../components/aggregation_panel';
 
 export class WattsonThreadSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_thread_aggregation';
@@ -52,8 +55,8 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
     }
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
-        await engine.query(`drop view if exists ${this.id};`);
         const duration = area.end - area.start;
         const filters = [];
         if (selectedCpus.length > 0) {
@@ -99,29 +102,31 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
             wattson_plugin_ui_selection_window,
             _wattson_ui_selected_cpus
           );
-
-          CREATE PERFETTO VIEW ${this.id} AS
-          WITH base AS (
-            SELECT
-              ROUND(estimated_mw, 3) as active_mw,
-              ROUND(estimated_mws, 3) as active_mws,
-              ROUND(idle_transitions_mws, 3) as idle_cost_mws,
-              ROUND(total_mws, 3) as total_mws,
-              thread_name,
-              utid,
-              tid,
-              pid
-            FROM wattson_plugin_thread_summary
-          )
-          SELECT
-            *,
-            total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
-          FROM base;
         `);
 
-        return {
-          tableName: this.id,
-        };
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            WITH base AS (
+              SELECT
+                ROUND(estimated_mw, 3) as active_mw,
+                ROUND(estimated_mws, 3) as active_mws,
+                ROUND(idle_transitions_mws, 3) as idle_cost_mws,
+                ROUND(total_mws, 3) as total_mws,
+                thread_name,
+                utid,
+                tid,
+                pid
+              FROM wattson_plugin_thread_summary
+            )
+            SELECT
+              *,
+              total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
+            FROM base
+          `,
+        });
+
+        return createAggregationData(table);
       },
     };
   }
@@ -141,10 +146,6 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
         m(RadioGroup.Button, {value: 'mw'}, 'mW'),
       ],
     );
-  }
-
-  private powerUnits(): string {
-    return this.scaleNumericData ? 'µW' : 'mW';
   }
 
   private renderMilliwatts(value: SqlValue): m.Children {
@@ -167,59 +168,57 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
     });
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Track',
-        columnId: 'utid',
-        cellRenderer: this.renderShowButton.bind(this),
+  private getGridConfig(): AggregatorGridConfig {
+    const powerUnits = this.scaleNumericData ? 'µW' : 'mW';
+    const energyUnits = this.scaleNumericData ? 'µWs' : 'mWs';
+
+    return {
+      schema: {
+        utid: {
+          title: 'Track',
+          cellRenderer: (v) => this.renderShowButton(v),
+        },
+        thread_name: {title: 'Thread Name', columnType: 'text'},
+        tid: {title: 'TID', columnType: 'identifier'},
+        pid: {title: 'PID', columnType: 'identifier'},
+        active_mw: {
+          title: `Active power (estimated ${powerUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        active_mws: {
+          title: `Active energy (estimated ${energyUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        idle_cost_mws: {
+          title: `Idle transitions overhead (estimated ${energyUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        total_mws: {
+          title: `Total energy (estimated ${energyUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        percent_of_total_energy: {
+          title: '% of total energy',
+          columnType: 'quantitative',
+          cellRenderer: formatPercentValue,
+        },
       },
-      {
-        title: 'Thread Name',
-        columnId: 'thread_name',
-      },
-      {
-        title: 'TID',
-        columnId: 'tid',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'PID',
-        columnId: 'pid',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: `Active power (estimated ${this.powerUnits()})`,
-        columnId: 'active_mw',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-      {
-        title: `Active energy (estimated ${this.powerUnits()}s)`,
-        columnId: 'active_mws',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-        sort: 'DESC',
-      },
-      {
-        title: `Idle transitions overhead (estimated ${this.powerUnits()}s)`,
-        columnId: 'idle_cost_mws',
-        sum: false,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-      {
-        title: `Total energy (estimated ${this.powerUnits()}s)`,
-        columnId: 'total_mws',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-      {
-        title: '% of total energy',
-        formatHint: 'PERCENT',
-        columnId: 'percent_of_total_energy',
-        sum: false,
-      },
-    ];
+      initialColumns: [
+        {id: 'utid', field: 'utid'},
+        {id: 'thread_name', field: 'thread_name'},
+        {id: 'tid', field: 'tid'},
+        {id: 'pid', field: 'pid'},
+        {id: 'active_mw', field: 'active_mw', aggregate: 'SUM'},
+        {id: 'active_mws', field: 'active_mws', aggregate: 'SUM', sort: 'DESC'},
+        {id: 'idle_cost_mws', field: 'idle_cost_mws'},
+        {id: 'total_mws', field: 'total_mws', aggregate: 'SUM'},
+        {id: 'percent_of_total_energy', field: 'percent_of_total_energy'},
+      ],
+    };
   }
 
   getTabName() {

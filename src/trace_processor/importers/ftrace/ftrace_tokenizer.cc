@@ -130,7 +130,7 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
   if (PERFETTO_UNLIKELY(cpu >= kMaxCpuCount)) {
     return base::ErrStatus(
         "CPU %u is greater than maximum allowed of %u. This is likely because "
-        "of trace corruption",
+        "of trace corruption (ERR:tp-corrupt)",
         cpu, kMaxCpuCount);
   }
 

@@ -22,5 +22,6 @@ source_set("ninja") {
     "../../importers/common",
     "../../sorter",
     "../../storage",
+    "../../util:trace_type",
   ]
 }

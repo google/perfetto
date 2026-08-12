@@ -137,8 +137,10 @@ SQL can be provided in three ways:
   2. From a file:          tp query -f queries.sql trace.pb
   3. From stdin:           cat q.sql | tp query trace.pb
 
-Multiple semicolon-separated statements are supported. Use -i to drop into
-an interactive shell after the queries complete.
+Multiple semicolon-separated statements are supported: every statement's
+result set is printed as CSV, with consecutive result sets separated by a
+single blank line. Use -i to drop into an interactive shell after the
+queries complete.
 
 Advanced (for debugging/testing structured queries):
   --structured-query-id ID --summary-spec FILE [...]
@@ -166,6 +168,7 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
 }
 
 base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "query", 2));
   // With --remote, the trace is already loaded server-side, so there is no
   // trace-file positional: the first positional (if any) is the SQL.
   std::string trace_file;

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "perfetto",
-  "version": "v57.1",
+  "version": "v57.2",
   "description": "Perfetto skills for Claude Code: query traces with PerfettoSQL, install trace_processor, and run guided investigation workflows.",
   "owner": {
     "name": "Perfetto",

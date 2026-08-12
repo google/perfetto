@@ -60,12 +60,21 @@ class SchedEventTracker;
 class SliceTracker;
 class StateTracker;
 class SliceTranslationTable;
+class SparseCounterTracker;
 class StackProfileTracker;
+class ProfilerSampleTracker;
 class SymbolTracker;
+class TraceDiagnosticsTracker;
 class TraceFileTracker;
+class TraceImporterRegistry;
 class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
+class TraceProcessor_PlatformInterface;
+
+namespace io {
+class FileSystem;
+}
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
@@ -135,8 +144,10 @@ class TraceProcessorContext {
 
   // Creates the root TraceProcessorContext. Should only be called by
   // TraceProcessor top level class.
-  static TraceProcessorContext CreateRootContext(const Config& config) {
-    return TraceProcessorContext(config);
+  static TraceProcessorContext CreateRootContext(
+      const Config& config,
+      TraceProcessor_PlatformInterface* platform = nullptr) {
+    return TraceProcessorContext(config, platform);
   }
 
   // Destroys all state related to parsing the trace, keeping only state
@@ -163,9 +174,19 @@ class TraceProcessorContext {
   // then shared between all machines.
 
   Config config;
+  TraceProcessor_PlatformInterface* platform = nullptr;
+  // The filesystem obtained from `platform` at construction. Cached so that
+  // each Trace Processor instance uses a stable snapshot of its platform's
+  // filesystem for its whole lifetime. Borrowed; must outlive this instance.
+  io::FileSystem* file_system = nullptr;
   GlobalPtr<TraceStorage> storage;
   GlobalPtr<TraceSorter> sorter;
   GlobalPtr<TraceReaderRegistry> reader_registry;
+  // Non-owning view of the trace-type metadata + plugin importers owned by
+  // `reader_registry`. Exposed here so low-layer code (trace_file_tracker,
+  // archive readers) can query per-type metadata without depending on the
+  // reader registry header.
+  TraceImporterRegistry* trace_importer_registry = nullptr;
   GlobalPtr<GlobalArgsTracker> global_args_tracker;
   GlobalPtr<GlobalMetadataTracker> global_metadata_tracker;
   GlobalPtr<GlobalStatsTracker> global_stats_tracker;
@@ -180,6 +201,7 @@ class TraceProcessorContext {
   GlobalPtr<TraceManifestState> trace_manifest_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
+  GlobalPtr<ProfilerSampleTracker> profiler_sample_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
   GlobalPtr<BlobPacketWriter> blob_packet_writer;
 
@@ -219,6 +241,7 @@ class TraceProcessorContext {
   PerTracePtr<TraceState> trace_state;
   PerTracePtr<Destructible> content_analyzer;
   PerTracePtr<ImportLogsTracker> import_logs_tracker;
+  PerTracePtr<TraceDiagnosticsTracker> trace_diagnostics_tracker;
 
   // Per-Machine State
   // =================
@@ -254,6 +277,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
   PerTraceAndMachinePtr<MetadataTracker> metadata_tracker;
   PerTraceAndMachinePtr<StatsTracker> stats_tracker;
+  PerTraceAndMachinePtr<SparseCounterTracker> sparse_counter_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
@@ -286,7 +310,8 @@ class TraceProcessorContext {
   }
 
  private:
-  explicit TraceProcessorContext(const Config& config);
+  TraceProcessorContext(const Config& config,
+                        TraceProcessor_PlatformInterface* platform);
 
   TraceProcessorContext(TraceProcessorContext&&) = default;
   TraceProcessorContext& operator=(TraceProcessorContext&&) = default;

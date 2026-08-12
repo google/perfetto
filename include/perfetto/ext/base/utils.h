@@ -22,9 +22,11 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <atomic>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -72,6 +74,80 @@ constexpr size_t ArraySize(const T (&)[TSize]) {
   return TSize;
 }
 
+// Adds `a` and `b` into `*result`, returning false on overflow. The value of
+// `*result` is unspecified when false is returned.
+inline bool CheckedAdd(int64_t a, int64_t b, int64_t* result) {
+#if defined(__clang__) || defined(__GNUC__)
+  return !__builtin_add_overflow(a, b, result);
+#else
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  if ((b > 0 && a > kMax - b) || (b < 0 && a < kMin - b))
+    return false;
+  *result = a + b;
+  return true;
+#endif
+}
+
+// Returns whether `value` is positive or negative zero. Compares the bit
+// pattern so it can be used in translation units compiled with -Wfloat-equal.
+inline bool IsZero(double value) {
+  uint64_t bits;
+  memcpy(&bits, &value, sizeof(bits));
+  return (bits << 1) == 0;
+}
+inline bool IsZero(int64_t value) {
+  return value == 0;
+}
+
+// Adds `a` and `b`, clamping to INT64_MIN / INT64_MAX on overflow instead of
+// wrapping (which is UB and can flip the sign of the result).
+inline int64_t SaturatingAdd(int64_t a, int64_t b) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+#if defined(__clang__) || defined(__GNUC__)
+  int64_t result;
+  if (PERFETTO_UNLIKELY(__builtin_add_overflow(a, b, &result)))
+    return a < 0 ? kMin : kMax;
+  return result;
+#else
+  if (b > 0 && a > kMax - b)
+    return kMax;
+  if (b < 0 && a < kMin - b)
+    return kMin;
+  return a + b;
+#endif
+}
+
+// Multiplies `a` by `b`, clamping to INT64_MIN / INT64_MAX on overflow instead
+// of wrapping (which is UB and can flip the sign of the result).
+inline int64_t SaturatingMultiply(int64_t a, int64_t b) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+#if defined(__clang__) || defined(__GNUC__)
+  int64_t result;
+  if (PERFETTO_UNLIKELY(__builtin_mul_overflow(a, b, &result))) {
+    // On overflow the true product's sign is the XOR of the operands' signs.
+    // Neither operand can be zero here (0 never overflows).
+    return ((a < 0) == (b < 0)) ? kMax : kMin;
+  }
+  return result;
+#else
+  // Portable fallback (e.g. MSVC cl.exe): detect overflow *before* multiplying
+  // by dividing a limit by one operand, which never itself overflows.
+  if (a == 0 || b == 0)
+    return 0;
+  if ((a < 0) == (b < 0)) {  // Same sign: product is positive.
+    if (a > 0 ? (a > kMax / b) : (a < kMax / b))
+      return kMax;
+  } else {  // Opposite signs: product is negative.
+    if (a > 0 ? (b < kMin / a) : (a < kMin / b))
+      return kMin;
+  }
+  return a * b;
+#endif
+}
+
 // Function object which invokes 'free' on its parameter, which must be
 // a pointer. Can be used to store malloc-allocated pointers in std::unique_ptr:
 //
@@ -104,6 +180,22 @@ inline constexpr bool IsPowerOfTwo(T x) {
   static_assert(std::is_unsigned_v<T> && std::is_integral_v<T>,
                 "T must be an unsigned integer");
   return x != 0 && (x & (x - 1)) == 0;
+}
+
+// Returns the smallest power of two greater than or equal to |x|. Returns zero
+// for zero or when the result is not representable by T.
+template <typename T>
+inline constexpr T RoundUpToPowerOfTwo(T x) {
+  static_assert(std::is_unsigned_v<T> && std::is_integral_v<T>,
+                "T must be an unsigned integer");
+  if (x == 0) {
+    return 0;
+  }
+  --x;
+  for (size_t shift = 1; shift < sizeof(T) * 8; shift *= 2) {
+    x |= x >> shift;
+  }
+  return ++x;
 }
 
 // TODO(primiano): clean this up and move all existing usages to the constexpr

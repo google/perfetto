@@ -45,7 +45,10 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
     if (this.player.playing) return;
     await this.player.ensureFramesLoaded();
     if (this.player.frames[this.player.currentIdx]?.id === sel.eventId) return;
-    await this.player.seek(sel.eventId);
+    // Don't await: while load() is pending the panel sits in its loading
+    // state, which remounts and blanks the <canvas>. seek() cancels stale
+    // decodes itself.
+    this.player.seek(sel.eventId);
   }
 
   render() {

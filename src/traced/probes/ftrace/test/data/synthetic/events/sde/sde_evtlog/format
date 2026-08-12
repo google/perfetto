@@ -9,6 +9,19 @@ format:
 	field:int pid;	offset:8;	size:4;	signed:1;
 	field:__data_loc char[] evtlog_tag;	offset:12;	size:4;	signed:0;
 	field:u32 tag_id;	offset:16;	size:4;	signed:0;
-	field:u32 data[15];	offset:20;	size:60;	signed:0;
+	field:u32 d01;	offset:16;	size:4;	signed:0;
+	field:u32 d02;	offset:16;	size:4;	signed:0;
+	field:u32 d03;	offset:16;	size:4;	signed:0;
+	field:u32 d04;	offset:16;	size:4;	signed:0;
+	field:u32 d05;	offset:16;	size:4;	signed:0;
+	field:u32 d06;	offset:16;	size:4;	signed:0;
+	field:u32 d07;	offset:16;	size:4;	signed:0;
+	field:u32 d08;	offset:16;	size:4;	signed:0;
+	field:u32 d09;	offset:16;	size:4;	signed:0;
+	field:u32 d010;	offset:16;	size:4;	signed:0;
+	field:u32 d011;	offset:16;	size:4;	signed:0;
+	field:u32 d012;	offset:16;	size:4;	signed:0;
+	field:u32 d013;	offset:16;	size:4;	signed:0;
+	field:u32 d014;	offset:16;	size:4;	signed:0;
 
-print fmt: "%d|%s:%d|%x|%x|%x|%x|%x|%x|%x|%x|%x|%x|%x|%x|%x|%x|%x", REC->pid, __get_str(evtlog_tag), REC->tag_id, REC->data[0], REC->data[1], REC->data[2], REC->data[3], REC->data[4], REC->data[5], REC->data[6], REC->data[7], REC->data[8], REC->data[9], REC->data[10], REC->data[11], REC->data[12], REC->data[13], REC->data[14]
+print fmt: "%d|%s:%d|%x|%x|%x|%x|%x|%x|%x|%x|%x|%x", REC->pid, __get_str(evtlog_tag), REC->tag_id, REC->d00, REC->d01, REC->d02, REC->d03, REC->d04, REC->d05, REC->d06, REC->d07, REC->d08, REC->d09, REC->d10, REC->d11, REC->d12, REC->d13, REC->d14

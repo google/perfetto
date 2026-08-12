@@ -15,11 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {findRef} from '../base/dom_utils';
-import {
-  FuzzyFinder,
-  type FuzzySegment,
-  computeHighlightSegments,
-} from '../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../base/fuzzy';
 import {ensureExists, assertUnreachable} from '../base/assert';
 import {isString} from '../base/object_utils';
 import {exists} from '../base/utils';
@@ -45,7 +41,8 @@ export interface OmniboxAttrs {
 }
 
 interface CommandWithMatchInfo extends Command {
-  readonly segments: FuzzySegment[];
+  readonly segments: readonly FuzzySegment[];
+  readonly sourceSegments?: readonly FuzzySegment[];
 }
 
 // Omnibox: Smart component that contains all omnibox business logic
@@ -88,11 +85,11 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     let options: OmniboxOption[] | undefined = undefined;
 
     if (prompt.options) {
-      const fuzzy = new FuzzyFinder(
+      const result = fuzzySearch(
         prompt.options,
         ({displayName}) => displayName,
+        omnibox.text,
       );
-      const result = fuzzy.find(omnibox.text);
       options = result.map((result) => {
         return {
           key: result.item.key,
@@ -128,15 +125,14 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
   private fuzzyFilterCommands(searchTerm: string): CommandWithMatchInfo[] {
     const app = AppImpl.instance;
     const allCommands = app.commands.getCommands();
-    // Index name + source so users can filter by either. Highlight segments
-    // are recomputed per-field at render time so each piece (title chip /
-    // source chip) gets its own match highlighting.
-    const finder = new FuzzyFinder(allCommands, ({name, source}) =>
-      source ? `${source} ${name}` : name,
-    );
-    return finder.find(searchTerm).map((result) => {
+    return fuzzySearch(
+      allCommands,
+      [(c: Command) => c.name, (c: Command) => c.source ?? ''],
+      searchTerm,
+    ).map((result) => {
       return {
-        segments: computeHighlightSegments(searchTerm, result.item.name),
+        segments: result.segments[0],
+        sourceSegments: result.item.source ? result.segments[1] : undefined,
         ...result.item,
       };
     });
@@ -167,15 +163,12 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     });
 
     const options = sorted.map(({recentsIndex, cmd}): OmniboxOption => {
-      const {segments, id, defaultHotkey, source} = cmd;
+      const {segments, sourceSegments, id, defaultHotkey} = cmd;
       return {
         key: id,
         displayName: segments,
         tag: recentsIndex !== -1 ? 'recently used' : undefined,
-        source:
-          source !== undefined
-            ? computeHighlightSegments(omnibox.text, source)
-            : undefined,
+        source: sourceSegments,
         rightContent: defaultHotkey && m(HotkeyGlyphs, {hotkey: defaultHotkey}),
       };
     });
@@ -374,7 +367,7 @@ interface OmniboxOptionRowAttrs extends HTMLAttrs {
   // Human readable display name for the option.
   // This can either be a simple string, or a list of fuzzy segments in which
   // case highlighting will be applied to the matching segments.
-  readonly displayName: FuzzySegment[] | string;
+  readonly displayName: readonly FuzzySegment[] | string;
 
   // Highlight this option.
   readonly highlighted: boolean;
@@ -387,7 +380,7 @@ interface OmniboxOptionRowAttrs extends HTMLAttrs {
 
   // Source label to show as a left-side chip (e.g. extension module name).
   // Either a plain string or fuzzy segments to enable match highlighting.
-  readonly source?: FuzzySegment[] | string;
+  readonly source?: readonly FuzzySegment[] | string;
 }
 
 class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
@@ -422,7 +415,7 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
     );
   }
 
-  private renderSegments(text: FuzzySegment[] | string): m.Children {
+  private renderSegments(text: readonly FuzzySegment[] | string): m.Children {
     if (isString(text)) {
       return text;
     } else {
@@ -449,14 +442,14 @@ interface OmniboxOption {
 
   // Display name provided as a string or a list of fuzzy segments to enable
   // fuzzy match highlighting.
-  readonly displayName: FuzzySegment[] | string;
+  readonly displayName: readonly FuzzySegment[] | string;
 
   // Some tag to place on the right (to the left of the right content).
   readonly tag?: string;
 
   // Source label to show as a left-side chip (e.g. extension module name).
   // Either a plain string or fuzzy segments to enable match highlighting.
-  readonly source?: FuzzySegment[] | string;
+  readonly source?: readonly FuzzySegment[] | string;
 
   // Arbitrary components to put on the right hand side of the option.
   readonly rightContent?: m.Children;

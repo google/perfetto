@@ -129,6 +129,7 @@ if (enable_perfetto_integration_tests) {
       "test:integrationtest_main",
     ]
     deps += perfetto_integrationtests_targets
+    data_deps = perfetto_integrationtests_data_targets
   }
   all_targets += [
     ":perfetto_integrationtests",

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import type {LlmGateway} from '../dev.perfetto.Llm/gateway';
+import type {LlmGateway, ModelPath} from '../dev.perfetto.Llm/gateway';
 import {Agent} from './agent';
 import type {ContextRegistry} from './context';
 import type {ToolRegistry} from './tools';
@@ -54,6 +54,7 @@ export class ChatSession {
   loading = false;
   /** Total tokens reported by the most recent turn, if any. */
   totalTokens?: number;
+
   /** Context items the user has toggled off for the next prompt. */
   readonly excludedContext = new Set<string>();
 
@@ -89,7 +90,7 @@ export class ChatSession {
    * as a follow-up; otherwise it starts a new turn (and drains any follow-ups
    * queued while it runs). No-op on empty input.
    */
-  async send(): Promise<void> {
+  async send(model: ModelPath): Promise<void> {
     const text = this.input.trim();
     if (text === '') return;
 
@@ -106,7 +107,7 @@ export class ChatSession {
 
     let next: string | undefined = text;
     while (next !== undefined) {
-      await this.runTurn(next);
+      await this.runTurn(next, model);
       next = this.pendingFollowUps.shift();
     }
   }
@@ -121,20 +122,6 @@ export class ChatSession {
     this.lines.push({role: 'error', text: '(turn cancelled)'});
   }
 
-  /**
-   * Reset to a fresh conversation: abort any in-flight turn, clear the agent's
-   * history and the token count, and replace the transcript with a greeting.
-   */
-  newConversation(): void {
-    this.abort?.abort();
-    this.pendingFollowUps = [];
-    this.agent.reset();
-    this.totalTokens = undefined;
-    this.lines = [
-      {role: 'ai', text: 'New conversation. What would you like to know?'},
-    ];
-  }
-
   private appendAi(text: string) {
     const last = this.lines[this.lines.length - 1];
     if (last?.role === 'ai') {
@@ -144,7 +131,7 @@ export class ChatSession {
     }
   }
 
-  private async runTurn(text: string): Promise<void> {
+  private async runTurn(text: string, model: ModelPath): Promise<void> {
     // Fold in any non-excluded context as a preamble the model can see.
     const context = this.context
       .buildContextItems()
@@ -163,6 +150,7 @@ export class ChatSession {
     try {
       for await (const evt of this.agent.sendMessage(
         prompt,
+        model,
         this.abort.signal,
         () => this.pendingFollowUps.shift(),
       )) {

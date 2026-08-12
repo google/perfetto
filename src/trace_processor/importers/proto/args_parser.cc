@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
@@ -39,13 +40,15 @@ using BoundInserter = ArgsTracker::BoundInserter;
 ArgsParser::ArgsParser(int64_t packet_timestamp,
                        BoundInserter& inserter,
                        TraceStorage& storage,
+                       ProcessTracker& process_tracker,
                        PacketSequenceStateGeneration* sequence_state,
                        bool support_json)
     : support_json_(support_json),
       packet_timestamp_(packet_timestamp),
       sequence_state_(sequence_state),
       inserter_(inserter),
-      storage_(storage) {}
+      storage_(storage),
+      process_tracker_(process_tracker) {}
 
 ArgsParser::~ArgsParser() = default;
 
@@ -84,6 +87,18 @@ void ArgsParser::AddPointer(Id flat_key, Id key, uint64_t value) {
 
 void ArgsParser::AddBoolean(Id flat_key, Id key, bool value) {
   inserter_.AddArg(flat_key, key, Variadic::Boolean(value));
+}
+
+void ArgsParser::AddUpid(Id flat_key, Id key, int64_t pid) {
+  if (auto upid = process_tracker_.GetProcessOrNull(pid)) {
+    inserter_.AddArg(flat_key, key, Variadic::Integer(*upid));
+  }
+}
+
+void ArgsParser::AddUtid(Id flat_key, Id key, int64_t tid) {
+  if (auto utid = process_tracker_.GetThreadOrNull(tid)) {
+    inserter_.AddArg(flat_key, key, Variadic::Integer(*utid));
+  }
 }
 
 void ArgsParser::AddBytes(Id flat_key,

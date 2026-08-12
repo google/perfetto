@@ -321,39 +321,38 @@ CREATE PERFETTO INDEX _android_monitor_contention_id_idx ON android_monitor_cont
 
 -- Monitor contention slices that are blocked by another monitor contention slice.
 -- They will have a |parent_id| field which is the id of the slice they are blocked by.
+-- A slice blocked by N overlapping contentions appears N times, once per parent.
 CREATE PERFETTO TABLE _children AS
 SELECT parent.id AS parent_id, child.*
 FROM android_monitor_contention AS child
 JOIN android_monitor_contention AS parent
   ON parent.blocked_utid = child.blocking_utid
-  AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur;
+  AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur
+-- Ordering by id makes the id column sorted so the join in
+-- android_monitor_contention_chain can binary-search it instead of scanning.
+ORDER BY
+  id;
 
--- Monitor contention slices that are blocking another monitor contention slice.
--- They will have a |child_id| field which is the id of the slice they are blocking.
-CREATE PERFETTO TABLE _parents AS
-SELECT parent.*, child.id AS child_id
+-- For each monitor contention slice that is blocking one or more other contention
+-- slices, a single representative |child_id| (the earliest slice it blocks).
+--
+-- Collapsing to one child per blocking slice is what keeps
+-- |android_monitor_contention_chain| from exploding into the full cross product of
+-- a node's parents and children: a node with P parents and C children would
+-- otherwise produce P*C rows. The chain only needs one child reference per node;
+-- consumers that need every parent edge use |parent_id| (which is preserved in
+-- full). On the common case where a node blocks at most one other slice this is
+-- identical to the previous behaviour.
+CREATE PERFETTO TABLE _child_of AS
+SELECT parent.id AS id, min(child.id) AS child_id
 FROM android_monitor_contention AS parent
 JOIN android_monitor_contention AS child
   ON parent.blocked_utid = child.blocking_utid
-  AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur;
-
--- Monitor contention slices that are neither blocking nor blocked by another monitor contention
--- slice. They neither have |parent_id| nor |child_id| fields.
-CREATE PERFETTO TABLE _isolated AS
-WITH
-  parents_and_children AS (
-    SELECT id FROM _children
-    UNION ALL
-    SELECT id FROM _parents
-  ),
-  isolated AS (
-    SELECT id FROM android_monitor_contention
-    EXCEPT
-    SELECT id FROM parents_and_children
-  )
-SELECT *
-FROM android_monitor_contention
-JOIN isolated USING (id);
+  AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur
+GROUP BY
+  parent.id
+ORDER BY
+  id;
 
 -- Contains parsed monitor contention slices with the parent-child relationships.
 CREATE PERFETTO TABLE android_monitor_contention_chain(
@@ -419,15 +418,43 @@ CREATE PERFETTO TABLE android_monitor_contention_chain(
   lock_name STRING
 )
 AS
-SELECT NULL AS parent_id, *, NULL AS child_id FROM _isolated
-UNION ALL
-SELECT c.*, p.child_id
-FROM _children AS c
-LEFT JOIN _parents AS p USING (id)
-UNION
-SELECT c.parent_id, p.*
-FROM _parents AS p
-LEFT JOIN _children AS c USING (id);
+-- Each contention node is emitted once per parent (parent_id fans out to every
+-- overlapping blocker, NULL when there is none) with a single representative
+-- child_id attached. This avoids materializing the parent x child cross product.
+SELECT
+  pc.parent_id AS parent_id,
+  amc.blocking_method,
+  amc.blocked_method,
+  amc.short_blocking_method,
+  amc.short_blocked_method,
+  amc.blocking_src,
+  amc.blocked_src,
+  amc.waiter_count,
+  amc.blocked_utid,
+  amc.blocked_thread_name,
+  amc.blocking_utid,
+  amc.blocking_thread_name,
+  amc.blocking_tid,
+  amc.upid,
+  amc.process_name,
+  amc.id,
+  amc.ts,
+  amc.dur,
+  amc.monotonic_dur,
+  amc.track_id,
+  amc.is_blocked_thread_main,
+  amc.blocked_thread_tid,
+  amc.is_blocking_thread_main,
+  amc.blocking_thread_tid,
+  amc.binder_reply_id,
+  amc.binder_reply_ts,
+  amc.binder_reply_tid,
+  amc.pid,
+  co.child_id AS child_id,
+  amc.lock_name
+FROM android_monitor_contention AS amc
+LEFT JOIN _children AS pc USING (id)
+LEFT JOIN _child_of AS co USING (id);
 
 CREATE PERFETTO INDEX _android_monitor_contention_chain_idx ON android_monitor_contention_chain(
   blocking_method,

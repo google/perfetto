@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <ctime>
 #include <memory>
@@ -35,12 +36,14 @@
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 
@@ -375,6 +378,43 @@ base::Status DedupingAndroidLogReader::ProcessEvent(
   }
 
   return AndroidLogReader::ProcessEvent(event_ts, event);
+}
+
+namespace {
+
+// Android logcat text log.
+class AndroidLogcatImporter : public TraceImporter<AndroidLogcatImporter> {
+ public:
+  AndroidLogcatImporter() : TraceImporter(MakeDescriptor()) {}
+  ~AndroidLogcatImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return AndroidLogEvent::IsAndroidLogcat(data, size);
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<AndroidLogReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "android_logcat";
+    d.clock_policy = TraceClockPolicy::kRealtime;
+    d.detection_priority = 185;
+    return d;
+  }
+};
+
+AndroidLogcatImporter::~AndroidLogcatImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateAndroidLogcatImporter() {
+  return std::make_unique<AndroidLogcatImporter>();
 }
 
 }  // namespace perfetto::trace_processor

@@ -5,7 +5,7 @@ block-size / waves / binding-resource interpretation from
 [occupancy.md]($SKILL_ROOT/workflows/gpu/compute/occupancy.md).
 
 ```bash
-trace_processor query --query-file $SKILL_ROOT/workflows/gpu/compute/nvidia/scripts/occupancy.sql TRACE_FILE
+trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/compute/nvidia/scripts/occupancy.sql
 ```
 
 One row per compute kernel (longest first). Display label → output column →

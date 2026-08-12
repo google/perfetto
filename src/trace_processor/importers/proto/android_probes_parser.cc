@@ -604,6 +604,15 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       continue;
     }
 
+    if (name == "debug.tracing.wallpaper.package_name" ||
+        name == "debug.tracing.wallpaper.class_name") {
+      StringId name_id = context_->storage->InternString(name);
+      StringId value_id = context_->storage->InternString(kv.value());
+      context_->metadata_tracker->SetDynamicMetadata(
+          name_id, Variadic::String(value_id));
+      continue;
+    }
+
     std::optional<int32_t> state =
         base::StringToInt32(kv.value().ToStdString());
     if (!state) {
@@ -775,7 +784,7 @@ StringId AndroidProbesParser::ToFlagTypeId(int32_t type) {
 void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
   protos::pbzero::AndroidAflags::Decoder decoder(blob.data, blob.size);
   if (decoder.has_error()) {
-    context_->import_logs_tracker->RecordCollectionError(
+    context_->import_logs_tracker->RecordCollectionLog(
         stats::android_aflags_errors, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
           inserter.AddArg(context_->storage->InternString("error"),

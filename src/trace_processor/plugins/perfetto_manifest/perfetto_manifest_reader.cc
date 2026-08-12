@@ -16,12 +16,16 @@
 
 #include "src/trace_processor/plugins/perfetto_manifest/perfetto_manifest_reader.h"
 
+#include <algorithm>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -38,7 +42,9 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/json_value.h"
+#include "src/trace_processor/util/trace_type.h"
 
+#include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 
 namespace perfetto::trace_processor::perfetto_manifest {
@@ -145,6 +151,88 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
   return result;
 }
 
+// Parses a file's internal `__exported_table_schema` block. Only the JSON
+// shape is checked here; the trace_export plugin owns its version and schema
+// semantics.
+base::StatusOr<TraceManifestState::PerfettoExportTable>
+ParsePerfettoExportTable(const json::Dom& table) {
+  if (!table.IsObject() || !table["format"].IsIntegral() ||
+      !table["name"].IsString() || !table["row_count"].IsIntegral() ||
+      !table["columns"].IsArray()) {
+    return base::ErrStatus(
+        "perfetto_manifest: __exported_table_schema needs an integer format, "
+        "a string name, an integer row_count and a columns array");
+  }
+  TraceManifestState::PerfettoExportTable result;
+  result.format = table["format"].AsInt64();
+  result.name = table["name"].AsString();
+  int64_t row_count = table["row_count"].AsInt64();
+  if (row_count < 0 || row_count > std::numeric_limits<uint32_t>::max()) {
+    return base::ErrStatus("perfetto_manifest: table '%s': invalid row_count",
+                           result.name.c_str());
+  }
+  result.row_count = static_cast<uint32_t>(row_count);
+  for (const json::Dom& col : table["columns"]) {
+    if (!col.IsObject() || !col["name"].IsString() || !col["type"].IsString() ||
+        !col["nullability"].IsString() || !col["sort"].IsString() ||
+        !col["duplicates"].IsString()) {
+      return base::ErrStatus(
+          "perfetto_manifest: table '%s': malformed column entry",
+          result.name.c_str());
+    }
+    result.columns.push_back({col["name"].AsString(), col["type"].AsString(),
+                              col["nullability"].AsString(),
+                              col["sort"].AsString(),
+                              col["duplicates"].AsString()});
+  }
+  return std::move(result);
+}
+
+using Attribute = std::pair<std::string, std::variant<int64_t, std::string>>;
+
+base::StatusOr<std::vector<Attribute>> ParseAttributes(
+    const json::Dom& attributes) {
+  if (!attributes.IsObject()) {
+    return base::ErrStatus(
+        "perfetto_manifest: attributes must be an object of string or "
+        R"(integer values, e.g. "attributes": {"benchmark": "startup"}.)");
+  }
+  std::vector<Attribute> result;
+  for (const std::string& key : attributes.GetMemberNames()) {
+    if (key.empty()) {
+      return base::ErrStatus(
+          "perfetto_manifest: attributes: keys must be non-empty");
+    }
+    const json::Dom& value = attributes[key];
+    if (value.IsString()) {
+      result.emplace_back(key, value.AsString());
+    } else if (value.IsIntegral()) {
+      result.emplace_back(key, value.AsInt64());
+    } else {
+      return base::ErrStatus(
+          "perfetto_manifest: attributes: '%s' must be a string or an "
+          "integer",
+          key.c_str());
+    }
+  }
+  return result;
+}
+
+void ApplyAttributes(TraceProcessorContext* context,
+                     const std::vector<Attribute>& attrs) {
+  for (const auto& [key, value] : attrs) {
+    StringId key_id = context->storage->InternString(
+        base::StringView("manifest_attribute." + key));
+    Variadic variadic =
+        std::holds_alternative<int64_t>(value)
+            ? Variadic::Integer(std::get<int64_t>(value))
+            : Variadic::String(context->storage->InternString(
+                  base::StringView(std::get<std::string>(value))));
+    context->global_metadata_tracker->SetDynamicMetadata(
+        std::nullopt, std::nullopt, key_id, variadic);
+  }
+}
+
 base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
   if (!file.IsObject() || !file["path"].IsString()) {
     return base::ErrStatus(
@@ -153,6 +241,19 @@ base::StatusOr<FileEntry> ParseFileEntry(const json::Dom& file) {
   }
   FileEntry entry;
   entry.path = file["path"].AsString();
+  if (file.HasMember("__exported_table_schema")) {
+    if (file.HasMember("clocks") || file.HasMember("machine") ||
+        file.HasMember("machines")) {
+      return base::ErrStatus(
+          "perfetto_manifest: '%s': an exported table is not a trace, so "
+          "__exported_table_schema cannot be combined with "
+          "clocks/machine/machines",
+          entry.path.c_str());
+    }
+    ASSIGN_OR_RETURN(entry.exported_table_schema,
+                     ParsePerfettoExportTable(file["__exported_table_schema"]));
+    return std::move(entry);
+  }
   if (file.HasMember("clocks")) {
     if (!file["clocks"].IsObject()) {
       return base::ErrStatus("perfetto_manifest: clocks must be an object");
@@ -305,6 +406,38 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
     for (const json::Dom& file : meta["files"]) {
       ASSIGN_OR_RETURN(FileEntry entry, ParseFileEntry(file));
       state->files.push_back(std::move(entry));
+    }
+  }
+
+  if (meta.HasMember("attributes")) {
+    ASSIGN_OR_RETURN(std::vector<Attribute> attrs,
+                     ParseAttributes(meta["attributes"]));
+    ApplyAttributes(context_, attrs);
+  }
+
+  // Every member declared as a serialized table must be present: a missing
+  // one would otherwise silently yield an empty table. All archive members
+  // are added to the trace_file table before any is parsed, so this can be
+  // caught here, before any table is deserialized.
+  for (const FileEntry& entry : state->files) {
+    if (!entry.exported_table_schema) {
+      continue;
+    }
+    StringId name =
+        context_->storage->InternString(base::StringView(entry.path));
+    bool found = false;
+    for (auto it = context_->storage->trace_file_table().IterateRows(); it;
+         ++it) {
+      if (it.name() && *it.name() == name) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      return base::ErrStatus(
+          "perfetto_manifest: table member '%s' is declared but not present "
+          "in the archive",
+          entry.path.c_str());
     }
   }
   return ApplyManifest();
@@ -524,3 +657,53 @@ base::Status PerfettoManifestReader::ApplyManifest() {
 }
 
 }  // namespace perfetto::trace_processor::perfetto_manifest
+
+namespace perfetto::trace_processor {
+namespace {
+
+// A perfetto_manifest sidecar file: a JSON object whose only top-level key is
+// "perfetto_manifest". Must be the first file; overrides clock/machine handling
+// for the files that follow, so it produces no timeline and forks no context.
+class PerfettoManifestImporter
+    : public TraceImporter<PerfettoManifestImporter> {
+ public:
+  PerfettoManifestImporter() : TraceImporter(MakeDescriptor()) {}
+  ~PerfettoManifestImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
+                start.end());
+    return base::StartsWith(start, "{\"perfetto_manifest\"");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t file_id) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<perfetto_manifest::PerfettoManifestReader>(context,
+                                                                    file_id));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "perfetto_manifest";
+    d.archive_priority = -1;
+    d.forks_context = false;
+    d.is_manifest = true;
+    d.detection_priority = 90;
+    return d;
+  }
+};
+
+PerfettoManifestImporter::~PerfettoManifestImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreatePerfettoManifestImporter() {
+  return std::make_unique<PerfettoManifestImporter>();
+}
+
+}  // namespace perfetto::trace_processor

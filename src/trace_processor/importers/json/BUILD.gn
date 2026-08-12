@@ -31,6 +31,7 @@ source_set("json") {
     "../../util:json_args",
     "../../util:json_parser",
     "../../util:simple_json_parser",
+    "../../util:trace_type",
     "../common",
     "../common:parser_types",
     "../common:v8_profile_parser",

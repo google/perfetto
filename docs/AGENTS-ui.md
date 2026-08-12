@@ -267,13 +267,13 @@ function getValue(): string | null { return null; }
 function getValue(): string | undefined { return undefined; }
 ```
 
-**Use `ReadonlyArray<T>` for arrays that shouldn't be modified:**
+**Use `readonly T[]` for arrays that shouldn't be modified:**
 ```typescript
 // Bad
 function process(items: string[]): void { ... }
 
 // Good
-function process(items: ReadonlyArray<string>): void { ... }
+function process(items: readonly string[]): void { ... }
 ```
 
 **Use `classNames()` utility for building CSS class strings:**

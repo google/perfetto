@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 616> descriptors{{
+std::array<FtraceMessageDescriptor, 618> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3821,12 +3821,27 @@ std::array<FtraceMessageDescriptor, 616> descriptors{{
     },
     {
         "sde_sde_evtlog",
-        3,
+        18,
         {
             {},
             {"evtlog_tag", ProtoSchemaType::kString},
             {"pid", ProtoSchemaType::kInt32},
             {"tag_id", ProtoSchemaType::kUint32},
+            {"d00", ProtoSchemaType::kUint32},
+            {"d01", ProtoSchemaType::kUint32},
+            {"d02", ProtoSchemaType::kUint32},
+            {"d03", ProtoSchemaType::kUint32},
+            {"d04", ProtoSchemaType::kUint32},
+            {"d05", ProtoSchemaType::kUint32},
+            {"d06", ProtoSchemaType::kUint32},
+            {"d07", ProtoSchemaType::kUint32},
+            {"d08", ProtoSchemaType::kUint32},
+            {"d09", ProtoSchemaType::kUint32},
+            {"d10", ProtoSchemaType::kUint32},
+            {"d11", ProtoSchemaType::kUint32},
+            {"d12", ProtoSchemaType::kUint32},
+            {"d13", ProtoSchemaType::kUint32},
+            {"d14", ProtoSchemaType::kUint32},
         },
     },
     {
@@ -6861,6 +6876,26 @@ std::array<FtraceMessageDescriptor, 616> descriptors{{
             {"cpu_id", ProtoSchemaType::kUint32},
             {"state", ProtoSchemaType::kUint32},
             {"s2idle", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "long_irq",
+        3,
+        {
+            {},
+            {"irq", ProtoSchemaType::kInt32},
+            {"latency", ProtoSchemaType::kUint32},
+            {"count", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "long_softirq",
+        3,
+        {
+            {},
+            {"vec_nr", ProtoSchemaType::kInt32},
+            {"latency", ProtoSchemaType::kUint32},
+            {"count", ProtoSchemaType::kUint32},
         },
     },
 }};

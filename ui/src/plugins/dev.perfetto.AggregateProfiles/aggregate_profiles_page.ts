@@ -38,9 +38,7 @@ export interface AggregateProfilesPageAttrs {
   readonly profiles: ReadonlyArray<AggregateProfile>;
 }
 
-export class AggregateProfilesPage
-  implements m.ClassComponent<AggregateProfilesPageAttrs>
-{
+export class AggregateProfilesPage implements m.ClassComponent<AggregateProfilesPageAttrs> {
   private profiles?: ReadonlyArray<AggregateProfile>;
   private readonly monitor = new Monitor([() => this.profiles]);
   private flamegraphMetrics?: ReadonlyArray<QueryFlamegraphMetric>;

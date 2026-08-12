@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
@@ -39,13 +40,16 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/sparse_counter_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/symbol_tracker.h"
+#include "src/trace_processor/importers/common/trace_diagnostics_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -86,6 +90,10 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context,
       Ptr<ArgsTranslationTable>::MakeRoot(context->storage.get());
   context->metadata_tracker = Ptr<MetadataTracker>::MakeRoot(context);
   context->stats_tracker = Ptr<StatsTracker>::MakeRoot(context);
+  context->trace_diagnostics_tracker =
+      Ptr<TraceDiagnosticsTracker>::MakeRoot(context);
+  context->sparse_counter_tracker =
+      Ptr<SparseCounterTracker>::MakeRoot(context);
 
   context->slice_tracker->SetOnSliceBeginCallback(
       [context](TrackId track_id, SliceId slice_id) {
@@ -157,14 +165,20 @@ Ptr<TraceSorter> CreateSorter(TraceProcessorContext* context,
                                     event_handling);
 }
 
-void InitGlobalState(TraceProcessorContext* context, const Config& config) {
+void InitGlobalState(TraceProcessorContext* context,
+                     const Config& config,
+                     TraceProcessor_PlatformInterface* platform) {
   // Global state.
   context->config = config;
+  context->platform = platform;
+  context->file_system = platform ? platform->GetFileSystem() : nullptr;
   context->storage = Ptr<TraceStorage>::MakeRoot(config);
   context->global_stats_tracker =
       Ptr<GlobalStatsTracker>::MakeRoot(context->storage.get());
   context->sorter = CreateSorter(context, config);
   context->reader_registry = Ptr<TraceReaderRegistry>::MakeRoot();
+  context->trace_importer_registry =
+      context->reader_registry->importer_registry();
   context->global_args_tracker =
       Ptr<GlobalArgsTracker>::MakeRoot(context->storage.get());
   context->global_metadata_tracker =
@@ -183,6 +197,8 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->track_group_idx_state =
       Ptr<TrackCompressorGroupIdxState>::MakeRoot();
   context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
+  context->profiler_sample_tracker =
+      Ptr<ProfilerSampleTracker>::MakeRoot(context);
   context->deobfuscation_tracker = nullptr;
   context->blob_packet_writer = Ptr<BlobPacketWriter>::MakeRoot();
   context->register_additional_proto_modules = {};
@@ -198,9 +214,12 @@ void CopyGlobalState(const TraceProcessorContext* source,
                      TraceProcessorContext* dest) {
   // Global state.
   dest->config = source->config;
+  dest->platform = source->platform;
+  dest->file_system = source->file_system;
   dest->storage = source->storage.Fork();
   dest->sorter = source->sorter.Fork();
   dest->reader_registry = source->reader_registry.Fork();
+  dest->trace_importer_registry = dest->reader_registry->importer_registry();
   dest->global_args_tracker = source->global_args_tracker.Fork();
   dest->global_metadata_tracker = source->global_metadata_tracker.Fork();
   dest->global_stats_tracker = source->global_stats_tracker.Fork();
@@ -224,13 +243,16 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->deobfuscation_tracker = source->deobfuscation_tracker.Fork();
   dest->blob_packet_writer = source->blob_packet_writer.Fork();
   dest->stack_profile_tracker = source->stack_profile_tracker.Fork();
+  dest->profiler_sample_tracker = source->profiler_sample_tracker.Fork();
 }
 
 }  // namespace
 
 TraceProcessorContext::TraceProcessorContext() = default;
-TraceProcessorContext::TraceProcessorContext(const Config& _config) {
-  InitGlobalState(this, _config);
+TraceProcessorContext::TraceProcessorContext(
+    const Config& _config,
+    TraceProcessor_PlatformInterface* _platform) {
+  InitGlobalState(this, _config, _platform);
 }
 TraceProcessorContext::~TraceProcessorContext() = default;
 
@@ -288,6 +310,11 @@ TraceId TraceProcessorContext::trace_id() const {
 }
 
 void TraceProcessorContext::DestroyParsingState() {
+  // Config and platform capabilities are also needed by query-time features,
+  // so preserve them while reconstructing the parsing context.
+  Config _config = std::move(config);
+  TraceProcessor_PlatformInterface* _platform = platform;
+  io::FileSystem* _file_system = file_system;
   auto _storage = std::move(storage);
 
   // TODO(b/309623584): Decouple from storage and remove from here. This
@@ -306,6 +333,9 @@ void TraceProcessorContext::DestroyParsingState() {
   this->~TraceProcessorContext();
   new (this) TraceProcessorContext();
 
+  config = std::move(_config);
+  platform = _platform;
+  file_system = _file_system;
   storage = std::move(_storage);
   heap_graph_tracker = std::move(_heap_graph_tracker);
   clock_converter = std::move(_clock_converter);

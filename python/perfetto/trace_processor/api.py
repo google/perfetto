@@ -106,6 +106,11 @@ class TraceProcessorConfig:
   # `INCLUDE PERFETTO MODULE` PerfettoSQL statements.
   add_sql_packages: Optional[List[Union[str, SqlPackage]]] = None
 
+  # If True, SQL functions may access files visible to a locally launched
+  # Trace Processor shell. Do not enable this when executing untrusted SQL.
+  # This option cannot grant access to a Trace Processor connected via `addr`.
+  enable_sql_file_access: bool = False
+
   def __init__(
       self,
       bin_path: Optional[str] = None,
@@ -118,6 +123,7 @@ class TraceProcessorConfig:
       extra_flags: Optional[List[str]] = None,
       add_sql_packages: Optional[List[Union[str, SqlPackage]]] = None,
       fetch_latest_trace_processor: bool = False,
+      enable_sql_file_access: bool = False,
   ):
     self.bin_path = bin_path
     self.unique_port = unique_port
@@ -129,6 +135,7 @@ class TraceProcessorConfig:
     self.extra_flags = extra_flags
     self.add_sql_packages = add_sql_packages
     self.fetch_latest_trace_processor = fetch_latest_trace_processor
+    self.enable_sql_file_access = enable_sql_file_access
 
 
 class TraceProcessor:
@@ -176,6 +183,11 @@ class TraceProcessor:
     if trace and file_path:
       raise TraceProcessorException(
           "trace and file_path cannot both be specified.")
+    if addr and config.enable_sql_file_access:
+      raise TraceProcessorException(
+          "enable_sql_file_access cannot grant file access to a remote Trace "
+          "Processor; the server must be started with "
+          "--allow-sql-file-access.")
 
     self.config = config
     self.platform_delegate = PLATFORM_DELEGATE()
@@ -285,6 +297,27 @@ class TraceProcessor:
     metrics.ParseFromString(response.metrics)
     return metrics
 
+  def export(self, output_path: str, export_format: str):
+    """Exports the contents of Trace Processor.
+
+    The exact contents exported are defined by `export_format`. `arrow_tar` is
+    a tar of standard Arrow files with cross-version compatibility guarantees
+    for external consumers, but it cannot be loaded back into Trace Processor.
+    `perfetto` can be loaded by a fresh Trace Processor instance from the same
+    version. Loading it in a different version may work but is not guaranteed.
+    `sqlite` writes all SQL-visible tables and views into a standard SQLite
+    database; the database is materialized on the server and streamed to
+    `output_path`, so the server must support file access.
+    Output is streamed directly to
+    disk without materializing the complete archive in memory.
+
+    Args:
+      output_path: Path to write the export to.
+      export_format: Either `arrow_tar`, `perfetto` or `sqlite`.
+    """
+    with open(output_path, 'wb') as f:
+      self.http.export(f, export_format)
+
   @property
   def metadata(self) -> Dict[str, str]:
     """Returns metadata associated with this trace.
@@ -320,6 +353,7 @@ class TraceProcessor:
          self.config.extra_flags,
          self.config.add_sql_packages,
          self.config.fetch_latest_trace_processor,
+         self.config.enable_sql_file_access,
      )
     return TraceProcessorHttp(url, protos=self.protos)
 
@@ -352,6 +386,11 @@ class TraceProcessor:
     del a, b, c  # Unused.
     self.close()
     return False
+
+  def __del__(self):
+    # Fallback for callers that skip close()/the context manager, so temp files
+    # and the HTTP connection don't leak (as a "ResourceWarning: unclosed file").
+    self.close()
 
   def close(self):
     if getattr(self, 'subprocess', None):
