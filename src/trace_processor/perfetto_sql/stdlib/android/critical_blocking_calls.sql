@@ -87,19 +87,59 @@ RETURNS BOOL
 AS
 SELECT _is_relevant_blocking_call_expr!($name);
 
+CREATE PERFETTO TABLE _android_critical_blocking_calls_draw_frames AS
+SELECT utid, id, ts, dur
+FROM thread_slice
+WHERE
+  name GLOB 'DrawFrames*'
+ORDER BY
+  ts;
+
+CREATE PERFETTO TABLE _android_critical_blocking_calls_wait_for_buffer_release
+AS
+SELECT utid, ts, dur
+FROM thread_slice
+WHERE
+  name = 'waitForBufferRelease'
+ORDER BY
+  ts;
+
 --Extract critical blocking calls from all processes.
 CREATE PERFETTO TABLE _android_critical_blocking_calls AS
+WITH
+  _wait_for_buffer_release_dur AS (
+    SELECT s.id, SUM(child.dur) AS dur
+    FROM _android_critical_blocking_calls_wait_for_buffer_release AS child
+    JOIN _android_critical_blocking_calls_draw_frames AS s
+      ON child.utid = s.utid
+      AND child.ts >= s.ts
+      AND child.ts < s.ts + s.dur
+    GROUP BY
+      s.id
+  )
 SELECT
   android_standardize_slice_name(s.name) AS name,
   s.ts,
-  s.dur,
+  iif(
+    wait_for_buffer_release.dur IS NULL
+    OR s.dur = -1,
+    s.dur,
+    MAX(s.dur - wait_for_buffer_release.dur, 0)
+  ) AS dur,
   s.id,
   s.process_name,
   thread.utid,
   s.upid,
-  s.ts + s.dur AS ts_end
+  s.ts
+  + iif(
+    wait_for_buffer_release.dur IS NULL
+    OR s.dur = -1,
+    s.dur,
+    MAX(s.dur - wait_for_buffer_release.dur, 0)
+  ) AS ts_end
 FROM thread_slice AS s
 JOIN thread USING (utid)
+LEFT JOIN _wait_for_buffer_release_dur AS wait_for_buffer_release USING (id)
 WHERE
   _is_relevant_blocking_call_expr!(s.name)
 UNION ALL
