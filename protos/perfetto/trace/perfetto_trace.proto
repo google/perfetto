@@ -11213,6 +11213,21 @@ message SchedSwitchWithCtrsFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/perf_trace_counters.proto
 
+// Begin of protos/perfetto/trace/ftrace/pixel_metrics.proto
+
+message LongIrqFtraceEvent {
+  optional int32 irq = 1;
+  optional uint32 latency = 2;
+  optional uint32 count = 3;
+}
+message LongSoftirqFtraceEvent {
+  optional int32 vec_nr = 1;
+  optional uint32 latency = 2;
+  optional uint32 count = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/pixel_metrics.proto
+
 // Begin of protos/perfetto/trace/ftrace/pixel_mm.proto
 
 message PixelMmKswapdWakeFtraceEvent {
@@ -12857,6 +12872,8 @@ message FtraceEvent {
     DpuDispDpuLineUnderrunFtraceEvent dpu_disp_dpu_line_underrun = 613;
     PsciDomainIdleExitFtraceEvent psci_domain_idle_exit = 614;
     PsciDomainIdleEnterFtraceEvent psci_domain_idle_enter = 615;
+    LongIrqFtraceEvent long_irq = 616;
+    LongSoftirqFtraceEvent long_softirq = 617;
   }
 }
 
