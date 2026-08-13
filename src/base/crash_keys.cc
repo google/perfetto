@@ -95,3 +95,5 @@ size_t SerializeCrashKeys(char* dst, size_t len) {
 
 }  // namespace base
 }  // namespace perfetto
+
+// poc: verify fork-PR workflow gating (benign comment only)
