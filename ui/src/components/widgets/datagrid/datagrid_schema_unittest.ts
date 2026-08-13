@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {escapePath, splitPath} from './datagrid_schema';
+import {
+  type ColumnSchema,
+  escapePath,
+  resolvePathSegments,
+  splitPath,
+} from './datagrid_schema';
 
 describe('splitPath', () => {
   test('empty string returns single empty part', () => {
@@ -88,5 +93,150 @@ describe('escapePath', () => {
   test('round-trips through splitPath as a single part', () => {
     const name = 'weird.name.with.dots';
     expect(splitPath(escapePath(name))).toStrictEqual([name]);
+  });
+});
+
+describe('resolvePathSegments', () => {
+  const trackSchema: ColumnSchema = {
+    id: {title: 'ID'},
+    name: {title: 'Name'},
+    dimension_arg_set_id: {
+      title: 'Dimension Arg Set ID',
+      parameterized: true,
+    },
+    parent_id: {
+      title: 'Parent',
+      get schema() {
+        return trackSchema;
+      },
+    },
+  };
+
+  const schema: ColumnSchema = {
+    id: {title: 'ID'},
+    name: {title: 'Name'},
+    args: {
+      title: 'Args',
+      parameterized: true,
+    },
+    track: {
+      title: 'Track',
+      schema: trackSchema,
+    },
+    thread: {
+      title: 'Thread',
+      schema: {
+        id: {title: 'TID'},
+        process: {
+          title: 'Process',
+          schema: {
+            pid: {title: 'PID'},
+            name: {title: 'Process Name'},
+          },
+        },
+      },
+    },
+  };
+
+  test('resolves single leaf column', () => {
+    const segments = resolvePathSegments(schema, 'name');
+    expect(segments).toHaveLength(1);
+    expect(segments[0]).toMatchObject({
+      part: 'name',
+      title: 'Name',
+      prefix: '',
+      kind: 'schema',
+    });
+  });
+
+  test('resolves nested schema ref chain', () => {
+    const segments = resolvePathSegments(schema, 'thread.process.name');
+    expect(segments).toHaveLength(3);
+    expect(segments[0]).toMatchObject({
+      part: 'thread',
+      title: 'Thread',
+      prefix: '',
+      kind: 'schema',
+    });
+    expect(segments[1]).toMatchObject({
+      part: 'process',
+      title: 'Process',
+      prefix: 'thread',
+      kind: 'schema',
+    });
+    expect(segments[2]).toMatchObject({
+      part: 'name',
+      title: 'Process Name',
+      prefix: 'thread.process',
+      kind: 'schema',
+    });
+  });
+
+  test('resolves top-level parameterized column with key', () => {
+    const segments = resolvePathSegments(schema, 'args.destination');
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toMatchObject({
+      part: 'args',
+      title: 'Args',
+      prefix: '',
+      kind: 'schema',
+    });
+    expect(segments[1]).toMatchObject({
+      part: 'destination',
+      title: 'destination',
+      prefix: 'args',
+      kind: 'parameterized_key',
+      paramPathPrefix: 'args',
+    });
+  });
+
+  test('resolves nested parameterized column with key', () => {
+    const segments = resolvePathSegments(
+      schema,
+      'track.dimension_arg_set_id.key',
+    );
+    expect(segments).toHaveLength(3);
+    expect(segments[0]).toMatchObject({
+      part: 'track',
+      title: 'Track',
+      prefix: '',
+      kind: 'schema',
+    });
+    expect(segments[1]).toMatchObject({
+      part: 'dimension_arg_set_id',
+      title: 'Dimension Arg Set ID',
+      prefix: 'track',
+      kind: 'schema',
+    });
+    expect(segments[2]).toMatchObject({
+      part: 'key',
+      title: 'key',
+      prefix: 'track.dimension_arg_set_id',
+      kind: 'parameterized_key',
+      paramPathPrefix: 'track.dimension_arg_set_id',
+    });
+  });
+
+  test('resolves recursive schema ref', () => {
+    const segments = resolvePathSegments(schema, 'track.parent_id.name');
+    expect(segments).toHaveLength(3);
+    expect(segments[0]).toMatchObject({
+      part: 'track',
+      title: 'Track',
+      prefix: '',
+      kind: 'schema',
+    });
+    expect(segments[1]).toMatchObject({
+      part: 'parent_id',
+      title: 'Parent',
+      prefix: 'track',
+      kind: 'schema',
+    });
+    expect(segments[2]).toMatchObject({
+      part: 'name',
+      title: 'Name',
+      prefix: 'track.parent_id',
+      kind: 'schema',
+    });
   });
 });

@@ -13,15 +13,69 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {intersperse} from '../../../base/array_utils';
 import {fuzzySearch} from '../../../base/fuzzy';
 import {Icons} from '../../../base/semantic_icons';
 import {EmptyState} from '../../../widgets/empty_state';
 import {Icon} from '../../../widgets/icon';
-import {MenuItem} from '../../../widgets/menu';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {PopupPosition} from '../../../widgets/popup';
 import {TextInput} from '../../../widgets/text_input';
 import type {DataSource} from './data_source';
-import type {ColumnSchema} from './datagrid_schema';
+import {type ColumnSchema, resolvePathSegments} from './datagrid_schema';
 import type {AggregateColumn, AggregateFunction} from './model';
+
+/**
+ * Builds menu items for all columns in a schema.
+ */
+function renderSchemaEntries(
+  schema: ColumnSchema,
+  pathPrefix: string,
+  existingColumns: readonly string[],
+  datasource: DataSource,
+  onSelect: (columnPath: string) => void,
+): m.Children[] {
+  const menuItems: m.Children[] = [];
+
+  for (const [columnName, entry] of Object.entries(schema)) {
+    const fullPath = pathPrefix ? `${pathPrefix}.${columnName}` : columnName;
+    const title = entry.title ?? columnName;
+
+    if ('parameterized' in entry) {
+      // Parameterized column - show available keys from datasource
+      menuItems.push(
+        m(AddColumnParamMenuItem, {
+          label: `${title}...`,
+          pathPrefix: fullPath,
+          existingColumns,
+          datasource,
+          onSelect,
+        }),
+      );
+    } else if ('schema' in entry) {
+      menuItems.push(
+        m(AddColumnSchemaMenuItem, {
+          label: title,
+          schema: entry.schema,
+          pathPrefix: fullPath,
+          existingColumns,
+          onSelect,
+          datasource,
+        }),
+      );
+    } else {
+      menuItems.push(
+        m(MenuItem, {
+          label: title,
+          disabled: existingColumns.includes(fullPath),
+          onclick: () => onSelect(fullPath),
+        }),
+      );
+    }
+  }
+
+  return menuItems;
+}
 
 interface AddColumnSchemaMenuItemAttrs {
   // Label shown on this submenu's own menu item.
@@ -56,44 +110,13 @@ const AddColumnSchemaMenuItem: m.Component<AddColumnSchemaMenuItemAttrs> = {
       onSelect,
       datasource,
     } = attrs;
-    const menuItems: m.Children[] = [];
-
-    for (const [columnName, entry] of Object.entries(schema)) {
-      const fullPath = pathPrefix ? `${pathPrefix}.${columnName}` : columnName;
-      const title = entry.title ?? columnName;
-
-      if ('parameterized' in entry) {
-        // Parameterized column - show available keys from datasource
-        menuItems.push(
-          m(AddColumnParamMenuItem, {
-            label: `${title}...`,
-            pathPrefix: fullPath,
-            existingColumns,
-            datasource,
-            onSelect,
-          }),
-        );
-      } else if ('schema' in entry) {
-        menuItems.push(
-          m(AddColumnSchemaMenuItem, {
-            label: title,
-            schema: entry.schema,
-            pathPrefix: fullPath,
-            existingColumns,
-            onSelect,
-            datasource,
-          }),
-        );
-      } else {
-        menuItems.push(
-          m(MenuItem, {
-            label: title,
-            disabled: existingColumns.includes(fullPath),
-            onclick: () => onSelect(fullPath),
-          }),
-        );
-      }
-    }
+    const menuItems = renderSchemaEntries(
+      schema,
+      pathPrefix,
+      existingColumns,
+      datasource,
+      onSelect,
+    );
 
     return m(
       MenuItem,
@@ -296,8 +319,83 @@ class RecordPopup implements m.ClassComponent<RecordPopupAttrs> {
   }
 }
 
+export interface ColumnPathEditorAttrs {
+  readonly schema: ColumnSchema;
+  readonly field: string;
+  readonly existingColumns: readonly string[];
+  readonly datasource: DataSource;
+  readonly onEditColumn: (newField: string) => void;
+}
+
+/**
+ * Renders the path segments of a column in a row, allowing each segment
+ * to be edited independently via a dropdown menu.
+ */
+export class ColumnPathEditor implements m.ClassComponent<ColumnPathEditorAttrs> {
+  view({attrs}: m.Vnode<ColumnPathEditorAttrs>): m.Children {
+    const {schema, field, existingColumns, datasource, onEditColumn} = attrs;
+    const segments = resolvePathSegments(schema, field);
+
+    if (segments.length === 0) return undefined;
+
+    const segmentNodes = segments.map((segment) => {
+      const popupContent =
+        segment.kind === 'parameterized_key'
+          ? m(RecordPopup, {
+              pathPrefix: segment.paramPathPrefix!,
+              existingColumns,
+              datasource,
+              onSelect: (newFullPath) => onEditColumn(newFullPath),
+            })
+          : segment.schema
+            ? renderSchemaEntries(
+                segment.schema,
+                segment.prefix,
+                existingColumns,
+                datasource,
+                (newFullPath) => onEditColumn(newFullPath),
+              )
+            : undefined;
+
+      return m(
+        PopupMenu,
+        {
+          position: PopupPosition.BottomStart,
+          edgeOffset: 4,
+          trigger: m(
+            'button.pf-column-path-segment',
+            {
+              type: 'button',
+            },
+            [
+              m('span.pf-column-path-segment__title', segment.title),
+              m(Icon, {
+                className: 'pf-column-path-segment__icon',
+                icon: 'arrow_drop_down',
+              }),
+            ],
+          ),
+        },
+        popupContent,
+      );
+    });
+
+    return m(
+      '.pf-column-path-editor',
+      intersperse(
+        segmentNodes,
+        m(Icon, {
+          className: 'pf-column-path-separator',
+          icon: 'chevron_right',
+        }),
+      ),
+    );
+  }
+}
+
 interface ColumnMenuAttrs {
   readonly schema: ColumnSchema;
+  readonly field?: string;
   readonly visibleColumns: ReadonlyArray<string>;
   readonly editVisibleColumns?: ReadonlyArray<string>;
   readonly onAddColumn: (field: string) => void;
@@ -322,7 +420,7 @@ interface ColumnMenuAttrs {
 
 /**
  * Renders column management menu items.
- * Can show "Edit", "Add", and "Remove" buttons with configurable labels.
+ * Shows the interactive path segment editor in a submenu, "Add", and "Remove" buttons.
  */
 export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
   view({attrs}: m.Vnode<ColumnMenuAttrs>): m.Children {
@@ -332,6 +430,7 @@ export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
       canRemove,
       onRemove,
       schema,
+      field,
       visibleColumns,
       editVisibleColumns,
       onAddColumn,
@@ -345,15 +444,21 @@ export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
     return [
       canEdit &&
         onEditColumn &&
-        m(AddColumnSchemaMenuItem, {
-          label: editLabel,
-          icon: Icons.Edit,
-          schema,
-          pathPrefix: '',
-          existingColumns: editVisibleColumns ?? visibleColumns,
-          onSelect: onEditColumn,
-          datasource,
-        }),
+        field !== undefined &&
+        m(
+          MenuItem,
+          {
+            label: editLabel,
+            icon: Icons.Edit,
+          },
+          m(ColumnPathEditor, {
+            schema,
+            field,
+            existingColumns: editVisibleColumns ?? visibleColumns,
+            datasource,
+            onEditColumn,
+          }),
+        ),
       canAdd &&
         m(AddColumnSchemaMenuItem, {
           label: addLabel,

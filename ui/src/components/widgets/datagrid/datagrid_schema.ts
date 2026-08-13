@@ -293,3 +293,96 @@ export function getColumnInfo(
   // We ended on a schema ref without resolving to a leaf
   return undefined;
 }
+
+export interface PathSegment {
+  // Raw segment string from splitPath, e.g. "track", "dimension_arg_set_id", "my_key"
+  readonly part: string;
+  // User-facing title for this segment, e.g. "Track", "Dimension Arg Set ID", "my_key"
+  readonly title: m.Children;
+  // Prefix path before this segment, e.g. "" for "track", "track" for "dimension_arg_set_id"
+  readonly prefix: string;
+  // Kind of this segment
+  readonly kind: 'schema' | 'parameterized_key';
+  // If kind === 'schema', the ColumnSchema from which to choose replacements at this level
+  readonly schema?: ColumnSchema;
+  // If kind === 'parameterized_key', the pathPrefix for discovering parameter keys
+  readonly paramPathPrefix?: string;
+}
+
+export function resolvePathSegments(
+  schema: ColumnSchema,
+  path: string,
+): PathSegment[] {
+  const parts = splitPath(path);
+  const segments: PathSegment[] = [];
+  let currentSchema: ColumnSchema | undefined = schema;
+  let currentPrefix = '';
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const prefix = currentPrefix;
+    const entry: ColumnDef | SchemaRef | ParameterizedColumnDef | undefined =
+      currentSchema ? maybeUndefined(currentSchema[part]) : undefined;
+
+    if (!entry) {
+      segments.push({
+        part,
+        title: part,
+        prefix,
+        kind: 'schema',
+        schema: currentSchema,
+      });
+      currentPrefix = currentPrefix ? `${currentPrefix}.${part}` : part;
+      currentSchema = undefined;
+      continue;
+    }
+
+    if ('schema' in entry) {
+      segments.push({
+        part,
+        title: entry.title ?? part,
+        prefix,
+        kind: 'schema',
+        schema: currentSchema,
+      });
+      currentPrefix = currentPrefix ? `${currentPrefix}.${part}` : part;
+      currentSchema = entry.schema;
+    } else if ('parameterized' in entry) {
+      const paramColTitle =
+        typeof entry.title === 'string' ? entry.title : part;
+      segments.push({
+        part,
+        title: paramColTitle,
+        prefix,
+        kind: 'schema',
+        schema: currentSchema,
+      });
+
+      const paramPathPrefix = currentPrefix ? `${currentPrefix}.${part}` : part;
+      const remainingParts = parts.slice(i + 1);
+      if (remainingParts.length > 0) {
+        const paramKey = remainingParts.join('.');
+        segments.push({
+          part: paramKey,
+          title: paramKey,
+          prefix: paramPathPrefix,
+          kind: 'parameterized_key',
+          paramPathPrefix,
+        });
+      }
+      break;
+    } else {
+      const leafTitle = entry.title ?? part;
+      segments.push({
+        part,
+        title: leafTitle,
+        prefix,
+        kind: 'schema',
+        schema: currentSchema,
+      });
+      break;
+    }
+  }
+
+  return segments;
+}

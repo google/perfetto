@@ -40,6 +40,7 @@ import {MenuDivider, MenuItem} from '../../../widgets/menu';
 import {
   AggregateMenu,
   ColumnMenu,
+  ColumnPathEditor,
   getAggregateFunctionsForColumnType,
 } from './add_column_menu';
 import {CellFilterMenu} from './cell_filter_menu';
@@ -1199,8 +1200,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     const updatedAggregate: AggregateColumn =
       func === 'COUNT'
-        ? {id: existingAgg.id, function: 'COUNT' as const, sort: existingAgg.sort}
-        : {id: existingAgg.id, function: func, field: field!, sort: existingAgg.sort};
+        ? {
+            id: existingAgg.id,
+            function: 'COUNT' as const,
+            sort: existingAgg.sort,
+          }
+        : {
+            id: existingAgg.id,
+            function: func,
+            field: field!,
+            sort: existingAgg.sort,
+          };
 
     const newAggregates = [...this.pivot.aggregates];
     newAggregates[index] = updatedAggregate;
@@ -1610,6 +1620,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         showColumnControls && m(MenuDivider),
         showColumnControls &&
           m(ColumnMenu, {
+            schema,
+            field,
             canAdd: attrs.canAddColumns ?? true,
             canEdit: attrs.canEditColumns ?? true,
             canRemove: this.columns.length > 1,
@@ -1617,15 +1629,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               (attrs.canRemoveColumns ?? true)
                 ? () => this.removeColumn(colId, attrs)
                 : undefined,
-            schema,
             visibleColumns: this.columns.map((c) => c.field),
             editVisibleColumns: this.columns
               .filter((c) => c.id !== colId)
               .map((c) => c.field),
             onAddColumn: (newField) =>
               this.addColumn(newField, attrs, colIndex),
-            onEditColumn: (newField) =>
-              this.editColumn(colId, newField, attrs),
+            onEditColumn: (newField) => this.editColumn(colId, newField, attrs),
             datasource,
           }),
         attrs.addColumnMenuItems?.(field),
@@ -1938,6 +1948,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         showPivotControls &&
           m(ColumnMenu, {
             schema,
+            field,
             visibleColumns: currentGroupByFields,
             editVisibleColumns: currentGroupByFields.filter(
               (_, idx) => idx !== i,
@@ -2045,16 +2056,28 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           ),
         showPivotControls && m(MenuDivider),
         showPivotControls && [
+          'field' in agg &&
+            agg.field &&
+            m(
+              MenuItem,
+              {
+                label: 'Edit column',
+                icon: Icons.Edit,
+              },
+              m(ColumnPathEditor, {
+                schema,
+                field: agg.field,
+                existingColumns:
+                  pivot.aggregates
+                    ?.filter((_, idx) => idx !== i)
+                    .map((a) => ('field' in a ? a.field : '')) ?? [],
+                datasource,
+                onEditColumn: (newField) =>
+                  this.editAggregateColumn(i, agg.function, newField, attrs),
+              }),
+            ),
           changeFunctionSubmenu,
           groupByThisMenuItem,
-          m(AggregateMenu, {
-            label: 'Edit column',
-            icon: Icons.Edit,
-            schema,
-            existingAggregates: pivot.aggregates?.filter((_, idx) => idx !== i),
-            onAddAggregate: (func, aggField) =>
-              this.editAggregateColumn(i, func, aggField, attrs),
-          }),
           m(AggregateMenu, {
             schema,
             datasource,

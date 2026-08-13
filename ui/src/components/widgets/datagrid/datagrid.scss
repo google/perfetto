@@ -228,3 +228,44 @@
   color: var(--pf-color-danger);
   font-style: italic;
 }
+
+.pf-column-path-editor {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px 8px;
+}
+
+.pf-column-path-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border-radius: var(--pf-border-radius-s);
+  border: none;
+  background: transparent;
+  color: var(--pf-color-text);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: var(--pf-color-hover);
+  }
+
+  &__title {
+    font-weight: 400;
+  }
+
+  &__icon {
+    font-size: 14px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-column-path-separator {
+  font-size: 14px;
+  color: var(--pf-color-text-muted);
+  flex: none;
+}

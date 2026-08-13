@@ -137,7 +137,7 @@ describe('DataGrid column controls', () => {
     ).toBeGreaterThan(0);
     // Also expect that columns are reorderable (draggable)
     expect(isFirstCellDraggable(), dumpDom()).toBe(true);
-    // Also assert that the edit, add column and remove column menu items are present,
+    // Also assert that edit, add column and remove column menu items are present,
     // which also only render when columns are mutable.
     const items = getColumnMenuItems(rerender);
     expect(items, dumpDom()).toContain('Edit column');
@@ -156,7 +156,7 @@ describe('DataGrid column controls', () => {
     ).toBeGreaterThan(0);
     // Also expect that columns are reorderable (draggable)
     expect(isFirstCellDraggable(), dumpDom()).toBe(true);
-    // Also assert that the edit, add column and remove column menu items are present,
+    // Also assert that edit, add column and remove column menu items are present,
     // which also only render when columns are mutable.
     const items = getColumnMenuItems(rerender);
     expect(items, dumpDom()).toContain('Edit column');
@@ -192,7 +192,7 @@ describe('DataGrid column controls', () => {
       dumpDom(),
     ).toHaveLength(0);
     expect(isFirstCellDraggable(), dumpDom()).toBe(false);
-    // Also assert that the edit, add column and remove column menu items are present,
+    // Also assert that edit, add column and remove column menu items are present,
     // which also only render when columns are mutable.
     const items = getColumnMenuItems(rerender);
     expect(items, dumpDom()).not.toContain('Edit column');
@@ -211,7 +211,7 @@ describe('DataGrid column controls', () => {
       dumpDom(),
     ).toHaveLength(0);
     expect(isFirstCellDraggable(), dumpDom()).toBe(false);
-    // Also assert that the edit, add column and remove column menu items are present,
+    // Also assert that edit, add column and remove column menu items are present,
     // which also only render when columns are mutable.
     const items = getColumnMenuItems(rerender);
     expect(items, dumpDom()).not.toContain('Edit column');
