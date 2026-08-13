@@ -189,8 +189,17 @@ class SharedRingBuffer {
   }
   bool has_pending_data() const { return read_pos() != write_pos(); }
 
-  // Unsigned wraparound comparison, for the 2^32 rollover of the two cursors.
-  // Valid because the ring keeps the two positions less than 2^31 apart.
+  // Half-space comparison for the wrapping cursors: true iff |position| is
+  // equal to or at most 2^31 - 1 advances past |reference|. Exactly 2^31
+  // advances apart is outside the contract (it reports "before"), so the
+  // comparison is only meaningful while the two positions are known to be
+  // within 2^31 advances of each other. The ring guarantees that for its
+  // live cursors - they stay at most num_chunks (< 2^31) apart - and Step 1
+  // additionally assumes no actor compares a position sample it held across
+  // anything close to a complete 32-bit lap of the ring.
+  // TODO(sashwinbalaji): revisit that staleness assumption before the
+  // cursors become a cross-process ABI exposed to arbitrarily descheduled
+  // producers.
   static bool IsPositionAtOrAfter(uint32_t position, uint32_t reference) {
     return position - reference < (1u << 31);
   }
@@ -232,6 +241,11 @@ class SharedRingBuffer {
   // write_pos - read_pos == num_chunks and keeps all N slots usable. A pair of
   // pre-masked offsets would have to sacrifice one slot to distinguish full
   // from empty.
+  //
+  // Everything about the cursors is modular 32-bit arithmetic: capacity is
+  // the unsigned difference write_pos - read_pos, and ordering questions go
+  // through IsPositionAtOrAfter(), whose validity bound is documented at its
+  // declaration. Nothing here may compare positions with < or >.
   //
   // Grouped by who writes what, one cache line per group via alignas on its
   // leading atomic, so the two sides do not ping-pong a line: every writer

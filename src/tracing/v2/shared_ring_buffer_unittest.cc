@@ -536,6 +536,31 @@ TEST(SharedRingBufferV2Test, RelocationIgnoresStaleBytesPastTheCountedRecords) {
   EXPECT_EQ(payload[1], 0x42);
 }
 
+// The cursor contract in one place: positions are wrapping tickets ordered
+// by a half-space comparison, valid only within 2^31 advances. Every other
+// test exercises the comparison through ring operations; this one pins its
+// raw edges, including the one deliberately outside the contract.
+TEST(SharedRingBufferV2Test, PositionComparisonCoversTheWrapBoundary) {
+  // Equality, away from and at the wrap.
+  EXPECT_TRUE(SharedRingBuffer::IsPositionAtOrAfter(0, 0));
+  EXPECT_TRUE(SharedRingBuffer::IsPositionAtOrAfter(0xffffffffu, 0xffffffffu));
+
+  // One advance apart, across zero: 0 comes after 0xffffffff.
+  EXPECT_TRUE(SharedRingBuffer::IsPositionAtOrAfter(0, 0xffffffffu));
+  EXPECT_FALSE(SharedRingBuffer::IsPositionAtOrAfter(0xffffffffu, 0));
+
+  // The largest distance the contract covers: 2^31 - 1 advances.
+  EXPECT_TRUE(SharedRingBuffer::IsPositionAtOrAfter(0x7fffffffu, 0));
+  EXPECT_TRUE(SharedRingBuffer::IsPositionAtOrAfter(0x7ffffffeu, 0xffffffffu));
+
+  // Exactly 2^31 advances is OUTSIDE the contract: the half-space test calls
+  // it "before" from both viewpoints at once. Nothing may rely on this
+  // value; the ring keeps live positions at most num_chunks (< 2^31) apart,
+  // and the asserts document the cliff rather than a behavior to depend on.
+  EXPECT_FALSE(SharedRingBuffer::IsPositionAtOrAfter(0x80000000u, 0));
+  EXPECT_FALSE(SharedRingBuffer::IsPositionAtOrAfter(0, 0x80000000u));
+}
+
 // Capacity is the unsigned difference between two cursors that roll over at
 // 2^32, and reservation compares them on every attempt. Nothing may go wrong
 // at the rollover itself, and no snapshot older than the sampled reader
