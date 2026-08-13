@@ -25,9 +25,9 @@ import {sliceDistributionCellRenderers} from '../../components/details/slice_det
 import {openDistributionTab} from '../../components/distribution_panel';
 import {
   metricsFromTableOrSubquery,
-  type QueryFlamegraphMetric,
-} from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
+  type TreeExplorerQueryMetric,
+} from '../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import type {MinimapRow} from '../../public/minimap';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
@@ -45,7 +45,10 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {
+  TREE_EXPLORER_STATE_SCHEMA,
+  updateTreeExplorerState,
+} from '../../widgets/tree_explorer';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {CounterSelectionAggregator} from './counter_selection_aggregator';
@@ -68,7 +71,7 @@ import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_det
 import {CallstackDetailsSection} from './callstack_details_section';
 
 const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  areaSelectionFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
 });
 
 type TraceProcessorTrackPluginState = z.infer<
@@ -609,7 +612,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     let previousSelection: AreaSelection | undefined;
     let computed:
       | {
-          metrics: ReadonlyArray<QueryFlamegraphMetric>;
+          metrics: ReadonlyArray<TreeExplorerQueryMetric>;
           dependencies: ReadonlyArray<AsyncDisposable>;
         }
       | undefined;
@@ -640,7 +643,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           isLoading,
           content:
             computed &&
-            m(FlamegraphPanel, {
+            m(TreeExplorerPanel, {
               trace,
               metrics: computed.metrics,
               dependencies: computed.dependencies,
@@ -661,7 +664,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     currentSelection: AreaSelection,
   ): Promise<
     | {
-        metrics: ReadonlyArray<QueryFlamegraphMetric>;
+        metrics: ReadonlyArray<TreeExplorerQueryMetric>;
         dependencies: ReadonlyArray<AsyncDisposable>;
       }
     | undefined
@@ -784,7 +787,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     });
     const store = ensureExists(this.store);
     store.edit((draft) => {
-      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+      draft.areaSelectionFlamegraphState = updateTreeExplorerState(
         draft.areaSelectionFlamegraphState,
         metrics,
       );

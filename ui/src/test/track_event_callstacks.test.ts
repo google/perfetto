@@ -29,7 +29,11 @@ let page: Page;
 let drawerPanel: Locator;
 
 const measurePicker = (name: string) =>
-  page.locator('.pf-flamegraph .filter-bar button', {hasText: name}).first();
+  page
+    .locator('.pf-tree-explorer .pf-tree-explorer-filter-bar button', {
+      hasText: name,
+    })
+    .first();
 
 const menuItem = (text: string) =>
   page.locator('.pf-popup-content .pf-menu-item', {hasText: text}).first();
@@ -109,10 +113,10 @@ test('proto extension measure', async () => {
 
 test('focus modes are filter chips', async () => {
   const filterInput = page.locator(
-    '.pf-flamegraph .filter-bar > .pf-tag-input input',
+    '.pf-tree-explorer-filter-bar > .pf-tag-input input',
   );
   const filterChips = page.locator(
-    '.pf-flamegraph .filter-bar > .pf-tag-input .pf-chip',
+    '.pf-tree-explorer-filter-bar > .pf-tag-input .pf-chip',
   );
 
   await filterInput.fill('P: ParseInput');
@@ -135,7 +139,9 @@ test('focus modes are filter chips', async () => {
 
   // Selecting a direction also clears the mutually exclusive focus mode.
   await page
-    .locator('.pf-flamegraph .pf-radio-group__button', {hasText: 'Bottom Up'})
+    .locator('.pf-tree-explorer .pf-radio-group__button', {
+      hasText: 'Bottom Up',
+    })
     .click();
   await pth.waitForPerfettoIdle();
   await expect(filterChips).toHaveCount(0);
@@ -143,26 +149,26 @@ test('focus modes are filter chips', async () => {
 
 test('highlight controls can be kept open or hidden', async () => {
   const highlightButton = page.locator(
-    '.pf-flamegraph .filter-bar > .pf-button',
+    '.pf-tree-explorer-filter-bar > .pf-button',
     {hasText: 'Highlight'},
   );
 
   await highlightButton.click();
   const highlightRow = page.locator(
-    '.pf-flamegraph .pf-flamegraph-secondary-row',
+    '.pf-tree-explorer-filter-bar__secondary-row',
   );
   await expect(highlightRow).toBeVisible();
 
   await highlightRow.locator('input').fill('ParseInput');
   await expect(
-    highlightRow.locator('.pf-flamegraph-highlight-search__count'),
+    highlightRow.locator('.pf-tree-explorer-highlight-search__count'),
   ).toContainText('match');
   await pth.waitForIdleAndScreenshot('highlight-controls.png', {
     locator: drawerPanel,
   });
 
-  // Hiding the controls preserves the active highlight.
-  await highlightRow.locator('.pf-button', {hasText: 'Hide'}).click();
+  // Toggling the controls closed preserves the active highlight.
+  await highlightButton.click();
   await expect(highlightRow).toHaveCount(0);
   await expect(highlightButton).toHaveClass(/pf-active/);
 });
