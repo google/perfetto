@@ -455,19 +455,21 @@ void V8Tracker::AddJsCode(int64_t timestamp,
 }
 
 void V8Tracker::AddICEvent(int64_t timestamp,
-                          UniqueTid utid,
-                          IsolateId isolate_id,
-                          const V8ICEvent::Decoder& ic_event) {
+                           UniqueTid utid,
+                           IsolateId isolate_id,
+                           const V8ICEvent::Decoder& ic_event) {
   uint64_t pc = ic_event.pc();
 
-  // Execute the $O(\log N)$ Point-Containment Interval-Tree query to identify the active JitCache.
+  // Execute the $O(\log N)$ Point-Containment Interval-Tree query to identify
+  // the active JitCache.
   JitCache* jit_cache =
       FindJitCache(isolate_id, AddressRange::FromStartAndSize(pc, 1));
   if (!jit_cache) {
     return;
   }
 
-  // Retrieve the encompassing JitCode identifier temporal-bound at $T_{\text{event}}$. 
+  // Retrieve the encompassing JitCode identifier temporal-bound at
+  // $T_{\text{event}}$.
   std::optional<tables::JitCodeTable::Id> jit_code_id =
       jit_cache->FindJitCodeId(pc);
   if (!jit_code_id) {
@@ -475,14 +477,16 @@ void V8Tracker::AddICEvent(int64_t timestamp,
     return;
   }
 
-  // Translate the generalized JitCode ID to the explicit relational V8JsCodeTable::Id Foreign-Key.
+  // Translate the generalized JitCode ID to the explicit relational
+  // V8JsCodeTable::Id Foreign-Key.
   auto* v8_js_code_id = jit_to_v8_js_code_.Find(*jit_code_id);
   if (!v8_js_code_id) {
     context_->stats_tracker->IncrementStats(stats::v8_ic_event_missing_code);
     return;
   }
 
-  // Synthesize and Insert the hyper-dense relational Tuple into __intrinsic_v8_ic_event.
+  // Synthesize and Insert the hyper-dense relational Tuple into
+  // __intrinsic_v8_ic_event.
   tables::V8IcEventTable::Row row;
   row.v8_isolate_id = isolate_id;
   row.utid = utid;

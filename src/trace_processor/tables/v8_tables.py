@@ -378,25 +378,19 @@ V8_IC_EVENT = Table(
         C('pc', CppInt64(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
-        doc=(
-            'Represents a V8 IC (Inline Cache) execution state-machine '
-            'transition event'
-        ),
+        doc=('Represents a V8 IC (Inline Cache) execution state-machine '
+             'transition event'),
         group='v8',
         columns={
             'v8_isolate_id':
                 ColumnDoc(
-                    doc=(
-                        'V8 Isolate instance this state-transition was '
-                        'emitted within.'
-                    ),
+                    doc=('V8 Isolate instance this state-transition was '
+                         'emitted within.'),
                     joinable='__intrinsic_v8_isolate.id'),
             'utid':
                 ColumnDoc(
-                    doc=(
-                        'Thread Unique Identifier of the triggering '
-                        'execution context.'
-                    ),
+                    doc=('Thread Unique Identifier of the triggering '
+                         'execution context.'),
                     joinable='thread.id'),
             'ts':
                 'Timestamp of the IC state-machine transition event.',
@@ -413,9 +407,8 @@ V8_IC_EVENT = Table(
                 ('Boolean Accessor Flag: `true` (1) indicates Bracket-Notation '
                  'execution (`obj[expr]` or Array-Literal elements); '
                  '`false` (0) indicates standard Dot-Notation (`obj.prop`).'),
-            'map':
-                ('64-bit V8 Heap Address referencing the receiver object\'s '
-                 'Hidden Class (Shape/Map) prior to the IC execution-miss.'),
+            'map': ('64-bit V8 Heap Address referencing the receiver object\'s '
+                    'Hidden Class (Shape/Map) prior to the IC execution-miss.'),
             'key':
                 ('The unboxed String, Integer, or Literal Property Identifier '
                  'requested by the Inline Cache operation.'),
@@ -441,15 +434,23 @@ V8_IC_EVENT = Table(
                 ColumnDoc(
                     doc='V8 JS code corresponding to the event pc.',
                     joinable='__intrinsic_v8_js_code.id'),
-            'pc':
-                ('Execution Instruction Pointer (Physical JIT Address or '
-                 'relative `BytecodeArray` offset) triggering the IC transition.'),
+            'pc': (
+                'Execution Instruction Pointer (Physical JIT Address or '
+                'relative `BytecodeArray` offset) triggering the IC transition.'
+            ),
         },
     ),
 )
 
 # Keep this list sorted.
 ALL_TABLES = [
-    V8_ISOLATE, V8_JS_SCRIPT, V8_WASM_SCRIPT, V8_JS_FUNCTION, V8_JS_CODE,
-    V8_INTERNAL_CODE, V8_WASM_CODE, V8_REGEXP_CODE, V8_IC_EVENT,
+    V8_ISOLATE,
+    V8_JS_SCRIPT,
+    V8_WASM_SCRIPT,
+    V8_JS_FUNCTION,
+    V8_JS_CODE,
+    V8_INTERNAL_CODE,
+    V8_WASM_CODE,
+    V8_REGEXP_CODE,
+    V8_IC_EVENT,
 ]

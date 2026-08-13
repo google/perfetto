@@ -84,7 +84,8 @@ TEST_F(V8TrackerTest, AddICEvent) {
       protozero::ConstBytes{func_vec.data(), func_vec.size()},
       context_.storage->InternString("test_fn"), script_id);
 
-  // 4. Add JS Code (populating the jit_tracker and the jit_to_v8_js_code_ dictionary)
+  // 4. Add JS Code (populating the jit_tracker and the jit_to_v8_js_code_
+  // dictionary)
   {
     protozero::HeapBuffered<protos::pbzero::V8JsCode> code_msg;
     code_msg->set_instruction_start(code_start_early);
@@ -133,8 +134,9 @@ TEST_F(V8TrackerTest, AddICEvent) {
   EXPECT_EQ(ic_event.v8_isolate_id(), *isolate_id);
   EXPECT_EQ(ic_event.pc(), static_cast<int64_t>(ic_pc));
   EXPECT_EQ(ic_event.map(), 0x1234);
-  
-  // Verify foreign-key relational linkage back to the registered V8 JS Code snippet
+
+  // Verify foreign-key relational linkage back to the registered V8 JS Code
+  // snippet
   EXPECT_EQ(ic_event.v8_js_code_id().value, 1u);
 }
 
