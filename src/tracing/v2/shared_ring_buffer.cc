@@ -203,35 +203,83 @@ SharedRingBuffer::Chunk SharedRingBuffer::TryClaimReservedChunk(
   const uint32_t writing_state = writing_header.ToStateWord();
 
   uint32_t expected = kFreeStateWord;
-  // acquire consumes the reader's release when this physical slot was freed,
-  // so no previous reader still accesses bytes that we are about to replace.
-  if (!state->compare_exchange_strong(expected, writing_state,
-                                      std::memory_order_acquire,
-                                      std::memory_order_relaxed)) {
-    if (expected == kInvalidatedChunkHeader) {
-      // The reader passed a previously reserved-but-unclaimed incarnation of
-      // this slot. Nobody wrote bytes into that invalidated slot. Failure to
-      // free is benign: another delayed writer may already have freed it and a
-      // later writer may own the next incarnation. In either case this writer
-      // has no remaining state to transition.
-      state->compare_exchange_strong(expected, kFreeStateWord,
-                                     std::memory_order_release,
-                                     std::memory_order_relaxed);
+  // The successful CAS is the ownership linearization point: from it on the
+  // slot belongs to this writer. acquire consumes the reader's release when
+  // this physical slot was freed, so no previous reader still accesses bytes
+  // that we are about to replace; the freeing may sit several ownership
+  // transitions back, but every transition is an RMW, so the release sequence
+  // carries it to this acquire.
+  while (!state->compare_exchange_strong(expected, writing_state,
+                                         std::memory_order_acquire,
+                                         std::memory_order_relaxed)) {
+    if (expected != kInvalidatedChunkHeader) {
+      // Another incarnation's owner is inside the slot. Only that owner may
+      // transition it; this reservation becomes a hole the reader skips.
+      return Chunk();
     }
-    return Chunk();
+    // A tombstone left where the reader passed a reservation unclaimed. That
+    // reservation is dead; the physical slot is not, so free it and retry
+    // the claim under this still-owned reservation. Abandoning the
+    // reservation here instead would burn one position on every future lap
+    // over this slot: the reader would tombstone the hole again and the next
+    // lap's writer would find the tombstone again, with no writer ever
+    // breaking the cycle.
+    //
+    // The tombstone may even be for |pos| itself, if the reader passed it
+    // while this writer was between its reservation and this claim. Freeing
+    // and reclaiming is safe then too, but only because of two orderings:
+    // the reader advances read_pos before it publishes a tombstone, and the
+    // acquire half of this acq_rel CAS synchronizes with that publication
+    // (transitively, through other writers' free/claim RMWs on this word).
+    // The post-claim read of read_pos below is therefore guaranteed to
+    // observe the consumption and annul the claim. With a weaker order the
+    // check could read a stale cursor and keep a claim at a consumed
+    // position, publishing a chunk the reader never visits.
+    //
+    // Losing this CAS is benign either way - another delayed writer freed
+    // the tombstone first, or a later state appeared - and the retried claim
+    // starts over from whatever word it finds. Each extra iteration requires
+    // the reader to have consumed another position mapping to this slot,
+    // i.e. a full ring lap of system progress, so the loop is lock-free.
+    state->compare_exchange_strong(expected, kFreeStateWord,
+                                   std::memory_order_acq_rel,
+                                   std::memory_order_relaxed);
+    expected = kFreeStateWord;
   }
 
   StoreChunkTargetBuffer(chunk, writing_header.target_buffer);
 
   // The reader can pass a published reservation before its writer claims the
   // slot. Reject this claim if that happened. This prevents a delayed writer
-  // from publishing stale bytes after a complete ring lap.
+  // from publishing stale bytes after a complete ring lap. It is also what
+  // keeps the tombstone reclaim above safe when the retrying writer is the
+  // stale one itself: it may transiently win the slot it just freed, and this
+  // check is what annuls that claim.
   const uint32_t reader_pos =
       ring_buffer_header()->read_pos.load(std::memory_order_acquire);
   if (IsPositionAtOrAfter(reader_pos, pos + 1)) {
-    // We own either |writing_state| or |writing_state|NeedsRewrite. In both
-    // cases the reader has already skipped it and will never inspect payload.
-    state->store(kFreeStateWord, std::memory_order_release);
+    // Undo the claim. We own either |writing_state| or, if the reader marked
+    // this transient claim while stepping past it, |writing_state| with
+    // kFlagNeedsRewrite; nothing was published either way. Both transitions
+    // are RMWs, never plain stores, so a pending claimant that reads them
+    // inherits the reader advances stamped into this word (see the
+    // consumption invariant in TryReadChunk()).
+    uint32_t owned = writing_state;
+    if (!state->compare_exchange_strong(owned, kFreeStateWord,
+                                        std::memory_order_acq_rel,
+                                        std::memory_order_relaxed)) {
+      // Marked. The reader that marked us consumed the NEXT incarnation of
+      // this slot expecting relocation homework, but a claim annulled here
+      // has nothing to relocate. Leave a tombstone: that position's claimant
+      // frees it and reclaims the slot, exactly like any dead reservation.
+      PERFETTO_DCHECK(owned == (writing_state | kFlagNeedsRewrite));
+      const bool tombstoned = state->compare_exchange_strong(
+          owned, kInvalidatedChunkHeader, std::memory_order_acq_rel,
+          std::memory_order_relaxed);
+      // Nobody else transitions a slot we own, marked or not.
+      PERFETTO_DCHECK(tombstoned);
+      base::ignore_result(tombstoned);
+    }
     return Chunk();
   }
 
@@ -335,8 +383,19 @@ bool SharedRingBuffer::ReleaseChunkAsComplete(Chunk* chunk,
     // Park the payload and free the marked slot before looking for a new one.
     // The reader is already past this position so this gives back no reservable
     // capacity, but leaving the slot occupied would make the next writer that
-    // laps onto it burn a position it cannot use.
-    state->store(kFreeStateWord, std::memory_order_release);
+    // laps onto it burn a position it cannot use. The free is an RMW rather
+    // than a plain store: the reader may have lapped onto this still-marked
+    // slot and stamped further consumptions into the word, and the pending
+    // claimants of those positions must inherit the stamped advances through
+    // this transition (consumption invariant in TryReadChunk()).
+    uint32_t marked = rewrite_state;
+    const bool freed = state->compare_exchange_strong(
+        marked, kFreeStateWord, std::memory_order_acq_rel,
+        std::memory_order_relaxed);
+    // Nobody else transitions a slot we own; the reader's re-marks rewrite
+    // the same value.
+    PERFETTO_DCHECK(freed);
+    base::ignore_result(freed);
     chunk->Reset();
 
     *chunk = TryAcquireChunkForWriting(complete_header);
@@ -412,7 +471,12 @@ void SharedRingBuffer::WaitForReaderProgress(uint32_t last_generation,
 void SharedRingBuffer::AdvanceReadPos() {
   ++read_pos_;
   // release makes all accesses to the old physical slot happen-before a
-  // writer observes capacity and claims that slot in a later lap.
+  // writer observes capacity and claims that slot in a later lap. The
+  // consume-then-stamp branches of TryReadChunk() call this BEFORE their
+  // state-word RMW - that RMW is what release-publishes this very advance to
+  // a pending claimant of the consumed position - and the reader's only slot
+  // access after such an early advance is the RMW itself, which the state
+  // word arbitrates.
   ring_buffer_header()->read_pos.store(read_pos_, std::memory_order_release);
 }
 
@@ -436,10 +500,34 @@ SharedRingBuffer::ReadResult SharedRingBuffer::TryReadChunk(
   auto* const state = state_word(chunk);
   uint32_t word = state->load(std::memory_order_acquire);
 
+  // Consumption invariant. A writer's claim must never survive at a consumed
+  // position, and the guard is TryClaimReservedChunk()'s post-claim read of
+  // read_pos - a racy cursor sample unless something orders it after the
+  // advance that consumed the position. That something is the state word:
+  // for every consumed position whose claim may still be pending (the free,
+  // invalidated and acquired branches below), the reader advances read_pos
+  // FIRST and then stamps the word with an acq_rel RMW - re-writing the same
+  // value if there is nothing to change - and every transition a claimant
+  // can subsequently read is itself an RMW or a store by an owner that
+  // already synchronized with the stamp. The advance therefore travels the
+  // word's acquire chain into every pending claimant's post-claim check. The
+  // complete branches need none of this: a complete chunk means its claim
+  // already resolved. |advanced| keeps the position consumed exactly once
+  // when a failed stamp re-dispatches.
+  bool advanced = false;
   for (;;) {
     if (word == kFreeStateWord) {
       // The reservation is visible but its writer has not claimed the slot.
-      // Tombstoning wins against that claim or retries with the winner's state.
+      // Consume first (see above), then tombstone: the claimant may still
+      // arrive, free the tombstone and reclaim the slot for a later
+      // reservation. The cost of advancing first is that the freed capacity
+      // can let the next incarnation's claimant take the slot before the
+      // tombstone lands; the failed CAS then re-dispatches on the winner's
+      // state.
+      if (!advanced) {
+        AdvanceReadPos();
+        advanced = true;
+      }
       if (!state->compare_exchange_strong(word, kInvalidatedChunkHeader,
                                           std::memory_order_acq_rel,
                                           std::memory_order_acquire)) {
@@ -450,19 +538,42 @@ SharedRingBuffer::ReadResult SharedRingBuffer::TryReadChunk(
     }
 
     if (word == kInvalidatedChunkHeader) {
-      // An invalidated slot from an earlier lap whose writer has not come back
-      // to free it. Leave it in place: the next writer that laps onto this slot
-      // clears it, which keeps the "who frees it" rule in exactly one place.
+      // An invalidated slot from an earlier lap that no writer has touched
+      // since. The tombstone itself stays: the next writer whose reservation
+      // maps here frees it and claims the slot for its own position, which
+      // keeps the "who frees it" rule in exactly one place. But the position
+      // consumed HERE is a new reservation whose claimant may still arrive,
+      // so its advance must enter the word chain: rewrite the tombstone in
+      // place with an RMW. If that fails, a claimant is already inside;
+      // re-dispatch on its state.
+      if (!advanced) {
+        AdvanceReadPos();
+        advanced = true;
+      }
+      if (!state->compare_exchange_strong(word, kInvalidatedChunkHeader,
+                                          std::memory_order_acq_rel,
+                                          std::memory_order_acquire)) {
+        continue;
+      }
       stats_.chunks_invalidated.fetch_add(1, std::memory_order_relaxed);
       break;
     }
 
     // A writer is inside this chunk. Never wait for it - it can be descheduled
     // indefinitely - so hand it homework instead: its release CAS fails, it
-    // relocates the payload to a later position and frees this slot.
+    // relocates the payload to a later position and frees this slot. A
+    // transient claimant that cannot do the homework - its claim is being
+    // annulled - converts the mark into a tombstone instead. An
+    // already-marked slot belongs to a writer stepped over at an earlier
+    // position; re-marking it is a same-value RMW that only stamps this
+    // consumption into the chain, since this position's own claimant may
+    // still be on its way.
     if (word & kFlagAcquiredForWriting) {
-      if (!(word & kFlagNeedsRewrite) &&
-          !state->compare_exchange_strong(word, word | kFlagNeedsRewrite,
+      if (!advanced) {
+        AdvanceReadPos();
+        advanced = true;
+      }
+      if (!state->compare_exchange_strong(word, word | kFlagNeedsRewrite,
                                           std::memory_order_acq_rel,
                                           std::memory_order_acquire)) {
         continue;
@@ -556,11 +667,13 @@ SharedRingBuffer::ReadResult SharedRingBuffer::TryReadChunk(
 
     *header = observed;
     *payload_size = committed_size;
-    AdvanceReadPos();
+    if (!advanced)
+      AdvanceReadPos();
     return ReadResult::kChunkRead;
   }
 
-  AdvanceReadPos();
+  if (!advanced)
+    AdvanceReadPos();
   return ReadResult::kChunkSkipped;
 }
 

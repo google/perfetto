@@ -201,23 +201,29 @@ inline BufferID LoadChunkTargetBuffer(const uint8_t* chunk) {
 //   3. kFlagAcquiredForWriting | kFlagNeedsRewrite
 //        The reader stepped over a live writer. That writer's release CAS
 //        fails; it relocates its payload to a later position and frees this
-//        slot.
+//        slot. If the marked claim was transient - annulled because the
+//        reader had already consumed its position - there is nothing to
+//        relocate and the owner leaves state 5 behind instead.
 //   4. neither bit set
 //        Complete and readable. Its writer may take it back to append records
 //        after the counted ones, never to rewrite what is below them.
 //   5. kFlagNeedsRewrite with writer id 0  (== kInvalidatedChunkHeader)
 //        A slot whose reservation the reader passed before any writer claimed
-//        it. The late writer frees it rather than using it, which would hand
-//        the reader data out of FIFO order.
+//        it. The tombstone kills that reservation, not the slot: the next
+//        writer whose reservation maps here frees it and claims the slot for
+//        its own position. The original late writer takes the same path, and
+//        its claim then fails the consumed-position check instead.
 //
 // kFlagContinuesOnNextChunk, kFlagContinuesFromPrevChunk and kFlagDataLoss
 // describe the payload rather than ownership, and may accompany any of these.
 constexpr uint32_t kFreeStateWord = 0;
 
 // A slot whose FIFO reservation the reader walked past before any writer
-// claimed it. Writer id 0 is never valid, which is what makes it recognisable:
-// the late writer that finally shows up frees it instead of using it, because
-// using it would hand the reader data out of order.
+// claimed it. Writer id 0 is never valid, which is what makes it recognisable.
+// Publishing under the passed reservation would hand the reader data out of
+// order, so whichever writer finds the tombstone frees it and claims the slot
+// under its own, still-unconsumed reservation; for the original late writer
+// that claim is annulled by the consumed-position check.
 constexpr uint32_t kInvalidatedChunkHeader =
     ChunkHeader{/*writer_id=*/0,     /*target_buffer=*/0,
                 /*num_fragments=*/0, kFlagNeedsRewrite,

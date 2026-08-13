@@ -351,6 +351,118 @@ TEST(SharedRingBufferV2Test, DelayedWriterCannotPublishAfterReaderPassesIt) {
   }
 }
 
+// A reservation the reader passed unclaimed leaves its slot tombstoned. The
+// tombstone must kill only that reservation, not the physical slot: the next
+// writer whose reservation maps there frees it and claims the slot for its
+// own position. Without that reclaim, every lap onto the slot burns a fresh
+// reservation, the reader tombstones the resulting hole again, and the ring
+// permanently loses one position per lap.
+TEST(SharedRingBufferV2Test, ReclaimsAStaleTombstoneInsteadOfBurningEveryLap) {
+  for (uint32_t seed : {0u, 0xffffffffu}) {
+    SharedRingBuffer ring(4);
+    SharedRingBufferTestPeer::SeedPositions(&ring, seed);
+
+    // Seed the poison: a reservation whose writer never shows up to claim.
+    uint32_t stale_pos = 0;
+    ASSERT_TRUE(SharedRingBufferTestPeer::Reserve(&ring, &stale_pos));
+    EXPECT_EQ(stale_pos, seed);
+    for (uint32_t i = 0; i < 3; ++i) {
+      SharedRingBuffer::Chunk chunk =
+          ring.TryAcquireChunkForWriting(MakeHeader(1, 1));
+      ASSERT_TRUE(chunk.is_valid());
+      AppendOneByteRecord(&chunk, static_cast<uint8_t>(i));
+      ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+    }
+    ChunkHeader header;
+    uint8_t payload[kChunkPayloadSize]{};
+    uint32_t payload_size = 0;
+    EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+              SharedRingBuffer::ReadResult::kChunkSkipped);
+    for (uint32_t i = 0; i < 3; ++i) {
+      ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+                SharedRingBuffer::ReadResult::kChunkRead);
+    }
+    ASSERT_EQ(SharedRingBufferTestPeer::StateWord(&ring, stale_pos),
+              kInvalidatedChunkHeader);
+    EXPECT_EQ(ring.stats().chunks_invalidated.load(), 1u);
+
+    // From here on, every lap must have all four slots usable, and the seeding
+    // invalidation must stay the only one.
+    for (uint32_t lap = 0; lap < 8; ++lap) {
+      SharedRingBuffer::Chunk chunks[4];
+      for (auto& chunk : chunks) {
+        chunk = ring.TryAcquireChunkForWriting(MakeHeader(1, 1));
+        ASSERT_TRUE(chunk.is_valid()) << "seed " << seed << " lap " << lap;
+      }
+      for (auto& chunk : chunks) {
+        AppendOneByteRecord(&chunk, static_cast<uint8_t>(lap));
+        ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+      }
+      for (uint32_t i = 0; i < 4; ++i) {
+        ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+                  SharedRingBuffer::ReadResult::kChunkRead);
+        EXPECT_EQ(payload[1], static_cast<uint8_t>(lap));
+      }
+    }
+    EXPECT_EQ(ring.stats().chunks_invalidated.load(), 1u);
+  }
+}
+
+// The reclaim path must not hand the original late writer a way to publish:
+// when it frees the tombstone and transiently claims the slot, the
+// consumed-position check has to reject the claim and leave the slot free for
+// the incarnation's rightful claimant. Exercises the equality edge of
+// IsPositionAtOrAfter: the reader stands exactly one past the stale position.
+TEST(SharedRingBufferV2Test, StaleWriterRetryCannotPublishAtAConsumedPosition) {
+  for (uint32_t seed : {0u, 0xffffffffu}) {
+    SharedRingBuffer ring(4);
+    SharedRingBufferTestPeer::SeedPositions(&ring, seed);
+
+    uint32_t stale_pos = 0;
+    ASSERT_TRUE(SharedRingBufferTestPeer::Reserve(&ring, &stale_pos));
+    for (uint32_t i = 0; i < 3; ++i) {
+      SharedRingBuffer::Chunk chunk =
+          ring.TryAcquireChunkForWriting(MakeHeader(1, 1));
+      ASSERT_TRUE(chunk.is_valid());
+      AppendOneByteRecord(&chunk, static_cast<uint8_t>(i));
+      ASSERT_TRUE(ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0));
+    }
+    ChunkHeader header;
+    uint8_t payload[kChunkPayloadSize]{};
+    uint32_t payload_size = 0;
+    EXPECT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+              SharedRingBuffer::ReadResult::kChunkSkipped);
+    for (uint32_t i = 0; i < 3; ++i) {
+      ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+                SharedRingBuffer::ReadResult::kChunkRead);
+    }
+
+    // The live claimant reserves the slot's next incarnation first, then the
+    // stale writer finally shows up.
+    uint32_t live_pos = 0;
+    ASSERT_TRUE(SharedRingBufferTestPeer::Reserve(&ring, &live_pos));
+    EXPECT_EQ(live_pos, seed + 4);
+
+    SharedRingBuffer::Chunk stale =
+        SharedRingBufferTestPeer::Claim(&ring, MakeHeader(1, 1), stale_pos);
+    EXPECT_FALSE(stale.is_valid());
+    EXPECT_EQ(SharedRingBufferTestPeer::StateWord(&ring, stale_pos),
+              kFreeStateWord);
+
+    SharedRingBuffer::Chunk live =
+        SharedRingBufferTestPeer::Claim(&ring, MakeHeader(2, 1), live_pos);
+    ASSERT_TRUE(live.is_valid());
+    AppendOneByteRecord(&live, 0x42);
+    ASSERT_TRUE(ring.ReleaseChunkAsComplete(&live, /*added_flags=*/0));
+
+    ASSERT_EQ(ring.TryReadChunk(&header, payload, &payload_size),
+              SharedRingBuffer::ReadResult::kChunkRead);
+    EXPECT_EQ(header.writer_id, 2);
+    EXPECT_EQ(payload[1], 0x42);
+    EXPECT_FALSE(ring.has_pending_data());
+  }
+}
+
 TEST(SharedRingBufferV2Test, ActiveWriterRelocatesInsteadOfBlockingReader) {
   SharedRingBuffer ring(4);
   SharedRingBuffer::Chunk chunk =
@@ -509,17 +621,22 @@ TEST(SharedRingBufferV2Test, WrapsPositionsWithoutLosingCapacity) {
 // chunk. Under TSAN this is also what shows the two only ever touch disjoint
 // byte ranges. |seed_pos| places the cursors before the threads start, so the
 // same interleavings can be run right below the 2^32 rollover.
-void RunConcurrentWritersAndReader(uint32_t seed_pos) {
+// |forced_stale_claims| adds a laggard that repeatedly reserves a position,
+// lets the reader pass it, and only then claims: each cycle plants a
+// tombstone in front of the running writers, who must reclaim the slot.
+void RunConcurrentWritersAndReader(SharedRingBuffer* ring,
+                                   uint32_t seed_pos,
+                                   uint32_t forced_stale_claims = 0) {
   constexpr uint32_t kNumWriters = 4;
   constexpr uint32_t kRecordsPerWriter = 2000;
-  SharedRingBuffer ring(64);
-  SharedRingBufferTestPeer::SeedPositions(&ring, seed_pos);
+  SharedRingBufferTestPeer::SeedPositions(ring, seed_pos);
   std::atomic<bool> start{false};
   std::atomic<uint32_t> writers_done{0};
+  std::atomic<bool> laggard_done{forced_stale_claims == 0};
   std::vector<std::thread> writers;
 
   for (uint32_t writer = 0; writer < kNumWriters; ++writer) {
-    writers.emplace_back([writer, &ring, &start, &writers_done] {
+    writers.emplace_back([writer, ring, &start, &writers_done] {
       const ChunkHeader header =
           MakeHeader(static_cast<WriterID>(writer + 1), 1);
       SharedRingBuffer::Chunk chunk;
@@ -530,19 +647,19 @@ void RunConcurrentWritersAndReader(uint32_t seed_pos) {
         const uint32_t value = (writer << 24) | record;
         if ((record & 1) != 0 && chunk.is_valid() &&
             chunk.payload_free() >= kUint32RecordSize &&
-            ring.TryReacquireChunkForWriting(&chunk)) {
+            ring->TryReacquireChunkForWriting(&chunk)) {
           AppendUint32Record(&chunk, value);
-          if (ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0))
+          if (ring->ReleaseChunkAsComplete(&chunk, /*added_flags=*/0))
             continue;
         }
         for (;;) {
-          chunk = ring.TryAcquireChunkForWriting(header);
+          chunk = ring->TryAcquireChunkForWriting(header);
           if (!chunk.is_valid()) {
             std::this_thread::yield();
             continue;
           }
           AppendUint32Record(&chunk, value);
-          if (ring.ReleaseChunkAsComplete(&chunk, /*added_flags=*/0))
+          if (ring->ReleaseChunkAsComplete(&chunk, /*added_flags=*/0))
             break;
         }
         if ((record & 7) == 0)
@@ -552,16 +669,42 @@ void RunConcurrentWritersAndReader(uint32_t seed_pos) {
     });
   }
 
+  std::thread laggard;
+  if (forced_stale_claims != 0) {
+    laggard = std::thread([ring, forced_stale_claims, &start, &laggard_done] {
+      while (!start.load(std::memory_order_acquire))
+        std::this_thread::yield();
+      for (uint32_t i = 0; i < forced_stale_claims; ++i) {
+        uint32_t pos = 0;
+        while (!SharedRingBufferTestPeer::Reserve(ring, &pos))
+          std::this_thread::yield();
+        // Claim only once the reader has provably consumed the reservation,
+        // so the claim below is always the delayed-writer case.
+        while (
+            !SharedRingBuffer::IsPositionAtOrAfter(ring->read_pos(), pos + 1)) {
+          std::this_thread::yield();
+        }
+        SharedRingBuffer::Chunk stale = SharedRingBufferTestPeer::Claim(
+            ring, MakeHeader(kNumWriters + 1, 1), pos);
+        EXPECT_FALSE(stale.is_valid()) << "stale claim " << i;
+      }
+      laggard_done.store(true, std::memory_order_release);
+    });
+  }
+
   std::vector<uint32_t> observed;
   observed.reserve(kNumWriters * kRecordsPerWriter);
   start.store(true, std::memory_order_release);
+  // The reader must outlive the laggard: its last reservation is consumed
+  // here, and its wait for read_pos would deadlock against an exited reader.
   while (writers_done.load(std::memory_order_acquire) != kNumWriters ||
-         ring.has_pending_data()) {
+         !laggard_done.load(std::memory_order_acquire) ||
+         ring->has_pending_data()) {
     ChunkHeader header;
     uint8_t payload[kChunkPayloadSize]{};
     uint32_t payload_size = 0;
     const SharedRingBuffer::ReadResult result =
-        ring.TryReadChunk(&header, payload, &payload_size);
+        ring->TryReadChunk(&header, payload, &payload_size);
     if (result == SharedRingBuffer::ReadResult::kChunkRead) {
       ReadUint32Records(header, payload, &observed);
     } else if (result == SharedRingBuffer::ReadResult::kNoData) {
@@ -570,6 +713,8 @@ void RunConcurrentWritersAndReader(uint32_t seed_pos) {
   }
   for (std::thread& writer : writers)
     writer.join();
+  if (laggard.joinable())
+    laggard.join();
 
   std::vector<uint32_t> expected;
   expected.reserve(kNumWriters * kRecordsPerWriter);
@@ -582,14 +727,34 @@ void RunConcurrentWritersAndReader(uint32_t seed_pos) {
 }
 
 TEST(SharedRingBufferV2Test, ConcurrentWritersAndReaderPreserveEveryRecord) {
-  RunConcurrentWritersAndReader(/*seed_pos=*/0);
+  SharedRingBuffer ring(64);
+  RunConcurrentWritersAndReader(&ring, /*seed_pos=*/0);
 }
 
 TEST(SharedRingBufferV2Test,
      ConcurrentWritersAndReaderPreserveEveryRecordAcrossRollover) {
   // Far enough below 2^32 that reservations start before the boundary, close
   // enough that the run's several thousand positions must cross it.
-  RunConcurrentWritersAndReader(/*seed_pos=*/0xffffffffu - 64u);
+  SharedRingBuffer ring(64);
+  RunConcurrentWritersAndReader(&ring, /*seed_pos=*/0xffffffffu - 64u);
+}
+
+// Tombstone reclaim under real concurrency: a laggard keeps planting stale
+// tombstones while four writers lap the ring, so writers keep hitting slots
+// that hold a dead reservation's tombstone. Record conservation proves
+// reclaim never loses or duplicates data; the invalidation bound is the
+// liveness half. This workload has a background invalidation rate of well
+// under one per lap (holes burned against slots a stepped-over or transient
+// writer still occupies), while a single unreclaimed tombstone costs one
+// position on EVERY later lap - sixteen of them would push the counter to
+// many multiples of the lap count.
+TEST(SharedRingBufferV2Test, ManyWritersReclaimForcedStaleTombstones) {
+  constexpr uint32_t kForcedStaleClaims = 16;
+  SharedRingBuffer ring(64);
+  RunConcurrentWritersAndReader(&ring, /*seed_pos=*/0, kForcedStaleClaims);
+
+  const uint32_t laps = ring.write_pos() / ring.num_chunks();
+  EXPECT_LT(ring.stats().chunks_invalidated.load(), 2u * laps);
 }
 
 // The reader copies only the bytes the counted records span, so record-shaped
