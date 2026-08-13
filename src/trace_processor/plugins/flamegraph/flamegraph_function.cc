@@ -183,10 +183,11 @@ base::StatusOr<flamegraph::Config> ResolveConfig(const core::Tree& source,
                                    aggregate.input_name));
     if (column->type.Is<core::Null>()) {
       // A column with no values aggregates to no values under any mode.
-    } else if (aggregate.aggregate == flamegraph::Config::Aggregate::kSum &&
+    } else if ((aggregate.aggregate == flamegraph::Config::Aggregate::kSum ||
+                aggregate.aggregate == flamegraph::Config::Aggregate::kMax) &&
                !flamegraph::IsNumericColumn(*column)) {
       return base::ErrStatus(
-          "flamegraph: SUM aggregate columns must be numeric");
+          "flamegraph: SUM/MAX aggregate columns must be numeric");
     }
     config.aggregate_columns.push_back(
         {column, aggregate.aggregate, aggregate.output_name});
@@ -432,7 +433,8 @@ void FlamegraphConfigFunction::Step(sqlite3_context* context,
                      "flamegraph_config: aggregate", values[0],
                      {{"SUM", Aggregate::kSum},
                       {"ONE_OR_SUMMARY", Aggregate::kOneOrSummary},
-                      {"CONCAT_WITH_COMMA", Aggregate::kConcatWithComma}}));
+                      {"CONCAT_WITH_COMMA", Aggregate::kConcatWithComma},
+                      {"MAX", Aggregate::kMax}}));
              ASSIGN_OR_RETURN(std::string input,
                               sqlite::TaggedArgText(
                                   "flamegraph_config: aggregate", values[1]));

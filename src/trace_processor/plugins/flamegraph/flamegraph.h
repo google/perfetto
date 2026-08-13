@@ -65,6 +65,7 @@ struct Config {
     kSum,
     kOneOrSummary,
     kConcatWithComma,
+    kMax,
   };
 
   struct AggregateColumn {
