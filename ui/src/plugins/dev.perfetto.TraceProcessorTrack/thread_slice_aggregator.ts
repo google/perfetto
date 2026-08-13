@@ -38,6 +38,81 @@ import {getOrCreate} from '../../base/utils';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 
+const TRACK_SCHEMA: ColumnSchema = {
+  id: {
+    title: 'ID',
+    columnType: 'identifier',
+  },
+  name: {
+    title: 'Name',
+    columnType: 'text',
+  },
+  type: {
+    title: 'Type',
+    columnType: 'text',
+  },
+  dimension_arg_set_id: {
+    title: 'Dimension Arg Set ID',
+    parameterized: true,
+  },
+  parent_id: {
+    title: 'Parent',
+    get schema() {
+      return TRACK_SCHEMA;
+    },
+  },
+  source_arg_set_id: {
+    title: 'Source Arg Set ID',
+    parameterized: true,
+  },
+  machine_id: {
+    title: 'Machine ID',
+    columnType: 'identifier',
+  },
+  track_group_id: {
+    title: 'Track Group ID',
+    columnType: 'identifier',
+  },
+};
+
+const TRACK_SQL_SCHEMA: SQLTableSchema = {
+  tableOrSubquery: 'track',
+  columns: {
+    dimension_arg_set_id: {
+      expression: (alias, key) =>
+        `extract_arg(${alias}.dimension_arg_set_id, '${key}')`,
+      parameterized: true,
+      parameterKeysQuery: (tableOrSubquery, alias) => `
+        SELECT DISTINCT args.key
+        FROM (${tableOrSubquery}) AS ${alias}
+        JOIN args ON args.arg_set_id = ${alias}.dimension_arg_set_id
+        WHERE args.key IS NOT NULL
+        ORDER BY args.key
+        LIMIT 1000
+      `,
+    },
+    parent_id: {
+      foreignKey: 'parent_id',
+      get schema() {
+        return TRACK_SQL_SCHEMA;
+      },
+    },
+    source_arg_set_id: {
+      expression: (alias, key) =>
+        `extract_arg(${alias}.source_arg_set_id, '${key}')`,
+      parameterized: true,
+      parameterKeysQuery: (tableOrSubquery, alias) => `
+        SELECT DISTINCT args.key
+        FROM (${tableOrSubquery}) AS ${alias}
+        JOIN args ON args.arg_set_id = ${alias}.source_arg_set_id
+        WHERE args.key IS NOT NULL
+        ORDER BY args.key
+        LIMIT 1000
+      `,
+    },
+  },
+};
+
 export class ThreadSliceAggregator implements Aggregator {
   readonly id = 'thread_slice_aggregator';
 
@@ -283,6 +358,10 @@ export class ThreadSliceAggregator implements Aggregator {
         title: 'Args',
         parameterized: true,
       },
+      track: {
+        title: 'Track',
+        schema: TRACK_SCHEMA,
+      },
       thread: {
         title: 'Thread',
         schema: {
@@ -338,6 +417,10 @@ export class ThreadSliceAggregator implements Aggregator {
       sqlConfig: ({sqlTable}): SQLTableSchema => ({
         tableOrSubquery: sqlTable.get().name,
         columns: {
+          track: {
+            foreignKey: 'track_id',
+            schema: TRACK_SQL_SCHEMA,
+          },
           thread: {
             foreignKey: 'utid',
             schema: {
