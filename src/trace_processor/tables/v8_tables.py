@@ -365,8 +365,9 @@ V8_IC_EVENT = Table(
             flags=ColumnFlag.SORTED,
             cpp_access=CppAccess.READ,
         ),
-        C('type', CppString(), cpp_access=CppAccess.READ),
-        C('keyed', CppBool(), cpp_access=CppAccess.READ),
+        C('is_load', CppBool(), cpp_access=CppAccess.READ),
+        C('is_global', CppBool(), cpp_access=CppAccess.READ),
+        C('is_keyed', CppBool(), cpp_access=CppAccess.READ),
         C('map', CppInt64(), cpp_access=CppAccess.READ),
         C('key', CppString(), cpp_access=CppAccess.READ),
         C('old_state', CppString(), cpp_access=CppAccess.READ),
@@ -375,57 +376,74 @@ V8_IC_EVENT = Table(
         C('slow_stub_reason', CppString(), cpp_access=CppAccess.READ),
         C('v8_js_code_id', CppTableId(V8_JS_CODE), cpp_access=CppAccess.READ),
         C('pc', CppInt64(), cpp_access=CppAccess.READ),
-        C('line', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
-        C('col', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
-        C('byte_offset', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
-        doc='Represents a V8 IC (Inline Cache) event',
+        doc=(
+            'Represents a V8 IC (Inline Cache) execution state-machine '
+            'transition event'
+        ),
         group='v8',
         columns={
             'v8_isolate_id':
                 ColumnDoc(
-                    doc='V8 Isolate this code was created in.',
+                    doc=(
+                        'V8 Isolate instance this state-transition was '
+                        'emitted within.'
+                    ),
                     joinable='__intrinsic_v8_isolate.id'),
             'utid':
-                'Thread ID',
+                ColumnDoc(
+                    doc=(
+                        'Thread Unique Identifier of the triggering '
+                        'execution context.'
+                    ),
+                    joinable='thread.id'),
             'ts':
-                'Timestamp of the event',
-            'type':
-                'IC type (e.g. LoadIC, StoreIC)',
-            'keyed':
-                'Whether it is a keyed IC',
+                'Timestamp of the IC state-machine transition event.',
+            'is_load':
+                ('Boolean Operation Flag: `true` (1) indicates a Property-Read '
+                 '/ Load context; `false` (0) indicates a Property-Write / '
+                 'Store mutation.'),
+            'is_global':
+                ('Boolean Lexical Flag: `true` (1) indicates a Global-Scope or '
+                 'Global-Object (e.g., `window`, `globalThis`) property '
+                 'resolution; `false` (0) indicates standard object-property '
+                 'chains.'),
+            'is_keyed':
+                ('Boolean Accessor Flag: `true` (1) indicates Bracket-Notation '
+                 'execution (`obj[expr]` or Array-Literal elements); '
+                 '`false` (0) indicates standard Dot-Notation (`obj.prop`).'),
             'map':
-                'Map address',
+                ('64-bit V8 Heap Address referencing the receiver object\'s '
+                 'Hidden Class (Shape/Map) prior to the IC execution-miss.'),
             'key':
-                'Property key',
+                ('The unboxed String, Integer, or Literal Property Identifier '
+                 'requested by the Inline Cache operation.'),
             'old_state':
-                """Previous state.
-                - `X`: NO_FEEDBACK,
-                - `0`: UNINITIALIZED,
-                - `1`: MONOMORPHIC,
-                - `^`: RECOMPUTE_HANDLER,
-                - `P`: POLYMORPHIC,
-                - `N`: MEGAMORPHIC,
-                - `D`: MEGADOM,
-                - `G`: GENERIC,
+                """1-Character ASCII Token representing the State-Machine phase PRECEDING the transition:
+                - `0`: UNINITIALIZED (Cold fast-path miss).
+                - `1`: MONOMORPHIC (Single Known Map Shape).
+                - `P`: POLYMORPHIC (2 to 4 Distinct Map Shapes).
+                - `N`: MEGAMORPHIC (Global Hash-Table lookup, >4 Shapes).
+                - `G`: GENERIC (Fallback/De-optimized handler execution).
+                - `^`: RECOMPUTE_HANDLER (In-place polymorphic stub update).
+                - `X`: NO_FEEDBACK.
                 """,
             'new_state':
-                'New state, see old_state for details',
+                ('1-Character ASCII Token representing the State-Machine phase '
+                 'POST-transition. Refer to `old_state` for enumeration.'),
             'modifier':
-                'Modifier',
+                'Optional V8 compiler/tracing execution modifier string.',
             'slow_stub_reason':
-                'Reason for slow stub',
+                ('Reason string emitted for fast-path IC misses culminating '
+                 'in C++ Slow-Stub runtime execution.'),
             'v8_js_code_id':
-                'V8 JS code corresponding to the event pc.',
+                ColumnDoc(
+                    doc='V8 JS code corresponding to the event pc.',
+                    joinable='__intrinsic_v8_js_code.id'),
             'pc':
-                'Program Counter where the event was triggered.',
-            'line':
-                'Line in script where the event was triggered. Starts at 1',
-            'col':
-                'Column in script where the event was triggered. Starts at 1',
-            'byte_offset':
-                'Byte offset in the code',
+                ('Execution Instruction Pointer (Physical JIT Address or '
+                 'relative `BytecodeArray` offset) triggering the IC transition.'),
         },
     ),
 )

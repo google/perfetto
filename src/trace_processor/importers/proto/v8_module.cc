@@ -277,15 +277,15 @@ void V8Module::ParseV8CodeMove(protozero::ConstBytes bytes,
 }
 
 void V8Module::ParseV8ICEvent(protozero::ConstBytes bytes,
-                              int64_t ts,
-                              const TracePacketData& data) {
+                               int64_t ts,
+                               const TracePacketData& data) {
   V8SequenceState& state =
       *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
-  protos::pbzero::V8ICEvent::Decoder ic_event(bytes);
 
-  std::optional<IsolateId> isolate_id = state.GetOrInsertIsolate(
+  V8ICEvent::Decoder ic_event(bytes);
+
+  std::optional<IsolateId> v8_isolate_id = state.GetOrInsertIsolate(
       data.sequence_state.get(), ic_event.v8_isolate_iid());
-  if (!isolate_id) {
     return;
   }
 
