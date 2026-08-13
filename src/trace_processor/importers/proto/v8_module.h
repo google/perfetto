@@ -70,6 +70,9 @@ class V8Module : public ProtoImporterModule {
   void ParseV8CodeMove(protozero::ConstBytes bytes,
                        int64_t ts,
                        const TracePacketData& data);
+  void ParseV8ICEvent(protozero::ConstBytes bytes,
+                      int64_t ts,
+                      const TracePacketData& data);
 
   // Determine the utid for a code event.
   // If the passed in decoder has no tid field this method will try the
