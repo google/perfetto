@@ -1972,6 +1972,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           groupByThisMenuItem,
           m(AggregateMenu, {
             schema,
+            datasource,
             existingAggregates: pivot.aggregates,
             onAddAggregate: (func, aggField) =>
               this.addAggregateColumn(func, aggField, attrs, i),
