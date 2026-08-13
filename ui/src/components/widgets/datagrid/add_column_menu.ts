@@ -299,41 +299,61 @@ class RecordPopup implements m.ClassComponent<RecordPopupAttrs> {
 interface ColumnMenuAttrs {
   readonly schema: ColumnSchema;
   readonly visibleColumns: ReadonlyArray<string>;
+  readonly editVisibleColumns?: ReadonlyArray<string>;
   readonly onAddColumn: (field: string) => void;
+  readonly onEditColumn?: (field: string) => void;
   readonly datasource: DataSource;
 
   // Optional add column control - defaults to true
   readonly canAdd?: boolean;
 
+  // Optional edit column control - defaults to true
+  readonly canEdit?: boolean;
+
   // Optional remove button - if not provided, only "Add" is shown
   readonly canRemove?: boolean;
   readonly onRemove?: () => void;
 
-  // Custom labels (defaults: "Remove column", "Add column")
+  // Custom labels (defaults: "Remove column", "Add column", "Edit column")
   readonly removeLabel?: string;
   readonly addLabel?: string;
+  readonly editLabel?: string;
 }
 
 /**
  * Renders column management menu items.
- * Can show "Remove" and "Add" buttons with configurable labels.
- * If onRemove is not provided, only the "Add" button is shown.
+ * Can show "Edit", "Add", and "Remove" buttons with configurable labels.
  */
 export class ColumnMenu implements m.ClassComponent<ColumnMenuAttrs> {
   view({attrs}: m.Vnode<ColumnMenuAttrs>): m.Children {
     const {
       canAdd = true,
+      canEdit = true,
       canRemove,
       onRemove,
       schema,
       visibleColumns,
+      editVisibleColumns,
       onAddColumn,
+      onEditColumn,
       datasource,
       removeLabel = 'Remove column',
       addLabel = 'Add column',
+      editLabel = 'Edit column',
     } = attrs;
 
     return [
+      canEdit &&
+        onEditColumn &&
+        m(AddColumnSchemaMenuItem, {
+          label: editLabel,
+          icon: Icons.Edit,
+          schema,
+          pathPrefix: '',
+          existingColumns: editVisibleColumns ?? visibleColumns,
+          onSelect: onEditColumn,
+          datasource,
+        }),
       canAdd &&
         m(AddColumnSchemaMenuItem, {
           label: addLabel,

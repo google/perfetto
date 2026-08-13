@@ -254,6 +254,11 @@ export interface DataGridAttrs {
   readonly canAddColumns?: boolean;
 
   /**
+   * Whether columns can be edited. Defaults to true.
+   */
+  readonly canEditColumns?: boolean;
+
+  /**
    * Whether columns can be removed. Defaults to true.
    */
   readonly canRemoveColumns?: boolean;
@@ -891,6 +896,26 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     attrs.onColumnsChanged?.(newColumns);
   }
 
+  private editColumn(
+    colId: string,
+    newField: string,
+    attrs: DataGridAttrs,
+  ): void {
+    const colInfo = getColumnInfo(attrs.schema, newField);
+    const validFuncs = getAggregateFunctionsForColumnType(colInfo?.columnType);
+
+    const newColumns = this.columns.map((c) => {
+      if (c.id !== colId) return c;
+      const aggregate =
+        c.aggregate && validFuncs.includes(c.aggregate)
+          ? c.aggregate
+          : undefined;
+      return {...c, field: newField, aggregate};
+    });
+    this.columns = newColumns;
+    attrs.onColumnsChanged?.(newColumns);
+  }
+
   private reorderColumns(
     fromId: string | number | undefined,
     toId: string | number | undefined,
@@ -1111,6 +1136,22 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     attrs.onPivotChanged?.(newPivot);
   }
 
+  private editGroupByColumn(
+    index: number,
+    field: string,
+    attrs: DataGridAttrs,
+  ): void {
+    if (!this.pivot) return;
+
+    const newGroupBy = this.pivot.groupBy.map((col, i) =>
+      i === index ? {...col, field} : col,
+    );
+
+    const newPivot: Pivot = {...this.pivot, groupBy: newGroupBy};
+    this.pivot = newPivot;
+    attrs.onPivotChanged?.(newPivot);
+  }
+
   private addAggregateColumn(
     func: AggregateFunction | 'COUNT',
     field: string | undefined,
@@ -1139,6 +1180,30 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     const insertIndex =
       afterIndex !== undefined ? afterIndex + 1 : newAggregates.length;
     newAggregates.splice(insertIndex, 0, newAggregate);
+
+    const newPivot: Pivot = {...this.pivot, aggregates: newAggregates};
+    this.pivot = newPivot;
+    attrs.onPivotChanged?.(newPivot);
+  }
+
+  private editAggregateColumn(
+    index: number,
+    func: AggregateFunction | 'COUNT',
+    field: string | undefined,
+    attrs: DataGridAttrs,
+  ): void {
+    if (!this.pivot?.aggregates) return;
+
+    const existingAgg = maybeUndefined(this.pivot.aggregates[index]);
+    if (!existingAgg) return;
+
+    const updatedAggregate: AggregateColumn =
+      func === 'COUNT'
+        ? {id: existingAgg.id, function: 'COUNT' as const, sort: existingAgg.sort}
+        : {id: existingAgg.id, function: func, field: field!, sort: existingAgg.sort};
+
+    const newAggregates = [...this.pivot.aggregates];
+    newAggregates[index] = updatedAggregate;
 
     const newPivot: Pivot = {...this.pivot, aggregates: newAggregates};
     this.pivot = newPivot;
@@ -1546,6 +1611,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         showColumnControls &&
           m(ColumnMenu, {
             canAdd: attrs.canAddColumns ?? true,
+            canEdit: attrs.canEditColumns ?? true,
             canRemove: this.columns.length > 1,
             onRemove:
               (attrs.canRemoveColumns ?? true)
@@ -1553,8 +1619,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 : undefined,
             schema,
             visibleColumns: this.columns.map((c) => c.field),
+            editVisibleColumns: this.columns
+              .filter((c) => c.id !== colId)
+              .map((c) => c.field),
             onAddColumn: (newField) =>
               this.addColumn(newField, attrs, colIndex),
+            onEditColumn: (newField) =>
+              this.editColumn(colId, newField, attrs),
             datasource,
           }),
         attrs.addColumnMenuItems?.(field),
@@ -1868,13 +1939,19 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           m(ColumnMenu, {
             schema,
             visibleColumns: currentGroupByFields,
+            editVisibleColumns: currentGroupByFields.filter(
+              (_, idx) => idx !== i,
+            ),
             onAddColumn: (newField) =>
               this.addGroupByColumn(newField, attrs, i),
+            onEditColumn: (newField) =>
+              this.editGroupByColumn(i, newField, attrs),
             datasource,
             canRemove: true,
             onRemove: () => this.removeGroupByColumn(i, attrs),
             removeLabel: 'Remove group by',
             addLabel: 'Add group by',
+            editLabel: 'Edit group by',
           }),
         m(MenuDivider),
         m(ColumnInfoMenu, {id: colId, field, colInfo}),
@@ -1970,6 +2047,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         showPivotControls && [
           changeFunctionSubmenu,
           groupByThisMenuItem,
+          m(AggregateMenu, {
+            label: 'Edit column',
+            icon: Icons.Edit,
+            schema,
+            existingAggregates: pivot.aggregates?.filter((_, idx) => idx !== i),
+            onAddAggregate: (func, aggField) =>
+              this.editAggregateColumn(i, func, aggField, attrs),
+          }),
           m(AggregateMenu, {
             schema,
             datasource,

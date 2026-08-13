@@ -77,6 +77,7 @@ export class DatagridChart implements m.ClassComponent<DatagridChartAttrs> {
       fillHeight: fillParent,
       className,
       canAddColumns: false,
+      canEditColumns: false,
       canRemoveColumns: false,
     });
   }

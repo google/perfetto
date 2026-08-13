@@ -137,9 +137,10 @@ describe('DataGrid column controls', () => {
     ).toBeGreaterThan(0);
     // Also expect that columns are reorderable (draggable)
     expect(isFirstCellDraggable(), dumpDom()).toBe(true);
-    // Also assert that the add column and remove column menu items are present,
+    // Also assert that the edit, add column and remove column menu items are present,
     // which also only render when columns are mutable.
     const items = getColumnMenuItems(rerender);
+    expect(items, dumpDom()).toContain('Edit column');
     expect(items, dumpDom()).toContain('Add column');
     expect(items, dumpDom()).toContain('Remove column');
   });
@@ -155,9 +156,10 @@ describe('DataGrid column controls', () => {
     ).toBeGreaterThan(0);
     // Also expect that columns are reorderable (draggable)
     expect(isFirstCellDraggable(), dumpDom()).toBe(true);
-    // Also assert that the add column and remove column menu items are present,
+    // Also assert that the edit, add column and remove column menu items are present,
     // which also only render when columns are mutable.
     const items = getColumnMenuItems(rerender);
+    expect(items, dumpDom()).toContain('Edit column');
     expect(items, dumpDom()).toContain('Add column');
     expect(items, dumpDom()).toContain('Remove column');
   });
@@ -172,6 +174,15 @@ describe('DataGrid column controls', () => {
     ).toHaveLength(0);
   });
 
+  test('canEditColumns false hides Edit column item', () => {
+    const rerender = renderDataGrid({
+      canEditColumns: false,
+    });
+    const items = getColumnMenuItems(rerender);
+    expect(items, dumpDom()).not.toContain('Edit column');
+    expect(items, dumpDom()).toContain('Add column');
+  });
+
   test('disableColumnControls hides sort buttons even when uncontrolled', () => {
     const rerender = renderDataGrid({
       disableColumnControls: true,
@@ -181,9 +192,10 @@ describe('DataGrid column controls', () => {
       dumpDom(),
     ).toHaveLength(0);
     expect(isFirstCellDraggable(), dumpDom()).toBe(false);
-    // Also assert that the add column and remove column menu items are present,
+    // Also assert that the edit, add column and remove column menu items are present,
     // which also only render when columns are mutable.
     const items = getColumnMenuItems(rerender);
+    expect(items, dumpDom()).not.toContain('Edit column');
     expect(items, dumpDom()).not.toContain('Add column');
     expect(items, dumpDom()).not.toContain('Remove column');
   });
@@ -199,9 +211,10 @@ describe('DataGrid column controls', () => {
       dumpDom(),
     ).toHaveLength(0);
     expect(isFirstCellDraggable(), dumpDom()).toBe(false);
-    // Also assert that the add column and remove column menu items are present,
+    // Also assert that the edit, add column and remove column menu items are present,
     // which also only render when columns are mutable.
     const items = getColumnMenuItems(rerender);
+    expect(items, dumpDom()).not.toContain('Edit column');
     expect(items, dumpDom()).not.toContain('Add column');
     expect(items, dumpDom()).not.toContain('Remove column');
   });

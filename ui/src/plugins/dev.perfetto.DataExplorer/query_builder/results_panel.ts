@@ -592,6 +592,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
           disablePivotControls: true,
           structuredQueryCompatMode: true,
           canAddColumns: false,
+          canEditColumns: false,
           canRemoveColumns: false,
           onColumnsChanged: (columns) => {
             this.columns = columns;
