@@ -701,6 +701,97 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValue(
   state.WriteToRegister(f.arg<B::write_register>(), result);
 }
 
+template <typename FilterValueFetcherImpl>
+inline PERFETTO_ALWAYS_INLINE bool CastSingleRowId(
+    FilterValueFetcherImpl& fetcher,
+    FilterValueHandle handle,
+    uint32_t& id) {
+  auto type = fetcher.GetValueType(handle.index);
+  auto validity = CastFilterValueToInteger<uint32_t, FilterValueFetcherImpl>(
+      handle, type, fetcher, NonStringOp{Eq{}}, id);
+  return validity == CastFilterValueResult::kValid;
+}
+
+template <typename T, typename FilterValueFetcherImpl>
+inline PERFETTO_ALWAYS_INLINE bool EvaluateSingleRowEqPredicate(
+    InterpreterState& state,
+    FilterValueFetcherImpl& fetcher,
+    const struct SingleRowEqPredicate& predicate,
+    uint32_t row) {
+  using B = struct SingleRowEqPredicate;
+  FilterValueHandle handle = predicate.arg<B::fval_handle>();
+  auto type = fetcher.GetValueType(handle.index);
+  const auto* data =
+      state.ReadStorageFromRegister<T>(predicate.arg<B::storage_register>());
+  if constexpr (IntegerOrDoubleType::Contains<T>()) {
+    using M = typename T::cpp_type;
+    M value;
+    auto validity = CastFilterValueToIntegerOrDouble<M, FilterValueFetcherImpl>(
+        handle, type, fetcher, NonStringOp{Eq{}}, value);
+    return validity == CastFilterValueResult::kValid &&
+           std::equal_to<>()(data[row], value);
+  } else if constexpr (std::is_same_v<T, String>) {
+    const char* value;
+    auto validity = CastFilterValueToString<FilterValueFetcherImpl>(
+        handle, type, fetcher, StringOp{Eq{}}, value);
+    if (validity != CastFilterValueResult::kValid) {
+      return false;
+    }
+    auto id = state.string_pool->GetId(base::StringView(value));
+    return id && data[row] == *id;
+  } else {
+    static_assert(IntegerOrDoubleType::Contains<T>() ||
+                  std::is_same_v<T, String>);
+  }
+}
+
+template <typename FilterValueFetcherImpl>
+inline PERFETTO_ALWAYS_INLINE Span<uint32_t> ExecuteSingleRowQuery(
+    InterpreterState& state,
+    FilterValueFetcherImpl& fetcher,
+    const struct SingleRowQuery& query) {
+  using B = struct SingleRowQuery;
+  uint32_t row = 0;
+  bool matches =
+      CastSingleRowId(fetcher, query.arg<B::id_fval_handle>(), row) &&
+      row < query.arg<B::row_count>();
+
+  const Bytecode* predicates = static_cast<const Bytecode*>(&query) + 1;
+  uint32_t predicate_count = query.arg<B::predicate_count>();
+  for (uint32_t i = 0; matches && i < predicate_count; ++i) {
+    PERFETTO_DCHECK(predicates[i].option == Index<SingleRowEqPredicate>());
+    const auto& predicate =
+        static_cast<const SingleRowEqPredicate&>(predicates[i]);
+    switch (predicate.arg<SingleRowEqPredicate::storage_type>()) {
+      case NonIdStorageType::GetTypeIndex<Uint32>():
+        matches = EvaluateSingleRowEqPredicate<Uint32>(state, fetcher,
+                                                       predicate, row);
+        break;
+      case NonIdStorageType::GetTypeIndex<Int32>():
+        matches =
+            EvaluateSingleRowEqPredicate<Int32>(state, fetcher, predicate, row);
+        break;
+      case NonIdStorageType::GetTypeIndex<Int64>():
+        matches =
+            EvaluateSingleRowEqPredicate<Int64>(state, fetcher, predicate, row);
+        break;
+      case NonIdStorageType::GetTypeIndex<Double>():
+        matches = EvaluateSingleRowEqPredicate<Double>(state, fetcher,
+                                                       predicate, row);
+        break;
+      case NonIdStorageType::GetTypeIndex<String>():
+        matches = EvaluateSingleRowEqPredicate<String>(state, fetcher,
+                                                       predicate, row);
+        break;
+      default:
+        PERFETTO_FATAL("Invalid single-row predicate type");
+    }
+  }
+  state.single_row_result = row;
+  return Span<uint32_t>{&state.single_row_result,
+                        &state.single_row_result + matches};
+}
+
 template <typename T, typename Op>
 inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
     InterpreterState& state,
@@ -1709,6 +1800,26 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
 }
 
 }  // namespace ops
+
+template <typename FilterValueFetcherImpl>
+PERFETTO_ALWAYS_INLINE Span<uint32_t> Interpreter::Execute(
+    FilterValueFetcherImpl& fetcher,
+    ReadHandle<Span<uint32_t>> output_register) {
+  static_assert(std::is_base_of_v<ValueFetcher, FilterValueFetcherImpl>);
+  if (!state_.bytecode.empty() &&
+      state_.bytecode.front().option == Index<SingleRowQuery>()) {
+    const auto& query =
+        static_cast<const SingleRowQuery&>(state_.bytecode.front());
+    PERFETTO_DCHECK(state_.bytecode.size() ==
+                    query.arg<SingleRowQuery::predicate_count>() + 1);
+    return ops::ExecuteSingleRowQuery(state_, fetcher, query);
+  }
+  ExecuteGeneralBytecode(fetcher);
+  if (output_register.index == std::numeric_limits<uint32_t>::max()) {
+    return {};
+  }
+  return state_.ReadFromRegister(output_register);
+}
 
 }  // namespace perfetto::trace_processor::core::interpreter
 

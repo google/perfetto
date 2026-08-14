@@ -500,6 +500,11 @@ class QueryPlanBuilder {
   // Last scratch registers returned by GetOrCreateScratchSpanRegister.
   std::optional<Scratch> scratch_;
 
+  // Maximum row count after each emitted bytecode. This is retained so
+  // bytecode rewriting can use cardinality without reconstructing planner
+  // decisions.
+  std::vector<uint32_t> bytecode_max_row_counts_;
+
   // Row count before the first selective (equality/IN) filter was applied. Used
   // to avoid compounding the selectivity of multiple such filters: only the
   // most selective one determines the estimate.

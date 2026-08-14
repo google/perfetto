@@ -354,7 +354,7 @@ namespace perfetto::trace_processor::core::interpreter {
     break;                                                               \
   }
 
-void Interpreter::Execute(ValueFetcher& fetcher) {
+void Interpreter::ExecuteGeneralBytecode(ValueFetcher& fetcher) {
   for (const auto& bytecode : state_.bytecode) {
     switch (bytecode.option) {
       PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(PERFETTO_OP_CASE_FVF)

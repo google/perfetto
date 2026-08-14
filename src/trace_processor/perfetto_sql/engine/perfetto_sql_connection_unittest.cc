@@ -132,6 +132,24 @@ TEST_F(PerfettoSqlConnectionTest, Table_Create) {
   ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
+TEST_F(PerfettoSqlConnectionTest, Table_InFilter) {
+  auto result =
+      connection_->ExecuteUntilLastStatement(SqlSource::FromExecuteQuery(R"SQL(
+        CREATE PERFETTO TABLE foo AS
+        SELECT 0 AS id, 10 AS value UNION ALL
+        SELECT 1, 20 UNION ALL SELECT 2, 30 UNION ALL SELECT 3, 40;
+        SELECT group_concat(id) FROM (
+          SELECT id FROM foo WHERE value IN (20, 40) ORDER BY id
+        )
+      )SQL"));
+  ASSERT_TRUE(result.ok()) << result.status().c_message();
+  ASSERT_FALSE(result->stmt.IsDone());
+  ASSERT_STREQ(reinterpret_cast<const char*>(
+                   sqlite3_column_text(result->stmt.sqlite_stmt(), 0)),
+               "1,3");
+  ASSERT_FALSE(result->stmt.Step());
+}
+
 TEST_F(PerfettoSqlConnectionTest, Table_StringColumns) {
   auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 'foo' AS bar"));

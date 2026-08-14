@@ -173,6 +173,168 @@ uint8_t GetDataSize(StorageType type) {
   }
 }
 
+// A small, typed cursor for capturing instructions and their arguments from a
+// bytecode sequence. Optimizations can build a replacement from the captures
+// without repeating query-planning decisions.
+class BytecodeCapture {
+ public:
+  BytecodeCapture(const i::BytecodeVector& bytecode,
+                  const std::vector<uint32_t>& max_row_counts)
+      : bytecode_(bytecode), max_row_counts_(max_row_counts) {
+    PERFETTO_DCHECK(bytecode_.size() == max_row_counts_.size());
+  }
+
+  template <typename B>
+  const B* Match() {
+    if (position_ == bytecode_.size() ||
+        bytecode_[position_].option != i::Index<B>()) {
+      return nullptr;
+    }
+    return &static_cast<const B&>(bytecode_[position_++]);
+  }
+
+  struct AnyMatch {
+    const i::Bytecode* bytecode;
+    uint32_t variant;
+  };
+
+  template <typename... B>
+  std::optional<AnyMatch> MatchAny() {
+    if (position_ == bytecode_.size()) {
+      return std::nullopt;
+    }
+    const uint32_t options[] = {i::Index<B>()...};
+    for (uint32_t variant = 0; variant < sizeof...(B); ++variant) {
+      if (bytecode_[position_].option == options[variant]) {
+        return AnyMatch{&bytecode_[position_++], variant};
+      }
+    }
+    return std::nullopt;
+  }
+
+  bool done() const { return position_ == bytecode_.size(); }
+  uint32_t max_row_count() const {
+    PERFETTO_DCHECK(position_ > 0);
+    return max_row_counts_[position_ - 1];
+  }
+
+ private:
+  const i::BytecodeVector& bytecode_;
+  const std::vector<uint32_t>& max_row_counts_;
+  uint32_t position_ = 0;
+};
+
+struct CapturedPredicateValue {
+  i::FilterValueHandle value;
+  uint32_t variant;
+  uint32_t storage_type;
+};
+
+void AppendSingleRowPredicate(i::BytecodeVector& bytecode,
+                              const CapturedPredicateValue& value,
+                              i::ReadHandle<i::StoragePtr> storage) {
+  bytecode.emplace_back();
+  using B = i::SingleRowEqPredicate;
+  auto& predicate = static_cast<B&>(bytecode.back());
+  predicate.option = i::Index<B>();
+  predicate.arg<B::fval_handle>() = value.value;
+  predicate.arg<B::storage_register>() = storage;
+  predicate.arg<B::storage_type>() = value.storage_type;
+}
+
+void TryLowerSingleRowQuery(i::BytecodeVector& bytecode,
+                            const std::vector<uint32_t>& max_row_counts) {
+  BytecodeCapture capture(bytecode, max_row_counts);
+  const auto* init = capture.Match<i::InitRange>();
+  const auto* id_value = capture.Match<i::CastFilterValue<Id>>();
+  const auto* id_filter = capture.Match<i::SortedFilter<Id, i::EqualRange>>();
+  if (!init || !id_value || !id_filter || capture.max_row_count() > 1 ||
+      id_filter->arg<i::SortedFilterBase::val_register>().index !=
+          id_value->arg<i::CastFilterValue<Id>::write_register>().index ||
+      id_filter->arg<i::SortedFilterBase::update_register>().index !=
+          init->arg<i::InitRange::dest_register>().index) {
+    return;
+  }
+
+  i::BytecodeVector lowered;
+  lowered.emplace_back();
+  using Query = i::SingleRowQuery;
+  auto& query = static_cast<Query&>(lowered.back());
+  query.option = i::Index<Query>();
+  query.arg<Query::row_count>() = init->arg<i::InitRange::size>();
+  query.arg<Query::id_fval_handle>() =
+      id_value->arg<i::CastFilterValue<Id>::fval_handle>();
+  query.arg<Query::predicate_count>() = 0;
+
+  std::optional<CapturedPredicateValue> pending_value;
+  while (!capture.done()) {
+    // These operations only change how the current rows are represented. Once
+    // cardinality is at most one, the scalar program does not need them.
+    if (capture.Match<i::AllocateIndices>() || capture.Match<i::Iota>()) {
+      continue;
+    }
+
+    auto cast =
+        capture.MatchAny<i::CastFilterValue<Uint32>, i::CastFilterValue<Int32>,
+                         i::CastFilterValue<Int64>, i::CastFilterValue<Double>,
+                         i::CastFilterValue<String>>();
+    if (cast) {
+      if (pending_value) {
+        return;
+      }
+      const auto& op =
+          static_cast<const i::CastFilterValueBase&>(*cast->bytecode);
+      static constexpr uint32_t kStorageTypes[] = {
+          i::NonIdStorageType::GetTypeIndex<Uint32>(),
+          i::NonIdStorageType::GetTypeIndex<Int32>(),
+          i::NonIdStorageType::GetTypeIndex<Int64>(),
+          i::NonIdStorageType::GetTypeIndex<Double>(),
+          i::NonIdStorageType::GetTypeIndex<String>()};
+      pending_value =
+          CapturedPredicateValue{op.arg<i::CastFilterValueBase::fval_handle>(),
+                                 cast->variant, kStorageTypes[cast->variant]};
+      continue;
+    }
+
+    // Both halves are ordered like NonIdStorageType: range filters followed
+    // by their span-filter equivalents.
+    auto filter = capture.MatchAny<
+        i::LinearFilterEq<Uint32>, i::LinearFilterEq<Int32>,
+        i::LinearFilterEq<Int64>, i::LinearFilterEq<Double>,
+        i::LinearFilterEq<String>, i::NonStringFilter<Uint32, Eq>,
+        i::NonStringFilter<Int32, Eq>, i::NonStringFilter<Int64, Eq>,
+        i::NonStringFilter<Double, Eq>, i::StringFilter<Eq>>();
+    constexpr uint32_t kTypeCount = i::NonIdStorageType::kSize;
+    if (!filter || !pending_value ||
+        filter->variant % kTypeCount != pending_value->variant) {
+      return;
+    }
+
+    i::ReadHandle<i::StoragePtr> storage;
+    if (filter->variant < kTypeCount) {
+      const auto& op =
+          static_cast<const i::LinearFilterEqBase&>(*filter->bytecode);
+      storage = op.arg<i::LinearFilterEqBase::storage_register>();
+    } else if (filter->variant == 2 * kTypeCount - 1) {
+      const auto& op =
+          static_cast<const i::StringFilterBase&>(*filter->bytecode);
+      storage = op.arg<i::StringFilterBase::storage_register>();
+    } else {
+      const auto& op =
+          static_cast<const i::NonStringFilterBase&>(*filter->bytecode);
+      storage = op.arg<i::NonStringFilterBase::storage_register>();
+    }
+    AppendSingleRowPredicate(lowered, *pending_value, storage);
+    pending_value.reset();
+  }
+  if (pending_value) {
+    return;
+  }
+  static_cast<Query&>(lowered.front()).arg<Query::predicate_count>() =
+      static_cast<uint32_t>(lowered.size() - 1);
+  bytecode = std::move(lowered);
+}
+
 i::SparseNullCollapsedNullability NullabilityToSparseNullCollapsedNullability(
     Nullability nullability) {
   switch (nullability.index()) {
@@ -256,9 +418,11 @@ QueryPlanBuilder::QueryPlanBuilder(
       indices_reg_(indices),
       builder_(builder),
       cache_(cache) {
-  // Setup the maximum and estimated row counts.
+  // Setup the maximum and estimated row counts. InitRange was emitted before
+  // constructing this builder, so record its output cardinality here.
   plan_.params.max_row_count = row_count;
   plan_.params.estimated_row_count = row_count;
+  bytecode_max_row_counts_.push_back(row_count);
 }
 
 base::StatusOr<QueryPlanImpl> QueryPlanBuilder::Build(
@@ -751,6 +915,8 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
 }
 
 QueryPlanImpl QueryPlanBuilder::Build() && {
+  PERFETTO_CHECK(builder_.bytecode().size() == bytecode_max_row_counts_.size());
+  TryLowerSingleRowQuery(builder_.bytecode(), bytecode_max_row_counts_);
   plan_.bytecode = std::move(builder_.bytecode());
   plan_.params.register_count = builder_.register_count();
   return std::move(plan_);
@@ -1251,7 +1417,9 @@ PERFETTO_NO_INLINE i::Bytecode& QueryPlanBuilder::AddRawOpcode(
     const auto& c = base::unchecked_get<i::PostOperationLinearPerRowCost>(cost);
     plan_.params.estimated_cost += c.cost * plan_.params.estimated_cost;
   }
-  return builder_.AddRawOpcode(option);
+  i::Bytecode& bytecode = builder_.AddRawOpcode(option);
+  bytecode_max_row_counts_.push_back(plan_.params.max_row_count);
+  return bytecode;
 }
 
 void QueryPlanBuilder::SetGuaranteedToBeEmpty() {

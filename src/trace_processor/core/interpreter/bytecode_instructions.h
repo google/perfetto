@@ -568,6 +568,29 @@ struct LinearFilterEq : LinearFilterEqBase {
   static_assert(TS1::Contains<T>());
 };
 
+// A compact program for queries whose Id equality predicate establishes that
+// at most one row can match. The following |predicate_count| bytecodes are
+// SingleRowEqPredicate records consumed by the single-row executor.
+struct SingleRowQuery : Bytecode {
+  static constexpr Cost kCost = FixedCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     row_count,
+                                     FilterValueHandle,
+                                     id_fval_handle,
+                                     uint32_t,
+                                     predicate_count);
+};
+
+struct SingleRowEqPredicate : Bytecode {
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(FilterValueHandle,
+                                     fval_handle,
+                                     ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     uint32_t,
+                                     storage_type);
+};
+
 // Filters rows based on a list of values (IN operator). Supports both indexed
 // and non-indexed modes:
 //   - Indexed: index_register points to a sorted permutation vector and
@@ -620,19 +643,26 @@ struct Reverse : Bytecode {
 };
 
 // Bytecode ops that require FilterValueFetcher access.
-#define PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X) \
-  X(CastFilterValue<Id>)                        \
-  X(CastFilterValue<Uint32>)                    \
-  X(CastFilterValue<Int32>)                     \
-  X(CastFilterValue<Int64>)                     \
-  X(CastFilterValue<Double>)                    \
-  X(CastFilterValue<String>)                    \
-  X(CastFilterValueList<Id>)                    \
-  X(CastFilterValueList<Uint32>)                \
-  X(CastFilterValueList<Int32>)                 \
-  X(CastFilterValueList<Int64>)                 \
-  X(CastFilterValueList<Double>)                \
+#define PERFETTO_DATAFRAME_BYTECODE_GENERAL_FVF_LIST(X) \
+  X(CastFilterValue<Id>)                                \
+  X(CastFilterValue<Uint32>)                            \
+  X(CastFilterValue<Int32>)                             \
+  X(CastFilterValue<Int64>)                             \
+  X(CastFilterValue<Double>)                            \
+  X(CastFilterValue<String>)                            \
+  X(CastFilterValueList<Id>)                            \
+  X(CastFilterValueList<Uint32>)                        \
+  X(CastFilterValueList<Int32>)                         \
+  X(CastFilterValueList<Int64>)                         \
+  X(CastFilterValueList<Double>)                        \
   X(CastFilterValueList<String>)
+
+#define PERFETTO_DATAFRAME_BYTECODE_SINGLE_ROW_LIST(X) \
+  X(SingleRowQuery)                                    \
+  X(SingleRowEqPredicate)
+
+#define PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X) \
+  PERFETTO_DATAFRAME_BYTECODE_GENERAL_FVF_LIST(X)
 
 // Bytecode ops that only need InterpreterState (no FilterValueFetcher).
 #define PERFETTO_DATAFRAME_BYTECODE_STATE_ONLY_LIST(X) \
@@ -783,8 +813,9 @@ struct Reverse : Bytecode {
   X(Reverse)
 
 // Combined list of all bytecode instruction types.
-#define PERFETTO_DATAFRAME_BYTECODE_LIST(X) \
-  PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X)   \
+#define PERFETTO_DATAFRAME_BYTECODE_LIST(X)      \
+  PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X)        \
+  PERFETTO_DATAFRAME_BYTECODE_SINGLE_ROW_LIST(X) \
   PERFETTO_DATAFRAME_BYTECODE_STATE_ONLY_LIST(X)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,

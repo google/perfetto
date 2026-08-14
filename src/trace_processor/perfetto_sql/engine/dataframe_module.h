@@ -17,14 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
@@ -64,29 +65,38 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     ~SqliteValueFetcher() override;
 
     int64_t GetInt64Value(uint32_t idx) const override {
-      return sqlite::value::Int64(sqlite_value[idx]);
+      return sqlite::value::Int64(GetValue(idx));
     }
     double GetDoubleValue(uint32_t idx) const override {
-      return sqlite::value::Double(sqlite_value[idx]);
+      return sqlite::value::Double(GetValue(idx));
     }
     const char* GetStringValue(uint32_t idx) const override {
-      return sqlite::value::Text(sqlite_value[idx]);
+      return sqlite::value::Text(GetValue(idx));
     }
     Type GetValueType(uint32_t idx) const override {
       static_assert(static_cast<Type>(sqlite::Type::kInteger) == kInt64);
       static_assert(static_cast<Type>(sqlite::Type::kFloat) == kDouble);
       static_assert(static_cast<Type>(sqlite::Type::kText) == kString);
       static_assert(static_cast<Type>(sqlite::Type::kNull) == kNull);
-      return static_cast<Type>(sqlite::value::Type(sqlite_value[idx]));
+      return static_cast<Type>(sqlite::value::Type(GetValue(idx)));
     }
     bool IteratorInit(uint32_t idx) override {
-      return sqlite3_vtab_in_first(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
+      iterator_index = idx;
+      return sqlite3_vtab_in_first(argv[idx], &iterator_value) == SQLITE_OK;
     }
     bool IteratorNext(uint32_t idx) override {
-      return sqlite3_vtab_in_next(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
+      PERFETTO_DCHECK(idx == iterator_index);
+      return sqlite3_vtab_in_next(argv[idx], &iterator_value) == SQLITE_OK;
     }
-    std::array<sqlite3_value*, 16> sqlite_value;
+
+   private:
+    sqlite3_value* GetValue(uint32_t idx) const {
+      return idx == iterator_index ? iterator_value : argv[idx];
+    }
+
     sqlite3_value** argv;
+    sqlite3_value* iterator_value = nullptr;
+    uint32_t iterator_index = std::numeric_limits<uint32_t>::max();
   };
   struct SqliteResultCallback : dataframe::CellCallback {
     void OnCell(int64_t v) const { sqlite::result::Long(ctx, v); }

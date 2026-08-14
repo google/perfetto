@@ -1346,6 +1346,7 @@ v32.0 - 2023-02-01:
       generates a UUID, even if TraceConfig.trace_uuid_msb/lsb is empty.
   Trace Processor:
     * Reduced native and WebAssembly Trace Processor binary size.
+    * Improved performance of SQLite joins using ID columns.
   UI:
     *
   SDK:

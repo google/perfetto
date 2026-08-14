@@ -173,12 +173,60 @@ TEST_F(DataframeBytecodeTest, SingleFilter) {
              NoDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    SortedFilter<Id, EqualRange>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
-    Iota: [source_register=Register(0), update_register=Register(4)]
+    SingleRowQuery: [row_count=0, id_fval_handle=FilterValue(0), predicate_count=0]
   )");
+}
+
+TEST_F(DataframeBytecodeTest, SingleRowPredicatesAreLoweredFromBytecode) {
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}},
+      Column{Storage::String{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}});
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt},
+                                     {1, 1, Eq{}, std::nullopt},
+                                     {2, 2, Eq{}, std::nullopt}};
+  auto df = MakeDatafame({"id", "value", "name"}, std::move(cols));
+  ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                       df->PlanQuery(filters, {}, {}, {}, 0x7));
+
+  const auto& bytecode = plan.GetImplForTesting().bytecode;
+  ASSERT_EQ(bytecode.size(), 3u);
+  ASSERT_EQ(bytecode[0].option,
+            interpreter::Index<interpreter::SingleRowQuery>());
+  const auto& query =
+      static_cast<const interpreter::SingleRowQuery&>(bytecode[0]);
+  EXPECT_EQ(query.arg<interpreter::SingleRowQuery::predicate_count>(), 2u);
+  ASSERT_EQ(bytecode[1].option,
+            interpreter::Index<interpreter::SingleRowEqPredicate>());
+  ASSERT_EQ(bytecode[2].option,
+            interpreter::Index<interpreter::SingleRowEqPredicate>());
+  const auto& first =
+      static_cast<const interpreter::SingleRowEqPredicate&>(bytecode[1]);
+  const auto& second =
+      static_cast<const interpreter::SingleRowEqPredicate&>(bytecode[2]);
+  EXPECT_EQ(first.arg<interpreter::SingleRowEqPredicate::storage_type>(),
+            interpreter::NonIdStorageType::GetTypeIndex<Uint32>());
+  EXPECT_EQ(second.arg<interpreter::SingleRowEqPredicate::storage_type>(),
+            interpreter::NonIdStorageType::GetTypeIndex<String>());
+}
+
+TEST_F(DataframeBytecodeTest, NullablePredicateUsesGeneralBytecode) {
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Uint32{}, NullStorage::DenseNull{}, Unsorted{},
+             HasDuplicates{}});
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt},
+                                     {1, 1, Eq{}, std::nullopt}};
+  auto df = MakeDatafame({"id", "value"}, std::move(cols));
+  ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                       df->PlanQuery(filters, {}, {}, {}, 0x1));
+
+  const auto& bytecode = plan.GetImplForTesting().bytecode;
+  ASSERT_FALSE(bytecode.empty());
+  EXPECT_NE(bytecode.front().option,
+            interpreter::Index<interpreter::SingleRowQuery>());
 }
 
 // Test case with multiple filters
@@ -1583,6 +1631,55 @@ TEST(DataframeTest, TypedCursor) {
     cursor.Next();
     ASSERT_TRUE(cursor.Eof());
   }
+}
+
+TEST(DataframeTest, TypedCursorSingleRowPredicates) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "u32", "i32", "i64", "double", "string"},
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Double(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u, int32_t{-10}, int64_t{100},
+                     1.5, pool.InternString("a"));
+  df.InsertUnchecked(kSpec, std::monostate(), 20u, int32_t{-20}, int64_t{200},
+                     2.5, pool.InternString("b"));
+
+  TypedCursor cursor(&df,
+                     {{0, 0, Eq{}, {}},
+                      {1, 1, Eq{}, {}},
+                      {2, 2, Eq{}, {}},
+                      {3, 3, Eq{}, {}},
+                      {4, 4, Eq{}, {}},
+                      {5, 5, Eq{}, {}}},
+                     {});
+  auto set_values = [&cursor](int64_t id, const char* string_value) {
+    cursor.SetFilterValueUnchecked(0, id);
+    cursor.SetFilterValueUnchecked(1, int64_t{20});
+    cursor.SetFilterValueUnchecked(2, int64_t{-20});
+    cursor.SetFilterValueUnchecked(3, int64_t{200});
+    cursor.SetFilterValueUnchecked(4, 2.5);
+    cursor.SetFilterValueUnchecked(5, string_value);
+  };
+
+  set_values(1, "b");
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), 1u);
+  cursor.Next();
+  EXPECT_TRUE(cursor.Eof());
+
+  set_values(1, "a");
+  cursor.ExecuteUnchecked();
+  EXPECT_TRUE(cursor.Eof());
+
+  set_values(10, "b");
+  cursor.ExecuteUnchecked();
+  EXPECT_TRUE(cursor.Eof());
 }
 
 TEST(DataframeTest, TypedCursorSetMultipleTimes) {
