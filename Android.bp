@@ -17604,6 +17604,7 @@ filegroup {
     srcs: [
         "src/trace_processor/core/interpreter/bytecode_builder.cc",
         "src/trace_processor/core/interpreter/bytecode_interpreter_impl.cc",
+        "src/trace_processor/core/interpreter/bytecode_optimizer.cc",
         "src/trace_processor/core/interpreter/bytecode_to_string.cc",
     ],
 }

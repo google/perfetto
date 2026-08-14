@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -28,6 +29,7 @@
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_state.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 
@@ -61,8 +63,10 @@ class Interpreter {
 
   // Executes the bytecode sequence, processing each bytecode instruction in
   // turn, and dispatching to the appropriate function in this class.
-  PERFETTO_ALWAYS_INLINE void Execute(
-      FilterValueFetcherImpl& filter_value_fetcher);
+  PERFETTO_ALWAYS_INLINE Span<uint32_t> Execute(
+      FilterValueFetcherImpl& filter_value_fetcher,
+      ReadHandle<Span<uint32_t>> output_register = ReadHandle<Span<uint32_t>>{
+          std::numeric_limits<uint32_t>::max()});
 
   // Returns the value of the specified register if it contains the expected
   // type. Returns nullptr if the register holds a different type or is empty.

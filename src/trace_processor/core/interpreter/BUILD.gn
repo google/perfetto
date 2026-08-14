@@ -25,6 +25,8 @@ source_set("interpreter") {
     "bytecode_interpreter_impl.cc",
     "bytecode_interpreter_impl.h",
     "bytecode_interpreter_state.h",
+    "bytecode_optimizer.cc",
+    "bytecode_optimizer.h",
     "bytecode_registers.h",
     "bytecode_to_string.cc",
     "bytecode_to_string.h",

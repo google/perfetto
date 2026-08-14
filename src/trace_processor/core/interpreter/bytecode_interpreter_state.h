@@ -42,6 +42,8 @@ struct InterpreterState {
   base::SmallVector<RegValue, 16> registers;
   // Pointer to the string pool (for string operations)
   const StringPool* string_pool;
+  // Stable inline storage for zero-or-one-row query results.
+  uint32_t single_row_result = 0;
 
   /******************************************************************
    * Helper functions for accessing the interpreter state           *

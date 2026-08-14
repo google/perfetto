@@ -173,11 +173,41 @@ TEST_F(DataframeBytecodeTest, SingleFilter) {
              NoDuplicates{}});
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
   RunBytecodeTest(cols, filters, {}, {}, {}, R"(
-    InitRange: [size=0, dest_register=Register(0)]
-    CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
-    SortedFilter<Id, EqualRange>: [storage_register=Register(2), val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(0)]
-    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
-    Iota: [source_register=Register(0), update_register=Register(4)]
+    SingleRowQuery: [row_count=0, id_fval_handle=FilterValue(0), predicate_count=0]
+  )");
+}
+
+TEST_F(DataframeBytecodeTest, FusesMultipleSingleRowEqualities) {
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}},
+      Column{Storage::Int64{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}});
+  std::vector<FilterSpec> filters = {
+      {0, 0, Eq{}, std::nullopt},
+      {1, 1, Eq{}, std::nullopt},
+      {2, 2, Eq{}, std::nullopt},
+  };
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
+    SingleRowQuery: [row_count=0, id_fval_handle=FilterValue(0), predicate_count=2]
+    SingleRowEqPredicate: [fval_handle=FilterValue(1), storage_register=Register(6), storage_type=0]
+    SingleRowEqPredicate: [fval_handle=FilterValue(2), storage_register=Register(8), storage_type=2]
+  )");
+}
+
+TEST_F(DataframeBytecodeTest, FusesIdAndNonNullEquality) {
+  std::vector<Column> cols = MakeColumnVector(
+      Column{Storage::Id{}, NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}},
+      Column{Storage::Uint32{}, NullStorage::NonNull{}, Unsorted{},
+             HasDuplicates{}});
+  std::vector<FilterSpec> filters = {
+      {0, 0, Eq{}, std::nullopt},
+      {1, 1, Eq{}, std::nullopt},
+  };
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
+    SingleRowQuery: [row_count=0, id_fval_handle=FilterValue(0), predicate_count=1]
+    SingleRowEqPredicate: [fval_handle=FilterValue(1), storage_register=Register(6), storage_type=0]
   )");
 }
 
@@ -1615,6 +1645,123 @@ TEST(DataframeTest, TypedCursorSetMultipleTimes) {
     cursor.SetCellUnchecked<1>(kSpec, 20u);
     ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 20u);
   }
+}
+
+TEST(DataframeTest, TypedCursorSingleRowIdEquality) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "value"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u);
+  df.InsertUnchecked(kSpec, std::monostate(), 20u);
+
+  TypedCursor cursor(&df, {FilterSpec{0, 0, Eq{}, {}}}, {});
+  cursor.SetFilterValueUnchecked(0, int64_t(1));
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.RowIndex(), 1u);
+  cursor.Next();
+  EXPECT_TRUE(cursor.Eof());
+
+  cursor.SetFilterValueUnchecked(0, int64_t(10));
+  cursor.ExecuteUnchecked();
+  EXPECT_TRUE(cursor.Eof());
+}
+
+TEST(DataframeTest, TypedCursorSingleRowIdAndNonNullEquality) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "value"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u);
+  df.InsertUnchecked(kSpec, std::monostate(), 20u);
+  df.InsertUnchecked(kSpec, std::monostate(), 30u);
+
+  TypedCursor cursor(
+      &df, {FilterSpec{0, 0, Eq{}, {}}, FilterSpec{1, 1, Eq{}, {}}}, {});
+  cursor.SetFilterValueUnchecked(0, int64_t(1));
+  cursor.SetFilterValueUnchecked(1, int64_t(20));
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.RowIndex(), 1u);
+  cursor.Next();
+  EXPECT_TRUE(cursor.Eof());
+
+  cursor.SetFilterValueUnchecked(1, int64_t(30));
+  cursor.ExecuteUnchecked();
+  EXPECT_TRUE(cursor.Eof());
+
+  cursor.SetFilterValueUnchecked(0, int64_t(10));
+  cursor.ExecuteUnchecked();
+  EXPECT_TRUE(cursor.Eof());
+}
+
+TEST(DataframeTest, TypedCursorSingleRowIdAndNonNullEqualityAllTypes) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "u32", "i32", "i64", "double", "string"},
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Double(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u, -10, int64_t(100), 1.5,
+                     pool.InternString("a"));
+  df.InsertUnchecked(kSpec, std::monostate(), 20u, -20, int64_t(200), 2.5,
+                     pool.InternString("b"));
+
+  auto verify = [&](uint32_t column, auto value) {
+    TypedCursor cursor(
+        &df, {FilterSpec{0, 0, Eq{}, {}}, FilterSpec{column, 1, Eq{}, {}}}, {});
+    cursor.SetFilterValueUnchecked(0, int64_t(1));
+    cursor.SetFilterValueUnchecked(1, value);
+    cursor.ExecuteUnchecked();
+    ASSERT_FALSE(cursor.Eof());
+    EXPECT_EQ(cursor.RowIndex(), 1u);
+    cursor.Next();
+    EXPECT_TRUE(cursor.Eof());
+  };
+  verify(1, int64_t(20));
+  verify(2, int64_t(-20));
+  verify(3, int64_t(200));
+  verify(4, 2.5);
+  verify(5, "b");
+}
+
+TEST(DataframeTest, TypedCursorSingleRowMultipleEqualities) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "u32", "i64"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u, int64_t(100));
+  df.InsertUnchecked(kSpec, std::monostate(), 20u, int64_t(200));
+
+  TypedCursor cursor(&df,
+                     {FilterSpec{0, 0, Eq{}, {}}, FilterSpec{1, 1, Eq{}, {}},
+                      FilterSpec{2, 2, Eq{}, {}}},
+                     {});
+  cursor.SetFilterValueUnchecked(0, int64_t(1));
+  cursor.SetFilterValueUnchecked(1, int64_t(20));
+  cursor.SetFilterValueUnchecked(2, int64_t(200));
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.RowIndex(), 1u);
+  cursor.Next();
+  EXPECT_TRUE(cursor.Eof());
+
+  cursor.SetFilterValueUnchecked(2, int64_t(100));
+  cursor.ExecuteUnchecked();
+  EXPECT_TRUE(cursor.Eof());
+
+  cursor.SetFilterValueUnchecked(0, int64_t(10));
+  cursor.ExecuteUnchecked();
+  EXPECT_TRUE(cursor.Eof());
 }
 
 TEST(DataframeTest, TypedCursorInFilter) {

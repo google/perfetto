@@ -43,6 +43,7 @@
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
+#include "src/trace_processor/core/interpreter/bytecode_optimizer.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -751,6 +752,7 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
 }
 
 QueryPlanImpl QueryPlanBuilder::Build() && {
+  i::OptimizeBytecode(builder_.bytecode());
   plan_.bytecode = std::move(builder_.bytecode());
   plan_.params.register_count = builder_.register_count();
   return std::move(plan_);

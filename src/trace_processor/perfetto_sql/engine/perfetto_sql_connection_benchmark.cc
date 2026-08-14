@@ -14,9 +14,12 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
+#include <cstdint>
 #include <memory>
+#include <string>
 
 #include <benchmark/benchmark.h>
+#include <sqlite3.h>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -38,6 +41,112 @@ void BM_Connection_Execute_TrivialSelect(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_Connection_Execute_TrivialSelect);
+
+struct PointQueryBenchmark {
+  PointQueryBenchmark() {
+    connection = PerfettoSqlConnection::CreateConnectionToNewDatabase(
+        &pool, /*enable_extra_checks=*/false);
+    auto result = connection->Execute(SqlSource::FromExecuteQuery(R"SQL(
+      CREATE PERFETTO TABLE point_query AS
+      WITH RECURSIVE seq(i) AS (
+        VALUES(0) UNION ALL SELECT i + 1 FROM seq WHERE i < 4095
+      )
+      SELECT
+        i AS id,
+        i % 17 AS value,
+        CASE i % 2 WHEN 0 THEN 'even' ELSE 'odd' END AS name
+      FROM seq
+    )SQL"));
+    PERFETTO_CHECK(result.ok());
+  }
+
+  SqliteConnection::PreparedStatement Prepare(const char* sql) {
+    auto statement =
+        connection->PrepareSqliteStatement(SqlSource::FromExecuteQuery(sql));
+    PERFETTO_CHECK(statement.ok());
+    return std::move(statement.value());
+  }
+
+  StringPool pool;
+  std::unique_ptr<PerfettoSqlConnection> connection;
+};
+
+enum class PointQueryMode {
+  kHit,
+  kSecondPredicateMiss,
+  kIdMiss,
+};
+
+void RunPointQueryBenchmark(benchmark::State& state,
+                            PointQueryMode mode,
+                            bool filter_value = true) {
+  constexpr uint32_t kLookupCount = 1024;
+  PointQueryBenchmark benchmark;
+  const char* id_expr = mode == PointQueryMode::kIdMiss ? "5000 + i" : "i";
+  const char* value_expr =
+      mode == PointQueryMode::kSecondPredicateMiss ? "(i + 1) % 17" : "i % 17";
+  std::string setup = R"SQL(
+    CREATE TABLE lookup(id INT, value INT);
+    WITH RECURSIVE seq(i) AS (
+      VALUES(0) UNION ALL SELECT i + 1 FROM seq WHERE i < 1023
+    )
+    INSERT INTO lookup SELECT )SQL" +
+                      std::string(id_expr) + ", " + value_expr + " FROM seq";
+  auto setup_result =
+      benchmark.connection->Execute(SqlSource::FromExecuteQuery(setup));
+  PERFETTO_CHECK(setup_result.ok());
+
+  // CROSS JOIN fixes the loop order: SQLite scans |lookup| and invokes the
+  // dataframe's xFilter once for each outer row, matching real join usage.
+  std::string query = R"SQL(
+    SELECT sum(p.id)
+    FROM lookup AS l CROSS JOIN point_query AS p
+    WHERE p.id = l.id
+  )SQL" + std::string(filter_value ? " AND p.value = l.value" : "");
+  auto statement = benchmark.Prepare(query.c_str());
+  sqlite3_stmt* stmt = statement.sqlite_stmt();
+
+  // Run once before timing so xFilter prepares and caches the query plan.
+  PERFETTO_CHECK(sqlite3_step(stmt) == SQLITE_ROW);
+  benchmark::DoNotOptimize(sqlite3_column_int64(stmt, 0));
+  PERFETTO_CHECK(sqlite3_step(stmt) == SQLITE_DONE);
+  PERFETTO_CHECK(sqlite3_reset(stmt) == SQLITE_OK);
+
+  for (auto _ : state) {
+    PERFETTO_CHECK(sqlite3_step(stmt) == SQLITE_ROW);
+    benchmark::DoNotOptimize(sqlite3_column_int64(stmt, 0));
+    PERFETTO_CHECK(sqlite3_step(stmt) == SQLITE_DONE);
+    PERFETTO_CHECK(sqlite3_reset(stmt) == SQLITE_OK);
+  }
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                          kLookupCount);
+}
+
+void BM_DataframeSqliteJoin_Id_Hit(benchmark::State& state) {
+  RunPointQueryBenchmark(state, PointQueryMode::kHit, false);
+}
+BENCHMARK(BM_DataframeSqliteJoin_Id_Hit);
+
+void BM_DataframeSqliteJoin_Id_IdMiss(benchmark::State& state) {
+  RunPointQueryBenchmark(state, PointQueryMode::kIdMiss, false);
+}
+BENCHMARK(BM_DataframeSqliteJoin_Id_IdMiss);
+
+void BM_DataframeSqliteJoin_IdAndUint32_Hit(benchmark::State& state) {
+  RunPointQueryBenchmark(state, PointQueryMode::kHit);
+}
+BENCHMARK(BM_DataframeSqliteJoin_IdAndUint32_Hit);
+
+void BM_DataframeSqliteJoin_IdAndUint32_SecondPredicateMiss(
+    benchmark::State& state) {
+  RunPointQueryBenchmark(state, PointQueryMode::kSecondPredicateMiss);
+}
+BENCHMARK(BM_DataframeSqliteJoin_IdAndUint32_SecondPredicateMiss);
+
+void BM_DataframeSqliteJoin_IdAndUint32_IdMiss(benchmark::State& state) {
+  RunPointQueryBenchmark(state, PointQueryMode::kIdMiss);
+}
+BENCHMARK(BM_DataframeSqliteJoin_IdAndUint32_IdMiss);
 
 // Re-entrant Execute(): the outer body uses a CREATE PERFETTO FUNCTION
 // whose body re-enters the engine via the runtime function machinery.

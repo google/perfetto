@@ -20,7 +20,6 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -29,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
@@ -448,38 +448,39 @@ int DataframeModule::Close(sqlite3_vtab_cursor* cursor) {
   return SQLITE_OK;
 }
 
+static PERFETTO_NO_INLINE void PrepareDataframeCursor(
+    DataframeModule::Cursor* cursor,
+    int idx_num,
+    const char* idx_str) {
+  auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idx_str);
+  PERFETTO_TP_TRACE(
+      metatrace::Category::QUERY_DETAILED, "DATAFRAME_FILTER_PREPARE",
+      [&plan, idx_num](metatrace::Record* record) {
+        record->AddArg("idxNum",
+                       base::StackString<32>("%d", idx_num).string_view());
+        auto str = plan.BytecodeToString();
+        for (uint32_t i = 0; i < str.size(); ++i) {
+          base::StackString<32> c("bytecode[%u]", i);
+          record->AddArg(c.string_view(), str[i]);
+        }
+      });
+  auto* v = DataframeModule::GetVtab(cursor->pVtab);
+  auto* state = sqlite::ModuleStateManager<DataframeModule>::GetState(v->state);
+  state->dataframe->PrepareCursor(plan, cursor->df_cursor);
+  cursor->last_idx_str = idx_str;
+  cursor->id_col_idx = v->id_col_idx;
+}
+
 int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
                             int idxNum,
                             const char* idxStr,
-                            int argc,
+                            int,
                             sqlite3_value** argv) {
   auto* c = GetCursor(cur);
-  if (idxStr != c->last_idx_str) {
-    auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
-    PERFETTO_TP_TRACE(
-        metatrace::Category::QUERY_DETAILED, "DATAFRAME_FILTER_PREPARE",
-        [&plan, idxNum](metatrace::Record* record) {
-          record->AddArg("idxNum",
-                         base::StackString<32>("%d", idxNum).string_view());
-          auto str = plan.BytecodeToString();
-          for (uint32_t i = 0; i < str.size(); ++i) {
-            base::StackString<32> c("bytecode[%u]", i);
-            record->AddArg(c.string_view(), str[i]);
-          }
-        });
-    auto* v = GetVtab(cur->pVtab);
-    auto* s = sqlite::ModuleStateManager<DataframeModule>::GetState(v->state);
-    s->dataframe->PrepareCursor(plan, c->df_cursor);
-    c->last_idx_str = idxStr;
-    c->id_col_idx = v->id_col_idx;
+  if (PERFETTO_UNLIKELY(idxStr != c->last_idx_str)) {
+    PrepareDataframeCursor(c, idxNum, idxStr);
   }
-  // SQLite's API claims it will never pass more than 16 arguments
-  // so assert that here as our std::array is fixed size.
-  PERFETTO_DCHECK(argc <= 16);
-  SqliteValueFetcher fetcher{{}, {}, argv};
-  memcpy(static_cast<void*>(fetcher.sqlite_value.data()),
-         static_cast<void*>(argv),
-         sizeof(sqlite3_value*) * static_cast<size_t>(argc));
+  SqliteValueFetcher fetcher(argv);
   c->df_cursor.Execute(fetcher);
   return SQLITE_OK;
 }

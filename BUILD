@@ -2495,6 +2495,8 @@ perfetto_filegroup(
         "src/trace_processor/core/interpreter/bytecode_interpreter_impl.cc",
         "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h",
         "src/trace_processor/core/interpreter/bytecode_interpreter_state.h",
+        "src/trace_processor/core/interpreter/bytecode_optimizer.cc",
+        "src/trace_processor/core/interpreter/bytecode_optimizer.h",
         "src/trace_processor/core/interpreter/bytecode_registers.h",
         "src/trace_processor/core/interpreter/bytecode_to_string.cc",
         "src/trace_processor/core/interpreter/bytecode_to_string.h",

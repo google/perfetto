@@ -2,7 +2,7 @@ Unreleased:
   Tracing service and probes:
    *
   Trace Processor:
-   *
+    * Improved performance of SQLite joins using ID columns.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
   SDK:
