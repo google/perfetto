@@ -48,6 +48,7 @@ import {ensureExists} from '../../base/assert';
 import type {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
 import {legacyMacrosConfigSchema} from './legacy_macros_schema';
+import {Intent} from '../../widgets/common';
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 
@@ -181,9 +182,74 @@ export default class CoreCommands implements PerfettoPlugin {
       },
     });
 
+    function formatCommandError(err: unknown): string {
+      if (err instanceof Error) {
+        const causes: string[] = [];
+        let current: unknown = err;
+        while (current instanceof Error && 'cause' in current && current.cause) {
+          current = current.cause;
+          if (current instanceof Error) {
+            if (current.message && !causes.includes(current.message)) {
+              causes.push(current.message);
+            }
+          } else if (current) {
+            causes.push(String(current));
+          }
+        }
+        if (causes.length > 0) {
+          return `${err.message}: ${causes.join(': ')}`;
+        }
+        return err.message;
+      }
+      return String(err);
+    }
+
     // Register the new macros setting (array format)
     const macroSettingsEditor = new JsonSettingsEditor<MacrosConfig>({
       schema: macrosConfigSchema,
+      validator: (macros) => {
+        const ids = new Set<string>();
+        for (const macro of macros) {
+          if (ids.has(macro.id)) {
+            return `Duplicate macro ID "${macro.id}". Macro IDs must be unique.`;
+          }
+          ids.add(macro.id);
+        }
+        return undefined;
+      },
+      onValidate: async (macros) => {
+        if (macros.length === 0) {
+          return {
+            message: 'No macros configured.',
+            intent: Intent.Success,
+            icon: 'check_circle',
+          };
+        }
+
+        // Disable prompts during macro dry-run execution
+        using _ = ctx.omnibox.disablePrompts();
+
+        for (const macro of macros) {
+          for (const command of macro.run) {
+            try {
+              await ctx.commands.runCommand(command.id, ...command.args);
+            } catch (err) {
+              const errorMsg = formatCommandError(err);
+              return {
+                message: `Macro "${macro.name}" (${macro.id}) failed on command "${command.id}":\n${errorMsg}`,
+                intent: Intent.Danger,
+                icon: 'error',
+              };
+            }
+          }
+        }
+
+        return {
+          message: `All ${macros.length} macro(s) executed successfully with no errors.`,
+          intent: Intent.Success,
+          icon: 'check_circle',
+        };
+      },
     });
     CoreCommands.macrosSetting = ctx.settings.register({
       id: 'perfetto.CoreCommands#Macros',
