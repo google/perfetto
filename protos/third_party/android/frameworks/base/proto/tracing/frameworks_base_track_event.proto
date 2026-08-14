@@ -22,6 +22,7 @@ syntax = "proto2";
 
 import public "protos/perfetto/trace/track_event/track_event.proto";
 import "protos/perfetto/trace/field_options.proto";
+import "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.proto";
 
 package com.android.internal;
 
@@ -435,42 +436,6 @@ enum HostingTypeId {
   HOSTING_TYPE_BOUND_SERVICE = 16;
 }
 
-enum UnfreezeReason {
-  UFR_NONE = 0;
-  UFR_ACTIVITY = 1;
-  UFR_FINISH_RECEIVER = 2;
-  UFR_START_RECEIVER = 3;
-  UFR_BIND_SERVICE = 4;
-  UFR_UNBIND_SERVICE = 5;
-  UFR_START_SERVICE = 6;
-  UFR_GET_PROVIDER = 7;
-  UFR_REMOVE_PROVIDER = 8;
-  UFR_UI_VISIBILITY = 9;
-  UFR_ALLOWLIST = 10;
-  UFR_PROCESS_BEGIN = 11;
-  UFR_PROCESS_END = 12;
-  UFR_TRIM_MEMORY = 13;
-  UFR_PING = 15;
-  UFR_FILE_LOCKS = 16;
-  UFR_FILE_LOCK_CHECK_FAILURE = 17;
-  UFR_BINDER_TXNS = 18;
-  UFR_FEATURE_FLAGS = 19;
-  UFR_SHORT_FGS_TIMEOUT = 20;
-  UFR_SYSTEM_INIT = 21;
-  UFR_BACKUP = 22;
-  UFR_SHELL = 23;
-  UFR_REMOVE_TASK = 24;
-  UFR_UID_IDLE = 25;
-  UFR_STOP_SERVICE = 26;
-  UFR_EXECUTING_SERVICE = 27;
-  UFR_RESTRICTION_CHANGE = 28;
-  UFR_COMPONENT_DISABLED = 29;
-  UFR_OOM_ADJ_FOLLOW_UP = 30;
-  UFR_OOM_ADJ_RECONFIGURATION = 31;
-  UFR_OOM_ADJ_REASON_SERVICE_BINDER_CALL = 32;
-  UFR_OOM_ADJ_REASON_BATCH_UPDATE_REQUEST = 33;
-}
-
 enum TriggerType {
   TRIGGER_TYPE_UNKNOWN = 0;
   TRIGGER_TYPE_ALARM = 1;
@@ -770,6 +735,7 @@ message AndroidBinderDiedEvent {
   optional int64 start_seq_id = 4;
 }
 
+// See AndroidProcessStateSnapshot in frameworks_base_trace_packet.proto
 message AndroidProcessStateChangedEvent {
   // Uid of the package of the process changing state.
   optional int32 uid = 1;
@@ -974,9 +940,42 @@ message AndroidProcStateUpdateEvent {
            ".com.android.internal.ProcStateControllerInconsistentBehavior"];
 }
 
+message AndroidSelfBroadcastEvent {
+  // Sender/Receiver PID (since it's self-broadcast, they are the same)
+  optional int32 pid = 1;
+
+  // Sender/Receiver UID
+  optional int32 uid = 2;
+
+  // The action name of the broadcast.
+  optional string action_name = 3;
+
+  // The procstate of the process.
+  optional ProcessStateEnum process_state = 4;
+
+  // The type of the broadcast. It's a mask of BroadcastType.
+  optional int32 broadcast_type = 5;
+
+  // Flags set in the broadcast intent.
+  optional int32 intent_flags = 6;
+
+  // Number of registered receivers for this broadcast.
+  optional int32 registered_receiver_count = 7;
+
+  // Number of manifest receivers for this broadcast.
+  optional int32 manifest_receiver_count = 8;
+
+  // Delivery group policy set for the broadcast.
+  optional int32 delivery_group_policy = 9;
+
+  // Unique cookie for this broadcast, used to correlate server and client
+  // traces.
+  optional int64 trace_cookie = 10;
+}
+
 message FrameworksBaseTrackEvent {
   // Usable range: [2004, 2006], [2008, 2099]
-  // Next id: 2021
+  // Next id: 2022
   extend perfetto.protos.TrackEvent {
     // MessageQueue messages.
     optional AndroidMessageQueue message_queue = 2004;
@@ -1015,5 +1014,7 @@ message FrameworksBaseTrackEvent {
     optional AndroidProcStateSummaryEvent proc_state_summary_event = 2019;
     // ProcState update event.
     optional AndroidProcStateUpdateEvent proc_state_update_event = 2020;
+    // Self broadcast event.
+    optional AndroidSelfBroadcastEvent self_broadcast_event = 2021;
   }
 }
