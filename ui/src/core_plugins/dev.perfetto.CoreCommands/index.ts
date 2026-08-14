@@ -182,33 +182,6 @@ export default class CoreCommands implements PerfettoPlugin {
       },
     });
 
-    function formatCommandError(err: unknown): string {
-      if (err instanceof Error) {
-        const causes: string[] = [];
-        let current: unknown = err;
-        while (
-          current instanceof Error &&
-          'cause' in current &&
-          current.cause !== undefined &&
-          current.cause !== null
-        ) {
-          current = current.cause;
-          if (current instanceof Error) {
-            if (current.message !== '' && !causes.includes(current.message)) {
-              causes.push(current.message);
-            }
-          } else if (current !== undefined && current !== null) {
-            causes.push(String(current));
-          }
-        }
-        if (causes.length > 0) {
-          return `${err.message}: ${causes.join(': ')}`;
-        }
-        return err.message;
-      }
-      return String(err);
-    }
-
     // Register the new macros setting (array format)
     const macroSettingsEditor = new JsonSettingsEditor<MacrosConfig>({
       schema: macrosConfigSchema,
@@ -222,7 +195,7 @@ export default class CoreCommands implements PerfettoPlugin {
         }
         return undefined;
       },
-      onValidate: async (macros) => {
+      onValidate: (macros) => {
         if (macros.length === 0) {
           return {
             message: 'No macros configured.',
@@ -231,17 +204,45 @@ export default class CoreCommands implements PerfettoPlugin {
           };
         }
 
-        // Disable prompts during macro dry-run execution
-        using _ = ctx.omnibox.disablePrompts();
+        const definedMacroIds = new Set(macros.map((m) => m.id));
 
         for (const macro of macros) {
+          if (macro.id.trim() === '') {
+            return {
+              message: 'Macro ID cannot be empty.',
+              intent: Intent.Danger,
+              icon: 'error',
+            };
+          }
+          if (macro.name.trim() === '') {
+            return {
+              message: `Macro "${macro.id}" must have a non-empty name.`,
+              intent: Intent.Danger,
+              icon: 'error',
+            };
+          }
+
           for (const command of macro.run) {
-            try {
-              await ctx.commands.runCommand(command.id, ...command.args);
-            } catch (err) {
-              const errorMsg = formatCommandError(err);
+            if (command.id.trim() === '') {
               return {
-                message: `Macro "${macro.name}" (${macro.id}) failed on command "${command.id}":\n${errorMsg}`,
+                message: `Macro "${macro.name}" (${macro.id}) contains an empty command ID in its run list.`,
+                intent: Intent.Danger,
+                icon: 'error',
+              };
+            }
+            if (command.id === macro.id) {
+              return {
+                message: `Macro "${macro.name}" (${macro.id}) cannot invoke itself (self-reference detected).`,
+                intent: Intent.Danger,
+                icon: 'error',
+              };
+            }
+            if (
+              !ctx.commands.hasCommand(command.id) &&
+              !definedMacroIds.has(command.id)
+            ) {
+              return {
+                message: `Macro "${macro.name}" (${macro.id}) references unknown command "${command.id}".`,
                 intent: Intent.Danger,
                 icon: 'error',
               };
@@ -250,7 +251,7 @@ export default class CoreCommands implements PerfettoPlugin {
         }
 
         return {
-          message: `All ${macros.length} macro(s) executed successfully with no errors.`,
+          message: `All ${macros.length} macro(s) validated successfully.`,
           intent: Intent.Success,
           icon: 'check_circle',
         };

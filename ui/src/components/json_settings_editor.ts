@@ -130,7 +130,7 @@ export class JsonSettingsEditor<T> {
         return result;
       } else {
         return {
-          message: 'All macros executed successfully with no errors.',
+          message: 'Validation passed successfully.',
           intent: Intent.Success,
           icon: 'check_circle',
         };
