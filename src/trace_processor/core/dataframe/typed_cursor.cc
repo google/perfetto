@@ -27,11 +27,13 @@
 
 namespace perfetto::trace_processor::core::dataframe {
 
+TypedCursor::Fetcher::~Fetcher() = default;
+
 void TypedCursor::ExecuteUnchecked() {
   if (PERFETTO_UNLIKELY(last_execution_mutation_count_ != GetMutations())) {
     PrepareCursorInternal();
   }
-  Fetcher fetcher{{}, filter_values_.data(), filter_value_list_states_.data()};
+  Fetcher fetcher(filter_values_.data(), filter_value_list_states_.data());
   cursor_.Execute(fetcher);
 }
 

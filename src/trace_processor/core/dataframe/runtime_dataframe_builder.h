@@ -112,13 +112,8 @@ class RuntimeDataframeBuilder {
 
   // Adds a row to the dataframe using data provided by the Fetcher.
   //
-  // Template Args:
-  //   ValueFetcherImpl: A concrete class derived from `ValueFetcher` that
-  //                     provides methods like `GetValueType(col_idx)` and
-  //                     `GetInt64Value(col_idx)`, `GetDoubleValue(col_idx)`,
-  //                     `GetStringValue(col_idx)` for the current row.
   // Args:
-  //   fetcher: A pointer to an instance of `ValueFetcherImpl`, configured
+  //   fetcher: A pointer to a `ValueFetcher`, configured
   //            to provide data for the row being added. The fetcher only
   //            needs to be valid for the duration of this call.
   // Returns:
@@ -138,35 +133,32 @@ class RuntimeDataframeBuilder {
   // 3) Performs strict type checking against the inferred type for subsequent
   //    rows. If a type mismatch occurs, sets an error status (retrievable via
   //    status()) and returns false.
-  template <typename ValueFetcherImpl>
-  bool AddRow(ValueFetcherImpl* fetcher) {
-    static_assert(std::is_base_of_v<ValueFetcher, ValueFetcherImpl>,
-                  "ValueFetcherImpl must inherit from ValueFetcher");
+  bool AddRow(ValueFetcher* fetcher) {
     PERFETTO_CHECK(status().ok());
 
     for (uint32_t i = 0; i < coulumn_count_; ++i) {
-      typename ValueFetcherImpl::Type fetched_type = fetcher->GetValueType(i);
+      ValueFetcher::Type fetched_type = fetcher->GetValueType(i);
       switch (fetched_type) {
-        case ValueFetcherImpl::kInt64:
+        case ValueFetcher::kInt64:
           if (!builder_.PushNonNull(i, fetcher->GetInt64Value(i))) {
             return false;
           }
           break;
-        case ValueFetcherImpl::kDouble:
+        case ValueFetcher::kDouble:
           if (!builder_.PushNonNull(i, fetcher->GetDoubleValue(i))) {
             return false;
           }
           break;
-        case ValueFetcherImpl::kString:
+        case ValueFetcher::kString:
           if (!builder_.PushNonNull(
                   i, pool_->InternString(fetcher->GetStringValue(i)))) {
             return false;
           }
           break;
-        case ValueFetcherImpl::kNull:
+        case ValueFetcher::kNull:
           builder_.PushNull(i);
           break;
-        case ValueFetcherImpl::kBytes:
+        case ValueFetcher::kBytes:
           PERFETTO_FATAL("Blob type not supported in Dataframe");
           break;
       }

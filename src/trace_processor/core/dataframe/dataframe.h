@@ -158,18 +158,13 @@ class Dataframe {
       const LimitSpec& limit_spec,
       uint64_t cols_used_bitmap) const;
 
-  // Prepares a cursor for executing the query plan. The template parameter
-  // `FilterValueFetcherImpl` is a subclass of `ValueFetcher` that defines the
-  // logic for fetching filter values for each filter specs specified when
-  // calling `PlanQuery`.
+  // Prepares a cursor for executing the query plan.
   //
   // Parameters:
   //   plan: The query plan to execute.
   //   c:    A reference to a std::optional that will be set to the prepared
   //         cursor.
-  template <typename FilterValueFetcherImpl>
-  void PrepareCursor(const QueryPlan& plan,
-                     Cursor<FilterValueFetcherImpl>& c) const {
+  void PrepareCursor(const QueryPlan& plan, Cursor& c) const {
     c.Initialize(plan.plan_, static_cast<uint32_t>(column_ptrs_.size()),
                  column_ptrs_.data(), indexes_.data(), string_pool_);
   }

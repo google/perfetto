@@ -42,6 +42,8 @@
 
 namespace perfetto::trace_processor {
 
+DataframeModule::SqliteValueFetcher::~SqliteValueFetcher() = default;
+
 namespace {
 
 std::optional<dataframe::Op> SqliteOpToDataframeOp(int op) {
@@ -476,7 +478,7 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
   // SQLite's API claims it will never pass more than 16 arguments
   // so assert that here as our std::array is fixed size.
   PERFETTO_DCHECK(argc <= 16);
-  SqliteValueFetcher fetcher{{}, {}, argv};
+  SqliteValueFetcher fetcher(argv);
   memcpy(static_cast<void*>(fetcher.sqlite_value.data()),
          static_cast<void*>(argv),
          sizeof(sqlite3_value*) * static_cast<size_t>(argc));

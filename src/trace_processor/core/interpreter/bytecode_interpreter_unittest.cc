@@ -118,7 +118,7 @@ class BytecodeInterpreterTest : public testing::Test {
       const BytecodeVector& bytecode) {
     // Hardcode the register count to 128 for testing.
     static constexpr uint32_t kNumRegisters = 128;
-    interpreter_ = std::make_unique<Interpreter<Fetcher>>();
+    interpreter_ = std::make_unique<Interpreter>();
     interpreter_->Initialize(bytecode, kNumRegisters, &spool_);
   }
 
@@ -147,7 +147,7 @@ class BytecodeInterpreterTest : public testing::Test {
   }
 
   template <typename... Ts, uint32_t... Is>
-  void SetRegisterValuesForTesting(Interpreter<Fetcher>* interpreter,
+  void SetRegisterValuesForTesting(Interpreter* interpreter,
                                    std::integer_sequence<uint32_t, Is...>,
                                    Ts... values) {
     (interpreter->SetRegisterValue(WriteHandle<Ts>(Is), std::move(values)),
@@ -159,7 +159,7 @@ class BytecodeInterpreterTest : public testing::Test {
   std::vector<std::unique_ptr<dataframe::Column>> columns_vec_;
   std::vector<dataframe::Column*> column_ptrs_;
   std::vector<dataframe::Index> indexes_;
-  std::unique_ptr<Interpreter<Fetcher>> interpreter_;
+  std::unique_ptr<Interpreter> interpreter_;
 };
 
 TEST_F(BytecodeInterpreterTest, InitRange) {

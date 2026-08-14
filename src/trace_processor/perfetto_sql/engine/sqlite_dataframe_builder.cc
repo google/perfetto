@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
@@ -28,34 +29,32 @@
 namespace perfetto::trace_processor {
 namespace {
 
-struct SqliteValueFetcher : public dataframe::ValueFetcher {
+struct SqliteValueFetcher final : public dataframe::ValueFetcher {
   SqliteValueFetcher(sqlite3_stmt* sql_stmt, bool null_blobs)
       : stmt(sql_stmt), blobs_as_null(null_blobs) {}
+  ~SqliteValueFetcher() override;
 
-  using Type = sqlite::Type;
-  static constexpr Type kInt64 = sqlite::Type::kInteger;
-  static constexpr Type kDouble = sqlite::Type::kFloat;
-  static constexpr Type kString = sqlite::Type::kText;
-  static constexpr Type kNull = sqlite::Type::kNull;
-  static constexpr Type kBytes = sqlite::Type::kBlob;
-
-  int64_t GetInt64Value(uint32_t column) const {
+  int64_t GetInt64Value(uint32_t column) const override {
     return sqlite::column::Int64(stmt, column);
   }
-  double GetDoubleValue(uint32_t column) const {
+  double GetDoubleValue(uint32_t column) const override {
     return sqlite::column::Double(stmt, column);
   }
-  const char* GetStringValue(uint32_t column) const {
+  const char* GetStringValue(uint32_t column) const override {
     return sqlite::column::Text(stmt, column);
   }
-  Type GetValueType(uint32_t column) const {
-    Type type = sqlite::column::Type(stmt, column);
+  Type GetValueType(uint32_t column) const override {
+    Type type = static_cast<Type>(sqlite::column::Type(stmt, column));
     return blobs_as_null && type == kBytes ? kNull : type;
   }
+  bool IteratorInit(uint32_t) override { PERFETTO_FATAL("Unsupported"); }
+  bool IteratorNext(uint32_t) override { PERFETTO_FATAL("Unsupported"); }
 
   sqlite3_stmt* stmt;
   bool blobs_as_null;
 };
+
+SqliteValueFetcher::~SqliteValueFetcher() = default;
 
 }  // namespace
 

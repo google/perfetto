@@ -52,26 +52,25 @@ class TypedCursor {
     uint32_t current = 0;
   };
 
-  struct Fetcher : ValueFetcher {
-    using Type = size_t;
-    static const Type kInt64 = base::variant_index<FilterValue, int64_t>();
-    static const Type kDouble = base::variant_index<FilterValue, double>();
-    static const Type kString = base::variant_index<FilterValue, const char*>();
-    static const Type kNull =
-        base::variant_index<FilterValue, std::nullptr_t>();
-    int64_t GetInt64Value(uint32_t col) const {
+  struct Fetcher final : ValueFetcher {
+    Fetcher(FilterValue* values, FilterValueListState* list_states)
+        : filter_values_(values), filter_value_list_states_(list_states) {}
+    ~Fetcher() override;
+
+    int64_t GetInt64Value(uint32_t col) const override {
       return base::unchecked_get<int64_t>(filter_values_[col]);
     }
-    double GetDoubleValue(uint32_t col) const {
+    double GetDoubleValue(uint32_t col) const override {
       return base::unchecked_get<double>(filter_values_[col]);
     }
-    const char* GetStringValue(uint32_t col) const {
+    const char* GetStringValue(uint32_t col) const override {
       return base::unchecked_get<const char*>(filter_values_[col]);
     }
-    Type GetValueType(uint32_t col) const {
-      return filter_values_[col].index();
+    Type GetValueType(uint32_t col) const override {
+      static constexpr Type kTypes[] = {kNull, kInt64, kDouble, kString};
+      return kTypes[filter_values_[col].index()];
     }
-    bool IteratorInit(uint32_t col) {
+    bool IteratorInit(uint32_t col) override {
       FilterValueListState& s = filter_value_list_states_[col];
       s.current = 0;
       if (s.size == 0) {
@@ -80,7 +79,7 @@ class TypedCursor {
       filter_values_[col] = s.data[0];
       return true;
     }
-    bool IteratorNext(uint32_t col) {
+    bool IteratorNext(uint32_t col) override {
       FilterValueListState& s = filter_value_list_states_[col];
       ++s.current;
       if (s.current >= s.size) {
@@ -242,7 +241,7 @@ class TypedCursor {
   std::vector<FilterSpec> filter_specs_;
   std::vector<SortSpec> sort_specs_;
   bool mutable_;
-  Cursor<Fetcher> cursor_;
+  Cursor cursor_;
 
   core::Slab<uint32_t*> column_mutation_count_;
   uint32_t last_execution_mutation_count_ =

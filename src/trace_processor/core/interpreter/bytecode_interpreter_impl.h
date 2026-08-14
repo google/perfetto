@@ -1710,42 +1710,6 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
 
 }  // namespace ops
 
-// Macros for generating case statements that dispatch to ops:: free functions.
-// Uses __VA_ARGS__ to handle template types with commas (e.g., SortedFilter<Id,
-// EqualRange>).
-
-// For ops that need state and fetcher:
-#define PERFETTO_OP_CASE_FVF(...)                                \
-  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {    \
-    ops::__VA_ARGS__(state_, fetcher,                            \
-                     static_cast<const __VA_ARGS__&>(bytecode)); \
-    break;                                                       \
-  }
-
-// For ops that only need state:
-#define PERFETTO_OP_CASE_STATE(...)                                      \
-  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {            \
-    ops::__VA_ARGS__(state_, static_cast<const __VA_ARGS__&>(bytecode)); \
-    break;                                                               \
-  }
-
-// Executes all bytecode instructions using free functions.
-template <typename FilterValueFetcherImpl>
-PERFETTO_ALWAYS_INLINE void Interpreter<FilterValueFetcherImpl>::Execute(
-    FilterValueFetcherImpl& fetcher) {
-  for (const auto& bytecode : state_.bytecode) {
-    switch (bytecode.option) {
-      PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(PERFETTO_OP_CASE_FVF)
-      PERFETTO_DATAFRAME_BYTECODE_STATE_ONLY_LIST(PERFETTO_OP_CASE_STATE)
-      default:
-        PERFETTO_ASSUME(false);
-    }
-  }
-}
-
-#undef PERFETTO_OP_CASE_FVF
-#undef PERFETTO_OP_CASE_STATE
-
 }  // namespace perfetto::trace_processor::core::interpreter
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INTERPRETER_IMPL_H_

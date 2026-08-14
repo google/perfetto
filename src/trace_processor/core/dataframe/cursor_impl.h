@@ -26,14 +26,11 @@
 
 namespace perfetto::trace_processor::core::dataframe {
 
-template <typename FilterValueFetcherImpl>
-void Cursor<FilterValueFetcherImpl>::Execute(
-    FilterValueFetcherImpl& filter_value_fetcher) {
+inline void Cursor::Execute(ValueFetcher& filter_value_fetcher) {
   using S = Span<uint32_t>;
   interpreter_.Execute(filter_value_fetcher);
 
-  const auto& span =
-      *interpreter_.template GetRegisterValue<S>(params_.output_register);
+  const auto& span = *interpreter_.GetRegisterValue<S>(params_.output_register);
   pos_ = span.b;
   end_ = span.e;
 }

@@ -51,39 +51,30 @@ namespace perfetto::trace_processor::core::interpreter {
 
 using FilterValue = std::variant<int64_t, double, const char*, std::nullptr_t>;
 
-struct Fetcher : ValueFetcher {
-  using Type = size_t;
-  [[maybe_unused]] static constexpr Type kInt64 =
-      base::variant_index<FilterValue, int64_t>();
-  [[maybe_unused]] static constexpr Type kDouble =
-      base::variant_index<FilterValue, double>();
-  [[maybe_unused]] static constexpr Type kString =
-      base::variant_index<FilterValue, const char*>();
-  [[maybe_unused]] static constexpr Type kNull =
-      base::variant_index<FilterValue, std::nullptr_t>();
-
-  int64_t GetInt64Value(uint32_t idx) const {
+struct Fetcher final : ValueFetcher {
+  int64_t GetInt64Value(uint32_t idx) const override {
     PERFETTO_CHECK(idx == 0);
     return std::get<int64_t>(value[i]);
   }
-  double GetDoubleValue(uint32_t idx) const {
+  double GetDoubleValue(uint32_t idx) const override {
     PERFETTO_CHECK(idx == 0);
     return std::get<double>(value[i]);
   }
-  const char* GetStringValue(uint32_t idx) const {
+  const char* GetStringValue(uint32_t idx) const override {
     PERFETTO_CHECK(idx == 0);
     return std::get<const char*>(value[i]);
   }
-  Type GetValueType(uint32_t idx) const {
+  Type GetValueType(uint32_t idx) const override {
     PERFETTO_CHECK(idx == 0);
-    return value[i].index();
+    static constexpr Type kTypes[] = {kInt64, kDouble, kString, kNull};
+    return kTypes[value[i].index()];
   }
-  bool IteratorInit(uint32_t idx) {
+  bool IteratorInit(uint32_t idx) override {
     PERFETTO_CHECK(idx == 0);
     i = 0;
     return i < value.size();
   }
-  bool IteratorNext(uint32_t idx) {
+  bool IteratorNext(uint32_t idx) override {
     PERFETTO_CHECK(idx == 0);
     i++;
     return i < value.size();

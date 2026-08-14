@@ -2452,6 +2452,7 @@ perfetto_filegroup(
         "src/trace_processor/core/common/op_types.h",
         "src/trace_processor/core/common/sort_types.h",
         "src/trace_processor/core/common/storage_types.h",
+        "src/trace_processor/core/common/value_fetcher.cc",
         "src/trace_processor/core/common/value_fetcher.h",
     ],
 )

@@ -1345,7 +1345,7 @@ v32.0 - 2023-02-01:
     * Added an explicit TraceUuid packet. The tracing service now always
       generates a UUID, even if TraceConfig.trace_uuid_msb/lsb is empty.
   Trace Processor:
-    *
+    * Reduced native and WebAssembly Trace Processor binary size.
   UI:
     *
   SDK:

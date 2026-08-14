@@ -59,29 +59,30 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
         : sqlite::ModuleStateManager<DataframeModule>(store) {}
     std::unique_ptr<State> temporary_create_state;
   };
-  struct SqliteValueFetcher : dataframe::ValueFetcher {
-    using Type = sqlite::Type;
-    static const Type kInt64 = sqlite::Type::kInteger;
-    static const Type kDouble = sqlite::Type::kFloat;
-    static const Type kString = sqlite::Type::kText;
-    static const Type kNull = sqlite::Type::kNull;
+  struct SqliteValueFetcher final : dataframe::ValueFetcher {
+    explicit SqliteValueFetcher(sqlite3_value** values) : argv(values) {}
+    ~SqliteValueFetcher() override;
 
-    int64_t GetInt64Value(uint32_t idx) const {
+    int64_t GetInt64Value(uint32_t idx) const override {
       return sqlite::value::Int64(sqlite_value[idx]);
     }
-    double GetDoubleValue(uint32_t idx) const {
+    double GetDoubleValue(uint32_t idx) const override {
       return sqlite::value::Double(sqlite_value[idx]);
     }
-    const char* GetStringValue(uint32_t idx) const {
+    const char* GetStringValue(uint32_t idx) const override {
       return sqlite::value::Text(sqlite_value[idx]);
     }
-    Type GetValueType(uint32_t idx) const {
-      return sqlite::value::Type(sqlite_value[idx]);
+    Type GetValueType(uint32_t idx) const override {
+      static_assert(static_cast<Type>(sqlite::Type::kInteger) == kInt64);
+      static_assert(static_cast<Type>(sqlite::Type::kFloat) == kDouble);
+      static_assert(static_cast<Type>(sqlite::Type::kText) == kString);
+      static_assert(static_cast<Type>(sqlite::Type::kNull) == kNull);
+      return static_cast<Type>(sqlite::value::Type(sqlite_value[idx]));
     }
-    bool IteratorInit(uint32_t idx) {
+    bool IteratorInit(uint32_t idx) override {
       return sqlite3_vtab_in_first(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
     }
-    bool IteratorNext(uint32_t idx) {
+    bool IteratorNext(uint32_t idx) override {
       return sqlite3_vtab_in_next(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
     }
     std::array<sqlite3_value*, 16> sqlite_value;
@@ -104,7 +105,7 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     int best_idx_num = 0;
     uint32_t id_col_idx = 0;
   };
-  using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
+  using DfCursor = dataframe::Cursor;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
     const dataframe::Dataframe* dataframe;
     DfCursor df_cursor;

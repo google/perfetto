@@ -35,48 +35,40 @@
 
 namespace perfetto::trace_processor::core::dataframe {
 
-struct TestRowFetcher : ValueFetcher {
+struct TestRowFetcher final : ValueFetcher {
   using Value = std::variant<std::nullopt_t, int64_t, double, const char*>;
-  enum Type : uint8_t {
-    kNull,
-    kInt64,
-    kDouble,
-    kString,
-    kBytes,
-  };
-
   void SetRow(const std::vector<Value>& row_data) { current_row_ = &row_data; }
 
-  Type GetValueType(uint32_t index) {
+  Type GetValueType(uint32_t index) const override {
     PERFETTO_CHECK(current_row_ && index < current_row_->size());
     const auto& var = (*current_row_)[index];
     if (std::holds_alternative<std::nullopt_t>(var))
-      return Type::kNull;
+      return kNull;
     if (std::holds_alternative<int64_t>(var))
-      return Type::kInt64;
+      return kInt64;
     if (std::holds_alternative<double>(var))
-      return Type::kDouble;
+      return kDouble;
     if (std::holds_alternative<const char*>(var))
-      return Type::kString;
+      return kString;
     PERFETTO_FATAL("Invalid variant state");
   }
 
-  int64_t GetInt64Value(uint32_t index) {
+  int64_t GetInt64Value(uint32_t index) const override {
     PERFETTO_CHECK(current_row_ && index < current_row_->size());
     return std::get<int64_t>((*current_row_)[index]);
   }
 
-  double GetDoubleValue(uint32_t index) {
+  double GetDoubleValue(uint32_t index) const override {
     PERFETTO_CHECK(current_row_ && index < current_row_->size());
     return std::get<double>((*current_row_)[index]);
   }
 
-  const char* GetStringValue(uint32_t index) {
+  const char* GetStringValue(uint32_t index) const override {
     PERFETTO_CHECK(current_row_ && index < current_row_->size());
     return std::get<const char*>((*current_row_)[index]);
   }
-  static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
-  static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
+  bool IteratorInit(uint32_t) override { PERFETTO_FATAL("Unsupported"); }
+  bool IteratorNext(uint32_t) override { PERFETTO_FATAL("Unsupported"); }
 
  private:
   const std::vector<Value>* current_row_ = nullptr;
@@ -92,8 +84,7 @@ struct ValueVerifier : CellCallback {
                                     NullTermStringView,
                                     std::nullptr_t>;
 
-  template <typename Fetcher>
-  void Fetch(Cursor<Fetcher>* cursor, uint32_t col_count) {
+  void Fetch(Cursor* cursor, uint32_t col_count) {
     for (uint32_t i = 0; i < col_count; ++i) {
       cursor->Cell(i, *this);
     }
@@ -120,7 +111,7 @@ inline void VerifyData(
 
   // Heap allocate to avoid potential stack overflows due to large cursor
   // object.
-  auto cursor = std::make_unique<Cursor<TestRowFetcher>>();
+  auto cursor = std::make_unique<Cursor>();
   df.PrepareCursor(std::move(plan), *cursor);
 
   TestRowFetcher fetcher;
