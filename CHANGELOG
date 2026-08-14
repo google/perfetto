@@ -3,6 +3,7 @@ Unreleased:
    *
   Trace Processor:
     * Improved performance of SQLite joins using ID columns.
+    * Reduced native and WebAssembly Trace Processor binary size.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
   SDK:

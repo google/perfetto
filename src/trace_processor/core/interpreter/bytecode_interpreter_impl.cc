@@ -338,3 +338,38 @@ void StrideCopyDenseNullIndices(
 }
 
 }  // namespace perfetto::trace_processor::core::interpreter::ops
+
+namespace perfetto::trace_processor::core::interpreter {
+
+#define PERFETTO_OP_CASE_FVF(...)                                \
+  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {    \
+    ops::__VA_ARGS__(state, fetcher,                             \
+                     static_cast<const __VA_ARGS__&>(bytecode)); \
+    break;                                                       \
+  }
+
+#define PERFETTO_OP_CASE_STATE(...)                                     \
+  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {           \
+    ops::__VA_ARGS__(state, static_cast<const __VA_ARGS__&>(bytecode)); \
+    break;                                                              \
+  }
+
+void ExecuteGeneralBytecode(InterpreterState& state,
+                            ErasedFilterValueFetcher& fetcher,
+                            const Bytecode* pc,
+                            const Bytecode* end) {
+  for (; pc != end; ++pc) {
+    const Bytecode& bytecode = *pc;
+    switch (bytecode.option) {
+      PERFETTO_DATAFRAME_BYTECODE_GENERAL_FVF_LIST(PERFETTO_OP_CASE_FVF)
+      PERFETTO_DATAFRAME_BYTECODE_STATE_ONLY_LIST(PERFETTO_OP_CASE_STATE)
+      default:
+        PERFETTO_ASSUME(false);
+    }
+  }
+}
+
+#undef PERFETTO_OP_CASE_FVF
+#undef PERFETTO_OP_CASE_STATE
+
+}  // namespace perfetto::trace_processor::core::interpreter

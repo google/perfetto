@@ -1804,18 +1804,85 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
 
 }  // namespace ops
 
-#define PERFETTO_OP_CASE_FVF(...)                                \
-  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {    \
-    ops::__VA_ARGS__(state_, fetcher,                            \
-                     static_cast<const __VA_ARGS__&>(bytecode)); \
-    break;                                                       \
+// Type-erased fetcher used by the shared general interpreter. Fetching a value
+// also caches its payload so each cast requires only one indirect call.
+struct ErasedFilterValueFetcher : ValueFetcher {
+  using Type = uint8_t;
+  static constexpr Type kInt64 = 0;
+  static constexpr Type kDouble = 1;
+  static constexpr Type kString = 2;
+  static constexpr Type kNull = 3;
+
+  template <typename F>
+  static ErasedFilterValueFetcher Create(F& fetcher) {
+    return ErasedFilterValueFetcher{&fetcher, &FetchValue<F>,
+                                    &IteratorInitImpl<F>, &IteratorNextImpl<F>};
   }
 
-#define PERFETTO_OP_CASE_STATE(...)                                      \
-  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {            \
-    ops::__VA_ARGS__(state_, static_cast<const __VA_ARGS__&>(bytecode)); \
-    break;                                                               \
+  Type GetValueType(uint32_t index) {
+    fetch_value(fetcher, index, this);
+    return value_type;
   }
+  int64_t GetInt64Value(uint32_t) const { return int64_value; }
+  double GetDoubleValue(uint32_t) const { return double_value; }
+  const char* GetStringValue(uint32_t) const { return string_value; }
+  bool IteratorInit(uint32_t index) { return iterator_init(fetcher, index); }
+  bool IteratorNext(uint32_t index) { return iterator_next(fetcher, index); }
+
+ private:
+  using FetchValueFn = void (*)(void*, uint32_t, ErasedFilterValueFetcher*);
+  using IteratorFn = bool (*)(void*, uint32_t);
+
+  ErasedFilterValueFetcher(void* f,
+                           FetchValueFn fv,
+                           IteratorFn init,
+                           IteratorFn next)
+      : fetcher(f), fetch_value(fv), iterator_init(init), iterator_next(next) {}
+
+  template <typename F>
+  static void FetchValue(void* raw_fetcher,
+                         uint32_t index,
+                         ErasedFilterValueFetcher* self) {
+    auto& f = *static_cast<F*>(raw_fetcher);
+    auto type = f.GetValueType(index);
+    if (type == F::kInt64) {
+      self->value_type = kInt64;
+      self->int64_value = f.GetInt64Value(index);
+    } else if (type == F::kDouble) {
+      self->value_type = kDouble;
+      self->double_value = f.GetDoubleValue(index);
+    } else if (type == F::kString) {
+      self->value_type = kString;
+      self->string_value = f.GetStringValue(index);
+    } else {
+      PERFETTO_DCHECK(type == F::kNull);
+      self->value_type = kNull;
+    }
+  }
+
+  template <typename F>
+  static bool IteratorInitImpl(void* raw_fetcher, uint32_t index) {
+    return static_cast<F*>(raw_fetcher)->IteratorInit(index);
+  }
+  template <typename F>
+  static bool IteratorNextImpl(void* raw_fetcher, uint32_t index) {
+    return static_cast<F*>(raw_fetcher)->IteratorNext(index);
+  }
+
+  void* fetcher;
+  FetchValueFn fetch_value;
+  IteratorFn iterator_init;
+  IteratorFn iterator_next;
+  Type value_type = kNull;
+  int64_t int64_value = 0;
+  double double_value = 0;
+  const char* string_value = nullptr;
+};
+
+void ExecuteGeneralBytecode(InterpreterState& state,
+                            ErasedFilterValueFetcher& fetcher,
+                            const Bytecode* pc,
+                            const Bytecode* end);
 
 template <typename FilterValueFetcherImpl>
 PERFETTO_ALWAYS_INLINE Span<uint32_t>
@@ -1831,23 +1898,13 @@ Interpreter<FilterValueFetcherImpl>::Execute(
     return ops::ExecuteSingleRowQuery(state_, fetcher, query);
   }
 
-  for (; pc != end; ++pc) {
-    const Bytecode& bytecode = *pc;
-    switch (bytecode.option) {
-      PERFETTO_DATAFRAME_BYTECODE_GENERAL_FVF_LIST(PERFETTO_OP_CASE_FVF)
-      PERFETTO_DATAFRAME_BYTECODE_STATE_ONLY_LIST(PERFETTO_OP_CASE_STATE)
-      default:
-        PERFETTO_ASSUME(false);
-    }
-  }
+  auto erased = ErasedFilterValueFetcher::Create(fetcher);
+  ExecuteGeneralBytecode(state_, erased, pc, end);
   if (output_register.index == std::numeric_limits<uint32_t>::max()) {
     return {};
   }
   return state_.ReadFromRegister(output_register);
 }
-
-#undef PERFETTO_OP_CASE_FVF
-#undef PERFETTO_OP_CASE_STATE
 
 }  // namespace perfetto::trace_processor::core::interpreter
 
