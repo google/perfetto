@@ -261,13 +261,15 @@ To ensure accuracy and efficiency, follow these steps:
 1. **Research & Dissection:** Identify the core question and required data
    points.
 2. **Mandatory Schema Validation:** Locate relevant tables via
-   `__intrinsic_stdlib_tables`. Verify column names and types.
+   `__intrinsic_stdlib_modules` and their tables via
+   `__intrinsic_stdlib_tables('module_name')`. Verify column names and types.
    - **Intent Check:** You must verify if a stdlib module already provides
    the needed abstraction before drafting manual arithmetic or custom joins.
   - **IMPORTANT:** If your query requires calculating overlaps,
-   intersections, or boundaries between intervals, you MUST search the
-   `__intrinsic_*` tables globally (for example, `GLOB 'overlap*'`) before
-    writing `MIN()/MAX()` or `IIF(dur = -1...)` logic.
+   intersections, or boundaries between intervals, you MUST search
+   `__intrinsic_stdlib_modules` globally (for example,
+   `WHERE module GLOB '*overlap*'`) before writing
+   `MIN()/MAX()` or `IIF(dur = -1...)` logic.
 3. **Draft & Validate Loop (Max 3 Iterations):**
   - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
     MODULE` is present for non-prelude modules.
