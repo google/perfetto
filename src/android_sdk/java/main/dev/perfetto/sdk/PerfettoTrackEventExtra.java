@@ -26,6 +26,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * @hide
  */
 final class PerfettoTrackEventExtra {
+  static {
+    System.loadLibrary("perfetto_framework_jni");
+  }
+
   private final long mPtr;
 
   PerfettoTrackEventExtra(PerfettoNativeMemoryCleaner memoryCleaner) {

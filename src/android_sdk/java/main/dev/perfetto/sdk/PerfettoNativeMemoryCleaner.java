@@ -12,6 +12,10 @@ import java.util.Set;
 @SuppressWarnings(
     "AndroidJdkLibsChecker") // Suppress warning about 'java.lang.ref.Cleaner' in google3.
 public class PerfettoNativeMemoryCleaner {
+  static {
+    System.loadLibrary("perfetto_framework_jni");
+  }
+
   private final AllocationStats mAllocationStats;
   private final Cleaner mCleaner = SystemCleaner.cleaner();
 
