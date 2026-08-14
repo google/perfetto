@@ -186,13 +186,18 @@ export default class CoreCommands implements PerfettoPlugin {
       if (err instanceof Error) {
         const causes: string[] = [];
         let current: unknown = err;
-        while (current instanceof Error && 'cause' in current && current.cause) {
+        while (
+          current instanceof Error &&
+          'cause' in current &&
+          current.cause !== undefined &&
+          current.cause !== null
+        ) {
           current = current.cause;
           if (current instanceof Error) {
-            if (current.message && !causes.includes(current.message)) {
+            if (current.message !== '' && !causes.includes(current.message)) {
               causes.push(current.message);
             }
-          } else if (current) {
+          } else if (current !== undefined && current !== null) {
             causes.push(String(current));
           }
         }
