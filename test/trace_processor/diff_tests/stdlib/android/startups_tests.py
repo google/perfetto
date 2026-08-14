@@ -29,8 +29,8 @@ class Startups(TestSuite):
         SELECT * FROM android_startups;
         """,
         out=Csv("""
-        "startup_id","ts","ts_end","dur","package","startup_type"
-        0,186969441973689,186969489302704,47329015,"androidx.benchmark.integration.macrobenchmark.target","hot"
+        "startup_id","ts","ts_end","dur","dur_without_trampoline","package","startup_type"
+        0,186969441973689,186969489302704,47329015,47329015,"androidx.benchmark.integration.macrobenchmark.target","hot"
         """))
 
   def test_warm_startups(self):
@@ -41,8 +41,8 @@ class Startups(TestSuite):
         SELECT * FROM android_startups;
         """,
         out=Csv("""
-        "startup_id","ts","ts_end","dur","package","startup_type"
-        0,186982050780778,186982115528805,64748027,"androidx.benchmark.integration.macrobenchmark.target","warm"
+        "startup_id","ts","ts_end","dur","dur_without_trampoline","package","startup_type"
+        0,186982050780778,186982115528805,64748027,64748027,"androidx.benchmark.integration.macrobenchmark.target","warm"
         """))
 
   def test_cold_startups(self):
@@ -53,8 +53,8 @@ class Startups(TestSuite):
         SELECT * FROM android_startups;
         """,
         out=Csv("""
-        "startup_id","ts","ts_end","dur","package","startup_type"
-        0,186974938196632,186975083989042,145792410,"androidx.benchmark.integration.macrobenchmark.target","cold"
+        "startup_id","ts","ts_end","dur","dur_without_trampoline","package","startup_type"
+        0,186974938196632,186975083989042,145792410,145792410,"androidx.benchmark.integration.macrobenchmark.target","cold"
         """))
 
   def test_hot_startups_maxsdk28(self):
@@ -65,9 +65,9 @@ class Startups(TestSuite):
         SELECT * FROM android_startups;
         """,
         out=Csv("""
-        "startup_id","ts","ts_end","dur","package","startup_type"
-        0,779860286416,779893485322,33198906,"com.google.android.googlequicksearchbox","hot"
-        1,780778904571,780813944498,35039927,"androidx.benchmark.integration.macrobenchmark.target","hot"
+        "startup_id","ts","ts_end","dur","dur_without_trampoline","package","startup_type"
+        0,779860286416,779893485322,33198906,33198906,"com.google.android.googlequicksearchbox","hot"
+        1,780778904571,780813944498,35039927,35039927,"androidx.benchmark.integration.macrobenchmark.target","hot"
         """))
 
   def test_warm_startups_maxsdk28(self):
@@ -78,9 +78,9 @@ class Startups(TestSuite):
         SELECT * FROM android_startups;
         """,
         out=Csv("""
-        "startup_id","ts","ts_end","dur","package","startup_type"
-        0,799979565075,800014194731,34629656,"com.google.android.googlequicksearchbox","hot"
-        1,800868511677,800981929562,113417885,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
+        "startup_id","ts","ts_end","dur","dur_without_trampoline","package","startup_type"
+        0,799979565075,800014194731,34629656,34629656,"com.google.android.googlequicksearchbox","hot"
+        1,800868511677,800981929562,113417885,113417885,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
         """))
 
   def test_cold_startups_maxsdk28(self):
@@ -91,8 +91,8 @@ class Startups(TestSuite):
         SELECT * FROM android_startups;
         """,
         out=Csv("""
-        "startup_id","ts","ts_end","dur","package","startup_type"
-        0,791231114368,791501060868,269946500,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
+        "startup_id","ts","ts_end","dur","dur_without_trampoline","package","startup_type"
+        0,791231114368,791501060868,269946500,269946500,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
         """))
 
   def test_android_startup_time_to_display_hot_maxsdk28(self):
