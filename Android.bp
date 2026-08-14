@@ -3109,6 +3109,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -3416,6 +3417,7 @@ cc_test {
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
         "perfetto_src_trace_processor_plugins_android_framework_track_event_tables",
+        "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -19488,6 +19490,63 @@ python_binary_host {
     main: "tools/gen_tp_table_headers.py",
 }
 
+// GN: //src/trace_processor/plugins/android_process_state:android_process_state
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
+    srcs: [
+        "src/trace_processor/plugins/android_process_state/android_process_state.cc",
+        "src/trace_processor/plugins/android_process_state/android_process_state_module.cc",
+        "src/trace_processor/plugins/android_process_state/android_process_state_tracker.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/android_process_state:tables
+genrule {
+    name: "perfetto_src_trace_processor_plugins_android_process_state_tables",
+    srcs: [
+        "src/trace_processor/plugins/android_process_state/tables.py",
+    ],
+    tools: [
+        "perfetto_src_trace_processor_plugins_android_process_state_tables_binary",
+    ],
+    cmd: "$(location perfetto_src_trace_processor_plugins_android_process_state_tables_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
+    out: [
+        "src/trace_processor/plugins/android_process_state/all_tables_fwd.h",
+        "src/trace_processor/plugins/android_process_state/tables_fwd.h",
+        "src/trace_processor/plugins/android_process_state/tables_py.h",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/android_process_state:tables
+python_binary_host {
+    name: "perfetto_src_trace_processor_plugins_android_process_state_tables_binary",
+    srcs: [
+        "python/generators/trace_processor_table/public.py",
+        "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/util.py",
+        "src/trace_processor/plugins/android_process_state/tables.py",
+        "src/trace_processor/tables/android_tables.py",
+        "src/trace_processor/tables/counter_tables.py",
+        "src/trace_processor/tables/etm_tables.py",
+        "src/trace_processor/tables/flow_tables.py",
+        "src/trace_processor/tables/jit_tables.py",
+        "src/trace_processor/tables/log_tables.py",
+        "src/trace_processor/tables/memory_tables.py",
+        "src/trace_processor/tables/metadata_tables.py",
+        "src/trace_processor/tables/perf_tables.py",
+        "src/trace_processor/tables/profiler_tables.py",
+        "src/trace_processor/tables/sched_tables.py",
+        "src/trace_processor/tables/slice_tables.py",
+        "src/trace_processor/tables/state_tables.py",
+        "src/trace_processor/tables/trace_proto_tables.py",
+        "src/trace_processor/tables/track_tables.py",
+        "src/trace_processor/tables/v8_tables.py",
+        "src/trace_processor/tables/winscope_tables.py",
+        "tools/gen_tp_table_headers.py",
+    ],
+    main: "tools/gen_tp_table_headers.py",
+}
+
 // GN: //src/trace_processor/plugins/args:args
 filegroup {
     name: "perfetto_src_trace_processor_plugins_args_args",
@@ -21174,6 +21233,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -21384,6 +21444,7 @@ cc_library_static {
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
         "perfetto_src_trace_processor_plugins_android_framework_track_event_tables",
+        "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -21491,6 +21552,7 @@ cc_library_static {
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
         "perfetto_src_trace_processor_plugins_android_framework_track_event_tables",
+        "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -24133,6 +24195,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_ancestor_unittests",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -24568,6 +24631,7 @@ cc_test {
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
         "perfetto_src_trace_processor_plugins_android_framework_track_event_tables",
+        "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -25265,6 +25329,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -25461,6 +25526,7 @@ cc_library_static {
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
         "perfetto_src_trace_processor_plugins_android_framework_track_event_tables",
+        "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -25566,6 +25632,7 @@ cc_library_static {
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
         "perfetto_src_trace_processor_plugins_android_framework_track_event_tables",
+        "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
@@ -25971,6 +26038,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -26176,6 +26244,7 @@ cc_binary_host {
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
         "perfetto_src_trace_processor_plugins_android_framework_track_event_tables",
+        "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
         "perfetto_src_trace_processor_plugins_developer_functions_tables",
