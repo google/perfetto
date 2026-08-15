@@ -40,7 +40,7 @@ import {
 import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
 import {parseUserFilterRegex} from '../widgets/flamegraph_regex';
-import {SharedAsyncDisposable} from '../base/shared_disposable';
+import type {SharedAsyncDisposable} from '../base/shared_disposable';
 import {Monitor} from '../base/monitor';
 
 export interface QueryFlamegraphColumn {
@@ -195,6 +195,8 @@ interface FlamegraphTable {
   readonly unfilteredCumulativeValue: number;
 }
 
+export type QueryFlamegraphDependency = SharedAsyncDisposable<AsyncDisposable>;
+
 // A Perfetto UI component which wraps the `Flamegraph` widget and fetches the
 // data for the widget by querying an `Engine`.
 export class QueryFlamegraph implements AsyncDisposable {
@@ -212,9 +214,9 @@ export class QueryFlamegraph implements AsyncDisposable {
 
   constructor(
     private readonly trace: Trace,
-    dependencies: ReadonlyArray<AsyncDisposable> = [],
+    dependencies: ReadonlyArray<QueryFlamegraphDependency> = [],
   ) {
-    this.dependencies = dependencies.map((d) => SharedAsyncDisposable.wrap(d));
+    this.dependencies = dependencies.map((d) => d.clone());
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -260,11 +262,10 @@ export class QueryFlamegraph implements AsyncDisposable {
     const engine = this.trace.engine;
     this.queryLimiter.schedule(async () => {
       this.data = undefined;
-      // Clone all the dependencies to make sure the the are not dropped while
-      // this function is running, adding them to the trash to make sure they
-      // are disposed after this function returns, but note this won't
-      // actually drop the tables unless this class instances have also been
-      // disposed due to the SharedAsyncDisposable logic.
+      // Clone all dependencies so they cannot be dropped while this function
+      // is running. Disposing these clones after the function returns does not
+      // drop the tables while either this instance or the caller still owns a
+      // clone.
       await using trash = new AsyncDisposableStack();
       for (const dependency of this.dependencies ?? []) {
         // If the dependency is disposed, it means that we have already ended
