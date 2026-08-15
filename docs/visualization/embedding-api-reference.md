@@ -43,24 +43,39 @@ multiplex other traffic over the same channel.
 
 ## Opening a trace
 
-To open a trace, post an object with a single `perfetto` key:
+To open a trace, post an object with a single `perfetto` key. Pass exactly
+one of `buffer` or `stream`:
 
 ```js
 iframe.contentWindow.postMessage({perfetto: {buffer, title}}, '*');
+```
+
+A `ReadableStream` must be transferred. Backpressure propagates from trace
+parsing to the stream producer, bounding how far the producer can run ahead:
+
+```js
+iframe.contentWindow.postMessage(
+    {perfetto: {stream, title, bytesTotal}}, '*', [stream]);
 ```
 
 Fields of the `perfetto` object:
 
 | Field          | Type                                                      | Required | Default | Meaning                                                                                                                              |
 | -------------- | -------------------------------------------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `buffer`       | `ArrayBuffer`                                             | Yes      | -       | Raw trace bytes, e.g. from `fetch(...).then(r => r.arrayBuffer())`.                                                                  |
-| `title`        | `string`                                                 | Yes      | -       | Trace title shown in the UI.                                                                                                          |
+| `buffer`       | `ArrayBuffer`                                             | One of `buffer` or `stream` | - | Raw trace bytes, e.g. from `fetch(...).then(r => r.arrayBuffer())`.                                                  |
+| `stream`       | `ReadableStream<ArrayBuffer \| ArrayBufferView>`          | One of `buffer` or `stream` | - | Transferred stream of raw trace chunks.                                                                             |
+| `bytesTotal`   | `number`                                                  | No       | `0`     | Total stream size for progress reporting; `0` means unknown.                                                                          |
+| `title`        | `string`                                                  | Yes      | -       | Trace title shown in the UI.                                                                                                          |
 | `fileName`     | `string`                                                 | No       | -       | Suggested file name if the user downloads the trace.                                                                                 |
 | `url`          | `string`                                                 | No       | -       | Sharing URL. See sharing details in [Deep linking to the Perfetto UI](/docs/visualization/deep-linking-to-perfetto-ui.md).          |
 | `appStateHash` | `string`                                                 | No       | -       | 40-char hex hash; restores saved UI state from GCS. See [Deep linking to the Perfetto UI](/docs/visualization/deep-linking-to-perfetto-ui.md). |
 | `localOnly`    | `boolean`                                                | No       | `true`  | Defaults to `true` for posted traces, which disables download and share. Set `false` to enable them.                                |
 | `keepApiOpen`  | `boolean`                                                | No       | `false` | If `true`, the listener stays active so the host can post more traces later. If `false`/omitted, the handler removes its own message listener after the first trace (avoids duplicate posts, b/182502595). |
 | `pluginArgs`   | `{[pluginId: string]: {[key: string]: unknown}}`         | No       | -       | Passed to plugins' `onTraceLoad()`.                                                                                                  |
+
+Streamed traces are not retained after parsing, so they cannot be downloaded,
+shared, or cached. `fileName`, `url`, `localOnly`, and `pluginArgs` therefore do
+not apply to streams.
 
 ### Bare ArrayBuffer shorthand
 
