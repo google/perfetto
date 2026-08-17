@@ -55,8 +55,6 @@ source_set("perfetto_cmd") {
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
     "../../protos/perfetto/config/sys_stats:cpp",
-    "../../protos/perfetto/trace/android:zero",
-    "../../protos/perfetto/trace/perfetto:zero",
     "../android_stats",
     "../base",
     "../base:version",
@@ -75,7 +73,10 @@ source_set("perfetto_cmd") {
   assert_no_deps = [ "../trace_processor/*" ]
 
   if (is_android) {
-    deps += [ "../android_internal:lazy_library_loader" ]
+    deps += [
+      "../../protos/perfetto/trace/android:zero",
+      "../android_internal:lazy_library_loader",
+    ]
     sources += [ "perfetto_cmd_android.cc" ]
   }
 
@@ -150,12 +151,12 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
     "../../protos/perfetto/trace:cpp",
-    "../../protos/perfetto/trace/android:cpp",
-    "../../protos/perfetto/trace/android:zero",
-    "../../protos/perfetto/trace/perfetto:zero",
     "../tracing/core",
     "../tracing/test:test_support",
   ]
+  if (is_android) {
+    deps += [ "../../protos/perfetto/trace/android:zero" ]
+  }
   sources = [
     "config_unittest.cc",
     "packet_writer_unittest.cc",

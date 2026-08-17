@@ -25,6 +25,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
+#include "protos/perfetto/trace/android/after_reboot_trace_event.pbzero.h"
 #endif
 
 #include "perfetto/protozero/proto_decoder.h"
@@ -32,7 +33,6 @@
 
 #include "protos/perfetto/common/trace_attributes.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
-#include "protos/perfetto/trace/android/after_reboot_trace_event.pbzero.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -406,7 +406,7 @@ TEST_F(PerfettoCmdlineUnitTest,
 }
 
 TEST_F(PerfettoCmdlineUnitTest,
-       WaitForPreviousRebootTraceUploadFileExistsWithPropertySetCrashes) {
+       WaitForPreviousRebootTraceUploadFileExistsWithPropertySetCleansUpFile) {
   base::TempFile temp_file = base::TempFile::Create();
   std::string path = temp_file.path();
   temp_file.Unlink();
@@ -416,8 +416,8 @@ TEST_F(PerfettoCmdlineUnitTest,
   // Set property indicating previous upload has started or finished
   __system_property_set("traced.reboot_trace_status", "1:100000000");
 
-  EXPECT_DEATH(WaitForPreviousRebootTraceUpload("finished_session_test", path),
-               "still exists on disk even though property is set");
+  WaitForPreviousRebootTraceUpload("finished_session_test", path);
+  EXPECT_FALSE(base::FileExists(path));
 }
 #endif
 

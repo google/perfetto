@@ -1864,7 +1864,6 @@ void PerfettoCmd::CloneAllBugreportTraces(
     // Clone the tracing session into the bugreport file.
     std::string out_path = GetBugreportTraceDir() + "/" + actual_fname;
     remove(out_path.c_str());
-
     PERFETTO_LOG("Cloning tracing session %" PRIu64 " with score %d into %s",
                  it->tsid, it->bugreport_score, out_path.c_str());
     std::string cmdline;

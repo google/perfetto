@@ -331,21 +331,22 @@ void PerfettoCmd::WaitForPreviousRebootTraceUpload(
         PerfettoStatsdAtom::kRebootTraceUploadTimeout, uuid.lsb(), uuid.msb(),
         session_name);
     remove(target_file_path.c_str());
-    PERFETTO_FATAL(
+    PERFETTO_ELOG(
         "Timed out waiting for uploader to set property status for session "
         "'%s'! Unlinked '%s'.",
         session_name.c_str(), target_file_path.c_str());
+    return;
   }
 
   // If property is set, but the persistent trace file STILL exists on disk,
-  // log fatal error, unlink file, and crash.
+  // log error and unlink file.
   if (base::FileExists(target_file_path)) {
     base::Uuid uuid = extract_trace_uuid(target_file_path);
     android_stats::MaybeLogUploadEvent(
         PerfettoStatsdAtom::kRebootTraceUploadLeftover, uuid.lsb(), uuid.msb(),
         session_name);
     remove(target_file_path.c_str());
-    PERFETTO_FATAL(
+    PERFETTO_ELOG(
         "Persistent trace file '%s' still exists on disk even though property "
         "is set to '%s'! Unlinked file.",
         target_file_path.c_str(), cur_prop.c_str());
