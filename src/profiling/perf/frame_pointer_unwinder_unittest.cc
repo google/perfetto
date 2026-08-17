@@ -30,7 +30,7 @@ namespace {
 
 class RegsFake : public unwindstack::Regs {
  public:
-  explicit RegsFake(uint16_t total_regs)
+  RegsFake(uint16_t total_regs)
       : unwindstack::Regs(
             total_regs,
             unwindstack::Regs::Location(unwindstack::Regs::LOCATION_UNKNOWN,
@@ -41,8 +41,7 @@ class RegsFake : public unwindstack::Regs {
 
   unwindstack::ArchEnum Arch() { return fake_arch_; }
   unwindstack::ArchEnum Arch() const { return fake_arch_; }
-  void* RawData() { return fake_data_.get(); }
-  const void* RawData() const { return fake_data_.get(); }
+  void* RawData() override { return fake_data_.get(); }
   uint64_t pc() { return fake_pc_; }
   uint64_t pc() const { return fake_pc_; }
   uint64_t sp() { return fake_sp_; }
@@ -72,8 +71,7 @@ class RegsFake : public unwindstack::Regs {
   bool SetPcFromReturnAddress(unwindstack::Memory*) override { return false; }
 
   void IterateRegisters(std::function<void(const char*, uint64_t)>) {}
-  void IterateRegisters(
-      const std::function<void(const char*, uint64_t)>&) const {}
+  void IterateRegisters(std::function<void(const char*, uint64_t)>) const {}
 
   bool StepIfSignalHandler(uint64_t,
                            unwindstack::Elf*,
