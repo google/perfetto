@@ -66,7 +66,18 @@ def list_files(path, scan_new_files=False):
   If scan_new_files=True returns all files including untracked ones.
   """
   seen = set()
-  for root, _, files in os.walk(path):
+  skip_prefixes = []
+  if getattr(args, 'skip_prefix', None):
+    skip_prefixes = [
+        os.path.normpath(os.path.join(path, p)) for p in args.skip_prefix
+    ]
+
+  for root, dirs, files in os.walk(path):
+    if skip_prefixes:
+      dirs[:] = [
+          d for d in dirs
+          if os.path.normpath(os.path.join(root, d)) not in skip_prefixes
+      ]
     for fname in files:
       if fname.endswith('.swp'):
         continue  # Temporary files left around if CTRL-C-ing while downloading.
@@ -74,6 +85,8 @@ def list_files(path, scan_new_files=False):
         continue  # OWNERS or README.md file should not be uploaded.
       fpath = os.path.join(root, fname)
       if not os.path.isfile(fpath) or fname.startswith('.'):
+        continue
+      if any(fpath.startswith(p) for p in skip_prefixes):
         continue
       if fpath.endswith(SUFFIX):
         fpath = fpath[:-len(SUFFIX)]
@@ -274,6 +287,12 @@ def main():
   parser.add_argument('--quiet', '-q', action='store_true')
   parser.add_argument('--verbose', '-v', action='store_true')
   parser.add_argument('--ignore-new', action='store_true')
+  parser.add_argument(
+      '--skip-prefix',
+      action='append',
+      default=[],
+      help='Skip files/directories starting with this prefix (relative to --dir)'
+  )
   parser.add_argument('cmd', choices=['status', 'download', 'upload', 'clean'])
   global args
   args = parser.parse_args()
