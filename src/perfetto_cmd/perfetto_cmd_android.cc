@@ -288,13 +288,16 @@ void PerfettoCmd::WaitForPreviousRebootTraceUpload(
   // If the file exists on disk and property is empty, wait up to 5 minutes
   // for property to be set.
   auto start_time = base::GetBootTimeNs();
+#if __ANDROID_API__ >= 26
   uint32_t serial = 0;
+#endif
   while (cur_prop.empty()) {
     auto elapsed_ns =
         static_cast<uint64_t>((base::GetBootTimeNs() - start_time).count());
     if (elapsed_ns >= kBootTraceCleanupTimeoutNs) {
       break;
     }
+#if __ANDROID_API__ >= 26
     const prop_info* pi = __system_property_find(kRebootTraceStatusProp);
     if (pi) {
       uint64_t remaining_ns = kBootTraceCleanupTimeoutNs - elapsed_ns;
@@ -305,6 +308,9 @@ void PerfettoCmd::WaitForPreviousRebootTraceUpload(
     } else {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+#else
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#endif
     cur_prop = base::GetAndroidProp(kRebootTraceStatusProp);
   }
 
