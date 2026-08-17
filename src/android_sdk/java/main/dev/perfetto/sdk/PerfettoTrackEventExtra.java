@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 final class PerfettoTrackEventExtra {
   static {
-    System.loadLibrary("perfetto_framework_jni");
+    PerfettoNativeLibrary.load();
   }
 
   private final long mPtr;
