@@ -840,6 +840,7 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(PersistTraceAcrossRebootsConfig)) {
   trace_config.add_buffers()->set_size_kb(128);
   auto* ds = trace_config.add_data_sources();
   ds->mutable_config()->set_name("android.perfetto.test");
+  trace_config.set_write_into_file(true);
   trace_config.set_persist_trace_across_reboots(true);
   trace_config.set_unique_session_name("test_reboot_session");
   trace_config.set_duration_ms(200);
@@ -860,12 +861,38 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(PersistTraceAcrossRebootsConfig)) {
   EXPECT_TRUE(base::FileExists(persistent_file));
 }
 
+TEST_F(PerfettoCmdlineTest,
+       AndroidOnly(PersistTraceAcrossRebootsRequiresWriteIntoFile)) {
+  protos::gen::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds = trace_config.add_data_sources();
+  ds->mutable_config()->set_name("android.perfetto.test");
+  trace_config.set_persist_trace_across_reboots(true);
+  trace_config.set_write_into_file(false);
+  trace_config.set_unique_session_name("test_reboot_session");
+
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  EXPECT_EQ(1, perfetto_proc.Run(&stderr_));
+  EXPECT_THAT(stderr_,
+              testing::HasSubstr(
+                  "TraceConfig's write_into_file must be true when using "
+                  "persist_trace_across_reboots"));
+}
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 TEST_F(PerfettoCmdlineTest, PersistTraceAcrossRebootsNotSupportedOnNonAndroid) {
   protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(128);
   auto* ds = trace_config.add_data_sources();
   ds->mutable_config()->set_name("test");
+  trace_config.set_write_into_file(true);
   trace_config.set_persist_trace_across_reboots(true);
   trace_config.set_unique_session_name("test_reboot_session");
 
