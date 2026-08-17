@@ -46,9 +46,8 @@ base::Status OpenConversionOutput(const std::string& path,
                                   std::ostream** out_stream);
 
 // Converts a text-format trace proto read from |input| into a binary trace
-// written to |output|. Returns 0 on success, non-zero on failure (matching the
-// other conversion entry points).
-int TextToTrace(std::istream* input, std::ostream* output);
+// written to |output|.
+base::Status TextToTrace(std::istream* input, std::ostream* output);
 
 }  // namespace perfetto::trace_processor::shell
 

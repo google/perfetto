@@ -364,6 +364,44 @@ TEST(UtilsTest, CopyFileContents) {
 #endif
 }
 
+TEST(UtilsTest, SeekFile) {
+  TempFile file = TempFile::Create();
+  ASSERT_EQ(WriteAll(*file, "abcdef", 6), 6);
+
+  ASSERT_TRUE(SeekFile(*file, 3));
+  char data[3] = {};
+  ASSERT_EQ(Read(*file, data, sizeof(data)), 3);
+  EXPECT_EQ(std::string(data, sizeof(data)), "def");
+}
+
+TEST(UtilsTest, TruncateFile) {
+  TempFile file = TempFile::Create();
+  ASSERT_EQ(WriteAll(*file, "abcdef", 6), 6);
+
+  ASSERT_TRUE(TruncateFile(*file, 3));
+  EXPECT_EQ(GetFileSize(*file), 3u);
+
+  std::string contents;
+  ASSERT_TRUE(ReadFile(file.path(), &contents));
+  EXPECT_EQ(contents, "abc");
+
+  ASSERT_TRUE(TruncateFile(*file, 8));
+  EXPECT_EQ(GetFileSize(*file), 8u);
+  contents.clear();
+  ASSERT_TRUE(ReadFile(file.path(), &contents));
+  EXPECT_EQ(contents, std::string("abc\0\0\0\0\0", 8));
+}
+
+TEST(UtilsTest, SeekAndTruncateFileErrors) {
+  EXPECT_FALSE(SeekFile(-1, 0));
+  EXPECT_FALSE(TruncateFile(-1, 0));
+
+  constexpr uint64_t kTooLarge = std::numeric_limits<uint64_t>::max();
+  TempFile file = TempFile::Create();
+  EXPECT_FALSE(SeekFile(*file, kTooLarge));
+  EXPECT_FALSE(TruncateFile(*file, kTooLarge));
+}
+
 TEST(UtilsTest, GetFileSize) {
   TempFile file = TempFile::Create();
   // Explicitly set the string size, we want to write all data to the file.

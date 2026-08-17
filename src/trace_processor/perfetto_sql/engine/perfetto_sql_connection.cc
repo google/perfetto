@@ -48,6 +48,7 @@
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
+#include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
@@ -82,53 +83,6 @@
 //   the vendored syntaqlite parser.
 namespace perfetto::trace_processor {
 namespace {
-
-struct SqliteStmtValueFetcher : public dataframe::ValueFetcher {
-  using Type = sqlite::Type;
-  static constexpr Type kInt64 = sqlite::Type::kInteger;
-  static constexpr Type kDouble = sqlite::Type::kFloat;
-  static constexpr Type kString = sqlite::Type::kText;
-  static constexpr Type kNull = sqlite::Type::kNull;
-  static constexpr Type kBytes = sqlite::Type::kBlob;
-
-  int64_t GetInt64Value(uint32_t i) const {
-    return sqlite::column::Int64(stmt_, i);
-  }
-  double GetDoubleValue(uint32_t i) const {
-    return sqlite::column::Double(stmt_, i);
-  }
-  const char* GetStringValue(uint32_t i) const {
-    return sqlite::column::Text(stmt_, i);
-  }
-  Type GetValueType(uint32_t i) const { return sqlite::column::Type(stmt_, i); }
-  sqlite3_stmt* stmt_;
-};
-
-// Similar to SqliteStmtValueFetcher but for validating views have the correct
-// types. Will ignore blobs and treat them as nulls.
-struct SqliteStmtValueViewFetcher : public dataframe::ValueFetcher {
-  using Type = sqlite::Type;
-  static constexpr Type kInt64 = sqlite::Type::kInteger;
-  static constexpr Type kDouble = sqlite::Type::kFloat;
-  static constexpr Type kString = sqlite::Type::kText;
-  static constexpr Type kNull = sqlite::Type::kNull;
-  static constexpr Type kBytes = sqlite::Type::kBlob;
-
-  int64_t GetInt64Value(uint32_t i) const {
-    return sqlite::column::Int64(stmt_, i);
-  }
-  double GetDoubleValue(uint32_t i) const {
-    return sqlite::column::Double(stmt_, i);
-  }
-  const char* GetStringValue(uint32_t i) const {
-    return sqlite::column::Text(stmt_, i);
-  }
-  [[maybe_unused]] Type GetValueType(uint32_t i) const {
-    auto type = sqlite::column::Type(stmt_, i);
-    return type == kBytes ? kNull : type;
-  }
-  sqlite3_stmt* stmt_;
-};
 
 void IncrementCountForStmt(const SqliteConnection::PreparedStatement& p_stmt,
                            PerfettoSqlConnection::ExecutionStats* res) {
@@ -333,36 +287,6 @@ ArgumentTypeToDataframeType(sql_argument::Type type, bool bytes_as_int64) {
       return base::ErrStatus("ANY type cannot be used in table columns");
   }
   PERFETTO_FATAL("For GCC");
-}
-
-template <typename ValueFetcherImpl>
-base::StatusOr<dataframe::Dataframe> CreateDataframeFromSqliteStatement(
-    sqlite3* db,
-    StringPool* pool,
-    std::vector<std::string> column_names,
-    std::vector<dataframe::AdhocDataframeBuilder::ColumnType> types,
-    sqlite3_stmt* sqlite_stmt,
-    const std::string& name,
-    ValueFetcherImpl* fetcher,
-    const char* tag) {
-  dataframe::RuntimeDataframeBuilder builder(
-      std::move(column_names), pool,
-      {std::move(types), core::dataframe::NullabilityType::kSparseNull});
-  int res;
-  for (res = sqlite3_step(sqlite_stmt); res == SQLITE_ROW;
-       res = sqlite3_step(sqlite_stmt)) {
-    if (!builder.AddRow(fetcher)) {
-      PERFETTO_CHECK(!builder.status().ok());
-      return base::ErrStatus("%s(%s): %s", tag, name.c_str(),
-                             builder.status().c_message());
-    }
-  }
-  if (res != SQLITE_DONE) {
-    return base::ErrStatus(
-        "CREATE PERFETTO TABLE(%s): SQLite error while creating body: %s",
-        name.c_str(), sqlite3_errmsg(db));
-  }
-  return std::move(builder).Build();
 }
 
 base::StatusOr<std::vector<dataframe::AdhocDataframeBuilder::ColumnType>>
@@ -1024,13 +948,16 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
   ASSIGN_OR_RETURN(auto types, GetTypesFromSelectStatement(
                                    false, schema, column_names,
                                    create_table.name, "CREATE PERFETTO TABLE"));
-  auto* sqlite_stmt = stmt.sqlite_stmt();
-  SqliteStmtValueFetcher fetcher{{}, sqlite_stmt};
-  ASSIGN_OR_RETURN(
-      auto dataframe,
-      CreateDataframeFromSqliteStatement(
-          connection_->db(), pool_, std::move(column_names), std::move(types),
-          sqlite_stmt, create_table.name, &fetcher, "CREATE PERFETTO TABLE"));
+  stmt.Step();
+  RETURN_IF_ERROR(stmt.status());
+  SqliteDataframeBuilderOptions options;
+  options.column_types = std::move(types);
+  const std::string error_context =
+      "CREATE PERFETTO TABLE(" + create_table.name + ")";
+  ASSIGN_OR_RETURN(auto builder, BuildRuntimeDataframeFromSqliteStatement(
+                                     pool_, std::move(column_names), &stmt,
+                                     error_context, std::move(options)));
+  ASSIGN_OR_RETURN(auto dataframe, std::move(builder).Build());
 
   base::StackString<1024> drop("DROP TABLE IF EXISTS %s;",
                                create_table.name.c_str());
@@ -1108,16 +1035,22 @@ base::Status PerfettoSqlConnection::ExecuteCreateView(
     if (enable_extra_checks_) {
       // If extra checks are enabled, materialize the view to ensure that its
       // values are correct.
-      SqliteStmtValueViewFetcher fetcher{{}, stmt.sqlite_stmt()};
       ASSIGN_OR_RETURN(auto types,
                        GetTypesFromSelectStatement(
                            true, effective_schema, column_names,
                            create_view.name, "CREATE PERFETTO VIEW"));
+      stmt.Step();
+      RETURN_IF_ERROR(stmt.status());
+      SqliteDataframeBuilderOptions options;
+      options.column_types = std::move(types);
+      options.blobs_as_null = true;
+      const std::string error_context =
+          "CREATE PERFETTO VIEW(" + create_view.name + ")";
+      ASSIGN_OR_RETURN(auto builder, BuildRuntimeDataframeFromSqliteStatement(
+                                         pool_, std::move(column_names), &stmt,
+                                         error_context, std::move(options)));
       base::StatusOr<dataframe::Dataframe> materialized =
-          CreateDataframeFromSqliteStatement(
-              connection_->db(), pool_, std::move(column_names),
-              std::move(types), stmt.sqlite_stmt(), create_view.name, &fetcher,
-              "CREATE PERFETTO VIEW");
+          std::move(builder).Build();
       RETURN_IF_ERROR(materialized.status());
     }
   }

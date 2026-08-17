@@ -65,11 +65,12 @@ base::Status WrapParseError(const base::Status& status) {
   if (strstr(status.c_message(), "(ERR:fmt)") != nullptr) {
     return status;
   }
-  bool corrupt = strstr(status.c_message(), "(ERR:tp-corrupt)") != nullptr;
-  return base::ErrStatus("Trace parse failure (%s) (ERR:tp-parse). %s",
-                         status.c_message(),
-                         corrupt ? "The trace file is corrupt."
-                                 : "The trace file could not be parsed.");
+  // Keep the specific reason from the inner status; the trailing (ERR:tp-parse)
+  // marker is how the UI classifies the failure. The CLI strips these markers
+  // before displaying (see shell_utils.cc), so no redundant "the trace file is
+  // corrupt" sentence is appended here -- the inner message already says why.
+  return base::ErrStatus("Trace parse failure: %s (ERR:tp-parse)",
+                         status.c_message());
 }
 
 }  // namespace

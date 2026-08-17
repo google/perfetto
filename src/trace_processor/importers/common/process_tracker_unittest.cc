@@ -644,5 +644,33 @@ TEST_F(ProcessTrackerTest, IsThreadAliveTruthTable) {
   ASSERT_FALSE(context.process_tracker->IsThreadAlive(worker));
 }
 
+TEST_F(ProcessTrackerTest, ReaffirmedThreadUpdatesLiveTid) {
+  // 1. Process A (pid 100) has thread tid 500.
+  context.process_tracker->StartNewProcess(std::nullopt, std::nullopt,
+                                           /*pid=*/100, kNullStringId,
+                                           ThreadNamePriority::kFtrace);
+  UniqueTid utid_a =
+      context.process_tracker->UpdateThread(/*tid=*/500, /*pid=*/100);
+  ASSERT_EQ(context.process_tracker->GetThreadOrNull(500), utid_a);
+
+  // 2. Process B (pid 200) also claims thread tid 500.
+  context.process_tracker->StartNewProcess(std::nullopt, std::nullopt,
+                                           /*pid=*/200, kNullStringId,
+                                           ThreadNamePriority::kFtrace);
+  UniqueTid utid_b =
+      context.process_tracker->UpdateThread(/*tid=*/500, /*pid=*/200);
+  ASSERT_NE(utid_a, utid_b);
+  ASSERT_EQ(context.process_tracker->GetThreadOrNull(500), utid_b);
+
+  // 3. Process A reaffirms thread tid 500.
+  UniqueTid reaffirmed =
+      context.process_tracker->UpdateThread(/*tid=*/500, /*pid=*/100);
+  ASSERT_EQ(reaffirmed, utid_a);
+
+  // Bare lookup should now return utid_a again.
+  ASSERT_EQ(context.process_tracker->GetThreadOrNull(500), utid_a);
+  ASSERT_EQ(context.process_tracker->GetOrCreateThread(500), utid_a);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

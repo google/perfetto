@@ -42,6 +42,16 @@ struct TreeToTable : public sqlite::Function<TreeToTable> {
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 
+// Scalar function that computes dominator tree summary (depth & subtree
+// aggregates) from a Tree.
+struct TreeDominatorSummary : public sqlite::Function<TreeDominatorSummary> {
+  static constexpr char kName[] = "__intrinsic_tree_dominator_summary";
+  static constexpr int kArgCount = 1;
+  using UserData = StringPool;
+
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+};
+
 }  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PLUGINS_TREE_FUNCTIONS_TREE_CONVERSION_H_

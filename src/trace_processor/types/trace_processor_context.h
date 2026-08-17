@@ -71,6 +71,10 @@ class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
 class TraceProcessor_PlatformInterface;
+
+namespace io {
+class FileSystem;
+}
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
@@ -171,6 +175,10 @@ class TraceProcessorContext {
 
   Config config;
   TraceProcessor_PlatformInterface* platform = nullptr;
+  // The filesystem obtained from `platform` at construction. Cached so that
+  // each Trace Processor instance uses a stable snapshot of its platform's
+  // filesystem for its whole lifetime. Borrowed; must outlive this instance.
+  io::FileSystem* file_system = nullptr;
   GlobalPtr<TraceStorage> storage;
   GlobalPtr<TraceSorter> sorter;
   GlobalPtr<TraceReaderRegistry> reader_registry;

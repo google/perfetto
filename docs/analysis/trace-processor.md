@@ -148,7 +148,7 @@ Commands:
   interactive   Interactive SQL shell (default if no command is given).
   server        Start an RPC server.
   summarize     Compute a trace summary from specs and/or built-in metrics.
-  export        Export a trace to a database file.
+  export        Export trace data (sqlite, arrow_tar, perfetto).
   metrics       Run v1 metrics (deprecated; use 'summarize --metrics-v2').
   convert       Convert trace format.
 
@@ -290,6 +290,46 @@ Flags:
 
 Spec files are detected as binary or text by extension (`.pb` for binary,
 `.textproto` for text), with content sniffing as a fallback.
+
+#### {#subcommand-export} `export`: write trace data to a file
+
+`export` writes the parsed trace data to a file. The format is the first
+positional argument, the output path is given with `-o`:
+
+```bash
+# Version-coupled archive, loadable by the same version of trace processor.
+trace_processor export perfetto -o archive.tar trace.pftrace
+
+# Static tables as standard Arrow files in a tar.
+trace_processor export arrow_tar -o tables.tar trace.pftrace
+
+# Static tables and views as a SQLite database.
+trace_processor export sqlite -o trace.db trace.pftrace
+```
+
+Formats:
+
+- **`perfetto`**: a version-coupled archive of the non-empty static tables.
+  A fresh trace processor instance from the same version can load it back as
+  a trace; a different version may load it, but this is not guaranteed. The
+  only format that can be reloaded.
+- **`arrow_tar`**: a tar of standard [Apache Arrow](https://arrow.apache.org/)
+  files, one per statically registered table, including empty tables and
+  implicit ID columns. Stable and forwards-compatible across versions, for
+  external consumers (e.g. pandas, Polars, pyarrow). Cannot be loaded back
+  into trace processor.
+- **`sqlite`**: the statically registered tables plus the trace's views, as
+  a SQLite database readable by any SQLite tool.
+
+Flags:
+
+- `-o, --output FILE`: output file path (required).
+
+All three formats export the statically registered tables; only `sqlite` also
+includes views. Runtime tables created during the session (e.g.
+`CREATE PERFETTO TABLE`) are not exported. Exports stream to disk, so memory
+use stays bounded for large traces. For task-oriented recipes, see
+[Export trace data](/docs/getting-started/command-line-analysis.md#export-trace-data).
 
 #### {#global-flags} Global flags (apply to every subcommand)
 

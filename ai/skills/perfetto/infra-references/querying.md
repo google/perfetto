@@ -69,10 +69,10 @@ calls. Default to a session.
 
 ## Discovering what's in the trace
 
-PerfettoSQL ships with **intrinsic table-functions** for browsing the
-loaded standard library — modules, tables/views, functions, macros. Use
-these to find what's available and to verify if a Standard Library module
-already provides the needed abstraction before drafting custom logic.
+PerfettoSQL provides a searchable intrinsic table containing every loaded
+standard-library module, table, view, function, table function, and macro. Use
+it to verify whether the Standard Library already provides the needed
+abstraction before drafting custom logic.
 
 **Mandatory Schema Check:** Do not guess column names or join keys. Always
 use a plain `LIMIT 0` query to read the exact column schema of any specific
@@ -85,24 +85,27 @@ table, view, or query result before drafting your query.
 > or stdlib modules** — they can change without notice.
 
 ```sql
--- 1. List every stdlib module currently available.
-SELECT package, module FROM __intrinsic_stdlib_modules ORDER BY 1, 2;
+-- Search every documented stdlib object. Start with one precise phrase or
+-- API-like term. In a regexp, `|` means alternatives: prefer
+-- `breadth.first|bfs`, not a broad expression such as `breadth|graph|search`.
+WITH search(pattern) AS (VALUES ('precise phrase|api_term'))
+SELECT o.qualified_name, o.object_type, o.short_description
+FROM __intrinsic_stdlib_objects AS o, search AS s
+WHERE o.exposed = 1
+  AND regexp(s.pattern, o.summary, 'i')
+ORDER BY regexp(s.pattern, o.qualified_name, 'i') DESC,
+         o.qualified_name
+LIMIT 10;
 
--- 2. List the tables/views a specific module exposes
---    (after INCLUDE PERFETTO MODULE).
-INCLUDE PERFETTO MODULE slices.with_context;
-SELECT name, type, exposed, description
-FROM __intrinsic_stdlib_tables('slices.with_context');
+-- Once a candidate is found, read one human-friendly document containing its
+-- identity, description, arguments, return value, and result columns.
+SELECT o.summary
+FROM __intrinsic_stdlib_objects AS o
+WHERE o.qualified_name =
+  'intervals.overlap.intervals_overlap_count_by_group';
 
--- 3. List functions / macros a module exposes.
-SELECT name, return_type, args
-FROM __intrinsic_stdlib_functions('slices.with_context');
-SELECT name, return_type, args
-FROM __intrinsic_stdlib_macros('android.memory.heap_graph.helpers');
-
--- 4. Read the column schema of any table, view, or query.
---    LIMIT 0 returns the result header with no row scan; trace_processor
---    prints "column N = <name>" lines for each column.
+-- Read the runtime schema of any table, view, or query. LIMIT 0 returns the
+-- result header with no row scan.
 SELECT * FROM slice LIMIT 0;
 SELECT * FROM thread_or_process_slice LIMIT 0;
 SELECT * FROM (SELECT ts, dur, name FROM slice WHERE dur > 0) LIMIT 0;
@@ -208,16 +211,16 @@ reference linked above.
   properties instead of manually joining the `args` table.
 - **JSON Parsing:** When dealing with JSON text, use standard SQLite JSON
   functions (for example, `json_extract()`) to extract values.
-- **String Matching (Always use GLOB).** Use `GLOB` instead of `LIKE`. `LIKE`
+- **String Matching (Avoid `LIKE`).** Use `GLOB` or `regexp()` instead of
+  `LIKE`. `LIKE`
   causes performance bottlenecks and treats underscores (`_`) as wildcards,
   leading to bugs.
   - **Exact matches:** Use `=`.
   - **Substring matches:** Use `GLOB` with `*` (for example, `name GLOB
     '*RenderThread*'`).
-  - **Case-insensitive matches:** Use `LOWER(name) GLOB` and make sure the
-    search string is fully lowercase (for example, `LOWER(name) GLOB
-    '*renderthread*'`). Use this when dealing with inconsistent trace
-    capitalization (for example, `WakeLock` versus `wakelock`).
+  - **Case-insensitive matches:** Use `regexp(pattern, input, 'i')`. It
+    performs a case-insensitive partial match without `LOWER()` or `*`
+    wildcards (for example, `regexp('renderthread', name, 'i')`).
 - **Alias Precision.** Always prefix column names with table or view alias,
   that is: `{alias}.{column_name}`.
 
@@ -253,6 +256,10 @@ reference linked above.
   FROM slice
   WHERE slice.name GLOB '*{name_pattern}*';
   ```
+- **CPU Cluster & Frequency Analysis:**
+  - Classify CPU core clusters (big, mid, little) with `INCLUDE PERFETTO MODULE android.cpu.cluster_type;` (`android_cpu_cluster_mapping`) and calculate time-weighted frequency via `INCLUDE PERFETTO MODULE linux.cpu.frequency;`.
+- **Binder Transaction Analysis:**
+  - Query cross-process Binder calls using stdlib views like `android_binder_txns` or `android_binder_metrics_by_process` (`INCLUDE PERFETTO MODULE android.binder;`), grouping by process names (`client_process`, `server_process`, `process_name`).
 
 ## Analytical Workflow (Standard Operating Procedure)
 
@@ -260,14 +267,16 @@ To ensure accuracy and efficiency, follow these steps:
 
 1. **Research & Dissection:** Identify the core question and required data
    points.
-2. **Mandatory Schema Validation:** Locate relevant tables via
-   `__intrinsic_stdlib_tables`. Verify column names and types.
-   - **Intent Check:** You must verify if a stdlib module already provides
-   the needed abstraction before drafting manual arithmetic or custom joins.
-  - **IMPORTANT:** If your query requires calculating overlaps,
-   intersections, or boundaries between intervals, you MUST search the
-   `__intrinsic_*` tables globally (for example, `GLOB 'overlap*'`) before
-    writing `MIN()/MAX()` or `IIF(dur = -1...)` logic.
+2. **Mandatory Schema Validation:** Search `__intrinsic_stdlib_objects`
+   globally across modules, tables, views, functions, table functions, and
+   macros. Filter to `exposed = 1`. Use one precise case-insensitive regexp,
+   rank qualified-name matches first, and use `LIMIT 10`. Once a candidate is
+   found, read its `summary`; it contains all argument, column, return, and
+   descriptive metadata.
+   - **Intent Check:** You must verify if a stdlib object already provides the
+   needed abstraction before drafting manual arithmetic or custom joins.
+  - **IMPORTANT:** For overlaps, intersections, or interval boundaries, search
+   the global object table before writing custom timestamp arithmetic.
 3. **Draft & Validate Loop (Max 3 Iterations):**
   - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
     MODULE` is present for non-prelude modules.
@@ -275,7 +284,8 @@ To ensure accuracy and efficiency, follow these steps:
     EXISTS` for virtual tables.
   - [ ] **Check Precision:** Are ALL columns prefixed with aliases (e.g.,
     `s.name`)? Are you joining on `utid`/`upid`?
-  - [ ] **String Matching:** Did you use `GLOB` or `=` instead of `LIKE`?
+  - [ ] **String Matching:** Did you use `=`, `GLOB`, or case-insensitive
+    `regexp(..., ..., 'i')` instead of `LIKE`?
   - [ ] **Span Join Check:** If using `SPAN_JOIN`, are tables `PARTITIONED`
     and materialized?
   - [ ] **Execute:** Run against the session:

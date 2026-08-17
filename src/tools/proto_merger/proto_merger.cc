@@ -73,6 +73,17 @@ void MergeAllowlistedOptions(const std::vector<ProtoFile::Option>& upstream,
   }
 }
 
+void MarkFieldAsDeprecated(ProtoFile::Field& field) {
+  auto it = std::find_if(
+      field.options.begin(), field.options.end(),
+      [](const ProtoFile::Option& opt) { return opt.key == "deprecated"; });
+  if (it != field.options.end()) {
+    it->value = "true";
+  } else {
+    field.options.push_back(ProtoFile::Option{"deprecated", "true"});
+  }
+}
+
 template <typename Key, typename Value>
 std::optional<Value> FindInMap(const std::map<Key, Value>& map,
                                const Key& key) {
@@ -374,6 +385,13 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
       return status;
     out.emplace_back(std::move(out_field));
   }
+
+  // Sort all fields by tag number so reserved/deprecated fields are in place.
+  std::sort(out.begin(), out.end(),
+            [](const ProtoFile::Field& a, const ProtoFile::Field& b) {
+              return a.number < b.number;
+            });
+
   return base::OkStatus();
 }
 
@@ -476,7 +494,18 @@ base::Status Merge(const ProtoFile::Message& input,
   out.deleted_nested_messages =
       ComputeDeletedByName(input.nested_messages, upstream.nested_messages);
   out.deleted_oneofs = ComputeDeletedByName(input.oneofs, upstream.oneofs);
-  out.deleted_fields = ComputeDeletedByNumber(input.fields, upstream.fields);
+
+  // Check if fields in input are deprecated in upstream or deleted.
+  std::vector<ProtoFile::Field> missing_fields =
+      ComputeDeletedByNumber(input.fields, upstream.fields);
+  for (auto& field : missing_fields) {
+    if (upstream.reserved_numbers.count(field.number)) {
+      MarkFieldAsDeprecated(field);
+      out.fields.emplace_back(std::move(field));
+    } else {
+      out.deleted_fields.emplace_back(std::move(field));
+    }
+  }
 
   // Merge any nested enum types.
   out.enums = MergeEnums(input.enums, upstream.enums, allowlist.enums,

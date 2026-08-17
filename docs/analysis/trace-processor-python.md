@@ -284,6 +284,31 @@ with TraceProcessor(trace='trace.perfetto-trace') as tp:
     print(summary)
 ```
 
+### Export
+
+The `export()` function writes the parsed trace data to a file, streaming
+directly to disk. The format is one of `arrow_tar` or `perfetto`:
+
+```python
+from perfetto.trace_processor import TraceProcessor
+
+tp = TraceProcessor(trace='trace.perfetto-trace')
+
+# Version-coupled archive, loadable by the same version of trace processor.
+tp.export('archive.tar', 'perfetto')
+
+# Static tables as a tar of standard Arrow files.
+tp.export('tables.tar', 'arrow_tar')
+```
+
+`perfetto` can be loaded back by a fresh trace processor instance from the
+same version (a different version may load it, but this is not guaranteed).
+`arrow_tar` produces one standard [Apache Arrow](https://arrow.apache.org/)
+file per statically registered table, for analysis with pandas, Polars or
+pyarrow; it cannot be loaded back into trace processor. The Python API
+supports these two formats; to export to SQLite, use the
+[`export` shell subcommand](/docs/analysis/trace-processor.md#subcommand-export).
+
 ### Metatracing
 
 Metatracing allows you to trace the performance of `trace_processor` itself.

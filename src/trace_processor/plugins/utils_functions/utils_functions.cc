@@ -56,10 +56,10 @@ namespace perfetto::trace_processor {
 namespace {
 
 io::FileSystem* GetSqlFileSystem(TraceProcessorContext* context) {
-  if (!context->config.enable_sql_file_access || !context->platform) {
+  if (!context->config.enable_sql_file_access) {
     return nullptr;
   }
-  return context->platform->GetFileSystem();
+  return context->file_system;
 }
 
 class FileOutputWriter final : public json::OutputWriter {
@@ -85,8 +85,9 @@ class FileOutputWriter final : public json::OutputWriter {
     if (!status_.ok() || buffer_.empty()) {
       return status_;
     }
-    status_ = file_->Write(buffer_.data(), buffer_.size());
+    status_ = file_->WriteAt(offset_, buffer_.data(), buffer_.size());
     if (status_.ok()) {
+      offset_ += buffer_.size();
       buffer_.clear();
     }
     return status_;
@@ -95,6 +96,7 @@ class FileOutputWriter final : public json::OutputWriter {
   static constexpr size_t kBufferSize = 64 * 1024;
 
   std::unique_ptr<io::File> file_;
+  uint64_t offset_ = 0;
   std::string buffer_;
   base::Status status_ = base::OkStatus();
 };
@@ -130,9 +132,13 @@ void ExportJson::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   if (!file_system) {
     return sqlite::utils::SetError(ctx, "EXPORT_JSON: File I/O is disabled");
   }
+  io::FileOpenOptions options;
+  options.access = io::FileAccess::kWriteOnly;
+  options.create = true;
+  options.truncate = true;
   std::unique_ptr<io::File> file;
   base::Status open_status =
-      file_system->OpenFile(sqlite::value::Text(argv[0]), &file);
+      file_system->OpenFile(sqlite::value::Text(argv[0]), options, &file);
   if (!open_status.ok()) {
     return sqlite::utils::SetError(
         ctx, base::ErrStatus("EXPORT_JSON: %s", open_status.c_message()));
@@ -296,9 +302,13 @@ void FileWrite::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
         ctx, "__intrinsic_file_write: File I/O is disabled");
   }
 
+  io::FileOpenOptions options;
+  options.access = io::FileAccess::kWriteOnly;
+  options.create = true;
+  options.truncate = true;
   std::unique_ptr<io::File> file;
   base::Status open_status =
-      file_system->OpenFile(sqlite::value::Text(argv[0]), &file);
+      file_system->OpenFile(sqlite::value::Text(argv[0]), options, &file);
   if (!open_status.ok()) {
     return sqlite::utils::SetError(
         ctx,
@@ -311,7 +321,7 @@ void FileWrite::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   // Make sure to call last as sqlite::value::Bytes can invalidate pointer
   // returned.
   const void* data = sqlite::value::Blob(argv[1]);
-  base::Status status = file->Write(data, len);
+  base::Status status = file->WriteAt(0, data, len);
   if (!status.ok()) {
     return sqlite::utils::SetError(
         ctx, base::ErrStatus("__intrinsic_file_write: %s", status.c_message()));

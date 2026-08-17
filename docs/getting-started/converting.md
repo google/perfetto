@@ -1323,6 +1323,25 @@ FROM metadata
 WHERE name GLOB 'trace_attribute.*';
 ```
 
+## Exporting the data back out
+
+Once your trace is loaded, trace processor can write the parsed tables back
+out with the `export` subcommand:
+
+```bash
+trace_processor export perfetto -o archive.tar my_custom_trace.pftrace
+trace_processor export arrow_tar -o tables.tar my_custom_trace.pftrace
+trace_processor export sqlite -o trace.db my_custom_trace.pftrace
+```
+
+`perfetto` can be loaded back by a trace processor instance from the same
+version, `arrow_tar` targets external tools such as pandas, Polars or pyarrow,
+and `sqlite` produces a database any SQLite tool can open. For how to choose
+between the formats and the exact contents of each, see
+[Export trace data](/docs/getting-started/command-line-analysis.md#export-trace-data)
+and the
+[Trace Processor reference](/docs/analysis/trace-processor.md#subcommand-export).
+
 ## Next Steps
 
 You've now seen how to convert custom timestamped data into Perfetto traces
@@ -1352,6 +1371,9 @@ you can:
   [Trace Processor](/docs/analysis/getting-started.md) to query your custom
   trace data. Your custom tracks and events will populate standard tables like
   `slice`, `track`, `counter`, etc.
+- **Get the data back out:** Export the parsed tables with the
+  [`export` subcommand](/docs/getting-started/command-line-analysis.md#export-trace-data)
+  (SQLite, Arrow, or a reloadable Perfetto archive).
 - **Handle large datasets:** If you are generating very large traces and want to
   avoid high memory usage, learn how to stream data directly to a file in the
   [Advanced Guide's section on streaming](/docs/reference/synthetic-track-event.md#handling-large-traces-with-streaming).

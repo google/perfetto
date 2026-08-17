@@ -122,6 +122,34 @@ util::FlatBufferReader MutableRecordBatch(std::vector<uint8_t>* bytes) {
   return record_batch;
 }
 
+TestBlock ReadDictionaryBlock(const std::vector<uint8_t>& bytes) {
+  size_t footer_offset = FooterOffset(bytes);
+  uint32_t footer_size =
+      static_cast<uint32_t>(bytes.size() - 10 - footer_offset);
+  auto footer = util::FlatBufferReader::GetRoot(bytes.data() + footer_offset,
+                                                footer_size);
+  EXPECT_TRUE(footer.has_value());
+  auto blocks = footer->VecScalar<TestBlock>(2);
+  EXPECT_EQ(blocks.size(), 1u);
+  return blocks[0];
+}
+
+util::FlatBufferReader MutableDictionaryRecordBatch(
+    std::vector<uint8_t>* bytes) {
+  TestBlock block = ReadDictionaryBlock(*bytes);
+  uint32_t metadata_size;
+  memcpy(&metadata_size, bytes->data() + block.offset + 4,
+         sizeof(metadata_size));
+  auto message = util::FlatBufferReader::GetRoot(
+      bytes->data() + block.offset + 8, metadata_size);
+  EXPECT_TRUE(message.has_value());
+  auto dictionary_batch = message->Table(2);
+  EXPECT_TRUE(static_cast<bool>(dictionary_batch));
+  auto record_batch = dictionary_batch.Table(1);
+  EXPECT_TRUE(static_cast<bool>(record_batch));
+  return record_batch;
+}
+
 inline constexpr auto kUint32NonNull = CreateTypedDataframeSpec(
     {"_auto_id", "val"},
     CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
@@ -574,6 +602,17 @@ TEST(ArrowDeserializerTest, RejectsInconsistentBlockLength) {
   EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
 }
 
+TEST(ArrowDeserializerTest, RejectsCorruptEndOfStreamMarker) {
+  StringPool pool;
+  auto src = MakeDataframe(kUint32NonNull, &pool, uint32_t{1});
+  std::vector<uint8_t> bytes = Serialize(src, pool);
+
+  uint32_t garbage = 0;
+  memcpy(bytes.data() + FooterOffset(bytes) - 8, &garbage, sizeof(garbage));
+  auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
+  EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
+}
+
 TEST(ArrowDeserializerTest, RejectsInconsistentFieldNode) {
   StringPool pool;
   auto src = MakeDataframe(kUint32NonNull, &pool, uint32_t{1});
@@ -613,8 +652,8 @@ TEST(ArrowDeserializerTest, RejectsInvalidStringOffsets) {
   auto src = MakeDataframe(kStringNonNull, &pool, value);
   std::vector<uint8_t> bytes = Serialize(src, pool);
 
-  TestBlock block = ReadBlock(bytes);
-  auto record_batch = MutableRecordBatch(&bytes);
+  TestBlock block = ReadDictionaryBlock(bytes);
+  auto record_batch = MutableDictionaryRecordBatch(&bytes);
   uint8_t* buffer_data = MutableVectorData(&bytes, record_batch, 2);
   TestArrowBuffer offsets_buffer;
   memcpy(&offsets_buffer, buffer_data + sizeof(TestArrowBuffer),
@@ -623,6 +662,27 @@ TEST(ArrowDeserializerTest, RejectsInvalidStringOffsets) {
   memcpy(bytes.data() + block.offset + block.metadata_length +
              offsets_buffer.offset + sizeof(int32_t),
          &invalid_offset, sizeof(invalid_offset));
+
+  auto dst = Dataframe::CreateFromTypedSpec(kStringNonNull, &pool);
+  EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
+}
+
+TEST(ArrowDeserializerTest, RejectsOutOfRangeDictionaryIndex) {
+  StringPool pool;
+  auto value = pool.InternString(base::StringView("value"));
+  auto src = MakeDataframe(kStringNonNull, &pool, value);
+  std::vector<uint8_t> bytes = Serialize(src, pool);
+
+  TestBlock block = ReadBlock(bytes);
+  auto record_batch = MutableRecordBatch(&bytes);
+  uint8_t* buffer_data = MutableVectorData(&bytes, record_batch, 2);
+  TestArrowBuffer indices_buffer;
+  memcpy(&indices_buffer, buffer_data + sizeof(TestArrowBuffer),
+         sizeof(indices_buffer));
+  int32_t invalid_index = 1;
+  memcpy(bytes.data() + block.offset + block.metadata_length +
+             indices_buffer.offset,
+         &invalid_index, sizeof(invalid_index));
 
   auto dst = Dataframe::CreateFromTypedSpec(kStringNonNull, &pool);
   EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
