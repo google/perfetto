@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -67,6 +68,12 @@ auto TraceBlobViewReader::SliceOffImpl(const size_t offset,
   if (PERFETTO_UNLIKELY(length == 0)) {
     return visitor.OneSlice(TraceBlobView());
   }
+
+  // `offset + length` is computed in size_t arithmetic below, so an overflowing
+  // (offset, length) pair would wrap and produce an out-of-bounds slice. Callers
+  // that read untrusted section bounds (e.g. the perf.data tokenizer) reject
+  // such traces before slicing, so we should never reach here with one.
+  PERFETTO_CHECK(offset <= std::numeric_limits<size_t>::max() - length);
 
   PERFETTO_DCHECK(offset >= start_offset());
 
