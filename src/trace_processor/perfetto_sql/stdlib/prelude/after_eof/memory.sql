@@ -294,10 +294,13 @@ CREATE PERFETTO VIEW heap_graph(
   -- Reason why the heap graph was dumped (e.g. OOME, periodic, manual).
   dump_reason STRING,
   -- Total bytes allocated in the heap as reported by the VM.
-  heap_size LONG
+  heap_size LONG,
+  -- True if the heap dump was incomplete (missing packets).
+  truncated BOOL
 )
 AS
-SELECT id, ts, upid, dump_reason, heap_size FROM __intrinsic_heap_graph;
+SELECT id, ts, upid, dump_reason, heap_size, truncated
+FROM __intrinsic_heap_graph;
 
 -- A list of heap profiles (heapprofd dumps) captured during the trace. Each row
 -- describes the profiling window a single dump represents for a single heap.
