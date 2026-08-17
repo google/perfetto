@@ -29,7 +29,6 @@
 #endif
 
 #include "perfetto/protozero/proto_decoder.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 
 #include "protos/perfetto/common/trace_attributes.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"

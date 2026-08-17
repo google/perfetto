@@ -151,12 +151,12 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
     "../../protos/perfetto/trace:cpp",
+
+    # Required to pass GN header checking across all targets
+    "../../protos/perfetto/trace/android:zero",
     "../tracing/core",
     "../tracing/test:test_support",
   ]
-  if (is_android) {
-    deps += [ "../../protos/perfetto/trace/android:zero" ]
-  }
   sources = [
     "config_unittest.cc",
     "packet_writer_unittest.cc",
