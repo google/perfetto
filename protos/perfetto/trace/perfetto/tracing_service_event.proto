@@ -92,13 +92,3 @@ message TracingServiceEvent {
     uint32 buffer_cloned = 11;
   }
 }
-
-// Injected into TracePacket by perfetto --upload-after-reboot to record
-// post-reboot recovery metadata.
-message AfterRebootTraceEvent {
-  // Raw trace file size (in bytes) on disk prior to post-reboot recovery.
-  optional uint64 original_file_size = 1;
-
-  // Amount of trailing corrupted/incomplete bytes truncated during recovery.
-  optional uint64 bytes_truncated = 2;
-}

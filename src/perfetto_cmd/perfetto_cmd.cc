@@ -883,6 +883,12 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
         "Either --out, --upload, or persist_trace_across_reboots in trace "
         "config is required");
     return 1;
+  } else if (trace_config_->persist_trace_across_reboots() &&
+             !trace_config_->write_into_file()) {
+    PERFETTO_ELOG(
+        "TraceConfig's write_into_file must be true when using "
+        "persist_trace_across_reboots");
+    return 1;
   } else if (is_detach() && !trace_config_->write_into_file()) {
     // In detached mode we must pass the file descriptor to the service and
     // let that one write the trace. We cannot use the IPC readback code path
@@ -1345,7 +1351,8 @@ bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
   base::ScopedFile fd;
   if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    if (trace_config_ && trace_config_->persist_trace_across_reboots()) {
+    if (trace_config_ && trace_config_->persist_trace_across_reboots() &&
+        !is_clone()) {
       fd = CreatePersistentTmpFile(trace_config_->unique_session_name(),
                                    &persistent_file_path_);
     } else {

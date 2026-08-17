@@ -75,17 +75,6 @@ class PerfettoCmd : public Consumer {
   void OnObservableEvents(const ObservableEvents&) override;
   void OnSessionCloned(const OnSessionClonedArgs&) override;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  static size_t SanitizeAndAnnotatePersistentTrace(
-      int fd,
-      const base::ScopedMmap& mmap,
-      const std::string& file_name);
-
-  static void WaitForPreviousRebootTraceUpload(
-      const std::string& session_name,
-      const std::string& target_file_path);
-#endif
-
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
  private:
@@ -164,6 +153,17 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
+  static base::ScopedFile CreatePersistentTmpFile(
+      const std::string& session_name,
+      std::string* out_file_path);
+  static int UploadPersistentTracesAfterReboot();
+  static size_t SanitizeAndAnnotatePersistentTrace(
+      int fd,
+      const base::ScopedMmap& mmap,
+      const std::string& file_name);
+  static void WaitForPreviousRebootTraceUpload(
+      const std::string& session_name,
+      const std::string& target_file_path);
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
       const base::ScopedMmap& mmapped_trace);
   void SaveTraceIntoIncidentOrCrash();
@@ -223,10 +223,6 @@ class PerfettoCmd : public Consumer {
   bool cloned_session_was_write_into_file_ = false;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  static base::ScopedFile CreatePersistentTmpFile(
-      const std::string& session_name,
-      std::string* out_file_path);
-  int UploadPersistentTracesAfterReboot();
   std::string persistent_file_path_;
 #endif
 

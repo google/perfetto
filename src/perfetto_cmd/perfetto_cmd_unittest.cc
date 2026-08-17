@@ -32,8 +32,9 @@
 
 #include "protos/perfetto/common/trace_attributes.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
-#include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
+#include "protos/perfetto/trace/android/after_reboot_trace_event.pbzero.h"
 #include "protos/perfetto/trace/test_event.gen.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -63,6 +64,20 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
       const base::ScopedMmap& mmapped_trace) {
     return PerfettoCmd::ParseTraceConfigFromMmapedTrace(mmapped_trace);
+  }
+
+  static size_t SanitizeAndAnnotatePersistentTrace(
+      int fd,
+      const base::ScopedMmap& mmap,
+      const std::string& file_name) {
+    return PerfettoCmd::SanitizeAndAnnotatePersistentTrace(fd, mmap, file_name);
+  }
+
+  static void WaitForPreviousRebootTraceUpload(
+      const std::string& session_name,
+      const std::string& target_file_path) {
+    PerfettoCmd::WaitForPreviousRebootTraceUpload(session_name,
+                                                  target_file_path);
   }
 #endif
 };
@@ -293,8 +308,8 @@ TEST_F(PerfettoCmdlineUnitTest,
   ASSERT_TRUE(mmaped.IsValid());
 
   // Call the production static helper function
-  size_t final_offset = PerfettoCmd::SanitizeAndAnnotatePersistentTrace(
-      trace_file.fd(), mmaped, "test.tmp");
+  size_t final_offset =
+      SanitizeAndAnnotatePersistentTrace(trace_file.fd(), mmaped, "test.tmp");
 
   EXPECT_GT(final_offset, valid_bytes);
 
@@ -308,13 +323,18 @@ TEST_F(PerfettoCmdlineUnitTest,
                                           updated_mmaped.length());
   for (auto p = updated_decoder.ReadField(); p;
        p = updated_decoder.ReadField()) {
-    if (p.id() ==
-        protos::pbzero::TracePacket::kAfterRebootTraceEventFieldNumber) {
-      found_after_reboot_evt = true;
-      protos::pbzero::AfterRebootTraceEvent::Decoder evt_decoder(p.data(),
-                                                                 p.size());
-      EXPECT_EQ(evt_decoder.original_file_size(), file_with_garbage_size);
-      EXPECT_EQ(evt_decoder.bytes_truncated(), sizeof(garbage));
+    if (p.id() == protos::pbzero::Trace::kPacketFieldNumber) {
+      protozero::ProtoDecoder packet_decoder(p.as_bytes());
+      auto evt_field = packet_decoder.FindField(
+          protos::pbzero::TracePacket::kAfterRebootTraceEventFieldNumber);
+      if (evt_field) {
+        found_after_reboot_evt = true;
+        protos::pbzero::AfterRebootTraceEvent::Decoder evt_decoder(
+            evt_field.data(), evt_field.size());
+        EXPECT_EQ(evt_decoder.original_file_size_bytes(),
+                  file_with_garbage_size);
+        EXPECT_EQ(evt_decoder.bytes_truncated(), sizeof(garbage));
+      }
     }
   }
   EXPECT_TRUE(found_after_reboot_evt);
@@ -340,7 +360,7 @@ TEST_F(PerfettoCmdlineUnitTest,
   base::ScopedMmap mmaped = base::ReadMmapWholeFile(trace_file.path());
   ASSERT_TRUE(mmaped.IsValid());
 
-  size_t final_offset = PerfettoCmd::SanitizeAndAnnotatePersistentTrace(
+  size_t final_offset = SanitizeAndAnnotatePersistentTrace(
       trace_file.fd(), mmaped, "clean_test.tmp");
 
   EXPECT_GT(final_offset, *orig_size);
@@ -353,13 +373,17 @@ TEST_F(PerfettoCmdlineUnitTest,
                                           updated_mmaped.length());
   for (auto p = updated_decoder.ReadField(); p;
        p = updated_decoder.ReadField()) {
-    if (p.id() ==
-        protos::pbzero::TracePacket::kAfterRebootTraceEventFieldNumber) {
-      found_after_reboot_evt = true;
-      protos::pbzero::AfterRebootTraceEvent::Decoder evt_decoder(p.data(),
-                                                                 p.size());
-      EXPECT_EQ(evt_decoder.original_file_size(), *orig_size);
-      EXPECT_EQ(evt_decoder.bytes_truncated(), 0u);
+    if (p.id() == protos::pbzero::Trace::kPacketFieldNumber) {
+      protozero::ProtoDecoder packet_decoder(p.as_bytes());
+      auto evt_field = packet_decoder.FindField(
+          protos::pbzero::TracePacket::kAfterRebootTraceEventFieldNumber);
+      if (evt_field) {
+        found_after_reboot_evt = true;
+        protos::pbzero::AfterRebootTraceEvent::Decoder evt_decoder(
+            evt_field.data(), evt_field.size());
+        EXPECT_EQ(evt_decoder.original_file_size_bytes(), *orig_size);
+        EXPECT_EQ(evt_decoder.bytes_truncated(), 0u);
+      }
     }
   }
   EXPECT_TRUE(found_after_reboot_evt);
@@ -373,8 +397,8 @@ TEST_F(PerfettoCmdlineUnitTest,
   EXPECT_FALSE(base::FileExists(non_existent_path));
 
   auto start = base::GetBootTimeNs();
-  PerfettoCmd::WaitForPreviousRebootTraceUpload("non_existent_session_9999",
-                                                non_existent_path);
+  WaitForPreviousRebootTraceUpload("non_existent_session_9999",
+                                   non_existent_path);
   auto elapsed_ns = (base::GetBootTimeNs() - start).count();
 
   // Assert execution returns immediately (under 100 milliseconds)
@@ -392,8 +416,7 @@ TEST_F(PerfettoCmdlineUnitTest,
   // Set property indicating previous upload has started or finished
   __system_property_set("traced.reboot_trace_status", "1:100000000");
 
-  EXPECT_DEATH(PerfettoCmd::WaitForPreviousRebootTraceUpload(
-                   "finished_session_test", path),
+  EXPECT_DEATH(WaitForPreviousRebootTraceUpload("finished_session_test", path),
                "still exists on disk even though property is set");
 }
 #endif

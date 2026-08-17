@@ -6378,6 +6378,20 @@ message TraceStats {
 
 // End of protos/perfetto/common/trace_stats.proto
 
+// Begin of protos/perfetto/trace/android/after_reboot_trace_event.proto
+
+// Injected into TracePacket by perfetto --upload-after-reboot to record
+// post-reboot recovery metadata.
+message AfterRebootTraceEvent {
+  // Raw trace file size (in bytes) on disk prior to post-reboot recovery.
+  optional uint64 original_file_size_bytes = 1;
+
+  // Amount of trailing corrupted/incomplete bytes truncated during recovery.
+  optional uint64 bytes_truncated = 2;
+}
+
+// End of protos/perfetto/trace/android/after_reboot_trace_event.proto
+
 // Begin of protos/perfetto/trace/android/android_aflags.proto
 
 // Android aconfig flags (aflags).
@@ -16129,16 +16143,6 @@ message TracingServiceEvent {
     // finished the clone operation (for a specific buffer).
     uint32 buffer_cloned = 11;
   }
-}
-
-// Injected into TracePacket by perfetto --upload-after-reboot to record
-// post-reboot recovery metadata.
-message AfterRebootTraceEvent {
-  // Raw trace file size (in bytes) on disk prior to post-reboot recovery.
-  optional uint64 original_file_size = 1;
-
-  // Amount of trailing corrupted/incomplete bytes truncated during recovery.
-  optional uint64 bytes_truncated = 2;
 }
 
 // End of protos/perfetto/trace/perfetto/tracing_service_event.proto

@@ -5415,6 +5415,14 @@ class TraceStats(_message.Message):
     final_flush_outcome: TraceStats.FinalFlushOutcome
     def __init__(self, buffer_stats: _Optional[_Iterable[_Union[TraceStats.BufferStats, _Mapping]]] = ..., chunk_payload_histogram_def: _Optional[_Iterable[int]] = ..., writer_stats: _Optional[_Iterable[_Union[TraceStats.WriterStats, _Mapping]]] = ..., producers_connected: _Optional[int] = ..., producers_seen: _Optional[int] = ..., data_sources_registered: _Optional[int] = ..., data_sources_seen: _Optional[int] = ..., tracing_sessions: _Optional[int] = ..., total_buffers: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., patches_discarded: _Optional[int] = ..., invalid_packets: _Optional[int] = ..., filter_stats: _Optional[_Union[TraceStats.FilterStats, _Mapping]] = ..., flushes_requested: _Optional[int] = ..., flushes_succeeded: _Optional[int] = ..., flushes_failed: _Optional[int] = ..., final_flush_outcome: _Optional[_Union[TraceStats.FinalFlushOutcome, str]] = ...) -> None: ...
 
+class AfterRebootTraceEvent(_message.Message):
+    __slots__ = ("original_file_size_bytes", "bytes_truncated")
+    ORIGINAL_FILE_SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    BYTES_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
+    original_file_size_bytes: int
+    bytes_truncated: int
+    def __init__(self, original_file_size_bytes: _Optional[int] = ..., bytes_truncated: _Optional[int] = ...) -> None: ...
+
 class AndroidAflags(_message.Message):
     __slots__ = ("flags", "error")
     class FlagPermission(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -18104,14 +18112,6 @@ class TracingServiceEvent(_message.Message):
     clone_started: bool
     buffer_cloned: int
     def __init__(self, tracing_started: bool = ..., all_data_sources_started: bool = ..., flush_started: bool = ..., all_data_sources_flushed: bool = ..., read_tracing_buffers_completed: bool = ..., tracing_disabled: bool = ..., seized_for_bugreport: bool = ..., slow_starting_data_sources: _Optional[_Union[TracingServiceEvent.DataSources, _Mapping]] = ..., last_flush_slow_data_sources: _Optional[_Union[TracingServiceEvent.DataSources, _Mapping]] = ..., clone_started: bool = ..., buffer_cloned: _Optional[int] = ...) -> None: ...
-
-class AfterRebootTraceEvent(_message.Message):
-    __slots__ = ("original_file_size", "bytes_truncated")
-    ORIGINAL_FILE_SIZE_FIELD_NUMBER: _ClassVar[int]
-    BYTES_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
-    original_file_size: int
-    bytes_truncated: int
-    def __init__(self, original_file_size: _Optional[int] = ..., bytes_truncated: _Optional[int] = ...) -> None: ...
 
 class AndroidEnergyConsumer(_message.Message):
     __slots__ = ("energy_consumer_id", "ordinal", "type", "name")
