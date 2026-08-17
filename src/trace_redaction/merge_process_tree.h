@@ -17,7 +17,10 @@
 #ifndef SRC_TRACE_REDACTION_MERGE_PROCESS_TREE_H_
 #define SRC_TRACE_REDACTION_MERGE_PROCESS_TREE_H_
 
+#include <cstdint>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
