@@ -38,6 +38,11 @@ import {
 } from '../../core/state_serialization';
 import type {TraceImpl} from '../../core/trace_impl';
 import {trackMatchesFilter} from '../../core/track_manager';
+import {
+  downloadTrace,
+  downloadTraceAndUiState,
+  downloadUiState,
+} from '../../frontend/trace_actions';
 import {shareTrace} from '../../frontend/trace_share_utils';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {DurationPrecision, TimestampFormat} from '../../public/timeline';
@@ -530,6 +535,21 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.ShareTrace',
       name: 'Share trace',
       callback: () => shareTrace(ctx),
+    });
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.DownloadTrace',
+      name: 'Download trace',
+      callback: () => downloadTrace(ctx),
+    });
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.DownloadTraceAndUiState',
+      name: 'Download trace with UI state',
+      callback: () => downloadTraceAndUiState(ctx),
+    });
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.DownloadUiState',
+      name: 'Download UI state (.json)',
+      callback: () => downloadUiState(ctx),
     });
     ctx.commands.registerCommand({
       id: 'dev.perfetto.SearchNext',
