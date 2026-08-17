@@ -16,6 +16,8 @@ import m from 'mithril';
 import {removeFalsyValues} from '../../base/array_utils';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {ensureExists} from '../../base/assert';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
+import {SharedAsyncDisposable} from '../../base/shared_disposable';
 import {Time} from '../../base/time';
 import {
   createAggregationTab,
@@ -25,6 +27,7 @@ import {sliceDistributionCellRenderers} from '../../components/details/slice_det
 import {openDistributionTab} from '../../components/distribution_panel';
 import {
   metricsFromTableOrSubquery,
+  type QueryFlamegraphDependency,
   type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
 import {FlamegraphPanel} from '../../components/flamegraph_panel';
@@ -73,6 +76,11 @@ const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
 type TraceProcessorTrackPluginState = z.infer<
   typeof TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA
 >;
+
+interface SliceFlamegraphData extends AsyncDisposable {
+  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
+  readonly dependencies: ReadonlyArray<QueryFlamegraphDependency>;
+}
 
 function createDetailsPanel(trace: Trace, utid: number | null) {
   if (utid === null) {
@@ -605,12 +613,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 
   private createSliceFlameGraphPanel(trace: Trace) {
     let previousSelection: AreaSelection | undefined;
-    let computed:
-      | {
-          metrics: ReadonlyArray<QueryFlamegraphMetric>;
-          dependencies: ReadonlyArray<AsyncDisposable>;
-        }
-      | undefined;
+    let computed: SliceFlamegraphData | undefined;
     let isLoading = false;
     const limiter = new AsyncLimiter();
 
@@ -624,8 +627,10 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         previousSelection = selection;
         if (selectionChanged) {
           limiter.schedule(async () => {
+            const previousComputed = computed;
             computed = undefined;
             isLoading = true;
+            await previousComputed?.[Symbol.asyncDispose]();
             computed = await this.computeSliceFlamegraph(trace, selection);
             isLoading = false;
           });
@@ -657,13 +662,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   private async computeSliceFlamegraph(
     trace: Trace,
     currentSelection: AreaSelection,
-  ): Promise<
-    | {
-        metrics: ReadonlyArray<QueryFlamegraphMetric>;
-        dependencies: ReadonlyArray<AsyncDisposable>;
-      }
-    | undefined
-  > {
+  ): Promise<SliceFlamegraphData | undefined> {
     const trackIds = [];
     for (const trackInfo of currentSelection.tracks) {
       if (!trackInfo?.tags?.kinds?.includes(SLICE_TRACK_KIND)) {
@@ -698,11 +697,14 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       },
     });
 
-    const iiTable = await createIITable(
-      trace.engine,
-      dataset,
-      currentSelection.start,
-      currentSelection.end,
+    await using disposables = new AsyncDisposableStack();
+    const iiTable = disposables.use(
+      await createIITable(
+        trace.engine,
+        dataset,
+        currentSelection.start,
+        currentSelection.end,
+      ),
     );
     // Will be automatically cleaned up when `iiTable` is dropped.
     await createPerfettoIndex({
@@ -787,7 +789,14 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    return {metrics, dependencies: [iiTable]};
+    const dependency: QueryFlamegraphDependency = SharedAsyncDisposable.wrap(
+      disposables.move(),
+    );
+    return {
+      metrics,
+      dependencies: [dependency],
+      [Symbol.asyncDispose]: () => dependency[Symbol.asyncDispose](),
+    };
   }
 
   private addMinimapContentProvider(ctx: Trace) {

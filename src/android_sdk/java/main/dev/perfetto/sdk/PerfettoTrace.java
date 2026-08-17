@@ -36,7 +36,7 @@ public final class PerfettoTrace {
   private static final String TAG = "PerfettoTrace";
 
   static {
-    System.loadLibrary("perfetto_framework_jni");
+    PerfettoNativeLibrary.load();
   }
 
   // Keep in sync with C++

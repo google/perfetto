@@ -14,7 +14,11 @@
 
 import type m from 'mithril';
 import type {Trace} from '../public/trace';
-import {QueryFlamegraph, type QueryFlamegraphMetric} from './query_flamegraph';
+import {
+  QueryFlamegraph,
+  type QueryFlamegraphDependency,
+  type QueryFlamegraphMetric,
+} from './query_flamegraph';
 import type {
   FlamegraphAddableMetric,
   FlamegraphState,
@@ -36,10 +40,10 @@ export interface FlamegraphPanelAttrs {
   readonly addableMetrics?: ReadonlyArray<FlamegraphAddableMetric>;
   readonly onAddMetric?: (metric: FlamegraphAddableMetric) => void;
 
-  // Perfetto tables / indices the metric SQL depends on. The panel forwards
-  // them to the inner `QueryFlamegraph`, which disposes them along with
-  // itself on unmount or when the array reference changes.
-  readonly dependencies?: ReadonlyArray<AsyncDisposable>;
+  // Shared Perfetto tables / indices the metric SQL depends on. The caller
+  // retains ownership; the panel keeps a clone alive until its inner
+  // `QueryFlamegraph` is disposed.
+  readonly dependencies?: ReadonlyArray<QueryFlamegraphDependency>;
 }
 
 // Mithril wrapper around `QueryFlamegraph` that owns the inner instance's
