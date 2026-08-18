@@ -271,7 +271,7 @@ StringId ChromeStringLookup::GetProcessName(int32_t process_type) const {
   if (process_name_it != chrome_process_name_ids_.end())
     return process_name_it->second;
 
-  PERFETTO_DLOG("GetProcessName error: Unknown Chrome process type %u",
+  PERFETTO_DLOG("GetProcessName error: Unknown Chrome process type %d",
                 process_type);
   return kNullStringId;
 }
@@ -281,7 +281,7 @@ StringId ChromeStringLookup::GetThreadName(int32_t thread_type) const {
   if (thread_name_it != chrome_thread_name_ids_.end())
     return thread_name_it->second;
 
-  PERFETTO_DLOG("GetThreadName error: Unknown Chrome thread type %u",
+  PERFETTO_DLOG("GetThreadName error: Unknown Chrome thread type %d",
                 thread_type);
   return kNullStringId;
 }
