@@ -24,14 +24,66 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
 import {GoogleDriveClient, type GoogleDriveFile} from './gdrive_client';
 import type {Result} from '../../base/result';
+import {defer} from '../../base/deferred';
 import {Intent} from '../../widgets/common';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
+import './styles.scss';
 
-// Note: keys purposely stripped for now...
-const API_KEY = '';
-const CLIENT_ID = '';
-const APP_ID = '';
-const gDriveClient = new GoogleDriveClient(API_KEY, CLIENT_ID, APP_ID);
+// The Google Drive credentials are not checked into the repo. They are loaded
+// at runtime from an internal script (the same way the internal userscript is
+// loaded) via a <script> tag, which sidesteps the CORS restrictions a
+// cross-origin fetch() would hit. The script populates window.gDriveConfig.
+const CONFIG_URL =
+  'https://storage.cloud.google.com/perfetto-ui-internal/gdrive_config.js';
+const CONFIG_LOAD_TIMEOUT_MS = 5000;
+
+interface GDriveConfig {
+  readonly apiKey: string;
+  readonly clientId: string;
+  readonly appId: string;
+}
+
+declare global {
+  interface Window {
+    gDriveConfig?: GDriveConfig;
+  }
+}
+
+// Kicks off the config script load and returns a promise that resolves to the
+// populated window.gDriveConfig (or empty defaults on error/timeout).
+function loadGDriveConfig(): Promise<GDriveConfig> {
+  const defaults: GDriveConfig = {apiKey: '', clientId: '', appId: ''};
+  window.gDriveConfig = defaults;
+
+  const loaded = defer<GDriveConfig>();
+  const script = document.createElement('script');
+  script.src = CONFIG_URL;
+  script.async = true;
+  script.onload = () => loaded.resolve(window.gDriveConfig ?? defaults);
+  script.onerror = () => loaded.resolve(defaults);
+  document.head.append(script);
+
+  setTimeout(
+    () => loaded.resolve(window.gDriveConfig ?? defaults),
+    CONFIG_LOAD_TIMEOUT_MS,
+  );
+  return loaded;
+}
+
+let gDriveClientPromise: Promise<GoogleDriveClient> | undefined;
+
+// Lazily loads the config and constructs the client on first use, caching the
+// result so the config is only loaded once.
+function getGDriveClient(): Promise<GoogleDriveClient> {
+  if (!gDriveClientPromise) {
+    gDriveClientPromise = loadGDriveConfig().then(
+      (config) =>
+        new GoogleDriveClient(config.apiKey, config.clientId, config.appId),
+    );
+  }
+  return gDriveClientPromise;
+}
+
 const uploadedTraces = new WeakMap<TraceImpl, string>();
 let pendingTraceFileId: string | undefined = undefined;
 
@@ -48,17 +100,20 @@ export default class implements PerfettoPlugin {
   static onActivate(app: AppImpl, pluginArgs: RouteArgs) {
     app.sidebar.addMenuItem({
       section: 'trace_files',
-      text: 'Open from Google Drive',
-      icon: 'add_to_drive',
+      text: 'Open from GDrive',
+      icon: 'drive_export',
+      badge: 'preview',
+      visible: () => app.isInternalUser,
       action: async () => {
-        const auth = await gDriveClient.authenticate();
+        const client = await getGDriveClient();
+        const auth = await client.authenticate();
         if (auth.response !== 'success') return;
-        const files = await gDriveClient.pickFile(auth.accessToken);
+        const files = await client.pickFile(auth.accessToken);
         if (!files) return;
         if (files.length === 0) return;
 
         const firstFile = files[0];
-        const fileResult = await gDriveClient.openFile(
+        const fileResult = await client.openFile(
           auth.accessToken,
           firstFile.id,
         );
@@ -89,9 +144,11 @@ export default class implements PerfettoPlugin {
 
     trace.sidebar.addMenuItem({
       section: 'current_trace',
-      text: 'Share to Google Drive',
+      text: 'Share to GDrive',
       icon: 'add_to_drive',
       sortOrder: 10,
+      badge: 'preview',
+      visible: () => trace.isInternalUser,
       action: () => {
         // This button opens a modal dialog which displays the state of the file
         // in google drive allowing the user to upload it and optionally share
@@ -100,7 +157,7 @@ export default class implements PerfettoPlugin {
         showModal({
           key: 'GDriveUpload',
           title: 'Google Drive',
-          content: () => m(UploadTraceModal, {trace, gDriveClient}),
+          content: () => m(UploadTraceModal, {trace}),
         });
       },
     });
@@ -112,7 +169,8 @@ async function openGoogleDriveTrace(
   token: string,
   fileId: string,
 ): Promise<Result<GoogleDriveFile>> {
-  const fileResult = await gDriveClient.openFile(token, fileId);
+  const client = await getGDriveClient();
+  const fileResult = await client.openFile(token, fileId);
   if (fileResult.ok) {
     const file = fileResult.value;
     app.openTraceFromBuffer({
@@ -132,7 +190,8 @@ async function handlePermalink(app: AppImpl, fileId: string) {
   // be blocked by the popup blocker in the browser. We might need to
   // authenticate first, use fullscreen authentication.
 
-  const auth = await gDriveClient.authenticate();
+  const client = await getGDriveClient();
+  const auth = await client.authenticate();
   if (auth.response === 'popup_blocked') {
     console.log('Popup blocked, need to show a dialog to the user.');
     showModal({
@@ -189,7 +248,7 @@ async function handlePermalink(app: AppImpl, fileId: string) {
             intent: Intent.Primary,
             variant: ButtonVariant.Filled,
             onclick: async () => {
-              const files = await gDriveClient.requestFileAccess(
+              const files = await client.requestFileAccess(
                 accessToken,
                 fileId,
               );
@@ -207,7 +266,6 @@ async function handlePermalink(app: AppImpl, fileId: string) {
 
 interface UploadTraceModalAttrs {
   readonly trace: TraceImpl;
-  readonly gDriveClient: GoogleDriveClient;
 }
 
 function UploadTraceModal(): m.Component<UploadTraceModalAttrs> {
@@ -245,12 +303,10 @@ function UploadTraceModal(): m.Component<UploadTraceModalAttrs> {
             m(Button, {
               label: 'Change ACLs',
               onclick: async () => {
-                const auth = await attrs.gDriveClient.authenticate();
+                const client = await getGDriveClient();
+                const auth = await client.authenticate();
                 if (auth.response === 'success') {
-                  attrs.gDriveClient.openSharingDialog(
-                    auth.accessToken,
-                    fileId,
-                  );
+                  client.openSharingDialog(auth.accessToken, fileId);
                 }
               },
             }),
@@ -278,11 +334,10 @@ function UploadTraceModal(): m.Component<UploadTraceModalAttrs> {
               m(Button, {
                 label: 'Change location...',
                 onclick: async () => {
-                  const auth = await attrs.gDriveClient.authenticate();
+                  const client = await getGDriveClient();
+                  const auth = await client.authenticate();
                   if (auth.response !== 'success') return;
-                  const folder = await attrs.gDriveClient.pickFolder(
-                    auth.accessToken,
-                  );
+                  const folder = await client.pickFolder(auth.accessToken);
                   if (!folder) return;
                   location = folder;
                   m.redraw();
@@ -295,10 +350,11 @@ function UploadTraceModal(): m.Component<UploadTraceModalAttrs> {
             disabled: fileName.length === 0 || uploading,
             onclick: async () => {
               uploading = true;
-              const auth = await attrs.gDriveClient.authenticate();
+              const client = await getGDriveClient();
+              const auth = await client.authenticate();
               if (auth.response !== 'success') return;
               const traceBlob = await trace.getTraceFile();
-              const result = await attrs.gDriveClient.uploadFile(
+              const result = await client.uploadFile(
                 auth.accessToken,
                 traceBlob,
                 location === 'root' ? 'root' : location.id,
