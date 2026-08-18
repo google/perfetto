@@ -68,8 +68,13 @@ export interface TraceArrayBufferSource {
   // with all other state fields).
   readonly uuid?: string;
 
-  // if |localOnly| is true then the trace should not be shared or downloaded.
-  readonly localOnly?: boolean;
+  // Whether the UI may share the trace externally (e.g. upload it to GCS
+  // as a permalink) and/or download it to disk. Both default to true when
+  // unset. The postMessage handler sets them explicitly to false unless the
+  // sender opts in (see post_message_handler.ts). These replace the legacy
+  // |localOnly| field.
+  readonly shareable?: boolean;
+  readonly downloadable?: boolean;
 
   // Allows to pass extra arguments to plugins. This can be read by plugins
   // onTraceLoad() and can be used to trigger plugin-specific-behaviours (e.g.
