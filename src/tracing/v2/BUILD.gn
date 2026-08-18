@@ -14,31 +14,41 @@
 
 import("../../../gn/test.gni")
 
-# The tracing v2 producer-local shared ring: its ABI, the writer half of the
-# chunk protocol and the single-consumer reader. Nothing here knows how the
-# bytes inside a fragment are encoded.
+# The producer side of tracing v2: the shared ring and its ABI, the writer half
+# of the chunk protocol, the single-consumer reader, and the private
+# start-tag-and-terminator encoding that TraceWriterV2 puts into a fragment and
+# ProtoRewriter takes back out.
 source_set("v2") {
   public_deps = [
     # shared_ring_buffer.h holds a base::PagedMemory by value.
     "../../../include/perfetto/ext/base",
 
-    # The headers use WriterID and BufferID.
+    # The headers use WriterID and BufferID, and trace_writer_v2.h derives from
+    # TraceWriter.
     "../../../include/perfetto/ext/tracing/core",
 
     # ring_writer.h takes a BufferExhaustedPolicy.
     "../../../include/perfetto/tracing",
+
+    # trace_writer_v2.h holds a protozero RootMessage and a stream writer.
+    "../../protozero",
   ]
   deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/trace:zero",
     "../../base",
   ]
   sources = [
     "chunk_reader.cc",
     "chunk_reader.h",
+    "proto_rewriter.cc",
+    "proto_rewriter.h",
     "ring_writer.cc",
     "ring_writer.h",
     "shared_ring_buffer.cc",
     "shared_ring_buffer.h",
+    "trace_writer_v2.cc",
+    "trace_writer_v2.h",
     "tracing_v2_abi.h",
   ]
 }
@@ -49,14 +59,18 @@ perfetto_unittest_source_set("unittests") {
     ":v2",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../protos/perfetto/trace:cpp",
+    "../../../protos/perfetto/trace:zero",
     "../../base",
     "../../base:test_support",
   ]
   sources = [
     "chunk_reader_unittest.cc",
+    "proto_rewriter_unittest.cc",
     "ring_protocol_race_unittest.cc",
     "ring_writer_unittest.cc",
     "shared_ring_buffer_unittest.cc",
+    "trace_writer_v2_unittest.cc",
     "tracing_v2_abi_unittest.cc",
   ]
 }

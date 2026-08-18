@@ -277,13 +277,32 @@ struct PerfettoDsRootTracePacket {
   struct perfetto_protos_TracePacket msg;
 };
 
+// Converts the packet encoding reported by the data-source ABI into the C
+// message-layer value. The two enums mirror each other, but the ABI boundary
+// gets an explicit conversion rather than a cast, so that adding a value to one
+// of them does not silently change the meaning of the other.
+//
+// An unrecognised value needs no check here: it can only come from
+// PerfettoDsTracerImplPacketBeginWithEncoding(), which fails before returning
+// one, and PerfettoPbMsgInitWithEncoding() rejects whatever it is given anyway.
+static inline enum PerfettoPbMsgEncoding PerfettoDsPacketEncodingToPbMsg(
+    enum PerfettoDsPacketEncoding encoding) {
+  if (encoding == PERFETTO_DS_PACKET_ENCODING_START_TAG_AND_TERMINATOR)
+    return PERFETTO_PB_MSG_ENCODING_START_TAG_AND_TERMINATOR;
+  return PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED;
+}
+
 // Initializes `root` to write a new packet to the data source instance pointed
-// by `iterator`.
+// by `iterator`. The root message uses the encoding chosen by the writer that
+// created the packet; see PerfettoDsTracerImplPacketBeginWithEncoding().
 static inline void PerfettoDsTracerPacketBegin(
     struct PerfettoDsTracerIterator* iterator,
     struct PerfettoDsRootTracePacket* root) {
-  root->writer.writer = PerfettoDsTracerImplPacketBegin(iterator->impl.tracer);
-  PerfettoPbMsgInit(&root->msg.msg, &root->writer);
+  const enum PerfettoDsPacketEncoding encoding =
+      PerfettoDsTracerImplPacketBeginWithEncoding(iterator->impl.tracer,
+                                                  &root->writer.writer);
+  PerfettoPbMsgInitWithEncoding(&root->msg.msg, &root->writer,
+                                PerfettoDsPacketEncodingToPbMsg(encoding));
 }
 
 // Finishes writing the packet pointed by `root` on the data source instance

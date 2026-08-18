@@ -74,6 +74,10 @@ class MessageTest : public ::testing::Test {
 
   void ResetMessage(FakeRootMessage* msg) { msg->Reset(stream_writer_.get()); }
 
+  void ResetMessage(FakeRootMessage* msg, NestedMessageEncoding encoding) {
+    msg->Reset(stream_writer_.get(), encoding);
+  }
+
   void SetChunkSize(size_t size) {
     buffer_.reset(new FakeScatteredBuffer(size));
     stream_writer_.reset(new ScatteredStreamWriter(buffer_.get()));
@@ -93,6 +97,15 @@ class MessageTest : public ::testing::Test {
     messages_.push_back(std::move(mem));
     FakeRootMessage* msg = new (msg_start) FakeRootMessage();
     msg->Reset(stream_writer_.get());
+    return msg;
+  }
+
+  // A root that frames its nested messages with the private start tag and
+  // terminator instead of a reserved length.
+  FakeRootMessage* NewTerminatedMessage() {
+    FakeRootMessage* msg = NewMessage();
+    msg->Reset(stream_writer_.get(),
+               NestedMessageEncoding::kStartTagAndTerminator);
     return msg;
   }
 
@@ -469,6 +482,181 @@ TEST_F(MessageTest, FinalizeWithoutCompaction) {
   EXPECT_EQ(24u, size);
   EXPECT_EQ(28u, GetNumSerializedBytes());
 }
+
+// ---------------------------------------------------------------------------
+// Nested-message encodings.
+//
+// The private start-tag-and-terminator framing is specified at
+// proto_utils::kNestedMessageTerminator. These tests check exact bytes, because
+// the whole point of the encoding is which bytes come out.
+// ---------------------------------------------------------------------------
+
+TEST_F(MessageTest, DefaultEncodingIsLengthDelimited) {
+  FakeRootMessage* msg = NewMessage();
+  EXPECT_EQ(msg->nested_message_encoding(),
+            NestedMessageEncoding::kLengthDelimited);
+
+  Message* nested = msg->BeginNestedMessage<FakeChildMessage>(1);
+  EXPECT_EQ(nested->nested_message_encoding(),
+            NestedMessageEncoding::kLengthDelimited);
+  msg->Finalize();
+
+  // Field 1 as wire type 2 and its length. The empty message fits in one chunk
+  // and is short, so the canonical path compacts the four reserved bytes down
+  // to one - the behaviour the terminated mode has to leave alone.
+  EXPECT_EQ(2u, GetNumSerializedBytes());
+  EXPECT_EQ("0A00", GetNextSerializedBytes(2));
+}
+
+TEST_F(MessageTest, TerminatedEmptyNestedMessage) {
+  FakeRootMessage* msg = NewTerminatedMessage();
+  msg->BeginNestedMessage<FakeChildMessage>(1);
+  msg->Finalize();
+
+  // The worked example: 0b 04.
+  EXPECT_EQ(2u, GetNumSerializedBytes());
+  EXPECT_EQ("0B04", GetNextSerializedBytes(2));
+}
+
+TEST_F(MessageTest, TerminatedNestedInsideNested) {
+  FakeRootMessage* msg = NewTerminatedMessage();
+  Message* outer = msg->BeginNestedMessage<FakeChildMessage>(1);
+  outer->BeginNestedMessage<FakeChildMessage>(2);
+  msg->Finalize();
+
+  // The worked example: 0b 13 04 04.
+  EXPECT_EQ(4u, GetNumSerializedBytes());
+  EXPECT_EQ("0B130404", GetNextSerializedBytes(4));
+}
+
+TEST_F(MessageTest, TerminatedChildInheritsTheRootEncoding) {
+  FakeRootMessage* msg = NewTerminatedMessage();
+  EXPECT_EQ(msg->nested_message_encoding(),
+            NestedMessageEncoding::kStartTagAndTerminator);
+  Message* child = msg->BeginNestedMessage<FakeChildMessage>(1);
+  EXPECT_EQ(child->nested_message_encoding(),
+            NestedMessageEncoding::kStartTagAndTerminator);
+  Message* grandchild = child->BeginNestedMessage<FakeChildMessage>(2);
+  EXPECT_EQ(grandchild->nested_message_encoding(),
+            NestedMessageEncoding::kStartTagAndTerminator);
+
+  // A terminated message never reserves a length, so nothing is ever patched.
+  EXPECT_EQ(nullptr, child->size_field());
+  EXPECT_EQ(nullptr, grandchild->size_field());
+  msg->Finalize();
+}
+
+TEST_F(MessageTest, TerminatedRootEmitsNoTerminator) {
+  FakeRootMessage* msg = NewTerminatedMessage();
+  msg->AppendVarInt(1, 42);
+  msg->Finalize();
+
+  // Just the field: the root's framing belongs to whoever owns the stream.
+  EXPECT_EQ(2u, GetNumSerializedBytes());
+  EXPECT_EQ("082A", GetNextSerializedBytes(2));
+}
+
+TEST_F(MessageTest, TerminatedSiblingsAndScalars) {
+  FakeRootMessage* msg = NewTerminatedMessage();
+  msg->AppendVarInt(1, 1);
+  Message* first = msg->BeginNestedMessage<FakeChildMessage>(2);
+  first->AppendVarInt(3, 2);
+  Message* second = msg->BeginNestedMessage<FakeChildMessage>(2);
+  second->AppendVarInt(3, 3);
+  msg->AppendVarInt(4, 4);
+  msg->Finalize();
+
+  //  08 01   field 1 = 1
+  //  13      start field 2
+  //  18 02   field 3 = 2
+  //  04      terminator
+  //  13      start field 2
+  //  18 03   field 3 = 3
+  //  04      terminator
+  //  20 04   field 4 = 4
+  EXPECT_EQ(12u, GetNumSerializedBytes());
+  EXPECT_EQ("080113180204131803042004", GetNextSerializedBytes(12));
+}
+
+TEST_F(MessageTest, TerminatedFinalizeIsIdempotent) {
+  FakeRootMessage* msg = NewTerminatedMessage();
+  Message* child = msg->BeginNestedMessage<FakeChildMessage>(1);
+  EXPECT_EQ(1u, child->Finalize());
+  // A second Finalize() must not emit a second terminator.
+  EXPECT_EQ(1u, child->Finalize());
+  EXPECT_EQ(1u, child->Finalize());
+  msg->Finalize();
+  msg->Finalize();
+
+  EXPECT_EQ(2u, GetNumSerializedBytes());
+  EXPECT_EQ("0B04", GetNextSerializedBytes(2));
+}
+
+TEST_F(MessageTest, TerminatedMultiByteFieldId) {
+  FakeRootMessage* msg = NewTerminatedMessage();
+  // (1000 << 3) | 3 = 8003 -> C3 3E.
+  msg->BeginNestedMessage<FakeChildMessage>(1000);
+  msg->Finalize();
+
+  EXPECT_EQ(3u, GetNumSerializedBytes());
+  EXPECT_EQ("C33E04", GetNextSerializedBytes(3));
+}
+
+TEST_F(MessageTest, TerminatedFramingCrossesChunkBoundaries) {
+  // The fixture hands out 16-byte chunks, so a payload this size puts the start
+  // tag and the terminator in different chunks.
+  FakeRootMessage* msg = NewTerminatedMessage();
+  Message* child = msg->BeginNestedMessage<FakeChildMessage>(1);
+  for (uint32_t i = 0; i < 8; ++i)
+    child->AppendBytes(2, kTestBytes, sizeof(kTestBytes));
+  msg->Finalize();
+
+  // 1 start tag + 8 * (1 tag + 1 length + 10 bytes) + 1 terminator.
+  EXPECT_EQ(1u + 8u * 12u + 1u, GetNumSerializedBytes());
+  EXPECT_EQ("0B", GetNextSerializedBytes(1));
+  for (uint32_t i = 0; i < 8; ++i)
+    EXPECT_EQ("120A00000000420142FF4200", GetNextSerializedBytes(12)) << i;
+  EXPECT_EQ("04", GetNextSerializedBytes(1));
+}
+
+TEST_F(MessageTest, LengthDelimitedCompactionIsUnchanged) {
+  // The canonical path still compacts a short single-chunk nested message into
+  // a one-byte length; nothing about the new state was allowed to disturb it.
+  FakeRootMessage* msg = NewMessageWithSizeField();
+  msg->AppendBytes(1, kTestBytes, 5);
+  EXPECT_EQ(7u, msg->Finalize());
+  EXPECT_EQ(8u, GetNumSerializedBytes());
+}
+
+// The encoding and the terminator flag were added to consume padding that was
+// already there. An inequality would let a real four-byte regression through,
+// so this is an exact expression derived from the members themselves rather
+// than a hard-coded byte count for one host.
+namespace {
+constexpr size_t AlignUp(size_t value, size_t alignment) {
+  return (value + alignment - 1) / alignment * alignment;
+}
+
+constexpr size_t ExpectedMessageSize() {
+  // stream_writer_, arena_, nested_message_, size_field_.
+  size_t size = 4 * sizeof(void*);
+  size += sizeof(uint32_t);  // size_
+  size += 3;                 // message_state_, encoding, needs_terminator_
+#if PERFETTO_DCHECK_IS_ON()
+  size = AlignUp(size, alignof(uint32_t));
+  size += sizeof(uint32_t);  // generation_
+  size = AlignUp(size, sizeof(void*));
+  size += sizeof(void*);  // handle_
+#endif
+  return AlignUp(size, alignof(Message));
+}
+}  // namespace
+
+static_assert(sizeof(Message) == ExpectedMessageSize(),
+              "protozero::Message grew: the nested-message encoding and the "
+              "terminator flag are meant to fit in existing padding");
+static_assert(alignof(Message) == alignof(void*),
+              "protozero::Message must stay pointer-aligned");
 
 }  // namespace
 }  // namespace protozero

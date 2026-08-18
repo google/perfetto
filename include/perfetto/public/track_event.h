@@ -376,13 +376,16 @@ static inline bool PerfettoTeLlDynCatEnabled(
 }
 
 // Initializes `root` to write a new packet to the data source instance pointed
-// by `iterator`.
+// by `iterator`. The root message uses the encoding chosen by the writer that
+// created the packet; see PerfettoDsTracerImplPacketBeginWithEncoding().
 static inline void PerfettoTeLlPacketBegin(
     struct PerfettoTeLlIterator* iterator,
     struct PerfettoDsRootTracePacket* root) {
-  root->writer.writer =
-      PerfettoDsTracerImplPacketBegin(iterator->impl.ds.tracer);
-  PerfettoPbMsgInit(&root->msg.msg, &root->writer);
+  const enum PerfettoDsPacketEncoding encoding =
+      PerfettoDsTracerImplPacketBeginWithEncoding(iterator->impl.ds.tracer,
+                                                  &root->writer.writer);
+  PerfettoPbMsgInitWithEncoding(&root->msg.msg, &root->writer,
+                                PerfettoDsPacketEncodingToPbMsg(encoding));
 }
 
 // Finishes writing the packet pointed by `root` on the data source instance

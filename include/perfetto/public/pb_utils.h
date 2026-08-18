@@ -38,6 +38,29 @@ static inline uint32_t PerfettoPbMakeTag(int32_t field_id,
          PERFETTO_STATIC_CAST(uint32_t, wire_type);
 }
 
+// The private nested-message framing used by a message initialized with
+// PERFETTO_PB_MSG_ENCODING_START_TAG_AND_TERMINATOR (the tracing v2 write
+// path). It mirrors protozero's C++ side; see kNestedMessageTerminator in
+// include/perfetto/protozero/proto_utils.h for the full rationale.
+//
+//   open nested field f:  varint((f << 3) | 3)
+//   close current nested: PERFETTO_PB_NESTED_MESSAGE_TERMINATOR
+//   root:                 no wrapper and no close byte
+//
+// The terminator carries no field id, so this is deliberately not standard
+// protobuf group encoding. Wire type 3 is kept out of PerfettoPbWireType
+// because it is only ever the opening marker of this framing, never a field
+// type a decoder should accept.
+enum {
+  PERFETTO_PB_WIRE_TYPE_START_GROUP = 3,
+  PERFETTO_PB_NESTED_MESSAGE_TERMINATOR = 0x04,
+};
+
+static inline uint32_t PerfettoPbMakeStartGroupTag(int32_t field_id) {
+  return ((PERFETTO_STATIC_CAST(uint32_t, field_id)) << 3) |
+         PERFETTO_STATIC_CAST(uint32_t, PERFETTO_PB_WIRE_TYPE_START_GROUP);
+}
+
 enum {
   // Maximum bytes size of a 64-bit integer encoded as a VarInt.
   PERFETTO_PB_VARINT_MAX_SIZE_64 = 10,

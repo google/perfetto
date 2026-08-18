@@ -48,6 +48,29 @@ enum class ProtoWireType : uint32_t {
   kFixed32 = 5,
 };
 
+// Wire types 3 and 4 delimit a standard protobuf group. They are kept out of
+// ProtoWireType because the general protozero decoder deliberately rejects
+// groups and protozero never emits one; wire type 3 appears here only as the
+// opening marker of the private framing described below.
+constexpr uint32_t kWireTypeStartGroup = 3;
+constexpr uint32_t kWireTypeEndGroup = 4;
+
+// Private nested-message framing, used by messages reset with
+// NestedMessageEncoding::kStartTagAndTerminator (the tracing v2 write path):
+//
+//   open nested field f:  varint((f << 3) | 3)
+//   close current nested: the single byte below
+//   root:                 no wrapper and no close byte
+//
+// The terminator deliberately carries no field id - it is NOT the standard
+// end-group tag varint((f << 3) | 4) - so the overall stream is not protobuf
+// group encoding. It exists so that a nested message's length never has to be
+// backfilled after the bytes in front of it may already be visible to a
+// concurrent reader. The tracing v2 relay rewrites this framing to ordinary
+// length-delimited protobuf before a packet leaves the producer, and
+// downstream consumers never see it.
+constexpr uint8_t kNestedMessageTerminator = 0x04;
+
 // This is the type defined in the proto for each field. This information
 // is used to decide the translation strategy when writing the trace.
 enum class ProtoSchemaType {
@@ -198,6 +221,13 @@ constexpr uint32_t MakeTagFixed(uint32_t field_id) {
 constexpr uint32_t MakeTagLengthDelimited(uint32_t field_id) {
   return (field_id << 3) |
          static_cast<uint32_t>(ProtoWireType::kLengthDelimited);
+}
+
+// The opening marker of the private start-tag-and-terminator framing; see
+// kNestedMessageTerminator above. There is deliberately no end-tag
+// counterpart: a nested message closes with the bare terminator byte.
+constexpr uint32_t MakeTagStartGroup(uint32_t field_id) {
+  return (field_id << 3) | kWireTypeStartGroup;
 }
 
 // Proto types: sint64, sint32.

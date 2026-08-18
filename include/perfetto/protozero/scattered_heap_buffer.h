@@ -175,10 +175,15 @@ class HeapBuffered {
     return shb_.GetSlices();
   }
 
-  void Reset() {
+  void Reset() { Reset(NestedMessageEncoding::kLengthDelimited); }
+
+  // Selects the nested-message encoding for the next message tree. See
+  // protozero::NestedMessageEncoding; the no-argument form above is the
+  // canonical protobuf default.
+  void Reset(NestedMessageEncoding encoding) {
     shb_.Reset();
     writer_.Reset(protozero::ContiguousMemoryRange{});
-    msg_.Reset(&writer_);
+    msg_.Reset(&writer_, encoding);
     PERFETTO_DCHECK(empty());
   }
 

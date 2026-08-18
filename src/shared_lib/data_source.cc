@@ -575,16 +575,44 @@ void PerfettoDsImplTraceIterateBreak(
   ds_impl->cpp_type.TraceEpilogue(tls);
 }
 
-struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
-    struct PerfettoDsTracerImpl* tracer) {
+enum PerfettoDsPacketEncoding PerfettoDsTracerImplPacketBeginWithEncoding(
+    struct PerfettoDsTracerImpl* tracer,
+    struct PerfettoStreamWriter* writer) {
   auto* tls_inst =
       reinterpret_cast<DataSourceInstanceThreadLocalState*>(tracer);
 
   auto message_handle = tls_inst->trace_writer->NewTracePacket();
-  struct PerfettoStreamWriter ret;
+  // The root's encoding is immutable and chosen by the writer implementation.
+  // Read it before the handle is consumed: afterwards the C caller has no way
+  // left to tell which writer created this packet.
+  const protozero::NestedMessageEncoding encoding =
+      message_handle->nested_message_encoding();
   protozero::ScatteredStreamWriter* sw = message_handle.TakeStreamWriter();
-  ret.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
-  perfetto::UpdateStreamWriter(*sw, &ret);
+  writer->impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
+  perfetto::UpdateStreamWriter(*sw, writer);
+  switch (encoding) {
+    case protozero::NestedMessageEncoding::kLengthDelimited:
+      return PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED;
+    case protozero::NestedMessageEncoding::kStartTagAndTerminator:
+      return PERFETTO_DS_PACKET_ENCODING_START_TAG_AND_TERMINATOR;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
+    struct PerfettoDsTracerImpl* tracer) {
+  struct PerfettoStreamWriter ret;
+  const enum PerfettoDsPacketEncoding encoding =
+      PerfettoDsTracerImplPacketBeginWithEncoding(tracer, &ret);
+  // This entry point predates the encoding result and cannot report a
+  // non-default root framing. A caller compiled against an older header would
+  // build a length-delimited C message on a start-tag-and-terminator root and
+  // silently corrupt the packet, so fail here instead. The v2 path is
+  // default-off, so no existing caller reaches this.
+  // TODO(sashwinbalaji): before v2 can be selected for independently versioned
+  // C SDK clients, gate the selection on an explicit client capability or an
+  // equivalent version negotiation rather than on this check.
+  PERFETTO_CHECK(encoding == PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED);
   return ret;
 }
 

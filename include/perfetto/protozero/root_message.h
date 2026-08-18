@@ -39,9 +39,16 @@ class RootMessage : public T {
   RootMessage(RootMessage&&) = delete;
   RootMessage& operator=(RootMessage&&) = delete;
 
+  // Canonical length-delimited protobuf, the default for every existing writer.
   void Reset(ScatteredStreamWriter* writer) {
+    Reset(writer, NestedMessageEncoding::kLengthDelimited);
+  }
+
+  // Selects the nested-message encoding for this message tree. Immutable until
+  // the next Reset() and inherited by every nested message.
+  void Reset(ScatteredStreamWriter* writer, NestedMessageEncoding encoding) {
     root_arena_.Reset();
-    Message::Reset(writer, &root_arena_);
+    Message::Reset(writer, &root_arena_, encoding);
   }
 
  private:

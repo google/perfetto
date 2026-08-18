@@ -359,8 +359,35 @@ PERFETTO_SDK_EXPORT void PerfettoDsImplTraceIterateBreak(
 // Creates a new trace packet on `tracer`. Returns a stream writer that can be
 // used to write data to the packet. The caller must use
 // PerfettoDsTracerImplPacketEnd() when done.
+//
+// May be used only when the writer produces ordinary length-delimited protobuf.
+// A tracing-v2 writer gives its root a different nested-message framing that
+// this entry point cannot report, so it fails loudly there; such callers must
+// use PerfettoDsTracerImplPacketBeginWithEncoding() below.
 PERFETTO_SDK_EXPORT struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
     struct PerfettoDsTracerImpl* tracer);
+
+// How the C message built on a packet's stream writer must frame its nested
+// messages. The values mirror enum PerfettoPbMsgEncoding in pb_msg.h; convert
+// between them explicitly rather than by casting.
+enum PerfettoDsPacketEncoding {
+  PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED = 0,
+  PERFETTO_DS_PACKET_ENCODING_START_TAG_AND_TERMINATOR = 1,
+};
+
+// Like PerfettoDsTracerImplPacketBegin(): creates a new trace packet on
+// `tracer` and returns its stream writer through `writer`. The result is the
+// encoding the packet's root message was created with, which the caller must
+// pass to PerfettoPbMsgInitWithEncoding(). The writer implementation decides
+// it, and once the stream writer has been taken the caller has no way left to
+// infer which writer created the packet.
+//
+// Additive ABI entry point: code compiled against this header needs a
+// libperfetto that exports the symbol.
+PERFETTO_SDK_EXPORT enum PerfettoDsPacketEncoding
+PerfettoDsTracerImplPacketBeginWithEncoding(
+    struct PerfettoDsTracerImpl* tracer,
+    struct PerfettoStreamWriter* writer);
 
 // Signals that the trace packets created previously on `tracer` with
 // PerfettoDsTracerImplBeginPacket(), has been fully written.
