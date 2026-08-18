@@ -80,7 +80,7 @@ export type SidebarMenuItem = {
 
   // If false (or the callback returns false) the item is not rendered at all.
   // If a callback it is invoked on every render frame; keep it cheap.
-  readonly visible?: boolean | (() => boolean);
+  readonly visible?: boolean;
 
   // One of the three following arguments must be specified.
 } & (

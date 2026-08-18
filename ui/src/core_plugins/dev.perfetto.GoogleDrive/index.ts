@@ -103,7 +103,9 @@ export default class implements PerfettoPlugin {
       text: 'Open from GDrive',
       icon: 'drive_export',
       badge: 'preview',
-      visible: () => app.isInternalUser,
+      get visible() {
+        return app.isInternalUser;
+      },
       action: async () => {
         const client = await getGDriveClient();
         const auth = await client.authenticate();
@@ -148,7 +150,9 @@ export default class implements PerfettoPlugin {
       icon: 'add_to_drive',
       sortOrder: 10,
       badge: 'preview',
-      visible: () => trace.isInternalUser,
+      get visible() {
+        return trace.isInternalUser;
+      },
       action: () => {
         // This button opens a modal dialog which displays the state of the file
         // in google drive allowing the user to upload it and optionally share

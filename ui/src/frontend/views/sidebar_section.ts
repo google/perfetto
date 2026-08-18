@@ -32,13 +32,7 @@ export class SidebarSection implements m.ClassComponent<SidebarSectionAttrs> {
   private expanded?: boolean;
 
   view({attrs}: m.CVnode<SidebarSectionAttrs>): m.Children {
-    const items = attrs.items.filter((item) => {
-      const visible = item.visible;
-      return (
-        visible === undefined ||
-        (typeof visible === 'function' ? visible() : visible)
-      );
-    });
+    const items = attrs.items.filter((item) => item.visible);
     if (items.length === 0) return undefined;
 
     if (this.expanded === undefined) {
