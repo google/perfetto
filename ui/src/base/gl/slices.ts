@@ -16,6 +16,7 @@ import type {Transform1D, Transform2D} from '../geom';
 import {
   RECT_PATTERN_FADE_RIGHT,
   RECT_PATTERN_HATCHED,
+  RECT_PATTERN_SAMPLED,
   type RowLayout,
   type SliceBuffers,
   SLICE_GAP_PX,
@@ -66,6 +67,7 @@ function createSliceProgram(gl: WebGL2RenderingContext): SliceBatchProgram {
     out vec2 v_localPos;
     flat out uint v_pattern;
     flat out float v_rectWidth;
+    flat out float v_rectHeight;
 
     // Minimum width in CSS pixels to ensure visibility
     const float MIN_WIDTH = 1.0;
@@ -123,6 +125,7 @@ function createSliceProgram(gl: WebGL2RenderingContext): SliceBatchProgram {
       gl_Position = vec4((pixelPos / u_resolution * 2.0 - 1.0) * vec2(1, -1), 0, 1);
       v_localPos = (pixelPos - rect.xy) / viewScale;
       v_rectWidth = (rect.z - rect.x) / viewScale.x;
+      v_rectHeight = (rect.w - rect.y) / viewScale.y;
       v_color = vec4(
         float((a_color >> 24) & 0xffu) / 255.0,
         float((a_color >> 16) & 0xffu) / 255.0,
@@ -139,13 +142,20 @@ function createSliceProgram(gl: WebGL2RenderingContext): SliceBatchProgram {
     in vec2 v_localPos;
     flat in uint v_pattern;
     flat in float v_rectWidth;
+    flat in float v_rectHeight;
     out vec4 fragColor;
 
     const uint FLAG_HATCHED = ${RECT_PATTERN_HATCHED}u;
     const uint FLAG_FADEOUT = ${RECT_PATTERN_FADE_RIGHT}u;
+    const uint FLAG_SAMPLED = ${RECT_PATTERN_SAMPLED}u;
     const float HATCH_SPACING = 8.0;
     const float HATCH_WIDTH = 2.0;
     const float HATCH_MIN_WIDTH = 4.0;
+    const float DASH_PERIOD = 8.0;
+    const float DASH_ON = 4.0;
+    const float DASH_HEIGHT = 1.0;
+    const float DASH_MIN_WIDTH = 6.0;
+    const float DASH_STRENGTH = 0.5;
 
     void main() {
       fragColor = v_color;
@@ -161,6 +171,15 @@ function createSliceProgram(gl: WebGL2RenderingContext): SliceBatchProgram {
         float stripe = mod(diag, HATCH_SPACING);
         if (stripe < HATCH_WIDTH) {
           fragColor.rgb = mix(fragColor.rgb, vec3(1.0), 0.3);
+        }
+      }
+
+      // Dashed hairline along the bottom edge marking sampling-derived
+      // slices.
+      if ((v_pattern & FLAG_SAMPLED) != 0u && v_rectWidth >= DASH_MIN_WIDTH) {
+        if (v_localPos.y > v_rectHeight - DASH_HEIGHT &&
+            mod(v_localPos.x, DASH_PERIOD) < DASH_ON) {
+          fragColor.rgb = mix(fragColor.rgb, vec3(1.0), DASH_STRENGTH);
         }
       }
 

@@ -46,15 +46,28 @@ import {
   FLAMEGRAPH_STATE_SCHEMA,
   type FlamegraphState,
 } from '../../widgets/flamegraph';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
+import {
+  createFlamechartTrack,
+  type FlamechartTrackHandle,
+  MARKERS_ONLY_VIEW,
+  PEEK_VIEW,
+} from './flamechart_track';
 import {createProfilingTrack} from './profiling_track';
+import {sampleCategorySqlExpr} from './sample_colors';
 import {
   getStackSampleSourceSchema,
   type StackSampleSourceSchema,
 } from './stack_sample_sources';
+import {STACK_SAMPLE_TRACK_KIND} from './track_kinds';
 
-export const STACK_SAMPLE_TRACK_KIND = 'StackSampleTrack';
+export {STACK_SAMPLE_TRACK_KIND} from './track_kinds';
 const LINUX_PERF_SOURCE = 'linux.perf';
+
+// At most this many sampled threads are revealed by default, keeping
+// system-wide traces with hundreds of sampled threads readable.
+const MAX_REVEALED_THREADS = 5;
 
 const STACK_SAMPLES_PLUGIN_STATE_SCHEMA = z
   .object({
@@ -82,9 +95,9 @@ interface SampleGroupInfo {
 
 export interface StackSampleTrackConfig {
   readonly source: string;
-  readonly title: string;
   readonly upid?: number;
   readonly utid?: number;
+  readonly processName?: string;
   // Undefined means all sessions; null means samples without a session.
   readonly sessionId?: SessionId;
   readonly summary?: boolean;
@@ -119,6 +132,14 @@ export function threadStackSampleTrackUri(
 function sessionSuffix(sessionId: SessionId | undefined): string {
   if (sessionId === undefined) return '';
   return sessionId === null ? '_session_none' : `_session_${sessionId}`;
+}
+
+// Appends the qualifiers which disambiguate a name (source when several
+// emit, session when several exist), parenthesized: "Callstacks (Perf,
+// cycles)". Empty/undefined qualifiers are dropped.
+function named(base: string, ...qualifiers: (string | undefined)[]): string {
+  const quals = qualifiers.filter((q) => q !== undefined && q !== '');
+  return quals.length === 0 ? base : `${base} (${quals.join(', ')})`;
 }
 
 // Creates the common stack-sample track definition. Source plugins retain
@@ -167,12 +188,21 @@ export function createStackSampleTrack(
             id: NUM,
             ts: LONG,
             callsiteId: NUM,
+            category: NUM,
           },
           src: `
-            select ss.id, ss.ts, ss.callsite_id as callsiteId
+            select
+              ss.id,
+              ss.ts,
+              ss.callsite_id as callsiteId,
+              ${sampleCategorySqlExpr('mp.name', 'fr.name', config.processName)}
+                as category
             from stack_sample ss
             left join stack_sample_task_context tc on tc.id = ss.task_context_id
             left join thread t on t.utid = tc.utid
+            left join stack_profile_callsite c on c.id = ss.callsite_id
+            left join stack_profile_frame fr on fr.id = c.frame_id
+            left join stack_profile_mapping mp on mp.id = fr.mapping
             where ${trackConstraints}
             order by ss.ts
           `,
@@ -185,9 +215,9 @@ export function createStackSampleTrack(
           where ss.ts = ${ts} and ${trackConstraints}
         `,
         sqlModule: 'callstacks.stack_profile',
-        metricName: `${config.title} Samples`,
-        panelTitle: `${config.title} Samples`,
-        sliceName: `${config.title} Sample`,
+        metricName: 'Samples',
+        panelTitle: 'Callstack',
+        sliceName: 'Sample',
       },
       detailsPanelState,
       onDetailsPanelStateChange,
@@ -204,7 +234,7 @@ export function createStackSampleAreaSelectionTab(
 
   return {
     id: `stack_sample_flamegraph_${encodeURIComponent(config.source)}`,
-    name: `${config.title} Sample Flamegraph`,
+    name: named('Callstack Flamegraph', config.title),
     render: (selection: AreaSelection) => {
       const changed =
         previousSelection === undefined ||
@@ -285,7 +315,7 @@ function computeFlamegraphMetrics(
   const metrics: QueryFlamegraphMetric[] = [];
   for (const counterName of new Set(names)) {
     metrics.push({
-      name: `${config.title} Samples (${counterName})`,
+      name: counterName,
       unit: '',
       nameColumnLabel: 'Symbol',
       dependencySql: 'include perfetto module callstacks.stack_profile;',
@@ -335,7 +365,7 @@ function computeFlamegraphMetrics(
       `,
       tableMetrics: [
         {
-          name: `${config.title} Samples (Sample Count)`,
+          name: 'Sample Count',
           unit: '',
           columnName: 'self_count',
         },
@@ -375,6 +405,14 @@ function getScopedTrackUris(
     .map((track) => track.uri);
 }
 
+// Timebases which approximate wall time, making a flamechart over time
+// meaningful. Event-count timebases (page faults, cache misses, ...) only
+// get the plain callstacks view.
+function isTimeLikeTimebase(name: string | undefined): boolean {
+  if (name === undefined) return true;
+  return /cycles|clock|time/i.test(name);
+}
+
 export default class StackSamplesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.StackSamples';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
@@ -403,13 +441,14 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
     configs.sort(
       (a, b) => a.order - b.order || a.source.localeCompare(b.source),
     );
+    const multiSource = configs.length > 1;
     for (const config of configs) {
-      await this.addTracksForSource(trace, config);
+      await this.addTracksForSource(trace, config, multiSource);
       const store = ensureExists(this.store);
       trace.selection.registerAreaSelectionTab(
         createStackSampleAreaSelectionTab(trace, {
           source: config.source,
-          title: config.title,
+          title: multiSource ? config.title : '',
           counterNames: this.counterNamesBySource.get(config.source) ?? [],
           counterNamesBySession: this.counterNamesBySession,
           getState: () =>
@@ -452,7 +491,11 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
   private async addTracksForSource(
     trace: Trace,
     config: StackSampleSourceSchema,
+    multiSource: boolean,
   ): Promise<void> {
+    // With a single stack-sample source there is nothing to disambiguate;
+    // only prefix track names with the source when several sources emit.
+    const displayTitle = multiSource ? config.title : '';
     const result = await trace.engine.query(`
       select distinct
         tc.utid,
@@ -470,6 +513,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
 
     const byUtid = new Map<number, SampleGroupInfo>();
     const byUpid = new Map<number, {sessionIds: SessionId[]}>();
+    const processOnlySamples = new Set<number>();
     for (
       const it = result.iter({
         utid: NUM_NULL,
@@ -506,20 +550,62 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
         if (!info.sessionIds.includes(sessionId)) {
           info.sessionIds.push(sessionId);
         }
+        if (utid === null) {
+          processOnlySamples.add(upid);
+        }
+      }
+    }
+
+    const sampledThreadsByUpid = new Map<number, number>();
+    for (const info of byUtid.values()) {
+      if (info.upid !== undefined) {
+        sampledThreadsByUpid.set(
+          info.upid,
+          (sampledThreadsByUpid.get(info.upid) ?? 0) + 1,
+        );
       }
     }
 
     for (const info of byUtid.values()) this.sortSessions(info.sessionIds);
     for (const info of byUpid.values()) this.sortSessions(info.sessionIds);
 
+    const processNames = await this.queryProcessNames(trace, [
+      ...new Set([
+        ...byUpid.keys(),
+        ...[...byUtid.values()]
+          .map((info) => info.upid)
+          .filter((upid) => upid !== undefined),
+      ]),
+    ]);
+    const timeBasedSessions = await this.queryTimeBasedSessions(
+      trace,
+      config.source,
+    );
+    // Session labels disambiguate the sampling timebase, so they apply
+    // whenever the trace has several kinds of sampling - be it several
+    // sessions of this source or several sources - even on tracks which
+    // only carry one of them.
+    const labelSessions = timeBasedSessions.size > 1 || multiSource;
+
     const groups = trace.plugins.getPlugin(ProcessThreadGroupsPlugin);
     for (const [upid, {sessionIds}] of byUpid) {
+      // A process track duplicates the thread track when the process has
+      // exactly one sampled thread and no process-only samples (the common
+      // shape for kernel threads).
+      if (
+        !processOnlySamples.has(upid) &&
+        (sampledThreadsByUpid.get(upid) ?? 0) === 1
+      ) {
+        continue;
+      }
       const node = this.addScopeTracks(trace, config, {
         upid,
         utid: undefined,
+        processName: processNames.get(upid),
         sessionIds,
-        summaryName: `${config.title} Process Callstacks`,
-        leafName: (label) => `${config.title} Process Callstacks ${label}`,
+        labelSessions,
+        summaryName: named('Process Callstacks', displayTitle),
+        leafName: (label) => named('Process Callstacks', displayTitle, label),
         uri: (sessionId) =>
           processStackSampleTrackUri(config.source, upid, sessionId),
         sortOrder: -40,
@@ -527,20 +613,240 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
       groups.getGroupForProcess(upid)?.addChildInOrder(node);
     }
 
+    const store = ensureExists(this.store);
+    const detailsPanelState = () =>
+      store.state.detailsPanelFlamegraphStates?.[config.source];
+    const onDetailsPanelStateChange = (state: FlamegraphState) => {
+      store.edit((draft) => {
+        draft.detailsPanelFlamegraphStates ??= {};
+        draft.detailsPanelFlamegraphStates[config.source] = state;
+      });
+    };
+
+    // Per-thread callstacks render as a flamechart over time when the
+    // session's timebase approximates wall time: row 0 holds one diamond
+    // marker per sample and the rows below the sampled stacks. Non-time
+    // timebases keep the plain callstacks (instants) view. Threads with
+    // several sessions get one track per session under a summary track.
+    const flamechartHandles: {
+      readonly utid: number;
+      readonly node?: TrackNode;
+      readonly handle: FlamechartTrackHandle;
+    }[] = [];
     for (const [utid, {threadName, tid, upid, sessionIds}] of byUtid) {
-      const title = `${threadName ?? 'Thread'} ${tid} ${config.title} Callstacks`;
-      const node = this.addScopeTracks(trace, config, {
-        upid,
-        utid,
-        sessionIds,
-        summaryName: title,
-        leafName: (label) => `${title} ${label}`,
-        uri: (sessionId) =>
-          threadStackSampleTrackUri(config.source, upid, utid, sessionId),
+      const threadPrefix = `${threadName ?? 'Thread'} ${tid}`;
+      const registerThreadTrack = (
+        uri: string,
+        sessionId: SessionId | undefined,
+      ): FlamechartTrackHandle | undefined => {
+        const timeLike = timeBasedSessions.get(sessionId ?? null) ?? true;
+        if (timeLike) {
+          const {track, handle} = createFlamechartTrack(
+            trace,
+            uri,
+            {
+              source: config.source,
+              utid,
+              upid,
+              processName:
+                upid === undefined ? undefined : processNames.get(upid),
+              sessionId,
+            },
+            detailsPanelState(),
+            onDetailsPanelStateChange,
+          );
+          trace.tracks.registerTrack(track);
+          return handle;
+        }
+        trace.tracks.registerTrack(
+          createStackSampleTrack(
+            trace,
+            uri,
+            {
+              source: config.source,
+              utid,
+              upid,
+              processName:
+                upid === undefined ? undefined : processNames.get(upid),
+              sessionId,
+            },
+            detailsPanelState(),
+            onDetailsPanelStateChange,
+          ),
+        );
+        return undefined;
+      };
+
+      if (sessionIds.length <= 1) {
+        const uri = threadStackSampleTrackUri(config.source, upid, utid);
+        const sessionId = sessionIds[0];
+        const handle = registerThreadTrack(uri, sessionId);
+        const sessionLabel =
+          labelSessions && sessionId !== undefined && sessionId !== null
+            ? this.getSessionLabel(sessionId)
+            : undefined;
+        const node = new TrackNode({
+          uri,
+          name: `${threadPrefix} ${named('Callstacks', displayTitle, sessionLabel)}`,
+          sortOrder: -50,
+        });
+        groups.getGroupForThread(utid)?.addChildInOrder(node);
+        if (handle !== undefined) {
+          flamechartHandles.push({utid, node, handle});
+        }
+        continue;
+      }
+
+      const summaryUri = threadStackSampleTrackUri(config.source, upid, utid);
+      trace.tracks.registerTrack(
+        createStackSampleTrack(
+          trace,
+          summaryUri,
+          {
+            source: config.source,
+            utid,
+            upid,
+            processName:
+              upid === undefined ? undefined : processNames.get(upid),
+            summary: true,
+          },
+          detailsPanelState(),
+          onDetailsPanelStateChange,
+        ),
+      );
+      const summaryNode = new TrackNode({
+        uri: summaryUri,
+        name: `${threadPrefix} ${named('Callstacks', displayTitle)}`,
+        isSummary: true,
         sortOrder: -50,
       });
-      groups.getGroupForThread(utid)?.addChildInOrder(node);
+      for (const sessionId of sessionIds) {
+        const uri = threadStackSampleTrackUri(
+          config.source,
+          upid,
+          utid,
+          sessionId,
+        );
+        const handle = registerThreadTrack(uri, sessionId);
+        summaryNode.addChildInOrder(
+          new TrackNode({
+            uri,
+            name: `${threadPrefix} ${named(
+              'Callstacks',
+              displayTitle,
+              this.sessionLabel(sessionId),
+            )}`,
+            sortOrder: -50,
+          }),
+        );
+        if (handle !== undefined) {
+          flamechartHandles.push({utid, handle});
+        }
+      }
+      groups.getGroupForThread(utid)?.addChildInOrder(summaryNode);
     }
+
+    if (flamechartHandles.length > 0) {
+      const sampleCounts = await this.querySampleCounts(trace, config.source);
+      // Threads with instrumented slice tracks keep the flamechart minimized
+      // to markers; threads without get the peek and, for the busiest few,
+      // are revealed by default. Bounding the reveal keeps system-wide
+      // traces (hundreds of sampled threads) readable. Decided in
+      // onTraceReady so all plugins' tracks are registered.
+      trace.onTraceReady.addListener(async () => {
+        const utidsWithSlices = new Set<number>();
+        for (const track of trace.tracks.getAllTracks()) {
+          const tags = track.tags;
+          if (
+            tags?.kinds?.includes(SLICE_TRACK_KIND) === true &&
+            tags.utid !== undefined
+          ) {
+            utidsWithSlices.add(tags.utid);
+          }
+        }
+        const revealable: {readonly utid: number; readonly node: TrackNode}[] =
+          [];
+        for (const {utid, node, handle} of flamechartHandles) {
+          if (utidsWithSlices.has(utid)) {
+            handle.setDefaultView(MARKERS_ONLY_VIEW);
+          } else {
+            handle.setDefaultView(PEEK_VIEW);
+            if (node !== undefined) {
+              revealable.push({utid, node});
+            }
+          }
+        }
+        revealable.sort(
+          (a, b) =>
+            (sampleCounts.get(b.utid) ?? 0) - (sampleCounts.get(a.utid) ?? 0),
+        );
+        for (const {node} of revealable.slice(0, MAX_REVEALED_THREADS)) {
+          node.reveal();
+        }
+      });
+    }
+  }
+
+  private async querySampleCounts(
+    trace: Trace,
+    source: string,
+  ): Promise<Map<number, number>> {
+    const result = await trace.engine.query(`
+      select tc.utid as utid, count(*) as cnt
+      from stack_sample ss
+      join stack_sample_task_context tc on tc.id = ss.task_context_id
+      where ss.source = ${sqlValueToSqliteString(source)}
+        and tc.utid is not null
+      group by tc.utid
+    `);
+    const counts = new Map<number, number>();
+    for (const it = result.iter({utid: NUM, cnt: NUM}); it.valid(); it.next()) {
+      counts.set(it.utid, it.cnt);
+    }
+    return counts;
+  }
+
+  private async queryProcessNames(
+    trace: Trace,
+    upids: readonly number[],
+  ): Promise<Map<number, string>> {
+    const names = new Map<number, string>();
+    if (upids.length === 0) return names;
+    const result = await trace.engine.query(`
+      select upid, name
+      from process
+      where upid in (${upids.join(',')}) and name is not null
+    `);
+    for (
+      const it = result.iter({upid: NUM, name: STR});
+      it.valid();
+      it.next()
+    ) {
+      names.set(it.upid, it.name);
+    }
+    return names;
+  }
+
+  private async queryTimeBasedSessions(
+    trace: Trace,
+    source: string,
+  ): Promise<Map<SessionId, boolean>> {
+    const result = await trace.engine.query(`
+      select distinct ss.session_id as sessionId, ct.name as timebase
+      from stack_sample ss
+      left join stack_sample_counter_track ct
+        on ct.session_id = ss.session_id and ct.is_timebase
+      where ss.source = ${sqlValueToSqliteString(source)}
+    `);
+    const timeBased = new Map<SessionId, boolean>();
+    for (
+      const it = result.iter({sessionId: NUM_NULL, timebase: STR_NULL});
+      it.valid();
+      it.next()
+    ) {
+      timeBased.set(it.sessionId, isTimeLikeTimebase(it.timebase ?? undefined));
+    }
+    return timeBased;
   }
 
   private addScopeTracks(
@@ -549,7 +855,9 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
     args: {
       readonly upid: number | undefined;
       readonly utid: number | undefined;
+      readonly processName: string | undefined;
       readonly sessionIds: SessionId[];
+      readonly labelSessions: boolean;
       readonly summaryName: string;
       readonly leafName: (label: string) => string;
       readonly uri: (sessionId?: SessionId) => string;
@@ -568,9 +876,9 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
           uri,
           {
             source: config.source,
-            title: config.title,
             upid: args.upid,
             utid: args.utid,
+            processName: args.processName,
             sessionId,
             summary,
           },
@@ -585,13 +893,22 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
       );
     };
 
-    const splitBySession = args.sessionIds.some((id) => id !== null);
+    // Only split into per-session tracks when this scope has several, but
+    // label a lone session whenever the trace as a whole is multi-session.
+    const splitBySession = args.sessionIds.length > 1;
     if (!splitBySession) {
+      // Keep the merged uri but carry the lone session in the track's tags,
+      // so area selection only surfaces the measures it actually has.
       const uri = args.uri();
-      registerTrack(uri, undefined, false);
+      registerTrack(uri, args.sessionIds[0], false);
+      const sessionId = args.sessionIds[0];
+      const name =
+        args.labelSessions && sessionId !== undefined && sessionId !== null
+          ? args.leafName(this.getSessionLabel(sessionId))
+          : args.summaryName;
       return new TrackNode({
         uri,
-        name: args.summaryName,
+        name,
         sortOrder: args.sortOrder,
       });
     }
@@ -608,8 +925,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
     for (const sessionId of args.sessionIds) {
       const uri = args.uri(sessionId);
       registerTrack(uri, sessionId, false);
-      const label =
-        sessionId === null ? 'No session' : this.getSessionLabel(sessionId);
+      const label = this.sessionLabel(sessionId);
       summaryTrack.addChildInOrder(
         new TrackNode({
           uri,
@@ -619,6 +935,10 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
       );
     }
     return summaryTrack;
+  }
+
+  private sessionLabel(sessionId: SessionId): string {
+    return sessionId === null ? 'no session' : this.getSessionLabel(sessionId);
   }
 
   private getSessionLabel(sessionId: number): string {

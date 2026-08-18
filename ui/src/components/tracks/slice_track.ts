@@ -67,6 +67,7 @@ import {BufferedBounds} from './buffered_bounds';
 import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
 import {SliceTrackDetailsPanel} from './slice_track_details_panel';
 import {
+  type MarkerShape,
   RECT_PATTERN_FADE_RIGHT,
   type RowLayout,
   rowHeightFromLayout,
@@ -172,6 +173,12 @@ export interface InstantStyle {
    * defines the event's hitbox. This width is forwarded to the render function.
    */
   readonly width: number;
+
+  /**
+   * Glyph drawn for each instant by renderers with fixed marker shapes
+   * (WebGL). The render function below should draw a matching shape.
+   */
+  readonly shape?: MarkerShape;
 
   /**
    * Customize how instant events are rendered.
@@ -689,6 +696,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       this.instantWidthPx,
       xTransform,
       (ctx, x, y, _w, h) => this.drawChevron(ctx, x, y, h),
+      this.attrs.instantStyle?.shape,
     );
 
     // Draw selection highlight for instants
