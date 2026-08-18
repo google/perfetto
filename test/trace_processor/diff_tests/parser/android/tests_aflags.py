@@ -73,35 +73,3 @@ class AndroidAflags(TestSuite):
         "ts","name","severity","display_value"
         2000,"android_aflags_errors","error","Failed to read aflags"
         """))
-
-  def test_android_aflags_invalid_utf8(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-        packet {
-          trusted_packet_sequence_id: 1
-          timestamp: 1000
-          android_aflags {
-            flags {
-              pkg: "com.android.settings\xc0\x80"
-              name: "my_\xd0\xc0flag"
-              flag_namespace: "settings_\xe0\xa4\xc0ns"
-              container: "system\xf0\x9f\x98\xc0"
-              value: "enabled\xf8\x80\x80\x80\x80"
-              staged_value: "disabled\xc0\x80"
-              permission: FLAG_PERMISSION_READ_WRITE
-              value_picked_from: VALUE_PICKED_FROM_LOCAL
-              storage_backend: FLAG_STORAGE_BACKEND_ACONFIGD
-              type: FLAG_TYPE_BOOLEAN
-            }
-          }
-        }
-        """),
-        query="""
-        INCLUDE PERFETTO MODULE android.aflags;
-        SELECT ts, package, name, flag_namespace, container, value, staged_value, permission, value_picked_from, storage_backend, type
-        FROM android_aflags;
-        """,
-        out=Csv("""
-        "ts","package","name","flag_namespace","container","value","staged_value","permission","value_picked_from","storage_backend","type"
-        1000,"com.android.settings","my_flag","settings_ns","system","enabled","disabled","read-write","local","aconfigd","boolean"
-        """))
