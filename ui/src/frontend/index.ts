@@ -299,10 +299,8 @@ function main() {
     defaultValue: true,
   });
 
-  const initialRouteArgs = Router.parseUrl(window.location.href).args;
-
   AppImpl.initialize({
-    initialRouteArgs,
+    initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
     timestampFormatSetting,
     durationPrecisionSetting,
