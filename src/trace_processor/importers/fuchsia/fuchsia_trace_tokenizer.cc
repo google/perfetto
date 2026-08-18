@@ -569,7 +569,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           break;
         }
         default: {
-          PERFETTO_DLOG("Skipping Kernel Object record with type %d", obj_type);
+          PERFETTO_DLOG("Skipping Kernel Object record with type %u", obj_type);
           break;
         }
       }
@@ -718,14 +718,14 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           break;
         }
         default:
-          PERFETTO_DLOG("Skipping unknown scheduler event type %d", event_type);
+          PERFETTO_DLOG("Skipping unknown scheduler event type %u", event_type);
           break;
       }
 
       break;
     }
     default: {
-      PERFETTO_DLOG("Skipping record of unknown type %d", record_type);
+      PERFETTO_DLOG("Skipping record of unknown type %u", record_type);
       break;
     }
   }
