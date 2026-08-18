@@ -15,9 +15,6 @@
 import {ensureExists} from '../../base/assert';
 import {errResult, okResult, type Result} from '../../base/result';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type TokenClient = any;
-
 export const SCOPES =
   'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.install';
 
@@ -165,11 +162,10 @@ export class GoogleDriveClient {
   async openSharingDialog(token: string, fileId: string) {
     await this.gapiLoad('drive-share');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const s = new (gapi as any).drive.share.ShareClient();
-    s.setOAuthToken(token);
-    s.setItemIds([fileId]);
-    s.showSettingsDialog();
+    const shareClient = new gapi.client.drive.share.ShareClient();
+    shareClient.setOAuthToken(token);
+    shareClient.setItemIds([fileId]);
+    shareClient.showSettingsDialog();
   }
 
   async uploadFile(
@@ -245,42 +241,43 @@ export class GoogleDriveClient {
             }
           }
 
-          // HACK: The 'google.accounts' object is not available in the type definitions
-          // until '@types/google-one-tap' is installed. We cast to 'any' to bypass
-          // the type checker.
-          const tokenClient: TokenClient =
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (window as any).google.accounts.oauth2.initTokenClient({
-              client_id: this.clientId,
-              scope: SCOPES,
-              // TODO(stevegolton): Add proper types once @types/google-one-tap is installed.
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              callback: (tokenResponse: any) => {
-                if (Boolean(tokenResponse.error)) {
-                  return;
-                }
-                const accessToken = tokenResponse.access_token;
-                // Resolve any pending promises waiting for the new token.
-                if (accessToken != null) {
-                  localStorage.setItem('driveToken', accessToken);
-                  resolve({response: 'success', accessToken: accessToken});
-                }
-              },
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              error_callback: (foo: any) => {
-                if (foo.type === 'popup_failed_to_open') {
-                  resolve({response: 'popup_blocked'});
-                } else if (foo.type === 'popup_closed') {
-                  resolve({response: 'popup_closed'});
-                } else {
-                  // Improve this message
-                  reject(new Error('Something went wrong'));
-                }
-                // Clear the pending promise so that future calls to
-                // authenticate() can try again.
-                this.pendingToken = undefined;
-              },
-            });
+          // The google.accounts.oauth2 token client is typed via the Window
+          // augmentation in google_drive.d.ts (the global `google` namespace
+          // can't be augmented because @types/google-one-tap declares
+          // google.accounts as a value).
+          const oauth2 = window.google?.accounts?.oauth2;
+          if (!oauth2) {
+            reject(new Error('Google Identity Services is not available'));
+            return;
+          }
+          const tokenClient: GDriveTokenClient = oauth2.initTokenClient({
+            client_id: this.clientId,
+            scope: SCOPES,
+            callback: (tokenResponse: GDriveTokenResponse) => {
+              if (Boolean(tokenResponse.error)) {
+                return;
+              }
+              const accessToken = tokenResponse.access_token;
+              // Resolve any pending promises waiting for the new token.
+              if (accessToken != null) {
+                localStorage.setItem('driveToken', accessToken);
+                resolve({response: 'success', accessToken: accessToken});
+              }
+            },
+            error_callback: (error: GDriveTokenClientError) => {
+              if (error.type === 'popup_failed_to_open') {
+                resolve({response: 'popup_blocked'});
+              } else if (error.type === 'popup_closed') {
+                resolve({response: 'popup_closed'});
+              } else {
+                // Improve this message
+                reject(new Error('Something went wrong'));
+              }
+              // Clear the pending promise so that future calls to
+              // authenticate() can try again.
+              this.pendingToken = undefined;
+            },
+          });
           tokenClient.requestAccessToken({prompt: ''});
         },
       );
