@@ -1,0 +1,8 @@
+# The rfcs branch holds only RFC markdown and media. It shares a clone with
+# the main branch, whose build outputs, node_modules and downloaded test data
+# stay on disk when you switch branches. Ignore everything not part of an RFC.
+/*
+!/*.md
+!/media/
+!/.github/
+!/.gitignore
