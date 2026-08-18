@@ -41,6 +41,8 @@ source_set("v2") {
   sources = [
     "chunk_reader.cc",
     "chunk_reader.h",
+    "in_process_tracing_v2_bridge.cc",
+    "in_process_tracing_v2_bridge.h",
     "proto_rewriter.cc",
     "proto_rewriter.h",
     "ring_writer.cc",
@@ -63,9 +65,11 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace:zero",
     "../../base",
     "../../base:test_support",
+    "../../protozero",
   ]
   sources = [
     "chunk_reader_unittest.cc",
+    "in_process_tracing_v2_bridge_unittest.cc",
     "proto_rewriter_unittest.cc",
     "ring_protocol_race_unittest.cc",
     "ring_writer_unittest.cc",

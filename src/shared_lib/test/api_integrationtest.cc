@@ -62,6 +62,9 @@
 #include "src/shared_lib/test/protos/extensions.pzc.h"
 #include "src/shared_lib/test/protos/test_messages.pzc.h"
 #include "src/shared_lib/test/utils.h"
+#include "src/tracing/internal/tracing_muxer_impl.h"
+#include "src/tracing/internal/tracing_v2_producer_endpoint.h"
+#include "src/tracing/v2/shared_ring_buffer.h"
 
 // Tests for the perfetto shared library.
 
@@ -2838,6 +2841,284 @@ TEST_F(SharedLibTrackEventTest, TrackEventIsCategoryEnabled) {
   tracing_session.StopBlocking();
 
   EXPECT_FALSE(PERFETTO_TE_IS_CATEGORY_ENABLED(cat1));
+}
+
+// ---------------------------------------------------------------------------
+// The public C SDK on a tracing v2 writer.
+//
+// The bytes the C encoder produces have exact tests of their own in
+// pb_msg_unittest.cc. What is checked here is the plumbing that decides which
+// of them to produce: the muxer gate really creates a v2 writer, the packet
+// factory reports the framing that writer chose rather than assuming one, the C
+// root is initialized with it, and what comes back out of the service is an
+// ordinary packet either way.
+// ---------------------------------------------------------------------------
+
+// The relay forwards on its own thread, so stopping a session is not by itself
+// a guarantee that what was written has reached the service. Every test below
+// waits here before it stops. See the ordering limitation documented on
+// TracingV2ProducerEndpoint: a production control-plane call does not imply
+// this, which is why the seam is spelled ForTesting.
+void WaitForRelay() {
+  static_cast<perfetto::internal::TracingMuxerImpl*>(
+      perfetto::internal::TracingMuxer::Get())
+      ->WaitForTracingV2QuiescenceForTesting();
+}
+
+constexpr char kTracingV2DataSourceName[] = "dev.perfetto.tracing_v2_c_sdk";
+struct PerfettoDs data_source_v2 = PERFETTO_DS_INIT();
+
+class SharedLibTracingV2Test : public testing::Test {
+ protected:
+  void SetUp() override {
+    if (!perfetto::tracing_v2::kHasFutex)
+      GTEST_SKIP() << "The tracing v2 ring needs a futex on this platform";
+  }
+
+  void TearDown() override {
+    if (!started_)
+      return;
+    perfetto::internal::SetTracingV2InProcessForTesting(false);
+    perfetto::shlib::ResetForTesting();
+    data_source_v2.enabled = &perfetto_atomic_false;
+    perfetto::shlib::DsImplDestroy(data_source_v2.impl);
+    data_source_v2.impl = nullptr;
+  }
+
+  // The gate is read when the producer connects, so it has to be set before the
+  // producer is initialized rather than before a session starts.
+  void StartProducer(bool tracing_v2) {
+    perfetto::internal::SetTracingV2InProcessForTesting(tracing_v2);
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
+    args.backends = PERFETTO_BACKEND_IN_PROCESS;
+    PerfettoProducerInit(args);
+    PerfettoDsRegister(&data_source_v2, kTracingV2DataSourceName,
+                       PerfettoDsParamsDefault());
+    started_ = true;
+  }
+
+  static uint64_t V2WritersCreated() {
+    return perfetto::internal::GetTracingV2WritersCreatedForTesting();
+  }
+
+  // The nested payload every test below writes, so that what the service
+  // returns can be compared against one shape.
+  static void WriteNestedPacket(struct PerfettoDsRootTracePacket* packet) {
+    struct perfetto_protos_TestEvent for_testing;
+    perfetto_protos_TracePacket_begin_for_testing(&packet->msg, &for_testing);
+    perfetto_protos_TestEvent_set_cstr_str(&for_testing, "outer");
+    {
+      struct perfetto_protos_TestEvent_TestPayload payload;
+      perfetto_protos_TestEvent_begin_payload(&for_testing, &payload);
+      perfetto_protos_TestEvent_TestPayload_set_cstr_str(&payload, "inner");
+      perfetto_protos_TestEvent_end_payload(&for_testing, &payload);
+    }
+    perfetto_protos_TracePacket_end_for_testing(&packet->msg, &for_testing);
+  }
+
+  // Finds the TestEvent the tests below write and checks it came back whole,
+  // nested message and all. Ordinary decoding: whatever framing the producer
+  // used, this is canonical protobuf by the time it is read.
+  static void ExpectNestedPacket(const std::vector<uint8_t>& data) {
+    bool found = false;
+    for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+      ASSERT_THAT(
+          trace_field,
+          PbField(perfetto_protos_Trace_packet_field_number, MsgField(_)));
+      IdFieldView for_testing(
+          trace_field, perfetto_protos_TracePacket_for_testing_field_number);
+      ASSERT_TRUE(for_testing.ok());
+      if (for_testing.size() == 0)
+        continue;
+      found = true;
+      ASSERT_EQ(for_testing.size(), 1u);
+      EXPECT_THAT(
+          FieldView(for_testing.front()),
+          ElementsAre(
+              PbField(perfetto_protos_TestEvent_str_field_number,
+                      StringField("outer")),
+              PbField(
+                  perfetto_protos_TestEvent_payload_field_number,
+                  MsgField(ElementsAre(PbField(
+                      perfetto_protos_TestEvent_TestPayload_str_field_number,
+                      StringField("inner")))))));
+    }
+    EXPECT_TRUE(found);
+  }
+
+  bool started_ = false;
+};
+
+TEST_F(SharedLibTracingV2Test, DsPacketBeginUsesThePrivateFramingOnAV2Writer) {
+  StartProducer(/*tracing_v2=*/true);
+  TracingSession tracing_session =
+      TracingSession::Builder()
+          .set_data_source_name(kTracingV2DataSourceName)
+          .Build();
+  const uint64_t writers_before = V2WritersCreated();
+
+  bool traced = false;
+  bool terminated_root = false;
+  PERFETTO_DS_TRACE(data_source_v2, ctx) {
+    traced = true;
+    struct PerfettoDsRootTracePacket trace_packet;
+    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+    // Not asserted inside the loop: a failure here would leave the packet open.
+    terminated_root = PerfettoPbMsgUsesTerminator(&trace_packet.msg.msg);
+    WriteNestedPacket(&trace_packet);
+    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+  }
+  ASSERT_TRUE(traced);
+  // The gate really produced a v2 writer, and the C root really picked up the
+  // framing that writer chose.
+  EXPECT_GT(V2WritersCreated(), writers_before);
+  EXPECT_TRUE(terminated_root);
+
+  WaitForRelay();
+  tracing_session.StopBlocking();
+  ExpectNestedPacket(tracing_session.ReadBlocking());
+}
+
+TEST_F(SharedLibTracingV2Test,
+       DsPacketBeginStaysLengthDelimitedWithTheGateOff) {
+  StartProducer(/*tracing_v2=*/false);
+  TracingSession tracing_session =
+      TracingSession::Builder()
+          .set_data_source_name(kTracingV2DataSourceName)
+          .Build();
+  const uint64_t writers_before = V2WritersCreated();
+
+  bool traced = false;
+  bool terminated_root = true;
+  PERFETTO_DS_TRACE(data_source_v2, ctx) {
+    traced = true;
+    struct PerfettoDsRootTracePacket trace_packet;
+    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+    terminated_root = PerfettoPbMsgUsesTerminator(&trace_packet.msg.msg);
+    WriteNestedPacket(&trace_packet);
+    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+  }
+  ASSERT_TRUE(traced);
+  EXPECT_EQ(V2WritersCreated(), writers_before);
+  EXPECT_FALSE(terminated_root);
+
+  WaitForRelay();
+  tracing_session.StopBlocking();
+  ExpectNestedPacket(tracing_session.ReadBlocking());
+}
+
+// The entry point that predates the encoding result cannot report a non-default
+// framing, so on a v2 writer it has to fail rather than build a
+// length-delimited C message on a terminated root.
+TEST_F(SharedLibTracingV2Test, LegacyPacketBeginOnAV2WriterFailsLoudly) {
+  StartProducer(/*tracing_v2=*/true);
+  TracingSession tracing_session =
+      TracingSession::Builder()
+          .set_data_source_name(kTracingV2DataSourceName)
+          .Build();
+
+  bool traced = false;
+  PERFETTO_DS_TRACE(data_source_v2, ctx) {
+    traced = true;
+    EXPECT_DEATH_IF_SUPPORTED(
+        {
+          struct PerfettoStreamWriter writer =
+              PerfettoDsTracerImplPacketBegin(ctx.impl.tracer);
+          perfetto::base::ignore_result(writer);
+        },
+        "PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED");
+    PERFETTO_DS_TRACE_BREAK(data_source_v2, ctx);
+  }
+  EXPECT_TRUE(traced);
+  WaitForRelay();
+  tracing_session.StopBlocking();
+}
+
+class SharedLibTracingV2TrackEventTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    if (!perfetto::tracing_v2::kHasFutex)
+      GTEST_SKIP() << "The tracing v2 ring needs a futex on this platform";
+    perfetto::internal::SetTracingV2InProcessForTesting(true);
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
+    args.backends = PERFETTO_BACKEND_IN_PROCESS;
+    PerfettoProducerInit(args);
+    PerfettoTeInit();
+    PERFETTO_TE_REGISTER_CATEGORIES(TEST_CATEGORIES);
+    started_ = true;
+  }
+
+  void TearDown() override {
+    if (!started_)
+      return;
+    PERFETTO_TE_UNREGISTER_CATEGORIES(TEST_CATEGORIES);
+    perfetto::internal::SetTracingV2InProcessForTesting(false);
+    perfetto::shlib::ResetForTesting();
+  }
+
+  bool started_ = false;
+};
+
+// The other public packet factory, on the same path. Track event is where the C
+// SDK is actually used, and it has its own entry point rather than going
+// through PerfettoDsTracerPacketBegin().
+TEST_F(SharedLibTracingV2TrackEventTest, LlPacketBeginUsesThePrivateFraming) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+  const uint64_t writers_before =
+      perfetto::internal::GetTracingV2WritersCreatedForTesting();
+
+  ASSERT_TRUE(PERFETTO_ATOMIC_LOAD_EXPLICIT(cat1.enabled,
+                                            PERFETTO_MEMORY_ORDER_RELAXED));
+  struct PerfettoTeTimestamp timestamp = PerfettoTeGetTimestamp();
+  bool traced = false;
+  bool terminated_root = false;
+  for (struct PerfettoTeLlIterator ctx =
+           PerfettoTeLlBeginSlowPath(&cat1, timestamp);
+       ctx.impl.ds.tracer != nullptr;
+       PerfettoTeLlNext(&cat1, timestamp, &ctx)) {
+    traced = true;
+    struct PerfettoDsRootTracePacket trace_packet;
+    PerfettoTeLlPacketBegin(&ctx, &trace_packet);
+    terminated_root = PerfettoPbMsgUsesTerminator(&trace_packet.msg.msg);
+    PerfettoTeLlWriteTimestamp(&trace_packet.msg, &timestamp);
+    {
+      struct perfetto_protos_TrackEvent te_msg;
+      perfetto_protos_TracePacket_begin_track_event(&trace_packet.msg, &te_msg);
+      perfetto_protos_TrackEvent_set_type(
+          &te_msg, perfetto_protos_TrackEvent_TYPE_INSTANT);
+      PerfettoTeLlWriteRegisteredCat(&te_msg, &cat1);
+      perfetto_protos_TracePacket_end_track_event(&trace_packet.msg, &te_msg);
+    }
+    PerfettoTeLlPacketEnd(&ctx, &trace_packet);
+  }
+  ASSERT_TRUE(traced);
+  EXPECT_GT(perfetto::internal::GetTracingV2WritersCreatedForTesting(),
+            writers_before);
+  EXPECT_TRUE(terminated_root);
+
+  WaitForRelay();
+  tracing_session.StopBlocking();
+  const std::vector<uint8_t> data = tracing_session.ReadBlocking();
+
+  // A nested TrackEvent, written through the private framing, decoded by the
+  // ordinary reader after the relay rewrote it.
+  bool found = false;
+  for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (!track_event.ok() || track_event.size() == 0)
+      continue;
+    found = true;
+    EXPECT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_INSTANT)))));
+  }
+  EXPECT_TRUE(found);
 }
 
 }  // namespace

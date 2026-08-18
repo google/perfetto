@@ -72,6 +72,8 @@ class TracingMuxerImplInternalsForTest;
 
 namespace internal {
 
+class TracingV2ProducerEndpoint;
+
 struct DataSourceStaticState;
 
 // This class acts as a bridge between the public API and the TracingBackend(s).
@@ -199,6 +201,12 @@ class TracingMuxerImpl : public TracingMuxer {
 
   void SetMaxProducerReconnectionsForTesting(uint32_t count);
 
+  // Blocks until everything published to every tracing v2 ring before this call
+  // has been forwarded through the temporary v1 hop and acknowledged by the
+  // service. Must not be called on the muxer sequence; see the ordering
+  // limitation documented on TracingV2ProducerEndpoint.
+  void WaitForTracingV2QuiescenceForTesting();
+
  private:
   friend class test::TracingMuxerImplInternalsForTest;
   friend void shlib::ResetForTesting();
@@ -285,6 +293,10 @@ class TracingMuxerImpl : public TracingMuxer {
     // WARNING: Any *write* access to this variable or any *read* access from a
     // non-muxer thread must be done through std::atomic_{load,store} to avoid
     // data races.
+    // Non-owning pointer to |service_| when it is a v2 decorator, so that a
+    // test can reach the relay-quiescence seam without a handle of its own.
+    // Null whenever the v2 path is off. Muxer sequence only.
+    TracingV2ProducerEndpoint* tracing_v2_endpoint_ = nullptr;
     std::shared_ptr<ProducerEndpoint> service_;  // Keep last.
   };
 
@@ -541,8 +553,25 @@ class TracingMuxerImpl : public TracingMuxer {
   // thread and on the muxer thread.
   void AppendResetForTestingCallback(std::function<void()> cb);
 
+  // The sequence that drains the tracing v2 in-process rings, shared by every
+  // producer endpoint. Created on first use, so a process that never enables v2
+  // pays no thread for it. Muxer sequence only.
+  base::TaskRunner* GetOrCreateTracingV2RelayTaskRunner();
+
   // WARNING: If you add new state here, be sure to update ResetForTesting.
   std::unique_ptr<base::TaskRunner> task_runner_;
+  // Deliberately declared here, before everything that can post to it: members
+  // are destroyed in reverse order, so the producer backends below - which own
+  // the endpoints, and through them the v2 bridges - are gone by the time this
+  // runner is destroyed and its thread joined. Like |task_runner_| it survives
+  // ResetForTesting(), because dead backends can still hold a bridge.
+  std::unique_ptr<base::TaskRunner> tracing_v2_relay_task_runner_;
+  // Non-owning observer of the runner above, for Shutdown()'s self-join check.
+  // Shutdown() runs on an arbitrary thread and cannot read the unique_ptr,
+  // whose lazy initialization happens on the muxer sequence. Survives
+  // ResetForTesting() with its owner.
+  std::atomic<base::TaskRunner*> tracing_v2_relay_task_runner_observer_{
+      nullptr};
   std::vector<RegisteredDataSource> data_sources_;
   // These lists can only have one backend per BackendType. The elements are
   // sorted by BackendType priority (see BackendTypePriority). They always

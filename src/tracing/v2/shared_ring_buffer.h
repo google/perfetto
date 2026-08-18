@@ -41,6 +41,11 @@
 
 namespace perfetto::tracing_v2 {
 
+// Whether this build can block a writer on a full ring. Callers outside this
+// file should test this rather than the macro above, so that the platform gate
+// reads as an ordinary condition.
+constexpr bool kHasFutex = PERFETTO_TRACING_V2_HAS_FUTEX();
+
 // The producer-local multi-producer/single-consumer ring.
 //
 // This class owns the mapping and is the *only* place that touches a chunk's
