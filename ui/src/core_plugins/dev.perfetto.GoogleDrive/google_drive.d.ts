@@ -51,9 +51,7 @@ declare global {
   }
 
   // The GSI scripts attach everything to window.google. We type the oauth2
-  // token client here (rather than augmenting the global `google` namespace)
-  // because @types/google-one-tap already declares google.accounts as a value,
-  // which would collide with a namespace augmentation.
+  // token client here via a Window augmentation.
   interface Window {
     google?: {
       accounts?: {

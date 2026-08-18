@@ -242,9 +242,7 @@ export class GoogleDriveClient {
           }
 
           // The google.accounts.oauth2 token client is typed via the Window
-          // augmentation in google_drive.d.ts (the global `google` namespace
-          // can't be augmented because @types/google-one-tap declares
-          // google.accounts as a value).
+          // augmentation in google_drive.d.ts.
           const oauth2 = window.google?.accounts?.oauth2;
           if (!oauth2) {
             reject(new Error('Google Identity Services is not available'));
