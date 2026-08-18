@@ -370,7 +370,7 @@ base::Status RedactSchedEvents::OnCompSched(
   };
 
   // The final intern table that will only contain referenced entries.
-  std::vector<std::string> dest_intern_table;
+  std::unordered_map<std::string, int32_t> dest_intern_table;
 
   if (std::any_of(has_switch_fields.begin(), has_switch_fields.end(), IsTrue)) {
     RETURN_IF_ERROR(OnCompSchedSwitch(context, cpu, comp_sched, &intern_table,
@@ -390,8 +390,13 @@ base::Status RedactSchedEvents::OnCompSched(
 
   // IMPORTANT: The intern table can only be added after switch and waking
   // because switch and/or waking can/will modify the intern table.
-  for (const std::string& str : dest_intern_table) {
-    message->add_intern_table(str.c_str(), str.size());
+  std::vector<std::string_view> ordered_intern_table(dest_intern_table.size());
+  for (const auto& it : dest_intern_table) {
+    ordered_intern_table[static_cast<size_t>(it.second)] = it.first;
+  }
+
+  for (std::string_view str : ordered_intern_table) {
+    message->add_intern_table(str.data(), str.size());
   }
 
   return base::OkStatus();
@@ -402,7 +407,7 @@ base::Status RedactSchedEvents::OnCompSchedSwitch(
     int32_t cpu,
     protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
     InternTable* source_intern_table,
-    std::vector<std::string>* target_intern_table,
+    std::unordered_map<std::string, int32_t>* target_intern_table,
     protos::pbzero::FtraceEventBundle::CompactSched* message) const {
   PERFETTO_DCHECK(modifier_);
   PERFETTO_DCHECK(message);
@@ -451,13 +456,13 @@ base::Status RedactSchedEvents::OnCompSchedSwitch(
 
     // Add the string to the intern table if it is not already there, otherwise,
     // reuse it.
-    auto found = std::find(target_intern_table->begin(),
-                           target_intern_table->end(), scratch_str);
+    auto found = target_intern_table->find(scratch_str);
     if (found == target_intern_table->end()) {
-      target_intern_table->push_back(scratch_str);
-      packed_comm.Append(target_intern_table->size() - 1);
+      auto index = static_cast<int32_t>(target_intern_table->size());
+      target_intern_table->emplace(scratch_str, index);
+      packed_comm.Append(index);
     } else {
-      packed_comm.Append(std::distance(target_intern_table->begin(), found));
+      packed_comm.Append(found->second);
     }
 
     packed_pid.Append(pid);
@@ -524,7 +529,7 @@ base::Status RedactSchedEvents::OnCompactSchedWaking(
     const Context& context,
     protos::pbzero::FtraceEventBundle::CompactSched::Decoder& compact_sched,
     InternTable* source_intern_table,
-    std::vector<std::string>* target_intern_table,
+    std::unordered_map<std::string, int32_t>* target_intern_table,
     protos::pbzero::FtraceEventBundle::CompactSched* compact_sched_message)
     const {
   protozero::PackedVarInt var_comm_index;
@@ -581,14 +586,13 @@ base::Status RedactSchedEvents::OnCompactSchedWaking(
       comm.assign(source_intern_table->Find(*it_comm_index));
       modifier_->Modify(context, ts_absolute, *it_target_cpu, &pid, &comm);
 
-      auto found = std::find(target_intern_table->begin(),
-                             target_intern_table->end(), comm);
+      auto found = target_intern_table->find(comm);
       if (found == target_intern_table->end()) {
-        target_intern_table->push_back(comm);
-        var_comm_index.Append(target_intern_table->size() - 1);
+        auto index = static_cast<int32_t>(target_intern_table->size());
+        target_intern_table->emplace(comm, index);
+        var_comm_index.Append(index);
       } else {
-        var_comm_index.Append(
-            std::distance(target_intern_table->begin(), found));
+        var_comm_index.Append(found->second);
       }
 
       var_common_flags.Append(*it_common_flags);
