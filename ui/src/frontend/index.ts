@@ -301,8 +301,6 @@ function main() {
 
   const initialRouteArgs = Router.parseUrl(window.location.href).args;
 
-  console.log('Initial route args', initialRouteArgs);
-
   AppImpl.initialize({
     initialRouteArgs,
     settingsManager,

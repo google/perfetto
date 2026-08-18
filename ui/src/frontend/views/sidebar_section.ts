@@ -34,8 +34,10 @@ export class SidebarSection implements m.ClassComponent<SidebarSectionAttrs> {
   view({attrs}: m.CVnode<SidebarSectionAttrs>): m.Children {
     const items = attrs.items.filter((item) => {
       const visible = item.visible;
-      return visible === undefined ||
-        (typeof visible === 'function' ? visible() : visible);
+      return (
+        visible === undefined ||
+        (typeof visible === 'function' ? visible() : visible)
+      );
     });
     if (items.length === 0) return undefined;
 

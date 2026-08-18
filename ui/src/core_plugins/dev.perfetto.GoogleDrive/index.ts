@@ -193,7 +193,6 @@ async function handlePermalink(app: AppImpl, fileId: string) {
   const client = await getGDriveClient();
   const auth = await client.authenticate();
   if (auth.response === 'popup_blocked') {
-    console.log('Popup blocked, need to show a dialog to the user.');
     showModal({
       key: 'GoogleDrivePopupBlocked',
       title: 'Popups blocked',
@@ -226,7 +225,6 @@ async function handlePermalink(app: AppImpl, fileId: string) {
   }
 
   if (auth.response !== 'success') {
-    console.log('Failed to authenticate with Google Drive');
     return;
   }
 
@@ -248,10 +246,7 @@ async function handlePermalink(app: AppImpl, fileId: string) {
             intent: Intent.Primary,
             variant: ButtonVariant.Filled,
             onclick: async () => {
-              const files = await client.requestFileAccess(
-                accessToken,
-                fileId,
-              );
+              const files = await client.requestFileAccess(accessToken, fileId);
               if (!files) return;
               await openGoogleDriveTrace(app, accessToken, fileId);
               closeModal('GoogleDriveAuthNeeded');
@@ -260,7 +255,6 @@ async function handlePermalink(app: AppImpl, fileId: string) {
           }),
         ]),
     });
-    console.log(fileResult);
   }
 }
 

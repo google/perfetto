@@ -73,7 +73,6 @@ export class GoogleDriveClient {
           switch (data.action) {
             case google.picker.Action.PICKED:
               resolve({docs: ensureExists(data.docs)});
-              debugger;
               break;
             case google.picker.Action.CANCEL:
               resolve(undefined);
@@ -136,11 +135,9 @@ export class GoogleDriveClient {
   }
 
   async openFile(
-    token: string,
+    _token: string,
     fileId: string,
   ): Promise<Result<GoogleDriveFile>> {
-    console.log(token);
-
     try {
       const response = await gapi.client.drive.files.get({
         fileId: fileId,
@@ -181,7 +178,6 @@ export class GoogleDriveClient {
     parentId: string = 'root',
     fileName: string,
   ): Promise<Result<string>> {
-    console.log('Uploading file to Google Drive:', {fileName, parentId});
     const traceBuffer = await traceBlob.arrayBuffer();
 
     const metadata = {
@@ -223,10 +219,8 @@ export class GoogleDriveClient {
       );
       const result = await response.json();
       const fileId = result.id;
-      console.log('File uploaded successfully:', result);
       return okResult(fileId);
-    } catch (error) {
-      console.error('Error uploading file:', error);
+    } catch {
       return errResult('Upload failed');
     }
   }
@@ -240,7 +234,6 @@ export class GoogleDriveClient {
           const cachedToken = localStorage.getItem('driveToken');
           if (cachedToken !== null) {
             if (await this.isTokenValid(cachedToken)) {
-              console.log('Using cached Google Drive token');
               // We need to do this when reusing a cached token, but not when
               // getting a new one. Maybe the tokenClient does this automatically
               // under the hood?
@@ -249,9 +242,6 @@ export class GoogleDriveClient {
               return;
             } else {
               localStorage.removeItem('driveToken');
-              console.log(
-                'Cached Google Drive token is invalid, fetching new one',
-              );
             }
           }
 
@@ -266,9 +256,7 @@ export class GoogleDriveClient {
               // TODO(stevegolton): Add proper types once @types/google-one-tap is installed.
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               callback: (tokenResponse: any) => {
-                console.log('Token response', tokenResponse);
                 if (Boolean(tokenResponse.error)) {
-                  console.error('OAuth Error:', tokenResponse.error);
                   return;
                 }
                 const accessToken = tokenResponse.access_token;
@@ -338,8 +326,7 @@ export class GoogleDriveClient {
       );
 
       return response.ok;
-    } catch (error) {
-      console.error('Token validation error:', error);
+    } catch {
       return false;
     }
   }

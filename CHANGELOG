@@ -9,6 +9,8 @@ Unreleased:
      disabled.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
+    * Added a Google Drive integration (internal users only) to open traces
+      from Google Drive and to upload/share the current trace to Google Drive.
   SDK:
    *
 
