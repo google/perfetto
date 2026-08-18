@@ -21,8 +21,12 @@
 #include "perfetto/base/compiler.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/plugins/android_process_state/android_process_state_tracker.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor::android_process_state {
@@ -45,6 +49,68 @@ AndroidProcessStateModule::AndroidProcessStateModule(
 }
 
 AndroidProcessStateModule::~AndroidProcessStateModule() = default;
+
+ModuleResult AndroidProcessStateModule::TokenizePacket(
+    const TokenizePacketArgs& args) {
+  if (args.field.id() !=
+      fb::FrameworksBaseTracePacket::kAndroidProcessStateFieldNumber) {
+    return ModuleResult::Ignored();
+  }
+
+  fb::AndroidProcessStateSnapshot::Decoder dump(
+      args.field.Cast<fb::FrameworksBaseTracePacket::kAndroidProcessState>());
+  for (auto it = dump.record(); it; ++it) {
+    fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
+    int64_t real_ts = args.ts;
+    if (rec.has_start_time_ms()) {
+      std::optional<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
+          ClockTracker::ClockId::Machine(
+              protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+          static_cast<int64_t>(rec.start_time_ms()) * 1000000LL);
+      if (start_ts.has_value()) {
+        real_ts = *start_ts;
+      }
+    }
+
+    TraceBlobView tbv = context_->blob_packet_writer->WritePacket(
+        [&](protos::pbzero::TracePacket* pkt) {
+          pkt->set_timestamp(static_cast<uint64_t>(real_ts));
+          auto* snap = pkt->BeginNestedMessage<fb::AndroidProcessStateSnapshot>(
+              fb::FrameworksBaseTracePacket::kAndroidProcessStateFieldNumber);
+          auto* r = snap->add_record();
+          r->set_pid(rec.pid());
+          if (rec.has_uid()) {
+            r->set_uid(rec.uid());
+          }
+          if (rec.has_proc_state()) {
+            r->set_proc_state(rec.proc_state());
+          }
+          if (rec.has_oom_score()) {
+            r->set_oom_score(rec.oom_score());
+          }
+          if (rec.has_capability_flags()) {
+            r->set_capability_flags(rec.capability_flags());
+          }
+          if (rec.has_process_name()) {
+            r->set_process_name(rec.process_name());
+          }
+          if (rec.has_start_seq_id()) {
+            r->set_start_seq_id(rec.start_seq_id());
+          }
+          if (rec.has_start_time_ms()) {
+            r->set_start_time_ms(rec.start_time_ms());
+          }
+        });
+
+    RefPtr<PacketSequenceStateGeneration> state =
+        args.state ? args.state
+                   : PacketSequenceStateGeneration::CreateFirst(context_);
+    module_context_->trace_packet_stream->Push(
+        real_ts, TracePacketData{std::move(tbv), std::move(state)});
+  }
+
+  return ModuleResult::Handled();
+}
 
 void AndroidProcessStateModule::ParseField(const ParseFieldArgs& args) {
   switch (args.field.id()) {

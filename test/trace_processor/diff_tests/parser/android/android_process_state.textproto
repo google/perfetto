@@ -131,6 +131,8 @@ packet {
       proc_state: 1002
       oom_score: 0
       capability_flags: 1
+      process_name: "com.android.systemui"
+      start_seq_id: 10
     }
     record {
       pid: 200
@@ -138,6 +140,8 @@ packet {
       proc_state: 1015
       oom_score: 900
       capability_flags: 0
+      process_name: "com.example.app"
+      start_seq_id: 11
     }
     # PID 300: Dump-only process with non-zero values.
     record {

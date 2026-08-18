@@ -35,11 +35,15 @@ ANDROID_PROCESS_STATE_TABLE = Table(
           cpp_access=CppAccess.READ,
           cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
-        C('proc_state', CppOptional(CppString())),
-        C('oom_score', CppOptional(CppInt32())),
-        C('capability_flags', CppOptional(CppInt32())),
-        C('reason', CppOptional(CppString())),
-        C('seq_id', CppOptional(CppInt64())),
+        C('proc_state', CppOptional(CppString()), cpp_access=CppAccess.READ),
+        C('oom_score', CppOptional(CppInt32()), cpp_access=CppAccess.READ),
+        C('capability_flags',
+          CppOptional(CppInt32()),
+          cpp_access=CppAccess.READ),
+        C('reason', CppOptional(CppString()), cpp_access=CppAccess.READ),
+        C('seq_id', CppOptional(CppInt64()), cpp_access=CppAccess.READ),
+        C('process_name', CppOptional(CppString()), cpp_access=CppAccess.READ),
+        C('start_seq_id', CppOptional(CppInt64()), cpp_access=CppAccess.READ),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -60,6 +64,10 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'Reason for state change (if from track event).',
             'seq_id':
                 'Sequence ID for OOM adjustment iterations.',
+            'process_name':
+                'Process name from dump snapshot.',
+            'start_seq_id':
+                'Monotonically increasing process launch sequence ID.',
             'is_initial':
                 '1 for synthesized initial state row, 0 for change event.',
         },

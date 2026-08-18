@@ -19,8 +19,10 @@
 #include <string>
 
 #include "perfetto/ext/base/string_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -124,6 +126,25 @@ void AndroidProcessStateTracker::ParseDump(protozero::ConstBytes blob) {
           v.upid, static_cast<uint32_t>(rec.uid()));
     }
 
+    if (rec.has_process_name()) {
+      v.process_name = context_->storage->InternString(rec.process_name());
+      context_->process_tracker->UpdateProcessName(
+          v.upid, *v.process_name, ProcessNamePriority::kSystem);
+    }
+    if (rec.has_start_seq_id()) {
+      v.start_seq_id = rec.start_seq_id();
+    }
+    if (rec.has_start_time_ms()) {
+      v.start_time_ms = rec.start_time_ms();
+      std::optional<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
+          ClockTracker::ClockId::Machine(
+              protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+          static_cast<int64_t>(rec.start_time_ms()) * 1000000LL);
+      if (start_ts.has_value()) {
+        context_->process_tracker->SetStartTsIfUnset(v.upid, *start_ts);
+      }
+    }
+
     // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
     // during serialization on Android, so unset fields in the dump snapshot
     // represent 0.
@@ -158,6 +179,15 @@ AndroidProcessStateTracker::ComputeInitialProcessStates() const {
     if (earliest.values.capability_flags.has_value()) {
       v.capability_flags = earliest.values.capability_flags;
     }
+    if (earliest.values.process_name.has_value()) {
+      v.process_name = earliest.values.process_name;
+    }
+    if (earliest.values.start_seq_id.has_value()) {
+      v.start_seq_id = earliest.values.start_seq_id;
+    }
+    if (earliest.values.start_time_ms.has_value()) {
+      v.start_time_ms = earliest.values.start_time_ms;
+    }
   }
 
   return initial;
@@ -184,6 +214,12 @@ void AndroidProcessStateTracker::EmitInitialRow(const ProcessStateValues& v) {
   }
   if (v.capability_flags.has_value()) {
     row.capability_flags = *v.capability_flags;
+  }
+  if (v.process_name.has_value()) {
+    row.process_name = *v.process_name;
+  }
+  if (v.start_seq_id.has_value()) {
+    row.start_seq_id = *v.start_seq_id;
   }
   process_state_table_->Insert(row);
 }
