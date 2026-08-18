@@ -56,6 +56,18 @@ using ::com::android::internal::pbzero::AndroidProcessStateSnapshot;
 using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
 using ::perfetto::protos::pbzero::TracePacket;
 
+class CaptureSink : public TraceSorter::Sink<TracePacketData, CaptureSink> {
+ public:
+  struct Packet {
+    int64_t ts;
+    TracePacketData data;
+  };
+  void Parse(int64_t ts, TracePacketData data) {
+    packets.push_back({ts, std::move(data)});
+  }
+  std::vector<Packet> packets;
+};
+
 class AndroidProcessStateModuleTest : public testing::Test {
  public:
   AndroidProcessStateModuleTest() {
@@ -74,6 +86,21 @@ class AndroidProcessStateModuleTest : public testing::Test {
     context_.process_tracker = std::make_unique<ProcessTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.blob_packet_writer = std::make_unique<BlobPacketWriter>();
+    context_.trace_time_state = std::make_unique<TraceTimeState>(
+        ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    primary_sync_ = std::make_unique<ClockSynchronizer>(
+        context_.trace_time_state.get(),
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+    context_.clock_tracker = std::make_unique<ClockTracker>(
+        &context_, primary_sync_.get(), /*is_primary=*/true);
+
+    context_.sorter = std::make_unique<TraceSorter>(
+        &context_, TraceSorter::SortingMode::kFullSort);
+    auto sink = std::make_unique<CaptureSink>();
+    capture_sink_ = sink.get();
+    module_context_.trace_packet_stream =
+        context_.sorter->CreateStream(std::move(sink));
 
     process_state_table_ = std::make_unique<tables::AndroidProcessStateTable>(
         context_.storage->mutable_string_pool());
@@ -122,13 +149,75 @@ class AndroidProcessStateModuleTest : public testing::Test {
  protected:
   TraceProcessorContext context_;
   ProtoImporterModuleContext module_context_;
+  std::unique_ptr<ClockSynchronizer> primary_sync_;
+  CaptureSink* capture_sink_ = nullptr;
   std::unique_ptr<tables::AndroidProcessStateTable> process_state_table_;
   std::unique_ptr<tables::AndroidFreezerStateTable> freezer_state_table_;
   std::unique_ptr<AndroidProcessStateTracker> tracker_;
   std::unique_ptr<AndroidProcessStateModule> module_;
 };
 
+TEST_F(AndroidProcessStateModuleTest, TokenizePacketSplitsAndRemapsTimestamps) {
+  // Sync boottime clock with trace time
+  context_.clock_tracker->AddSnapshot({
+      {ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+       1000000000},
+      {ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+       1000000000},
+  });
+
+  protozero::HeapBuffered<AndroidProcessStateSnapshot> snapshot;
+  {
+    auto* rec = snapshot->add_record();
+    rec->set_pid(1001);
+    rec->set_uid(10001);
+    rec->set_process_name("com.test.app1");
+    rec->set_start_seq_id(42);
+    rec->set_start_time_ms(5000);  // 5000ms boottime
+  }
+  {
+    auto* rec = snapshot->add_record();
+    rec->set_pid(1002);
+    rec->set_uid(10002);
+    rec->set_process_name("com.test.app2");
+    rec->set_start_seq_id(43);
+    // no start_time_ms -> should use packet timestamp
+  }
+  std::vector<uint8_t> snap_bytes = snapshot.SerializeAsArray();
+
+  protozero::HeapBuffered<TracePacket> packet;
+  packet->AppendBytes(
+      FrameworksBaseTracePacket::kAndroidProcessStateFieldNumber,
+      snap_bytes.data(), snap_bytes.size());
+  std::vector<uint8_t> bytes = packet.SerializeAsArray();
+
+  TraceBlobView tbv(TraceBlob::CopyFrom(bytes.data(), bytes.size()));
+  SelectiveTracePacketDecoder decoder(tbv.data(), tbv.length());
+  TracePacketField field = decoder.FindUnknownField(
+      FrameworksBaseTracePacket::kAndroidProcessStateFieldNumber);
+  ASSERT_TRUE(field.valid());
+
+  ModuleResult res = module_->TokenizePacket(
+      {decoder, &tbv, 99999999,
+       PacketSequenceStateGeneration::CreateFirst(&context_), field});
+  EXPECT_FALSE(res.ignored());
+
+  context_.sorter->ExtractEventsForced();
+  ASSERT_EQ(capture_sink_->packets.size(), 2u);
+
+  EXPECT_EQ(capture_sink_->packets[0].ts, 99999999LL);
+  EXPECT_EQ(capture_sink_->packets[1].ts, 5000000000LL);
+}
+
 TEST_F(AndroidProcessStateModuleTest, ParseDumpPopulatesProcessTable) {
+  // Sync boottime clock
+  context_.clock_tracker->AddSnapshot({
+      {ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+       1000000000},
+      {ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+       1000000000},
+  });
+
   protozero::HeapBuffered<AndroidProcessStateSnapshot> snapshot;
   {
     auto* rec = snapshot->add_record();
@@ -137,6 +226,9 @@ TEST_F(AndroidProcessStateModuleTest, ParseDumpPopulatesProcessTable) {
     rec->set_proc_state(2);  // PROCESS_STATE_PERSISTENT
     rec->set_oom_score(-900);
     rec->set_capability_flags(1);
+    rec->set_process_name("com.android.systemui");
+    rec->set_start_seq_id(10);
+    rec->set_start_time_ms(5000);
   }
   {
     auto* rec = snapshot->add_record();
@@ -145,6 +237,9 @@ TEST_F(AndroidProcessStateModuleTest, ParseDumpPopulatesProcessTable) {
     rec->set_proc_state(19);  // PROCESS_STATE_CACHED_EMPTY
     rec->set_oom_score(905);
     rec->set_capability_flags(0);
+    rec->set_process_name("com.example.cached");
+    rec->set_start_seq_id(11);
+    rec->set_start_time_ms(8000);
   }
   std::vector<uint8_t> snap_bytes = snapshot.SerializeAsArray();
 
@@ -153,6 +248,11 @@ TEST_F(AndroidProcessStateModuleTest, ParseDumpPopulatesProcessTable) {
 
   // Verify process_state table
   EXPECT_EQ(process_state_table_->row_count(), 2u);
+  auto rr = (*process_state_table_)[0];
+  ASSERT_TRUE(rr.process_name().has_value());
+  EXPECT_STREQ(context_.storage->GetString(*rr.process_name()).c_str(),
+               "com.android.systemui");
+  EXPECT_EQ(*rr.start_seq_id(), 10LL);
 
   // Verify main process table (row 0 is reserved swapper/idle process)
   const auto& pt = context_.storage->process_table();
@@ -161,10 +261,20 @@ TEST_F(AndroidProcessStateModuleTest, ParseDumpPopulatesProcessTable) {
   auto prr0 = pt[1];
   EXPECT_EQ(prr0.pid(), 2001);
   EXPECT_EQ(prr0.uid(), 10002u);
+  ASSERT_TRUE(prr0.name().has_value());
+  EXPECT_STREQ(context_.storage->GetString(*prr0.name()).c_str(),
+               "com.android.systemui");
+  ASSERT_TRUE(prr0.start_ts().has_value());
+  EXPECT_EQ(*prr0.start_ts(), 5000000000LL);
 
   auto prr1 = pt[2];
   EXPECT_EQ(prr1.pid(), 2002);
   EXPECT_EQ(prr1.uid(), 10003u);
+  ASSERT_TRUE(prr1.name().has_value());
+  EXPECT_STREQ(context_.storage->GetString(*prr1.name()).c_str(),
+               "com.example.cached");
+  ASSERT_TRUE(prr1.start_ts().has_value());
+  EXPECT_EQ(*prr1.start_ts(), 8000000000LL);
 }
 
 TEST_F(AndroidProcessStateModuleTest, ParseChangeAndDumpRewind) {

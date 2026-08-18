@@ -374,7 +374,10 @@ class AndroidParser(TestSuite):
         SELECT
           t.ts,
           p.pid,
+          p.name AS p_name,
           p.uid,
+          t.process_name,
+          t.start_seq_id,
           t.proc_state,
           t.oom_score,
           t.capability_flags,
@@ -386,16 +389,16 @@ class AndroidParser(TestSuite):
         ORDER BY p.pid, t.ts, t.seq_id;
         """,
         out=Csv("""
-          "ts","pid","uid","proc_state","oom_score","capability_flags","reason","seq_id","is_initial"
-          "[NULL]",100,10001,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
-          "[NULL]",200,10002,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
-          2000,200,10002,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",10,0
-          4000,200,10002,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"OOM_ADJ_REASON_BIND_SERVICE",11,0
-          "[NULL]",300,10003,"PROCESS_STATE_PERSISTENT",-1000,1,"[NULL]","[NULL]",1
-          "[NULL]",400,10004,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"[NULL]","[NULL]",1
-          "[NULL]",500,"[NULL]","PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
-          2000,500,"[NULL]","PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"OOM_ADJ_REASON_START_RECEIVER",20,0
-          2000,500,"[NULL]","PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"OOM_ADJ_REASON_BIND_SERVICE",21,0
+          "ts","pid","p_name","uid","process_name","start_seq_id","proc_state","oom_score","capability_flags","reason","seq_id","is_initial"
+          "[NULL]",100,"com.android.systemui",10001,"com.android.systemui",10,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
+          "[NULL]",200,"com.example.app",10002,"com.example.app",11,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
+          2000,200,"com.example.app",10002,"[NULL]","[NULL]","PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",10,0
+          4000,200,"com.example.app",10002,"[NULL]","[NULL]","PROCESS_STATE_CACHED_ACTIVITY",900,0,"OOM_ADJ_REASON_BIND_SERVICE",11,0
+          "[NULL]",300,"[NULL]",10003,"[NULL]","[NULL]","PROCESS_STATE_PERSISTENT",-1000,1,"[NULL]","[NULL]",1
+          "[NULL]",400,"[NULL]",10004,"[NULL]","[NULL]","PROCESS_STATE_FOREGROUND_SERVICE",0,0,"[NULL]","[NULL]",1
+          "[NULL]",500,"[NULL]","[NULL]","[NULL]","[NULL]","PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
+          2000,500,"[NULL]","[NULL]","[NULL]","[NULL]","PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"OOM_ADJ_REASON_START_RECEIVER",20,0
+          2000,500,"[NULL]","[NULL]","[NULL]","[NULL]","PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"OOM_ADJ_REASON_BIND_SERVICE",21,0
         """))
 
   def test_android_freezer_state(self):

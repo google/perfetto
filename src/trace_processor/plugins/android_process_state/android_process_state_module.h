@@ -42,6 +42,7 @@ class AndroidProcessStateModule : public ProtoImporterModule {
       tables::AndroidFreezerStateTable* freezer_state_table);
   ~AndroidProcessStateModule() override;
 
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
   void ParseField(const ParseFieldArgs& args) override;
   void OnEventsFullyExtracted() override;
 

@@ -66,6 +66,9 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> oom_score;
     std::optional<int32_t> proc_state;
     std::optional<int32_t> capability_flags;
+    std::optional<StringId> process_name;
+    std::optional<int64_t> start_seq_id;
+    std::optional<int64_t> start_time_ms;
   };
 
   // Tracks the state before the first observed change (prev_*) for a process,
