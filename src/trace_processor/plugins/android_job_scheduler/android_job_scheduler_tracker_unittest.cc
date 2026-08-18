@@ -261,5 +261,355 @@ TEST_F(AndroidJobSchedulerTrackerTest, ParseAndroidJobSchedulerJob_Defaults) {
   EXPECT_FALSE(rr.num_reschedules_due_to_abandonment().has_value());
 }
 
+TEST_F(AndroidJobSchedulerTrackerTest,
+       ParseAndroidJobSchedulerJob_PendingReasons) {
+  protozero::HeapBuffered<protozero::Message> job;
+  using ProtoJob = ::com::android::internal::pbzero::AndroidJobSchedulerJob;
+  job->AppendVarInt(ProtoJob::kJobIdFieldNumber, 101);
+  job->AppendVarInt(ProtoJob::kSourceUidFieldNumber, 1000);
+  job->AppendVarInt(ProtoJob::kStateFieldNumber, ProtoJob::JOB_STATE_STARTED);
+
+  job->AppendVarInt(ProtoJob::kPendingReasonsFieldNumber,
+                    ProtoJob::PENDING_JOB_REASON_CONSTRAINT_CHARGING);
+  job->AppendVarInt(ProtoJob::kPendingReasonsFieldNumber,
+                    ProtoJob::PENDING_JOB_REASON_CONSTRAINT_DEVICE_IDLE);
+
+  job->AppendVarInt(ProtoJob::kPendingDurationsMsFieldNumber, 1500);
+  job->AppendVarInt(ProtoJob::kPendingDurationsMsFieldNumber, 4200);
+
+  std::vector<uint8_t> blob = job.SerializeAsArray();
+
+  protozero::Field field;
+  field.initialize(AndroidJobSchedulerTracker::kJobSchedulerJobExtensionFieldId,
+                   static_cast<uint8_t>(
+                       protozero::proto_utils::ProtoWireType::kLengthDelimited),
+                   reinterpret_cast<uint64_t>(blob.data()),
+                   static_cast<uint32_t>(blob.size()));
+  TrackEventExtensionField extension_field(field);
+
+  tables::SliceTable::Row slice_row;
+  slice_row.ts = 5000;
+  auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
+
+  TrackEventFieldContext event;
+  event.ts = 5000;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
+
+  const auto& table =
+      context.storage->android_job_scheduler_track_event_table();
+  ASSERT_EQ(table.row_count(), 1u);
+
+  const auto& pending_table =
+      context.storage
+          ->android_job_scheduler_pending_reasons_track_event_table();
+  ASSERT_EQ(pending_table.row_count(), 2u);
+
+  auto r0 = pending_table
+      [tables::AndroidJobSchedulerPendingReasonsTrackEventTable::Id{0}];
+  EXPECT_EQ(r0.slice_id(), slice_id);
+  EXPECT_EQ(r0.reason_index(), 0);
+  EXPECT_STREQ(context.storage->GetString(r0.pending_reason()).c_str(),
+               ProtoJob::PendingJobReason_Name(
+                   ProtoJob::PENDING_JOB_REASON_CONSTRAINT_CHARGING));
+  EXPECT_EQ(r0.pending_duration_ms(), 1500);
+
+  auto r1 = pending_table
+      [tables::AndroidJobSchedulerPendingReasonsTrackEventTable::Id{1}];
+  EXPECT_EQ(r1.slice_id(), slice_id);
+  EXPECT_EQ(r1.reason_index(), 1);
+  EXPECT_STREQ(context.storage->GetString(r1.pending_reason()).c_str(),
+               ProtoJob::PendingJobReason_Name(
+                   ProtoJob::PENDING_JOB_REASON_CONSTRAINT_DEVICE_IDLE));
+  EXPECT_EQ(r1.pending_duration_ms(), 4200);
+}
+
+TEST_F(AndroidJobSchedulerTrackerTest,
+       ParseAndroidJobSchedulerJob_PendingReasonsCancelled) {
+  protozero::HeapBuffered<protozero::Message> job;
+  using ProtoJob = ::com::android::internal::pbzero::AndroidJobSchedulerJob;
+  job->AppendVarInt(ProtoJob::kJobIdFieldNumber, 102);
+  job->AppendVarInt(ProtoJob::kSourceUidFieldNumber, 1000);
+  job->AppendVarInt(ProtoJob::kStateFieldNumber, ProtoJob::JOB_STATE_CANCELLED);
+
+  job->AppendVarInt(ProtoJob::kPendingReasonsFieldNumber,
+                    ProtoJob::PENDING_JOB_REASON_CONSTRAINT_CONNECTIVITY);
+  job->AppendVarInt(ProtoJob::kPendingDurationsMsFieldNumber, 8000);
+
+  std::vector<uint8_t> blob = job.SerializeAsArray();
+
+  protozero::Field field;
+  field.initialize(AndroidJobSchedulerTracker::kJobSchedulerJobExtensionFieldId,
+                   static_cast<uint8_t>(
+                       protozero::proto_utils::ProtoWireType::kLengthDelimited),
+                   reinterpret_cast<uint64_t>(blob.data()),
+                   static_cast<uint32_t>(blob.size()));
+  TrackEventExtensionField extension_field(field);
+
+  tables::SliceTable::Row slice_row;
+  slice_row.ts = 5500;
+  auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
+
+  TrackEventFieldContext event;
+  event.ts = 5500;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
+
+  const auto& table =
+      context.storage->android_job_scheduler_track_event_table();
+  ASSERT_EQ(table.row_count(), 1u);
+
+  const auto& pending_table =
+      context.storage
+          ->android_job_scheduler_pending_reasons_track_event_table();
+  ASSERT_EQ(pending_table.row_count(), 1u);
+
+  auto r0 = pending_table
+      [tables::AndroidJobSchedulerPendingReasonsTrackEventTable::Id{0}];
+  EXPECT_EQ(r0.slice_id(), slice_id);
+  EXPECT_EQ(r0.reason_index(), 0);
+  EXPECT_STREQ(context.storage->GetString(r0.pending_reason()).c_str(),
+               ProtoJob::PendingJobReason_Name(
+                   ProtoJob::PENDING_JOB_REASON_CONSTRAINT_CONNECTIVITY));
+  EXPECT_EQ(r0.pending_duration_ms(), 8000);
+}
+
+TEST_F(AndroidJobSchedulerTrackerTest,
+       ParseAndroidJobSchedulerJob_PendingReasonsIgnoredOnFinished) {
+  protozero::HeapBuffered<protozero::Message> job;
+  using ProtoJob = ::com::android::internal::pbzero::AndroidJobSchedulerJob;
+  job->AppendVarInt(ProtoJob::kJobIdFieldNumber, 103);
+  job->AppendVarInt(ProtoJob::kSourceUidFieldNumber, 1000);
+  job->AppendVarInt(ProtoJob::kStateFieldNumber, ProtoJob::JOB_STATE_FINISHED);
+
+  // Even if pending reasons were populated, they should be ignored on FINISHED.
+  job->AppendVarInt(ProtoJob::kPendingReasonsFieldNumber,
+                    ProtoJob::PENDING_JOB_REASON_CONSTRAINT_CHARGING);
+  job->AppendVarInt(ProtoJob::kPendingDurationsMsFieldNumber, 1500);
+
+  std::vector<uint8_t> blob = job.SerializeAsArray();
+
+  protozero::Field field;
+  field.initialize(AndroidJobSchedulerTracker::kJobSchedulerJobExtensionFieldId,
+                   static_cast<uint8_t>(
+                       protozero::proto_utils::ProtoWireType::kLengthDelimited),
+                   reinterpret_cast<uint64_t>(blob.data()),
+                   static_cast<uint32_t>(blob.size()));
+  TrackEventExtensionField extension_field(field);
+
+  tables::SliceTable::Row slice_row;
+  slice_row.ts = 5600;
+  auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
+
+  TrackEventFieldContext event;
+  event.ts = 5600;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
+
+  const auto& table =
+      context.storage->android_job_scheduler_track_event_table();
+  ASSERT_EQ(table.row_count(), 1u);
+
+  const auto& pending_table =
+      context.storage
+          ->android_job_scheduler_pending_reasons_track_event_table();
+  EXPECT_EQ(pending_table.row_count(), 0u);
+}
+
+TEST_F(AndroidJobSchedulerTrackerTest,
+       ParseAndroidJobSchedulerJob_PendingReasonsMismatchedLengths) {
+  protozero::HeapBuffered<protozero::Message> job;
+  using ProtoJob = ::com::android::internal::pbzero::AndroidJobSchedulerJob;
+  job->AppendVarInt(ProtoJob::kJobIdFieldNumber, 202);
+  job->AppendVarInt(ProtoJob::kSourceUidFieldNumber, 1000);
+  job->AppendVarInt(ProtoJob::kStateFieldNumber, ProtoJob::JOB_STATE_STARTED);
+
+  job->AppendVarInt(ProtoJob::kPendingReasonsFieldNumber,
+                    ProtoJob::PENDING_JOB_REASON_CONSTRAINT_CHARGING);
+  job->AppendVarInt(ProtoJob::kPendingReasonsFieldNumber,
+                    ProtoJob::PENDING_JOB_REASON_CONSTRAINT_BATTERY_NOT_LOW);
+
+  // Only 1 duration provided for 2 reasons
+  job->AppendVarInt(ProtoJob::kPendingDurationsMsFieldNumber, 1200);
+
+  std::vector<uint8_t> blob = job.SerializeAsArray();
+
+  protozero::Field field;
+  field.initialize(AndroidJobSchedulerTracker::kJobSchedulerJobExtensionFieldId,
+                   static_cast<uint8_t>(
+                       protozero::proto_utils::ProtoWireType::kLengthDelimited),
+                   reinterpret_cast<uint64_t>(blob.data()),
+                   static_cast<uint32_t>(blob.size()));
+  TrackEventExtensionField extension_field(field);
+
+  tables::SliceTable::Row slice_row;
+  slice_row.ts = 6000;
+  auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
+
+  TrackEventFieldContext event;
+  event.ts = 6000;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
+
+  const auto& table =
+      context.storage->android_job_scheduler_track_event_table();
+  ASSERT_EQ(table.row_count(), 1u);
+
+  const auto& pending_table =
+      context.storage
+          ->android_job_scheduler_pending_reasons_track_event_table();
+  ASSERT_EQ(pending_table.row_count(), 2u);
+
+  auto r0 = pending_table
+      [tables::AndroidJobSchedulerPendingReasonsTrackEventTable::Id{0}];
+  EXPECT_EQ(r0.pending_duration_ms(), 1200);
+
+  auto r1 = pending_table
+      [tables::AndroidJobSchedulerPendingReasonsTrackEventTable::Id{1}];
+  EXPECT_EQ(r1.pending_duration_ms(), 0);
+}
+
+TEST_F(AndroidJobSchedulerTrackerTest,
+       ParseAndroidJobSchedulerJob_PendingReasonsUnknownEnum) {
+  protozero::HeapBuffered<protozero::Message> job;
+  using ProtoJob = ::com::android::internal::pbzero::AndroidJobSchedulerJob;
+  job->AppendVarInt(ProtoJob::kJobIdFieldNumber, 303);
+  job->AppendVarInt(ProtoJob::kSourceUidFieldNumber, 1000);
+  job->AppendVarInt(ProtoJob::kStateFieldNumber, ProtoJob::JOB_STATE_STARTED);
+
+  job->AppendVarInt(ProtoJob::kPendingReasonsFieldNumber, 999);
+  job->AppendVarInt(ProtoJob::kPendingDurationsMsFieldNumber, 500);
+
+  std::vector<uint8_t> blob = job.SerializeAsArray();
+
+  protozero::Field field;
+  field.initialize(AndroidJobSchedulerTracker::kJobSchedulerJobExtensionFieldId,
+                   static_cast<uint8_t>(
+                       protozero::proto_utils::ProtoWireType::kLengthDelimited),
+                   reinterpret_cast<uint64_t>(blob.data()),
+                   static_cast<uint32_t>(blob.size()));
+  TrackEventExtensionField extension_field(field);
+
+  tables::SliceTable::Row slice_row;
+  slice_row.ts = 7000;
+  auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
+
+  TrackEventFieldContext event;
+  event.ts = 7000;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
+
+  const auto& table =
+      context.storage->android_job_scheduler_track_event_table();
+  ASSERT_EQ(table.row_count(), 1u);
+
+  const auto& pending_table =
+      context.storage
+          ->android_job_scheduler_pending_reasons_track_event_table();
+  ASSERT_EQ(pending_table.row_count(), 1u);
+
+  auto r0 = pending_table
+      [tables::AndroidJobSchedulerPendingReasonsTrackEventTable::Id{0}];
+  EXPECT_STREQ(context.storage->GetString(r0.pending_reason()).c_str(), "999");
+  EXPECT_EQ(r0.pending_duration_ms(), 500);
+}
+
+TEST_F(AndroidJobSchedulerTrackerTest,
+       ParseAndroidJobSchedulerJob_NoPendingReasons) {
+  protozero::HeapBuffered<protozero::Message> job;
+  using ProtoJob = ::com::android::internal::pbzero::AndroidJobSchedulerJob;
+  job->AppendVarInt(ProtoJob::kJobIdFieldNumber, 404);
+  job->AppendVarInt(ProtoJob::kSourceUidFieldNumber, 1000);
+  job->AppendVarInt(ProtoJob::kStateFieldNumber, ProtoJob::JOB_STATE_STARTED);
+
+  std::vector<uint8_t> blob = job.SerializeAsArray();
+
+  protozero::Field field;
+  field.initialize(AndroidJobSchedulerTracker::kJobSchedulerJobExtensionFieldId,
+                   static_cast<uint8_t>(
+                       protozero::proto_utils::ProtoWireType::kLengthDelimited),
+                   reinterpret_cast<uint64_t>(blob.data()),
+                   static_cast<uint32_t>(blob.size()));
+  TrackEventExtensionField extension_field(field);
+
+  tables::SliceTable::Row slice_row;
+  slice_row.ts = 8000;
+  auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
+
+  TrackEventFieldContext event;
+  event.ts = 8000;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
+
+  const auto& pending_table =
+      context.storage
+          ->android_job_scheduler_pending_reasons_track_event_table();
+  EXPECT_EQ(pending_table.row_count(), 0u);
+}
+
+TEST_F(AndroidJobSchedulerTrackerTest,
+       ParseAndroidJobSchedulerJob_PendingReasonsExecutingAndInvalidJobId) {
+  protozero::HeapBuffered<protozero::Message> job;
+  using ProtoJob = ::com::android::internal::pbzero::AndroidJobSchedulerJob;
+  job->AppendVarInt(ProtoJob::kJobIdFieldNumber, 505);
+  job->AppendVarInt(ProtoJob::kSourceUidFieldNumber, 1000);
+  job->AppendVarInt(ProtoJob::kStateFieldNumber, ProtoJob::JOB_STATE_STARTED);
+
+  job->AppendVarInt(ProtoJob::kPendingReasonsFieldNumber,
+                    ProtoJob::PENDING_JOB_REASON_EXECUTING);
+  job->AppendVarInt(ProtoJob::kPendingReasonsFieldNumber,
+                    ProtoJob::PENDING_JOB_REASON_INVALID_JOB_ID);
+
+  job->AppendVarInt(ProtoJob::kPendingDurationsMsFieldNumber, 1200);
+  job->AppendVarInt(ProtoJob::kPendingDurationsMsFieldNumber, 3400);
+
+  std::vector<uint8_t> blob = job.SerializeAsArray();
+
+  protozero::Field field;
+  field.initialize(AndroidJobSchedulerTracker::kJobSchedulerJobExtensionFieldId,
+                   static_cast<uint8_t>(
+                       protozero::proto_utils::ProtoWireType::kLengthDelimited),
+                   reinterpret_cast<uint64_t>(blob.data()),
+                   static_cast<uint32_t>(blob.size()));
+  TrackEventExtensionField extension_field(field);
+
+  tables::SliceTable::Row slice_row;
+  slice_row.ts = 9000;
+  auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
+
+  TrackEventFieldContext event;
+  event.ts = 9000;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
+
+  const auto& table =
+      context.storage->android_job_scheduler_track_event_table();
+  ASSERT_EQ(table.row_count(), 1u);
+
+  const auto& pending_table =
+      context.storage
+          ->android_job_scheduler_pending_reasons_track_event_table();
+  ASSERT_EQ(pending_table.row_count(), 2u);
+
+  auto r0 = pending_table
+      [tables::AndroidJobSchedulerPendingReasonsTrackEventTable::Id{0}];
+  EXPECT_STREQ(context.storage->GetString(r0.pending_reason()).c_str(),
+               "PENDING_JOB_REASON_EXECUTING");
+  EXPECT_EQ(r0.pending_duration_ms(), 1200);
+
+  auto r1 = pending_table
+      [tables::AndroidJobSchedulerPendingReasonsTrackEventTable::Id{1}];
+  EXPECT_STREQ(context.storage->GetString(r1.pending_reason()).c_str(),
+               "PENDING_JOB_REASON_INVALID_JOB_ID");
+  EXPECT_EQ(r1.pending_duration_ms(), 3400);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor
