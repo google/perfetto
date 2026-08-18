@@ -15,6 +15,31 @@
 import {ensureExists} from '../../base/assert';
 import {errResult, okResult, type Result} from '../../base/result';
 
+// The Google Drive / Google Identity Services loader scripts. We load these
+// lazily (rather than statically in index.html) so that only users who
+// actually use the plugin pay the cost of fetching them.
+const GAPI_LOADER_URL = 'https://apis.google.com/js/api.js';
+const GSI_CLIENT_URL = 'https://accounts.google.com/gsi/client';
+
+// Loads an external <script> and resolves once it has finished loading. The
+// promise is cached per URL so that repeated calls share a single load.
+const scriptLoadPromises = new Map<string, Promise<void>>();
+function loadScript(src: string): Promise<void> {
+  let promise = scriptLoadPromises.get(src);
+  if (promise === undefined) {
+    promise = new Promise<void>((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.append(script);
+    });
+    scriptLoadPromises.set(src, promise);
+  }
+  return promise;
+}
+
 export const SCOPES =
   'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.install';
 
@@ -162,7 +187,7 @@ export class GoogleDriveClient {
   async openSharingDialog(token: string, fileId: string) {
     await this.gapiLoad('drive-share');
 
-    const shareClient = new gapi.client.drive.share.ShareClient();
+    const shareClient = new gapi.drive.share.ShareClient();
     shareClient.setOAuthToken(token);
     shareClient.setItemIds([fileId]);
     shareClient.showSettingsDialog();
@@ -242,7 +267,9 @@ export class GoogleDriveClient {
           }
 
           // The google.accounts.oauth2 token client is typed via the Window
-          // augmentation in google_drive.d.ts.
+          // augmentation in google_drive.d.ts. Load the GSI client script
+          // lazily before using it.
+          await loadScript(GSI_CLIENT_URL);
           const oauth2 = window.google?.accounts?.oauth2;
           if (!oauth2) {
             reject(new Error('Google Identity Services is not available'));
@@ -301,10 +328,9 @@ export class GoogleDriveClient {
   }
 
   private async gapiLoad(what: string): Promise<void> {
-    return await new Promise((resolve) => {
-      gapi.load(what, () => {
-        resolve();
-      });
+    await loadScript(GAPI_LOADER_URL);
+    await new Promise<void>((resolve) => {
+      gapi.load(what, () => resolve());
     });
   }
 

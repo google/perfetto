@@ -20,9 +20,11 @@
 // We declare only the minimal surface this plugin actually uses.
 
 declare global {
-  // Merges with the gapi.client.drive namespace from
-  // @types/gapi.client.drive-v3, which does not include the Share API.
-  namespace gapi.client.drive {
+  // The Drive Share API is exposed under gapi.drive.share, NOT
+  // gapi.client.drive.share (which is where the generated
+  // @types/gapi.client.drive-v3 types live). Declare the minimal surface
+  // this plugin uses.
+  namespace gapi.drive {
     namespace share {
       class ShareClient {
         setOAuthToken(token: string): void;
