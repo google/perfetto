@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/util/span.h"
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -28,12 +29,22 @@ namespace {
 
 TEST(SpanTest, CreatesFromVector) {
   std::vector<uint32_t> values{1, 2, 3};
-  Span<const uint32_t> span = MakeSpan(values);
+  Span<const uint32_t> span = values;
   EXPECT_THAT(span, testing::ElementsAre(1u, 2u, 3u));
   EXPECT_THAT(span.subspan(1, 2), testing::ElementsAre(2u, 3u));
 
-  Span<uint32_t> mutable_span = MakeMutableSpan(values);
+  Span<uint32_t> mutable_span = values;
   mutable_span.b[1] = 4;
+  EXPECT_EQ(values[1], 4u);
+}
+
+TEST(SpanTest, CreatesFromArray) {
+  std::array<uint32_t, 3> values{1, 2, 3};
+  Span<const uint32_t> values_span = values;
+  EXPECT_THAT(values_span, testing::ElementsAre(1u, 2u, 3u));
+
+  Span<uint32_t> mutable_values = values;
+  mutable_values[1] = 4;
   EXPECT_EQ(values[1], 4u);
 }
 
