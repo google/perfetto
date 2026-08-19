@@ -2467,6 +2467,8 @@ perfetto_filegroup(
         "src/trace_processor/core/dataframe/arrow_internal.h",
         "src/trace_processor/core/dataframe/arrow_serializer.cc",
         "src/trace_processor/core/dataframe/arrow_serializer.h",
+        "src/trace_processor/core/dataframe/bytecode_lowering.cc",
+        "src/trace_processor/core/dataframe/bytecode_lowering.h",
         "src/trace_processor/core/dataframe/cursor.h",
         "src/trace_processor/core/dataframe/cursor_impl.h",
         "src/trace_processor/core/dataframe/dataframe.cc",
