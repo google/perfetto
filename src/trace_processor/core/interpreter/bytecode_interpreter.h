@@ -38,14 +38,9 @@ namespace perfetto::trace_processor::core::interpreter {
 // designed for high-performance data filtering and manipulation, with
 // specialized handling for different data types and comparison operations.
 //
-// This class is templated on a subclass of ValueFetcher, which is used to
-// fetch filter values for each filter spec.
-template <typename FilterValueFetcherImpl>
+// Filter values come from a ValueFetcher the caller supplies per execution.
 class Interpreter {
  public:
-  static_assert(std::is_base_of_v<ValueFetcher, FilterValueFetcherImpl>,
-                "FilterValueFetcherImpl must be a subclass of ValueFetcher");
-
   Interpreter() = default;
 
   void Initialize(const BytecodeVector& bytecode,
@@ -61,8 +56,7 @@ class Interpreter {
 
   // Executes the bytecode sequence, processing each bytecode instruction in
   // turn, and dispatching to the appropriate function in this class.
-  PERFETTO_ALWAYS_INLINE void Execute(
-      FilterValueFetcherImpl& filter_value_fetcher);
+  void Execute(ValueFetcher& filter_value_fetcher);
 
   // Returns the value of the specified register if it contains the expected
   // type. Returns nullptr if the register holds a different type or is empty.

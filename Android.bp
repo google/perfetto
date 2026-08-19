@@ -17566,6 +17566,9 @@ filegroup {
 // GN: //src/trace_processor/core/common:common
 filegroup {
     name: "perfetto_src_trace_processor_core_common_common",
+    srcs: [
+        "src/trace_processor/core/common/value_fetcher.cc",
+    ],
 }
 
 // GN: //src/trace_processor/core/dataframe:dataframe
@@ -17576,6 +17579,7 @@ filegroup {
         "src/trace_processor/core/dataframe/arrow_deserializer.cc",
         "src/trace_processor/core/dataframe/arrow_serializer.cc",
         "src/trace_processor/core/dataframe/bytecode_lowering.cc",
+        "src/trace_processor/core/dataframe/cursor.cc",
         "src/trace_processor/core/dataframe/dataframe.cc",
         "src/trace_processor/core/dataframe/logical_plan.cc",
         "src/trace_processor/core/dataframe/query_plan.cc",

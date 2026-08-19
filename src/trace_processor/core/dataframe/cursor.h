@@ -50,12 +50,8 @@ struct CellCallback {
 
 // Cursor provides a mechanism to iterate through dataframe query results
 // and access column values.
-template <typename FilterValueFetcherImpl>
 class Cursor {
  public:
-  static_assert(std::is_base_of_v<ValueFetcher, FilterValueFetcherImpl>,
-                "FilterValueFetcherImpl must be a subclass of ValueFetcher");
-
   Cursor() = default;
 
   // Initializes the cursor from a query plan and dataframe columns.
@@ -91,7 +87,7 @@ class Cursor {
   // Parameters:
   //   fvf: A subclass of `ValueFetcher` that defines the logic for fetching
   //        filter values for each filter spec.
-  PERFETTO_ALWAYS_INLINE void Execute(FilterValueFetcherImpl&);
+  void Execute(ValueFetcher&);
 
   // Returns the index of the row in the table this cursor is pointing to.
   PERFETTO_ALWAYS_INLINE uint32_t RowIndex() const { return *pos_; }
@@ -152,7 +148,7 @@ class Cursor {
 
  private:
   // Bytecode interpreter that executes the query.
-  interpreter::Interpreter<FilterValueFetcherImpl> interpreter_;
+  interpreter::Interpreter interpreter_;
   // Parameters for query execution.
   QueryPlanImpl::ExecutionParams params_;
   // Maps column indices to their output offsets in the result set.

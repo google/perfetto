@@ -138,10 +138,11 @@ class RuntimeDataframeBuilder {
   // 3) Performs strict type checking against the inferred type for subsequent
   //    rows. If a type mismatch occurs, sets an error status (retrievable via
   //    status()) and returns false.
+  // `fetcher` stays duck-typed. There is one instantiation of this, so making
+  // it an interface removes no code -- measured at 144 bytes larger and no
+  // faster -- while putting a virtual call on every cell of every row built.
   template <typename ValueFetcherImpl>
   bool AddRow(ValueFetcherImpl* fetcher) {
-    static_assert(std::is_base_of_v<ValueFetcher, ValueFetcherImpl>,
-                  "ValueFetcherImpl must inherit from ValueFetcher");
     PERFETTO_CHECK(status().ok());
 
     for (uint32_t i = 0; i < coulumn_count_; ++i) {

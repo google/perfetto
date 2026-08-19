@@ -68,7 +68,7 @@ void BM_BytecodeInterpreter_LinearFilterEqUint32(benchmark::State& state) {
   )";
 
   StringPool spool;
-  Interpreter<Fetcher> interpreter;
+  Interpreter interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   // Set up storage pointer in register
@@ -117,7 +117,7 @@ void BM_BytecodeInterpreter_LinearFilterEqString(benchmark::State& state) {
     LinearFilterEq<String>: [storage_register=Register(4), filter_value_reg=Register(0), source_register=Register(1), update_register=Register(2)]
   )";
 
-  Interpreter<Fetcher> interpreter;
+  Interpreter interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   // Set up storage pointer in register
@@ -164,7 +164,7 @@ void BM_BytecodeInterpreter_InUint32(benchmark::State& state) {
   )";
 
   StringPool spool;
-  Interpreter<Fetcher> interpreter;
+  Interpreter interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   StoragePtr storage_ptr{col.storage.unchecked_data<Uint32>(), Uint32{}};
@@ -207,7 +207,7 @@ void BM_BytecodeInterpreter_InId(benchmark::State& state) {
   )";
 
   StringPool spool;
-  Interpreter<Fetcher> interpreter;
+  Interpreter interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   StoragePtr storage_ptr{nullptr, Id{}};
@@ -314,7 +314,7 @@ void BM_FilterIn_IndexedBinarySearch(benchmark::State& state) {
   )";
 
   StringPool spool;
-  Interpreter<Fetcher> interpreter;
+  Interpreter interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   StoragePtr storage_ptr{setup.col.storage.unchecked_data<Uint32>(), Uint32{}};
@@ -363,7 +363,7 @@ void BM_FilterIn_IndexedLinearScan(benchmark::State& state) {
   )";
 
   StringPool spool;
-  Interpreter<Fetcher> interpreter;
+  Interpreter interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   StoragePtr storage_ptr{setup.col.storage.unchecked_data<Uint32>(), Uint32{}};
@@ -413,7 +413,7 @@ static void BM_BytecodeInterpreter_SortUint32(benchmark::State& state) {
   )";
 
   StringPool spool;
-  Interpreter<Fetcher> interpreter;
+  Interpreter interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   // Set up storage pointer in register
@@ -467,7 +467,7 @@ static void BM_BytecodeInterpreter_SortString(benchmark::State& state) {
     SortRowLayout: [buffer_register=Register(4), total_row_stride=4, indices_register=Register(2)]
   )";
 
-  Interpreter<Fetcher> interpreter;
+  Interpreter interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 6, &spool);
 
   // Set up storage pointer in register

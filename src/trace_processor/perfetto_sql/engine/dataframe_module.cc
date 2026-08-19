@@ -31,7 +31,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -41,6 +40,8 @@
 #include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto::trace_processor {
+
+DataframeModule::SqliteValueFetcher::~SqliteValueFetcher() = default;
 
 namespace {
 
@@ -476,7 +477,8 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
   // SQLite's API claims it will never pass more than 16 arguments
   // so assert that here as our std::array is fixed size.
   PERFETTO_DCHECK(argc <= 16);
-  SqliteValueFetcher fetcher{{}, {}, argv};
+  SqliteValueFetcher fetcher;
+  fetcher.argv = argv;
   memcpy(static_cast<void*>(fetcher.sqlite_value.data()),
          static_cast<void*>(argv),
          sizeof(sqlite3_value*) * static_cast<size_t>(argc));

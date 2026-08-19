@@ -177,9 +177,7 @@ class Dataframe {
   //   plan: The query plan to execute.
   //   c:    A reference to a std::optional that will be set to the prepared
   //         cursor.
-  template <typename FilterValueFetcherImpl>
-  void PrepareCursor(const QueryPlan& plan,
-                     Cursor<FilterValueFetcherImpl>& c) const {
+  void PrepareCursor(const QueryPlan& plan, Cursor& c) const {
     c.Initialize(plan.plan_, static_cast<uint32_t>(column_ptrs_.size()),
                  column_ptrs_.data(), indexes_.data(), string_pool_);
   }

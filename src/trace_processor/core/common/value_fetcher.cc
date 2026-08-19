@@ -1,0 +1,47 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/trace_processor/core/common/value_fetcher.h"
+
+#include <cstdint>
+
+#include "perfetto/base/logging.h"
+
+namespace perfetto::trace_processor::core {
+
+ValueFetcher::~ValueFetcher() = default;
+ErrorValueFetcher::~ErrorValueFetcher() = default;
+
+ValueFetcher::Type ErrorValueFetcher::GetValueType(uint32_t) {
+  PERFETTO_FATAL("Query has no filter values");
+}
+int64_t ErrorValueFetcher::GetInt64Value(uint32_t) {
+  PERFETTO_FATAL("Query has no filter values");
+}
+double ErrorValueFetcher::GetDoubleValue(uint32_t) {
+  PERFETTO_FATAL("Query has no filter values");
+}
+const char* ErrorValueFetcher::GetStringValue(uint32_t) {
+  PERFETTO_FATAL("Query has no filter values");
+}
+bool ErrorValueFetcher::IteratorInit(uint32_t) {
+  PERFETTO_FATAL("Query has no filter values");
+}
+bool ErrorValueFetcher::IteratorNext(uint32_t) {
+  PERFETTO_FATAL("Query has no filter values");
+}
+
+}  // namespace perfetto::trace_processor::core

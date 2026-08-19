@@ -19,70 +19,53 @@
 
 #include <cstdint>
 
-#include "perfetto/base/logging.h"
-
 namespace perfetto::trace_processor::core {
 
-// Fetcher for values from an aribtrary indexed source. The meaning of the index
-// in each of the *Value methods varies depending on where this class is used.
+// Fetches values from an arbitrary indexed source. The meaning of the index in
+// each of the *Value methods varies depending on where this class is used.
 //
-// Note: all the methods in this class are declared but not defined as this
-// class is simply an interface which needs to be subclassed and all
-// methods/variables implemented. The methods are intentionally not defined to
-// cause link errors if not implemented.
-struct ValueFetcher {
-  using Type = int;
-  static const Type kInt64;
-  static const Type kDouble;
-  static const Type kString;
-  static const Type kNull;
+// Called a handful of times per query execution, once per filter value, so the
+// dispatch costs nothing next to running the query.
+class ValueFetcher {
+ public:
+  // The values are SQLite's own type tags, so a SQLite-backed fetcher returns
+  // its source type without translating it. The static_asserts that hold them
+  // together live with that fetcher, where the SQLite headers are in scope.
+  enum class Type : uint8_t {
+    kInt64 = 1,
+    kDouble = 2,
+    kString = 3,
+    kBytes = 4,
+    kNull = 5,
+  };
 
-  // Functions for operating on scalar values. The caller should know that
-  // the value at the give index is a scalar and not an iterator.
+  virtual ~ValueFetcher();
 
-  // Fetches an int64_t value at the given index.
-  int64_t GetInt64Value(uint32_t);
-  // Fetches a double value at the given index.
-  double GetDoubleValue(uint32_t);
-  // Fetches a string value at the given index.
-  const char* GetStringValue(uint32_t);
-  // Fetches the type of the value at the given index.
-  Type GetValueType(uint32_t);
+  // Scalars. The caller knows the value at the index is one.
+  virtual Type GetValueType(uint32_t) = 0;
+  virtual int64_t GetInt64Value(uint32_t) = 0;
+  virtual double GetDoubleValue(uint32_t) = 0;
+  virtual const char* GetStringValue(uint32_t) = 0;
 
-  // Functions for operating on iterators. The caller should know that
-  // the value at the given index is an iterator and not a scalar.
-
-  // Initializes the iterator at the given index. Returns true if the
-  // iterator has elements, false otherwise.
-  bool IteratorInit(uint32_t);
-  // Forwards the iterator to the next value and returns true if the iterator
-  // has more elements, false otherwise.
-  bool IteratorNext(uint32_t);
+  // Iterators, for a value that is a list. The caller knows the value at the
+  // index is one. Init returns whether there is a first element, Next whether
+  // there is another.
+  virtual bool IteratorInit(uint32_t) = 0;
+  virtual bool IteratorNext(uint32_t) = 0;
 };
 
-// ErrorValueFetcher is a dummy implementation of ValueFetcher that returns
-// an error value for all methods. This is used in cases where a
-// ValueFetcher is required but no actual data is available (e.g. where you are
-// iterating over a dataframe without filtering).
-struct ErrorValueFetcher : public ValueFetcher {
-  static const Type kInt64 = 0;
-  static const Type kDouble = 1;
-  static const Type kString = 2;
-  static const Type kNull = 3;
-  static int64_t GetInt64Value(uint32_t) {
-    PERFETTO_FATAL("Dummy implementation; should not be called");
-  }
-  static double GetDoubleValue(uint32_t) {
-    PERFETTO_FATAL("Dummy implementation; should not be called");
-  }
-  static const char* GetStringValue(uint32_t) {
-    PERFETTO_FATAL("Dummy implementation; should not be called");
-  }
-  static Type GetValueType(uint32_t) {
-    PERFETTO_FATAL("Dummy implementation; should not be called");
-  }
-  static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
-  static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
+// Stands in where a fetcher is required but no filter values exist, as when
+// iterating a dataframe with no filters at all.
+class ErrorValueFetcher final : public ValueFetcher {
+ public:
+  ~ErrorValueFetcher() override;
+
+  Type GetValueType(uint32_t) override;
+  int64_t GetInt64Value(uint32_t) override;
+  double GetDoubleValue(uint32_t) override;
+  const char* GetStringValue(uint32_t) override;
+  bool IteratorInit(uint32_t) override;
+  bool IteratorNext(uint32_t) override;
 };
 
 }  // namespace perfetto::trace_processor::core

@@ -23,15 +23,18 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
 
 namespace perfetto::trace_processor::core::dataframe {
+
+TypedCursor::Fetcher::~Fetcher() = default;
 
 void TypedCursor::ExecuteUnchecked() {
   if (PERFETTO_UNLIKELY(last_execution_mutation_count_ != GetMutations())) {
     PrepareCursorInternal();
   }
-  Fetcher fetcher{{}, filter_values_.data(), filter_value_list_states_.data()};
+  Fetcher fetcher;
+  fetcher.filter_values_ = filter_values_.data();
+  fetcher.filter_value_list_states_ = filter_value_list_states_.data();
   cursor_.Execute(fetcher);
 }
 

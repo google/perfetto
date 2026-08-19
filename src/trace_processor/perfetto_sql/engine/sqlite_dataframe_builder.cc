@@ -28,7 +28,10 @@
 namespace perfetto::trace_processor {
 namespace {
 
-struct SqliteValueFetcher : public dataframe::ValueFetcher {
+// Duck-typed for RuntimeDataframeBuilder rather than implementing the query
+// path's ValueFetcher: this is called for every cell of every row built, where
+// a virtual call would be felt.
+struct SqliteValueFetcher {
   SqliteValueFetcher(sqlite3_stmt* sql_stmt, bool null_blobs)
       : stmt(sql_stmt), blobs_as_null(null_blobs) {}
 
