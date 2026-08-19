@@ -25,6 +25,7 @@ source_set("exec") {
     "pipeline.h",
     "row_batch.cc",
     "row_batch.h",
+    "row_batch_pool.h",
     "row_cursor.cc",
     "row_cursor.h",
     "row_selection.h",
@@ -40,7 +41,10 @@ source_set("exec") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "operator_unittest.cc" ]
+  sources = [
+    "operator_unittest.cc",
+    "row_batch_pool_unittest.cc",
+  ]
   deps = [
     ":exec",
     "../../../../gn:default_deps",
