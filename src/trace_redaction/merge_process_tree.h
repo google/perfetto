@@ -27,47 +27,39 @@
 
 namespace perfetto::trace_redaction {
 
-class ProcessTreeProcess {
- public:
-  std::vector<std::string> cmdline;
-  bool is_kthread;
-  int32_t pid;
-  int32_t ppid;
-  int32_t uid;
-};
+using ProcessTreeProcess = Context::ProcessTreeProcess;
+using ProcessTreeThread = Context::ProcessTreeThread;
 
-class ProcessTreeThread {
+// Collects unique thread/process information from the trace and saves it
+// into Context::merged_process_tree.
+class CollectProcessTrees : public CollectPrimitive {
  public:
-  int32_t tid;
-  int32_t tgid;
-  std::string name;
-};
-
-// Collects and merges thread/process information from the trace and outputs a
-// single trace packet containing all the unique thread/process data.
-//
-// This is useful because threads/process data is typically duplicated across
-// multiple packets in a trace after Transform phase of redaction. This
-// primitive consolidates that data into a single packet to eliminate
-// redundancy.
-class MergeProcessTree : public AugmentReducePrimitive {
- public:
-  ~MergeProcessTree() override = default;
+  ~CollectProcessTrees() override = default;
 
   base::Status Collect(const protos::pbzero::TracePacket::Decoder& packet,
-                       const Context* context) override;
+                       Context* context) const override;
+};
+
+// Removes process tree packets from the trace (since they will be replaced
+// by the merged process tree in the augment phase).
+class ReduceProcessTrees : public TransformPrimitive {
+ public:
+  ~ReduceProcessTrees() override = default;
+
+  base::Status Transform(const Context& context,
+                         std::string* packet) const override;
+};
+
+// Outputs a single trace packet containing all unique thread/process data
+// collected in Context::merged_process_tree.
+class AugmentProcessTrees : public AugmentPrimitive {
+ public:
+  ~AugmentProcessTrees() override = default;
 
   std::string Augment(const Context& context) override;
 
-  base::Status Reduce(const Context* context,
-                      std::string* packet) const override;
-
  private:
-  std::unordered_map<int32_t, ProcessTreeProcess> processes_by_pid_;
-  std::unordered_map<int32_t, ProcessTreeThread> threads_by_tid_;
-  uint64_t timestamp_ = 0;
-  int32_t trusted_uid_ = 0;
-  bool collected_global_packet_fields_ = false;
+  bool emitted_ = false;
 };
 
 }  // namespace perfetto::trace_redaction

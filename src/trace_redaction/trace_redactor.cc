@@ -74,46 +74,50 @@ base::StatusOr<trace_processor::TraceBlob> LoadTrace(const std::string& path) {
   return trace_processor::TraceBlob::CopyFrom(contents.data(), contents.size());
 }
 
-}  // namespace
-
-TraceRedactor::TraceRedactor() = default;
-
-TraceRedactor::~TraceRedactor() = default;
-
-base::Status TraceRedactor::Redact(std::string_view source_filename,
-                                   std::string_view dest_filename,
-                                   Context* context) const {
-  const std::string source_filename_str(source_filename);
-  const std::string dest_filename_str(dest_filename);
-  ASSIGN_OR_RETURN(trace_processor::TraceBlob blob,
-                   LoadTrace(source_filename_str));
-  trace_processor::TraceBlobView whole_view(std::move(blob));
-
-  RETURN_IF_ERROR(Collect(context, whole_view));
-
-  if (!context->timeline || context->timeline->empty()) {
+base::Status WriteTraceToFile(const std::string& path,
+                              const std::string& buffer) {
+  const auto dest_fd = base::OpenFile(path, O_RDWR | O_CREAT | O_TRUNC, 0666);
+  if (dest_fd.get() == -1) {
     return base::ErrStatus(
-        "TraceRedactor: No process timeline found. Are sched_free or process "
-        "stats data sources missing");
+        "Failed to open destination file; can't write redacted trace.");
   }
-
-  for (const auto& builder : builders_) {
-    RETURN_IF_ERROR(builder->Build(context));
+  if (const auto exported_data =
+          base::WriteAll(dest_fd.get(), buffer.data(), buffer.size());
+      exported_data <= 0 && !buffer.empty()) {
+    return base::ErrStatus(
+        "TraceRedactor: failed to write redacted trace to disk");
   }
-
-  if (augment_reducers_.empty()) {
-    return Transform(*context, whole_view, dest_filename_str);
-  }
-
-  std::string temp_dest_file = dest_filename_str + ".tmp";
-  RETURN_IF_ERROR(Transform(*context, whole_view, temp_dest_file));
-  base::Status status =
-      AugmentReduce(context, temp_dest_file, dest_filename_str);
-  std::remove(temp_dest_file.c_str());
-  return status;
+  return base::OkStatus();
 }
 
-base::Status TraceRedactor::Collect(
+}  // namespace
+
+TraceRedactorPass::TraceRedactorPass() = default;
+
+TraceRedactorPass::~TraceRedactorPass() = default;
+
+base::Status TraceRedactorPass::Redact(
+    const trace_processor::TraceBlobView& view,
+    Context* context,
+    std::string* output_buffer) const {
+  RETURN_IF_ERROR(Collect(context, view));
+
+  if (!builders_.empty()) {
+    if (!context->timeline || context->timeline->empty()) {
+      return base::ErrStatus(
+          "TraceRedactor: No process timeline found. Are sched_free or process "
+          "stats data sources missing");
+    }
+  }
+
+  RETURN_IF_ERROR(Build(context));
+  RETURN_IF_ERROR(Transform(*context, view, output_buffer));
+  RETURN_IF_ERROR(Augment(*context, output_buffer));
+
+  return base::OkStatus();
+}
+
+base::Status TraceRedactorPass::Collect(
     Context* context,
     const trace_processor::TraceBlobView& view) const {
   for (const auto& collector : collectors_) {
@@ -137,18 +141,17 @@ base::Status TraceRedactor::Collect(
   return base::OkStatus();
 }
 
-base::Status TraceRedactor::Transform(
+base::Status TraceRedactorPass::Build(Context* context) const {
+  for (const auto& builder : builders_) {
+    RETURN_IF_ERROR(builder->Build(context));
+  }
+  return base::OkStatus();
+}
+
+base::Status TraceRedactorPass::Transform(
     const Context& context,
     const trace_processor::TraceBlobView& view,
-    const std::string& dest_file) const {
-  std::ignore = context;
-  const auto dest_fd = base::OpenFile(dest_file, O_RDWR | O_CREAT, 0666);
-
-  if (dest_fd.get() == -1) {
-    return base::ErrStatus(
-        "Failed to open destination file; can't write redacted trace.");
-  }
-
+    std::string* output_buffer) const {
   const Trace::Decoder trace_decoder(view.data(), view.length());
   for (auto packet_it = trace_decoder.packet(); packet_it; ++packet_it) {
     auto packet = packet_it->as_std_string();
@@ -165,149 +168,124 @@ base::Status TraceRedactor::Transform(
     }
 
     // The packet has been removed from the trace. Don't write an empty packet
-    // to disk.
+    // to output.
     if (packet.empty()) {
       continue;
     }
 
     protozero::HeapBuffered<protos::pbzero::Trace> serializer;
     serializer->add_packet()->AppendRawProtoBytes(packet.data(), packet.size());
-    packet.assign(serializer.SerializeAsString());
-
-    if (const auto exported_data =
-            base::WriteAll(dest_fd.get(), packet.data(), packet.size());
-        exported_data <= 0) {
-      return base::ErrStatus(
-          "TraceRedactor: failed to write redacted trace to disk");
-    }
+    std::string serialized = serializer.SerializeAsString();
+    output_buffer->append(serialized);
   }
 
   return base::OkStatus();
 }
 
-base::Status TraceRedactor::AugmentReduce(const Context* context,
-                                          const std::string& source_file,
-                                          const std::string& dest_file) const {
-  ASSIGN_OR_RETURN(trace_processor::TraceBlob blob, LoadTrace(source_file));
-  trace_processor::TraceBlobView view(std::move(blob));
-
-  // 1. Collect phase: run Collect on each packet for all augment_reducers_
-  const Trace::Decoder collect_decoder(view.data(), view.length());
-  for (auto packet_it = collect_decoder.packet(); packet_it; ++packet_it) {
-    const TracePacket::Decoder packet(packet_it->as_bytes());
-    for (const auto& augment_reducer : augment_reducers_) {
-      RETURN_IF_ERROR(augment_reducer->Collect(packet, context));
-    }
-  }
-
-  const auto dest_fd =
-      base::OpenFile(dest_file, O_RDWR | O_CREAT | O_TRUNC, 0666);
-  if (dest_fd.get() == -1) {
-    return base::ErrStatus(
-        "Failed to open destination file; can't write redacted trace in "
-        "AugmentReduce.");
-  }
-
-  // 2. Augment phase: continue augmenting as long as a non-empty string is
-  // returned. Append each returned trace packet to the trace file.
-  for (const auto& augment_reducer : augment_reducers_) {
-    for (std::string packet = augment_reducer->Augment(*context);
-         !packet.empty(); packet = augment_reducer->Augment(*context)) {
+base::Status TraceRedactorPass::Augment(const Context& context,
+                                        std::string* output_buffer) const {
+  for (const auto& augmenter : augmenters_) {
+    for (std::string packet = augmenter->Augment(context); !packet.empty();
+         packet = augmenter->Augment(context)) {
       protozero::HeapBuffered<protos::pbzero::Trace> serializer;
       serializer->add_packet()->AppendRawProtoBytes(packet.data(),
                                                     packet.size());
-      packet.assign(serializer.SerializeAsString());
-      if (const auto exported_data =
-              base::WriteAll(dest_fd.get(), packet.data(), packet.size());
-          exported_data <= 0) {
-        return base::ErrStatus(
-            "TraceRedactor: failed to write redacted trace to disk in "
-            "AugmentReduce");
-      }
+      std::string serialized = serializer.SerializeAsString();
+      output_buffer->append(serialized);
     }
   }
-
-  // 3. Reduce phase: loop per packet, call Reduce, and serialize packets to
-  // output file.
-  const Trace::Decoder reduce_decoder(view.data(), view.length());
-  for (auto packet_it = reduce_decoder.packet(); packet_it; ++packet_it) {
-    auto packet = packet_it->as_std_string();
-
-    for (const auto& augment_reducer : augment_reducers_) {
-      if (packet.empty()) {
-        break;
-      }
-      RETURN_IF_ERROR(augment_reducer->Reduce(context, &packet));
-    }
-
-    if (packet.empty()) {
-      continue;
-    }
-
-    protozero::HeapBuffered<protos::pbzero::Trace> serializer;
-    serializer->add_packet()->AppendRawProtoBytes(packet.data(), packet.size());
-    packet.assign(serializer.SerializeAsString());
-
-    if (const auto exported_data =
-            base::WriteAll(dest_fd.get(), packet.data(), packet.size());
-        exported_data <= 0) {
-      return base::ErrStatus(
-          "TraceRedactor: failed to write redacted trace to disk in "
-          "AugmentReduce");
-    }
-  }
-
   return base::OkStatus();
+}
+
+TraceRedactor::TraceRedactor() = default;
+
+TraceRedactor::~TraceRedactor() = default;
+
+TraceRedactorPass* TraceRedactor::add_pass() {
+  auto pass = std::make_unique<TraceRedactorPass>();
+  auto* ptr = pass.get();
+  passes_.push_back(std::move(pass));
+  return ptr;
+}
+
+base::Status TraceRedactor::Redact(std::string_view source_filename,
+                                   std::string_view dest_filename,
+                                   Context* context) const {
+  const std::string source_filename_str(source_filename);
+  const std::string dest_filename_str(dest_filename);
+  ASSIGN_OR_RETURN(trace_processor::TraceBlob blob,
+                   LoadTrace(source_filename_str));
+  trace_processor::TraceBlobView current_view(std::move(blob));
+
+  std::string current_buffer;
+  for (size_t i = 0; i < passes_.size(); ++i) {
+    std::string next_buffer;
+    RETURN_IF_ERROR(passes_[i]->Redact(current_view, context, &next_buffer));
+    current_buffer = std::move(next_buffer);
+
+    // Only wrap the output in a TraceBlobView if there is a subsequent pass
+    // that needs to read it. The final pass writes directly from current_buffer.
+    if (i + 1 < passes_.size()) {
+      auto pass_blob = trace_processor::TraceBlob::CopyFrom(
+          current_buffer.data(), current_buffer.size());
+      current_view = trace_processor::TraceBlobView(std::move(pass_blob));
+    }
+  }
+
+  return WriteTraceToFile(dest_filename_str, current_buffer);
 }
 
 std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
     const Config& config) {
   auto redactor = std::make_unique<TraceRedactor>();
 
+  // Pass 1:
+  auto* pass1 = redactor->add_pass();
+
   // VerifyIntegrity breaks the CollectPrimitive pattern. Instead of writing to
   // the context, its job is to read trace packets and return errors if any
   // packet does not look "correct". This primitive is added first in an effort
   // to detect and react to bad input before other collectors run.
   if (config.verify) {
-    redactor->emplace_collect<VerifyIntegrity>();
+    pass1->emplace_collect<VerifyIntegrity>();
   }
 
   // Add all collectors.
-  redactor->emplace_collect<FindPackageUid>();
-  redactor->emplace_collect<CollectTimelineEvents>();
-  redactor->emplace_collect<CollectFrameCookies>();
-  redactor->emplace_collect<CollectSystemInfo>();
-  redactor->emplace_collect<CollectClocks>();
+  pass1->emplace_collect<FindPackageUid>();
+  pass1->emplace_collect<CollectTimelineEvents>();
+  pass1->emplace_collect<CollectFrameCookies>();
+  pass1->emplace_collect<CollectSystemInfo>();
+  pass1->emplace_collect<CollectClocks>();
 
   // Add all builders.
-  redactor->emplace_build<ReduceFrameCookies>();
-  redactor->emplace_build<BuildSyntheticThreads>();
+  pass1->emplace_build<ReduceFrameCookies>();
+  pass1->emplace_build<BuildSyntheticThreads>();
 
   {
     // In order for BroadphasePacketFilter to work, something needs to populate
     // the masks (i.e. PopulateAllowlists).
-    redactor->emplace_build<PopulateAllowlists>();
-    redactor->emplace_transform<BroadphasePacketFilter>();
+    pass1->emplace_build<PopulateAllowlists>();
+    pass1->emplace_transform<BroadphasePacketFilter>();
   }
 
   {
-    auto* primitive = redactor->emplace_transform<RedactFtraceEvents>();
+    auto* primitive = pass1->emplace_transform<RedactFtraceEvents>();
     primitive->emplace_ftrace_filter<FilterRss>();
     primitive->emplace_post_filter_modifier<DoNothing>();
   }
 
   {
-    auto* primitive = redactor->emplace_transform<RedactFtraceEvents>();
+    auto* primitive = pass1->emplace_transform<RedactFtraceEvents>();
     primitive->emplace_ftrace_filter<FilterFtraceUsingSuspendResume>();
     primitive->emplace_post_filter_modifier<DoNothing>();
   }
 
   {
     // Remove all frame timeline events that don't belong to the target package.
-    redactor->emplace_transform<FilterFrameEvents>();
+    pass1->emplace_transform<FilterFrameEvents>();
   }
 
-  redactor->emplace_transform<PrunePackageList>();
+  pass1->emplace_transform<PrunePackageList>();
 
   {
     // This primitive has a dependencies on other primitives.
@@ -322,7 +300,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
     //
     // Third: We emplace the PrunePerfEvents which actually
     // removes the perf samples that don't belong to the target package.
-    auto* primitive = redactor->emplace_transform<PrunePerfEvents>();
+    auto* primitive = pass1->emplace_transform<PrunePerfEvents>();
     primitive->emplace_filter<ConnectedToPackage>();
   }
 
@@ -344,14 +322,14 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   // Use the ConnectedToPackage primitive to ensure only the target package has
   // stats in the trace.
   {
-    auto* primitive = redactor->emplace_transform<ScrubProcessStats>();
+    auto* primitive = pass1->emplace_transform<ScrubProcessStats>();
     primitive->emplace_filter<ConnectedToPackage>();
   }
 
   // Redacts all switch and waking events. This should use the same modifier and
   // filter as the process events (see below).
   {
-    auto* primitive = redactor->emplace_transform<RedactSchedEvents>();
+    auto* primitive = pass1->emplace_transform<RedactSchedEvents>();
     primitive->emplace_modifier<ClearComms>();
     primitive->emplace_waking_filter<ConnectedToPackage>();
   }
@@ -359,7 +337,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   // Redacts all new task, rename task, process free events. This should use the
   // same modifier and filter as the schedule events (see above).
   {
-    auto* primitive = redactor->emplace_transform<RedactProcessEvents>();
+    auto* primitive = pass1->emplace_transform<RedactProcessEvents>();
     primitive->emplace_modifier<ClearComms>();
     primitive->emplace_filter<ConnectedToPackage>();
   }
@@ -367,7 +345,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   // Merge Threads (part 1): Remove all waking events that connected to the
   // target package. Change the pids not connected to the target package.
   {
-    auto* primitive = redactor->emplace_transform<RedactSchedEvents>();
+    auto* primitive = pass1->emplace_transform<RedactSchedEvents>();
     primitive->emplace_modifier<MergeThreadsPids>();
     primitive->emplace_waking_filter<ConnectedToPackage>();
   }
@@ -375,7 +353,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   // Merge Threads (part 2): Drop all process events not belonging to the
   // target package. No modification is needed.
   {
-    auto* primitive = redactor->emplace_transform<RedactProcessEvents>();
+    auto* primitive = pass1->emplace_transform<RedactProcessEvents>();
     primitive->emplace_modifier<DoNothing>();
     primitive->emplace_filter<ConnectedToPackage>();
   }
@@ -383,7 +361,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   // Merge Threads (part 3): Replace ftrace event's pid (not the task's pid)
   // for all pids not connected to the target package.
   {
-    auto* primitive = redactor->emplace_transform<RedactFtraceEvents>();
+    auto* primitive = pass1->emplace_transform<RedactFtraceEvents>();
     primitive->emplace_post_filter_modifier<MergeThreadsPids>();
     primitive->emplace_ftrace_filter<AllowAll>();
   }
@@ -396,20 +374,25 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   // If primitives are not in this order, newly added processes/threads may
   // get removed.
   {
-    redactor->emplace_transform<ReduceThreadsInProcessTrees>();
-    redactor->emplace_transform<AddSythThreadsToProcessTrees>();
+    pass1->emplace_transform<ReduceThreadsInProcessTrees>();
+    pass1->emplace_transform<AddSythThreadsToProcessTrees>();
   }
 
   // Optimizations:
   //
-  // This block of transforms should be registered last. They clean-up after the
-  // other transforms. The most common function will be to remove empty
-  // messages.
+  // This block of transforms should be registered last in Pass 1. They
+  // clean-up after the other transforms. The most common function will be to
+  // remove empty messages.
   {
-    redactor->emplace_transform<DropEmptyFtraceEvents>();
+    pass1->emplace_transform<DropEmptyFtraceEvents>();
   }
 
-  redactor->emplace_augment_reduce<MergeProcessTree>();
+  // Pass 2: Merge process trees into a single deduplicated process tree packet
+  // appended at the end of the trace.
+  TraceRedactorPass* pass2 = redactor->add_pass();
+  pass2->emplace_collect<CollectProcessTrees>();
+  pass2->emplace_transform<ReduceProcessTrees>();
+  pass2->emplace_augment<AugmentProcessTrees>();
 
   return redactor;
 }
